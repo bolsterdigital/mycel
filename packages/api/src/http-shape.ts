@@ -1,7 +1,10 @@
 // How a use case maps onto HTTP methods (brief registry-http-mcp, decision 3). Every use case is
 // `POST /v1/<name>`; a query whose input is a flat object of scalars is also `GET` with query
-// parameters, so it can be cached and revalidated. Shared by the router and the OpenAPI
-// generator so the document can never list a GET the router does not serve.
+// parameters, so it can be cached and revalidated. A query keyed by an e-mail address stays POST
+// only: a GET would put the address in access logs, proxies and browser history (TODO #17 says
+// logs never hold one), and the stable supporter id of ADR 019 is the lookup meant for GET.
+// Rejected: a per-use-case opt-out, which a builder can forget. Shared by the router and the
+// OpenAPI generator so the document can never list a GET the router does not serve.
 
 import { z } from 'zod';
 import type { UseCase } from '@mycel/core';
@@ -16,6 +19,11 @@ function scalarType(schema: z.ZodTypeAny): ScalarType | null {
   return null;
 }
 
+/** True for a string validated with `.email()`: personal data that must not travel in a URL. */
+export function isEmailField(schema: z.ZodTypeAny): boolean {
+  return schema instanceof z.ZodString && schema._def.checks.some((c) => c.kind === 'email');
+}
+
 /** The fields of a flat query's input, or null when the use case is POST-only. */
 export function flatQueryFields(useCase: UseCase): FlatFields | null {
   if (useCase.kind !== 'query') return null;
@@ -25,8 +33,9 @@ export function flatQueryFields(useCase: UseCase): FlatFields | null {
   const fields: FlatFields = {};
   for (const [name, field] of Object.entries(input.shape as z.ZodRawShape)) {
     const optional = field instanceof z.ZodOptional;
-    const type = scalarType(optional ? field.unwrap() : field);
-    if (!type) return null;
+    const inner: z.ZodTypeAny = optional ? field.unwrap() : field;
+    const type = scalarType(inner);
+    if (!type || isEmailField(inner)) return null;
     fields[name] = { type, required: !optional };
   }
   return fields;

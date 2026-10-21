@@ -13,7 +13,7 @@ import {
 } from '@mycel/core';
 import { MemoryUnitOfWork } from '@mycel/core/testing';
 import { createApp } from './app.js';
-import { flatQueryFields } from './http-shape.js';
+import { flatQueryFields, methodsOf } from './http-shape.js';
 import { openApiDocument } from './openapi.js';
 
 const TENANT = '01900000-0000-7000-8000-00000000aaaa';
@@ -90,6 +90,13 @@ describe.each(useCases.map((u) => [u.name, u] as const))('HTTP conformance: %s',
     });
     if (flatQueryFields(useCase)) expect(res.status).not.toBe(405);
     else await expectProblem(res, 405, 'method_not_allowed');
+  });
+
+  it('never serves GET for a query keyed by an e-mail address', () => {
+    const properties = toJsonSchema(useCase.input, 'input').properties as
+      Record<string, { format?: string }> | undefined;
+    const keyedByEmail = Object.values(properties ?? {}).some((p) => p.format === 'email');
+    if (keyedByEmail) expect(methodsOf(useCase)).toEqual(['POST']);
   });
 });
 
