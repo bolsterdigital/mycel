@@ -32,6 +32,12 @@ Short map; the reasoning is in [`../adr/`](../adr/).
 
 **One registry, many fronts.** Every use case registers with a name, an input schema, an output schema and a required capability. `packages/api` turns the registry into HTTP routes plus an OpenAPI document; `packages/mcp` turns it into MCP tools and resources; `apps/web` calls it in `+page.server.ts` actions. Adding a use case touches `core` once.
 
+**Adding a use case** takes three steps, and the rest follows:
+
+1. Write the function and its Zod `input` and `output` in `packages/core/src/<module>/service.ts` with `defineUseCase`: a dotted name, a one-sentence `description`, the `requires` capability, an `effect` if it publishes, sends, exports or refunds (ADR 018 rule 5), and at least one entry in `examples`.
+2. Add it to `useCases` in `packages/core/src/use-cases.ts`.
+3. Run `npm run verify`. `POST /v1/<name>` (plus `GET` for a flat query), the OpenAPI operation, the MCP tool (and resource, if it declares one) and the registry conformance suites in core, api and mcp now cover it; `checkRegistry` in `registry-rules.ts` says what is missing.
+
 **Tenant context** is set by the front from authentication and passed into `core` as a `Principal` (tenant, actor, capabilities). `packages/db` turns it into `set_config('app.tenant_id', ...)` per transaction; RLS does the rest (ADR 002).
 
 **Events.** Modules communicate through `EventBus` (a port). The first implementation is an in-process bus backed by a Postgres outbox table so that a crash never loses an event; a worker drains it. The supporter module is the main subscriber (ADR 003).

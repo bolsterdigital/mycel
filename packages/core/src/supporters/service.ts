@@ -70,6 +70,7 @@ export const getSupporter = defineUseCase({
   input: z.object({ email: z.string().trim().toLowerCase().email() }),
   output: SupporterProjection,
   resource: { uriTemplate: 'mycel://supporters/{email}' },
+  examples: [{ input: { email: 'a@example.org' } }],
   async handler(ctx, { email }) {
     const projection = await ctx.supporters.getProjection(email);
     if (!projection) throw new UseCaseError('not_found', 'no supporter with that e-mail address');

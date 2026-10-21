@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { Invoker, anonymousPrincipal, buildRegistry, systemPrincipal } from '@mycel/core';
+import { Invoker, buildRegistry, systemPrincipal } from '@mycel/core';
 import { MemoryUnitOfWork, probeForm, probePage } from '@mycel/core/testing';
 import { createMcpServer } from './index.js';
 
@@ -20,28 +20,9 @@ async function connect(principal = systemPrincipal(TENANT, 'agent')) {
 
 const text = (r: unknown) => JSON.parse((r as { content: { text: string }[] }).content[0]!.text);
 
+// Generic MCP behaviour (tool list, schemas, authorization, error shape) is in
+// registry.conformance.test.ts; this file keeps the signup flow end to end.
 describe('MCP front', () => {
-  it('exposes every use case as a tool and queries as resources', async () => {
-    const client = await connect();
-    const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual([
-      'content.page.create',
-      'content.page.get',
-      'forms.form.get',
-      'forms.submit',
-      'supporters.get',
-    ]);
-    expect(
-      tools.find((t) => t.name === 'content.page.create')?.inputSchema.properties
-    ).toHaveProperty('blocks');
-    const { resourceTemplates } = await client.listResourceTemplates();
-    expect(resourceTemplates.map((r) => r.uriTemplate).sort()).toEqual([
-      'mycel://forms/{id}',
-      'mycel://pages/{slug}',
-      'mycel://supporters/{email}',
-    ]);
-  });
-
   it('runs the same use cases: create a page, read it as a resource, submit the form', async () => {
     const client = await connect();
     const created = await client.callTool({
@@ -62,15 +43,6 @@ describe('MCP front', () => {
       },
     });
     expect(text(submitted)).toMatchObject({ status: 'accepted' });
-  });
-
-  it('applies the same authorization as HTTP', async () => {
-    const client = await connect(anonymousPrincipal(TENANT, ['forms:write']));
-    const result = await client.callTool({
-      name: 'supporters.get',
-      arguments: { email: 'a@example.org' },
-    });
-    expect(result.isError).toBe(true);
-    expect(text(result)).toMatchObject({ code: 'forbidden' });
+    expect(submitted.structuredContent).toMatchObject({ status: 'accepted' });
   });
 });

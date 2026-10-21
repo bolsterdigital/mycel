@@ -7,6 +7,7 @@ import { z } from 'zod';
 export const Capability = z.enum([
   'content:read',
   'content:write',
+  'content:publish',
   'forms:read',
   'forms:write',
   'supporters:read',
@@ -16,6 +17,7 @@ export const Capability = z.enum([
   'donations:write',
   'mailing:read',
   'mailing:send',
+  'money:refund',
   'tenant:admin',
 ]);
 export type Capability = z.infer<typeof Capability>;

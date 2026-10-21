@@ -15,6 +15,7 @@ export const getPage = defineUseCase({
   input: z.object({ slug: PageSlug }),
   output: Page,
   resource: { uriTemplate: 'mycel://pages/{slug}' },
+  examples: [{ input: { slug: 'signup' } }],
   async handler(ctx, { slug }) {
     const page = await ctx.pages.findBySlug(slug);
     if (!page) throw new UseCaseError('not_found', `no page with slug "${slug}"`);
@@ -30,6 +31,18 @@ export const createPage = defineUseCase({
   requires: 'content:write',
   input: PageInput,
   output: Page,
+  examples: [
+    {
+      input: {
+        slug: 'about',
+        defaultLocale: 'nl',
+        locales: ['nl', 'en'],
+        title: { nl: 'Over ons', en: 'About us' },
+        blocks: [{ type: 'heading', version: 1, props: { text: { nl: 'Wie we zijn' } } }],
+      },
+      note: 'No signup-form block: a form reference must exist, and the example has no tenant data.',
+    },
+  ],
   async handler(ctx, input) {
     if (await ctx.pages.findBySlug(input.slug))
       throw new UseCaseError('conflict', `a page with slug "${input.slug}" already exists`);
