@@ -21,6 +21,7 @@ import {
   createDb,
   createTenantDirectory,
   createUnitOfWork,
+  startJanitor,
   startOutboxWorker,
   uuidv7,
   uuidv7Ids,
@@ -40,6 +41,8 @@ const Config = z
     PUBLIC_BASE_URL: z.string().url(),
     MAIL_FROM: z.string().min(3),
     MAILER: z.enum(['console', 'tem']).default('console'),
+    /** Console mailer only: also write each message as JSON here (the e2e flow reads it). */
+    MAIL_SPOOL_DIR: z.string().optional(),
     TEM_SECRET_KEY: z.string().optional(),
     TEM_PROJECT_ID: z.string().optional(),
     TEM_REGION: z.string().default('fr-par'),
@@ -48,6 +51,9 @@ const Config = z
   })
   .refine((c) => !(c.NODE_ENV === 'production' && c.MAILER === 'console'), {
     message: 'MAILER=console is not allowed in production',
+  })
+  .refine((c) => !(c.NODE_ENV === 'production' && c.MAIL_SPOOL_DIR), {
+    message: 'MAIL_SPOOL_DIR is not allowed in production',
   });
 export type RuntimeConfig = z.infer<typeof Config>;
 
@@ -82,7 +88,7 @@ export interface Runtime {
   authenticateApiKey(authorization: string | undefined): Promise<Principal | null>;
   /** Principal for an MCP session (stdio: whoever can start the process holds the env). */
   agentPrincipal(): Promise<Principal>;
-  /** Start draining the outbox in this process. Needs DATABASE_URL. */
+  /** Start draining the outbox and the janitor sweep in this process. Needs DATABASE_URL. */
   startWorker(): () => Promise<void>;
   close(): Promise<void>;
 }
@@ -102,7 +108,7 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
           projectId: config.TEM_PROJECT_ID ?? '',
           region: config.TEM_REGION,
         })
-      : new ConsoleMailer();
+      : new ConsoleMailer(undefined, config.MAIL_SPOOL_DIR);
   const subscribers = [
     supporterIngestSubscriber(uow),
     confirmationMailSubscriber({
@@ -110,6 +116,7 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
       signer,
       clock,
       tenants,
+      uow,
       from: parseAddress(config.MAIL_FROM),
       publicBaseUrl: config.PUBLIC_BASE_URL,
     }),
@@ -154,7 +161,11 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
     },
     startWorker() {
       if (!operatorDb) throw new Error('the outbox worker needs DATABASE_URL (operator role)');
-      const stop = startOutboxWorker(operatorDb, subscribers);
+      const stopOutbox = startOutboxWorker(operatorDb, subscribers);
+      const stopJanitor = startJanitor(operatorDb);
+      const stop = async () => {
+        await Promise.all([stopOutbox(), stopJanitor()]);
+      };
       stops.push(stop);
       return stop;
     },

@@ -1,5 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 
 const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
@@ -33,8 +35,42 @@ test('signup page renders from blocks without JavaScript and passes axe', async 
   await expectNoAxeViolations(page);
 });
 
-test('a too-fast post shows an accessible error, a later one reaches the thank-you page', async ({
+/** The console mailer spools each message as JSON (scripts/e2e.mjs sets MAIL_SPOOL_DIR). */
+async function waitForMail(to: string): Promise<{ text: string }> {
+  const dir = process.env['MAIL_SPOOL_DIR'];
+  if (!dir) throw new Error('MAIL_SPOOL_DIR is not set; run through scripts/e2e.mjs');
+  await expect
+    .poll(
+      () =>
+        readdirSync(dir).some(
+          (f) => JSON.parse(readFileSync(join(dir, f), 'utf8')).to.email === to
+        ),
+      { timeout: 15_000, message: `confirmation mail to ${to}` }
+    )
+    .toBe(true);
+  const file = readdirSync(dir).find(
+    (f) => JSON.parse(readFileSync(join(dir, f), 'utf8')).to.email === to
+  )!;
+  return JSON.parse(readFileSync(join(dir, file), 'utf8'));
+}
+
+/** `supporters.get` over the HTTP API (scripts/e2e.mjs starts it with a key for tenant probe). */
+async function supporter(
+  request: APIRequestContext,
+  email: string
+): Promise<{ lists: string[]; pendingLists: string[] } | null> {
+  const res = await request.post(`${process.env['E2E_API_URL']}/v1/supporters.get`, {
+    headers: { authorization: `Bearer ${process.env['MYCEL_API_KEY']}` },
+    data: { email },
+  });
+  if (res.status() === 404) return null;
+  expect(res.ok()).toBe(true);
+  return res.json();
+}
+
+test('signup with double opt-in: too-fast post, thank-you page, confirmation link, confirmed list', async ({
   page,
+  request,
 }) => {
   const email = `e2e-${Date.now()}@example.org`;
   await page.goto('/probe/signup');
@@ -55,6 +91,33 @@ test('a too-fast post shows an accessible error, a later one reaches the thank-y
   await expect(page).toHaveURL(/\/probe\/signup\/thanks$/);
   await expect(page.getByText('Bedankt! Check je mailbox')).toBeVisible();
   await expectNoAxeViolations(page);
+
+  // The worker ingests the signup (pending, ADR 010 rule 5) and sends the confirmation mail.
+  const mail = await waitForMail(email);
+  await expect
+    .poll(() => supporter(request, email), { timeout: 15_000 })
+    .toMatchObject({
+      lists: [],
+      pendingLists: ['newsletter'],
+    });
+  const link = new URL(/https?:\/\/\S+\/probe\/confirm\?token=\S+/.exec(mail.text)![0]);
+
+  // Following the link confirms; a second visit says so without doing it again.
+  await page.goto(`${link.pathname}${link.search}`);
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Inschrijving bevestigd' })
+  ).toBeVisible();
+  await expectNoAxeViolations(page);
+  await page.goto(`${link.pathname}${link.search}`);
+  await expect(page.getByRole('heading', { level: 1, name: 'Al bevestigd' })).toBeVisible();
+  await expectNoAxeViolations(page);
+
+  await expect
+    .poll(() => supporter(request, email), { timeout: 15_000 })
+    .toMatchObject({
+      lists: ['newsletter'],
+      pendingLists: [],
+    });
 });
 
 test.describe('in English', () => {

@@ -12,11 +12,10 @@ export const SupporterProjection = z.object({
   email: z.string().email(),
   firstSeen: z.string().datetime({ offset: true }),
   lastActivity: z.string().datetime({ offset: true }),
-  /**
-   * Lists this person signed up for. In the probe a signup counts before double opt-in is
-   * confirmed; the confirmed/pending split arrives with `consent.given` (follow-up).
-   */
+  /** Lists with confirmed consent (ADR 010 rule 5): the only lists a sender may use. */
   lists: z.array(z.string()),
+  /** Lists signed up for but not yet confirmed through the double opt-in link. */
+  pendingLists: z.array(z.string()),
   /** Position of the last folded event in fold order. */
   appliedThrough: z.object({ at: z.string().datetime({ offset: true }), id: z.string() }),
 });
@@ -43,6 +42,38 @@ export const foldPosition = (event: SupporterEvent): FoldPosition => ({
   id: event.id,
 });
 
+/**
+ * List membership transitions. A list is in `lists` or `pendingLists`, never both: a signup for a
+ * list that is already confirmed stays confirmed. `confirmed` absent on `newsletter.subscribed`
+ * reads as confirmed, because the inherited Dreamkit contract published that event after its own
+ * double opt-in; only this platform's forms emit `confirmed: false`.
+ */
+function applyLists(lists: Set<string>, pending: Set<string>, event: SupporterEvent): void {
+  const list = event.props['list'];
+  if (typeof list !== 'string') return;
+  switch (event.type) {
+    case 'newsletter.subscribed':
+      if (event.props['confirmed'] === false) {
+        if (!lists.has(list)) pending.add(list);
+      } else {
+        lists.add(list);
+        pending.delete(list);
+      }
+      return;
+    case 'consent.given':
+      lists.add(list);
+      pending.delete(list);
+      return;
+    case 'newsletter.unsubscribed':
+    case 'consent.withdrawn':
+      lists.delete(list);
+      pending.delete(list);
+      return;
+    default:
+      return;
+  }
+}
+
 /** Fold the next event in fold order into `current`. The event must carry its `supporter_id`. */
 export function applyEvent(
   current: SupporterProjection | null,
@@ -58,12 +89,12 @@ export function applyEvent(
     firstSeen: at,
     lastActivity: at,
     lists: [],
+    pendingLists: [],
     appliedThrough: position,
   };
   const lists = new Set(base.lists);
-  const list = event.props['list'];
-  if (event.type === 'newsletter.subscribed' && typeof list === 'string') lists.add(list);
-  if (event.type === 'newsletter.unsubscribed' && typeof list === 'string') lists.delete(list);
+  const pending = new Set(base.pendingLists);
+  applyLists(lists, pending, event);
   const newEmail = event.props['new_email'];
   return {
     id,
@@ -74,6 +105,7 @@ export function applyEvent(
     firstSeen: at < base.firstSeen ? at : base.firstSeen,
     lastActivity: at > base.lastActivity ? at : base.lastActivity,
     lists: [...lists].sort(),
+    pendingLists: [...pending].sort(),
     appliedThrough: position,
   };
 }

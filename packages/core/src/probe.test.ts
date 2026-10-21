@@ -132,6 +132,7 @@ describe('vertical probe in memory', () => {
         signer: uow.signer,
         clock,
         tenants,
+        uow,
         from: { email: 'noreply@example.org', name: 'Probe' },
         publicBaseUrl: 'https://example.org/',
       }),
@@ -139,8 +140,9 @@ describe('vertical probe in memory', () => {
     const event = uow.store.outbox[0]!;
     await uow.drain(subscribers);
 
+    // Before the link is followed the list is pending, not a membership (ADR 010 rule 5).
     const supporter = await invoker.run(useCases.getSupporter, admin, { email: 'ada@example.org' });
-    expect(supporter.lists).toEqual(['newsletter']);
+    expect(supporter).toMatchObject({ lists: [], pendingLists: ['newsletter'] });
     expect(supporter.firstSeen).toBe(clock.now().toISOString());
 
     expect(mailer.sent).toHaveLength(1);
@@ -155,9 +157,29 @@ describe('vertical probe in memory', () => {
     );
     expect(payload).toMatchObject({ tenantId: TENANT, list: 'newsletter' });
 
-    // Redelivery (at-least-once) does not duplicate the log.
+    // Redelivery (at-least-once) does not duplicate the log, nor the mail (intent row).
     await subscribers[0]!.handle(event);
+    await subscribers[1]!.handle(event);
     expect(uow.store.for(TENANT).events.size).toBe(1);
+    expect(mailer.sent).toHaveLength(1);
+
+    // Following the link records consent once; the list moves from pending to confirmed.
+    clock.advance(60_000);
+    const click = () =>
+      invoker.run(useCases.confirmSubscription, visitor('ip-2'), {
+        token: url.searchParams.get('token')!,
+      });
+    expect(await click()).toEqual({ status: 'confirmed' });
+    expect(uow.store.outbox.map((e) => e.type)).toEqual(['consent.given']);
+    await uow.drain(subscribers);
+    expect(
+      await invoker.run(useCases.getSupporter, admin, { email: 'ada@example.org' })
+    ).toMatchObject({ lists: ['newsletter'], pendingLists: [] });
+    expect(uow.store.for(TENANT).events.size).toBe(2);
+
+    expect(await click()).toEqual({ status: 'already_confirmed' });
+    expect(uow.store.outbox).toHaveLength(0);
+    expect(mailer.sent).toHaveLength(1);
   });
 
   it('returns field errors as i18n keys', async () => {
@@ -245,7 +267,8 @@ describe('supporter projection', () => {
     const backward = rebuildProjection([...events].reverse());
     expect(forward).toEqual(backward);
     expect(forward).toMatchObject({
-      lists: ['a', 'b'],
+      lists: [],
+      pendingLists: ['a', 'b'],
       firstSeen: '2026-10-21T12:01:00.000Z',
       lastActivity: '2026-10-21T12:05:00.000Z',
     });

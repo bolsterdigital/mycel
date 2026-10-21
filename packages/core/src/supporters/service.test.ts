@@ -69,6 +69,55 @@ describe('supporter fold', () => {
     }
   );
 
+  // Double opt-in (ADR 010 rule 5): a list is pending until `consent.given`, confirmed after it,
+  // and gone after an unsubscribe, in every arrival order.
+  const doi = [
+    event('d1', 'newsletter.subscribed', 1, { list: 'news', confirmed: false }),
+    event('d2', 'consent.given', 2, { list: 'news' }),
+    event('d3', 'newsletter.subscribed', 3, { list: 'extra', confirmed: false }),
+    event('d4', 'newsletter.unsubscribed', 4, { list: 'news' }),
+  ];
+
+  it.each(permutations(doi).map((order) => [order.map((e) => e.id).join(' '), order]))(
+    'keeps confirmed and pending lists apart in order %s',
+    async (_label, order) => {
+      const uow = new MemoryUnitOfWork();
+      for (const e of order) await uow.run(admin, (ctx) => ingest(ctx, e));
+      const stored = await uow.run(admin, (ctx) => ctx.supporters.getProjection('x@example.org'));
+      expect(stored).toEqual(
+        rebuildProjection(await uow.run(admin, (ctx) => ctx.supporters.eventsFor(stored!.id)))
+      );
+      expect(stored).toMatchObject({ lists: [], pendingLists: ['extra'] });
+    }
+  );
+
+  it('moves a list from pending to confirmed on consent.given and never lists it twice', () => {
+    const steps = [doi[0]!, doi[1]!, doi[0]!].map((e, i) => ({
+      ...e,
+      id: `s${i}`,
+      supporter_id: '01900000-0000-7000-8000-0000000000aa',
+    }));
+    expect(rebuildProjection(steps.slice(0, 1))).toMatchObject({
+      lists: [],
+      pendingLists: ['news'],
+    });
+    expect(rebuildProjection(steps.slice(0, 2))).toMatchObject({
+      lists: ['news'],
+      pendingLists: [],
+    });
+    // A later unconfirmed signup for a confirmed list does not demote it.
+    const again = { ...steps[0]!, id: 's9', occurred_at: '2026-10-21T12:09:00.000Z' };
+    expect(rebuildProjection([...steps.slice(0, 2), again])).toMatchObject({
+      lists: ['news'],
+      pendingLists: [],
+    });
+    // Without `confirmed` (the inherited contract) a signup counts as confirmed.
+    expect(rebuildProjection([{ ...again, props: { list: 'old' } }])).toMatchObject({
+      lists: ['old'],
+      pendingLists: [],
+    });
+  });
+
   it('leaves a supporter unsubscribed when an older subscribe arrives late (ADR 019 rule 2)', async () => {
     const uow = new MemoryUnitOfWork();
     await uow.run(admin, (ctx) => ingest(ctx, events[1]!));

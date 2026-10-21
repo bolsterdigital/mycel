@@ -48,6 +48,7 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
       signer,
       clock,
       tenants,
+      uow,
       from: { email: 'noreply@example.org' },
       publicBaseUrl: 'http://localhost:5173',
     }),
@@ -104,11 +105,10 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
     const supporter = await invoker.run(useCases.getSupporter, systemPrincipal(tenantA, 'test'), {
       email,
     });
-    expect(supporter.lists).toEqual(['newsletter']);
-    expect(mailer.sent.filter((m) => m.to.email === email)).toHaveLength(1);
-    expect(mailer.sent.find((m) => m.to.email === email)?.subject).toBe(
-      'Confirm your subscription to A'
-    );
+    expect(supporter).toMatchObject({ lists: [], pendingLists: ['newsletter'] });
+    const mail = mailer.sent.filter((m) => m.to.email === email);
+    expect(mail).toHaveLength(1);
+    expect(mail[0]?.subject).toBe('Confirm your subscription to A');
 
     // The stored projection equals a rebuild from the log (ADR 003 rule 3).
     const events = await uow.run(systemPrincipal(tenantA, 'test'), (ctx) =>
@@ -122,6 +122,34 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
       ctx.supporters.appendEvent({ ...events[0]!, supporter_id: supporter.id })
     );
     expect(again).toBe(false);
+
+    // Following the link as a visitor confirms once; the list moves to `lists`.
+    const token = new URL(
+      /http:\/\/\S+\/confirm\?token=\S+/.exec(mail[0]!.text)![0]
+    ).searchParams.get('token')!;
+    const click = () =>
+      invoker.run(useCases.confirmSubscription, anonymousPrincipal(tenantA, ['forms:write']), {
+        token,
+      });
+    expect(await click()).toEqual({ status: 'confirmed' });
+    expect(await click()).toEqual({ status: 'already_confirmed' });
+    for (let i = 0; i < 20; i++) {
+      await drainOutbox(operatorDb, subscribers);
+      const now = await invoker.run(useCases.getSupporter, systemPrincipal(tenantA, 'test'), {
+        email,
+      });
+      if (now.lists.length) break;
+    }
+    const confirmed = await invoker.run(useCases.getSupporter, systemPrincipal(tenantA, 'test'), {
+      email,
+    });
+    expect(confirmed).toMatchObject({ id: supporter.id, lists: ['newsletter'], pendingLists: [] });
+    const log = await uow.run(systemPrincipal(tenantA, 'test'), (ctx) =>
+      ctx.supporters.eventsFor(supporter.id)
+    );
+    expect(log.map((e) => e.type)).toEqual(['newsletter.subscribed', 'consent.given']);
+    expect(rebuildProjection(log)).toEqual(confirmed);
+    expect(mailer.sent.filter((m) => m.to.email === email)).toHaveLength(1);
   });
 
   it('isolates tenants through RLS, not through where-clauses', async () => {

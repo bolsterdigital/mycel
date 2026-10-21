@@ -20,6 +20,7 @@ import type {
 import { outboxEventBus } from './outbox.js';
 import {
   formRepository,
+  mailSendsRepository,
   pageRepository,
   rateLimiter,
   submissionRepository,
@@ -30,6 +31,7 @@ import type { Database } from './schema.js';
 export type { Database } from './schema.js';
 export { uuidv7, uuidv7Ids } from './ids.js';
 export { drainOutbox, startOutboxWorker, type DrainResult } from './outbox.js';
+export { startJanitor, sweepRateLimits } from './janitor.js';
 export { FIRST_EVENT_MONTH, ensureEventPartitions, migrate } from './migrate.js';
 
 export function createDb(connectionString: string): Kysely<Database> {
@@ -74,6 +76,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           submissions: submissionRepository(trx, tenantId),
           rateLimits: rateLimiter(trx, tenantId, deps.clock),
           supporters: supporterRepository(trx, tenantId, deps.ids),
+          mailSends: mailSendsRepository(trx, tenantId),
         });
       });
     },

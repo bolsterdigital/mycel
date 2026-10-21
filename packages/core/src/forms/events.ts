@@ -12,3 +12,15 @@ export interface NewsletterSubscribedProps {
   /** False until the double opt-in link is followed. */
   confirmed: boolean;
 }
+
+/** Published by `mailing.confirm` for the first click on a confirmation link, never for a second. */
+export interface ConsentGivenProps {
+  email: string;
+  list: string;
+  formId: string;
+  submissionId: string;
+  locale: string;
+  consentTextVersion: string;
+  /** ISO instant; equals the event's `occurredAt`. */
+  confirmedAt: string;
+}

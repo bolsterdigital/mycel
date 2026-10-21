@@ -12,12 +12,21 @@ import pg from 'pg';
 import {
   Invoker,
   buildRegistry,
+  confirmationMailSubscriber,
   supporterIngestSubscriber,
   systemPrincipal,
   useCases,
 } from '@mycel/core';
-import { FakeSigner, probeForm, probePage } from '@mycel/core/testing';
-import { createDb, createUnitOfWork, migrate, upsertTenant, uuidv7, uuidv7Ids } from './index.js';
+import { FakeSigner, MemoryMailer, probeForm, probePage } from '@mycel/core/testing';
+import {
+  createDb,
+  createTenantDirectory,
+  createUnitOfWork,
+  migrate,
+  upsertTenant,
+  uuidv7,
+  uuidv7Ids,
+} from './index.js';
 
 const operatorUrl = process.env['DATABASE_URL'];
 const appUrl = process.env['APP_DATABASE_URL'];
@@ -25,8 +34,9 @@ if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
   throw new Error('E2E_REQUIRED=1 but DATABASE_URL or APP_DATABASE_URL is not set');
 
 const APP_ROLE = 'mycel_app';
-// ADR 011 rule 1: cross-tenant (`using (true)`) policies exist only on platform queues and logs.
-const CROSS_TENANT_TABLES = ['outbox'];
+// ADR 011 rule 1: cross-tenant (`using (true)`) policies exist only on platform queues, logs and
+// counters: the outbox (worker drain, 0003) and the rate-limit windows (janitor sweep, 0006).
+const CROSS_TENANT_TABLES = ['outbox', 'rate_limits'];
 const ISOLATION = '(tenant_id = current_tenant_id())';
 
 interface TenantTable {
@@ -81,9 +91,9 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
 
     // Put at least one row for this tenant into every tenant table mycel_app can read, through
     // the real use-case path: a signup writes pages, forms, submissions, rate limits and the
-    // outbox. The supporter ingest is called directly instead of draining the outbox: the outbox
-    // is shared with db.test.ts, and a drain here would claim that suite's events with only one
-    // of its subscribers.
+    // outbox; the confirmation mail writes its intent row. The subscribers are called directly
+    // instead of draining the outbox: the outbox is shared with db.test.ts, and a drain here
+    // would claim that suite's events with only some of its subscribers.
     tenantId = (
       await upsertTenant(operatorDb, {
         id: uuidv7(),
@@ -93,11 +103,9 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
         locales: ['nl'],
       })
     ).id;
-    const uow = createUnitOfWork(appDb, {
-      clock: { now: () => new Date() },
-      ids: uuidv7Ids,
-      signer: new FakeSigner(),
-    });
+    const clock = { now: () => new Date() };
+    const signer = new FakeSigner();
+    const uow = createUnitOfWork(appDb, { clock, ids: uuidv7Ids, signer });
     const invoker = new Invoker(buildRegistry(), uow);
     const admin = systemPrincipal(tenantId, 'rls-test');
     const formId = uuidv7();
@@ -110,12 +118,12 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
       locale: 'nl',
     });
     if (submitted.status !== 'accepted') throw new Error(`fixture signup ${submitted.status}`);
-    await supporterIngestSubscriber(uow).handle({
+    const event = {
       id: uuidv7(),
       type: 'newsletter.subscribed',
       tenantId,
       occurredAt: new Date(),
-      actor: { kind: 'system', job: 'rls-test' },
+      actor: { kind: 'system' as const, job: 'rls-test' },
       props: {
         email,
         list: 'newsletter',
@@ -126,7 +134,17 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
         consentTextVersion: 'v1',
         confirmed: false,
       },
-    });
+    };
+    await supporterIngestSubscriber(uow).handle(event);
+    await confirmationMailSubscriber({
+      mailer: new MemoryMailer(),
+      signer,
+      clock,
+      tenants: createTenantDirectory(appDb),
+      uow,
+      from: { email: 'noreply@example.org' },
+      publicBaseUrl: 'http://localhost:5173',
+    }).handle(event);
   });
 
   afterAll(async () => {
@@ -140,6 +158,7 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
         'events',
         'form_submissions',
         'forms',
+        'mail_sends',
         'outbox',
         'pages',
         'rate_limits',

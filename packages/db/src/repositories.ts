@@ -10,6 +10,8 @@ import {
   type Clock,
   type FormRepository,
   type Ids,
+  type MailSend,
+  type MailSendsRepository,
   type PageRepository,
   type RateLimiter,
   type SubmissionRepository,
@@ -92,7 +94,87 @@ export function submissionRepository(trx: Trx, tenantId: string): SubmissionRepo
           page_url: s.pageUrl,
           ip_hash: s.ipHash,
           created_at: s.createdAt,
+          confirmed_at: s.confirmedAt,
         })
+        .execute();
+    },
+    async findById(id) {
+      const row = await trx
+        .selectFrom('form_submissions')
+        .selectAll()
+        .where('id', '=', id)
+        .executeTakeFirst();
+      if (!row) return null;
+      return {
+        id: row.id,
+        formId: row.form_id,
+        values: row.values,
+        locale: row.locale,
+        pageUrl: row.page_url,
+        ipHash: row.ip_hash,
+        createdAt: new Date(row.created_at),
+        confirmedAt: row.confirmed_at ? new Date(row.confirmed_at) : null,
+      };
+    },
+    async confirm(id, at) {
+      // One conditional update: the first click sets it, every later click matches no row.
+      const row = await trx
+        .updateTable('form_submissions')
+        .set({ confirmed_at: at })
+        .where('id', '=', id)
+        .where('confirmed_at', 'is', null)
+        .returning('id')
+        .executeTakeFirst();
+      return row !== undefined;
+    },
+  };
+}
+
+/** Intent rows for transactional mail (ADR 019 rule 6); see `sendOnce` in the core for the protocol. */
+export function mailSendsRepository(trx: Trx, tenantId: string): MailSendsRepository {
+  const toMailSend = (row: Selectable<Database['mail_sends']>): MailSend => ({
+    key: row.key,
+    subscriber: row.subscriber,
+    eventId: row.event_id,
+    attemptedAt: row.attempted_at ? new Date(row.attempted_at) : null,
+    sentAt: row.sent_at ? new Date(row.sent_at) : null,
+    providerId: row.provider_id,
+    lastError: row.last_error,
+  });
+  return {
+    async get(key) {
+      const row = await trx
+        .selectFrom('mail_sends')
+        .selectAll()
+        .where('key', '=', key)
+        .executeTakeFirst();
+      return row ? toMailSend(row) : null;
+    },
+    async attempt(intent, at) {
+      await trx
+        .insertInto('mail_sends')
+        .values({
+          tenant_id: tenantId,
+          key: intent.key,
+          subscriber: intent.subscriber,
+          event_id: intent.eventId,
+          attempted_at: at,
+        })
+        .onConflict((oc) => oc.columns(['tenant_id', 'key']).doUpdateSet({ attempted_at: at }))
+        .execute();
+    },
+    async sent(key, at, providerId) {
+      await trx
+        .updateTable('mail_sends')
+        .set({ sent_at: at, provider_id: providerId })
+        .where('key', '=', key)
+        .execute();
+    },
+    async failed(key, error) {
+      await trx
+        .updateTable('mail_sends')
+        .set({ last_error: error.slice(0, 1000) })
+        .where('key', '=', key)
         .execute();
     },
   };
@@ -130,6 +212,7 @@ export function supporterRepository(trx: Trx, tenantId: string, ids: Ids): Suppo
     firstSeen: new Date(row.first_seen).toISOString(),
     lastActivity: new Date(row.last_activity).toISOString(),
     lists: row.lists,
+    pendingLists: row.pending_lists,
     appliedThrough: {
       at: new Date(row.applied_through_at).toISOString(),
       id: row.applied_through_id,
@@ -205,6 +288,7 @@ export function supporterRepository(trx: Trx, tenantId: string, ids: Ids): Suppo
         first_seen: p.firstSeen,
         last_activity: p.lastActivity,
         lists: p.lists,
+        pending_lists: p.pendingLists,
         applied_through_at: p.appliedThrough.at,
         applied_through_id: p.appliedThrough.id,
         updated_at: new Date(),

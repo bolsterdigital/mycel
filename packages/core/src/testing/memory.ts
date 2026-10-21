@@ -6,7 +6,13 @@ import type { FormDefinition, Submission } from '../forms/model.js';
 import type { FormRepository, RateLimiter, SubmissionRepository } from '../forms/ports.js';
 import type { Page } from '../content/model.js';
 import type { PageRepository } from '../content/ports.js';
-import type { MailMessage, Mailer } from '../mailing/ports.js';
+import type {
+  MailMessage,
+  MailSend,
+  MailSendsRepository,
+  Mailer,
+  SendVerdict,
+} from '../mailing/ports.js';
 import type {
   Clock,
   DomainEvent,
@@ -54,11 +60,17 @@ export class FakeSigner implements Signer {
   }
 }
 
+/** Records every delivery with its intent key; `wasSent` answers from that record. */
 export class MemoryMailer implements Mailer {
   readonly sent: MailMessage[] = [];
-  async send(message: MailMessage): Promise<{ id: string }> {
+  readonly keys = new Set<string>();
+  async send(message: MailMessage, key: string): Promise<{ providerId: string }> {
     this.sent.push(message);
-    return { id: `mem-${this.sent.length}` };
+    this.keys.add(key);
+    return { providerId: `mem-${this.sent.length}` };
+  }
+  async wasSent(key: string): Promise<SendVerdict> {
+    return this.keys.has(key) ? 'sent' : 'not_sent';
   }
 }
 
@@ -75,11 +87,13 @@ export class MemoryTenants implements TenantDirectory {
 interface TenantStore {
   pages: Map<string, Page>;
   forms: Map<string, FormDefinition>;
-  submissions: Submission[];
+  submissions: Map<string, Submission>;
   counters: Map<string, number>;
   events: Map<string, SupporterEvent>;
   /** Keyed by supporter id. */
   projections: Map<string, SupporterProjection>;
+  /** Keyed by intent key. */
+  mailSends: Map<string, MailSend>;
 }
 
 /** All tenants' data, keyed by tenant id: isolation is by construction, like RLS. */
@@ -93,10 +107,11 @@ export class MemoryStore {
       store = {
         pages: new Map(),
         forms: new Map(),
-        submissions: [],
+        submissions: new Map(),
         counters: new Map(),
         events: new Map(),
         projections: new Map(),
+        mailSends: new Map(),
       };
       this.tenants.set(tenantId, store);
     }
@@ -137,7 +152,35 @@ export class MemoryUnitOfWork implements UnitOfWork {
       insert: async (form) => void s.forms.set(form.id, structuredClone(form)),
     };
     const submissions: SubmissionRepository = {
-      insert: async (sub) => void s.submissions.push(structuredClone(sub)),
+      insert: async (sub) => void s.submissions.set(sub.id, structuredClone(sub)),
+      findById: async (id) => s.submissions.get(id) ?? null,
+      async confirm(id, at) {
+        const sub = s.submissions.get(id);
+        if (!sub || sub.confirmedAt) return false;
+        sub.confirmedAt = new Date(at);
+        return true;
+      },
+    };
+    const mailSends: MailSendsRepository = {
+      get: async (key) => s.mailSends.get(key) ?? null,
+      async attempt(intent, at) {
+        const row = s.mailSends.get(intent.key) ?? {
+          ...intent,
+          attemptedAt: null,
+          sentAt: null,
+          providerId: null,
+          lastError: null,
+        };
+        s.mailSends.set(intent.key, { ...row, attemptedAt: new Date(at) });
+      },
+      async sent(key, at, providerId) {
+        const row = s.mailSends.get(key);
+        if (row) s.mailSends.set(key, { ...row, sentAt: new Date(at), providerId });
+      },
+      async failed(key, error) {
+        const row = s.mailSends.get(key);
+        if (row) s.mailSends.set(key, { ...row, lastError: error });
+      },
     };
     const rateLimits: RateLimiter = {
       async hit(key, { max, windowSeconds }) {
@@ -186,6 +229,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
       submissions,
       rateLimits,
       supporters,
+      mailSends,
     });
   }
 
