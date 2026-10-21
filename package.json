@@ -20,7 +20,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint:deps": "node scripts/check-dependency-rules.mjs",
-    "verify": "npm run format:check && npm run lint:deps && npm run typecheck && npm run test && npm run build"
+    "verify": "npm run format:check && npm run lint:deps && npm run typecheck && npm run test && npm run build && npm run test:e2e",
+    "test:e2e": "node scripts/e2e.mjs",
+    "db:up": "docker compose -f compose.dev.yml up -d"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

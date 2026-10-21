@@ -11,7 +11,7 @@
       "path": "../core"
     },
     {
-      "path": "../db"
+      "path": "../api"
     }
   ]
 }

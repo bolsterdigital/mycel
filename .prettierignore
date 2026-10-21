@@ -5,3 +5,5 @@ build
 docs/plans
 package-lock.json
 LICENSE
+test-results
+playwright-report

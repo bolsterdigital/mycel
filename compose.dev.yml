@@ -1,0 +1,24 @@
+# Development Postgres (ADR 002, ADR 008). Only the database runs in a container; the apps run on
+# the host with `npm run dev`. Rejected: a full compose stack, which hides the composition the
+# probe is meant to make visible. The `mycel` user owns the schema and runs migrations; the app
+# connects as `mycel_app`, whose password `npm run migrate -w @mycel/db` sets from
+# MYCEL_APP_PASSWORD.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: mycel
+      POSTGRES_USER: mycel
+      POSTGRES_PASSWORD: mycel
+    ports:
+      - '5432:5432'
+    volumes:
+      - mycel-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U mycel -d mycel']
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  mycel-pg:

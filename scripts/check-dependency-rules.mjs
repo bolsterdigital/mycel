@@ -8,7 +8,8 @@
 // Rules:
 //   1. packages/core imports no other workspace and none of the I/O libraries listed below.
 //   2. Adapters and fronts may import packages/core; they may not import each other.
-//      (apps/web may import packages/api only for composition helpers; see ALLOWED.)
+//      (apps/web and packages/mcp may import packages/api only for its composition root,
+//      `@mycel/api/compose`, which wires adapters into the core; see ALLOWED.)
 //   3. Every workspace package.json declares license AGPL-3.0-only, and every installed
 //      production dependency has a licence from ALLOWED_LICENSES.
 
@@ -45,9 +46,10 @@ const IO_LIBS = [
 ];
 const ALLOWED = {
   'apps/web': ['packages/core', 'packages/api'],
-  'packages/api': ['packages/core', 'packages/db'],
-  'packages/mcp': ['packages/core', 'packages/db'],
+  'packages/api': ['packages/core', 'packages/db', 'packages/mail-tem'],
+  'packages/mcp': ['packages/core', 'packages/api'],
   'packages/db': ['packages/core'],
+  'packages/mail-tem': ['packages/core'],
   'packages/core': [],
 };
 const ALLOWED_LICENSES = new Set([
@@ -95,6 +97,13 @@ for (const ws of workspaces) {
           if (!allowed.includes(otherWs))
             errors.push(`${rel}: imports ${otherName} (not allowed from ${ws})`);
         }
+      }
+      if (
+        (ws === 'apps/web' || ws === 'packages/mcp') &&
+        spec.startsWith('@mycel/api') &&
+        spec !== '@mycel/api/compose'
+      ) {
+        errors.push(`${rel}: imports ${spec}; only @mycel/api/compose is allowed from ${ws}`);
       }
       if (ws === CORE && IO_LIBS.some((lib) => spec === lib || spec.startsWith(lib))) {
         errors.push(`${rel}: core imports I/O library ${spec} (ADR 001)`);
