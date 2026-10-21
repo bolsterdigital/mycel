@@ -65,7 +65,8 @@ export const listMembers = defineUseCase({
   kind: 'query',
   description: 'List the operators who are members of this site, with their capabilities.',
   requires: 'tenant:admin',
-  input: z.object({}),
+  // Strict: an input without fields still refuses what it does not know.
+  input: z.object({}).strict(),
   output: z.object({ members: z.array(Member) }),
   examples: [{ input: {} }],
   async handler(ctx) {
@@ -148,7 +149,8 @@ export const listKeys = defineUseCase({
   kind: 'query',
   description: 'List the API keys of this site, revoked ones included; never the token itself.',
   requires: 'tenant:admin',
-  input: z.object({}),
+  // Strict: an input without fields still refuses what it does not know.
+  input: z.object({}).strict(),
   output: z.object({ keys: z.array(ApiKeySummary) }),
   examples: [{ input: {} }],
   async handler(ctx) {

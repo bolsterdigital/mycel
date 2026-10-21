@@ -11,6 +11,7 @@ import {
   confirmationMailSubscriber,
   supporterIngestSubscriber,
   type Clock,
+  type IdentityStore,
   type Mailer,
   type Principal,
   type Subscriber,
@@ -19,6 +20,7 @@ import {
 } from '@mycel/core';
 import {
   createDb,
+  createIdentityStore,
   createTenantDirectory,
   createUnitOfWork,
   startJanitor,
@@ -27,16 +29,28 @@ import {
   uuidv7Ids,
 } from '@mycel/db';
 import { ConsoleMailer, TemMailer } from '@mycel/mail-tem';
-import { timingSafeEqual } from 'node:crypto';
+import { createAuthenticator, type Authenticator } from './auth.js';
 import { HmacSigner } from './signer.js';
+
+export { createAuthenticator, type Authenticator, type AuthenticatorDeps } from './auth.js';
+
+const isHttps = (url: string | undefined) => url?.startsWith('https://') ?? false;
 
 const Config = z
   .object({
     NODE_ENV: z.string().default('development'),
-    /** Operator role: migrations, seed, outbox drain. Optional for fronts that run no worker. */
+    /**
+     * Operator role (schema owner): migrations, seed, and the outbox worker when it runs in this
+     * process. Only `startWorker` uses it; the web front never needs it.
+     */
     DATABASE_URL: z.string().url().optional(),
     /** Application role (mycel_app), subject to RLS. Required: fronts never run as the owner. */
     APP_DATABASE_URL: z.string().url(),
+    /**
+     * Authentication login (mycel_authenticator, 0007): it can only enter mycel_auth, which reads
+     * memberships and keys across tenants. Required: every front authenticates.
+     */
+    AUTH_DATABASE_URL: z.string().url(),
     SIGNING_SECRET: z.string().min(16),
     PUBLIC_BASE_URL: z.string().url(),
     MAIL_FROM: z.string().min(3),
@@ -46,14 +60,31 @@ const Config = z
     TEM_SECRET_KEY: z.string().optional(),
     TEM_PROJECT_ID: z.string().optional(),
     TEM_REGION: z.string().default('fr-par'),
+    /** The API key an MCP process acts with; also seed input (`npm run db:seed`). */
     MYCEL_API_KEY: z.string().min(8).optional(),
-    MYCEL_API_KEY_TENANT: z.string().optional(),
+    /** Operator login (apps/web). Without an issuer the admin answers 503 and the sites work. */
+    OIDC_ISSUER: z.string().url().optional(),
+    OIDC_CLIENT_ID: z.string().min(1).optional(),
+    /** Set for a confidential client (client_secret_post); unset means a public client. */
+    OIDC_CLIENT_SECRET: z.string().min(1).optional(),
+    OIDC_SCOPES: z.string().default('openid profile email'),
   })
   .refine((c) => !(c.NODE_ENV === 'production' && c.MAILER === 'console'), {
     message: 'MAILER=console is not allowed in production',
   })
   .refine((c) => !(c.NODE_ENV === 'production' && c.MAIL_SPOOL_DIR), {
     message: 'MAIL_SPOOL_DIR is not allowed in production',
+  })
+  .refine((c) => !c.OIDC_ISSUER || c.OIDC_CLIENT_ID, {
+    message: 'OIDC_ISSUER needs OIDC_CLIENT_ID',
+  })
+  // Production login runs over TLS end to end: a real IdP (never the http mock) and a Secure
+  // session cookie, which browsers only keep for an https origin.
+  .refine((c) => !(c.NODE_ENV === 'production' && c.OIDC_ISSUER && !isHttps(c.OIDC_ISSUER)), {
+    message: 'OIDC_ISSUER must be https in production',
+  })
+  .refine((c) => !(c.NODE_ENV === 'production' && c.OIDC_ISSUER && !isHttps(c.PUBLIC_BASE_URL)), {
+    message: 'PUBLIC_BASE_URL must be https in production when operator login is configured',
   });
 export type RuntimeConfig = z.infer<typeof Config>;
 
@@ -84,10 +115,12 @@ export interface Runtime {
   signer: HmacSigner;
   mailer: Mailer;
   subscribers: Subscriber[];
-  /** Principal for a bearer token, or null. One static key from env in the probe. */
-  authenticateApiKey(authorization: string | undefined): Promise<Principal | null>;
-  /** Principal for an MCP session (stdio: whoever can start the process holds the env). */
-  agentPrincipal(): Promise<Principal>;
+  /** Authentication-time lookups (operators, memberships, keys) as mycel_auth. */
+  identity: IdentityStore;
+  /** Principal for a bearer token from `api_keys`, or null when unknown or revoked. */
+  authenticateApiKey: Authenticator['authenticateApiKey'];
+  /** Principal for an MCP session from MYCEL_API_KEY's row (stdio: whoever holds the env). */
+  agentPrincipal: Authenticator['agentPrincipal'];
   /** Start draining the outbox and the janitor sweep in this process. Needs DATABASE_URL. */
   startWorker(): () => Promise<void>;
   close(): Promise<void>;
@@ -97,9 +130,18 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
   const clock: Clock = { now: () => new Date() };
   const signer = new HmacSigner(config.SIGNING_SECRET);
   const appDb = createDb(config.APP_DATABASE_URL);
+  const authDb = createDb(config.AUTH_DATABASE_URL);
   const operatorDb = config.DATABASE_URL ? createDb(config.DATABASE_URL) : null;
   const uow = createUnitOfWork(appDb, { clock, ids: uuidv7Ids, signer });
   const tenants = createTenantDirectory(appDb);
+  const identity = createIdentityStore(authDb, uuidv7Ids);
+  const auth = createAuthenticator({
+    identity,
+    uow,
+    clock,
+    agentToken: config.MYCEL_API_KEY,
+    sessionId: uuidv7(),
+  });
   const invoker = new Invoker(buildRegistry(), uow);
   const mailer: Mailer =
     config.MAILER === 'tem'
@@ -123,13 +165,6 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
   ];
   const stops: (() => Promise<void>)[] = [];
 
-  async function keyTenant(): Promise<string> {
-    const slug = config.MYCEL_API_KEY_TENANT;
-    const tenant = slug ? await tenants.findBySlug(slug) : null;
-    if (!tenant) throw new Error(`MYCEL_API_KEY_TENANT "${slug ?? ''}" does not name a tenant`);
-    return tenant.id;
-  }
-
   return {
     config,
     invoker,
@@ -139,26 +174,9 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
     signer,
     mailer,
     subscribers,
-    async authenticateApiKey(authorization) {
-      const key = config.MYCEL_API_KEY;
-      const given = /^Bearer\s+(.+)$/i.exec(authorization ?? '')?.[1];
-      if (!key || !given) return null;
-      const a = Buffer.from(given);
-      const b = Buffer.from(key);
-      if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
-      return {
-        tenantId: await keyTenant(),
-        actor: { kind: 'api-key', keyId: 'env' },
-        capabilities: ['tenant:admin'],
-      };
-    },
-    async agentPrincipal() {
-      return {
-        tenantId: await keyTenant(),
-        actor: { kind: 'agent', sessionId: uuidv7() },
-        capabilities: ['tenant:admin'],
-      };
-    },
+    identity,
+    authenticateApiKey: auth.authenticateApiKey,
+    agentPrincipal: auth.agentPrincipal,
     startWorker() {
       if (!operatorDb) throw new Error('the outbox worker needs DATABASE_URL (operator role)');
       const stopOutbox = startOutboxWorker(operatorDb, subscribers);
@@ -172,6 +190,7 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
     async close() {
       await Promise.all(stops.map((s) => s()));
       await appDb.destroy();
+      await authDb.destroy();
       await operatorDb?.destroy();
     },
   };

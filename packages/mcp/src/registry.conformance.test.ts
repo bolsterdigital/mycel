@@ -22,7 +22,7 @@ const useCases = registry.list();
 async function connect(capabilities: Capability[]) {
   const principal: Principal = {
     tenantId: TENANT,
-    actor: { kind: 'agent', sessionId: 'conformance' },
+    actor: { kind: 'agent', sessionId: 'conformance', keyId: 'conformance' },
     capabilities,
   };
   const server = createMcpServer(
@@ -91,9 +91,12 @@ describe.each(useCases.map((u) => [u.name, u] as const))('MCP conformance: %s', 
   });
 });
 
-/** Every input field set to a value no scalar or object schema of a real field accepts. */
+/**
+ * Every input field set to a value no scalar or object schema of a real field accepts. An input
+ * without fields gets an unknown one, so such a use case has to declare its input strict.
+ */
 function brokenArgs(useCase: UseCase): Record<string, unknown> {
   const properties = Object.keys(toJsonSchema(useCase.input, 'input').properties ?? {});
-  if (!properties.length) throw new Error(`${useCase.name}: input has no fields to break`);
+  if (!properties.length) return { unexpected: [null] };
   return Object.fromEntries(properties.map((field) => [field, [null]]));
 }
