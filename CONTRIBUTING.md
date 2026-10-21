@@ -4,7 +4,7 @@ Thanks for looking. This project is early; the most useful contributions right n
 
 ## Before you write code
 
-1. Read `docs/adr/` (twelve short files). A change that contradicts an accepted ADR needs a new ADR first.
+1. Read `docs/adr/` (twenty short files). A change that contradicts an accepted ADR needs a new ADR first.
 2. Read [`docs/architecture/overview.md`](docs/architecture/overview.md) for where things go and which packages may import which.
 
 ## From a fresh checkout to a working signup in five commands
