@@ -4,6 +4,7 @@
 // schema id, never an edit.
 
 import { z } from 'zod';
+import { normalizeEmail } from '../util/email.js';
 
 export const SupporterEventType = z.enum([
   'petition.signed',
@@ -39,10 +40,7 @@ export const SupporterEvent = z.object({
    * Lowercased and trimmed; resolves to `supporter_id` at ingest (ADR 019 rule 1). For
    * `supporter.email_changed` it is the address before the change.
    */
-  email: z.preprocess(
-    (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
-    z.string().email()
-  ),
+  email: z.preprocess((v) => (typeof v === 'string' ? normalizeEmail(v) : v), z.string().email()),
   occurred_at: z.string().datetime({ offset: true }),
   source: z.string().min(1),
   source_site: z.string().url(),

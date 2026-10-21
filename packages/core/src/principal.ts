@@ -23,9 +23,17 @@ export const Capability = z.enum([
 export type Capability = z.infer<typeof Capability>;
 
 export const Actor = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('operator'), subject: z.string(), email: z.string().email() }),
+  // Our stable operator id, never the IdP subject: an operator can move between identity
+  // providers, and attribution (ADR 009 rule 9) must survive that.
+  z.object({ kind: z.literal('operator'), operatorId: z.string(), email: z.string().email() }),
   z.object({ kind: z.literal('api-key'), keyId: z.string() }),
-  z.object({ kind: z.literal('agent'), sessionId: z.string(), onBehalfOf: z.string().optional() }),
+  // An MCP session acts with exactly one API key's capabilities (ADR 018 rule 5).
+  z.object({
+    kind: z.literal('agent'),
+    sessionId: z.string(),
+    keyId: z.string(),
+    onBehalfOf: z.string().optional(),
+  }),
   z.object({ kind: z.literal('system'), job: z.string() }),
   // A visitor of a public page. The front derives `ipHash` from the connection (never from the
   // form body) so rate limits and provenance have a key without storing an IP address.
