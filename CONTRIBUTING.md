@@ -21,7 +21,7 @@ npm run dev         # API + outbox worker on :8787, web on :5173
 
 Open <http://localhost:5173/probe/signup>, sign up, and the confirmation mail is printed in the `[api]` output. `db:seed` is idempotent; run it again whenever you like.
 
-Without Docker, any Postgres 16 works: point `DATABASE_URL` in `.env` at a role that owns the database and may create roles (`CREATEROLE`), then skip `db:up`. Port 5432 must be free for `db:up`, so stop a local Postgres first or change the port in both files.
+Without Docker, any Postgres 16 works: point `DATABASE_URL` in `.env` at a role that owns the database and may create roles (`CREATEROLE`), then skip `db:up`. `db:up` publishes Postgres on `127.0.0.1:5432`; if that port is taken, set `MYCEL_PG_PORT` in `.env` and use the same port in `DATABASE_URL` and `APP_DATABASE_URL`.
 
 Other scripts:
 
