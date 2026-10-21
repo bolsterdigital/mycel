@@ -66,6 +66,7 @@ export interface Database {
   events: {
     tenant_id: string;
     id: string;
+    supporter_id: string;
     schema: string;
     type: string;
     email: string;
@@ -78,10 +79,13 @@ export interface Database {
   };
   supporters: {
     tenant_id: string;
+    id: string;
     email: string;
     first_seen: Timestamp;
     last_activity: Timestamp;
     lists: string[];
+    applied_through_at: Timestamp;
+    applied_through_id: string;
     updated_at: Generated<Date>;
   };
 }

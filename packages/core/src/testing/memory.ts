@@ -78,6 +78,7 @@ interface TenantStore {
   submissions: Submission[];
   counters: Map<string, number>;
   events: Map<string, SupporterEvent>;
+  /** Keyed by supporter id. */
   projections: Map<string, SupporterProjection>;
 }
 
@@ -147,15 +148,26 @@ export class MemoryUnitOfWork implements UnitOfWork {
         return hits <= max;
       },
     };
+    const ids = this.ids;
     const supporters: SupporterRepository = {
+      // No-op: this store is one process and not transactional (see above). Serialising writers
+      // is a Postgres property, proven by the concurrency test in the database conformance.
+      async lock() {},
+      async resolve(email) {
+        const found = [...s.projections.values()].find((p) => p.email === email);
+        return found ? { id: found.id, isNew: false } : { id: ids.next(), isNew: true };
+      },
       async appendEvent(event) {
         if (s.events.has(event.id)) return false;
         s.events.set(event.id, structuredClone(event));
         return true;
       },
-      eventsFor: async (email) => [...s.events.values()].filter((e) => e.email === email),
-      getProjection: async (email) => s.projections.get(email) ?? null,
-      saveProjection: async (p) => void s.projections.set(p.email, structuredClone(p)),
+      eventsFor: async (supporterId) =>
+        [...s.events.values()].filter((e) => e.supporter_id === supporterId),
+      getProjection: async (email) =>
+        [...s.projections.values()].find((p) => p.email === email) ?? null,
+      getProjectionById: async (id) => s.projections.get(id) ?? null,
+      saveProjection: async (p) => void s.projections.set(p.id, structuredClone(p)),
     };
     return fn({
       principal,

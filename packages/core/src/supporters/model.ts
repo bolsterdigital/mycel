@@ -1,10 +1,14 @@
-// The supporter projection (ADR 003 rule 3): derived from the event log only, deterministically,
-// so `rebuildProjection(events)` always equals applying the same events one by one in order.
+// The supporter projection (ADR 003 rule 3, ADR 019 rule 2): a fold over the supporter's log in
+// `occurred_at` order with the event id as tie-break, so every arrival order of the same events
+// gives the same projection. `appliedThrough` names the last event folded in; ingest applies an
+// event on top only when it sorts after that point and re-folds from the log otherwise. Rejected:
+// applying in arrival order, which the probe did and which lets a late event overwrite a newer one.
 
 import { z } from 'zod';
 import type { SupporterEvent } from './events.js';
 
 export const SupporterProjection = z.object({
+  id: z.string().uuid(),
   email: z.string().email(),
   firstSeen: z.string().datetime({ offset: true }),
   lastActivity: z.string().datetime({ offset: true }),
@@ -13,39 +17,68 @@ export const SupporterProjection = z.object({
    * confirmed; the confirmed/pending split arrives with `consent.given` (follow-up).
    */
   lists: z.array(z.string()),
+  /** Position of the last folded event in fold order. */
+  appliedThrough: z.object({ at: z.string().datetime({ offset: true }), id: z.string() }),
 });
 export type SupporterProjection = z.infer<typeof SupporterProjection>;
 
+/** A point in fold order: an event's `occurred_at` and `id`. */
+export interface FoldPosition {
+  at: string;
+  id: string;
+}
+
+/**
+ * Fold order. Instants are compared as instants, not as strings, because envelopes may carry any
+ * offset; ids by code unit, which matches `collate "C"` on `events.id` in Postgres.
+ */
+export function compareFoldPosition(a: FoldPosition, b: FoldPosition): number {
+  const byTime = Date.parse(a.at) - Date.parse(b.at);
+  if (byTime !== 0) return byTime;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+export const foldPosition = (event: SupporterEvent): FoldPosition => ({
+  at: new Date(event.occurred_at).toISOString(),
+  id: event.id,
+});
+
+/** Fold the next event in fold order into `current`. The event must carry its `supporter_id`. */
 export function applyEvent(
   current: SupporterProjection | null,
   event: SupporterEvent
 ): SupporterProjection {
-  const at = new Date(event.occurred_at).toISOString();
+  const position = foldPosition(event);
+  const at = position.at;
+  const id = current?.id ?? event.supporter_id;
+  if (!id) throw new Error(`event ${event.id} has no supporter_id`);
   const base: SupporterProjection = current ?? {
+    id,
     email: event.email,
     firstSeen: at,
     lastActivity: at,
     lists: [],
+    appliedThrough: position,
   };
   const lists = new Set(base.lists);
   const list = event.props['list'];
   if (event.type === 'newsletter.subscribed' && typeof list === 'string') lists.add(list);
   if (event.type === 'newsletter.unsubscribed' && typeof list === 'string') lists.delete(list);
+  const newEmail = event.props['new_email'];
   return {
-    email: base.email,
+    id,
+    email:
+      event.type === 'supporter.email_changed' && typeof newEmail === 'string'
+        ? newEmail
+        : base.email,
     firstSeen: at < base.firstSeen ? at : base.firstSeen,
     lastActivity: at > base.lastActivity ? at : base.lastActivity,
     lists: [...lists].sort(),
+    appliedThrough: position,
   };
 }
 
 export function rebuildProjection(events: readonly SupporterEvent[]): SupporterProjection | null {
-  const ordered = [...events].sort((a, b) =>
-    a.occurred_at === b.occurred_at
-      ? a.id.localeCompare(b.id)
-      : a.occurred_at < b.occurred_at
-        ? -1
-        : 1
-  );
+  const ordered = [...events].sort((a, b) => compareFoldPosition(foldPosition(a), foldPosition(b)));
   return ordered.reduce<SupporterProjection | null>((p, e) => applyEvent(p, e), null);
 }

@@ -9,6 +9,27 @@ import pg from 'pg';
 
 const MIGRATIONS_DIR = fileURLToPath(new URL('../migrations/', import.meta.url));
 const LOCK_KEY = 4_242_001;
+/** First month with event partitions; older rows (a backfill) need their own range first. */
+export const FIRST_EVENT_MONTH = '2026-10-01';
+
+/**
+ * Create the monthly `events` partitions for [from, to] that do not exist yet (ADR 003
+ * consequence 1); returns how many it created. Idempotent. `migrate` covers the first month up to
+ * three months ahead on every run; a backfill calls this with its own range before inserting, so
+ * nothing lands in `events_default`. Runs as the operator: mycel_app cannot execute it (0005).
+ */
+export async function ensureEventPartitions(
+  db: pg.ClientBase | pg.Pool,
+  from: Date | string,
+  to: Date | string
+): Promise<number> {
+  const day = (d: Date | string) => (typeof d === 'string' ? d : d.toISOString().slice(0, 10));
+  const { rows } = await db.query<{ n: number }>(
+    'select ensure_event_partitions($1::date, $2::date) as n',
+    [day(from), day(to)]
+  );
+  return rows[0]!.n;
+}
 
 export async function migrate(
   connectionString: string,
@@ -48,6 +69,11 @@ export async function migrate(
       applied.push(version);
       log(`applied ${version}`);
     }
+    const ahead = new Date();
+    ahead.setUTCDate(1);
+    ahead.setUTCMonth(ahead.getUTCMonth() + 3);
+    const created = await ensureEventPartitions(client, FIRST_EVENT_MONTH, ahead);
+    if (created) log(`created ${created} event partition(s)`);
     // Operator-supplied password turns the nologin mycel_app role into the app's login (0001).
     if (appPassword) {
       const { rows } = await client.query<{ q: string }>(

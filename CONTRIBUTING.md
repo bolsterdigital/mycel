@@ -39,7 +39,7 @@ npm run verify
 
 `verify` is the gate: formatting, dependency rules, types, tests, build and the Playwright + axe end-to-end tests. CI runs the same command. Keep it green on every commit.
 
-With `DATABASE_URL` and `APP_DATABASE_URL` set (they are, after the steps above), `verify` also runs the database suites, including the Row Level Security conformance test (`packages/db/src/rls.test.ts`), and the end-to-end tests (after `npx playwright install chromium`). Without them those suites skip; in CI (`E2E_REQUIRED=1`) a missing database fails the build instead. Load the env first: `set -a; . ./.env; set +a; npm run verify`.
+With `DATABASE_URL` and `APP_DATABASE_URL` set (they are, after the steps above), `verify` also runs the database suites, including the Row Level Security conformance test (`packages/db/src/rls.conformance.test.ts`), and the end-to-end tests (after `npx playwright install chromium`). Without them those suites skip; in CI (`E2E_REQUIRED=1`) a missing database fails the build instead. Load the env first: `set -a; . ./.env; set +a; npm run verify`.
 
 ## Container image
 
