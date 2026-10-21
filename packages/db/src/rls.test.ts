@@ -1,0 +1,247 @@
+// RLS conformance (ADR 002 consequences, ADR 011 consequences). Reads the live catalog after
+// `migrate`, so a new migration that forgets the pattern from 0001 fails here without anyone
+// having to remember to extend a list. Rejected: a hand-maintained table list, which is exactly
+// the kind of list a forgotten table never makes it onto.
+//
+// Skips without DATABASE_URL (operator) and APP_DATABASE_URL (mycel_app); with E2E_REQUIRED=1
+// (CI) a missing database is a failure, as in scripts/e2e.mjs.
+
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { sql } from 'kysely';
+import pg from 'pg';
+import {
+  Invoker,
+  buildRegistry,
+  supporterIngestSubscriber,
+  systemPrincipal,
+  useCases,
+} from '@mycel/core';
+import { FakeSigner, probeForm, probePage } from '@mycel/core/testing';
+import { createDb, createUnitOfWork, migrate, upsertTenant, uuidv7, uuidv7Ids } from './index.js';
+
+const operatorUrl = process.env['DATABASE_URL'];
+const appUrl = process.env['APP_DATABASE_URL'];
+if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
+  throw new Error('E2E_REQUIRED=1 but DATABASE_URL or APP_DATABASE_URL is not set');
+
+const APP_ROLE = 'mycel_app';
+// ADR 011 rule 1: cross-tenant (`using (true)`) policies exist only on platform queues and logs.
+const CROSS_TENANT_TABLES = ['outbox'];
+const ISOLATION = '(tenant_id = current_tenant_id())';
+
+interface TenantTable {
+  name: string;
+  rowsecurity: boolean;
+  forcerowsecurity: boolean;
+}
+interface Policy {
+  tablename: string;
+  policyname: string;
+  permissive: string;
+  roles: string[];
+  cmd: string;
+  qual: string | null;
+  with_check: string | null;
+}
+
+describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () => {
+  const operatorDb = createDb(operatorUrl ?? '');
+  const appDb = createDb(appUrl ?? '');
+  const run = Math.random().toString(36).slice(2, 8);
+  let tenantId = '';
+  let tables: TenantTable[] = [];
+  let policies: Policy[] = [];
+
+  beforeAll(async () => {
+    await migrate(operatorUrl!, { appPassword: process.env['MYCEL_APP_PASSWORD'], log: () => {} });
+
+    // Every relation in `public` with a tenant_id column: plain and partitioned tables both.
+    tables = (
+      await sql<TenantTable>`
+        select c.relname as name, c.relrowsecurity as rowsecurity,
+               c.relforcerowsecurity as forcerowsecurity
+        from pg_class c join pg_attribute a on a.attrelid = c.oid
+        where a.attname = 'tenant_id' and not a.attisdropped and c.relkind in ('r', 'p')
+          and c.relnamespace = 'public'::regnamespace
+        order by c.relname`.execute(operatorDb)
+    ).rows;
+    policies = (
+      await sql<Policy>`
+        select tablename, policyname, permissive, roles::text[] as roles, cmd, qual, with_check
+        from pg_policies where schemaname = 'public'`.execute(operatorDb)
+    ).rows;
+
+    // Put at least one row for this tenant into every tenant table mycel_app can read, through
+    // the real use-case path: a signup writes pages, forms, submissions, rate limits and the
+    // outbox. The supporter ingest is called directly instead of draining the outbox: the outbox
+    // is shared with db.test.ts, and a drain here would claim that suite's events with only one
+    // of its subscribers.
+    tenantId = (
+      await upsertTenant(operatorDb, {
+        id: uuidv7(),
+        slug: `rls-${run}`,
+        name: 'RLS',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+      })
+    ).id;
+    const uow = createUnitOfWork(appDb, {
+      clock: { now: () => new Date() },
+      ids: uuidv7Ids,
+      signer: new FakeSigner(),
+    });
+    const invoker = new Invoker(buildRegistry(), uow);
+    const admin = systemPrincipal(tenantId, 'rls-test');
+    const formId = uuidv7();
+    await uow.run(admin, (ctx) => ctx.forms.insert(probeForm(formId)));
+    await invoker.run(useCases.createPage, admin, probePage(formId));
+    const email = `rls-${run}@example.org`;
+    const submitted = await invoker.run(useCases.submitForm, admin, {
+      formId,
+      values: { email, consent: true },
+      locale: 'nl',
+    });
+    if (submitted.status !== 'accepted') throw new Error(`fixture signup ${submitted.status}`);
+    await supporterIngestSubscriber(uow).handle({
+      id: uuidv7(),
+      type: 'newsletter.subscribed',
+      tenantId,
+      occurredAt: new Date(),
+      actor: { kind: 'system', job: 'rls-test' },
+      props: {
+        email,
+        list: 'newsletter',
+        formId,
+        submissionId: submitted.submissionId,
+        locale: 'nl',
+        pageUrl: null,
+        consentTextVersion: 'v1',
+        confirmed: false,
+      },
+    });
+  });
+
+  afterAll(async () => {
+    await operatorDb.destroy();
+    await appDb.destroy();
+  });
+
+  it('finds the tenant tables the migrations create', () => {
+    expect(tables.map((t) => t.name)).toEqual(
+      expect.arrayContaining([
+        'events',
+        'form_submissions',
+        'forms',
+        'outbox',
+        'pages',
+        'rate_limits',
+        'supporters',
+      ])
+    );
+  });
+
+  it('enables and forces RLS on every table with a tenant_id', () => {
+    const failing = tables
+      .filter((t) => !t.rowsecurity || !t.forcerowsecurity)
+      .map((t) => `${t.name} (enabled=${t.rowsecurity}, forced=${t.forcerowsecurity})`);
+    expect(failing).toEqual([]);
+  });
+
+  it('gives every tenant table the tenant_isolation policy from 0001', () => {
+    const failing = tables
+      .filter((t) => {
+        const p = policies.find(
+          (p) => p.tablename === t.name && p.policyname === 'tenant_isolation'
+        );
+        return !(
+          p &&
+          p.permissive === 'PERMISSIVE' &&
+          p.cmd === 'ALL' &&
+          p.qual === ISOLATION &&
+          p.with_check === ISOLATION
+        );
+      })
+      .map((t) => t.name);
+    expect(failing).toEqual([]);
+  });
+
+  it('binds every using (true) policy to a dedicated worker role (ADR 011)', async () => {
+    const open = policies.filter((p) => p.qual === 'true' || p.with_check === 'true');
+    // Proves the check is not vacuous: 0003's worker_drain is the known instance.
+    expect(open.map((p) => `${p.tablename}.${p.policyname}`)).toContain('outbox.worker_drain');
+
+    for (const p of open) {
+      const where = `${p.tablename}.${p.policyname}`;
+      expect(CROSS_TENANT_TABLES, `${where}: cross-tenant policy on a tenant data table`).toContain(
+        p.tablename
+      );
+      expect(p.roles, `${where}: bound to public`).not.toContain('public');
+      expect(p.roles, `${where}: bound to ${APP_ROLE}`).not.toContain(APP_ROLE);
+      for (const role of p.roles) {
+        // A worker role cannot log in (it is entered with `set local role`) and the application
+        // role must not be able to enter it, directly or through membership.
+        const { rows } = await sql<{ canlogin: boolean; app_member: boolean }>`
+          select r.rolcanlogin as canlogin, pg_has_role(${APP_ROLE}, r.oid, 'MEMBER') as app_member
+          from pg_roles r where r.rolname = ${role}`.execute(operatorDb);
+        expect(rows, `${where}: role ${role} does not exist`).toHaveLength(1);
+        expect(rows[0], `${where}: role ${role}`).toEqual({ canlogin: false, app_member: false });
+      }
+    }
+  });
+
+  it('keeps the application role unable to bypass RLS', async () => {
+    const { rows } = await sql<{ super: boolean; bypass: boolean; owns: string[] }>`
+      select r.rolsuper as super, r.rolbypassrls as bypass,
+             array(select c.relname::text from pg_class c
+                   where c.relowner = r.oid and c.relnamespace = 'public'::regnamespace) as owns
+      from pg_roles r where r.rolname = ${APP_ROLE}`.execute(operatorDb);
+    expect(rows[0]).toEqual({ super: false, bypass: false, owns: [] });
+  });
+
+  it('returns nothing to mycel_app without set_config, and the seeded rows with it', async () => {
+    // A fresh connection, not the pool: nothing can have left a setting behind on it.
+    const client = new pg.Client({ connectionString: appUrl });
+    await client.connect();
+    try {
+      const { rows: who } = await client.query<{ u: string; t: string | null }>(
+        `select current_user as u, current_setting('app.tenant_id', true) as t`
+      );
+      expect(who[0]?.u).toBe(APP_ROLE);
+      expect(who[0]?.t ?? '').toBe('');
+
+      const counts: Record<string, { without: number; within: number } | 'no select'> = {};
+      for (const { name } of tables) {
+        const { rows: priv } = await client.query<{ ok: boolean }>(
+          `select has_table_privilege(current_user, $1, 'select') as ok`,
+          [`public.${name}`]
+        );
+        if (!priv[0]?.ok) {
+          counts[name] = 'no select';
+          continue;
+        }
+        const ident = client.escapeIdentifier(name);
+        await client.query('begin');
+        const without = await client.query<{ n: string }>(`select count(*) as n from ${ident}`);
+        await client.query(`select set_config('app.tenant_id', $1, true)`, [tenantId]);
+        const within = await client.query<{ n: string }>(`select count(*) as n from ${ident}`);
+        await client.query('commit');
+        counts[name] = { without: Number(without.rows[0]?.n), within: Number(within.rows[0]?.n) };
+      }
+
+      for (const [name, c] of Object.entries(counts)) {
+        if (c === 'no select') continue;
+        expect(c.without, `${name}: rows visible without a tenant context`).toBe(0);
+        // Without seeded rows the zero above would prove nothing. A new tenant table needs a
+        // row in this test's fixture (beforeAll) before it can pass.
+        expect(
+          c.within,
+          `${name}: fixture wrote no row, so the check above is vacuous`
+        ).toBeGreaterThan(0);
+      }
+      // The outbox is write-only for the app; the worker role reads it (ADR 011).
+      expect(counts['outbox']).toBe('no select');
+    } finally {
+      await client.end();
+    }
+  });
+});
