@@ -1,5 +1,7 @@
 // Integration tests against a real Postgres. They skip without DATABASE_URL (operator role) and
-// APP_DATABASE_URL (mycel_app login, subject to RLS); CI provides both via a service container.
+// APP_DATABASE_URL (mycel_app login, subject to RLS); CI provides both via a service container
+// and sets E2E_REQUIRED=1, which turns a missing database into a failure. The RLS catalog checks
+// live in rls.test.ts.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
@@ -27,6 +29,8 @@ import {
 
 const operatorUrl = process.env['DATABASE_URL'];
 const appUrl = process.env['APP_DATABASE_URL'];
+if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
+  throw new Error('E2E_REQUIRED=1 but DATABASE_URL or APP_DATABASE_URL is not set');
 
 describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
   const operatorDb = createDb(operatorUrl ?? '');
@@ -158,21 +162,5 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
       statuses.push(r.status === 'rejected' ? r.reason : r.status);
     }
     expect(statuses).toEqual(['accepted', 'accepted', 'accepted', 'rate-limited']);
-  });
-
-  it('has RLS enabled and forced on every table with a tenant_id', async () => {
-    const { rows } = await sql<{
-      relname: string;
-      relrowsecurity: boolean;
-      relforcerowsecurity: boolean;
-    }>`
-      select c.relname, c.relrowsecurity, c.relforcerowsecurity
-      from pg_class c join pg_attribute a on a.attrelid = c.oid
-      where a.attname = 'tenant_id' and c.relkind = 'r' and c.relnamespace = 'public'::regnamespace`.execute(
-      operatorDb
-    );
-    expect(rows.length).toBeGreaterThanOrEqual(7);
-    for (const r of rows)
-      expect([r.relname, r.relrowsecurity, r.relforcerowsecurity]).toEqual([r.relname, true, true]);
   });
 });

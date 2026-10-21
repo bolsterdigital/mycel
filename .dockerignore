@@ -1,0 +1,22 @@
+# Build context for the Dockerfile: sources and manifests only. Local installs and build output
+# are excluded so the image is built from the lockfile, never from a developer's node_modules,
+# and secrets (.env) and the private planning symlink never enter a layer.
+# Rejected: an allow-list (`*` then `!packages`), which silently drops a new top-level file the
+# build needs.
+**/node_modules
+**/dist
+**/build
+**/.svelte-kit
+**/*.tsbuildinfo
+**/test-results
+**/playwright-report
+.env
+.env.*
+!.env.example
+.git
+.github
+.claude
+.scratch
+docs
+*.log
+.DS_Store

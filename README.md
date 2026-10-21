@@ -4,7 +4,7 @@ Open-core platform for campaigning and member organisations: campaign sites, for
 
 Mycel is the successor to [Dreamkit](https://github.com/bolsterdigital/dreamkit) (WordPress). It keeps Dreamkit's scope and its supporter event contract, and rebuilds the rest on a framework-free TypeScript domain core with HTTP, MCP and web adapters.
 
-**Status: architecture and scaffold.** Nothing runs yet. The decisions are in [`docs/adr/`](docs/adr/); the package map in [`docs/architecture/overview.md`](docs/architecture/overview.md). The working name may change.
+**Status: early.** A first vertical slice runs (a signup form through every layer). The decisions are in [`docs/adr/`](docs/adr/); the package map in [`docs/architecture/overview.md`](docs/architecture/overview.md). The working name may change.
 
 ## Principles
 
@@ -29,11 +29,13 @@ docs/adr        decisions (read first)
 
 ```sh
 npm install
-npm run verify      # format:check + dependency rules + typecheck + tests + build
-npm run dev         # web app (once it exists)
+cp .env.example .env
+npm run db:up       # Postgres in Docker
+npm run db:seed     # migrations + tenant `probe` with a signup page
+npm run dev         # API on :8787, web on :5173 -> http://localhost:5173/probe/signup
 ```
 
-Node 22, npm workspaces. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Node 22, npm workspaces. `npm run verify` is the gate. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Licence
 

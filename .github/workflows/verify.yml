@@ -68,3 +68,38 @@ jobs:
         run: npm run migrate -w @mycel/db
 
       - run: npm run verify
+
+  # The deployable artefact (Dockerfile): build it without pushing, then start each entrypoint
+  # and wait for its HEALTHCHECK. A separate job so an image problem shows up as its own red
+  # check next to `verify`. Publishing to a registry is the deploy workflow's job, not this one.
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image (no push)
+        run: docker build -t mycel:ci .
+
+      - name: Each entrypoint becomes healthy
+        run: |
+          # Dummy configuration: /healthz touches no adapter and the pools connect lazily, so no
+          # database is needed to prove the processes start. MAILER=console is refused in
+          # production, hence the placeholder TEM settings.
+          env_args="-e APP_DATABASE_URL=postgres://mycel_app:x@127.0.0.1:1/mycel
+            -e DATABASE_URL=postgres://mycel:x@127.0.0.1:1/mycel
+            -e SIGNING_SECRET=ci-only-signing-secret -e PUBLIC_BASE_URL=http://localhost:3000
+            -e MAIL_FROM=noreply@example.org -e MAILER=tem -e TEM_SECRET_KEY=x -e TEM_PROJECT_ID=x"
+          for role in api web worker; do
+            docker run -d --name "mycel-$role" --health-interval 2s --health-start-period 2s \
+              $env_args mycel:ci "$role"
+          done
+          for role in api web worker; do
+            status=starting
+            for i in $(seq 1 30); do
+              status=$(docker inspect -f '{{.State.Health.Status}}' "mycel-$role")
+              [ "$status" = healthy ] && break
+              sleep 2
+            done
+            echo "$role: $status"
+            if [ "$status" != healthy ]; then docker logs "mycel-$role"; exit 1; fi
+          done
