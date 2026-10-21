@@ -9,3 +9,8 @@ export function ui(locale: string): (key: UiKey) => string {
   return (key) => catalogs[locale]?.[key] ?? catalogs[primary]?.[key] ?? en[key];
 }
 export type { UiKey };
+
+/** Fills `{name}` placeholders: `fill(t('admin.signedInAs'), { email })`. */
+export function fill(text: string, vars: Record<string, string | number>): string {
+  return text.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
+}
