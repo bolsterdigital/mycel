@@ -1,0 +1,40 @@
+name: Verify
+
+# Gate on what silently rots: formatting, dependency direction and licences, types,
+# tests and the build. Runs on PRs and pushes to main. Deployment is a separate
+# workflow so a red check here never blocks an already-merged fix, but a red check
+# on the PR is the signal to fix it first.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Signed-off-by on every commit (DCO)
+        if: github.event_name == 'pull_request'
+        run: |
+          missing=$(git log --format='%H %(trailers:key=Signed-off-by,valueonly)' \
+            origin/${{ github.base_ref }}..HEAD | awk 'NF < 2 { print $1 }')
+          if [ -n "$missing" ]; then
+            echo "Commits without Signed-off-by (use git commit -s):"; echo "$missing"; exit 1
+          fi
+
+      - run: npm run verify

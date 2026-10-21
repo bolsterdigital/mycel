@@ -1,0 +1,7 @@
+node_modules
+dist
+build
+.svelte-kit
+docs/plans
+package-lock.json
+LICENSE

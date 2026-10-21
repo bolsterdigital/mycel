@@ -1,0 +1,21 @@
+{
+  // Shared compiler contract for every workspace. Strict plus noUncheckedIndexedAccess:
+  // agents write most of the code here, and the type checker is the cheapest reviewer we
+  // have. Each package extends this and only sets rootDir/outDir/references.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "sourceMap": true,
+    "composite": true
+  }
+}

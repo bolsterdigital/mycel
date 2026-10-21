@@ -1,0 +1,21 @@
+{
+  "name": "@mycel/core",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "description": "Framework-free domain core: entities, use cases, ports, schemas (ADR 001)",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -b",
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "zod": "^3.24.1"
+  }
+}

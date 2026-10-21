@@ -1,0 +1,33 @@
+{
+  "name": "mycel",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Open-core platform for non-profits: campaign sites, forms, donations, supporters and mailing. Framework-free domain core with HTTP, MCP and web adapters.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace apps/web",
+    "typecheck": "tsc -b packages/api packages/mcp && npm run typecheck --workspace apps/web",
+    "test": "vitest run",
+    "build": "tsc -b packages/api packages/mcp && npm run build --workspace apps/web",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint:deps": "node scripts/check-dependency-rules.mjs",
+    "verify": "npm run format:check && npm run lint:deps && npm run typecheck && npm run test && npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "prettier": "^3.4.2",
+    "prettier-plugin-svelte": "^3.3.3",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
