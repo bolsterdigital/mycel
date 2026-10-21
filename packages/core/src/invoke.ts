@@ -26,12 +26,12 @@ export class Invoker {
   }
 
   /** Typed entry point for fronts that know which use case they call (the web app). */
-  async run<U extends UseCase>(
-    useCase: U,
+  async run<I extends z.ZodTypeAny, O extends z.ZodTypeAny>(
+    useCase: UseCase<I, O>,
     principal: Principal,
-    input: z.input<U['input']>
-  ): Promise<z.infer<U['output']>> {
-    if (!this.registry.authorize(useCase, principal))
+    input: z.input<I>
+  ): Promise<z.infer<O>> {
+    if (!this.registry.authorize(useCase as unknown as UseCase, principal))
       throw new UseCaseError('forbidden', `missing capability ${useCase.requires}`);
     const parsed = useCase.input.safeParse(input);
     if (!parsed.success)
@@ -41,6 +41,6 @@ export class Invoker {
         zodIssues(parsed.error)
       );
     const result = await this.uow.run(principal, (ctx) => useCase.handler(ctx, parsed.data));
-    return useCase.output.parse(result) as z.infer<U['output']>;
+    return useCase.output.parse(result) as z.infer<O>;
   }
 }
