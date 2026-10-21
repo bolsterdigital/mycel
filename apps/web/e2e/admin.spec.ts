@@ -1,8 +1,9 @@
 // Operator admin (TODO #7), the seed of the "publish" flow in testing.md: login through the mock
-// IdP (scripts/e2e.mjs starts it), membership-based access, an API key made in the admin that
-// works over HTTP until it is revoked there. Runs without JavaScript and under axe like the
-// signup spec. The UI gate (skill ui-action-layout) checks the action groups at 320 CSS px and
-// at 200% text, in Dutch, the longer of the two locales.
+// IdP as e2e-admin@probe.test (scripts/e2e.mjs seeds that admin and starts the IdP), access by
+// membership, and an API key made in the admin that works over HTTP until it is revoked there.
+// Runs without JavaScript and under axe like the signup spec. The UI gate (skill
+// ui-action-layout) checks the action groups at 320 CSS px and at 200% text, in Dutch, the longer
+// of the two locales.
 
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
@@ -44,9 +45,9 @@ test('an admin logs in, makes an API key that works over HTTP, and revokes it', 
   page,
   context,
 }) => {
-  await login(page, 'admin@probe.test', '/admin/probe');
+  await login(page, 'e2e-admin@probe.test', '/admin/probe');
   await expect(page.getByRole('heading', { level: 1, name: 'Probe' })).toBeVisible();
-  await expect(page.getByText('Ingelogd als admin@probe.test.')).toBeVisible();
+  await expect(page.getByText('Ingelogd als e2e-admin@probe.test.')).toBeVisible();
   expect(await page.locator('script').count()).toBe(0);
   await expectNoAxeViolations(page);
 
@@ -114,7 +115,7 @@ test.describe('UI gate: action groups at 320 CSS px and 200% text', () => {
   for (const text of ['100%', '200%']) {
     test(`every button whole and no horizontal scroll, text ${text}`, async ({ page }) => {
       test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
-      await login(page, 'admin@probe.test', '/admin/probe');
+      await login(page, 'e2e-admin@probe.test', '/admin/probe');
       if (text !== '100%') await page.addStyleTag({ content: `html { font-size: ${text}; }` });
       const problems = await page.evaluate(() => {
         const out: string[] = [];

@@ -33,6 +33,8 @@ jobs:
       DATABASE_URL: postgres://mycel:mycel@localhost:5432/mycel
       APP_DATABASE_URL: postgres://mycel_app:mycel_app_ci@localhost:5432/mycel
       MYCEL_APP_PASSWORD: mycel_app_ci
+      AUTH_DATABASE_URL: postgres://mycel_authenticator:mycel_auth_ci@localhost:5432/mycel
+      MYCEL_AUTH_PASSWORD: mycel_auth_ci
       SIGNING_SECRET: ci-only-signing-secret
       PUBLIC_BASE_URL: http://127.0.0.1:4173
       MAIL_FROM: CI <noreply@example.org>
@@ -63,7 +65,8 @@ jobs:
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
 
-      # Before the tests: the db suite connects as mycel_app, whose login migrate enables.
+      # Before the tests: the db suite connects as mycel_app and mycel_authenticator, whose
+      # logins migrate enables.
       - name: Migrate
         run: npm run migrate -w @mycel/db
 
@@ -86,6 +89,7 @@ jobs:
           # database is needed to prove the processes start. MAILER=console is refused in
           # production, hence the placeholder TEM settings.
           env_args="-e APP_DATABASE_URL=postgres://mycel_app:x@127.0.0.1:1/mycel
+            -e AUTH_DATABASE_URL=postgres://mycel_authenticator:x@127.0.0.1:1/mycel
             -e DATABASE_URL=postgres://mycel:x@127.0.0.1:1/mycel
             -e SIGNING_SECRET=ci-only-signing-secret -e PUBLIC_BASE_URL=http://localhost:3000
             -e MAIL_FROM=noreply@example.org -e MAILER=tem -e TEM_SECRET_KEY=x -e TEM_PROJECT_ID=x"

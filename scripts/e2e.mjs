@@ -55,9 +55,12 @@ const run = (cmd, args, cwd = root, env = process.env) => {
 // The seed stores this token's hash as the `seed` key of tenant probe; API and spec use it.
 const apiKey = process.env.MYCEL_API_KEY ?? `mycel_${randomBytes(32).toString('base64url')}`;
 run('npm', ['run', '-s', 'migrate', '-w', '@mycel/db']);
+// The e2e admin is its own address: the mock IdP here has another issuer (port) than the one
+// `npm run dev` starts, so sharing admin@probe.test would let one claim the other's invitation.
 run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
   ...process.env,
   MYCEL_API_KEY: apiKey,
+  MYCEL_SEED_OPERATOR_EMAIL: 'e2e-admin@probe.test',
 });
 
 // The web app under test listens on 4173 (playwright.config.ts); links in the mail must point
