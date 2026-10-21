@@ -96,6 +96,25 @@ describe.skipIf(!operatorUrl || !appUrl)('supporter conformance', () => {
     expect(stored?.lists).toEqual(['a', 'b', 'c', 'd']);
   });
 
+  it('serialises parallel ingests for an existing supporter without a lost update', async () => {
+    // ADR 019 rule 3: the new-supporter race above is also caught by the unique constraint on
+    // (tenant_id, email); only this variant proves the lock. Without lock() every writer reads
+    // the same appliedThrough, applies its own event on top and the last save wins (5/5 runs).
+    const email = `par2-${run}@example.org`;
+    await ingestOne(event(email, 'par2-seed', 'newsletter.subscribed', 1, { list: 'seed' }));
+    const events = ['a', 'b', 'c', 'd'].map((list, i) =>
+      event(email, `par2-${list}`, 'newsletter.subscribed', 5 - i, { list })
+    );
+    const results = await Promise.all(events.map(ingestOne));
+    expect(results.filter(Boolean)).toHaveLength(4);
+
+    const stored = await projection(email);
+    const events_ = await log(stored!.id);
+    expect(events_).toHaveLength(5);
+    expect(stored).toEqual(rebuildProjection(events_));
+    expect(stored?.lists).toEqual(['a', 'b', 'c', 'd', 'seed']);
+  });
+
   it('leaves a supporter unsubscribed when an older subscribe arrives late (ADR 019 rule 2)', async () => {
     const email = `late-${run}@example.org`;
     await ingestOne(event(email, 'late-unsub', 'newsletter.unsubscribed', 2, { list: 'news' }));
