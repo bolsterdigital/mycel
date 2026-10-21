@@ -2,6 +2,7 @@
 
 - **Status**: accepted
 - **Date**: 2026-10-21
+- **Amended**: 2026-10-21 by ADR 017 (a tenant is one site; no `site` entity below it)
 - **Builds on**: ADR 002 rule 3 (tenant context from authentication or, for public pages, from the site being visited)
 
 ## Context

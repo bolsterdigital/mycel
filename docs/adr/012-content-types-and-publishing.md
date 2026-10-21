@@ -3,6 +3,7 @@
 - **Status**: accepted
 - **Date**: 2026-10-21
 - **Builds on**: ADR 004 (block tree), ADR 007 (i18n), ADR 009 rule 9 (versioned mutations)
+- **Amended**: 2026-10-21 by ADR 018 (scheduled publish pins a revision, optimistic concurrency, immutable sent editions, per-locale status, access-aware caching on the read route)
 
 ## Context
 

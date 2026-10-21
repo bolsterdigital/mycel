@@ -2,6 +2,7 @@
 
 - **Status**: accepted
 - **Date**: 2026-10-21
+- **Amended**: 2026-10-21, rule 7 added after the second-opinion review (subscription semantics for paid access)
 
 ## Context
 
@@ -15,7 +16,8 @@ In Dreamkit, recurring donations live in Pronamic Pay's tables inside each WordP
 4. **Provider webhooks are facts, not commands.** A webhook triggers a fetch of the provider's current state, which is reconciled into the ledger through the state machine. Webhooks are idempotent and signed; a missed webhook is recovered by a scheduled reconciliation.
 5. **Dunning is in scope from the start**: a failed charge schedules a retry policy (configurable per tenant, sane default), notifies the donor through the mailing domain, and ends the subscription after the policy is exhausted. Each step is a ledger entry.
 6. **Donor self-service is a core use case**: a donor can see, change amount, pause, resume and cancel their own subscription through a signed, expiring link sent to their e-mail address. No account required.
-7. **Out of scope, deliberately**: proration, multi-currency per tenant, invoicing and VAT (that is bookkeeping software's job; Mycel exports), split payments, marketplaces. Membership fees reuse the subscription model with a `kind` discriminator; they are not a separate ledger.
+7. **A subscription records what was bought and until when it is paid.** `offer_id` and `price_version` (the offer catalogue is tenant data; prices stay out of this repository, ADR 015), `current_period_end` (`paidThrough`), `cancel_at_period_end`, and a tenant-configurable grace period after a failed charge. Paid access (ADR 016) derives from `paidThrough` plus grace, never from `status` alone: a yearly member who cancels today keeps access until the period ends. Newsletter consent (ADR 003), subscription status and content access are three separate facts and never imply one another.
+8. **Out of scope, deliberately**: proration, multi-currency per tenant, invoicing and VAT (that is bookkeeping software's job; Mycel exports), split payments, marketplaces. Membership fees reuse the subscription model with a `kind` discriminator; they are not a separate ledger.
 
 ## Rejected alternatives
 

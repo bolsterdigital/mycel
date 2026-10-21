@@ -2,7 +2,7 @@
 
 Open-core successor to Dreamkit: campaign sites, forms, donations, supporters and mailing in one EU-hosted application. AGPL-3.0, TypeScript monorepo. This file is also `AGENTS.md`.
 
-**Read first, every session**: `docs/adr/` (seventeen short files, the contract you build against), `docs/architecture/overview.md` (package map and import rules) and `docs/architecture/testing.md` (which conformance suite your change must grow). A brief or TODO item that contradicts an accepted ADR is wrong until the ADR is superseded: stop and flag it.
+**Read first, every session**: `docs/adr/` (twenty short files, the contract you build against), `docs/architecture/overview.md` (package map and import rules) and `docs/architecture/testing.md` (which conformance suite your change must grow). A brief or TODO item that contradicts an accepted ADR is wrong until the ADR is superseded: stop and flag it.
 
 ## Commands
 
@@ -32,6 +32,9 @@ CI runs `verify` plus a DCO check (`.github/workflows/verify.yml`). Commits are 
 - **Tenants resolve from the hostname; custom domains are tenant data with on-demand TLS; admin never runs on tenant domains** (ADR 014).
 - **One edition; features and limits are an `entitlements` document per tenant, enforced in core; prices never in this repo** (ADR 015).
 - **Readers are supporters with a magic-link session; content access is enforced server-side, teaser plus prompt for everyone else** (ADR 016).
+- **A tenant is one site; an organisation with several sites has several tenants; nothing is shared across tenants by default** (ADR 017).
+- **Scheduled publish pins a revision; saves carry `baseRevisionId`; a sent newsletter is an immutable edition; write, publish, send and export are separate capabilities; the teaser is explicit; access and caching apply to every representation; readiness is per locale** (ADR 018).
+- **Supporters have a stable id; the projection is a fold in `occurred_at` order under a per-supporter lock; time-dependent state is evaluated at read time; external effects get an intent row, a provider idempotency key and reconciliation before retry; reader activity has a retention setting; erasure covers every copy** (ADR 019).
 
 ## Layout
 

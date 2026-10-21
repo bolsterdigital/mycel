@@ -3,6 +3,7 @@
 - **Status**: accepted
 - **Date**: 2026-10-21
 - **Amends**: ADR 002 (adds one role), ADR 008 (confirms the Postgres-table queue)
+- **Amended**: 2026-10-21 by ADR 019 rule 6 (intent row plus provider idempotency key plus reconciliation before retry)
 
 ## Context
 

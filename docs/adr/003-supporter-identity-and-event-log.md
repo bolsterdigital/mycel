@@ -2,6 +2,7 @@
 
 - **Status**: accepted
 - **Date**: 2026-10-21
+- **Amended**: 2026-10-21 by ADR 019 (stable `supporter_id`, fold order, per-supporter lock, retention, erasure scope)
 - **Inherits**: the Dreamkit supporter event contract v1 (`wings.supporter-event.v1`, `dreamkit/docs/supporter-registry/event-contract.md`) and the "no state stealing" principle from the Dreamkit supporter-CRM brief.
 
 ## Context
