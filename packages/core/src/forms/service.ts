@@ -19,6 +19,7 @@ export const getForm = defineUseCase({
   input: z.object({ id: z.string().uuid() }),
   output: z.object({ form: FormDefinition, startedToken: z.string() }),
   resource: { uriTemplate: 'mycel://forms/{id}' },
+  examples: [{ input: { id: '01900000-0000-7000-8000-00000000f000' } }],
   async handler(ctx, { id }) {
     const form = await ctx.forms.findById(id);
     if (!form) throw new UseCaseError('not_found', `no form with id "${id}"`);
@@ -68,6 +69,16 @@ export const submitForm = defineUseCase({
   requires: 'forms:write',
   input: SubmitInput,
   output: SubmitResult,
+  examples: [
+    {
+      input: {
+        formId: '01900000-0000-7000-8000-00000000f000',
+        values: { email: 'a@example.org', consent: true },
+        locale: 'nl',
+      },
+      note: 'An authenticated integration; anonymous callers also send `spam.startedToken`.',
+    },
+  ],
   async handler(ctx, input): Promise<SubmitResult> {
     const { principal, clock } = ctx;
     const now = clock.now();

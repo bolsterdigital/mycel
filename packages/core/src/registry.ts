@@ -11,6 +11,25 @@ import type { TransactionContext } from './ports.js';
 
 export type UseCaseKind = 'query' | 'command';
 
+/**
+ * What a command does beyond writing (ADR 018 rule 5). Each effect has exactly one capability, so
+ * "improve this text" can never imply "mail everyone"; `registry-rules.ts` enforces the pairing.
+ */
+export type UseCaseEffect = 'publish' | 'send' | 'export' | 'refund';
+
+export const EFFECT_CAPABILITY: Record<UseCaseEffect, Capability> = {
+  publish: 'content:publish',
+  send: 'mailing:send',
+  export: 'supporters:export',
+  refund: 'money:refund',
+};
+
+/** A valid input with an optional note; the conformance suites run every front against it. */
+export interface UseCaseExample<TInput = unknown> {
+  input: TInput;
+  note?: string;
+}
+
 export interface UseCase<
   TInput extends z.ZodTypeAny = z.ZodTypeAny,
   TOutput extends z.ZodTypeAny = z.ZodTypeAny,
@@ -21,6 +40,7 @@ export interface UseCase<
   /** One sentence for humans and agents. */
   description: string;
   requires: Capability;
+  effect?: UseCaseEffect;
   input: TInput;
   output: TOutput;
   handler: (ctx: TransactionContext, input: z.infer<TInput>) => Promise<z.infer<TOutput>>;
@@ -29,6 +49,11 @@ export interface UseCase<
    * variables map one-to-one to input fields: `mycel://pages/{slug}` reads `{ slug }`.
    */
   resource?: { uriTemplate: string };
+  /**
+   * At least one valid input (testing.md rule 1). The registry conformance suites in core, api and
+   * mcp run every front against `examples[0]`, so a new use case is tested without a new test.
+   */
+  examples: readonly [UseCaseExample<z.input<TInput>>, ...UseCaseExample<z.input<TInput>>[]];
 }
 
 export function defineUseCase<TInput extends z.ZodTypeAny, TOutput extends z.ZodTypeAny>(
