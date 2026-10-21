@@ -128,6 +128,7 @@ export const submitForm = defineUseCase({
       pageUrl: input.pageUrl ?? null,
       ipHash: ipHash ?? null,
       createdAt: now,
+      confirmedAt: null,
     });
 
     const props: NewsletterSubscribedProps = {

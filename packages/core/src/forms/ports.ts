@@ -7,6 +7,13 @@ export interface FormRepository {
 
 export interface SubmissionRepository {
   insert(submission: Submission): Promise<void>;
+  findById(id: string): Promise<Submission | null>;
+  /**
+   * Record the double opt-in confirmation once: true when this call set `confirmedAt`, false
+   * when it was already set (the second click) or the submission does not exist. The single
+   * conditional update is what makes `mailing.confirm` idempotent (ADR 010 rule 5).
+   */
+  confirm(id: string, at: Date): Promise<boolean>;
 }
 
 /**

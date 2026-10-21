@@ -24,3 +24,4 @@ export * from './supporters/ports.js';
 export * from './supporters/service.js';
 export * from './mailing/ports.js';
 export * from './mailing/confirmation.js';
+export * from './mailing/service.js';

@@ -88,4 +88,6 @@ export interface Submission {
   pageUrl: string | null;
   ipHash: string | null;
   createdAt: Date;
+  /** When the double opt-in link was followed; null until then (ADR 010 rule 5). */
+  confirmedAt: Date | null;
 }

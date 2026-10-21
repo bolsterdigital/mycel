@@ -31,6 +31,7 @@ export interface Database {
     page_url: string | null;
     ip_hash: string | null;
     created_at: Timestamp;
+    confirmed_at: Timestamp | null;
   };
   pages: {
     id: string;
@@ -84,8 +85,20 @@ export interface Database {
     first_seen: Timestamp;
     last_activity: Timestamp;
     lists: string[];
+    pending_lists: string[];
     applied_through_at: Timestamp;
     applied_through_id: string;
     updated_at: Generated<Date>;
+  };
+  mail_sends: {
+    tenant_id: string;
+    key: string;
+    subscriber: string;
+    event_id: string;
+    attempted_at: Timestamp | null;
+    sent_at: Timestamp | null;
+    provider_id: string | null;
+    last_error: string | null;
+    created_at: Generated<Date>;
   };
 }

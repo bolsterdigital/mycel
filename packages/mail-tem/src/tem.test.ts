@@ -1,3 +1,6 @@
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { renderConfirmationMail } from '@mycel/core';
 import { ConsoleMailer, TemMailer } from './index.js';
@@ -25,7 +28,9 @@ describe('TemMailer', () => {
         return new Response(JSON.stringify({ emails: [{ id: 'tem-1' }] }), { status: 200 });
       },
     });
-    expect(await mailer.send(message)).toEqual({ id: 'tem-1' });
+    expect(await mailer.send(message, 'mailing.confirmation:evt-1')).toEqual({
+      providerId: 'tem-1',
+    });
     expect(calls[0]?.url).toBe(
       'https://api.scaleway.com/transactional-email/v1alpha1/regions/fr-par/emails'
     );
@@ -36,8 +41,41 @@ describe('TemMailer', () => {
       to: [{ email: 'ada@example.org', name: '' }],
       subject: 'Bevestig je inschrijving bij Probe',
       project_id: 'proj',
-      additional_headers: [{ key: 'X-Test', value: '1' }],
+      additional_headers: [
+        { key: 'X-Test', value: '1' },
+        { key: 'X-Mycel-Send-Key', value: 'mailing.confirmation:evt-1' },
+      ],
     });
+  });
+
+  it('reconciles by listing mail to the recipient since the attempt, and says unknown on doubt', async () => {
+    const urls: string[] = [];
+    let reply: () => Response = () =>
+      new Response(JSON.stringify({ emails: [{ id: 'tem-9' }], total_count: 1 }), { status: 200 });
+    const mailer = new TemMailer({
+      secretKey: 's',
+      projectId: 'proj',
+      region: 'fr-par',
+      fetch: async (url) => {
+        urls.push(String(url));
+        return reply();
+      },
+    });
+    const since = new Date('2026-10-21T12:00:00.000Z');
+    expect(await mailer.wasSent('k', message, since)).toBe('sent');
+    const q = new URL(urls[0]!).searchParams;
+    expect(q.get('mail_to')).toBe('ada@example.org');
+    expect(q.get('subject')).toBe('Bevestig je inschrijving bij Probe');
+    expect(q.get('since')).toBe('2026-10-21T11:59:00.000Z');
+
+    reply = () => new Response(JSON.stringify({ emails: [], total_count: 0 }), { status: 200 });
+    expect(await mailer.wasSent('k', message, since)).toBe('not_sent');
+    reply = () => new Response('down', { status: 503 });
+    expect(await mailer.wasSent('k', message, since)).toBe('unknown');
+    reply = () => {
+      throw new Error('network');
+    };
+    expect(await mailer.wasSent('k', message, since)).toBe('unknown');
   });
 
   it('throws on an API error so the outbox retries', async () => {
@@ -47,15 +85,25 @@ describe('TemMailer', () => {
       region: 'fr-par',
       fetch: async () => new Response('quota exceeded', { status: 429 }),
     });
-    await expect(mailer.send(message)).rejects.toThrow('TEM API 429: quota exceeded');
+    await expect(mailer.send(message, 'k')).rejects.toThrow('TEM API 429: quota exceeded');
   });
 });
 
 describe('ConsoleMailer', () => {
-  it('prints the text part', async () => {
+  it('prints the text part and spools the message as JSON when asked', async () => {
     const lines: string[] = [];
-    await new ConsoleMailer((l) => lines.push(l)).send(message);
+    const dir = mkdtempSync(join(tmpdir(), 'mycel-spool-'));
+    const mailer = new ConsoleMailer((l) => lines.push(l), dir);
+    await mailer.send(message, 'k1');
     expect(lines[0]).toContain('To: ada@example.org');
     expect(lines[0]).toContain('https://x.test/probe/confirm?token=abc');
+    const files = readdirSync(dir);
+    expect(files).toHaveLength(1);
+    const spooled = JSON.parse(readFileSync(join(dir, files[0]!), 'utf8'));
+    expect(spooled).toMatchObject({ key: 'k1', to: { email: 'ada@example.org' } });
+    expect(spooled.text).toContain('https://x.test/probe/confirm?token=abc');
+    expect(await mailer.wasSent('k1', message, new Date())).toBe('sent');
+    expect(await mailer.wasSent('k2', message, new Date())).toBe('not_sent');
+    rmSync(dir, { recursive: true });
   });
 });

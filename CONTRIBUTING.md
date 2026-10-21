@@ -19,17 +19,19 @@ npm run db:seed     # applies migrations, then creates tenant `probe` with a sig
 npm run dev         # API + outbox worker on :8787, web on :5173
 ```
 
-Open <http://localhost:5173/probe/signup>, sign up, and the confirmation mail is printed in the `[api]` output. `db:seed` is idempotent; run it again whenever you like.
+Open <http://localhost:5173/probe/signup>, sign up, and the confirmation mail is printed in the `[api]` output; follow the link in it and the supporter's list moves from pending to confirmed (`POST /v1/supporters.get` shows both). `db:seed` is idempotent; run it again whenever you like.
 
-Without Docker, any Postgres 16 works: point `DATABASE_URL` in `.env` at a role that owns the database and may create roles (`CREATEROLE`), then skip `db:up`. `db:up` publishes Postgres on `127.0.0.1:5432`; if that port is taken, set `MYCEL_PG_PORT` in `.env` and use the same port in `DATABASE_URL` and `APP_DATABASE_URL`.
+This sequence was last run on 2026-10-21 on Linux with Docker Engine 29 and Compose v5: `db:up` on a machine whose 5432 was taken needed `MYCEL_PG_PORT=5435` in `.env` (and that port in both URLs), after which `db:seed` and a signup through the built web app, worker and confirmation link worked (the same path `npm run verify` drives end to end). On macOS, Docker Desktop was not usable that day; the Homebrew route below worked instead.
+
+Without Docker, any Postgres 16 works: point `DATABASE_URL` in `.env` at a role that owns the database and may create roles (`CREATEROLE`), then skip `db:up`. On macOS that is `brew install postgresql@16`, `brew services start postgresql@16`, `createdb mycel`, and `DATABASE_URL=postgres://<your user>@localhost:5432/mycel` (Homebrew's superuser is your own account, no password). `db:up` publishes Postgres on `127.0.0.1:5432`; if that port is taken, set `MYCEL_PG_PORT` in `.env` and use the same port in `DATABASE_URL` and `APP_DATABASE_URL`.
 
 Other scripts:
 
-| Script               | What it does                                                                         |
-| -------------------- | ------------------------------------------------------------------------------------ |
-| `npm run db:migrate` | applies new migrations only (forward-only SQL in `packages/db/migrations`)           |
-| `npm run worker`     | runs the outbox worker on its own (set `MYCEL_WORKER=off` for the API to not run it) |
-| `npm run verify`     | the gate, see below                                                                  |
+| Script               | What it does                                                                                   |
+| -------------------- | ---------------------------------------------------------------------------------------------- |
+| `npm run db:migrate` | applies new migrations only (forward-only SQL in `packages/db/migrations`)                     |
+| `npm run worker`     | runs the outbox worker and janitor on their own (`MYCEL_WORKER=off` keeps them out of the API) |
+| `npm run verify`     | the gate, see below                                                                            |
 
 ## The gate
 
@@ -39,7 +41,7 @@ npm run verify
 
 `verify` is the gate: formatting, dependency rules, types, tests, build and the Playwright + axe end-to-end tests. CI runs the same command. Keep it green on every commit.
 
-With `DATABASE_URL` and `APP_DATABASE_URL` set (they are, after the steps above), `verify` also runs the database suites, including the Row Level Security conformance test (`packages/db/src/rls.conformance.test.ts`), and the end-to-end tests (after `npx playwright install chromium`). Without them those suites skip; in CI (`E2E_REQUIRED=1`) a missing database fails the build instead. Load the env first: `set -a; . ./.env; set +a; npm run verify`.
+With `DATABASE_URL` and `APP_DATABASE_URL` set (they are, after the steps above), `verify` also runs the database suites, including the Row Level Security conformance test (`packages/db/src/rls.conformance.test.ts`), and the end-to-end tests (after `npx playwright install chromium`). The end-to-end run starts the API with its worker on port 8797 (`E2E_API_PORT` to change it) and a console mailer that spools to a temporary directory, so the signup spec can follow the confirmation link. Without a database those suites skip; in CI (`E2E_REQUIRED=1`) a missing database fails the build instead. Load the env first: `set -a; . ./.env; set +a; npm run verify`.
 
 ## Container image
 
