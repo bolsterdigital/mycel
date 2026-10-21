@@ -25,6 +25,13 @@ export const Actor = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('api-key'), keyId: z.string() }),
   z.object({ kind: z.literal('agent'), sessionId: z.string(), onBehalfOf: z.string().optional() }),
   z.object({ kind: z.literal('system'), job: z.string() }),
+  // A visitor of a public page. The front derives `ipHash` from the connection (never from the
+  // form body) so rate limits and provenance have a key without storing an IP address.
+  z.object({
+    kind: z.literal('anonymous'),
+    channel: z.enum(['web']),
+    ipHash: z.string().optional(),
+  }),
 ]);
 export type Actor = z.infer<typeof Actor>;
 
@@ -39,4 +46,28 @@ export function can(principal: Principal, capability: Capability): boolean {
   return (
     principal.capabilities.includes(capability) || principal.capabilities.includes('tenant:admin')
   );
+}
+
+/** A principal for background work (outbox subscribers, seed) acting inside one tenant. */
+export function systemPrincipal(tenantId: string, job: string): Principal {
+  return { tenantId, actor: { kind: 'system', job }, capabilities: ['tenant:admin'] };
+}
+
+/**
+ * A public visitor. Fronts give it exactly the capabilities the page needs: `content:read` and
+ * `forms:read` to render, `forms:write` (and nothing else) to submit.
+ */
+export function anonymousPrincipal(
+  tenantId: string,
+  capabilities: Capability[],
+  ipHash?: string
+): Principal {
+  return {
+    tenantId,
+    actor:
+      ipHash === undefined
+        ? { kind: 'anonymous', channel: 'web' }
+        : { kind: 'anonymous', channel: 'web', ipHash },
+    capabilities,
+  };
 }

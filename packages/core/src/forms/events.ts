@@ -1,0 +1,14 @@
+// Events the forms module publishes (ADR 010 rule 4). Props carry what subscribers need so that
+// none of them has to read the forms tables: the supporter module builds its envelope from this.
+
+export interface NewsletterSubscribedProps {
+  email: string;
+  list: string;
+  formId: string;
+  submissionId: string;
+  locale: string;
+  pageUrl: string | null;
+  consentTextVersion: string;
+  /** False until the double opt-in link is followed. */
+  confirmed: boolean;
+}
