@@ -3,6 +3,11 @@
 # probe is meant to make visible. The `mycel` user owns the schema and runs migrations; the app
 # connects as `mycel_app`, whose password `npm run migrate -w @mycel/db` sets from
 # MYCEL_APP_PASSWORD.
+#
+# The host port comes from MYCEL_PG_PORT (compose reads .env for interpolation), so a machine whose
+# 5432 is taken can move it without an override file; it binds to 127.0.0.1 because a bare
+# `<port>:5432` is reachable from outside on a server without a Docker `ip` default.
+# Rejected: a per-machine compose.override.yml, which every new machine has to rediscover.
 services:
   postgres:
     image: postgres:16-alpine
@@ -11,7 +16,7 @@ services:
       POSTGRES_USER: mycel
       POSTGRES_PASSWORD: mycel
     ports:
-      - '5432:5432'
+      - '127.0.0.1:${MYCEL_PG_PORT:-5432}:5432'
     volumes:
       - mycel-pg:/var/lib/postgresql/data
     healthcheck:
