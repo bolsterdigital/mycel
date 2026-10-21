@@ -35,8 +35,13 @@ export async function migrate(
   connectionString: string,
   {
     appPassword,
+    authPassword,
     log = console.log,
-  }: { appPassword?: string | undefined; log?: (m: string) => void } = {}
+  }: {
+    appPassword?: string | undefined;
+    authPassword?: string | undefined;
+    log?: (m: string) => void;
+  } = {}
 ): Promise<string[]> {
   const client = new pg.Client({ connectionString });
   await client.connect();
@@ -74,11 +79,16 @@ export async function migrate(
     ahead.setUTCMonth(ahead.getUTCMonth() + 3);
     const created = await ensureEventPartitions(client, FIRST_EVENT_MONTH, ahead);
     if (created) log(`created ${created} event partition(s)`);
-    // Operator-supplied password turns the nologin mycel_app role into the app's login (0001).
-    if (appPassword) {
+    // Operator-supplied passwords turn the nologin runtime roles into the fronts' logins:
+    // mycel_app for tenant data (0001), mycel_authenticator for authentication (0007).
+    for (const [role, password] of [
+      ['mycel_app', appPassword],
+      ['mycel_authenticator', authPassword],
+    ] as const) {
+      if (!password) continue;
       const { rows } = await client.query<{ q: string }>(
-        `select format('alter role mycel_app with login password %L', $1::text) as q`,
-        [appPassword]
+        `select format('alter role %I with login password %L', $1::text, $2::text) as q`,
+        [role, password]
       );
       await client.query(rows[0]!.q);
     }
@@ -96,7 +106,10 @@ if (isMain) {
     console.error('DATABASE_URL is not set (see .env.example)');
     process.exit(1);
   }
-  migrate(url, { appPassword: process.env['MYCEL_APP_PASSWORD'] })
+  migrate(url, {
+    appPassword: process.env['MYCEL_APP_PASSWORD'],
+    authPassword: process.env['MYCEL_AUTH_PASSWORD'],
+  })
     .then((applied) =>
       console.log(applied.length ? `${applied.length} migration(s) applied` : 'schema up to date')
     )

@@ -35,8 +35,15 @@ if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
 
 const APP_ROLE = 'mycel_app';
 // ADR 011 rule 1: cross-tenant (`using (true)`) policies exist only on platform queues, logs and
-// counters: the outbox (worker drain, 0003) and the rate-limit windows (janitor sweep, 0006).
-const CROSS_TENANT_TABLES = ['outbox', 'rate_limits'];
+// counters: the outbox (worker drain, 0003) and the rate-limit windows (janitor sweep, 0006);
+// plus the one exception, the identity tables read at authentication time (mycel_auth, 0007).
+const CROSS_TENANT_TABLES = [
+  'outbox',
+  'rate_limits',
+  'operators',
+  'tenant_memberships',
+  'api_keys',
+];
 const ISOLATION = '(tenant_id = current_tenant_id())';
 
 interface TenantTable {
@@ -66,7 +73,11 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
   let policies: Policy[] = [];
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, { appPassword: process.env['MYCEL_APP_PASSWORD'], log: () => {} });
+    await migrate(operatorUrl!, {
+      appPassword: process.env['MYCEL_APP_PASSWORD'],
+      authPassword: process.env['MYCEL_AUTH_PASSWORD'],
+      log: () => {},
+    });
 
     // Every relation in `public` with a tenant_id column: plain and partitioned tables both.
     // Partitions are checked separately: their parent carries RLS and grants for them.
@@ -136,6 +147,15 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
       },
     };
     await supporterIngestSubscriber(uow).handle(event);
+    // Memberships and keys through their use cases (TODO #7).
+    await invoker.run(useCases.inviteMember, admin, {
+      email: `member-${run}@example.org`,
+      capabilities: ['content:write'],
+    });
+    await invoker.run(useCases.createKey, admin, {
+      name: 'rls',
+      capabilities: ['content:read'],
+    });
     await confirmationMailSubscriber({
       mailer: new MemoryMailer(),
       signer,
@@ -156,6 +176,7 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     expect(tables.map((t) => t.name)).toEqual(
       expect.arrayContaining([
         'events',
+        'api_keys',
         'form_submissions',
         'forms',
         'mail_sends',
@@ -163,6 +184,7 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
         'pages',
         'rate_limits',
         'supporters',
+        'tenant_memberships',
       ])
     );
   });

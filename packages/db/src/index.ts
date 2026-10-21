@@ -2,9 +2,11 @@
 // transaction, sets `app.tenant_id` for its duration, and hands the use case a Kysely instance.
 // Kysely over an ORM: typed SQL without a second schema language, and RLS needs real SQL anyway.
 //
-// Two connections, two roles: the application pool connects as `mycel_app` (subject to RLS);
-// the operator pool (migrations, seed, tenant directory writes, outbox drain) connects as the
-// schema owner. Fronts only ever get the unit of work, never the operator pool.
+// Three connections, three roles: the application pool connects as `mycel_app` (subject to RLS);
+// the authentication pool as `mycel_authenticator`, which can only enter `mycel_auth` (0007,
+// `createIdentityStore`); the operator pool (migrations, seed, tenant directory writes, outbox
+// drain) as the schema owner. Fronts get the unit of work and the identity store, never the
+// operator pool.
 
 import { Kysely, PostgresDialect, sql } from 'kysely';
 import pg from 'pg';
@@ -17,6 +19,7 @@ import type {
   TenantInfo,
   UnitOfWork,
 } from '@mycel/core';
+import { apiKeyRepository, membershipRepository, operatorRepository } from './operators.js';
 import { outboxEventBus } from './outbox.js';
 import {
   formRepository,
@@ -32,6 +35,7 @@ export type { Database } from './schema.js';
 export { uuidv7, uuidv7Ids } from './ids.js';
 export { drainOutbox, startOutboxWorker, type DrainResult } from './outbox.js';
 export { startJanitor, sweepRateLimits } from './janitor.js';
+export { createIdentityStore } from './operators.js';
 export { FIRST_EVENT_MONTH, ensureEventPartitions, migrate } from './migrate.js';
 
 export function createDb(connectionString: string): Kysely<Database> {
@@ -77,6 +81,9 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           rateLimits: rateLimiter(trx, tenantId, deps.clock),
           supporters: supporterRepository(trx, tenantId, deps.ids),
           mailSends: mailSendsRepository(trx, tenantId),
+          operators: operatorRepository(trx),
+          members: membershipRepository(trx, tenantId),
+          apiKeys: apiKeyRepository(trx, tenantId),
         });
       });
     },
