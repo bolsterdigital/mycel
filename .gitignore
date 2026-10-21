@@ -17,3 +17,7 @@ docs/plans
 # Per-user agent state
 .claude/settings.local.json
 .scratch/
+
+# Playwright output
+test-results
+playwright-report

@@ -1,9 +1,9 @@
 name: Verify
 
 # Gate on what silently rots: formatting, dependency direction and licences, types,
-# tests and the build. Runs on PRs and pushes to main. Deployment is a separate
-# workflow so a red check here never blocks an already-merged fix, but a red check
-# on the PR is the signal to fix it first.
+# tests and the build, plus the Playwright + axe gate against a real Postgres. Runs on
+# PRs and pushes to main. Deployment is a separate workflow so a red check here never
+# blocks an already-merged fix, but a red check on the PR is the signal to fix it first.
 
 on:
   pull_request:
@@ -18,8 +18,31 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: mycel
+          POSTGRES_USER: mycel
+          POSTGRES_PASSWORD: mycel
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U mycel -d mycel" --health-interval 2s --health-timeout 3s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://mycel:mycel@localhost:5432/mycel
+      APP_DATABASE_URL: postgres://mycel_app:mycel_app_ci@localhost:5432/mycel
+      MYCEL_APP_PASSWORD: mycel_app_ci
+      SIGNING_SECRET: ci-only-signing-secret
+      PUBLIC_BASE_URL: http://127.0.0.1:4173
+      MAIL_FROM: CI <noreply@example.org>
+      MAILER: console
+      # In CI a missing database or browser fails the e2e gate instead of skipping it.
+      E2E_REQUIRED: '1'
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -36,5 +59,12 @@ jobs:
           if [ -n "$missing" ]; then
             echo "Commits without Signed-off-by (use git commit -s):"; echo "$missing"; exit 1
           fi
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      # Before the tests: the db suite connects as mycel_app, whose login migrate enables.
+      - name: Migrate
+        run: npm run migrate -w @mycel/db
 
       - run: npm run verify

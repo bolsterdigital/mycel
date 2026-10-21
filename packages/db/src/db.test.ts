@@ -54,7 +54,7 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
   let formId = '';
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, { log: () => {} });
+    await migrate(operatorUrl!, { appPassword: process.env['MYCEL_APP_PASSWORD'], log: () => {} });
     tenantA = (
       await upsertTenant(operatorDb, {
         id: uuidv7(),
