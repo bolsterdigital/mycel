@@ -13,7 +13,6 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace apps/web",
     "typecheck": "tsc -b packages/api packages/mcp && npm run typecheck --workspace apps/web",
     "test": "vitest run",
     "build": "tsc -b packages/api packages/mcp && npm run build --workspace apps/web",
@@ -22,7 +21,11 @@
     "lint:deps": "node scripts/check-dependency-rules.mjs",
     "verify": "npm run format:check && npm run lint:deps && npm run typecheck && npm run test && npm run build && npm run test:e2e",
     "test:e2e": "node scripts/e2e.mjs",
-    "db:up": "docker compose -f compose.dev.yml up -d"
+    "dev": "node scripts/dev.mjs",
+    "worker": "tsc -b packages/api && npm run -s worker -w @mycel/api",
+    "db:up": "docker compose -f compose.dev.yml up -d --wait",
+    "db:migrate": "npm run -s migrate -w @mycel/db",
+    "db:seed": "tsc -b packages/db && npm run -s migrate -w @mycel/db && npm run -s seed -w @mycel/db"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
