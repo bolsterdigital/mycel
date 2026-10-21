@@ -21,3 +21,6 @@ docs/plans
 # Playwright output
 test-results
 playwright-report
+
+# Harness worktrees for background agents
+.claude/worktrees/
