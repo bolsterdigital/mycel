@@ -2,7 +2,7 @@
 
 - **Status**: accepted
 - **Date**: 2026-10-21
-- **Amended**: 2026-10-21 by ADR 019 (stable `supporter_id`, fold order, per-supporter lock, retention, erasure scope)
+- **Amended**: 2026-10-21 by ADR 019 (stable `supporter_id`, fold order, per-supporter lock, retention, erasure scope); 2026-10-21, consequence 1: `events` is range-partitioned by month only, sub-partitioning per tenant is deferred (review of PR #4, `mycel-planning` decisions 2026-10-21)
 - **Inherits**: the Dreamkit supporter event contract v1 (`wings.supporter-event.v1`, `dreamkit/docs/supporter-registry/event-contract.md`) and the "no state stealing" principle from the Dreamkit supporter-CRM brief.
 
 ## Context
@@ -26,6 +26,6 @@ Dreamkit's supporter registry was designed as the one thing nobody else owned: i
 
 ## Consequences
 
-- The `events` table is the largest table in the system and is partitioned by tenant and month from the start.
+- The `events` table is the largest table in the system and is range-partitioned by month (`occurred_at`) from the start, with `tenant_id` leading every index and the primary key `(tenant_id, id, occurred_at)`; `occurred_at` is already part of the deterministic id, so dedup is unchanged. A default partition catches rows outside the created months and must stay empty (database conformance). Sub-partitioning per tenant is deferred until measured: it needs DDL per tenant and multiplies partitions by tenants, while a tenant's rows are already contiguous under the index and erasure is a tombstone, not a drop.
 - Import of the existing Dreamkit registry is a backfill of events (source `backfill`), which the contract already defines.
 - Segments are queries over the projection and are themselves stored as data (a small filter DSL), so an agent can create and explain one through MCP.
