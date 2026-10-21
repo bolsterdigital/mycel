@@ -54,7 +54,7 @@ jobs:
       - name: Signed-off-by on every commit (DCO)
         if: github.event_name == 'pull_request'
         run: |
-          missing=$(git log --format='%H %(trailers:key=Signed-off-by,valueonly)' \
+          missing=$(git log --no-merges --format='%H %(trailers:key=Signed-off-by,valueonly)' \
             origin/${{ github.base_ref }}..HEAD | awk 'NF < 2 { print $1 }')
           if [ -n "$missing" ]; then
             echo "Commits without Signed-off-by (use git commit -s):"; echo "$missing"; exit 1
