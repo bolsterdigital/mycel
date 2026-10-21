@@ -2,6 +2,7 @@
 
 - **Status**: accepted
 - **Date**: 2026-10-21
+- **Amended**: 2026-10-21 for TODO #7 (rule 3: operator sessions; rule 4: identity tables)
 
 ## Context
 
@@ -11,8 +12,8 @@ Dreamkit runs one WordPress install per client. Isolation is excellent; everythi
 
 1. **One Postgres database, one schema, one deployment serves all tenants.** Every tenant-owned table carries a `tenant_id uuid not null` column with a foreign key to `tenants`.
 2. **Row Level Security is enabled and forced on every tenant-owned table.** Policies compare `tenant_id` with `current_setting('app.tenant_id', true)::uuid`. The application connects with a role that is _not_ the table owner and cannot bypass RLS.
-3. **Tenant context is set per transaction, derived from authentication, never from the payload.** An API key, a session or an MCP connection is scoped to exactly one tenant; `packages/db` sets `app.tenant_id` with `set_config(..., true)` at the start of every transaction. A request that carries a `tenant_id` in its body is a bug.
-4. **Platform operations (create tenant, list tenants, migrations) use a separate operator role and separate code paths**, kept out of tenant-facing adapters.
+3. **Tenant context is set per transaction, derived from authentication, never from the payload.** An API key, a session or an MCP connection is scoped to exactly one tenant; `packages/db` sets `app.tenant_id` with `set_config(..., true)` at the start of every transaction. A request that carries a `tenant_id` in its body is a bug. An operator's browser session identifies the operator, not a tenant: the tenant of an admin request follows from the admin URL (ADR 014 rule 4) and the operator's membership of that tenant, and the resulting `Principal` is scoped to that one tenant.
+4. **Platform operations (create tenant, list tenants, migrations) use a separate operator role and separate code paths**, kept out of tenant-facing adapters. The identity tables (`operators`, `tenant_memberships`, `api_keys`) are read, and `operators` written, at authentication time, before a tenant context exists, through the dedicated `mycel_auth` role (ADR 011 rule 1); the application role sees memberships and keys only under its tenant context.
 5. **Per-tenant export is a first-class use case** from the start: a tenant's complete data (supporters, events, consents, content, donations ledger, mailing lists) exports to a documented JSON format with one command. Portability is how we keep the "one database" choice honest.
 6. **Tenant data lives in the EU**: Hetzner (Falkenstein/Nuremberg) or Scaleway, with object storage likewise.
 
