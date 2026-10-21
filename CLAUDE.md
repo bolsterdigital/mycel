@@ -2,7 +2,7 @@
 
 Open-core successor to Dreamkit: campaign sites, forms, donations, supporters and mailing in one EU-hosted application. AGPL-3.0, TypeScript monorepo. This file is also `AGENTS.md`.
 
-**Read first, every session**: `docs/adr/` (eleven short files, the contract you build against) and `docs/architecture/overview.md` (package map and import rules). A brief or TODO item that contradicts an accepted ADR is wrong until the ADR is superseded: stop and flag it.
+**Read first, every session**: `docs/adr/` (twelve short files, the contract you build against) and `docs/architecture/overview.md` (package map and import rules). A brief or TODO item that contradicts an accepted ADR is wrong until the ADR is superseded: stop and flag it.
 
 ## Commands
 
