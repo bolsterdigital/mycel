@@ -4,9 +4,16 @@
 import { createPage, getPage } from './content/service.js';
 import { getForm, submitForm } from './forms/service.js';
 import { UseCaseRegistry, type UseCase } from './registry.js';
-import { getSupporter } from './supporters/service.js';
+import { changeSupporterEmail, getSupporter } from './supporters/service.js';
 
-export const useCases = { getPage, createPage, getForm, submitForm, getSupporter } as const;
+export const useCases = {
+  getPage,
+  createPage,
+  getForm,
+  submitForm,
+  getSupporter,
+  changeSupporterEmail,
+} as const;
 
 export function buildRegistry(): UseCaseRegistry {
   const registry = new UseCaseRegistry();

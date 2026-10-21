@@ -33,6 +33,8 @@ interface TenantTable {
   name: string;
   rowsecurity: boolean;
   forcerowsecurity: boolean;
+  /** Set for a partition: the table whose RLS and grants cover it (ADR 003, 0005). */
+  parent: string | null;
 }
 interface Policy {
   tablename: string;
@@ -50,21 +52,27 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
   const run = Math.random().toString(36).slice(2, 8);
   let tenantId = '';
   let tables: TenantTable[] = [];
+  let partitions: TenantTable[] = [];
   let policies: Policy[] = [];
 
   beforeAll(async () => {
     await migrate(operatorUrl!, { appPassword: process.env['MYCEL_APP_PASSWORD'], log: () => {} });
 
     // Every relation in `public` with a tenant_id column: plain and partitioned tables both.
-    tables = (
+    // Partitions are checked separately: their parent carries RLS and grants for them.
+    const all = (
       await sql<TenantTable>`
         select c.relname as name, c.relrowsecurity as rowsecurity,
-               c.relforcerowsecurity as forcerowsecurity
+               c.relforcerowsecurity as forcerowsecurity, p.relname as parent
         from pg_class c join pg_attribute a on a.attrelid = c.oid
+        left join pg_inherits i on i.inhrelid = c.oid
+        left join pg_class p on p.oid = i.inhparent
         where a.attname = 'tenant_id' and not a.attisdropped and c.relkind in ('r', 'p')
           and c.relnamespace = 'public'::regnamespace
         order by c.relname`.execute(operatorDb)
     ).rows;
+    tables = all.filter((t) => t.parent === null);
+    partitions = all.filter((t) => t.parent !== null);
     policies = (
       await sql<Policy>`
         select tablename, policyname, permissive, roles::text[] as roles, cmd, qual, with_check
@@ -145,6 +153,28 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
       .filter((t) => !t.rowsecurity || !t.forcerowsecurity)
       .map((t) => `${t.name} (enabled=${t.rowsecurity}, forced=${t.forcerowsecurity})`);
     expect(failing).toEqual([]);
+  });
+
+  it('covers every partition through its parent: RLS forced there, no grants on the partition', async () => {
+    // Proves the check is not vacuous: 0005's default partition is the known instance.
+    expect(partitions.map((p) => p.name)).toContain('events_default');
+    for (const partition of partitions) {
+      const parent = tables.find((t) => t.name === partition.parent);
+      expect(
+        parent,
+        `${partition.name}: parent ${partition.parent} not a tenant table`
+      ).toMatchObject({ rowsecurity: true, forcerowsecurity: true });
+      const { rows } = await sql<{ granted: string[] }>`
+        select array(
+          select p from unnest(array['select', 'insert', 'update', 'delete', 'truncate',
+                                     'references', 'trigger']) p
+          where has_table_privilege(${APP_ROLE}, ${`public.${partition.name}`}, p)
+        ) as granted`.execute(operatorDb);
+      expect(
+        rows[0]?.granted,
+        `${partition.name}: ${APP_ROLE} has rights on the partition`
+      ).toEqual([]);
+    }
   });
 
   it('gives every tenant table the tenant_isolation policy from 0001', () => {

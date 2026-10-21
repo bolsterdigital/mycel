@@ -236,7 +236,11 @@ describe('supporter projection', () => {
           confirmed: false,
         },
       });
-    const events = await Promise.all([mk(5, 'b'), mk(1, 'a'), mk(3, 'a')]);
+    const supporter_id = '01900000-0000-7000-8000-0000000000aa';
+    const events = (await Promise.all([mk(5, 'b'), mk(1, 'a'), mk(3, 'a')])).map((e) => ({
+      ...e,
+      supporter_id,
+    }));
     const forward = rebuildProjection(events);
     const backward = rebuildProjection([...events].reverse());
     expect(forward).toEqual(backward);

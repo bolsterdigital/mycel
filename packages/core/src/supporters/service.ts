@@ -1,6 +1,7 @@
 // The supporter module subscribes; other modules publish (ADR 003 rule 6). Ingest maps a domain
-// event onto the inherited `wings.supporter-event.v1` envelope, dedups on its deterministic id,
-// and updates the projection by applying the event, which equals a rebuild by construction.
+// event onto the inherited `wings.supporter-event.v1` envelope, resolves the e-mail address to a
+// stable supporter id under a per-address lock, dedups on the deterministic event id, and folds
+// the event into the projection (ADR 019 rules 1 to 3).
 
 import { z } from 'zod';
 import { UseCaseError } from '../errors.js';
@@ -10,7 +11,13 @@ import type { DomainEvent, Subscriber, TransactionContext, UnitOfWork } from '..
 import { defineUseCase } from '../registry.js';
 import { sha1Hex } from '../util/digest.js';
 import { SupporterEvent } from './events.js';
-import { SupporterProjection, applyEvent } from './model.js';
+import {
+  SupporterProjection,
+  applyEvent,
+  compareFoldPosition,
+  foldPosition,
+  rebuildProjection,
+} from './model.js';
 import './ports.js';
 
 export const SOURCE = 'mycel';
@@ -41,11 +48,31 @@ export async function toSupporterEvent(event: DomainEvent): Promise<SupporterEve
   });
 }
 
+/**
+ * Ingest one envelope. Locks the address first, so two workers on one supporter serialise and
+ * different supporters run in parallel (ADR 019 rule 3); `supporter_id` on the input is ignored,
+ * the address decides. After a `supporter.email_changed` the old address no longer resolves, so an
+ * event that still uses it starts a new supporter: the source has to use the new address.
+ */
 export async function ingest(ctx: TransactionContext, event: SupporterEvent): Promise<boolean> {
-  const inserted = await ctx.supporters.appendEvent(event);
-  if (!inserted) return false;
-  const current = await ctx.supporters.getProjection(event.email);
-  await ctx.supporters.saveProjection(applyEvent(current, event));
+  await ctx.supporters.lock(event.email);
+  const { id } = await ctx.supporters.resolve(event.email);
+  return appendAndFold(ctx, { ...event, supporter_id: id });
+}
+
+/** Append, then fold: on top when the event is newest, from the log when it arrived late. */
+async function appendAndFold(
+  ctx: TransactionContext,
+  event: SupporterEvent & { supporter_id: string }
+): Promise<boolean> {
+  if (!(await ctx.supporters.appendEvent(event))) return false;
+  const current = await ctx.supporters.getProjectionById(event.supporter_id);
+  const next =
+    current && compareFoldPosition(foldPosition(event), current.appliedThrough) > 0
+      ? applyEvent(current, event)
+      : rebuildProjection(await ctx.supporters.eventsFor(event.supporter_id));
+  if (!next) throw new Error(`supporter ${event.supporter_id} has no events after an append`);
+  await ctx.supporters.saveProjection(next);
   return true;
 }
 
@@ -65,7 +92,8 @@ export function supporterIngestSubscriber(uow: UnitOfWork): Subscriber {
 export const getSupporter = defineUseCase({
   name: 'supporters.get',
   kind: 'query',
-  description: 'Get the supporter projection (first seen, last activity, lists) by e-mail address.',
+  description:
+    'Get the supporter projection (id, first seen, last activity, lists) by e-mail address.',
   requires: 'supporters:read',
   input: z.object({ email: z.string().trim().toLowerCase().email() }),
   output: SupporterProjection,
@@ -75,5 +103,66 @@ export const getSupporter = defineUseCase({
     const projection = await ctx.supporters.getProjection(email);
     if (!projection) throw new UseCaseError('not_found', 'no supporter with that e-mail address');
     return projection;
+  },
+});
+
+export const changeSupporterEmail = defineUseCase({
+  name: 'supporters.email.change',
+  kind: 'command',
+  description:
+    'Change the e-mail address of a supporter; the change is a logged event, never an overwrite.',
+  requires: 'supporters:write',
+  input: z.object({
+    supporterId: z.string().uuid(),
+    newEmail: z.string().trim().toLowerCase().email(),
+    /** Evidence for the change (ADR 019 rule 1): who asked, through which channel. */
+    reason: z.string().trim().min(1).max(500),
+  }),
+  output: SupporterProjection,
+  examples: [
+    {
+      input: {
+        supporterId: '01900000-0000-7000-8000-000000000001',
+        newEmail: 'new@example.org',
+        reason: 'Requested by the supporter by e-mail.',
+      },
+    },
+  ],
+  async handler(ctx, { supporterId, newEmail, reason }) {
+    const before = await ctx.supporters.getProjectionById(supporterId);
+    if (!before) throw new UseCaseError('not_found', 'no supporter with that id');
+    if (before.email === newEmail) return before;
+
+    // Both addresses, in a fixed order so two opposite changes cannot deadlock. The read above
+    // was unlocked: if the address moved in between, the caller retries on fresh data.
+    for (const email of [before.email, newEmail].sort()) await ctx.supporters.lock(email);
+    const current = await ctx.supporters.getProjectionById(supporterId);
+    if (!current || current.email !== before.email)
+      throw new UseCaseError('conflict', 'the supporter changed while the request ran; retry');
+    const holder = await ctx.supporters.getProjection(newEmail);
+    if (holder) throw new UseCaseError('conflict', 'another supporter has that e-mail address');
+
+    const occurredAt = ctx.clock.now().toISOString();
+    const sourceRef = `supporter:${supporterId}`;
+    const type = 'supporter.email_changed';
+    const appended = await appendAndFold(ctx, {
+      ...SupporterEvent.parse({
+        schema: 'wings.supporter-event.v1',
+        id: await sha1Hex([SOURCE, sourceRef, type, occurredAt].join('|')),
+        type,
+        email: current.email,
+        occurred_at: occurredAt,
+        source: SOURCE,
+        source_site: 'urn:mycel:supporters',
+        source_ref: sourceRef,
+        props: { old_email: current.email, new_email: newEmail, reason },
+      }),
+      supporter_id: supporterId,
+    });
+    // Same supporter, same millisecond: the deterministic id collides with an earlier change.
+    if (!appended) throw new UseCaseError('conflict', 'a change was just recorded; retry');
+    const after = await ctx.supporters.getProjectionById(supporterId);
+    if (!after) throw new Error(`supporter ${supporterId} vanished during an e-mail change`);
+    return after;
   },
 });

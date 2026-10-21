@@ -42,6 +42,8 @@ Short map; the reasoning is in [`../adr/`](../adr/).
 
 **Events.** Modules communicate through `EventBus` (a port). The first implementation is an in-process bus backed by a Postgres outbox table so that a crash never loses an event; a worker drains it. The supporter module is the main subscriber (ADR 003).
 
+**Supporter identity and fold.** Ingest locks the event's e-mail address (a transaction-scoped advisory lock per tenant and address), resolves it to a stable `supporter_id` (a new UUIDv7 on first sight), appends the event to the monthly partitioned `events` log (dedup on the deterministic id) and folds it into the `supporters` projection. The projection records `appliedThrough`, the fold position (`occurred_at`, then id) of the last event it applied: a newer event is applied on top, a late one triggers a re-fold of that one supporter from its log, so every arrival order ends in the same projection. An address changes only through `supporters.email.change`, which locks both addresses and logs `supporter.email_changed` (ADR 019 rules 1 to 3). Monthly partitions are created by `migrate` up to three months ahead; a backfill calls `ensureEventPartitions` for its own range first.
+
 **Where things live**
 
 | Path                            | Contents                                                                              |

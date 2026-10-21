@@ -21,6 +21,7 @@ export const SupporterEventType = z.enum([
   'membership.renewed',
   'membership.ended',
   'supporter.erased',
+  'supporter.email_changed',
 ]);
 export type SupporterEventType = z.infer<typeof SupporterEventType>;
 
@@ -28,8 +29,16 @@ export const SupporterEvent = z.object({
   schema: z.literal('wings.supporter-event.v1'),
   /** Deterministic dedup key: sha1(source | source_ref | type | occurred_at). */
   id: z.string().min(1),
+  /**
+   * Stable supporter id (ADR 019 rule 1), an envelope addition: ingest assigns it when it resolves
+   * the e-mail address, so a backfill or another producer never has to supply it.
+   */
+  supporter_id: z.string().uuid().optional(),
   type: SupporterEventType,
-  /** Lowercased and trimmed; the identity key (ADR 003 rule 1). */
+  /**
+   * Lowercased and trimmed; resolves to `supporter_id` at ingest (ADR 019 rule 1). For
+   * `supporter.email_changed` it is the address before the change.
+   */
   email: z.preprocess(
     (v) => (typeof v === 'string' ? v.trim().toLowerCase() : v),
     z.string().email()

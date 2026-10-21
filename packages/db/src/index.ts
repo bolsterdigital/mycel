@@ -30,7 +30,7 @@ import type { Database } from './schema.js';
 export type { Database } from './schema.js';
 export { uuidv7, uuidv7Ids } from './ids.js';
 export { drainOutbox, startOutboxWorker, type DrainResult } from './outbox.js';
-export { migrate } from './migrate.js';
+export { FIRST_EVENT_MONTH, ensureEventPartitions, migrate } from './migrate.js';
 
 export function createDb(connectionString: string): Kysely<Database> {
   return new Kysely<Database>({
@@ -73,7 +73,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           forms: formRepository(trx, tenantId),
           submissions: submissionRepository(trx, tenantId),
           rateLimits: rateLimiter(trx, tenantId, deps.clock),
-          supporters: supporterRepository(trx, tenantId),
+          supporters: supporterRepository(trx, tenantId, deps.ids),
         });
       });
     },

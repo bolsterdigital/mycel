@@ -1,7 +1,7 @@
 // Integration tests against a real Postgres. They skip without DATABASE_URL (operator role) and
 // APP_DATABASE_URL (mycel_app login, subject to RLS); CI provides both via a service container
 // and sets E2E_REQUIRED=1, which turns a missing database into a failure. The RLS catalog checks
-// live in rls.test.ts.
+// live in rls.conformance.test.ts.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
@@ -112,14 +112,14 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
 
     // The stored projection equals a rebuild from the log (ADR 003 rule 3).
     const events = await uow.run(systemPrincipal(tenantA, 'test'), (ctx) =>
-      ctx.supporters.eventsFor(email)
+      ctx.supporters.eventsFor(supporter.id)
     );
     expect(events).toHaveLength(1);
     expect(rebuildProjection(events)).toEqual(supporter);
 
     // Re-ingesting the same event is a no-op (dedup on the deterministic id).
     const again = await uow.run(systemPrincipal(tenantA, 'test'), (ctx) =>
-      ctx.supporters.appendEvent(events[0]!)
+      ctx.supporters.appendEvent({ ...events[0]!, supporter_id: supporter.id })
     );
     expect(again).toBe(false);
   });
