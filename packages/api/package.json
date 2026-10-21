@@ -29,5 +29,9 @@
     "@hono/node-server": "^1.13.7",
     "@mycel/mail-tem": "*",
     "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@apidevtools/swagger-parser": "^13.1.0",
+    "openapi-types": "^12.1.3"
   }
 }

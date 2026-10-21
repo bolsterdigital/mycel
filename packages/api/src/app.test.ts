@@ -24,33 +24,17 @@ async function setup() {
   return { app, post, uow };
 }
 
+// Generic HTTP behaviour (status codes, Problem Details, OpenAPI) is in
+// registry.conformance.test.ts; this file keeps the signup flow and the caching contract.
 describe('HTTP front', () => {
-  it('lists every registered operation', async () => {
-    const { app } = await setup();
-    const res = await app.request('/v1');
-    const { operations } = (await res.json()) as { operations: { name: string }[] };
-    expect(operations.map((o) => o.name).sort()).toEqual([
-      'content.page.create',
-      'content.page.get',
-      'forms.form.get',
-      'forms.submit',
-      'supporters.get',
-    ]);
-  });
-
-  it('runs the same use cases as the other fronts, with Problem Details on errors', async () => {
+  it('runs the signup flow: create the page, read it, submit the form', async () => {
     const { post } = await setup();
-    expect((await post('content.page.get', { slug: 'signup' }, 'Bearer bad')).status).toBe(401);
     expect((await post('content.page.get', { slug: 'signup' })).status).toBe(404);
     expect((await post('content.page.create', probePage(FORM))).status).toBe(200);
     const page = await post('content.page.get', { slug: 'signup' });
     expect(page.status).toBe(200);
     expect(await page.json()).toMatchObject({ slug: 'signup' });
-
-    const bad = await post('content.page.create', { slug: 'Nope!' });
-    expect(bad.status).toBe(422);
-    expect(bad.headers.get('content-type')).toBe('application/problem+json');
-    expect(await bad.json()).toMatchObject({ title: 'invalid_input', status: 422 });
+    expect((await post('content.page.create', probePage(FORM))).status).toBe(409);
 
     const submit = await post('forms.submit', {
       formId: FORM,
@@ -59,6 +43,32 @@ describe('HTTP front', () => {
     });
     expect(await submit.json()).toMatchObject({ status: 'accepted' });
     expect((await post('no.such.thing', {})).status).toBe(404);
+  });
+
+  it('serves flat queries as GET with a weak ETag and 304 on a match', async () => {
+    const { app, post } = await setup();
+    await post('content.page.create', probePage(FORM));
+    const get = (headers: Record<string, string> = {}) =>
+      app.request('/v1/content.page.get?slug=signup', {
+        headers: { authorization: 'Bearer good', ...headers },
+      });
+
+    const first = await get();
+    expect(first.status).toBe(200);
+    expect(await first.json()).toMatchObject({ slug: 'signup' });
+    const etag = first.headers.get('etag')!;
+    expect(etag).toMatch(/^W\/"/);
+    expect(first.headers.get('cache-control')).toBe('private, no-cache');
+
+    const revalidated = await get({ 'if-none-match': etag });
+    expect(revalidated.status).toBe(304);
+    expect(await revalidated.text()).toBe('');
+    expect((await get({ 'if-none-match': 'W/"other"' })).status).toBe(200);
+
+    const invalid = await app.request('/v1/content.page.get?slug=Nope!', {
+      headers: { authorization: 'Bearer good' },
+    });
+    expect(invalid.status).toBe(400);
   });
 });
 

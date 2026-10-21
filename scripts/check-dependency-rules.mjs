@@ -69,6 +69,8 @@ const ALLOWED_LICENSES = new Set([
   'AGPL-3.0',
   'AGPL-3.0-only',
   'Python-2.0',
+  // argparse 3 relabelled its Python-2.0 licence as PSF-2.0; same text, GPL-compatible per the FSF.
+  'PSF-2.0',
 ]);
 
 const errors = [];
