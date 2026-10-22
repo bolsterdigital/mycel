@@ -120,8 +120,9 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     // Put at least one row for this tenant into every tenant table mycel_app can read, through
     // the real use-case path: a signup writes forms, submissions, rate limits and the
     // outbox; the confirmation mail writes its intent row. The subscribers are called directly
-    // instead of draining the outbox: the outbox is shared with db.test.ts, and a drain here
-    // would claim that suite's events with only some of its subscribers.
+    // instead of draining the outbox: `drainOutbox` claims every tenant's events, so a drain here
+    // would take other suites' events with only some of their subscribers. db.test.ts drains only
+    // its own tenants for the same reason (TODO #26).
     tenantId = (
       await upsertTenant(
         operatorDb,
@@ -187,14 +188,15 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     await supporterIngestSubscriber(uow).handle(event);
     // Ingest released that signup's admission seat (0010); a reservation without a signup keeps
     // one in `supporter_admissions`. Reserved directly, not through a second signup: that signup's
-    // event would sit in the shared outbox, and db.test.ts's drain could ingest it and release the
-    // seat before the count below (a flaky fixture, seen once on TODO #10's branch).
+    // event would sit in the shared outbox, where any drain of every tenant (a running worker; and
+    // db.test.ts until TODO #26 scoped it to its own tenants) could ingest it and release the seat
+    // before the count below (a flaky fixture, seen on TODO #10's branch and in PR #23).
     await uow.run(admin, async (ctx) => {
       await ctx.admissions.lock();
       await ctx.admissions.reserve(`rls-pending-${run}@example.org`);
     });
-    // That signup's outbox event can still be ingested by another suite's drain (db.test.ts
-    // drains every tenant), which releases its seat; a reservation without an event cannot be.
+    // That signup's outbox event can still be ingested by a worker draining every tenant, which
+    // releases its seat; a reservation without an event cannot be.
     await uow.run(admin, (ctx) => ctx.admissions.reserve(`rls-reserved-${run}@example.org`));
     // Memberships and keys through their use cases (TODO #7).
     await invoker.run(useCases.inviteMember, admin, {
