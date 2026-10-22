@@ -32,16 +32,30 @@ const text = (r: unknown) => JSON.parse((r as { content: { text: string }[] }).c
 // Generic MCP behaviour (tool list, schemas, authorization, error shape) is in
 // registry.conformance.test.ts; this file keeps the signup flow end to end.
 describe('MCP front', () => {
-  it('runs the same use cases: create a page, read it as a resource, submit the form', async () => {
+  it('runs the same use cases: create and publish a page, read it as a resource, submit the form', async () => {
     const client = await connect();
-    const created = await client.callTool({
-      name: 'content.page.create',
-      arguments: probePage(FORM),
+    const input = probePage(FORM);
+    input.document.blocks[0] = {
+      type: 'heading',
+      version: 1,
+      props: { text: { nl: 'Meld je aan', en: 'EN-DRAFT-MARKER' } },
+    };
+    const created = text(await client.callTool({ name: 'content.item.create', arguments: input }));
+    expect(created).toMatchObject({ item: { slug: 'signup' } });
+    await client.callTool({
+      name: 'content.item.publish',
+      arguments: { itemId: created.item.id, revisionId: created.revision.id, locale: 'nl' },
     });
-    expect(text(created)).toMatchObject({ slug: 'signup' });
 
     const res = await client.readResource({ uri: 'mycel://pages/signup' });
-    expect(JSON.parse(String(res.contents[0]?.text))).toMatchObject({ slug: 'signup' });
+    const page = String(res.contents[0]?.text);
+    expect(JSON.parse(page)).toMatchObject({ slug: 'signup', locale: 'nl' });
+    // Only the published locale leaves the core, never the English draft in the same revision.
+    const english = await client.callTool({
+      name: 'content.page.get',
+      arguments: { slug: 'signup', acceptLanguage: 'en' },
+    });
+    expect(JSON.stringify([page, english])).not.toContain('EN-DRAFT-MARKER');
 
     const submitted = await client.callTool({
       name: 'forms.submit',

@@ -61,13 +61,67 @@ export interface Database {
     created_at: Timestamp;
     confirmed_at: Timestamp | null;
   };
-  pages: {
+  content_items: {
+    id: string;
+    tenant_id: string;
+    type: 'page' | 'article';
+    slug: string;
+    title: Json<Record<string, string>>;
+    default_locale: string;
+    locales: string[];
+    latest_revision_id: string;
+    created_at: Timestamp;
+    updated_at: Timestamp;
+  };
+  content_revisions: {
+    id: string;
+    tenant_id: string;
+    item_id: string;
+    document: Json<unknown>;
+    actor: Json<unknown>;
+    created_at: Timestamp;
+  };
+  content_item_locales: {
+    tenant_id: string;
+    item_id: string;
+    locale: string;
+    published_revision_id: string | null;
+    published_at: Timestamp | null;
+    first_published_at: Timestamp | null;
+    scheduled_revision_id: string | null;
+    scheduled_for: Timestamp | null;
+    schedule_id: string | null;
+    /** Generated from the pointers (0011); never written. */
+    status: ColumnType<'draft' | 'scheduled' | 'published' | 'unpublished', never, never>;
+  };
+  authors: {
     id: string;
     tenant_id: string;
     slug: string;
-    default_locale: string;
-    locales: string[];
+    name: string;
+    bio: Json<Record<string, string>> | null;
+    image_id: string | null;
+    links: Json<unknown[]>;
+    email: string | null;
+    created_at: Timestamp;
+    updated_at: Timestamp;
+  };
+  sections: {
+    id: string;
+    tenant_id: string;
+    slug: string;
     title: Json<Record<string, string>>;
+    description: Json<Record<string, string>> | null;
+    sort_order: number;
+    created_at: Timestamp;
+    updated_at: Timestamp;
+  };
+  patterns: {
+    id: string;
+    tenant_id: string;
+    name: Json<Record<string, string>>;
+    description: Json<Record<string, string>> | null;
+    intended_type: 'page' | 'article';
     blocks: Json<unknown[]>;
     created_at: Timestamp;
     updated_at: Timestamp;

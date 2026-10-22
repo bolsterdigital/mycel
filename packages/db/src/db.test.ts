@@ -22,7 +22,7 @@ import {
   MemoryMailer,
   memoryPlatform,
   probeForm,
-  probePage,
+  publishProbePage,
 } from '@mycel/core/testing';
 import {
   createDb,
@@ -103,7 +103,7 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
     ).id;
     formId = uuidv7();
     await uow.run(systemPrincipal(tenantA, 'test'), (ctx) => ctx.forms.insert(probeForm(formId)));
-    await invoker.run(useCases.createPage, systemPrincipal(tenantA, 'test'), probePage(formId));
+    await publishProbePage(invoker, systemPrincipal(tenantA, 'test'), formId);
   });
 
   afterAll(async () => {
@@ -183,7 +183,9 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
     ).rejects.toMatchObject({ code: 'not_found' });
 
     // Without a tenant context the application role sees nothing at all.
-    const { rows } = await sql<{ n: string }>`select count(*) as n from pages`.execute(appDb);
+    const { rows } = await sql<{ n: string }>`select count(*) as n from content_items`.execute(
+      appDb
+    );
     expect(Number(rows[0]?.n)).toBe(0);
 
     // And it cannot write a row for another tenant even inside a transaction.

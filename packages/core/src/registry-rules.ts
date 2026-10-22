@@ -11,7 +11,19 @@ import { EFFECT_CAPABILITY, type UseCase, type UseCaseRegistry } from './registr
 const NAME = /^[a-z]+(\.[a-z][a-z_]*)+$/;
 
 /** Last name segments that publish, send, export or refund, and so must declare an `effect`. */
-const EFFECT_VERBS = ['publish', 'unpublish', 'schedule', 'send', 'export', 'refund'];
+const EFFECT_VERBS = ['publish', 'unpublish', 'schedule', 'unschedule', 'send', 'export', 'refund'];
+
+/**
+ * Editorial modules: every use case under these prefixes must be `authenticatedOnly`, so a
+ * public visitor's `content:read` never opens a draft, a revision or an author's e-mail address.
+ * The public projection (`content.page.get`) is outside them on purpose.
+ */
+const EDITORIAL_PREFIXES = [
+  'content.item.',
+  'content.author.',
+  'content.section.',
+  'content.pattern.',
+];
 
 /** Last name segments that make something new, and so must say which limit they consume. */
 const GROWTH_VERBS = ['create', 'invite', 'add', 'submit', 'upload'];
@@ -52,6 +64,9 @@ function checkUseCase(useCase: UseCase, fail: (rule: string) => void): void {
   if (consumes != null && kind === 'query') fail('a query cannot consume a limit');
   if (kind === 'command' && GROWTH_VERBS.includes(verb) && consumes === undefined)
     fail(`a command named "${verb}" must declare consumes (a limit, or null)`);
+
+  if (EDITORIAL_PREFIXES.some((p) => name.startsWith(p)) && !useCase.authenticatedOnly)
+    fail('an editorial use case must be authenticatedOnly');
 
   // testing.md rule 1: a registry entry without a fixture fails verify.
   if (!Array.isArray(examples) || examples.length === 0) fail('has no examples');

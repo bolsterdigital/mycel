@@ -26,6 +26,7 @@ import {
   probeForm,
   probePage,
   probeTenant,
+  publishProbePage,
 } from './testing/index.js';
 
 const TENANT = '01900000-0000-7000-8000-00000000aaaa';
@@ -46,7 +47,7 @@ describe('vertical probe in memory', () => {
     admin = systemPrincipal(TENANT, 'test');
     mailer = new MemoryMailer();
     await uow.run(admin, (ctx) => ctx.forms.insert(probeForm(FORM)));
-    await invoker.run(useCases.createPage, admin, probePage(FORM));
+    await publishProbePage(invoker, admin, FORM);
   });
 
   const reader = () => anonymousPrincipal(TENANT, ['content:read', 'forms:read']);
@@ -72,34 +73,48 @@ describe('vertical probe in memory', () => {
     });
   }
 
-  it('creates and reads a page; unknown block types and missing forms are rejected', async () => {
+  it('creates, publishes and reads a page; unknown block types and missing forms are rejected', async () => {
     const page = await invoker.run(useCases.getPage, reader(), { slug: 'signup' });
     expect(page.blocks.map((b) => b.type)).toEqual(['heading', 'signup-form']);
 
+    const other = (blocks: unknown[]) => ({
+      ...probePage(FORM),
+      slug: 'other',
+      document: { ...probePage(FORM).document, blocks },
+    });
     await expect(
-      invoker.call(admin, 'content.page.create', {
-        ...probePage(FORM),
-        slug: 'other',
-        blocks: [{ type: 'carousel', version: 1, props: {} }],
-      })
+      invoker.call(
+        admin,
+        'content.item.create',
+        other([{ type: 'carousel', version: 1, props: {} }])
+      )
     ).rejects.toMatchObject({ code: 'invalid_input' });
 
     await expect(
-      invoker.run(useCases.createPage, admin, {
+      invoker.run(useCases.createItem, admin, {
         ...probePage('01900000-0000-7000-8000-00000000dead'),
         slug: 'other',
       })
     ).rejects.toMatchObject({ code: 'invalid_input' });
 
-    await expect(invoker.run(useCases.createPage, admin, probePage(FORM))).rejects.toMatchObject({
+    await expect(invoker.run(useCases.createItem, admin, probePage(FORM))).rejects.toMatchObject({
       code: 'conflict',
     });
   });
 
-  it('requires the default locale on every localisable field', async () => {
+  it('publishes a locale only when every visible field has a value in it', async () => {
     const page = probePage(FORM);
+    const { item, revision } = await invoker.run(useCases.createItem, admin, {
+      ...page,
+      slug: 'x',
+      document: { ...page.document, title: { en: 'Only English' } },
+    });
     await expect(
-      invoker.run(useCases.createPage, admin, { ...page, slug: 'x', title: { en: 'Only English' } })
+      invoker.run(useCases.publishItem, admin, {
+        itemId: item.id,
+        revisionId: revision.id,
+        locale: 'nl',
+      })
     ).rejects.toMatchObject({ code: 'invalid_input' });
   });
 
@@ -114,7 +129,7 @@ describe('vertical probe in memory', () => {
       invoker.run(useCases.getSupporter, visitor(), { email: 'a@example.org' })
     ).rejects.toBeInstanceOf(UseCaseError);
     await expect(
-      invoker.call(visitor(), 'content.page.create', probePage(FORM))
+      invoker.call(visitor(), 'content.item.create', probePage(FORM))
     ).rejects.toMatchObject({ code: 'forbidden' });
   });
 

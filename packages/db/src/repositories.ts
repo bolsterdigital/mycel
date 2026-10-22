@@ -5,14 +5,12 @@
 import { sql, type Kysely, type Selectable } from 'kysely';
 import {
   FormDefinition,
-  Page,
   SupporterEvent,
   type Clock,
   type FormRepository,
   type Ids,
   type MailSend,
   type MailSendsRepository,
-  type PageRepository,
   type RateLimiter,
   type SubmissionRepository,
   type SupporterProjection,
@@ -21,45 +19,6 @@ import {
 import type { Database } from './schema.js';
 
 type Trx = Kysely<Database>;
-
-export function pageRepository(trx: Trx, tenantId: string): PageRepository {
-  return {
-    async findBySlug(slug) {
-      const row = await trx
-        .selectFrom('pages')
-        .selectAll()
-        .where('slug', '=', slug)
-        .executeTakeFirst();
-      if (!row) return null;
-      return Page.parse({
-        id: row.id,
-        slug: row.slug,
-        defaultLocale: row.default_locale,
-        locales: row.locales,
-        title: row.title,
-        blocks: row.blocks,
-        createdAt: new Date(row.created_at).toISOString(),
-        updatedAt: new Date(row.updated_at).toISOString(),
-      });
-    },
-    async insert(page) {
-      await trx
-        .insertInto('pages')
-        .values({
-          id: page.id,
-          tenant_id: tenantId,
-          slug: page.slug,
-          default_locale: page.defaultLocale,
-          locales: page.locales,
-          title: JSON.stringify(page.title),
-          blocks: JSON.stringify(page.blocks),
-          created_at: page.createdAt,
-          updated_at: page.updatedAt,
-        })
-        .execute();
-    },
-  };
-}
 
 export function formRepository(trx: Trx, tenantId: string): FormRepository {
   return {

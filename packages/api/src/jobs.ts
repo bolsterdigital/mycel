@@ -14,6 +14,7 @@
 
 import {
   parseJobPayload,
+  publishScheduled,
   purgeMedia,
   reconcileMail,
   reverifyHostname,
@@ -183,6 +184,7 @@ export function jobHandlers({
   return {
     // A recheck is not a publication: it runs whatever the status (`requireActive` is for #8a).
     'hostnames.reverify': tenantJob({ uow, identity }, 'hostnames.reverify', reverifyHostname),
+    'content.publish': tenantJob({ uow, identity }, 'content.publish', publishScheduled),
     'events.partitions': platformJob('events.partitions', () => createEventPartitions(operatorDb)),
     'rate_limits.sweep': platformJob('rate_limits.sweep', () => sweepRateLimits(operatorDb)),
     // Deleting files is not publishing: a suspended tenant's purge still runs.

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   Invoker,
-  PageSlug,
+  isReservedPageSlug,
   UseCaseError,
   appDelivery,
   buildRegistry,
@@ -415,8 +415,8 @@ describe('media', () => {
     });
 
     it('reserves `media` as a page slug', () => {
-      expect(PageSlug.safeParse('media').error?.issues[0]?.message).toBe('content.slug.reserved');
-      expect(PageSlug.safeParse('mediatheek').success).toBe(true);
+      expect(isReservedPageSlug('media')).toBe(true);
+      expect(isReservedPageSlug('mediatheek')).toBe(false);
     });
   });
 });

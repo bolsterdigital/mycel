@@ -1,7 +1,6 @@
 // Job types and their payloads (TODO #15). A job is stored as `type` plus a jsonb payload; every
 // type has a Zod schema here, so a handler never sees a payload it did not declare, and adding a
-// type is one line plus its handler. `content.publish { itemId, revisionId }` (#8a, ADR 018
-// rule 1) joins here when scheduled publishing is built.
+// type is one line plus its handler.
 //
 // Rejected: a free `string` type with `unknown` payloads (every handler would validate on its
 // own, or not), and one table per job kind (the claim discipline would be written twice).
@@ -31,6 +30,19 @@ export const JobPayloads = {
    */
   'mail.reconcile': z
     .object({ key: z.string().min(1), subscriber: z.string().min(1), eventId: z.string().uuid() })
+    .strict(),
+  /**
+   * Tenant job: publish exactly the pinned revision of one locale (ADR 018 rule 1, #8a). Key
+   * `content.publish:<itemId>:<locale>:<scheduleId>`, so a reschedule or a second locale never
+   * collides with an open job of an older plan; the handler ignores such a job as stale.
+   */
+  'content.publish': z
+    .object({
+      itemId: z.string().uuid(),
+      revisionId: z.string().uuid(),
+      locale: z.string().min(1),
+      scheduleId: z.string().uuid(),
+    })
     .strict(),
 } as const;
 

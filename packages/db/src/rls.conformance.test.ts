@@ -26,7 +26,7 @@ import {
   memoryImageProcessor,
   memoryPlatform,
   probeForm,
-  probePage,
+  publishProbePage,
 } from '@mycel/core/testing';
 import {
   createDb,
@@ -116,7 +116,7 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     ).rows;
 
     // Put at least one row for this tenant into every tenant table mycel_app can read, through
-    // the real use-case path: a signup writes pages, forms, submissions, rate limits and the
+    // the real use-case path: a signup writes forms, submissions, rate limits and the
     // outbox; the confirmation mail writes its intent row. The subscribers are called directly
     // instead of draining the outbox: the outbox is shared with db.test.ts, and a drain here
     // would claim that suite's events with only some of its subscribers.
@@ -148,7 +148,16 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     const admin = systemPrincipal(tenantId, 'rls-test');
     const formId = uuidv7();
     await uow.run(admin, (ctx) => ctx.forms.insert(probeForm(formId)));
-    await invoker.run(useCases.createPage, admin, probePage(formId));
+    // Content (0011): an item with its revision and locale rows, plus an author, a section and
+    // a pattern through their use cases.
+    await publishProbePage(invoker, admin, formId);
+    await invoker.run(useCases.createAuthor, admin, { slug: 'rls', name: 'RLS' });
+    await invoker.run(useCases.createSection, admin, { slug: 'rls', title: { nl: 'RLS' } });
+    await invoker.run(useCases.createPattern, admin, {
+      name: { nl: 'RLS' },
+      intendedType: 'page',
+      blocks: [],
+    });
     const email = `rls-${run}@example.org`;
     const submitted = await invoker.run(useCases.submitForm, admin, {
       formId,
@@ -237,7 +246,12 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
         'media',
         'media_usages',
         'outbox',
-        'pages',
+        'content_items',
+        'content_revisions',
+        'content_item_locales',
+        'authors',
+        'sections',
+        'patterns',
         'rate_limits',
         'supporter_admissions',
         'supporters',

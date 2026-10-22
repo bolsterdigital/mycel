@@ -39,6 +39,19 @@ test('signup page renders from blocks without JavaScript and passes axe', async 
   await expectNoAxeViolations(page);
 });
 
+test.describe('an English visitor of a page published in Dutch only', () => {
+  test.use({ locale: 'en-GB' });
+
+  test('gets the Dutch publication and never the English draft', async ({ page }) => {
+    const response = await page.goto('/probe/draft-check');
+    expect(response?.status()).toBe(200);
+    await expect(page.locator('html')).toHaveAttribute('lang', 'nl');
+    const html = await page.content();
+    expect(html).toContain('Alleen Nederlands live');
+    expect(html).not.toContain('EN-DRAFT');
+  });
+});
+
 /** The console mailer spools each message as JSON (scripts/e2e.mjs sets MAIL_SPOOL_DIR). */
 async function waitForMail(to: string): Promise<{ text: string }> {
   const dir = process.env['MAIL_SPOOL_DIR'];

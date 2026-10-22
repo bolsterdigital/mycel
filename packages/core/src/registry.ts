@@ -37,7 +37,7 @@ export interface UseCase<
   TInput extends z.ZodTypeAny = z.ZodTypeAny,
   TOutput extends z.ZodTypeAny = z.ZodTypeAny,
 > {
-  /** Dotted, lowercase, stable: `content.page.create`. Becomes the MCP tool name and the OpenAPI operationId. */
+  /** Dotted, lowercase, stable: `content.item.create`. Becomes the MCP tool name and the OpenAPI operationId. */
   name: string;
   kind: UseCaseKind;
   /** One sentence for humans and agents. */
@@ -51,6 +51,12 @@ export interface UseCase<
    * explicitly (`registry-rules.ts`), so forgetting a limit cannot pass unnoticed.
    */
   consumes?: LimitName | null;
+  /**
+   * Refused for an anonymous principal whatever its capabilities: editorial reads and writes
+   * (drafts, revisions, author e-mail) never reach a public visitor, who holds `content:read`
+   * for the published projection only. `registry-rules.ts` says which use cases must set it.
+   */
+  authenticatedOnly?: boolean;
   input: TInput;
   output: TOutput;
   handler: (ctx: TransactionContext, input: z.infer<TInput>) => Promise<z.infer<TOutput>>;
@@ -92,6 +98,7 @@ export class UseCaseRegistry {
 
   /** Authorization check shared by every front, so no front can forget it. */
   authorize(useCase: UseCase, principal: Principal): boolean {
+    if (useCase.authenticatedOnly && principal.actor.kind === 'anonymous') return false;
     return (
       principal.capabilities.includes(useCase.requires) ||
       principal.capabilities.includes('tenant:admin')
