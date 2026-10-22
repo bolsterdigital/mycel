@@ -247,12 +247,13 @@ test('a body above 512K is refused, except for the media upload', async ({ page,
   // hook's header-only limit after uploads raised the process-wide ceiling to 26M.
   const chunkedStatus = await new Promise<number | undefined>((resolve, reject) => {
     const req = httpRequest(
-      `${SITE}/signup`,
+      'http://127.0.0.1:4173/signup',
       {
         method: 'POST',
         headers: {
           'content-type': 'application/x-www-form-urlencoded',
           origin: SITE,
+          host: 'probe.localhost:4173',
           'x-forwarded-proto': 'http',
         },
       },
