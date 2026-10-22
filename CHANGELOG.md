@@ -4,8 +4,11 @@ All notable changes to Mycel. Each line is the title of a merged pull request (a
 
 ## Unreleased
 
+## 0.1.0 - 2026-10-22
+
 ### Features
 
+- **release:** GHCR image, changelog and upgrade promise (TODO #18b) ([#29](https://github.com/bolsterdigital/mycel/pull/29))
 - **ops:** production compose, mycel setup and Caddy proof (TODO #18a) ([#28](https://github.com/bolsterdigital/mycel/pull/28))
 - **content:** block set, media references and theme contract (TODO #8b2) ([#25](https://github.com/bolsterdigital/mycel/pull/25))
 - HTTP boundaries and CI gates ([#24](https://github.com/bolsterdigital/mycel/pull/24))

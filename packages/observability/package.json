@@ -1,6 +1,6 @@
 {
   "name": "@mycel/observability",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "license": "AGPL-3.0-only",
   "description": "Structured JSON logs with redaction, error reporting (console or a Sentry-compatible tracker) and Prometheus metrics (TODO #17a)",

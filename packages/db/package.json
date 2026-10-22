@@ -1,6 +1,6 @@
 {
   "name": "@mycel/db",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "license": "AGPL-3.0-only",
   "description": "Postgres adapter: Kysely, SQL migrations, Row Level Security (ADR 002)",

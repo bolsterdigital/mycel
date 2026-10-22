@@ -1,6 +1,6 @@
 {
   "name": "mycel",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Open-core platform for non-profits: campaign sites, forms, donations, supporters and mailing. Framework-free domain core with HTTP, MCP and web adapters.",
   "license": "AGPL-3.0-only",

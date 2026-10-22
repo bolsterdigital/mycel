@@ -1,6 +1,6 @@
 {
   "name": "@mycel/blob",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "license": "AGPL-3.0-only",
   "description": "BlobStore adapters: a local directory and any S3-compatible bucket (TODO #10, ADR 008)",

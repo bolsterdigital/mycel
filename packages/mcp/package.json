@@ -1,6 +1,6 @@
 {
   "name": "@mycel/mcp",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "license": "AGPL-3.0-only",
   "description": "MCP server exposing the core use-case registry as tools and resources (ADR 009)",

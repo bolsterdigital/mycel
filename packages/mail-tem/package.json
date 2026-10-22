@@ -1,6 +1,6 @@
 {
   "name": "@mycel/mail-tem",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "license": "AGPL-3.0-only",
   "description": "Mailer adapters: Scaleway Transactional Email (TEM) API and a console mailer for development (ADR 010)",
