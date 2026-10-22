@@ -3,19 +3,11 @@
 // new key's token is in the response to the post that made it and nowhere else: reloading the
 // page does not show it again. Hostnames are stored as punycode and shown in Unicode next to it.
 // Since TODO #16 it shows usage against the limits, and a refusal by an entitlement or a
-// suspension as a message that names what, never a price (ADR 015 rule 3).
+// suspension as a message that names what, never a price (ADR 015 rule 3); the mapping lives in
+// lib/server/admin-actions.ts. Media has its own page (TODO #10b), linked from here.
 import { domainToUnicode } from 'node:url';
-import { fail, type ActionFailure } from '@sveltejs/kit';
-import {
-  Capability,
-  KeyCapability,
-  UseCaseError,
-  useCases,
-  type Principal,
-  type UseCaseErrorCode,
-  type VerifyResult,
-} from '@mycel/core';
-import { requireTenantPrincipal } from '#lib/server/admin.js';
+import { Capability, KeyCapability, useCases, type VerifyResult } from '@mycel/core';
+import { act, text } from '#lib/server/admin-actions.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { UiKey } from '../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
@@ -41,75 +33,6 @@ export const load: PageServerLoad = async ({ parent, locals }) => {
   };
 };
 
-type Failure = ActionFailure<{
-  action: string;
-  error: UiKey;
-  what?: UiKey;
-  email?: string;
-  hostname?: string;
-}>;
-
-const statusOf: Record<UseCaseErrorCode, number> = {
-  invalid_input: 400,
-  forbidden: 403,
-  not_found: 404,
-  conflict: 409,
-  limit_exceeded: 403,
-  suspended: 403,
-};
-
-/** What a `limit_exceeded` refused, from the i18n key core put in its issue. */
-const LIMIT_WHAT: Record<string, UiKey> = {
-  'entitlements.limit.supporters.max': 'admin.limit.what.supporters',
-  'entitlements.limit.operators.max': 'admin.limit.what.operators',
-  'entitlements.limit.custom_domains.max': 'admin.limit.what.customDomains',
-};
-const FEATURE_WHAT: Record<string, UiKey> = {
-  createKey: 'admin.limit.what.apiKeys',
-  addHostname: 'admin.limit.what.customDomains',
-};
-
-function limitFailure(e: UseCaseError, action: string): { error: UiKey; what: UiKey } {
-  const key = e.issues[0]?.message ?? '';
-  return key === 'entitlements.feature_off'
-    ? { error: 'admin.limit.featureOff', what: FEATURE_WHAT[action] ?? 'admin.limit.what.other' }
-    : { error: 'admin.limit.reached', what: LIMIT_WHAT[key] ?? 'admin.limit.what.other' };
-}
-
-/** Run one action as the operator; a UseCaseError becomes a form failure with catalog copy. */
-async function act<T>(
-  event: { locals: App.Locals; url: URL; params: { tenant: string }; request: Request },
-  action: string,
-  copy: { conflict: UiKey; invalid?: UiKey; notFound?: UiKey },
-  fn: (principal: Principal, data: FormData) => Promise<T>
-): Promise<T | Failure> {
-  const { principal } = await requireTenantPrincipal(event.locals, event.url, event.params.tenant);
-  const data = await event.request.formData();
-  try {
-    return await fn(principal, data);
-  } catch (e) {
-    if (!(e instanceof UseCaseError)) throw e;
-    const extra = { email: text(data, 'email'), hostname: text(data, 'hostname') };
-    if (e.code === 'limit_exceeded')
-      return fail(statusOf[e.code], { action, ...limitFailure(e, action), ...extra });
-    if (e.code === 'suspended')
-      return fail(statusOf[e.code], { action, error: 'admin.error.suspended' as UiKey, ...extra });
-    const error: UiKey =
-      e.code === 'conflict'
-        ? copy.conflict
-        : e.code === 'not_found'
-          ? (copy.notFound ?? 'admin.error.notFound')
-          : e.code === 'forbidden'
-            ? 'admin.error.forbidden'
-            : (copy.invalid ?? 'admin.error.invalid');
-    return fail(statusOf[e.code], { action, error, ...extra });
-  }
-}
-
-const text = (data: FormData, name: string) => {
-  const v = data.get(name);
-  return typeof v === 'string' ? v : '';
-};
 const capabilities = (data: FormData) => data.getAll('capabilities').map(String);
 
 export const actions: Actions = {

@@ -52,7 +52,20 @@ The unmodified upload is never kept. A photo with the GPS position of a source m
 
 A variant never changes (a new file is a new id), which is why a public variant may be cached for a year. The same header means that making a public asset `restricted` later does not recall the copies browsers and shared caches already hold: an asset that must never have been public is uploaded as `restricted` from the start. The row is read as an anonymous visitor of the site with `media:read`, so RLS picks the tenant from the hostname, never from the URL.
 
-**Signed paths** (ADR 018 rule 7): `signedVariantPath(signer, id, file, expiresAt)` adds `exp` (unix seconds) and `sig`, a token of the core `Signer` over `media:<id>:<file>:<exp>`; `verifyMediaSignature` checks it. A signature opens one file of one asset until it expires; the media id is globally unique and is read under the visited site's tenant, so it opens nothing elsewhere. Who gets a signed path (a reader with access) is #19; the admin's "download original" (#10b) is an admin route, because the public route never serves an original.
+**Signed paths** (ADR 018 rule 7): `signedVariantPath(signer, id, file, expiresAt)` adds `exp` (unix seconds) and `sig`, a token of the core `Signer` over `media:<id>:<file>:<exp>`; `verifyMediaSignature` checks it. A signature opens one file of one asset until it expires; the media id is globally unique and is read under the visited site's tenant, so it opens nothing elsewhere. Who gets a signed path (a reader with access) is #19; the admin's "download original" is an admin route, because the public route never serves an original (see below).
+
+## The admin
+
+`/admin/<tenant>/media` (TODO #10b) uploads, lists, edits and deletes through the same use cases, with native form posts and no JavaScript. The upload is a multipart form; the action turns the file into base64 and calls `media.upload`, so there is one contract for the admin, HTTP and MCP. The web process accepts bodies up to 26M for that form only (`BODY_SIZE_LIMIT`, set in `docker/entrypoint.sh`); `hooks.server.ts` counts actual bytes and answers `413` above 512K for every other request, including chunked bodies and the media update/delete actions. The 26M exception applies only to multipart POSTs selecting the upload action. Storage statistics are shown only to tenant administrators; media editors need only their media capabilities to use the library.
+
+The admin runs on the platform origin, so it serves its own files instead of the site's `/media/...` route:
+
+| Route                                           | Requires                                                    | Answer                                                                                 |
+| ----------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `/admin/<tenant>/media/<id>/thumb`              | an operator of the tenant with `media:read`                 | `thumb.webp`, `private, max-age=300`                                                   |
+| `/admin/<tenant>/media/<id>/original?exp=&sig=` | the same, plus a signature made by the page for ten minutes | `original.<ext>` (or `file.<ext>` for a PDF or GIF), `attachment`, `private, no-store` |
+
+Without a session or membership both are `403`; another site's id is `404` (RLS reads the row under the operator's principal). The signature uses the same `signedVariantPath` over the file name, so a copied download link stops working after ten minutes.
 
 ## Usages and deleting
 

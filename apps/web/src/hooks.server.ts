@@ -8,6 +8,11 @@
 //      development host, from the first path segment. The decision table is `decideSite`
 //      (lib/server/site.ts); here it only becomes `locals.site`, a 301 or a 404.
 //
+// Before all that, a request body above 512K is a 413 unless it is the media admin's upload
+// (TODO #10b): BODY_SIZE_LIMIT is 26M for that one form (docker/entrypoint.sh), and a public
+// signup form has no reason to take more than adapter-node's default did. Actual bytes are
+// counted as well as Content-Length, including chunked bodies and other media actions.
+//
 // It also sets <html lang> per response from the locale the route negotiated (ADR 007). `init`
 // creates the composition root before the first request so the universal `reroute` hook finds it.
 
@@ -17,6 +22,7 @@ import { SESSION_COOKIE, adminLocale } from '#lib/server/admin.js';
 import { onPlatformOrigin } from '#lib/server/admin-paths.js';
 import { runtime } from '#lib/server/runtime.js';
 import { decideSite } from '#lib/server/site.js';
+import { bodyLimit, boundedBody } from '#lib/server/body-limit.js';
 
 const isAdmin = (path: string) => path === '/admin' || path.startsWith('/admin/');
 const isInternal = (path: string) => path === '/healthz' || path.startsWith('/internal/');
@@ -28,10 +34,15 @@ export const init: ServerInit = () => {
 export const handle: Handle = async ({ event, resolve }) => {
   const rt = runtime();
   const path = event.url.pathname;
+  const request = await boundedBody(event.request, bodyLimit(event.request, event.url));
+  if (!request) return new Response('Payload too large', { status: 413 });
   const render = () =>
-    resolve(event, {
-      transformPageChunk: ({ html }) => html.replace('%lang%', event.locals.lang ?? 'en'),
-    });
+    resolve(
+      { ...event, request },
+      {
+        transformPageChunk: ({ html }) => html.replace('%lang%', event.locals.lang ?? 'en'),
+      }
+    );
 
   if (isInternal(path)) return render();
 

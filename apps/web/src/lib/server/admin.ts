@@ -65,3 +65,17 @@ export async function requireTenantPrincipal(
   locals.principal = principal;
   return { tenant, principal, session };
 }
+
+/**
+ * The operator's principal for the tenant in an /admin/[tenant]/... file route, or null: no
+ * session, an unknown tenant or no membership all end as a 403 in `serveAdminMedia` (lib/server/media.ts).
+ */
+export async function adminMediaPrincipal(
+  locals: App.Locals,
+  slug: string
+): Promise<Principal | null> {
+  if (!locals.session) return null;
+  const rt = runtime();
+  const tenant = await rt.tenants.findBySlug(slug);
+  return tenant ? operatorPrincipal(rt.identity, locals.session, tenant.id) : null;
+}

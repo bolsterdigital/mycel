@@ -35,6 +35,8 @@ export default defineConfig({
       // adapter-node 6 derives the origin (for the CSRF check on form posts) from this header and
       // defaults to https; behind Caddy it is set by the proxy, here by the tests.
       PROTOCOL_HEADER: 'x-forwarded-proto',
+      // As docker/entrypoint.sh sets it: the media upload takes up to 25 MB (TODO #10b).
+      BODY_SIZE_LIMIT: '26M',
     },
   },
 });
