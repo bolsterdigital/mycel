@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { defineUseCase } from '../registry.js';
-import { AuditActorKind } from './model.js';
+import { AuditActorKind, type AuditEntry } from './model.js';
 import './ports.js';
 
 const AuditId = z.string().uuid();
@@ -21,6 +21,19 @@ export const AuditRow = z.object({
   subjectId: z.string().nullable(),
 });
 export type AuditRow = z.infer<typeof AuditRow>;
+
+/** A row as an administrator reads it: everything but the input hash. */
+export const toAuditRow = (r: AuditEntry): AuditRow => ({
+  id: r.id,
+  occurredAt: r.occurredAt.toISOString(),
+  actorKind: r.actorKind,
+  actorId: r.actorId,
+  operation: r.operation,
+  effect: r.effect,
+  result: r.result,
+  requestId: r.requestId,
+  subjectId: r.subjectId,
+});
 
 export const listAudit = defineUseCase({
   name: 'audit.list',
@@ -56,17 +69,7 @@ export const listAudit = defineUseCase({
     });
     const page = rows.slice(0, limit);
     return {
-      items: page.map((r) => ({
-        id: r.id,
-        occurredAt: r.occurredAt.toISOString(),
-        actorKind: r.actorKind,
-        actorId: r.actorId,
-        operation: r.operation,
-        effect: r.effect,
-        result: r.result,
-        requestId: r.requestId,
-        subjectId: r.subjectId,
-      })),
+      items: page.map(toAuditRow),
       nextCursor: rows.length > limit ? (page.at(-1)?.id ?? null) : null,
     };
   },

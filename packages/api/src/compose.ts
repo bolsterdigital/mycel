@@ -50,6 +50,13 @@ import {
   createUnitOfWork,
   getTenant,
   listTenants,
+  opsCloseJob,
+  opsDeadEvents,
+  opsJobs,
+  opsRetryEvent,
+  opsRetryJob,
+  opsSummary,
+  opsUnresolvedMail,
   ping,
   queueLag,
   setEntitlements,
@@ -479,6 +486,16 @@ export function createRuntime(
           get: (id) => getTenant(authDb, id),
           setEntitlements: (id, document) => setEntitlements(authDb, id, document, by()),
           setStatus: (id, status) => setStatus(authDb, id, status, by()),
+          // As mycel_ops from the same login (0016): stuck rows without payloads.
+          ops: {
+            summary: () => opsSummary(authDb),
+            jobs: (q) => opsJobs(authDb, q),
+            outbox: (q) => opsDeadEvents(authDb, q),
+            mail: (q) => opsUnresolvedMail(authDb, q),
+            retryJob: (id) => opsRetryJob(authDb, id, by()),
+            closeJob: (id) => opsCloseJob(authDb, id, by()),
+            retryEvent: (id) => opsRetryEvent(authDb, id, by()),
+          },
         },
       }
     : undefined;

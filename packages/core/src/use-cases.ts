@@ -50,6 +50,7 @@ import {
   revokeKey,
   updateMember,
 } from './operators/service.js';
+import { closeJob, getOpsStatus, retryJob } from './ops/service.js';
 import { UseCaseRegistry, type UseCase } from './registry.js';
 import { changeSupporterEmail, getSupporter } from './supporters/service.js';
 import {
@@ -115,6 +116,9 @@ export const useCases = {
   updateMedia,
   deleteMedia,
   listAudit,
+  getOpsStatus,
+  retryJob,
+  closeJob,
 } as const;
 
 export function buildRegistry(): UseCaseRegistry {

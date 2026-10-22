@@ -205,6 +205,50 @@ export const en = {
   'admin.media.error.inUse.other':
     '{filename} is in use in {n} places and cannot be deleted. Remove it from that content first.',
   'admin.media.error.notFound': 'That file no longer exists on this site. Reload the page.',
+  // Status page (TODO #17c): stuck work of this site, recovery, and the diagnosis to share.
+  'admin.status.link': 'Status and stuck work',
+  'admin.status.title': 'Status',
+  'admin.status.back': 'Back to {name}',
+  'admin.status.nothing': 'Nothing is stuck on this site.',
+  'admin.status.jobs.title': 'Stuck tasks',
+  'admin.status.jobs.intro':
+    'A background task that failed every attempt waits here until you try it again or close it.',
+  'admin.status.jobs.none': 'No task is stuck.',
+  'admin.status.job.key': 'Subject',
+  'admin.status.job.attempts': 'Attempts',
+  'admin.status.job.attemptsValue': '{attempts} of {max}',
+  'admin.status.job.lastError': 'Last error',
+  'admin.status.job.noError': 'None recorded',
+  'admin.status.job.created': 'Planned',
+  'admin.status.job.retry': 'Try again',
+  'admin.status.job.close': 'Close',
+  'admin.status.close.title': 'Close {type}?',
+  'admin.status.close.body':
+    'The task will not run again and its last error stays in the log. A recurring task or a domain check is planned again by its next round; for a mail check the mail stays unknown and remains listed below.',
+  'admin.status.close.confirm': 'Yes, close this task',
+  'admin.status.close.cancel': 'Keep it',
+  'admin.status.done.retried': 'The task will run again as soon as a worker is free.',
+  'admin.status.done.closed': 'The task is closed.',
+  'admin.status.error.notExhausted':
+    'This task has attempts left or is running right now; only a task that failed every attempt can be retried or closed.',
+  'admin.status.error.notFound':
+    'That task no longer exists or was already handled. Reload the page.',
+  'admin.status.mail.title': 'Mail with an uncertain outcome',
+  'admin.status.mail.intro':
+    'Unknown: we could not establish whether the mail arrived; the system keeps checking. Given up: after a day without certainty we stopped checking, so the mail is never sent twice. The recipient may or may not have it.',
+  'admin.status.mail.none': 'No mail with an uncertain outcome.',
+  'admin.status.mail.unknown': 'Unknown',
+  'admin.status.mail.abandoned': 'Given up',
+  'admin.status.mail.subscriber': 'Sent by',
+  'admin.status.mail.attempted': 'Attempted',
+  'admin.status.mail.abandonedAt': 'Given up at',
+  'admin.status.audit.title': 'Latest actions',
+  'admin.status.audit.none': 'No actions recorded yet.',
+  'admin.status.audit.item': '{time}: {operation} by {actor}, {result}',
+  'admin.status.diagnosis.title': 'Diagnosis to share',
+  'admin.status.diagnosis.intro':
+    'This is exactly what you would send to support: ids, counts, times and error texts with addresses removed. Nothing is sent automatically; copy it yourself if you want help.',
+  'admin.status.diagnosis.copy': 'Diagnosis, to select and copy',
 } as const;
 
 export type UiKey = keyof typeof en;

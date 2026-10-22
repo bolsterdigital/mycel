@@ -63,7 +63,7 @@ export const toJobRecord = (r: JobRow): JobRecord => ({
   createdAt: new Date(r.created_at),
 });
 
-/** `ctx.jobs` in a tenant transaction (mycel_app may insert under its own tenant, nothing else). */
+/** `ctx.jobs` in a tenant transaction (mycel_app inserts under its own tenant; 0016 adds reads). */
 export function jobScheduler(trx: Kysely<Database>, tenantId: string): Scheduler {
   return {
     async enqueue(job) {
@@ -77,9 +77,9 @@ export function jobScheduler(trx: Kysely<Database>, tenantId: string): Scheduler
           run_at: job.runAt,
           payload: JSON.stringify(job.payload),
         })
-        // No conflict target: naming the arbiter (`jobs_open_key`) needs select on its columns,
-        // which mycel_app does not have. The only other unique key is the fresh id, so any
-        // conflict is the open key.
+        // No conflict target: naming the arbiter (`jobs_open_key`) needed select on its columns,
+        // which mycel_app lacked until 0016 (#17c). The only other unique key is the fresh id,
+        // so any conflict is the open key.
         .onConflict((oc) => oc.doNothing())
         .executeTakeFirst();
       return (r.numInsertedOrUpdatedRows ?? 0n) > 0n;

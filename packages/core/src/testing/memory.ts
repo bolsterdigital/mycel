@@ -71,6 +71,7 @@ import type {
 import { platformHostname } from '../tenants/model.js';
 import { DnsUnavailableError } from '../tenants/ports.js';
 import type { JobRecord, JobRequest, Scheduler } from '../jobs/ports.js';
+import type { JobRecovery, RecoveryResult, StuckJob } from '../ops/ports.js';
 import type { JobType } from '../jobs/types.js';
 import {
   DEFAULT_ACCESS,
@@ -296,6 +297,50 @@ export class MemoryScheduler implements Scheduler {
       createdAt: this.clock.now(),
     });
     return true;
+  }
+}
+
+/**
+ * `ctx.jobRecovery` over a MemoryStore: this tenant's jobs only, like `tenant_isolation` on `jobs`
+ * (0016), and the same exhaustion rule as the SQL in packages/db/src/recovery.ts.
+ */
+export class MemoryJobRecovery implements JobRecovery {
+  constructor(
+    readonly store: MemoryStore,
+    readonly tenantId: string,
+    readonly clock: Clock = new FakeClock()
+  ) {}
+
+  #exhausted = (j: JobRecord) => j.doneAt === null && j.attempts >= j.maxAttempts;
+
+  async exhausted(limit: number): Promise<StuckJob[]> {
+    return this.store.jobs
+      .filter((j) => j.tenantId === this.tenantId && this.#exhausted(j))
+      .sort((a, b) => +a.createdAt - +b.createdAt || a.id.localeCompare(b.id))
+      .slice(0, limit)
+      .map(({ payload: _payload, claimedAt: _claimed, doneAt: _done, tenantId: _t, ...j }) => j);
+  }
+
+  #recover(id: string, change: (j: JobRecord) => void): RecoveryResult {
+    const job = this.store.jobs.find((j) => j.id === id && j.tenantId === this.tenantId);
+    if (!job) return 'not_found';
+    if (!this.#exhausted(job)) return 'not_exhausted';
+    change(job);
+    return 'ok';
+  }
+
+  async retry(id: string): Promise<RecoveryResult> {
+    return this.#recover(id, (j) => {
+      j.attempts = 0;
+      j.runAt = this.clock.now();
+      j.claimedAt = null;
+    });
+  }
+
+  async close(id: string): Promise<RecoveryResult> {
+    return this.#recover(id, (j) => {
+      j.doneAt = this.clock.now();
+    });
   }
 }
 
@@ -951,7 +996,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
     };
     const audit: AuditLog = {
       record: async (entry) => void s.audit.push({ ...entry }),
-      async list({ from, to, operation, actorKind, actorId, cursor, limit }) {
+      async list({ from, to, operation, actorKind, actorId, failed, cursor, limit }) {
         const newestFirst = (a: AuditEntry, b: AuditEntry) =>
           b.occurredAt.getTime() - a.occurredAt.getTime() || b.id.localeCompare(a.id);
         const at = cursor ? s.audit.find((r) => r.id === cursor) : undefined;
@@ -963,6 +1008,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
               (!operation || r.operation === operation) &&
               (!actorKind || r.actorKind === actorKind) &&
               (!actorId || r.actorId === actorId) &&
+              (!failed || r.result !== 'ok') &&
               (!at || newestFirst(at, r) < 0)
           )
           .sort(newestFirst)
@@ -999,6 +1045,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
       apiKeys,
       hostnames,
       jobs: new MemoryScheduler(store, principal.tenantId, this.ids, clock),
+      jobRecovery: new MemoryJobRecovery(store, principal.tenantId, clock),
       usage,
       media,
       blobs: this.blobs,

@@ -10,6 +10,14 @@
 //   npm run platform -- tenants create <slug> <name> [nl,en]
 //   npm run platform -- entitlements set <slug> '{"supporters.max": 250}'
 //   npm run platform -- status set <slug> active|suspended
+//   npm run platform -- ops summary
+//   npm run platform -- ops list jobs|outbox|mail [<slug>]
+//   npm run platform -- ops retry jobs|outbox <id>
+//   npm run platform -- ops close jobs <id>
+//
+// `ops` reads and recovers stuck work as mycel_ops (TODO #17c, migration 0016), the same functions
+// as `/platform/ops/*`: never a payload, an event's props or its actor; a recovery writes its
+// audit row as `cli`.
 
 import { inputHasherOf, loadConfig, platformOf } from '@mycel/api/compose';
 import {
@@ -17,6 +25,13 @@ import {
   createTenant,
   getTenantBySlug,
   listTenants,
+  opsCloseJob,
+  opsDeadEvents,
+  opsJobs,
+  opsRetryEvent,
+  opsRetryJob,
+  opsSummary,
+  opsUnresolvedMail,
   setEntitlements,
   setStatus,
   uuidv7,
@@ -26,7 +41,30 @@ const usage = `usage:
   npm run platform -- tenants list
   npm run platform -- tenants create <slug> <name> [locales, comma-separated]
   npm run platform -- entitlements set <slug> <json document>
-  npm run platform -- status set <slug> active|suspended`;
+  npm run platform -- status set <slug> active|suspended
+  npm run platform -- ops summary
+  npm run platform -- ops list jobs|outbox|mail [<slug>]
+  npm run platform -- ops retry jobs|outbox <id>
+  npm run platform -- ops close jobs <id>`;
+
+const OPS_LISTS = { jobs: opsJobs, outbox: opsDeadEvents, mail: opsUnresolvedMail };
+const OPS_RECOVERIES = {
+  retry: { jobs: opsRetryJob, outbox: opsRetryEvent },
+  close: { jobs: opsCloseJob },
+};
+const OPS_REFUSALS = {
+  not_found: 'no stuck row with that id',
+  not_exhausted: 'not stuck: it has attempts left, is running right now, or is already done',
+};
+const iso = (d) => (d ? new Date(d).toISOString() : '-');
+const OPS_LINES = {
+  jobs: (j) =>
+    `${j.id}\t${j.tenantId ?? 'platform'}\t${j.type}\t${j.attempts}/${j.maxAttempts}\t${iso(j.createdAt)}\t${j.lastError ?? '-'}`,
+  outbox: (e) =>
+    `${e.id}\t${e.tenantId}\t${e.type}\t${e.attempts}\t${e.deliveredTo.join(',') || '-'}\t${e.lastError ?? '-'}`,
+  mail: (m) =>
+    `${m.key}\t${m.tenantId}\t${m.state}\t${m.subscriber}\t${m.attempts}\t${iso(m.attemptedAt)}\t${m.lastError ?? '-'}`,
+};
 
 const config = loadConfig();
 if (!config.DATABASE_URL) {
@@ -77,6 +115,31 @@ try {
     const updated = await setStatus(db, t.id, args[1], by);
     console.log(`platform: tenant ${t.id} status set to ${updated.status}`);
     show(updated);
+  } else if (noun === 'ops' && verb === 'summary') {
+    for (const s of await opsSummary(db))
+      console.log(
+        `${s.slug ?? 'platform'}\tjobs ${s.exhaustedJobs}\toutbox ${s.deadEvents}\tmail unknown ${s.unknownMail}\tabandoned ${s.abandonedMail}`
+      );
+  } else if (noun === 'ops' && verb === 'list' && Object.hasOwn(OPS_LISTS, args[0] ?? '')) {
+    const tenantId = args[1] ? (await bySlug(args[1])).id : undefined;
+    let cursor;
+    do {
+      const page = await OPS_LISTS[args[0]](db, { tenantId, cursor, limit: 200 });
+      for (const row of page.items) console.log(OPS_LINES[args[0]](row));
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor);
+  } else if (
+    noun === 'ops' &&
+    Object.hasOwn(OPS_RECOVERIES, verb ?? '') &&
+    Object.hasOwn(OPS_RECOVERIES[verb], args[0] ?? '') &&
+    args[1]
+  ) {
+    const result = await OPS_RECOVERIES[verb][args[0]](db, args[1], by);
+    if (result === 'ok') console.log(`platform: ${args[0]} ${args[1]} ${verb}: ok`);
+    else {
+      console.error(`platform: ${args[0]} ${args[1]}: ${OPS_REFUSALS[result]}`);
+      process.exitCode = 1;
+    }
   } else {
     console.error(usage);
     process.exitCode = 2;
