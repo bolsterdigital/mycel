@@ -101,4 +101,32 @@ export interface Database {
     last_error: string | null;
     created_at: Generated<Date>;
   };
+  operators: {
+    id: string;
+    issuer: string | null;
+    subject: string | null;
+    email: string;
+    email_verified_at: Timestamp | null;
+    name: string | null;
+    created_at: Generated<Date>;
+    last_login_at: Timestamp | null;
+  };
+  tenant_memberships: {
+    tenant_id: string;
+    operator_id: string;
+    capabilities: string[];
+    created_at: Timestamp;
+  };
+  api_keys: {
+    id: string;
+    tenant_id: string;
+    name: string;
+    prefix: string;
+    key_hash: string;
+    capabilities: string[];
+    created_by: Json<unknown>;
+    created_at: Timestamp;
+    last_used_at: Timestamp | null;
+    revoked_at: Timestamp | null;
+  };
 }

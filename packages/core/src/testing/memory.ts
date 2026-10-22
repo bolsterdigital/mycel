@@ -22,7 +22,19 @@ import type {
   TransactionContext,
   UnitOfWork,
 } from '../ports.js';
-import type { Principal } from '../principal.js';
+import type { Capability, Principal } from '../principal.js';
+import { normalizeEmail } from '../util/email.js';
+import type { ApiKeySummary, Member, Operator } from '../operators/model.js';
+import type {
+  ApiKeyRecord,
+  ApiKeyRepository,
+  IdentityStore,
+  LoginClaims,
+  MembershipRepository,
+  NewApiKey,
+  OperatorMembership,
+  OperatorRepository,
+} from '../operators/ports.js';
 import type { SupporterEvent } from '../supporters/events.js';
 import type { SupporterProjection } from '../supporters/model.js';
 import type { SupporterRepository } from '../supporters/ports.js';
@@ -94,12 +106,27 @@ interface TenantStore {
   projections: Map<string, SupporterProjection>;
   /** Keyed by intent key. */
   mailSends: Map<string, MailSend>;
+  /** Keyed by operator id. */
+  members: Map<string, { capabilities: Capability[]; createdAt: Date }>;
+  apiKeys: Map<string, NewApiKey & { lastUsedAt: Date | null; revokedAt: Date | null }>;
+}
+
+/** Platform data, like the `operators` table: one row per person, no tenant. */
+export interface OperatorRow {
+  id: string;
+  issuer: string | null;
+  subject: string | null;
+  email: string;
+  emailVerifiedAt: Date | null;
+  name: string | null;
+  lastLoginAt: Date | null;
 }
 
 /** All tenants' data, keyed by tenant id: isolation is by construction, like RLS. */
 export class MemoryStore {
   readonly tenants = new Map<string, TenantStore>();
   readonly outbox: DomainEvent[] = [];
+  readonly operators = new Map<string, OperatorRow>();
 
   for(tenantId: string): TenantStore {
     let store = this.tenants.get(tenantId);
@@ -112,6 +139,8 @@ export class MemoryStore {
         events: new Map(),
         projections: new Map(),
         mailSends: new Map(),
+        members: new Map(),
+        apiKeys: new Map(),
       };
       this.tenants.set(tenantId, store);
     }
@@ -212,6 +241,102 @@ export class MemoryUnitOfWork implements UnitOfWork {
       getProjectionById: async (id) => s.projections.get(id) ?? null,
       saveProjection: async (p) => void s.projections.set(p.id, structuredClone(p)),
     };
+    const operatorRows = this.store.operators;
+    const memberOf = (operatorId: string): Member | null => {
+      const m = s.members.get(operatorId);
+      const o = operatorRows.get(operatorId);
+      return m && o
+        ? {
+            operatorId,
+            email: o.email,
+            name: o.name,
+            capabilities: [...m.capabilities],
+            pending: o.lastLoginAt === null,
+          }
+        : null;
+    };
+    const operators: OperatorRepository = {
+      async forInvite(email, newId) {
+        const all = [...operatorRows.values()];
+        const pending = all.find((o) => o.subject === null && o.email === email);
+        if (pending) return { id: pending.id };
+        const verified = all.filter(
+          (o) => o.subject !== null && o.email === email && o.emailVerifiedAt
+        );
+        if (verified.length > 1) return 'ambiguous';
+        if (verified[0]) return { id: verified[0].id };
+        operatorRows.set(newId, {
+          id: newId,
+          issuer: null,
+          subject: null,
+          email,
+          emailVerifiedAt: null,
+          name: null,
+          lastLoginAt: null,
+        });
+        return { id: newId };
+      },
+    };
+    const members: MembershipRepository = {
+      // No-op for the same reason as `supporters.lock` below.
+      async lock() {},
+      list: async () =>
+        [...s.members.keys()]
+          .map(memberOf)
+          .filter((m): m is Member => m !== null)
+          .sort((a, b) => a.email.localeCompare(b.email)),
+      get: async (operatorId) => memberOf(operatorId),
+      findByEmail: async (email) =>
+        [...s.members.keys()].map(memberOf).find((m) => m?.email === email) ?? null,
+      async insert(operatorId, capabilities, at) {
+        s.members.set(operatorId, { capabilities: [...capabilities], createdAt: new Date(at) });
+      },
+      async update(operatorId, capabilities) {
+        const m = s.members.get(operatorId);
+        if (!m) return false;
+        m.capabilities = [...capabilities];
+        return true;
+      },
+      remove: async (operatorId) => s.members.delete(operatorId),
+    };
+    const summary = (k: NewApiKey & { lastUsedAt: Date | null; revokedAt: Date | null }) =>
+      ({
+        id: k.id,
+        name: k.name,
+        prefix: k.prefix,
+        capabilities: [...k.capabilities],
+        createdBy: structuredClone(k.createdBy),
+        createdAt: k.createdAt.toISOString(),
+        lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
+        revokedAt: k.revokedAt?.toISOString() ?? null,
+      }) satisfies ApiKeySummary;
+    const apiKeys: ApiKeyRepository = {
+      list: async () =>
+        [...s.apiKeys.values()].sort((a, b) => b.id.localeCompare(a.id)).map(summary),
+      async insert(key) {
+        s.apiKeys.set(key.id, { ...structuredClone(key), lastUsedAt: null, revokedAt: null });
+      },
+      async revoke(id, at) {
+        const k = s.apiKeys.get(id);
+        if (!k || k.revokedAt) return false;
+        k.revokedAt = new Date(at);
+        return true;
+      },
+      createdBy: async (operatorId) =>
+        [...s.apiKeys.values()]
+          .filter(
+            (k) =>
+              !k.revokedAt &&
+              k.createdBy.kind === 'operator' &&
+              k.createdBy.operatorId === operatorId
+          )
+          .map(summary),
+      async touch(id, at) {
+        const k = s.apiKeys.get(id);
+        if (k && (!k.lastUsedAt || at.getTime() - k.lastUsedAt.getTime() >= 60_000))
+          k.lastUsedAt = new Date(at);
+      },
+    };
     return fn({
       principal,
       clock,
@@ -230,6 +355,9 @@ export class MemoryUnitOfWork implements UnitOfWork {
       rateLimits,
       supporters,
       mailSends,
+      operators,
+      members,
+      apiKeys,
     });
   }
 
@@ -239,5 +367,82 @@ export class MemoryUnitOfWork implements UnitOfWork {
     for (const event of events)
       for (const sub of subscribers) if (sub.types.includes(event.type)) await sub.handle(event);
     return events.length;
+  }
+}
+
+/**
+ * The authentication-time view over a MemoryStore, like `createIdentityStore` over Postgres: it
+ * reads every tenant's memberships and keys, which only this port may do (ADR 011 rule 1).
+ */
+export class MemoryIdentityStore implements IdentityStore {
+  constructor(
+    readonly store: MemoryStore,
+    readonly tenants: MemoryTenants,
+    readonly clock: Clock = new FakeClock(),
+    readonly ids: Ids = new SequentialIds()
+  ) {}
+
+  async login(claims: LoginClaims): Promise<Operator> {
+    const email = normalizeEmail(claims.email);
+    const now = this.clock.now();
+    const rows = [...this.store.operators.values()];
+    let row = rows.find((o) => o.issuer === claims.issuer && o.subject === claims.subject);
+    if (row) {
+      row.emailVerifiedAt = claims.emailVerified
+        ? row.email === email && row.emailVerifiedAt
+          ? row.emailVerifiedAt
+          : now
+        : null;
+      row.email = email;
+      row.name = claims.name ?? row.name;
+      row.lastLoginAt = now;
+    } else {
+      const pending = claims.emailVerified
+        ? rows.find((o) => o.subject === null && o.email === email)
+        : undefined;
+      row = pending ?? {
+        id: this.ids.next(),
+        issuer: null,
+        subject: null,
+        email,
+        emailVerifiedAt: null,
+        name: null,
+        lastLoginAt: null,
+      };
+      Object.assign(row, {
+        issuer: claims.issuer,
+        subject: claims.subject,
+        emailVerifiedAt: claims.emailVerified ? now : null,
+        name: claims.name ?? null,
+        lastLoginAt: now,
+      });
+      this.store.operators.set(row.id, row);
+    }
+    return {
+      id: row.id,
+      email: row.email,
+      name: row.name,
+      emailVerifiedAt: row.emailVerifiedAt?.toISOString() ?? null,
+      lastLoginAt: row.lastLoginAt?.toISOString() ?? null,
+    };
+  }
+
+  async membershipsOf(operatorId: string): Promise<OperatorMembership[]> {
+    const out: OperatorMembership[] = [];
+    for (const [tenantId, t] of this.store.tenants) {
+      const m = t.members.get(operatorId);
+      const info = await this.tenants.findById(tenantId);
+      if (m && info)
+        out.push({ tenantId, slug: info.slug, name: info.name, capabilities: [...m.capabilities] });
+    }
+    return out.sort((a, b) => a.slug.localeCompare(b.slug));
+  }
+
+  async apiKeyByHash(hash: string): Promise<ApiKeyRecord | null> {
+    for (const [tenantId, t] of this.store.tenants)
+      for (const k of t.apiKeys.values())
+        if (k.keyHash === hash)
+          return { id: k.id, tenantId, capabilities: [...k.capabilities], revokedAt: k.revokedAt };
+    return null;
   }
 }

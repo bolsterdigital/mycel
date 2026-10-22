@@ -10,8 +10,12 @@
 // this script also starts the API process (worker in-process, console mailer with
 // MAIL_SPOOL_DIR) on its own port and stops it afterwards. Rejected: a second webServer entry
 // in playwright.config.ts, which cannot create the spool directory or share its path.
+//
+// The admin flow (TODO #7) logs in through scripts/mock-oidc.mjs, which this script starts too,
+// and uses an API key: generated here before the seed, which stores its hash for tenant probe.
 
 import { spawn, spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -31,6 +35,7 @@ const skip = (why) => {
 for (const name of [
   'DATABASE_URL',
   'APP_DATABASE_URL',
+  'AUTH_DATABASE_URL',
   'SIGNING_SECRET',
   'PUBLIC_BASE_URL',
   'MAIL_FROM',
@@ -47,14 +52,22 @@ const run = (cmd, args, cwd = root, env = process.env) => {
   const r = spawnSync(cmd, args, { cwd, stdio: 'inherit', env });
   if (r.status !== 0) process.exit(r.status ?? 1);
 };
+// The seed stores this token's hash as the `seed` key of tenant probe; API and spec use it.
+const apiKey = process.env.MYCEL_API_KEY ?? `mycel_${randomBytes(32).toString('base64url')}`;
 run('npm', ['run', '-s', 'migrate', '-w', '@mycel/db']);
-run('npm', ['run', '-s', 'seed', '-w', '@mycel/db']);
+// The e2e admin is its own address: the mock IdP here has another issuer (port) than the one
+// `npm run dev` starts, so sharing admin@probe.test would let one claim the other's invitation.
+run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
+  ...process.env,
+  MYCEL_API_KEY: apiKey,
+  MYCEL_SEED_OPERATOR_EMAIL: 'e2e-admin@probe.test',
+});
 
 // The web app under test listens on 4173 (playwright.config.ts); links in the mail must point
 // there, so the API process gets the same origin regardless of what .env says.
 const WEB_ORIGIN = 'http://127.0.0.1:4173';
 const API_PORT = process.env.E2E_API_PORT ?? '8797';
-const apiKey = process.env.MYCEL_API_KEY ?? `e2e-${Math.random().toString(36).slice(2)}`;
+const OIDC_PORT = process.env.E2E_OIDC_PORT ?? '8798';
 const spool = mkdtempSync(join(tmpdir(), 'mycel-e2e-mail-'));
 const env = {
   ...process.env,
@@ -62,10 +75,18 @@ const env = {
   MAILER: 'console',
   MAIL_SPOOL_DIR: spool,
   MYCEL_API_KEY: apiKey,
-  MYCEL_API_KEY_TENANT: 'probe',
+  OIDC_ISSUER: `http://127.0.0.1:${OIDC_PORT}`,
+  OIDC_CLIENT_ID: 'mycel-e2e',
   E2E_API_URL: `http://127.0.0.1:${API_PORT}`,
 };
+// The mock is a public client; a secret from .env would make the token request differ.
+delete env.OIDC_CLIENT_SECRET;
 
+const idp = spawn('node', ['scripts/mock-oidc.mjs'], {
+  cwd: root,
+  stdio: ['ignore', 'inherit', 'inherit'],
+  env: { ...env, MOCK_OIDC_PORT: OIDC_PORT },
+});
 const api = spawn('node', ['packages/api/dist/server.js'], {
   cwd: root,
   stdio: ['ignore', 'inherit', 'inherit'],
@@ -73,29 +94,34 @@ const api = spawn('node', ['packages/api/dist/server.js'], {
 });
 const stop = () => {
   if (api.exitCode === null) api.kill('SIGTERM');
+  if (idp.exitCode === null) idp.kill('SIGTERM');
   rmSync(spool, { recursive: true, force: true });
 };
 process.on('exit', stop);
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => process.exit(1));
 
-const deadline = Date.now() + 30_000;
-while (true) {
-  if (api.exitCode !== null) {
-    console.error(`e2e: API process exited with ${api.exitCode}`);
-    process.exit(1);
+async function waitFor(name, child, url) {
+  const deadline = Date.now() + 30_000;
+  while (true) {
+    if (child.exitCode !== null) {
+      console.error(`e2e: ${name} exited with ${child.exitCode}`);
+      process.exit(1);
+    }
+    const ok = await fetch(url)
+      .then((r) => r.ok)
+      .catch(() => false);
+    if (ok) return;
+    if (Date.now() > deadline) {
+      console.error(`e2e: ${name} did not become healthy in 30s`);
+      process.exit(1);
+    }
+    await new Promise((r) => setTimeout(r, 250));
   }
-  const ok = await fetch(`${env.E2E_API_URL}/healthz`)
-    .then((r) => r.ok)
-    .catch(() => false);
-  if (ok) break;
-  if (Date.now() > deadline) {
-    console.error('e2e: API did not become healthy in 30s');
-    process.exit(1);
-  }
-  await new Promise((r) => setTimeout(r, 250));
 }
+await waitFor('API process', api, `${env.E2E_API_URL}/healthz`);
+await waitFor('mock IdP', idp, `${env.OIDC_ISSUER}/.well-known/openid-configuration`);
 
-// The API child keeps the event loop alive; stop it explicitly once the tests are done.
+// The children keep the event loop alive; stop them explicitly once the tests are done.
 run('npx', ['playwright', 'test'], `${root}apps/web`, env);
 stop();
 process.exit(0);

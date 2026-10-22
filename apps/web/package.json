@@ -29,6 +29,7 @@
   "description": "SvelteKit front: public tenant sites rendered from blocks + operator admin (ADR 004, ADR 009)",
   "dependencies": {
     "@mycel/api": "*",
-    "@mycel/core": "*"
+    "@mycel/core": "*",
+    "openid-client": "^6.8.8"
   }
 }

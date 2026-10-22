@@ -1,5 +1,6 @@
-// `npm run mcp -w @mycel/mcp`: the MCP server over stdio, acting as an agent principal of the
-// tenant named by MYCEL_API_KEY_TENANT. Stdout is the protocol channel: never console.log here.
+// `npm run mcp -w @mycel/mcp`: the MCP server over stdio, acting as one agent session with the
+// tenant and capabilities of MYCEL_API_KEY's row in `api_keys`. The row is read on every call, so
+// revoking the key stops a running server. Stdout is the protocol channel: never console.log here.
 
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createRuntime } from '@mycel/api/compose';

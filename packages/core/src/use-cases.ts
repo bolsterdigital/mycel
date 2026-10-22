@@ -4,6 +4,15 @@
 import { createPage, getPage } from './content/service.js';
 import { getForm, submitForm } from './forms/service.js';
 import { confirmSubscription } from './mailing/service.js';
+import {
+  createKey,
+  inviteMember,
+  listKeys,
+  listMembers,
+  removeMember,
+  revokeKey,
+  updateMember,
+} from './operators/service.js';
 import { UseCaseRegistry, type UseCase } from './registry.js';
 import { changeSupporterEmail, getSupporter } from './supporters/service.js';
 
@@ -15,6 +24,13 @@ export const useCases = {
   confirmSubscription,
   getSupporter,
   changeSupporterEmail,
+  listMembers,
+  inviteMember,
+  updateMember,
+  removeMember,
+  listKeys,
+  createKey,
+  revokeKey,
 } as const;
 
 export function buildRegistry(): UseCaseRegistry {
