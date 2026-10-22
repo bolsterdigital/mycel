@@ -80,7 +80,17 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
 {
   const { createDb, createTenantDirectory, createUnitOfWork, setEntitlements, uuidv7Ids } =
     await import('@mycel/db');
-  const { Invoker, buildRegistry, systemPrincipal, useCases } = await import('@mycel/core');
+  const {
+    BLOCK_DEFINITIONS,
+    EXAMPLE_IDS,
+    Invoker,
+    appDelivery,
+    buildRegistry,
+    systemPrincipal,
+    useCases,
+  } = await import('@mycel/core');
+  const { blobStoreFor, loadConfig } = await import('@mycel/api/compose');
+  const { createSharpProcessor } = await import('@mycel/media-sharp');
   const { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } =
     await import('@mycel/core/testing');
   const operatorDb = createDb(process.env.DATABASE_URL);
@@ -101,6 +111,12 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
     inputHasher: new FakeInputHasher(),
     dns: new FakeDns(),
     platform: memoryPlatform,
+    // The block fixtures below upload real images into the store the web server reads.
+    media: {
+      blobs: blobStoreFor(loadConfig()),
+      images: createSharpProcessor(),
+      delivery: appDelivery,
+    },
   });
   await uow.run(systemPrincipal(probe.id, 'e2e'), async (ctx) => {
     const hostname = 'e2e-alias.example';
@@ -138,6 +154,149 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
       revisionId: revision.id,
       locale: 'nl',
     });
+  }
+
+  // Two composed pages for blocks.spec.ts (TODO #8c1): a campaign and an article, in nl and en,
+  // built from the registry's own examples with the example ids swapped for real data: two
+  // uploaded images, the signup page as the linked item and its form. Published as pages
+  // because articles get their route in #8c2.
+  const composed = {
+    campagne: {
+      title: { nl: 'Schone lucht, nu', en: 'Clean air, now' },
+      blocks: [
+        'hero-cover',
+        'rich-text',
+        'cta-card-two-actions',
+        'image-wide-caption-credit',
+        'faq-accordion',
+        'form-card-wide',
+      ],
+    },
+    artikel: {
+      title: { nl: 'Een straat vol bomen', en: 'A street full of trees' },
+      blocks: [
+        'hero-split-long-label',
+        'article-text',
+        'quote-pullquote-wide',
+        'image-float-right',
+        'callout-warning',
+        'video-vimeo-wide',
+      ],
+    },
+  };
+  const needed = [];
+  for (const slug of Object.keys(composed))
+    if (!(await invoker.run(useCases.listItems, admin, { type: 'page', slug })).items.length)
+      needed.push(slug);
+  if (needed.length) {
+    const sharp = (await import('sharp')).default;
+    // A landscape and a portrait with real pixels: shapes and a gradient, rendered from SVG.
+    const picture = (width, height, hue) =>
+      sharp(
+        Buffer.from(
+          `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+            `<defs><linearGradient id="g" x2="1" y2="1"><stop offset="0" stop-color="hsl(${hue},55%,45%)"/>` +
+            `<stop offset="1" stop-color="hsl(${hue + 60},60%,70%)"/></linearGradient></defs>` +
+            `<rect width="100%" height="100%" fill="url(#g)"/>` +
+            `<circle cx="${width * 0.3}" cy="${height * 0.6}" r="${Math.min(width, height) / 4}" fill="hsl(${hue + 180},50%,85%)"/></svg>`
+        )
+      )
+        .jpeg({ quality: 80 })
+        .toBuffer();
+    const upload = async (filename, bytes, focal) =>
+      invoker.run(useCases.uploadMedia, admin, {
+        filename,
+        contentType: 'image/jpeg',
+        bytes: bytes.toString('base64'),
+        caption: { nl: 'Op het Malieveld', en: 'On the Malieveld' },
+        credit: { work: null, photographer: 'Mycel e2e' },
+        focal,
+      });
+    const landscape = await upload('malieveld.jpg', await picture(1600, 900, 200), {
+      x: 0.3,
+      y: 0.6,
+    });
+    const portrait = await upload('bomen.jpg', await picture(800, 1000, 110), { x: 0.5, y: 0.5 });
+    const [signupItem] = (
+      await invoker.run(useCases.listItems, admin, { type: 'page', slug: 'signup' })
+    ).items;
+    const signup = await invoker.run(useCases.getItem, admin, { itemId: signupItem.id });
+    const formId = signup.revision.document.blocks.find((b) => b.type === 'signup-form').props
+      .formId;
+    const examples = Object.fromEntries(
+      Object.entries(BLOCK_DEFINITIONS).flatMap(([type, d]) =>
+        d.examples.map((e) => [e.name, { type, version: 1, props: e.props }])
+      )
+    );
+    // Rich text with section headings, a footnote and an item link: the article's body.
+    examples['article-text'] = {
+      type: 'rich-text',
+      version: 1,
+      props: {
+        content: Object.fromEntries(
+          [
+            ['nl', 'Waarom bomen', 'Wat we vragen', 'Lees ook', 'de oproep'],
+            ['en', 'Why trees', 'What we ask', 'Read also', 'the call'],
+          ].map(([locale, h1, h2, before, link]) => [
+            locale,
+            {
+              type: 'doc',
+              content: [
+                { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: h1 }] },
+                {
+                  type: 'paragraph',
+                  content: [
+                    {
+                      type: 'text',
+                      text: `${h1}: schaduw, koelte en ruimte voor water.`,
+                      marks: [{ type: 'footnote_reference', attrs: { text: 'RIVM, 2025.' } }],
+                    },
+                  ],
+                },
+                { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: h2 }] },
+                {
+                  type: 'paragraph',
+                  content: [
+                    { type: 'text', text: `${before} ` },
+                    {
+                      type: 'text',
+                      text: link,
+                      marks: [{ type: 'link', attrs: { itemId: EXAMPLE_IDS.item } }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ])
+        ),
+      },
+    };
+    const swap = (block) =>
+      JSON.parse(
+        JSON.stringify(block)
+          .replaceAll(EXAMPLE_IDS.image, landscape.id)
+          .replaceAll(EXAMPLE_IDS.portrait, portrait.id)
+          .replaceAll(EXAMPLE_IDS.item, signupItem.id)
+          .replaceAll(EXAMPLE_IDS.form, formId)
+      );
+    for (const slug of needed) {
+      const { item, revision } = await invoker.run(useCases.createItem, admin, {
+        slug,
+        document: {
+          type: 'page',
+          defaultLocale: 'nl',
+          locales: ['nl', 'en'],
+          title: composed[slug].title,
+          blocks: composed[slug].blocks.map((name) => swap(examples[name])),
+        },
+      });
+      for (const locale of ['nl', 'en'])
+        await invoker.run(useCases.publishItem, admin, {
+          itemId: item.id,
+          revisionId: revision.id,
+          locale,
+        });
+    }
   }
   await operatorDb.destroy();
   await appDb.destroy();

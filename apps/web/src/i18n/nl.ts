@@ -253,4 +253,11 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.status.diagnosis.intro':
     'Dit is precies wat je aan support zou sturen: id’s, aantallen, tijden en foutteksten zonder adressen. Er wordt niets automatisch verstuurd; kopieer het zelf als je hulp wilt.',
   'admin.status.diagnosis.copy': 'Diagnose, om te selecteren en kopiëren',
+  'block.callout.info': 'Informatie',
+  'block.callout.note': 'Opmerking',
+  'block.callout.warning': 'Waarschuwing',
+  'block.credit.photographer': 'Foto: {name}',
+  'block.video.on': 'Video op {provider}',
+  'block.footnotes': 'Noten',
+  'block.footnote.back': 'Terug naar de tekst',
 };

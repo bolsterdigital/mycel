@@ -18,17 +18,7 @@ export const load: PageServerLoad = async ({ params, request, locals }) => {
     request.headers.get('accept-language')
   );
   locals.lang = view.locale;
-  const t = ui(view.locale);
-  return {
-    locale: view.locale,
-    title: view.title,
-    blocks: view.blocks,
-    copy: {
-      errorPrefix: t('error.prefix'),
-      summaryTitle: t('error.summary.title'),
-      honeypotLabel: t('form.honeypot.label'),
-    },
-  };
+  return { model: view.model, errorPrefix: ui(view.locale)('error.prefix') };
 };
 
 const text = (data: FormData, name: string): string => {
