@@ -23,7 +23,11 @@ const useCases = registry.list();
 async function connect(capabilities: Capability[]) {
   const principal: Principal = {
     tenantId: TENANT,
-    actor: { kind: 'agent', sessionId: 'conformance', keyId: 'conformance' },
+    // An agent never carries tenant:admin, and the member and key use cases refuse one that
+    // claims it (TODO #20a); background work is the actor that does hold it without a membership.
+    actor: capabilities.includes('tenant:admin')
+      ? { kind: 'system', job: 'conformance' }
+      : { kind: 'agent', sessionId: 'conformance', keyId: 'conformance' },
     capabilities,
     entitlements: DEFAULT_ACCESS.entitlements,
     tenantStatus: DEFAULT_ACCESS.status,

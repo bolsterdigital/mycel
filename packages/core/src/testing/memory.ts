@@ -1,6 +1,8 @@
 // In-memory implementations of every port (ADR 001 consequence: the core is testable without a
 // database). Used by core tests and by front tests (api, mcp) that need a working runtime.
 // Not transactional: a thrown use case leaves partial writes, which the tests do not rely on.
+// One lock is real: `members.lock()` queues per tenant until `run` ends, like the advisory lock
+// in Postgres, so the key/membership race (TODO #20a) can be proven here too.
 
 import type { AuditEntry } from '../audit/model.js';
 import type { AuditLog, InputHasher } from '../audit/ports.js';
@@ -425,6 +427,8 @@ export class MemoryStore {
   readonly operators = new Map<string, OperatorRow>();
   /** Every tenant's and the platform's jobs, like the `jobs` table. */
   readonly jobs: JobRecord[] = [];
+  /** The tail of each tenant's `members.lock()` queue. */
+  readonly memberLocks = new Map<string, Promise<void>>();
   /** `tenants.entitlements` and `tenants.status` (0010); a tenant without a row has the defaults. */
   readonly access = new Map<string, { entitlements: EntitlementsDocument; status: TenantStatus }>();
 
@@ -799,9 +803,20 @@ export class MemoryUnitOfWork implements UnitOfWork {
         return { id: newId };
       },
     };
+    const memberLocks = this.store.memberLocks;
+    let releaseMembers: (() => void) | undefined;
     const members: MembershipRepository = {
-      // No-op for the same reason as `supporters.lock` below.
-      async lock() {},
+      // Held until `run` ends; a second `lock()` in the same run is a no-op, as in Postgres.
+      async lock() {
+        if (releaseMembers) return;
+        const before = memberLocks.get(principal.tenantId) ?? Promise.resolve();
+        const mine = new Promise<void>((resolve) => (releaseMembers = resolve));
+        memberLocks.set(
+          principal.tenantId,
+          before.then(() => mine)
+        );
+        await before;
+      },
       list: async () =>
         [...s.members.keys()]
           .map(memberOf)
@@ -1016,45 +1031,49 @@ export class MemoryUnitOfWork implements UnitOfWork {
           .map((r) => ({ ...r }));
       },
     };
-    return fn({
-      principal,
-      clock,
-      ids: this.ids,
-      signer: this.signer,
-      dns: this.dns,
-      platform: this.platform,
-      events: {
-        async publish(event) {
-          if (event.tenantId !== principal.tenantId)
-            throw new Error('event tenant differs from principal tenant');
-          outbox.push(event);
+    try {
+      return await fn({
+        principal,
+        clock,
+        ids: this.ids,
+        signer: this.signer,
+        dns: this.dns,
+        platform: this.platform,
+        events: {
+          async publish(event) {
+            if (event.tenantId !== principal.tenantId)
+              throw new Error('event tenant differs from principal tenant');
+            outbox.push(event);
+          },
         },
-      },
-      content,
-      authors: sluggedRepository(s.authors),
-      sections: sluggedRepository(s.sections),
-      patterns: entityRepository(s.patterns),
-      forms,
-      submissions,
-      rateLimits,
-      supporters,
-      admissions,
-      mailSends,
-      operators,
-      members,
-      apiKeys,
-      hostnames,
-      jobs: new MemoryScheduler(store, principal.tenantId, this.ids, clock),
-      jobRecovery: new MemoryJobRecovery(store, principal.tenantId, clock),
-      usage,
-      media,
-      blobs: this.blobs,
-      images: this.images,
-      delivery: this.delivery,
-      log: this.log,
-      audit,
-      inputHasher: this.inputHasher,
-    });
+        content,
+        authors: sluggedRepository(s.authors),
+        sections: sluggedRepository(s.sections),
+        patterns: entityRepository(s.patterns),
+        forms,
+        submissions,
+        rateLimits,
+        supporters,
+        admissions,
+        mailSends,
+        operators,
+        members,
+        apiKeys,
+        hostnames,
+        jobs: new MemoryScheduler(store, principal.tenantId, this.ids, clock),
+        jobRecovery: new MemoryJobRecovery(store, principal.tenantId, clock),
+        usage,
+        media,
+        blobs: this.blobs,
+        images: this.images,
+        delivery: this.delivery,
+        log: this.log,
+        audit,
+        inputHasher: this.inputHasher,
+      });
+    } finally {
+      releaseMembers?.();
+    }
   }
 
   /** Deliver and clear the outbox, like the Postgres worker does after commit. */
