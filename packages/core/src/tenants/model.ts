@@ -29,6 +29,10 @@ export const Hostname = z.object({
   kind: HostnameKind,
   primary: z.boolean(),
   verifiedAt: z.string().datetime().nullable(),
+  /** Last check that reached DNS, daily or by hand (TODO #15); null before the first. */
+  lastCheckedAt: z.string().datetime().nullable(),
+  /** Consecutive daily re-checks without the TXT record; the third withdraws the verification. */
+  checkFailures: z.number().int().nonnegative(),
   /** Custom hostnames only: what to set at the DNS provider. */
   dns: DnsInstruction.optional(),
 });

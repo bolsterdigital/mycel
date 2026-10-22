@@ -1,5 +1,6 @@
-// Standalone outbox worker: drains committed events into the in-process subscribers (supporter
-// ingest, confirmation mail). Several can run side by side thanks to SKIP LOCKED.
+// Standalone worker: drains committed outbox events into the in-process subscribers (supporter
+// ingest, confirmation mail) and runs due jobs (TODO #15). Several can run side by side thanks
+// to SKIP LOCKED.
 //
 // With PORT set (as in the container image) it also answers GET /healthz, so every entrypoint
 // of the image shares one healthcheck. Rejected: a heartbeat file checked by a separate command,
@@ -11,7 +12,7 @@ import { createRuntime } from './compose.js';
 
 const runtime = createRuntime();
 runtime.startWorker();
-console.log('outbox worker running');
+console.log('worker running: outbox and jobs');
 
 const port = process.env['PORT'];
 const health = port

@@ -88,6 +88,13 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.domains.dns.target': 'Wijst naar',
   'admin.domains.dns.apex':
     'Een domein zonder subdomein (example.org zelf) kan bij de meeste providers geen CNAME krijgen: gebruik dan de A- en AAAA-records uit de documentatie van je hoster. Het TXT-record is altijd nodig.',
+  'admin.domains.checks.none':
+    'Wordt elke dag gecontroleerd; de eerste controle volgt binnen een dag.',
+  'admin.domains.checks.ok': 'Laatst gecontroleerd {when}: het TXT-record is gevonden.',
+  'admin.domains.checks.failing':
+    'Laatst gecontroleerd {when}: TXT-record {n} dag(en) op rij niet gevonden. Na 3 dagen vervalt de verificatie en wordt de platform-hostname weer primair.',
+  'admin.domains.done.unavailable':
+    'DNS gaf geen antwoord voor {hostname}, dus er is niets gecontroleerd of veranderd. Probeer het over een paar minuten opnieuw.',
   'admin.domains.check': 'DNS controleren',
   'admin.domains.makePrimary': 'Primair maken',
   'admin.domains.remove': 'Verwijderen',

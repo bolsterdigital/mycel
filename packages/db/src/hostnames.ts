@@ -28,6 +28,8 @@ interface HostnameRow {
   verification_token: string | null;
   verified_at: Date | string | null;
   created_at: Date | string;
+  check_failures: number;
+  last_checked_at: Date | string | null;
 }
 
 const toRecord = (r: HostnameRow): HostnameRecord => ({
@@ -37,6 +39,8 @@ const toRecord = (r: HostnameRow): HostnameRecord => ({
   verificationToken: r.verification_token,
   verifiedAt: r.verified_at === null ? null : new Date(r.verified_at),
   createdAt: new Date(r.created_at),
+  checkFailures: r.check_failures,
+  lastCheckedAt: r.last_checked_at === null ? null : new Date(r.last_checked_at),
 });
 
 const columns = [
@@ -46,6 +50,8 @@ const columns = [
   'verification_token',
   'verified_at',
   'created_at',
+  'check_failures',
+  'last_checked_at',
 ] as const;
 
 export function hostnameRepository(trx: Trx, tenantId: string): HostnameRepository {
@@ -84,6 +90,13 @@ export function hostnameRepository(trx: Trx, tenantId: string): HostnameReposito
       await trx
         .updateTable('tenant_hostnames')
         .set({ verified_at: at })
+        .where('hostname', '=', hostname)
+        .execute();
+    },
+    async recordCheck(hostname, at, failures) {
+      await trx
+        .updateTable('tenant_hostnames')
+        .set({ last_checked_at: at, check_failures: failures })
         .where('hostname', '=', hostname)
         .execute();
     },

@@ -102,6 +102,8 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('hostname conformance', () 
         kind: 'platform',
         primary: true,
         verifiedAt: expect.any(String),
+        lastCheckedAt: null,
+        checkFailures: 0,
       },
     ]);
     // A rerun of the seed changes nothing.
