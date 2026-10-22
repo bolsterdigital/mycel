@@ -137,6 +137,14 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
   });
 
   afterAll(async () => {
+    // Each confirmation mail planned a `mail.reconcile` job; close this suite's so they neither
+    // run under a worker on the same database nor pile up ahead of recovery.conformance's claim.
+    await operatorDb.transaction().execute(async (trx) => {
+      await sql`set local role mycel_worker`.execute(trx);
+      await sql`update jobs set done_at = now()
+                where done_at is null and type = 'mail.reconcile'
+                  and tenant_id in (${tenantA}, ${tenantB})`.execute(trx);
+    });
     await operatorDb.destroy();
     await appDb.destroy();
   });
