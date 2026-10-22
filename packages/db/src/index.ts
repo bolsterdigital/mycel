@@ -39,6 +39,7 @@ import {
 import { hostnameRepository } from './hostnames.js';
 import { asPlatform, insertPlatformHostname } from './platform.js';
 import { jobScheduler } from './jobs.js';
+import { jobRecoveryRepository } from './recovery.js';
 import { mediaRepository } from './media.js';
 import { apiKeyRepository, membershipRepository, operatorRepository } from './operators.js';
 import { outboxEventBus } from './outbox.js';
@@ -64,6 +65,21 @@ export {
 } from './outbox.js';
 export { deleteFinishedJobs, ping, queueLag, type QueueLag } from './ops.js';
 export { sweepRateLimits } from './janitor.js';
+export {
+  opsCloseJob,
+  opsDeadEvents,
+  opsJobs,
+  opsRetryEvent,
+  opsRetryJob,
+  opsSummary,
+  opsUnresolvedMail,
+  type OpsEvent,
+  type OpsJob,
+  type OpsMail,
+  type OpsPage,
+  type OpsTenantSummary,
+  type Paged,
+} from './recovery.js';
 export { deleteExpiredAudit } from './audit.js';
 export {
   JOB_LEASE_SECONDS,
@@ -175,6 +191,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           apiKeys: apiKeyRepository(trx, tenantId),
           hostnames: hostnameRepository(trx, tenantId),
           jobs: jobScheduler(trx, tenantId),
+          jobRecovery: jobRecoveryRepository(trx, tenantId),
           usage: usageReader(trx, tenantId, deps.clock),
           media: mediaRepository(trx, tenantId),
           blobs: deps.media?.blobs ?? (unconfigured('BlobStore') as BlobStore),

@@ -64,6 +64,9 @@
   <h1>{data.tenant.name}</h1>
   <p><a href="/admin">{t('admin.back')}</a></p>
   <p><a href="/admin/{data.tenant.slug}/media">{t('admin.media.link')}</a></p>
+  {#if data.capabilities.includes('tenant:admin')}
+    <p><a href="/admin/{data.tenant.slug}/status">{t('admin.status.link')}</a></p>
+  {/if}
 
   {#if failed}
     <div class="error-summary" role="alert">

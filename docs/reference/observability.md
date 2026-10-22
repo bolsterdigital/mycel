@@ -1,6 +1,6 @@
 # Observability
 
-Logs, error reports, health and metrics of every Mycel process (TODO #17a). The hoster reads stdout; nothing here ships logs anywhere. The reasoning is in ADR 008 (our own code before a dependency), 011 (who may read the queues) and 019 rule 8 (erasure covers every copy, and a log line is a copy). The audit log is [audit.md](audit.md) (#17b); the per-tenant status page and recovery of stuck work are #17c.
+Logs, error reports, health and metrics of every Mycel process (TODO #17a). The hoster reads stdout; nothing here ships logs anywhere. The reasoning is in ADR 008 (our own code before a dependency), 011 (who may read the queues) and 019 rule 8 (erasure covers every copy, and a log line is a copy). The audit log is [audit.md](audit.md) (#17b); the per-tenant status page and the hoster's view of stuck work (#17c) are in [platform-api.md](platform-api.md) § Stuck work.
 
 ## Log lines
 
@@ -89,9 +89,9 @@ Never a tenant id as a label: the cardinality would grow with every customer and
 ### What the lag numbers mean
 
 - **`outboxLagSeconds`**: age of the oldest event that has not reached every subscriber and is not dead, waiting backoff included. A healthy worker keeps it at seconds.
-- **`outboxDead`**: events that failed ten times (`OUTBOX_MAX_ATTEMPTS`) without reaching every subscriber. They are no longer drained; #17c makes them visible and retryable.
+- **`outboxDead`**: events that failed ten times (`OUTBOX_MAX_ATTEMPTS`) without reaching every subscriber. They are no longer drained; the hoster lists them with `GET /platform/ops/outbox` or `npm run platform -- ops list outbox` and gives one new passes with `POST /platform/ops/outbox/:id/retry` or `npm run platform -- ops retry outbox <id>` (#17c).
 - **`jobsLagSeconds`**: how long the oldest due job that a worker could claim has been waiting. A job in its retry backoff is not due yet and does not count.
-- **`jobsExhausted`**: open jobs that used up their attempts. They stay in the table with `last_error` until someone looks (#17c); retention never deletes them.
+- **`jobsExhausted`**: open jobs that used up their attempts. They stay in the table with `last_error` until someone looks; retention never deletes them. A site's administrator sees and recovers its own on `/admin/<slug>/status` (`ops.job.retry` starts the attempts again, `ops.job.close` finishes the job, both audited); the hoster lists all of them with `GET /platform/ops/jobs` and recovers one with `POST /platform/ops/jobs/:id/retry|close` or `npm run platform -- ops retry|close jobs <id>` (#17c).
 
 A worker that was down across a period boundary skips that period of a recurring job: the next pass plans the next period, not the missed one. For `events.partitions` the three-month margin catches that once; for the hourly sweep and the daily jobs, the next run does the same work.
 

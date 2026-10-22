@@ -16,6 +16,8 @@ export interface AuditListQuery {
   operation?: string | undefined;
   actorKind?: AuditActorKind | undefined;
   actorId?: string | undefined;
+  /** Only rows whose result is not `ok`: refusals and failures (the #17c diagnosis). */
+  failed?: boolean | undefined;
   /** The id of the last row of the previous page; newest first, by `(occurred_at, id)`. */
   cursor?: string | undefined;
   limit: number;

@@ -210,4 +210,47 @@ export const nl: Partial<Record<UiKey, string>> = {
     '{filename} is in gebruik op {n} plekken en kan niet worden verwijderd. Haal het eerst uit die content.',
   'admin.media.error.notFound':
     'Dat bestand bestaat niet meer op deze site. Laad de pagina opnieuw.',
+  'admin.status.link': 'Status en vastgelopen werk',
+  'admin.status.title': 'Status',
+  'admin.status.back': 'Terug naar {name}',
+  'admin.status.nothing': 'Er zit niets vast op deze site.',
+  'admin.status.jobs.title': 'Vastgelopen taken',
+  'admin.status.jobs.intro':
+    'Een achtergrondtaak die bij elke poging mislukte, wacht hier tot je hem opnieuw probeert of afsluit.',
+  'admin.status.jobs.none': 'Er zit geen taak vast.',
+  'admin.status.job.key': 'Onderwerp',
+  'admin.status.job.attempts': 'Pogingen',
+  'admin.status.job.attemptsValue': '{attempts} van {max}',
+  'admin.status.job.lastError': 'Laatste fout',
+  'admin.status.job.noError': 'Niet vastgelegd',
+  'admin.status.job.created': 'Gepland',
+  'admin.status.job.retry': 'Opnieuw proberen',
+  'admin.status.job.close': 'Afsluiten',
+  'admin.status.close.title': '{type} afsluiten?',
+  'admin.status.close.body':
+    'De taak draait niet meer en de laatste fout blijft in het logboek staan. Een terugkerende taak of een domeincontrole wordt bij de volgende ronde opnieuw gepland; bij een mailcontrole blijft de mail onbekend en staat hij hieronder.',
+  'admin.status.close.confirm': 'Ja, sluit deze taak af',
+  'admin.status.close.cancel': 'Laten staan',
+  'admin.status.done.retried': 'De taak draait opnieuw zodra er een worker vrij is.',
+  'admin.status.done.closed': 'De taak is afgesloten.',
+  'admin.status.error.notExhausted':
+    'Deze taak heeft nog pogingen over of draait nu; alleen een taak die bij elke poging mislukte kun je opnieuw proberen of afsluiten.',
+  'admin.status.error.notFound':
+    'Die taak bestaat niet meer of is al afgehandeld. Laad de pagina opnieuw.',
+  'admin.status.mail.title': 'Mail met onzekere afloop',
+  'admin.status.mail.intro':
+    'Onbekend: we konden niet vaststellen of de mail aankwam; het systeem blijft controleren. Opgegeven: na een dag zonder zekerheid stopten we met controleren, zodat de mail nooit twee keer verstuurd wordt. De ontvanger heeft hem misschien wel, misschien niet.',
+  'admin.status.mail.none': 'Geen mail met onzekere afloop.',
+  'admin.status.mail.unknown': 'Onbekend',
+  'admin.status.mail.abandoned': 'Opgegeven',
+  'admin.status.mail.subscriber': 'Verstuurd door',
+  'admin.status.mail.attempted': 'Geprobeerd',
+  'admin.status.mail.abandonedAt': 'Opgegeven op',
+  'admin.status.audit.title': 'Laatste acties',
+  'admin.status.audit.none': 'Nog geen acties vastgelegd.',
+  'admin.status.audit.item': '{time}: {operation} door {actor}, {result}',
+  'admin.status.diagnosis.title': 'Diagnose om te delen',
+  'admin.status.diagnosis.intro':
+    'Dit is precies wat je aan support zou sturen: id’s, aantallen, tijden en foutteksten zonder adressen. Er wordt niets automatisch verstuurd; kopieer het zelf als je hulp wilt.',
+  'admin.status.diagnosis.copy': 'Diagnose, om te selecteren en kopiëren',
 };
