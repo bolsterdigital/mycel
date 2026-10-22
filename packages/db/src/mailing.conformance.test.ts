@@ -292,20 +292,21 @@ describe.skipIf(!operatorUrl || !appUrl)('mailing conformance', () => {
     await uow.run(admin(), (ctx) =>
       ctx.rateLimits.hit(`janitor-${run}`, { max: 5, windowSeconds: 60 })
     );
-    const count = async () =>
-      Number(
-        (
-          await sql<{ n: string }>`select count(*) as n from rate_limits
-            where tenant_id = ${tenantId} and key = ${`janitor-${run}`}`.execute(operatorDb)
-        ).rows[0]?.n
-      );
-    expect(await count()).toBe(2);
+    // Order-independent (TODO #17a): the jobs suite sweeps in parallel and may already have
+    // removed the old window, so this asserts what survives the sweep, not a count before it.
+    const windows = async () =>
+      (
+        await sql<{ window_start: Date }>`select window_start from rate_limits
+          where tenant_id = ${tenantId} and key = ${`janitor-${run}`}`.execute(operatorDb)
+      ).rows.map((r) => new Date(r.window_start));
 
     await expect(
       uow.run(admin(), () => sql`delete from rate_limits`.execute(appDb))
     ).rejects.toThrow(/permission denied/);
 
-    expect(await sweepRateLimits(operatorDb)).toBeGreaterThanOrEqual(1);
-    expect(await count()).toBe(1);
+    expect(await sweepRateLimits(operatorDb)).toBeGreaterThanOrEqual(0);
+    const left = await windows();
+    expect(left.some((w) => w < new Date(Date.now() - 24 * 60 * 60 * 1000))).toBe(false);
+    expect(left.length).toBe(1);
   });
 });
