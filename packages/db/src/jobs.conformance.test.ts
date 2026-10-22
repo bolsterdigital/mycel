@@ -238,7 +238,9 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
     expect(rows.map((r) => r.doneAt === null)).toEqual([false, true]);
   });
 
-  it('lets mycel_app insert under its own tenant and nothing else', async () => {
+  // Since 0016 (#17c) mycel_app also reads its own jobs without the payload and may reset the
+  // recovery columns; the rules for which job (exhausted only) are the use cases' (recovery.ts).
+  it('lets mycel_app insert and read under its own tenant, never the payload', async () => {
     const asApp = (q: (trx: Parameters<Parameters<typeof withTenant>[2]>[0]) => Promise<unknown>) =>
       sqlState(withTenant(appDb, admin(), q));
     const row = (tenant: string | null) => ({
@@ -250,11 +252,16 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
       payload: '{}',
     });
     expect(await asApp((trx) => trx.insertInto('jobs').values(row(tenantId)).execute())).toBe('ok');
-    // Not readable, not changeable, no platform job and no job for another tenant.
-    expect(await asApp((trx) => trx.selectFrom('jobs').select('id').execute())).toBe('42501');
-    expect(await asApp((trx) => trx.updateTable('jobs').set({ attempts: 0 }).execute())).toBe(
-      '42501'
+    // Its own rows without the payload; no payload, type or key to change; no platform job and
+    // no job for another tenant.
+    const own = await withTenant(appDb, admin(), (trx) =>
+      trx.selectFrom('jobs').select(['id', 'tenant_id']).execute()
     );
+    expect(own.length).toBeGreaterThan(0);
+    expect(own.every((r) => r.tenant_id === tenantId)).toBe(true);
+    expect(await asApp((trx) => trx.selectFrom('jobs').select('payload').execute())).toBe('42501');
+    for (const change of [{ payload: '{}' }, { type: 'x' }, { key: 'x' }, { tenant_id: uuidv7() }])
+      expect(await asApp((trx) => trx.updateTable('jobs').set(change).execute())).toBe('42501');
     expect(await asApp((trx) => trx.insertInto('jobs').values(row(null)).execute())).toBe('42501');
     expect(await asApp((trx) => trx.insertInto('jobs').values(row(uuidv7())).execute())).toBe(
       '42501'

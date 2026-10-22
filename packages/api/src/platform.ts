@@ -54,6 +54,27 @@ export interface PlatformStore {
   get(id: string): Promise<PlatformTenantView | null>;
   setEntitlements(id: string, document: unknown): Promise<PlatformTenantView | null>;
   setStatus(id: string, status: TenantStatus): Promise<PlatformTenantView | null>;
+  /** Stuck work across tenants, read as mycel_ops (TODO #17c, migration 0016). */
+  ops: PlatformOpsStore;
+}
+
+export interface OpsQuery {
+  tenantId?: string | undefined;
+  cursor?: string | undefined;
+  limit?: number | undefined;
+}
+
+/** A page of stuck rows; the shapes are packages/db/src/recovery.ts's, never a payload. */
+export interface OpsPage {
+  items: unknown[];
+  nextCursor: string | null;
+}
+
+export interface PlatformOpsStore {
+  summary(): Promise<unknown[]>;
+  jobs(query: OpsQuery): Promise<OpsPage>;
+  outbox(query: OpsQuery): Promise<OpsPage>;
+  mail(query: OpsQuery): Promise<OpsPage>;
 }
 
 export interface PlatformDeps {
@@ -77,6 +98,13 @@ const CreateTenant = z
   .strict();
 const SetStatus = z.object({ status: TenantStatus }).strict();
 const Id = z.string().uuid();
+const OpsQuery = z
+  .object({
+    tenantId: Id.optional(),
+    cursor: z.string().min(1).max(200).optional(),
+    limit: z.coerce.number().int().min(1).max(200).optional(),
+  })
+  .strict();
 
 async function json(req: { json(): Promise<unknown> }): Promise<unknown> {
   try {
@@ -151,6 +179,16 @@ export function createPlatformApp({ token, store, log = noopLogger, errors }: Pl
     log.info('platform: status set', { tenantId: id, status });
     return c.json(tenant);
   });
+
+  // Stuck work (TODO #17c): counts per tenant, then the rows, a page at a time. Reads only; the
+  // hoster's recoveries wait for the open decision on migration 0016's policies.
+  app.get('/ops/summary', async (c) => c.json({ tenants: await store.ops.summary() }));
+  for (const [path, list] of [
+    ['jobs', (q: OpsQuery) => store.ops.jobs(q)],
+    ['outbox', (q: OpsQuery) => store.ops.outbox(q)],
+    ['mail', (q: OpsQuery) => store.ops.mail(q)],
+  ] as const)
+    app.get(`/ops/${path}`, async (c) => c.json(await list(parse(OpsQuery, c.req.query()))));
 
   app.notFound(() => problem('not_found', 'no such platform route'));
   app.onError((err) => {

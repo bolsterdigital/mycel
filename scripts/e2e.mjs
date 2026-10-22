@@ -174,6 +174,6 @@ await waitFor('API process', api, `${env.E2E_API_URL}/healthz`);
 await waitFor('mock IdP', idp, `${env.OIDC_ISSUER}/.well-known/openid-configuration`);
 
 // The children keep the event loop alive; stop them explicitly once the tests are done.
-run('npx', ['playwright', 'test'], `${root}apps/web`, env);
+run('npx', ['playwright', 'test', ...process.argv.slice(2)], `${root}apps/web`, env);
 stop();
 process.exit(0);

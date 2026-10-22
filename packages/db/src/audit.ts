@@ -31,13 +31,14 @@ export function auditRepository(trx: Kysely<Database>, tenantId: string): AuditL
       if (entry.tenantId !== tenantId) throw new Error('audit row tenant differs from the context');
       await trx.insertInto('audit_log').values(toRow(entry)).execute();
     },
-    async list({ from, to, operation, actorKind, actorId, cursor, limit }) {
+    async list({ from, to, operation, actorKind, actorId, failed, cursor, limit }) {
       let q = trx.selectFrom('audit_log').selectAll().where('tenant_id', '=', tenantId);
       if (from) q = q.where('occurred_at', '>=', from);
       if (to) q = q.where('occurred_at', '<', to);
       if (operation) q = q.where('operation', '=', operation);
       if (actorKind) q = q.where('actor_kind', '=', actorKind);
       if (actorId) q = q.where('actor_id', '=', actorId);
+      if (failed) q = q.where('result', '<>', 'ok');
       if (cursor)
         q = q.where(
           sql<boolean>`(occurred_at, id) < (select c.occurred_at, c.id from audit_log c where c.id = ${cursor})`

@@ -9,7 +9,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DEFAULT_ENTITLEMENTS, systemPrincipal, useCases } from '@mycel/core';
 import { probeForm } from '@mycel/core/testing';
-import { migrate, uuidv7 } from '@mycel/db';
+import { createDb, migrate, uuidv7 } from '@mycel/db';
+import { sql } from 'kysely';
 import { createApp } from './app.js';
 import { createRuntime, loadConfig, tokenFingerprint, type Runtime } from './compose.js';
 
@@ -182,5 +183,83 @@ describe.skipIf(!ready)('platform API', () => {
     expect(platformRows.every((r) => r.subjectId === tenant.id)).toBe(true);
     expect(JSON.stringify(items)).not.toContain(TOKEN);
     expect(JSON.stringify(items)).not.toContain('@');
+  });
+
+  // TODO #17c: stuck work across tenants, read as mycel_ops from the authentication login. The
+  // fixture job goes in as the worker (operator connection, as the test harness has it); the API
+  // under test still runs without DATABASE_URL.
+  it('lists stuck work per tenant without a payload, behind the token', async () => {
+    const app = appOf(runtime(TOKEN));
+    const get = (path: string, token = TOKEN) =>
+      app.request(`/platform${path}`, { headers: { authorization: `Bearer ${token}` } });
+    expect((await app.request('/platform/ops/summary')).status).toBe(401);
+    expect((await get('/ops/jobs', `${TOKEN}x`)).status).toBe(401);
+    expect((await appOf(runtime()).request('/platform/ops/jobs')).status).toBe(404);
+
+    const created = (await (
+      await app.request('/platform/tenants', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ slug: `ops-${run}`, name: 'Ops', locales: ['nl'] }),
+      })
+    ).json()) as { id: string };
+    const operatorDb = createDb(env['DATABASE_URL']!);
+    const id = uuidv7();
+    try {
+      await operatorDb.transaction().execute(async (trx) => {
+        await sql`set local role mycel_worker`.execute(trx);
+        await trx
+          .insertInto('jobs')
+          .values({
+            id,
+            tenant_id: created.id,
+            type: `conformance.${run}.stuck`,
+            key: `conformance.${run}.stuck:${id}`,
+            run_at: new Date(Date.now() + 86_400_000),
+            payload: JSON.stringify({ secret: `payload-${run}` }),
+            attempts: 10,
+            max_attempts: 10,
+            last_error: 'failed for someone@example.org',
+          })
+          .execute();
+      });
+
+      const summary = (await (await get('/ops/summary')).json()) as {
+        tenants: { tenantId: string; slug: string; exhaustedJobs: number }[];
+      };
+      expect(summary.tenants.find((t) => t.tenantId === created.id)).toMatchObject({
+        slug: `ops-${run}`,
+        exhaustedJobs: 1,
+      });
+      const jobs = await get(`/ops/jobs?tenantId=${created.id}`);
+      expect(jobs.status).toBe(200);
+      const body = (await jobs.json()) as { items: Record<string, unknown>[]; nextCursor: null };
+      expect(body).toMatchObject({ items: [{ id, attempts: 10 }], nextCursor: null });
+      expect(body.items[0]).not.toHaveProperty('payload');
+      expect(JSON.stringify(body)).not.toContain(`payload-${run}`);
+      expect(JSON.stringify(body)).not.toContain('@');
+      for (const path of ['/ops/outbox', '/ops/mail'])
+        expect(await (await get(`${path}?tenantId=${created.id}`)).json()).toEqual({
+          items: [],
+          nextCursor: null,
+        });
+      expect((await get('/ops/jobs?tenantId=nope')).status).toBe(400);
+      expect((await get('/ops/jobs?limit=0')).status).toBe(400);
+      // No recovery route yet (the open decision of #17c), and never one that acts as a tenant.
+      expect(
+        (
+          await app.request(`/platform/ops/jobs/${id}/retry`, {
+            method: 'POST',
+            headers: { authorization: `Bearer ${TOKEN}` },
+          })
+        ).status
+      ).toBe(404);
+    } finally {
+      await operatorDb.transaction().execute(async (trx) => {
+        await sql`set local role mycel_worker`.execute(trx);
+        await trx.updateTable('jobs').set({ done_at: new Date() }).where('id', '=', id).execute();
+      });
+      await operatorDb.destroy();
+    }
   });
 });

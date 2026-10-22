@@ -335,6 +335,121 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     });
   });
 
+  // TODO #17c (0016): the ops reader sees stuck rows only and never a payload, an event's props or
+  // its actor; the application role reads its own jobs without the payload.
+  describe('mycel_ops and the stuck-work grants', () => {
+    const as = <T>(db: typeof appDb, role: string | null, fn: (trx: typeof appDb) => Promise<T>) =>
+      db.transaction().execute(async (trx) => {
+        if (role) await sql`set local role ${sql.id(role)}`.execute(trx);
+        if (db === appDb)
+          await sql`select set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
+        return fn(trx);
+      });
+    const job = (over: { attempts?: number; done?: boolean } = {}) => ({
+      id: uuidv7(),
+      tenant_id: tenantId,
+      type: `rls.${run}`,
+      key: `rls.${run}:${uuidv7()}`,
+      run_at: new Date(Date.now() + 86_400_000),
+      payload: JSON.stringify({ secret: 'payload' }),
+      attempts: over.attempts ?? 10,
+      max_attempts: 10,
+      done_at: over.done ? new Date() : null,
+    });
+    // Built in beforeAll: the tenant id exists only once the outer fixture has run.
+    let exhausted = job();
+    let open = job();
+
+    beforeAll(async () => {
+      exhausted = job();
+      open = job({ attempts: 2 });
+      await as(operatorDb, 'mycel_worker', (trx) =>
+        trx.insertInto('jobs').values([exhausted, open]).execute()
+      );
+    });
+    afterAll(async () => {
+      await as(operatorDb, 'mycel_worker', (trx) =>
+        trx
+          .updateTable('jobs')
+          .set({ done_at: new Date() })
+          .where('id', 'in', [exhausted.id, open.id])
+          .execute()
+      );
+    });
+
+    it('binds the ops policies to mycel_ops and the jobs isolation to mycel_app', () => {
+      const of = (table: string, name: string) =>
+        policies.find((p) => p.tablename === table && p.policyname === name);
+      expect(of('jobs', 'ops_jobs')).toMatchObject({
+        roles: ['mycel_ops'],
+        qual: '((done_at IS NULL) AND (attempts >= max_attempts))',
+      });
+      expect(of('outbox', 'ops_outbox')).toMatchObject({
+        roles: ['mycel_ops'],
+        qual: '((processed_at IS NULL) AND (attempts >= 10))',
+      });
+      expect(of('mail_sends', 'ops_mail')).toMatchObject({
+        roles: ['mycel_ops'],
+        cmd: 'SELECT',
+        qual: '((sent_at IS NULL) AND (attempted_at IS NOT NULL))',
+      });
+      expect(of('jobs', 'tenant_isolation')?.roles).toEqual([APP_ROLE]);
+    });
+
+    it.each([
+      ['jobs', 'payload'],
+      ['outbox', 'props'],
+      ['outbox', 'actor'],
+      ['tenants', 'entitlements'],
+    ])('denies mycel_ops %s.%s', async (table, column) => {
+      await expect(
+        as(operatorDb, 'mycel_ops', (trx) =>
+          sql`select ${sql.ref(column)} from ${sql.table(table)} limit 1`.execute(trx)
+        )
+      ).rejects.toThrow(/permission denied/);
+    });
+
+    it('shows mycel_ops an exhausted job and never an open one', async () => {
+      const seen = await as(operatorDb, 'mycel_ops', (trx) =>
+        trx
+          .selectFrom('jobs')
+          .select(['id', 'last_error'])
+          .where('id', 'in', [exhausted.id, open.id])
+          .execute()
+      );
+      expect(seen.map((r) => r.id)).toEqual([exhausted.id]);
+      const touched = await as(operatorDb, 'mycel_ops', (trx) =>
+        trx.updateTable('jobs').set({ attempts: 0 }).where('id', '=', open.id).executeTakeFirst()
+      );
+      expect(touched.numUpdatedRows).toBe(0n);
+    });
+
+    it('lets mycel_app read its own jobs without the payload, and nobody else’s', async () => {
+      await expect(
+        as(appDb, null, (trx) => trx.selectFrom('jobs').select('payload').execute())
+      ).rejects.toThrow(/permission denied/);
+      const own = await as(appDb, null, (trx) =>
+        trx.selectFrom('jobs').select(['id', 'tenant_id']).execute()
+      );
+      expect(own.map((r) => r.id)).toEqual(expect.arrayContaining([exhausted.id, open.id]));
+      expect(own.every((r) => r.tenant_id === tenantId)).toBe(true);
+    });
+
+    it('gives mycel_ops no insert or delete, and no update of the mail intents', async () => {
+      const { rows } = await sql<{ p: string }>`
+        select t || '.' || p as p
+        from unnest(array['jobs', 'outbox', 'mail_sends', 'tenants', 'audit_log']) t,
+             unnest(array['insert', 'delete', 'truncate']) p
+        where has_table_privilege('mycel_ops', 'public.' || t, p)
+        union all
+        select 'mail_sends.update'
+        where has_any_column_privilege('mycel_ops', 'public.mail_sends', 'update')`.execute(
+        operatorDb
+      );
+      expect(rows).toEqual([]);
+    });
+  });
+
   // TODO #17b: the audit log is append-only for everyone; only the janitor deletes, and never a
   // row younger than 30 days, whatever its query asks.
   describe('audit_log', () => {
@@ -454,8 +569,9 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
 
       const counts: Record<string, { without: number; within: number } | 'no select'> = {};
       for (const { name } of tables) {
+        // Any column: `jobs` is readable on its columns only, never the payload (0016).
         const { rows: priv } = await client.query<{ ok: boolean }>(
-          `select has_table_privilege(current_user, $1, 'select') as ok`,
+          `select has_any_column_privilege(current_user, $1, 'select') as ok`,
           [`public.${name}`]
         );
         if (!priv[0]?.ok) {
