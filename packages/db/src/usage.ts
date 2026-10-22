@@ -5,6 +5,7 @@
 
 import { sql, type Kysely } from 'kysely';
 import type { Clock, UsageReader } from '@mycel/core';
+import { mediaStorageBytes } from './media.js';
 import type { Database } from './schema.js';
 
 type Trx = Kysely<Database>;
@@ -26,8 +27,7 @@ export function usageReader(trx: Trx, tenantId: string, clock: Clock): UsageRead
       const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
       return count('mail_sends', (q) => q.where(sql<boolean>`sent_at >= ${start}`));
     },
-    // TODO #10: sum(size_bytes) over media
-    storageBytes: async () => 0,
+    storageBytes: () => mediaStorageBytes(trx, tenantId),
     customHostnames: () => count('tenant_hostnames', (q) => q.where(sql<boolean>`kind = 'custom'`)),
     operators: () => count('tenant_memberships'),
   };

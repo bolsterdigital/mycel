@@ -277,18 +277,21 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
 
   it('plans each period of a recurring job once, however many workers plan it', async () => {
     const hourly = { type: type('hourly'), cadence: 'hourly' as const };
+    const daily = { type: type('daily'), cadence: 'daily' as const };
     const monthly = { type: type('monthly'), cadence: 'monthly' as const };
     const now = new Date('2031-01-31T10:30:00Z');
     const counts = await Promise.all(
-      [1, 2, 3].map(() => ensureRecurring(operatorDb, [hourly, monthly], now))
+      [1, 2, 3].map(() => ensureRecurring(operatorDb, [hourly, daily, monthly], now))
     );
-    expect(counts.reduce((a, b) => a + b, 0)).toBe(2);
+    expect(counts.reduce((a, b) => a + b, 0)).toBe(3);
     const [h] = await byKey(`${hourly.type}:2031-01-31T11`);
+    const [d] = await byKey(`${daily.type}:2031-02-01`);
     const [m] = await byKey(`${monthly.type}:2031-02`);
     expect(h).toMatchObject({ runAt: new Date('2031-01-31T11:00:00Z'), tenantId: null });
+    expect(d).toMatchObject({ runAt: new Date('2031-02-01T00:00:00Z'), tenantId: null });
     expect(m).toMatchObject({ runAt: new Date('2031-02-01T00:00:00Z'), tenantId: null });
     // The next tick in the same hour plans nothing new.
-    expect(await ensureRecurring(operatorDb, [hourly, monthly], now)).toBe(0);
+    expect(await ensureRecurring(operatorDb, [hourly, daily, monthly], now)).toBe(0);
   });
 
   describe('events.partitions', () => {

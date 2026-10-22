@@ -20,7 +20,9 @@ import {
 import {
   FakeDns,
   FakeSigner,
+  MemoryBlobStore,
   MemoryMailer,
+  memoryImageProcessor,
   memoryPlatform,
   probeForm,
   probePage,
@@ -137,6 +139,7 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
       signer,
       dns: new FakeDns(),
       platform: memoryPlatform,
+      media: { blobs: new MemoryBlobStore(), images: memoryImageProcessor },
     });
     const invoker = new Invoker(buildRegistry(), uow);
     const admin = systemPrincipal(tenantId, 'rls-test');
@@ -168,12 +171,13 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
       },
     };
     await supporterIngestSubscriber(uow).handle(event);
-    // Ingest released that signup's admission seat (0010); a second signup, not ingested, keeps
-    // one in `supporter_admissions`.
-    await invoker.run(useCases.submitForm, admin, {
-      formId,
-      values: { email: `rls-pending-${run}@example.org`, consent: true },
-      locale: 'nl',
+    // Ingest released that signup's admission seat (0010); a reservation without a signup keeps
+    // one in `supporter_admissions`. Reserved directly, not through a second signup: that signup's
+    // event would sit in the shared outbox, and db.test.ts's drain could ingest it and release the
+    // seat before the count below (a flaky fixture, seen once on TODO #10's branch).
+    await uow.run(admin, async (ctx) => {
+      await ctx.admissions.lock();
+      await ctx.admissions.reserve(`rls-pending-${run}@example.org`);
     });
     // Memberships and keys through their use cases (TODO #7).
     await invoker.run(useCases.inviteMember, admin, {
@@ -184,6 +188,15 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
       name: 'rls',
       capabilities: ['content:read'],
     });
+    // Media and a usage of it (TODO #10).
+    const media = await invoker.run(
+      useCases.uploadMedia,
+      admin,
+      useCases.uploadMedia.examples[0].input
+    );
+    await uow.run(admin, (ctx) =>
+      ctx.media.replaceUsages(`item:${run}:rev:1`, [{ mediaId: media.id, blockId: 'b1' }])
+    );
     await confirmationMailSubscriber({
       mailer: new MemoryMailer(),
       signer,
@@ -208,6 +221,8 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
         'form_submissions',
         'forms',
         'mail_sends',
+        'media',
+        'media_usages',
         'outbox',
         'pages',
         'rate_limits',
