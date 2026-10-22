@@ -5,6 +5,8 @@ import type { z } from 'zod';
 import type { ContentItem } from '../content/model.js';
 import type { FormDefinition } from '../forms/model.js';
 import type { Invoker } from '../invoke.js';
+import type { MediaRepository } from '../media/ports.js';
+import type { UnitOfWork } from '../ports.js';
 import type { Principal } from '../principal.js';
 import type { TenantInfo } from '../tenants/ports.js';
 import { useCases } from '../use-cases.js';
@@ -89,3 +91,42 @@ export const probeTenant = (id: string): TenantInfo => ({
   defaultLocale: 'nl',
   locales: ['nl', 'en'],
 });
+
+/**
+ * The same unit of work with some `ctx.media` methods replaced, for tests that need a repository
+ * to misbehave (a usage write that records less) or to stop at a point (lock-order races).
+ * Works over the memory and the Postgres unit of work alike.
+ */
+export function overrideMedia(
+  uow: UnitOfWork,
+  patch: (media: MediaRepository) => Partial<MediaRepository>
+): UnitOfWork {
+  return {
+    run: (principal, fn) =>
+      uow.run(principal, (ctx) => fn({ ...ctx, media: { ...ctx.media, ...patch(ctx.media) } })),
+  };
+}
+
+/**
+ * A unit of work that stops the first call of `method` on `ctx.media` until `release()`;
+ * `reached` resolves once a transaction is waiting there. With the media lock taken before that
+ * point, a second transaction started after `reached` provably runs into the lock.
+ */
+export function pauseMedia(uow: UnitOfWork, method: Exclude<keyof MediaRepository, 'lock'>) {
+  let markReached!: () => void;
+  let release!: () => void;
+  const reached = new Promise<void>((r) => (markReached = r));
+  const gate = new Promise<void>((r) => (release = r));
+  let first = true;
+  const paused = overrideMedia(uow, (media) => ({
+    [method]: async (...args: unknown[]) => {
+      if (first) {
+        first = false;
+        markReached();
+        await gate;
+      }
+      return (media[method] as (...a: unknown[]) => Promise<unknown>)(...args);
+    },
+  }));
+  return { uow: paused, reached, release };
+}

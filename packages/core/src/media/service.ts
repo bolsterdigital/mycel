@@ -411,6 +411,9 @@ export const deleteMedia = defineUseCase({
   output: z.object({ id: MediaId, purgeScheduled: z.boolean() }),
   examples: [{ input: { id: '01900000-0000-7000-8000-00000000d001' } }],
   async handler(ctx, { id }) {
+    // The lock every reference-checking save takes (content/service.ts `blockReferenceIssues`):
+    // a save and this delete serialise, so the usage count below includes a save that won.
+    await ctx.media.lock();
     const m = await requireMedia(ctx, id);
     // ADR 004 rule 6: a live reference refuses. The count only, never where (refs may be drafts).
     if (m.usageCount > 0)

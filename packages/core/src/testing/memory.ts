@@ -1,8 +1,9 @@
 // In-memory implementations of every port (ADR 001 consequence: the core is testable without a
 // database). Used by core tests and by front tests (api, mcp) that need a working runtime.
 // Not transactional: a thrown use case leaves partial writes, which the tests do not rely on.
-// One lock is real: `members.lock()` queues per tenant until `run` ends, like the advisory lock
-// in Postgres, so the key/membership race (TODO #20a) can be proven here too.
+// Two locks are real: `members.lock()` and `media.lock()` queue per tenant until `run` ends, like
+// the advisory locks in Postgres, so the key/membership race (TODO #20a) and the media
+// save/delete race (TODO #8b2) can be proven here too.
 
 import type { AuditEntry } from '../audit/model.js';
 import type { AuditLog, InputHasher } from '../audit/ports.js';
@@ -431,6 +432,8 @@ export class MemoryStore {
   readonly memberLocks = new Map<string, Promise<void>>();
   /** `login_attempts` (0018): hits per `<key>:<window number>`, shared like the table. */
   readonly loginAttempts = new Map<string, number>();
+  /** The tail of each tenant's `media.lock()` queue. */
+  readonly mediaLocks = new Map<string, Promise<void>>();
   /** `tenants.entitlements` and `tenants.status` (0010); a tenant without a row has the defaults. */
   readonly access = new Map<string, { entitlements: EntitlementsDocument; status: TenantStatus }>();
 
@@ -962,9 +965,20 @@ export class MemoryUnitOfWork implements UnitOfWork {
       ...structuredClone(m),
       usageCount: usageCount(m.id),
     });
+    const mediaLocks = this.store.mediaLocks;
+    let releaseMedia: (() => void) | undefined;
     const media: MediaRepository = {
-      // No-op for the same reason as `supporters.lock`; the Postgres conformance proves the lock.
-      async lock() {},
+      // Held until `run` ends; a second `lock()` in the same run is a no-op, as in Postgres.
+      async lock() {
+        if (releaseMedia) return;
+        const before = mediaLocks.get(principal.tenantId) ?? Promise.resolve();
+        const mine = new Promise<void>((resolve) => (releaseMedia = resolve));
+        mediaLocks.set(
+          principal.tenantId,
+          before.then(() => mine)
+        );
+        await before;
+      },
       get: async (id) => {
         const m = s.media.get(id);
         return m ? mediaRecord(m) : null;
@@ -1075,6 +1089,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
       });
     } finally {
       releaseMembers?.();
+      releaseMedia?.();
     }
   }
 

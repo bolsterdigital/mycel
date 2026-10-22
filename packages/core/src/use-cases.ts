@@ -53,6 +53,7 @@ import {
 import { closeJob, getOpsStatus, retryJob } from './ops/service.js';
 import { UseCaseRegistry, type UseCase } from './registry.js';
 import { changeSupporterEmail, getSupporter } from './supporters/service.js';
+import { checkThemeUseCase } from './theme/service.js';
 import {
   addHostname,
   listHostnames,
@@ -119,6 +120,7 @@ export const useCases = {
   getOpsStatus,
   retryJob,
   closeJob,
+  checkTheme: checkThemeUseCase,
 } as const;
 
 export function buildRegistry(): UseCaseRegistry {

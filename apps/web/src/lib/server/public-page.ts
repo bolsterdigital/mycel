@@ -97,6 +97,18 @@ export async function loadPublicPage(
       case 'rich-text':
       case 'paywall':
         break;
+      // Validated and stored since #8b2, not rendered by this probe: the block renderer of #8c
+      // replaces these cases before the editorial flow ships. Listed one by one so a new type
+      // still fails to compile here instead of disappearing silently.
+      case 'image':
+      case 'hero':
+      case 'cta':
+      case 'callout':
+      case 'faq':
+      case 'quote':
+      case 'video-embed':
+      case 'form':
+        break;
       default:
         block satisfies never;
     }

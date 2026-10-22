@@ -17,7 +17,13 @@ import type { JobOutcome } from '../jobs/ports.js';
 import { jobKey, type JobPayload } from '../jobs/types.js';
 import type { TransactionContext } from '../ports.js';
 import { defineUseCase } from '../registry.js';
-import { allBlocks, assignBlockIds, blockReferences, type BlockInput } from './blocks.js';
+import {
+  allBlocks,
+  assignBlockIds,
+  blockReferences,
+  type Block,
+  type BlockInput,
+} from './blocks.js';
 import { diffDocuments } from './diff.js';
 import {
   draftLocale,
@@ -121,13 +127,31 @@ export function assertBase(item: ItemRecord, baseRevisionId: string): void {
     ]);
 }
 
-/** Media usages of one revision, in the save's transaction (docs/reference/media.md § Usages). */
-async function recordMediaUsages(ctx: TransactionContext, revision: Revision): Promise<void> {
-  const usages = allBlocks(revision.document.blocks).flatMap((b) =>
-    blockReferences([b]).media.map((mediaId) => ({ mediaId, blockId: b.id }))
-  );
-  await ctx.media.replaceUsages(`item:${revision.itemId}:rev:${revision.id}`, usages);
+/**
+ * Records the media usages of a block tree under `ref` (`item:<id>:rev:<id>`, `pattern:<id>`), in
+ * the caller's transaction and under the media lock its reference check took. The repository
+ * skips an unknown or deleted id silently, so the count is compared with what was asked: a
+ * shortfall throws and the whole save rolls back instead of leaving an image unprotected
+ * (docs/reference/media.md § Usages).
+ */
+export async function recordMediaUsages(
+  ctx: TransactionContext,
+  ref: string,
+  blocks: readonly Block[]
+): Promise<void> {
+  const pairs = new Map<string, { mediaId: string; blockId: string }>();
+  for (const b of allBlocks(blocks))
+    for (const mediaId of blockReferences([b]).media)
+      pairs.set(`${mediaId} ${b.id}`, { mediaId, blockId: b.id });
+  const usages = [...pairs.values()];
+  const recorded = await ctx.media.replaceUsages(ref, usages);
+  if (recorded !== usages.length)
+    throw new UseCaseError('invalid_input', 'a media reference could not be recorded', [
+      { path: 'blocks', message: 'content.reference.media-unrecorded' },
+    ]);
 }
+
+const revisionRef = (revision: Revision) => `item:${revision.itemId}:rev:${revision.id}`;
 
 /**
  * One new revision on a locked item whose base was checked: insert it, move the latest pointer,
@@ -160,28 +184,52 @@ export async function writeRevision(
     ),
   };
   await ctx.content.insertRevision(revision);
-  await recordMediaUsages(ctx, revision);
+  await recordMediaUsages(ctx, revisionRef(revision), doc.blocks);
   await ctx.content.save(next);
   return { item: toContentItem(next), revision };
 }
 
 /**
- * Every reference must point at this tenant's data (ADR 004 rule 6, ADR 012). Lookups run under
- * the tenant's RLS context, so another tenant's id is simply not found: the issue says which
- * path, never whether the id exists elsewhere.
+ * The references of a block tree must point at this tenant's data (ADR 004 rule 6): forms,
+ * linked items, and media that exists, is not deleted and is an image (every media slot is an
+ * image slot so far; a PDF is refused). Lookups run under the tenant's RLS context, so another
+ * tenant's id is simply not found: the issue says which path, never whether the id exists
+ * elsewhere. Restricted media may be referenced; that grants no reader access or address.
+ *
+ * With media in the tree this takes the media lock first, the lock `media.delete` takes, so a
+ * save and a delete of the same image serialise: whichever commits second sees the other.
+ * Callers that hold the item lock take it before this one, never the other way round.
  */
+export async function blockReferenceIssues(
+  ctx: TransactionContext,
+  blocks: readonly BlockInput[],
+  path = 'blocks'
+): Promise<Issue[]> {
+  const issues: Issue[] = [];
+  const refs = blockReferences(blocks);
+  if (refs.media.length) await ctx.media.lock();
+  for (const id of refs.forms)
+    if (!(await ctx.forms.findById(id)))
+      issues.push({ path, message: `content.reference.form-unknown:${id}` });
+  for (const id of refs.items)
+    if (!(await ctx.content.get(id)))
+      issues.push({ path, message: `content.reference.item-unknown:${id}` });
+  for (const id of refs.media) {
+    const media = await ctx.media.get(id);
+    if (!media || media.deletedAt)
+      issues.push({ path, message: `content.reference.media-unknown:${id}` });
+    else if (media.kind !== 'image')
+      issues.push({ path, message: `content.reference.media-not-image:${id}` });
+  }
+  return issues;
+}
+
+/** Block references plus an article's authors and section: what every save and publish checks. */
 export async function referenceIssues(
   ctx: TransactionContext,
   doc: ContentDocument
 ): Promise<Issue[]> {
-  const issues: Issue[] = [];
-  const refs = blockReferences(doc.blocks);
-  for (const id of refs.forms)
-    if (!(await ctx.forms.findById(id)))
-      issues.push({ path: 'blocks', message: `content.reference.form-unknown:${id}` });
-  for (const id of refs.items)
-    if (!(await ctx.content.get(id)))
-      issues.push({ path: 'blocks', message: `content.reference.item-unknown:${id}` });
+  const issues = await blockReferenceIssues(ctx, doc.blocks);
   if (doc.type === 'article') {
     for (const id of doc.authorIds)
       if (!(await ctx.authors.get(id)))
@@ -303,7 +351,7 @@ export const createItem = defineUseCase({
       publication: doc.locales.map(draftLocale),
     };
     await ctx.content.insert(item, revision);
-    await recordMediaUsages(ctx, revision);
+    await recordMediaUsages(ctx, revisionRef(revision), doc.blocks);
     return { item: toContentItem(item), revision };
   },
 });

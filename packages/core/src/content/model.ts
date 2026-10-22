@@ -403,6 +403,7 @@ export const PatternInput = z
       }),
   })
   .strict();
+export type PatternInput = z.infer<typeof PatternInput>;
 export const Pattern = PatternInput.extend({
   id: z.string().uuid(),
   blocks: z.array(Block),
