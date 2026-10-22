@@ -107,6 +107,22 @@ test('unknown hosts, the admin on a tenant hostname, and the allowed question', 
   expect((await allowed('')).status()).toBe(404);
 });
 
+// TODO #20c decision 5: without MYCEL_TRUST_PROXY (the e2e server sets no HOST_HEADER) a
+// forwarded host is just a header. It neither picks another site nor reaches the admin.
+test('X-Forwarded-Host does not choose the site or open the admin', async ({ request }) => {
+  const viaPlatform = await request.get('/signup', {
+    headers: { 'x-forwarded-host': 'probe.localhost:4173' },
+  });
+  expect(viaPlatform.status()).toBe(404);
+  expect(await viaPlatform.text()).not.toContain('Blijf op de hoogte');
+
+  const adminFromTenant = await request.get(`${SITE}/admin`, {
+    headers: { 'x-forwarded-host': '127.0.0.1:4173' },
+    maxRedirects: 0,
+  });
+  expect(adminFromTenant.status()).toBe(404);
+});
+
 test('an admin adds a domain, sees the records, checks (not found), and cannot remove the primary', async ({
   page,
   request,
@@ -170,7 +186,8 @@ test.describe('UI gate: the domain action group at 320 CSS px and 200% text', ()
       await add.getByLabel('Hostnaam').fill(domain);
       await add.getByRole('button', { name: 'Domein toevoegen' }).click();
       await expect(formWith(page, domain)).toBeVisible();
-      if (text !== '100%') await page.addStyleTag({ content: `html { font-size: ${text}; }` });
+      if (text !== '100%')
+        await page.evaluate((size) => (document.documentElement.style.fontSize = size), text);
       const problems = await page.evaluate(() => {
         const out: string[] = [];
         const width = document.documentElement.clientWidth;

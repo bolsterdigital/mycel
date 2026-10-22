@@ -28,6 +28,14 @@ export default defineConfig({
           'default-src': ['self'],
           'script-src': ['self'],
           'style-src': ['self'],
+          // SvelteKit's route announcer (kit/src/runtime/components/root.svelte) is the one
+          // style attribute any page renders, and only on a page with client JavaScript. This
+          // allows exactly that attribute value; after a SvelteKit upgrade that changes it, the
+          // nonce test in e2e/signup.spec.ts reports the violation with the new hash.
+          'style-src-attr': [
+            'unsafe-hashes',
+            'sha256-S8qMpvofolR8Mpjy4kQvEm7m1q8clzU4dfDH0AmvZjo=',
+          ],
           'img-src': ['self', 'data:'],
           'form-action': ['self'],
           'base-uri': ['none'],

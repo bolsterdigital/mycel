@@ -298,7 +298,8 @@ test.describe('UI gate: the media action group at 320 CSS px and 200% text', () 
       const filename = `gate-${text.replace('%', '')}-${Date.now()}.png`;
       const { card } = await upload(page, filename);
       await card.getByText('Gegevens bewerken').click();
-      if (text !== '100%') await page.addStyleTag({ content: `html { font-size: ${text}; }` });
+      if (text !== '100%')
+        await page.evaluate((size) => (document.documentElement.style.fontSize = size), text);
       const problems = await page.evaluate(() => {
         const out: string[] = [];
         const width = document.documentElement.clientWidth;

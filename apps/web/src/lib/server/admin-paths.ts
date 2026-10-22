@@ -6,6 +6,17 @@
 
 import type { IdentityStore } from '@mycel/core';
 
+/** HttpOnly, SameSite=Lax, only under /admin, Secure whenever the platform origin is https. */
+export function adminCookieOptions(publicBaseUrl: string, maxAgeSeconds: number) {
+  return {
+    path: '/admin',
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    secure: publicBaseUrl.startsWith('https://'),
+    maxAge: maxAgeSeconds,
+  };
+}
+
 /** True when `url` is served on the platform origin. */
 export function onPlatformOrigin(url: URL, publicBaseUrl: string): boolean {
   return url.origin === new URL(publicBaseUrl).origin;
