@@ -1,0 +1,22 @@
+{
+  "name": "@mycel/blob",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "description": "BlobStore adapters: a local directory and any S3-compatible bucket (TODO #10, ADR 008)",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -b",
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1155.0",
+    "@mycel/core": "*"
+  }
+}

@@ -44,13 +44,23 @@ const IO_LIBS = [
   'undici',
   'nodemailer',
   '@mollie/',
+  'sharp',
+  '@aws-sdk/',
 ];
 const ALLOWED = {
   'apps/web': ['packages/core', 'packages/api'],
-  'packages/api': ['packages/core', 'packages/db', 'packages/mail-tem'],
+  'packages/api': [
+    'packages/core',
+    'packages/db',
+    'packages/mail-tem',
+    'packages/blob',
+    'packages/media-sharp',
+  ],
   'packages/mcp': ['packages/core', 'packages/api'],
   'packages/db': ['packages/core'],
   'packages/mail-tem': ['packages/core'],
+  'packages/blob': ['packages/core'],
+  'packages/media-sharp': ['packages/core'],
   'packages/core': [],
 };
 const ALLOWED_LICENSES = new Set([
@@ -66,6 +76,9 @@ const ALLOWED_LICENSES = new Set([
   'BlueOak-1.0.0',
   'LGPL-2.1',
   'LGPL-3.0',
+  // libvips, as sharp's prebuilt `@img/sharp-libvips-*` (TODO #10): the same licence as LGPL-3.0
+  // above, with the "or later" option, dynamically linked.
+  'LGPL-3.0-or-later',
   'GPL-3.0',
   'AGPL-3.0',
   'AGPL-3.0-only',
