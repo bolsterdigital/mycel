@@ -1,7 +1,9 @@
 name: Verify
 
 # Gate on what silently rots: formatting, dependency direction and licences, types,
-# tests and the build, plus the Playwright + axe gate against a real Postgres. Runs on
+# tests and the build, plus the Playwright + axe gate against a real Postgres. The
+# `security` job (advisories and secrets) needs the network, so it is not part of
+# `npm run verify`, which has to work offline. Runs on
 # PRs and pushes to main. Deployment is a separate workflow so a red check here never
 # blocks an already-merged fix, but a red check on the PR is the signal to fix it first.
 
@@ -87,6 +89,29 @@ jobs:
         run: npm run migrate -w @mycel/db
 
       - run: npm run verify
+
+  # Known advisories in the whole dependency tree and secrets in the whole history (TODO #20c
+  # decision 8). A red `npm audit` without a fix is a stop to discuss, never an --omit or an
+  # exception list. Gitleaks as a pinned container, not gitleaks-action, which needs a licence for
+  # organisation repositories; .gitleaks.toml excepts only the CI placeholders.
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: npm audit (high and critical)
+        run: npm audit --audit-level=high
+
+      - name: gitleaks over the full history
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 \
+            git /repo --config /repo/.gitleaks.toml --redact --verbose
 
   # The deployable artefact (Dockerfile): build it without pushing, then start each entrypoint
   # and wait for its HEALTHCHECK. A separate job so an image problem shows up as its own red

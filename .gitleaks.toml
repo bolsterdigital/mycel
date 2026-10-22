@@ -1,0 +1,20 @@
+# Secret scan of the whole history (CI job `security` in .github/workflows/verify.yml, TODO #20c
+# decision 8). The default rule set, plus an allow-list of exactly the throwaway values CI and the
+# local compose stack use. Nothing else is excepted: a real-looking secret anywhere fails the job.
+# Rejected: path-wide exceptions (a whole workflow file or fixture directory), which would hide a
+# real secret pasted next to a placeholder.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "CI and local development placeholders, never valid anywhere"
+regexes = [
+  '''ci-only-signing-secret''',
+  '''ci-only-audit-hash-key''',
+  '''mycel_app_ci''',
+  '''mycel_auth_ci''',
+  '''mycel-s3-ci''',
+  '''mycel-s3-dev''',
+  '''change-me''',
+]
