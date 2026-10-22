@@ -10,6 +10,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { crc32, deflateSync } from 'node:zlib';
+import { request as httpRequest } from 'node:http';
 
 const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 const SITE = 'http://probe.localhost:4173';
@@ -205,12 +206,75 @@ test('an upload that is not what it says is refused with a reason', async ({ pag
   await expectNoAxeViolations(page);
 });
 
+test('a media editor can use the library without tenant administration rights', async ({
+  page,
+  context,
+}) => {
+  const email = `media-editor-${test.info().project.name}-${Date.now()}@probe.test`;
+  await login(page, 'e2e-admin@probe.test', '/admin/probe');
+  const invite = page.locator('form[action="?/invite"]');
+  await invite.getByLabel('E-mailadres', { exact: true }).fill(email);
+  await invite.getByLabel('media:read', { exact: true }).check();
+  await invite.getByLabel('media:write', { exact: true }).check();
+  await invite.getByRole('button', { name: 'Uitnodigen' }).click();
+  await expect(page.getByRole('status')).toContainText(email);
+  try {
+    await context.clearCookies();
+    await login(page, email, '/admin/probe/media');
+    await expect(page.getByRole('heading', { level: 1, name: 'Media' })).toBeVisible();
+    const filename = `editor-${Date.now()}.png`;
+    const { card } = await upload(page, filename);
+    await expectNoAxeViolations(page);
+    await card.getByRole('button', { name: 'Verwijderen' }).click();
+    await expect(item(page, filename)).toHaveCount(0);
+  } finally {
+    await context.clearCookies();
+    await login(page, 'e2e-admin@probe.test', '/admin/probe');
+    const member = page.locator('form', { has: page.getByRole('heading', { name: email }) });
+    await member.locator('button[formaction="?/remove"]').click();
+    await expect(page.getByRole('status')).toContainText('Lid verwijderd');
+  }
+});
+
 test('a body above 512K is refused, except for the media upload', async ({ page, request }) => {
   const big = await request.post(`${SITE}/signup`, {
     headers: { 'content-type': 'application/x-www-form-urlencoded', origin: SITE },
     data: `email=${'a'.repeat(600 * 1024)}`,
   });
   expect(big.status()).toBe(413);
+
+  // No Content-Length: Node writes Transfer-Encoding: chunked. This used to slip past the
+  // hook's header-only limit after uploads raised the process-wide ceiling to 26M.
+  const chunkedStatus = await new Promise<number | undefined>((resolve, reject) => {
+    const req = httpRequest(
+      `${SITE}/signup`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          origin: SITE,
+          'x-forwarded-proto': 'http',
+        },
+      },
+      (res) => {
+        res.resume();
+        res.on('end', () => resolve(res.statusCode));
+      }
+    );
+    req.on('error', reject);
+    req.write(`email=${'a'.repeat(300 * 1024)}`);
+    req.end('a'.repeat(300 * 1024));
+  });
+  expect(chunkedStatus).toBe(413);
+
+  const update = await request.post('/admin/probe/media?/update', {
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      origin: 'http://127.0.0.1:4173',
+    },
+    data: `caption.nl=${'a'.repeat(600 * 1024)}`,
+  });
+  expect(update.status()).toBe(413);
 
   await login(page, 'e2e-admin@probe.test', '/admin/probe/media');
   const buffer = png(600, 600, true);

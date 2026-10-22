@@ -11,6 +11,7 @@
 import {
   MAX_UPLOAD_BYTES,
   UseCaseError,
+  can,
   useCases,
   type MediaAccess,
   type MediaCredit,
@@ -29,7 +30,7 @@ export const load: PageServerLoad = async ({ parent, locals, url, params }) => {
   const cursor = url.searchParams.get('cursor') ?? undefined;
   const [list, usage, info] = await Promise.all([
     rt.invoker.run(useCases.listMedia, principal, { cursor, limit: 50 }),
-    rt.invoker.run(useCases.getUsage, principal, {}),
+    can(principal, 'tenant:admin') ? rt.invoker.run(useCases.getUsage, principal, {}) : null,
     rt.tenants.findBySlug(params.tenant),
   ]);
   const expiresAt = new Date(rt.clock.now().getTime() + ORIGINAL_TTL_MS);
@@ -45,7 +46,7 @@ export const load: PageServerLoad = async ({ parent, locals, url, params }) => {
   return {
     items,
     nextCursor: list.nextCursor,
-    storage: usage.storage,
+    storage: usage?.storage ?? null,
     locales: info?.locales ?? [],
     maxUploadBytes: MAX_UPLOAD_BYTES,
   };

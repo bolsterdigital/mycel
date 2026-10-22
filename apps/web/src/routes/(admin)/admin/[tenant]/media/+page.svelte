@@ -73,12 +73,14 @@
     </div>
   {/if}
 
-  <p>
-    {fill(t('admin.media.storage'), {
-      used: size(data.storage.usedBytes),
-      max: size(data.storage.maxBytes),
-    })}
-  </p>
+  {#if data.storage}
+    <p>
+      {fill(t('admin.media.storage'), {
+        used: size(data.storage.usedBytes),
+        max: size(data.storage.maxBytes),
+      })}
+    </p>
+  {/if}
 
   <form method="post" action="?/upload" enctype="multipart/form-data" class="card">
     <h2>{t('admin.media.upload.title')}</h2>

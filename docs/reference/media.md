@@ -56,7 +56,7 @@ A variant never changes (a new file is a new id), which is why a public variant 
 
 ## The admin
 
-`/admin/<tenant>/media` (TODO #10b) uploads, lists, edits and deletes through the same use cases, with native form posts and no JavaScript. The upload is a multipart form; the action turns the file into base64 and calls `media.upload`, so there is one contract for the admin, HTTP and MCP. The web process accepts bodies up to 26M for that form only (`BODY_SIZE_LIMIT`, set in `docker/entrypoint.sh`); `hooks.server.ts` answers `413` to any other request whose `Content-Length` is above 512K.
+`/admin/<tenant>/media` (TODO #10b) uploads, lists, edits and deletes through the same use cases, with native form posts and no JavaScript. The upload is a multipart form; the action turns the file into base64 and calls `media.upload`, so there is one contract for the admin, HTTP and MCP. The web process accepts bodies up to 26M for that form only (`BODY_SIZE_LIMIT`, set in `docker/entrypoint.sh`); `hooks.server.ts` counts actual bytes and answers `413` above 512K for every other request, including chunked bodies and the media update/delete actions. The 26M exception applies only to multipart POSTs selecting the upload action. Storage statistics are shown only to tenant administrators; media editors need only their media capabilities to use the library.
 
 The admin runs on the platform origin, so it serves its own files instead of the site's `/media/...` route:
 

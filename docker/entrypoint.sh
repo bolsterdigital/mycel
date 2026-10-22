@@ -17,7 +17,7 @@ case "$role" in
   # tenant hostname resolves (ADR 014) and the form-post origin check and IP hashing see the real
   # values. Without a proxy those headers are spoofable and stay ignored.
   # BODY_SIZE_LIMIT: the media admin uploads up to 25 MB as multipart (TODO #10b); adapter-node's
-  # default is 512K. hooks.server.ts keeps every other request at 512K by its Content-Length.
+  # default is 512K. hooks.server.ts counts bytes to keep every other request at 512K.
   web)
     export BODY_SIZE_LIMIT="${BODY_SIZE_LIMIT:-26M}"
     if [ "${MYCEL_TRUST_PROXY:-0}" = "1" ]; then
