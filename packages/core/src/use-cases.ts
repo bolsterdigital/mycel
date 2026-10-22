@@ -1,6 +1,7 @@
 // Every use case in the system, in one list (ADR 009). Fronts call `buildRegistry()`; nothing
 // registers itself as an import side effect, so what is exposed is exactly what is listed here.
 
+import { listAudit } from './audit/service.js';
 import { createPage, getPage } from './content/service.js';
 import { getEntitlements, getUsage } from './entitlements/service.js';
 import { getForm, submitForm } from './forms/service.js';
@@ -52,6 +53,7 @@ export const useCases = {
   listMedia,
   updateMedia,
   deleteMedia,
+  listAudit,
 } as const;
 
 export function buildRegistry(): UseCaseRegistry {

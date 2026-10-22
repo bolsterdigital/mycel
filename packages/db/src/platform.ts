@@ -14,6 +14,11 @@
 // credentials in a front), a `platform:admin` capability on `api_keys` (tenant data under RLS;
 // a key without a tenant would weaken it) and these operations as use cases (they have no tenant
 // context and do not run as mycel_app).
+//
+// Every mutation writes its audit row in the same transaction (TODO #17b decision 5): actor kind
+// `platform`, the caller's `actorId` (a fingerprint of the API token, `cli`, `seed`), and a keyed
+// hash of what was asked. Reads are not audited; a refused mutation writes nothing, because it
+// changed nothing and an unknown tenant id cannot be referenced.
 
 import { sql, type Kysely } from 'kysely';
 import {
@@ -21,11 +26,15 @@ import {
   TenantStatus,
   UseCaseError,
   effectiveEntitlements,
+  hashInput,
   platformHostname,
   platformOriginHost,
   type Entitlements,
+  type InputHasher,
   type PlatformConfig,
 } from '@mycel/core';
+import { recordPlatformAudit } from './audit.js';
+import { uuidv7 } from './ids.js';
 import type { Database } from './schema.js';
 
 type Trx = Kysely<Database>;
@@ -55,6 +64,37 @@ export interface NewTenant {
 }
 
 type Platform = Pick<PlatformConfig, 'domain' | 'devHosts' | 'platformOrigin'>;
+
+/** Who performs a platform mutation, for its audit row; never the token itself. */
+export interface PlatformActor {
+  /** The first eight hex characters of sha256(token) for the API, `cli`, `seed`. */
+  actorId: string;
+  /** The audit input hash (AUDIT_HASH_KEY). */
+  hasher: InputHasher;
+  requestId?: string | undefined;
+}
+
+async function audit(
+  trx: Trx,
+  by: PlatformActor,
+  tenantId: string,
+  action: 'tenant.create' | 'set_entitlements' | 'set_status',
+  input: unknown
+): Promise<void> {
+  await recordPlatformAudit(trx, {
+    id: uuidv7(),
+    tenantId,
+    occurredAt: new Date(),
+    actorKind: 'platform',
+    actorId: by.actorId,
+    operation: `platform.${action}`,
+    effect: null,
+    inputHash: await hashInput(by.hasher, input),
+    result: 'ok',
+    requestId: by.requestId ?? null,
+    subjectId: tenantId,
+  });
+}
 
 /**
  * The platform hostname `<slug>.<platform domain>` of a new tenant: verified from the start,
@@ -120,7 +160,8 @@ function validDocument(document: unknown): EntitlementsDocument {
 export async function createTenant(
   db: Kysely<Database>,
   tenant: NewTenant,
-  platform: Platform
+  platform: Platform,
+  by: PlatformActor
 ): Promise<PlatformTenant> {
   if (!SLUG.test(tenant.slug))
     throw new UseCaseError('invalid_input', 'slug must match ^[a-z0-9][a-z0-9-]{1,62}$', [
@@ -165,6 +206,13 @@ export async function createTenant(
       .executeTakeFirst();
     if (!row) throw new UseCaseError('conflict', `a tenant with slug "${tenant.slug}" exists`);
     await insertPlatformHostname(trx, row, platform.domain);
+    await audit(trx, by, row.id, 'tenant.create', {
+      slug: tenant.slug,
+      name: tenant.name,
+      locales,
+      defaultLocale,
+      entitlements,
+    });
     return (await readTenant(trx, tenant.id))!;
   });
 }
@@ -240,7 +288,8 @@ export async function getTenantBySlug(
 export async function setEntitlements(
   db: Kysely<Database>,
   id: string,
-  document: unknown
+  document: unknown,
+  by: PlatformActor
 ): Promise<PlatformTenant | null> {
   const valid = validDocument(document);
   return asPlatform(db, async (trx) => {
@@ -249,14 +298,17 @@ export async function setEntitlements(
       .set({ entitlements: JSON.stringify(valid) })
       .where('id', '=', id)
       .executeTakeFirst();
-    return r.numUpdatedRows > 0n ? readTenant(trx, id) : null;
+    if (r.numUpdatedRows === 0n) return null;
+    await audit(trx, by, id, 'set_entitlements', { id, entitlements: valid });
+    return readTenant(trx, id);
   });
 }
 
 export async function setStatus(
   db: Kysely<Database>,
   id: string,
-  status: TenantStatus
+  status: TenantStatus,
+  by: PlatformActor
 ): Promise<PlatformTenant | null> {
   if (!TenantStatus.safeParse(status).success)
     throw new UseCaseError('invalid_input', 'status must be active or suspended', [
@@ -268,6 +320,8 @@ export async function setStatus(
       .set({ status })
       .where('id', '=', id)
       .executeTakeFirst();
-    return r.numUpdatedRows > 0n ? readTenant(trx, id) : null;
+    if (r.numUpdatedRows === 0n) return null;
+    await audit(trx, by, id, 'set_status', { id, status });
+    return readTenant(trx, id);
   });
 }

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { DEFAULT_ENTITLEMENTS } from './entitlements/model.js';
 import { UseCaseError } from './errors.js';
 import { Invoker } from './invoke.js';
-import { systemPrincipal } from './principal.js';
+import { systemPrincipal, type Principal } from './principal.js';
 import { checkRegistry } from './registry-rules.js';
 import type { UseCase } from './registry.js';
 import { MemoryUnitOfWork, probeForm, probeTenant } from './testing/index.js';
@@ -146,4 +146,71 @@ describe('registry rules catch violations', () => {
       violations({ name: 'mailing.issue.send', effect: 'send', requires: 'mailing:send' })
     ).toEqual([]);
   });
+});
+
+// TODO #17b: every command leaves exactly one audit row, whatever the outcome, with a keyed hash
+// and no address in any column. Runs every command of the registry, so a new command is covered
+// without a new test.
+describe('every command leaves exactly one audit row (TODO #17b)', () => {
+  const TENANT = '01900000-0000-7000-8000-00000000aaaa';
+  const registry = buildRegistry();
+  const commands = registry.list().filter((u) => u.kind === 'command');
+  const HEX64 = /^[0-9a-f]{64}$/;
+
+  async function setup() {
+    const uow = new MemoryUnitOfWork();
+    uow.store.addPlatformHostname(probeTenant(TENANT), uow.platform.domain);
+    await uow.run(systemPrincipal(TENANT, 'test'), (ctx) =>
+      ctx.forms.insert(probeForm('01900000-0000-7000-8000-00000000f000'))
+    );
+    return { uow, invoker: new Invoker(registry, uow), rows: () => uow.store.for(TENANT).audit };
+  }
+  // An operator carries an address; the rows must not.
+  const operator = (capabilities: Principal['capabilities']): Principal => ({
+    ...systemPrincipal(TENANT, 'conformance'),
+    actor: { kind: 'operator', operatorId: 'op-conformance', email: 'operator@example.org' },
+    capabilities,
+  });
+  const noAddress = (rows: unknown[]) =>
+    expect(JSON.stringify(rows), 'an audit column holds an address').not.toContain('@');
+
+  it('has commands to check', () => {
+    expect(commands.length).toBeGreaterThan(10);
+  });
+
+  it.each(commands.map((u) => [u.name, u] as const))(
+    '%s refused for want of its capability: one forbidden row',
+    async (_n, useCase) => {
+      const { invoker, rows } = await setup();
+      await expect(
+        invoker.run(useCase, operator([]), useCase.examples[0].input)
+      ).rejects.toMatchObject({ code: 'forbidden' });
+      expect(rows()).toHaveLength(1);
+      expect(rows()[0]).toMatchObject({
+        operation: useCase.name,
+        effect: useCase.effect ?? null,
+        result: 'forbidden',
+        actorKind: 'operator',
+        actorId: 'op-conformance',
+      });
+      expect(rows()[0]!.inputHash).toMatch(HEX64);
+      noAddress(rows());
+    }
+  );
+
+  it.each(commands.map((u) => [u.name, u] as const))(
+    '%s run with its example: one row, ok exactly when it succeeded',
+    async (_n, useCase) => {
+      const { invoker, rows } = await setup();
+      const outcome = await invoker
+        .run(useCase, operator(['tenant:admin']), useCase.examples[0].input)
+        .then(
+          () => 'ok',
+          (e: unknown) => (e instanceof UseCaseError ? e.code : 'error')
+        );
+      expect(rows().map((r) => [r.operation, r.result])).toEqual([[useCase.name, outcome]]);
+      expect(rows()[0]!.inputHash).toMatch(HEX64);
+      noAddress(rows());
+    }
+  );
 });

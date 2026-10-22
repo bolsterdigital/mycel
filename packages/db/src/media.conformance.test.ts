@@ -26,6 +26,7 @@ import {
 import {
   FakeClock,
   FakeDns,
+  FakeInputHasher,
   FakeSigner,
   MemoryBlobStore,
   memoryImageProcessor,
@@ -64,6 +65,7 @@ describe.skipIf(!operatorUrl || !appUrl)('media conformance', () => {
     clock,
     ids: uuidv7Ids,
     signer: new FakeSigner(),
+    inputHasher: new FakeInputHasher(),
     dns: new FakeDns(),
     platform: memoryPlatform,
     media: { blobs, images: memoryImageProcessor },

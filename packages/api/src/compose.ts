@@ -4,6 +4,7 @@
 // Rejected: a composition file per front (the overview's first sketch), which the probe showed
 // would triplicate config parsing, signer setup and subscriber lists.
 
+import { createHash } from 'node:crypto';
 import { isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
@@ -34,6 +35,7 @@ import {
 import {
   consoleErrorReporter,
   createLogger,
+  currentContext,
   logLevelOf,
   Metrics,
   runWithContext,
@@ -67,7 +69,7 @@ import type { HttpObservability } from './app.js';
 import { assessWorker, type WorkerReadiness } from './health.js';
 import type { PlatformDeps } from './platform.js';
 import { RECURRING_JOBS, jobHandlers } from './jobs.js';
-import { HmacSigner } from './signer.js';
+import { HmacInputHasher, HmacSigner } from './signer.js';
 
 export { createAuthenticator, type Authenticator, type AuthenticatorDeps } from './auth.js';
 
@@ -183,6 +185,16 @@ const Config = z
     READY_MAX_LAG_SECONDS: z.coerce.number().int().min(1).default(900),
     /** Finished jobs older than this many days are deleted by the daily `jobs.retention`. */
     JOBS_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(30),
+    /**
+     * Key of the audit log's input hash (TODO #17b, docs/reference/audit.md). Required in
+     * production; elsewhere a fixed development key. Rotating it makes older hashes unlinkable.
+     */
+    AUDIT_HASH_KEY: z.string().min(16).optional(),
+    /**
+     * Audit rows older than this many days are deleted by the daily `audit.retention`. 400: a
+     * year-end review still looks back a full year. The database keeps 30 days whatever this says.
+     */
+    AUDIT_RETENTION_DAYS: z.coerce.number().int().min(30).max(3650).default(400),
   })
   .refine(
     (c) =>
@@ -202,6 +214,9 @@ const Config = z
   })
   .refine((c) => !(c.NODE_ENV === 'production' && c.MYCEL_TRUST_PROXY !== '1'), {
     message: 'MYCEL_TRUST_PROXY=1 is required in production (the web app runs behind a proxy)',
+  })
+  .refine((c) => !(c.NODE_ENV === 'production' && !c.AUDIT_HASH_KEY), {
+    message: 'AUDIT_HASH_KEY is required in production',
   })
   .refine((c) => !(c.NODE_ENV === 'production' && c.MAILER === 'console'), {
     message: 'MAILER=console is not allowed in production',
@@ -275,6 +290,14 @@ function parseAddress(value: string): { email: string; name?: string } {
   return m && m[1] ? { name: m[1], email: m[2]! } : { email: m?.[2] ?? value.trim() };
 }
 
+/** Outside production only: the audit hash key when AUDIT_HASH_KEY is unset (`.env.example`). */
+export const DEV_AUDIT_HASH_KEY = 'mycel-dev-audit-hash-key';
+
+/** The audit input hasher of this configuration. */
+export function inputHasherOf(config: RuntimeConfig): HmacInputHasher {
+  return new HmacInputHasher(config.AUDIT_HASH_KEY ?? DEV_AUDIT_HASH_KEY);
+}
+
 /** The platform settings the core reads inside a transaction, derived from the config once. */
 export function platformOf(config: RuntimeConfig): PlatformConfig {
   const production = config.NODE_ENV === 'production';
@@ -314,6 +337,10 @@ function workerMetrics(metrics: Metrics) {
     runs: metrics.counter('mycel_jobs_runs_total', 'Job runs by type and result'),
   };
 }
+
+/** The audit `actor_id` of a platform token: two tokens differ, the token is not kept. */
+export const tokenFingerprint = (token: string): string =>
+  createHash('sha256').update(token).digest('hex').slice(0, 8);
 
 const OUTBOX_INTERVAL_MS = 1000;
 const JOBS_INTERVAL_MS = 5000;
@@ -379,6 +406,7 @@ export function createRuntime(
   };
   const metrics = new Metrics();
   const signer = new HmacSigner(config.SIGNING_SECRET);
+  const inputHasher = inputHasherOf(config);
   const appDb = createDb(config.APP_DATABASE_URL);
   const authDb = createDb(config.AUTH_DATABASE_URL);
   const operatorDb = config.DATABASE_URL ? createDb(config.DATABASE_URL) : null;
@@ -392,6 +420,7 @@ export function createRuntime(
     platform,
     media: { blobs, images: createSharpProcessor(), delivery: appDelivery },
     log,
+    inputHasher,
   });
   const tenants = createTenantDirectory(appDb);
   const identity = createIdentityStore(authDb, uuidv7Ids);
@@ -403,7 +432,11 @@ export function createRuntime(
     agentToken: config.MYCEL_API_KEY,
     sessionId: uuidv7(),
   });
-  const invoker = new Invoker(buildRegistry(), uow);
+  const invoker = new Invoker(buildRegistry(), uow, {
+    requestId: () => currentContext().requestId,
+    log,
+    errors,
+  });
   const mailer: Mailer =
     config.MAILER === 'tem'
       ? new TemMailer({
@@ -430,15 +463,22 @@ export function createRuntime(
   const mailSources = { [CONFIRMATION_SUBSCRIBER]: confirmationMailSource(confirmation) };
   const stops: (() => Promise<void>)[] = [];
   // On the authentication login: each platform function enters mycel_platform itself (0010).
-  const platformApi: PlatformDeps | undefined = config.PLATFORM_API_TOKEN
+  // Each mutation writes its audit row with the token's fingerprint, never the token (#17b).
+  const platformToken = config.PLATFORM_API_TOKEN;
+  const by = () => ({
+    actorId: tokenFingerprint(platformToken ?? ''),
+    hasher: inputHasher,
+    requestId: currentContext().requestId,
+  });
+  const platformApi: PlatformDeps | undefined = platformToken
     ? {
-        token: config.PLATFORM_API_TOKEN,
+        token: platformToken,
         store: {
-          create: (input) => createTenant(authDb, { id: uuidv7(), ...input }, platform),
+          create: (input) => createTenant(authDb, { id: uuidv7(), ...input }, platform, by()),
           list: () => listTenants(authDb),
           get: (id) => getTenant(authDb, id),
-          setEntitlements: (id, document) => setEntitlements(authDb, id, document),
-          setStatus: (id, status) => setStatus(authDb, id, status),
+          setEntitlements: (id, document) => setEntitlements(authDb, id, document, by()),
+          setStatus: (id, status) => setStatus(authDb, id, status, by()),
         },
       }
     : undefined;
@@ -528,6 +568,7 @@ export function createRuntime(
         identity,
         mail,
         retentionDays: config.JOBS_RETENTION_DAYS,
+        auditRetentionDays: config.AUDIT_RETENTION_DAYS,
         errors,
       });
       const stopJobs = startJobWorker(operatorDb, inJobContext(handlers), {

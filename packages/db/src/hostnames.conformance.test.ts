@@ -10,7 +10,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import { Invoker, UseCaseError, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
-import { FakeDns, FakeSigner, memoryPlatform } from '@mycel/core/testing';
+import { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } from '@mycel/core/testing';
 import {
   createDb,
   createSiteDirectory,
@@ -42,6 +42,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('hostname conformance', () 
     clock: { now: () => new Date() },
     ids: uuidv7Ids,
     signer: new FakeSigner(),
+    inputHasher: new FakeInputHasher(),
     dns,
     platform: { ...memoryPlatform, domain: PLATFORM },
   });

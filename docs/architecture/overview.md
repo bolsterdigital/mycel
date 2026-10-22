@@ -57,19 +57,21 @@ Short map; the reasoning is in [`../adr/`](../adr/).
 
 **Observability** (TODO #17a, `docs/reference/observability.md`). Every process writes one JSON object per line with `service`, the request or job context (`requestId`, `tenantId`, `job`, `eventId`, from an `AsyncLocalStorage` the front or worker opens) and never an e-mail address: the logger scrubs every string value and drops keys such as `email` and `input`. Unexpected failures (not a `UseCaseError`) go to the `ErrorReporter`: a log line always, and a Sentry envelope to `ERROR_REPORTING_DSN` (GlitchTip) when set. `/healthz` is liveness only; `/readyz` checks the database (api, web) or the loops and queue lag (worker, `queueLag` as `mycel_worker`); `/metrics` is Prometheus text on the api (behind `METRICS_TOKEN`) and on the worker's health port. Finished jobs are deleted after `JOBS_RETENTION_DAYS` by the daily `jobs.retention` job under a restrictive delete policy that cannot reach an open job (migration 0014).
 
+**Audit log** (TODO #17b, `docs/reference/audit.md`). `Invoker.run` writes one `audit_log` row per command through `ctx.audit`: in the command's own transaction when it succeeds, in a short transaction of its own after the rollback when it is refused or fails, so HTTP, MCP and web are covered by the one code path. A row holds tenant, actor kind and id (never an address), operation, effect, a keyed hash of the input (`ctx.inputHasher`, HMAC under `AUDIT_HASH_KEY`), result, request id and subject id. The platform functions write their own rows as `mycel_platform`; `audit.retention` prunes as `mycel_audit_janitor` (migration 0015). Tenant administrators read their log with `audit.list`.
+
 **External effects get an intent row first** (ADR 019 rule 6). A subscriber that calls a provider claims a `mail_sends` row (key `<subscriber>:<event id>`) in one conditional upsert and, in the same committed transaction, plans the job `mail.reconcile` on the jobs table; then it calls the provider outside any transaction and records `sent_at` and the provider id. A provider without idempotency keys can only list what it accepted (`Mailer.lookup`), so reconciliation counts the listed ids against sibling intents with the same correlation hash and resends only when the count proves the attempt never arrived; anything ambiguous stays `unknown` until the job gives it up as `abandoned`. `packages/core/src/mailing/delivery.ts` is the one implementation (`sendOnce`, `settleIntent`, `reconcileMail`); the contract, the states and the residual risk are in `docs/reference/mail.md`.
 
 **Where things live**
 
-| Path                            | Contents                                                                                              |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `packages/core/src/<module>/`   | `model.ts` (types, schemas), `service.ts` (use cases), `ports.ts`, `events.ts`, tests                 |
-| `packages/core/src/registry.ts` | the use-case registry every front reads                                                               |
-| `packages/db/migrations/`       | plain SQL, forward-only, one file per change, RLS policy next to the table                            |
-| `packages/api/src/`             | Hono app, composition root, API-key authentication, route generation, OpenAPI                         |
-| `packages/mcp/src/`             | MCP server over stdio (one API key per process), tool/resource generation                             |
-| `packages/observability/src/`   | JSON logger with redaction, request context, error reporters, Prometheus registry                     |
-| `apps/web/src/routes/(public)/` | tenant sites, rendered from blocks                                                                    |
-| `apps/web/src/routes/(admin)/`  | operator admin behind OIDC, on the platform origin only (ADR 014 rule 4)                              |
-| `docs/reference/`               | hostnames and custom domains, the Caddy on-demand TLS example, the platform API, media, observability |
-| `docs/adr/`                     | decisions; `docs/plans`                                                                               | private planning sibling (symlink) |
+| Path                            | Contents                                                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `packages/core/src/<module>/`   | `model.ts` (types, schemas), `service.ts` (use cases), `ports.ts`, `events.ts`, tests                        |
+| `packages/core/src/registry.ts` | the use-case registry every front reads                                                                      |
+| `packages/db/migrations/`       | plain SQL, forward-only, one file per change, RLS policy next to the table                                   |
+| `packages/api/src/`             | Hono app, composition root, API-key authentication, route generation, OpenAPI                                |
+| `packages/mcp/src/`             | MCP server over stdio (one API key per process), tool/resource generation                                    |
+| `packages/observability/src/`   | JSON logger with redaction, request context, error reporters, Prometheus registry                            |
+| `apps/web/src/routes/(public)/` | tenant sites, rendered from blocks                                                                           |
+| `apps/web/src/routes/(admin)/`  | operator admin behind OIDC, on the platform origin only (ADR 014 rule 4)                                     |
+| `docs/reference/`               | hostnames and custom domains, the Caddy on-demand TLS example, the platform API, media, observability, audit |
+| `docs/adr/`                     | decisions; `docs/plans`                                                                                      | private planning sibling (symlink) |

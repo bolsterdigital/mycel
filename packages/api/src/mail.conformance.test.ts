@@ -21,7 +21,13 @@ import {
   type MailMessage,
   type Mailer,
 } from '@mycel/core';
-import { FakeDns, FakeSigner, memoryPlatform } from '@mycel/core/testing';
+import {
+  FakeDns,
+  FakeInputHasher,
+  FakeSigner,
+  memoryPlatform,
+  testPlatformActor,
+} from '@mycel/core/testing';
 import {
   createDb,
   createIdentityStore,
@@ -65,6 +71,7 @@ describe.skipIf(!ready)('mail.reconcile against Postgres', () => {
     clock,
     ids: uuidv7Ids,
     signer: new FakeSigner(),
+    inputHasher: new FakeInputHasher(),
     dns: new FakeDns(),
     platform: memoryPlatform,
   });
@@ -187,14 +194,14 @@ describe.skipIf(!ready)('mail.reconcile against Postgres', () => {
   it('leaves a suspended tenant alone and looks again in a day', async () => {
     const provider = new Provider();
     const event = await publish(tenantB);
-    await setStatus(operatorDb, tenantB, 'suspended');
+    await setStatus(operatorDb, tenantB, 'suspended', testPlatformActor);
     try {
       const before = Date.now();
       const outcome = await handlerFor(provider)(jobFor(event));
       expect(outcome.next!.getTime() - before).toBeGreaterThanOrEqual(24 * 60 * 60 * 1000 - 1000);
       expect(provider.delivered).toEqual([]);
     } finally {
-      await setStatus(operatorDb, tenantB, 'active');
+      await setStatus(operatorDb, tenantB, 'active', testPlatformActor);
     }
   });
 

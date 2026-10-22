@@ -8,7 +8,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { Invoker, UseCaseRegistry, defineUseCase, systemPrincipal } from '@mycel/core';
-import { FakeDns, FakeSigner, memoryPlatform, probeForm } from '@mycel/core/testing';
+import {
+  FakeDns,
+  FakeInputHasher,
+  FakeSigner,
+  memoryPlatform,
+  probeForm,
+} from '@mycel/core/testing';
 import { createDb, createUnitOfWork, migrate, upsertTenant, uuidv7, uuidv7Ids } from './index.js';
 
 const operatorUrl = process.env['DATABASE_URL'];
@@ -46,6 +52,7 @@ describe.skipIf(!operatorUrl || !appUrl)('invoke conformance', () => {
     clock: { now: () => new Date() },
     ids: uuidv7Ids,
     signer: new FakeSigner(),
+    inputHasher: new FakeInputHasher(),
     dns: new FakeDns(),
     platform: memoryPlatform,
   });
@@ -98,5 +105,29 @@ describe.skipIf(!operatorUrl || !appUrl)('invoke conformance', () => {
     const after = await leftBehind(formId, eventId);
     expect(after.form?.id).toBe(formId);
     expect(after.outbox).toEqual({ id: eventId });
+  });
+
+  // TODO #17b: a command's audit row commits with it. The invalid output rolls back the `ok` row
+  // with everything else, and the refusal gets its own `error` row after the rollback.
+  it('writes the ok row in the command transaction and the error row after its rollback', async () => {
+    const audit = () =>
+      uow.run(admin(), (ctx) => ctx.audit.list({ operation: writeThenAnswer.name, limit: 100 }));
+    const before = (await audit()).length;
+    const formId = uuidv7();
+    await expect(
+      invoker.run(writeThenAnswer, admin(), { formId, eventId: uuidv7(), validOutput: false })
+    ).rejects.toBeInstanceOf(z.ZodError);
+    const afterFailure = await audit();
+    expect(afterFailure.length - before).toBe(1);
+    expect(afterFailure[0]).toMatchObject({ result: 'error', subjectId: null });
+
+    await invoker.run(writeThenAnswer, admin(), {
+      formId: uuidv7(),
+      eventId: uuidv7(),
+      validOutput: true,
+    });
+    const afterSuccess = await audit();
+    expect(afterSuccess.length - before).toBe(2);
+    expect(afterSuccess[0]).toMatchObject({ result: 'ok', actorKind: 'system', actorId: 'test' });
   });
 });

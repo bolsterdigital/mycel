@@ -50,3 +50,7 @@ export * from './media/service.js';
 export * from './util/bytes.js';
 export * from './util/scrub.js';
 export * from './util/log.js';
+export * from './util/canonical-json.js';
+export * from './audit/model.js';
+export * from './audit/ports.js';
+export * from './audit/service.js';

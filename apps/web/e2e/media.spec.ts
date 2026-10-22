@@ -96,7 +96,8 @@ async function setUsage(mediaId: string, inUse: boolean) {
   const { createDb, createTenantDirectory, createUnitOfWork, uuidv7Ids } =
     await import('@mycel/db');
   const { systemPrincipal } = await import('@mycel/core');
-  const { FakeDns, FakeSigner, memoryPlatform } = await import('@mycel/core/testing');
+  const { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } =
+    await import('@mycel/core/testing');
   const operatorDb = createDb(process.env['DATABASE_URL']!);
   const appDb = createDb(process.env['APP_DATABASE_URL']!);
   try {
@@ -105,6 +106,7 @@ async function setUsage(mediaId: string, inUse: boolean) {
       clock: { now: () => new Date() },
       ids: uuidv7Ids,
       signer: new FakeSigner(),
+      inputHasher: new FakeInputHasher(),
       dns: new FakeDns(),
       platform: memoryPlatform,
     });

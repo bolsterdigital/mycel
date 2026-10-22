@@ -17,6 +17,7 @@ import {
 } from '@mycel/core';
 import {
   FakeDns,
+  FakeInputHasher,
   FakeSigner,
   MemoryMailer,
   memoryPlatform,
@@ -48,6 +49,7 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
     clock,
     ids: uuidv7Ids,
     signer,
+    inputHasher: new FakeInputHasher(),
     dns: new FakeDns(),
     platform: memoryPlatform,
   });

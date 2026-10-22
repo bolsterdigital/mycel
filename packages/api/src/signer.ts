@@ -4,7 +4,7 @@
 // algorithm zoo buy nothing for tokens only this application issues and reads.
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import type { Signer } from '@mycel/core';
+import type { InputHasher, Signer } from '@mycel/core';
 
 export class HmacSigner implements Signer {
   constructor(private readonly secret: string) {
@@ -33,5 +33,20 @@ export class HmacSigner implements Signer {
   /** Keyed hash of an IP address: a stable rate-limit key that is not the address itself. */
   hashIp(ip: string): string {
     return createHmac('sha256', this.secret).update(`ip:${ip}`).digest('base64url').slice(0, 22);
+  }
+}
+
+/**
+ * The core `InputHasher` (TODO #17b decision 3): HMAC-SHA256 of an audit row's canonical input
+ * under AUDIT_HASH_KEY, in hex. Keyed, because a plain hash of an input that is only an address
+ * can be reversed with a word list; rotating the key makes older hashes unlinkable.
+ */
+export class HmacInputHasher implements InputHasher {
+  constructor(private readonly key: string) {
+    if (key.length < 16) throw new Error('AUDIT_HASH_KEY must be at least 16 characters');
+  }
+
+  async hash(canonical: string): Promise<string> {
+    return createHmac('sha256', this.key).update(canonical).digest('hex');
   }
 }

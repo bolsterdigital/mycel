@@ -22,7 +22,14 @@ import {
   type NewsletterSubscribedProps,
   type Principal,
 } from '@mycel/core';
-import { FakeDns, FakeSigner, memoryPlatform, probeForm } from '@mycel/core/testing';
+import {
+  FakeDns,
+  FakeInputHasher,
+  FakeSigner,
+  memoryPlatform,
+  probeForm,
+  testPlatformActor,
+} from '@mycel/core/testing';
 import {
   createDb,
   createIdentityStore,
@@ -63,6 +70,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
       clock: { now },
       ids: uuidv7Ids,
       signer: new FakeSigner(),
+      inputHasher: new FakeInputHasher(),
       dns: new FakeDns(),
       platform: { ...memoryPlatform, ...platform },
     });
@@ -74,7 +82,8 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
     createTenant(
       operatorDb,
       { id: uuidv7(), slug: `${slug}-${run}`, name: slug, locales: ['nl', 'en'], entitlements },
-      platform
+      platform,
+      testPlatformActor
     );
 
   async function as<T>(url: string, fn: (c: pg.Client) => Promise<T>): Promise<T> {
@@ -240,7 +249,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
     );
     expect(await identity.tenantAccess(partial.id)).toEqual(expected);
 
-    await setStatus(operatorDb, partial.id, 'suspended');
+    await setStatus(operatorDb, partial.id, 'suspended', testPlatformActor);
     expect((await identity.tenantAccess(partial.id)).status).toBe('suspended');
     expect((await sites.resolve(`ent-part-${run}.${DOMAIN}`))?.access.status).toBe('suspended');
   });
@@ -291,7 +300,8 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
       createTenant(
         operatorDb,
         { id: uuidv7(), slug: `admin-${run}`, name: 'x', locales: ['nl'] },
-        platform
+        platform,
+        testPlatformActor
       ),
       'conflict'
     );
@@ -299,7 +309,8 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
       createTenant(
         operatorDb,
         { id: uuidv7(), slug: `dev-${run}`, name: 'x', locales: ['nl'] },
-        platform
+        platform,
+        testPlatformActor
       ),
       'conflict'
     );
@@ -324,14 +335,19 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
       await c.query('commit');
     });
     await code(
-      createTenant(operatorDb, { id: uuidv7(), slug, name: 'x', locales: ['nl'] }, platform),
+      createTenant(
+        operatorDb,
+        { id: uuidv7(), slug, name: 'x', locales: ['nl'] },
+        platform,
+        testPlatformActor
+      ),
       'conflict'
     );
   });
 
   it('stores what the hoster sends, validated, and answers null for an unknown tenant', async () => {
     const t = await create('ent-set');
-    const set = await setEntitlements(operatorDb, t.id, { 'operators.max': 3 });
+    const set = await setEntitlements(operatorDb, t.id, { 'operators.max': 3 }, testPlatformActor);
     expect(set).toMatchObject({
       storedEntitlements: { 'operators.max': 3 },
       entitlements: {
@@ -339,10 +355,16 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
         'supporters.max': DEFAULT_ENTITLEMENTS['supporters.max'],
       },
     });
-    await code(setEntitlements(operatorDb, t.id, { 'operators.max': -1 }), 'invalid_input');
-    await code(setEntitlements(operatorDb, t.id, { 'sites.max': 1 }), 'invalid_input');
-    expect(await setEntitlements(operatorDb, uuidv7(), {})).toBeNull();
-    expect(await setStatus(operatorDb, uuidv7(), 'suspended')).toBeNull();
+    await code(
+      setEntitlements(operatorDb, t.id, { 'operators.max': -1 }, testPlatformActor),
+      'invalid_input'
+    );
+    await code(
+      setEntitlements(operatorDb, t.id, { 'sites.max': 1 }, testPlatformActor),
+      'invalid_input'
+    );
+    expect(await setEntitlements(operatorDb, uuidv7(), {}, testPlatformActor)).toBeNull();
+    expect(await setStatus(operatorDb, uuidv7(), 'suspended', testPlatformActor)).toBeNull();
     expect((await getTenant(operatorDb, t.id))?.storedEntitlements).toEqual({ 'operators.max': 3 });
   });
 

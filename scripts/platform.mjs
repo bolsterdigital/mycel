@@ -11,7 +11,7 @@
 //   npm run platform -- entitlements set <slug> '{"supporters.max": 250}'
 //   npm run platform -- status set <slug> active|suspended
 
-import { loadConfig, platformOf } from '@mycel/api/compose';
+import { inputHasherOf, loadConfig, platformOf } from '@mycel/api/compose';
 import {
   createDb,
   createTenant,
@@ -34,6 +34,8 @@ if (!config.DATABASE_URL) {
   process.exit(1);
 }
 const db = createDb(config.DATABASE_URL);
+// Every mutation writes an audit row as `platform`, actor `cli` (TODO #17b).
+const by = { actorId: 'cli', hasher: inputHasherOf(config) };
 const [noun, verb, ...args] = process.argv.slice(2);
 
 const show = (t) =>
@@ -58,20 +60,21 @@ try {
     const t = await createTenant(
       db,
       { id: uuidv7(), slug: args[0], name: args[1], locales },
-      platformOf(config)
+      platformOf(config),
+      by
     );
     console.log(`platform: created tenant ${t.id} (${t.slug})`);
     show(t);
   } else if (noun === 'entitlements' && verb === 'set' && args[0] && args[1]) {
     const t = await bySlug(args[0]);
-    const updated = await setEntitlements(db, t.id, JSON.parse(args[1]));
+    const updated = await setEntitlements(db, t.id, JSON.parse(args[1]), by);
     console.log(
       `platform: tenant ${t.id} entitlements set to ${JSON.stringify(updated.storedEntitlements)}`
     );
     show(updated);
   } else if (noun === 'status' && verb === 'set' && args[0] && args[1]) {
     const t = await bySlug(args[0]);
-    const updated = await setStatus(db, t.id, args[1]);
+    const updated = await setStatus(db, t.id, args[1], by);
     console.log(`platform: tenant ${t.id} status set to ${updated.status}`);
     show(updated);
   } else {

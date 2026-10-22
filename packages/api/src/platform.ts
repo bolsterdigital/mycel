@@ -9,9 +9,9 @@
 //
 // One bearer token, PLATFORM_API_TOKEN, compared in constant time over SHA-256 digests (equal
 // length whatever the caller sends). Without the variable the routes do not exist: a self-hoster
-// manages tenants with the CLI. Every mutation is one line in the server log with the tenant id
-// and what changed; the audit log of TODO #17 takes this over. Rejected: a `platform:admin`
-// capability on an API key (keys are tenant data under forced RLS).
+// manages tenants with the CLI. Every mutation writes its audit row in its own transaction
+// (packages/db/src/platform.ts, TODO #17b); the server log keeps one operational line. Rejected:
+// a `platform:admin` capability on an API key (keys are tenant data under forced RLS).
 
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { Hono } from 'hono';

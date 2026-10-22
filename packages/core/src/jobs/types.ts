@@ -23,6 +23,8 @@ export const JobPayloads = {
   'media.orphans': z.object({}).strict(),
   /** Platform job: delete jobs finished more than JOBS_RETENTION_DAYS ago (TODO #17a). */
   'jobs.retention': z.object({}).strict(),
+  /** Platform job: delete audit rows older than AUDIT_RETENTION_DAYS (TODO #17b). */
+  'audit.retention': z.object({}).strict(),
   /**
    * Tenant job: settle or resend one mail intent (`reconcileMail`, brief #22C). Ids only: the
    * message is rebuilt from the outbox event, so no address sits in the queue.
