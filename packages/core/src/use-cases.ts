@@ -16,6 +16,14 @@ import {
   updatePattern,
   updateSection,
 } from './content/entities.js';
+import {
+  findItems,
+  insertBlock,
+  moveBlock,
+  removeBlock,
+  setBlockProps,
+  splitInsertBlock,
+} from './content/operations.js';
 import { getPage } from './content/public.js';
 import {
   createItem,
@@ -64,6 +72,12 @@ export const useCases = {
   unpublishItem,
   scheduleItem,
   unscheduleItem,
+  insertBlock,
+  moveBlock,
+  removeBlock,
+  setBlockProps,
+  splitInsertBlock,
+  findItems,
   createAuthor,
   updateAuthor,
   getAuthor,

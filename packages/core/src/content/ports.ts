@@ -3,6 +3,7 @@
 // serialise per item, so "two saves on one base, exactly one wins" and "an old job cannot
 // publish after a reschedule" follow from the lock order, not from timing.
 
+import type { BlockType, ReferenceType } from './blocks.js';
 import type { LocaleState } from './lifecycle.js';
 import type { Author, ContentType, Pattern, Revision, RevisionSummary, Section } from './model.js';
 
@@ -26,6 +27,21 @@ export interface Paged<T> {
   next: string | null;
 }
 
+/** What `content.item.find` looks for; at least one of `blockType` and `ref` is set. */
+export interface FindFilter {
+  blockType?: BlockType | undefined;
+  ref?: { type: ReferenceType; id: string } | undefined;
+  /** Search the revisions a locale publishes instead of the latest revision. */
+  live: boolean;
+  type?: ContentType | undefined;
+}
+
+/** A found item with the blocks that matched: of the block type, or carrying the reference. */
+export interface ItemMatch {
+  item: ItemRecord;
+  blockIds: string[];
+}
+
 export interface ContentRepository {
   /** The item with its publication rows, locked for the rest of the transaction. */
   lock(itemId: string): Promise<ItemRecord | null>;
@@ -37,11 +53,19 @@ export interface ContentRepository {
     after: string | null,
     limit: number
   ): Promise<Paged<ItemRecord>>;
-  /** A new item with its first revision (inserted in the same transaction). */
+  /** A new item with its first revision (inserted in the same transaction, refs included). */
   insert(item: ItemRecord, first: Revision): Promise<void>;
   /** Item columns and the complete set of publication rows; rows not in the list are removed. */
   save(item: ItemRecord): Promise<void>;
+  /**
+   * Inserts the revision and its `content_block_refs` rows, derived from the document here so no
+   * caller can forget them (`documentReferences`).
+   */
   insertRevision(revision: Revision): Promise<void>;
+  /** Items whose latest (or, with `live`, published) revision matches; newest first. */
+  find(filter: FindFilter, after: string | null, limit: number): Promise<Paged<ItemMatch>>;
+  /** How many items publish a revision, in any locale, that uses `ref` (ADR 004 rule 6). */
+  liveReferences(ref: { type: ReferenceType; id: string }): Promise<number>;
   /** A revision of this item; another item's revision is null. */
   revision(itemId: string, revisionId: string): Promise<Revision | null>;
   revisions(itemId: string, after: string | null, limit: number): Promise<Paged<RevisionSummary>>;

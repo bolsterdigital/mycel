@@ -9,7 +9,7 @@
 // because drafts must never reach a public visitor (the public projection is `public.ts`).
 
 import { z } from 'zod';
-import { requireActive } from '../entitlements/check.js';
+import { requireActive, requireEntitled } from '../entitlements/check.js';
 import { UseCaseError, type Issue } from '../errors.js';
 import { zodIssues } from '../invoke.js';
 import { Locale } from '../i18n/locale.js';
@@ -17,7 +17,7 @@ import type { JobOutcome } from '../jobs/ports.js';
 import { jobKey, type JobPayload } from '../jobs/types.js';
 import type { TransactionContext } from '../ports.js';
 import { defineUseCase } from '../registry.js';
-import { assignBlockIds, blockReferences, type BlockInput } from './blocks.js';
+import { allBlocks, assignBlockIds, blockReferences, type BlockInput } from './blocks.js';
 import { diffDocuments } from './diff.js';
 import {
   draftLocale,
@@ -78,14 +78,27 @@ export function toContentItem(r: ItemRecord): ContentItem {
 
 const notFound = (what: string) => new UseCaseError('not_found', `no ${what} with that id`);
 
-async function lockItem(ctx: TransactionContext, itemId: string): Promise<ItemRecord> {
+export async function lockItem(ctx: TransactionContext, itemId: string): Promise<ItemRecord> {
   const item = await ctx.content.lock(itemId);
   if (!item) throw notFound('content item');
   return item;
 }
 
+/**
+ * Every block type in the tree must be switched on for the site (ADR 015, `blocks.<type>`): one
+ * check for documents and patterns alike, so #8b2 only adds types. A block the site already has
+ * cannot be saved again once its type is switched off; reading and publishing what exists stay.
+ */
+export function requireBlockTypes(
+  ctx: TransactionContext,
+  blocks: readonly { type: string }[]
+): void {
+  for (const type of new Set(allBlocks(blocks).map((b) => b.type)))
+    requireEntitled(ctx.principal, `blocks.${type}`);
+}
+
 /** The document as stored: ids for new blocks, the full schema (defaults, invariants) re-checked. */
-function finalize(
+export function finalize(
   ctx: TransactionContext,
   input: ContentDocumentInput,
   blocks: readonly BlockInput[]
@@ -96,7 +109,60 @@ function finalize(
   });
   if (!parsed.success)
     throw new UseCaseError('invalid_input', 'document is not valid', zodIssues(parsed.error));
+  requireBlockTypes(ctx, parsed.data.blocks);
   return parsed.data;
+}
+
+/** A stale base is a typed conflict before anything is read or written (ADR 018 rule 2). */
+export function assertBase(item: ItemRecord, baseRevisionId: string): void {
+  if (item.latestRevisionId !== baseRevisionId)
+    throw new UseCaseError('conflict', 'the item has a newer revision than baseRevisionId', [
+      { path: 'baseRevisionId', message: `content.revision.conflict:${item.latestRevisionId}` },
+    ]);
+}
+
+/** Media usages of one revision, in the save's transaction (docs/reference/media.md § Usages). */
+async function recordMediaUsages(ctx: TransactionContext, revision: Revision): Promise<void> {
+  const usages = allBlocks(revision.document.blocks).flatMap((b) =>
+    blockReferences([b]).media.map((mediaId) => ({ mediaId, blockId: b.id }))
+  );
+  await ctx.media.replaceUsages(`item:${revision.itemId}:rev:${revision.id}`, usages);
+}
+
+/**
+ * One new revision on a locked item whose base was checked: insert it, move the latest pointer,
+ * keep the publication rows of the locales that stay. Writing never moves a publication pointer.
+ * `content.item.update` and every block operation end here.
+ */
+export async function writeRevision(
+  ctx: TransactionContext,
+  item: ItemRecord,
+  doc: ContentDocument
+): Promise<{ item: ContentItem; revision: Revision }> {
+  await assertReferences(ctx, doc);
+  const now = ctx.clock.now();
+  const revision: Revision = {
+    id: ctx.ids.next(),
+    itemId: item.id,
+    createdAt: now.toISOString(),
+    actor: ctx.principal.actor,
+    document: doc,
+  };
+  const next: ItemRecord = {
+    ...item,
+    title: doc.title,
+    defaultLocale: doc.defaultLocale,
+    locales: doc.locales,
+    latestRevisionId: revision.id,
+    updatedAt: now,
+    publication: doc.locales.map(
+      (l) => item.publication.find((s) => s.locale === l) ?? draftLocale(l)
+    ),
+  };
+  await ctx.content.insertRevision(revision);
+  await recordMediaUsages(ctx, revision);
+  await ctx.content.save(next);
+  return { item: toContentItem(next), revision };
 }
 
 /**
@@ -126,7 +192,10 @@ export async function referenceIssues(
   return issues;
 }
 
-async function assertReferences(ctx: TransactionContext, doc: ContentDocument): Promise<void> {
+export async function assertReferences(
+  ctx: TransactionContext,
+  doc: ContentDocument
+): Promise<void> {
   const issues = await referenceIssues(ctx, doc);
   if (issues.length)
     throw new UseCaseError('invalid_input', 'document references unknown data', issues);
@@ -143,7 +212,7 @@ export async function assertPublishable(
     throw new UseCaseError('invalid_input', `locale "${locale}" cannot be published`, issues);
 }
 
-const ItemWithRevision = z.object({ item: ContentItem, revision: Revision });
+export const ItemWithRevision = z.object({ item: ContentItem, revision: Revision });
 
 const pageExample = {
   slug: 'about',
@@ -234,6 +303,7 @@ export const createItem = defineUseCase({
       publication: doc.locales.map(draftLocale),
     };
     await ctx.content.insert(item, revision);
+    await recordMediaUsages(ctx, revision);
     return { item: toContentItem(item), revision };
   },
 });
@@ -262,10 +332,7 @@ export const updateItem = defineUseCase({
   ],
   async handler(ctx, { itemId, baseRevisionId, document }) {
     const item = await lockItem(ctx, itemId);
-    if (item.latestRevisionId !== baseRevisionId)
-      throw new UseCaseError('conflict', 'the item has a newer revision than baseRevisionId', [
-        { path: 'baseRevisionId', message: `content.revision.conflict:${item.latestRevisionId}` },
-      ]);
+    assertBase(item, baseRevisionId);
     if (document.type !== item.type)
       throw new UseCaseError('invalid_input', 'the type of an item never changes', [
         { path: 'document.type', message: 'content.type.immutable' },
@@ -275,30 +342,7 @@ export const updateItem = defineUseCase({
         throw new UseCaseError('invalid_input', `locale "${s.locale}" is published or planned`, [
           { path: 'document.locales', message: `content.locale.still-live:${s.locale}` },
         ]);
-    const doc = finalize(ctx, document, document.blocks);
-    await assertReferences(ctx, doc);
-    const now = ctx.clock.now();
-    const revision: Revision = {
-      id: ctx.ids.next(),
-      itemId,
-      createdAt: now.toISOString(),
-      actor: ctx.principal.actor,
-      document: doc,
-    };
-    const next: ItemRecord = {
-      ...item,
-      title: doc.title,
-      defaultLocale: doc.defaultLocale,
-      locales: doc.locales,
-      latestRevisionId: revision.id,
-      updatedAt: now,
-      publication: doc.locales.map(
-        (l) => item.publication.find((s) => s.locale === l) ?? draftLocale(l)
-      ),
-    };
-    await ctx.content.insertRevision(revision);
-    await ctx.content.save(next);
-    return { item: toContentItem(next), revision };
+    return writeRevision(ctx, item, finalize(ctx, document, document.blocks));
   },
 });
 

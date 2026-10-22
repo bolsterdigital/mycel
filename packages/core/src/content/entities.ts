@@ -22,7 +22,7 @@ import {
   Slug,
 } from './model.js';
 import type { SluggedRepository } from './ports.js';
-import { DEFAULT_PAGE_SIZE } from './service.js';
+import { DEFAULT_PAGE_SIZE, requireBlockTypes } from './service.js';
 import './ports.js';
 
 const Limit = z.number().int().min(1).max(100).optional();
@@ -193,8 +193,11 @@ export const listSections = defineUseCase({
   },
 });
 
-const withIds = (ctx: TransactionContext, blocks: readonly BlockInput[]) =>
-  assignBlockIds(blocks, () => ctx.ids.next());
+/** A pattern's blocks as stored: ids assigned, and every block type switched on for the site. */
+function withIds(ctx: TransactionContext, blocks: readonly BlockInput[]) {
+  requireBlockTypes(ctx, blocks);
+  return assignBlockIds(blocks, () => ctx.ids.next());
+}
 
 export const createPattern = defineUseCase({
   name: 'content.pattern.create',

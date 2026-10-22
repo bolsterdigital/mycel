@@ -15,8 +15,10 @@ import {
   BlockInput,
   allBlocks,
   blockLocalized,
+  blockReferenceRows,
   blockTreeIssues,
   type BlockInput as BlockInputT,
+  type ReferenceType,
 } from './blocks.js';
 
 export const ContentType = z.enum(['page', 'article']);
@@ -281,6 +283,27 @@ export function readinessIssues(
   if (doc.access.level === 'tier')
     issues.push({ path: 'access.tierIds', message: 'content.publish.tier-unverifiable' });
   return issues;
+}
+
+/** One row of `content_block_refs`: `blockId` is null for a reference the document itself makes. */
+export interface DocumentReference {
+  blockId: string | null;
+  type: ReferenceType;
+  refId: string;
+}
+
+/**
+ * Every structured reference of a stored document (ADR 020 rule 7): the blocks' forms, items and
+ * media, plus an article's authors and section. The repositories derive `content_block_refs`
+ * from this on every revision insert, and migration 0017's backfill is its SQL twin.
+ */
+export function documentReferences(doc: ContentDocument): DocumentReference[] {
+  const refs: DocumentReference[] = blockReferenceRows(doc.blocks);
+  if (doc.type === 'article') {
+    for (const id of doc.authorIds) refs.push({ blockId: null, type: 'author', refId: id });
+    if (doc.sectionId) refs.push({ blockId: null, type: 'section', refId: doc.sectionId });
+  }
+  return refs;
 }
 
 /** Per item and locale (ADR 018 rule 9). The status is derived from the pointers, never stored apart. */

@@ -6,9 +6,18 @@ import type { AuditEntry } from '../audit/model.js';
 import type { AuditLog, InputHasher } from '../audit/ports.js';
 import type { FormDefinition, Submission } from '../forms/model.js';
 import type { FormRepository, RateLimiter, SubmissionRepository } from '../forms/ports.js';
-import type { Author, Pattern, Revision, Section } from '../content/model.js';
+import { allBlocks } from '../content/blocks.js';
+import {
+  documentReferences,
+  type Author,
+  type DocumentReference,
+  type Pattern,
+  type Revision,
+  type Section,
+} from '../content/model.js';
 import type {
   ContentRepository,
+  ItemMatch,
   EntityRepository,
   ItemRecord,
   Paged,
@@ -204,6 +213,8 @@ function sluggedRepository<T extends { id: string; slug: string }>(
 interface TenantStore {
   items: Map<string, ItemRecord>;
   revisions: Map<string, Revision>;
+  /** `content_block_refs`, keyed by revision id. */
+  blockRefs: Map<string, DocumentReference[]>;
   authors: Map<string, Author>;
   sections: Map<string, Section>;
   patterns: Map<string, Pattern>;
@@ -395,6 +406,7 @@ export class MemoryStore {
       store = {
         items: new Map(),
         revisions: new Map(),
+        blockRefs: new Map(),
         authors: new Map(),
         sections: new Map(),
         patterns: new Map(),
@@ -524,6 +536,10 @@ export class MemoryUnitOfWork implements UnitOfWork {
     const s = this.store.for(principal.tenantId);
     const outbox = this.store.outbox;
     const clock = this.clock;
+    const insertRevision = (r: Revision) => {
+      s.revisions.set(r.id, structuredClone(r));
+      s.blockRefs.set(r.id, documentReferences(r.document));
+    };
     const content: ContentRepository = {
       // No-op, like `supporters.lock`: one process, not transactional (see the file header).
       lock: async (id) => structuredClone(s.items.get(id) ?? null),
@@ -542,10 +558,45 @@ export class MemoryUnitOfWork implements UnitOfWork {
         ),
       async insert(item, first) {
         s.items.set(item.id, structuredClone(item));
-        s.revisions.set(first.id, structuredClone(first));
+        insertRevision(first);
       },
       save: async (item) => void s.items.set(item.id, structuredClone(item)),
-      insertRevision: async (r) => void s.revisions.set(r.id, structuredClone(r)),
+      insertRevision: async (r) => insertRevision(r),
+      async find({ blockType, ref, live, type }, after, limit) {
+        const matches: (ItemMatch & { id: string })[] = [];
+        for (const item of s.items.values()) {
+          if (type && item.type !== type) continue;
+          const revisionIds = live
+            ? new Set(item.publication.flatMap((p) => p.publishedRevisionId ?? []))
+            : new Set([item.latestRevisionId]);
+          let found = false;
+          const blockIds = new Set<string>();
+          for (const id of revisionIds) {
+            const typed = blockType
+              ? allBlocks(s.revisions.get(id)!.document.blocks).filter((b) => b.type === blockType)
+              : [];
+            const refs = ref
+              ? (s.blockRefs.get(id) ?? []).filter((r) => r.type === ref.type && r.refId === ref.id)
+              : [];
+            if ((blockType && !typed.length) || (ref && !refs.length)) continue;
+            found = true;
+            for (const b of typed) blockIds.add(b.id);
+            for (const r of refs) if (r.blockId) blockIds.add(r.blockId);
+          }
+          if (found) matches.push({ id: item.id, item, blockIds: [...blockIds] });
+        }
+        const page = paged(matches, after, limit);
+        return { ...page, rows: page.rows.map(({ item, blockIds }) => ({ item, blockIds })) };
+      },
+      async liveReferences(ref) {
+        return [...s.items.values()].filter((item) =>
+          item.publication.some((p) =>
+            (s.blockRefs.get(p.publishedRevisionId ?? '') ?? []).some(
+              (r) => r.type === ref.type && r.refId === ref.id
+            )
+          )
+        ).length;
+      },
       async revision(itemId, revisionId) {
         const r = s.revisions.get(revisionId);
         return r && r.itemId === itemId ? structuredClone(r) : null;
