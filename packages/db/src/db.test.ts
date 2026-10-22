@@ -28,8 +28,8 @@ import {
   createDb,
   createTenantDirectory,
   createUnitOfWork,
-  drainOutbox,
   migrate,
+  readOutboxEvent,
   upsertTenant,
   uuidv7,
   uuidv7Ids,
@@ -72,6 +72,36 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
   let tenantA = '';
   let tenantB = '';
   let formId = '';
+
+  // Drains only this suite's tenants (TODO #26). `drainOutbox` claims every tenant's events, and
+  // the db suites share one database: a drain here once ingested entitlements.conformance's
+  // signups and released their admission seats mid-assertion. Same row bookkeeping as the
+  // worker, read as mycel_worker like it. Rejected: a tenant filter on `drainOutbox` (production
+  // code for a test) and running the db suites serially (slower, and it hides the coupling).
+  // `drainOutbox` itself runs in the e2e signup flow, through the worker process.
+  async function drainOwn(): Promise<void> {
+    const { rows } = await operatorDb.transaction().execute(async (trx) => {
+      await sql`set local role mycel_worker`.execute(trx);
+      return sql<{ id: string }>`
+        select id from outbox
+        where tenant_id in (${tenantA}, ${tenantB}) and processed_at is null
+        order by id`.execute(trx);
+    });
+    for (const { id } of rows) {
+      const event = await readOutboxEvent(operatorDb, id);
+      if (!event) continue;
+      const handled = subscribers.filter((s) => s.types.includes(event.type));
+      for (const sub of handled) await sub.handle(event);
+      await operatorDb.transaction().execute(async (trx) => {
+        await sql`set local role mycel_worker`.execute(trx);
+        await trx
+          .updateTable('outbox')
+          .set({ delivered_to: handled.map((s) => s.name), processed_at: new Date() })
+          .where('id', '=', id)
+          .execute();
+      });
+    }
+  }
 
   beforeAll(async () => {
     await migrate(operatorUrl!, { appPassword: process.env['MYCEL_APP_PASSWORD'], log: () => {} });
@@ -121,9 +151,7 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
     });
     expect(result.status).toBe('accepted');
 
-    // Drain until our event is handled (other suites or a running worker may share the outbox).
-    for (let i = 0; i < 20 && !mailer.sent.some((m) => m.to.email === email); i++)
-      await drainOutbox(operatorDb, subscribers);
+    await drainOwn();
 
     const supporter = await invoker.run(useCases.getSupporter, systemPrincipal(tenantA, 'test'), {
       email,
@@ -156,13 +184,7 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
       });
     expect(await click()).toEqual({ status: 'confirmed' });
     expect(await click()).toEqual({ status: 'already_confirmed' });
-    for (let i = 0; i < 20; i++) {
-      await drainOutbox(operatorDb, subscribers);
-      const now = await invoker.run(useCases.getSupporter, systemPrincipal(tenantA, 'test'), {
-        email,
-      });
-      if (now.lists.length) break;
-    }
+    await drainOwn();
     const confirmed = await invoker.run(useCases.getSupporter, systemPrincipal(tenantA, 'test'), {
       email,
     });
@@ -173,6 +195,45 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
     expect(log.map((e) => e.type)).toEqual(['newsletter.subscribed', 'consent.given']);
     expect(rebuildProjection(log)).toEqual(confirmed);
     expect(mailer.sent.filter((m) => m.to.email === email)).toHaveLength(1);
+  });
+
+  it("leaves other suites' outbox events alone (TODO #26)", async () => {
+    const other = (
+      await upsertTenant(
+        operatorDb,
+        { id: uuidv7(), slug: `t-o-${run}`, name: 'O', defaultLocale: 'nl', locales: ['nl'] },
+        { platformDomain: 'localhost' }
+      )
+    ).id;
+    const id = uuidv7();
+    await uow.run(systemPrincipal(other, 'test'), (ctx) =>
+      ctx.events.publish({
+        id,
+        type: 'test.untouched',
+        tenantId: other,
+        occurredAt: new Date(),
+        actor: { kind: 'system', job: 'test' },
+        props: {},
+      })
+    );
+    const state = () =>
+      operatorDb.transaction().execute(async (trx) => {
+        await sql`set local role mycel_worker`.execute(trx);
+        const { rows } = await sql<{ processed_at: Date | null; attempts: number }>`
+          select processed_at, attempts from outbox where id = ${id}`.execute(trx);
+        return rows[0];
+      });
+    await drainOwn();
+    expect(await state()).toEqual({ processed_at: null, attempts: 0 });
+    // Close it so it does not linger in the shared outbox.
+    await operatorDb.transaction().execute(async (trx) => {
+      await sql`set local role mycel_worker`.execute(trx);
+      await trx
+        .updateTable('outbox')
+        .set({ processed_at: new Date() })
+        .where('id', '=', id)
+        .execute();
+    });
   });
 
   it('isolates tenants through RLS, not through where-clauses', async () => {
