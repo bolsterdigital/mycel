@@ -117,18 +117,94 @@ function only<T>(value: Partial<Record<string, T>>, locale: string): Record<stri
   return v === undefined ? {} : { [locale]: v };
 }
 
-/** Tenant references the blocks make: forms (ADR 004 rule 6) and linked content items. */
+/** What a reference points at (ADR 020 rule 7); the `type` column of `content_block_refs`. */
+export const REFERENCE_TYPES = ['form', 'item', 'author', 'section', 'media'] as const;
+export type ReferenceType = (typeof REFERENCE_TYPES)[number];
+
+/** One reference a block makes: the row `content_block_refs` holds for it. */
+export interface BlockReference {
+  blockId: string;
+  type: ReferenceType;
+  refId: string;
+}
+
+/**
+ * Every tenant reference of the blocks, one per block and target: forms (ADR 004 rule 6), linked
+ * content items, and media (none yet: the `image` block arrives with #8b2). A block that links
+ * the same item twice yields one row.
+ */
+export function blockReferenceRows(blocks: readonly Block[]): BlockReference[] {
+  const rows = new Map<string, BlockReference>();
+  const add = (blockId: string, type: ReferenceType, refId: string) =>
+    rows.set(`${blockId} ${type} ${refId}`, { blockId, type, refId });
+  for (const b of allBlocks(blocks)) {
+    if (b.type === 'signup-form') add(b.id, 'form', b.props.formId);
+    if (b.type === 'rich-text')
+      for (const doc of Object.values(b.props.content))
+        if (doc) for (const id of linkedItemIds(doc)) add(b.id, 'item', id);
+  }
+  return [...rows.values()];
+}
+
+/** Tenant references the blocks make, as sets per kind: what a save checks exists. */
 export function blockReferences(blocks: readonly BlockInput[]): {
   forms: string[];
   items: string[];
+  media: string[];
 } {
-  const forms = new Set<string>();
-  const items = new Set<string>();
-  for (const b of allBlocks(blocks)) {
-    if (b.type === 'signup-form') forms.add(b.props.formId);
-    if (b.type === 'rich-text')
-      for (const doc of Object.values(b.props.content))
-        if (doc) for (const id of linkedItemIds(doc)) items.add(id);
+  // Input blocks may lack an id; the sets do not need one.
+  const rows = blockReferenceRows(blocks.map((b) => ({ ...b, id: b.id ?? '-' }) as Block));
+  const of = (type: ReferenceType) => [
+    ...new Set(rows.filter((r) => r.type === type).map((r) => r.refId)),
+  ];
+  return { forms: of('form'), items: of('item'), media: of('media') };
+}
+
+/** The outcome of normalising one block list (ADR 020 rule 4). */
+export interface Normalized {
+  blocks: Block[];
+  /** Each id that disappeared into the block before it. */
+  merged: { from: string; into: string }[];
+}
+
+/**
+ * Merges every run of adjacent `rich-text` blocks into its first block: per locale the
+ * ProseMirror `content` arrays are concatenated in order, so marks, attributes and headings
+ * survive unchanged. Two blocks that do not have the same set of locales cannot be merged without
+ * one of them losing a translation or gaining an empty one, so that fails closed
+ * (`content.blocks.merge-ambiguous`) instead of guessing. Rejected: merging into the union of
+ * locales, which would publish half a translation.
+ */
+export function normalizeBlocks(blocks: readonly Block[]): Normalized {
+  const out: Block[] = [];
+  const merged: { from: string; into: string }[] = [];
+  for (const block of blocks) {
+    const previous = out.at(-1);
+    if (block.type !== 'rich-text' || previous?.type !== 'rich-text') {
+      out.push(block);
+      continue;
+    }
+    const a = previous.props.content;
+    const b = block.props.content;
+    const locales = Object.keys(a).sort();
+    if (locales.join() !== Object.keys(b).sort().join())
+      throw new BlockOperationError('blockId', `content.blocks.merge-ambiguous:${previous.id}`);
+    const content: Record<string, RichTextDoc> = {};
+    for (const l of locales)
+      content[l] = { type: 'doc', content: [...a[l]!.content, ...b[l]!.content] };
+    out[out.length - 1] = { ...previous, props: { content } };
+    merged.push({ from: block.id, into: previous.id });
   }
-  return { forms: [...forms], items: [...items] };
+  return { blocks: out, merged };
+}
+
+/** A block operation that cannot apply to this tree; the use case turns it into `invalid_input`. */
+export class BlockOperationError extends Error {
+  constructor(
+    /** The input field the problem is about (`blockId`, `before`, `at.en`, ...). */
+    readonly path: string,
+    readonly issue: string
+  ) {
+    super(issue);
+  }
 }

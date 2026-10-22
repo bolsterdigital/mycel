@@ -53,17 +53,41 @@ References are checked on every save and again at publication: forms, linked ite
 
 ## Use cases
 
-| Use case                                                      | Capability        | Notes                                                                                             |
-| ------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------- |
-| `content.item.create`, `content.item.update`                  | `content:write`   | Update needs `baseRevisionId`; a stale base is a typed `conflict` with nothing written            |
-| `content.item.get`, `list`, `revisions`, `diff`               | `content:read`    | Editorial; lists are keyset pages, newest first; `diff` lists changed paths, blocks matched by id |
-| `content.item.publish`, `unpublish`, `schedule`, `unschedule` | `content:publish` | One locale each; `effect: publish`. A manual publish or unpublish cancels that locale's plan      |
-| `content.author.*`, `content.section.*`, `content.pattern.*`  | write / read      | create, update, get, list                                                                         |
-| `content.page.get`                                            | `content:read`    | The public projection: one published locale of a public page, chosen among published locales only |
+| Use case                                                             | Capability        | Notes                                                                                             |
+| -------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------- |
+| `content.item.create`, `content.item.update`                         | `content:write`   | Update needs `baseRevisionId`; a stale base is a typed `conflict` with nothing written            |
+| `content.item.get`, `list`, `revisions`, `diff`                      | `content:read`    | Editorial; lists are keyset pages, newest first; `diff` lists changed paths, blocks matched by id |
+| `content.item.publish`, `unpublish`, `schedule`, `unschedule`        | `content:publish` | One locale each; `effect: publish`. A manual publish or unpublish cancels that locale's plan      |
+| `content.item.insert`, `move`, `remove`, `set_props`, `split_insert` | `content:write`   | One block by id; each needs `baseRevisionId` and makes one revision (see below)                   |
+| `content.item.find`                                                  | `content:read`    | By block type and/or reference, latest or `live`; keyset pages, newest first                      |
+| `content.author.*`, `content.section.*`, `content.pattern.*`         | write / read      | create, update, get, list                                                                         |
+| `content.page.get`                                                   | `content:read`    | The public projection: one published locale of a public page, chosen among published locales only |
 
 Every editorial use case is `authenticatedOnly`: an anonymous principal is refused whatever capabilities it holds, so a public visitor's `content:read` opens nothing but `content.page.get`. The registry rules require the flag for every `content.item.*`, `content.author.*`, `content.section.*` and `content.pattern.*` use case.
 
 Every write takes the item lock (`select ... for update` on the item row) first. Two saves on one base therefore end in one new revision and one `conflict`, and a publication change racing a save or a scheduled job serialises in lock order.
+
+## Block operations and references
+
+Five commands edit one block without sending the whole document (ADR 020 rule 6). Each takes `itemId` and `baseRevisionId`, runs the same path as `content.item.update` (item lock, base check, full document validation, reference checks, block switches, one attributed revision) and returns `{ item, revision, created, retired, merged }`:
+
+| Use case                    | Input besides item and base                                   | Effect                                                                                                                           |
+| --------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `content.item.insert`       | `block`, `place`                                              | A new block; a supplied id must be free, otherwise the insert is refused; an omitted id is generated                             |
+| `content.item.move`         | `blockId`, `place`                                            | Same id at the new place, then normalise                                                                                         |
+| `content.item.remove`       | `blockId`                                                     | The id is retired, then normalise                                                                                                |
+| `content.item.set_props`    | `blockId`, `props`                                            | The complete props of that block's type; id and type stay. A locale left out of a localised field is removed from it             |
+| `content.item.split_insert` | `blockId` (a `rich-text`), `at: { [locale]: index }`, `block` | Splits every locale of the text before `content[index]` and puts `block` between; the first part keeps the id, the second is new |
+
+`place` is `{ before: id }`, `{ after: id }` or `{ at: 'start' | 'end' }`. Ids, never array indexes. An unknown `blockId` or anchor is `invalid_input` on that field (`content.block.unknown:<id>`), never `not_found`: the item exists, the request does not fit it. A stale base is `conflict` with nothing written.
+
+- **Normalisation** (ADR 020 rule 4): after a move or remove, adjacent `rich-text` blocks merge into the first one; per locale the ProseMirror `content` arrays are concatenated, so marks, attributes and headings stay. Two blocks without the same set of locales do not merge: the operation fails with `content.blocks.merge-ambiguous:<id>` instead of losing or inventing a translation. `merged` lists `{ from, into }`, `retired` the removed and merged-away ids. Insert and `set_props` never normalise; an insert next to a `rich-text` is refused as `content.blocks.adjacent-rich-text`, as an update is.
+- **Split-and-insert**: `at` names every locale the block has (`content.split.locale-missing`, `content.split.locale-unknown`), and both halves keep at least one node (`content.split.empty-part`). A `rich-text` block as the inserted block is refused, because the result would be adjacent text.
+- **Block switches**: every block type in a saved document or pattern must be on in the site's entitlements (`blocks.<type>`); a switched-off type is `limit_exceeded` with `entitlements.feature_off` on create, update, every block operation and pattern create/update.
+
+`content_block_refs (tenant_id, item_id, revision_id, block_id, type, ref_id)` (migration 0017) records every structured reference of every revision: `form` (signup blocks), `item` (link marks with `itemId`, anywhere in a rich-text tree), `media` (none until the `image` block of #8b2) per block, and `author` and `section` with a null `block_id`. The content repository writes the rows from `documentReferences` whenever it inserts a revision, so no caller can forget them; like revisions they are immutable for `mycel_app`. In the same transaction the save calls `ctx.media.replaceUsages('item:<itemId>:rev:<revisionId>', ...)` with the document's media blocks (an empty list for now). Migration 0017 backfilled every existing revision per tenant; `packages/db/src/content-refs-migration.conformance.test.ts` replays that block.
+
+`content.item.find({ blockType?, ref?: { type, id }, live?, type?, after?, limit? })` needs at least one of `blockType` and `ref` and returns `{ items, matches: [{ itemId, blockIds }], next }`. Without `live` it searches each item's latest revision; with `live: true` only revisions that a locale publishes (`published_revision_id`), never drafts or history. When both filters are set, a revision must satisfy both. `blockIds` are the union of matching blocks (of the type, or carrying the reference) in those qualifying revisions only; a document-level reference matches no block. The block-type filter is a containment query served by a GIN `jsonb_path_ops` index on `content_revisions.document`. `ContentRepository.liveReferences({ type, id })` counts the items whose published revision in any locale uses a reference: the hook for refusing to delete something live (ADR 004 rule 6). Both run under RLS, so another tenant's id finds nothing.
 
 ## Scheduled publishing
 
@@ -77,4 +101,4 @@ Migration 0011 converts every row of `pages` in SQL, once, inside the migration'
 
 ## Not here yet
 
-Block operations by id, `content.item.find` and `content_block_refs` are #8b1; the remaining blocks, variants and theme #8b2; the renderers, locale routing, the read route with `ETag` and the block conformance suite #8c; SEO output, feeds and redirects #9; the editor #11; reader access #19. The public web route renders `rich-text` and `paywall` as nothing until #8c.
+Blocks inside other blocks (the operations address one flat list until a container block exists); the remaining blocks, variants and theme #8b2; the renderers, locale routing, the read route with `ETag` and the block conformance suite #8c; SEO output, feeds and redirects #9; the editor #11; reader access #19. The public web route renders `rich-text` and `paywall` as nothing until #8c.

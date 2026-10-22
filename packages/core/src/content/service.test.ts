@@ -38,7 +38,7 @@ describe('content items', () => {
   let invoker: Invoker;
   let admin: Principal;
   const writer = (): Principal => ({
-    tenantId: TENANT,
+    ...systemPrincipal(TENANT, 'writer'),
     actor: { kind: 'api-key', keyId: 'writer' },
     capabilities: ['content:read', 'content:write'],
   });
