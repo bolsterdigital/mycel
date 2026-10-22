@@ -22,7 +22,12 @@ import {
   Slug,
 } from './model.js';
 import type { SluggedRepository } from './ports.js';
-import { DEFAULT_PAGE_SIZE, requireBlockTypes } from './service.js';
+import {
+  DEFAULT_PAGE_SIZE,
+  blockReferenceIssues,
+  recordMediaUsages,
+  requireBlockTypes,
+} from './service.js';
 import './ports.js';
 
 const Limit = z.number().int().min(1).max(100).optional();
@@ -199,6 +204,25 @@ function withIds(ctx: TransactionContext, blocks: readonly BlockInput[]) {
   return assignBlockIds(blocks, () => ctx.ids.next());
 }
 
+/**
+ * Patterns protect their media like revisions do, under `pattern:<id>` with the pattern's own
+ * block ids (docs/reference/media.md § Usages). A pattern write takes the media lock before it
+ * reads anything, so the row and its usages always come from the same write, and a delete of an
+ * image it uses waits or refuses. The references are checked like a document's.
+ */
+async function savePatternBlocks(
+  ctx: TransactionContext,
+  pattern: Pattern,
+  write: () => Promise<void>
+): Promise<Pattern> {
+  const issues = await blockReferenceIssues(ctx, pattern.blocks);
+  if (issues.length)
+    throw new UseCaseError('invalid_input', 'the pattern references unknown data', issues);
+  await write();
+  await recordMediaUsages(ctx, `pattern:${pattern.id}`, pattern.blocks);
+  return pattern;
+}
+
 export const createPattern = defineUseCase({
   name: 'content.pattern.create',
   kind: 'command',
@@ -218,6 +242,7 @@ export const createPattern = defineUseCase({
     },
   ],
   async handler(ctx, { blocks, ...fields }) {
+    await ctx.media.lock();
     const now = stamp(ctx);
     const pattern: Pattern = {
       ...fields,
@@ -226,8 +251,7 @@ export const createPattern = defineUseCase({
       createdAt: now,
       updatedAt: now,
     };
-    await ctx.patterns.insert(pattern);
-    return pattern;
+    return savePatternBlocks(ctx, pattern, () => ctx.patterns.insert(pattern));
   },
 });
 
@@ -250,6 +274,8 @@ export const updatePattern = defineUseCase({
     },
   ],
   async handler(ctx, { patternId, blocks, ...fields }) {
+    // Lock before reading, so the pattern read here is the one whose usages get replaced.
+    await ctx.media.lock();
     const current = await ctx.patterns.get(patternId);
     if (!current) throw notFound('pattern');
     const pattern: Pattern = {
@@ -259,8 +285,7 @@ export const updatePattern = defineUseCase({
       createdAt: current.createdAt,
       updatedAt: stamp(ctx),
     };
-    await ctx.patterns.update(pattern);
-    return pattern;
+    return savePatternBlocks(ctx, pattern, () => ctx.patterns.update(pattern));
   },
 });
 

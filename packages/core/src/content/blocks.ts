@@ -1,56 +1,84 @@
-// The block registry of the content model (ADR 004, ADR 020 rule 1). A block is `{ id, type,
-// version, props }`: the id is a stable string, unique in the whole document, kept across edits
-// and moves, so editors and agents address blocks by identity instead of array position. The
-// stored schema requires the id; the input schema lets a caller omit it for a new block and the
-// core assigns one (`assignBlockIds`).
+// The block envelope and the helpers every save, publish and projection runs (ADR 004, ADR 020
+// rule 1). A block is `{ id, type, version, props }`: the id is a stable string, unique in the
+// whole document, kept across edits and moves, so editors and agents address blocks by identity
+// instead of array position. The stored schema requires the id; the input schema lets a caller
+// omit it for a new block and the core assigns one (`assignBlockIds`).
 //
-// This is #8a's set: `heading` and `signup-form` from the probe, plus `rich-text` and the
-// `paywall` boundary. #8b adds the rest (quote, image, ...) by entry, and with containers the
-// tree walk below starts descending into child block lists. Rejected: the block id as an array
-// index (an insert renumbers everything after it, ADR 020 rejected alternatives).
+// The types themselves are entries in `block-types.ts`; everything here is derived from those
+// entries (schema, localised fields, projection, references), so adding a type touches one file.
+// With containers the tree walk below starts descending into child block lists. Rejected: the
+// block id as an array index (an insert renumbers everything after it, ADR 020 rejected
+// alternatives), and a switch per helper (a new type that one helper forgets leaks a locale or
+// misses a reference).
 
 import { z } from 'zod';
-import { localized } from '../i18n/locale.js';
-import { RichTextDoc, linkedItemIds } from './rich-text.js';
+import { BLOCK_DEFINITIONS, type BlockDefinition, type LocalField } from './block-types.js';
+import type { RichTextDoc } from './rich-text.js';
+
+export * from './block-types.js';
 
 /** Total blocks per document, nested ones included (ADR 020 rule 1). */
 export const MAX_BLOCKS = 200;
 
 export const BlockId = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/, 'content.block-id.invalid');
 
-const blockProps = {
-  // No `level` prop: the renderer derives the heading level from tree depth (ADR 004 rule 3).
-  heading: z.object({ text: localized(z.string().min(1).max(200)) }).strict(),
-  // A reference, never a copy: the forms module owns the fields (ADR 004 rule 6).
-  'signup-form': z.object({ formId: z.string().uuid() }).strict(),
-  'rich-text': z.object({ content: localized(RichTextDoc) }).strict(),
-  // The teaser boundary of `access.teaser: 'marker'` (ADR 018 rule 6); it renders nothing.
-  paywall: z.object({}).strict(),
-} as const;
+type Definitions = typeof BLOCK_DEFINITIONS;
+export type BlockType = keyof Definitions;
+export const BLOCK_TYPES = Object.keys(BLOCK_DEFINITIONS) as BlockType[];
 
-export type BlockType = keyof typeof blockProps;
-export const BLOCK_TYPES = Object.keys(blockProps) as BlockType[];
+/** The props of one type as stored (defaults applied) and as a caller may send them. */
+export type BlockProps<K extends BlockType> = z.infer<Definitions[K]['props']>;
+export type BlockPropsInput<K extends BlockType> = z.input<Definitions[K]['props']>;
 
-function blockSchema<T extends z.ZodTypeAny>(id: T) {
-  const block = <K extends BlockType>(type: K) =>
+export type StoredBlock = {
+  [K in BlockType]: { id: string; type: K; version: 1; props: BlockProps<K> };
+}[BlockType];
+export type StoredBlockIn = {
+  [K in BlockType]: { id: string; type: K; version: 1; props: BlockPropsInput<K> };
+}[BlockType];
+export type NewBlock = {
+  [K in BlockType]: { id?: string | undefined; type: K; version: 1; props: BlockProps<K> };
+}[BlockType];
+export type NewBlockIn = {
+  [K in BlockType]: { id?: string | undefined; type: K; version: 1; props: BlockPropsInput<K> };
+}[BlockType];
+
+/** The definition of a type, untyped, for the generic helpers below. */
+function definition(type: BlockType): BlockDefinition<z.ZodTypeAny> {
+  return BLOCK_DEFINITIONS[type] as BlockDefinition<z.ZodTypeAny>;
+}
+
+function blockSchema(id: z.ZodTypeAny): z.ZodTypeAny {
+  const options = BLOCK_TYPES.map((type) =>
     z
-      .object({ id, type: z.literal(type), version: z.literal(1), props: blockProps[type] })
-      .strict();
-  return z.discriminatedUnion('type', [
-    block('heading'),
-    block('signup-form'),
-    block('rich-text'),
-    block('paywall'),
-  ]);
+      .object({
+        id,
+        type: z.literal(type),
+        version: z.literal(definition(type).version),
+        props: definition(type).props,
+      })
+      .strict()
+  );
+  return z.discriminatedUnion(
+    'type',
+    options as unknown as [
+      z.ZodDiscriminatedUnionOption<'type'>,
+      ...z.ZodDiscriminatedUnionOption<'type'>[],
+    ]
+  );
 }
 
 /** A stored block: the id is required. */
-export const Block = blockSchema(BlockId);
-export type Block = z.infer<typeof Block>;
+export const Block = blockSchema(BlockId) as z.ZodType<StoredBlock, z.ZodTypeDef, StoredBlockIn>;
+export type Block = StoredBlock;
 
 /** A block as a caller sends it: a new block may omit its id. */
-export const BlockInput = blockSchema(BlockId.optional());
-export type BlockInput = z.infer<typeof BlockInput>;
+export const BlockInput = blockSchema(BlockId.optional()) as z.ZodType<
+  NewBlock,
+  z.ZodTypeDef,
+  NewBlockIn
+>;
+export type BlockInput = NewBlock;
 
 /** Every block of the tree, depth first. Flat for now: no #8a block has child blocks. */
 export function allBlocks<B extends { type: string }>(blocks: readonly B[]): B[] {
@@ -85,36 +113,38 @@ export function assignBlockIds(blocks: readonly BlockInput[], next: () => string
 }
 
 /** The localised fields of one block, with their path inside the block and whether they are required. */
-export function blockLocalized(
-  block: BlockInput
-): { path: (string | number)[]; value: Record<string, unknown>; required: boolean }[] {
-  switch (block.type) {
-    case 'heading':
-      return [{ path: ['props', 'text'], value: block.props.text, required: true }];
-    case 'rich-text':
-      return [{ path: ['props', 'content'], value: block.props.content, required: true }];
-    case 'signup-form':
-    case 'paywall':
-      return [];
-  }
+export function blockLocalized(block: BlockInput): LocalField[] {
+  return definition(block.type)
+    .localized(block.props)
+    .map((f) => ({ ...f, path: ['props', ...f.path] }));
 }
 
-/** The block as one locale sees it: every localised field reduced to that locale's value. */
+/**
+ * The block as one locale sees it: every localised field, nested ones included, reduced to that
+ * locale's value. Driven by `blockLocalized`, so projection and readiness see the same fields.
+ */
 export function projectBlock(block: Block, locale: string): Block {
-  switch (block.type) {
-    case 'heading':
-      return { ...block, props: { text: only(block.props.text, locale) } };
-    case 'rich-text':
-      return { ...block, props: { content: only(block.props.content, locale) } };
-    case 'signup-form':
-    case 'paywall':
-      return block;
-  }
+  let out: unknown = block;
+  for (const f of blockLocalized(block)) out = setIn(out, f.path, only(f.value, locale));
+  return out as Block;
 }
 
 function only<T>(value: Partial<Record<string, T>>, locale: string): Record<string, T> {
   const v = value[locale];
   return v === undefined ? {} : { [locale]: v };
+}
+
+/** A copy of `target` with `value` at `path`; every object or array on the path is copied. */
+function setIn(target: unknown, path: readonly (string | number)[], value: unknown): unknown {
+  const [key, ...rest] = path;
+  if (key === undefined) return value;
+  const next = setIn((target as Record<string | number, unknown>)[key], rest, value);
+  if (Array.isArray(target)) {
+    const copy = [...target];
+    copy[key as number] = next;
+    return copy;
+  }
+  return { ...(target as object), [key]: next };
 }
 
 /** What a reference points at (ADR 020 rule 7); the `type` column of `content_block_refs`. */
@@ -130,19 +160,14 @@ export interface BlockReference {
 
 /**
  * Every tenant reference of the blocks, one per block and target: forms (ADR 004 rule 6), linked
- * content items, and media (none yet: the `image` block arrives with #8b2). A block that links
- * the same item twice yields one row.
+ * content items (rich text, card actions) and media (`image`, a hero's image). A block that
+ * links the same item twice yields one row.
  */
 export function blockReferenceRows(blocks: readonly Block[]): BlockReference[] {
   const rows = new Map<string, BlockReference>();
-  const add = (blockId: string, type: ReferenceType, refId: string) =>
-    rows.set(`${blockId} ${type} ${refId}`, { blockId, type, refId });
-  for (const b of allBlocks(blocks)) {
-    if (b.type === 'signup-form') add(b.id, 'form', b.props.formId);
-    if (b.type === 'rich-text')
-      for (const doc of Object.values(b.props.content))
-        if (doc) for (const id of linkedItemIds(doc)) add(b.id, 'item', id);
-  }
+  for (const b of allBlocks(blocks))
+    for (const { type, refId } of definition(b.type).references(b.props))
+      rows.set(`${b.id} ${type} ${refId}`, { blockId: b.id, type, refId });
   return [...rows.values()];
 }
 

@@ -19,4 +19,23 @@ export const nl: Partial<Messages> = {
   'mail.confirm.button': 'Inschrijving bevestigen',
   'mail.confirm.fallback': 'Werkt de knop niet? Kopieer deze link naar je browser:',
   'mail.confirm.ignore': 'Heb je je niet zelf ingeschreven? Dan kun je deze mail negeren.',
+  'theme.color.invalid': 'Vul een kleur in als # met zes hexadecimale tekens, zoals #1f4f8f.',
+  'theme.value.out-of-range': 'Deze waarde valt buiten het toegestane bereik.',
+  'theme.value.not-allowed': 'Deze waarde is geen van de keuzes.',
+  'theme.key.unknown': 'Deze instelling hoort niet bij een thema.',
+  'theme.contrast.too-low':
+    'Het contrast is te laag: tekst, links of de focusmarkering zijn dan slecht te zien.',
+  'patterns.long-read.name': 'Longread',
+  'patterns.long-read.description':
+    'Een artikel met ruimte voor een lange tekst en een uitgelicht citaat.',
+  'patterns.long-read.intro': 'Begin met de kern van het verhaal in twee of drie zinnen.',
+  'patterns.long-read.body':
+    'Schrijf hier het verhaal. Gebruik tussenkoppen om de lezer rust te geven.',
+  'patterns.long-read.quote': 'Een zin uit het verhaal die de lezer verder laat lezen.',
+  'patterns.long-read.quote-name': 'Naam van de spreker',
+  'patterns.photo-story.name': 'Fotoverhaal',
+  'patterns.photo-story.description': 'Een verhaal in foto’s, elk met een korte tekst.',
+  'patterns.photo-story.title': 'Titel van het fotoverhaal',
+  'patterns.photo-story.intro': 'Leid het verhaal in: waar, wanneer en waarom deze foto’s.',
+  'patterns.photo-story.between': 'Vertel wat deze foto laat zien dat de lezer anders niet ziet.',
 };

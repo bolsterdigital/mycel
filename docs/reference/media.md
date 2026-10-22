@@ -69,15 +69,15 @@ Without a session or membership both are `403`; another site's id is `404` (RLS 
 
 ## Usages and deleting
 
-`media_usages` (`tenant_id`, `media_id`, `ref`, `block_id`) records live references. `ref` is opaque to the media module: `item:<id>:rev:<id>` for a revision's block tree, `og:<...>` for a cached og-image. The writer replaces all rows of one ref in its own transaction:
+`media_usages` (`tenant_id`, `media_id`, `ref`, `block_id`) records references. `ref` is opaque to the media module: `item:<id>:rev:<id>` for a revision's block tree, `pattern:<id>` for a pattern, `og:<...>` for a cached og-image. The writer replaces all rows of one ref in its own transaction:
 
 ```ts
 await ctx.media.replaceUsages(`item:${itemId}:rev:${revisionId}`, [
-  { mediaId, blockId }, // one per image block
+  { mediaId, blockId }, // one per image block and per hero image
 ]);
 ```
 
-An unknown or deleted media id is skipped, never an error. `media.get` shows `usageCount`; `media.delete` refuses with `conflict` (issue `media.in_use`) while it is above zero (ADR 004 rule 6).
+The repository skips an unknown or deleted media id and returns how many rows it wrote; the content module checks the reference first and refuses a save whose count falls short, so a usage is never silently missing (`docs/reference/content-model.md` § Media references). Usages of older revisions stay: deleting is refused while any revision or pattern uses the asset. `media.get` shows `usageCount`; `media.delete` takes the tenant's media lock, then refuses with `conflict` (issue `media.in_use`) while it is above zero (ADR 004 rule 6). Content saves take the same lock before they read media, so a save and a delete of one asset never both succeed.
 
 A delete sets `deleted_at` (the asset disappears from every read and from the storage count at once) and plans `media.purge { mediaId, keys }` in the same transaction. The purge (a tenant job) deletes the keys and then the row; it is idempotent, refuses keys outside its own asset's prefix, and runs for a suspended tenant too (deleting is not publishing). The daily platform job `media.orphans` takes the tenant list from the platform role and sweeps each tenant in its own unit of work as `mycel_app`: every key under the tenant's prefix whose media id has no row and which is older than 24 hours is deleted. Younger files may belong to an upload whose transaction has not committed. There is no cross-tenant policy on `media` (ADR 011 rule 1).
 
@@ -97,9 +97,11 @@ Locally, `docker compose -f compose.dev.yml --profile blob up -d` starts an S3-c
 
 The Docker image needs nothing extra: sharp's libvips binary for linux-x64 or arm64 (glibc) is an optional npm dependency and installs with `npm ci --ignore-scripts`.
 
-## For the `image` block (#8b2)
+## For the `image` block
 
-Props: `{ mediaId, alt: localised | null, decorative: boolean, caption?: localised, layout }` (alt or decorative, never neither; the caption on the block overrides the asset's). The renderer reads the asset with `media.get` (or the repository in the same transaction), builds `srcset` from the `variants` of one format each (`<picture>` with an AVIF and a WebP `<source>`), sets `width` and `height` from the asset (ADR 009 rule 4), and `object-position` from `focal`. A restricted asset has empty paths; such an image renders only for a reader with access, with signed paths (#19). Saving a block tree calls `replaceUsages` for the revision.
+Props (#8b2): `{ mediaId, decorative, alt: localised | null, caption?: localised, credit?: MediaCredit, layout }`; alt is required unless decorative, and null when decorative. A block caption or credit overrides the asset's for this use; an absent one inherits it; an empty caption string hides it in that locale. A hero's image has the same props with `layout: content`. A save refuses a media id that is unknown in the tenant, deleted or not an image.
+
+The renderer (#8c) reads the asset with `media.get` (or the repository in the same transaction), builds `srcset` from the `variants` of one format each (`<picture>` with an AVIF and a WebP `<source>`), sets `width` and `height` from the asset (ADR 009 rule 4), and `object-position` from `focal`. A missing caption translation is not filled from another locale. A restricted asset has empty paths; such an image renders only for a reader with access, with signed paths (#19); an anonymous visitor never gets a restricted path.
 
 ## A later delivery adapter
 
