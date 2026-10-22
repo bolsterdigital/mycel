@@ -8,6 +8,7 @@ import {
   Invoker,
   JobPayloads,
   RECONCILE_LAG_MS,
+  SUSPENDED_RETRY_MS,
   UseCaseError,
   buildRegistry,
   renderConfirmationMail,
@@ -223,5 +224,44 @@ describe('job handlers', () => {
       expect(await h(j)).toEqual({ next: new Date(clock.now().getTime() + 24 * 60 * 60 * 1000) });
       expect(mailer.sent).toHaveLength(0);
     });
+  });
+
+  // #8a with #16: schedule, suspend, run the worker's handler. Nothing goes live, the pin stays
+  // and the job asks to come back in a day; once the site is active again the pin is published.
+  it('keeps a scheduled publication of a suspended site pinned and retries it later', async () => {
+    uow.store.setAccess(TENANT, { status: 'active' });
+    const invoker = new Invoker(buildRegistry(), uow);
+    const admin = systemPrincipal(TENANT, 'test');
+    const { item, revision } = await invoker.run(useCases.createItem, admin, {
+      slug: 'scheduled',
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: 'T' },
+        blocks: [],
+      },
+    });
+    const at = new Date(clock.now().getTime() + 60_000);
+    await invoker.run(useCases.scheduleItem, admin, {
+      itemId: item.id,
+      revisionId: revision.id,
+      locale: 'nl',
+      at: at.toISOString(),
+    });
+    const planned = uow.store.jobs.find((j) => j.type === 'content.publish' && !j.doneAt)!;
+    clock.advance(120_000);
+    const nl = async () =>
+      (await invoker.run(useCases.getItem, admin, { itemId: item.id })).item.publication[0]!;
+
+    uow.store.setAccess(TENANT, { status: 'suspended' });
+    expect(await handlers['content.publish']!(planned)).toEqual({
+      next: new Date(clock.now().getTime() + SUSPENDED_RETRY_MS),
+    });
+    expect(await nl()).toMatchObject({ status: 'scheduled', scheduledRevisionId: revision.id });
+
+    uow.store.setAccess(TENANT, { status: 'active' });
+    expect(await handlers['content.publish']!(planned)).toEqual({});
+    expect(await nl()).toMatchObject({ status: 'published', publishedRevisionId: revision.id });
   });
 });

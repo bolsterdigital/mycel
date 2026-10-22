@@ -1,7 +1,7 @@
 // Dev seed: the probe tenant (platform path, operator connection) and its signup form and page
-// (tenant path: the page goes through the `content.page.create` use case like any front would),
-// a pending admin to log in as, entitlements with the credit on and a supporter cap, and, when
-// MYCEL_API_KEY is set, an API key with that token.
+// (tenant path: the page goes through `content.item.create` and an explicit `content.item.publish`
+// per locale like any front would), a pending admin to log in as, entitlements with the credit on
+// and a supporter cap, and, when MYCEL_API_KEY is set, an API key with that token.
 // Idempotent: running it twice leaves one tenant, one form, one page, one admin, one key.
 
 import {
@@ -27,7 +27,7 @@ import {
   FakeInputHasher,
   memoryPlatform,
   probeForm,
-  probePage,
+  publishProbePage,
 } from '@mycel/core/testing';
 
 const operatorUrl = process.env['DATABASE_URL'];
@@ -76,7 +76,9 @@ try {
   const invoker = new Invoker(buildRegistry(), uow);
   const admin = systemPrincipal(tenant.id, 'seed');
 
-  const existing = await invoker.run(useCases.getPage, admin, { slug: 'signup' }).catch(() => null);
+  const [existing] = (
+    await invoker.run(useCases.listItems, admin, { type: 'page', slug: 'signup' })
+  ).items;
   if (existing) {
     console.log(
       `tenant ${tenant.slug} (${tenant.id}) already seeded: /${tenant.slug}/${existing.slug} and ${tenant.slug}.${platformDomain}`
@@ -84,7 +86,7 @@ try {
   } else {
     const form = probeForm(uuidv7());
     await uow.run(admin, (ctx) => ctx.forms.insert(form));
-    const page = await invoker.run(useCases.createPage, admin, probePage(form.id));
+    const page = await publishProbePage(invoker, admin, form.id);
     console.log(
       `seeded tenant ${tenant.slug} (${tenant.id}), form ${form.id}, page /${tenant.slug}/${page.slug}`
     );

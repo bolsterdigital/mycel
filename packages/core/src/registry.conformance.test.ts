@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { DEFAULT_ENTITLEMENTS } from './entitlements/model.js';
 import { UseCaseError } from './errors.js';
 import { Invoker } from './invoke.js';
-import { Capability, systemPrincipal, type Principal } from './principal.js';
+import { anonymousPrincipal, Capability, systemPrincipal, type Principal } from './principal.js';
 import { checkRegistry } from './registry-rules.js';
 import type { UseCase } from './registry.js';
 import { MemoryUnitOfWork, probeForm, probeTenant } from './testing/index.js';
@@ -57,6 +57,28 @@ describe('a use case that consumes a limit checks it (ADR 015)', () => {
   );
 });
 
+// Drafts, revisions and author e-mail never reach a public visitor, even one handed every
+// capability: `authenticatedOnly` is checked before capabilities, in the one Invoker every
+// front uses.
+describe('editorial use cases refuse anonymous principals', () => {
+  const registry = buildRegistry();
+  const editorial = registry.list().filter((u) => u.authenticatedOnly);
+  it('has editorial use cases to check', () => expect(editorial.length).toBeGreaterThan(0));
+  it.each(editorial.map((u) => [u.name, u] as const))(
+    '%s refuses an anonymous principal with every capability',
+    async (_name, useCase) => {
+      const invoker = new Invoker(registry, new MemoryUnitOfWork());
+      const visitor = anonymousPrincipal(
+        '01900000-0000-7000-8000-00000000aaaa',
+        Capability.options
+      );
+      await expect(
+        invoker.call(visitor, useCase.name, useCase.examples[0].input)
+      ).rejects.toMatchObject({ code: 'forbidden' });
+    }
+  );
+});
+
 // The rules above pass vacuously unless each one is shown to catch a violation.
 describe('registry rules catch violations', () => {
   const base: UseCase = {
@@ -64,6 +86,7 @@ describe('registry rules catch violations', () => {
     kind: 'command',
     description: 'Update an item.',
     requires: 'content:write',
+    authenticatedOnly: true,
     input: z.object({ id: z.string() }),
     output: z.object({ id: z.string() }),
     handler: async (_ctx, input) => input,
@@ -124,6 +147,11 @@ describe('registry rules catch violations', () => {
       /must declare consumes/,
     ],
     ['forms.submit without consumes', { name: 'forms.submit' }, /must declare consumes/],
+    [
+      'an editorial use case open to anonymous principals',
+      { authenticatedOnly: false },
+      /must be authenticatedOnly/,
+    ],
   ])('rejects %s', (_label, override, rule) => {
     const found = violations(override as Partial<UseCase>);
     expect(found).toHaveLength(1);
@@ -221,7 +249,7 @@ describe('every command leaves exactly one audit row (TODO #17b)', () => {
 
   it('proves the ok row for the commands whose example runs on the probe fixture', () => {
     expect(succeeded).toEqual(
-      expect.arrayContaining(['content.page.create', 'forms.submit', 'tenant.keys.create'])
+      expect.arrayContaining(['content.item.create', 'forms.submit', 'tenant.keys.create'])
     );
   });
 });

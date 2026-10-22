@@ -2,7 +2,33 @@
 // registers itself as an import side effect, so what is exposed is exactly what is listed here.
 
 import { listAudit } from './audit/service.js';
-import { createPage, getPage } from './content/service.js';
+import {
+  createAuthor,
+  createPattern,
+  createSection,
+  getAuthor,
+  getPattern,
+  getSection,
+  listAuthors,
+  listPatterns,
+  listSections,
+  updateAuthor,
+  updatePattern,
+  updateSection,
+} from './content/entities.js';
+import { getPage } from './content/public.js';
+import {
+  createItem,
+  diffRevisions,
+  getItem,
+  listItems,
+  listRevisions,
+  publishItem,
+  scheduleItem,
+  unpublishItem,
+  unscheduleItem,
+  updateItem,
+} from './content/service.js';
 import { getEntitlements, getUsage } from './entitlements/service.js';
 import { getForm, submitForm } from './forms/service.js';
 import { confirmSubscription } from './mailing/service.js';
@@ -28,7 +54,28 @@ import {
 
 export const useCases = {
   getPage,
-  createPage,
+  createItem,
+  updateItem,
+  getItem,
+  listItems,
+  listRevisions,
+  diffRevisions,
+  publishItem,
+  unpublishItem,
+  scheduleItem,
+  unscheduleItem,
+  createAuthor,
+  updateAuthor,
+  getAuthor,
+  listAuthors,
+  createSection,
+  updateSection,
+  getSection,
+  listSections,
+  createPattern,
+  updatePattern,
+  getPattern,
+  listPatterns,
   getForm,
   submitForm,
   confirmSubscription,

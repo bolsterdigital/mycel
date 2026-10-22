@@ -29,14 +29,26 @@ async function setup() {
 // Generic HTTP behaviour (status codes, Problem Details, OpenAPI) is in
 // registry.conformance.test.ts; this file keeps the signup flow and the caching contract.
 describe('HTTP front', () => {
-  it('runs the signup flow: create the page, read it, submit the form', async () => {
+  it('runs the signup flow: create the page, publish it, read it, submit the form', async () => {
     const { post } = await setup();
     expect((await post('content.page.get', { slug: 'signup' })).status).toBe(404);
-    expect((await post('content.page.create', probePage(FORM))).status).toBe(200);
+    const created = await post('content.item.create', probePage(FORM));
+    expect(created.status).toBe(200);
+    const { item, revision } = (await created.json()) as {
+      item: { id: string };
+      revision: { id: string };
+    };
+    // A draft is not public: nothing is served before an explicit publish.
+    expect((await post('content.page.get', { slug: 'signup' })).status).toBe(404);
+    for (const locale of ['nl', 'en'])
+      expect(
+        (await post('content.item.publish', { itemId: item.id, revisionId: revision.id, locale }))
+          .status
+      ).toBe(200);
     const page = await post('content.page.get', { slug: 'signup' });
     expect(page.status).toBe(200);
-    expect(await page.json()).toMatchObject({ slug: 'signup' });
-    expect((await post('content.page.create', probePage(FORM))).status).toBe(409);
+    expect(await page.json()).toMatchObject({ slug: 'signup', locale: 'nl' });
+    expect((await post('content.item.create', probePage(FORM))).status).toBe(409);
 
     const submit = await post('forms.submit', {
       formId: FORM,
@@ -47,9 +59,35 @@ describe('HTTP front', () => {
     expect((await post('no.such.thing', {})).status).toBe(404);
   });
 
+  it('never returns an unpublished translation from the published snapshot', async () => {
+    const { post } = await setup();
+    const input = probePage(FORM);
+    input.document.blocks[0] = {
+      type: 'heading',
+      version: 1,
+      props: { text: { nl: 'Meld je aan', en: 'EN-DRAFT-MARKER' } },
+    };
+    const { item, revision } = (await (await post('content.item.create', input)).json()) as {
+      item: { id: string };
+      revision: { id: string };
+    };
+    await post('content.item.publish', { itemId: item.id, revisionId: revision.id, locale: 'nl' });
+    const page = await post('content.page.get', { slug: 'signup', acceptLanguage: 'en' });
+    expect(page.status).toBe(200);
+    const body = await page.text();
+    expect(body).not.toContain('EN-DRAFT-MARKER');
+    expect(JSON.parse(body)).toMatchObject({ locale: 'nl', locales: ['nl'] });
+  });
+
   it('serves flat queries as GET with a weak ETag and 304 on a match', async () => {
     const { app, post } = await setup();
-    await post('content.page.create', probePage(FORM));
+    const { item, revision } = (await (
+      await post('content.item.create', probePage(FORM))
+    ).json()) as {
+      item: { id: string };
+      revision: { id: string };
+    };
+    await post('content.item.publish', { itemId: item.id, revisionId: revision.id, locale: 'nl' });
     const get = (headers: Record<string, string> = {}) =>
       app.request('/v1/content.page.get?slug=signup', {
         headers: { authorization: 'Bearer good', ...headers },

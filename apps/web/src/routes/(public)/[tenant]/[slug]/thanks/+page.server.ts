@@ -12,7 +12,7 @@ export const load: PageServerLoad = async ({ params, request, locals }) => {
   const form = [...view.forms.values()][0];
   return {
     title: view.title,
-    message: form ? (pick(form.thankYou, view.locale, view.page.defaultLocale) ?? '') : '',
+    message: form ? (pick(form.thankYou, view.locale, site.tenant.defaultLocale) ?? '') : '',
     back: { href: sitePath(site, `/${params.slug}`), label: ui(view.locale)('thanks.back') },
   };
 };

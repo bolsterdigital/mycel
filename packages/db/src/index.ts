@@ -30,6 +30,12 @@ import {
   type UnitOfWork,
 } from '@mycel/core';
 import { auditRepository } from './audit.js';
+import {
+  authorRepository,
+  contentRepository,
+  patternRepository,
+  sectionRepository,
+} from './content.js';
 import { hostnameRepository } from './hostnames.js';
 import { asPlatform, insertPlatformHostname } from './platform.js';
 import { jobScheduler } from './jobs.js';
@@ -39,7 +45,6 @@ import { outboxEventBus } from './outbox.js';
 import {
   formRepository,
   mailSendsRepository,
-  pageRepository,
   rateLimiter,
   submissionRepository,
   supporterRepository,
@@ -155,7 +160,10 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           dns: deps.dns,
           platform: deps.platform,
           events: outboxEventBus(trx),
-          pages: pageRepository(trx, tenantId),
+          content: contentRepository(trx, tenantId),
+          authors: authorRepository(trx, tenantId),
+          sections: sectionRepository(trx, tenantId),
+          patterns: patternRepository(trx, tenantId),
           forms: formRepository(trx, tenantId),
           submissions: submissionRepository(trx, tenantId),
           rateLimits: rateLimiter(trx, tenantId, deps.clock),

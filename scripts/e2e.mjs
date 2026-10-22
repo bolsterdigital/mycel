@@ -75,7 +75,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
 {
   const { createDb, createTenantDirectory, createUnitOfWork, setEntitlements, uuidv7Ids } =
     await import('@mycel/db');
-  const { systemPrincipal } = await import('@mycel/core');
+  const { Invoker, buildRegistry, systemPrincipal, useCases } = await import('@mycel/core');
   const { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } =
     await import('@mycel/core/testing');
   const operatorDb = createDb(process.env.DATABASE_URL);
@@ -86,7 +86,10 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
     { remove_branding: false, 'supporters.max': 10000 },
     { actorId: 'e2e', hasher: new FakeInputHasher(process.env.AUDIT_HASH_KEY) }
   );
-  const uow = createUnitOfWork(operatorDb, {
+  // Tenant data as mycel_app, like a use case: since 0010 binds the tenant_hostnames policy to
+  // that role, a schema owner that is not a superuser (managed Postgres, the Mac setup) cannot.
+  const appDb = createDb(process.env.APP_DATABASE_URL);
+  const uow = createUnitOfWork(appDb, {
     clock: { now: () => new Date() },
     ids: uuidv7Ids,
     signer: new FakeSigner(),
@@ -107,7 +110,32 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
     )
       await ctx.hostnames.setVerified(hostname, new Date());
   });
+  // A page published in nl only whose English draft sits in the same revision: signup.spec.ts
+  // asks for it in English and checks the draft never reaches the HTML (brief #8a, audit).
+  const invoker = new Invoker(buildRegistry(), uow);
+  const admin = systemPrincipal(probe.id, 'e2e');
+  const draftCheck = { type: 'page', slug: 'draft-check' };
+  if (!(await invoker.run(useCases.listItems, admin, draftCheck)).items.length) {
+    const { item, revision } = await invoker.run(useCases.createItem, admin, {
+      slug: draftCheck.slug,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl', 'en'],
+        title: { nl: 'Alleen Nederlands live', en: 'EN-DRAFT-TITLE' },
+        blocks: [
+          { type: 'heading', version: 1, props: { text: { nl: 'Kop', en: 'EN-DRAFT-MARKER' } } },
+        ],
+      },
+    });
+    await invoker.run(useCases.publishItem, admin, {
+      itemId: item.id,
+      revisionId: revision.id,
+      locale: 'nl',
+    });
+  }
   await operatorDb.destroy();
+  await appDb.destroy();
 }
 
 // The web app under test listens on 4173 (playwright.config.ts); links in the mail must point

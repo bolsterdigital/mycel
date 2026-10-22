@@ -6,8 +6,14 @@ import type { AuditEntry } from '../audit/model.js';
 import type { AuditLog, InputHasher } from '../audit/ports.js';
 import type { FormDefinition, Submission } from '../forms/model.js';
 import type { FormRepository, RateLimiter, SubmissionRepository } from '../forms/ports.js';
-import type { Page } from '../content/model.js';
-import type { PageRepository } from '../content/ports.js';
+import type { Author, Pattern, Revision, Section } from '../content/model.js';
+import type {
+  ContentRepository,
+  EntityRepository,
+  ItemRecord,
+  Paged,
+  SluggedRepository,
+} from '../content/ports.js';
 import type { MailMessage, MailSend, MailSendsRepository, Mailer } from '../mailing/ports.js';
 import type {
   Clock,
@@ -167,8 +173,40 @@ export class MemoryTenants implements TenantDirectory {
   }
 }
 
+/** Newest first by UUIDv7 id, `after` exclusive, like the keyset pages of packages/db. */
+function paged<T extends { id: string }>(rows: T[], after: string | null, limit: number): Paged<T> {
+  const sorted = rows
+    .filter((r) => after === null || r.id < after)
+    .sort((a, b) => (a.id < b.id ? 1 : -1));
+  const page = sorted.slice(0, limit).map((r) => structuredClone(r));
+  return { rows: page, next: sorted.length > limit ? (page.at(-1)?.id ?? null) : null };
+}
+
+function entityRepository<T extends { id: string }>(rows: Map<string, T>): EntityRepository<T> {
+  return {
+    get: async (id) => structuredClone(rows.get(id) ?? null),
+    list: async (after, limit) => paged([...rows.values()], after, limit),
+    insert: async (e) => void rows.set(e.id, structuredClone(e)),
+    update: async (e) => void rows.set(e.id, structuredClone(e)),
+  };
+}
+
+function sluggedRepository<T extends { id: string; slug: string }>(
+  rows: Map<string, T>
+): SluggedRepository<T> {
+  return {
+    ...entityRepository(rows),
+    findBySlug: async (slug) =>
+      structuredClone([...rows.values()].find((r) => r.slug === slug) ?? null),
+  };
+}
+
 interface TenantStore {
-  pages: Map<string, Page>;
+  items: Map<string, ItemRecord>;
+  revisions: Map<string, Revision>;
+  authors: Map<string, Author>;
+  sections: Map<string, Section>;
+  patterns: Map<string, Pattern>;
   forms: Map<string, FormDefinition>;
   submissions: Map<string, Submission>;
   counters: Map<string, number>;
@@ -355,7 +393,11 @@ export class MemoryStore {
     let store = this.tenants.get(tenantId);
     if (!store) {
       store = {
-        pages: new Map(),
+        items: new Map(),
+        revisions: new Map(),
+        authors: new Map(),
+        sections: new Map(),
+        patterns: new Map(),
         forms: new Map(),
         submissions: new Map(),
         counters: new Map(),
@@ -482,9 +524,40 @@ export class MemoryUnitOfWork implements UnitOfWork {
     const s = this.store.for(principal.tenantId);
     const outbox = this.store.outbox;
     const clock = this.clock;
-    const pages: PageRepository = {
-      findBySlug: async (slug) => [...s.pages.values()].find((p) => p.slug === slug) ?? null,
-      insert: async (page) => void s.pages.set(page.id, structuredClone(page)),
+    const content: ContentRepository = {
+      // No-op, like `supporters.lock`: one process, not transactional (see the file header).
+      lock: async (id) => structuredClone(s.items.get(id) ?? null),
+      get: async (id) => structuredClone(s.items.get(id) ?? null),
+      findBySlug: async (type, slug) =>
+        structuredClone(
+          [...s.items.values()].find((i) => i.type === type && i.slug === slug) ?? null
+        ),
+      list: async ({ type, slug }, after, limit) =>
+        paged(
+          [...s.items.values()].filter(
+            (i) => (!type || i.type === type) && (!slug || i.slug === slug)
+          ),
+          after,
+          limit
+        ),
+      async insert(item, first) {
+        s.items.set(item.id, structuredClone(item));
+        s.revisions.set(first.id, structuredClone(first));
+      },
+      save: async (item) => void s.items.set(item.id, structuredClone(item)),
+      insertRevision: async (r) => void s.revisions.set(r.id, structuredClone(r)),
+      async revision(itemId, revisionId) {
+        const r = s.revisions.get(revisionId);
+        return r && r.itemId === itemId ? structuredClone(r) : null;
+      },
+      async revisions(itemId, after, limit) {
+        const page = paged(
+          [...s.revisions.values()].filter((r) => r.itemId === itemId),
+          after,
+          limit
+        );
+        return { ...page, rows: page.rows.map(({ document: _d, ...summary }) => summary) };
+      },
     };
     const forms: FormRepository = {
       findById: async (id) => s.forms.get(id) ?? null,
@@ -860,7 +933,10 @@ export class MemoryUnitOfWork implements UnitOfWork {
           outbox.push(event);
         },
       },
-      pages,
+      content,
+      authors: sluggedRepository(s.authors),
+      sections: sluggedRepository(s.sections),
+      patterns: entityRepository(s.patterns),
       forms,
       submissions,
       rateLimits,
