@@ -220,21 +220,22 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
       const page = paged(rows, limit);
       if (!page.rows.length) return { rows: [], next: page.next };
       const ids = page.rows.map((r) => r.id);
-      // The blocks that matched, per item, over the same revisions.
+      // The blocks that matched, per item, over revisions satisfying both filters.
+      // Another locale may publish a revision matching only one filter; exclude its ids too.
       const { rows: hits } = await sql<{ item_id: string; block_id: string }>`
         select r.item_id, b->>'id' as block_id
         from content_items i
         join content_revisions r on r.item_id = i.id and ${searched(live)}
         cross join lateral jsonb_array_elements(r.document->'blocks') b
         where ${blockType ?? null}::text is not null and b->>'type' = ${blockType ?? null}
-          and i.id = any(${ids}::uuid[])
+          and i.id = any(${ids}::uuid[]) and ${typed} and ${referenced}
         union
         select f.item_id, f.block_id
         from content_items i
         join content_revisions r on r.item_id = i.id and ${searched(live)}
         join content_block_refs f on f.revision_id = r.id
         where f.type = ${ref?.type ?? null} and f.ref_id = ${ref?.id ?? null}::uuid
-          and f.block_id is not null and i.id = any(${ids}::uuid[])
+          and f.block_id is not null and i.id = any(${ids}::uuid[]) and ${typed} and ${referenced}
       `.execute(trx);
       const records = await withLocales(page.rows);
       return {

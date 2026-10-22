@@ -287,6 +287,55 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
     ).toBe('42501');
   });
 
+  it.each(['heading', 'reference'] as const)(
+    'returns block ids only from revisions matching both filters (%s only in other locale)',
+    async (partial) => {
+      const first = await invoker.run(useCases.createItem, a(), {
+        slug: `find-locales-${partial}-${run}`,
+        document: {
+          type: 'page',
+          defaultLocale: 'nl',
+          locales: ['nl', 'en'],
+          title: { nl: 'Titel', en: 'Title' },
+          blocks: [
+            { ...heading('match-heading'), props: { text: { nl: 'Kop', en: 'Heading' } } },
+            signup('match-form', formA),
+          ],
+        },
+      });
+      await invoker.run(useCases.publishItem, a(), {
+        itemId: first.item.id,
+        revisionId: first.revision.id,
+        locale: 'nl',
+      });
+      const second = await invoker.run(useCases.updateItem, a(), {
+        itemId: first.item.id,
+        baseRevisionId: first.revision.id,
+        document: {
+          ...first.revision.document,
+          blocks:
+            partial === 'heading'
+              ? [{ ...heading('other-heading'), props: { text: { nl: 'Kop', en: 'Heading' } } }]
+              : [signup('other-form', formA)],
+        },
+      });
+      await invoker.run(useCases.publishItem, a(), {
+        itemId: first.item.id,
+        revisionId: second.revision.id,
+        locale: 'en',
+      });
+      const found = await invoker.run(useCases.findItems, a(), {
+        blockType: 'heading',
+        ref: { type: 'form', id: formA },
+        live: true,
+      });
+      expect(found.matches.find((m) => m.itemId === first.item.id)?.blockIds.sort()).toEqual([
+        'match-form',
+        'match-heading',
+      ]);
+    }
+  );
+
   it('finds draft and live use apart, and counts live references', async () => {
     // Live without the form, draft with it.
     const draftOnly = await page('find-draft', [heading('h')]);
