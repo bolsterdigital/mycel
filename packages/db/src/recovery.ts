@@ -7,9 +7,11 @@
 // * The `ops*` functions are the hoster's platform-wide view, for the platform API
 //   (`/platform/ops/*`) and `npm run platform -- ops`. Each is one transaction as `mycel_ops`,
 //   whose column grants keep `jobs.payload`, `outbox.props` and `outbox.actor` unreadable and whose
-//   policies reach only stuck rows. Like platform.ts these are not use cases: they run under no
-//   tenant. The hoster's recoveries are not here yet: under 0016's policies mycel_ops cannot move
-//   a row out of the stuck set (see the migration), which is the open decision of TODO #17c.
+//   update policies reach only stuck rows. Like platform.ts these are not use cases: they run
+//   under no tenant. `opsRetryJob`, `opsCloseJob` and `opsRetryEvent` are the hoster's recoveries,
+//   with the rules of the tenant's; each writes its audit row (`platform.ops.*`, actor kind
+//   `platform`) in the same transaction as mycel_platform, the one role that may append such a
+//   row (0015), so the recovery and its trail commit or roll back together.
 //
 // A job is recoverable when it is open, has used up its attempts, and no run holds its lease: a
 // job on its last attempt counts as exhausted from the claim on, and resetting it while that run
@@ -17,9 +19,18 @@
 // whatever its lease (two runs at once), and a status column (the state is derived, as in 0009).
 
 import { sql, type Kysely } from 'kysely';
-import { scrubText, type JobRecovery, type RecoveryResult, type StuckJob } from '@mycel/core';
+import {
+  hashInput,
+  scrubText,
+  type JobRecovery,
+  type RecoveryResult,
+  type StuckJob,
+} from '@mycel/core';
+import { recordPlatformAudit } from './audit.js';
+import { uuidv7 } from './ids.js';
 import { JOB_LEASE_SECONDS } from './jobs.js';
 import { MAX_ATTEMPTS } from './outbox.js';
+import type { PlatformActor } from './platform.js';
 import type { Database } from './schema.js';
 
 type Trx = Kysely<Database>;
@@ -345,3 +356,75 @@ export function opsSummary(db: Kysely<Database>): Promise<OpsTenantSummary[]> {
     }));
   });
 }
+
+/** `platform.ops.job.retry`, `platform.ops.job.close` or `platform.ops.outbox.retry`. */
+type OpsOperation = 'job.retry' | 'job.close' | 'outbox.retry';
+
+/**
+ * A recovery as mycel_ops, then its audit row as mycel_platform, in one transaction. A recovery
+ * that changed nothing (not stuck, unknown id) writes no row, like a refused platform mutation.
+ * `set local role` twice is fine: SET ROLE looks at the session user's memberships, and the login
+ * (operator or mycel_authenticator) is a member of both.
+ */
+async function recover(
+  db: Kysely<Database>,
+  by: PlatformActor,
+  operation: OpsOperation,
+  id: string,
+  change: (trx: Trx) => Promise<{ id: string; tenant_id: string | null } | undefined>,
+  seen: (trx: Trx) => Promise<unknown>
+): Promise<RecoveryResult> {
+  return asOps(db, async (trx) => {
+    const changed = await change(trx);
+    if (!changed) return (await seen(trx)) ? 'not_exhausted' : 'not_found';
+    await sql`set local role mycel_platform`.execute(trx);
+    await recordPlatformAudit(trx, {
+      id: uuidv7(),
+      tenantId: changed.tenant_id,
+      occurredAt: new Date(),
+      actorKind: 'platform',
+      actorId: by.actorId,
+      operation: `platform.ops.${operation}`,
+      effect: null,
+      inputHash: await hashInput(by.hasher, { id }),
+      result: 'ok',
+      requestId: by.requestId ?? null,
+      subjectId: id,
+    });
+    return 'ok';
+  });
+}
+
+const jobSeen = (id: string) => (trx: Trx) =>
+  trx.selectFrom('jobs').select('id').where('id', '=', id).executeTakeFirst();
+
+/** The hoster's `ops.job.retry`: the same rules, any tenant and the platform's own jobs. */
+export const opsRetryJob = (db: Kysely<Database>, id: string, by: PlatformActor) =>
+  recover(db, by, 'job.retry', id, (trx) => retryJobRow(trx, id), jobSeen(id));
+
+/** The hoster's `ops.job.close`. */
+export const opsCloseJob = (db: Kysely<Database>, id: string, by: PlatformActor) =>
+  recover(db, by, 'job.close', id, (trx) => closeJobRow(trx, id), jobSeen(id));
+
+/**
+ * Give a dead outbox event new passes: `attempts = 0`, due now; `delivered_to` stays, so only
+ * the subscribers that never delivered run again (brief decision 3). `last_error` stays until the
+ * next pass. `not_exhausted` here means: not dead (still being delivered, or processed).
+ */
+export const opsRetryEvent = (db: Kysely<Database>, id: string, by: PlatformActor) =>
+  recover(
+    db,
+    by,
+    'outbox.retry',
+    id,
+    (trx) =>
+      trx
+        .updateTable('outbox')
+        .set({ attempts: 0, available_at: sql`now()` })
+        .where('id', '=', id)
+        .where('processed_at', 'is', null)
+        .where('attempts', '>=', MAX_ATTEMPTS)
+        .returning(['id', 'tenant_id'])
+        .executeTakeFirst(),
+    (trx) => trx.selectFrom('outbox').select('id').where('id', '=', id).executeTakeFirst()
+  );

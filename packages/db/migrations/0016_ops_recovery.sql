@@ -6,7 +6,8 @@
 --
 --   * `mycel_ops`, the hoster's platform-wide view and recovery (platform API, `npm run platform
 --     -- ops`). Grants are on columns, so a payload, an event's props and its actor stay
---     unreadable whatever a query asks; policies reach only the stuck rows.
+--     unreadable whatever a query asks; it may change only a stuck row, and only into a retry
+--     or a close (the update policies below say why reading is wider than that).
 --   * `mycel_app`, the tenant administrator's view of its own jobs (`ops.status`, `ops.job.retry`,
 --     `ops.job.close`) under `tenant_isolation`, again without the payload. Dead outbox events stay
 --     the hoster's: they are rare and need platform recovery.
@@ -28,27 +29,35 @@ grant mycel_ops to current_user;
 grant mycel_ops to mycel_authenticator with inherit false;
 grant usage on schema public to mycel_ops;
 
--- Jobs: every column but `payload`; only an exhausted job is visible or changeable.
+-- Jobs: every column but `payload`. Reading is every row's metadata, changing is an exhausted
+-- row only, and the change must be a retry (`attempts = 0`, lease released) or a close (`done_at`).
 --
--- OPEN (TODO #17c, stop on brief decision 1): Postgres checks the new row of an UPDATE whose WHERE
--- reads a column against the role's SELECT policies too, and a retry (`attempts = 0`) or a close
--- (`done_at`) moves the row out of this `using` set, so mycel_ops cannot recover a job under
--- these grants: "new row violates row-level security policy". The update grants stay as the brief
--- has them; the platform recovery routes are not built until the review decides (the #17c PR body;
--- rls.conformance proves the refusal). The same holds for `ops_outbox`.
+-- Why the select policy is `using (true)` and not "exhausted only" (the #17c review, 2026-10-22):
+-- Postgres checks the new row of an UPDATE whose WHERE reads a column against the role's SELECT
+-- policies as well, and a recovered row is by definition no longer stuck. A select policy narrow
+-- enough to show stuck rows only would have to foresee every row a recovery produces, and misses
+-- the one that matters most: a job whose worker died on every attempt has no `last_error`, so
+-- "retried rows carry an error" does not hold. `jobs` is a platform queue (ADR 011 rule 1), the
+-- payload stays unreadable by the column grant, and the listings (recovery.ts) select the stuck
+-- rows themselves. Rejected: a request table the worker applies (asynchronous, one more table,
+-- and the hoster cannot see the outcome), and a security-definer function (rights in a body).
 grant select (id, tenant_id, type, key, run_at, attempts, max_attempts, claimed_at, done_at,
               last_error, created_at) on jobs to mycel_ops;
 grant update (attempts, run_at, claimed_at, done_at, last_error) on jobs to mycel_ops;
-create policy ops_jobs on jobs to mycel_ops
-  using (done_at is null and attempts >= max_attempts);
+create policy ops_jobs on jobs for select to mycel_ops using (true);
+create policy ops_jobs_recover on jobs for update to mycel_ops
+  using (done_at is null and attempts >= max_attempts)
+  with check ((attempts = 0 and claimed_at is null) or done_at is not null);
 
--- Outbox: neither `actor` nor `props`; only dead events. A retry resets `attempts` and keeps
+-- Outbox: neither `actor` nor `props`; the same shape as jobs. A retry resets `attempts` and keeps
 -- `delivered_to`, so only the subscribers that never delivered run again.
 grant select (id, tenant_id, type, occurred_at, attempts, delivered_to, processed_at, last_error,
               available_at) on outbox to mycel_ops;
 grant update (attempts, available_at, last_error) on outbox to mycel_ops;
-create policy ops_outbox on outbox to mycel_ops
-  using (processed_at is null and attempts >= 10);
+create policy ops_outbox on outbox for select to mycel_ops using (true);
+create policy ops_outbox_recover on outbox for update to mycel_ops
+  using (processed_at is null and attempts >= 10)
+  with check (attempts = 0);
 
 -- Mail intents hold no address (`correlation` is a hash): every column, attempted and not sent.
 -- No update: an intent is never closed by hand (brief decision 4); its `mail.reconcile` job is.
@@ -68,6 +77,11 @@ grant select (id, tenant_id, type, key, run_at, attempts, max_attempts, claimed_
               last_error, created_at) on jobs to mycel_app;
 grant update (attempts, run_at, claimed_at, done_at, last_error) on jobs to mycel_app;
 alter policy tenant_isolation on jobs to mycel_app;
+-- The schema owner may enter mycel_app (`set local role`) like the worker roles above: the
+-- conformance suites write a fixture row as the application role, which an owner without
+-- superuser (managed Postgres) could not do until now. Membership without inheritance: nothing
+-- the owner lacks, nothing mycel_app gains.
+grant mycel_app to current_user with set true, inherit false;
 
 -- The ops listings: exhausted jobs and dead events by tenant, outside the due-work indexes.
 create index jobs_exhausted on jobs (tenant_id, created_at)

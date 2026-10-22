@@ -49,18 +49,21 @@ Every mutation writes one row to the tenant's audit log in the same transaction 
 
 ## Stuck work
 
-Since TODO #17c (migration 0016) the hoster sees what is stuck on every site: jobs that used up their attempts, outbox events that failed ten passes without reaching every subscriber, and mail intents whose outcome is unknown or that were given up (`docs/reference/mail.md`). These routes run as `mycel_ops`, a role of its own entered from the same authentication login, whose grants are on columns: a job's `payload` and an event's `props` and `actor` cannot be read by it, whatever the query; its policies reach only stuck rows. The functions are `packages/db/src/recovery.ts`.
+Since TODO #17c (migration 0016) the hoster sees what is stuck on every site: jobs that used up their attempts, outbox events that failed ten passes without reaching every subscriber, and mail intents whose outcome is unknown or that were given up (`docs/reference/mail.md`). These routes run as `mycel_ops`, a role of its own entered from the same authentication login, whose grants are on columns: a job's `payload` and an event's `props` and `actor` cannot be read by it, whatever the query. It may change a stuck row only, and only into a retry or a close (its update policies); reading is every row's metadata, because Postgres checks the new row of an update against the select policies too and a recovered row is no longer stuck (migration 0016 says why that is the smaller risk). The functions are `packages/db/src/recovery.ts`.
 
-| Method and path             | Query                            | Answer                                                                                                                  |
-| --------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `GET /platform/ops/summary` |                                  | `{ tenants: [{ tenantId, slug, name, status, exhaustedJobs, deadEvents, unknownMail, abandonedMail }] }`                |
-| `GET /platform/ops/jobs`    | `tenantId?`, `cursor?`, `limit?` | `{ items: [{ id, tenantId, type, key, runAt, attempts, maxAttempts, lastError, createdAt }], nextCursor }`              |
-| `GET /platform/ops/outbox`  | `tenantId?`, `cursor?`, `limit?` | `{ items: [{ id, tenantId, type, occurredAt, attempts, deliveredTo, lastError, availableAt }], nextCursor }`            |
-| `GET /platform/ops/mail`    | `tenantId?`, `cursor?`, `limit?` | `{ items: [{ tenantId, key, subscriber, eventId, state, attempts, attemptedAt, abandonedAt, lastError }], nextCursor }` |
+| Method and path                       | Query                            | Answer                                                                                                                  |
+| ------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `GET /platform/ops/summary`           |                                  | `{ tenants: [{ tenantId, slug, name, status, exhaustedJobs, deadEvents, unknownMail, abandonedMail }] }`                |
+| `GET /platform/ops/jobs`              | `tenantId?`, `cursor?`, `limit?` | `{ items: [{ id, tenantId, type, key, runAt, attempts, maxAttempts, lastError, createdAt }], nextCursor }`              |
+| `GET /platform/ops/outbox`            | `tenantId?`, `cursor?`, `limit?` | `{ items: [{ id, tenantId, type, occurredAt, attempts, deliveredTo, lastError, availableAt }], nextCursor }`            |
+| `GET /platform/ops/mail`              | `tenantId?`, `cursor?`, `limit?` | `{ items: [{ tenantId, key, subscriber, eventId, state, attempts, attemptedAt, abandonedAt, lastError }], nextCursor }` |
+| `POST /platform/ops/jobs/:id/retry`   |                                  | `{ id }`; the job's attempts start again from zero, due now, `lastError` kept until the next run                        |
+| `POST /platform/ops/jobs/:id/close`   |                                  | `{ id }`; the job is done without running, `lastError` kept; its key is free again                                      |
+| `POST /platform/ops/outbox/:id/retry` |                                  | `{ id }`; the event's passes start again, due now; subscribers in `deliveredTo` do not run again                        |
 
 The summary lists only tenants with something stuck, plus one row with `tenantId: null` for platform jobs. Pages are oldest first (jobs and events by id, mail by key); `limit` defaults to 50, at most 200; `nextCursor` is null on the last page. Every `lastError` is scrubbed again on the way out (`scrubText`). The lag figures stay on the worker's `/metrics` (`observability.md`).
 
-**Recovery is not here yet.** The brief has `POST /platform/ops/jobs/:id/retry|close` and `POST /platform/ops/outbox/:id/retry` as `mycel_ops`, but under the policies above Postgres refuses the update: it checks the new row of an UPDATE whose WHERE reads a column against the role's SELECT policies too, and a recovered row is no longer stuck. Which grant to widen is an open decision of the #17c review. Until then the hoster recovers a site's job the way its administrator does (`ops.job.retry`, `ops.job.close`, below) and a dead event with SQL as the schema owner. There is no route by which support acts as a tenant's administrator.
+The three recoveries follow the rules of the tenant's own (`ops.job.retry`, `ops.job.close`): only a job that used up its attempts and whose lease is free, only an event that failed every pass. Anything else is `409 conflict` (attempts left, running right now, already done) and an unknown id `404`. Each recovery writes one audit row in the same transaction, in the row's tenant's log (`tenant_id` null for a platform job): actor kind `platform`, operation `platform.ops.job.retry`, `platform.ops.job.close` or `platform.ops.outbox.retry`, subject the row's id. A refused recovery writes nothing. There is no route by which support acts as a tenant's administrator: the hoster recovers as the platform and is logged as such. Mail intents have no recovery route (an intent is never closed by hand; its `mail.reconcile` job is retried).
 
 A site's own administrators see their stuck jobs and mail on `/admin/<slug>/status` and recover a job there (use cases `ops.status`, `ops.job.retry`, `ops.job.close`, capability `tenant:admin`, audited like every command); dead outbox events are the hoster's only.
 
@@ -97,6 +100,8 @@ npm run platform -- entitlements set <slug> '{"supporters.max": 250}'
 npm run platform -- status set <slug> suspended
 npm run platform -- ops summary
 npm run platform -- ops list jobs|outbox|mail [<slug>]
+npm run platform -- ops retry jobs|outbox <id>
+npm run platform -- ops close jobs <id>
 ```
 
 It reads `.env` and needs `DATABASE_URL` (the operator role). `mycel setup` (TODO #18) takes it over.

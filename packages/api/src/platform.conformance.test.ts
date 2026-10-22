@@ -188,8 +188,9 @@ describe.skipIf(!ready)('platform API', () => {
   // TODO #17c: stuck work across tenants, read as mycel_ops from the authentication login. The
   // fixture job goes in as the worker (operator connection, as the test harness has it); the API
   // under test still runs without DATABASE_URL.
-  it('lists stuck work per tenant without a payload, behind the token', async () => {
-    const app = appOf(runtime(TOKEN));
+  it('lists and recovers stuck work per tenant without a payload, behind the token', async () => {
+    const rt = runtime(TOKEN);
+    const app = appOf(rt);
     const get = (path: string, token = TOKEN) =>
       app.request(`/platform${path}`, { headers: { authorization: `Bearer ${token}` } });
     expect((await app.request('/platform/ops/summary')).status).toBe(401);
@@ -245,15 +246,32 @@ describe.skipIf(!ready)('platform API', () => {
         });
       expect((await get('/ops/jobs?tenantId=nope')).status).toBe(400);
       expect((await get('/ops/jobs?limit=0')).status).toBe(400);
-      // No recovery route yet (the open decision of #17c), and never one that acts as a tenant.
-      expect(
-        (
-          await app.request(`/platform/ops/jobs/${id}/retry`, {
-            method: 'POST',
-            headers: { authorization: `Bearer ${TOKEN}` },
-          })
-        ).status
-      ).toBe(404);
+      // The recoveries: as the platform, audited as such; never a route that acts as a tenant.
+      const post = (path: string) =>
+        app.request(`/platform${path}`, {
+          method: 'POST',
+          headers: { authorization: `Bearer ${TOKEN}` },
+        });
+      expect((await post(`/ops/jobs/${uuidv7()}/retry`)).status).toBe(404);
+      expect((await post(`/ops/outbox/${id}/retry`)).status).toBe(404);
+      expect((await post('/ops/jobs/nope/close')).status).toBe(400);
+      const retried = await post(`/ops/jobs/${id}/retry`);
+      expect(retried.status).toBe(200);
+      expect(await retried.json()).toEqual({ id });
+      // Retried, the job is no longer stuck: a close is a conflict and the listing is empty.
+      expect((await post(`/ops/jobs/${id}/close`)).status).toBe(409);
+      expect(await (await get(`/ops/jobs?tenantId=${created.id}`)).json()).toEqual({
+        items: [],
+        nextCursor: null,
+      });
+      const { items: audit } = await rt.invoker.run(
+        useCases.listAudit,
+        systemPrincipal(created.id, 'test'),
+        { operation: 'platform.ops.job.retry', limit: 10 }
+      );
+      expect(audit).toMatchObject([
+        { actorKind: 'platform', actorId: tokenFingerprint(TOKEN), result: 'ok', subjectId: id },
+      ]);
     } finally {
       await operatorDb.transaction().execute(async (trx) => {
         await sql`set local role mycel_worker`.execute(trx);

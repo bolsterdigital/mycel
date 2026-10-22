@@ -1,7 +1,7 @@
 // Stuck-work recovery against Postgres (TODO #17c, migration 0016): what the in-memory store
 // cannot prove. A tenant administrator sees and recovers only its own exhausted jobs as
-// mycel_app; the hoster sees every stuck row as mycel_ops, without payloads (its recoveries are
-// the open decision, see the last test of the hoster's block). A retried `mail.reconcile`
+// mycel_app; the hoster sees every stuck row as mycel_ops, without payloads, and recovers any
+// tenant's (and the platform's own) with one audit row as `platform`. A retried `mail.reconcile`
 // from the #22C claim path is claimable and runs again; a closed `hostnames.reverify` frees its
 // key; a job whose last attempt still holds the lease is not touched.
 //
@@ -28,8 +28,11 @@ import {
   createUnitOfWork,
   failJob,
   migrate,
+  opsCloseJob,
   opsDeadEvents,
   opsJobs,
+  opsRetryEvent,
+  opsRetryJob,
   opsSummary,
   opsUnresolvedMail,
   upsertTenant,
@@ -77,6 +80,8 @@ describe.skipIf(!operatorUrl || !appUrl)('stuck-work recovery conformance', () =
       key?: string;
       attempts?: number;
       claimedAt?: Date | null;
+      /** Null: the worker died on every attempt and never reported one. */
+      lastError?: string | null;
     } = {}
   ): Promise<string> {
     const id = uuidv7();
@@ -94,7 +99,8 @@ describe.skipIf(!operatorUrl || !appUrl)('stuck-work recovery conformance', () =
           attempts: over.attempts ?? 10,
           max_attempts: 10,
           claimed_at: over.claimedAt ?? null,
-          last_error: 'failed for someone@example.org',
+          last_error:
+            over.lastError === undefined ? 'failed for someone@example.org' : over.lastError,
         })
         .execute()
     );
@@ -321,23 +327,92 @@ describe.skipIf(!operatorUrl || !appUrl)('stuck-work recovery conformance', () =
       });
     });
 
-    // The open decision of TODO #17c (migration 0016): Postgres checks the new row of an UPDATE
-    // against the role's SELECT policies, and a recovered row is no longer stuck. When the review
-    // has chosen, this test turns into the platform recovery's own tests.
-    it('cannot recover a job or an event under the brief-1 policies (open decision)', async () => {
+    const hoster = { actorId: 'conformance', hasher: new FakeInputHasher() };
+
+    it('retries and closes a stuck job of any tenant, one platform audit row each', async () => {
       const stuck = await job();
-      const asOps = (q: ReturnType<typeof sql>) =>
-        operatorDb.transaction().execute(async (trx) => {
-          await sql`set local role mycel_ops`.execute(trx);
-          return q.execute(trx);
-        });
-      await expect(asOps(sql`update jobs set attempts = 0 where id = ${stuck}`)).rejects.toThrow(
-        /new row violates row-level security/
+      expect(await opsRetryJob(operatorDb, stuck, hoster)).toBe('ok');
+      expect(await read(stuck)).toMatchObject({
+        attempts: 0,
+        claimed_at: null,
+        done_at: null,
+        last_error: 'failed for someone@example.org',
+      });
+      expect(await auditOf(stuck)).toMatchObject([
+        {
+          operation: 'platform.ops.job.retry',
+          actor_kind: 'platform',
+          actor_id: 'conformance',
+          result: 'ok',
+          tenant_id: tenantId,
+        },
+      ]);
+      // Retried, it is no longer stuck: the next recovery is a conflict and writes no row.
+      expect(await opsCloseJob(operatorDb, stuck, hoster)).toBe('not_exhausted');
+      expect(await auditOf(stuck)).toHaveLength(1);
+
+      const toClose = await job({ tenant: otherId });
+      expect(await opsCloseJob(operatorDb, toClose, hoster)).toBe('ok');
+      expect((await read(toClose))!.done_at).not.toBeNull();
+    });
+
+    it('recovers a platform job and a job whose worker never reported an error', async () => {
+      const platform = await job({ tenant: null });
+      expect(await opsRetryJob(operatorDb, platform, hoster)).toBe('ok');
+      expect(await read(platform)).toMatchObject({ attempts: 0, tenant_id: null });
+      // The case behind 0016's select policy: nothing in `last_error` marks the row as recovered.
+      const silent = await job({ lastError: null });
+      expect(await opsCloseJob(operatorDb, silent, hoster)).toBe('ok');
+      expect(await read(silent)).toMatchObject({ last_error: null });
+      expect((await read(silent))!.done_at).not.toBeNull();
+    });
+
+    it('refuses what is not stuck: open, running, unknown', async () => {
+      const open = await job({ attempts: 3 });
+      const running = await job({ claimedAt: new Date() });
+      expect(await opsRetryJob(operatorDb, open, hoster)).toBe('not_exhausted');
+      expect(await opsCloseJob(operatorDb, running, hoster)).toBe('not_exhausted');
+      expect(await opsRetryJob(operatorDb, uuidv7(), hoster)).toBe('not_found');
+      expect(await opsRetryEvent(operatorDb, uuidv7(), hoster)).toBe('not_found');
+      expect((await read(open))!.attempts).toBe(3);
+      expect(await read(running)).toMatchObject({ attempts: 10, done_at: null });
+      expect(await auditOf(open)).toEqual([]);
+    });
+
+    it('gives a dead event new passes, keeping who already delivered', async () => {
+      const id = uuidv7();
+      events.push(id);
+      await withTenant(appDb, admin(), (trx) =>
+        trx
+          .insertInto('outbox')
+          .values({
+            id,
+            tenant_id: tenantId,
+            type: `conformance.${run}.retry`,
+            occurred_at: new Date(),
+            actor: JSON.stringify({ kind: 'system', job: 'test' }),
+            props: JSON.stringify({}),
+            attempts: 10,
+            delivered_to: ['already.done'],
+            last_error: 'subscriber x failed',
+          })
+          .execute()
       );
-      await expect(asOps(sql`update jobs set done_at = now() where id = ${stuck}`)).rejects.toThrow(
-        /new row violates row-level security/
-      );
-      expect((await read(stuck))!.attempts).toBe(10);
+      expect(await opsRetryEvent(operatorDb, id, hoster)).toBe('ok');
+      const row = (await asWorker((trx) =>
+        trx.selectFrom('outbox').selectAll().where('id', '=', id).executeTakeFirst()
+      ))!;
+      // Due now with its passes back; a drain elsewhere in the run may already have processed it
+      // (no subscriber knows the type), which is the same outcome one step later.
+      if (row.processed_at === null) {
+        expect(row).toMatchObject({ attempts: 0, last_error: 'subscriber x failed' });
+        expect(+new Date(row.available_at)).toBeLessThanOrEqual(Date.now() + 1000);
+      }
+      expect(row.delivered_to).toContain('already.done');
+      expect(await auditOf(id)).toMatchObject([
+        { operation: 'platform.ops.outbox.retry', actor_kind: 'platform', result: 'ok' },
+      ]);
+      expect(await opsRetryEvent(operatorDb, id, hoster)).toBe('not_exhausted');
     });
 
     it('lists unknown and abandoned mail without the correlation', async () => {

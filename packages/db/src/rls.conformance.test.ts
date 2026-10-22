@@ -335,8 +335,10 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     });
   });
 
-  // TODO #17c (0016): the ops reader sees stuck rows only and never a payload, an event's props or
-  // its actor; the application role reads its own jobs without the payload.
+  // TODO #17c (0016): the ops reader never sees a payload, an event's props or its actor, and
+  // changes only a stuck row, only into a retry or a close (the review of #17c: Postgres checks the
+  // new row of an UPDATE against the select policies too, so reading is every row's metadata);
+  // the application role reads its own jobs without the payload.
   describe('mycel_ops and the stuck-work grants', () => {
     const as = <T>(db: typeof appDb, role: string | null, fn: (trx: typeof appDb) => Promise<T>) =>
       db.transaction().execute(async (trx) => {
@@ -382,11 +384,25 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
         policies.find((p) => p.tablename === table && p.policyname === name);
       expect(of('jobs', 'ops_jobs')).toMatchObject({
         roles: ['mycel_ops'],
+        cmd: 'SELECT',
+        qual: 'true',
+      });
+      expect(of('jobs', 'ops_jobs_recover')).toMatchObject({
+        roles: ['mycel_ops'],
+        cmd: 'UPDATE',
         qual: '((done_at IS NULL) AND (attempts >= max_attempts))',
+        with_check: '(((attempts = 0) AND (claimed_at IS NULL)) OR (done_at IS NOT NULL))',
       });
       expect(of('outbox', 'ops_outbox')).toMatchObject({
         roles: ['mycel_ops'],
+        cmd: 'SELECT',
+        qual: 'true',
+      });
+      expect(of('outbox', 'ops_outbox_recover')).toMatchObject({
+        roles: ['mycel_ops'],
+        cmd: 'UPDATE',
         qual: '((processed_at IS NULL) AND (attempts >= 10))',
+        with_check: '(attempts = 0)',
       });
       expect(of('mail_sends', 'ops_mail')).toMatchObject({
         roles: ['mycel_ops'],
@@ -409,7 +425,7 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
       ).rejects.toThrow(/permission denied/);
     });
 
-    it('shows mycel_ops an exhausted job and never an open one', async () => {
+    it('lets mycel_ops change an exhausted job only, and only into a retry or a close', async () => {
       const seen = await as(operatorDb, 'mycel_ops', (trx) =>
         trx
           .selectFrom('jobs')
@@ -417,11 +433,25 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
           .where('id', 'in', [exhausted.id, open.id])
           .execute()
       );
-      expect(seen.map((r) => r.id)).toEqual([exhausted.id]);
+      expect(seen.map((r) => r.id).sort()).toEqual([exhausted.id, open.id].sort());
       const touched = await as(operatorDb, 'mycel_ops', (trx) =>
         trx.updateTable('jobs').set({ attempts: 0 }).where('id', '=', open.id).executeTakeFirst()
       );
       expect(touched.numUpdatedRows).toBe(0n);
+      // Visible and exhausted, but the new row is neither a retry nor a close.
+      await expect(
+        as(operatorDb, 'mycel_ops', (trx) =>
+          trx.updateTable('jobs').set({ attempts: 5 }).where('id', '=', exhausted.id).execute()
+        )
+      ).rejects.toThrow(/row-level security/);
+      const retried = await as(operatorDb, 'mycel_ops', (trx) =>
+        trx
+          .updateTable('jobs')
+          .set({ attempts: 0, claimed_at: null })
+          .where('id', '=', exhausted.id)
+          .executeTakeFirst()
+      );
+      expect(retried.numUpdatedRows).toBe(1n);
     });
 
     it('lets mycel_app read its own jobs without the payload, and nobody else’s', async () => {

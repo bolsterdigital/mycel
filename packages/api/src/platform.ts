@@ -70,11 +70,19 @@ export interface OpsPage {
   nextCursor: string | null;
 }
 
+/** `ok`, or why nothing changed: unknown id, or a row that is not stuck (`conflict`). */
+export type OpsRecovery = 'ok' | 'not_found' | 'not_exhausted';
+
 export interface PlatformOpsStore {
   summary(): Promise<unknown[]>;
   jobs(query: OpsQuery): Promise<OpsPage>;
   outbox(query: OpsQuery): Promise<OpsPage>;
   mail(query: OpsQuery): Promise<OpsPage>;
+  /** The tenant recoveries' rules (`ops.job.retry|close`), for any tenant; each writes its audit row. */
+  retryJob(id: string): Promise<OpsRecovery>;
+  closeJob(id: string): Promise<OpsRecovery>;
+  /** New passes for a dead event; subscribers that delivered are not run again. */
+  retryEvent(id: string): Promise<OpsRecovery>;
 }
 
 export interface PlatformDeps {
@@ -180,8 +188,10 @@ export function createPlatformApp({ token, store, log = noopLogger, errors }: Pl
     return c.json(tenant);
   });
 
-  // Stuck work (TODO #17c): counts per tenant, then the rows, a page at a time. Reads only; the
-  // hoster's recoveries wait for the open decision on migration 0016's policies.
+  // Stuck work (TODO #17c): counts per tenant, then the rows, a page at a time; and the three
+  // recoveries, as mycel_ops with the rules of the tenant's own (`ops.job.retry|close`). There is
+  // no route that acts as a tenant's administrator: the hoster recovers as the platform, audited
+  // as such.
   app.get('/ops/summary', async (c) => c.json({ tenants: await store.ops.summary() }));
   for (const [path, list] of [
     ['jobs', (q: OpsQuery) => store.ops.jobs(q)],
@@ -189,6 +199,23 @@ export function createPlatformApp({ token, store, log = noopLogger, errors }: Pl
     ['mail', (q: OpsQuery) => store.ops.mail(q)],
   ] as const)
     app.get(`/ops/${path}`, async (c) => c.json(await list(parse(OpsQuery, c.req.query()))));
+  for (const [path, recover] of [
+    ['jobs/:id/retry', (id: string) => store.ops.retryJob(id)],
+    ['jobs/:id/close', (id: string) => store.ops.closeJob(id)],
+    ['outbox/:id/retry', (id: string) => store.ops.retryEvent(id)],
+  ] as const)
+    app.post(`/ops/${path}`, async (c) => {
+      const id = parse(Id, c.req.param('id'));
+      const result = await recover(id);
+      if (result === 'not_found') throw new UseCaseError('not_found', 'no stuck row with that id');
+      if (result === 'not_exhausted')
+        throw new UseCaseError(
+          'conflict',
+          'not stuck: it has attempts left, is running right now, or is already done'
+        );
+      log.info('platform: recovered', { path, id });
+      return c.json({ id });
+    });
 
   app.notFound(() => problem('not_found', 'no such platform route'));
   app.onError((err) => {

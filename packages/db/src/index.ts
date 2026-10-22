@@ -61,8 +61,11 @@ export {
 export { deleteFinishedJobs, ping, queueLag, type QueueLag } from './ops.js';
 export { sweepRateLimits } from './janitor.js';
 export {
+  opsCloseJob,
   opsDeadEvents,
   opsJobs,
+  opsRetryEvent,
+  opsRetryJob,
   opsSummary,
   opsUnresolvedMail,
   type OpsEvent,
