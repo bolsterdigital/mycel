@@ -237,11 +237,13 @@ describe.skipIf(!operatorUrl)('migration 0017 backfill', () => {
           expect(rows.sort(byRow), `item ${i}`).toEqual(want.sort(byRow));
         }
         // Every kind is covered: per tenant one form, one item (deduplicated), one author, one section.
+        // Filtered by tenant explicitly: CI's operator is a superuser and bypasses RLS here.
         await client.query(`select set_config('app.tenant_id', $1, true)`, [f.tenants[0]!.tenant]);
         const { rows: kinds } = await client.query<{ type: string; n: string }>(
-          `select type, count(*) as n from content_block_refs where revision_id = any($1::uuid[])
+          `select type, count(*) as n from content_block_refs
+           where revision_id = any($1::uuid[]) and tenant_id = $2
            group by type order by type`,
-          [revisions]
+          [revisions, f.tenants[0]!.tenant]
         );
         expect(kinds.map((k) => [k.type, Number(k.n)])).toEqual([
           ['author', 1],
