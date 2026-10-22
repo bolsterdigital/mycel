@@ -9,11 +9,16 @@ import {
   Invoker,
   buildRegistry,
   confirmationMailSubscriber,
+  normalizeHostname,
+  siteUrl,
   supporterIngestSubscriber,
   type Clock,
   type IdentityStore,
   type Mailer,
+  type PlatformConfig,
   type Principal,
+  type SiteAddress,
+  type SiteDirectory,
   type Subscriber,
   type TenantDirectory,
   type UnitOfWork,
@@ -21,6 +26,7 @@ import {
 import {
   createDb,
   createIdentityStore,
+  createSiteDirectory,
   createTenantDirectory,
   createUnitOfWork,
   startJanitor,
@@ -30,11 +36,19 @@ import {
 } from '@mycel/db';
 import { ConsoleMailer, TemMailer } from '@mycel/mail-tem';
 import { createAuthenticator, type Authenticator } from './auth.js';
+import { createDnsResolver } from './dns.js';
 import { HmacSigner } from './signer.js';
 
 export { createAuthenticator, type Authenticator, type AuthenticatorDeps } from './auth.js';
 
 const isHttps = (url: string | undefined) => url?.startsWith('https://') ?? false;
+const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
+/** `a, b,c` to `['a', 'b', 'c']`; an empty or unset value is an empty list. */
+const list = (value: string | undefined) =>
+  (value ?? '')
+    .split(',')
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean);
 
 const Config = z
   .object({
@@ -68,6 +82,50 @@ const Config = z
     /** Set for a confidential client (client_secret_post); unset means a public client. */
     OIDC_CLIENT_SECRET: z.string().min(1).optional(),
     OIDC_SCOPES: z.string().default('openid profile email'),
+    /**
+     * Every tenant gets `<slug>.<PLATFORM_DOMAIN>` at creation (ADR 014 rule 2). `localhost` in
+     * development: browsers resolve `probe.localhost` to loopback without a hosts entry.
+     */
+    PLATFORM_DOMAIN: z
+      .string()
+      .min(1)
+      .transform((d) => normalizeHostname(d)),
+    /**
+     * Hosts that serve the `/{tenant}/...` path form when no hostname matches (ADR 014 rule 4).
+     * Default `localhost,127.0.0.1` outside production; must be empty in production.
+     */
+    DEV_HOSTS: z.string().optional(),
+    /**
+     * `hostnames`: absolute site URLs use the tenant's primary hostname; `path`: the path form on
+     * PUBLIC_BASE_URL. Default `path` outside production, where a `*.localhost` link is a nuisance
+     * for tools that do not resolve it; production is always `hostnames`.
+     */
+    SITE_URL_MODE: z.enum(['hostnames', 'path']).optional(),
+    /**
+     * `1` when a reverse proxy (Caddy) fronts the web app: the container then reads host,
+     * protocol and client address from the `x-forwarded-*` headers (docker/entrypoint.sh).
+     * Without a proxy those headers are spoofable and stay ignored. Required in production.
+     */
+    MYCEL_TRUST_PROXY: z.enum(['0', '1']).default('0'),
+  })
+  .refine(
+    (c) =>
+      !(
+        c.NODE_ENV === 'production' &&
+        (c.PLATFORM_DOMAIN === 'localhost' || IPV4.test(c.PLATFORM_DOMAIN))
+      ),
+    {
+      message: 'PLATFORM_DOMAIN must be a real domain in production',
+    }
+  )
+  .refine((c) => !(c.NODE_ENV === 'production' && list(c.DEV_HOSTS).length > 0), {
+    message: 'DEV_HOSTS must be empty in production (the path form is development only)',
+  })
+  .refine((c) => !(c.NODE_ENV === 'production' && c.SITE_URL_MODE === 'path'), {
+    message: 'SITE_URL_MODE=path is not allowed in production',
+  })
+  .refine((c) => !(c.NODE_ENV === 'production' && c.MYCEL_TRUST_PROXY !== '1'), {
+    message: 'MYCEL_TRUST_PROXY=1 is required in production (the web app runs behind a proxy)',
   })
   .refine((c) => !(c.NODE_ENV === 'production' && c.MAILER === 'console'), {
     message: 'MAILER=console is not allowed in production',
@@ -106,11 +164,30 @@ function parseAddress(value: string): { email: string; name?: string } {
   return m && m[1] ? { name: m[1], email: m[2]! } : { email: m?.[2] ?? value.trim() };
 }
 
+/** The platform settings the core reads inside a transaction, derived from the config once. */
+export function platformOf(config: RuntimeConfig): PlatformConfig {
+  const production = config.NODE_ENV === 'production';
+  return {
+    domain: config.PLATFORM_DOMAIN,
+    devHosts:
+      config.DEV_HOSTS === undefined && !production
+        ? ['localhost', '127.0.0.1']
+        : list(config.DEV_HOSTS),
+    platformOrigin: new URL(config.PUBLIC_BASE_URL).origin,
+    siteUrlMode: config.SITE_URL_MODE ?? (production ? 'hostnames' : 'path'),
+  };
+}
+
 export interface Runtime {
   config: RuntimeConfig;
+  platform: PlatformConfig;
   invoker: Invoker;
   uow: UnitOfWork;
   tenants: TenantDirectory;
+  /** Hostname to site, as mycel_auth, cached (ADR 014). `invalidate` after an admin change. */
+  sites: SiteDirectory & { invalidate(hostname?: string): void };
+  /** The one builder of absolute site URLs (ADR 014 rule 6), bound to this platform. */
+  siteUrl(site: SiteAddress, path?: string): string;
   clock: Clock;
   signer: HmacSigner;
   mailer: Mailer;
@@ -132,9 +209,17 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
   const appDb = createDb(config.APP_DATABASE_URL);
   const authDb = createDb(config.AUTH_DATABASE_URL);
   const operatorDb = config.DATABASE_URL ? createDb(config.DATABASE_URL) : null;
-  const uow = createUnitOfWork(appDb, { clock, ids: uuidv7Ids, signer });
+  const platform = platformOf(config);
+  const uow = createUnitOfWork(appDb, {
+    clock,
+    ids: uuidv7Ids,
+    signer,
+    dns: createDnsResolver(),
+    platform,
+  });
   const tenants = createTenantDirectory(appDb);
   const identity = createIdentityStore(authDb, uuidv7Ids);
+  const sites = createSiteDirectory(authDb);
   const auth = createAuthenticator({
     identity,
     uow,
@@ -160,16 +245,19 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
       tenants,
       uow,
       from: parseAddress(config.MAIL_FROM),
-      publicBaseUrl: config.PUBLIC_BASE_URL,
+      platform,
     }),
   ];
   const stops: (() => Promise<void>)[] = [];
 
   return {
     config,
+    platform,
     invoker,
     uow,
     tenants,
+    sites,
+    siteUrl: (site, path) => siteUrl(site, platform, path),
     clock,
     signer,
     mailer,

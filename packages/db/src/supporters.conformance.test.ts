@@ -17,7 +17,7 @@ import {
   useCases,
   type SupporterEventType,
 } from '@mycel/core';
-import { FakeSigner } from '@mycel/core/testing';
+import { FakeSigner, FakeDns, memoryPlatform } from '@mycel/core/testing';
 import { createDb, createUnitOfWork, migrate, upsertTenant, uuidv7, uuidv7Ids } from './index.js';
 
 const operatorUrl = process.env['DATABASE_URL'];
@@ -64,13 +64,17 @@ describe.skipIf(!operatorUrl || !appUrl)('supporter conformance', () => {
 
   beforeAll(async () => {
     await migrate(operatorUrl!, { appPassword: process.env['MYCEL_APP_PASSWORD'], log: () => {} });
-    const tenant = await upsertTenant(operatorDb, {
-      id: uuidv7(),
-      slug: `sup-${run}`,
-      name: 'Supporters',
-      defaultLocale: 'nl',
-      locales: ['nl'],
-    });
+    const tenant = await upsertTenant(
+      operatorDb,
+      {
+        id: uuidv7(),
+        slug: `sup-${run}`,
+        name: 'Supporters',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+      },
+      { platformDomain: 'localhost' }
+    );
     admin = systemPrincipal(tenant.id, 'test');
   });
 

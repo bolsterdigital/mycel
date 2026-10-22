@@ -13,12 +13,13 @@ import {
   type KeyCapability,
   type Signer,
 } from '@mycel/core';
-import { probeForm, probePage } from '@mycel/core/testing';
 import { createDb, createUnitOfWork, upsertTenant, uuidv7, uuidv7Ids } from './index.js';
+import { FakeDns, memoryPlatform, probeForm, probePage } from '@mycel/core/testing';
 
 const operatorUrl = process.env['DATABASE_URL'];
-if (!operatorUrl) {
-  console.error('DATABASE_URL is not set (see .env.example)');
+const platformDomain = process.env['PLATFORM_DOMAIN'];
+if (!operatorUrl || !platformDomain) {
+  console.error('DATABASE_URL and PLATFORM_DOMAIN must be set (see .env.example)');
   process.exit(1);
 }
 const operatorDb = createDb(operatorUrl);
@@ -31,17 +32,19 @@ const noSigner: Signer = {
 };
 
 try {
-  const tenant = await upsertTenant(operatorDb, {
-    id: uuidv7(),
-    slug: 'probe',
-    name: 'Probe',
-    defaultLocale: 'nl',
-    locales: ['nl', 'en'],
-  });
+  const tenant = await upsertTenant(
+    operatorDb,
+    { id: uuidv7(), slug: 'probe', name: 'Probe', defaultLocale: 'nl', locales: ['nl', 'en'] },
+    { platformDomain }
+  );
+  // The seed verifies no domains and builds no URLs: the in-memory DNS and platform defaults
+  // (with the real platform domain) satisfy the unit of work without a resolver.
   const uow = createUnitOfWork(appDb, {
     clock: { now: () => new Date() },
     ids: uuidv7Ids,
     signer: noSigner,
+    dns: new FakeDns(),
+    platform: { ...memoryPlatform, domain: platformDomain },
   });
   const invoker = new Invoker(buildRegistry(), uow);
   const admin = systemPrincipal(tenant.id, 'seed');
@@ -49,7 +52,7 @@ try {
   const existing = await invoker.run(useCases.getPage, admin, { slug: 'signup' }).catch(() => null);
   if (existing) {
     console.log(
-      `tenant ${tenant.slug} (${tenant.id}) already seeded: /${tenant.slug}/${existing.slug}`
+      `tenant ${tenant.slug} (${tenant.id}) already seeded: /${tenant.slug}/${existing.slug} and ${tenant.slug}.${platformDomain}`
     );
   } else {
     const form = probeForm(uuidv7());

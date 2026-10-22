@@ -38,7 +38,17 @@ import type {
 import type { SupporterEvent } from '../supporters/events.js';
 import type { SupporterProjection } from '../supporters/model.js';
 import type { SupporterRepository } from '../supporters/ports.js';
-import type { TenantDirectory, TenantInfo } from '../tenants/ports.js';
+import type {
+  DnsResolver,
+  HostnameRecord,
+  HostnameRepository,
+  PlatformConfig,
+  ResolvedSite,
+  SiteDirectory,
+  TenantDirectory,
+  TenantInfo,
+} from '../tenants/ports.js';
+import { platformHostname } from '../tenants/model.js';
 
 export class FakeClock implements Clock {
   constructor(public current = new Date('2026-10-21T12:00:00.000Z')) {}
@@ -109,6 +119,28 @@ interface TenantStore {
   /** Keyed by operator id. */
   members: Map<string, { capabilities: Capability[]; createdAt: Date }>;
   apiKeys: Map<string, NewApiKey & { lastUsedAt: Date | null; revokedAt: Date | null }>;
+  /** Keyed by hostname; global uniqueness is checked across tenants by `MemoryStore.hostnameOwner`. */
+  hostnames: Map<string, HostnameRecord>;
+}
+
+/** Development defaults, the shape `.env.example` gives: path form on localhost. */
+export const memoryPlatform: PlatformConfig = {
+  domain: 'localhost',
+  devHosts: ['localhost', '127.0.0.1'],
+  platformOrigin: 'http://localhost:5173',
+  siteUrlMode: 'path',
+};
+
+/** Answers from a table; a name without an entry is "not found", like a real resolver. */
+export class FakeDns implements DnsResolver {
+  readonly txtRecords = new Map<string, string[]>();
+  readonly cnames = new Map<string, string>();
+  async txt(name: string): Promise<string[]> {
+    return [...(this.txtRecords.get(name) ?? [])];
+  }
+  async cname(name: string): Promise<string | null> {
+    return this.cnames.get(name) ?? null;
+  }
 }
 
 /** Platform data, like the `operators` table: one row per person, no tenant. */
@@ -141,10 +173,36 @@ export class MemoryStore {
         mailSends: new Map(),
         members: new Map(),
         apiKeys: new Map(),
+        hostnames: new Map(),
       };
       this.tenants.set(tenantId, store);
     }
     return store;
+  }
+
+  /** The tenant holding `hostname`, across all tenants (the primary key of `tenant_hostnames`). */
+  hostnameOwner(hostname: string): string | null {
+    for (const [tenantId, t] of this.tenants) if (t.hostnames.has(hostname)) return tenantId;
+    return null;
+  }
+
+  /**
+   * What `upsertTenant` does on the operator connection: the platform hostname, verified, and
+   * primary unless the tenant already has a primary.
+   */
+  addPlatformHostname(tenant: TenantInfo, platformDomain: string, at = new Date()): void {
+    const s = this.for(tenant.id);
+    const hostname = platformHostname(tenant.slug, platformDomain);
+    if (s.hostnames.has(hostname)) return;
+    const hasPrimary = [...s.hostnames.values()].some((h) => h.primary);
+    s.hostnames.set(hostname, {
+      hostname,
+      kind: 'platform',
+      primary: !hasPrimary,
+      verificationToken: null,
+      verifiedAt: at,
+      createdAt: at,
+    });
   }
 }
 
@@ -153,6 +211,8 @@ export interface MemoryDeps {
   clock?: Clock;
   ids?: Ids;
   signer?: Signer;
+  dns?: DnsResolver;
+  platform?: PlatformConfig;
 }
 
 export class MemoryUnitOfWork implements UnitOfWork {
@@ -160,12 +220,16 @@ export class MemoryUnitOfWork implements UnitOfWork {
   readonly clock: Clock;
   readonly ids: Ids;
   readonly signer: Signer;
+  readonly dns: DnsResolver;
+  readonly platform: PlatformConfig;
 
   constructor(deps: MemoryDeps = {}) {
     this.store = deps.store ?? new MemoryStore();
     this.clock = deps.clock ?? new FakeClock();
     this.ids = deps.ids ?? new SequentialIds();
     this.signer = deps.signer ?? new FakeSigner();
+    this.dns = deps.dns ?? new FakeDns();
+    this.platform = deps.platform ?? memoryPlatform;
   }
 
   async run<T>(principal: Principal, fn: (tx: TransactionContext) => Promise<T>): Promise<T> {
@@ -337,11 +401,47 @@ export class MemoryUnitOfWork implements UnitOfWork {
           k.lastUsedAt = new Date(at);
       },
     };
+    const store = this.store;
+    const hostnames: HostnameRepository = {
+      list: async () =>
+        [...s.hostnames.values()]
+          .sort((a, b) =>
+            a.kind !== b.kind
+              ? a.kind === 'platform'
+                ? -1
+                : 1
+              : a.hostname.localeCompare(b.hostname)
+          )
+          .map((h) => ({ ...h })),
+      get: async (hostname) => {
+        const h = s.hostnames.get(hostname);
+        return h ? { ...h } : null;
+      },
+      async insert(row) {
+        if (store.hostnameOwner(row.hostname)) return false;
+        s.hostnames.set(row.hostname, { ...row, primary: false });
+        return true;
+      },
+      async setVerified(hostname, at) {
+        const h = s.hostnames.get(hostname);
+        if (h) h.verifiedAt = at ? new Date(at) : null;
+      },
+      async setPrimary(hostname) {
+        for (const h of s.hostnames.values()) h.primary = h.hostname === hostname;
+      },
+      remove: async (hostname) => s.hostnames.delete(hostname),
+      primary: async () => {
+        const h = [...s.hostnames.values()].find((h) => h.primary);
+        return h ? { ...h } : null;
+      },
+    };
     return fn({
       principal,
       clock,
       ids: this.ids,
       signer: this.signer,
+      dns: this.dns,
+      platform: this.platform,
       events: {
         async publish(event) {
           if (event.tenantId !== principal.tenantId)
@@ -358,6 +458,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
       operators,
       members,
       apiKeys,
+      hostnames,
     });
   }
 
@@ -444,5 +545,35 @@ export class MemoryIdentityStore implements IdentityStore {
         if (k.keyHash === hash)
           return { id: k.id, tenantId, capabilities: [...k.capabilities], revokedAt: k.revokedAt };
     return null;
+  }
+}
+
+/**
+ * Hostname resolution over a MemoryStore, like `createSiteDirectory` over Postgres: it reads
+ * every tenant's hostnames, which only this port may do (ADR 011 rule 1, ADR 014).
+ */
+export class MemorySiteDirectory implements SiteDirectory {
+  constructor(
+    readonly store: MemoryStore,
+    readonly tenants: TenantDirectory
+  ) {}
+
+  async resolve(hostname: string): Promise<ResolvedSite | null> {
+    const tenantId = this.store.hostnameOwner(hostname);
+    if (!tenantId) return null;
+    const tenant = await this.tenants.findById(tenantId);
+    const h = this.store.for(tenantId).hostnames.get(hostname);
+    if (!tenant || !h) return null;
+    const primary = [...this.store.for(tenantId).hostnames.values()].find((x) => x.primary);
+    return {
+      tenant,
+      hostname: { hostname, kind: h.kind, primary: h.primary, verifiedAt: h.verifiedAt },
+      primaryHostname: primary?.hostname ?? null,
+    };
+  }
+
+  async allowed(hostname: string): Promise<boolean> {
+    const found = await this.resolve(hostname);
+    return !!found && (found.hostname.kind === 'platform' || found.hostname.verifiedAt !== null);
   }
 }

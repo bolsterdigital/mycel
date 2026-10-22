@@ -18,7 +18,7 @@ import {
   useCases,
   type Principal,
 } from '@mycel/core';
-import { FakeSigner } from '@mycel/core/testing';
+import { FakeDns, FakeSigner, memoryPlatform } from '@mycel/core/testing';
 import {
   createDb,
   createIdentityStore,
@@ -48,19 +48,25 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('operator and key conforman
     clock: { now: () => new Date() },
     ids: uuidv7Ids,
     signer: new FakeSigner(),
+    dns: new FakeDns(),
+    platform: memoryPlatform,
   });
   const invoker = new Invoker(buildRegistry(), uow);
   const identity = createIdentityStore(authDb, uuidv7Ids);
   const addr = (who: string) => `${who}-${run}@example.org`;
   const tenant = async (slug: string) =>
     (
-      await upsertTenant(operatorDb, {
-        id: uuidv7(),
-        slug: `${slug}-${run}`,
-        name: slug,
-        defaultLocale: 'nl',
-        locales: ['nl'],
-      })
+      await upsertTenant(
+        operatorDb,
+        {
+          id: uuidv7(),
+          slug: `${slug}-${run}`,
+          name: slug,
+          defaultLocale: 'nl',
+          locales: ['nl'],
+        },
+        { platformDomain: 'localhost' }
+      )
     ).id;
   let a = '';
   let b = '';

@@ -38,6 +38,7 @@ for (const name of [
   'AUTH_DATABASE_URL',
   'SIGNING_SECRET',
   'PUBLIC_BASE_URL',
+  'PLATFORM_DOMAIN',
   'MAIL_FROM',
 ])
   if (!process.env[name]) skip(`${name} is not set`);
@@ -63,8 +64,44 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
   MYCEL_SEED_OPERATOR_EMAIL: 'e2e-admin@probe.test',
 });
 
+// A second, verified hostname of tenant probe for hostnames.spec.ts (a non-primary hostname is
+// a 301 to the primary). Verification needs a real TXT record, so the fixture goes in through
+// the repository as the use case would leave it, not through DNS.
+{
+  const { createDb, createTenantDirectory, createUnitOfWork, uuidv7Ids } =
+    await import('@mycel/db');
+  const { systemPrincipal } = await import('@mycel/core');
+  const { FakeDns, FakeSigner, memoryPlatform } = await import('@mycel/core/testing');
+  const operatorDb = createDb(process.env.DATABASE_URL);
+  const probe = await createTenantDirectory(operatorDb).findBySlug('probe');
+  const uow = createUnitOfWork(operatorDb, {
+    clock: { now: () => new Date() },
+    ids: uuidv7Ids,
+    signer: new FakeSigner(),
+    dns: new FakeDns(),
+    platform: memoryPlatform,
+  });
+  await uow.run(systemPrincipal(probe.id, 'e2e'), async (ctx) => {
+    const hostname = 'e2e-alias.example';
+    if (
+      await ctx.hostnames.insert({
+        hostname,
+        kind: 'custom',
+        verificationToken: 'e2e-fixture',
+        verifiedAt: null,
+        createdAt: new Date(),
+      })
+    )
+      await ctx.hostnames.setVerified(hostname, new Date());
+  });
+  await operatorDb.destroy();
+}
+
 // The web app under test listens on 4173 (playwright.config.ts); links in the mail must point
-// there, so the API process gets the same origin regardless of what .env says.
+// there, so the API process gets the same origin regardless of what .env says. Both processes
+// run with SITE_URL_MODE=hostnames and PLATFORM_DOMAIN=localhost: the seed gives tenant probe
+// the hostname probe.localhost, Chromium resolves it to loopback, and the specs cover both the
+// hostname form (hostnames.spec.ts) and the development path form (signup.spec.ts).
 const WEB_ORIGIN = 'http://127.0.0.1:4173';
 const API_PORT = process.env.E2E_API_PORT ?? '8797';
 const OIDC_PORT = process.env.E2E_OIDC_PORT ?? '8798';
@@ -72,6 +109,8 @@ const spool = mkdtempSync(join(tmpdir(), 'mycel-e2e-mail-'));
 const env = {
   ...process.env,
   PUBLIC_BASE_URL: WEB_ORIGIN,
+  PLATFORM_DOMAIN: 'localhost',
+  SITE_URL_MODE: 'hostnames',
   MAILER: 'console',
   MAIL_SPOOL_DIR: spool,
   MYCEL_API_KEY: apiKey,

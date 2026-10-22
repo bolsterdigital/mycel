@@ -240,7 +240,7 @@ describe('confirmationMailSubscriber', () => {
       tenants: new MemoryTenants([probeTenant(TENANT)]),
       uow,
       from: { email: 'noreply@example.org' },
-      publicBaseUrl: 'https://example.org',
+      platform: { platformOrigin: 'https://example.org', siteUrlMode: 'path' },
     });
     const event = {
       id: '01900000-0000-7000-8000-00000000e002',

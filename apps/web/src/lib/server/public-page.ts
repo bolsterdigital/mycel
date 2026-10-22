@@ -40,19 +40,13 @@ export interface PublicPage {
   forms: Map<string, FormDefinition>;
 }
 
-export async function tenantBySlug(slug: string): Promise<TenantInfo> {
-  const tenant = await runtime().tenants.findBySlug(slug);
-  if (!tenant) error(404, 'Not found');
-  return tenant;
-}
-
+/** The tenant comes from the hooks (hostname or dev path, ADR 014), never from a route param. */
 export async function loadPublicPage(
-  tenantSlug: string,
+  tenant: TenantInfo,
   slug: string,
   acceptLanguage: string | null
 ): Promise<PublicPage> {
   const { invoker } = runtime();
-  const tenant = await tenantBySlug(tenantSlug);
   const reader = anonymousPrincipal(tenant.id, ['content:read', 'forms:read']);
   let page: Page;
   try {

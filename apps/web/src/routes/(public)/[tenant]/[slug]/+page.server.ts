@@ -1,16 +1,19 @@
 // A tenant page rendered from blocks, and the native form post for its signup block (ADR 009:
-// works without JavaScript; validation happens on the server, in the core use case).
+// works without JavaScript; validation happens on the server, in the core use case). The tenant
+// is `locals.site` (hooks.server.ts): the hostname, or the dev path form; `params.tenant` is the
+// slug the reroute hook put there and is never read (ADR 014).
 
 import { fail, redirect } from '@sveltejs/kit';
 import { anonymousPrincipal, translate, useCases } from '@mycel/core';
 import { ui } from '../../../../i18n/index.js';
-import { loadPublicPage, tenantBySlug } from '#lib/server/public-page.js';
+import { loadPublicPage } from '#lib/server/public-page.js';
 import { runtime } from '#lib/server/runtime.js';
+import { absoluteSiteUrl, requireSite, sitePath } from '#lib/server/site.js';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, request, locals }) => {
   const view = await loadPublicPage(
-    params.tenant,
+    requireSite(locals).tenant,
     params.slug,
     request.headers.get('accept-language')
   );
@@ -34,9 +37,10 @@ const text = (data: FormData, name: string): string => {
 };
 
 export const actions: Actions = {
-  default: async ({ params, request, url, getClientAddress }) => {
+  default: async ({ params, request, locals, getClientAddress }) => {
     const rt = runtime();
-    const tenant = await tenantBySlug(params.tenant);
+    const site = requireSite(locals);
+    const { tenant } = site;
     const data = await request.formData();
     const formId = text(data, 'formId');
     const locale = text(data, 'locale') || tenant.defaultLocale;
@@ -54,8 +58,8 @@ export const actions: Actions = {
       )
         values[name] = value;
 
-    // Tenant from the route (the site being visited), identity from the connection: nothing in
-    // the posted body can choose a tenant or raise capabilities (ADR 002 rule 3).
+    // Tenant from the site being visited, identity from the connection: nothing in the posted
+    // body can choose a tenant or raise capabilities (ADR 002 rule 3).
     const visitor = anonymousPrincipal(
       tenant.id,
       ['forms:write'],
@@ -67,7 +71,8 @@ export const actions: Actions = {
         formId,
         values,
         locale,
-        pageUrl: `${url.origin}${url.pathname}`,
+        // Provenance in the site's canonical address (ADR 014 rule 6), not the request's.
+        pageUrl: await absoluteSiteUrl(site, `/${params.slug}`),
         spam: { honeypot: text(data, 'website'), startedToken: text(data, '_started') },
       });
     } catch {
@@ -82,7 +87,7 @@ export const actions: Actions = {
 
     // A tripped honeypot gets the same thank-you as a person, so bots learn nothing.
     if (result.status === 'accepted' || (result.status === 'rejected' && result.reason === 'spam'))
-      redirect(303, `/${params.tenant}/${params.slug}/thanks`);
+      redirect(303, sitePath(site, `/${params.slug}/thanks`));
 
     if (result.status === 'invalid')
       return fail(400, {

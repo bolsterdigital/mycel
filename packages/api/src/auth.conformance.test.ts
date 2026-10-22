@@ -28,13 +28,17 @@ describe.skipIf(!ready)('API keys through the composition root', () => {
       log: () => {},
     });
     tenantId = (
-      await upsertTenant(operatorDb, {
-        id: uuidv7(),
-        slug: `auth-${Math.random().toString(36).slice(2, 8)}`,
-        name: 'Auth',
-        defaultLocale: 'nl',
-        locales: ['nl'],
-      })
+      await upsertTenant(
+        operatorDb,
+        {
+          id: uuidv7(),
+          slug: `auth-${Math.random().toString(36).slice(2, 8)}`,
+          name: 'Auth',
+          defaultLocale: 'nl',
+          locales: ['nl'],
+        },
+        { platformDomain: 'localhost' }
+      )
     ).id;
   });
 
@@ -53,6 +57,7 @@ describe.skipIf(!ready)('API keys through the composition root', () => {
         MAILER: 'console',
         MAIL_SPOOL_DIR: undefined,
         MYCEL_API_KEY: token,
+        PLATFORM_DOMAIN: env['PLATFORM_DOMAIN'] ?? 'localhost',
       });
     const admin = systemPrincipal(tenantId, 'conformance');
     const setup = createRuntime(config());

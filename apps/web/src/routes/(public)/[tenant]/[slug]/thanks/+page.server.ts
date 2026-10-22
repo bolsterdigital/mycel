@@ -2,11 +2,13 @@
 import { pick } from '@mycel/core';
 import { ui } from '../../../../../i18n/index.js';
 import { loadPublicPage } from '#lib/server/public-page.js';
+import { requireSite, sitePath } from '#lib/server/site.js';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, request, locals }) => {
+  const site = requireSite(locals);
   const view = await loadPublicPage(
-    params.tenant,
+    site.tenant,
     params.slug,
     request.headers.get('accept-language')
   );
@@ -15,6 +17,6 @@ export const load: PageServerLoad = async ({ params, request, locals }) => {
   return {
     title: view.title,
     message: form ? (pick(form.thankYou, view.locale, view.page.defaultLocale) ?? '') : '',
-    back: { href: `/${params.tenant}/${params.slug}`, label: ui(view.locale)('thanks.back') },
+    back: { href: sitePath(site, `/${params.slug}`), label: ui(view.locale)('thanks.back') },
   };
 };

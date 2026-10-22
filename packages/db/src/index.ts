@@ -10,15 +10,19 @@
 
 import { Kysely, PostgresDialect, sql } from 'kysely';
 import pg from 'pg';
-import type {
-  Clock,
-  Ids,
-  Principal,
-  Signer,
-  TenantDirectory,
-  TenantInfo,
-  UnitOfWork,
+import {
+  platformHostname,
+  type Clock,
+  type DnsResolver,
+  type Ids,
+  type PlatformConfig,
+  type Principal,
+  type Signer,
+  type TenantDirectory,
+  type TenantInfo,
+  type UnitOfWork,
 } from '@mycel/core';
+import { hostnameRepository } from './hostnames.js';
 import { apiKeyRepository, membershipRepository, operatorRepository } from './operators.js';
 import { outboxEventBus } from './outbox.js';
 import {
@@ -36,6 +40,7 @@ export { uuidv7, uuidv7Ids } from './ids.js';
 export { drainOutbox, startOutboxWorker, type DrainResult } from './outbox.js';
 export { startJanitor, sweepRateLimits } from './janitor.js';
 export { createIdentityStore } from './operators.js';
+export { createSiteDirectory, SITE_CACHE_TTL_MS } from './hostnames.js';
 export { FIRST_EVENT_MONTH, ensureEventPartitions, migrate } from './migrate.js';
 
 export function createDb(connectionString: string): Kysely<Database> {
@@ -62,6 +67,8 @@ export interface UnitOfWorkDeps {
   clock: Clock;
   ids: Ids;
   signer: Signer;
+  dns: DnsResolver;
+  platform: PlatformConfig;
 }
 
 export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): UnitOfWork {
@@ -74,6 +81,8 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           clock: deps.clock,
           ids: deps.ids,
           signer: deps.signer,
+          dns: deps.dns,
+          platform: deps.platform,
           events: outboxEventBus(trx),
           pages: pageRepository(trx, tenantId),
           forms: formRepository(trx, tenantId),
@@ -84,13 +93,14 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           operators: operatorRepository(trx),
           members: membershipRepository(trx, tenantId),
           apiKeys: apiKeyRepository(trx, tenantId),
+          hostnames: hostnameRepository(trx, tenantId),
         });
       });
     },
   };
 }
 
-/** Read-only tenant lookup; `tenants` is platform data that mycel_app may select (0001). */
+/** Read-only tenant lookup over the `tenant_directory` view (0008): what mycel_app may see. */
 export function createTenantDirectory(db: Kysely<Database>): TenantDirectory {
   const toInfo = (r: {
     id: string;
@@ -107,12 +117,16 @@ export function createTenantDirectory(db: Kysely<Database>): TenantDirectory {
   });
   return {
     async findById(id) {
-      const r = await db.selectFrom('tenants').selectAll().where('id', '=', id).executeTakeFirst();
+      const r = await db
+        .selectFrom('tenant_directory')
+        .selectAll()
+        .where('id', '=', id)
+        .executeTakeFirst();
       return r ? toInfo(r) : null;
     },
     async findBySlug(slug) {
       const r = await db
-        .selectFrom('tenants')
+        .selectFrom('tenant_directory')
         .selectAll()
         .where('slug', '=', slug)
         .executeTakeFirst();
@@ -121,28 +135,52 @@ export function createTenantDirectory(db: Kysely<Database>): TenantDirectory {
   };
 }
 
-/** Platform operation (ADR 002 rule 4): create or update a tenant on the operator connection. */
+/**
+ * Platform operation (ADR 002 rule 4): create or update a tenant on the operator connection,
+ * with its platform hostname `<slug>.<platform domain>` (ADR 014 rule 2): verified from the
+ * start, primary unless the tenant already has a primary, never removed. Idempotent.
+ */
 export async function upsertTenant(
   operatorDb: Kysely<Database>,
-  tenant: Omit<TenantInfo, 'id'> & { id: string }
+  tenant: Omit<TenantInfo, 'id'> & { id: string },
+  { platformDomain }: { platformDomain: string }
 ): Promise<TenantInfo> {
-  const row = await operatorDb
-    .insertInto('tenants')
-    .values({
-      id: tenant.id,
-      slug: tenant.slug,
-      name: tenant.name,
-      default_locale: tenant.defaultLocale,
-      locales: tenant.locales,
-    })
-    .onConflict((oc) => oc.column('slug').doUpdateSet({ name: tenant.name }))
-    .returningAll()
-    .executeTakeFirstOrThrow();
-  return {
-    id: row.id,
-    slug: row.slug,
-    name: row.name,
-    defaultLocale: row.default_locale,
-    locales: row.locales,
-  };
+  return operatorDb.transaction().execute(async (trx) => {
+    const row = await trx
+      .insertInto('tenants')
+      .values({
+        id: tenant.id,
+        slug: tenant.slug,
+        name: tenant.name,
+        default_locale: tenant.defaultLocale,
+        locales: tenant.locales,
+      })
+      .onConflict((oc) => oc.column('slug').doUpdateSet({ name: tenant.name }))
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    const hasPrimary = await trx
+      .selectFrom('tenant_hostnames')
+      .select('hostname')
+      .where('tenant_id', '=', row.id)
+      .where('is_primary', '=', true)
+      .executeTakeFirst();
+    await trx
+      .insertInto('tenant_hostnames')
+      .values({
+        hostname: platformHostname(row.slug, platformDomain),
+        tenant_id: row.id,
+        kind: 'platform',
+        is_primary: !hasPrimary,
+        verified_at: sql`now()`,
+      })
+      .onConflict((oc) => oc.column('hostname').doNothing())
+      .execute();
+    return {
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      defaultLocale: row.default_locale,
+      locales: row.locales,
+    };
+  });
 }
