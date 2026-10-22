@@ -53,6 +53,12 @@ grant update (entitlements, status) on tenants to mycel_platform;
 grant select, insert on tenant_hostnames to mycel_platform;
 create policy platform_hostnames on tenant_hostnames to mycel_platform
   using (true) with check (kind = 'platform');
+-- 0008 bound `tenant_isolation` to every role, so with a tenant context set (which
+-- `insertPlatformHostname` used to do) mycel_platform could have written a custom hostname for
+-- that one tenant through the OR of the two permissive policies. Only mycel_app works under a
+-- tenant context, so the policy is its own; the owner is a superuser in dev and CI and enters
+-- mycel_platform in the seed (`upsertTenant`) where it is not (review round 1).
+alter policy tenant_isolation on tenant_hostnames to mycel_app;
 
 -- Supporter admissions (ADR 015 rule 3 with ADR 019 rule 3; review round 1 of TODO #16, audit
 -- point 3). The supporter projection only grows after the outbox ingest, so counting it in

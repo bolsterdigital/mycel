@@ -58,18 +58,16 @@ type Platform = Pick<PlatformConfig, 'domain' | 'devHosts' | 'platformOrigin'>;
 
 /**
  * The platform hostname `<slug>.<platform domain>` of a new tenant: verified from the start,
- * primary unless the tenant already has a primary, never removed (ADR 014 rule 2). Sets the
- * tenant context for the rest of the transaction: `tenant_hostnames` is under forced RLS, which
- * binds the schema owner when it is not a superuser (managed Postgres; review of PR #8). That is
- * the seed's `upsertTenant` path on the operator role; under mycel_platform the setting is
- * harmless, because `platform_hostnames` already lets that role read and insert platform rows.
+ * primary unless the tenant already has a primary, never removed (ADR 014 rule 2). Runs as
+ * mycel_platform (`asPlatform`), whose `platform_hostnames` policy reads every row and inserts
+ * platform rows only; no tenant context is set, and `tenant_isolation` is mycel_app's alone
+ * (0010), so this role can never write a custom hostname (review round 1 of TODO #16).
  */
 export async function insertPlatformHostname(
   trx: Trx,
   tenant: { id: string; slug: string },
   platformDomain: string
 ): Promise<void> {
-  await sql`select set_config('app.tenant_id', ${tenant.id}, true)`.execute(trx);
   const hasPrimary = await trx
     .selectFrom('tenant_hostnames')
     .select('hostname')
@@ -93,7 +91,7 @@ export async function insertPlatformHostname(
  * One transaction on `db` as mycel_platform. No `reset role`: `set local` ends with the
  * transaction, and a failed statement rolls back role and all.
  */
-function asPlatform<T>(db: Kysely<Database>, fn: (trx: Trx) => Promise<T>): Promise<T> {
+export function asPlatform<T>(db: Kysely<Database>, fn: (trx: Trx) => Promise<T>): Promise<T> {
   return db.transaction().execute(async (trx) => {
     await sql`set local role mycel_platform`.execute(trx);
     return fn(trx);

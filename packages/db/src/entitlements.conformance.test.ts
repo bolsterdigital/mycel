@@ -147,11 +147,15 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
     expect(tried).toEqual({ read: 'ok', createdAt: '42501', write: '42501' });
   });
 
-  /** One statement as mycel_platform, entered from the authentication login like the API. */
-  const asPlatform = (statement: string, params: unknown[] = []) =>
+  /**
+   * One statement as mycel_platform, entered from the authentication login like the API; with
+   * `tenant`, under that tenant's context too, which must change nothing for this role.
+   */
+  const asPlatform = (statement: string, params: unknown[] = [], tenant?: string) =>
     as(authUrl!, async (c) => {
       await c.query('begin');
       await c.query('set local role mycel_platform');
+      if (tenant) await c.query(`select set_config('app.tenant_id', $1, true)`, [tenant]);
       const state = await sqlState(c.query(statement, params));
       await c.query('rollback');
       return state;
@@ -198,14 +202,20 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
     expect(await asPlatform(`update tenants set name = 'x' where id = $1`, [a.id])).toBe('42501');
     expect(await asPlatform(`update tenants set slug = 'x' where id = $1`, [a.id])).toBe('42501');
     expect(await asPlatform(`delete from tenants where id = $1`, [a.id])).toBe('42501');
-    // A custom hostname is the tenant's own business (`tenant.hostnames.add`): RLS with check.
+    // A custom hostname is the tenant's own business (`tenant.hostnames.add`): RLS with check,
+    // also under that tenant's context (`tenant_isolation` is mycel_app's alone since 0010).
+    const custom = `insert into tenant_hostnames (hostname, tenant_id, kind, verification_token)
+         values ($1, $2, 'custom', 't')`;
+    expect(await asPlatform(custom, [`custom-${run}.example.org`, a.id])).toBe('42501');
+    expect(await asPlatform(custom, [`custom-${run}.example.org`, a.id], a.id)).toBe('42501');
+    // And a platform hostname is: the role's own policy, no context needed.
     expect(
       await asPlatform(
-        `insert into tenant_hostnames (hostname, tenant_id, kind, verification_token)
-         values ($1, $2, 'custom', 't')`,
-        [`custom-${run}.example.org`, a.id]
+        `insert into tenant_hostnames (hostname, tenant_id, kind, verified_at)
+         values ($1, $2, 'platform', now())`,
+        [`ent-pa-two-${run}.${DOMAIN}`, a.id]
       )
-    ).toBe('42501');
+    ).toBe('ok');
   });
 
   it('brings an empty and a partial document to the Principal, merged over the defaults', async () => {

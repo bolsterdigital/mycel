@@ -23,7 +23,7 @@ import {
   type UnitOfWork,
 } from '@mycel/core';
 import { hostnameRepository } from './hostnames.js';
-import { insertPlatformHostname } from './platform.js';
+import { asPlatform, insertPlatformHostname } from './platform.js';
 import { jobScheduler } from './jobs.js';
 import { apiKeyRepository, membershipRepository, operatorRepository } from './operators.js';
 import { outboxEventBus } from './outbox.js';
@@ -178,19 +178,27 @@ export async function upsertTenant(
   tenant: Omit<TenantInfo, 'id'> & { id: string },
   { platformDomain }: { platformDomain: string }
 ): Promise<TenantInfo> {
-  return operatorDb.transaction().execute(async (trx) => {
-    const row = await trx
-      .insertInto('tenants')
-      .values({
-        id: tenant.id,
-        slug: tenant.slug,
-        name: tenant.name,
-        default_locale: tenant.defaultLocale,
-        locales: tenant.locales,
-      })
-      .onConflict((oc) => oc.column('slug').doUpdateSet({ name: tenant.name }))
-      .returningAll()
-      .executeTakeFirstOrThrow();
+  // As mycel_platform, like every platform write (0010): the owner is a member, and the role's
+  // grants, not the connection's, decide what this can do. An existing slug keeps its row.
+  return asPlatform(operatorDb, async (trx) => {
+    const row =
+      (await trx
+        .insertInto('tenants')
+        .values({
+          id: tenant.id,
+          slug: tenant.slug,
+          name: tenant.name,
+          default_locale: tenant.defaultLocale,
+          locales: tenant.locales,
+        })
+        .onConflict((oc) => oc.column('slug').doNothing())
+        .returningAll()
+        .executeTakeFirst()) ??
+      (await trx
+        .selectFrom('tenants')
+        .selectAll()
+        .where('slug', '=', tenant.slug)
+        .executeTakeFirstOrThrow());
     await insertPlatformHostname(trx, row, platformDomain);
     return {
       id: row.id,

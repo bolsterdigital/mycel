@@ -122,14 +122,14 @@ export const submitForm = defineUseCase({
       return reject('rate-limited');
 
     // ADR 015 rule 3: only a new address grows the supporter count. The projection exists only
-    // after the outbox ingest, so the seat is reserved here, under the tenant's admission lock,
-    // and released by ingest (`ctx.admissions`, TODO #16).
-    if (!(await ctx.supporters.getProjection(email))) {
-      await ctx.admissions.lock();
-      if (!(await ctx.admissions.pending(email))) {
-        withinLimit(ctx, 'supporters.max', await ctx.admissions.count());
-        await ctx.admissions.reserve(email);
-      }
+    // after the outbox ingest, so the seat is reserved here and released by ingest
+    // (`ctx.admissions`, TODO #16). The lock comes first and ingest takes the same lock before
+    // it releases, so a projection cannot land between this check and the reservation and leave
+    // a seat taken for the whole admission window.
+    await ctx.admissions.lock();
+    if (!(await ctx.supporters.getProjection(email)) && !(await ctx.admissions.pending(email))) {
+      withinLimit(ctx, 'supporters.max', await ctx.admissions.count());
+      await ctx.admissions.reserve(email);
     }
 
     const submissionId = ctx.ids.next();
