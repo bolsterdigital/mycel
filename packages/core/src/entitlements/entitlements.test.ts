@@ -48,9 +48,14 @@ describe('the entitlements document', () => {
     expect(effectiveEntitlements(null)).toEqual(DEFAULT_ENTITLEMENTS);
   });
 
+  it('shows the footer credit by default (ADR 015 rule 5)', () => {
+    expect(DEFAULT_ENTITLEMENTS.remove_branding).toBe(false);
+    expect(entitled(systemPrincipal(TENANT, 'test'), 'remove_branding')).toBe(false);
+  });
+
   it('takes known valid keys, ignores unknown ones and defaults the rest', () => {
     const e = effectiveEntitlements({
-      remove_branding: false,
+      remove_branding: true,
       'supporters.max': 250,
       'sites.max': 3,
       'future.feature': true,
@@ -58,7 +63,7 @@ describe('the entitlements document', () => {
     });
     expect(e).toEqual({
       ...DEFAULT_ENTITLEMENTS,
-      remove_branding: false,
+      remove_branding: true,
       'supporters.max': 250,
       blocks: { hero: false },
     });

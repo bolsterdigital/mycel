@@ -57,7 +57,7 @@ Flat keys, the names of ADR 015 rule 2. Missing keys get the default; an empty d
 | `donations.enabled`       | switch            | `true`        | (no consumer yet; fase 4)                                  |
 | `custom_domain`           | switch            | `true`        | `tenant.hostnames.add`                                     |
 | `api_keys`                | switch            | `true`        | `tenant.keys.create`                                       |
-| `remove_branding`         | switch            | `true`        | the public layout: off shows "Runs on Mycel"               |
+| `remove_branding`         | switch            | `false`       | the public layout: `false` shows the credit                |
 | `blocks`                  | `{ type: false }` | `{}` (all on) | (TODO #8b, per block type when a tree is saved)            |
 | `supporters.max`          | limit             | 100 000       | `forms.submit`, for a new address only                     |
 | `mail.monthly_max`        | limit             | 1 000 000     | (no consumer yet; TODO #22B)                               |

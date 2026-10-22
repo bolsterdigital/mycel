@@ -8,8 +8,9 @@
 // lenient and merged over the defaults: unknown keys are ignored and missing ones get the
 // default, so an older build reads a newer document and an empty document means "everything".
 // Rejected: a `plan` name in the document (ADR 015 rule 2, rejected alternatives) and
-// `remove_branding` off by default (then every self-host shows a credit that ADR 015 rule 5
-// leaves to the hoster).
+// `remove_branding` on by default (then no self-host shows the credit that ADR 015 rule 5 turns
+// on by default; a self-hoster who does not want it sets `remove_branding: true` with
+// `npm run platform`).
 
 import { z } from 'zod';
 
@@ -59,13 +60,16 @@ export type Entitlements = z.infer<typeof Entitlements>;
 export const EntitlementsDocument = Entitlements.partial();
 export type EntitlementsDocument = z.infer<typeof EntitlementsDocument>;
 
-/** Everything on, generous limits: a self-hoster never has to think about this (ADR 015 rule 2). */
+/**
+ * Everything on, generous limits, and the footer credit shown (`remove_branding: false`, ADR 015
+ * rule 5): a self-hoster never has to think about this (ADR 015 rule 2).
+ */
 export const DEFAULT_ENTITLEMENTS: Entitlements = Object.freeze({
   'mailing.enabled': true,
   'donations.enabled': true,
   custom_domain: true,
   api_keys: true,
-  remove_branding: true,
+  remove_branding: false,
   blocks: Object.freeze({}) as Record<string, boolean>,
   'supporters.max': 100_000,
   'mail.monthly_max': 1_000_000,
