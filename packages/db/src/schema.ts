@@ -141,6 +141,11 @@ export interface Database {
     window_start: Timestamp;
     hits: number;
   };
+  login_attempts: {
+    key: string;
+    window_start: Timestamp;
+    hits: number;
+  };
   outbox: {
     id: string;
     tenant_id: string;

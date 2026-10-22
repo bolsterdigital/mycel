@@ -18,6 +18,7 @@ import {
   type ApiKeyRepository,
   type ApiKeySummary,
   type Capability,
+  type Clock,
   type IdentityStore,
   type Ids,
   type KeyCapability,
@@ -212,7 +213,11 @@ const toOperator = (r: OperatorRow): Operator => ({
  * `mycel_authenticator` (AUTH_DATABASE_URL); the operator connection works too and is what the
  * database tests use, because it is also a member of mycel_auth (0007).
  */
-export function createIdentityStore(authDb: Kysely<Database>, ids: Ids): IdentityStore {
+export function createIdentityStore(
+  authDb: Kysely<Database>,
+  ids: Ids,
+  clock: Clock = { now: () => new Date() }
+): IdentityStore {
   const asAuth = <T>(fn: (trx: Trx) => Promise<T>): Promise<T> =>
     authDb.transaction().execute(async (trx) => {
       await sql`set local role mycel_auth`.execute(trx);
@@ -350,6 +355,24 @@ export function createIdentityStore(authDb: Kysely<Database>, ids: Ids): Identit
               status: TenantStatus.parse(r.status),
             }
           : DEFAULT_ACCESS;
+      });
+    },
+
+    // One statement: the upsert is atomic per (key, window), so two processes on two pools
+    // count into the same row and neither can read a stale total.
+    loginAttempt(key, { max, windowSeconds }) {
+      const windowMs = windowSeconds * 1000;
+      const windowStart = new Date(Math.floor(clock.now().getTime() / windowMs) * windowMs);
+      return asAuth(async (trx) => {
+        const row = await trx
+          .insertInto('login_attempts')
+          .values({ key, window_start: windowStart, hits: 1 })
+          .onConflict((oc) =>
+            oc.columns(['key', 'window_start']).doUpdateSet({ hits: sql`login_attempts.hits + 1` })
+          )
+          .returning('hits')
+          .executeTakeFirstOrThrow();
+        return row.hits <= max;
       });
     },
   };

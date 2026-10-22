@@ -15,7 +15,7 @@ import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ url, cookies, getClientAddress }) => {
   const rt = runtime();
-  if (!allowLoginAttempt(rt.signer.hashIp(getClientAddress())))
+  if (!(await allowLoginAttempt(rt.signer.hashIp(getClientAddress()))))
     error(429, 'Too many login attempts; try again in a few minutes.');
   const attempt = cookies.get(OIDC_COOKIE);
   clearCookie(cookies, OIDC_COOKIE);

@@ -13,6 +13,11 @@
 //
 // The admin flow (TODO #7) logs in through scripts/mock-oidc.mjs, which this script starts too,
 // and uses an API key: generated here before the seed, which stores its hash for tenant probe.
+//
+// The fronts run as in production (ADR 011 rule 1, TODO #20b): the API with MYCEL_WORKER=off and
+// the web server both without DATABASE_URL, so neither can hold the schema owner's credentials;
+// the worker is its own process and the only one with it. Fixtures that need the owner run in
+// this script before the processes start.
 
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -146,6 +151,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
 const WEB_ORIGIN = 'http://127.0.0.1:4173';
 const API_PORT = process.env.E2E_API_PORT ?? '8797';
 const OIDC_PORT = process.env.E2E_OIDC_PORT ?? '8798';
+const WORKER_PORT = process.env.E2E_WORKER_PORT ?? '8799';
 const spool = mkdtempSync(join(tmpdir(), 'mycel-e2e-mail-'));
 const env = {
   ...process.env,
@@ -161,6 +167,9 @@ const env = {
 };
 // The mock is a public client; a secret from .env would make the token request differ.
 delete env.OIDC_CLIENT_SECRET;
+// What the fronts get: everything but the owner's connection (playwright.config.ts drops it for
+// the web server the same way). The spec process itself keeps it for its own fixtures.
+const { DATABASE_URL: _owner, ...frontEnv } = env;
 
 const idp = spawn('node', ['scripts/mock-oidc.mjs'], {
   cwd: root,
@@ -170,10 +179,16 @@ const idp = spawn('node', ['scripts/mock-oidc.mjs'], {
 const api = spawn('node', ['packages/api/dist/server.js'], {
   cwd: root,
   stdio: ['ignore', 'inherit', 'inherit'],
-  env: { ...env, PORT: API_PORT },
+  env: { ...frontEnv, PORT: API_PORT, MYCEL_WORKER: 'off' },
+});
+const worker = spawn('node', ['packages/api/dist/worker.js'], {
+  cwd: root,
+  stdio: ['ignore', 'inherit', 'inherit'],
+  env: { ...env, PORT: WORKER_PORT },
 });
 const stop = () => {
   if (api.exitCode === null) api.kill('SIGTERM');
+  if (worker.exitCode === null) worker.kill('SIGTERM');
   if (idp.exitCode === null) idp.kill('SIGTERM');
   rmSync(spool, { recursive: true, force: true });
 };
@@ -199,6 +214,7 @@ async function waitFor(name, child, url) {
   }
 }
 await waitFor('API process', api, `${env.E2E_API_URL}/healthz`);
+await waitFor('worker', worker, `http://127.0.0.1:${WORKER_PORT}/healthz`);
 await waitFor('mock IdP', idp, `${env.OIDC_ISSUER}/.well-known/openid-configuration`);
 
 // The children keep the event loop alive; stop them explicitly once the tests are done.

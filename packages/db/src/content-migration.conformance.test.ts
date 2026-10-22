@@ -5,10 +5,13 @@
 // a missing translation and a page that is not valid: the first two convert and publish only
 // their complete locales, the third stops the whole conversion with its page id.
 //
-// It runs as a role that RLS binds: the operator itself when it is not a superuser (the local
-// setup, and managed Postgres), otherwise a throwaway non-superuser role created inside the
-// transaction (CI's service container makes the operator a superuser, which bypasses RLS and
-// would prove nothing). Skips without DATABASE_URL; with E2E_REQUIRED=1 (CI) that is a failure.
+// Tenant work runs under `mycel_app`, as a non-superuser member that forced RLS binds, whatever
+// the operator is (CI's service container makes it a superuser, which would bypass RLS and prove
+// nothing). Since 0018 (TODO #20b) every `tenant_isolation` policy is bound to mycel_app, so the
+// owner sees no tenant row and could not replay this at all: the migrator ran it as the owner
+// while the policies were still on `public`, which a clean chain still does (0011 before 0018).
+// Only the tenants and the recreated `pages` table are the owner's. Skips without DATABASE_URL;
+// with E2E_REQUIRED=1 (CI) that is a failure.
 
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
@@ -48,7 +51,6 @@ const blockId = (pageId: string, position: number) => {
 describe.skipIf(!operatorUrl)('migration 0011 backfill', () => {
   const client = new pg.Client({ connectionString: operatorUrl });
   let backfill = '';
-  let superuser = false;
   const run = Math.random().toString(36).slice(2, 8);
 
   beforeAll(async () => {
@@ -57,11 +59,6 @@ describe.skipIf(!operatorUrl)('migration 0011 backfill', () => {
     backfill = text.slice(text.indexOf('-- backfill:begin'), text.indexOf('-- backfill:end'));
     expect(backfill).toContain('insert into content_items');
     await client.connect();
-    superuser = (
-      await client.query<{ s: boolean }>(
-        'select rolsuper as s from pg_roles where rolname = current_user'
-      )
-    ).rows[0]!.s;
   });
 
   afterAll(() => client.end());
@@ -70,7 +67,7 @@ describe.skipIf(!operatorUrl)('migration 0011 backfill', () => {
   const form = { a: uuidv7(), b: uuidv7() };
   const page = { complete: uuidv7(), partial: uuidv7(), solo: uuidv7(), broken: uuidv7() };
 
-  /** Fresh transaction: tenants, forms, the old pages table, and the RLS-bound role. */
+  /** Fresh transaction: tenants, the old pages table, then under mycel_app forms and pages. */
   async function prepare(
     pages: {
       id: string;
@@ -79,25 +76,35 @@ describe.skipIf(!operatorUrl)('migration 0011 backfill', () => {
       title: object;
       blocks: object[];
       locales?: string[];
-    }[],
-    standIn = false
+    }[]
   ) {
     await client.query('begin');
     try {
-      await fill(pages, standIn);
+      await fill(pages);
     } catch (e) {
       await client.query('rollback');
       throw e;
     }
   }
 
-  async function fill(pages: Parameters<typeof prepare>[0], standIn: boolean) {
+  async function fill(pages: Parameters<typeof prepare>[0]) {
     await client.query(PAGES_0002);
-    for (const [key, id] of Object.entries(tenant)) {
+    for (const [key, id] of Object.entries(tenant))
       await client.query(
         `insert into tenants (id, slug, name, default_locale, locales) values ($1, $2, $2, 'nl', '{nl,en}')`,
         [id, `mig-${key}-${run}`]
       );
+    // The backfill walks `tenants`, which mycel_app reads only through `tenant_directory` (0008):
+    // a throwaway member of mycel_app, bound by its policies and holding its grants, gets that
+    // one read on top. Rolled back with the rest.
+    const role = `mig_app_${run}`;
+    await client.query(`create role ${role} nologin in role mycel_app`);
+    // A non-superuser with CREATEROLE administers the new role but is not yet a member (16+).
+    await client.query(`grant ${role} to current_user`);
+    await client.query(`grant select on tenants to ${role}`);
+    await client.query(`grant select, insert on pages to ${role}`);
+    await client.query(`set local role ${role}`);
+    for (const [key, id] of Object.entries(tenant)) {
       await client.query(`select set_config('app.tenant_id', $1, true)`, [id]);
       await client.query(`insert into forms (id, tenant_id, definition) values ($1, $2, '{}')`, [
         form[key as 'a' | 'b'],
@@ -119,17 +126,6 @@ describe.skipIf(!operatorUrl)('migration 0011 backfill', () => {
       );
     }
     await client.query(`select set_config('app.tenant_id', '', true)`);
-    if (superuser || standIn) {
-      const role = `mig_rls_${run}`;
-      await client.query(`create role ${role} nologin`);
-      // A non-superuser with CREATEROLE administers the new role but is not yet a member (16+).
-      if (!superuser) await client.query(`grant ${role} to current_user`);
-      await client.query(`grant select on tenants, pages, forms to ${role}`);
-      await client.query(
-        `grant select, insert on content_items, content_revisions, content_item_locales to ${role}`
-      );
-      await client.query(`set local role ${role}`);
-    }
   }
 
   async function read(tenantId: string) {
@@ -156,75 +152,68 @@ describe.skipIf(!operatorUrl)('migration 0011 backfill', () => {
   const heading = (text: object) => ({ type: 'heading', version: 1, props: { text } });
   const signup = (formId: string) => ({ type: 'signup-form', version: 1, props: { formId } });
 
-  // As the operator (the owner, bound by forced RLS; a stand-in role when the operator is a
-  // superuser), and always as a throwaway non-superuser role, so CI's path also runs locally.
-  it.each([false, true])(
-    'converts two tenants, publishing only complete locales (stand-in role: %s)',
-    async (standIn) => {
-      await prepare(
-        [
-          {
-            id: page.complete,
-            tenant: tenant.a,
-            slug: 'complete',
-            title: { nl: 'Doe mee', en: 'Join' },
-            blocks: [heading({ nl: 'Kop', en: 'Heading' }), signup(form.a)],
-          },
-          {
-            id: page.partial,
-            tenant: tenant.a,
-            slug: 'partial',
-            title: { nl: 'Half', en: 'Half' },
-            blocks: [heading({ nl: 'Alleen Nederlands' })],
-          },
-          {
-            id: page.solo,
-            tenant: tenant.b,
-            slug: 'solo',
-            title: { nl: 'Alleen nl' },
-            blocks: [signup(form.b)],
-          },
-        ],
-        standIn
+  it('converts two tenants under mycel_app, publishing only complete locales', async () => {
+    await prepare([
+      {
+        id: page.complete,
+        tenant: tenant.a,
+        slug: 'complete',
+        title: { nl: 'Doe mee', en: 'Join' },
+        blocks: [heading({ nl: 'Kop', en: 'Heading' }), signup(form.a)],
+      },
+      {
+        id: page.partial,
+        tenant: tenant.a,
+        slug: 'partial',
+        title: { nl: 'Half', en: 'Half' },
+        blocks: [heading({ nl: 'Alleen Nederlands' })],
+      },
+      {
+        id: page.solo,
+        tenant: tenant.b,
+        slug: 'solo',
+        title: { nl: 'Alleen nl' },
+        blocks: [signup(form.b)],
+      },
+    ]);
+    try {
+      const { rows: who } = await client.query<{ s: boolean; app: boolean }>(
+        `select rolsuper as s, pg_has_role(current_user, 'mycel_app', 'usage') as app
+         from pg_roles where rolname = current_user`
       );
-      try {
-        const { rows: who } = await client.query<{ s: boolean }>(
-          'select rolsuper as s from pg_roles where rolname = current_user'
-        );
-        expect(who[0]!.s).toBe(false);
-        await client.query(backfill);
-        // The deferred latest-revision key is checked now instead of at a commit that never comes.
-        await client.query('set constraints all immediate');
+      expect(who[0]).toEqual({ s: false, app: true });
+      await client.query(backfill);
+      // The deferred latest-revision key is checked now instead of at a commit that never comes.
+      await client.query('set constraints all immediate');
 
-        const a = await read(tenant.a);
-        expect(a.map((r) => [r.slug, r.locales.map((l) => `${l.locale}:${l.status}`)])).toEqual([
-          ['complete', ['en:published', 'nl:published']],
-          ['partial', ['en:draft', 'nl:published']],
-        ]);
-        const complete = a[0]!;
-        expect(complete.id).toBe(page.complete);
-        expect(complete.created_at.toISOString()).toBe('2026-10-01T10:00:00.000Z');
-        expect(complete.revision_id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-8/);
-        expect(complete.actor).toEqual({ kind: 'system', job: 'migration:0011' });
-        const doc = ContentDocument.parse(complete.document);
-        expect(doc.blocks.map((b) => b.id)).toEqual([
-          blockId(page.complete, 1),
-          blockId(page.complete, 2),
-        ]);
-        expect(doc.blocks[1]).toMatchObject({ type: 'signup-form', props: { formId: form.a } });
-        ContentDocument.parse(a[1]!.document);
+      const a = await read(tenant.a);
+      expect(a.map((r) => [r.slug, r.locales.map((l) => `${l.locale}:${l.status}`)])).toEqual([
+        ['complete', ['en:published', 'nl:published']],
+        ['partial', ['en:draft', 'nl:published']],
+      ]);
+      const complete = a[0]!;
+      expect(complete.id).toBe(page.complete);
+      expect(complete.created_at.toISOString()).toBe('2026-10-01T10:00:00.000Z');
+      expect(complete.revision_id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-8/);
+      expect(complete.actor).toEqual({ kind: 'system', job: 'migration:0011' });
+      const doc = ContentDocument.parse(complete.document);
+      expect(doc.blocks.map((b) => b.id)).toEqual([
+        blockId(page.complete, 1),
+        blockId(page.complete, 2),
+      ]);
+      expect(doc.blocks[1]).toMatchObject({ type: 'signup-form', props: { formId: form.a } });
+      ContentDocument.parse(a[1]!.document);
 
-        const b = await read(tenant.b);
-        expect(b.map((r) => [r.slug, r.locales.map((l) => `${l.locale}:${l.status}`)])).toEqual([
-          ['solo', ['en:draft', 'nl:published']],
-        ]);
-        // Tenant context per tenant: A's rows are invisible under B's context.
-        expect(b.some((r) => r.id === page.complete)).toBe(false);
-      } finally {
-        await client.query('rollback');
-      }
+      const b = await read(tenant.b);
+      expect(b.map((r) => [r.slug, r.locales.map((l) => `${l.locale}:${l.status}`)])).toEqual([
+        ['solo', ['en:draft', 'nl:published']],
+      ]);
+      // Tenant context per tenant: A's rows are invisible under B's context.
+      expect(b.some((r) => r.id === page.complete)).toBe(false);
+    } finally {
+      await client.query('rollback');
     }
-  );
+  });
 
   it.each([
     [

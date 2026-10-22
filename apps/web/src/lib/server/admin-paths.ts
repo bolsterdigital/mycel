@@ -4,6 +4,8 @@
 // a tenant site. Until TODO #14 splits a separate platform hostname off, that origin is the one
 // in PUBLIC_BASE_URL.
 
+import type { IdentityStore } from '@mycel/core';
+
 /** True when `url` is served on the platform origin. */
 export function onPlatformOrigin(url: URL, publicBaseUrl: string): boolean {
   return url.origin === new URL(publicBaseUrl).origin;
@@ -30,21 +32,16 @@ export function safeReturn(raw: string | null | undefined): string {
   return parsed.pathname + parsed.search;
 }
 
+/** Login starts and callbacks per client address, together: 20 per 10 minutes. */
+export const LOGIN_LIMIT = { max: 20, windowSeconds: 10 * 60 } as const;
+
 /**
- * A small fixed-window limiter per key, in this process. Enough to keep the login endpoints from
- * being hammered by one address; shared counters across processes are hardening for TODO #20.
+ * The login rate limit over the identity port, so every web process counts into one window
+ * (`login_attempts`, 0018, TODO #20b). `key` is the keyed hash of the client address. Rejected:
+ * the in-process window this replaced, which two processes behind Caddy doubled.
  */
-export function windowLimiter(max: number, windowMs: number, now: () => number = Date.now) {
-  const hits = new Map<string, { start: number; n: number }>();
-  return (key: string): boolean => {
-    const t = now();
-    const entry = hits.get(key);
-    if (!entry || t - entry.start >= windowMs) {
-      if (hits.size > 10_000) hits.clear();
-      hits.set(key, { start: t, n: 1 });
-      return true;
-    }
-    entry.n += 1;
-    return entry.n <= max;
-  };
+export function loginLimiter(
+  identity: Pick<IdentityStore, 'loginAttempt'>
+): (key: string) => Promise<boolean> {
+  return (key) => identity.loginAttempt(key, LOGIN_LIMIT);
 }

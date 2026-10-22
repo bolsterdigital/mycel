@@ -49,6 +49,12 @@ export interface IdentityStore {
    * credential that named it is checked by the caller.
    */
   tenantAccess(tenantId: string): Promise<TenantAccess>;
+  /**
+   * Count one login attempt for `key` (a keyed hash of the client address, never the address)
+   * in the current fixed window and return whether it is within `max`. Shared between processes:
+   * the Postgres store counts in `login_attempts` (0018, TODO #20b).
+   */
+  loginAttempt(key: string, limit: { max: number; windowSeconds: number }): Promise<boolean>;
 }
 
 export interface OperatorRepository {

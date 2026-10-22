@@ -10,7 +10,7 @@ import {
   type TenantInfo,
 } from '@mycel/core';
 import { error, redirect, type Cookies } from '@sveltejs/kit';
-import { windowLimiter } from './admin-paths.js';
+import { loginLimiter } from './admin-paths.js';
 import { runtime } from './runtime.js';
 
 export const SESSION_COOKIE = 'mycel_session';
@@ -30,8 +30,9 @@ export function clearCookie(cookies: Cookies, name: string): void {
   cookies.delete(name, { path: '/admin' });
 }
 
-/** Login starts and callbacks per client address: 20 per 10 minutes, in this process. */
-export const allowLoginAttempt = windowLimiter(20, 10 * 60 * 1000);
+/** Login starts and callbacks per client address: 20 per 10 minutes, shared by every process. */
+export const allowLoginAttempt = (key: string): Promise<boolean> =>
+  loginLimiter(runtime().identity)(key);
 
 export const ADMIN_LOCALES = ['nl', 'en'] as const;
 

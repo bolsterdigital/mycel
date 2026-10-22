@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { onPlatformOrigin, safeReturn, windowLimiter } from './admin-paths.js';
+import { FakeClock, MemoryIdentityStore, MemoryStore, MemoryTenants } from '@mycel/core/testing';
+import { LOGIN_LIMIT, loginLimiter, onPlatformOrigin, safeReturn } from './admin-paths.js';
 
 describe('safeReturn', () => {
   it.each([
@@ -31,12 +32,17 @@ describe('onPlatformOrigin', () => {
   });
 });
 
-describe('windowLimiter', () => {
-  it('allows max hits per window per key', () => {
-    let t = 0;
-    const hit = windowLimiter(2, 1000, () => t);
-    expect([hit('a'), hit('a'), hit('a'), hit('b')]).toEqual([true, true, false, true]);
-    t = 1000;
-    expect(hit('a')).toBe(true);
+describe('loginLimiter', () => {
+  it('counts through the identity port, 20 per 10 minutes per key, then a fresh window', async () => {
+    const clock = new FakeClock(new Date('2026-10-22T10:00:00Z'));
+    const identity = new MemoryIdentityStore(new MemoryStore(), new MemoryTenants(), clock);
+    const allow = loginLimiter(identity);
+    const results = [];
+    for (let i = 0; i < LOGIN_LIMIT.max + 1; i++) results.push(await allow('a'.repeat(22)));
+    expect(results.filter(Boolean)).toHaveLength(LOGIN_LIMIT.max);
+    expect(results.at(-1)).toBe(false);
+    expect(await allow('b'.repeat(22))).toBe(true);
+    clock.advance(LOGIN_LIMIT.windowSeconds * 1000);
+    expect(await allow('a'.repeat(22))).toBe(true);
   });
 });

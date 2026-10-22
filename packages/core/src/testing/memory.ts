@@ -429,6 +429,8 @@ export class MemoryStore {
   readonly jobs: JobRecord[] = [];
   /** The tail of each tenant's `members.lock()` queue. */
   readonly memberLocks = new Map<string, Promise<void>>();
+  /** `login_attempts` (0018): hits per `<key>:<window number>`, shared like the table. */
+  readonly loginAttempts = new Map<string, number>();
   /** `tenants.entitlements` and `tenants.status` (0010); a tenant without a row has the defaults. */
   readonly access = new Map<string, { entitlements: EntitlementsDocument; status: TenantStatus }>();
 
@@ -1163,6 +1165,14 @@ export class MemoryIdentityStore implements IdentityStore {
 
   async tenantAccess(tenantId: string): Promise<TenantAccess> {
     return this.store.accessOf(tenantId);
+  }
+
+  async loginAttempt(key: string, { max, windowSeconds }: { max: number; windowSeconds: number }) {
+    const windowMs = windowSeconds * 1000;
+    const slot = `${key}:${Math.floor(this.clock.now().getTime() / windowMs)}`;
+    const hits = (this.store.loginAttempts.get(slot) ?? 0) + 1;
+    this.store.loginAttempts.set(slot, hits);
+    return hits <= max;
   }
 }
 

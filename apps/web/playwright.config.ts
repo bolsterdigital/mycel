@@ -7,6 +7,9 @@ import { defineConfig } from '@playwright/test';
 
 const port = 4173;
 const origin = `http://127.0.0.1:${port}`;
+// The web front never holds the schema owner's connection (ADR 011 rule 1, TODO #20b); the spec
+// process keeps it for its fixtures, the server under test does not get it.
+const { DATABASE_URL: _owner, ...frontEnv } = process.env;
 
 export default defineConfig({
   testDir: 'e2e',
@@ -25,7 +28,7 @@ export default defineConfig({
     url: `${origin}/probe/signup`,
     reuseExistingServer: false,
     env: {
-      ...(process.env as Record<string, string>),
+      ...(frontEnv as Record<string, string>),
       HOST: '127.0.0.1',
       PORT: String(port),
       PUBLIC_BASE_URL: origin,

@@ -395,6 +395,8 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
       await client.connect();
       try {
         await client.query('begin');
+        // The stray rows go in as mycel_app, like ingest would (0018); the recovery is the owner's.
+        await client.query('set local role mycel_app');
         await client.query(`select set_config('app.tenant_id', $1, true)`, [tenantId]);
         for (const day of ['10', '11'])
           await client.query(
@@ -404,6 +406,7 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
                $4, 'test', 'urn:mycel:test', $2)`,
             [tenantId, `${run}-${day}`, uuidv7(), `2097-05-${day}T12:00:00Z`]
           );
+        await client.query('reset role');
         await client.query('savepoint before');
         const error = await client
           .query(`select ensure_event_partitions('2097-04-01', '2097-06-01')`)
