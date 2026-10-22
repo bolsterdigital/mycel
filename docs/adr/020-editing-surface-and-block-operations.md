@@ -1,14 +1,14 @@
 # ADR 020 - Editing surfaces, stable block identity and revisioned operations
 
-- **Status**: proposed; acceptance requires independent review before implementation
+- **Status**: accepted
 - **Date**: 2026-10-22
-- **Supersedes on acceptance**: ADR 012 rule 6 only (rich-text vocabulary and editor contract); the rest of ADR 012 remains in force
+- **Supersedes**: ADR 012 rule 6 only (rich-text vocabulary and editor contract); the rest of ADR 012 remains in force
 - **Refines**: ADR 004 rules 1 to 3 and 6 (block identity, heading context, rendering and references)
 - **Builds on**: ADR 007 (localisation), ADR 009 (HTML first and one registry), ADR 013 (bounded customisation), ADR 018 (revisions, capabilities and publication)
 
 ## Context
 
-An article needs a continuous writing surface, while a campaign page needs structured block forms. Neither interface should become the storage format. ADR 012 rule 6 currently excludes headings from rich text and includes blockquotes; the editorial decision is now to keep section headings in the prose and give quotations their own structured cards. Before revisioned content is built, block identity and mutation semantics must also be fixed so that editors and agents never depend on shifting array positions.
+An article needs a continuous writing surface, while a campaign page needs structured block forms. Neither interface should become the storage format. ADR 012 rule 6 excluded headings from rich text and included blockquotes; the editorial decision is now to keep section headings in the prose and give quotations their own structured cards. Before revisioned content is built, block identity and mutation semantics must also be fixed so that editors and agents never depend on shifting array positions.
 
 ## Decision
 
@@ -42,4 +42,4 @@ An article needs a continuous writing surface, while a campaign page needs struc
 
 - Delivery proceeds through model/schema and id migration, then block operations and reference discovery, then the remaining block set/theme, then public rendering and finally the editing UI. This ADR specifies the contract; it does not claim those features are implemented.
 - Core invariants cover id uniqueness and preservation, the block limit, permitted rich text, lossless normalisation and atomic split-and-insert. Registry/HTTP/MCP conformance covers shared authorization; database conformance covers revision conflicts, tenant isolation and draft/live reference separation. Editor conformance round-trips all block examples, including multiple locales; renderer conformance checks relative heading context, reading order and access across representations. No new executable suite is needed for this docs-only decision; these gates grow with their respective implementations.
-- Existing documents need versioned conversion before use under the new schema. Historical ADR 012 rule 6 stays readable with a successor reference; it is superseded only when this proposal is accepted.
+- Existing documents need versioned conversion before use under the new schema. Historical ADR 012 rule 6 stays readable with a successor reference; it is superseded by this decision.

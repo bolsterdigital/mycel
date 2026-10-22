@@ -4,7 +4,7 @@
 - **Date**: 2026-10-21
 - **Builds on**: ADR 004 (block tree), ADR 007 (i18n), ADR 009 rule 9 (versioned mutations)
 - **Amended**: 2026-10-21 by ADR 018 (scheduled publish pins a revision, optimistic concurrency, immutable sent editions, per-locale status, access-aware caching on the read route)
-- **Proposed successor to rule 6**: [ADR 020](020-editing-surface-and-block-operations.md) (relative headings in prose, quotations as cards and the editing contract). Rule 6 remains in force until ADR 020 is accepted; its original wording is retained below.
+- **Rule 6 superseded**: 2026-10-22 by [ADR 020](020-editing-surface-and-block-operations.md) (relative headings in prose, quotations as cards and the editing contract). Only rule 6 is superseded; its original wording is retained below.
 
 ## Context
 
