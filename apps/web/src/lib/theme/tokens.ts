@@ -49,8 +49,8 @@ function fontFaces(pair: FontPair): string {
   ];
   if (pair === 'source-serif-inter')
     faces.push(
-      face('Source Serif 4', FONT_FILES.sourceSerif.roman, 'normal', '200 900'),
-      face('Source Serif 4', FONT_FILES.sourceSerif.italic, 'italic', '200 900')
+      face('Mycel Serif', FONT_FILES.sourceSerif.roman, 'normal', '200 900'),
+      face('Mycel Serif', FONT_FILES.sourceSerif.italic, 'italic', '200 900')
     );
   return faces.join('\n');
 }
@@ -80,7 +80,7 @@ export function themeCss(theme: ResolvedTheme): string {
   );
   // Body text is Inter in both pairs; the pair only chooses the headings.
   const heading =
-    theme.fontPair === 'inter' ? `Inter, ${SANS_FALLBACK}` : `'Source Serif 4', ${SERIF_FALLBACK}`;
+    theme.fontPair === 'inter' ? `Inter, ${SANS_FALLBACK}` : `'Mycel Serif', ${SERIF_FALLBACK}`;
   const root = [
     ...palette(theme.palettes.light),
     `--font-body: Inter, ${SANS_FALLBACK};`,

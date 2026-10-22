@@ -22,10 +22,10 @@ pyftsubset <font>.ttf --flavor=woff2 --layout-features='*' --output-file=<name>.
 | -------------------------------------------------- | ------------------------------------------------------------------ |
 | `inter/inter-latin-roman.woff2`                    | `83e66d11579a69748d03ee5fe1ef296c45ce7e3da0099460f8c8df3654d5135d` |
 | `inter/inter-latin-italic.woff2`                   | `88603583c733f6b897605b8d2ebb97e96b4274b704ad00456cc92c5871d32bc1` |
-| `source-serif-4/source-serif-4-latin-roman.woff2`  | `8b7125415273832d17c807d29549998b999d3ff24e51f477d4ffafe3f2288a60` |
-| `source-serif-4/source-serif-4-latin-italic.woff2` | `33423e28dec9bd3fc6f2c611d8567a1a3ee685e64078ba8a812e8ffda4c4befc` |
+| `source-serif-4/source-serif-4-latin-roman.woff2`  | `881e4bcb9da9a53cfd00100c0737438165fa17083a5aec3072f502e0f3a2f802` |
+| `source-serif-4/source-serif-4-latin-italic.woff2` | `d73d43f16a6bd38e4d4216da5b3c62e084796c9f74b6ed1c822bc36b43fe0cf7` |
 
-The OFL allows modification and redistribution with the licence text, which sits next to each family. Inter has no Reserved Font Name. Source Serif 4 reserves the name "Source", and the OFL counts a subset as a Modified Version; the subset keeps the original name tables and the CSS calls the family `'Source Serif 4'`. Whether that needs a rename (or Adobe's permission) is an open point for review, recorded in the PR of #8c1; renaming means changing the name tables and the family in `tokens.ts`, nothing else.
+The OFL allows modification and redistribution with the licence text, which sits next to each family. Inter has no Reserved Font Name. Source Serif 4 reserves the name "Source", and the OFL counts a subset as a Modified Version, so the subset is renamed **Mycel Serif**: after `pyftsubset`, every `name` record except the copyright (0) and trademark (7) notices has `Source Serif 4` replaced by `Mycel Serif` and `SourceSerif4` by `MycelSerif` (fontTools, decided 2026-10-22 in the review of #8c1). The CSS family is `'Mycel Serif'`; the directory and file names keep the origin, which the OFL allows.
 
 ## Loading
 

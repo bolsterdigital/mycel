@@ -13,6 +13,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
+import { fileURLToPath } from 'node:url';
 import { format, resolveConfig } from 'prettier';
 import {
   BLOCK_DEFINITIONS,
@@ -109,7 +110,7 @@ const examples = BLOCK_TYPES.flatMap((type) =>
 const SITE_ROOT = 'https://probe.example';
 
 /** Snapshots are formatted with the repository's Prettier config, so `format:check` agrees. */
-const prettierConfig = await resolveConfig(new URL(import.meta.url).pathname);
+const prettierConfig = await resolveConfig(fileURLToPath(import.meta.url));
 const pretty = (html: string) =>
   format(html || '<!-- empty -->', { ...prettierConfig, parser: 'html' });
 
@@ -377,7 +378,7 @@ describe('theme tokens', () => {
   // The grammar of the output: declarations of our own properties with hex colours, plain
   // numbers with a unit, our font names and the @font-face rules of our own files.
   const declaration =
-    /^--[a-z0-9-]+: (#[0-9a-f]{6}|-?\d+(\.\d+)?(rem|ch)?|Inter, system-ui, -apple-system, 'Segoe UI', sans-serif|'Source Serif 4', Georgia, 'Times New Roman', serif);$/i;
+    /^--[a-z0-9-]+: (#[0-9a-f]{6}|-?\d+(\.\d+)?(rem|ch)?|Inter, system-ui, -apple-system, 'Segoe UI', sans-serif|'Mycel Serif', Georgia, 'Times New Roman', serif);$/i;
 
   function problems(theme: ResolvedTheme): string[] {
     const css = themeCss(theme);
@@ -401,9 +402,9 @@ describe('theme tokens', () => {
   });
 
   it('loads Source Serif only for the serif pair, and both palettes explicitly', () => {
-    expect(themeCss(DEFAULT_THEME)).not.toContain('Source Serif');
+    expect(themeCss(DEFAULT_THEME)).not.toContain('Mycel Serif');
     const editorial = themeCss(THEME_PRESETS.editorial as ResolvedTheme);
-    expect(editorial).toContain("font-family: 'Source Serif 4'");
+    expect(editorial).toContain("font-family: 'Mycel Serif'");
     expect(editorial).toContain(`--color-link: ${THEME_PRESETS.editorial.palettes.dark.link};`);
   });
 
