@@ -67,7 +67,7 @@ import {
   uuidv7Ids,
   type JobHandlers,
 } from '@mycel/db';
-import { createFsBlobStore, createS3BlobStore } from '@mycel/blob';
+import { createFsBlobStore, createS3BlobStore, type S3BlobStoreConfig } from '@mycel/blob';
 import { ConsoleMailer, TemMailer } from '@mycel/mail-tem';
 import { createSharpProcessor } from '@mycel/media-sharp';
 import { createAuthenticator, type Authenticator } from './auth.js';
@@ -154,7 +154,7 @@ const Config = z
     MYCEL_TRUST_PROXY: z.enum(['0', '1']).default('0'),
     /**
      * Bearer token of the platform API (`/platform/*`, TODO #16), for the hoster's portal. Unset:
-     * the routes do not exist and tenants are managed with `npm run platform`. Needs nothing but
+     * the routes do not exist and tenants are managed with the `mycel` CLI. Needs nothing but
      * AUTH_DATABASE_URL: the routes enter `mycel_platform` from that login (0010, ADR 011 rule 1).
      */
     PLATFORM_API_TOKEN: z.string().min(32).optional(),
@@ -268,17 +268,25 @@ function blobStoreOf(c: { BLOB_STORE?: 'fs' | 's3' | undefined }): 'fs' | 's3' {
   return c.BLOB_STORE ?? 'fs';
 }
 
-/** The BlobStore the configuration names; S3 credentials were checked by `loadConfig`. */
-export function blobStoreFor(config: RuntimeConfig): BlobStore {
+/** The S3 settings of the configuration, or null when it names the `fs` store. */
+export function s3ConfigOf(config: RuntimeConfig): S3BlobStoreConfig | null {
   return blobStoreOf(config) === 's3'
-    ? createS3BlobStore({
+    ? {
         endpoint: config.BLOB_S3_ENDPOINT,
         region: config.BLOB_S3_REGION,
         bucket: config.BLOB_S3_BUCKET ?? '',
         accessKeyId: config.BLOB_S3_ACCESS_KEY_ID ?? '',
         secretAccessKey: config.BLOB_S3_SECRET_ACCESS_KEY ?? '',
         forcePathStyle: config.BLOB_S3_FORCE_PATH_STYLE === '1',
-      })
+      }
+    : null;
+}
+
+/** The BlobStore the configuration names; S3 credentials were checked by `loadConfig`. */
+export function blobStoreFor(config: RuntimeConfig): BlobStore {
+  const s3 = s3ConfigOf(config);
+  return s3
+    ? createS3BlobStore(s3)
     : createFsBlobStore(
         isAbsolute(config.BLOB_DIR)
           ? config.BLOB_DIR
@@ -328,7 +336,7 @@ export function platformOf(config: RuntimeConfig): PlatformConfig {
 
 /** Which process this runtime serves: the `service` field of every log line. */
 export interface RuntimeOptions {
-  service?: 'api' | 'web' | 'worker' | 'mcp';
+  service?: 'api' | 'web' | 'worker' | 'mcp' | 'cli';
   /** One finished log line; default stdout (the MCP server passes stderr). */
   writeLog?: (line: string) => void;
 }

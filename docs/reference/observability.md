@@ -68,7 +68,7 @@ The console reporter always writes one `error` line with `errorType`, the scrubb
 | web     | process lives          | the same over its own connection                                                                                                                                           | none                                                       |
 | worker  | process lives (`PORT`) | database answers, both loops finished a pass within `3 × interval + 30 s`, outbox and job lag below `READY_MAX_LAG_SECONDS` (default 900); body always carries the numbers | on the health port, no token                               |
 
-`/healthz` stays the container healthcheck, so a database outage or a backlog takes a process out of rotation (readiness) but never into a restart loop. The Caddyfile example (`docs/reference/caddy/`) answers 404 for `/readyz`, `/metrics` and `/internal/*` from outside; the worker's health port is never routed.
+`/healthz` stays the container healthcheck, so a database outage or a backlog takes a process out of rotation (readiness) but never into a restart loop. The proxy of the production stack ([`docker/caddy/Caddyfile`](../../docker/caddy/Caddyfile)) answers 404 for `/readyz`, `/metrics` and `/internal/*` from outside, which CI checks through a real Caddy; the worker's health port is never routed.
 
 The api and web processes do not compute queue lag: they have no owner credentials and may not read the queues (ADR 011 rule 1). The worker does, as `mycel_worker` (`queueLag` in `packages/db/src/ops.ts`), with aggregates only.
 

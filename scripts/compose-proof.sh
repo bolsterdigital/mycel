@@ -1,0 +1,96 @@
+#!/bin/sh
+# The compose proof (TODO #18a): compose.yml on an empty system, checked from outside through
+# Caddy and from inside the network. CI job `compose` runs it after building mycel:ci; locally:
+#
+#   docker build -t mycel:ci . && scripts/compose-proof.sh
+#
+# It starts the stack with compose.ci.yml and compose.ci.env, runs `mycel blob init` and
+# `mycel setup`, asserts, and stops at the first failure with the logs. `KEEP=1` leaves the stack
+# running afterwards; otherwise it is removed with its volumes, so every run starts empty.
+# Rejected: the assertions inline in verify.yml, which a developer cannot run before pushing.
+set -eu
+
+export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-mycel-proof}"
+dc() {
+  docker compose --env-file compose.ci.env -f compose.yml -f compose.ci.yml --profile local-s3 "$@"
+}
+HTTPS_PORT=18443
+failures=0
+
+cleanup() {
+  status=$?
+  if [ "$status" -ne 0 ] || [ "$failures" -ne 0 ]; then dc logs --no-color --tail 200 || true; fi
+  [ "${KEEP:-0}" = 1 ] || dc down --volumes --remove-orphans >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+ok() { echo "ok   $1"; }
+fail() {
+  echo "FAIL $1" >&2
+  failures=$((failures + 1))
+}
+# expect <description> <expected> <actual>
+expect() { if [ "$2" = "$3" ]; then ok "$1"; else fail "$1: expected '$2', got '$3'"; fi; }
+
+# The HTTP status of https://<host><path> through Caddy, resolved to this machine.
+# 000 when there is no HTTP answer at all (a refused TLS handshake).
+outside() {
+  curl -sk -o /dev/null -w '%{http_code}' --max-time 10 \
+    --resolve "$1:$HTTPS_PORT:127.0.0.1" "https://$1:$HTTPS_PORT$2" || true
+}
+
+dc down --volumes --remove-orphans >/dev/null 2>&1 || true
+dc up -d --wait --wait-timeout 180
+
+dc run --rm -T worker mycel blob init
+dc run --rm -T worker mycel setup --tenant demo --name Demo --locales nl,en \
+  --operator admin@example.test --hostname www.demo-site.test | tee /dev/stderr |
+  grep -q '^admin: https://admin.example.test/admin/demo$' && ok 'mycel setup' || fail 'mycel setup'
+dc run --rm -T worker mycel setup --tenant demo --name Demo --locales nl,en \
+  --operator admin@example.test --hostname www.demo-site.test |
+  grep -q '^nothing changed$' && ok 'mycel setup is idempotent' || fail 'mycel setup rerun'
+
+# From outside, through Caddy (on-demand certificate after Caddy asked the application).
+expect 'site /healthz via Caddy' 200 "$(outside demo.example.test /healthz)"
+expect 'admin origin /healthz via Caddy' 200 "$(outside admin.example.test /healthz)"
+expect '/internal/* closed' 404 \
+  "$(outside demo.example.test '/internal/hostnames/allowed?domain=demo.example.test')"
+expect '/readyz closed on sites' 404 "$(outside demo.example.test /readyz)"
+expect '/metrics closed on sites' 404 "$(outside demo.example.test /metrics)"
+expect 'API /healthz via Caddy' 200 "$(outside api.example.test /healthz)"
+for path in /readyz /metrics /platform/tenants; do
+  expect "API $path closed" 404 "$(outside api.example.test "$path")"
+done
+# An unknown name gets no certificate: the ask says no, so the TLS handshake fails.
+expect 'no certificate for an unknown hostname' 000 "$(outside nope.example.test /healthz)"
+# An unverified custom hostname gets none either (verification is DNS, which CI does not have).
+expect 'no certificate for an unverified custom hostname' 000 \
+  "$(outside www.demo-site.test /healthz)"
+
+# From inside the network: the ask route answers Caddy.
+inside() {
+  dc exec -T caddy wget -q -O /dev/null "http://web:3000/internal/hostnames/allowed?domain=$1" &&
+    echo 200 || echo 404
+}
+expect 'ask allows the platform hostname' 200 "$(inside demo.example.test)"
+expect 'ask allows the platform origin' 200 "$(inside admin.example.test)"
+expect 'ask refuses an unknown hostname' 404 "$(inside nope.example.test)"
+
+# Credentials per service (ADR 011 rule 1).
+for svc in api web; do
+  if dc exec -T "$svc" printenv DATABASE_URL >/dev/null 2>&1; then
+    fail "$svc has DATABASE_URL"
+  else ok "$svc has no DATABASE_URL"; fi
+done
+psql() { dc exec -T postgres psql -U mycel -d mycel -Atc "$1"; }
+expect 'schema owner is no superuser' f "$(psql "select rolsuper from pg_roles where rolname = 'mycel'")"
+expect 'every migration applied' "$(ls packages/db/migrations/*.sql | wc -l | tr -d ' ')" \
+  "$(psql 'select count(*) from schema_migrations')"
+expect 'worker /readyz' ok "$(dc exec -T worker node -e \
+  "fetch('http://127.0.0.1:3000/readyz').then(async (r) => console.log(r.ok ? 'ok' : r.status + ' ' + (await r.text())))")"
+
+if [ "$failures" -ne 0 ]; then
+  echo "$failures check(s) failed" >&2
+  exit 1
+fi
+echo 'compose proof: all checks passed'

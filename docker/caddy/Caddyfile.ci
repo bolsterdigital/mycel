@@ -1,0 +1,59 @@
+# CI variant of docker/caddy/Caddyfile, mounted by compose.ci.yml: the same file plus `local_certs`.
+# Change the routing there and mirror it here; caddyfile.test.mjs fails on any other difference.
+#
+# Caddy in front of Mycel (compose.yml, ADR 014 rule 3). A certificate is issued on demand the
+# first time a hostname is requested, and only when the application says the hostname may have
+# one: `GET /internal/hostnames/allowed?domain=<host>` answers 200 for the platform origin, a
+# platform hostname and a verified custom hostname, 404 for anything else
+# (docs/reference/hostnames.md). The ask goes to `web` inside the compose network, never through
+# this proxy, so the route can stay closed from outside.
+#
+# Caddyfile.ci is this file plus `local_certs`, so CI proves these routing rules with certificates
+# from Caddy's own CA; caddyfile.test.mjs keeps the two from drifting apart.
+# Rejected: a wildcard certificate for PLATFORM_DOMAIN via DNS-01, which needs DNS provider
+# credentials in the proxy and still leaves custom domains to on-demand issuance.
+{
+	# ACME account e-mail (expiry notices); Let's Encrypt is Caddy's default CA.
+	email {$ACME_EMAIL}
+	# CI only: certificates from Caddy's own CA, on demand like production (asked first).
+	local_certs
+
+	on_demand_tls {
+		# Caddy asks before it issues, so a scan of random hostnames cannot turn into a flood of
+		# certificate requests: only names the application knows get one.
+		ask http://web:3000/internal/hostnames/allowed
+	}
+}
+
+# Every hostname except the API's: tenant sites on their platform or custom hostnames, and the
+# platform origin (the admin at /admin). The application resolves the tenant from the Host header;
+# Caddy passes it on and says which scheme and client address it saw in the X-Forwarded-* headers
+# (MYCEL_TRUST_PROXY=1 makes the web container read them: docker/entrypoint.sh).
+https:// {
+	tls {
+		on_demand
+	}
+
+	encode zstd gzip
+
+	# The web app handles every path, including /healthz. /internal/*, /readyz and /metrics are
+	# for Caddy and the orchestrator only: never route them from the outside (TODO #17a).
+	@internal path /internal/* /readyz /metrics
+	respond @internal 404
+
+	# Caddy sets X-Forwarded-For, -Proto and -Host itself; a client's own values are replaced.
+	reverse_proxy web:3000
+}
+
+# The HTTP API on its own hostname with an ordinary (not on-demand) certificate. /readyz and
+# /metrics are for the orchestrator and Prometheus, which reach `api:3000` inside the network.
+# /platform/* is the hoster's portal (docs/reference/platform-api.md): reach it over a private
+# network, never through here. The worker's health port is never routed at all.
+{$API_HOST} {
+	encode zstd gzip
+
+	@internal path /readyz /metrics /platform /platform/*
+	respond @internal 404
+
+	reverse_proxy api:3000
+}

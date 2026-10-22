@@ -1,8 +1,8 @@
 # Platform API
 
-How a hoster creates tenants and sets what each may use (ADR 015 rule 4, TODO #16). The hosted service's billing system (for Bureau Bolster: the client portal) calls it; a self-hoster uses the same functions through `npm run platform` and never needs the API. Prices, tier names and presets are the hoster's business and never appear in this repository.
+How a hoster creates tenants and sets what each may use (ADR 015 rule 4, TODO #16). The hosted service's billing system (for Bureau Bolster: the client portal) calls it; a self-hoster uses the same functions through the `mycel` CLI and never needs the API. Prices, tier names and presets are the hoster's business and never appear in this repository.
 
-These routes are **not** use cases: they run under no tenant (ADR 002 rule 4), so they are not in the registry, not MCP tools and not in `/openapi.json`. They run as the `mycel_platform` role, entered from the authentication login; the API never holds the schema owner's credentials (ADR 011 rule 1). That role may read and insert tenants, update their entitlements and status, and read and insert platform hostnames, and nothing else. The functions behind them are `packages/db/src/platform.ts`; `npm run platform` enters the same role from the operator connection.
+These routes are **not** use cases: they run under no tenant (ADR 002 rule 4), so they are not in the registry, not MCP tools and not in `/openapi.json`. They run as the `mycel_platform` role, entered from the authentication login; the API never holds the schema owner's credentials (ADR 011 rule 1). That role may read and insert tenants, update their entitlements and status, and read and insert platform hostnames, and nothing else. The functions behind them are `packages/db/src/platform.ts`; the `mycel` CLI enters the same role from the operator connection.
 
 ## Enabling it
 
@@ -11,7 +11,7 @@ These routes are **not** use cases: they run under no tenant (ADR 002 rule 4), s
 | `PLATFORM_API_TOKEN`  | Bearer token, at least 32 characters. Unset: `/platform/*` does not exist (404). Needs nothing but `AUTH_DATABASE_URL`: the routes run as `mycel_platform`, entered from the authentication login (ADR 011 rule 1). |
 | `PLATFORM_CREDIT_URL` | Where the "Runs on Mycel" footer credit links (ADR 015 rule 5). Default `https://mycel.dev`.                                                                                                                        |
 
-The token is compared in constant time. It grants everything this page describes for every tenant, so it lives in the hoster's secret store and nowhere else, and the routes should not be reachable from the public internet (the Caddy example keeps `/internal/*` closed; do the same for `/platform/*` unless the portal calls it over a private network).
+The token is compared in constant time. It grants everything this page describes for every tenant, so it lives in the hoster's secret store and nowhere else, and the routes should not be reachable from the public internet ([`docker/caddy/Caddyfile`](../../docker/caddy/Caddyfile) answers 404 for `/platform/*` on the API host; a portal calls it over a private network).
 
 ## Routes
 
@@ -45,7 +45,7 @@ A **tenant** in an answer:
 
 `POST /platform/tenants` refuses an existing slug, a slug whose platform hostname (`<slug>.<PLATFORM_DOMAIN>`) is the host of `PUBLIC_BASE_URL` or a development host, and a slug whose platform hostname some tenant already holds. It creates the platform hostname, verified and primary, in the same transaction.
 
-Every mutation writes one row to the tenant's audit log in the same transaction (`docs/reference/audit.md`): actor kind `platform`, actor id the first eight hex characters of the SHA-256 of the token (`npm run platform` writes `cli`), operation `platform.tenant.create`, `platform.set_entitlements` or `platform.set_status`. A refused mutation writes nothing. The server log keeps one operational line per mutation as well.
+Every mutation writes one row to the tenant's audit log in the same transaction (`docs/reference/audit.md`): actor kind `platform`, actor id the first eight hex characters of the SHA-256 of the token (the `mycel` CLI writes `cli`), operation `platform.tenant.create`, `platform.set_entitlements` or `platform.set_status`. A refused mutation writes nothing. The server log keeps one operational line per mutation as well.
 
 ## Stuck work
 
@@ -94,14 +94,14 @@ When a change shows: the API and the admin read entitlements and status with the
 ## The CLI
 
 ```sh
-npm run platform -- tenants list
-npm run platform -- tenants create <slug> <name> nl,en
-npm run platform -- entitlements set <slug> '{"supporters.max": 250}'
-npm run platform -- status set <slug> suspended
-npm run platform -- ops summary
-npm run platform -- ops list jobs|outbox|mail [<slug>]
-npm run platform -- ops retry jobs|outbox <id>
-npm run platform -- ops close jobs <id>
+mycel tenants list
+mycel tenants create <slug> <name> nl,en
+mycel entitlements set <slug> '{"supporters.max": 250}'
+mycel status set <slug> suspended
+mycel ops summary
+mycel ops list jobs|outbox|mail [<slug>]
+mycel ops retry jobs|outbox <id>
+mycel ops close jobs <id>
 ```
 
-It reads `.env` and needs `DATABASE_URL` (the operator role). `mycel setup` (TODO #18) takes it over.
+`mycel` is `packages/api/src/cli.ts`. In the production stack it runs in the worker service, the one with `DATABASE_URL` (the operator role): `docker compose run --rm worker mycel tenants list`. From a checkout it reads `.env`: `npm run mycel -- tenants list`, or under its old name `npm run platform -- tenants list`. `mycel setup` adds a tenant with its first operator and a custom domain in one idempotent run ([`docs/self-hosting.md`](../self-hosting.md)).

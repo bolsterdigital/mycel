@@ -1,0 +1,164 @@
+# Production stack on one box (TODO #18a, ADR 008 and 011; docs/self-hosting.md): Postgres with a
+# non-superuser schema owner, a one-shot `migrate`, the three processes of the image, and Caddy
+# with on-demand TLS. Development stays in compose.dev.yml (only Postgres; the apps run on the
+# host). CI runs this same file with compose.ci.yml on top (job `compose` in verify.yml).
+#
+# Configuration comes from `.env` next to this file (the "Production" section of .env.example),
+# but only through the variables named below: no `env_file`, so a development .env can never hand
+# a container its localhost URLs, and the database URLs are built here from the passwords. A
+# bare key (`TEM_SECRET_KEY:`) passes the value on when it is set and leaves it unset otherwise.
+# Credentials per service follow ADR 011 rule 1: only `migrate` and `worker` hold the owner's
+# DATABASE_URL; `api` and `web` get the application and authentication logins.
+# Rejected: one `env_file` for every service, which gives api and web the owner's credentials.
+
+x-image: &image ${MYCEL_IMAGE:-ghcr.io/bolsterdigital/mycel:latest}
+
+# What every process of the image reads (packages/api/src/compose.ts, `loadConfig`).
+x-runtime-env: &runtime-env
+  APP_DATABASE_URL: postgres://mycel_app:${MYCEL_APP_PASSWORD:?set MYCEL_APP_PASSWORD}@postgres:5432/mycel
+  AUTH_DATABASE_URL: postgres://mycel_authenticator:${MYCEL_AUTH_PASSWORD:?set MYCEL_AUTH_PASSWORD}@postgres:5432/mycel
+  SIGNING_SECRET: ${SIGNING_SECRET:?set SIGNING_SECRET}
+  AUDIT_HASH_KEY: ${AUDIT_HASH_KEY:?set AUDIT_HASH_KEY}
+  PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}
+  PLATFORM_DOMAIN: ${PLATFORM_DOMAIN:?set PLATFORM_DOMAIN}
+  MAIL_FROM: ${MAIL_FROM:?set MAIL_FROM}
+  MAILER: ${MAILER:-tem}
+  # Every process refuses production without it; Caddy is the proxy (docker/caddy/Caddyfile).
+  MYCEL_TRUST_PROXY: '1'
+  BLOB_STORE: ${BLOB_STORE:-s3}
+  TEM_SECRET_KEY:
+  TEM_PROJECT_ID:
+  TEM_REGION:
+  MAIL_RECONCILE_LAG_MINUTES:
+  BLOB_S3_ENDPOINT:
+  BLOB_S3_REGION:
+  BLOB_S3_BUCKET:
+  BLOB_S3_ACCESS_KEY_ID:
+  BLOB_S3_SECRET_ACCESS_KEY:
+  BLOB_S3_FORCE_PATH_STYLE:
+  OIDC_ISSUER:
+  OIDC_CLIENT_ID:
+  OIDC_CLIENT_SECRET:
+  OIDC_SCOPES:
+  PLATFORM_API_TOKEN:
+  PLATFORM_CREDIT_URL:
+  LOG_LEVEL:
+  ERROR_REPORTING_DSN:
+  ERROR_REPORTING_ENVIRONMENT:
+  METRICS_TOKEN:
+  READY_MAX_LAG_SECONDS:
+  JOBS_RETENTION_DAYS:
+  AUDIT_RETENTION_DAYS:
+
+x-owner-url: &owner-url postgres://mycel:${MYCEL_DB_PASSWORD:?set MYCEL_DB_PASSWORD}@postgres:5432/mycel
+
+x-after-migrate: &after-migrate
+  postgres:
+    condition: service_healthy
+  migrate:
+    condition: service_completed_successfully
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      # The image's superuser, used by nothing after the first start (docker/postgres/init-owner.sh).
+      POSTGRES_PASSWORD: ${PG_SUPERUSER_PASSWORD:?set PG_SUPERUSER_PASSWORD}
+      MYCEL_DB_PASSWORD: ${MYCEL_DB_PASSWORD:?set MYCEL_DB_PASSWORD}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+      - ./docker/postgres/init-owner.sh:/docker-entrypoint-initdb.d/10-owner.sh:ro
+    # Over TCP: during the first-start init the server listens on its socket only, so a socket
+    # probe would report ready before the owner exists.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U mycel -d mycel']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Forward-only migrations as the owner, then exit; the fronts start after it succeeded. It also
+  # sets the passwords of the mycel_app and mycel_authenticator logins (packages/db/src/migrate.ts).
+  migrate:
+    image: *image
+    command: migrate
+    restart: 'no'
+    environment:
+      DATABASE_URL: *owner-url
+      MYCEL_APP_PASSWORD: ${MYCEL_APP_PASSWORD:?set MYCEL_APP_PASSWORD}
+      MYCEL_AUTH_PASSWORD: ${MYCEL_AUTH_PASSWORD:?set MYCEL_AUTH_PASSWORD}
+    healthcheck:
+      disable: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # The HTTP API. MYCEL_WORKER=off: the worker service drains the outbox, so the API never needs
+  # the owner's credentials.
+  api:
+    image: *image
+    command: api
+    restart: unless-stopped
+    environment:
+      <<: *runtime-env
+      MYCEL_WORKER: 'off'
+    depends_on: *after-migrate
+
+  # Public sites and the admin, behind Caddy.
+  web:
+    image: *image
+    command: web
+    restart: unless-stopped
+    environment:
+      <<: *runtime-env
+    depends_on: *after-migrate
+
+  # Outbox, jobs and the CLI: `docker compose run --rm worker mycel <command>` and
+  # `docker compose run --rm -T worker mcp` run in this service because it holds the owner's URL.
+  worker:
+    image: *image
+    command: worker
+    restart: unless-stopped
+    environment:
+      <<: *runtime-env
+      DATABASE_URL: *owner-url
+      # The API key the MCP entrypoint acts with (docs/self-hosting.md § MCP).
+      MYCEL_API_KEY:
+    depends_on: *after-migrate
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+      API_HOST: ${API_HOST:?set API_HOST}
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - web
+      - api
+
+  # Optional S3-compatible storage on the same box (`docker compose --profile local-s3 up -d`,
+  # then `mycel blob init`). The bucket then lives on the same disk as the database: back it up
+  # with the rest (docs/self-hosting.md § Storage). An external bucket remains the advice.
+  s3:
+    profiles: ['local-s3']
+    image: rustfs/rustfs:1.0.1
+    restart: unless-stopped
+    environment:
+      RUSTFS_ACCESS_KEY: ${BLOB_S3_ACCESS_KEY_ID:-}
+      RUSTFS_SECRET_KEY: ${BLOB_S3_SECRET_ACCESS_KEY:-}
+    volumes:
+      - s3:/data
+
+volumes:
+  postgres:
+  caddy-data:
+  caddy-config:
+  s3:

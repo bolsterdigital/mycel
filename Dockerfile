@@ -1,11 +1,12 @@
 # One image, several entrypoints (ADR 008: Docker image, Coolify on Hetzner). The same build runs
-# as `api`, `web` or `worker` (plus `migrate` for deploys), chosen by the container command, so
-# the three processes can never run different versions of the core. Every entrypoint answers
-# GET /healthz on $PORT, which the HEALTHCHECK below probes.
+# as `api`, `web` or `worker` (plus the one-shots `migrate` for deploys, `mycel` for the CLI and
+# `mcp` for the MCP server over stdio), chosen by the container command, so the three processes
+# can never run different versions of the core. Each of the three answers GET /healthz on $PORT,
+# which the HEALTHCHECK below probes.
 # Rejected: one image per front, which triples build time and lets versions drift between them.
 #
 #   docker build -t mycel .
-#   docker run --env-file .env -p 3000:3000 mycel web     # or: api | worker | migrate
+#   docker run --env-file .env -p 3000:3000 mycel web     # or: api | worker | migrate | mycel | mcp
 
 ARG NODE_VERSION=22
 

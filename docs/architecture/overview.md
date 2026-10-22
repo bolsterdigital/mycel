@@ -5,7 +5,7 @@ Short map; the reasoning is in [`../adr/`](../adr/).
 ```
                  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────┐
    fronts        │ apps/web     │  │ packages/api │  │ packages/mcp │  │  CLI     │
-                 │ SvelteKit    │  │ Hono (HTTP)  │  │ MCP server   │  │ (later)  │
+                 │ SvelteKit    │  │ Hono (HTTP)  │  │ MCP server   │  │ mycel    │
                  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └────┬─────┘
                         └─────────────────┴────────┬────────┴───────────────┘
                                                    ▼
@@ -32,6 +32,8 @@ Short map; the reasoning is in [`../adr/`](../adr/).
 - Fronts call use cases from `core`'s registry. They do not call adapters directly; they receive adapter instances through composition in `packages/api/src/compose.ts` (and the equivalent in `apps/web`).
 - Adapters implement ports from `core`. They do not import each other.
 - `packages/observability` (logs, request context, error reporting, metrics) imports only `core`; the fronts import it, `core` never does. Core code logs through `ctx.log` (the `Logger` port) and scrubs error text it stores with `scrubText` (`core/util/scrub.ts`), which the package reuses.
+
+**Running it** (TODO #18a). One image, several entrypoints (`Dockerfile`, `docker/entrypoint.sh`); `compose.yml` runs them on one box with Postgres and Caddy, each process with only the database login ADR 011 gives it (`docs/self-hosting.md`). The `mycel` CLI (`packages/api/src/cli.ts`) is the self-hoster's front: platform functions on the owner connection, and `setup`, which creates a tenant there and then invites and adds hostnames through the registry like any front.
 
 **One registry, many fronts.** Every use case registers with a name, an input schema, an output schema and a required capability. `packages/api` turns the registry into HTTP routes plus an OpenAPI document; `packages/mcp` turns it into MCP tools and resources; `apps/web` calls it in `+page.server.ts` actions. Adding a use case touches `core` once.
 

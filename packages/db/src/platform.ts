@@ -2,7 +2,7 @@
 // their entitlements and status. They run under no tenant, so they are not use cases: nothing
 // here is in the registry, reachable over MCP or callable as mycel_app. Two callers share these
 // functions: the platform API (`/platform/*` in packages/api, for the hoster's portal) and
-// `npm run platform` (scripts/platform.mjs, for a self-hoster), so both refuse and accept exactly
+// the `mycel` CLI (packages/api/src/cli.ts, for a self-hoster), so both refuse and accept exactly
 // the same things.
 //
 // Every function is one transaction that first enters `mycel_platform` (migration 0010) with

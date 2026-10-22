@@ -5,6 +5,9 @@
   "license": "AGPL-3.0-only",
   "description": "MCP server exposing the core use-case registry as tools and resources (ADR 009)",
   "type": "module",
+  "bin": {
+    "mycel-mcp": "./dist/bin.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
