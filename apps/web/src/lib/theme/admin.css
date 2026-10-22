@@ -114,6 +114,7 @@
     gap: var(--space-1);
   }
   .actions button,
+  .actions a.button,
   .admin-header button,
   .admin form > button {
     min-height: 44px;
@@ -122,7 +123,16 @@
     overflow-wrap: normal;
     text-align: start;
   }
-  button.secondary {
+  /* A link that is an action next to buttons (download original) looks and sizes like one. */
+  .admin a.button {
+    display: inline-flex;
+    align-items: center;
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: var(--radius);
+  }
+  button.secondary,
+  a.button.secondary {
     color: var(--color-accent);
     background: var(--color-surface);
     box-shadow: inset 0 0 0 2px var(--color-accent);
@@ -165,5 +175,66 @@
     margin: 0;
     min-width: 0;
     overflow-wrap: anywhere;
+  }
+  /* Media library (TODO #10b): thumbnail beside the facts when there is room, above them
+     otherwise; the edit form folds away in a native <details>. */
+  .media-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: start;
+  }
+  .media-head > div {
+    flex: 1 1 12rem;
+    min-width: 0;
+  }
+  .media-head img {
+    max-width: 100%;
+    height: auto;
+    border: 1px solid #d6d3d1;
+    border-radius: var(--radius);
+    background: var(--color-bg);
+  }
+  .media-item summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--color-accent);
+  }
+  /* A checkbox or radio in a .check field keeps its size: `.admin .field input` stretches text
+     inputs to 100%, which squeezed a radio next to a long label at 200% text. */
+  .admin .check {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .admin .check input {
+    width: 1.25rem;
+    min-width: 1.25rem;
+  }
+  .admin .check label {
+    hyphens: auto;
+    overflow-wrap: anywhere;
+  }
+  .media-item .edit {
+    display: grid;
+    gap: var(--space-2);
+    padding-block-start: var(--space-1);
+  }
+  .media-item .edit fieldset {
+    display: grid;
+    gap: var(--space-1);
+  }
+  .field input[type='number'],
+  .field input[type='file'] {
+    font: inherit;
+    max-width: 100%;
+  }
+  .field input[type='number'] {
+    padding: 0.625rem 0.75rem;
+    border: 2px solid var(--color-muted);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);
   }
 }

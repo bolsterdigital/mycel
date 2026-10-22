@@ -1,6 +1,8 @@
 // The delivery route's answers (TODO #10, brief decision 8) over in-memory ports: headers of a
 // public variant, 304 on a matching ETag, 403 for a restricted asset without a signature and 200
-// with one, 404 for the original, an unknown file or another site's asset.
+// with one, 404 for the original, an unknown file or another site's asset. Below it the admin's
+// own files (TODO #10b): the original needs an operator and a signature, the thumbnail an
+// operator.
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_ACCESS,
@@ -11,9 +13,10 @@ import {
   bytesToBase64,
   systemPrincipal,
   useCases,
+  type Principal,
 } from '@mycel/core';
 import { FakeClock, FakeSigner, MemoryUnitOfWork } from '@mycel/core/testing';
-import { serveMedia } from './media.js';
+import { ORIGINAL_TTL_MS, serveAdminMedia, serveMedia, signedOriginalPath } from './media.js';
 
 const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const OTHER = '01900000-0000-7000-8000-00000000bbbb';
@@ -43,7 +46,20 @@ async function setup() {
     );
   const remove = (id: string) =>
     invoker.run(useCases.deleteMedia, systemPrincipal(TENANT, 'test'), { id });
-  return { upload, get, remove, signer, clock };
+  const admin = (
+    principal: Principal | null,
+    id: string,
+    which: 'original' | 'thumb',
+    query = ''
+  ) =>
+    serveAdminMedia(
+      deps,
+      principal,
+      id,
+      which,
+      new URL(`https://mycel.example/admin/probe/media/${id}/${which}${query}`)
+    );
+  return { upload, get, remove, admin, signer, clock };
 }
 
 describe('media delivery route', () => {
@@ -123,5 +139,99 @@ describe('media delivery route', () => {
     expect((await get(m.id, 'thumb.webp')).status).toBe(200);
     await remove(m.id);
     expect((await get(m.id, 'thumb.webp')).status).toBe(404);
+  });
+});
+
+describe('admin media files', () => {
+  const operator = (tenantId = TENANT): Principal => ({
+    ...systemPrincipal(tenantId, 'test'),
+    actor: { kind: 'operator', operatorId: 'op-1', email: 'admin@probe.test' },
+    capabilities: ['media:read', 'media:write'],
+  });
+  const signed = async (
+    signer: FakeSigner,
+    clock: FakeClock,
+    m: Awaited<ReturnType<Awaited<ReturnType<typeof setup>>['upload']>>
+  ) => {
+    const path = await signedOriginalPath(
+      signer,
+      'probe',
+      m,
+      new Date(+clock.now() + ORIGINAL_TTL_MS)
+    );
+    expect(path.startsWith(`/admin/probe/media/${m.id}/original?exp=`)).toBe(true);
+    return path.slice(path.indexOf('?'));
+  };
+
+  it('refuses the original without a session, and with a session but no valid signature', async () => {
+    const { upload, admin, signer, clock } = await setup();
+    const m = await upload();
+    const query = await signed(signer, clock, m);
+    const anonymous = await admin(null, m.id, 'original', query);
+    expect(anonymous.status).toBe(403);
+    expect(anonymous.headers.get('cache-control')).toBe('private, no-store');
+    expect((await admin(operator(), m.id, 'original')).status).toBe(403);
+    expect((await admin(operator(), m.id, 'original', '?exp=99999999999&sig=forged')).status).toBe(
+      403
+    );
+    // A member without media:read has no business with the library.
+    expect((await admin({ ...operator(), capabilities: [] }, m.id, 'original', query)).status).toBe(
+      403
+    );
+    // The link expires after ten minutes.
+    clock.advance(ORIGINAL_TTL_MS + 1);
+    expect((await admin(operator(), m.id, 'original', query)).status).toBe(403);
+  });
+
+  it('serves the original with a session and a signature, as a private attachment', async () => {
+    const { upload, admin, signer, clock } = await setup();
+    const m = await upload({ filename: 'demo op het plein.png' });
+    const res = await admin(operator(), m.id, 'original', await signed(signer, clock, m));
+    expect(res.status).toBe(200);
+    expect(Object.fromEntries(res.headers)).toMatchObject({
+      'content-type': 'image/png',
+      'cache-control': 'private, no-store',
+      'content-disposition': 'attachment; filename="demo op het plein.png"',
+      'x-content-type-options': 'nosniff',
+    });
+    expect(bytesToBase64(new Uint8Array(await res.arrayBuffer()))).toBe(EXAMPLE_PNG);
+  });
+
+  it('hands out the stored file of a PDF, which has no separate original', async () => {
+    const { upload, admin, signer, clock } = await setup();
+    const m = await upload({
+      filename: 'verslag.pdf',
+      contentType: 'application/pdf',
+      bytes: btoa('%PDF-1.7\n%%EOF'),
+    });
+    const query = await signed(signer, clock, m);
+    expect(query).toBeTruthy();
+    const res = await admin(operator(), m.id, 'original', query);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('application/pdf');
+    expect(res.headers.get('content-disposition')).toBe('attachment; filename="verslag.pdf"');
+    // A PDF has no thumbnail.
+    expect((await admin(operator(), m.id, 'thumb')).status).toBe(404);
+  });
+
+  it('answers 404 for another site’s asset, even with a valid signature', async () => {
+    const { upload, admin, signer, clock } = await setup();
+    const m = await upload();
+    const query = await signed(signer, clock, m);
+    expect((await admin(operator(OTHER), m.id, 'original', query)).status).toBe(404);
+    expect((await admin(operator(OTHER), m.id, 'thumb')).status).toBe(404);
+    expect((await admin(operator(), 'not-a-uuid', 'original', query)).status).toBe(404);
+  });
+
+  it('serves the thumbnail to an operator, privately, and nothing once deleted', async () => {
+    const { upload, admin, remove } = await setup();
+    const m = await upload({ access: 'restricted' });
+    expect((await admin(null, m.id, 'thumb')).status).toBe(403);
+    const res = await admin(operator(), m.id, 'thumb');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('image/webp');
+    expect(res.headers.get('cache-control')).toBe('private, max-age=300');
+    await remove(m.id);
+    expect((await admin(operator(), m.id, 'thumb')).status).toBe(404);
   });
 });
