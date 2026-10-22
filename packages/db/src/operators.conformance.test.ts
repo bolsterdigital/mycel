@@ -1,7 +1,7 @@
 // Operators, memberships and API keys against Postgres (TODO #7): what the in-memory store cannot
 // prove. The database grants (mycel_app cannot link a subject and sees only its own tenant's
-// operators), the least privilege of the two runtime logins, the login rules on real rows, and
-// two concurrent last-admin removals.
+// operators), the least privilege of the two runtime logins, the login rules on real rows, two
+// concurrent last-admin removals, and that no key outlives the membership that made it (#20a).
 //
 // Skips without DATABASE_URL, APP_DATABASE_URL and AUTH_DATABASE_URL; with E2E_REQUIRED=1 (CI)
 // that is a failure.
@@ -11,6 +11,7 @@ import pg from 'pg';
 import {
   Invoker,
   UseCaseError,
+  activeKey,
   buildRegistry,
   hashApiKey,
   operatorPrincipal,
@@ -378,9 +379,129 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('operator and key conforman
     await blocker.end();
     const results = await racing;
     expect(results.map((r) => r.status).sort()).toEqual(['fulfilled', 'rejected']);
+    // The second reads the first's result: it was just removed itself, so it no longer acts
+    // (TODO #20a). Before #20a it answered `conflict` from the "an admin remains" check.
     const rejected = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
-    expect(rejected.reason).toMatchObject({ code: 'conflict' });
+    expect(rejected.reason).toMatchObject({ code: 'forbidden' });
     const left = await invoker.run(useCases.listMembers, systemPrincipal(c, 't'), {});
     expect(left.members.filter((m) => m.capabilities.includes('tenant:admin'))).toHaveLength(1);
+  });
+  // TODO #20a. The principal is loaded per request, outside the tenant transaction, so x may act
+  // on rights y has just taken away. Three orders for each change: (a) y commits before x's
+  // transaction starts; (b) x's createKey holds the membership lock and is stopped at its insert
+  // while y's change starts; (c) y's change holds the lock and is stopped at its write while x
+  // starts. The blocker is released on a timer, never after awaiting the side it holds: with the
+  // lock in place that side may be the one the other waits for.
+  describe('a key cannot outlive the membership that made it', () => {
+    async function twoAdmins(tag: string) {
+      const t = await tenant(`k${tag}`);
+      const admins: { id: string; principal: Principal }[] = [];
+      for (const who of ['x', 'y']) {
+        const email = addr(`k${tag}-${who}`);
+        await invoker.run(useCases.inviteMember, systemPrincipal(t, 't'), {
+          email,
+          capabilities: ['tenant:admin'],
+        });
+        const op = await identity.login({
+          issuer: ISSUER,
+          subject: `k${tag}-${who}-${run}`,
+          email,
+          emailVerified: true,
+        });
+        admins.push({
+          id: op.id,
+          principal: (await operatorPrincipal(identity, { operatorId: op.id, email }, t))!,
+        });
+      }
+      const [x, y] = admins as [(typeof admins)[0], (typeof admins)[0]];
+      return { t, x, y };
+    }
+    const changes = {
+      removal: (y: Principal, x: string) =>
+        invoker.run(useCases.removeMember, y, { operatorId: x }),
+      demotion: (y: Principal, x: string) =>
+        invoker.run(useCases.updateMember, y, { operatorId: x, capabilities: ['content:read'] }),
+    };
+    const createKey = (x: Principal) =>
+      invoker.run(useCases.createKey, x, { name: 'race', capabilities: ['content:write'] }).then(
+        (key) => ({ ok: true as const, key }),
+        (e: unknown) => ({ ok: false as const, code: (e as UseCaseError).code })
+      );
+    const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    /**
+     * Hold writes to `table` from now until `ms` have passed. Wrapped, so awaiting the hold does
+     * not also await its release.
+     */
+    async function holdWrites(table: string, ms: number): Promise<{ released: Promise<void> }> {
+      const blocker = new pg.Client({ connectionString: operatorUrl });
+      await blocker.connect();
+      await blocker.query('begin');
+      await blocker.query(`lock table ${table} in share mode`);
+      return {
+        released: pause(ms).then(async () => {
+          await blocker.query('commit');
+          await blocker.end();
+        }),
+      };
+    }
+
+    for (const [name, change] of Object.entries(changes)) {
+      it(`(a) refuses a stale principal after a ${name}`, async () => {
+        const { x, y } = await twoAdmins(`a${name[0]}`);
+        const changed = await change(y.principal, x.id);
+        expect(changed.revokedKeys).toBe(0);
+        expect(await createKey(x.principal)).toEqual({ ok: false, code: 'forbidden' });
+      });
+
+      it(`(b) a ${name} waiting for a key in flight revokes it`, async () => {
+        const { x, y } = await twoAdmins(`b${name[0]}`);
+        const { released } = await holdWrites('api_keys', 600);
+        const creating = createKey(x.principal);
+        await pause(200);
+        const changing = change(y.principal, x.id);
+        const [created, changed] = await Promise.all([creating, changing, released]);
+        expect(created.ok).toBe(true);
+        expect(changed.revokedKeys).toBe(1);
+        expect(await activeKey(identity, created.ok ? created.key.token : '')).toBeNull();
+      }, 15_000);
+
+      it(`(c) refuses a key that waited for a ${name}`, async () => {
+        const { x, y } = await twoAdmins(`c${name[0]}`);
+        const { released } = await holdWrites('tenant_memberships', 600);
+        const changing = change(y.principal, x.id);
+        await pause(200);
+        const creating = createKey(x.principal);
+        const [changed, created] = await Promise.all([changing, creating, released]);
+        expect(changed.revokedKeys).toBe(0);
+        expect(created).toEqual({ ok: false, code: 'forbidden' });
+      }, 15_000);
+    }
+
+    it('refuses a removed admin who invites themselves back or changes another member', async () => {
+      const { x, y } = await twoAdmins('s');
+      await changes.removal(y.principal, x.id);
+      const code = (p: Promise<unknown>) =>
+        p.then(
+          () => 'ok',
+          (e: UseCaseError) => e.code
+        );
+      expect(
+        await code(
+          invoker.run(useCases.inviteMember, x.principal, {
+            email: addr('ks-x'),
+            capabilities: ['tenant:admin'],
+          })
+        )
+      ).toBe('forbidden');
+      expect(
+        await code(
+          invoker.run(useCases.updateMember, x.principal, {
+            operatorId: y.id,
+            capabilities: ['content:read'],
+          })
+        )
+      ).toBe('forbidden');
+    });
   });
 });

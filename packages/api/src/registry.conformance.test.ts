@@ -21,9 +21,13 @@ const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const registry = buildRegistry();
 const useCases = registry.list();
 
+// A key never carries tenant:admin, and the member and key use cases refuse one that claims it
+// (TODO #20a); background work is the actor that does hold it without a membership.
 const principal = (capabilities: Capability[]): Principal => ({
   tenantId: TENANT,
-  actor: { kind: 'api-key', keyId: 'conformance' },
+  actor: capabilities.includes('tenant:admin')
+    ? { kind: 'system', job: 'conformance' }
+    : { kind: 'api-key', keyId: 'conformance' },
   capabilities,
   entitlements: DEFAULT_ACCESS.entitlements,
   tenantStatus: DEFAULT_ACCESS.status,

@@ -191,6 +191,20 @@ describe('every command leaves exactly one audit row (TODO #17b)', () => {
     await uow.run(systemPrincipal(TENANT, 'test'), (ctx) =>
       ctx.forms.insert(probeForm('01900000-0000-7000-8000-00000000f000'))
     );
+    // A real member: the member and key commands read the acting operator again (TODO #20a).
+    uow.store.operators.set('op-conformance', {
+      id: 'op-conformance',
+      issuer: null,
+      subject: null,
+      email: 'operator@example.org',
+      emailVerifiedAt: null,
+      name: null,
+      lastLoginAt: null,
+    });
+    uow.store.for(TENANT).members.set('op-conformance', {
+      capabilities: ['tenant:admin'],
+      createdAt: new Date(0),
+    });
     return { uow, invoker: new Invoker(registry, uow), rows: () => uow.store.for(TENANT).audit };
   }
   // An operator carries an address; the rows must not.
