@@ -46,17 +46,23 @@ const payload = (r: unknown) =>
   JSON.parse((r as { content: { text: string }[] }).content[0]!.text) as Record<string, unknown>;
 
 describe('MCP conformance: listing', () => {
-  it('lists exactly the registry as tools, with its input and output schemas', async () => {
-    const { tools } = await (await connect([])).listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual(useCases.map((u) => u.name).sort());
-    for (const u of useCases) {
-      const tool = tools.find((t) => t.name === u.name)!;
-      expect(tool.description).toBe(u.description);
-      expect(tool.inputSchema).toEqual(toJsonSchema(u.input, 'input'));
-      expect(tool.outputSchema).toMatchObject(toJsonSchema(u.output, 'output'));
-      expect(tool.annotations?.readOnlyHint).toBe(u.kind === 'query');
+  // The first listing converts every use case's schemas over a fresh MCP connection; since vitest
+  // 5 that warm-up lands in this test and took 8s on a CI runner (PR #24), over the 5s default.
+  it(
+    'lists exactly the registry as tools, with its input and output schemas',
+    { timeout: 30_000 },
+    async () => {
+      const { tools } = await (await connect([])).listTools();
+      expect(tools.map((t) => t.name).sort()).toEqual(useCases.map((u) => u.name).sort());
+      for (const u of useCases) {
+        const tool = tools.find((t) => t.name === u.name)!;
+        expect(tool.description).toBe(u.description);
+        expect(tool.inputSchema).toEqual(toJsonSchema(u.input, 'input'));
+        expect(tool.outputSchema).toMatchObject(toJsonSchema(u.output, 'output'));
+        expect(tool.annotations?.readOnlyHint).toBe(u.kind === 'query');
+      }
     }
-  });
+  );
 
   it('lists every query with a resource as a resource template', async () => {
     const { resourceTemplates } = await (await connect([])).listResourceTemplates();

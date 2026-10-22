@@ -1,9 +1,15 @@
 #!/usr/bin/env node
 // Enforces ADR 001 (dependency direction) and ADR 006 (licence allow-list) at verify time.
 //
-// Why a 100-line script and not eslint-plugin-boundaries or dependency-cruiser: the rules
-// are three sentences long, the script has zero dependencies, and agents can read it in
-// one screen. If the rule set grows past what fits here, switch to dependency-cruiser.
+// Why a script and not eslint-plugin-boundaries or dependency-cruiser: the rules are a few
+// sentences long, the only dependency is the TypeScript compiler the repo already has, and agents
+// can read it in a few screens. If the rule set grows past what fits here, switch to
+// dependency-cruiser.
+//
+// Imports are read with TypeScript's own pre-processor (`ts.preProcessFile`), not a regex, so
+// static imports, `export … from`, `import('x')` and `require('x')` all count, and an import
+// inside a comment or a string does not (TODO #20c decision 7). Svelte files are read per
+// `<script>` block. A specifier that is not a string literal (`import(name)`) cannot be checked.
 //
 // Rules:
 //   1. packages/core imports no other workspace and none of the I/O libraries listed below.
@@ -11,14 +17,23 @@
 //      (apps/web and packages/mcp may import packages/api only for its composition root,
 //      `@mycel/api/compose`, which wires adapters into the core; see ALLOWED.) The fronts may
 //      import packages/observability (logs, context, metrics), which imports only the core.
+//      A relative import never leaves its own workspace (`../../core/src/x` is a violation:
+//      cross-workspace imports go through the package name).
 //   3. Every workspace package.json declares license AGPL-3.0-only, and every installed
-//      production dependency has a licence from ALLOWED_LICENSES.
+//      production dependency has a licence the allow-list accepts, read as an SPDX expression:
+//      `A OR B` needs one of the two, `A AND B` needs both, `A WITH exception` counts as A.
+//
+// `--root <dir>` checks another tree; scripts/fixtures/dependency-rules/ holds one small repo
+// per rule that must fail, and check-dependency-rules.test.mjs runs them.
 
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 
-const root = fileURLToPath(new URL('..', import.meta.url));
+const rootArg = process.argv.indexOf('--root');
+const root =
+  rootArg > 0 ? resolve(process.argv[rootArg + 1]) : fileURLToPath(new URL('..', import.meta.url));
 const workspaces = ['packages', 'apps']
   .flatMap((dir) =>
     existsSync(join(root, dir)) ? readdirSync(join(root, dir)).map((n) => join(dir, n)) : []
@@ -90,6 +105,56 @@ const ALLOWED_LICENSES = new Set([
   'PSF-2.0',
 ]);
 
+/**
+ * Whether an SPDX licence expression is acceptable: AND binds tighter than OR, parentheses group,
+ * `X WITH exception` is X. Anything that does not parse (`SEE LICENSE IN …`, `UNKNOWN`) is not.
+ */
+function licenceAllowed(expression, allowed = ALLOWED_LICENSES) {
+  const tokens = expression.match(/\(|\)|[^\s()]+/g) ?? [];
+  let i = 0;
+  const peek = () => tokens[i];
+  const fail = () => {
+    throw new Error(`unparsable licence: ${expression}`);
+  };
+  const primary = () => {
+    const token = tokens[i++];
+    if (token === undefined || token === ')') fail();
+    if (token === '(') {
+      const value = or();
+      if (tokens[i++] !== ')') fail();
+      return value;
+    }
+    if (/^(AND|OR|WITH)$/.test(token)) fail();
+    if (peek() === 'WITH') {
+      i++;
+      if (tokens[i++] === undefined) fail();
+    }
+    return allowed.has(token);
+  };
+  const and = () => {
+    let value = primary();
+    while (peek() === 'AND') {
+      i++;
+      value = primary() && value;
+    }
+    return value;
+  };
+  const or = () => {
+    let value = and();
+    while (peek() === 'OR') {
+      i++;
+      value = and() || value;
+    }
+    return value;
+  };
+  try {
+    const value = or();
+    return i === tokens.length && value;
+  } catch {
+    return false;
+  }
+}
+
 const errors = [];
 
 function* sourceFiles(dir) {
@@ -97,19 +162,31 @@ function* sourceFiles(dir) {
     if (['node_modules', 'dist', 'build', '.svelte-kit'].includes(entry)) continue;
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) yield* sourceFiles(full);
-    else if (/\.(ts|js|mjs|svelte)$/.test(entry)) yield full;
+    else if (/\.(ts|js|mjs|cjs|svelte)$/.test(entry)) yield full;
   }
 }
 
-const importRe = /(?:from|import)\s*['"]([^'"]+)['"]/g;
+/** Every module specifier a file names: imports, re-exports, `import()` and `require()`. */
+function specifiers(file) {
+  const text = readFileSync(file, 'utf8');
+  const code = file.endsWith('.svelte')
+    ? [...text.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]).join('\n')
+    : text;
+  return ts.preProcessFile(code, true, true).importedFiles.map((f) => f.fileName);
+}
+
 for (const ws of workspaces) {
   const srcDir = join(root, ws, 'src');
   if (!existsSync(srcDir)) continue;
   const allowed = ALLOWED[ws] ?? ['packages/core'];
+  const home = join(root, ws) + sep;
   for (const file of sourceFiles(srcDir)) {
-    const text = readFileSync(file, 'utf8');
-    for (const [, spec] of text.matchAll(importRe)) {
-      const rel = relative(root, file);
+    const rel = relative(root, file);
+    for (const spec of specifiers(file)) {
+      if (spec.startsWith('.') && !resolve(dirname(file), spec).startsWith(home)) {
+        errors.push(`${rel}: relative import ${spec} leaves ${ws} (use the package name)`);
+        continue;
+      }
       for (const [otherWs, otherName] of Object.entries(names)) {
         if (otherWs === ws) continue;
         if (spec === otherName || spec.startsWith(otherName + '/')) {
@@ -141,6 +218,12 @@ for (const ws of workspaces) {
 const nm = join(root, 'node_modules');
 if (existsSync(nm)) {
   const seen = new Set();
+  const rootPkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+  const devOnly = new Set(Object.keys(rootPkg.devDependencies ?? {}));
+  for (const ws of workspaces) {
+    const pkg = JSON.parse(readFileSync(join(root, ws, 'package.json'), 'utf8'));
+    for (const d of Object.keys(pkg.devDependencies ?? {})) devOnly.add(d);
+  }
   const visit = (dir) => {
     for (const entry of readdirSync(dir)) {
       if (entry.startsWith('.')) continue;
@@ -157,25 +240,12 @@ if (existsSync(nm)) {
         typeof pkg.license === 'string'
           ? pkg.license
           : (pkg.license?.type ?? pkg.licenses?.[0]?.type ?? 'UNKNOWN');
-      const ok = lic
-        .split(/\s+OR\s+|\(|\)|\s+AND\s+/)
-        .filter(Boolean)
-        .some((l) => ALLOWED_LICENSES.has(l.trim()));
-      if (!ok && !isDevOnly(pkg.name))
+      if (!licenceAllowed(lic) && !devOnly.has(pkg.name))
         errors.push(
           `dependency ${pkg.name}@${pkg.version}: licence ${lic} not in allow-list (ADR 006)`
         );
     }
   };
-  const rootPkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-  const devOnly = new Set(Object.keys(rootPkg.devDependencies ?? {}));
-  for (const ws of workspaces) {
-    const pkg = JSON.parse(readFileSync(join(root, ws, 'package.json'), 'utf8'));
-    for (const d of Object.keys(pkg.devDependencies ?? {})) devOnly.add(d);
-  }
-  function isDevOnly(name) {
-    return devOnly.has(name);
-  }
   visit(nm);
 }
 

@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Page, type Response } from '@playwright/test';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -156,4 +156,85 @@ test('an invalid confirmation link explains itself and passes axe', async ({ pag
   await page.goto('/probe/confirm?token=forged');
   await expect(page.getByRole('heading', { level: 1, name: 'Deze link werkt niet' })).toBeVisible();
   await expectNoAxeViolations(page);
+});
+
+// TODO #20c: the response headers and the CSP of a public page, the nonce mode on a page that
+// does ship SvelteKit's inline bootstrap (the root placeholder, the one route with `csr` on),
+// and the origin check on the public form. Each would fail if the boundary were taken away.
+const STRICT_CSP = [
+  "default-src 'self'",
+  "style-src 'self'",
+  "img-src 'self' data:",
+  "form-action 'self'",
+  "base-uri 'none'",
+  "object-src 'none'",
+  "frame-ancestors 'self'",
+];
+
+/** Navigates to `path` and collects the CSP violations Chromium reports on the console. */
+async function gotoWatchingCsp(page: Page, path: string): Promise<[Response, string[]]> {
+  const seen: string[] = [];
+  const listen = (msg: { text(): string }) => {
+    if (/Content Security Policy/i.test(msg.text())) seen.push(msg.text());
+  };
+  page.on('console', listen);
+  const response = await page.goto(path);
+  await page.waitForLoadState('networkidle');
+  page.off('console', listen);
+  return [response!, seen];
+}
+
+test('a public page has the security headers and a strict CSP, and stays scriptless', async ({
+  page,
+}) => {
+  const [response, violations] = await gotoWatchingCsp(page, '/probe/signup');
+  const headers = response.headers();
+  expect(headers['x-content-type-options']).toBe('nosniff');
+  expect(headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
+  expect(headers['permissions-policy']).toBe(
+    'camera=(), microphone=(), geolocation=(), payment=(), usb=()'
+  );
+  // Plain HTTP here (x-forwarded-proto), so no HSTS.
+  expect(headers['strict-transport-security']).toBeUndefined();
+  const csp = headers['content-security-policy']!;
+  for (const directive of STRICT_CSP) expect(csp).toContain(directive);
+  expect(csp).toMatch(/script-src 'self'(;|$)/);
+  expect(csp).not.toMatch(/unsafe-inline|unsafe-eval/);
+  expect(await page.locator('script').count()).toBe(0);
+  expect(await page.locator('[style]').count()).toBe(0);
+  expect(violations).toEqual([]);
+  await expectNoAxeViolations(page);
+});
+
+test('inline bootstrap runs on its per-response nonce, and only on that', async ({ page }) => {
+  const nonceOf = (csp: string | undefined) => /'nonce-([^']+)'/.exec(csp ?? '')?.[1];
+  const [first, violations] = await gotoWatchingCsp(page, '/');
+  const nonce = nonceOf(first.headers()['content-security-policy']);
+  expect(nonce).toBeTruthy();
+  expect(first.headers()['content-security-policy']).not.toMatch(/unsafe-inline|unsafe-eval/);
+  const inline = page.locator('script:not([src])');
+  expect(await inline.count()).toBeGreaterThan(0);
+  for (const script of await inline.all())
+    expect(await script.evaluate((s) => (s as HTMLScriptElement).nonce)).toBe(nonce);
+  // With JavaScript on (a11y project) the bootstrap actually executes under the policy.
+  expect(violations).toEqual([]);
+
+  const second = await page.request.get('/');
+  const again = nonceOf(second.headers()['content-security-policy']);
+  expect(again).toBeTruthy();
+  expect(again).not.toBe(nonce);
+});
+
+test('a form post from another origin is refused, from its own origin it is not', async ({
+  request,
+  baseURL,
+}) => {
+  const post = (origin: string) =>
+    request.post('/probe/signup', {
+      headers: { origin, 'content-type': 'application/x-www-form-urlencoded' },
+      data: 'email=x%40example.org',
+      maxRedirects: 0,
+    });
+  expect((await post('https://evil.example')).status()).toBe(403);
+  expect((await post(baseURL!)).status()).not.toBe(403);
 });

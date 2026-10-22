@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { FakeClock, MemoryIdentityStore, MemoryStore, MemoryTenants } from '@mycel/core/testing';
-import { LOGIN_LIMIT, loginLimiter, onPlatformOrigin, safeReturn } from './admin-paths.js';
+import {
+  LOGIN_LIMIT,
+  adminCookieOptions,
+  loginLimiter,
+  onPlatformOrigin,
+  safeReturn,
+} from './admin-paths.js';
 
 describe('safeReturn', () => {
   it.each([
@@ -44,5 +50,22 @@ describe('loginLimiter', () => {
     expect(await allow('b'.repeat(22))).toBe(true);
     clock.advance(LOGIN_LIMIT.windowSeconds * 1000);
     expect(await allow('a'.repeat(22))).toBe(true);
+  });
+});
+
+// TODO #20c decision 4: the e2e gate runs on http, so the Secure half is proven here.
+describe('adminCookieOptions', () => {
+  it('is HttpOnly, SameSite=Lax and scoped to /admin', () => {
+    expect(adminCookieOptions('http://127.0.0.1:4173', 60)).toEqual({
+      path: '/admin',
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: false,
+      maxAge: 60,
+    });
+  });
+
+  it('is Secure for an https platform origin', () => {
+    expect(adminCookieOptions('https://admin.example.org', 60).secure).toBe(true);
   });
 });

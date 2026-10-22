@@ -20,6 +20,11 @@
 // or a fresh one, echoed in the response), the tenant once the site is known, and one access
 // line with the route id, never the path with its query. `handleError` reports only `unknown`
 // errors (thrown by our code): an `error(...)` from a route or a framework 404 is no failure.
+//
+// After `route`, every response gets the security headers of its kind (TODO #20c,
+// lib/server/security-headers.ts): HSTS only when the request came over HTTPS, which with
+// MYCEL_TRUST_PROXY=1 follows Caddy's X-Forwarded-Proto. The CSP is SvelteKit's (vite.config.ts);
+// on the admin only its frame-ancestors is tightened to 'none'.
 
 import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit/hooks';
 import { readSession } from '@mycel/core';
@@ -29,10 +34,13 @@ import { onPlatformOrigin } from '#lib/server/admin-paths.js';
 import { runtime } from '#lib/server/runtime.js';
 import { decideSite } from '#lib/server/site.js';
 import { bodyLimit, boundedBody } from '#lib/server/body-limit.js';
+import { applySecurityHeaders, type ResponseKind } from '#lib/server/security-headers.js';
 
 const isAdmin = (path: string) => path === '/admin' || path.startsWith('/admin/');
 const isProbe = (path: string) => path === '/healthz' || path === '/readyz';
 const isInternal = (path: string) => isProbe(path) || path.startsWith('/internal/');
+const kindOf = (path: string): ResponseKind =>
+  isInternal(path) ? 'internal' : isAdmin(path) ? 'admin' : 'public';
 
 export const init: ServerInit = () => {
   runtime();
@@ -44,12 +52,19 @@ export const handle: Handle = async (input) => {
   const requestId = requestIdFrom(event.request.headers.get('x-request-id'), rt.http.newRequestId);
   const started = performance.now();
   return runWithContext({ requestId }, async () => {
-    const response = await route(input);
+    let response = await route(input);
     try {
       response.headers.set('x-request-id', requestId);
     } catch {
-      // A response with immutable headers (a proxied fetch) goes out without the echo.
+      // Immutable headers (`Response.redirect`, a proxied fetch): a copy takes them.
+      response = new Response(response.body, response);
+      response.headers.set('x-request-id', requestId);
     }
+    applySecurityHeaders(
+      response.headers,
+      kindOf(event.url.pathname),
+      event.url.protocol === 'https:'
+    );
     rt.log[isProbe(event.url.pathname) ? 'debug' : 'info']('request', {
       method: event.request.method,
       route: event.route.id ?? 'unmatched',
