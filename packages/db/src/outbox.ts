@@ -78,7 +78,7 @@ export async function drainOutbox(
     onError,
   }: {
     batchSize?: number;
-    onError?: (e: unknown, eventId: string, subscriber: string) => void;
+    onError?: (e: unknown, eventId: string, subscriber: string, tenantId: string) => void;
   } = {}
 ): Promise<DrainResult> {
   return operatorDb.transaction().execute(async (trx) => {
@@ -104,7 +104,7 @@ export async function drainOutbox(
         } catch (e) {
           // Scrubbed: the subscriber's error may quote an address, and #17c shows this column.
           error = scrubText(`${sub.name}: ${e instanceof Error ? e.message : String(e)}`);
-          onError?.(e, row.id, sub.name);
+          onError?.(e, row.id, sub.name, row.tenant_id);
         }
       }
       const done = error === null;
@@ -163,9 +163,11 @@ export function startOutboxWorker(
   let running: Promise<void> = Promise.resolve();
   const tick = () => {
     running = drainOutbox(operatorDb, subscribers, {
-      onError: (e, eventId, subscriber) =>
+      // The subscriber's own context ended with its `handle`, so the tenant travels explicitly.
+      onError: (e, eventId, subscriber, tenantId) =>
         reportOrLog({ log, onError }, 'outbox delivery failed', e, {
           job: `outbox:${subscriber}`,
+          tenantId,
           tags: { eventId },
         }),
     })
