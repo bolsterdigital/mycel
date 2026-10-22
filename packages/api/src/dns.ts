@@ -7,8 +7,8 @@
 // created the record yet. A server failure, a refusal or a time-out is `DnsUnavailableError`:
 // DNS gave no answer, so nothing may be concluded from it, neither by the admin's check nor by
 // the daily re-check that counts misses (TODO #15). Anything else propagates. Five seconds, two
-// tries: a slow authoritative server must not hang an admin's form post. Rejected: `dns.lookup`, which goes through the OS resolver and its
-// hosts file and cannot ask for TXT records.
+// tries: a slow authoritative server must not hang an admin's form post. Rejected: `dns.lookup`,
+// which goes through the OS resolver and its hosts file and cannot ask for TXT records.
 
 import { Resolver } from 'node:dns/promises';
 import { DnsUnavailableError, type DnsResolver } from '@mycel/core';

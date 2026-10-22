@@ -28,8 +28,10 @@ export function parseJobPayload<T extends JobType>(type: T, payload: unknown): J
 }
 
 /**
- * The deterministic key of a job: `<type>:<subject>` for a tenant job (the subject must be
- * globally unique, such as a hostname), `<type>:<period>` for a recurring platform job.
- * Idempotency lives in the key and the open-key index, not in the handler.
+ * The deterministic key of a job: `<type>:<subject>` for a tenant job, `<type>:<period>` for a
+ * recurring platform job. The subject must be globally unique, because the key is; a subject that
+ * can move between tenants (a hostname) carries the tenant id (`<tenant>:<hostname>`), so a job
+ * left open by the previous owner never blocks the new owner's. Idempotency lives in the key and
+ * the open-key index, not in the handler.
  */
 export const jobKey = (type: JobType | string, subject: string): string => `${type}:${subject}`;

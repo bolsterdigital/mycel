@@ -125,7 +125,7 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
     const hostname = `www-${run}.example.org`;
     await invoker.run(useCases.addHostname, admin(), { hostname });
     await invoker.run(useCases.verifyHostname, admin(), { hostname });
-    const planned = await byKey(`hostnames.reverify:${hostname}`);
+    const planned = await byKey(`hostnames.reverify:${tenantId}:${hostname}`);
     expect(planned).toHaveLength(1);
     expect(planned[0]).toMatchObject({
       tenantId,

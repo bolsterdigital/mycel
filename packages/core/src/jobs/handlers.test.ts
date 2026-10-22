@@ -72,12 +72,29 @@ describe('hostname re-verification', () => {
       expect.objectContaining({
         tenantId: TENANT,
         type: 'hostnames.reverify',
-        key: `hostnames.reverify:${HOST}`,
+        key: `hostnames.reverify:${TENANT}:${HOST}`,
         runAt: new Date(new FakeClock().now().getTime() + DAY),
         payload: { hostname: HOST },
         doneAt: null,
       }),
     ]);
+  });
+
+  it('keeps re-checking a hostname that moves to another site while the old job is open', async () => {
+    uow.store.addPlatformHostname(probeTenant(OTHER), platform.domain, clock.now());
+    const other = systemPrincipal(OTHER, 'test');
+    await invoker.run(useCases.addHostname, admin, { hostname: HOST });
+    await invoker.run(useCases.removeHostname, admin, { hostname: HOST });
+    // The first site's job still holds its key; the second site's add must plan its own.
+    await invoker.run(useCases.addHostname, other, { hostname: HOST });
+    expect(uow.store.jobs.map((j) => j.tenantId)).toEqual([TENANT, OTHER]);
+
+    clock.advance(DAY);
+    expect(await run()).toEqual({});
+    const outcome = await uow.run(systemPrincipal(OTHER, 'jobs:hostnames.reverify'), (ctx) =>
+      reverifyHostname(ctx, { hostname: HOST })
+    );
+    expect(outcome.next).toEqual(new Date(clock.now().getTime() + DAY));
   });
 
   it('resets the run of failures and records the check when the token is found', async () => {

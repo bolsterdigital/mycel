@@ -5,8 +5,8 @@
 // Three connections, three roles: the application pool connects as `mycel_app` (subject to RLS);
 // the authentication pool as `mycel_authenticator`, which can only enter `mycel_auth` (0007,
 // `createIdentityStore`); the operator pool (migrations, seed, tenant directory writes, outbox
-// drain, job claims, platform jobs) as the schema owner. Fronts get the unit of work and the identity store, never the
-// operator pool.
+// drain, job claims, platform jobs) as the schema owner. Fronts get the unit of work and the
+// identity store, never the operator pool.
 
 import { Kysely, PostgresDialect, sql } from 'kysely';
 import pg from 'pg';

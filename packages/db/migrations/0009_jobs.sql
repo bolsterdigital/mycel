@@ -17,7 +17,9 @@ create table jobs (
   tenant_id     uuid references tenants(id),  -- null: a platform job
   type          text not null,
   -- Deterministic and descriptive: `<type>:<subject>` or `<type>:<period>`. A tenant job's
-  -- subject must be globally unique (a hostname, an item id), because the key is.
+  -- subject must be globally unique (an item id), because the key is; a subject that can move
+  -- between tenants (a hostname) carries the tenant id, so a job left open by the previous
+  -- owner never blocks the new owner's.
   key           text not null,
   run_at        timestamptz not null,
   payload       jsonb not null default '{}',

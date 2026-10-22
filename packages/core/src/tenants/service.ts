@@ -69,11 +69,16 @@ async function requireCustom(ctx: TransactionContext, raw: string): Promise<Host
   return row;
 }
 
-/** Plan the daily re-check of a custom hostname; a re-check already planned stays as it is. */
+/**
+ * Plan the daily re-check of a custom hostname; a re-check already planned stays as it is. The
+ * key carries the tenant: a hostname can be removed here and added by another site before the
+ * old job has run, and that job (which finds nothing under its own tenant and plans no next run)
+ * must not hold the key the new site's re-check needs.
+ */
 async function planReverify(ctx: TransactionContext, hostname: string): Promise<void> {
   await ctx.jobs.enqueue({
     type: 'hostnames.reverify',
-    key: jobKey('hostnames.reverify', hostname),
+    key: jobKey('hostnames.reverify', `${ctx.principal.tenantId}:${hostname}`),
     runAt: new Date(ctx.clock.now().getTime() + REVERIFY_INTERVAL_MS),
     payload: { hostname },
   });

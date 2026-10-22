@@ -16,7 +16,7 @@ const job = (over: Partial<JobRecord>): JobRecord => ({
   id: 'j',
   tenantId: TENANT,
   type: 'hostnames.reverify',
-  key: 'hostnames.reverify:www.example.org',
+  key: `hostnames.reverify:${TENANT}:www.example.org`,
   runAt: new Date(),
   payload: { hostname: 'www.example.org' },
   attempts: 1,

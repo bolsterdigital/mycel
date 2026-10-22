@@ -46,7 +46,7 @@ In the admin of the site, section **Domains**:
 
 ## Re-verification (what happens afterwards)
 
-A custom hostname stays proven only while its TXT record is there. Adding a domain plans a check a day later (job `hostnames.reverify:<hostname>`), and every check plans the next one a day after it, whether the domain is verified or not, until the domain is removed. Checking DNS by hand in the admin does not move that schedule.
+A custom hostname stays proven only while its TXT record is there. Adding a domain plans a check a day later (job `hostnames.reverify:<tenant>:<hostname>`), and every check plans the next one a day after it, whether the domain is verified or not, until the domain is removed. Checking DNS by hand in the admin does not move that schedule.
 
 - **Record found**: the run of failures goes back to zero; a domain that had lost its verification is verified again (it does not become primary again by itself).
 - **Record missing**: one failure is counted. After **three consecutive daily misses** (72 hours without the record) the verification is withdrawn: the domain stops being served and gets no new certificate, and if it was primary, the platform hostname becomes primary again (ADR 014 rule 2). Three days is the time an admin has to restore a record removed by accident; DNS hiccups and TTLs make a single miss weak evidence.
