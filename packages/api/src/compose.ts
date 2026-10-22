@@ -38,6 +38,7 @@ import {
   currentContext,
   logLevelOf,
   Metrics,
+  recordBuildInfo,
   runWithContext,
   sentryErrorReporter,
 } from '@mycel/observability';
@@ -427,6 +428,7 @@ export function createRuntime(
     capture: (error, context) => reporters.forEach((r) => r.capture(error, context)),
   };
   const metrics = new Metrics();
+  recordBuildInfo(metrics);
   const signer = new HmacSigner(config.SIGNING_SECRET);
   const inputHasher = inputHasherOf(config);
   const appDb = createDb(config.APP_DATABASE_URL);
