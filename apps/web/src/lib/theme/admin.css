@@ -1,12 +1,56 @@
 /* The provisional operator admin (TODO #7): only what legibility and the axe gate ask for; TODO
-   #11 designs the real one. Built on the tokens of base.css. Action groups wrap whole buttons;
-   a label too long for the line wraps inside its own button at word boundaries, never clipped
-   (skill ui-action-layout). */
+   #11 designs the real one. base.css reads a site theme's custom properties; the admin is on
+   no site, so it supplies fixed values for the same properties here (the probe's palette),
+   plus the short names this file uses. Action groups wrap whole buttons; a label too long for
+   the line wraps inside its own button at word boundaries, never clipped (skill
+   ui-action-layout). */
+@layer tokens {
+  :root {
+    --color-body-fg: #1c1917;
+    --color-body-bg: #fafaf9;
+    --color-surface-fg: #1c1917;
+    --color-surface-bg: #ffffff;
+    --color-primary-fg: #ffffff;
+    --color-primary-bg: #14532d;
+    --color-accent-fg: #1c1917;
+    --color-accent-bg: #fde68a;
+    --color-muted-fg: #44403c;
+    --color-muted-bg: #fafaf9;
+    --color-warning-fg: #7f1d1d;
+    --color-warning-bg: #fef2f2;
+    --color-link: #14532d;
+    --color-focus: #1d4ed8;
+    --font-body: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-heading: var(--font-body);
+    --heading-weight: 700;
+    --step--1: 0.875rem;
+    --step-0: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+    --step-1: clamp(1.25rem, 1.1rem + 0.6vw, 1.5rem);
+    --step-2: clamp(1.5rem, 1.3rem + 1vw, 1.75rem);
+    --step-3: 2rem;
+    --step-4: 2.5rem;
+    --measure: 48rem;
+    --radius: 0.5rem;
+    --density: 1;
+    --color-text: var(--color-body-fg);
+    --color-bg: var(--color-body-bg);
+    --color-surface: var(--color-surface-bg);
+    --color-muted: var(--color-muted-fg);
+    --color-accent: var(--color-primary-bg);
+  }
+}
+
 @layer components {
+  /* The public column rules of base.css do not apply: the admin page sets its own width. */
+  .page.admin > * {
+    width: auto;
+    margin-inline: 0;
+  }
   /* Paddings in rem grow with the text; nested ones stay small so 200% text on 320 CSS px
      still leaves room for the content (WCAG 1.4.4 and 1.4.10). */
   .page.admin {
     max-width: 48rem;
+    margin-inline: auto;
     padding-inline: var(--space-1);
   }
   .admin-header {

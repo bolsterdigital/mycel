@@ -7,3 +7,5 @@ package-lock.json
 LICENSE
 test-results
 playwright-report
+# Rendered by the block conformance with Prettier, compared verbatim (TODO #8c1).
+**/__snapshots__

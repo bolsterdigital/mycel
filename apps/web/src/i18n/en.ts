@@ -249,6 +249,13 @@ export const en = {
   'admin.status.diagnosis.intro':
     'This is exactly what you would send to support: ids, counts, times and error texts with addresses removed. Nothing is sent automatically; copy it yourself if you want help.',
   'admin.status.diagnosis.copy': 'Diagnosis, to select and copy',
+  'block.callout.info': 'Information',
+  'block.callout.note': 'Note',
+  'block.callout.warning': 'Warning',
+  'block.credit.photographer': 'Photo: {name}',
+  'block.video.on': 'Video on {provider}',
+  'block.footnotes': 'Notes',
+  'block.footnote.back': 'Back to the text',
 } as const;
 
 export type UiKey = keyof typeof en;

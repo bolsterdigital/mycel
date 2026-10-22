@@ -1,28 +1,36 @@
-/* One token set for the probe (ADR 004 rule 4: themes are data; this file becomes the mapping
-   from a tenant theme to custom properties). Layered vanilla CSS, role-named tokens. Contrast of
-   every text/background pair here is at least 4.5:1 (WCAG 2.2 AA). */
+/* The public site's CSS, written only against the custom properties of a theme (ADR 013 rule 1,
+   brief #8c § 3). The values come from the stylesheet route `/_theme/<hash>.css`
+   (lib/theme/tokens.ts): colours per role pair, the font pair, the type scale, measure, radius
+   and density. Nothing here is a tenant value; a variant or a layout choice is a class
+   (ADR 013 rule 2), because a style attribute falls under the CSP (#20c).
+
+   Colour is only ever used as a validated pair: text on a role background is that role's
+   foreground, and links are coloured only on body and surface, the two backgrounds the theme
+   check measures them against. Everywhere else a link inherits the pair's foreground and stays
+   underlined. The admin imports this file too and supplies its own fixed values for the same
+   properties (admin.css) until #11 designs it. */
 @layer tokens, base, components;
+
+/* A content column measured in the page's own `ch`, inherited as a length, so a heading with a
+   larger font has the same column as the text under it. */
+@property --content-width {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 40rem;
+}
 
 @layer tokens {
   :root {
-    --color-text: #1c1917;
-    --color-muted: #44403c;
-    --color-bg: #fafaf9;
-    --color-surface: #ffffff;
-    --color-accent: #14532d;
-    --color-on-accent: #ffffff;
-    --color-error: #b91c1c;
-    --color-focus: #1d4ed8;
-    --radius: 0.5rem;
-    --space-1: 0.5rem;
-    --space-2: 1rem;
-    --space-3: 1.5rem;
-    --space-4: 2.5rem;
-    --font-body: system-ui, -apple-system, 'Segoe UI', sans-serif;
-    --step-0: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
-    --step-1: clamp(1.25rem, 1.1rem + 0.6vw, 1.5rem);
-    --step-2: clamp(1.75rem, 1.4rem + 1.5vw, 2.5rem);
-    --measure: 38rem;
+    --space-1: calc(0.5rem * var(--density));
+    --space-2: calc(1rem * var(--density));
+    --space-3: calc(1.5rem * var(--density));
+    --space-4: calc(2.5rem * var(--density));
+    /* Outer and inner insets in rem grow with the text, but never past a share of the screen:
+       at 200% text on 320 px a nested card keeps room for its content (WCAG 1.4.4, 1.4.10). */
+    --gutter: min(1rem, 4vw);
+    --inset: min(var(--space-3), 5vw);
+    --wide-width: 68rem;
+    --tap: 2.75rem;
   }
 }
 
@@ -37,44 +45,472 @@
     font-family: var(--font-body);
     font-size: var(--step-0);
     line-height: 1.55;
-    color: var(--color-text);
-    background: var(--color-bg);
+    /* At 200% text on 320 px one long compound word ("woningbouwplannen") is wider than the
+       screen: hyphenate where the browser knows the language, break it only as a last resort. */
+    overflow-wrap: break-word;
+    hyphens: auto;
+    color: var(--color-body-fg);
+    background: var(--color-body-bg);
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading);
+    font-weight: var(--heading-weight);
+    line-height: 1.2;
+    margin-block: var(--space-4) var(--space-2);
+    overflow-wrap: break-word;
+    hyphens: auto;
   }
   h1 {
-    font-size: var(--step-2);
-    line-height: 1.15;
+    font-size: clamp(var(--step-2), 1rem + 4vw, var(--step-4));
+    margin-block-start: var(--space-3);
   }
   h2 {
+    font-size: clamp(var(--step-1), 0.75rem + 3vw, var(--step-3));
+  }
+  h3 {
+    font-size: var(--step-2);
+  }
+  h4 {
     font-size: var(--step-1);
   }
+  h5,
+  h6 {
+    font-size: var(--step-0);
+  }
+  p,
+  ul,
+  ol {
+    margin-block: 0 var(--space-2);
+  }
   a {
-    color: var(--color-accent);
+    color: var(--color-link);
+    text-decoration-thickness: 0.08em;
+    text-underline-offset: 0.15em;
+  }
+  img {
+    max-width: 100%;
+    height: auto;
+    display: block;
   }
   :focus-visible {
     outline: 3px solid var(--color-focus);
     outline-offset: 2px;
   }
   @media (prefers-reduced-motion: reduce) {
-    * {
+    *,
+    *::before,
+    *::after {
       transition: none !important;
       animation: none !important;
+      scroll-behavior: auto !important;
     }
   }
 }
 
 @layer components {
+  /* The page is full width; each child sits in the content column, a `wide` or `full` block
+     breaks out of it. No viewport units, so nothing can cause horizontal scroll. */
   .page {
-    max-width: var(--measure);
+    --content-width: var(--measure);
+    padding-block: var(--space-3) var(--space-4);
+  }
+  .page > * {
+    width: min(var(--content-width), 100% - 2 * var(--gutter));
     margin-inline: auto;
-    padding: var(--space-4) var(--space-2);
+  }
+  .page > .width-wide,
+  .page > .layout-wide {
+    width: min(var(--wide-width), 100% - 2 * var(--gutter));
+    clear: both;
+  }
+  .page > .width-full,
+  .page > .layout-full {
+    width: 100%;
+    clear: both;
+  }
+  .block {
+    margin-block: 0 var(--space-3);
+  }
+  .align-center {
+    text-align: center;
+  }
+  .align-end {
+    text-align: end;
+  }
+  .align-center .actions {
+    justify-content: center;
+  }
+  .align-end .actions {
+    justify-content: flex-end;
+  }
+
+  /* Images: the focal point as object-position, from quantised classes. */
+  .image figcaption,
+  .video figcaption {
+    margin-block-start: var(--space-1);
+    font-size: var(--step--1);
+    color: var(--color-muted-fg);
+  }
+  .layout-full figcaption {
+    padding-inline: var(--gutter);
+  }
+  .credit {
+    display: inline-block;
+  }
+  .page > .layout-float-left,
+  .page > .layout-float-right {
+    width: min(20rem, 45%);
+  }
+  .page > .layout-float-left {
+    float: left;
+    margin: 0 var(--space-3) var(--space-2) max(var(--gutter), (100% - var(--content-width)) / 2);
+  }
+  .page > .layout-float-right {
+    float: right;
+    margin: 0 max(var(--gutter), (100% - var(--content-width)) / 2) var(--space-2) var(--space-3);
+  }
+  @media (max-width: 40rem) {
+    .page > .layout-float-left,
+    .page > .layout-float-right {
+      float: none;
+      width: calc(100% - 2 * var(--gutter));
+      margin-inline: auto;
+    }
+  }
+  img {
+    object-position: var(--fx, 50%) var(--fy, 50%);
+  }
+  .fx-0 {
+    --fx: 0%;
+  }
+  .fx-1 {
+    --fx: 10%;
+  }
+  .fx-2 {
+    --fx: 20%;
+  }
+  .fx-3 {
+    --fx: 30%;
+  }
+  .fx-4 {
+    --fx: 40%;
+  }
+  .fx-5 {
+    --fx: 50%;
+  }
+  .fx-6 {
+    --fx: 60%;
+  }
+  .fx-7 {
+    --fx: 70%;
+  }
+  .fx-8 {
+    --fx: 80%;
+  }
+  .fx-9 {
+    --fx: 90%;
+  }
+  .fx-10 {
+    --fx: 100%;
+  }
+  .fy-0 {
+    --fy: 0%;
+  }
+  .fy-1 {
+    --fy: 10%;
+  }
+  .fy-2 {
+    --fy: 20%;
+  }
+  .fy-3 {
+    --fy: 30%;
+  }
+  .fy-4 {
+    --fy: 40%;
+  }
+  .fy-5 {
+    --fy: 50%;
+  }
+  .fy-6 {
+    --fy: 60%;
+  }
+  .fy-7 {
+    --fy: 70%;
+  }
+  .fy-8 {
+    --fy: 80%;
+  }
+  .fy-9 {
+    --fy: 90%;
+  }
+  .fy-10 {
+    --fy: 100%;
+  }
+
+  /* Action groups (skill ui-action-layout): whole buttons wrap to the next line, a long label
+     wraps inside its own button at word boundaries, and every target is at least 44 px. */
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-block-start: var(--space-2);
+  }
+  .button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--tap);
+    min-width: var(--tap);
+    max-width: 100%;
+    padding: 0.625rem min(1.25rem, 4vw);
+    border-radius: var(--radius);
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    color: var(--color-primary-fg);
+    background: var(--color-primary-bg);
+    transition: box-shadow 0.15s;
+  }
+  .button.secondary {
+    color: var(--color-body-fg);
+    background: var(--color-body-bg);
+    box-shadow: inset 0 0 0 2px currentColor;
+  }
+  .button:hover {
+    text-decoration: underline;
+  }
+
+  /* Hero. `cover`: an opaque surface panel over the image, never text on the photo. */
+  .hero {
+    clear: both;
+  }
+  .hero h2 {
+    margin-block-start: 0;
+    font-size: clamp(var(--step-2), 1rem + 4vw, var(--step-4));
+  }
+  .hero-minimal {
+    padding-block: var(--space-3);
+  }
+  .hero-media picture,
+  .hero-media img {
+    width: 100%;
+  }
+  .hero-text {
+    padding: var(--inset) 0;
+  }
+  .hero-cover {
+    display: grid;
+  }
+  .hero-cover > .hero-media,
+  .hero-cover > .hero-text {
+    grid-area: 1 / 1;
+  }
+  .hero-cover .hero-media,
+  .hero-cover picture,
+  .hero-cover img {
+    height: 100%;
+    min-height: 20rem;
+    object-fit: cover;
+  }
+  .hero-cover .hero-text {
+    align-self: end;
+    justify-self: start;
+    max-width: min(40rem, 100% - 2 * var(--gutter));
+    margin: var(--space-4) var(--gutter) var(--gutter);
+    padding: var(--inset);
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+    border-radius: var(--radius);
+  }
+  .hero-cover.align-center .hero-text {
+    justify-self: center;
+  }
+  .hero-cover.align-end .hero-text {
+    justify-self: end;
+  }
+  @media (min-width: 48rem) {
+    .hero-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: center;
+    }
+  }
+
+  /* Call to action: a band in the primary pair or a card on the surface. */
+  .cta {
+    padding: var(--inset);
+    border-radius: var(--radius);
+  }
+  .cta h2 {
+    margin-block-start: 0;
+  }
+  .cta-band {
+    color: var(--color-primary-fg);
+    background: var(--color-primary-bg);
+  }
+  .cta-band .button {
+    color: var(--color-accent-fg);
+    background: var(--color-accent-bg);
+  }
+  .cta-band .button.secondary {
+    color: var(--color-body-fg);
+    background: var(--color-body-bg);
+  }
+  .cta-card {
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+  }
+  .cta-band a:not(.button) {
+    color: inherit;
+  }
+
+  /* Callouts: the label carries the meaning; colour is a validated pair. */
+  .callout {
+    padding: var(--space-2) var(--inset);
+    border-inline-start: 0.375rem solid currentColor;
+    border-radius: var(--radius);
+  }
+  .callout h2 {
+    margin-block-start: 0;
+    font-size: var(--step-1);
+  }
+  .callout-label {
+    margin-block-end: var(--space-1);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: var(--step--1);
+  }
+  .callout-info {
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+  }
+  .callout-note {
+    color: var(--color-body-fg);
+    background: var(--color-body-bg);
+    box-shadow: inset 0 0 0 1px currentColor;
+  }
+  .callout-warning {
+    color: var(--color-warning-fg);
+    background: var(--color-warning-bg);
+  }
+  .callout-warning a {
+    color: inherit;
+  }
+  .callout-body > :last-child,
+  .answer > :last-child {
+    margin-block-end: 0;
+  }
+
+  /* FAQ: <details> works without JavaScript; the question heading sits inside <summary>. */
+  .faq h3 {
+    margin-block: var(--space-3) var(--space-1);
+  }
+  .faq details {
+    border-block-end: 1px solid currentColor;
+    padding-block: var(--space-1);
+  }
+  .faq summary {
+    cursor: pointer;
+    min-height: var(--tap);
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+  }
+  .faq summary::before {
+    content: '+';
+    font-weight: 700;
+    width: 1em;
+  }
+  .faq details[open] > summary::before {
+    content: '−';
+  }
+  .faq summary h3 {
+    margin: 0;
+    font-size: var(--step-1);
+  }
+  .faq details .answer {
+    padding-block: var(--space-1) var(--space-2);
+  }
+
+  /* Quotes */
+  .quote blockquote {
+    margin: 0;
+    padding-inline-start: var(--inset);
+    border-inline-start: 0.25rem solid currentColor;
+  }
+  .quote blockquote p {
+    font-size: var(--step-1);
+  }
+  .quote figcaption {
+    padding-inline-start: var(--inset);
+    color: var(--color-muted-fg);
+  }
+  .quote-pullquote blockquote {
+    border: 0;
+    padding: 0;
+    text-align: center;
+  }
+  .quote-pullquote blockquote p {
+    font-family: var(--font-heading);
+    font-size: var(--step-3);
+    line-height: 1.25;
+  }
+  .quote-pullquote figcaption {
+    text-align: center;
+  }
+
+  /* Video: a plain link to the provider. */
+  .video {
+    padding: var(--space-2) var(--inset);
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+    border-radius: var(--radius);
+  }
+  .video-link {
+    margin: 0;
+    font-weight: 600;
+  }
+  .video-provider {
+    display: block;
+    font-weight: 400;
+    font-size: var(--step--1);
+  }
+  .video figcaption {
+    color: inherit;
+  }
+
+  /* Rich text */
+  .rich-text ul,
+  .rich-text ol {
+    padding-inline-start: 1.5em;
+  }
+  .footnotes {
+    margin-block-start: var(--space-3);
+    font-size: var(--step--1);
+    border-block-start: 1px solid currentColor;
+    padding-block-start: var(--space-1);
+  }
+  .footnotes-label {
+    font-weight: 600;
+    margin-block-end: var(--space-1);
+  }
+
+  /* Forms */
+  .form-card {
+    padding: var(--inset);
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+    border-radius: var(--radius);
   }
   .signup {
     display: grid;
     gap: var(--space-3);
-    padding: var(--space-3);
-    background: var(--color-surface);
-    border: 1px solid #d6d3d1;
-    border-radius: var(--radius);
   }
   .field {
     display: grid;
@@ -84,15 +520,19 @@
     font-weight: 600;
   }
   .field input[type='email'] {
+    width: 100%;
+    min-width: 0;
     font: inherit;
+    min-height: var(--tap);
     padding: 0.625rem 0.75rem;
-    border: 2px solid var(--color-muted);
+    border: 2px solid var(--color-muted-fg);
     border-radius: var(--radius);
-    background: var(--color-surface);
-    color: var(--color-text);
+    background: var(--color-body-bg);
+    color: var(--color-body-fg);
   }
   .field input[aria-invalid='true'] {
-    border-color: var(--color-error);
+    border-width: 3px;
+    border-color: var(--color-body-fg);
   }
   .check {
     grid-template-columns: auto 1fr;
@@ -111,13 +551,21 @@
   }
   .error {
     margin: 0;
-    color: var(--color-error);
+    padding: 0.25rem 0.5rem;
     font-weight: 600;
+    color: var(--color-warning-fg);
+    background: var(--color-warning-bg);
+    border-radius: var(--radius);
   }
   .error-summary {
     padding: var(--space-2);
-    border: 3px solid var(--color-error);
+    color: var(--color-warning-fg);
+    background: var(--color-warning-bg);
+    border: 3px solid currentColor;
     border-radius: var(--radius);
+  }
+  .error-summary a {
+    color: inherit;
   }
   .error-summary h2 {
     margin-top: 0;
@@ -126,11 +574,12 @@
     justify-self: start;
     font: inherit;
     font-weight: 600;
+    min-height: var(--tap);
     padding: 0.75rem 1.25rem;
     border: 0;
     border-radius: var(--radius);
-    color: var(--color-on-accent);
-    background: var(--color-accent);
+    color: var(--color-primary-fg);
+    background: var(--color-primary-bg);
     cursor: pointer;
   }
   /* Honeypot: out of sight and out of the tab order, still in the DOM for naive bots. */
@@ -140,5 +589,11 @@
     width: 1px;
     height: 1px;
     overflow: hidden;
+  }
+
+  .mycel-credit {
+    padding: var(--space-3) var(--gutter);
+    text-align: center;
+    font-size: var(--step--1);
   }
 }

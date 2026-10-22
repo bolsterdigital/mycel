@@ -1,0 +1,94 @@
+<!-- A form block (`form` and the legacy `signup-form`): a native form that posts to the page's
+     own action and works without JavaScript (ADR 009). Moved from the probe's page unchanged:
+     labels tied to inputs, errors linked with aria-describedby, an error summary on top after a
+     failed post, the honeypot out of sight and the signed `_started` token. `card` is a wrapper
+     class. No ARIA where native semantics suffice. -->
+<script lang="ts">
+  import type { FormState, RenderForm, RenderModel } from './model.js';
+
+  let {
+    form: def,
+    variant,
+    width,
+    model,
+    state,
+  }: {
+    form: RenderForm;
+    variant: 'default' | 'card';
+    width: 'content' | 'wide' | 'full';
+    model: RenderModel;
+    state: FormState | null | undefined;
+  } = $props();
+
+  const mine = $derived(state?.formId === def.formId ? state : null);
+  const hasProblem = $derived(!!mine && (mine.errors.length > 0 || !!mine.message));
+  const errorFor = (field: string) => mine?.errors.find((e) => e.field === field)?.message;
+</script>
+
+<div class="block form form-{variant} width-{width}">
+  <form method="post" class="signup">
+    {#if mine && hasProblem}
+      <div class="error-summary" role="alert" aria-labelledby="summary-{def.formId}">
+        <h2 id="summary-{def.formId}">{model.copy.summaryTitle}</h2>
+        {#if mine.message}<p>{mine.message}</p>{/if}
+        {#if mine.errors.length}
+          <ul>
+            {#each mine.errors as e (e.field)}
+              <li><a href="#f-{def.formId}-{e.field}">{e.message}</a></li>
+            {/each}
+          </ul>
+        {/if}
+      </div>
+    {/if}
+
+    <input type="hidden" name="formId" value={def.formId} />
+    <input type="hidden" name="locale" value={model.locale} />
+    <input type="hidden" name="_started" value={def.startedToken} />
+    <div class="hp" aria-hidden="true">
+      <label for="f-{def.formId}-website">{model.copy.honeypotLabel}</label>
+      <input
+        id="f-{def.formId}-website"
+        name="website"
+        type="text"
+        tabindex="-1"
+        autocomplete="off"
+      />
+    </div>
+
+    {#each def.fields as field (field.name)}
+      {@const id = `f-${def.formId}-${field.name}`}
+      {@const error = errorFor(field.name)}
+      {#if field.type === 'email'}
+        <div class="field">
+          <label for={id}>{field.label}</label>
+          {#if error}<p class="error" id="{id}-error">{error}</p>{/if}
+          <input
+            {id}
+            name={field.name}
+            type="email"
+            autocomplete="email"
+            required={field.required}
+            aria-invalid={error ? 'true' : undefined}
+            aria-describedby={error ? `${id}-error` : undefined}
+            value={mine?.values?.['email'] ?? ''}
+          />
+        </div>
+      {:else}
+        <div class="field check">
+          {#if error}<p class="error" id="{id}-error">{error}</p>{/if}
+          <input
+            {id}
+            name={field.name}
+            type="checkbox"
+            required={field.required}
+            aria-invalid={error ? 'true' : undefined}
+            aria-describedby={error ? `${id}-error` : undefined}
+          />
+          <label for={id}>{field.label}</label>
+        </div>
+      {/if}
+    {/each}
+
+    <button type="submit">{def.submitLabel}</button>
+  </form>
+</div>
