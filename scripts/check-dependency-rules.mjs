@@ -9,7 +9,8 @@
 //   1. packages/core imports no other workspace and none of the I/O libraries listed below.
 //   2. Adapters and fronts may import packages/core; they may not import each other.
 //      (apps/web and packages/mcp may import packages/api only for its composition root,
-//      `@mycel/api/compose`, which wires adapters into the core; see ALLOWED.)
+//      `@mycel/api/compose`, which wires adapters into the core; see ALLOWED.) The fronts may
+//      import packages/observability (logs, context, metrics), which imports only the core.
 //   3. Every workspace package.json declares license AGPL-3.0-only, and every installed
 //      production dependency has a licence from ALLOWED_LICENSES.
 
@@ -48,15 +49,17 @@ const IO_LIBS = [
   '@aws-sdk/',
 ];
 const ALLOWED = {
-  'apps/web': ['packages/core', 'packages/api'],
+  'apps/web': ['packages/core', 'packages/api', 'packages/observability'],
   'packages/api': [
     'packages/core',
+    'packages/observability',
     'packages/db',
     'packages/mail-tem',
     'packages/blob',
     'packages/media-sharp',
   ],
-  'packages/mcp': ['packages/core', 'packages/api'],
+  'packages/mcp': ['packages/core', 'packages/api', 'packages/observability'],
+  'packages/observability': ['packages/core'],
   'packages/db': ['packages/core'],
   'packages/mail-tem': ['packages/core'],
   'packages/blob': ['packages/core'],

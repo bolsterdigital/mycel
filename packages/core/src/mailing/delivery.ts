@@ -21,6 +21,7 @@ import { jobKey } from '../jobs/types.js';
 import type { Clock, DomainEvent, TransactionContext, UnitOfWork } from '../ports.js';
 import { systemPrincipal } from '../principal.js';
 import { sha256Hex } from '../util/digest.js';
+import { scrubText } from '../util/scrub.js';
 import type { MailMessage, MailSend, MailWindow, Mailer } from './ports.js';
 
 const MINUTE = 60 * 1000;
@@ -207,7 +208,8 @@ export async function sendOnce(
   try {
     ({ providerId } = await deps.mailer.send(message, key));
   } catch (e) {
-    const error = e instanceof Error ? e.message : String(e);
+    // Scrubbed: the provider's message may quote the recipient, and #17c shows this column.
+    const error = scrubText(e instanceof Error ? e.message : String(e));
     await run((ctx) => ctx.mailSends.failed(key, error, deps.clock.now()));
     return 'unknown';
   }

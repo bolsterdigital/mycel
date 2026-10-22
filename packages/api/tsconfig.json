@@ -21,6 +21,9 @@
     },
     {
       "path": "../media-sharp"
+    },
+    {
+      "path": "../observability"
     }
   ]
 }

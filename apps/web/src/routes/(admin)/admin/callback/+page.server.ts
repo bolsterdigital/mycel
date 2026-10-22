@@ -24,7 +24,8 @@ export const load: PageServerLoad = async ({ url, cookies, getClientAddress }) =
     login = await finishLogin(url.search, attempt);
   } catch (e) {
     if (e instanceof LoginNotConfigured) error(503, 'Operator login is not configured.');
-    console.error('operator login failed:', e);
+    // Mostly a stale or forged callback, so a warning, not an error report.
+    rt.log.warn('operator login failed', { error: e instanceof Error ? e.message : String(e) });
     error(400, 'Login failed.');
   }
   if (!login) error(400, 'Login failed.');

@@ -21,6 +21,7 @@ import {
   systemPrincipal,
   type Clock,
   type DomainEvent,
+  type ErrorReporter,
   type JobOutcome,
   type JobPayload,
   type JobRecord,
@@ -34,6 +35,7 @@ import {
 import {
   createDb,
   createEventPartitions,
+  deleteFinishedJobs,
   listTenants,
   readOutboxEvent,
   sweepRateLimits,
@@ -47,6 +49,7 @@ export const RECURRING_JOBS: readonly RecurringJob[] = [
   { type: 'events.partitions', cadence: 'monthly' },
   { type: 'rate_limits.sweep', cadence: 'hourly' },
   { type: 'media.orphans', cadence: 'daily' },
+  { type: 'jobs.retention', cadence: 'daily' },
 ];
 
 /**
@@ -85,7 +88,8 @@ function platformJob(type: JobType, handler: () => Promise<unknown>): JobHandler
  */
 export async function sweepAllMediaOrphans(
   uow: UnitOfWork,
-  tenantIds: () => Promise<string[]>
+  tenantIds: () => Promise<string[]>,
+  errors?: ErrorReporter
 ): Promise<number> {
   let swept = 0;
   const failed: string[] = [];
@@ -93,7 +97,7 @@ export async function sweepAllMediaOrphans(
     try {
       swept += (await uow.run(systemPrincipal(id, 'jobs:media.orphans'), sweepMediaOrphans)).length;
     } catch (e) {
-      console.error(`media.orphans: tenant ${id} failed:`, e);
+      errors?.capture(e, { tenantId: id, job: 'media.orphans' });
       failed.push(id);
     }
   if (failed.length) throw new Error(`media.orphans failed for ${failed.length} tenant(s)`);
@@ -157,6 +161,8 @@ export function jobHandlers({
   identity,
   mail,
   tenantIds = async () => (await listTenants(operatorDb)).map((t) => t.id),
+  retentionDays = 30,
+  errors,
 }: {
   uow: UnitOfWork;
   operatorDb: ReturnType<typeof createDb>;
@@ -164,6 +170,10 @@ export function jobHandlers({
   mail: MailJobDeps;
   /** Every tenant id, for platform jobs that work per tenant; tests pass their own. */
   tenantIds?: () => Promise<string[]>;
+  /** JOBS_RETENTION_DAYS: finished jobs older than this are deleted daily. */
+  retentionDays?: number;
+  /** Per-tenant failures inside a platform job, which the job itself reports only in sum. */
+  errors?: ErrorReporter | undefined;
 }): JobHandlers {
   return {
     // A recheck is not a publication: it runs whatever the status (`requireActive` is for #8a).
@@ -172,7 +182,12 @@ export function jobHandlers({
     'rate_limits.sweep': platformJob('rate_limits.sweep', () => sweepRateLimits(operatorDb)),
     // Deleting files is not publishing: a suspended tenant's purge still runs.
     'media.purge': tenantJob({ uow, identity }, 'media.purge', purgeMedia),
-    'media.orphans': platformJob('media.orphans', () => sweepAllMediaOrphans(uow, tenantIds)),
+    'media.orphans': platformJob('media.orphans', () =>
+      sweepAllMediaOrphans(uow, tenantIds, errors)
+    ),
+    'jobs.retention': platformJob('jobs.retention', () =>
+      deleteFinishedJobs(operatorDb, retentionDays)
+    ),
     'mail.reconcile': mailReconcileJob({
       uow,
       identity,

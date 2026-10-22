@@ -19,7 +19,9 @@ import {
   supporterIngestSubscriber,
   type BlobStore,
   type Clock,
+  type ErrorReporter,
   type IdentityStore,
+  type Logger,
   type Mailer,
   type PlatformConfig,
   type Principal,
@@ -30,6 +32,14 @@ import {
   type UnitOfWork,
 } from '@mycel/core';
 import {
+  consoleErrorReporter,
+  createLogger,
+  logLevelOf,
+  Metrics,
+  runWithContext,
+  sentryErrorReporter,
+} from '@mycel/observability';
+import {
   createDb,
   createIdentityStore,
   createSiteDirectory,
@@ -38,18 +48,23 @@ import {
   createUnitOfWork,
   getTenant,
   listTenants,
+  ping,
+  queueLag,
   setEntitlements,
   setStatus,
   startJobWorker,
   startOutboxWorker,
   uuidv7,
   uuidv7Ids,
+  type JobHandlers,
 } from '@mycel/db';
 import { createFsBlobStore, createS3BlobStore } from '@mycel/blob';
 import { ConsoleMailer, TemMailer } from '@mycel/mail-tem';
 import { createSharpProcessor } from '@mycel/media-sharp';
 import { createAuthenticator, type Authenticator } from './auth.js';
 import { createDnsResolver } from './dns.js';
+import type { HttpObservability } from './app.js';
+import { assessWorker, type WorkerReadiness } from './health.js';
 import type { PlatformDeps } from './platform.js';
 import { RECURRING_JOBS, jobHandlers } from './jobs.js';
 import { HmacSigner } from './signer.js';
@@ -153,6 +168,21 @@ const Config = z
     BLOB_S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
     /** `1` for MinIO-style endpoints that do not serve virtual-hosted buckets. */
     BLOB_S3_FORCE_PATH_STYLE: z.enum(['0', '1']).default('0'),
+    /** debug, info, warn or error (docs/reference/observability.md); anything else is info. */
+    LOG_LEVEL: z.string().optional(),
+    /**
+     * A Sentry DSN; GlitchTip (self-hosted, EU) accepts the same. Empty or unset: errors go to the
+     * log only. Nothing but the exception and a few ids is sent (brief #17a decision 5).
+     */
+    ERROR_REPORTING_DSN: z.union([z.literal(''), z.string().url()]).optional(),
+    /** The tracker's environment tag; defaults to NODE_ENV. */
+    ERROR_REPORTING_ENVIRONMENT: z.string().min(1).optional(),
+    /** Bearer token for the API's `/metrics`. Unset: the route is a 404. */
+    METRICS_TOKEN: z.string().min(32).optional(),
+    /** The worker's `/readyz` fails when outbox or job lag reaches this many seconds. */
+    READY_MAX_LAG_SECONDS: z.coerce.number().int().min(1).default(900),
+    /** Finished jobs older than this many days are deleted by the daily `jobs.retention`. */
+    JOBS_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(30),
   })
   .refine(
     (c) =>
@@ -259,8 +289,48 @@ export function platformOf(config: RuntimeConfig): PlatformConfig {
   };
 }
 
+/** Which process this runtime serves: the `service` field of every log line. */
+export interface RuntimeOptions {
+  service?: 'api' | 'web' | 'worker' | 'mcp';
+  /** One finished log line; default stdout (the MCP server passes stderr). */
+  writeLog?: (line: string) => void;
+}
+
+/** The worker's series (brief #17a decision 8); never a tenant id as a label. */
+function workerMetrics(metrics: Metrics) {
+  return {
+    lag: {
+      outboxLagSeconds: metrics.gauge(
+        'mycel_outbox_lag_seconds',
+        'Age of the oldest undelivered outbox event'
+      ),
+      outboxDead: metrics.gauge('mycel_outbox_dead', 'Outbox events that used up their attempts'),
+      jobsLagSeconds: metrics.gauge(
+        'mycel_jobs_lag_seconds',
+        'Wait of the oldest due, claimable job'
+      ),
+      jobsExhausted: metrics.gauge('mycel_jobs_exhausted', 'Open jobs that used up their attempts'),
+    },
+    runs: metrics.counter('mycel_jobs_runs_total', 'Job runs by type and result'),
+  };
+}
+
+const OUTBOX_INTERVAL_MS = 1000;
+const JOBS_INTERVAL_MS = 5000;
+
 export interface Runtime {
   config: RuntimeConfig;
+  /** The process logger; it adds the request or job context by itself (`runWithContext`). */
+  log: Logger;
+  /** Console line always, plus the tracker when ERROR_REPORTING_DSN is set. */
+  errors: ErrorReporter;
+  metrics: Metrics;
+  /** What `createApp` needs for request ids, access lines, `/readyz` and `/metrics`. */
+  http: HttpObservability;
+  /** `select 1` over the application connection within a second (`/readyz` of api and web). */
+  ready(): Promise<boolean>;
+  /** The worker's `/readyz`: database, fresh loop ticks, queue lag. Needs DATABASE_URL. */
+  workerReadiness(): Promise<WorkerReadiness>;
   platform: PlatformConfig;
   invoker: Invoker;
   uow: UnitOfWork;
@@ -288,8 +358,26 @@ export interface Runtime {
   close(): Promise<void>;
 }
 
-export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
+export function createRuntime(
+  config: RuntimeConfig = loadConfig(),
+  { service = 'api', writeLog }: RuntimeOptions = {}
+): Runtime {
   const clock: Clock = { now: () => new Date() };
+  const log = createLogger({ service, level: logLevelOf(config.LOG_LEVEL), write: writeLog });
+  const reporters: ErrorReporter[] = [consoleErrorReporter(log)];
+  if (config.ERROR_REPORTING_DSN)
+    reporters.push(
+      sentryErrorReporter({
+        dsn: config.ERROR_REPORTING_DSN,
+        environment: config.ERROR_REPORTING_ENVIRONMENT ?? config.NODE_ENV,
+        service,
+        log,
+      })
+    );
+  const errors: ErrorReporter = {
+    capture: (error, context) => reporters.forEach((r) => r.capture(error, context)),
+  };
+  const metrics = new Metrics();
   const signer = new HmacSigner(config.SIGNING_SECRET);
   const appDb = createDb(config.APP_DATABASE_URL);
   const authDb = createDb(config.AUTH_DATABASE_URL);
@@ -303,6 +391,7 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
     dns: createDnsResolver(),
     platform,
     media: { blobs, images: createSharpProcessor(), delivery: appDelivery },
+    log,
   });
   const tenants = createTenantDirectory(appDb);
   const identity = createIdentityStore(authDb, uuidv7Ids);
@@ -322,7 +411,10 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
           projectId: config.TEM_PROJECT_ID ?? '',
           region: config.TEM_REGION,
         })
-      : new ConsoleMailer(undefined, config.MAIL_SPOOL_DIR);
+      : new ConsoleMailer(
+          (text) => log.info('console mailer', { mail: text }),
+          config.MAIL_SPOOL_DIR
+        );
   const confirmation = {
     mailer,
     signer,
@@ -351,8 +443,56 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
       }
     : undefined;
 
+  const ready = () => ping(appDb);
+  const ticks: { outbox: number | null; jobs: number | null } = { outbox: null, jobs: null };
+  // Defined on first use, so an api process without the worker exposes no empty worker series.
+  let workerSeries: ReturnType<typeof workerMetrics> | undefined;
+  const series = () => (workerSeries ??= workerMetrics(metrics));
+  /** Every job and outbox delivery runs in its own log context. */
+  const inJobContext = (handlers: JobHandlers): JobHandlers =>
+    Object.fromEntries(
+      Object.entries(handlers).map(([type, handler]) => [
+        type,
+        (job: Parameters<typeof handler>[0]) =>
+          runWithContext({ job: type, ...(job.tenantId ? { tenantId: job.tenantId } : {}) }, () =>
+            handler(job)
+          ),
+      ])
+    );
+  const inEventContext = (sub: Subscriber): Subscriber => ({
+    ...sub,
+    handle: (event) =>
+      runWithContext({ eventId: event.id, tenantId: event.tenantId }, () => sub.handle(event)),
+  });
+
   return {
     config,
+    log,
+    errors,
+    metrics,
+    http: {
+      log,
+      errors,
+      metrics,
+      newRequestId: () => uuidv7(),
+      ready,
+      metricsToken: config.METRICS_TOKEN,
+    },
+    ready,
+    async workerReadiness() {
+      if (!operatorDb) throw new Error('the worker needs DATABASE_URL (operator role)');
+      const lag = await queueLag(operatorDb).catch(() => null);
+      if (lag)
+        for (const [name, gauge] of Object.entries(series().lag))
+          gauge.set(lag[name as keyof typeof lag]);
+      return assessWorker({
+        lag,
+        ticks,
+        now: Date.now(),
+        intervalsMs: { outbox: OUTBOX_INTERVAL_MS, jobs: JOBS_INTERVAL_MS },
+        maxLagSeconds: config.READY_MAX_LAG_SECONDS,
+      });
+    },
     platform,
     invoker,
     uow,
@@ -370,21 +510,34 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
     platformApi,
     startWorker() {
       if (!operatorDb) throw new Error('the worker needs DATABASE_URL (operator role)');
-      const stopOutbox = startOutboxWorker(operatorDb, subscribers);
+      const stopOutbox = startOutboxWorker(operatorDb, subscribers.map(inEventContext), {
+        intervalMs: OUTBOX_INTERVAL_MS,
+        log,
+        onError: errors.capture,
+        onTick: () => void (ticks.outbox = Date.now()),
+      });
       const mail = {
         mailer,
         clock,
         sources: mailSources,
         reconcileLagMs: confirmation.reconcileLagMs,
       };
-      const stopJobs = startJobWorker(
+      const handlers = jobHandlers({
+        uow,
         operatorDb,
-        jobHandlers({ uow, operatorDb, identity, mail }),
-        {
-          intervalMs: 5000,
-          recurring: RECURRING_JOBS,
-        }
-      );
+        identity,
+        mail,
+        retentionDays: config.JOBS_RETENTION_DAYS,
+        errors,
+      });
+      const stopJobs = startJobWorker(operatorDb, inJobContext(handlers), {
+        intervalMs: JOBS_INTERVAL_MS,
+        recurring: RECURRING_JOBS,
+        log,
+        onError: errors.capture,
+        onTick: () => void (ticks.jobs = Date.now()),
+        onRun: (job, result) => series().runs.inc({ type: job.type, result }),
+      });
       const stop = async () => {
         await Promise.all([stopOutbox(), stopJobs()]);
       };

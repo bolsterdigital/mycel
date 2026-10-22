@@ -19,6 +19,7 @@ import {
 import {
   UseCaseError,
   toJsonSchema,
+  type ErrorReporter,
   type Invoker,
   type Principal,
   type UseCase,
@@ -52,7 +53,12 @@ function toolError(e: UseCaseError): CallToolResult {
   };
 }
 
-export function createMcpServer(invoker: Invoker, principal: () => Promise<Principal>): McpServer {
+export function createMcpServer(
+  invoker: Invoker,
+  principal: () => Promise<Principal>,
+  /** Unexpected failures; the caller only sees "internal error". Tests leave it out. */
+  errors?: ErrorReporter
+): McpServer {
   const server = new McpServer({ name: 'mycel', version: '0.0.0' });
   const useCases = invoker.registry.list();
   const tools = useCases.map(toolOf);
@@ -70,7 +76,7 @@ export function createMcpServer(invoker: Invoker, principal: () => Promise<Princ
       };
     } catch (e) {
       if (e instanceof UseCaseError) return toolError(e);
-      console.error(e);
+      errors?.capture(e, { tags: { tool: params.name } });
       throw new McpError(ErrorCode.InternalError, 'internal error');
     }
   });

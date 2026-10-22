@@ -27,6 +27,7 @@ import {
   type Clock,
   type FileFormat,
   type MediaContentType,
+  type Logger,
   type Principal,
   type Signer,
   type TenantRef,
@@ -38,6 +39,8 @@ export interface MediaDeliveryDeps {
   blobs: BlobStore;
   signer: Signer;
   clock: Clock;
+  /** The runtime's logger; tests leave it out. */
+  log?: Logger;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -100,7 +103,7 @@ export async function serveMedia(
 
   const bytes = await deps.blobs.get(mediaKey(tenant.id, id, file));
   if (!bytes) {
-    console.error(`media ${id}: ${file} is in the register but not in the store`);
+    deps.log?.error('media: in the register but not in the store', { mediaId: id, file });
     return status(404);
   }
   // A copy into a plain ArrayBuffer: what `BodyInit` takes, whatever buffer the store returned.
@@ -179,7 +182,7 @@ export async function serveAdminMedia(
 
   const bytes = await deps.blobs.get(mediaKey(principal.tenantId, id, file));
   if (!bytes) {
-    console.error(`media ${id}: ${file} is in the register but not in the store`);
+    deps.log?.error('media: in the register but not in the store', { mediaId: id, file });
     return status(404);
   }
   const ext = file.slice(file.lastIndexOf('.') + 1);

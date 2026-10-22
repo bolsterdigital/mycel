@@ -1,0 +1,21 @@
+{
+  "name": "@mycel/observability",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "description": "Structured JSON logs with redaction, error reporting (console or a Sentry-compatible tracker) and Prometheus metrics (TODO #17a)",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -b",
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@mycel/core": "*"
+  }
+}

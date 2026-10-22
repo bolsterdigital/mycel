@@ -30,6 +30,7 @@
   "dependencies": {
     "@mycel/api": "*",
     "@mycel/core": "*",
+    "@mycel/observability": "*",
     "openid-client": "^6.8.8"
   }
 }

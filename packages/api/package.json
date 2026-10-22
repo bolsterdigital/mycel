@@ -30,7 +30,8 @@
     "@mycel/mail-tem": "*",
     "zod": "^3.24.1",
     "@mycel/blob": "*",
-    "@mycel/media-sharp": "*"
+    "@mycel/media-sharp": "*",
+    "@mycel/observability": "*"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^13.1.0",

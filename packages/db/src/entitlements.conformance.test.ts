@@ -313,6 +313,9 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
     await as(operatorUrl!, async (c) => {
       await c.query('begin');
       await c.query(`select set_config('app.tenant_id', $1, true)`, [holder.id]);
+      // As mycel_app: since 0010 the policy on tenant_hostnames is bound to that role, so an
+      // owner without superuser (managed Postgres, the Mac) cannot insert as itself.
+      await c.query('set local role mycel_app');
       await c.query(
         `insert into tenant_hostnames (hostname, tenant_id, kind, verification_token)
          values ($1, $2, 'custom', 'legacy')`,

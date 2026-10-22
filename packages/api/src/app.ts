@@ -3,11 +3,31 @@
 // weak ETag (see `http-shape.ts`). Errors are Problem Details (`problem.ts`) and the OpenAPI 3.1
 // document at `/openapi.json` is generated from the same registry (`openapi.ts`). Nothing here
 // names a use case. Hono over Express/Fastify: Web-standard Request/Response, tiny, portable.
+//
+// Every request runs in a log context with a request id (TODO #17a): one access line per request
+// with the route pattern, never the full path or query; `/readyz` and `/metrics` next to
+// `/healthz`, which stays a pure liveness probe so a slow database never restarts the container.
 
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import { MAX_UPLOAD_BYTES, UseCaseError, type Invoker, type Principal } from '@mycel/core';
+import { routePath } from 'hono/route';
+import {
+  MAX_UPLOAD_BYTES,
+  UseCaseError,
+  noopLogger,
+  type ErrorReporter,
+  type Invoker,
+  type Logger,
+  type Principal,
+} from '@mycel/core';
+import {
+  METRICS_CONTENT_TYPE,
+  Metrics,
+  requestIdFrom,
+  runWithContext,
+  setContext,
+} from '@mycel/observability';
 import { coerceQuery, flatQueryFields, methodsOf } from './http-shape.js';
 import { openApiDocument } from './openapi.js';
 import { createPlatformApp, type PlatformDeps } from './platform.js';
@@ -18,7 +38,33 @@ export interface AppDeps {
   authenticate(authorization: string | undefined): Promise<Principal | null>;
   /** The platform API (TODO #16); absent without PLATFORM_API_TOKEN, and `/platform/*` is a 404. */
   platform?: PlatformDeps | undefined;
+  /** Logs, error reports, metrics and readiness; tests leave it out and get silence. */
+  observability?: Partial<HttpObservability> | undefined;
 }
+
+export interface HttpObservability {
+  log: Logger;
+  errors: ErrorReporter;
+  metrics: Metrics;
+  /** A fresh request id when the incoming `X-Request-Id` is absent or malformed. */
+  newRequestId(): string;
+  /** `select 1` over the application connection, with a time-out. */
+  ready(): Promise<boolean>;
+  /** Bearer token for `/metrics`; without it the route is a 404. */
+  metricsToken: string | undefined;
+}
+
+const silent: HttpObservability = {
+  log: noopLogger,
+  errors: { capture() {} },
+  metrics: new Metrics(),
+  newRequestId: randomUUID,
+  ready: async () => false,
+  metricsToken: undefined,
+};
+
+const digest = (value: string) => createHash('sha256').update(value).digest();
+const statusClass = (status: number) => `${Math.floor(status / 100)}xx`;
 
 /**
  * The largest JSON body any use case takes: a base64 upload of `MAX_UPLOAD_BYTES` (a third
@@ -42,12 +88,55 @@ function matches(ifNoneMatch: string | undefined, etag: string): boolean {
   return ifNoneMatch.split(',').some((tag) => tag.trim() === '*' || opaque(tag) === opaque(etag));
 }
 
-export function createApp({ invoker, authenticate, platform }: AppDeps): Hono {
+export function createApp({ invoker, authenticate, platform, observability }: AppDeps): Hono {
   const app = new Hono();
   const { registry } = invoker;
   const openapi = openApiDocument(registry);
+  const obs = { ...silent, ...observability };
+  const requests = obs.metrics.counter(
+    'mycel_http_requests_total',
+    'HTTP requests by method, route pattern and status class'
+  );
+  const useCaseErrors = obs.metrics.counter(
+    'mycel_use_case_errors_total',
+    'Use case refusals by error code'
+  );
+
+  app.use('*', async (c, next) => {
+    const requestId = requestIdFrom(c.req.header('x-request-id'), obs.newRequestId);
+    const started = performance.now();
+    await runWithContext({ requestId }, async () => {
+      await next();
+      c.res.headers.set('x-request-id', requestId);
+      // The last matched route is the handler's pattern; only middleware matched means 404.
+      const route = routePath(c, -1);
+      const status = c.res.status;
+      requests.inc({ method: c.req.method, route, status: statusClass(status) });
+      // Probes every few seconds would drown the log; they stay visible at debug.
+      const probe = route === '/healthz' || route === '/readyz' || route === '/metrics';
+      obs.log[probe ? 'debug' : 'info']('request', {
+        method: c.req.method,
+        route,
+        status,
+        durationMs: Math.round(performance.now() - started),
+      });
+    });
+  });
 
   app.get('/healthz', (c) => c.json({ ok: true }));
+  app.get('/readyz', async (c) =>
+    (await obs.ready()) ? c.json({ db: 'ok' }) : c.json({ db: 'down' }, 503)
+  );
+  app.get('/metrics', (c) => {
+    const presented = /^Bearer\s+(\S+)\s*$/i.exec(c.req.header('authorization') ?? '')?.[1];
+    if (
+      !obs.metricsToken ||
+      !presented ||
+      !timingSafeEqual(digest(presented), digest(obs.metricsToken))
+    )
+      return c.notFound();
+    return c.body(obs.metrics.render(), 200, { 'content-type': METRICS_CONTENT_TYPE });
+  });
   app.get('/openapi.json', (c) => c.json(openapi));
 
   app.get('/v1', (c) =>
@@ -63,9 +152,14 @@ export function createApp({ invoker, authenticate, platform }: AppDeps): Hono {
     })
   );
 
-  if (platform) app.route('/platform', createPlatformApp(platform));
+  if (platform)
+    app.route('/platform', createPlatformApp({ ...platform, log: obs.log, errors: obs.errors }));
 
-  const principalOf = (c: Context) => authenticate(c.req.header('authorization'));
+  const principalOf = async (c: Context) => {
+    const principal = await authenticate(c.req.header('authorization'));
+    if (principal) setContext({ tenantId: principal.tenantId });
+    return principal;
+  };
 
   app.post(
     '/v1/:name',
@@ -111,8 +205,11 @@ export function createApp({ invoker, authenticate, platform }: AppDeps): Hono {
   });
 
   app.onError((err) => {
-    if (err instanceof UseCaseError) return problem(err.code, err.message, err.issues);
-    console.error(err);
+    if (err instanceof UseCaseError) {
+      useCaseErrors.inc({ code: err.code });
+      return problem(err.code, err.message, err.issues);
+    }
+    obs.errors.capture(err);
     return problem('internal');
   });
 
