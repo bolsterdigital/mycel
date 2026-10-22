@@ -23,7 +23,13 @@ import {
   type MailMessage,
   type Mailer,
 } from '@mycel/core';
-import { FakeSigner, probeForm, FakeDns, memoryPlatform } from '@mycel/core/testing';
+import {
+  FakeInputHasher,
+  FakeSigner,
+  probeForm,
+  FakeDns,
+  memoryPlatform,
+} from '@mycel/core/testing';
 import {
   createDb,
   createUnitOfWork,
@@ -71,6 +77,7 @@ describe.skipIf(!operatorUrl || !appUrl)('mailing conformance', () => {
       clock,
       ids: uuidv7Ids,
       signer,
+      inputHasher: new FakeInputHasher(),
       dns: new FakeDns(),
       platform: memoryPlatform,
     });
@@ -285,6 +292,7 @@ describe.skipIf(!operatorUrl || !appUrl)('mailing conformance', () => {
       clock: { now: () => twoDaysAgo },
       ids: uuidv7Ids,
       signer,
+      inputHasher: new FakeInputHasher(),
     });
     await old.run(admin(), (ctx) =>
       ctx.rateLimits.hit(`janitor-${run}`, { max: 5, windowSeconds: 60 })

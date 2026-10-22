@@ -19,6 +19,7 @@ import {
   type DnsResolver,
   type Ids,
   type ImageProcessor,
+  type InputHasher,
   type Logger,
   type MediaDelivery,
   type PlatformConfig,
@@ -28,6 +29,7 @@ import {
   type TenantInfo,
   type UnitOfWork,
 } from '@mycel/core';
+import { auditRepository } from './audit.js';
 import { hostnameRepository } from './hostnames.js';
 import { asPlatform, insertPlatformHostname } from './platform.js';
 import { jobScheduler } from './jobs.js';
@@ -57,6 +59,7 @@ export {
 } from './outbox.js';
 export { deleteFinishedJobs, ping, queueLag, type QueueLag } from './ops.js';
 export { sweepRateLimits } from './janitor.js';
+export { deleteExpiredAudit } from './audit.js';
 export {
   JOB_LEASE_SECONDS,
   claimJobs,
@@ -88,6 +91,7 @@ export {
   setEntitlements,
   setStatus,
   type NewTenant,
+  type PlatformActor,
   type PlatformTenant,
 } from './platform.js';
 
@@ -124,6 +128,8 @@ export interface UnitOfWorkDeps {
   media?: { blobs: BlobStore; images: ImageProcessor; delivery?: MediaDelivery } | undefined;
   /** `ctx.log`; the composition root passes the process logger, suites get `noopLogger`. */
   log?: Logger | undefined;
+  /** The audit input hash (AUDIT_HASH_KEY, TODO #17b); the Invoker hashes every command's input. */
+  inputHasher: InputHasher;
 }
 
 const unconfigured = (port: string) =>
@@ -167,6 +173,8 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           images: deps.media?.images ?? (unconfigured('ImageProcessor') as ImageProcessor),
           delivery: deps.media?.delivery ?? appDelivery,
           log: deps.log ?? noopLogger,
+          audit: auditRepository(trx, tenantId),
+          inputHasher: deps.inputHasher,
         });
       });
     },

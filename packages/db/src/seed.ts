@@ -22,7 +22,13 @@ import {
   uuidv7,
   uuidv7Ids,
 } from './index.js';
-import { FakeDns, memoryPlatform, probeForm, probePage } from '@mycel/core/testing';
+import {
+  FakeDns,
+  FakeInputHasher,
+  memoryPlatform,
+  probeForm,
+  probePage,
+} from '@mycel/core/testing';
 
 const operatorUrl = process.env['DATABASE_URL'];
 const platformDomain = process.env['PLATFORM_DOMAIN'];
@@ -39,6 +45,9 @@ const noSigner: Signer = {
   verify: () => Promise.reject(new Error('seed has no signer')),
 };
 
+// Dev only: the test hasher is the same HMAC-SHA256 as the API's adapter, under the same key.
+const inputHasher = new FakeInputHasher(process.env['AUDIT_HASH_KEY']);
+
 try {
   const tenant = await upsertTenant(
     operatorDb,
@@ -47,7 +56,12 @@ try {
   );
   // A hosted free tier in miniature (ADR 015 rules 2 and 5), so dev and e2e show the footer
   // credit and run against a real cap. Prices and tier names stay out of this repository.
-  await setEntitlements(operatorDb, tenant.id, { remove_branding: false, 'supporters.max': 250 });
+  await setEntitlements(
+    operatorDb,
+    tenant.id,
+    { remove_branding: false, 'supporters.max': 250 },
+    { actorId: 'seed', hasher: inputHasher }
+  );
 
   // The seed verifies no domains and builds no URLs: the in-memory DNS and platform defaults
   // (with the real platform domain) satisfy the unit of work without a resolver.
@@ -55,6 +69,7 @@ try {
     clock: { now: () => new Date() },
     ids: uuidv7Ids,
     signer: noSigner,
+    inputHasher,
     dns: new FakeDns(),
     platform: { ...memoryPlatform, domain: platformDomain },
   });

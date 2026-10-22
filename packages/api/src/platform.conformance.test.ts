@@ -11,7 +11,7 @@ import { DEFAULT_ENTITLEMENTS, systemPrincipal, useCases } from '@mycel/core';
 import { probeForm } from '@mycel/core/testing';
 import { migrate, uuidv7 } from '@mycel/db';
 import { createApp } from './app.js';
-import { createRuntime, loadConfig, type Runtime } from './compose.js';
+import { createRuntime, loadConfig, tokenFingerprint, type Runtime } from './compose.js';
 
 const env = process.env;
 const ready = !!(env['DATABASE_URL'] && env['APP_DATABASE_URL'] && env['AUTH_DATABASE_URL']);
@@ -156,5 +156,31 @@ describe.skipIf(!ready)('platform API', () => {
 
     await call('PUT', `/tenants/${tenant.id}/status`, { status: 'active' });
     expect((await submit()).status).toBe(200);
+
+    // TODO #17b: every platform mutation is one `platform` row with the token's fingerprint, in
+    // the tenant's own log; refused mutations wrote nothing. The commands over HTTP are there too,
+    // refused or not, as the API key.
+    // Sorted, not in log order: two rows within one millisecond have no defined order.
+    const { items } = await rt.invoker.run(useCases.listAudit, admin, { limit: 100 });
+    expect(items.map((r) => [r.operation, r.actorKind, r.result].join(' ')).sort()).toEqual(
+      [
+        ['platform.tenant.create', 'platform', 'ok'],
+        ['tenant.keys.create', 'system', 'ok'],
+        ['platform.set_entitlements', 'platform', 'ok'],
+        ['forms.submit', 'api-key', 'limit_exceeded'],
+        ['platform.set_entitlements', 'platform', 'ok'],
+        ['platform.set_status', 'platform', 'ok'],
+        ['forms.submit', 'api-key', 'suspended'],
+        ['platform.set_status', 'platform', 'ok'],
+        ['forms.submit', 'api-key', 'ok'],
+      ]
+        .map((r) => r.join(' '))
+        .sort()
+    );
+    const platformRows = items.filter((r) => r.actorKind === 'platform');
+    expect(new Set(platformRows.map((r) => r.actorId))).toEqual(new Set([tokenFingerprint(TOKEN)]));
+    expect(platformRows.every((r) => r.subjectId === tenant.id)).toBe(true);
+    expect(JSON.stringify(items)).not.toContain(TOKEN);
+    expect(JSON.stringify(items)).not.toContain('@');
   });
 });

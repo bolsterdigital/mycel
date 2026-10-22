@@ -19,6 +19,7 @@ import {
 } from '@mycel/core';
 import {
   FakeDns,
+  FakeInputHasher,
   FakeSigner,
   MemoryBlobStore,
   MemoryMailer,
@@ -31,6 +32,7 @@ import {
   createDb,
   createTenantDirectory,
   createUnitOfWork,
+  deleteExpiredAudit,
   migrate,
   upsertTenant,
   uuidv7,
@@ -137,6 +139,7 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
       clock,
       ids: uuidv7Ids,
       signer,
+      inputHasher: new FakeInputHasher(),
       dns: new FakeDns(),
       platform: memoryPlatform,
       media: { blobs: new MemoryBlobStore(), images: memoryImageProcessor },
@@ -225,6 +228,7 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
   it('finds the tenant tables the migrations create', () => {
     expect(tables.map((t) => t.name)).toEqual(
       expect.arrayContaining([
+        'audit_log',
         'events',
         'api_keys',
         'form_submissions',
@@ -328,6 +332,103 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
       roles: ['mycel_worker'],
       cmd: 'DELETE',
       qual: '(done_at IS NOT NULL)',
+    });
+  });
+
+  // TODO #17b: the audit log is append-only for everyone; only the janitor deletes, and never a
+  // row younger than 30 days, whatever its query asks.
+  describe('audit_log', () => {
+    /** One transaction on `db` with this tenant's context, optionally as another role. */
+    const tx = <T>(
+      db: typeof appDb,
+      fn: (trx: typeof appDb) => Promise<T>,
+      role?: string
+    ): Promise<T> =>
+      db.transaction().execute(async (trx) => {
+        if (role) await sql`set local role ${sql.id(role)}`.execute(trx);
+        await sql`select set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
+        return fn(trx);
+      });
+    const row = (actorKind: string, daysAgo = 0) => ({
+      id: uuidv7(),
+      tenant_id: tenantId,
+      occurred_at: new Date(Date.now() - daysAgo * 86_400_000),
+      actor_kind: actorKind,
+      actor_id: 'rls',
+      operation: 'rls.test',
+      effect: null,
+      input_hash: '0'.repeat(64),
+      result: 'ok',
+      request_id: null,
+      subject_id: null,
+    });
+
+    it('holds a row per fixture command, without an address in any column', async () => {
+      const rows = await tx(appDb, (trx) => trx.selectFrom('audit_log').selectAll().execute());
+      expect(rows.map((r) => r.operation)).toEqual(
+        expect.arrayContaining([
+          'content.page.create',
+          'forms.submit',
+          'tenant.members.invite',
+          'tenant.keys.create',
+          'media.upload',
+        ])
+      );
+      expect(rows.every((r) => r.result === 'ok' && /^[0-9a-f]{64}$/.test(r.input_hash))).toBe(
+        true
+      );
+      expect(JSON.stringify(rows)).not.toContain('@');
+    });
+
+    it('lets mycel_app neither update nor delete a row', async () => {
+      const { id } = row('system');
+      await tx(appDb, (trx) =>
+        trx
+          .insertInto('audit_log')
+          .values({ ...row('system'), id })
+          .execute()
+      );
+      await expect(
+        tx(appDb, (trx) =>
+          trx.updateTable('audit_log').set({ result: 'forged' }).where('id', '=', id).execute()
+        )
+      ).rejects.toThrow(/permission denied/);
+      await expect(
+        tx(appDb, (trx) => trx.deleteFrom('audit_log').where('id', '=', id).execute())
+      ).rejects.toThrow(/permission denied/);
+    });
+
+    it('lets mycel_platform insert platform rows only', async () => {
+      await tx(
+        operatorDb,
+        (trx) => trx.insertInto('audit_log').values(row('platform')).execute(),
+        'mycel_platform'
+      );
+      await expect(
+        tx(
+          operatorDb,
+          (trx) => trx.insertInto('audit_log').values(row('operator')).execute(),
+          'mycel_platform'
+        )
+      ).rejects.toThrow(/row-level security/);
+    });
+
+    it('lets mycel_audit_janitor delete only rows older than 30 days, also with an explicit where', async () => {
+      const young = row('system', 29);
+      const old = row('system', 31);
+      await tx(appDb, (trx) => trx.insertInto('audit_log').values([young, old]).execute());
+      const deleted = await tx(
+        operatorDb,
+        (trx) => trx.deleteFrom('audit_log').where('id', '=', young.id).executeTakeFirst(),
+        'mycel_audit_janitor'
+      );
+      expect(deleted.numDeletedRows).toBe(0n);
+      // A retention of one day still keeps the 30-day floor.
+      expect(await deleteExpiredAudit(operatorDb, 1)).toBeGreaterThanOrEqual(1);
+      const left = await tx(appDb, (trx) =>
+        trx.selectFrom('audit_log').select('id').where('id', 'in', [young.id, old.id]).execute()
+      );
+      expect(left.map((r) => r.id)).toEqual([young.id]);
     });
   });
 

@@ -89,3 +89,35 @@ describe('MCP front with a key from the table', () => {
     expect(text(after)).toMatchObject({ code: 'forbidden', message: /revoked/ });
   });
 });
+
+// TODO #17b: the MCP front runs commands through the same Invoker, so one tool call is one audit
+// row, refused or not, attributed to the agent's key.
+describe('MCP front and the audit log', () => {
+  it('writes one row per tool call that runs a command, none for a query', async () => {
+    const uow = new MemoryUnitOfWork();
+    await uow.run(systemPrincipal(TENANT, 'test'), (ctx) => ctx.forms.insert(probeForm(FORM)));
+    const agent = {
+      ...systemPrincipal(TENANT, 'agent'),
+      actor: { kind: 'agent' as const, sessionId: 's-1', keyId: 'key-1' },
+      capabilities: ['content:write' as const, 'content:read' as const],
+    };
+    const server = createMcpServer(new Invoker(buildRegistry(), uow), async () => agent);
+    const [a, b] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: 'test', version: '0' });
+    await Promise.all([server.connect(a), client.connect(b)]);
+
+    await client.callTool({ name: 'content.page.create', arguments: probePage(FORM) });
+    await client.callTool({ name: 'content.page.get', arguments: { slug: 'signup' } });
+    const refused = await client.callTool({
+      name: 'tenant.keys.create',
+      arguments: { name: 'x', capabilities: ['content:read'] },
+    });
+    expect(refused.isError).toBe(true);
+    expect(
+      uow.store.for(TENANT).audit.map((r) => [r.operation, r.actorKind, r.actorId, r.result])
+    ).toEqual([
+      ['content.page.create', 'agent', 'key-1', 'ok'],
+      ['tenant.keys.create', 'agent', 'key-1', 'forbidden'],
+    ]);
+  });
+});

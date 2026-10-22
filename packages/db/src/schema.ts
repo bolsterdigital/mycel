@@ -207,4 +207,17 @@ export interface Database {
     ref: string;
     block_id: string;
   };
+  audit_log: {
+    id: string;
+    tenant_id: string | null;
+    occurred_at: ColumnType<Date, Date | undefined, never>;
+    actor_kind: string;
+    actor_id: string | null;
+    operation: string;
+    effect: string | null;
+    input_hash: string;
+    result: string;
+    request_id: string | null;
+    subject_id: string | null;
+  };
 }

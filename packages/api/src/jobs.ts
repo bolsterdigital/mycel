@@ -35,6 +35,7 @@ import {
 import {
   createDb,
   createEventPartitions,
+  deleteExpiredAudit,
   deleteFinishedJobs,
   listTenants,
   readOutboxEvent,
@@ -50,6 +51,7 @@ export const RECURRING_JOBS: readonly RecurringJob[] = [
   { type: 'rate_limits.sweep', cadence: 'hourly' },
   { type: 'media.orphans', cadence: 'daily' },
   { type: 'jobs.retention', cadence: 'daily' },
+  { type: 'audit.retention', cadence: 'daily' },
 ];
 
 /**
@@ -162,6 +164,7 @@ export function jobHandlers({
   mail,
   tenantIds = async () => (await listTenants(operatorDb)).map((t) => t.id),
   retentionDays = 30,
+  auditRetentionDays = 400,
   errors,
 }: {
   uow: UnitOfWork;
@@ -172,6 +175,8 @@ export function jobHandlers({
   tenantIds?: () => Promise<string[]>;
   /** JOBS_RETENTION_DAYS: finished jobs older than this are deleted daily. */
   retentionDays?: number;
+  /** AUDIT_RETENTION_DAYS: audit rows older than this are deleted daily (never under 30). */
+  auditRetentionDays?: number;
   /** Per-tenant failures inside a platform job, which the job itself reports only in sum. */
   errors?: ErrorReporter | undefined;
 }): JobHandlers {
@@ -187,6 +192,9 @@ export function jobHandlers({
     ),
     'jobs.retention': platformJob('jobs.retention', () =>
       deleteFinishedJobs(operatorDb, retentionDays)
+    ),
+    'audit.retention': platformJob('audit.retention', () =>
+      deleteExpiredAudit(operatorDb, auditRetentionDays)
     ),
     'mail.reconcile': mailReconcileJob({
       uow,

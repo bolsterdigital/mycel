@@ -18,7 +18,7 @@ import {
   useCases,
   type Principal,
 } from '@mycel/core';
-import { FakeDns, FakeSigner, memoryPlatform } from '@mycel/core/testing';
+import { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } from '@mycel/core/testing';
 import {
   createDb,
   createIdentityStore,
@@ -48,6 +48,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('operator and key conforman
     clock: { now: () => new Date() },
     ids: uuidv7Ids,
     signer: new FakeSigner(),
+    inputHasher: new FakeInputHasher(),
     dns: new FakeDns(),
     platform: memoryPlatform,
   });

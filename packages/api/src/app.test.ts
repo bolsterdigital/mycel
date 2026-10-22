@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { Invoker, buildRegistry, systemPrincipal } from '@mycel/core';
-import { MemoryUnitOfWork, probeForm, probePage } from '@mycel/core/testing';
+import { FakeInputHasher, MemoryUnitOfWork, probeForm, probePage } from '@mycel/core/testing';
 import { Metrics, createLogger } from '@mycel/observability';
 import { createApp } from './app.js';
-import { HmacSigner } from './signer.js';
+import { loadConfig } from './compose.js';
+import { HmacInputHasher, HmacSigner } from './signer.js';
 
 const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const FORM = '01900000-0000-7000-8000-00000000f000';
@@ -81,6 +82,37 @@ describe('HmacSigner', () => {
     expect(await s.verify(token.slice(0, -2) + 'xx')).toBeNull();
     expect(await new HmacSigner('fedcba9876543210').verify(token)).toBeNull();
     expect(s.hashIp('1.2.3.4')).not.toContain('1.2.3.4');
+  });
+});
+
+// TODO #17b: the audit input hash. The core's test hasher (Web Crypto) is the same HMAC, so the
+// seed's and the API's rows hash alike under one key.
+describe('HmacInputHasher', () => {
+  it('is HMAC-SHA256 in hex, equal to the core test hasher under the same key', async () => {
+    const key = 'audit-key-0123456789';
+    const hash = await new HmacInputHasher(key).hash('{"a":1}');
+    expect(hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(await new FakeInputHasher(key).hash('{"a":1}')).toBe(hash);
+    expect(await new HmacInputHasher('another-key-0123456').hash('{"a":1}')).not.toBe(hash);
+    expect(() => new HmacInputHasher('short')).toThrow(/AUDIT_HASH_KEY/);
+  });
+
+  it('is required in production', () => {
+    const base = {
+      APP_DATABASE_URL: 'postgres://a@localhost/x',
+      AUTH_DATABASE_URL: 'postgres://b@localhost/x',
+      SIGNING_SECRET: 'test-only-signing-secret',
+      PUBLIC_BASE_URL: 'https://example.org',
+      MAIL_FROM: 'noreply@example.org',
+      PLATFORM_DOMAIN: 'example.org',
+    };
+    expect(() => loadConfig({ ...base, NODE_ENV: 'production' })).toThrow(
+      /AUDIT_HASH_KEY is required in production/
+    );
+    expect(() =>
+      loadConfig({ ...base, NODE_ENV: 'production', AUDIT_HASH_KEY: 'prod-audit-key-0123' })
+    ).not.toThrow(/AUDIT_HASH_KEY/);
+    expect(loadConfig(base).AUDIT_HASH_KEY).toBeUndefined();
   });
 });
 

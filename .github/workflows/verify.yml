@@ -44,6 +44,7 @@ jobs:
       AUTH_DATABASE_URL: postgres://mycel_authenticator:mycel_auth_ci@localhost:5432/mycel
       MYCEL_AUTH_PASSWORD: mycel_auth_ci
       SIGNING_SECRET: ci-only-signing-secret
+      AUDIT_HASH_KEY: ci-only-audit-hash-key
       PUBLIC_BASE_URL: http://127.0.0.1:4173
       PLATFORM_DOMAIN: localhost
       MAIL_FROM: CI <noreply@example.org>
@@ -107,7 +108,8 @@ jobs:
           env_args="-e APP_DATABASE_URL=postgres://mycel_app:x@127.0.0.1:1/mycel
             -e AUTH_DATABASE_URL=postgres://mycel_authenticator:x@127.0.0.1:1/mycel
             -e DATABASE_URL=postgres://mycel:x@127.0.0.1:1/mycel
-            -e SIGNING_SECRET=ci-only-signing-secret -e PUBLIC_BASE_URL=http://localhost:3000
+            -e SIGNING_SECRET=ci-only-signing-secret -e AUDIT_HASH_KEY=ci-only-audit-hash-key
+            -e PUBLIC_BASE_URL=http://localhost:3000
             -e PLATFORM_DOMAIN=example.org -e MYCEL_TRUST_PROXY=1
             -e MAIL_FROM=noreply@example.org -e MAILER=tem -e TEM_SECRET_KEY=x -e TEM_PROJECT_ID=x
             -e BLOB_STORE=s3 -e BLOB_S3_BUCKET=x -e BLOB_S3_ACCESS_KEY_ID=x -e BLOB_S3_SECRET_ACCESS_KEY=x"

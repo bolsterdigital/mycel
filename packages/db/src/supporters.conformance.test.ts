@@ -17,7 +17,7 @@ import {
   useCases,
   type SupporterEventType,
 } from '@mycel/core';
-import { FakeSigner, FakeDns, memoryPlatform } from '@mycel/core/testing';
+import { FakeInputHasher, FakeSigner, FakeDns, memoryPlatform } from '@mycel/core/testing';
 import { createDb, createUnitOfWork, migrate, upsertTenant, uuidv7, uuidv7Ids } from './index.js';
 
 const operatorUrl = process.env['DATABASE_URL'];
@@ -32,6 +32,7 @@ describe.skipIf(!operatorUrl || !appUrl)('supporter conformance', () => {
     clock: { now: () => new Date() },
     ids: uuidv7Ids,
     signer: new FakeSigner(),
+    inputHasher: new FakeInputHasher(),
   });
   const invoker = new Invoker(buildRegistry(), uow);
   const run = Math.random().toString(36).slice(2, 8);

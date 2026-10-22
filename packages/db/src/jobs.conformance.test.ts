@@ -22,7 +22,7 @@ import {
   useCases,
   type JobRecord,
 } from '@mycel/core';
-import { FakeDns, FakeSigner, memoryPlatform } from '@mycel/core/testing';
+import { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } from '@mycel/core/testing';
 import {
   JOB_LEASE_SECONDS,
   OUTBOX_MAX_ATTEMPTS,
@@ -60,6 +60,7 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
     clock: { now: () => new Date() },
     ids: uuidv7Ids,
     signer: new FakeSigner(),
+    inputHasher: new FakeInputHasher(),
     dns: new FakeDns(),
     platform: { ...memoryPlatform, domain: PLATFORM },
   });
@@ -92,6 +93,15 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
       await sql`set local role mycel_worker`.execute(trx);
       return fn(trx);
     });
+  /**
+   * Move a job's clock as the worker (TODO #17a restpunt): on the owner connection an owner
+   * without superuser touches no row under forced RLS, and the test would pass proving nothing.
+   * The one-row check makes that visible.
+   */
+  async function asWorkerUpdate(query: ReturnType<typeof sql>): Promise<void> {
+    const { numAffectedRows } = await asWorker((trx) => query.execute(trx));
+    expect(numAffectedRows).toBe(1n);
+  }
   /** Insert a due platform job as the worker. */
   async function due(t: string, key = `${t}:${uuidv7()}`, maxAttempts = 10): Promise<string> {
     await operatorDb.transaction().execute(async (trx) => {
@@ -272,8 +282,10 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
     const [first] = await claimJobs(operatorDb, { types: [t] });
     expect(await claimJobs(operatorDb, { types: [t] })).toEqual([]);
     // The worker died: its lease runs out.
-    await sql`update jobs set claimed_at = now() - make_interval(secs => ${JOB_LEASE_SECONDS + 1})
-              where key = ${key}`.execute(operatorDb);
+    await asWorkerUpdate(
+      sql`update jobs set claimed_at = now() - make_interval(secs => ${JOB_LEASE_SECONDS + 1})
+          where key = ${key}`
+    );
     const [second] = await claimJobs(operatorDb, { types: [t] });
     expect(second).toMatchObject({ id: first!.id, attempts: 2 });
     expect(await completeJob(operatorDb, first!)).toBe(false);
@@ -301,8 +313,8 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
     expect(row).toMatchObject({ attempts: 1, claimedAt: null, lastError: `no handler for ${t}` });
     expect(row!.runAt.getTime()).toBeGreaterThan(Date.now());
 
-    await sql`update jobs set run_at = now() - interval '1 second' where key = ${key}`.execute(
-      operatorDb
+    await asWorkerUpdate(
+      sql`update jobs set run_at = now() - interval '1 second' where key = ${key}`
     );
     await runJobs(
       operatorDb,
@@ -313,8 +325,8 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
       },
       { types: [t] }
     );
-    await sql`update jobs set run_at = now() - interval '1 second' where key = ${key}`.execute(
-      operatorDb
+    await asWorkerUpdate(
+      sql`update jobs set run_at = now() - interval '1 second' where key = ${key}`
     );
     expect(await claimJobs(operatorDb, { types: [t] })).toEqual([]);
     // What TODO #17 will show and reset.
@@ -425,6 +437,7 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
       clock: { now: () => twoDaysAgo },
       ids: uuidv7Ids,
       signer: new FakeSigner(),
+      inputHasher: new FakeInputHasher(),
       dns: new FakeDns(),
       platform: memoryPlatform,
     });
@@ -441,8 +454,12 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
       }
     );
     expect(result).toEqual({ claimed: 1, completed: 1, failed: 0, superseded: 0 });
-    const { rows } = await sql<{ n: number }>`
-      select count(*)::int as n from rate_limits where key = ${`jobs-${run}`}`.execute(operatorDb);
+    // Counted as the janitor: the owner without superuser would see no row and always count 0.
+    const { rows } = await operatorDb.transaction().execute(async (trx) => {
+      await sql`set local role mycel_janitor`.execute(trx);
+      return sql<{ n: number }>`
+        select count(*)::int as n from rate_limits where key = ${`jobs-${run}`}`.execute(trx);
+    });
     expect(rows[0]!.n).toBe(0);
   });
 

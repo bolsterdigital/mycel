@@ -2,6 +2,8 @@
 // database). Used by core tests and by front tests (api, mcp) that need a working runtime.
 // Not transactional: a thrown use case leaves partial writes, which the tests do not rely on.
 
+import type { AuditEntry } from '../audit/model.js';
+import type { AuditLog, InputHasher } from '../audit/ports.js';
 import type { FormDefinition, Submission } from '../forms/model.js';
 import type { FormRepository, RateLimiter, SubmissionRepository } from '../forms/ports.js';
 import type { Page } from '../content/model.js';
@@ -105,6 +107,34 @@ export class FakeSigner implements Signer {
   }
 }
 
+/**
+ * HMAC-SHA256 over Web Crypto with a fixed test key, so hashes are real (64 hex) and a different
+ * key gives a different hash, without the API's node:crypto adapter.
+ */
+export class FakeInputHasher implements InputHasher {
+  readonly #key: ReturnType<typeof globalThis.crypto.subtle.importKey>;
+  constructor(key = 'mycel-test-audit-key') {
+    this.#key = globalThis.crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(key),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+  }
+  async hash(canonical: string): Promise<string> {
+    const mac = await globalThis.crypto.subtle.sign(
+      'HMAC',
+      await this.#key,
+      new TextEncoder().encode(canonical)
+    );
+    return [...new Uint8Array(mac)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+}
+
+/** The `by` argument of the platform functions in packages/db, for suites. */
+export const testPlatformActor = { actorId: 'test', hasher: new FakeInputHasher() };
+
 /** Records every delivery with its intent key; `lookup` lists what was sent to that address. */
 export class MemoryMailer implements Mailer {
   readonly sent: MailMessage[] = [];
@@ -158,6 +188,8 @@ interface TenantStore {
   media: Map<string, NewMedia & { deletedAt: Date | null }>;
   /** `media_usages` (0012), keyed by `<media id> <ref> <block id>`. */
   mediaUsages: Map<string, { mediaId: string; ref: string; blockId: string }>;
+  /** `audit_log` (0015), in insertion order. */
+  audit: AuditEntry[];
 }
 
 /** Development defaults, the shape `.env.example` gives: path form on localhost. */
@@ -336,6 +368,7 @@ export class MemoryStore {
         admissions: new Map(),
         media: new Map(),
         mediaUsages: new Map(),
+        audit: [],
       };
       this.tenants.set(tenantId, store);
     }
@@ -415,6 +448,7 @@ export interface MemoryDeps {
   blobs?: BlobStore;
   images?: ImageProcessor;
   delivery?: MediaDelivery;
+  inputHasher?: InputHasher;
 }
 
 export class MemoryUnitOfWork implements UnitOfWork {
@@ -428,6 +462,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
   readonly images: ImageProcessor;
   readonly delivery: MediaDelivery;
   readonly log: Logger;
+  readonly inputHasher: InputHasher;
 
   constructor(deps: MemoryDeps = {}) {
     this.log = deps.log ?? noopLogger;
@@ -440,6 +475,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
     this.blobs = deps.blobs ?? new MemoryBlobStore(this.clock);
     this.images = deps.images ?? memoryImageProcessor;
     this.delivery = deps.delivery ?? appDelivery;
+    this.inputHasher = deps.inputHasher ?? new FakeInputHasher();
   }
 
   async run<T>(principal: Principal, fn: (tx: TransactionContext) => Promise<T>): Promise<T> {
@@ -789,6 +825,27 @@ export class MemoryUnitOfWork implements UnitOfWork {
       },
       idsOf: async () => [...s.media.keys()],
     };
+    const audit: AuditLog = {
+      record: async (entry) => void s.audit.push({ ...entry }),
+      async list({ from, to, operation, actorKind, actorId, cursor, limit }) {
+        const newestFirst = (a: AuditEntry, b: AuditEntry) =>
+          b.occurredAt.getTime() - a.occurredAt.getTime() || b.id.localeCompare(a.id);
+        const at = cursor ? s.audit.find((r) => r.id === cursor) : undefined;
+        return s.audit
+          .filter(
+            (r) =>
+              (!from || r.occurredAt >= from) &&
+              (!to || r.occurredAt < to) &&
+              (!operation || r.operation === operation) &&
+              (!actorKind || r.actorKind === actorKind) &&
+              (!actorId || r.actorId === actorId) &&
+              (!at || newestFirst(at, r) < 0)
+          )
+          .sort(newestFirst)
+          .slice(0, limit)
+          .map((r) => ({ ...r }));
+      },
+    };
     return fn({
       principal,
       clock,
@@ -821,6 +878,8 @@ export class MemoryUnitOfWork implements UnitOfWork {
       images: this.images,
       delivery: this.delivery,
       log: this.log,
+      audit,
+      inputHasher: this.inputHasher,
     });
   }
 

@@ -45,7 +45,7 @@ A **tenant** in an answer:
 
 `POST /platform/tenants` refuses an existing slug, a slug whose platform hostname (`<slug>.<PLATFORM_DOMAIN>`) is the host of `PUBLIC_BASE_URL` or a development host, and a slug whose platform hostname some tenant already holds. It creates the platform hostname, verified and primary, in the same transaction.
 
-Every mutation writes one line to the server log with the tenant id and what changed (`platform: tenant <id> status set to suspended`); the audit log of TODO #17 takes this over.
+Every mutation writes one row to the tenant's audit log in the same transaction (`docs/reference/audit.md`): actor kind `platform`, actor id the first eight hex characters of the SHA-256 of the token (`npm run platform` writes `cli`), operation `platform.tenant.create`, `platform.set_entitlements` or `platform.set_status`. A refused mutation writes nothing. The server log keeps one operational line per mutation as well.
 
 ## The entitlements document
 

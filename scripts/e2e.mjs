@@ -76,14 +76,21 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
   const { createDb, createTenantDirectory, createUnitOfWork, setEntitlements, uuidv7Ids } =
     await import('@mycel/db');
   const { systemPrincipal } = await import('@mycel/core');
-  const { FakeDns, FakeSigner, memoryPlatform } = await import('@mycel/core/testing');
+  const { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } =
+    await import('@mycel/core/testing');
   const operatorDb = createDb(process.env.DATABASE_URL);
   const probe = await createTenantDirectory(operatorDb).findBySlug('probe');
-  await setEntitlements(operatorDb, probe.id, { remove_branding: false, 'supporters.max': 10000 });
+  await setEntitlements(
+    operatorDb,
+    probe.id,
+    { remove_branding: false, 'supporters.max': 10000 },
+    { actorId: 'e2e', hasher: new FakeInputHasher(process.env.AUDIT_HASH_KEY) }
+  );
   const uow = createUnitOfWork(operatorDb, {
     clock: { now: () => new Date() },
     ids: uuidv7Ids,
     signer: new FakeSigner(),
+    inputHasher: new FakeInputHasher(),
     dns: new FakeDns(),
     platform: memoryPlatform,
   });
