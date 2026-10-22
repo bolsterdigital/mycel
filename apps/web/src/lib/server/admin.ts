@@ -10,21 +10,14 @@ import {
   type TenantInfo,
 } from '@mycel/core';
 import { error, redirect, type Cookies } from '@sveltejs/kit';
-import { loginLimiter } from './admin-paths.js';
+import { adminCookieOptions, loginLimiter } from './admin-paths.js';
 import { runtime } from './runtime.js';
 
 export const SESSION_COOKIE = 'mycel_session';
 
-/** HttpOnly, SameSite=Lax, only under /admin, Secure whenever the platform origin is https. */
-export function cookieOptions(maxAgeSeconds: number) {
-  return {
-    path: '/admin',
-    httpOnly: true,
-    sameSite: 'lax' as const,
-    secure: runtime().config.PUBLIC_BASE_URL.startsWith('https://'),
-    maxAge: maxAgeSeconds,
-  };
-}
+/** The admin's cookie flags for this platform origin (`adminCookieOptions`). */
+export const cookieOptions = (maxAgeSeconds: number) =>
+  adminCookieOptions(runtime().config.PUBLIC_BASE_URL, maxAgeSeconds);
 
 export function clearCookie(cookies: Cookies, name: string): void {
   cookies.delete(name, { path: '/admin' });

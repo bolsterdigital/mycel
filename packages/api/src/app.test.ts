@@ -233,3 +233,52 @@ describe('HTTP observability', () => {
     expect(text).not.toContain(TENANT);
   });
 });
+
+// TODO #20c decision 3: one middleware, so a 200, a router 404, a problem and an internal error
+// all carry the same set. Negative: HSTS never over plain HTTP, and X-Forwarded-Proto counts only
+// behind a trusted proxy.
+describe('security headers', () => {
+  const expectApiSet = (res: Response) => {
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(res.headers.get('referrer-policy')).toBe('no-referrer');
+    expect(res.headers.get('content-security-policy')).toBe(
+      "default-src 'none'; frame-ancestors 'none'"
+    );
+  };
+
+  it('are on a 200, a 404 and a problem response', async () => {
+    const { app, post } = await setup();
+    const ok = await app.request('/healthz');
+    expect(ok.status).toBe(200);
+    const missing = await app.request('/nowhere');
+    expect(missing.status).toBe(404);
+    const refused = await post('no.such.thing', {});
+    expect(refused.headers.get('content-type')).toMatch(/problem\+json/);
+    const unauthorized = await post('no.such.thing', {}, 'Bearer bad');
+    expect(unauthorized.status).toBe(401);
+    for (const res of [ok, missing, refused, unauthorized]) {
+      expectApiSet(res);
+      expect(res.headers.has('strict-transport-security')).toBe(false);
+    }
+  });
+
+  it('HSTS over HTTPS only, without includeSubDomains or preload', async () => {
+    const { app } = await setup();
+    const https = await app.request('https://api.example.org/healthz');
+    expect(https.headers.get('strict-transport-security')).toBe('max-age=31536000');
+    const spoofed = await app.request('/healthz', { headers: { 'x-forwarded-proto': 'https' } });
+    expect(spoofed.headers.has('strict-transport-security')).toBe(false);
+  });
+
+  it('behind a trusted proxy, follows X-Forwarded-Proto', async () => {
+    const app = createApp({
+      invoker: new Invoker(buildRegistry(), new MemoryUnitOfWork()),
+      authenticate: async () => null,
+      trustProxy: true,
+    });
+    const viaTls = await app.request('/healthz', { headers: { 'x-forwarded-proto': 'https' } });
+    expect(viaTls.headers.get('strict-transport-security')).toBe('max-age=31536000');
+    const plain = await app.request('/healthz', { headers: { 'x-forwarded-proto': 'http' } });
+    expect(plain.headers.has('strict-transport-security')).toBe(false);
+  });
+});

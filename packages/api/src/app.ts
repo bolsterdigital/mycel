@@ -7,6 +7,11 @@
 // Every request runs in a log context with a request id (TODO #17a): one access line per request
 // with the route pattern, never the full path or query; `/readyz` and `/metrics` next to
 // `/healthz`, which stays a pure liveness probe so a slow database never restarts the container.
+//
+// Every response, including 404s and problems, carries the API's security headers from the same
+// middleware (TODO #20c decision 3): the API serves no HTML, so its CSP forbids everything.
+// Rejected: `hono/secure-headers`, a dependency for five lines whose defaults differ from the
+// web app's (apps/web/src/lib/server/security-headers.ts).
 
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { Hono, type Context } from 'hono';
@@ -40,7 +45,18 @@ export interface AppDeps {
   platform?: PlatformDeps | undefined;
   /** Logs, error reports, metrics and readiness; tests leave it out and get silence. */
   observability?: Partial<HttpObservability> | undefined;
+  /** MYCEL_TRUST_PROXY=1: the scheme a request came over is the proxy's X-Forwarded-Proto. */
+  trustProxy?: boolean | undefined;
 }
+
+export const API_SECURITY_HEADERS = {
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'no-referrer',
+  'content-security-policy': "default-src 'none'; frame-ancestors 'none'",
+} as const;
+
+/** The same HSTS as the web app: only over HTTPS, no includeSubDomains, no preload. */
+export const API_HSTS = 'max-age=31536000';
 
 export interface HttpObservability {
   log: Logger;
@@ -88,7 +104,13 @@ function matches(ifNoneMatch: string | undefined, etag: string): boolean {
   return ifNoneMatch.split(',').some((tag) => tag.trim() === '*' || opaque(tag) === opaque(etag));
 }
 
-export function createApp({ invoker, authenticate, platform, observability }: AppDeps): Hono {
+export function createApp({
+  invoker,
+  authenticate,
+  platform,
+  observability,
+  trustProxy = false,
+}: AppDeps): Hono {
   const app = new Hono();
   const { registry } = invoker;
   const openapi = openApiDocument(registry);
@@ -108,6 +130,12 @@ export function createApp({ invoker, authenticate, platform, observability }: Ap
     await runWithContext({ requestId }, async () => {
       await next();
       c.res.headers.set('x-request-id', requestId);
+      for (const [name, value] of Object.entries(API_SECURITY_HEADERS))
+        if (!c.res.headers.has(name)) c.res.headers.set(name, value);
+      const scheme = trustProxy
+        ? (c.req.header('x-forwarded-proto') ?? new URL(c.req.url).protocol.slice(0, -1))
+        : new URL(c.req.url).protocol.slice(0, -1);
+      if (scheme === 'https') c.res.headers.set('strict-transport-security', API_HSTS);
       // The last matched route is the handler's pattern; only middleware matched means 404.
       const route = routePath(c, -1);
       const status = c.res.status;

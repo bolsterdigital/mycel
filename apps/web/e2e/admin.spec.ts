@@ -109,6 +109,61 @@ test('the admin is not served on another origin', async ({ request }) => {
   expect(res.status()).toBe(404);
 });
 
+// TODO #20c decisions 1, 2 and 4: the admin's headers and CSP, the origin check on its form
+// actions, and a fresh session cookie on every login. The Secure flag is in admin-paths.test.ts
+// (this gate runs on http).
+test('the admin sends its own headers and may not be framed at all', async ({ page, request }) => {
+  const start = await request.get('/admin/login?return=/admin', { maxRedirects: 0 });
+  expect(start.status()).toBe(303);
+  expect(start.headers()['x-content-type-options']).toBe('nosniff');
+  expect(start.headers()['referrer-policy']).toBe('same-origin');
+  expect(start.headers()['permissions-policy']).toContain('camera=()');
+
+  await login(page, 'e2e-admin@probe.test', '/admin/probe');
+  const response = await page.goto('/admin/probe');
+  const csp = response!.headers()['content-security-policy']!;
+  expect(csp).toContain("frame-ancestors 'none'");
+  expect(csp).not.toContain("frame-ancestors 'self'");
+  expect(csp).toContain("default-src 'self'");
+  expect(csp).not.toMatch(/unsafe-inline|unsafe-eval/);
+  expect(response!.headers()['referrer-policy']).toBe('same-origin');
+});
+
+test('an admin action posted from another origin is refused', async ({ request, baseURL }) => {
+  const post = (origin: string) =>
+    request.post('/admin/probe?/createKey', {
+      headers: { origin, 'content-type': 'application/x-www-form-urlencoded' },
+      data: 'name=evil&capabilities=content%3Aread',
+      maxRedirects: 0,
+    });
+  expect((await post('https://evil.example')).status()).toBe(403);
+  // Same origin passes the check and meets the next boundary: no session, so not a 403 here.
+  expect((await post(baseURL!)).status()).not.toBe(403);
+});
+
+test('every login issues a new session cookie and clears the attempt cookie', async ({
+  page,
+  context,
+}) => {
+  const session = async () =>
+    (await context.cookies()).find((c) => c.name === 'mycel_session')?.value;
+  await login(page, 'e2e-admin@probe.test', '/admin');
+  const first = await session();
+  expect(first).toBeTruthy();
+  // A second login on the same browser, with the first session still present.
+  await page.goto('/admin/login?return=/admin');
+  await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
+  await page.getByLabel('E-mail').fill('e2e-admin@probe.test');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page).toHaveURL(/\/admin$/);
+  const second = await session();
+  expect(second).toBeTruthy();
+  expect(second).not.toBe(first);
+  expect((await context.cookies()).some((c) => c.name === 'mycel_oidc')).toBe(false);
+  const cookie = (await context.cookies()).find((c) => c.name === 'mycel_session');
+  expect(cookie).toMatchObject({ httpOnly: true, sameSite: 'Lax', path: '/admin' });
+});
+
 test.describe('UI gate: action groups at 320 CSS px and 200% text', () => {
   test.use({ viewport: { width: 320, height: 900 } });
 
@@ -116,7 +171,8 @@ test.describe('UI gate: action groups at 320 CSS px and 200% text', () => {
     test(`every button whole and no horizontal scroll, text ${text}`, async ({ page }) => {
       test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
       await login(page, 'e2e-admin@probe.test', '/admin/probe');
-      if (text !== '100%') await page.addStyleTag({ content: `html { font-size: ${text}; }` });
+      if (text !== '100%')
+        await page.evaluate((size) => (document.documentElement.style.fontSize = size), text);
       const problems = await page.evaluate(() => {
         const out: string[] = [];
         const width = document.documentElement.clientWidth;

@@ -146,7 +146,8 @@ test.describe('UI gate: the status action groups at 320 CSS px and 200% text', (
       try {
         await login(page, 'e2e-admin@probe.test', '/admin/probe/status');
         const measure = async (name: string, shot: Locator) => {
-          if (text !== '100%') await page.addStyleTag({ content: `html { font-size: ${text}; }` });
+          if (text !== '100%')
+            await page.evaluate((size) => (document.documentElement.style.fontSize = size), text);
           const problems = await page.evaluate(() => {
             const out: string[] = [];
             const width = document.documentElement.clientWidth;

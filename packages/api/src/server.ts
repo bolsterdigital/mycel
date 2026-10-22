@@ -11,6 +11,7 @@ const app = createApp({
   authenticate: (h) => runtime.authenticateApiKey(h),
   platform: runtime.platformApi,
   observability: runtime.http,
+  trustProxy: runtime.config.MYCEL_TRUST_PROXY === '1',
 });
 const port = Number(process.env['PORT'] ?? 8787);
 const server = serve({ fetch: app.fetch, port }, () => runtime.log.info('api listening', { port }));

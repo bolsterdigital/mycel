@@ -9,6 +9,8 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 
 const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 const SITE = 'http://probe.localhost:4173';
@@ -107,6 +109,76 @@ test('unknown hosts, the admin on a tenant hostname, and the allowed question', 
   expect((await allowed('')).status()).toBe(404);
 });
 
+// TODO #20c decision 5: without MYCEL_TRUST_PROXY (the e2e server sets no HOST_HEADER) a
+// forwarded host is just a header. It neither picks another site nor reaches the admin.
+test('X-Forwarded-Host does not choose the site or open the admin', async ({ request }) => {
+  const viaPlatform = await request.get('/signup', {
+    headers: { 'x-forwarded-host': 'probe.localhost:4173' },
+  });
+  expect(viaPlatform.status()).toBe(404);
+  expect(await viaPlatform.text()).not.toContain('Blijf op de hoogte');
+
+  const adminFromTenant = await request.get(`${SITE}/admin`, {
+    headers: { 'x-forwarded-host': '127.0.0.1:4173' },
+    maxRedirects: 0,
+  });
+  expect(adminFromTenant.status()).toBe(404);
+});
+
+// The main e2e server deliberately trusts X-Forwarded-Proto to model HTTP behind Caddy.
+// A second adapter-node process proves the untrusted boundary instead of relying on that fixture.
+test('without proxy configuration, forwarded protocol and host cannot change the admin origin', async () => {
+  const port = test.info().project.name === 'a11y' ? 4174 : 4175;
+  const origin = `http://127.0.0.1:${port}`;
+  const env = { ...process.env };
+  for (const key of [
+    'DATABASE_URL',
+    'PROTOCOL_HEADER',
+    'HOST_HEADER',
+    'ADDRESS_HEADER',
+    'XFF_DEPTH',
+  ])
+    delete env[key];
+  const server = spawn(process.execPath, ['build/index.js'], {
+    env: {
+      ...env,
+      HOST: '127.0.0.1',
+      PORT: String(port),
+      MYCEL_TRUST_PROXY: '0',
+      // adapter-node defaults to https without PROTOCOL_HEADER, even on a plain HTTP socket.
+      PUBLIC_BASE_URL: origin.replace('http:', 'https:'),
+    },
+    stdio: 'ignore',
+  });
+  const closed = once(server, 'close');
+  try {
+    await expect
+      .poll(
+        async () => {
+          try {
+            return (await fetch(`${origin}/healthz`)).status;
+          } catch {
+            return 0;
+          }
+        },
+        { timeout: 15_000 }
+      )
+      .toBe(200);
+    for (const headers of [
+      {},
+      { 'x-forwarded-proto': 'http', 'x-forwarded-host': 'evil.example' },
+    ]) {
+      const response = await fetch(`${origin}/admin`, { headers, redirect: 'manual' });
+      expect(response.status).toBe(303);
+      expect(response.headers.get('location')).toContain('/admin/login');
+      expect(response.headers.get('strict-transport-security')).toBe('max-age=31536000');
+    }
+  } finally {
+    server.kill('SIGTERM');
+    await closed;
+  }
+});
+
 test('an admin adds a domain, sees the records, checks (not found), and cannot remove the primary', async ({
   page,
   request,
@@ -170,7 +242,8 @@ test.describe('UI gate: the domain action group at 320 CSS px and 200% text', ()
       await add.getByLabel('Hostnaam').fill(domain);
       await add.getByRole('button', { name: 'Domein toevoegen' }).click();
       await expect(formWith(page, domain)).toBeVisible();
-      if (text !== '100%') await page.addStyleTag({ content: `html { font-size: ${text}; }` });
+      if (text !== '100%')
+        await page.evaluate((size) => (document.documentElement.style.fontSize = size), text);
       const problems = await page.evaluate(() => {
         const out: string[] = [];
         const width = document.documentElement.clientWidth;

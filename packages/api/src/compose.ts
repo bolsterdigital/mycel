@@ -256,6 +256,13 @@ const Config = z
   });
 export type RuntimeConfig = z.infer<typeof Config>;
 
+/** Every key the runtime reads; `.env.example` must name each of them (env-example.test.ts). */
+export const CONFIG_KEYS: readonly string[] = (() => {
+  let schema: z.ZodTypeAny = Config;
+  while (schema instanceof z.ZodEffects) schema = schema.innerType();
+  return Object.keys((schema as z.AnyZodObject).shape);
+})();
+
 /** `fs` unless set: a production config without BLOB_STORE fails the refine above. */
 function blobStoreOf(c: { BLOB_STORE?: 'fs' | 's3' | undefined }): 'fs' | 's3' {
   return c.BLOB_STORE ?? 'fs';
