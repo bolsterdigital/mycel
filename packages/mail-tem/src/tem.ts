@@ -3,12 +3,14 @@
 // on failure so the outbox worker retries, instead of returning a result object to inspect.
 // Uses global fetch (Node 22); rejected: the Scaleway SDK, a large dependency for one endpoint.
 //
-// TEM has no idempotency key. The intent key travels as `X-Mycel-Send-Key` for investigation,
-// and `wasSent` reconciles (ADR 019 rule 6) by listing the project's e-mails to the recipient
-// since the attempt, matched on subject. Rejected: matching on the header, which the list
-// endpoint does not return.
+// TEM has no idempotency key. The intent key travels as `X-Mycel-Send-Key` for investigation;
+// `lookup` lists the project's e-mails to the recipient with the subject in a window, every
+// status (`failed`/`canceled` still means TEM accepted it), and the core counts (`settleIntent`,
+// docs/reference/mail.md). Rejected: matching on the header, which neither the `Email` object
+// nor the list filter carries; `mail_to`, deprecated for `mail_rcpt`; and a `statuses` filter,
+// which gave internal errors in the Dreamkit notifier.
 
-import type { MailMessage, Mailer, SendVerdict } from '@mycel/core';
+import { SEND_TIMEOUT_MS, type MailMessage, type MailWindow, type Mailer } from '@mycel/core';
 
 export interface TemConfig {
   secretKey: string;
@@ -17,12 +19,14 @@ export interface TemConfig {
   region: string;
   /** Injectable for tests. */
   fetch?: typeof fetch;
+  /** `SEND_TIMEOUT_MS` unless set; the core's claim lease assumes that default. */
+  timeoutMs?: number;
 }
 
 export const SEND_KEY_HEADER = 'X-Mycel-Send-Key';
 
-/** Clock skew between this process and the provider's `created_at`. */
-const RECONCILE_SLACK_MS = 60_000;
+/** One page of the listing; more matches than this is an answer the core cannot count. */
+const LOOKUP_PAGE_SIZE = 100;
 
 export function buildTemRequestBody(
   message: MailMessage,
@@ -61,6 +65,7 @@ export class TemMailer implements Mailer {
       method: 'POST',
       headers: { 'X-Auth-Token': this.config.secretKey, 'Content-Type': 'application/json' },
       body: JSON.stringify(buildTemRequestBody(withKey, this.config.projectId)),
+      signal: AbortSignal.timeout(this.config.timeoutMs ?? SEND_TIMEOUT_MS),
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
@@ -70,26 +75,33 @@ export class TemMailer implements Mailer {
     return { providerId: json.emails?.[0]?.id ?? '' };
   }
 
-  async wasSent(_key: string, message: MailMessage, since: Date): Promise<SendVerdict> {
+  async lookup(
+    message: MailMessage,
+    { since, until }: MailWindow
+  ): Promise<{ providerIds: string[] } | null> {
     const doFetch = this.config.fetch ?? fetch;
     const query = new URLSearchParams({
       project_id: this.config.projectId,
-      mail_to: message.to.email,
+      mail_rcpt: message.to.email,
       subject: message.subject,
-      since: new Date(since.getTime() - RECONCILE_SLACK_MS).toISOString(),
-      page_size: '1',
+      since: since.toISOString(),
+      until: until.toISOString(),
+      page_size: String(LOOKUP_PAGE_SIZE),
     });
-    let res: Response;
     try {
-      res = await doFetch(`${this.#url('emails')}?${query}`, {
+      const res = await doFetch(`${this.#url('emails')}?${query}`, {
         headers: { 'X-Auth-Token': this.config.secretKey },
+        signal: AbortSignal.timeout(this.config.timeoutMs ?? SEND_TIMEOUT_MS),
       });
+      if (!res.ok) return null;
+      const json = (await res.json()) as { total_count?: unknown; emails?: { id?: unknown }[] };
+      if (typeof json.total_count !== 'number' || !Array.isArray(json.emails)) return null;
+      const ids = json.emails.map((e) => e.id);
+      if (json.total_count > ids.length || !ids.every((id) => typeof id === 'string' && id))
+        return null;
+      return { providerIds: ids as string[] };
     } catch {
-      return 'unknown';
+      return null;
     }
-    if (!res.ok) return 'unknown';
-    const json = (await res.json().catch(() => null)) as { total_count?: number } | null;
-    if (!json || typeof json.total_count !== 'number') return 'unknown';
-    return json.total_count > 0 ? 'sent' : 'not_sent';
   }
 }

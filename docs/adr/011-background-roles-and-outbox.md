@@ -3,7 +3,7 @@
 - **Status**: accepted
 - **Date**: 2026-10-21
 - **Amends**: ADR 002 (adds one role), ADR 008 (confirms the Postgres-table queue)
-- **Amended**: 2026-10-21 by ADR 019 rule 6 (intent row plus provider idempotency key plus reconciliation before retry); 2026-10-21 for TODO #7 (rule 1: the identity tables and `mycel_auth`); 2026-10-22 at the review of PR #7 (rule 1: the fronts enter `mycel_auth` from the `mycel_authenticator` login, never from the operator connection); 2026-10-22 for TODO #14 (rule 1: `tenant_hostnames` is read the same way); 2026-10-22 for TODO #15 (consequences: `jobs` is the second queue under `mycel_worker`); 2026-10-22 for TODO #16 (rule 1: the platform role)
+- **Amended**: 2026-10-21 by ADR 019 rule 6 (intent row plus provider idempotency key plus reconciliation before retry); 2026-10-21 for TODO #7 (rule 1: the identity tables and `mycel_auth`); 2026-10-22 at the review of PR #7 (rule 1: the fronts enter `mycel_auth` from the `mycel_authenticator` login, never from the operator connection); 2026-10-22 for TODO #14 (rule 1: `tenant_hostnames` is read the same way); 2026-10-22 for TODO #15 (consequences: `jobs` is the second queue under `mycel_worker`); 2026-10-22 for TODO #16 (rule 1: the platform role); 2026-10-22 for TODO #22C (consequences: `mail_sends` delivered, `readOutboxEvent`)
 
 ## Context
 
@@ -27,5 +27,6 @@ ADR 002 gives the application one role, `mycel_app`, which is bound by forced Ro
 
 - Every new cross-tenant job (dunning scheduler, campaign sender, reconciliation) gets its own role and policy, or reuses `mycel_worker` only if it touches the same queue table.
 - Since 2026-10-22 (TODO #15, migration 0009) `jobs` is the second queue under `mycel_worker`, with the same discipline: `mycel_app` inserts under its own tenant and reads nothing, the worker claims with `SKIP LOCKED` (as a five-minute lease, the handler running outside the claim transaction), tenant jobs run under a `system` principal as in rule 3, and platform jobs enter their own role per transaction (`mycel_janitor` for the rate-limit sweep). The RLS conformance test (TODO) asserts that every policy with `using (true)` is bound to a named worker role, never to `public` or `mycel_app`.
-- Transactional mail sent from a subscriber must become idempotent before production: a `mail_sends` table keyed by `(event_id, subscriber)` written before the provider call.
+- Transactional mail sent from a subscriber must become idempotent before production: a `mail_sends` table keyed by `(event_id, subscriber)` written before the provider call. Delivered: migration 0006, and since 2026-10-22 (TODO #22C, migration 0013) an exclusive claim plus the `mail.reconcile` job (`docs/reference/mail.md`).
+- Since 2026-10-22 (TODO #22C) the outbox has a second reader under rule 1: `readOutboxEvent` loads one event as `mycel_worker` for the `mail.reconcile` job, which uses it only when its tenant is the job's tenant.
 - The `events` table partitioning promised in ADR 003 is still owed; it interacts with the `(tenant_id, id)` primary key used for dedup and gets its own migration and test.

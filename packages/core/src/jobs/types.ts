@@ -21,6 +21,13 @@ export const JobPayloads = {
     .strict(),
   /** Platform job: per tenant, delete media files without a row that are older than a day. */
   'media.orphans': z.object({}).strict(),
+  /**
+   * Tenant job: settle or resend one mail intent (`reconcileMail`, brief #22C). Ids only: the
+   * message is rebuilt from the outbox event, so no address sits in the queue.
+   */
+  'mail.reconcile': z
+    .object({ key: z.string().min(1), subscriber: z.string().min(1), eventId: z.string().uuid() })
+    .strict(),
 } as const;
 
 export type JobType = keyof typeof JobPayloads;

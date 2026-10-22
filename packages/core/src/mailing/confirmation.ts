@@ -4,17 +4,11 @@
 
 import type { NewsletterSubscribedProps } from '../forms/events.js';
 import { t } from '../i18n/index.js';
-import type {
-  Clock,
-  DomainEvent,
-  Signer,
-  Subscriber,
-  TransactionContext,
-  UnitOfWork,
-} from '../ports.js';
+import type { Clock, Signer, Subscriber, UnitOfWork } from '../ports.js';
 import { systemPrincipal } from '../principal.js';
 import type { PlatformConfig, TenantDirectory } from '../tenants/ports.js';
 import { siteUrl } from '../tenants/url.js';
+import { sendOnce, type DeliveryDeps, type MailSource } from './delivery.js';
 import type { MailAddress, MailMessage, Mailer } from './ports.js';
 
 const CONFIRM_TTL_MS = 14 * 24 * 60 * 60 * 1000;
@@ -104,90 +98,55 @@ export interface ConfirmationMailDeps {
   from: MailAddress;
   /** The link is `siteUrl(tenant, '/confirm?token=...')` on the tenant's primary hostname (ADR 014 rule 6). */
   platform: Pick<PlatformConfig, 'platformOrigin' | 'siteUrlMode'>;
+  reconcileLagMs?: DeliveryDeps['reconcileLagMs'];
 }
 
 export const CONFIRMATION_SUBSCRIBER = 'mailing.confirmation';
 
 /**
- * Send one transactional message exactly once per intent key (ADR 019 rule 6, ADR 011 rule 4).
- * Three transactions, deliberately not one: (1) the intent with `attemptedAt` commits before the
- * provider is called, (2) the provider call runs outside any transaction, (3) the outcome is
- * recorded. A crash between (2) and (3) leaves the intent attempted-but-unknown, and the next
- * delivery of the same event reconciles with the provider instead of sending again. `unknown`
- * from reconciliation throws, so the outbox backs off and nothing goes out blind.
+ * The confirmation for a `newsletter.subscribed` event, or null when the signup needs none. Pure
+ * apart from signing and reading the primary hostname, so the `mail.reconcile` job rebuilds the
+ * same recipient and subject from the outbox event (the token is signed afresh).
  */
-export async function sendOnce(
-  deps: Pick<ConfirmationMailDeps, 'mailer' | 'clock' | 'uow'>,
-  event: Pick<DomainEvent, 'id' | 'tenantId'>,
-  subscriber: string,
-  message: MailMessage
-): Promise<'sent' | 'reconciled' | 'skipped'> {
-  const key = `${subscriber}:${event.id}`;
-  const principal = systemPrincipal(event.tenantId, subscriber);
-  const run = <T>(fn: (ctx: TransactionContext) => Promise<T>) => deps.uow.run(principal, fn);
-
-  const existing = await run((ctx) => ctx.mailSends.get(key));
-  if (existing?.sentAt) return 'skipped';
-  if (existing?.attemptedAt) {
-    const verdict = await deps.mailer.wasSent(key, message, existing.attemptedAt);
-    if (verdict === 'unknown')
-      throw new Error(
-        `mail ${key}: outcome of the attempt at ${existing.attemptedAt.toISOString()} is unknown; not resending`
-      );
-    if (verdict === 'sent') {
-      await run((ctx) => ctx.mailSends.sent(key, deps.clock.now(), null));
-      return 'reconciled';
-    }
-  }
-
-  await run((ctx) =>
-    ctx.mailSends.attempt({ key, subscriber, eventId: event.id }, deps.clock.now())
-  );
-  let providerId: string;
-  try {
-    ({ providerId } = await deps.mailer.send(message, key));
-  } catch (e) {
-    const error = e instanceof Error ? e.message : String(e);
-    await run((ctx) => ctx.mailSends.failed(key, error));
-    throw e;
-  }
-  await run((ctx) => ctx.mailSends.sent(key, deps.clock.now(), providerId));
-  return 'sent';
+export function confirmationMailSource(deps: ConfirmationMailDeps): MailSource {
+  return async (event) => {
+    const p = event.props as unknown as NewsletterSubscribedProps;
+    if (p.confirmed) return null;
+    const tenant = await deps.tenants.findById(event.tenantId);
+    if (!tenant) throw new Error(`tenant ${event.tenantId} not found`);
+    const token = await signConfirmToken(
+      deps.signer,
+      { tenantId: tenant.id, submissionId: p.submissionId, list: p.list },
+      deps.clock.now()
+    );
+    // The primary hostname is the tenant's own data, read under its RLS like the intent row.
+    const primary = await deps.uow.run(systemPrincipal(tenant.id, CONFIRMATION_SUBSCRIBER), (ctx) =>
+      ctx.hostnames.primary()
+    );
+    const confirmUrl = siteUrl(
+      { slug: tenant.slug, primaryHostname: primary?.hostname ?? null },
+      deps.platform,
+      `/confirm?token=${encodeURIComponent(token)}`
+    );
+    return renderConfirmationMail({
+      locale: p.locale,
+      tenantName: tenant.name,
+      confirmUrl,
+      from: deps.from,
+      to: p.email,
+    });
+  };
 }
 
-/** Sends the confirmation after commit, from the outbox, once per event (see `sendOnce`). */
+/** Sends the confirmation after commit, from the outbox, once per event (`sendOnce`). */
 export function confirmationMailSubscriber(deps: ConfirmationMailDeps): Subscriber {
+  const source = confirmationMailSource(deps);
   return {
     name: CONFIRMATION_SUBSCRIBER,
     types: ['newsletter.subscribed'],
     async handle(event) {
-      const p = event.props as unknown as NewsletterSubscribedProps;
-      if (p.confirmed) return;
-      const tenant = await deps.tenants.findById(event.tenantId);
-      if (!tenant) throw new Error(`tenant ${event.tenantId} not found`);
-      const token = await signConfirmToken(
-        deps.signer,
-        { tenantId: tenant.id, submissionId: p.submissionId, list: p.list },
-        deps.clock.now()
-      );
-      // The primary hostname is the tenant's own data, read under its RLS like the intent row.
-      const primary = await deps.uow.run(
-        systemPrincipal(tenant.id, CONFIRMATION_SUBSCRIBER),
-        (ctx) => ctx.hostnames.primary()
-      );
-      const confirmUrl = siteUrl(
-        { slug: tenant.slug, primaryHostname: primary?.hostname ?? null },
-        deps.platform,
-        `/confirm?token=${encodeURIComponent(token)}`
-      );
-      const message = renderConfirmationMail({
-        locale: p.locale,
-        tenantName: tenant.name,
-        confirmUrl,
-        from: deps.from,
-        to: p.email,
-      });
-      await sendOnce(deps, event, CONFIRMATION_SUBSCRIBER, message);
+      const message = await source(event);
+      if (message) await sendOnce(deps, event, CONFIRMATION_SUBSCRIBER, message);
     },
   };
 }

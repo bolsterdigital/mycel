@@ -30,6 +30,7 @@ export * from './supporters/ports.js';
 export * from './supporters/service.js';
 export * from './mailing/ports.js';
 export * from './mailing/confirmation.js';
+export * from './mailing/delivery.js';
 export * from './mailing/service.js';
 export * from './operators/model.js';
 export * from './operators/ports.js';

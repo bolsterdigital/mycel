@@ -42,6 +42,15 @@ interface OutboxRow {
   delivered_to: string[];
 }
 
+const toEvent = (row: OutboxRow): DomainEvent => ({
+  id: row.id,
+  type: row.type,
+  tenantId: row.tenant_id,
+  occurredAt: new Date(row.occurred_at),
+  actor: row.actor,
+  props: row.props,
+});
+
 export interface DrainResult {
   claimed: number;
   completed: number;
@@ -76,14 +85,7 @@ export async function drainOutbox(
 
     const result: DrainResult = { claimed: rows.length, completed: 0, failed: 0 };
     for (const row of rows) {
-      const event: DomainEvent = {
-        id: row.id,
-        type: row.type,
-        tenantId: row.tenant_id,
-        occurredAt: new Date(row.occurred_at),
-        actor: row.actor,
-        props: row.props,
-      };
+      const event = toEvent(row);
       const delivered = new Set(row.delivered_to);
       let error: string | null = null;
       for (const sub of subscribers) {
@@ -114,6 +116,25 @@ export async function drainOutbox(
       else result.failed += 1;
     }
     return result;
+  });
+}
+
+/**
+ * One outbox event by id, read as mycel_worker: the `mail.reconcile` job rebuilds its message
+ * from it (brief #22C). The outbox is the cross-tenant log ADR 011 rule 1 allows, and this is its
+ * second reader; the caller checks `tenantId` against the job's tenant before using it.
+ */
+export async function readOutboxEvent(
+  operatorDb: Kysely<Database>,
+  id: string
+): Promise<DomainEvent | null> {
+  return operatorDb.transaction().execute(async (trx) => {
+    await sql`set local role mycel_worker`.execute(trx);
+    const { rows } = await sql<OutboxRow>`
+      select id, tenant_id, type, occurred_at, actor, props, attempts, delivered_to
+      from outbox where id = ${id}`.execute(trx);
+    const row = rows[0];
+    return row ? toEvent(row) : null;
   });
 }
 
