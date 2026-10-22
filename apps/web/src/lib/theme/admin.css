@@ -28,8 +28,16 @@
     hyphens: auto;
     overflow-wrap: break-word;
   }
-  .admin h3 {
+  .admin h3,
+  .admin h4 {
     margin: 0;
+    overflow-wrap: anywhere;
+  }
+  .admin h4 {
+    font-size: 1rem;
+  }
+  /* A 43-character verification token has no word boundary: let it break anywhere. */
+  .admin code {
     overflow-wrap: anywhere;
   }
   .card {
@@ -124,10 +132,15 @@
     color: var(--color-muted);
     overflow-wrap: anywhere;
   }
-  .notice {
+  /* A notice names what changed, often a hostname or address with no word boundary. */
+  .notice,
+  .admin .error-summary {
     padding: var(--space-2);
-    border: 3px solid var(--color-accent);
     border-radius: var(--radius);
+    overflow-wrap: anywhere;
+  }
+  .notice {
+    border: 3px solid var(--color-accent);
   }
   .notice p {
     margin-block: 0.25rem;

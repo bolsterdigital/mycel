@@ -134,7 +134,7 @@ describe('vertical probe in memory', () => {
         tenants,
         uow,
         from: { email: 'noreply@example.org', name: 'Probe' },
-        publicBaseUrl: 'https://example.org/',
+        platform: { platformOrigin: 'https://example.org/', siteUrlMode: 'path' },
       }),
     ];
     const event = uow.store.outbox[0]!;

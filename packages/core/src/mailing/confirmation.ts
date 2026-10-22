@@ -13,7 +13,8 @@ import type {
   UnitOfWork,
 } from '../ports.js';
 import { systemPrincipal } from '../principal.js';
-import type { TenantDirectory } from '../tenants/ports.js';
+import type { PlatformConfig, TenantDirectory } from '../tenants/ports.js';
+import { siteUrl } from '../tenants/url.js';
 import type { MailAddress, MailMessage, Mailer } from './ports.js';
 
 const CONFIRM_TTL_MS = 14 * 24 * 60 * 60 * 1000;
@@ -101,8 +102,8 @@ export interface ConfirmationMailDeps {
   /** The intent row is tenant data and is written under RLS, like any use case (ADR 011 rule 3). */
   uow: UnitOfWork;
   from: MailAddress;
-  /** Public origin of the web front; the link is `${publicBaseUrl}/${tenant.slug}/confirm`. */
-  publicBaseUrl: string;
+  /** The link is `siteUrl(tenant, '/confirm?token=...')` on the tenant's primary hostname (ADR 014 rule 6). */
+  platform: Pick<PlatformConfig, 'platformOrigin' | 'siteUrlMode'>;
 }
 
 export const CONFIRMATION_SUBSCRIBER = 'mailing.confirmation';
@@ -169,7 +170,16 @@ export function confirmationMailSubscriber(deps: ConfirmationMailDeps): Subscrib
         { tenantId: tenant.id, submissionId: p.submissionId, list: p.list },
         deps.clock.now()
       );
-      const confirmUrl = `${deps.publicBaseUrl.replace(/\/$/, '')}/${tenant.slug}/confirm?token=${encodeURIComponent(token)}`;
+      // The primary hostname is the tenant's own data, read under its RLS like the intent row.
+      const primary = await deps.uow.run(
+        systemPrincipal(tenant.id, CONFIRMATION_SUBSCRIBER),
+        (ctx) => ctx.hostnames.primary()
+      );
+      const confirmUrl = siteUrl(
+        { slug: tenant.slug, primaryHostname: primary?.hostname ?? null },
+        deps.platform,
+        `/confirm?token=${encodeURIComponent(token)}`
+      );
       const message = renderConfirmationMail({
         locale: p.locale,
         tenantName: tenant.name,

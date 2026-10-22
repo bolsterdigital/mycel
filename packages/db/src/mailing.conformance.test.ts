@@ -20,7 +20,7 @@ import {
   type Mailer,
   type SendVerdict,
 } from '@mycel/core';
-import { FakeSigner, probeForm } from '@mycel/core/testing';
+import { FakeSigner, probeForm, FakeDns, memoryPlatform } from '@mycel/core/testing';
 import {
   createDb,
   createUnitOfWork,
@@ -56,7 +56,13 @@ describe.skipIf(!operatorUrl || !appUrl)('mailing conformance', () => {
   const appDb = createDb(appUrl ?? '');
   const signer = new FakeSigner();
   const clock = { now: () => new Date() };
-  const uow = createUnitOfWork(appDb, { clock, ids: uuidv7Ids, signer });
+  const uow = createUnitOfWork(appDb, {
+    clock,
+    ids: uuidv7Ids,
+    signer,
+    dns: new FakeDns(),
+    platform: memoryPlatform,
+  });
   const invoker = new Invoker(buildRegistry(), uow);
   const run = Math.random().toString(36).slice(2, 8);
   let tenantId = '';
@@ -73,13 +79,17 @@ describe.skipIf(!operatorUrl || !appUrl)('mailing conformance', () => {
   beforeAll(async () => {
     await migrate(operatorUrl!, { appPassword: process.env['MYCEL_APP_PASSWORD'], log: () => {} });
     tenantId = (
-      await upsertTenant(operatorDb, {
-        id: uuidv7(),
-        slug: `mail-${run}`,
-        name: 'M',
-        defaultLocale: 'nl',
-        locales: ['nl'],
-      })
+      await upsertTenant(
+        operatorDb,
+        {
+          id: uuidv7(),
+          slug: `mail-${run}`,
+          name: 'M',
+          defaultLocale: 'nl',
+          locales: ['nl'],
+        },
+        { platformDomain: 'localhost' }
+      )
     ).id;
     formId = uuidv7();
     await uow.run(admin(), (ctx) => ctx.forms.insert(probeForm(formId)));

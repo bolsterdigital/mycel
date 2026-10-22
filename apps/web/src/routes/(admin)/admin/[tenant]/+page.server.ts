@@ -1,6 +1,8 @@
-// One page per tenant (brief #7 decision 11): members and API keys, managed through the same use
-// cases HTTP and MCP expose, with native form posts. A new key's token is in the response to the
-// post that made it and nowhere else: reloading the page does not show it again.
+// One page per tenant (brief #7 decision 11): members, API keys and, since TODO #14, the site's
+// hostnames, managed through the same use cases HTTP and MCP expose, with native form posts. A
+// new key's token is in the response to the post that made it and nowhere else: reloading the
+// page does not show it again. Hostnames are stored as punycode and shown in Unicode next to it.
+import { domainToUnicode } from 'node:url';
 import { fail, type ActionFailure } from '@sveltejs/kit';
 import {
   Capability,
@@ -9,6 +11,7 @@ import {
   useCases,
   type Principal,
   type UseCaseErrorCode,
+  type VerifyResult,
 } from '@mycel/core';
 import { requireTenantPrincipal } from '#lib/server/admin.js';
 import { runtime } from '#lib/server/runtime.js';
@@ -19,20 +22,22 @@ export const load: PageServerLoad = async ({ parent, locals }) => {
   await parent();
   const principal = locals.principal!;
   const { invoker, config } = runtime();
-  const [{ members }, { keys }] = await Promise.all([
+  const [{ members }, { keys }, { hostnames }] = await Promise.all([
     invoker.run(useCases.listMembers, principal, {}),
     invoker.run(useCases.listKeys, principal, {}),
+    invoker.run(useCases.listHostnames, principal, {}),
   ]);
   return {
     members,
     keys,
+    hostnames: hostnames.map((h) => ({ ...h, display: domainToUnicode(h.hostname) })),
     allCapabilities: Capability.options,
     keyCapabilities: KeyCapability.options,
     loginUrl: `${config.PUBLIC_BASE_URL}/admin`,
   };
 };
 
-type Failure = ActionFailure<{ action: string; error: UiKey; email?: string }>;
+type Failure = ActionFailure<{ action: string; error: UiKey; email?: string; hostname?: string }>;
 
 const statusOf: Record<UseCaseErrorCode, number> = {
   invalid_input: 400,
@@ -45,7 +50,7 @@ const statusOf: Record<UseCaseErrorCode, number> = {
 async function act<T>(
   event: { locals: App.Locals; url: URL; params: { tenant: string }; request: Request },
   action: string,
-  conflict: UiKey,
+  copy: { conflict: UiKey; invalid?: UiKey; notFound?: UiKey },
   fn: (principal: Principal, data: FormData) => Promise<T>
 ): Promise<T | Failure> {
   const { principal } = await requireTenantPrincipal(event.locals, event.url, event.params.tenant);
@@ -56,13 +61,18 @@ async function act<T>(
     if (!(e instanceof UseCaseError)) throw e;
     const error: UiKey =
       e.code === 'conflict'
-        ? conflict
+        ? copy.conflict
         : e.code === 'not_found'
-          ? 'admin.error.notFound'
+          ? (copy.notFound ?? 'admin.error.notFound')
           : e.code === 'forbidden'
             ? 'admin.error.forbidden'
-            : 'admin.error.invalid';
-    return fail(statusOf[e.code], { action, error, email: text(data, 'email') });
+            : (copy.invalid ?? 'admin.error.invalid');
+    return fail(statusOf[e.code], {
+      action,
+      error,
+      email: text(data, 'email'),
+      hostname: text(data, 'hostname'),
+    });
   }
 }
 
@@ -74,7 +84,7 @@ const capabilities = (data: FormData) => data.getAll('capabilities').map(String)
 
 export const actions: Actions = {
   invite: (event) =>
-    act(event, 'invite', 'admin.error.inviteConflict', async (principal, data) => {
+    act(event, 'invite', { conflict: 'admin.error.inviteConflict' }, async (principal, data) => {
       const member = await runtime().invoker.run(useCases.inviteMember, principal, {
         email: text(data, 'email'),
         capabilities: capabilities(data) as Capability[],
@@ -82,7 +92,7 @@ export const actions: Actions = {
       return { action: 'invite', done: 'admin.done.invited' as UiKey, email: member.email };
     }),
   update: (event) =>
-    act(event, 'update', 'admin.error.lastAdmin', async (principal, data) => {
+    act(event, 'update', { conflict: 'admin.error.lastAdmin' }, async (principal, data) => {
       const r = await runtime().invoker.run(useCases.updateMember, principal, {
         operatorId: text(data, 'operatorId'),
         capabilities: capabilities(data) as Capability[],
@@ -90,14 +100,14 @@ export const actions: Actions = {
       return { action: 'update', done: 'admin.done.updated' as UiKey, revokedKeys: r.revokedKeys };
     }),
   remove: (event) =>
-    act(event, 'remove', 'admin.error.lastAdmin', async (principal, data) => {
+    act(event, 'remove', { conflict: 'admin.error.lastAdmin' }, async (principal, data) => {
       const r = await runtime().invoker.run(useCases.removeMember, principal, {
         operatorId: text(data, 'operatorId'),
       });
       return { action: 'remove', done: 'admin.done.removed' as UiKey, revokedKeys: r.revokedKeys };
     }),
   createKey: (event) =>
-    act(event, 'createKey', 'admin.error.invalid', async (principal, data) => {
+    act(event, 'createKey', { conflict: 'admin.error.invalid' }, async (principal, data) => {
       const name = text(data, 'name');
       const key = await runtime().invoker.run(useCases.createKey, principal, {
         name,
@@ -106,8 +116,79 @@ export const actions: Actions = {
       return { action: 'createKey', token: key.token, keyName: name };
     }),
   revokeKey: (event) =>
-    act(event, 'revokeKey', 'admin.error.notFound', async (principal, data) => {
+    act(event, 'revokeKey', { conflict: 'admin.error.notFound' }, async (principal, data) => {
       await runtime().invoker.run(useCases.revokeKey, principal, { id: text(data, 'id') });
       return { action: 'revokeKey', done: 'admin.done.revoked' as UiKey };
     }),
+
+  // Hostnames (TODO #14). After a change the site directory forgets the hostname at once, so
+  // the public side does not serve a stale answer for the rest of its cache window.
+  addHostname: (event) =>
+    act(
+      event,
+      'addHostname',
+      { conflict: 'admin.domains.error.conflict', invalid: 'admin.domains.error.invalid' },
+      async (principal, data) => {
+        const rt = runtime();
+        const added = await rt.invoker.run(useCases.addHostname, principal, {
+          hostname: text(data, 'hostname'),
+        });
+        rt.sites.invalidate(added.hostname);
+        return {
+          action: 'addHostname',
+          done: 'admin.domains.done.added' as UiKey,
+          hostname: added.hostname,
+        };
+      }
+    ),
+  verifyHostname: (event) =>
+    act(
+      event,
+      'verifyHostname',
+      { conflict: 'admin.error.notFound', notFound: 'admin.domains.error.notFound' },
+      async (principal, data) => {
+        const rt = runtime();
+        const verify: VerifyResult = await rt.invoker.run(useCases.verifyHostname, principal, {
+          hostname: text(data, 'hostname'),
+        });
+        rt.sites.invalidate(verify.hostname);
+        return { action: 'verifyHostname', verify };
+      }
+    ),
+  setPrimaryHostname: (event) =>
+    act(
+      event,
+      'setPrimaryHostname',
+      { conflict: 'admin.domains.error.notVerified', notFound: 'admin.domains.error.notFound' },
+      async (principal, data) => {
+        const rt = runtime();
+        const h = await rt.invoker.run(useCases.setPrimaryHostname, principal, {
+          hostname: text(data, 'hostname'),
+        });
+        rt.sites.invalidate();
+        return {
+          action: 'setPrimaryHostname',
+          done: 'admin.domains.done.primary' as UiKey,
+          hostname: h.hostname,
+        };
+      }
+    ),
+  removeHostname: (event) =>
+    act(
+      event,
+      'removeHostname',
+      { conflict: 'admin.domains.error.isPrimary', notFound: 'admin.domains.error.notFound' },
+      async (principal, data) => {
+        const rt = runtime();
+        const r = await rt.invoker.run(useCases.removeHostname, principal, {
+          hostname: text(data, 'hostname'),
+        });
+        rt.sites.invalidate(r.hostname);
+        return {
+          action: 'removeHostname',
+          done: 'admin.domains.done.removed' as UiKey,
+          hostname: r.hostname,
+        };
+      }
+    ),
 };

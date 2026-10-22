@@ -4,8 +4,8 @@
 // is worth.
 import { anonymousPrincipal, negotiateLocale, useCases, type ConfirmResult } from '@mycel/core';
 import { ui, type UiKey } from '../../../../i18n/index.js';
-import { tenantBySlug } from '#lib/server/public-page.js';
 import { runtime } from '#lib/server/runtime.js';
+import { requireSite } from '#lib/server/site.js';
 import type { PageServerLoad } from './$types';
 
 const COPY: Record<ConfirmResult['status'], { title: UiKey; body: UiKey }> = {
@@ -14,9 +14,9 @@ const COPY: Record<ConfirmResult['status'], { title: UiKey; body: UiKey }> = {
   invalid: { title: 'confirm.invalid.title', body: 'confirm.invalid.body' },
 };
 
-export const load: PageServerLoad = async ({ params, url, request, locals }) => {
+export const load: PageServerLoad = async ({ url, request, locals }) => {
   const rt = runtime();
-  const tenant = await tenantBySlug(params.tenant);
+  const { tenant } = requireSite(locals);
   const locale = negotiateLocale(
     request.headers.get('accept-language'),
     tenant.locales,

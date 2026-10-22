@@ -74,6 +74,49 @@ export const en = {
   'admin.error.lastAdmin': 'A site needs at least one member with tenant:admin.',
   'admin.error.notFound': 'That member or key no longer exists. Reload the page.',
   'admin.error.forbidden': 'You do not have the capability for this.',
+  'admin.domains.title': 'Domains',
+  'admin.domains.intro':
+    'The site is served on its primary hostname; every other hostname redirects there. Add your own domain, set its two DNS records, check them, and make it primary.',
+  'admin.domains.kind.platform': 'platform hostname',
+  'admin.domains.kind.custom': 'custom domain',
+  'admin.domains.primary': 'primary',
+  'admin.domains.verified': 'verified',
+  'admin.domains.unverified': 'not verified yet',
+  'admin.domains.dns.title': 'DNS records at your provider',
+  'admin.domains.dns.txt': 'TXT record',
+  'admin.domains.dns.cname': 'CNAME record',
+  'admin.domains.dns.name': 'Name',
+  'admin.domains.dns.value': 'Value',
+  'admin.domains.dns.target': 'Points to',
+  'admin.domains.dns.apex':
+    'A domain without a subdomain (example.org itself) cannot take a CNAME at most providers: use the A and AAAA records from your hosting documentation instead. The TXT record is always needed.',
+  'admin.domains.check': 'Check DNS',
+  'admin.domains.makePrimary': 'Make primary',
+  'admin.domains.remove': 'Remove',
+  'admin.domains.add.title': 'Add a domain',
+  'admin.domains.add.hostname': 'Hostname',
+  'admin.domains.add.hint':
+    'For example www.example.org. The site keeps working on its platform hostname until the new domain is verified and primary.',
+  'admin.domains.add.submit': 'Add domain',
+  'admin.domains.done.added': 'Domain {hostname} added. Set its DNS records, then check them.',
+  'admin.domains.done.verified': 'Domain {hostname} is verified.',
+  'admin.domains.done.notVerified':
+    'The TXT record for {hostname} was not found yet. A DNS change can take up to an hour to spread.',
+  'admin.domains.found.txt': 'TXT records found: {values}',
+  'admin.domains.found.noTxt': 'No TXT record at {name}.',
+  'admin.domains.found.cname': 'CNAME points to {target}.',
+  'admin.domains.found.cnameOk': 'CNAME points to the platform hostname.',
+  'admin.domains.found.noCname':
+    'No CNAME record (fine for an apex domain with A and AAAA records).',
+  'admin.domains.done.primary':
+    '{hostname} is now the primary hostname; the other hostnames redirect to it.',
+  'admin.domains.done.removed': 'Domain {hostname} removed.',
+  'admin.domains.error.invalid':
+    'Give a hostname such as www.example.org: no port, no path, no IP address, and not a hostname of the platform itself.',
+  'admin.domains.error.conflict': 'That hostname is already in use.',
+  'admin.domains.error.notVerified': 'Verify the domain before making it primary.',
+  'admin.domains.error.isPrimary': 'Make another hostname primary before removing this one.',
+  'admin.domains.error.notFound': 'That domain no longer exists on this site. Reload the page.',
 } as const;
 
 export type UiKey = keyof typeof en;

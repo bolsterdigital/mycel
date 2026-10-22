@@ -72,4 +72,50 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.error.lastAdmin': 'Een site heeft minstens één lid met tenant:admin nodig.',
   'admin.error.notFound': 'Dat lid of die sleutel bestaat niet meer. Laad de pagina opnieuw.',
   'admin.error.forbidden': 'Je hebt daar de bevoegdheid niet voor.',
+  'admin.domains.title': 'Domeinen',
+  'admin.domains.intro':
+    'De site wordt geserveerd op de primaire hostnaam; elke andere hostnaam verwijst daarheen door. Voeg je eigen domein toe, zet de twee DNS-records, controleer ze en maak het domein primair.',
+  'admin.domains.kind.platform': 'platform-hostnaam',
+  'admin.domains.kind.custom': 'eigen domein',
+  'admin.domains.primary': 'primair',
+  'admin.domains.verified': 'geverifieerd',
+  'admin.domains.unverified': 'nog niet geverifieerd',
+  'admin.domains.dns.title': 'DNS-records bij je provider',
+  'admin.domains.dns.txt': 'TXT-record',
+  'admin.domains.dns.cname': 'CNAME-record',
+  'admin.domains.dns.name': 'Naam',
+  'admin.domains.dns.value': 'Waarde',
+  'admin.domains.dns.target': 'Wijst naar',
+  'admin.domains.dns.apex':
+    'Een domein zonder subdomein (example.org zelf) kan bij de meeste providers geen CNAME krijgen: gebruik dan de A- en AAAA-records uit de documentatie van je hoster. Het TXT-record is altijd nodig.',
+  'admin.domains.check': 'DNS controleren',
+  'admin.domains.makePrimary': 'Primair maken',
+  'admin.domains.remove': 'Verwijderen',
+  'admin.domains.add.title': 'Domein toevoegen',
+  'admin.domains.add.hostname': 'Hostnaam',
+  'admin.domains.add.hint':
+    'Bijvoorbeeld www.example.org. De site blijft werken op de platform-hostnaam tot het nieuwe domein geverifieerd en primair is.',
+  'admin.domains.add.submit': 'Domein toevoegen',
+  'admin.domains.done.added':
+    'Domein {hostname} toegevoegd. Zet de DNS-records en controleer ze daarna.',
+  'admin.domains.done.verified': 'Domein {hostname} is geverifieerd.',
+  'admin.domains.done.notVerified':
+    'Het TXT-record voor {hostname} is nog niet gevonden. Een DNS-wijziging kan tot een uur nodig hebben.',
+  'admin.domains.found.txt': 'Gevonden TXT-records: {values}',
+  'admin.domains.found.noTxt': 'Geen TXT-record op {name}.',
+  'admin.domains.found.cname': 'CNAME wijst naar {target}.',
+  'admin.domains.found.cnameOk': 'CNAME wijst naar de platform-hostnaam.',
+  'admin.domains.found.noCname':
+    'Geen CNAME-record (prima voor een apex-domein met A- en AAAA-records).',
+  'admin.domains.done.primary':
+    '{hostname} is nu de primaire hostnaam; de andere hostnamen verwijzen erheen.',
+  'admin.domains.done.removed': 'Domein {hostname} verwijderd.',
+  'admin.domains.error.invalid':
+    'Geef een hostnaam zoals www.example.org: zonder poort, pad of IP-adres, en geen hostnaam van het platform zelf.',
+  'admin.domains.error.conflict': 'Die hostnaam is al in gebruik.',
+  'admin.domains.error.notVerified': 'Verifieer het domein voordat je het primair maakt.',
+  'admin.domains.error.isPrimary':
+    'Maak eerst een andere hostnaam primair voordat je deze verwijdert.',
+  'admin.domains.error.notFound':
+    'Dat domein bestaat niet meer op deze site. Laad de pagina opnieuw.',
 };

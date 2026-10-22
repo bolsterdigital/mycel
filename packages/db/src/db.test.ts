@@ -15,7 +15,14 @@ import {
   useCases,
   rebuildProjection,
 } from '@mycel/core';
-import { FakeSigner, MemoryMailer, probeForm, probePage } from '@mycel/core/testing';
+import {
+  FakeDns,
+  FakeSigner,
+  MemoryMailer,
+  memoryPlatform,
+  probeForm,
+  probePage,
+} from '@mycel/core/testing';
 import {
   createDb,
   createTenantDirectory,
@@ -37,7 +44,13 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
   const appDb = createDb(appUrl ?? '');
   const signer = new FakeSigner();
   const clock = { now: () => new Date() };
-  const uow = createUnitOfWork(appDb, { clock, ids: uuidv7Ids, signer });
+  const uow = createUnitOfWork(appDb, {
+    clock,
+    ids: uuidv7Ids,
+    signer,
+    dns: new FakeDns(),
+    platform: memoryPlatform,
+  });
   const invoker = new Invoker(buildRegistry(), uow);
   const mailer = new MemoryMailer();
   const tenants = createTenantDirectory(appDb);
@@ -50,7 +63,7 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
       tenants,
       uow,
       from: { email: 'noreply@example.org' },
-      publicBaseUrl: 'http://localhost:5173',
+      platform: memoryPlatform,
     }),
   ];
   const run = Math.random().toString(36).slice(2, 8);
@@ -61,22 +74,30 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
   beforeAll(async () => {
     await migrate(operatorUrl!, { appPassword: process.env['MYCEL_APP_PASSWORD'], log: () => {} });
     tenantA = (
-      await upsertTenant(operatorDb, {
-        id: uuidv7(),
-        slug: `t-a-${run}`,
-        name: 'A',
-        defaultLocale: 'nl',
-        locales: ['nl', 'en'],
-      })
+      await upsertTenant(
+        operatorDb,
+        {
+          id: uuidv7(),
+          slug: `t-a-${run}`,
+          name: 'A',
+          defaultLocale: 'nl',
+          locales: ['nl', 'en'],
+        },
+        { platformDomain: 'localhost' }
+      )
     ).id;
     tenantB = (
-      await upsertTenant(operatorDb, {
-        id: uuidv7(),
-        slug: `t-b-${run}`,
-        name: 'B',
-        defaultLocale: 'nl',
-        locales: ['nl'],
-      })
+      await upsertTenant(
+        operatorDb,
+        {
+          id: uuidv7(),
+          slug: `t-b-${run}`,
+          name: 'B',
+          defaultLocale: 'nl',
+          locales: ['nl'],
+        },
+        { platformDomain: 'localhost' }
+      )
     ).id;
     formId = uuidv7();
     await uow.run(systemPrincipal(tenantA, 'test'), (ctx) => ctx.forms.insert(probeForm(formId)));

@@ -1,7 +1,7 @@
-<!-- The tenant's admin page for TODO #7: members and API keys, nothing else (TODO #11 builds the
-     real admin). Every action is a native form post. Action groups wrap whole buttons onto a new
-     line when they do not fit, and a long label wraps inside its own button at word boundaries
-     (skill ui-action-layout); the e2e spec checks 320 CSS px and 200% text. -->
+<!-- The tenant's admin page: members and API keys (TODO #7) and the site's hostnames (TODO #14);
+     TODO #11 builds the real admin. Every action is a native form post. Action groups wrap whole
+     buttons onto a new line when they do not fit, and a long label wraps inside its own button
+     at word boundaries (skill ui-action-layout); the e2e specs check 320 CSS px and 200% text. -->
 <script lang="ts">
   import Header from '#lib/admin/Header.svelte';
   import { fill, ui, type UiKey } from '../../../../i18n/index.js';
@@ -16,6 +16,11 @@
   const failed = $derived(form && 'error' in form ? form : null);
   const done = $derived(form && 'done' in form ? form : null);
   const token = $derived(form && 'token' in form ? form : null);
+  const verify = $derived(form && 'verify' in form ? form.verify : null);
+  const vars = (f: Record<string, unknown>) => ({
+    email: typeof f.email === 'string' ? f.email : '',
+    hostname: typeof f.hostname === 'string' ? f.hostname : '',
+  });
 </script>
 
 <svelte:head>
@@ -54,10 +59,36 @@
   {/if}
   {#if done}
     <div class="notice" role="status">
-      <p>{fill(t(done.done as UiKey), { email: 'email' in done ? String(done.email) : '' })}</p>
+      <p>{fill(t(done.done as UiKey), vars(done))}</p>
       {#if 'revokedKeys' in done && Number(done.revokedKeys) > 0}
         <p>{fill(t('admin.done.revokedKeys'), { n: Number(done.revokedKeys) })}</p>
       {/if}
+    </div>
+  {/if}
+  {#if verify}
+    <div class="notice" role="status">
+      <p>
+        {fill(
+          t(verify.verified ? 'admin.domains.done.verified' : 'admin.domains.done.notVerified'),
+          {
+            hostname: verify.hostname,
+          }
+        )}
+      </p>
+      {#if !verify.verified}
+        <p>
+          {verify.found.txt.length
+            ? fill(t('admin.domains.found.txt'), { values: verify.found.txt.join(', ') })
+            : fill(t('admin.domains.found.noTxt'), { name: `_mycel-verify.${verify.hostname}` })}
+        </p>
+      {/if}
+      <p>
+        {verify.pointsToPlatform
+          ? t('admin.domains.found.cnameOk')
+          : verify.found.cname
+            ? fill(t('admin.domains.found.cname'), { target: verify.found.cname })
+            : t('admin.domains.found.noCname')}
+      </p>
     </div>
   {/if}
   {#if token}
@@ -119,6 +150,85 @@
       <p class="muted">{fill(t('admin.invite.hint'), { url: data.loginUrl })}</p>
       <div class="actions">
         <button type="submit">{t('admin.invite.submit')}</button>
+      </div>
+    </form>
+  </section>
+
+  <section aria-labelledby="domains">
+    <h2 id="domains">{t('admin.domains.title')}</h2>
+    <p>{t('admin.domains.intro')}</p>
+    {#each data.hostnames as h (h.hostname)}
+      <form
+        method="post"
+        action={h.kind === 'custom' ? '?/verifyHostname' : '?/setPrimaryHostname'}
+        class="card"
+      >
+        <h3>
+          {h.display}{#if h.display !== h.hostname}
+            <span class="muted">({h.hostname})</span>{/if}
+        </h3>
+        <ul class="tags">
+          <li>
+            {t(h.kind === 'platform' ? 'admin.domains.kind.platform' : 'admin.domains.kind.custom')}
+          </li>
+          {#if h.primary}<li>{t('admin.domains.primary')}</li>{/if}
+          <li>{t(h.verifiedAt ? 'admin.domains.verified' : 'admin.domains.unverified')}</li>
+        </ul>
+        {#if h.dns}
+          <h4>{t('admin.domains.dns.title')}</h4>
+          <dl>
+            <dt>{t('admin.domains.dns.txt')}: {t('admin.domains.dns.name')}</dt>
+            <dd><code>{h.dns.txt.name}</code></dd>
+            <dt>{t('admin.domains.dns.txt')}: {t('admin.domains.dns.value')}</dt>
+            <dd><code class="dns-value">{h.dns.txt.value}</code></dd>
+            <dt>{t('admin.domains.dns.cname')}: {t('admin.domains.dns.name')}</dt>
+            <dd><code>{h.dns.cname.name}</code></dd>
+            <dt>{t('admin.domains.dns.cname')}: {t('admin.domains.dns.target')}</dt>
+            <dd><code>{h.dns.cname.target}</code></dd>
+          </dl>
+          <p class="muted">{t('admin.domains.dns.apex')}</p>
+        {/if}
+        <input type="hidden" name="hostname" value={h.hostname} />
+        {#if h.kind === 'custom' || !h.primary}
+          <div class="actions">
+            {#if h.kind === 'custom'}
+              <button type="submit" formaction="?/verifyHostname">{t('admin.domains.check')}</button
+              >
+            {/if}
+            {#if h.verifiedAt && !h.primary}
+              <button type="submit" formaction="?/setPrimaryHostname" class="secondary">
+                {t('admin.domains.makePrimary')}
+              </button>
+            {/if}
+            {#if h.kind === 'custom' && !h.primary}
+              <button type="submit" formaction="?/removeHostname" class="secondary">
+                {t('admin.domains.remove')}
+              </button>
+            {/if}
+          </div>
+        {/if}
+      </form>
+    {/each}
+
+    <form method="post" action="?/addHostname" class="card">
+      <h3>{t('admin.domains.add.title')}</h3>
+      <div class="field">
+        <label for="add-hostname">{t('admin.domains.add.hostname')}</label>
+        <input
+          id="add-hostname"
+          name="hostname"
+          type="text"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+          required
+          maxlength="300"
+          value={failed?.action === 'addHostname' ? (failed.hostname ?? '') : ''}
+        />
+      </div>
+      <p class="muted">{t('admin.domains.add.hint')}</p>
+      <div class="actions">
+        <button type="submit">{t('admin.domains.add.submit')}</button>
       </div>
     </form>
   </section>

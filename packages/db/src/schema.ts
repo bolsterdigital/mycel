@@ -16,6 +16,23 @@ export interface Database {
     locales: string[];
     created_at: Generated<Date>;
   };
+  /** View over `tenants` (0008): the five columns mycel_app may read. */
+  tenant_directory: {
+    id: string;
+    slug: string;
+    name: string;
+    default_locale: string;
+    locales: string[];
+  };
+  tenant_hostnames: {
+    hostname: string;
+    tenant_id: string;
+    kind: 'platform' | 'custom';
+    is_primary: Generated<boolean>;
+    verification_token: string | null;
+    verified_at: Timestamp | null;
+    created_at: Generated<Date>;
+  };
   forms: {
     id: string;
     tenant_id: string;

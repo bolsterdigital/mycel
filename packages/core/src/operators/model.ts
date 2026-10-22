@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { Actor, Capability } from '../principal.js';
 import { sha256Hex } from '../util/digest.js';
 import { normalizeEmail } from '../util/email.js';
+import { randomToken } from '../util/token.js';
 
 export const Email = z.preprocess(
   (v) => (typeof v === 'string' ? normalizeEmail(v) : v),
@@ -69,12 +70,6 @@ export const TOKEN_PATTERN = /^mycel_[A-Za-z0-9_-]{43}$/;
 /** Characters of the token kept in clear, enough to recognise a key in a list. */
 export const PREFIX_LENGTH = 12;
 
-function base64url(bytes: Uint8Array): string {
-  let binary = '';
-  for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
 export interface GeneratedKey {
   token: string;
   prefix: string;
@@ -83,7 +78,7 @@ export interface GeneratedKey {
 
 /** A fresh token, its display prefix and its storage hash. */
 export async function generateApiKey(): Promise<GeneratedKey> {
-  const token = TOKEN_PREFIX + base64url(globalThis.crypto.getRandomValues(new Uint8Array(32)));
+  const token = TOKEN_PREFIX + randomToken(32);
   return { token, prefix: token.slice(0, PREFIX_LENGTH), hash: await hashApiKey(token) };
 }
 

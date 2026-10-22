@@ -15,6 +15,13 @@ import {
 } from './operators/service.js';
 import { UseCaseRegistry, type UseCase } from './registry.js';
 import { changeSupporterEmail, getSupporter } from './supporters/service.js';
+import {
+  addHostname,
+  listHostnames,
+  removeHostname,
+  setPrimaryHostname,
+  verifyHostnameUseCase,
+} from './tenants/service.js';
 
 export const useCases = {
   getPage,
@@ -31,6 +38,11 @@ export const useCases = {
   listKeys,
   createKey,
   revokeKey,
+  listHostnames,
+  addHostname,
+  verifyHostname: verifyHostnameUseCase,
+  setPrimaryHostname,
+  removeHostname,
 } as const;
 
 export function buildRegistry(): UseCaseRegistry {

@@ -17,7 +17,14 @@ import {
   systemPrincipal,
   useCases,
 } from '@mycel/core';
-import { FakeSigner, MemoryMailer, probeForm, probePage } from '@mycel/core/testing';
+import {
+  FakeDns,
+  FakeSigner,
+  MemoryMailer,
+  memoryPlatform,
+  probeForm,
+  probePage,
+} from '@mycel/core/testing';
 import {
   createDb,
   createTenantDirectory,
@@ -36,13 +43,15 @@ if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
 const APP_ROLE = 'mycel_app';
 // ADR 011 rule 1: cross-tenant (`using (true)`) policies exist only on platform queues, logs and
 // counters: the outbox (worker drain, 0003) and the rate-limit windows (janitor sweep, 0006);
-// plus the one exception, the identity tables read at authentication time (mycel_auth, 0007).
+// plus the one exception, the identity tables read at authentication time (mycel_auth, 0007)
+// and the hostnames read to resolve the site being visited (mycel_auth, 0008).
 const CROSS_TENANT_TABLES = [
   'outbox',
   'rate_limits',
   'operators',
   'tenant_memberships',
   'api_keys',
+  'tenant_hostnames',
 ];
 const ISOLATION = '(tenant_id = current_tenant_id())';
 
@@ -106,17 +115,27 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     // instead of draining the outbox: the outbox is shared with db.test.ts, and a drain here
     // would claim that suite's events with only some of its subscribers.
     tenantId = (
-      await upsertTenant(operatorDb, {
-        id: uuidv7(),
-        slug: `rls-${run}`,
-        name: 'RLS',
-        defaultLocale: 'nl',
-        locales: ['nl'],
-      })
+      await upsertTenant(
+        operatorDb,
+        {
+          id: uuidv7(),
+          slug: `rls-${run}`,
+          name: 'RLS',
+          defaultLocale: 'nl',
+          locales: ['nl'],
+        },
+        { platformDomain: 'localhost' }
+      )
     ).id;
     const clock = { now: () => new Date() };
     const signer = new FakeSigner();
-    const uow = createUnitOfWork(appDb, { clock, ids: uuidv7Ids, signer });
+    const uow = createUnitOfWork(appDb, {
+      clock,
+      ids: uuidv7Ids,
+      signer,
+      dns: new FakeDns(),
+      platform: memoryPlatform,
+    });
     const invoker = new Invoker(buildRegistry(), uow);
     const admin = systemPrincipal(tenantId, 'rls-test');
     const formId = uuidv7();
@@ -163,7 +182,7 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
       tenants: createTenantDirectory(appDb),
       uow,
       from: { email: 'noreply@example.org' },
-      publicBaseUrl: 'http://localhost:5173',
+      platform: memoryPlatform,
     }).handle(event);
   });
 
@@ -184,6 +203,7 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
         'pages',
         'rate_limits',
         'supporters',
+        'tenant_hostnames',
         'tenant_memberships',
       ])
     );

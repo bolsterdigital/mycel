@@ -36,6 +36,7 @@ const IO_LIBS = [
   '@sveltejs/',
   'svelte',
   '@modelcontextprotocol/',
+  'node:dns',
   'node:fs',
   'node:http',
   'node:net',

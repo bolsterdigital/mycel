@@ -100,15 +100,18 @@ test('signup with double opt-in: too-fast post, thank-you page, confirmation lin
       lists: [],
       pendingLists: ['newsletter'],
     });
-  const link = new URL(/https?:\/\/\S+\/probe\/confirm\?token=\S+/.exec(mail.text)![0]);
+  // The link is the site's canonical address (ADR 014 rule 6): its platform hostname
+  // probe.localhost, which Chromium resolves to loopback, not the path form this spec posts from.
+  const link = /https?:\/\/\S+\/confirm\?token=\S+/.exec(mail.text)![0];
+  expect(link.startsWith('http://probe.localhost:4173/confirm?token=')).toBe(true);
 
   // Following the link confirms; a second visit says so without doing it again.
-  await page.goto(`${link.pathname}${link.search}`);
+  await page.goto(link);
   await expect(
     page.getByRole('heading', { level: 1, name: 'Inschrijving bevestigd' })
   ).toBeVisible();
   await expectNoAxeViolations(page);
-  await page.goto(`${link.pathname}${link.search}`);
+  await page.goto(link);
   await expect(page.getByRole('heading', { level: 1, name: 'Al bevestigd' })).toBeVisible();
   await expectNoAxeViolations(page);
 
