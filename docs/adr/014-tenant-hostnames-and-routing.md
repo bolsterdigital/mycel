@@ -2,7 +2,7 @@
 
 - **Status**: accepted
 - **Date**: 2026-10-21
-- **Amended**: 2026-10-21 by ADR 017 (a tenant is one site; no `site` entity below it)
+- **Amended**: 2026-10-21 by ADR 017 (a tenant is one site; no `site` entity below it); 2026-10-22 for TODO #14 (consequences: `tenant_hostnames` is tenant data under RLS, written by the tenant's own use cases; resolution reads through `mycel_auth`)
 - **Builds on**: ADR 002 rule 3 (tenant context from authentication or, for public pages, from the site being visited)
 
 ## Context
@@ -27,6 +27,6 @@ The probe addresses a site as `/{tenant}/{slug}`. A real site lives on its own d
 ## Consequences
 
 - `apps/web` gets a `handle` hook that resolves the tenant once per request from the hostname and puts it on `locals`; routes stop carrying `[tenant]` in production paths.
-- `tenant_hostnames` is platform data (read without tenant context, like `tenants`), written only through platform use cases; the uniqueness of a hostname is global.
+- `tenant_hostnames` is tenant data under forced RLS (ADR 002 rule 2): custom hostnames are written by the tenant's own use cases (`tenant.hostnames.*`, rule 3), the platform hostname by the platform path that creates the tenant (rule 2). Resolving a hostname happens before a tenant context exists and therefore reads through `mycel_auth` (ADR 011 rule 1), like an API key; `mycel_app` sees only its own hostnames. The uniqueness of a hostname is global.
 - The hosting runbook (private) documents the Caddy `on_demand_tls` block; the public repo ships the `allowed` endpoint and a `Caddyfile` example.
 - Fase 1 item: TODO #14.
