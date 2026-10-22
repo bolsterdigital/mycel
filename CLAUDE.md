@@ -64,7 +64,8 @@ Deze repo volgt de universele werkwijze (skill `werkwijze` in `~/.claude`):
 
 - **Nu**: `docs/plans/TODO.md` - claimbord + open werk, budget < 300 regels.
 - **Briefs**: `docs/plans/briefs/<slug>.md`; uitgevoerd -> `docs/plans/done/`.
-- **Handoff**: `/handoff` leest `docs/plans/HANDOFF.md`; elke werk-afrondende sessie overschrijft 'm en sluit af met de sluitregel.
+- **Handoff per lane**: `/handoff` leest `docs/plans/handoff/<lane>.md` (`mbp` of `dev`) plus het gedeelde `handoff/queue.md`; elke werk-afrondende sessie overschrijft alleen het bestand van haar eigen lane en sluit af met de sluitregel. `docs/plans/HANDOFF.md` is een stub.
+- **Lanes**: `dev` bouwt platform en operatie, `mbp` content en publicatie; welke code en welke TODO-items bij welke lane horen, hoe gedeelde registratiepunten en migratienummers werken: `docs/plans/lanes.md`. Bouw alleen items van je eigen lane.
 - **Rollen**: het stuur-model brieft, beslist en reviewt; het uitvoer-model voert één brief per sessie uit op een branch en merget nooit de eigen PR. Welk model een rol nu heeft volgt uit `werkwijze` § Modelkeuze per sessie en `~/.claude/models.conf`.
 - **Ritmes**: `merge-housekeeping` per gedelegeerde merge; `reorg-audit` bij de drift-drempel; `tighten-scan` op aanvraag.
 
