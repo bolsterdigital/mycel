@@ -191,6 +191,9 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
       await ctx.admissions.lock();
       await ctx.admissions.reserve(`rls-pending-${run}@example.org`);
     });
+    // That signup's outbox event can still be ingested by another suite's drain (db.test.ts
+    // drains every tenant), which releases its seat; a reservation without an event cannot be.
+    await uow.run(admin, (ctx) => ctx.admissions.reserve(`rls-reserved-${run}@example.org`));
     // Memberships and keys through their use cases (TODO #7).
     await invoker.run(useCases.inviteMember, admin, {
       email: `member-${run}@example.org`,
