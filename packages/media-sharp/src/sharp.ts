@@ -47,7 +47,9 @@ export function createSharpProcessor({
       const width = m.autoOrient?.width ?? m.width;
       const height = m.autoOrient?.height ?? m.height;
       if (!format || !width || !height) return null;
-      return { format, width, height };
+      // `render` of a GIF loads every frame (`animated`), and `limitInputPixels` then counts
+      // the whole roll; the core multiplies by `pages` so that refusal is its own, not an error.
+      return { format, width, height, pages: Math.max(1, m.pages ?? 1) };
     },
 
     async render(bytes, { width, format }) {

@@ -160,6 +160,26 @@ describe('media', () => {
       expect(keys()).toEqual([]);
     });
 
+    it('counts every frame of an animation against the pixel limit', async () => {
+      // 500x500 per frame, 201 frames: just over 50 MP together, a rendered roll of that size.
+      const frames = 201;
+      uow = new MemoryUnitOfWork({
+        clock,
+        blobs,
+        images: {
+          probe: async () => ({ format: 'gif', width: 500, height: 500, pages: frames }),
+          render: async (bytes, { width }) => ({ bytes, width, height: width }),
+        },
+      });
+      invoker = new Invoker(buildRegistry(), uow);
+      await expectCode(
+        upload({ filename: 'loop.gif', contentType: 'image/gif', bytes: GIF }),
+        'invalid_input',
+        'media.pixels.too_many'
+      );
+      expect(keys()).toEqual([]);
+    });
+
     it('refuses more than 25 MB in the schema, before decoding', async () => {
       await expectCode(
         upload({ bytes: 'A'.repeat(35_000_000) }),

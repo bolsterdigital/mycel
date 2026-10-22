@@ -50,6 +50,7 @@ describe('sharp ImageProcessor', () => {
       format: 'jpeg',
       width: 20,
       height: 40,
+      pages: 1,
     });
   });
 
@@ -88,7 +89,12 @@ describe('sharp ImageProcessor', () => {
     const base = sharp({ create: { width: 4, height: 3, channels: 3, background: '#0a0' } });
     for (const format of ['png', 'webp', 'avif', 'gif', 'jpeg'] as const) {
       const bytes = new Uint8Array(await base.clone().toFormat(format).toBuffer());
-      expect(await processor.probe(bytes), format).toEqual({ format, width: 4, height: 3 });
+      expect(await processor.probe(bytes), format).toEqual({
+        format,
+        width: 4,
+        height: 3,
+        pages: 1,
+      });
     }
     expect(await processor.probe(new TextEncoder().encode('<svg xmlns="x"/>'))).toBeNull();
     expect(await processor.probe(new TextEncoder().encode('%PDF-1.7'))).toBeNull();
@@ -98,10 +104,45 @@ describe('sharp ImageProcessor', () => {
     const bomb = await fixture('bomb.png');
     expect(bomb.length).toBeLessThan(64 * 1024);
     const probe = await processor.probe(bomb);
-    expect(probe).toEqual({ format: 'png', width: 8000, height: 8000 });
+    expect(probe).toEqual({ format: 'png', width: 8000, height: 8000, pages: 1 });
     expect(probe!.width * probe!.height).toBeGreaterThan(MAX_PIXELS);
     await expect(
       processor.render(bomb, { width: 320, format: 'webp', stripMetadata: true })
     ).rejects.toThrow(/pixel limit/i);
+  });
+
+  it('counts every frame of an animation: the probe says how many, the render loads them all', async () => {
+    // Thirty distinct 200x200 frames: 1.2 MP together, 40 kP as one frame.
+    const [w, h, frames] = [200, 200, 30];
+    const roll = Buffer.concat(
+      await Promise.all(
+        Array.from({ length: frames }, (_, i) =>
+          sharp({
+            create: { width: w, height: h, channels: 4, background: { r: i * 8, g: 0, b: 0 } },
+          })
+            .raw()
+            .toBuffer()
+        )
+      )
+    );
+    const gif = new Uint8Array(
+      await sharp(roll, { raw: { width: w, height: h * frames, channels: 4, pageHeight: h } })
+        .gif()
+        .toBuffer()
+    );
+    expect(await processor.probe(gif)).toEqual({
+      format: 'gif',
+      width: w,
+      height: h,
+      pages: frames,
+    });
+    const small = createSharpProcessor({ maxPixels: 1_000_000 });
+    await expect(
+      small.render(gif, { width: w, format: 'gif', stripMetadata: true })
+    ).rejects.toThrow(/pixel limit/i);
+    // A still from it (the thumbnail) decodes the first frame only.
+    expect(
+      await small.render(gif, { width: 160, format: 'webp', stripMetadata: true })
+    ).toMatchObject({ width: 160, height: 160 });
   });
 });

@@ -172,11 +172,13 @@ async function prepare(
       'media.type.mismatch',
       `the file is ${CONTENT_TYPE_OF[probe.format]}, not ${contentType}`
     );
-  if (probe.width * probe.height > MAX_PIXELS)
+  // Every frame of an animation is decoded at once (sharp's `animated`), so the frames count.
+  if (probe.width * probe.height * probe.pages > MAX_PIXELS)
     throw invalid(
       'bytes',
       'media.pixels.too_many',
-      `the image has more than ${MAX_PIXELS} pixels (${probe.width}x${probe.height})`
+      `the image has more than ${MAX_PIXELS} pixels (${probe.width}x${probe.height}` +
+        (probe.pages > 1 ? `, ${probe.pages} frames)` : ')')
     );
 
   const files: PreparedFile[] = [];

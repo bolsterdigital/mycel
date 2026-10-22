@@ -256,7 +256,7 @@ export const memoryImageProcessor: ImageProcessor = {
   async probe(b) {
     const be32 = (at: number) =>
       ((b[at]! << 24) | (b[at + 1]! << 16) | (b[at + 2]! << 8) | b[at + 3]!) >>> 0;
-    let found: ImageProbe | null = null;
+    let found: Omit<ImageProbe, 'pages'> | null = null;
     if (b.length >= 24 && b[0] === 0x89 && sniff(b, 1, 'PNG'))
       found = { format: 'png', width: be32(16), height: be32(20) };
     else if (b.length >= 10 && sniff(b, 0, 'GIF8'))
@@ -267,7 +267,8 @@ export const memoryImageProcessor: ImageProcessor = {
       found = { format: 'webp', width: 1, height: 1 };
     else if (b.length >= 12 && sniff(b, 4, 'ftypavif'))
       found = { format: 'avif', width: 1, height: 1 };
-    return found && found.width > 0 && found.height > 0 ? found : null;
+    // A GIF header does not say how many frames follow; a test that needs frames stubs `probe`.
+    return found && found.width > 0 && found.height > 0 ? { ...found, pages: 1 } : null;
   },
   async render(bytes, { width }) {
     return { bytes: new Uint8Array(bytes), width, height: width };

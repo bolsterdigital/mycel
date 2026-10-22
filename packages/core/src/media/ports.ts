@@ -29,6 +29,11 @@ export interface ImageProbe {
   /** After EXIF orientation is applied: what a viewer sees. */
   width: number;
   height: number;
+  /**
+   * Frames of an animation, 1 for a still. A decoder loads every frame of an animation at once,
+   * so the pixel limit counts `width * height * pages`, not one frame.
+   */
+  pages: number;
 }
 
 export interface RenderOptions {
