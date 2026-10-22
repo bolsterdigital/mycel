@@ -339,6 +339,19 @@ describe('content items', () => {
       const error = await create(article as never).catch((e) => e);
       expect(error).toMatchObject({ code: 'invalid_input' });
       expect(JSON.stringify(error.issues)).not.toContain('X');
+
+      const foreignSection = await invoker.run(
+        useCases.createSection,
+        systemPrincipal(OTHER, 't'),
+        { slug: 'x', title: { nl: 'Elders' } }
+      );
+      const sectioned = { ...pageDoc(), type: 'article' as const, sectionId: foreignSection.id };
+      const sectionError = await create(sectioned as never).catch((e) => e);
+      expect(sectionError).toMatchObject({
+        code: 'invalid_input',
+        issues: [{ path: 'sectionId', message: 'content.reference.section-unknown' }],
+      });
+      expect(JSON.stringify(sectionError.issues)).not.toContain('Elders');
     });
 
     it('lets an article without an author be a draft, but not be published', async () => {

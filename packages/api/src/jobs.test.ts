@@ -224,6 +224,7 @@ describe('job handlers', () => {
       expect(await h(j)).toEqual({ next: new Date(clock.now().getTime() + 24 * 60 * 60 * 1000) });
       expect(mailer.sent).toHaveLength(0);
     });
+  });
 
   // #8a with #16: schedule, suspend, run the worker's handler. Nothing goes live, the pin stays
   // and the job asks to come back in a day; once the site is active again the pin is published.

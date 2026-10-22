@@ -113,15 +113,22 @@ describe('MCP front and the audit log', () => {
     const agent = {
       ...systemPrincipal(TENANT, 'agent'),
       actor: { kind: 'agent' as const, sessionId: 's-1', keyId: 'key-1' },
-      capabilities: ['content:write' as const, 'content:read' as const],
+      capabilities: ['content:write' as const, 'content:publish' as const, 'content:read' as const],
     };
     const server = createMcpServer(new Invoker(buildRegistry(), uow), async () => agent);
     const [a, b] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: 'test', version: '0' });
     await Promise.all([server.connect(a), client.connect(b)]);
 
-    await client.callTool({ name: 'content.page.create', arguments: probePage(FORM) });
-    await client.callTool({ name: 'content.page.get', arguments: { slug: 'signup' } });
+    const created = text(
+      await client.callTool({ name: 'content.item.create', arguments: probePage(FORM) })
+    );
+    await client.callTool({
+      name: 'content.item.publish',
+      arguments: { itemId: created.item.id, revisionId: created.revision.id, locale: 'nl' },
+    });
+    const page = await client.callTool({ name: 'content.page.get', arguments: { slug: 'signup' } });
+    expect(text(page)).toMatchObject({ slug: 'signup', locale: 'nl' });
     const refused = await client.callTool({
       name: 'tenant.keys.create',
       arguments: { name: 'x', capabilities: ['content:read'] },
@@ -130,7 +137,8 @@ describe('MCP front and the audit log', () => {
     expect(
       uow.store.for(TENANT).audit.map((r) => [r.operation, r.actorKind, r.actorId, r.result])
     ).toEqual([
-      ['content.page.create', 'agent', 'key-1', 'ok'],
+      ['content.item.create', 'agent', 'key-1', 'ok'],
+      ['content.item.publish', 'agent', 'key-1', 'ok'],
       ['tenant.keys.create', 'agent', 'key-1', 'forbidden'],
     ]);
   });

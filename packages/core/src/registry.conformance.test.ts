@@ -249,7 +249,7 @@ describe('every command leaves exactly one audit row (TODO #17b)', () => {
 
   it('proves the ok row for the commands whose example runs on the probe fixture', () => {
     expect(succeeded).toEqual(
-      expect.arrayContaining(['content.page.create', 'forms.submit', 'tenant.keys.create'])
+      expect.arrayContaining(['content.item.create', 'forms.submit', 'tenant.keys.create'])
     );
   });
 });

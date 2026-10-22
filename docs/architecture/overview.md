@@ -65,15 +65,15 @@ Short map; the reasoning is in [`../adr/`](../adr/).
 
 **Where things live**
 
-| Path                            | Contents                                                                                                     |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `packages/core/src/<module>/`   | `model.ts` (types, schemas), `service.ts` (use cases), `ports.ts`, `events.ts`, tests                        |
-| `packages/core/src/registry.ts` | the use-case registry every front reads                                                                      |
-| `packages/db/migrations/`       | plain SQL, forward-only, one file per change, RLS policy next to the table                                   |
-| `packages/api/src/`             | Hono app, composition root, API-key authentication, route generation, OpenAPI                                |
-| `packages/mcp/src/`             | MCP server over stdio (one API key per process), tool/resource generation                                    |
-| `packages/observability/src/`   | JSON logger with redaction, request context, error reporters, Prometheus registry                            |
-| `apps/web/src/routes/(public)/` | tenant sites, rendered from blocks                                                                           |
-| `apps/web/src/routes/(admin)/`  | operator admin behind OIDC, on the platform origin only (ADR 014 rule 4)                                     |
+| Path                            | Contents                                                                                                                        |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/core/src/<module>/`   | `model.ts` (types, schemas), `service.ts` (use cases), `ports.ts`, `events.ts`, tests                                           |
+| `packages/core/src/registry.ts` | the use-case registry every front reads                                                                                         |
+| `packages/db/migrations/`       | plain SQL, forward-only, one file per change, RLS policy next to the table                                                      |
+| `packages/api/src/`             | Hono app, composition root, API-key authentication, route generation, OpenAPI                                                   |
+| `packages/mcp/src/`             | MCP server over stdio (one API key per process), tool/resource generation                                                       |
+| `packages/observability/src/`   | JSON logger with redaction, request context, error reporters, Prometheus registry                                               |
+| `apps/web/src/routes/(public)/` | tenant sites, rendered from blocks                                                                                              |
+| `apps/web/src/routes/(admin)/`  | operator admin behind OIDC, on the platform origin only (ADR 014 rule 4)                                                        |
 | `docs/reference/`               | hostnames and custom domains, the Caddy on-demand TLS example, the platform API, media, observability, audit, the content model |
-| `docs/adr/`                     | decisions; `docs/plans`                                                                                      | private planning sibling (symlink) |
+| `docs/adr/`                     | decisions; `docs/plans`                                                                                                         | private planning sibling (symlink) |

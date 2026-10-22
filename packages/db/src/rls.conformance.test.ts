@@ -384,7 +384,8 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
       const rows = await tx(appDb, (trx) => trx.selectFrom('audit_log').selectAll().execute());
       expect(rows.map((r) => r.operation)).toEqual(
         expect.arrayContaining([
-          'content.page.create',
+          'content.item.create',
+          'content.item.publish',
           'forms.submit',
           'tenant.members.invite',
           'tenant.keys.create',

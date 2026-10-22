@@ -24,7 +24,13 @@ import {
   type JobRecord,
   type Principal,
 } from '@mycel/core';
-import { FakeClock, FakeDns, FakeSigner, memoryPlatform } from '@mycel/core/testing';
+import {
+  FakeClock,
+  FakeDns,
+  FakeInputHasher,
+  FakeSigner,
+  memoryPlatform,
+} from '@mycel/core/testing';
 import {
   createDb,
   createUnitOfWork,
@@ -53,6 +59,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
     clock,
     ids: uuidv7Ids,
     signer: new FakeSigner(),
+    inputHasher: new FakeInputHasher(),
     dns: new FakeDns(),
     platform: memoryPlatform,
   });
@@ -186,6 +193,41 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
         document: { ...doc('x'), type: 'article', authorIds: [author.id] },
       })
     ).rejects.toMatchObject({ code: 'invalid_input' });
+  });
+
+  it('makes a save wait for an open item lock and then see the newer base', async () => {
+    // Deterministic counterpart of the race below: one transaction holds the row lock and saves
+    // a revision behind a gate; a second save on the same base cannot run until it commits, and
+    // then finds the base stale. Without `select ... for update` the second save would commit
+    // first and the first would overwrite its latest pointer.
+    const { item, revision } = await create('lock-hold');
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const holder = uow.run(a(), async (ctx) => {
+      await ctx.content.lock(item.id);
+      await gate;
+      await useCases.updateItem.handler(ctx, {
+        itemId: item.id,
+        baseRevisionId: revision.id,
+        document: doc('held'),
+      });
+    });
+    let settled = false;
+    const second = invoker
+      .run(useCases.updateItem, a(), {
+        itemId: item.id,
+        baseRevisionId: revision.id,
+        document: doc('second'),
+      })
+      .finally(() => (settled = true));
+    second.catch(() => {});
+    await new Promise((r) => setTimeout(r, 300));
+    expect(settled).toBe(false);
+    release();
+    await holder;
+    await expect(second).rejects.toMatchObject({ code: 'conflict' });
+    const { revisions } = await invoker.run(useCases.listRevisions, a(), { itemId: item.id });
+    expect(revisions).toHaveLength(2);
   });
 
   it('lets exactly one of concurrent saves on one base win, with no orphan revision', async () => {
