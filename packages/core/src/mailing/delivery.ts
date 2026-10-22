@@ -145,7 +145,10 @@ export async function settleIntent(
   const siblings = [intent, ...listed.filter((s) => s.key !== intent.key)];
   const known = new Set(siblings.flatMap((s) => (s.sentAt && s.providerId ? [s.providerId] : [])));
   const unaccounted = [...new Set(found.providerIds)].filter((id) => !known.has(id));
-  const unresolved = siblings.filter((s) => !s.sentAt && !s.abandonedAt);
+  // An abandoned sibling stays unresolved: it was given up because nobody could place its
+  // message, and that message may be the one unaccounted id. Adopting it would close this intent
+  // on someone else's message; this intent stays unknown and is given up in turn.
+  const unresolved = siblings.filter((s) => !s.sentAt);
 
   if (unaccounted.length === 0) return 'not_sent';
   if (unaccounted.length === 1 && unresolved.length === 1) {

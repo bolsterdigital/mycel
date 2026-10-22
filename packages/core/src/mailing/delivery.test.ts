@@ -192,6 +192,22 @@ describe('sendOnce (ADR 019 rule 6)', () => {
       expect(intent(eventB)?.sentAt).toBeNull();
     });
 
+    it('A lost after acceptance and then abandoned, B refused: B never adopts p1', async () => {
+      mailer.mode = 'lost';
+      expect(await send(eventA)).toBe('unknown');
+      mailer.mode = 'refused';
+      expect(await send(eventB)).toBe('unknown');
+      mailer.mode = 'ok';
+      clock.advance(PAST_LAG);
+      // One unaccounted id, two unresolved intents: ambiguous.
+      expect(await send(eventB)).toBe('unknown');
+      // A is given up; its message p1 still sits at the provider.
+      const a = intent(eventA)!;
+      uow.store.for(TENANT).mailSends.set(a.key, { ...a, abandonedAt: clock.now() });
+      expect(await send(eventB)).toBe('unknown');
+      expect(intent(eventB)).toMatchObject({ sentAt: null, providerId: null });
+    });
+
     it('a message from outside mail_sends with the same address and subject keeps B unknown', async () => {
       mailer.accept(message);
       mailer.mode = 'lost';
