@@ -11,6 +11,7 @@ import {
   systemPrincipal,
   useCases,
   type Principal,
+  type UnitOfWork,
 } from '../index.js';
 import { DEFAULT_ACCESS } from '../entitlements/model.js';
 import {
@@ -349,6 +350,120 @@ describe('members and keys', () => {
       expect(removed.revokedKeys).toBe(1);
       expect(await apiKeyPrincipal(identity, `Bearer ${narrow.token}`)).toBeNull();
       expect(await apiKeyPrincipal(identity, `Bearer ${bySystem.token}`)).not.toBeNull();
+    });
+  });
+
+  describe('acting under the membership lock (TODO #20a)', () => {
+    it('refuses an operator whose principal predates their removal', async () => {
+      const a = await loggedIn('a@example.org');
+      const b = await loggedIn('b@example.org');
+      await invoker.run(useCases.removeMember, a.principal, { operatorId: b.op.id });
+      await expectCode(
+        invoker.run(useCases.createKey, b.principal, {
+          name: 'stale',
+          capabilities: ['content:read'],
+        }),
+        'forbidden'
+      );
+      // Nor can they invite themselves back or change another member.
+      await expectCode(
+        invoker.run(useCases.inviteMember, b.principal, {
+          email: 'b@example.org',
+          capabilities: ['tenant:admin'],
+        }),
+        'forbidden'
+      );
+      await expectCode(
+        invoker.run(useCases.updateMember, b.principal, {
+          operatorId: a.op.id,
+          capabilities: ['content:read'],
+        }),
+        'forbidden'
+      );
+      expect(uow.store.for(TENANT).apiKeys.size).toBe(0);
+    });
+
+    it('refuses an operator who no longer holds tenant:admin', async () => {
+      const a = await loggedIn('a@example.org');
+      const b = await loggedIn('b@example.org');
+      await invoker.run(useCases.updateMember, a.principal, {
+        operatorId: b.op.id,
+        capabilities: ['content:write'],
+      });
+      await expectCode(
+        invoker.run(useCases.createKey, b.principal, {
+          name: 'stale',
+          capabilities: ['content:write'],
+        }),
+        'forbidden'
+      );
+      await expectCode(
+        invoker.run(useCases.removeMember, b.principal, { operatorId: a.op.id }),
+        'forbidden'
+      );
+    });
+
+    it('lets background work through, and refuses a key that claims tenant:admin', async () => {
+      await invoker.run(useCases.createKey, system, {
+        name: 'seed',
+        capabilities: ['content:read'],
+      });
+      const forged: Principal = {
+        ...system,
+        actor: { kind: 'api-key', keyId: '01900000-0000-7000-8000-0000000000aa' },
+      };
+      await expectCode(
+        invoker.run(useCases.createKey, forged, { name: 'k', capabilities: ['content:read'] }),
+        'forbidden'
+      );
+      await expectCode(
+        invoker.run(useCases.inviteMember, forged, {
+          email: 'c@example.org',
+          capabilities: ['content:read'],
+        }),
+        'forbidden'
+      );
+    });
+
+    it('a removal that waits for a key in flight revokes it', async () => {
+      const a = await loggedIn('a@example.org');
+      const b = await loggedIn('b@example.org');
+      // Hold b's key at its insert, after its lock and its re-read of the membership.
+      let reached!: () => void;
+      const atInsert = new Promise<void>((r) => (reached = r));
+      let release!: () => void;
+      const released = new Promise<void>((r) => (release = r));
+      const holding: UnitOfWork = {
+        run: (p, fn) =>
+          uow.run(p, (ctx) =>
+            fn({
+              ...ctx,
+              apiKeys: {
+                ...ctx.apiKeys,
+                async insert(key) {
+                  reached();
+                  await released;
+                  await ctx.apiKeys.insert(key);
+                },
+              },
+            })
+          ),
+      };
+      const creating = new Invoker(buildRegistry(), holding).run(useCases.createKey, b.principal, {
+        name: 'race',
+        capabilities: ['content:write'],
+      });
+      await atInsert;
+      let removedYet = false;
+      const removing = invoker
+        .run(useCases.removeMember, a.principal, { operatorId: b.op.id })
+        .finally(() => (removedYet = true));
+      await new Promise((r) => setTimeout(r, 10));
+      expect(removedYet).toBe(false);
+      release();
+      const [key, removed] = await Promise.all([creating, removing]);
+      expect(removed.revokedKeys).toBe(1);
+      expect(await apiKeyPrincipal(identity, `Bearer ${key.token}`)).toBeNull();
     });
   });
 

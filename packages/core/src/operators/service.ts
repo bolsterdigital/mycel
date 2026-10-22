@@ -9,12 +9,20 @@
 // the system (the seed) are never touched. Rejected: leaving such keys alive, which turns every
 // departure into a credential that keeps working, and deleting them, which loses attribution
 // (ADR 009 rule 9).
+//
+// Who acts is read again under that lock (TODO #20a). The principal is loaded at the start of a
+// request, outside the tenant transaction; a removal or demotion committed in between would
+// otherwise let a former admin make a key or change members with the rights they just lost.
+// Every write here takes the lock first and then acts with the capabilities the actor holds now,
+// so a key is either committed before the change (and revoked by it) or refused. Rejected: a
+// database guard on `api_keys`, which repeats `covers` in SQL and still needs the same lock;
+// `serializable` transactions, which make every front handle retries.
 
 import { z } from 'zod';
 import { requireEntitled, withinLimit } from '../entitlements/check.js';
 import { UseCaseError } from '../errors.js';
 import type { TransactionContext } from '../ports.js';
-import { can, type Capability } from '../principal.js';
+import type { Capability } from '../principal.js';
 import { defineUseCase } from '../registry.js';
 import {
   ApiKeySummary,
@@ -36,6 +44,24 @@ async function requireMember(ctx: TransactionContext, operatorId: string): Promi
   const member = await ctx.members.get(operatorId);
   if (!member) throw new UseCaseError('not_found', 'no member with that operator id');
   return member;
+}
+
+/**
+ * Take the membership lock and return the capabilities the actor holds now. An operator is read
+ * again under the lock; background work has no membership and acts with its principal. An API
+ * key or agent never holds `tenant:admin`, so reaching here with one is refused, not let through.
+ */
+async function lockAsCurrentActor(ctx: TransactionContext): Promise<readonly Capability[]> {
+  await ctx.members.lock();
+  const { actor } = ctx.principal;
+  if (actor.kind === 'system') return ctx.principal.capabilities;
+  if (actor.kind !== 'operator')
+    throw new UseCaseError('forbidden', `${actor.kind} cannot manage members or keys`);
+  const current = await ctx.members.get(actor.operatorId);
+  if (!current) throw new UseCaseError('forbidden', 'stale_actor: you are no longer a member');
+  if (!current.capabilities.includes('tenant:admin'))
+    throw new UseCaseError('forbidden', 'stale_actor: you no longer hold tenant:admin');
+  return current.capabilities;
 }
 
 /** Under the lock: refuse a change that would leave the tenant without an admin. */
@@ -86,7 +112,7 @@ export const inviteMember = defineUseCase({
   output: Member,
   examples: [{ input: { email: 'editor@example.org', capabilities: ['content:write'] } }],
   async handler(ctx, { email, capabilities }) {
-    await ctx.members.lock();
+    await lockAsCurrentActor(ctx);
     if (await ctx.members.findByEmail(email))
       throw new UseCaseError('conflict', 'that address is already a member of this site');
     // Under the lock, so two invitations at once cannot both take the last seat.
@@ -121,7 +147,7 @@ export const updateMember = defineUseCase({
     },
   ],
   async handler(ctx, { operatorId, capabilities }) {
-    await ctx.members.lock();
+    await lockAsCurrentActor(ctx);
     const member = await requireMember(ctx, operatorId);
     if (member.capabilities.includes('tenant:admin') && !capabilities.includes('tenant:admin'))
       await ensureAdminRemains(ctx, operatorId);
@@ -140,7 +166,7 @@ export const removeMember = defineUseCase({
   output: z.object({ operatorId: OperatorId, revokedKeys: z.number().int() }),
   examples: [{ input: { operatorId: '01900000-0000-7000-8000-000000000001' } }],
   async handler(ctx, { operatorId }) {
-    await ctx.members.lock();
+    await lockAsCurrentActor(ctx);
     const member = await requireMember(ctx, operatorId);
     if (member.capabilities.includes('tenant:admin')) await ensureAdminRemains(ctx, operatorId);
     await ctx.members.remove(operatorId);
@@ -175,7 +201,9 @@ export const createKey = defineUseCase({
   examples: [{ input: { name: 'Newsletter sync', capabilities: ['supporters:read'] } }],
   async handler(ctx, { name, capabilities }) {
     requireEntitled(ctx.principal, 'api_keys');
-    const beyond = capabilities.filter((c) => !can(ctx.principal, c));
+    // Before the insert, so a concurrent removal or demotion either sees this key or refuses it.
+    const held = await lockAsCurrentActor(ctx);
+    const beyond = capabilities.filter((c) => !covers(held, [c]));
     if (beyond.length)
       throw new UseCaseError('forbidden', `a key cannot get ${beyond.join(', ')}: you lack it`);
     const id = ctx.ids.next();
