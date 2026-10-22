@@ -139,6 +139,67 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
     expect(tried).toEqual({ read: 'ok', createdAt: '42501', write: '42501' });
   });
 
+  /** One statement as mycel_platform, entered from the authentication login like the API. */
+  const asPlatform = (statement: string, params: unknown[] = []) =>
+    as(authUrl!, async (c) => {
+      await c.query('begin');
+      await c.query('set local role mycel_platform');
+      const state = await sqlState(c.query(statement, params));
+      await c.query('rollback');
+      return state;
+    });
+
+  it('gives mycel_platform no login, no superuser and no RLS bypass', async () => {
+    const { rows } = await as(operatorUrl!, (c) =>
+      c.query(
+        `select rolcanlogin, rolsuper, rolbypassrls from pg_roles where rolname = 'mycel_platform'`
+      )
+    );
+    expect(rows).toEqual([{ rolcanlogin: false, rolsuper: false, rolbypassrls: false }]);
+  });
+
+  it('lets mycel_platform touch tenants and platform hostnames only, as the grants say', async () => {
+    const a = await create('ent-pa');
+    await create('ent-pb');
+    // What the role may do: read hostnames across tenants.
+    const { rows } = await as(authUrl!, async (c) => {
+      await c.query('begin');
+      await c.query('set local role mycel_platform');
+      const r = await c.query<{ n: string }>(
+        `select count(distinct tenant_id) as n from tenant_hostnames where hostname like $1`,
+        [`ent-p_-${run}.${DOMAIN}`]
+      );
+      await c.query('rollback');
+      return r;
+    });
+    expect(Number(rows[0]?.n)).toBe(2);
+
+    // Nothing of a tenant's data, nothing of identity, no queues.
+    for (const table of [
+      'supporters',
+      'events',
+      'form_submissions',
+      'api_keys',
+      'tenant_memberships',
+      'operators',
+      'outbox',
+      'jobs',
+    ])
+      expect(await asPlatform(`select count(*) from ${table}`), table).toBe('42501');
+    // On tenants: no rename, no new slug, no delete.
+    expect(await asPlatform(`update tenants set name = 'x' where id = $1`, [a.id])).toBe('42501');
+    expect(await asPlatform(`update tenants set slug = 'x' where id = $1`, [a.id])).toBe('42501');
+    expect(await asPlatform(`delete from tenants where id = $1`, [a.id])).toBe('42501');
+    // A custom hostname is the tenant's own business (`tenant.hostnames.add`): RLS with check.
+    expect(
+      await asPlatform(
+        `insert into tenant_hostnames (hostname, tenant_id, kind, verification_token)
+         values ($1, $2, 'custom', 't')`,
+        [`custom-${run}.example.org`, a.id]
+      )
+    ).toBe('42501');
+  });
+
   it('brings an empty and a partial document to the Principal, merged over the defaults', async () => {
     const empty = await create('ent-empty');
     const partial = await create('ent-part', { remove_branding: false, 'supporters.max': 250 });

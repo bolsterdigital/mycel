@@ -1,10 +1,11 @@
 // The platform API (ADR 015 rule 4, ADR 002 rule 4, TODO #16): how a hoster's billing system
 // (for Bureau Bolster: the client portal) creates tenants and sets their entitlements and status.
 // Mounted at `/platform/*` in the same Hono app, but outside the registry: these operations run
-// on the operator connection under no tenant, so they are not use cases, not MCP tools and not in
-// `/openapi.json` (that document describes the tenant API). Their shape is in
-// docs/reference/platform-api.md; the functions behind them are packages/db/src/platform.ts,
-// which `npm run platform` calls too.
+// under no tenant, so they are not use cases, not MCP tools and not in `/openapi.json` (that
+// document describes the tenant API). They run as the `mycel_platform` role, entered from the
+// authentication login; the API never holds the schema owner's credentials (ADR 011 rule 1).
+// Their shape is in docs/reference/platform-api.md; the functions behind them are
+// packages/db/src/platform.ts, which `npm run platform` calls too.
 //
 // One bearer token, PLATFORM_API_TOKEN, compared in constant time over SHA-256 digests (equal
 // length whatever the caller sends). Without the variable the routes do not exist: a self-hoster
@@ -37,7 +38,7 @@ export interface PlatformTenantView {
   entitlements: Entitlements;
 }
 
-/** The platform functions of packages/db, bound to the operator connection (compose.ts). */
+/** The platform functions of packages/db, bound to the authentication login (compose.ts). */
 export interface PlatformStore {
   create(input: {
     slug: string;

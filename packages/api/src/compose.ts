@@ -62,7 +62,7 @@ const Config = z
     NODE_ENV: z.string().default('development'),
     /**
      * Operator role (schema owner): migrations, seed, and the outbox and job workers when they run
-     * in this process. Only `startWorker` uses it; the web front never needs it.
+     * in this process. Only `startWorker` uses it; the fronts and the platform API never need it.
      */
     DATABASE_URL: z.string().url().optional(),
     /** Application role (mycel_app), subject to RLS. Required: fronts never run as the owner. */
@@ -116,7 +116,8 @@ const Config = z
     MYCEL_TRUST_PROXY: z.enum(['0', '1']).default('0'),
     /**
      * Bearer token of the platform API (`/platform/*`, TODO #16), for the hoster's portal. Unset:
-     * the routes do not exist and tenants are managed with `npm run platform`. Needs DATABASE_URL.
+     * the routes do not exist and tenants are managed with `npm run platform`. Needs nothing but
+     * AUTH_DATABASE_URL: the routes enter `mycel_platform` from that login (0010, ADR 011 rule 1).
      */
     PLATFORM_API_TOKEN: z.string().min(32).optional(),
     /** Where the "Runs on Mycel" footer credit links (ADR 015 rule 5). */
@@ -146,9 +147,6 @@ const Config = z
   })
   .refine((c) => !(c.NODE_ENV === 'production' && c.MAIL_SPOOL_DIR), {
     message: 'MAIL_SPOOL_DIR is not allowed in production',
-  })
-  .refine((c) => !c.PLATFORM_API_TOKEN || c.DATABASE_URL, {
-    message: 'PLATFORM_API_TOKEN needs DATABASE_URL (platform operations run as the operator)',
   })
   .refine((c) => !c.OIDC_ISSUER || c.OIDC_CLIENT_ID, {
     message: 'OIDC_ISSUER needs OIDC_CLIENT_ID',
@@ -268,19 +266,19 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
     }),
   ];
   const stops: (() => Promise<void>)[] = [];
-  const platformApi: PlatformDeps | undefined =
-    config.PLATFORM_API_TOKEN && operatorDb
-      ? {
-          token: config.PLATFORM_API_TOKEN,
-          store: {
-            create: (input) => createTenant(operatorDb, { id: uuidv7(), ...input }, platform),
-            list: () => listTenants(operatorDb),
-            get: (id) => getTenant(operatorDb, id),
-            setEntitlements: (id, document) => setEntitlements(operatorDb, id, document),
-            setStatus: (id, status) => setStatus(operatorDb, id, status),
-          },
-        }
-      : undefined;
+  // On the authentication login: each platform function enters mycel_platform itself (0010).
+  const platformApi: PlatformDeps | undefined = config.PLATFORM_API_TOKEN
+    ? {
+        token: config.PLATFORM_API_TOKEN,
+        store: {
+          create: (input) => createTenant(authDb, { id: uuidv7(), ...input }, platform),
+          list: () => listTenants(authDb),
+          get: (id) => getTenant(authDb, id),
+          setEntitlements: (id, document) => setEntitlements(authDb, id, document),
+          setStatus: (id, status) => setStatus(authDb, id, status),
+        },
+      }
+    : undefined;
 
   return {
     config,

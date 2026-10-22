@@ -1,6 +1,8 @@
 // The platform API over HTTP against Postgres (TODO #16, ADR 015 rule 4): the real composition
-// root, the real operator-connection functions, and the effect of a change on the Principal of a
-// tenant's API key in the very next request.
+// root, the real platform functions, and the effect of a change on the Principal of a tenant's
+// API key in the very next request. Every runtime here is built without DATABASE_URL: that the
+// routes work at all proves the API needs no schema-owner credentials (ADR 011 rule 1; review
+// round 1, audit point 2).
 //
 // Skips without the three database URLs; with E2E_REQUIRED=1 (CI) that is a failure.
 
@@ -24,6 +26,7 @@ describe.skipIf(!ready)('platform API', () => {
     const rt = createRuntime(
       loadConfig({
         ...env,
+        DATABASE_URL: undefined,
         SIGNING_SECRET: env['SIGNING_SECRET'] ?? 'conformance-signing-secret',
         PUBLIC_BASE_URL: env['PUBLIC_BASE_URL'] ?? 'http://127.0.0.1:4173',
         MAIL_FROM: env['MAIL_FROM'] ?? 'noreply@example.org',
@@ -76,6 +79,7 @@ describe.skipIf(!ready)('platform API', () => {
 
   it('creates, lists, reads, sets entitlements and status, and the next request sees it', async () => {
     const rt = runtime(TOKEN);
+    expect(rt.config.DATABASE_URL).toBeUndefined();
     const app = appOf(rt);
     const call = (method: string, path: string, body?: unknown) =>
       app.request(`/platform${path}`, {

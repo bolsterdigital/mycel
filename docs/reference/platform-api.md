@@ -2,14 +2,14 @@
 
 How a hoster creates tenants and sets what each may use (ADR 015 rule 4, TODO #16). The hosted service's billing system (for Bureau Bolster: the client portal) calls it; a self-hoster uses the same functions through `npm run platform` and never needs the API. Prices, tier names and presets are the hoster's business and never appear in this repository.
 
-These routes are **not** use cases: they run on the operator connection under no tenant (ADR 002 rule 4), so they are not in the registry, not MCP tools and not in `/openapi.json`. The functions behind them are `packages/db/src/platform.ts`.
+These routes are **not** use cases: they run under no tenant (ADR 002 rule 4), so they are not in the registry, not MCP tools and not in `/openapi.json`. They run as the `mycel_platform` role, entered from the authentication login; the API never holds the schema owner's credentials (ADR 011 rule 1). That role may read and insert tenants, update their entitlements and status, and read and insert platform hostnames, and nothing else. The functions behind them are `packages/db/src/platform.ts`; `npm run platform` enters the same role from the operator connection.
 
 ## Enabling it
 
-| Variable              | Meaning                                                                                                |
-| --------------------- | ------------------------------------------------------------------------------------------------------ |
-| `PLATFORM_API_TOKEN`  | Bearer token, at least 32 characters. Unset: `/platform/*` does not exist (404). Needs `DATABASE_URL`. |
-| `PLATFORM_CREDIT_URL` | Where the "Runs on Mycel" footer credit links (ADR 015 rule 5). Default `https://mycel.dev`.           |
+| Variable              | Meaning                                                                                                                                                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PLATFORM_API_TOKEN`  | Bearer token, at least 32 characters. Unset: `/platform/*` does not exist (404). Needs nothing but `AUTH_DATABASE_URL`: the routes run as `mycel_platform`, entered from the authentication login (ADR 011 rule 1). |
+| `PLATFORM_CREDIT_URL` | Where the "Runs on Mycel" footer credit links (ADR 015 rule 5). Default `https://mycel.dev`.                                                                                                                        |
 
 The token is compared in constant time. It grants everything this page describes for every tenant, so it lives in the hoster's secret store and nowhere else, and the routes should not be reachable from the public internet (the Caddy example keeps `/internal/*` closed; do the same for `/platform/*` unless the portal calls it over a private network).
 

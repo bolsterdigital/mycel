@@ -1,15 +1,19 @@
 // Platform operations (ADR 002 rule 4, ADR 015 rule 4, TODO #16): create and list tenants, set
-// their entitlements and status. They run on the operator connection and under no tenant, so
-// they are not use cases: nothing here is in the registry, reachable over MCP or callable as
-// mycel_app. Two callers share these functions: the platform API (`/platform/*` in
-// packages/api, for the hoster's portal) and `npm run platform` (scripts/platform.mjs, for a
-// self-hoster), so both refuse and accept exactly the same things.
+// their entitlements and status. They run under no tenant, so they are not use cases: nothing
+// here is in the registry, reachable over MCP or callable as mycel_app. Two callers share these
+// functions: the platform API (`/platform/*` in packages/api, for the hoster's portal) and
+// `npm run platform` (scripts/platform.mjs, for a self-hoster), so both refuse and accept exactly
+// the same things.
 //
-// Reads across tenants (the primary hostname in a listing, whether a platform hostname is taken)
-// enter `mycel_auth` with `set local role`, like `createSiteDirectory`: `tenant_hostnames` is
-// under forced RLS, which binds the schema owner too (0008). Rejected: a `platform:admin`
-// capability on `api_keys` (tenant data under RLS; a key without a tenant would weaken it) and
-// these operations as use cases (they have no tenant context and do not run as mycel_app).
+// Every function is one transaction that first enters `mycel_platform` (migration 0010) with
+// `set local role`. The connection `db` is the authentication login (the API) or the operator
+// (the CLI, the seed); both are members of mycel_platform, and what a function can do is what
+// that role can do, not what the connection can: read and insert tenants, update their
+// entitlements and status, read and insert platform hostnames (policy `platform_hostnames`), and
+// nothing else (ADR 011 rule 1). Rejected: the operator connection in the API process (owner
+// credentials in a front), a `platform:admin` capability on `api_keys` (tenant data under RLS;
+// a key without a tenant would weaken it) and these operations as use cases (they have no tenant
+// context and do not run as mycel_app).
 
 import { sql, type Kysely } from 'kysely';
 import {
@@ -56,7 +60,9 @@ type Platform = Pick<PlatformConfig, 'domain' | 'devHosts' | 'platformOrigin'>;
  * The platform hostname `<slug>.<platform domain>` of a new tenant: verified from the start,
  * primary unless the tenant already has a primary, never removed (ADR 014 rule 2). Sets the
  * tenant context for the rest of the transaction: `tenant_hostnames` is under forced RLS, which
- * binds the schema owner when it is not a superuser (managed Postgres; review of PR #8).
+ * binds the schema owner when it is not a superuser (managed Postgres; review of PR #8). That is
+ * the seed's `upsertTenant` path on the operator role; under mycel_platform the setting is
+ * harmless, because `platform_hostnames` already lets that role read and insert platform rows.
  */
 export async function insertPlatformHostname(
   trx: Trx,
@@ -84,14 +90,14 @@ export async function insertPlatformHostname(
 }
 
 /**
- * Run `fn` as mycel_auth inside `trx`, then return to the operator role. No `finally`: after a
- * failed statement the transaction is aborted and rolls back, role and all.
+ * One transaction on `db` as mycel_platform. No `reset role`: `set local` ends with the
+ * transaction, and a failed statement rolls back role and all.
  */
-async function asAuth<T>(trx: Trx, fn: () => Promise<T>): Promise<T> {
-  await sql`set local role mycel_auth`.execute(trx);
-  const result = await fn();
-  await sql`reset role`.execute(trx);
-  return result;
+function asPlatform<T>(db: Kysely<Database>, fn: (trx: Trx) => Promise<T>): Promise<T> {
+  return db.transaction().execute(async (trx) => {
+    await sql`set local role mycel_platform`.execute(trx);
+    return fn(trx);
+  });
 }
 
 const SLUG = /^[a-z0-9][a-z0-9-]{1,62}$/;
@@ -114,7 +120,7 @@ function validDocument(document: unknown): EntitlementsDocument {
  * a slug whose platform hostname is already some tenant's hostname.
  */
 export async function createTenant(
-  operatorDb: Kysely<Database>,
+  db: Kysely<Database>,
   tenant: NewTenant,
   platform: Platform
 ): Promise<PlatformTenant> {
@@ -139,14 +145,12 @@ export async function createTenant(
       { path: 'defaultLocale', message: 'invalid' },
     ]);
 
-  await operatorDb.transaction().execute(async (trx) => {
-    const taken = await asAuth(trx, () =>
-      trx
-        .selectFrom('tenant_hostnames')
-        .select('hostname')
-        .where('hostname', '=', hostname)
-        .executeTakeFirst()
-    );
+  return asPlatform(db, async (trx) => {
+    const taken = await trx
+      .selectFrom('tenant_hostnames')
+      .select('hostname')
+      .where('hostname', '=', hostname)
+      .executeTakeFirst();
     if (taken) throw new UseCaseError('conflict', `the hostname ${hostname} is already in use`);
     const row = await trx
       .insertInto('tenants')
@@ -163,8 +167,8 @@ export async function createTenant(
       .executeTakeFirst();
     if (!row) throw new UseCaseError('conflict', `a tenant with slug "${tenant.slug}" exists`);
     await insertPlatformHostname(trx, row, platform.domain);
+    return (await readTenant(trx, tenant.id))!;
   });
-  return (await getTenant(operatorDb, tenant.id))!;
 }
 
 function tenantQuery(trx: Trx) {
@@ -206,36 +210,29 @@ const toTenant = (r: TenantRow): PlatformTenant => {
   };
 };
 
-export async function listTenants(operatorDb: Kysely<Database>): Promise<PlatformTenant[]> {
-  return operatorDb
-    .transaction()
-    .execute(async (trx) =>
-      asAuth(trx, async () => (await tenantQuery(trx).orderBy('t.slug').execute()).map(toTenant))
-    );
+async function readTenant(trx: Trx, id: string): Promise<PlatformTenant | null> {
+  const r = await tenantQuery(trx).where('t.id', '=', id).executeTakeFirst();
+  return r ? toTenant(r) : null;
 }
 
-export async function getTenant(
-  operatorDb: Kysely<Database>,
-  id: string
-): Promise<PlatformTenant | null> {
-  return operatorDb.transaction().execute(async (trx) =>
-    asAuth(trx, async () => {
-      const r = await tenantQuery(trx).where('t.id', '=', id).executeTakeFirst();
-      return r ? toTenant(r) : null;
-    })
+export async function listTenants(db: Kysely<Database>): Promise<PlatformTenant[]> {
+  return asPlatform(db, async (trx) =>
+    (await tenantQuery(trx).orderBy('t.slug').execute()).map(toTenant)
   );
 }
 
+export async function getTenant(db: Kysely<Database>, id: string): Promise<PlatformTenant | null> {
+  return asPlatform(db, (trx) => readTenant(trx, id));
+}
+
 export async function getTenantBySlug(
-  operatorDb: Kysely<Database>,
+  db: Kysely<Database>,
   slug: string
 ): Promise<PlatformTenant | null> {
-  const r = await operatorDb
-    .selectFrom('tenants')
-    .select('id')
-    .where('slug', '=', slug)
-    .executeTakeFirst();
-  return r ? getTenant(operatorDb, r.id) : null;
+  return asPlatform(db, async (trx) => {
+    const r = await tenantQuery(trx).where('t.slug', '=', slug).executeTakeFirst();
+    return r ? toTenant(r) : null;
+  });
 }
 
 /**
@@ -243,21 +240,23 @@ export async function getTenantBySlug(
  * unknown); the effective values are the merge. Null for an unknown tenant.
  */
 export async function setEntitlements(
-  operatorDb: Kysely<Database>,
+  db: Kysely<Database>,
   id: string,
   document: unknown
 ): Promise<PlatformTenant | null> {
   const valid = validDocument(document);
-  const r = await operatorDb
-    .updateTable('tenants')
-    .set({ entitlements: JSON.stringify(valid) })
-    .where('id', '=', id)
-    .executeTakeFirst();
-  return r.numUpdatedRows > 0n ? getTenant(operatorDb, id) : null;
+  return asPlatform(db, async (trx) => {
+    const r = await trx
+      .updateTable('tenants')
+      .set({ entitlements: JSON.stringify(valid) })
+      .where('id', '=', id)
+      .executeTakeFirst();
+    return r.numUpdatedRows > 0n ? readTenant(trx, id) : null;
+  });
 }
 
 export async function setStatus(
-  operatorDb: Kysely<Database>,
+  db: Kysely<Database>,
   id: string,
   status: TenantStatus
 ): Promise<PlatformTenant | null> {
@@ -265,10 +264,12 @@ export async function setStatus(
     throw new UseCaseError('invalid_input', 'status must be active or suspended', [
       { path: 'status', message: 'invalid' },
     ]);
-  const r = await operatorDb
-    .updateTable('tenants')
-    .set({ status })
-    .where('id', '=', id)
-    .executeTakeFirst();
-  return r.numUpdatedRows > 0n ? getTenant(operatorDb, id) : null;
+  return asPlatform(db, async (trx) => {
+    const r = await trx
+      .updateTable('tenants')
+      .set({ status })
+      .where('id', '=', id)
+      .executeTakeFirst();
+    return r.numUpdatedRows > 0n ? readTenant(trx, id) : null;
+  });
 }

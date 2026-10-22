@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Platform operations for a self-hoster (TODO #16, ADR 015 rule 4): the same functions as the
 // platform API (packages/db/src/platform.ts), on the operator connection, without a token,
-// because whoever holds DATABASE_URL already holds everything. `mycel setup` (TODO #18) takes
+// because whoever holds DATABASE_URL already holds everything. The functions enter
+// `mycel_platform` themselves (0010), so the CLI and the API run under the same grants. `mycel setup` (TODO #18) takes
 // this over. Rejected: calling the platform API over HTTP from here, which would make a
 // self-hoster run the API with PLATFORM_API_TOKEN just to change a limit.
 //
