@@ -25,5 +25,23 @@ services:
       timeout: 3s
       retries: 20
 
+  # S3-compatible storage for the BlobStore contract suite (TODO #10). Opt-in, because the
+  # default store is a directory (`BLOB_STORE=fs`): `docker compose -f compose.dev.yml --profile
+  # blob up -d`, then set the BLOB_S3_* variables from .env.example. Bound to 127.0.0.1 like
+  # Postgres; the port comes from MYCEL_S3_PORT for the same reason as MYCEL_PG_PORT. RustFS
+  # (Apache-2.0) and not MinIO: MinIO no longer publishes container images, and RustFS starts
+  # from environment variables alone, which a GitHub Actions service container needs.
+  s3:
+    profiles: ['blob']
+    image: rustfs/rustfs:1.0.1
+    environment:
+      RUSTFS_ACCESS_KEY: mycel
+      RUSTFS_SECRET_KEY: mycel-s3-dev
+    ports:
+      - '127.0.0.1:${MYCEL_S3_PORT:-9000}:9000'
+    volumes:
+      - mycel-s3:/data
+
 volumes:
   mycel-pg:
+  mycel-s3:

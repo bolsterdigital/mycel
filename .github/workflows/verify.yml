@@ -29,6 +29,14 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U mycel -d mycel" --health-interval 2s --health-timeout 3s
           --health-retries 20
+      # S3-compatible storage for the BlobStore contract suite (TODO #10); RustFS because MinIO
+      # no longer publishes images (compose.dev.yml says the same). The suite creates its bucket.
+      s3:
+        image: rustfs/rustfs:1.0.1
+        env:
+          RUSTFS_ACCESS_KEY: mycel
+          RUSTFS_SECRET_KEY: mycel-s3-ci
+        ports: ['9000:9000']
     env:
       DATABASE_URL: postgres://mycel:mycel@localhost:5432/mycel
       APP_DATABASE_URL: postgres://mycel_app:mycel_app_ci@localhost:5432/mycel
@@ -40,6 +48,12 @@ jobs:
       PLATFORM_DOMAIN: localhost
       MAIL_FROM: CI <noreply@example.org>
       MAILER: console
+      BLOB_S3_ENDPOINT: http://127.0.0.1:9000
+      BLOB_S3_REGION: us-east-1
+      BLOB_S3_BUCKET: mycel-ci
+      BLOB_S3_ACCESS_KEY_ID: mycel
+      BLOB_S3_SECRET_ACCESS_KEY: mycel-s3-ci
+      BLOB_S3_FORCE_PATH_STYLE: '1'
       # In CI a missing database or browser fails the e2e gate instead of skipping it.
       E2E_REQUIRED: '1'
     steps:
@@ -88,13 +102,15 @@ jobs:
         run: |
           # Dummy configuration: /healthz touches no adapter and the pools connect lazily, so no
           # database is needed to prove the processes start. MAILER=console is refused in
-          # production, hence the placeholder TEM settings.
+          # production, hence the placeholder TEM settings; likewise the fs blob store, hence the
+          # placeholder bucket (the S3 client connects on first use, not at start).
           env_args="-e APP_DATABASE_URL=postgres://mycel_app:x@127.0.0.1:1/mycel
             -e AUTH_DATABASE_URL=postgres://mycel_authenticator:x@127.0.0.1:1/mycel
             -e DATABASE_URL=postgres://mycel:x@127.0.0.1:1/mycel
             -e SIGNING_SECRET=ci-only-signing-secret -e PUBLIC_BASE_URL=http://localhost:3000
             -e PLATFORM_DOMAIN=example.org -e MYCEL_TRUST_PROXY=1
-            -e MAIL_FROM=noreply@example.org -e MAILER=tem -e TEM_SECRET_KEY=x -e TEM_PROJECT_ID=x"
+            -e MAIL_FROM=noreply@example.org -e MAILER=tem -e TEM_SECRET_KEY=x -e TEM_PROJECT_ID=x
+            -e BLOB_STORE=s3 -e BLOB_S3_BUCKET=x -e BLOB_S3_ACCESS_KEY_ID=x -e BLOB_S3_SECRET_ACCESS_KEY=x"
           for role in api web worker; do
             docker run -d --name "mycel-$role" --health-interval 2s --health-start-period 2s \
               $env_args mycel:ci "$role"
