@@ -10,11 +10,16 @@ useDefault = true
 [allowlist]
 description = "CI and local development placeholders, never valid anywhere"
 regexes = [
-  '''ci-only-signing-secret''',
-  '''ci-only-audit-hash-key''',
-  '''mycel_app_ci''',
-  '''mycel_auth_ci''',
-  '''mycel-s3-ci''',
-  '''mycel-s3-dev''',
-  '''change-me''',
+  # Match the entire extracted secret, never a substring of a provider token.
+  '^ci-only-signing-secret$',
+  '^ci-only-audit-hash-key$',
+  '^mycel_app_ci$',
+  '^mycel_auth_ci$',
+  '^mycel-s3-ci$',
+  '^mycel-s3-dev$',
+  '^change-me-app$',
+  '^change-me-auth$',
+  '^dev-only-signing-secret-change-me$',
+  '^dev-only-audit-hash-key-change-me$',
+  '^dev-api-key-change-me$',
 ]

@@ -113,6 +113,9 @@ jobs:
           docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 \
             git /repo --config /repo/.gitleaks.toml --redact --verbose
 
+      - name: Secretscan allow-list regression
+        run: node --test scripts/gitleaks.test.mjs
+
   # The deployable artefact (Dockerfile): build it without pushing, then start each entrypoint
   # and wait for its HEALTHCHECK. A separate job so an image problem shows up as its own red
   # check next to `verify`. Publishing to a registry is the deploy workflow's job, not this one.
