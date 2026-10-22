@@ -6,7 +6,8 @@
 
 import { createHash } from 'node:crypto';
 import { Hono, type Context } from 'hono';
-import { UseCaseError, type Invoker, type Principal } from '@mycel/core';
+import { bodyLimit } from 'hono/body-limit';
+import { MAX_UPLOAD_BYTES, UseCaseError, type Invoker, type Principal } from '@mycel/core';
 import { coerceQuery, flatQueryFields, methodsOf } from './http-shape.js';
 import { openApiDocument } from './openapi.js';
 import { createPlatformApp, type PlatformDeps } from './platform.js';
@@ -18,6 +19,13 @@ export interface AppDeps {
   /** The platform API (TODO #16); absent without PLATFORM_API_TOKEN, and `/platform/*` is a 404. */
   platform?: PlatformDeps | undefined;
 }
+
+/**
+ * The largest JSON body any use case takes: a base64 upload of `MAX_UPLOAD_BYTES` (a third
+ * larger) plus room for its other fields. One limit for every route, so no route names a use
+ * case; the use case's own schema refuses what is too large inside that (`invalid_input`).
+ */
+export const MAX_BODY_BYTES = Math.ceil(MAX_UPLOAD_BYTES / 3) * 4 + 1024 * 1024;
 
 const unauthorized = () =>
   problem('unauthorized', 'send Authorization: Bearer <api key>', [], {
@@ -59,6 +67,14 @@ export function createApp({ invoker, authenticate, platform }: AppDeps): Hono {
 
   const principalOf = (c: Context) => authenticate(c.req.header('authorization'));
 
+  app.post(
+    '/v1/:name',
+    bodyLimit({
+      maxSize: MAX_BODY_BYTES,
+      onError: () =>
+        problem('payload_too_large', `the body is larger than ${MAX_BODY_BYTES} bytes`),
+    })
+  );
   app.post('/v1/:name', async (c) => {
     const principal = await principalOf(c);
     if (!principal) return unauthorized();

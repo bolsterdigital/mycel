@@ -6,7 +6,8 @@
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { Issue, UseCaseErrorCode } from '@mycel/core';
 
-export type ProblemCode = UseCaseErrorCode | 'unauthorized' | 'method_not_allowed' | 'internal';
+export type ProblemCode =
+  UseCaseErrorCode | 'unauthorized' | 'method_not_allowed' | 'payload_too_large' | 'internal';
 
 export const PROBLEMS: Record<ProblemCode, { status: ContentfulStatusCode; title: string }> = {
   invalid_input: { status: 400, title: 'Invalid input' },
@@ -15,6 +16,7 @@ export const PROBLEMS: Record<ProblemCode, { status: ContentfulStatusCode; title
   not_found: { status: 404, title: 'Not found' },
   method_not_allowed: { status: 405, title: 'Method not allowed' },
   conflict: { status: 409, title: 'Conflict' },
+  payload_too_large: { status: 413, title: 'Payload too large' },
   // ADR 015 rule 3: 403, not 402, so the price question stays out of this repository.
   limit_exceeded: { status: 403, title: 'Limit exceeded' },
   suspended: { status: 403, title: 'Site suspended' },

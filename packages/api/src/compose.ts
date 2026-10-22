@@ -4,14 +4,18 @@
 // Rejected: a composition file per front (the overview's first sketch), which the probe showed
 // would triplicate config parsing, signer setup and subscriber lists.
 
+import { isAbsolute, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import {
   Invoker,
+  appDelivery,
   buildRegistry,
   confirmationMailSubscriber,
   normalizeHostname,
   siteUrl,
   supporterIngestSubscriber,
+  type BlobStore,
   type Clock,
   type IdentityStore,
   type Mailer,
@@ -39,7 +43,9 @@ import {
   uuidv7,
   uuidv7Ids,
 } from '@mycel/db';
+import { createFsBlobStore, createS3BlobStore } from '@mycel/blob';
 import { ConsoleMailer, TemMailer } from '@mycel/mail-tem';
+import { createSharpProcessor } from '@mycel/media-sharp';
 import { createAuthenticator, type Authenticator } from './auth.js';
 import { createDnsResolver } from './dns.js';
 import type { PlatformDeps } from './platform.js';
@@ -122,6 +128,23 @@ const Config = z
     PLATFORM_API_TOKEN: z.string().min(32).optional(),
     /** Where the "Runs on Mycel" footer credit links (ADR 015 rule 5). */
     PLATFORM_CREDIT_URL: z.string().url().default('https://mycel.dev'),
+    /**
+     * Where media files live (TODO #10): `fs` (a directory, BLOB_DIR) for development, the e2e
+     * gate and a small self-host; `s3` (any S3-compatible bucket, private) in production.
+     */
+    BLOB_STORE: z.enum(['fs', 's3']).optional(),
+    /**
+     * The `fs` store's directory. A relative path is taken from the repository root, so the web
+     * app (run from apps/web) and the API (from packages/api) share one store in development.
+     */
+    BLOB_DIR: z.string().min(1).default('.scratch/blob'),
+    BLOB_S3_ENDPOINT: z.string().url().optional(),
+    BLOB_S3_REGION: z.string().min(1).default('us-east-1'),
+    BLOB_S3_BUCKET: z.string().min(1).optional(),
+    BLOB_S3_ACCESS_KEY_ID: z.string().min(1).optional(),
+    BLOB_S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+    /** `1` for MinIO-style endpoints that do not serve virtual-hosted buckets. */
+    BLOB_S3_FORCE_PATH_STYLE: z.enum(['0', '1']).default('0'),
   })
   .refine(
     (c) =>
@@ -148,6 +171,18 @@ const Config = z
   .refine((c) => !(c.NODE_ENV === 'production' && c.MAIL_SPOOL_DIR), {
     message: 'MAIL_SPOOL_DIR is not allowed in production',
   })
+  .refine((c) => !(c.NODE_ENV === 'production' && blobStoreOf(c) !== 's3'), {
+    message: 'BLOB_STORE=s3 is required in production (a directory is not backed up with the data)',
+  })
+  .refine(
+    (c) =>
+      blobStoreOf(c) !== 's3' ||
+      (c.BLOB_S3_BUCKET && c.BLOB_S3_ACCESS_KEY_ID && c.BLOB_S3_SECRET_ACCESS_KEY),
+    {
+      message:
+        'BLOB_STORE=s3 needs BLOB_S3_BUCKET, BLOB_S3_ACCESS_KEY_ID and BLOB_S3_SECRET_ACCESS_KEY',
+    }
+  )
   .refine((c) => !c.OIDC_ISSUER || c.OIDC_CLIENT_ID, {
     message: 'OIDC_ISSUER needs OIDC_CLIENT_ID',
   })
@@ -160,6 +195,29 @@ const Config = z
     message: 'PUBLIC_BASE_URL must be https in production when operator login is configured',
   });
 export type RuntimeConfig = z.infer<typeof Config>;
+
+/** `fs` unless set: a production config without BLOB_STORE fails the refine above. */
+function blobStoreOf(c: { BLOB_STORE?: 'fs' | 's3' | undefined }): 'fs' | 's3' {
+  return c.BLOB_STORE ?? 'fs';
+}
+
+/** The BlobStore the configuration names; S3 credentials were checked by `loadConfig`. */
+export function blobStoreFor(config: RuntimeConfig): BlobStore {
+  return blobStoreOf(config) === 's3'
+    ? createS3BlobStore({
+        endpoint: config.BLOB_S3_ENDPOINT,
+        region: config.BLOB_S3_REGION,
+        bucket: config.BLOB_S3_BUCKET ?? '',
+        accessKeyId: config.BLOB_S3_ACCESS_KEY_ID ?? '',
+        secretAccessKey: config.BLOB_S3_SECRET_ACCESS_KEY ?? '',
+        forcePathStyle: config.BLOB_S3_FORCE_PATH_STYLE === '1',
+      })
+    : createFsBlobStore(
+        isAbsolute(config.BLOB_DIR)
+          ? config.BLOB_DIR
+          : resolve(fileURLToPath(new URL('../../..', import.meta.url)), config.BLOB_DIR)
+      );
+}
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): RuntimeConfig {
   const parsed = Config.safeParse(env);
@@ -206,6 +264,8 @@ export interface Runtime {
   clock: Clock;
   signer: HmacSigner;
   mailer: Mailer;
+  /** Media files (TODO #10); the web front's delivery route reads variants from here. */
+  blobs: BlobStore;
   subscribers: Subscriber[];
   /** Authentication-time lookups (operators, memberships, keys) as mycel_auth. */
   identity: IdentityStore;
@@ -227,12 +287,14 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
   const authDb = createDb(config.AUTH_DATABASE_URL);
   const operatorDb = config.DATABASE_URL ? createDb(config.DATABASE_URL) : null;
   const platform = platformOf(config);
+  const blobs = blobStoreFor(config);
   const uow = createUnitOfWork(appDb, {
     clock,
     ids: uuidv7Ids,
     signer,
     dns: createDnsResolver(),
     platform,
+    media: { blobs, images: createSharpProcessor(), delivery: appDelivery },
   });
   const tenants = createTenantDirectory(appDb);
   const identity = createIdentityStore(authDb, uuidv7Ids);
@@ -291,6 +353,7 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
     clock,
     signer,
     mailer,
+    blobs,
     subscribers,
     identity,
     authenticateApiKey: auth.authenticateApiKey,
