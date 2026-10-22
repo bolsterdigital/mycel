@@ -9,6 +9,7 @@ const runtime = createRuntime();
 const app = createApp({
   invoker: runtime.invoker,
   authenticate: (h) => runtime.authenticateApiKey(h),
+  platform: runtime.platformApi,
 });
 const port = Number(process.env['PORT'] ?? 8787);
 const server = serve({ fetch: app.fetch, port }, () =>

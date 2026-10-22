@@ -76,18 +76,26 @@ export function normalizeHostname(raw: string): string {
 export const underDomain = (hostname: string, domain: string): boolean =>
   hostname === domain || hostname.endsWith(`.${domain}`);
 
+/** The host of the platform origin (PUBLIC_BASE_URL): where the admin lives, never a site. */
+export const platformOriginHost = (platformOrigin: string): string =>
+  new URL(platformOrigin).hostname;
+
 /**
  * A custom hostname is anything a tenant may bring: never the platform domain or a subdomain of
- * it (those are platform hostnames, made at tenant creation), and never a development host.
+ * it (those are platform hostnames, made at tenant creation), never a development host, and
+ * never the host of the platform origin, which serves the admin and could never be verified
+ * (review of PR #8, point (c)).
  */
 export function normalizeCustomHostname(
   raw: string,
-  platform: { domain: string; devHosts: readonly string[] }
+  platform: { domain: string; devHosts: readonly string[]; platformOrigin?: string }
 ): string {
   const hostname = normalizeHostname(raw);
   if (underDomain(hostname, platform.domain))
     throw invalid(`cannot be under the platform domain ${platform.domain}`);
   if (platform.devHosts.includes(hostname)) throw invalid('is a development host');
+  if (platform.platformOrigin && hostname === platformOriginHost(platform.platformOrigin))
+    throw invalid('is the address of the platform itself');
   return hostname;
 }
 

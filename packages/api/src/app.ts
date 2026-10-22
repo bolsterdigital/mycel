@@ -9,11 +9,14 @@ import { Hono, type Context } from 'hono';
 import { UseCaseError, type Invoker, type Principal } from '@mycel/core';
 import { coerceQuery, flatQueryFields, methodsOf } from './http-shape.js';
 import { openApiDocument } from './openapi.js';
+import { createPlatformApp, type PlatformDeps } from './platform.js';
 import { problem } from './problem.js';
 
 export interface AppDeps {
   invoker: Invoker;
   authenticate(authorization: string | undefined): Promise<Principal | null>;
+  /** The platform API (TODO #16); absent without PLATFORM_API_TOKEN, and `/platform/*` is a 404. */
+  platform?: PlatformDeps | undefined;
 }
 
 const unauthorized = () =>
@@ -31,7 +34,7 @@ function matches(ifNoneMatch: string | undefined, etag: string): boolean {
   return ifNoneMatch.split(',').some((tag) => tag.trim() === '*' || opaque(tag) === opaque(etag));
 }
 
-export function createApp({ invoker, authenticate }: AppDeps): Hono {
+export function createApp({ invoker, authenticate, platform }: AppDeps): Hono {
   const app = new Hono();
   const { registry } = invoker;
   const openapi = openApiDocument(registry);
@@ -51,6 +54,8 @@ export function createApp({ invoker, authenticate }: AppDeps): Hono {
       })),
     })
   );
+
+  if (platform) app.route('/platform', createPlatformApp(platform));
 
   const principalOf = (c: Context) => authenticate(c.req.header('authorization'));
 

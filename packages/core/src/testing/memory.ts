@@ -37,7 +37,12 @@ import type {
 } from '../operators/ports.js';
 import type { SupporterEvent } from '../supporters/events.js';
 import type { SupporterProjection } from '../supporters/model.js';
-import type { SupporterRepository } from '../supporters/ports.js';
+import {
+  ADMISSION_WINDOW_MS,
+  type SupporterAdmissions,
+  type SupporterRepository,
+} from '../supporters/ports.js';
+import { sha256Hex } from '../util/digest.js';
 import type {
   DnsResolver,
   HostnameRecord,
@@ -52,6 +57,14 @@ import { platformHostname } from '../tenants/model.js';
 import { DnsUnavailableError } from '../tenants/ports.js';
 import type { JobRecord, JobRequest, Scheduler } from '../jobs/ports.js';
 import type { JobType } from '../jobs/types.js';
+import {
+  DEFAULT_ACCESS,
+  effectiveEntitlements,
+  type EntitlementsDocument,
+  type TenantAccess,
+  type TenantStatus,
+} from '../entitlements/model.js';
+import type { UsageReader } from '../entitlements/ports.js';
 
 export class FakeClock implements Clock {
   constructor(public current = new Date('2026-10-21T12:00:00.000Z')) {}
@@ -124,6 +137,8 @@ interface TenantStore {
   apiKeys: Map<string, NewApiKey & { lastUsedAt: Date | null; revokedAt: Date | null }>;
   /** Keyed by hostname; global uniqueness is checked across tenants by `MemoryStore.hostnameOwner`. */
   hostnames: Map<string, HostnameRecord>;
+  /** `supporter_admissions` (0010): reserved-at keyed by the hash of tenant and address. */
+  admissions: Map<string, Date>;
 }
 
 /** Development defaults, the shape `.env.example` gives: path form on localhost. */
@@ -202,6 +217,25 @@ export class MemoryStore {
   readonly operators = new Map<string, OperatorRow>();
   /** Every tenant's and the platform's jobs, like the `jobs` table. */
   readonly jobs: JobRecord[] = [];
+  /** `tenants.entitlements` and `tenants.status` (0010); a tenant without a row has the defaults. */
+  readonly access = new Map<string, { entitlements: EntitlementsDocument; status: TenantStatus }>();
+
+  /** What the platform API's `setEntitlements` and `setStatus` do, in one call for tests. */
+  setAccess(
+    tenantId: string,
+    access: { entitlements?: EntitlementsDocument; status?: TenantStatus }
+  ): void {
+    const current = this.access.get(tenantId) ?? { entitlements: {}, status: 'active' as const };
+    this.access.set(tenantId, { ...current, ...access });
+  }
+
+  /** The effective entitlements and status, like `tenantAccess` over Postgres. */
+  accessOf(tenantId: string): TenantAccess {
+    const row = this.access.get(tenantId);
+    return row
+      ? { entitlements: effectiveEntitlements(row.entitlements), status: row.status }
+      : DEFAULT_ACCESS;
+  }
 
   for(tenantId: string): TenantStore {
     let store = this.tenants.get(tenantId);
@@ -217,6 +251,7 @@ export class MemoryStore {
         members: new Map(),
         apiKeys: new Map(),
         hostnames: new Map(),
+        admissions: new Map(),
       };
       this.tenants.set(tenantId, store);
     }
@@ -446,7 +481,44 @@ export class MemoryUnitOfWork implements UnitOfWork {
           k.lastUsedAt = new Date(at);
       },
     };
+    const admissionKey = (email: string) =>
+      sha256Hex(`${principal.tenantId}:${normalizeEmail(email)}`);
+    const live = (at: Date) => clock.now().getTime() - at.getTime() < ADMISSION_WINDOW_MS;
+    const admissions: SupporterAdmissions = {
+      // No-op for the same reason as `supporters.lock`; the Postgres conformance proves the lock.
+      async lock() {},
+      count: async () => s.projections.size + [...s.admissions.values()].filter(live).length,
+      async pending(email) {
+        const at = s.admissions.get(await admissionKey(email));
+        return at !== undefined && live(at);
+      },
+      async reserve(email) {
+        for (const [k, at] of s.admissions) if (!live(at)) s.admissions.delete(k);
+        const key = await admissionKey(email);
+        if (!s.admissions.has(key)) s.admissions.set(key, clock.now());
+      },
+      async release(email) {
+        s.admissions.delete(await admissionKey(email));
+      },
+    };
     const store = this.store;
+    const usage: UsageReader = {
+      supporters: async () => s.projections.size,
+      async mailsThisMonth() {
+        const now = clock.now();
+        return [...s.mailSends.values()].filter(
+          (m) =>
+            m.sentAt !== null &&
+            m.sentAt.getUTCFullYear() === now.getUTCFullYear() &&
+            m.sentAt.getUTCMonth() === now.getUTCMonth()
+        ).length;
+      },
+      // TODO #10: sum(size_bytes) over media
+      storageBytes: async () => 0,
+      customHostnames: async () =>
+        [...s.hostnames.values()].filter((h) => h.kind === 'custom').length,
+      operators: async () => s.members.size,
+    };
     const hostnames: HostnameRepository = {
       list: async () =>
         [...s.hostnames.values()]
@@ -508,12 +580,14 @@ export class MemoryUnitOfWork implements UnitOfWork {
       submissions,
       rateLimits,
       supporters,
+      admissions,
       mailSends,
       operators,
       members,
       apiKeys,
       hostnames,
       jobs: new MemoryScheduler(store, principal.tenantId, this.ids, clock),
+      usage,
     });
   }
 
@@ -601,6 +675,10 @@ export class MemoryIdentityStore implements IdentityStore {
           return { id: k.id, tenantId, capabilities: [...k.capabilities], revokedAt: k.revokedAt };
     return null;
   }
+
+  async tenantAccess(tenantId: string): Promise<TenantAccess> {
+    return this.store.accessOf(tenantId);
+  }
 }
 
 /**
@@ -624,6 +702,7 @@ export class MemorySiteDirectory implements SiteDirectory {
       tenant,
       hostname: { hostname, kind: h.kind, primary: h.primary, verifiedAt: h.verifiedAt },
       primaryHostname: primary?.hostname ?? null,
+      access: this.store.accessOf(tenantId),
     };
   }
 

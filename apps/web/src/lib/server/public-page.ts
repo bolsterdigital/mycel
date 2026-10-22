@@ -14,6 +14,7 @@ import {
   type TenantInfo,
 } from '@mycel/core';
 import { runtime } from './runtime.js';
+import { siteTenant, type Site } from './site.js';
 
 export type FieldView = {
   name: string;
@@ -40,14 +41,15 @@ export interface PublicPage {
   forms: Map<string, FormDefinition>;
 }
 
-/** The tenant comes from the hooks (hostname or dev path, ADR 014), never from a route param. */
+/** The site comes from the hooks (hostname or dev path, ADR 014), never from a route param. */
 export async function loadPublicPage(
-  tenant: TenantInfo,
+  site: Site,
   slug: string,
   acceptLanguage: string | null
 ): Promise<PublicPage> {
   const { invoker } = runtime();
-  const reader = anonymousPrincipal(tenant.id, ['content:read', 'forms:read']);
+  const { tenant } = site;
+  const reader = anonymousPrincipal(siteTenant(site), ['content:read', 'forms:read']);
   let page: Page;
   try {
     page = await invoker.run(useCases.getPage, reader, { slug });

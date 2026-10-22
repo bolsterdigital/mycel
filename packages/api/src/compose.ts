@@ -28,7 +28,12 @@ import {
   createIdentityStore,
   createSiteDirectory,
   createTenantDirectory,
+  createTenant,
   createUnitOfWork,
+  getTenant,
+  listTenants,
+  setEntitlements,
+  setStatus,
   startJobWorker,
   startOutboxWorker,
   uuidv7,
@@ -37,6 +42,7 @@ import {
 import { ConsoleMailer, TemMailer } from '@mycel/mail-tem';
 import { createAuthenticator, type Authenticator } from './auth.js';
 import { createDnsResolver } from './dns.js';
+import type { PlatformDeps } from './platform.js';
 import { RECURRING_JOBS, jobHandlers } from './jobs.js';
 import { HmacSigner } from './signer.js';
 
@@ -56,7 +62,7 @@ const Config = z
     NODE_ENV: z.string().default('development'),
     /**
      * Operator role (schema owner): migrations, seed, and the outbox and job workers when they run
-     * in this process. Only `startWorker` uses it; the web front never needs it.
+     * in this process. Only `startWorker` uses it; the fronts and the platform API never need it.
      */
     DATABASE_URL: z.string().url().optional(),
     /** Application role (mycel_app), subject to RLS. Required: fronts never run as the owner. */
@@ -108,6 +114,14 @@ const Config = z
      * Without a proxy those headers are spoofable and stay ignored. Required in production.
      */
     MYCEL_TRUST_PROXY: z.enum(['0', '1']).default('0'),
+    /**
+     * Bearer token of the platform API (`/platform/*`, TODO #16), for the hoster's portal. Unset:
+     * the routes do not exist and tenants are managed with `npm run platform`. Needs nothing but
+     * AUTH_DATABASE_URL: the routes enter `mycel_platform` from that login (0010, ADR 011 rule 1).
+     */
+    PLATFORM_API_TOKEN: z.string().min(32).optional(),
+    /** Where the "Runs on Mycel" footer credit links (ADR 015 rule 5). */
+    PLATFORM_CREDIT_URL: z.string().url().default('https://mycel.dev'),
   })
   .refine(
     (c) =>
@@ -199,6 +213,8 @@ export interface Runtime {
   authenticateApiKey: Authenticator['authenticateApiKey'];
   /** Principal for an MCP session from MYCEL_API_KEY's row (stdio: whoever holds the env). */
   agentPrincipal: Authenticator['agentPrincipal'];
+  /** The platform API's dependencies, or undefined without PLATFORM_API_TOKEN (TODO #16). */
+  platformApi: PlatformDeps | undefined;
   /** Start draining the outbox and running due jobs in this process. Needs DATABASE_URL. */
   startWorker(): () => Promise<void>;
   close(): Promise<void>;
@@ -250,6 +266,19 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
     }),
   ];
   const stops: (() => Promise<void>)[] = [];
+  // On the authentication login: each platform function enters mycel_platform itself (0010).
+  const platformApi: PlatformDeps | undefined = config.PLATFORM_API_TOKEN
+    ? {
+        token: config.PLATFORM_API_TOKEN,
+        store: {
+          create: (input) => createTenant(authDb, { id: uuidv7(), ...input }, platform),
+          list: () => listTenants(authDb),
+          get: (id) => getTenant(authDb, id),
+          setEntitlements: (id, document) => setEntitlements(authDb, id, document),
+          setStatus: (id, status) => setStatus(authDb, id, status),
+        },
+      }
+    : undefined;
 
   return {
     config,
@@ -266,10 +295,11 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
     identity,
     authenticateApiKey: auth.authenticateApiKey,
     agentPrincipal: auth.agentPrincipal,
+    platformApi,
     startWorker() {
       if (!operatorDb) throw new Error('the worker needs DATABASE_URL (operator role)');
       const stopOutbox = startOutboxWorker(operatorDb, subscribers);
-      const stopJobs = startJobWorker(operatorDb, jobHandlers({ uow, operatorDb }), {
+      const stopJobs = startJobWorker(operatorDb, jobHandlers({ uow, operatorDb, identity }), {
         intervalMs: 5000,
         recurring: RECURRING_JOBS,
       });

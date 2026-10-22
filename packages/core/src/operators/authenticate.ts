@@ -25,12 +25,15 @@ export async function apiKeyPrincipal(
 ): Promise<{ principal: Principal; key: ApiKeyRecord } | null> {
   const key = await activeKey(identity, BEARER.exec(authorization ?? '')?.[1]);
   if (!key) return null;
+  const access = await identity.tenantAccess(key.tenantId);
   return {
     key,
     principal: {
       tenantId: key.tenantId,
       actor: { kind: 'api-key', keyId: key.id },
       capabilities: [...key.capabilities],
+      entitlements: access.entitlements,
+      tenantStatus: access.status,
     },
   };
 }
@@ -43,12 +46,15 @@ export async function agentPrincipalFor(
 ): Promise<{ principal: Principal; key: ApiKeyRecord } | null> {
   const key = await activeKey(identity, token);
   if (!key) return null;
+  const access = await identity.tenantAccess(key.tenantId);
   return {
     key,
     principal: {
       tenantId: key.tenantId,
       actor: { kind: 'agent', sessionId, keyId: key.id },
       capabilities: [...key.capabilities],
+      entitlements: access.entitlements,
+      tenantStatus: access.status,
     },
   };
 }
@@ -66,10 +72,13 @@ export async function operatorPrincipal(
     (m) => m.tenantId === tenantId
   );
   if (!membership) return null;
-  // ADR 015, TODO #16: the tenant's entitlements join the Principal here.
+  // ADR 015 rule 3: read per request like the membership, so a change applies at once.
+  const access = await identity.tenantAccess(tenantId);
   return {
     tenantId,
     actor: { kind: 'operator', operatorId: operator.operatorId, email: operator.email },
     capabilities: [...membership.capabilities],
+    entitlements: access.entitlements,
+    tenantStatus: access.status,
   };
 }

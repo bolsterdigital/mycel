@@ -76,7 +76,15 @@ export async function toSupporterEvent(event: DomainEvent): Promise<SupporterEve
 export async function ingest(ctx: TransactionContext, event: SupporterEvent): Promise<boolean> {
   await ctx.supporters.lock(event.email);
   const { id } = await ctx.supporters.resolve(event.email);
-  return appendAndFold(ctx, { ...event, supporter_id: id });
+  const appended = await appendAndFold(ctx, { ...event, supporter_id: id });
+  // The projection exists now (or did already): the seat `forms.submit` reserved is taken by it,
+  // in this same transaction, so the address is never counted twice (TODO #16). Under the
+  // admission lock, after the address lock (always in that order, so no deadlock): a submit
+  // that is between its projection check and its reservation finishes first, and the release
+  // below then removes what it reserved.
+  await ctx.admissions.lock();
+  await ctx.admissions.release(event.email);
+  return appended;
 }
 
 /** Append, then fold: on top when the event is newest, from the log when it arrived late. */

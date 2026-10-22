@@ -6,6 +6,7 @@
 // its adapter reads across tenants through `mycel_auth` (ADR 011 rule 1); `HostnameRepository`
 // runs inside a use case's tenant transaction and sees one tenant's hostnames only.
 
+import type { TenantAccess } from '../entitlements/model.js';
 import type { HostnameKind } from './model.js';
 
 export interface TenantInfo {
@@ -27,6 +28,8 @@ export interface ResolvedSite {
   hostname: { hostname: string; kind: HostnameKind; primary: boolean; verifiedAt: Date | null };
   /** The tenant's primary hostname, where a non-primary one redirects to (ADR 014 rule 1). */
   primaryHostname: string | null;
+  /** Effective entitlements and status, for the visitor's Principal (ADR 015 rule 3). */
+  access: TenantAccess;
 }
 
 export interface SiteDirectory {

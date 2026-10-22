@@ -7,11 +7,7 @@ import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, request, locals }) => {
   const site = requireSite(locals);
-  const view = await loadPublicPage(
-    site.tenant,
-    params.slug,
-    request.headers.get('accept-language')
-  );
+  const view = await loadPublicPage(site, params.slug, request.headers.get('accept-language'));
   locals.lang = view.locale;
   const form = [...view.forms.values()][0];
   return {

@@ -8,11 +8,13 @@
 // is exported on its own because the daily re-check (`reverifyHostname` in jobs/handlers.ts,
 // TODO #15) is the same function; `add` and `verify` plan that re-check in their transaction.
 //
-// Entitlement: the number of custom domains is a limit. // ADR 015, TODO #16: custom_domains
+// Entitlements (ADR 015, TODO #16): adding needs the `custom_domain` switch and stays within
+// `custom_domains.max`; verifying, making primary and removing never grow anything.
 
 import { z } from 'zod';
 import { UseCaseError } from '../errors.js';
 import type { TransactionContext } from '../ports.js';
+import { requireEntitled, withinLimit } from '../entitlements/check.js';
 import { defineUseCase } from '../registry.js';
 import { jobKey } from '../jobs/types.js';
 import { randomToken } from '../util/token.js';
@@ -169,10 +171,13 @@ export const addHostname = defineUseCase({
   description:
     'Add a custom domain to this site; it serves nothing until its TXT record is verified.',
   requires: 'tenant:admin',
+  consumes: 'custom_domains.max',
   input: HostnameInput,
   output: Hostname,
   examples: [{ input: { hostname: 'www.example.org' } }],
   async handler(ctx, input) {
+    requireEntitled(ctx.principal, 'custom_domain');
+    withinLimit(ctx, 'custom_domains.max', await ctx.usage.customHostnames());
     const hostname = normalizeCustomHostname(input.hostname, ctx.platform);
     const slug = await slugOf(ctx);
     const row: Omit<HostnameRecord, 'primary' | 'checkFailures' | 'lastCheckedAt'> = {

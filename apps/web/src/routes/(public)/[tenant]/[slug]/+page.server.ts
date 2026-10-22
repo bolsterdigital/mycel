@@ -4,16 +4,16 @@
 // slug the reroute hook put there and is never read (ADR 014).
 
 import { fail, redirect } from '@sveltejs/kit';
-import { anonymousPrincipal, translate, useCases } from '@mycel/core';
+import { UseCaseError, anonymousPrincipal, translate, useCases } from '@mycel/core';
 import { ui } from '../../../../i18n/index.js';
 import { loadPublicPage } from '#lib/server/public-page.js';
 import { runtime } from '#lib/server/runtime.js';
-import { absoluteSiteUrl, requireSite, sitePath } from '#lib/server/site.js';
+import { absoluteSiteUrl, requireSite, sitePath, siteTenant } from '#lib/server/site.js';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, request, locals }) => {
   const view = await loadPublicPage(
-    requireSite(locals).tenant,
+    requireSite(locals),
     params.slug,
     request.headers.get('accept-language')
   );
@@ -61,7 +61,7 @@ export const actions: Actions = {
     // Tenant from the site being visited, identity from the connection: nothing in the posted
     // body can choose a tenant or raise capabilities (ADR 002 rule 3).
     const visitor = anonymousPrincipal(
-      tenant.id,
+      siteTenant(site),
       ['forms:write'],
       rt.signer.hashIp(getClientAddress())
     );
@@ -75,7 +75,15 @@ export const actions: Actions = {
         pageUrl: await absoluteSiteUrl(site, `/${params.slug}`),
         spam: { honeypot: text(data, 'website'), startedToken: text(data, '_started') },
       });
-    } catch {
+    } catch (e) {
+      // The site takes no new signups (ADR 015 rules 3 and 7): no price, no host, just that.
+      if (e instanceof UseCaseError && (e.code === 'limit_exceeded' || e.code === 'suspended'))
+        return fail(403, {
+          formId,
+          errors: [],
+          message: translate(locale, 'forms.rejected.closed'),
+          values: { email: values['email'] ?? '' },
+        });
       // Unknown or malformed formId: only a hand-crafted post gets here.
       return fail(400, {
         formId,

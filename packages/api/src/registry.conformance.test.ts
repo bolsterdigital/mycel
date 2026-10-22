@@ -4,6 +4,7 @@
 import SwaggerParser from '@apidevtools/swagger-parser';
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_ACCESS,
   Invoker,
   buildRegistry,
   toJsonSchema,
@@ -24,6 +25,8 @@ const principal = (capabilities: Capability[]): Principal => ({
   tenantId: TENANT,
   actor: { kind: 'api-key', keyId: 'conformance' },
   capabilities,
+  entitlements: DEFAULT_ACCESS.entitlements,
+  tenantStatus: DEFAULT_ACCESS.status,
 });
 
 // Bearer tokens name the capabilities, so each request picks its own principal.

@@ -11,6 +11,7 @@ export const en = {
     'That was very quick. Please check your details and send the form again.',
   'forms.rejected.rate-limited':
     'Too many attempts from you in a short time. Please try again later.',
+  'forms.rejected.closed': 'This site is not taking new sign-ups at the moment.',
   'mail.confirm.subject': 'Confirm your subscription to {tenant}',
   'mail.confirm.heading': 'Confirm your subscription',
   'mail.confirm.intro':

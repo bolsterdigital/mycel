@@ -1,6 +1,7 @@
 // Dev seed: the probe tenant (platform path, operator connection) and its signup form and page
 // (tenant path: the page goes through the `content.page.create` use case like any front would),
-// a pending admin to log in as, and, when MYCEL_API_KEY is set, an API key with that token.
+// a pending admin to log in as, entitlements with the credit on and a supporter cap, and, when
+// MYCEL_API_KEY is set, an API key with that token.
 // Idempotent: running it twice leaves one tenant, one form, one page, one admin, one key.
 
 import {
@@ -13,7 +14,14 @@ import {
   type KeyCapability,
   type Signer,
 } from '@mycel/core';
-import { createDb, createUnitOfWork, upsertTenant, uuidv7, uuidv7Ids } from './index.js';
+import {
+  createDb,
+  createUnitOfWork,
+  setEntitlements,
+  upsertTenant,
+  uuidv7,
+  uuidv7Ids,
+} from './index.js';
 import { FakeDns, memoryPlatform, probeForm, probePage } from '@mycel/core/testing';
 
 const operatorUrl = process.env['DATABASE_URL'];
@@ -37,6 +45,10 @@ try {
     { id: uuidv7(), slug: 'probe', name: 'Probe', defaultLocale: 'nl', locales: ['nl', 'en'] },
     { platformDomain }
   );
+  // A hosted free tier in miniature (ADR 015 rules 2 and 5), so dev and e2e show the footer
+  // credit and run against a real cap. Prices and tier names stay out of this repository.
+  await setEntitlements(operatorDb, tenant.id, { remove_branding: false, 'supporters.max': 250 });
+
   // The seed verifies no domains and builds no URLs: the in-memory DNS and platform defaults
   // (with the real platform domain) satisfy the unit of work without a resolver.
   const uow = createUnitOfWork(appDb, {

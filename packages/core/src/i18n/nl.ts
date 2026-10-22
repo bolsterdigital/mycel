@@ -10,6 +10,7 @@ export const nl: Partial<Messages> = {
   'forms.error.unknown-field': 'Dit veld hoort niet bij het formulier.',
   'forms.rejected.too-fast':
     'Dat ging erg snel. Controleer je gegevens en verstuur het formulier opnieuw.',
+  'forms.rejected.closed': 'Deze site neemt op dit moment geen nieuwe inschrijvingen aan.',
   'forms.rejected.rate-limited': 'Te veel pogingen in korte tijd. Probeer het later opnieuw.',
   'mail.confirm.subject': 'Bevestig je inschrijving bij {tenant}',
   'mail.confirm.heading': 'Bevestig je inschrijving',

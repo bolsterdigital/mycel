@@ -29,6 +29,7 @@ export const createPage = defineUseCase({
   description:
     'Create a page from a block tree. Localisable fields are { locale: value } maps; every referenced form must exist.',
   requires: 'content:write',
+  consumes: null,
   input: PageInput,
   output: Page,
   examples: [

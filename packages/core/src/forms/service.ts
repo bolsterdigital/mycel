@@ -3,6 +3,7 @@
 
 import { z } from 'zod';
 import { UseCaseError } from '../errors.js';
+import { withinLimit } from '../entitlements/check.js';
 import { defineUseCase } from '../registry.js';
 import { sha256Hex } from '../util/digest.js';
 import type { NewsletterSubscribedProps } from './events.js';
@@ -67,6 +68,7 @@ export const submitForm = defineUseCase({
   description:
     'Submit a signup form. Stores the submission and publishes newsletter.subscribed; returns accepted, invalid (field errors as i18n keys) or rejected (spam defence).',
   requires: 'forms:write',
+  consumes: 'supporters.max',
   input: SubmitInput,
   output: SubmitResult,
   examples: [
@@ -118,6 +120,17 @@ export const submitForm = defineUseCase({
     const emailKey = await sha256Hex(`${principal.tenantId}:${email}`);
     if (!(await ctx.rateLimits.hit(`forms.submit:email:${emailKey}`, RATE_LIMITS.perEmail)))
       return reject('rate-limited');
+
+    // ADR 015 rule 3: only a new address grows the supporter count. The projection exists only
+    // after the outbox ingest, so the seat is reserved here and released by ingest
+    // (`ctx.admissions`, TODO #16). The lock comes first and ingest takes the same lock before
+    // it releases, so a projection cannot land between this check and the reservation and leave
+    // a seat taken for the whole admission window.
+    await ctx.admissions.lock();
+    if (!(await ctx.supporters.getProjection(email)) && !(await ctx.admissions.pending(email))) {
+      withinLimit(ctx, 'supporters.max', await ctx.admissions.count());
+      await ctx.admissions.reserve(email);
+    }
 
     const submissionId = ctx.ids.next();
     await ctx.submissions.insert({

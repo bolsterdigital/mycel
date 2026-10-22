@@ -11,6 +11,9 @@
 import { sql, type Kysely } from 'kysely';
 import {
   Actor,
+  DEFAULT_ACCESS,
+  TenantStatus,
+  effectiveEntitlements,
   normalizeEmail,
   type ApiKeyRepository,
   type ApiKeySummary,
@@ -331,6 +334,22 @@ export function createIdentityStore(authDb: Kysely<Database>, ids: Ids): Identit
               revokedAt: r.revoked_at === null ? null : new Date(r.revoked_at),
             }
           : null;
+      });
+    },
+
+    tenantAccess(tenantId) {
+      return asAuth(async (trx) => {
+        const r = await trx
+          .selectFrom('tenants')
+          .select(['entitlements', 'status'])
+          .where('id', '=', tenantId)
+          .executeTakeFirst();
+        return r
+          ? {
+              entitlements: effectiveEntitlements(r.entitlements),
+              status: TenantStatus.parse(r.status),
+            }
+          : DEFAULT_ACCESS;
       });
     },
   };

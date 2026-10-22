@@ -3,6 +3,7 @@
 // adapter reads across tenants through the dedicated `mycel_auth` role (ADR 011 rule 1). The
 // repositories run inside a use case's tenant transaction like any other and see one tenant only.
 
+import type { TenantAccess } from '../entitlements/model.js';
 import type { Capability } from '../principal.js';
 import type { ApiKeySummary, KeyCapability, Member, Operator } from './model.js';
 
@@ -42,6 +43,12 @@ export interface IdentityStore {
   membershipsOf(operatorId: string): Promise<OperatorMembership[]>;
   /** Revoked keys are returned too, with `revokedAt` set; the caller refuses them. */
   apiKeyByHash(hash: string): Promise<ApiKeyRecord | null>;
+  /**
+   * The tenant's effective entitlements (the stored document merged over the defaults) and its
+   * status, for the Principal (ADR 015 rule 3). Defaults and `active` for an unknown tenant: the
+   * credential that named it is checked by the caller.
+   */
+  tenantAccess(tenantId: string): Promise<TenantAccess>;
 }
 
 export interface OperatorRepository {

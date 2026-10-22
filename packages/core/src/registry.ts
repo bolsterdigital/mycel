@@ -6,6 +6,7 @@
 // runtime magic, and an agent can list every operation in the system by reading this file.
 
 import type { z } from 'zod';
+import type { LimitName } from './entitlements/model.js';
 import type { Capability, Principal } from './principal.js';
 import type { TransactionContext } from './ports.js';
 
@@ -41,6 +42,13 @@ export interface UseCase<
   description: string;
   requires: Capability;
   effect?: UseCaseEffect;
+  /**
+   * The limit this use case grows (ADR 015): it must call `withinLimit` for it, and the registry
+   * conformance proves that by running `examples[0]` with that limit at zero. `null` says "grows
+   * nothing countable", which a command named create, invite, add, submit or upload must say
+   * explicitly (`registry-rules.ts`), so forgetting a limit cannot pass unnoticed.
+   */
+  consumes?: LimitName | null;
   input: TInput;
   output: TOutput;
   handler: (ctx: TransactionContext, input: z.infer<TInput>) => Promise<z.infer<TOutput>>;

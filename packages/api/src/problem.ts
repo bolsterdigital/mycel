@@ -15,6 +15,9 @@ export const PROBLEMS: Record<ProblemCode, { status: ContentfulStatusCode; title
   not_found: { status: 404, title: 'Not found' },
   method_not_allowed: { status: 405, title: 'Method not allowed' },
   conflict: { status: 409, title: 'Conflict' },
+  // ADR 015 rule 3: 403, not 402, so the price question stays out of this repository.
+  limit_exceeded: { status: 403, title: 'Limit exceeded' },
+  suspended: { status: 403, title: 'Site suspended' },
   internal: { status: 500, title: 'Internal server error' },
 };
 
@@ -33,7 +36,8 @@ export function problem(
     status,
     ...(detail === undefined ? {} : { detail }),
     code,
-    ...(code === 'invalid_input' ? { issues } : {}),
+    // Which limit or switch refused is an i18n key in `issues`, never a price.
+    ...(code === 'invalid_input' || code === 'limit_exceeded' ? { issues } : {}),
   };
   return new Response(JSON.stringify(body), {
     status,

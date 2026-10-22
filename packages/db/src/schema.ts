@@ -15,6 +15,9 @@ export interface Database {
     default_locale: string;
     locales: string[];
     created_at: Generated<Date>;
+    /** The hoster's document as written (0010); core merges it over the defaults. */
+    entitlements: ColumnType<unknown, string | undefined, string>;
+    status: ColumnType<'active' | 'suspended', 'active' | 'suspended' | undefined>;
   };
   /** View over `tenants` (0008): the five columns mycel_app may read. */
   tenant_directory: {
@@ -23,6 +26,12 @@ export interface Database {
     name: string;
     default_locale: string;
     locales: string[];
+  };
+  /** Seats reserved by `forms.submit` until ingest writes the projection (0010). */
+  supporter_admissions: {
+    tenant_id: string;
+    email_hash: string;
+    admitted_at: Timestamp;
   };
   tenant_hostnames: {
     hostname: string;

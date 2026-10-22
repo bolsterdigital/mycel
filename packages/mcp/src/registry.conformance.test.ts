@@ -5,6 +5,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_ACCESS,
   Invoker,
   buildRegistry,
   toJsonSchema,
@@ -24,6 +25,8 @@ async function connect(capabilities: Capability[]) {
     tenantId: TENANT,
     actor: { kind: 'agent', sessionId: 'conformance', keyId: 'conformance' },
     capabilities,
+    entitlements: DEFAULT_ACCESS.entitlements,
+    tenantStatus: DEFAULT_ACCESS.status,
   };
   const server = createMcpServer(
     new Invoker(registry, new MemoryUnitOfWork()),

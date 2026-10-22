@@ -25,6 +25,7 @@
     "worker": "tsc -b packages/api && npm run -s worker -w @mycel/api",
     "db:up": "docker compose -f compose.dev.yml up -d --wait",
     "db:migrate": "npm run -s migrate -w @mycel/db",
+    "platform": "tsc -b packages/api && node --env-file-if-exists=.env scripts/platform.mjs",
     "db:seed": "tsc -b packages/db && npm run -s migrate -w @mycel/db && npm run -s seed -w @mycel/db"
   },
   "devDependencies": {

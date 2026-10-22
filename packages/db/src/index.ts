@@ -23,6 +23,7 @@ import {
   type UnitOfWork,
 } from '@mycel/core';
 import { hostnameRepository } from './hostnames.js';
+import { asPlatform, insertPlatformHostname } from './platform.js';
 import { jobScheduler } from './jobs.js';
 import { apiKeyRepository, membershipRepository, operatorRepository } from './operators.js';
 import { outboxEventBus } from './outbox.js';
@@ -35,6 +36,8 @@ import {
   supporterRepository,
 } from './repositories.js';
 import type { Database } from './schema.js';
+import { usageReader } from './usage.js';
+import { supporterAdmissions } from './admissions.js';
 
 export type { Database } from './schema.js';
 export { uuidv7, uuidv7Ids } from './ids.js';
@@ -59,6 +62,16 @@ export {
 export { createIdentityStore } from './operators.js';
 export { createSiteDirectory, SITE_CACHE_TTL_MS } from './hostnames.js';
 export { FIRST_EVENT_MONTH, ensureEventPartitions, migrate } from './migrate.js';
+export {
+  createTenant,
+  getTenant,
+  getTenantBySlug,
+  listTenants,
+  setEntitlements,
+  setStatus,
+  type NewTenant,
+  type PlatformTenant,
+} from './platform.js';
 
 export function createDb(connectionString: string): Kysely<Database> {
   return new Kysely<Database>({
@@ -106,12 +119,14 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           submissions: submissionRepository(trx, tenantId),
           rateLimits: rateLimiter(trx, tenantId, deps.clock),
           supporters: supporterRepository(trx, tenantId, deps.ids),
+          admissions: supporterAdmissions(trx, tenantId, deps.clock),
           mailSends: mailSendsRepository(trx, tenantId),
           operators: operatorRepository(trx),
           members: membershipRepository(trx, tenantId),
           apiKeys: apiKeyRepository(trx, tenantId),
           hostnames: hostnameRepository(trx, tenantId),
           jobs: jobScheduler(trx, tenantId),
+          usage: usageReader(trx, tenantId, deps.clock),
         });
       });
     },
@@ -163,41 +178,28 @@ export async function upsertTenant(
   tenant: Omit<TenantInfo, 'id'> & { id: string },
   { platformDomain }: { platformDomain: string }
 ): Promise<TenantInfo> {
-  return operatorDb.transaction().execute(async (trx) => {
-    const row = await trx
-      .insertInto('tenants')
-      .values({
-        id: tenant.id,
-        slug: tenant.slug,
-        name: tenant.name,
-        default_locale: tenant.defaultLocale,
-        locales: tenant.locales,
-      })
-      .onConflict((oc) => oc.column('slug').doUpdateSet({ name: tenant.name }))
-      .returningAll()
-      .executeTakeFirstOrThrow();
-    // `tenant_hostnames` is under forced RLS (0008), which binds the schema owner too (ADR 002
-    // rule 2): without the tenant context the select sees nothing and the insert fails its
-    // `with check`. The dev compose and CI run the operator as a superuser, which bypasses RLS
-    // and hid this; managed Postgres does not grant superuser. Same pattern as the e2e fixture.
-    await sql`select set_config('app.tenant_id', ${row.id}, true)`.execute(trx);
-    const hasPrimary = await trx
-      .selectFrom('tenant_hostnames')
-      .select('hostname')
-      .where('tenant_id', '=', row.id)
-      .where('is_primary', '=', true)
-      .executeTakeFirst();
-    await trx
-      .insertInto('tenant_hostnames')
-      .values({
-        hostname: platformHostname(row.slug, platformDomain),
-        tenant_id: row.id,
-        kind: 'platform',
-        is_primary: !hasPrimary,
-        verified_at: sql`now()`,
-      })
-      .onConflict((oc) => oc.column('hostname').doNothing())
-      .execute();
+  // As mycel_platform, like every platform write (0010): the owner is a member, and the role's
+  // grants, not the connection's, decide what this can do. An existing slug keeps its row.
+  return asPlatform(operatorDb, async (trx) => {
+    const row =
+      (await trx
+        .insertInto('tenants')
+        .values({
+          id: tenant.id,
+          slug: tenant.slug,
+          name: tenant.name,
+          default_locale: tenant.defaultLocale,
+          locales: tenant.locales,
+        })
+        .onConflict((oc) => oc.column('slug').doNothing())
+        .returningAll()
+        .executeTakeFirst()) ??
+      (await trx
+        .selectFrom('tenants')
+        .selectAll()
+        .where('slug', '=', tenant.slug)
+        .executeTakeFirstOrThrow());
+    await insertPlatformHostname(trx, row, platformDomain);
     return {
       id: row.id,
       slug: row.slug,
