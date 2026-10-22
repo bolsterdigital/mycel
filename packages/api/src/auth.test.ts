@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Invoker, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
+import { DEFAULT_ACCESS, Invoker, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
 import {
   FakeClock,
   MemoryIdentityStore,
@@ -9,6 +9,8 @@ import {
 } from '@mycel/core/testing';
 import { createApp } from './app.js';
 import { createAuthenticator } from './auth.js';
+
+const defaults = { entitlements: DEFAULT_ACCESS.entitlements, tenantStatus: DEFAULT_ACCESS.status };
 
 const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 
@@ -42,11 +44,13 @@ describe('API keys from the table', () => {
       tenantId: TENANT,
       actor: { kind: 'api-key', keyId: key.id },
       capabilities: ['content:read'],
+      ...defaults,
     });
     expect(await auth.agentPrincipal()).toEqual({
       tenantId: TENANT,
       actor: { kind: 'agent', sessionId: 'session-1', keyId: key.id },
       capabilities: ['content:read'],
+      ...defaults,
     });
   });
 

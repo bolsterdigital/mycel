@@ -38,3 +38,7 @@ export * from './operators/session.js';
 export * from './operators/authenticate.js';
 export * from './util/email.js';
 export * from './util/token.js';
+export * from './entitlements/model.js';
+export * from './entitlements/check.js';
+export * from './entitlements/ports.js';
+export * from './entitlements/service.js';

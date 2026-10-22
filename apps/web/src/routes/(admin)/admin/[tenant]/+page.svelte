@@ -1,4 +1,5 @@
-<!-- The tenant's admin page: members and API keys (TODO #7) and the site's hostnames (TODO #14);
+<!-- The tenant's admin page: members and API keys (TODO #7), the site's hostnames (TODO #14) and
+     its usage against the limits (TODO #16);
      TODO #11 builds the real admin. Every action is a native form post. Action groups wrap whole
      buttons onto a new line when they do not fit, and a long label wraps inside its own button
      at word boundaries (skill ui-action-layout); the e2e specs check 320 CSS px and 200% text. -->
@@ -17,6 +18,18 @@
   const done = $derived(form && 'done' in form ? form : null);
   const token = $derived(form && 'token' in form ? form : null);
   const verify = $derived(form && 'verify' in form ? form.verify : null);
+  const number = $derived(new Intl.NumberFormat(data.locale));
+  const of = (used: number | string, max: number | string) =>
+    fill(t('admin.usage.of'), {
+      used: typeof used === 'number' ? number.format(used) : used,
+      max: typeof max === 'number' ? number.format(max) : max,
+    });
+  const bytes = (n: number) =>
+    new Intl.NumberFormat(data.locale, {
+      style: 'unit',
+      unit: n >= 1024 ** 3 ? 'gigabyte' : 'megabyte',
+      maximumFractionDigits: 1,
+    }).format(n / (n >= 1024 ** 3 ? 1024 ** 3 : 1024 ** 2));
   const vars = (f: Record<string, unknown>) => ({
     email: typeof f.email === 'string' ? f.email : '',
     hostname: typeof f.hostname === 'string' ? f.hostname : '',
@@ -54,7 +67,11 @@
   {#if failed}
     <div class="error-summary" role="alert">
       <h2>{t('error.summary.title')}</h2>
-      <p>{t(failed.error as UiKey)}</p>
+      <p>
+        {'what' in failed && failed.what
+          ? fill(t(failed.error as UiKey), { what: t(failed.what as UiKey) })
+          : t(failed.error as UiKey)}
+      </p>
     </div>
   {/if}
   {#if done}
@@ -102,6 +119,26 @@
       <p><code class="token-value">{token.token}</code></p>
     </section>
   {/if}
+
+  {#if data.usage.status === 'suspended'}
+    <div class="notice" role="status"><p>{t('admin.suspended')}</p></div>
+  {/if}
+
+  <section aria-labelledby="usage">
+    <h2 id="usage">{t('admin.usage.title')}</h2>
+    <dl>
+      <dt>{t('admin.usage.supporters')}</dt>
+      <dd>{of(data.usage.supporters.used, data.usage.supporters.max)}</dd>
+      <dt>{t('admin.usage.mail')}</dt>
+      <dd>{of(data.usage.mail.usedThisMonth, data.usage.mail.max)}</dd>
+      <dt>{t('admin.usage.storage')}</dt>
+      <dd>{of(bytes(data.usage.storage.usedBytes), bytes(data.usage.storage.maxBytes))}</dd>
+      <dt>{t('admin.usage.operators')}</dt>
+      <dd>{of(data.usage.operators.used, data.usage.operators.max)}</dd>
+      <dt>{t('admin.usage.customDomains')}</dt>
+      <dd>{of(data.usage.customDomains.used, data.usage.customDomains.max)}</dd>
+    </dl>
+  </section>
 
   <section aria-labelledby="mine">
     <h2 id="mine">{t('admin.yourCapabilities')}</h2>

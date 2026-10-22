@@ -3,6 +3,12 @@
 // (ADR 002 rule 3). Capabilities are coarse on purpose; fine-grained rules live in use cases.
 
 import { z } from 'zod';
+import {
+  DEFAULT_ACCESS,
+  Entitlements,
+  TenantStatus,
+  type TenantAccess,
+} from './entitlements/model.js';
 
 export const Capability = z.enum([
   'content:read',
@@ -49,6 +55,12 @@ export const Principal = z.object({
   tenantId: z.string().uuid(),
   actor: Actor,
   capabilities: z.array(Capability),
+  /**
+   * The tenant's effective entitlements and status (ADR 015 rule 3), loaded with the credential
+   * before the tenant context exists (`IdentityStore.tenantAccess`, `SiteDirectory.resolve`).
+   */
+  entitlements: Entitlements,
+  tenantStatus: TenantStatus,
 });
 export type Principal = z.infer<typeof Principal>;
 
@@ -58,22 +70,39 @@ export function can(principal: Principal, capability: Capability): boolean {
   );
 }
 
-/** A principal for background work (outbox subscribers, seed) acting inside one tenant. */
+/**
+ * A principal for background work (outbox subscribers, jobs, seed) acting inside one tenant. It
+ * carries the defaults and `active`: background work never fails on a cap, because caps are
+ * enforced at the front door, where growth starts with a person's action (ADR 015 rule 7).
+ */
 export function systemPrincipal(tenantId: string, job: string): Principal {
-  return { tenantId, actor: { kind: 'system', job }, capabilities: ['tenant:admin'] };
+  return {
+    tenantId,
+    actor: { kind: 'system', job },
+    capabilities: ['tenant:admin'],
+    entitlements: DEFAULT_ACCESS.entitlements,
+    tenantStatus: DEFAULT_ACCESS.status,
+  };
 }
+
+/** A tenant id and what the front loaded with it; a bare id means the defaults (tests only). */
+export type TenantRef = string | ({ id: string } & TenantAccess);
 
 /**
  * A public visitor. Fronts give it exactly the capabilities the page needs: `content:read` and
- * `forms:read` to render, `forms:write` (and nothing else) to submit.
+ * `forms:read` to render, `forms:write` (and nothing else) to submit. The web front passes the
+ * resolved site, which carries its entitlements and status; a bare tenant id is for tests.
  */
 export function anonymousPrincipal(
-  tenantId: string,
+  tenant: TenantRef,
   capabilities: Capability[],
   ipHash?: string
 ): Principal {
+  const access = typeof tenant === 'string' ? DEFAULT_ACCESS : tenant;
   return {
-    tenantId,
+    tenantId: typeof tenant === 'string' ? tenant : tenant.id,
+    entitlements: access.entitlements,
+    tenantStatus: access.status,
     actor:
       ipHash === undefined
         ? { kind: 'anonymous', channel: 'web' }

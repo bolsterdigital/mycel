@@ -28,7 +28,12 @@ import {
   createIdentityStore,
   createSiteDirectory,
   createTenantDirectory,
+  createTenant,
   createUnitOfWork,
+  getTenant,
+  listTenants,
+  setEntitlements,
+  setStatus,
   startJobWorker,
   startOutboxWorker,
   uuidv7,
@@ -37,6 +42,7 @@ import {
 import { ConsoleMailer, TemMailer } from '@mycel/mail-tem';
 import { createAuthenticator, type Authenticator } from './auth.js';
 import { createDnsResolver } from './dns.js';
+import type { PlatformDeps } from './platform.js';
 import { RECURRING_JOBS, jobHandlers } from './jobs.js';
 import { HmacSigner } from './signer.js';
 
@@ -108,6 +114,13 @@ const Config = z
      * Without a proxy those headers are spoofable and stay ignored. Required in production.
      */
     MYCEL_TRUST_PROXY: z.enum(['0', '1']).default('0'),
+    /**
+     * Bearer token of the platform API (`/platform/*`, TODO #16), for the hoster's portal. Unset:
+     * the routes do not exist and tenants are managed with `npm run platform`. Needs DATABASE_URL.
+     */
+    PLATFORM_API_TOKEN: z.string().min(32).optional(),
+    /** Where the "Runs on Mycel" footer credit links (ADR 015 rule 5). */
+    PLATFORM_CREDIT_URL: z.string().url().default('https://mycel.dev'),
   })
   .refine(
     (c) =>
@@ -133,6 +146,9 @@ const Config = z
   })
   .refine((c) => !(c.NODE_ENV === 'production' && c.MAIL_SPOOL_DIR), {
     message: 'MAIL_SPOOL_DIR is not allowed in production',
+  })
+  .refine((c) => !c.PLATFORM_API_TOKEN || c.DATABASE_URL, {
+    message: 'PLATFORM_API_TOKEN needs DATABASE_URL (platform operations run as the operator)',
   })
   .refine((c) => !c.OIDC_ISSUER || c.OIDC_CLIENT_ID, {
     message: 'OIDC_ISSUER needs OIDC_CLIENT_ID',
@@ -199,6 +215,8 @@ export interface Runtime {
   authenticateApiKey: Authenticator['authenticateApiKey'];
   /** Principal for an MCP session from MYCEL_API_KEY's row (stdio: whoever holds the env). */
   agentPrincipal: Authenticator['agentPrincipal'];
+  /** The platform API's dependencies, or undefined without PLATFORM_API_TOKEN (TODO #16). */
+  platformApi: PlatformDeps | undefined;
   /** Start draining the outbox and running due jobs in this process. Needs DATABASE_URL. */
   startWorker(): () => Promise<void>;
   close(): Promise<void>;
@@ -250,6 +268,19 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
     }),
   ];
   const stops: (() => Promise<void>)[] = [];
+  const platformApi: PlatformDeps | undefined =
+    config.PLATFORM_API_TOKEN && operatorDb
+      ? {
+          token: config.PLATFORM_API_TOKEN,
+          store: {
+            create: (input) => createTenant(operatorDb, { id: uuidv7(), ...input }, platform),
+            list: () => listTenants(operatorDb),
+            get: (id) => getTenant(operatorDb, id),
+            setEntitlements: (id, document) => setEntitlements(operatorDb, id, document),
+            setStatus: (id, status) => setStatus(operatorDb, id, status),
+          },
+        }
+      : undefined;
 
   return {
     config,
@@ -266,6 +297,7 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
     identity,
     authenticateApiKey: auth.authenticateApiKey,
     agentPrincipal: auth.agentPrincipal,
+    platformApi,
     startWorker() {
       if (!operatorDb) throw new Error('the worker needs DATABASE_URL (operator role)');
       const stopOutbox = startOutboxWorker(operatorDb, subscribers);

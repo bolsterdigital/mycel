@@ -35,6 +35,7 @@ export class Invoker {
     principal: Principal,
     input: z.input<I>
   ): Promise<z.infer<O>> {
+    guardSuspended(useCase as unknown as UseCase, principal);
     if (!this.registry.authorize(useCase as unknown as UseCase, principal))
       throw new UseCaseError('forbidden', `missing capability ${useCase.requires}`);
     const parsed = useCase.input.safeParse(input);
@@ -48,4 +49,18 @@ export class Invoker {
       useCase.output.parse(await useCase.handler(ctx, parsed.data))
     ) as Promise<z.infer<O>>;
   }
+}
+
+/**
+ * ADR 015 rule 7: a suspended tenant runs queries (the public site stays readable, the admin
+ * stays open) and export commands (ADR 002 rule 5: leaving is never gated), and nothing else.
+ * Checked before authorization, so every front and every use case gets it from this one line.
+ */
+export function guardSuspended(useCase: UseCase, principal: Principal): void {
+  if (
+    useCase.kind === 'command' &&
+    principal.tenantStatus === 'suspended' &&
+    useCase.effect !== 'export'
+  )
+    throw new UseCaseError('suspended', 'this site is suspended; only reading and export work');
 }

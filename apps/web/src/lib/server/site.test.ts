@@ -1,6 +1,6 @@
 // The decision table of brief #14 decision 8: host x path -> serve / 301 / 404 / path form.
 import { describe, expect, it } from 'vitest';
-import type { ResolvedSite } from '@mycel/core';
+import { DEFAULT_ACCESS, type ResolvedSite } from '@mycel/core';
 import { decideSite, sitePath } from './site.js';
 
 const tenant = {
@@ -25,6 +25,7 @@ const found = (
   tenant,
   hostname: { hostname, kind, primary, verifiedAt: verified ? new Date() : null },
   primaryHostname,
+  access: DEFAULT_ACCESS,
 });
 const decide = (hostname: string, found: ResolvedSite | null, path = '/signup', search = '') =>
   decideSite({ hostname, path, search, found, platform });
@@ -33,7 +34,12 @@ describe('decideSite', () => {
   it('serves the tenant on its primary hostname', () => {
     expect(decide('probe.mycel.site', found('probe.mycel.site', 'platform', true, true))).toEqual({
       kind: 'serve',
-      site: { tenant, form: 'hostname', primaryHostname: 'probe.mycel.site' },
+      site: {
+        tenant,
+        form: 'hostname',
+        primaryHostname: 'probe.mycel.site',
+        access: DEFAULT_ACCESS,
+      },
     });
   });
 
@@ -76,7 +82,11 @@ describe('decideSite', () => {
 
 describe('sitePath', () => {
   it('keeps a visitor in the form they came in on', () => {
-    expect(sitePath({ tenant, form: 'hostname' }, '/signup/thanks')).toBe('/signup/thanks');
-    expect(sitePath({ tenant, form: 'path' }, '/signup/thanks')).toBe('/probe/signup/thanks');
+    expect(sitePath({ tenant, form: 'hostname', access: DEFAULT_ACCESS }, '/signup/thanks')).toBe(
+      '/signup/thanks'
+    );
+    expect(sitePath({ tenant, form: 'path', access: DEFAULT_ACCESS }, '/signup/thanks')).toBe(
+      '/probe/signup/thanks'
+    );
   });
 });

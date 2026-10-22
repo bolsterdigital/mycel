@@ -61,7 +61,12 @@ export const handle: Handle = async ({ event, resolve }) => {
     case 'path': {
       const tenant = await rt.tenants.findBySlug(decision.slug);
       if (!tenant) return new Response('Not found', { status: 404 });
-      event.locals.site = { tenant, form: 'path' };
+      // Development only, so one uncached pre-context read per request is fine.
+      event.locals.site = {
+        tenant,
+        form: 'path',
+        access: await rt.identity.tenantAccess(tenant.id),
+      };
       event.locals.tenant = tenant;
       return render();
     }

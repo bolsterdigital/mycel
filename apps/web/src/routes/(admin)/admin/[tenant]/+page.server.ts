@@ -2,6 +2,8 @@
 // hostnames, managed through the same use cases HTTP and MCP expose, with native form posts. A
 // new key's token is in the response to the post that made it and nowhere else: reloading the
 // page does not show it again. Hostnames are stored as punycode and shown in Unicode next to it.
+// Since TODO #16 it shows usage against the limits, and a refusal by an entitlement or a
+// suspension as a message that names what, never a price (ADR 015 rule 3).
 import { domainToUnicode } from 'node:url';
 import { fail, type ActionFailure } from '@sveltejs/kit';
 import {
@@ -22,12 +24,14 @@ export const load: PageServerLoad = async ({ parent, locals }) => {
   await parent();
   const principal = locals.principal!;
   const { invoker, config } = runtime();
-  const [{ members }, { keys }, { hostnames }] = await Promise.all([
+  const [{ members }, { keys }, { hostnames }, usage] = await Promise.all([
     invoker.run(useCases.listMembers, principal, {}),
     invoker.run(useCases.listKeys, principal, {}),
     invoker.run(useCases.listHostnames, principal, {}),
+    invoker.run(useCases.getUsage, principal, {}),
   ]);
   return {
+    usage,
     members,
     keys,
     hostnames: hostnames.map((h) => ({ ...h, display: domainToUnicode(h.hostname) })),
@@ -37,14 +41,40 @@ export const load: PageServerLoad = async ({ parent, locals }) => {
   };
 };
 
-type Failure = ActionFailure<{ action: string; error: UiKey; email?: string; hostname?: string }>;
+type Failure = ActionFailure<{
+  action: string;
+  error: UiKey;
+  what?: UiKey;
+  email?: string;
+  hostname?: string;
+}>;
 
 const statusOf: Record<UseCaseErrorCode, number> = {
   invalid_input: 400,
   forbidden: 403,
   not_found: 404,
   conflict: 409,
+  limit_exceeded: 403,
+  suspended: 403,
 };
+
+/** What a `limit_exceeded` refused, from the i18n key core put in its issue. */
+const LIMIT_WHAT: Record<string, UiKey> = {
+  'entitlements.limit.supporters.max': 'admin.limit.what.supporters',
+  'entitlements.limit.operators.max': 'admin.limit.what.operators',
+  'entitlements.limit.custom_domains.max': 'admin.limit.what.customDomains',
+};
+const FEATURE_WHAT: Record<string, UiKey> = {
+  createKey: 'admin.limit.what.apiKeys',
+  addHostname: 'admin.limit.what.customDomains',
+};
+
+function limitFailure(e: UseCaseError, action: string): { error: UiKey; what: UiKey } {
+  const key = e.issues[0]?.message ?? '';
+  return key === 'entitlements.feature_off'
+    ? { error: 'admin.limit.featureOff', what: FEATURE_WHAT[action] ?? 'admin.limit.what.other' }
+    : { error: 'admin.limit.reached', what: LIMIT_WHAT[key] ?? 'admin.limit.what.other' };
+}
 
 /** Run one action as the operator; a UseCaseError becomes a form failure with catalog copy. */
 async function act<T>(
@@ -59,6 +89,11 @@ async function act<T>(
     return await fn(principal, data);
   } catch (e) {
     if (!(e instanceof UseCaseError)) throw e;
+    const extra = { email: text(data, 'email'), hostname: text(data, 'hostname') };
+    if (e.code === 'limit_exceeded')
+      return fail(statusOf[e.code], { action, ...limitFailure(e, action), ...extra });
+    if (e.code === 'suspended')
+      return fail(statusOf[e.code], { action, error: 'admin.error.suspended' as UiKey, ...extra });
     const error: UiKey =
       e.code === 'conflict'
         ? copy.conflict
@@ -67,12 +102,7 @@ async function act<T>(
           : e.code === 'forbidden'
             ? 'admin.error.forbidden'
             : (copy.invalid ?? 'admin.error.invalid');
-    return fail(statusOf[e.code], {
-      action,
-      error,
-      email: text(data, 'email'),
-      hostname: text(data, 'hostname'),
-    });
+    return fail(statusOf[e.code], { action, error, ...extra });
   }
 }
 

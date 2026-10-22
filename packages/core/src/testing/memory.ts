@@ -52,6 +52,14 @@ import { platformHostname } from '../tenants/model.js';
 import { DnsUnavailableError } from '../tenants/ports.js';
 import type { JobRecord, JobRequest, Scheduler } from '../jobs/ports.js';
 import type { JobType } from '../jobs/types.js';
+import {
+  DEFAULT_ACCESS,
+  effectiveEntitlements,
+  type EntitlementsDocument,
+  type TenantAccess,
+  type TenantStatus,
+} from '../entitlements/model.js';
+import type { UsageReader } from '../entitlements/ports.js';
 
 export class FakeClock implements Clock {
   constructor(public current = new Date('2026-10-21T12:00:00.000Z')) {}
@@ -202,6 +210,25 @@ export class MemoryStore {
   readonly operators = new Map<string, OperatorRow>();
   /** Every tenant's and the platform's jobs, like the `jobs` table. */
   readonly jobs: JobRecord[] = [];
+  /** `tenants.entitlements` and `tenants.status` (0010); a tenant without a row has the defaults. */
+  readonly access = new Map<string, { entitlements: EntitlementsDocument; status: TenantStatus }>();
+
+  /** What the platform API's `setEntitlements` and `setStatus` do, in one call for tests. */
+  setAccess(
+    tenantId: string,
+    access: { entitlements?: EntitlementsDocument; status?: TenantStatus }
+  ): void {
+    const current = this.access.get(tenantId) ?? { entitlements: {}, status: 'active' as const };
+    this.access.set(tenantId, { ...current, ...access });
+  }
+
+  /** The effective entitlements and status, like `tenantAccess` over Postgres. */
+  accessOf(tenantId: string): TenantAccess {
+    const row = this.access.get(tenantId);
+    return row
+      ? { entitlements: effectiveEntitlements(row.entitlements), status: row.status }
+      : DEFAULT_ACCESS;
+  }
 
   for(tenantId: string): TenantStore {
     let store = this.tenants.get(tenantId);
@@ -447,6 +474,23 @@ export class MemoryUnitOfWork implements UnitOfWork {
       },
     };
     const store = this.store;
+    const usage: UsageReader = {
+      supporters: async () => s.projections.size,
+      async mailsThisMonth() {
+        const now = clock.now();
+        return [...s.mailSends.values()].filter(
+          (m) =>
+            m.sentAt !== null &&
+            m.sentAt.getUTCFullYear() === now.getUTCFullYear() &&
+            m.sentAt.getUTCMonth() === now.getUTCMonth()
+        ).length;
+      },
+      // TODO #10: sum(size_bytes) over media
+      storageBytes: async () => 0,
+      customHostnames: async () =>
+        [...s.hostnames.values()].filter((h) => h.kind === 'custom').length,
+      operators: async () => s.members.size,
+    };
     const hostnames: HostnameRepository = {
       list: async () =>
         [...s.hostnames.values()]
@@ -514,6 +558,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
       apiKeys,
       hostnames,
       jobs: new MemoryScheduler(store, principal.tenantId, this.ids, clock),
+      usage,
     });
   }
 
@@ -601,6 +646,10 @@ export class MemoryIdentityStore implements IdentityStore {
           return { id: k.id, tenantId, capabilities: [...k.capabilities], revokedAt: k.revokedAt };
     return null;
   }
+
+  async tenantAccess(tenantId: string): Promise<TenantAccess> {
+    return this.store.accessOf(tenantId);
+  }
 }
 
 /**
@@ -624,6 +673,7 @@ export class MemorySiteDirectory implements SiteDirectory {
       tenant,
       hostname: { hostname, kind: h.kind, primary: h.primary, verifiedAt: h.verifiedAt },
       primaryHostname: primary?.hostname ?? null,
+      access: this.store.accessOf(tenantId),
     };
   }
 

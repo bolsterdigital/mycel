@@ -123,6 +123,26 @@ export const en = {
   'admin.domains.error.notVerified': 'Verify the domain before making it primary.',
   'admin.domains.error.isPrimary': 'Make another hostname primary before removing this one.',
   'admin.domains.error.notFound': 'That domain no longer exists on this site. Reload the page.',
+  'credit.runsOnMycel': 'Runs on Mycel',
+  'site.suspended.title': 'This site is paused',
+  'site.suspended.body': 'You can still read this site, but it accepts nothing new for now.',
+  'admin.usage.title': 'Usage',
+  'admin.usage.of': '{used} of {max}',
+  'admin.usage.supporters': 'Supporters',
+  'admin.usage.mail': 'E-mails this month',
+  'admin.usage.storage': 'Storage',
+  'admin.usage.operators': 'Members and invitations',
+  'admin.usage.customDomains': 'Custom domains',
+  'admin.suspended':
+    'Your host has suspended this site. Visitors can still read it and you can export your data; nothing else can be changed.',
+  'admin.limit.reached': 'This site has reached the limit for {what}. Ask your host to raise it.',
+  'admin.limit.featureOff': 'This site does not include {what}. Ask your host to switch it on.',
+  'admin.limit.what.supporters': 'supporters',
+  'admin.limit.what.operators': 'members',
+  'admin.limit.what.customDomains': 'custom domains',
+  'admin.limit.what.apiKeys': 'API keys',
+  'admin.limit.what.other': 'this',
+  'admin.error.suspended': 'This site is suspended; only reading and export work.',
 } as const;
 
 export type UiKey = keyof typeof en;

@@ -32,6 +32,10 @@ test('signup page renders from blocks without JavaScript and passes axe', async 
     page.getByRole('heading', { level: 2, name: 'Meld je aan voor de nieuwsbrief' })
   ).toBeVisible();
   expect(await page.locator('script').count()).toBe(0);
+  // The seed keeps the footer credit on (ADR 015 rule 5): a plain link, nothing else.
+  await expect(
+    page.getByRole('contentinfo').getByRole('link', { name: 'Draait op Mycel' })
+  ).toHaveAttribute('href', 'https://mycel.dev');
   await expectNoAxeViolations(page);
 });
 

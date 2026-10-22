@@ -2,6 +2,7 @@
 // registers itself as an import side effect, so what is exposed is exactly what is listed here.
 
 import { createPage, getPage } from './content/service.js';
+import { getEntitlements, getUsage } from './entitlements/service.js';
 import { getForm, submitForm } from './forms/service.js';
 import { confirmSubscription } from './mailing/service.js';
 import {
@@ -43,6 +44,8 @@ export const useCases = {
   verifyHostname: verifyHostnameUseCase,
   setPrimaryHostname,
   removeHostname,
+  getUsage,
+  getEntitlements,
 } as const;
 
 export function buildRegistry(): UseCaseRegistry {

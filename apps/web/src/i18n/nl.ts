@@ -125,4 +125,25 @@ export const nl: Partial<Record<UiKey, string>> = {
     'Maak eerst een andere hostnaam primair voordat je deze verwijdert.',
   'admin.domains.error.notFound':
     'Dat domein bestaat niet meer op deze site. Laad de pagina opnieuw.',
+  'credit.runsOnMycel': 'Draait op Mycel',
+  'site.suspended.title': 'Deze site staat stil',
+  'site.suspended.body': 'Je kunt deze site nog lezen, maar hij neemt voorlopig niets nieuws aan.',
+  'admin.usage.title': 'Gebruik',
+  'admin.usage.of': '{used} van {max}',
+  'admin.usage.supporters': 'Supporters',
+  'admin.usage.mail': 'E-mails deze maand',
+  'admin.usage.storage': 'Opslag',
+  'admin.usage.operators': 'Leden en uitnodigingen',
+  'admin.usage.customDomains': 'Eigen domeinen',
+  'admin.suspended':
+    'Je hoster heeft deze site opgeschort. Bezoekers kunnen hem nog lezen en jij kunt je gegevens exporteren; verder kan er niets veranderen.',
+  'admin.limit.reached':
+    'Deze site heeft de limiet voor {what} bereikt. Vraag je hoster om hem te verhogen.',
+  'admin.limit.featureOff': 'Deze site heeft geen {what}. Vraag je hoster om het aan te zetten.',
+  'admin.limit.what.supporters': 'supporters',
+  'admin.limit.what.operators': 'leden',
+  'admin.limit.what.customDomains': 'eigen domeinen',
+  'admin.limit.what.apiKeys': 'API-sleutels',
+  'admin.limit.what.other': 'dit onderdeel',
+  'admin.error.suspended': 'Deze site is opgeschort; alleen lezen en exporteren werken.',
 };

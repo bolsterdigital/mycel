@@ -11,6 +11,7 @@
 // (ADR 009 rule 9).
 
 import { z } from 'zod';
+import { requireEntitled, withinLimit } from '../entitlements/check.js';
 import { UseCaseError } from '../errors.js';
 import type { TransactionContext } from '../ports.js';
 import { can, type Capability } from '../principal.js';
@@ -80,6 +81,7 @@ export const inviteMember = defineUseCase({
   description:
     'Give an e-mail address capabilities on this site; the person gets access by logging in with that verified address.',
   requires: 'tenant:admin',
+  consumes: 'operators.max',
   input: z.object({ email: Email, capabilities: Capabilities }),
   output: Member,
   examples: [{ input: { email: 'editor@example.org', capabilities: ['content:write'] } }],
@@ -87,6 +89,8 @@ export const inviteMember = defineUseCase({
     await ctx.members.lock();
     if (await ctx.members.findByEmail(email))
       throw new UseCaseError('conflict', 'that address is already a member of this site');
+    // Under the lock, so two invitations at once cannot both take the last seat.
+    withinLimit(ctx, 'operators.max', await ctx.usage.operators());
     const target = await ctx.operators.forInvite(email, ctx.ids.next());
     if (target === 'ambiguous')
       throw new UseCaseError(
@@ -164,10 +168,13 @@ export const createKey = defineUseCase({
   description:
     'Create an API key with a subset of your capabilities (never tenant:admin); the token is returned once and never again.',
   requires: 'tenant:admin',
+  // Keys are a switch (`api_keys`), not a counted limit.
+  consumes: null,
   input: z.object({ name: z.string().trim().min(1).max(100), capabilities: KeyCapabilities }),
   output: z.object({ id: z.string().uuid(), token: z.string(), prefix: z.string() }),
   examples: [{ input: { name: 'Newsletter sync', capabilities: ['supporters:read'] } }],
   async handler(ctx, { name, capabilities }) {
+    requireEntitled(ctx.principal, 'api_keys');
     const beyond = capabilities.filter((c) => !can(ctx.principal, c));
     if (beyond.length)
       throw new UseCaseError('forbidden', `a key cannot get ${beyond.join(', ')}: you lack it`);

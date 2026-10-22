@@ -17,7 +17,9 @@ import {
   siteUrl,
   type PlatformConfig,
   type ResolvedSite,
+  type TenantAccess,
   type TenantInfo,
+  type TenantRef,
 } from '@mycel/core';
 import { runtime } from './runtime.js';
 
@@ -28,7 +30,12 @@ export interface Site {
   form: 'hostname' | 'path';
   /** Known when the request came in on a hostname; the path form looks it up when needed. */
   primaryHostname?: string | null;
+  /** Entitlements and status, loaded with the site before any tenant context (ADR 015 rule 3). */
+  access: TenantAccess;
 }
+
+/** What a visitor's Principal is built from: the tenant plus its entitlements and status. */
+export const siteTenant = (site: Site): TenantRef => ({ id: site.tenant.id, ...site.access });
 
 export type SiteDecision =
   | { kind: 'serve'; site: Site }
@@ -52,7 +59,12 @@ export function decideSite(input: {
     if (h.primary)
       return {
         kind: 'serve',
-        site: { tenant: found.tenant, form: 'hostname', primaryHostname: h.hostname },
+        site: {
+          tenant: found.tenant,
+          form: 'hostname',
+          primaryHostname: h.hostname,
+          access: found.access,
+        },
       };
     return {
       kind: 'redirect',
@@ -83,7 +95,9 @@ export async function absoluteSiteUrl(site: Site, path: string): Promise<string>
     site.primaryHostname !== undefined
       ? site.primaryHostname
       : ((
-          await rt.uow.run(anonymousPrincipal(site.tenant.id, []), (ctx) => ctx.hostnames.primary())
+          await rt.uow.run(anonymousPrincipal(siteTenant(site), []), (ctx) =>
+            ctx.hostnames.primary()
+          )
         )?.hostname ?? null);
   return rt.siteUrl({ slug: site.tenant.slug, primaryHostname }, path);
 }

@@ -12,6 +12,7 @@ import {
   useCases,
   type Principal,
 } from '../index.js';
+import { DEFAULT_ACCESS } from '../entitlements/model.js';
 import {
   FakeClock,
   MemoryIdentityStore,
@@ -19,6 +20,8 @@ import {
   MemoryUnitOfWork,
   probeTenant,
 } from '../testing/index.js';
+
+const defaults = { entitlements: DEFAULT_ACCESS.entitlements, tenantStatus: DEFAULT_ACCESS.status };
 
 const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const OTHER = '01900000-0000-7000-8000-00000000bbbb';
@@ -305,6 +308,7 @@ describe('members and keys', () => {
         tenantId: TENANT,
         actor: { kind: 'api-key', keyId: id },
         capabilities: ['content:read', 'forms:read'],
+        ...defaults,
       });
       const agent = await agentPrincipalFor(identity, token, 'session-1');
       expect(agent?.principal.actor).toEqual({ kind: 'agent', sessionId: 'session-1', keyId: id });
@@ -355,6 +359,7 @@ describe('members and keys', () => {
       expect(await operatorPrincipal(identity, who, TENANT)).toEqual({
         tenantId: TENANT,
         actor: { kind: 'operator', operatorId: op.id, email: 'a@example.org' },
+        ...defaults,
         capabilities: ['content:write'],
       });
       expect(await operatorPrincipal(identity, who, OTHER)).toBeNull();

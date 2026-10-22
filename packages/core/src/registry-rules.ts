@@ -4,6 +4,7 @@
 // assertions inside the test file, which cannot be shown to catch anything until a violation
 // lands on main.
 
+import { LimitName } from './entitlements/model.js';
 import { describesObject, toJsonSchema } from './json-schema.js';
 import { EFFECT_CAPABILITY, type UseCase, type UseCaseRegistry } from './registry.js';
 
@@ -11,6 +12,9 @@ const NAME = /^[a-z]+(\.[a-z][a-z_]*)+$/;
 
 /** Last name segments that publish, send, export or refund, and so must declare an `effect`. */
 const EFFECT_VERBS = ['publish', 'unpublish', 'schedule', 'send', 'export', 'refund'];
+
+/** Last name segments that make something new, and so must say which limit they consume. */
+const GROWTH_VERBS = ['create', 'invite', 'add', 'submit', 'upload'];
 
 /** Returns every violation as one line naming the use case; an empty list means conformant. */
 export function checkRegistry(registry: Pick<UseCaseRegistry, 'list'>): string[] {
@@ -26,7 +30,7 @@ export function checkRegistry(registry: Pick<UseCaseRegistry, 'list'>): string[]
 }
 
 function checkUseCase(useCase: UseCase, fail: (rule: string) => void): void {
-  const { name, kind, description, requires, effect, examples } = useCase;
+  const { name, kind, description, requires, effect, consumes, examples } = useCase;
 
   if (!NAME.test(name)) fail(`name does not match ${NAME}`);
   if (!description.trim()) fail('description is empty');
@@ -41,6 +45,13 @@ function checkUseCase(useCase: UseCase, fail: (rule: string) => void): void {
   const verb = name.split('.').at(-1) ?? '';
   if (kind === 'command' && EFFECT_VERBS.includes(verb) && !effect)
     fail(`a command named "${verb}" must declare an effect`);
+
+  // ADR 015: a limit is checked where it is consumed, and a growing command says which (or null).
+  if (consumes !== undefined && consumes !== null && !LimitName.safeParse(consumes).success)
+    fail(`consumes "${String(consumes)}", which is not a known limit`);
+  if (consumes != null && kind === 'query') fail('a query cannot consume a limit');
+  if (kind === 'command' && GROWTH_VERBS.includes(verb) && consumes === undefined)
+    fail(`a command named "${verb}" must declare consumes (a limit, or null)`);
 
   // testing.md rule 1: a registry entry without a fixture fails verify.
   if (!Array.isArray(examples) || examples.length === 0) fail('has no examples');

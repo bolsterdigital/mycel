@@ -23,6 +23,7 @@ import {
   type UnitOfWork,
 } from '@mycel/core';
 import { hostnameRepository } from './hostnames.js';
+import { insertPlatformHostname } from './platform.js';
 import { jobScheduler } from './jobs.js';
 import { apiKeyRepository, membershipRepository, operatorRepository } from './operators.js';
 import { outboxEventBus } from './outbox.js';
@@ -35,6 +36,7 @@ import {
   supporterRepository,
 } from './repositories.js';
 import type { Database } from './schema.js';
+import { usageReader } from './usage.js';
 
 export type { Database } from './schema.js';
 export { uuidv7, uuidv7Ids } from './ids.js';
@@ -59,6 +61,16 @@ export {
 export { createIdentityStore } from './operators.js';
 export { createSiteDirectory, SITE_CACHE_TTL_MS } from './hostnames.js';
 export { FIRST_EVENT_MONTH, ensureEventPartitions, migrate } from './migrate.js';
+export {
+  createTenant,
+  getTenant,
+  getTenantBySlug,
+  listTenants,
+  setEntitlements,
+  setStatus,
+  type NewTenant,
+  type PlatformTenant,
+} from './platform.js';
 
 export function createDb(connectionString: string): Kysely<Database> {
   return new Kysely<Database>({
@@ -112,6 +124,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           apiKeys: apiKeyRepository(trx, tenantId),
           hostnames: hostnameRepository(trx, tenantId),
           jobs: jobScheduler(trx, tenantId),
+          usage: usageReader(trx, tenantId, deps.clock),
         });
       });
     },
@@ -176,28 +189,7 @@ export async function upsertTenant(
       .onConflict((oc) => oc.column('slug').doUpdateSet({ name: tenant.name }))
       .returningAll()
       .executeTakeFirstOrThrow();
-    // `tenant_hostnames` is under forced RLS (0008), which binds the schema owner too (ADR 002
-    // rule 2): without the tenant context the select sees nothing and the insert fails its
-    // `with check`. The dev compose and CI run the operator as a superuser, which bypasses RLS
-    // and hid this; managed Postgres does not grant superuser. Same pattern as the e2e fixture.
-    await sql`select set_config('app.tenant_id', ${row.id}, true)`.execute(trx);
-    const hasPrimary = await trx
-      .selectFrom('tenant_hostnames')
-      .select('hostname')
-      .where('tenant_id', '=', row.id)
-      .where('is_primary', '=', true)
-      .executeTakeFirst();
-    await trx
-      .insertInto('tenant_hostnames')
-      .values({
-        hostname: platformHostname(row.slug, platformDomain),
-        tenant_id: row.id,
-        kind: 'platform',
-        is_primary: !hasPrimary,
-        verified_at: sql`now()`,
-      })
-      .onConflict((oc) => oc.column('hostname').doNothing())
-      .execute();
+    await insertPlatformHostname(trx, row, platformDomain);
     return {
       id: row.id,
       slug: row.slug,

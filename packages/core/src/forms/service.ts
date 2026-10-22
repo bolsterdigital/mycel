@@ -3,6 +3,7 @@
 
 import { z } from 'zod';
 import { UseCaseError } from '../errors.js';
+import { withinLimit } from '../entitlements/check.js';
 import { defineUseCase } from '../registry.js';
 import { sha256Hex } from '../util/digest.js';
 import type { NewsletterSubscribedProps } from './events.js';
@@ -67,6 +68,7 @@ export const submitForm = defineUseCase({
   description:
     'Submit a signup form. Stores the submission and publishes newsletter.subscribed; returns accepted, invalid (field errors as i18n keys) or rejected (spam defence).',
   requires: 'forms:write',
+  consumes: 'supporters.max',
   input: SubmitInput,
   output: SubmitResult,
   examples: [
@@ -118,6 +120,10 @@ export const submitForm = defineUseCase({
     const emailKey = await sha256Hex(`${principal.tenantId}:${email}`);
     if (!(await ctx.rateLimits.hit(`forms.submit:email:${emailKey}`, RATE_LIMITS.perEmail)))
       return reject('rate-limited');
+
+    // ADR 015: past the spam gate, only a new address grows the supporter count (TODO #16).
+    if (!(await ctx.supporters.getProjection(email)))
+      withinLimit(ctx, 'supporters.max', await ctx.usage.supporters());
 
     const submissionId = ctx.ids.next();
     await ctx.submissions.insert({

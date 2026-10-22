@@ -2,7 +2,14 @@
 // Problem Details (RFC 9457), MCP to a tool error, the web app to a page or a form failure.
 // Rejected alternative: per-module error classes, which every front would have to enumerate.
 
-export type UseCaseErrorCode = 'not_found' | 'forbidden' | 'invalid_input' | 'conflict';
+export type UseCaseErrorCode =
+  | 'not_found'
+  | 'forbidden'
+  | 'invalid_input'
+  | 'conflict'
+  // ADR 015 rule 3: an entitlement or limit refuses; rule 7: the tenant is suspended.
+  | 'limit_exceeded'
+  | 'suspended';
 
 export interface Issue {
   /** Dotted path into the input, e.g. `values.email`. Empty for input-wide problems. */

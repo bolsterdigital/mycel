@@ -15,6 +15,9 @@ export interface Database {
     default_locale: string;
     locales: string[];
     created_at: Generated<Date>;
+    /** The hoster's document as written (0010); core merges it over the defaults. */
+    entitlements: ColumnType<unknown, string | undefined, string>;
+    status: ColumnType<'active' | 'suspended', 'active' | 'suspended' | undefined>;
   };
   /** View over `tenants` (0008): the five columns mycel_app may read. */
   tenant_directory: {

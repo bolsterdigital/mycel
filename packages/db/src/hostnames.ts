@@ -6,16 +6,20 @@
 //   exists. Each lookup is one transaction that enters `mycel_auth` with `set local role`, the
 //   pattern of `createIdentityStore`. Its answers are cached in this process for thirty seconds
 //   per hostname (at most ten thousand entries, oldest out), so a busy site does not hit the
-//   database on every request; a change in the admin is live within that window. Rejected: a
+//   database on every request; a change in the admin is live within that window. The answer
+//   carries the tenant's entitlements and status (0010, TODO #16), so a platform API change
+//   reaches the public site within the same window. Rejected: a
 //   cache keyed by request (no reuse), and no cache (one query per page view and per asset).
 
 import { sql, type Kysely } from 'kysely';
-import type {
-  HostnameRecord,
-  HostnameRepository,
-  ResolvedSite,
-  SiteDirectory,
-  TenantInfo,
+import {
+  TenantStatus,
+  effectiveEntitlements,
+  type HostnameRecord,
+  type HostnameRepository,
+  type ResolvedSite,
+  type SiteDirectory,
+  type TenantInfo,
 } from '@mycel/core';
 import type { Database } from './schema.js';
 
@@ -154,6 +158,8 @@ export function createSiteDirectory(
           't.name',
           't.default_locale',
           't.locales',
+          't.entitlements',
+          't.status',
         ])
         .select((eb) =>
           eb
@@ -183,6 +189,10 @@ export function createSiteDirectory(
         verifiedAt: r.verified_at === null ? null : new Date(r.verified_at),
       },
       primaryHostname: r.primary_hostname ?? null,
+      access: {
+        entitlements: effectiveEntitlements(r.entitlements),
+        status: TenantStatus.parse(r.status),
+      },
     };
   }
 
