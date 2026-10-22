@@ -18,7 +18,7 @@
     "build": "tsc -b packages/api packages/mcp && npm run build --workspace apps/web",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint:deps": "node scripts/check-dependency-rules.mjs",
+    "lint:deps": "node scripts/check-dependency-rules.mjs && node --test scripts/check-dependency-rules.test.mjs",
     "verify": "npm run format:check && npm run lint:deps && npm run typecheck && npm run test && npm run build && npm run test:e2e",
     "test:e2e": "node scripts/e2e.mjs",
     "dev": "node scripts/dev.mjs",

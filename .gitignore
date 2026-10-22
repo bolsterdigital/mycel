@@ -24,3 +24,6 @@ playwright-report
 
 # Harness worktrees for background agents
 .claude/worktrees/
+
+# Fake installed packages of the dependency-rules fixtures (scripts/fixtures/dependency-rules)
+!scripts/fixtures/dependency-rules/*/node_modules
