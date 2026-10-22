@@ -4,4 +4,5 @@ export * from './context.js';
 export * from './logger.js';
 export * from './errors.js';
 export * from './metrics.js';
+export * from './version.js';
 export { scrubText as scrub } from '@mycel/core';

@@ -10,7 +10,6 @@
 // In the image: `docker compose run --rm worker mycel <command>` (the worker service is the one
 // with DATABASE_URL, ADR 011 rule 1). From a checkout: `npm run mycel -- <command>`.
 
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
   Invoker,
@@ -39,6 +38,7 @@ import {
   type PlatformTenant,
 } from '@mycel/db';
 import { ensureS3Bucket } from '@mycel/blob';
+import { buildVersion } from '@mycel/observability';
 import { createRuntime, inputHasherOf, loadConfig, platformOf, s3ConfigOf } from './compose.js';
 
 export const USAGE = `usage:
@@ -268,13 +268,8 @@ export async function runSetup(deps: SetupDeps, input: SetupInput): Promise<Setu
 /** Lower case, no trailing dot: enough to find a hostname the use case already normalised. */
 const normalized = (h: string) => h.trim().toLowerCase().replace(/\.$/, '');
 
-/** The version of this build: the root package.json (in the image: /app/package.json). */
-export function version(): string {
-  const pkg = JSON.parse(
-    readFileSync(fileURLToPath(new URL('../../../package.json', import.meta.url)), 'utf8')
-  ) as { version: string };
-  return pkg.version;
-}
+/** The version of this build: MYCEL_VERSION from the release image, else the root package.json. */
+export const version = (): string => buildVersion();
 
 const OPS_REFUSALS = {
   not_found: 'no stuck row with that id',

@@ -56,7 +56,11 @@ docker run --env-file <your env file> -p 3000:3000 mycel web   # or: api | worke
 
 The variables are the ones in `.env.example`. The image sets `NODE_ENV=production`, in which `MAILER=console` is refused, and `localhost` in a database URL means the container itself, not your machine.
 
-Each process answers `GET /healthz` on `$PORT` (3000 in the image), which the image's `HEALTHCHECK` probes. CI builds the image on every pull request and checks that `api`, `web` and `worker` become healthy; it does not push it anywhere. The job `compose` then runs the whole production stack from it (`scripts/compose-proof.sh`; run it yourself after `docker build -t mycel:ci .`). Running it on a server: [`docs/self-hosting.md`](docs/self-hosting.md).
+Each process answers `GET /healthz` on `$PORT` (3000 in the image), which the image's `HEALTHCHECK` probes. CI builds the image on every pull request and checks that `api`, `web` and `worker` become healthy; it does not push it anywhere (a release tag does, see [`docs/upgrading.md`](docs/upgrading.md#releases)). The job `compose` then runs the whole production stack from it (`scripts/compose-proof.sh`; run it yourself after `docker build -t mycel:ci .`). Running it on a server: [`docs/self-hosting.md`](docs/self-hosting.md).
+
+## Pull requests
+
+The title of a pull request is a [conventional commit](https://www.conventionalcommits.org/): `type(scope): subject`, with `type` one of `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `chore` or `ci`, for example `feat(content): article teaser per locale`. Pull requests are squash-merged and the squash title becomes the line in [`CHANGELOG.md`](CHANGELOG.md), so write it for someone who runs Mycel. A change that breaks something for them puts `!` after the type (`feat(api)!: …`) and explains in the description what to do; a migration that drops or renames a column says which release stopped writing it ([`docs/upgrading.md`](docs/upgrading.md), promise 3). Never edit a migration that is on `main`: CI refuses it, add a new one.
 
 ## Developer Certificate of Origin
 

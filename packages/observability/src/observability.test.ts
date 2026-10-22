@@ -15,6 +15,7 @@ import {
 import { createLogger } from './logger.js';
 import { Metrics } from './metrics.js';
 import { scrub } from './index.js';
+import { buildVersion, recordBuildInfo } from './version.js';
 
 const lines = () => {
   const out: string[] = [];
@@ -240,5 +241,21 @@ describe('metrics', () => {
         '',
       ].join('\n')
     );
+  });
+
+  it('exposes the build version as mycel_build_info', () => {
+    const m = new Metrics();
+    recordBuildInfo(m, '1.2.3');
+    expect(m.render()).toContain('mycel_build_info{version="1.2.3"} 1');
+  });
+});
+
+describe('buildVersion', () => {
+  it('prefers MYCEL_VERSION from the image over package.json', () => {
+    expect(buildVersion('0.1.0-rc.1')).toBe('0.1.0-rc.1');
+  });
+
+  it('falls back to the root package.json', () => {
+    expect(buildVersion(' ')).toMatch(/^\d+\.\d+\.\d+/);
   });
 });

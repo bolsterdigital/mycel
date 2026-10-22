@@ -75,7 +75,7 @@ Stdio is the transport this release ships; the agent sees exactly the tools and 
 
 ## Upgrading
 
-Pin `MYCEL_IMAGE` to the new release, check out the same release of this repository, then `docker compose pull && docker compose up -d`. `migrate` runs before the other services start; migrations only move forward. The full promise (which versions may be skipped, what a rollback can and cannot do) comes with the first published release (TODO #18b).
+Pin `MYCEL_IMAGE` to the new release, check out the same release of this repository, then `docker compose pull && docker compose up -d`. `migrate` runs before the other services start; migrations only move forward. Which versions may be skipped and what a rollback can and cannot do: [upgrading.md](upgrading.md).
 
 ## Backups
 

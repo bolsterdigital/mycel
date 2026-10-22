@@ -46,6 +46,7 @@ const NOT_IN_EXAMPLE: Record<string, string> = {
   E2E_OIDC_PORT: 'test harness',
   E2E_WORKER_PORT: 'test harness',
   CI: 'set by the CI runner',
+  MYCEL_VERSION: 'set by the release image from its build argument (Dockerfile)',
 };
 
 /**

@@ -29,8 +29,12 @@ RUN npm run build
 
 # --- runtime: production dependencies plus the compiled output only -------------------------------
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime
+# Set by the release workflow from the tag (TODO #18b); read by `mycel version` and the gauge
+# mycel_build_info. Empty in a local build, which then reports the root package.json.
+ARG MYCEL_VERSION=
 ENV NODE_ENV=production \
-    PORT=3000
+    PORT=3000 \
+    MYCEL_VERSION=${MYCEL_VERSION}
 WORKDIR /app
 COPY --from=build /app/package.json /app/package-lock.json ./
 COPY --from=build /app/packages/core/package.json packages/core/

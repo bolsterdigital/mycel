@@ -60,11 +60,11 @@ jobs:
       # In CI a missing database or browser fails the e2e gate instead of skipping it.
       E2E_REQUIRED: '1'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -78,6 +78,19 @@ jobs:
             origin/${{ github.base_ref }}..HEAD | awk 'NF < 2 { print $1 }')
           if [ -n "$missing" ]; then
             echo "Commits without Signed-off-by (use git commit -s):"; echo "$missing"; exit 1
+          fi
+
+      # docs/upgrading.md promise 2: an applied migration is never edited. A pull request may
+      # only add files under packages/db/migrations; `migrate` refuses a changed applied file at
+      # start (checksums), this stops it before it is merged.
+      - name: Merged migrations are unchanged
+        if: github.event_name == 'pull_request'
+        run: |
+          changed=$(git diff --name-status "origin/${{ github.base_ref }}...HEAD" \
+            -- packages/db/migrations | awk '$1 != "A"')
+          if [ -n "$changed" ]; then
+            echo "A merged migration was changed, renamed or deleted; add a new one instead:"
+            echo "$changed"; exit 1
           fi
 
       - name: Install Chromium for Playwright
@@ -97,11 +110,11 @@ jobs:
   security:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
 
@@ -118,11 +131,11 @@ jobs:
 
   # The deployable artefact (Dockerfile): build it without pushing, then start each entrypoint
   # and wait for its HEALTHCHECK. A separate job so an image problem shows up as its own red
-  # check next to `verify`. Publishing to a registry is the deploy workflow's job, not this one.
+  # check next to `verify`. Publishing to a registry is release.yml's job, on a tag.
   image:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Build image (no push)
         run: docker build -t mycel:ci .
@@ -177,7 +190,7 @@ jobs:
     needs: image
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Build image (no push)
         run: docker build -t mycel:ci .

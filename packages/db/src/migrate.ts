@@ -1,8 +1,12 @@
 // Forward-only SQL migrations (ADR 008 policy 1: our own ~60 lines instead of a migration
 // library). Files in ../migrations named NNNN_name.sql run in name order, each in its own
-// transaction, recorded in `schema_migrations`. An advisory lock keeps two deploys from racing.
-// There is no "down": a mistake is fixed by the next migration.
+// transaction, recorded in `schema_migrations` with the sha256 of the file. An advisory lock keeps
+// two deploys from racing. There is no "down": a mistake is fixed by the next migration, and a file
+// that changed after it was applied stops the runner before it touches anything (TODO #18b,
+// docs/upgrading.md). Rejected: a numbered migration for the checksum column, which the runner
+// itself would need before it could check that migration.
 
+import { createHash } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
@@ -34,6 +38,76 @@ export async function ensureEventPartitions(
   return rows[0]!.n;
 }
 
+const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
+
+/**
+ * Apply the pending files of `dir` on `client`, in the schema its `search_path` names; returns
+ * the versions it applied. Refuses, before applying or recording anything, when an applied file
+ * no longer matches its recorded checksum. Rows from before TODO #18b have no checksum and get the
+ * file's current one. A recorded version without a file (an image one release back, after a
+ * rollback) is fine: forward-only means the newer schema stays. The caller holds the lock.
+ */
+export async function applyMigrations(
+  client: pg.ClientBase,
+  dir: string,
+  log: (m: string) => void = () => {}
+): Promise<string[]> {
+  await client.query(`create table if not exists schema_migrations (
+    version text primary key,
+    applied_at timestamptz not null default now()
+  )`);
+  await client.query('alter table schema_migrations add column if not exists checksum text');
+  const recorded = new Map(
+    (
+      await client.query<{ version: string; checksum: string | null }>(
+        'select version, checksum from schema_migrations'
+      )
+    ).rows.map((r) => [r.version, r.checksum])
+  );
+  const files = (await readdir(dir)).filter((f) => /^\d{4}_.+\.sql$/.test(f)).sort();
+  const texts = new Map<string, string>();
+  for (const file of files) texts.set(file, await readFile(dir + file, 'utf8'));
+
+  const changed = files.filter((file) => {
+    const checksum = recorded.get(file.replace(/\.sql$/, ''));
+    return checksum != null && checksum !== sha256(texts.get(file)!);
+  });
+  if (changed.length)
+    throw new Error(
+      `applied migration(s) changed since they ran: ${changed.join(', ')}. ` +
+        'Migrations are never edited once applied; restore the file and fix it in a new migration.'
+    );
+
+  const applied: string[] = [];
+  for (const file of files) {
+    const version = file.replace(/\.sql$/, '');
+    const text = texts.get(file)!;
+    if (recorded.has(version)) {
+      if (recorded.get(version) == null)
+        await client.query('update schema_migrations set checksum = $2 where version = $1', [
+          version,
+          sha256(text),
+        ]);
+      continue;
+    }
+    await client.query('begin');
+    try {
+      await client.query(text);
+      await client.query('insert into schema_migrations (version, checksum) values ($1, $2)', [
+        version,
+        sha256(text),
+      ]);
+      await client.query('commit');
+    } catch (e) {
+      await client.query('rollback');
+      throw new Error(`migration ${file} failed: ${(e as Error).message}`);
+    }
+    applied.push(version);
+    log(`applied ${version}`);
+  }
+  return applied;
+}
+
 export async function migrate(
   connectionString: string,
   {
@@ -51,32 +125,7 @@ export async function migrate(
   const applied: string[] = [];
   try {
     await client.query('select pg_advisory_lock($1)', [LOCK_KEY]);
-    await client.query(`create table if not exists schema_migrations (
-      version text primary key,
-      applied_at timestamptz not null default now()
-    )`);
-    const done = new Set(
-      (await client.query<{ version: string }>('select version from schema_migrations')).rows.map(
-        (r) => r.version
-      )
-    );
-    const files = (await readdir(MIGRATIONS_DIR)).filter((f) => /^\d{4}_.+\.sql$/.test(f)).sort();
-    for (const file of files) {
-      const version = file.replace(/\.sql$/, '');
-      if (done.has(version)) continue;
-      const text = await readFile(MIGRATIONS_DIR + file, 'utf8');
-      await client.query('begin');
-      try {
-        await client.query(text);
-        await client.query('insert into schema_migrations (version) values ($1)', [version]);
-        await client.query('commit');
-      } catch (e) {
-        await client.query('rollback');
-        throw new Error(`migration ${file} failed: ${(e as Error).message}`);
-      }
-      applied.push(version);
-      log(`applied ${version}`);
-    }
+    applied.push(...(await applyMigrations(client, MIGRATIONS_DIR, log)));
     const ahead = new Date();
     ahead.setUTCDate(1);
     ahead.setUTCMonth(ahead.getUTCMonth() + 3);
