@@ -158,6 +158,11 @@ export async function upsertTenant(
       .onConflict((oc) => oc.column('slug').doUpdateSet({ name: tenant.name }))
       .returningAll()
       .executeTakeFirstOrThrow();
+    // `tenant_hostnames` is under forced RLS (0008), which binds the schema owner too (ADR 002
+    // rule 2): without the tenant context the select sees nothing and the insert fails its
+    // `with check`. The dev compose and CI run the operator as a superuser, which bypasses RLS
+    // and hid this; managed Postgres does not grant superuser. Same pattern as the e2e fixture.
+    await sql`select set_config('app.tenant_id', ${row.id}, true)`.execute(trx);
     const hasPrimary = await trx
       .selectFrom('tenant_hostnames')
       .select('hostname')
