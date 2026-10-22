@@ -29,7 +29,7 @@ import {
   createSiteDirectory,
   createTenantDirectory,
   createUnitOfWork,
-  startJanitor,
+  startJobWorker,
   startOutboxWorker,
   uuidv7,
   uuidv7Ids,
@@ -37,6 +37,7 @@ import {
 import { ConsoleMailer, TemMailer } from '@mycel/mail-tem';
 import { createAuthenticator, type Authenticator } from './auth.js';
 import { createDnsResolver } from './dns.js';
+import { RECURRING_JOBS, jobHandlers } from './jobs.js';
 import { HmacSigner } from './signer.js';
 
 export { createAuthenticator, type Authenticator, type AuthenticatorDeps } from './auth.js';
@@ -54,8 +55,8 @@ const Config = z
   .object({
     NODE_ENV: z.string().default('development'),
     /**
-     * Operator role (schema owner): migrations, seed, and the outbox worker when it runs in this
-     * process. Only `startWorker` uses it; the web front never needs it.
+     * Operator role (schema owner): migrations, seed, and the outbox and job workers when they run
+     * in this process. Only `startWorker` uses it; the web front never needs it.
      */
     DATABASE_URL: z.string().url().optional(),
     /** Application role (mycel_app), subject to RLS. Required: fronts never run as the owner. */
@@ -198,7 +199,7 @@ export interface Runtime {
   authenticateApiKey: Authenticator['authenticateApiKey'];
   /** Principal for an MCP session from MYCEL_API_KEY's row (stdio: whoever holds the env). */
   agentPrincipal: Authenticator['agentPrincipal'];
-  /** Start draining the outbox and the janitor sweep in this process. Needs DATABASE_URL. */
+  /** Start draining the outbox and running due jobs in this process. Needs DATABASE_URL. */
   startWorker(): () => Promise<void>;
   close(): Promise<void>;
 }
@@ -266,11 +267,14 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
     authenticateApiKey: auth.authenticateApiKey,
     agentPrincipal: auth.agentPrincipal,
     startWorker() {
-      if (!operatorDb) throw new Error('the outbox worker needs DATABASE_URL (operator role)');
+      if (!operatorDb) throw new Error('the worker needs DATABASE_URL (operator role)');
       const stopOutbox = startOutboxWorker(operatorDb, subscribers);
-      const stopJanitor = startJanitor(operatorDb);
+      const stopJobs = startJobWorker(operatorDb, jobHandlers({ uow, operatorDb }), {
+        intervalMs: 5000,
+        recurring: RECURRING_JOBS,
+      });
       const stop = async () => {
-        await Promise.all([stopOutbox(), stopJanitor()]);
+        await Promise.all([stopOutbox(), stopJobs()]);
       };
       stops.push(stop);
       return stop;

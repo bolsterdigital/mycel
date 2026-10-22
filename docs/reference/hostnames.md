@@ -44,7 +44,15 @@ In the admin of the site, section **Domains**:
 3. **Check DNS.** Mycel looks up the TXT record; when the token is there the hostname is verified. The page reports what it found otherwise (other TXT values, where the CNAME points), because DNS changes take time to spread. The CNAME is reported, never required: if DNS does not point at the platform, TLS simply never gets issued and nothing is served.
 4. **Make primary.** From now on the site is served on the new domain and every other hostname of the site redirects to it. The platform hostname stays as a fallback and can be made primary again.
 
-Re-verification on a schedule (and withdrawing a verification whose record disappeared) is TODO #15; it calls the same `verifyHostname` function.
+## Re-verification (what happens afterwards)
+
+A custom hostname stays proven only while its TXT record is there. Adding a domain plans a check a day later (job `hostnames.reverify:<hostname>`), and every check plans the next one a day after it, whether the domain is verified or not, until the domain is removed. Checking DNS by hand in the admin does not move that schedule.
+
+- **Record found**: the run of failures goes back to zero; a domain that had lost its verification is verified again (it does not become primary again by itself).
+- **Record missing**: one failure is counted. After **three consecutive daily misses** (72 hours without the record) the verification is withdrawn: the domain stops being served and gets no new certificate, and if it was primary, the platform hostname becomes primary again (ADR 014 rule 2). Three days is the time an admin has to restore a record removed by accident; DNS hiccups and TTLs make a single miss weak evidence.
+- **DNS did not answer** (server failure, time-out): nothing is counted and nothing changes; the next check is a day later. The admin's own check reports the same ("DNS did not answer") instead of an error.
+
+The admin shows per custom domain when it was last checked and how many checks in a row missed the record. Sites resolve through a thirty-second cache, so a withdrawn domain can serve for up to half a minute longer. The check is the same `verifyHostname` function the admin's **Check DNS** calls; the policy is `reverifyHostname` in `packages/core/src/jobs/handlers.ts`.
 
 ## TLS (what the hosting does)
 

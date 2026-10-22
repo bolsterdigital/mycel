@@ -15,8 +15,11 @@ export const FIRST_EVENT_MONTH = '2026-10-01';
 /**
  * Create the monthly `events` partitions for [from, to] that do not exist yet (ADR 003
  * consequence 1); returns how many it created. Idempotent. `migrate` covers the first month up to
- * three months ahead on every run; a backfill calls this with its own range before inserting, so
- * nothing lands in `events_default`. Runs as the operator: mycel_app cannot execute it (0005).
+ * three months ahead on every run, and the worker's monthly `events.partitions` job keeps that
+ * going without a deploy (`createEventPartitions`, TODO #15); a backfill calls this with its own
+ * range before inserting, so nothing lands in `events_default`. Fails with a recovery hint when
+ * `events_default` already holds rows of a month in the range (0009). Runs as the operator:
+ * mycel_app cannot execute it (0005).
  */
 export async function ensureEventPartitions(
   db: pg.ClientBase | pg.Pool,

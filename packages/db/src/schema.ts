@@ -32,6 +32,8 @@ export interface Database {
     verification_token: string | null;
     verified_at: Timestamp | null;
     created_at: Generated<Date>;
+    check_failures: Generated<number>;
+    last_checked_at: Timestamp | null;
   };
   forms: {
     id: string;
@@ -80,6 +82,20 @@ export interface Database {
     delivered_to: Generated<string[]>;
     processed_at: Date | null;
     last_error: string | null;
+  };
+  jobs: {
+    id: string;
+    tenant_id: string | null;
+    type: string;
+    key: string;
+    run_at: Timestamp;
+    payload: Json<unknown>;
+    attempts: Generated<number>;
+    max_attempts: Generated<number>;
+    claimed_at: Timestamp | null;
+    done_at: Timestamp | null;
+    last_error: string | null;
+    created_at: Generated<Date>;
   };
   events: {
     tenant_id: string;

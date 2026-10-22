@@ -45,6 +45,10 @@ export interface HostnameRecord {
   verificationToken: string | null;
   verifiedAt: Date | null;
   createdAt: Date;
+  /** Consecutive daily checks that did not find the TXT record (TODO #15). */
+  checkFailures: number;
+  /** When a check last reached DNS; null before the first. */
+  lastCheckedAt: Date | null;
 }
 
 export interface HostnameRepository {
@@ -52,8 +56,12 @@ export interface HostnameRepository {
   list(): Promise<HostnameRecord[]>;
   get(hostname: string): Promise<HostnameRecord | null>;
   /** False when the hostname exists already, for this tenant or another (global uniqueness). */
-  insert(row: Omit<HostnameRecord, 'primary'>): Promise<boolean>;
+  insert(
+    row: Omit<HostnameRecord, 'primary' | 'checkFailures' | 'lastCheckedAt'>
+  ): Promise<boolean>;
   setVerified(hostname: string, at: Date | null): Promise<void>;
+  /** Record a check that reached DNS: when, and the consecutive failures after it. */
+  recordCheck(hostname: string, at: Date, failures: number): Promise<void>;
   /** Makes `hostname` the one primary of this tenant; the previous primary stops being it. */
   setPrimary(hostname: string): Promise<void>;
   /** False when there is no such hostname. */
@@ -61,10 +69,21 @@ export interface HostnameRepository {
   primary(): Promise<HostnameRecord | null>;
 }
 
-/** DNS lookups for hostname verification. `txt` and `cname` return nothing for a missing name. */
+/**
+ * DNS lookups for hostname verification. `txt` and `cname` return nothing for a missing name and
+ * throw `DnsUnavailableError` when DNS gave no answer at all (a server failure, a time-out):
+ * that is "cannot tell now", never "not there".
+ */
 export interface DnsResolver {
   txt(name: string): Promise<string[]>;
   cname(name: string): Promise<string | null>;
+}
+
+export class DnsUnavailableError extends Error {
+  constructor(message = 'DNS did not answer') {
+    super(message);
+    this.name = 'DnsUnavailableError';
+  }
 }
 
 export type SiteUrlMode = 'hostnames' | 'path';
