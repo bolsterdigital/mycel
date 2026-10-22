@@ -299,7 +299,7 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
     startWorker() {
       if (!operatorDb) throw new Error('the worker needs DATABASE_URL (operator role)');
       const stopOutbox = startOutboxWorker(operatorDb, subscribers);
-      const stopJobs = startJobWorker(operatorDb, jobHandlers({ uow, operatorDb }), {
+      const stopJobs = startJobWorker(operatorDb, jobHandlers({ uow, operatorDb, identity }), {
         intervalMs: 5000,
         recurring: RECURRING_JOBS,
       });

@@ -71,17 +71,26 @@ export function can(principal: Principal, capability: Capability): boolean {
 }
 
 /**
- * A principal for background work (outbox subscribers, jobs, seed) acting inside one tenant. It
- * carries the defaults and `active`: background work never fails on a cap, because caps are
- * enforced at the front door, where growth starts with a person's action (ADR 015 rule 7).
+ * A principal for background work (outbox subscribers, jobs, seed) acting inside one tenant.
+ * Caps are enforced at the front door, where growth starts with a person's action (ADR 015
+ * rule 7), so background work does not fail on one. A tenant job passes the tenant's current
+ * `access` (`tenantJob` in packages/api loads it just before it runs), and a handler that
+ * publishes calls `requireActive` first. Without `access` it carries the defaults and `active`,
+ * which is no evidence of the tenant's status: outbox subscribers keep the defaults because
+ * ingest is not growth (the seat was reserved at the signup) and a confirmation mail belongs to
+ * a signup accepted before any suspension.
  */
-export function systemPrincipal(tenantId: string, job: string): Principal {
+export function systemPrincipal(
+  tenantId: string,
+  job: string,
+  access: TenantAccess = DEFAULT_ACCESS
+): Principal {
   return {
     tenantId,
     actor: { kind: 'system', job },
     capabilities: ['tenant:admin'],
-    entitlements: DEFAULT_ACCESS.entitlements,
-    tenantStatus: DEFAULT_ACCESS.status,
+    entitlements: access.entitlements,
+    tenantStatus: access.status,
   };
 }
 

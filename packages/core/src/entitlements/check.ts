@@ -1,7 +1,8 @@
 // The two checks of ADR 015 rule 3, over the Principal, so a use case enforces its entitlement
 // once and in core (never in a front). Both refuse with `limit_exceeded`, which every front
-// renders as "upgrade or contact your host" without naming a price. Suspension is not here: it is
-// a property of the tenant, enforced once for every command in `Invoker.run` (`guardSuspended`).
+// renders as "upgrade or contact your host" without naming a price. Suspension is a property of
+// the tenant, enforced once for every command in `Invoker.run` (`guardSuspended`); `requireActive`
+// is that same answer for work that runs outside the Invoker.
 
 import { UseCaseError } from '../errors.js';
 import type { TransactionContext } from '../ports.js';
@@ -33,4 +34,15 @@ export function withinLimit(
     throw new UseCaseError('limit_exceeded', `this site has reached ${limit} (${max})`, [
       { path: '', message: `entitlements.limit.${limit}` },
     ]);
+}
+
+/**
+ * For work that runs outside `Invoker.run` (a scheduled publication, TODO #8a): the same answer
+ * `guardSuspended` gives a command. A job handler calls it before it changes anything visible
+ * and, on `suspended`, returns `{ next }` to try again later without losing its payload (the
+ * pinned revision), rather than letting the throw consume an attempt (ADR 015 rule 7).
+ */
+export function requireActive(principal: Principal): void {
+  if (principal.tenantStatus === 'suspended')
+    throw new UseCaseError('suspended', 'this site is suspended; only reading and export work');
 }

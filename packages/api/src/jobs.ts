@@ -3,7 +3,10 @@
 // core handlers and the platform's SQL jobs.
 //
 // A tenant job (`tenant_id` set) runs in a unit of work under a `system` principal for that
-// tenant, as mycel_app under RLS like any use case (ADR 011 rule 3). A platform job gets the
+// tenant, as mycel_app under RLS like any use case (ADR 011 rule 3). That principal carries the
+// tenant's entitlements and status as they are when the job runs (`IdentityStore.tenantAccess`,
+// loaded just before the unit of work), so a handler that publishes can refuse a suspended
+// tenant with `requireActive` (ADR 015 rule 7; review round 1 of TODO #16, audit point 4). A platform job gets the
 // operator connection and picks its role per transaction: `sweepRateLimits` enters
 // mycel_janitor, the partition function runs as the schema owner (execute is revoked from
 // public, 0005). Rejected: one role that may do both, which would give tenant handlers platform
@@ -16,6 +19,7 @@ import {
   type JobOutcome,
   type JobPayload,
   type JobRecord,
+  type IdentityStore,
   type JobType,
   type TransactionContext,
   type UnitOfWork,
@@ -35,16 +39,22 @@ export const RECURRING_JOBS: readonly RecurringJob[] = [
   { type: 'rate_limits.sweep', cadence: 'hourly' },
 ];
 
-/** A handler for a tenant job: validated payload, tenant-scoped unit of work. */
-function tenantJob<T extends JobType>(
-  uow: UnitOfWork,
+/**
+ * A handler for a tenant job: validated payload, tenant-scoped unit of work, and a principal with
+ * the tenant's current access. Exported for the test that proves the status reaches the handler.
+ */
+export function tenantJob<T extends JobType>(
+  { uow, identity }: { uow: UnitOfWork; identity: Pick<IdentityStore, 'tenantAccess'> },
   type: T,
   handler: (ctx: TransactionContext, payload: JobPayload<T>) => Promise<JobOutcome | void>
 ): JobHandler {
   return async (job: JobRecord) => {
     if (job.tenantId === null) throw new Error(`${type} is a tenant job but has no tenant`);
     const payload = parseJobPayload(type, job.payload);
-    return uow.run(systemPrincipal(job.tenantId, `jobs:${type}`), (ctx) => handler(ctx, payload));
+    const access = await identity.tenantAccess(job.tenantId);
+    return uow.run(systemPrincipal(job.tenantId, `jobs:${type}`, access), (ctx) =>
+      handler(ctx, payload)
+    );
   };
 }
 
@@ -60,12 +70,15 @@ function platformJob(type: JobType, handler: () => Promise<unknown>): JobHandler
 export function jobHandlers({
   uow,
   operatorDb,
+  identity,
 }: {
   uow: UnitOfWork;
   operatorDb: ReturnType<typeof createDb>;
+  identity: Pick<IdentityStore, 'tenantAccess'>;
 }): JobHandlers {
   return {
-    'hostnames.reverify': tenantJob(uow, 'hostnames.reverify', reverifyHostname),
+    // A recheck is not a publication: it runs whatever the status (`requireActive` is for #8a).
+    'hostnames.reverify': tenantJob({ uow, identity }, 'hostnames.reverify', reverifyHostname),
     'events.partitions': platformJob('events.partitions', () => createEventPartitions(operatorDb)),
     'rate_limits.sweep': platformJob('rate_limits.sweep', () => sweepRateLimits(operatorDb)),
   } satisfies Record<JobType, JobHandler>;
