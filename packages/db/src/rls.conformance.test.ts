@@ -49,7 +49,8 @@ const APP_ROLE = 'mycel_app';
 // counters: the outbox (worker drain, 0003) and the rate-limit windows (janitor sweep, 0006);
 // plus the one exception, the identity tables read at authentication time (mycel_auth, 0007)
 // and the hostnames read to resolve the site being visited (mycel_auth, 0008); and the jobs
-// queue the worker claims from (mycel_worker, 0009).
+// queue the worker claims from (mycel_worker, 0009); and the login-limit windows counted before
+// any tenant exists (mycel_auth, 0018).
 const CROSS_TENANT_TABLES = [
   'outbox',
   'rate_limits',
@@ -58,6 +59,7 @@ const CROSS_TENANT_TABLES = [
   'api_keys',
   'tenant_hostnames',
   'jobs',
+  'login_attempts',
 ];
 const ISOLATION = '(tenant_id = current_tenant_id())';
 
@@ -305,7 +307,11 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
           p.permissive === 'PERMISSIVE' &&
           p.cmd === 'ALL' &&
           p.qual === ISOLATION &&
-          p.with_check === ISOLATION
+          p.with_check === ISOLATION &&
+          // TODO #20b (0018): bound to mycel_app, so a future role with a grant on the table is
+          // refused instead of falling under the policy.
+          p.roles.length === 1 &&
+          p.roles[0] === APP_ROLE
         );
       })
       .map((t) => t.name);
@@ -337,13 +343,19 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
   });
 
   // TODO #17a: a policy with a condition (0014's restrictive `worker_retention`) escapes the
-  // `using (true)` rule above, so this one holds for every policy but the tenant isolation (whose
-  // binding to mycel_app is #20's): it names its role, never `public`.
-  it('binds every policy other than tenant_isolation to a named role', () => {
+  // `using (true)` rule above, so this one holds for every policy, `tenant_isolation` included
+  // since TODO #20b (0018): it names its role, never `public`.
+  it('binds every policy, tenant_isolation included, to a named role', () => {
     const loose = policies
-      .filter((p) => p.policyname !== 'tenant_isolation' && p.roles.includes('public'))
+      .filter((p) => p.roles.includes('public'))
       .map((p) => `${p.tablename}.${p.policyname}`);
     expect(loose).toEqual([]);
+    // Not vacuous: every tenant table's isolation is bound to mycel_app (the test above).
+    expect(
+      policies
+        .filter((p) => p.policyname === 'tenant_isolation')
+        .every((p) => p.roles[0] === APP_ROLE)
+    ).toBe(true);
     expect(policies.find((p) => p.policyname === 'worker_retention')).toMatchObject({
       tablename: 'jobs',
       permissive: 'RESTRICTIVE',
@@ -593,6 +605,87 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
         trx.selectFrom('audit_log').select('id').where('id', 'in', [young.id, old.id]).execute()
       );
       expect(left.map((r) => r.id)).toEqual([young.id]);
+    });
+  });
+
+  // TODO #20b (0018): the login limit is the platform's, counted through mycel_auth only, and
+  // the schema owner sees no tenant row without entering mycel_app.
+  describe('login_attempts and the owner', () => {
+    it('is enabled and forced, readable and writable by mycel_auth, swept by the janitor', async () => {
+      const { rows } = await sql<{ rls: boolean; forced: boolean }>`
+        select relrowsecurity as rls, relforcerowsecurity as forced
+        from pg_class where oid = 'public.login_attempts'::regclass`.execute(operatorDb);
+      expect(rows[0]).toEqual({ rls: true, forced: true });
+      const of = (name: string) =>
+        policies.find((p) => p.tablename === 'login_attempts' && p.policyname === name);
+      expect(of('auth_login_limit')).toMatchObject({ roles: ['mycel_auth'], cmd: 'ALL' });
+      const old = "(window_start < (now() - '1 day'::interval))";
+      expect(of('janitor_read')).toMatchObject({
+        roles: ['mycel_janitor'],
+        cmd: 'SELECT',
+        qual: old,
+      });
+      expect(of('janitor_sweep')).toMatchObject({
+        roles: ['mycel_janitor'],
+        cmd: 'DELETE',
+        qual: old,
+      });
+    });
+
+    it.each([
+      ['select', sql`select count(*) from login_attempts`],
+      ['insert', sql`insert into login_attempts values ('rls-xxxxxxxxxxxxxxxx', now(), 1)`],
+    ])('denies mycel_app %s on login_attempts', async (_label, query) => {
+      await expect(query.execute(appDb)).rejects.toThrow(/permission denied/);
+    });
+
+    it('shows the owner no tenant row unless it enters mycel_app', async () => {
+      const count = (trx: typeof operatorDb) =>
+        sql<{ n: string }>`select count(*) as n from forms where tenant_id = ${tenantId}`
+          .execute(trx)
+          .then((r) => Number(r.rows[0]?.n));
+      const { rows } = await sql<{ s: boolean }>`
+        select rolsuper as s from pg_roles where rolname = current_user`.execute(operatorDb);
+      const asOwner = await operatorDb.transaction().execute(async (trx) => {
+        await sql`select set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
+        return count(trx);
+      });
+      const asApp = await operatorDb.transaction().execute(async (trx) => {
+        await sql`set local role mycel_app`.execute(trx);
+        await sql`select set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
+        return count(trx);
+      });
+      // A superuser bypasses RLS altogether (CI's service container); the owner of the local
+      // and managed setups does not, and that is the case this binding is for.
+      if (!rows[0]?.s) expect(asOwner).toBe(0);
+      expect(asApp).toBeGreaterThan(0);
+    });
+
+    // The case the binding is for, on any operator: a role that holds a grant on a tenant table
+    // but is not mycel_app falls under no policy and sees nothing, even with a tenant context.
+    it('refuses a role with a grant that is not mycel_app', async () => {
+      const role = `rls_outsider_${run}`;
+      const client = new pg.Client({ connectionString: operatorUrl });
+      await client.connect();
+      try {
+        await client.query('begin');
+        await client.query(`create role ${role} nologin`);
+        await client.query(`grant ${role} to current_user`);
+        await client.query(`grant select, insert on forms to ${role}`);
+        await client.query(`set local role ${role}`);
+        await client.query(`select set_config('app.tenant_id', $1, true)`, [tenantId]);
+        const { rows } = await client.query<{ n: string }>('select count(*) as n from forms');
+        expect(Number(rows[0]?.n)).toBe(0);
+        await expect(
+          client.query(`insert into forms (id, tenant_id, definition) values ($1, $2, '{}')`, [
+            uuidv7(),
+            tenantId,
+          ])
+        ).rejects.toThrow(/row-level security/);
+      } finally {
+        await client.query('rollback').catch(() => {});
+        await client.end();
+      }
     });
   });
 

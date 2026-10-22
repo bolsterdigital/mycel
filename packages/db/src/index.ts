@@ -122,16 +122,25 @@ export function createDb(connectionString: string): Kysely<Database> {
   });
 }
 
-/** Run `fn` inside a transaction scoped to the principal's tenant. */
+/**
+ * Run `fn` inside a transaction scoped to the principal's tenant, as `mycel_app`.
+ *
+ * The role switch is what lets the operator connection (the seed, the worker's subscribers, the
+ * suites) do tenant work at all: since 0018 every `tenant_isolation` policy is bound to mycel_app,
+ * so the schema owner sees no tenant row under forced RLS. On the fronts' mycel_app login it is a
+ * no-op. Rejected: a role switch at each owner call site (one forgotten site reads zero rows
+ * instead of failing), and a policy for the owner (TODO #20b decision 1).
+ */
 export async function withTenant<T>(
   db: Kysely<Database>,
   principal: Principal,
   fn: (trx: Kysely<Database>) => Promise<T>
 ): Promise<T> {
   return db.transaction().execute(async (trx) => {
-    // `true` = transaction-local: the setting disappears at commit/rollback, so a pooled
+    // `true` = transaction-local: role and setting disappear at commit/rollback, so a pooled
     // connection can never carry one tenant's context into another's request.
-    await sql`select set_config('app.tenant_id', ${principal.tenantId}, true)`.execute(trx);
+    await sql`select set_config('role', 'mycel_app', true),
+                     set_config('app.tenant_id', ${principal.tenantId}, true)`.execute(trx);
     return fn(trx);
   });
 }

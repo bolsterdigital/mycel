@@ -14,7 +14,7 @@ import { runtime } from '#lib/server/runtime.js';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ url, cookies, getClientAddress }) => {
-  if (!allowLoginAttempt(runtime().signer.hashIp(getClientAddress())))
+  if (!(await allowLoginAttempt(runtime().signer.hashIp(getClientAddress()))))
     error(429, 'Too many login attempts; try again in a few minutes.');
   let started;
   try {

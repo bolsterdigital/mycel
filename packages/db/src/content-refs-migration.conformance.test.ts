@@ -5,9 +5,11 @@
 // item, author and section references; the rows must equal what the repository derives on save
 // (`documentReferences`), so backfilled and freshly saved revisions cannot disagree.
 //
-// It runs as a role that RLS binds, as the 0011 replay does: the operator itself when it is not
-// a superuser, and always also a throwaway non-superuser role. Skips without DATABASE_URL; with
-// E2E_REQUIRED=1 (CI) that is a failure.
+// Fixture, replay and readback run under `mycel_app`, as the 0011 replay does: a non-superuser
+// member that forced RLS binds, under each tenant's context. Since 0018 (TODO #20b) the owner sees no
+// tenant row; the migrator ran this block as the owner while the policy was still on `public`,
+// which a clean chain still does (0017 before 0018). Only the tenants are the owner's. Skips
+// without DATABASE_URL; with E2E_REQUIRED=1 (CI) that is a failure.
 
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -27,7 +29,6 @@ const MIGRATION = fileURLToPath(
 describe.skipIf(!operatorUrl)('migration 0017 backfill', () => {
   const client = new pg.Client({ connectionString: operatorUrl });
   let backfill = '';
-  let superuser = false;
   const run = Math.random().toString(36).slice(2, 8);
 
   beforeAll(async () => {
@@ -36,11 +37,6 @@ describe.skipIf(!operatorUrl)('migration 0017 backfill', () => {
     backfill = text.slice(text.indexOf('-- backfill:begin'), text.indexOf('-- backfill:end'));
     expect(backfill).toContain('insert into content_block_refs');
     await client.connect();
-    superuser = (
-      await client.query<{ s: boolean }>(
-        'select rolsuper as s from pg_roles where rolname = current_user'
-      )
-    ).rows[0]!.s;
   });
 
   afterAll(() => client.end());
@@ -152,13 +148,23 @@ describe.skipIf(!operatorUrl)('migration 0017 backfill', () => {
     return { tenants: [a, b], items };
   }
 
-  async function prepare(f: ReturnType<typeof fixture>, standIn: boolean): Promise<string[]> {
+  async function prepare(f: ReturnType<typeof fixture>): Promise<string[]> {
     const revisions: string[] = [];
-    for (const x of f.tenants) {
+    for (const x of f.tenants)
       await client.query(
         `insert into tenants (id, slug, name, default_locale, locales) values ($1, $2, $2, 'nl', '{nl,en}')`,
         [x.tenant, `refs-${x.key}-${run}`]
       );
+    // The backfill walks `tenants`, which mycel_app reads only through `tenant_directory` (0008):
+    // a throwaway member of mycel_app, bound by its policies and holding its grants, gets that
+    // one read on top. Rolled back with the rest.
+    const role = `refs_app_${run}`;
+    await client.query(`create role ${role} nologin in role mycel_app`);
+    // A non-superuser with CREATEROLE administers the new role but is not yet a member (16+).
+    await client.query(`grant ${role} to current_user`);
+    await client.query(`grant select on tenants to ${role}`);
+    await client.query(`set local role ${role}`);
+    for (const x of f.tenants) {
       await client.query(`select set_config('app.tenant_id', $1, true)`, [x.tenant]);
       await client.query(`insert into forms (id, tenant_id, definition) values ($1, $2, '{}')`, [
         x.form,
@@ -190,70 +196,57 @@ describe.skipIf(!operatorUrl)('migration 0017 backfill', () => {
       );
     }
     await client.query(`select set_config('app.tenant_id', '', true)`);
-    if (superuser || standIn) {
-      const role = `refs_rls_${run}`;
-      await client.query(`create role ${role} nologin`);
-      // A non-superuser with CREATEROLE administers the new role but is not yet a member (16+).
-      if (!superuser) await client.query(`grant ${role} to current_user`);
-      await client.query(`grant select on tenants, content_revisions to ${role}`);
-      await client.query(`grant insert on content_block_refs to ${role}`);
-      await client.query(`set local role ${role}`);
-    }
     return revisions;
   }
 
-  it.each([false, true])(
-    'derives the rows the repository would, for two tenants (stand-in role: %s)',
-    async (standIn) => {
-      const f = fixture();
-      await client.query('begin');
-      try {
-        const revisions = await prepare(f, standIn);
-        const { rows: who } = await client.query<{ s: boolean }>(
-          'select rolsuper as s from pg_roles where rolname = current_user'
-        );
-        expect(who[0]!.s).toBe(false);
-        await client.query(backfill);
-        await client.query('reset role');
+  it('derives the rows the repository would, for two tenants, under mycel_app', async () => {
+    const f = fixture();
+    await client.query('begin');
+    try {
+      const revisions = await prepare(f);
+      const { rows: who } = await client.query<{ s: boolean; app: boolean }>(
+        `select rolsuper as s, pg_has_role(current_user, 'mycel_app', 'usage') as app
+         from pg_roles where rolname = current_user`
+      );
+      expect(who[0]).toEqual({ s: false, app: true });
+      await client.query(backfill);
 
-        for (const [i, item] of f.items.entries()) {
-          await client.query(`select set_config('app.tenant_id', $1, true)`, [item.tenant]);
-          const { rows } = await client.query<{
-            tenant_id: string;
-            block_id: string | null;
-            type: string;
-            ref_id: string;
-          }>(
-            `select tenant_id, block_id, type, ref_id from content_block_refs
+      for (const [i, item] of f.items.entries()) {
+        await client.query(`select set_config('app.tenant_id', $1, true)`, [item.tenant]);
+        const { rows } = await client.query<{
+          tenant_id: string;
+          block_id: string | null;
+          type: string;
+          ref_id: string;
+        }>(
+          `select tenant_id, block_id, type, ref_id from content_block_refs
              where revision_id = $1`,
-            [revisions[i]]
-          );
-          const want = documentReferences(ContentDocument.parse(item.document)).map((r) => ({
-            tenant_id: item.tenant,
-            block_id: r.blockId,
-            type: r.type,
-            ref_id: r.refId,
-          }));
-          expect(rows.sort(byRow), `item ${i}`).toEqual(want.sort(byRow));
-        }
-        // Every kind is covered: per tenant one form, one item (deduplicated), one author, one section.
-        // Filtered by tenant explicitly: CI's operator is a superuser and bypasses RLS here.
-        await client.query(`select set_config('app.tenant_id', $1, true)`, [f.tenants[0]!.tenant]);
-        const { rows: kinds } = await client.query<{ type: string; n: string }>(
-          `select type, count(*) as n from content_block_refs
+          [revisions[i]]
+        );
+        const want = documentReferences(ContentDocument.parse(item.document)).map((r) => ({
+          tenant_id: item.tenant,
+          block_id: r.blockId,
+          type: r.type,
+          ref_id: r.refId,
+        }));
+        expect(rows.sort(byRow), `item ${i}`).toEqual(want.sort(byRow));
+      }
+      // Every kind is covered: per tenant one form, one item (deduplicated), one author, one section.
+      await client.query(`select set_config('app.tenant_id', $1, true)`, [f.tenants[0]!.tenant]);
+      const { rows: kinds } = await client.query<{ type: string; n: string }>(
+        `select type, count(*) as n from content_block_refs
            where revision_id = any($1::uuid[]) and tenant_id = $2
            group by type order by type`,
-          [revisions, f.tenants[0]!.tenant]
-        );
-        expect(kinds.map((k) => [k.type, Number(k.n)])).toEqual([
-          ['author', 1],
-          ['form', 1],
-          ['item', 1],
-          ['section', 1],
-        ]);
-      } finally {
-        await client.query('rollback');
-      }
+        [revisions, f.tenants[0]!.tenant]
+      );
+      expect(kinds.map((k) => [k.type, Number(k.n)])).toEqual([
+        ['author', 1],
+        ['form', 1],
+        ['item', 1],
+        ['section', 1],
+      ]);
+    } finally {
+      await client.query('rollback');
     }
-  );
+  });
 });

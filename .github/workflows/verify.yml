@@ -105,17 +105,28 @@ jobs:
           # database is needed to prove the processes start. MAILER=console is refused in
           # production, hence the placeholder TEM settings; likewise the fs blob store, hence the
           # placeholder bucket (the S3 client connects on first use, not at start).
+          # Only the worker gets the owner's DATABASE_URL (ADR 011 rule 1, TODO #20b): api runs
+          # with MYCEL_WORKER=off and web without it, as in production.
           env_args="-e APP_DATABASE_URL=postgres://mycel_app:x@127.0.0.1:1/mycel
             -e AUTH_DATABASE_URL=postgres://mycel_authenticator:x@127.0.0.1:1/mycel
-            -e DATABASE_URL=postgres://mycel:x@127.0.0.1:1/mycel
             -e SIGNING_SECRET=ci-only-signing-secret -e AUDIT_HASH_KEY=ci-only-audit-hash-key
             -e PUBLIC_BASE_URL=http://localhost:3000
             -e PLATFORM_DOMAIN=example.org -e MYCEL_TRUST_PROXY=1
             -e MAIL_FROM=noreply@example.org -e MAILER=tem -e TEM_SECRET_KEY=x -e TEM_PROJECT_ID=x
             -e BLOB_STORE=s3 -e BLOB_S3_BUCKET=x -e BLOB_S3_ACCESS_KEY_ID=x -e BLOB_S3_SECRET_ACCESS_KEY=x"
           for role in api web worker; do
+            case "$role" in
+              api) role_args="-e MYCEL_WORKER=off" ;;
+              worker) role_args="-e DATABASE_URL=postgres://mycel:x@127.0.0.1:1/mycel" ;;
+              *) role_args="" ;;
+            esac
             docker run -d --name "mycel-$role" --health-interval 2s --health-start-period 2s \
-              $env_args mycel:ci "$role"
+              $env_args $role_args mycel:ci "$role"
+          done
+          for role in api web; do
+            if docker exec "mycel-$role" printenv DATABASE_URL >/dev/null; then
+              echo "$role has DATABASE_URL"; exit 1
+            fi
           done
           for role in api web worker; do
             status=starting
