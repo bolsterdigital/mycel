@@ -15,6 +15,8 @@ export type UseCaseKind = 'query' | 'command';
 /**
  * What a command does beyond writing (ADR 018 rule 5). Each effect has exactly one capability, so
  * "improve this text" can never imply "mail everyone"; `registry-rules.ts` enforces the pairing.
+ * The `effect` check of `audit_log` (migration 0015) mirrors this list: a new effect needs a
+ * migration before any command carries it, or its audit row is refused.
  */
 export type UseCaseEffect = 'publish' | 'send' | 'export' | 'refund';
 

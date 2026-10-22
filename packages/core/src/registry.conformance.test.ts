@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { DEFAULT_ENTITLEMENTS } from './entitlements/model.js';
 import { UseCaseError } from './errors.js';
 import { Invoker } from './invoke.js';
-import { systemPrincipal, type Principal } from './principal.js';
+import { Capability, systemPrincipal, type Principal } from './principal.js';
 import { checkRegistry } from './registry-rules.js';
 import type { UseCase } from './registry.js';
 import { MemoryUnitOfWork, probeForm, probeTenant } from './testing/index.js';
@@ -198,19 +198,30 @@ describe('every command leaves exactly one audit row (TODO #17b)', () => {
     }
   );
 
+  // With every capability, so the success path is the real one (review of PR #19): an example
+  // that needs state the probe fixture lacks still fails, but never for want of a right.
+  const succeeded: string[] = [];
   it.each(commands.map((u) => [u.name, u] as const))(
     '%s run with its example: one row, ok exactly when it succeeded',
     async (_n, useCase) => {
       const { invoker, rows } = await setup();
       const outcome = await invoker
-        .run(useCase, operator(['tenant:admin']), useCase.examples[0].input)
+        .run(useCase, operator(Capability.options), useCase.examples[0].input)
         .then(
           () => 'ok',
           (e: unknown) => (e instanceof UseCaseError ? e.code : 'error')
         );
+      if (outcome === 'ok') succeeded.push(useCase.name);
+      expect(outcome).not.toBe('forbidden');
       expect(rows().map((r) => [r.operation, r.result])).toEqual([[useCase.name, outcome]]);
       expect(rows()[0]!.inputHash).toMatch(HEX64);
       noAddress(rows());
     }
   );
+
+  it('proves the ok row for the commands whose example runs on the probe fixture', () => {
+    expect(succeeded).toEqual(
+      expect.arrayContaining(['content.page.create', 'forms.submit', 'tenant.keys.create'])
+    );
+  });
 });
