@@ -1,4 +1,5 @@
-// `npm run mcp -w @mycel/mcp`: the MCP server over stdio, acting as one agent session with the
+#!/usr/bin/env node
+// `npm run mcp -w @mycel/mcp`, `mycel-mcp` (bin) or the image's `mcp` entrypoint: the MCP server over stdio, acting as one agent session with the
 // tenant and capabilities of MYCEL_API_KEY's row in `api_keys`. The row is read on every call, so
 // revoking the key stops a running server. Stdout is the protocol channel: never console.log here;
 // the runtime's log lines go to stderr.

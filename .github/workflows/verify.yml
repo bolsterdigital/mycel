@@ -166,3 +166,21 @@ jobs:
             echo "$role: $status"
             if [ "$status" != healthy ]; then docker logs "mycel-$role"; exit 1; fi
           done
+
+  # The production stack (compose.yml) on an empty runner, TODO #18a: Postgres with a
+  # non-superuser owner, migrate, api, web, worker and Caddy with on-demand TLS from its own CA
+  # (compose.ci.yml). scripts/compose-proof.sh runs `mycel setup` and checks from outside through
+  # Caddy that /internal/*, /readyz, /metrics and /platform/* are closed, from inside that the
+  # certificate ask answers, that api and web hold no DATABASE_URL and the worker is ready. It
+  # prints the stack's logs on any failure. A developer runs the same script before pushing.
+  compose:
+    needs: image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image (no push)
+        run: docker build -t mycel:ci .
+
+      - name: Compose proof
+        run: scripts/compose-proof.sh

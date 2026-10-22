@@ -6,6 +6,7 @@
 // decide cache headers and access, ADR 018 rules 7 and 8).
 
 import {
+  CreateBucketCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
@@ -35,13 +36,35 @@ const notFound = (e: unknown) =>
 /** DeleteObjects takes at most a thousand keys per call. */
 const BATCH = 1000;
 
-export function createS3BlobStore(config: S3BlobStoreConfig): BlobStore {
-  const client = new S3Client({
+function clientOf(config: S3BlobStoreConfig): S3Client {
+  return new S3Client({
     region: config.region,
     ...(config.endpoint ? { endpoint: config.endpoint } : {}),
     forcePathStyle: config.forcePathStyle ?? false,
     credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
   });
+}
+
+/**
+ * Create the bucket when it does not exist (`mycel blob init`, TODO #18a): for a bucket on the
+ * same box (the `local-s3` compose profile), which starts empty. A provider's bucket is usually
+ * made in its console; one that already exists and is ours is `exists`, anything else throws.
+ */
+export async function ensureS3Bucket(config: S3BlobStoreConfig): Promise<'created' | 'exists'> {
+  const client = clientOf(config);
+  try {
+    await client.send(new CreateBucketCommand({ Bucket: config.bucket }));
+    return 'created';
+  } catch (e) {
+    if (/BucketAlready(OwnedByYou|Exists)/.test((e as Error).name)) return 'exists';
+    throw e;
+  } finally {
+    client.destroy();
+  }
+}
+
+export function createS3BlobStore(config: S3BlobStoreConfig): BlobStore {
+  const client = clientOf(config);
   const Bucket = config.bucket;
 
   return {

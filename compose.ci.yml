@@ -1,0 +1,15 @@
+# CI override of compose.yml (job `compose` in .github/workflows/verify.yml; locally the same):
+#
+#   docker compose --env-file compose.ci.env -f compose.yml -f compose.ci.yml --profile local-s3 up -d --wait
+#
+# Only what a runner without DNS or public certificates needs differs: Caddy mounts Caddyfile.ci
+# (production plus `local_certs`, still on demand and still asking the application first) and
+# listens on 18080/18443 so a developer box with 80/443 taken can run it too. Every value lives in
+# compose.ci.env as a placeholder that .gitleaks.toml allows exactly.
+services:
+  caddy:
+    ports: !override
+      - '18080:80'
+      - '18443:443'
+    volumes:
+      - ./docker/caddy/Caddyfile.ci:/etc/caddy/Caddyfile:ro

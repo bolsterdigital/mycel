@@ -2,8 +2,8 @@
 // body when `domain` may get a certificate, 404 otherwise. Allowed: the platform origin itself,
 // a platform hostname, a verified custom hostname. Never a list and no authentication: the
 // answer is one bit that the certificate itself would reveal. Host-agnostic (hooks.server.ts);
-// Caddy reaches it on the internal name, and the public Caddyfile example does not route
-// `/internal/*` from outside.
+// Caddy reaches it on the internal name, and docker/caddy/Caddyfile does not route `/internal/*`
+// from outside.
 import { normalizeHostname } from '@mycel/core';
 import { runtime } from '#lib/server/runtime.js';
 import type { RequestHandler } from './$types';

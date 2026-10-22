@@ -19,6 +19,11 @@ const INVENTORY: Record<string, string> = {
   MYCEL_APP_PASSWORD: 'packages/db/src/migrate.ts',
   MYCEL_AUTH_PASSWORD: 'packages/db/src/migrate.ts',
   MYCEL_SEED_OPERATOR_EMAIL: 'packages/db/src/seed.ts',
+  MYCEL_IMAGE: 'compose.yml',
+  MYCEL_DB_PASSWORD: 'compose.yml',
+  PG_SUPERUSER_PASSWORD: 'compose.yml',
+  ACME_EMAIL: 'docker/caddy/Caddyfile',
+  API_HOST: 'docker/caddy/Caddyfile',
   MYCEL_PG_PORT: 'compose.dev.yml',
   MYCEL_S3_PORT: 'compose.dev.yml',
   MYCEL_WORKER: 'packages/api/src/server.ts',
@@ -107,8 +112,9 @@ function usedKeys(): string[] {
         if (!relative(root, file).includes('/e2e/')) scan(file, processEnv);
   scan(join(root, 'apps/web/playwright.config.ts'), processEnv);
   const shell = /\$\{([A-Z][A-Z0-9_]*)/g;
-  scan(join(root, 'compose.dev.yml'), shell);
-  scan(join(root, 'docker/entrypoint.sh'), shell);
+  for (const file of ['compose.yml', 'compose.dev.yml', 'docker/entrypoint.sh'])
+    scan(join(root, file), shell);
+  scan(join(root, 'docker/caddy/Caddyfile'), /\{\$([A-Z][A-Z0-9_]*)/g);
   return [...used];
 }
 

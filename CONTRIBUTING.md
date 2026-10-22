@@ -51,12 +51,12 @@ One image runs every process; the command picks which one:
 
 ```sh
 docker build -t mycel .
-docker run --env-file <your env file> -p 3000:3000 mycel web   # or: api | worker | migrate
+docker run --env-file <your env file> -p 3000:3000 mycel web   # or: api | worker | migrate | mycel | mcp
 ```
 
 The variables are the ones in `.env.example`. The image sets `NODE_ENV=production`, in which `MAILER=console` is refused, and `localhost` in a database URL means the container itself, not your machine.
 
-Each process answers `GET /healthz` on `$PORT` (3000 in the image), which the image's `HEALTHCHECK` probes. CI builds the image on every pull request and checks that `api`, `web` and `worker` become healthy; it does not push it anywhere.
+Each process answers `GET /healthz` on `$PORT` (3000 in the image), which the image's `HEALTHCHECK` probes. CI builds the image on every pull request and checks that `api`, `web` and `worker` become healthy; it does not push it anywhere. The job `compose` then runs the whole production stack from it (`scripts/compose-proof.sh`; run it yourself after `docker build -t mycel:ci .`). Running it on a server: [`docs/self-hosting.md`](docs/self-hosting.md).
 
 ## Developer Certificate of Origin
 

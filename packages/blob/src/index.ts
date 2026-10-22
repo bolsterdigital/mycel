@@ -3,4 +3,4 @@
 // contract suite runs over both; sharp is a separate package because its native build should not
 // come with a store. Rejected: a package per store (two packages for one contract and one test).
 export { createFsBlobStore, contentTypeOfKey } from './fs.js';
-export { createS3BlobStore, type S3BlobStoreConfig } from './s3.js';
+export { createS3BlobStore, ensureS3Bucket, type S3BlobStoreConfig } from './s3.js';

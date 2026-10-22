@@ -19,13 +19,15 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint:deps": "node scripts/check-dependency-rules.mjs && node --test scripts/check-dependency-rules.test.mjs",
-    "verify": "npm run format:check && npm run lint:deps && npm run typecheck && npm run test && npm run build && npm run test:e2e",
+    "lint:infra": "node --test docker/caddy/caddyfile.test.mjs scripts/docs-links.test.mjs",
+    "verify": "npm run format:check && npm run lint:deps && npm run lint:infra && npm run typecheck && npm run test && npm run build && npm run test:e2e",
     "test:e2e": "node scripts/e2e.mjs",
     "dev": "node scripts/dev.mjs",
     "worker": "tsc -b packages/api && npm run -s worker -w @mycel/api",
     "db:up": "docker compose -f compose.dev.yml up -d --wait",
     "db:migrate": "npm run -s migrate -w @mycel/db",
-    "platform": "tsc -b packages/api && node --env-file-if-exists=.env scripts/platform.mjs",
+    "mycel": "tsc -b packages/api && node --env-file-if-exists=.env packages/api/dist/cli.js",
+    "platform": "npm run -s mycel --",
     "db:seed": "tsc -b packages/db && npm run -s migrate -w @mycel/db && npm run -s seed -w @mycel/db"
   },
   "devDependencies": {

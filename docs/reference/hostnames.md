@@ -56,7 +56,7 @@ The admin shows per custom domain when it was last checked and how many checks i
 
 ## TLS (what the hosting does)
 
-Caddy issues certificates on demand and asks the application first: `GET /internal/hostnames/allowed?domain=<host>` answers `200` (empty body) for the platform origin, a platform hostname and a verified custom hostname, and `404` for everything else. There is no list endpoint and no authentication: the answer is one bit the certificate would reveal anyway. `/internal/*` must not be reachable from outside; the example in [`caddy/Caddyfile.example`](caddy/Caddyfile.example) blocks it and sets the forwarded headers the web container trusts with `MYCEL_TRUST_PROXY=1`. The production compose file is TODO #18.
+Caddy issues certificates on demand and asks the application first: `GET /internal/hostnames/allowed?domain=<host>` answers `200` (empty body) for the platform origin, a platform hostname and a verified custom hostname, and `404` for everything else. There is no list endpoint and no authentication: the answer is one bit the certificate would reveal anyway. `/internal/*` must not be reachable from outside; [`docker/caddy/Caddyfile`](../../docker/caddy/Caddyfile), the proxy of [`compose.yml`](../../compose.yml), blocks it and sets the forwarded headers the web container trusts with `MYCEL_TRUST_PROXY=1`. CI proves both with a real Caddy (`scripts/compose-proof.sh`, certificates from Caddy's own CA); the installation is [`docs/self-hosting.md`](../self-hosting.md).
 
 ## The API over HTTP and MCP
 

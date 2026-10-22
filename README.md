@@ -37,6 +37,10 @@ npm run dev         # API on :8787, web on :5173 -> http://localhost:5173/probe/
 
 Node 22, npm workspaces. `npm run verify` is the gate. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
+## Self-hosting
+
+One image, one `compose.yml`: Postgres, the API, the web app, a worker and Caddy with automatic certificates on a single server. [`docs/self-hosting.md`](docs/self-hosting.md) goes from an empty server to the first login; `mycel setup` creates the first site and its operator. Agents connect through the MCP server over stdio (`docker compose run --rm -T worker mcp`, acting with one site's API key); remote MCP over HTTP is planned.
+
 ## Licence
 
 AGPL-3.0-only. See [`LICENSE`](LICENSE), [`TRADEMARK.md`](TRADEMARK.md) and ADR 006.

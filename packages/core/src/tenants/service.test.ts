@@ -92,6 +92,25 @@ describe('custom domains', () => {
       await expectCode(add(h), 'invalid_input');
   });
 
+  it('refuses the host of the platform origin when it is outside the platform domain', async () => {
+    // The suite's origin (admin.mycel.site) is already under the domain; a hoster may put the
+    // admin on a name of its own, which the domain rule does not cover (PR #8 review, point c).
+    const own = new MemoryUnitOfWork({
+      clock,
+      dns,
+      platform: { ...platform, platformOrigin: 'https://admin.example.net' },
+    });
+    own.store.addPlatformHostname(probeTenant(TENANT), platform.domain, clock.now());
+    const invokeOwn = new Invoker(buildRegistry(), own);
+    await expectCode(
+      invokeOwn.run(useCases.addHostname, admin, { hostname: 'Admin.Example.NET.' }),
+      'invalid_input'
+    );
+    await expect(
+      invokeOwn.run(useCases.addHostname, admin, { hostname: 'www.example.net' })
+    ).resolves.toMatchObject({ hostname: 'www.example.net' });
+  });
+
   it('keeps hostnames globally unique with a conflict that names no owner', async () => {
     await add('www.example.org');
     await expectCode(add('www.example.org', other), 'conflict');
