@@ -48,3 +48,5 @@ export * from './media/ports.js';
 export * from './media/delivery.js';
 export * from './media/service.js';
 export * from './util/bytes.js';
+export * from './util/scrub.js';
+export * from './util/log.js';

@@ -239,7 +239,7 @@ describe.skipIf(!ready)('mail.reconcile against Postgres', () => {
       },
       { types: [types.mail, types.other] }
     );
-    expect(result).toEqual({ claimed: 3, completed: 2, failed: 1 });
+    expect(result).toEqual({ claimed: 3, completed: 2, failed: 1, superseded: 0 });
     expect(ran).toEqual([`${types.other}:x`]);
     expect(provider.delivered).toHaveLength(1);
 

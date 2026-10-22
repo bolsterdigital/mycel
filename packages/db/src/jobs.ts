@@ -17,7 +17,14 @@
 // at `migrate` (a worker that runs for months without a deploy must keep itself going).
 
 import { sql, type Kysely } from 'kysely';
-import type { JobOutcome, JobRecord, Scheduler } from '@mycel/core';
+import {
+  noopLogger,
+  scrubText,
+  type JobOutcome,
+  type JobRecord,
+  type Logger,
+  type Scheduler,
+} from '@mycel/core';
 import { uuidv7 } from './ids.js';
 import type { Database } from './schema.js';
 
@@ -152,7 +159,10 @@ export async function completeJob(
   });
 }
 
-/** Record a failed run: release the lease and retry after the backoff, until `max_attempts`. */
+/**
+ * Record a failed run: release the lease and retry after the backoff, until `max_attempts`. The
+ * error text is scrubbed: an exception may quote an address, and #17c shows this column.
+ */
 export async function failJob(
   operatorDb: Kysely<Database>,
   job: JobRecord,
@@ -162,7 +172,7 @@ export async function failJob(
     const r = await trx
       .updateTable('jobs')
       .set({
-        last_error: error,
+        last_error: scrubText(error),
         claimed_at: null,
         run_at: sql`now() + make_interval(secs => ${backoffSeconds(job.attempts)})`,
       })
@@ -241,7 +251,11 @@ export interface JobRunResult {
   claimed: number;
   completed: number;
   failed: number;
+  /** The handler finished after its lease expired and another worker had taken the job. */
+  superseded: number;
 }
+
+export type JobRunOutcome = 'completed' | 'failed' | 'superseded';
 
 /** One pass: claim a batch and run each job in turn. A type without a handler is a failure. */
 export async function runJobs(
@@ -251,27 +265,79 @@ export async function runJobs(
     batchSize,
     types,
     onError,
+    onRun,
+    log = noopLogger,
   }: {
     batchSize?: number;
     types?: readonly string[];
     onError?: (e: unknown, job: JobRecord) => void;
+    /** Each job's result, for the `mycel_jobs_runs_total` counter. */
+    onRun?: ((job: JobRecord, outcome: JobRunOutcome) => void) | undefined;
+    log?: Logger;
   } = {}
 ): Promise<JobRunResult> {
   const jobs = await claimJobs(operatorDb, { batchSize, types });
-  const result: JobRunResult = { claimed: jobs.length, completed: 0, failed: 0 };
+  const result: JobRunResult = { claimed: jobs.length, completed: 0, failed: 0, superseded: 0 };
   for (const job of jobs) {
     const handler = Object.hasOwn(handlers, job.type) ? handlers[job.type] : undefined;
+    let outcome: JobRunOutcome;
     try {
       if (!handler) throw new Error(`no handler for ${job.type}`);
-      await completeJob(operatorDb, job, (await handler(job)) ?? {});
-      result.completed += 1;
+      const done = await completeJob(operatorDb, job, (await handler(job)) ?? {});
+      outcome = done ? 'completed' : 'superseded';
+      if (!done)
+        log.warn('job finished after its lease expired; another run owns it', {
+          job: job.type,
+          jobId: job.id,
+          attempt: job.attempts,
+        });
     } catch (e) {
       onError?.(e, job);
       await failJob(operatorDb, job, e instanceof Error ? e.message : String(e));
-      result.failed += 1;
+      outcome = 'failed';
     }
+    result[outcome] += 1;
+    onRun?.(job, outcome);
   }
   return result;
+}
+
+export interface WorkerErrorContext {
+  job?: string;
+  tenantId?: string | undefined;
+  tags?: Record<string, string>;
+}
+
+/** What the worker loops tell their caller: errors to report and passes that completed. */
+export interface WorkerHooks {
+  log?: Logger | undefined;
+  /**
+   * An unexpected failure: a handler, a subscriber, or the loop itself. When set, the failure goes
+   * here instead of to `log` (the console error reporter writes the line), so it is written once.
+   */
+  onError?: ((e: unknown, context: WorkerErrorContext) => void) | undefined;
+  /** After every pass that reached the database, for readiness (`/readyz` on the worker). */
+  onTick?: (() => void) | undefined;
+  onRun?: ((job: JobRecord, outcome: JobRunOutcome) => void) | undefined;
+}
+
+const message = (e: unknown) => scrubText(e instanceof Error ? e.message : String(e));
+
+/** Report through `onError` when the caller gave one, else write one log line. */
+export function reportOrLog(
+  { log = noopLogger, onError }: Pick<WorkerHooks, 'log' | 'onError'>,
+  what: string,
+  e: unknown,
+  context: WorkerErrorContext = {}
+): void {
+  if (onError) onError(e, context);
+  else
+    log.error(what, {
+      ...context.tags,
+      ...(context.job ? { job: context.job } : {}),
+      ...(context.tenantId ? { tenantId: context.tenantId } : {}),
+      error: message(e),
+    });
 }
 
 /** Poll for due jobs until stopped. Returns a function that stops the loop and awaits the last run. */
@@ -281,30 +347,40 @@ export function startJobWorker(
   {
     intervalMs = 5000,
     recurring = [],
-    log = console,
+    log = noopLogger,
+    onError,
+    onTick,
+    onRun,
   }: {
     intervalMs?: number;
     recurring?: readonly RecurringJob[];
-    log?: Pick<Console, 'error'>;
-  } = {}
+  } & WorkerHooks = {}
 ): () => Promise<void> {
   let stopped = false;
   let timer: NodeJS.Timeout | undefined;
   let running: Promise<void> = Promise.resolve();
   const tick = () => {
     running = ensureRecurring(operatorDb, recurring)
-      .catch((e) => log.error('planning recurring jobs failed:', e))
+      .catch((e) => reportOrLog({ log, onError }, 'planning recurring jobs failed', e))
       .then(() =>
         runJobs(operatorDb, handlers, {
-          onError: (e, job) => log.error(`job ${job.key} (${job.id}) failed:`, e),
+          log,
+          onRun,
+          onError: (e, job) =>
+            reportOrLog({ log, onError }, 'job failed', e, {
+              job: job.type,
+              tenantId: job.tenantId ?? undefined,
+              tags: { jobId: job.id, attempt: String(job.attempts) },
+            }),
         })
       )
       .then((r) => {
+        onTick?.();
         // Run again immediately while there is a backlog.
         if (!stopped) timer = setTimeout(tick, r.claimed > 0 ? 0 : intervalMs);
       })
       .catch((e) => {
-        log.error('job run failed:', e);
+        reportOrLog({ log, onError }, 'job run failed', e);
         if (!stopped) timer = setTimeout(tick, intervalMs);
       });
   };

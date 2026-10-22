@@ -25,14 +25,17 @@ import {
 import { FakeDns, FakeSigner, memoryPlatform } from '@mycel/core/testing';
 import {
   JOB_LEASE_SECONDS,
+  OUTBOX_MAX_ATTEMPTS,
   claimJobs,
   completeJob,
   createDb,
+  deleteFinishedJobs,
   createEventPartitions,
   createUnitOfWork,
   ensureRecurring,
   failJob,
   migrate,
+  queueLag,
   runJobs,
   sweepRateLimits,
   upsertTenant,
@@ -83,6 +86,12 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
         .execute();
       return rows.map((r) => toJobRecord(r as Parameters<typeof toJobRecord>[0]));
     });
+  /** Run `fn` as mycel_worker, the queue's own role (an owner without superuser sees nothing). */
+  const asWorker = <T>(fn: (trx: typeof operatorDb) => Promise<T>) =>
+    operatorDb.transaction().execute(async (trx) => {
+      await sql`set local role mycel_worker`.execute(trx);
+      return fn(trx);
+    });
   /** Insert a due platform job as the worker. */
   async function due(t: string, key = `${t}:${uuidv7()}`, maxAttempts = 10): Promise<string> {
     await operatorDb.transaction().execute(async (trx) => {
@@ -127,6 +136,9 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
                 where done_at is null and type like ${`conformance.${run}.%`}`.execute(trx);
       await sql`update jobs set done_at = now()
                 where done_at is null and key like ${`mail.reconcile:test-${run}:%`}`.execute(trx);
+      // The outbox events of the lag test: delivered, so no drain or lag counts them again.
+      await sql`update outbox set processed_at = now()
+                where processed_at is null and type = ${type('lag')}`.execute(trx);
     });
     await Promise.all([operatorDb.destroy(), appDb.destroy()]);
   });
@@ -284,7 +296,7 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
     const t = type('fail');
     const key = await due(t, undefined, 2);
     const result = await runJobs(operatorDb, {}, { types: [t] });
-    expect(result).toEqual({ claimed: 1, completed: 0, failed: 1 });
+    expect(result).toEqual({ claimed: 1, completed: 0, failed: 1, superseded: 0 });
     let [row] = await byKey(key);
     expect(row).toMatchObject({ attempts: 1, claimedAt: null, lastError: `no handler for ${t}` });
     expect(row!.runAt.getTime()).toBeGreaterThan(Date.now());
@@ -428,9 +440,136 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
         types: [t],
       }
     );
-    expect(result).toEqual({ claimed: 1, completed: 1, failed: 0 });
+    expect(result).toEqual({ claimed: 1, completed: 1, failed: 0, superseded: 0 });
     const { rows } = await sql<{ n: number }>`
       select count(*)::int as n from rate_limits where key = ${`jobs-${run}`}`.execute(operatorDb);
     expect(rows[0]!.n).toBe(0);
+  });
+
+  // TODO #17a: what the worker's `/readyz` and `/metrics` read. The numbers are global, and the
+  // other suites run beside this one, so the fixture proves lower bounds: its own rows are in.
+  it('measures queue lag: a waiting job, an exhausted job, a dead and a pending event', async () => {
+    const waiting = type('lag-waiting');
+    await asWorker((trx) =>
+      trx
+        .insertInto('jobs')
+        .values([
+          {
+            id: uuidv7(),
+            tenant_id: null,
+            type: waiting,
+            key: `${waiting}:${uuidv7()}`,
+            run_at: new Date(Date.now() - 10 * 60 * 1000),
+            payload: '{}',
+          },
+          {
+            id: uuidv7(),
+            tenant_id: null,
+            type: type('lag-exhausted'),
+            key: `${type('lag-exhausted')}:${uuidv7()}`,
+            run_at: new Date(Date.now() - 1000),
+            payload: '{}',
+            attempts: 3,
+            max_attempts: 3,
+          },
+        ])
+        .execute()
+    );
+    // Written as mycel_app under the tenant, as a use case would. The pending event waits out a
+    // backoff, so the drain in db.test.ts, which runs beside this suite, does not take it.
+    await withTenant(appDb, admin(), (trx) =>
+      trx
+        .insertInto('outbox')
+        .values(
+          [
+            { attempts: OUTBOX_MAX_ATTEMPTS, available_at: new Date() },
+            { attempts: 1, available_at: new Date(Date.now() + 60 * 60 * 1000) },
+          ].map((row) => ({
+            id: uuidv7(),
+            tenant_id: tenantId,
+            type: type('lag'),
+            occurred_at: new Date(),
+            created_at: new Date(Date.now() - 20 * 60 * 1000),
+            actor: JSON.stringify({ kind: 'system', job: 'test' }),
+            props: '{}',
+            ...row,
+          }))
+        )
+        .execute()
+    );
+
+    const lag = await queueLag(operatorDb);
+    expect(lag.jobsLagSeconds).toBeGreaterThanOrEqual(10 * 60 - 5);
+    expect(lag.jobsExhausted).toBeGreaterThanOrEqual(1);
+    expect(lag.outboxLagSeconds).toBeGreaterThanOrEqual(20 * 60 - 5);
+    expect(lag.outboxDead).toBeGreaterThanOrEqual(1);
+  });
+
+  it('counts a run that outlived its lease as superseded, not completed', async () => {
+    const t = type('superseded');
+    const key = await due(t);
+    const outcomes: string[] = [];
+    const result = await runJobs(
+      operatorDb,
+      {
+        // While the handler runs, its lease expires and another worker claims the job.
+        [t]: async (job) => {
+          await asWorker((trx) =>
+            sql`update jobs set attempts = attempts + 1, claimed_at = now()
+                where id = ${job.id}`.execute(trx)
+          );
+        },
+      },
+      { types: [t], onRun: (_, outcome) => outcomes.push(outcome) }
+    );
+    expect(result).toEqual({ claimed: 1, completed: 0, failed: 0, superseded: 1 });
+    expect(outcomes).toEqual(['superseded']);
+    // The other run owns it: still open, not marked done by the late one.
+    expect((await byKey(key))[0]).toMatchObject({ doneAt: null, attempts: 2 });
+  });
+
+  it('deletes finished jobs past retention, never an open or exhausted one', async () => {
+    const t = type('retention');
+    const day = 24 * 60 * 60 * 1000;
+    const row = (name: string, fields: Record<string, unknown>) => ({
+      id: uuidv7(),
+      tenant_id: null,
+      type: t,
+      key: `${t}:${name}`,
+      run_at: new Date(Date.now() - 90 * day),
+      payload: '{}',
+      ...fields,
+    });
+    await asWorker((trx) =>
+      trx
+        .insertInto('jobs')
+        .values([
+          row('old-done', { done_at: new Date(Date.now() - 40 * day) }),
+          row('recent-done', { done_at: new Date(Date.now() - 1 * day) }),
+          row('old-open', { run_at: new Date(Date.now() + day) }),
+          row('old-exhausted', { attempts: 10, max_attempts: 10 }),
+        ])
+        .execute()
+    );
+    const keys = async () =>
+      (
+        await asWorker((trx) =>
+          trx.selectFrom('jobs').select('key').where('type', '=', t).execute()
+        )
+      )
+        .map((r) => r.key)
+        .sort();
+
+    await expect(
+      uow.run(admin(), () => sql`delete from jobs where type = ${t}`.execute(appDb))
+    ).rejects.toThrow(/permission denied/);
+    // The restrictive policy of 0014: the worker cannot delete an open row, whatever it asks.
+    const direct = await asWorker((trx) =>
+      trx.deleteFrom('jobs').where('type', '=', t).where('done_at', 'is', null).executeTakeFirst()
+    );
+    expect(direct.numDeletedRows).toBe(0n);
+
+    expect(await deleteFinishedJobs(operatorDb, 30)).toBeGreaterThanOrEqual(1);
+    expect(await keys()).toEqual([`${t}:old-exhausted`, `${t}:old-open`, `${t}:recent-done`]);
   });
 });

@@ -12,12 +12,14 @@ import { Kysely, PostgresDialect, sql } from 'kysely';
 import pg from 'pg';
 import {
   appDelivery,
+  noopLogger,
   platformHostname,
   type BlobStore,
   type Clock,
   type DnsResolver,
   type Ids,
   type ImageProcessor,
+  type Logger,
   type MediaDelivery,
   type PlatformConfig,
   type Principal,
@@ -46,7 +48,14 @@ import { supporterAdmissions } from './admissions.js';
 
 export type { Database } from './schema.js';
 export { uuidv7, uuidv7Ids } from './ids.js';
-export { drainOutbox, readOutboxEvent, startOutboxWorker, type DrainResult } from './outbox.js';
+export {
+  MAX_ATTEMPTS as OUTBOX_MAX_ATTEMPTS,
+  drainOutbox,
+  readOutboxEvent,
+  startOutboxWorker,
+  type DrainResult,
+} from './outbox.js';
+export { deleteFinishedJobs, ping, queueLag, type QueueLag } from './ops.js';
 export { sweepRateLimits } from './janitor.js';
 export {
   JOB_LEASE_SECONDS,
@@ -61,8 +70,11 @@ export {
   type Cadence,
   type JobHandler,
   type JobHandlers,
+  type JobRunOutcome,
   type JobRunResult,
   type RecurringJob,
+  type WorkerErrorContext,
+  type WorkerHooks,
 } from './jobs.js';
 export { createIdentityStore } from './operators.js';
 export { mediaRepository } from './media.js';
@@ -110,6 +122,8 @@ export interface UnitOfWorkDeps {
    * in suites that touch no files: then `ctx.blobs` and `ctx.images` refuse when used.
    */
   media?: { blobs: BlobStore; images: ImageProcessor; delivery?: MediaDelivery } | undefined;
+  /** `ctx.log`; the composition root passes the process logger, suites get `noopLogger`. */
+  log?: Logger | undefined;
 }
 
 const unconfigured = (port: string) =>
@@ -152,6 +166,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           blobs: deps.media?.blobs ?? (unconfigured('BlobStore') as BlobStore),
           images: deps.media?.images ?? (unconfigured('ImageProcessor') as ImageProcessor),
           delivery: deps.media?.delivery ?? appDelivery,
+          log: deps.log ?? noopLogger,
         });
       });
     },

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Invoker, buildRegistry, systemPrincipal } from '@mycel/core';
 import { MemoryUnitOfWork, probeForm, probePage } from '@mycel/core/testing';
+import { Metrics, createLogger } from '@mycel/observability';
 import { createApp } from './app.js';
 import { HmacSigner } from './signer.js';
 
@@ -80,5 +81,85 @@ describe('HmacSigner', () => {
     expect(await s.verify(token.slice(0, -2) + 'xx')).toBeNull();
     expect(await new HmacSigner('fedcba9876543210').verify(token)).toBeNull();
     expect(s.hashIp('1.2.3.4')).not.toContain('1.2.3.4');
+  });
+});
+
+// TODO #17a: request ids, the access line, readiness and metrics.
+describe('HTTP observability', () => {
+  async function observed(ready = true, metricsToken?: string) {
+    const out: string[] = [];
+    const log = createLogger({ service: 'api', write: (l) => void out.push(l) });
+    const uow = new MemoryUnitOfWork();
+    const app = createApp({
+      invoker: new Invoker(buildRegistry(), uow),
+      authenticate: async (h) => (h === 'Bearer good' ? systemPrincipal(TENANT, 'api') : null),
+      observability: {
+        log,
+        metrics: new Metrics(),
+        newRequestId: () => 'fresh-request-id',
+        ready: async () => ready,
+        metricsToken,
+      },
+    });
+    return { app, lines: () => out.map((l) => JSON.parse(l) as Record<string, unknown>) };
+  }
+
+  it('echoes a valid request id, replaces an invalid one, and logs one access line each', async () => {
+    const { app, lines } = await observed();
+    const get = (id?: string) =>
+      app.request('/v1/content.page.get?slug=signup', {
+        headers: { authorization: 'Bearer good', ...(id ? { 'x-request-id': id } : {}) },
+      });
+    expect((await get('caddy-0123456789')).headers.get('x-request-id')).toBe('caddy-0123456789');
+    expect((await get('no good')).headers.get('x-request-id')).toBe('fresh-request-id');
+    expect(lines()).toMatchObject([
+      {
+        level: 'info',
+        msg: 'request',
+        service: 'api',
+        requestId: 'caddy-0123456789',
+        tenantId: TENANT,
+        method: 'GET',
+        route: '/v1/:name',
+        status: 404,
+      },
+      { requestId: 'fresh-request-id', route: '/v1/:name' },
+    ]);
+    expect(JSON.stringify(lines())).not.toContain('slug=signup');
+    expect(typeof lines()[0]!['durationMs']).toBe('number');
+  });
+
+  it('answers /readyz 200 with a database and 503 without, /healthz either way', async () => {
+    const up = await observed(true);
+    const down = await observed(false);
+    expect((await up.app.request('/readyz')).status).toBe(200);
+    expect(await (await down.app.request('/readyz')).json()).toEqual({ db: 'down' });
+    expect((await down.app.request('/readyz')).status).toBe(503);
+    expect((await down.app.request('/healthz')).status).toBe(200);
+  });
+
+  it('serves /metrics only with the token, in the Prometheus text format', async () => {
+    const token = 'm'.repeat(32);
+    expect((await (await observed()).app.request('/metrics')).status).toBe(404);
+    const { app } = await observed(true, token);
+    await app.request('/v1/nope', {
+      method: 'POST',
+      headers: { authorization: 'Bearer good', 'content-type': 'application/json' },
+      body: '{}',
+    });
+    expect((await app.request('/metrics')).status).toBe(404);
+    expect(
+      (await app.request('/metrics', { headers: { authorization: 'Bearer wrong' } })).status
+    ).toBe(404);
+    const res = await app.request('/metrics', { headers: { authorization: `Bearer ${token}` } });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toMatch(/^text\/plain; version=0\.0\.4/);
+    const text = await res.text();
+    expect(text).toContain('# TYPE mycel_http_requests_total counter');
+    expect(text).toMatch(
+      /mycel_http_requests_total\{method="POST",route="\/v1\/:name",status="4xx"\} 1/
+    );
+    expect(text).toContain('mycel_use_case_errors_total{code="not_found"} 1');
+    expect(text).not.toContain(TENANT);
   });
 });

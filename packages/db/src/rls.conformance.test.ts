@@ -314,6 +314,23 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     }
   });
 
+  // TODO #17a: a policy with a condition (0014's restrictive `worker_retention`) escapes the
+  // `using (true)` rule above, so this one holds for every policy but the tenant isolation (whose
+  // binding to mycel_app is #20's): it names its role, never `public`.
+  it('binds every policy other than tenant_isolation to a named role', () => {
+    const loose = policies
+      .filter((p) => p.policyname !== 'tenant_isolation' && p.roles.includes('public'))
+      .map((p) => `${p.tablename}.${p.policyname}`);
+    expect(loose).toEqual([]);
+    expect(policies.find((p) => p.policyname === 'worker_retention')).toMatchObject({
+      tablename: 'jobs',
+      permissive: 'RESTRICTIVE',
+      roles: ['mycel_worker'],
+      cmd: 'DELETE',
+      qual: '(done_at IS NOT NULL)',
+    });
+  });
+
   it('keeps the application role unable to bypass RLS', async () => {
     const { rows } = await sql<{ super: boolean; bypass: boolean; owns: string[] }>`
       select r.rolsuper as super, r.rolbypassrls as bypass,

@@ -20,8 +20,11 @@ import {
   EntitlementsDocument,
   TenantStatus,
   UseCaseError,
+  noopLogger,
   zodIssues,
   type Entitlements,
+  type ErrorReporter,
+  type Logger,
 } from '@mycel/core';
 import { problem } from './problem.js';
 
@@ -56,7 +59,9 @@ export interface PlatformStore {
 export interface PlatformDeps {
   token: string;
   store: PlatformStore;
-  log?: Pick<Console, 'info' | 'error'>;
+  /** Set by `createApp` from its observability; a bare platform app logs and reports nothing. */
+  log?: Logger | undefined;
+  errors?: ErrorReporter | undefined;
 }
 
 const digest = (value: string) => createHash('sha256').update(value).digest();
@@ -99,7 +104,7 @@ const found = <T>(value: T | null): T => {
   return value;
 };
 
-export function createPlatformApp({ token, store, log = console }: PlatformDeps): Hono {
+export function createPlatformApp({ token, store, log = noopLogger, errors }: PlatformDeps): Hono {
   const expected = digest(token);
   const app = new Hono();
 
@@ -115,9 +120,11 @@ export function createPlatformApp({ token, store, log = console }: PlatformDeps)
   app.post('/tenants', async (c) => {
     const input = parse(CreateTenant, await json(c.req));
     const tenant = await store.create(input);
-    log.info(
-      `platform: created tenant ${tenant.id} (${tenant.slug}) with entitlements ${JSON.stringify(tenant.storedEntitlements)}`
-    );
+    log.info('platform: tenant created', {
+      tenantId: tenant.id,
+      slug: tenant.slug,
+      entitlements: JSON.stringify(tenant.storedEntitlements),
+    });
     return c.json(tenant, 201);
   });
 
@@ -130,9 +137,10 @@ export function createPlatformApp({ token, store, log = console }: PlatformDeps)
   app.put('/tenants/:id/entitlements', async (c) => {
     const id = parse(Id, c.req.param('id'));
     const tenant = found(await store.setEntitlements(id, await json(c.req)));
-    log.info(
-      `platform: tenant ${id} entitlements set to ${JSON.stringify(tenant.storedEntitlements)}`
-    );
+    log.info('platform: entitlements set', {
+      tenantId: id,
+      entitlements: JSON.stringify(tenant.storedEntitlements),
+    });
     return c.json(tenant);
   });
 
@@ -140,14 +148,14 @@ export function createPlatformApp({ token, store, log = console }: PlatformDeps)
     const id = parse(Id, c.req.param('id'));
     const { status } = parse(SetStatus, await json(c.req));
     const tenant = found(await store.setStatus(id, status));
-    log.info(`platform: tenant ${id} status set to ${status}`);
+    log.info('platform: status set', { tenantId: id, status });
     return c.json(tenant);
   });
 
   app.notFound(() => problem('not_found', 'no such platform route'));
   app.onError((err) => {
     if (err instanceof UseCaseError) return problem(err.code, err.message, err.issues);
-    log.error(err);
+    errors?.capture(err);
     return problem('internal');
   });
   return app;

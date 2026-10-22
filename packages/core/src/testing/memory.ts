@@ -10,12 +10,16 @@ import type { MailMessage, MailSend, MailSendsRepository, Mailer } from '../mail
 import type {
   Clock,
   DomainEvent,
+  ErrorReporter,
   Ids,
+  LogFields,
+  Logger,
   Signer,
   Subscriber,
   TransactionContext,
   UnitOfWork,
 } from '../ports.js';
+import { noopLogger } from '../util/log.js';
 import type { Capability, Principal } from '../principal.js';
 import { normalizeEmail } from '../util/email.js';
 import type { ApiKeySummary, Member, Operator } from '../operators/model.js';
@@ -366,8 +370,43 @@ export class MemoryStore {
   }
 }
 
+/** Keeps every line it is given, for assertions; `child` shares the list. */
+export class MemoryLogger implements Logger {
+  constructor(
+    readonly lines: { level: string; message: string; fields: LogFields }[] = [],
+    private readonly base: LogFields = {}
+  ) {}
+  #push(level: string, message: string, fields: LogFields = {}) {
+    this.lines.push({ level, message, fields: { ...this.base, ...fields } });
+  }
+  debug(message: string, fields?: LogFields) {
+    this.#push('debug', message, fields);
+  }
+  info(message: string, fields?: LogFields) {
+    this.#push('info', message, fields);
+  }
+  warn(message: string, fields?: LogFields) {
+    this.#push('warn', message, fields);
+  }
+  error(message: string, fields?: LogFields) {
+    this.#push('error', message, fields);
+  }
+  child(fields: LogFields): Logger {
+    return new MemoryLogger(this.lines, { ...this.base, ...fields });
+  }
+}
+
+/** Collects what would go to the error tracker. */
+export class MemoryErrorReporter implements ErrorReporter {
+  readonly captured: { error: unknown; context: Parameters<ErrorReporter['capture']>[1] }[] = [];
+  capture(error: unknown, context?: Parameters<ErrorReporter['capture']>[1]): void {
+    this.captured.push({ error, context });
+  }
+}
+
 export interface MemoryDeps {
   store?: MemoryStore;
+  log?: Logger;
   clock?: Clock;
   ids?: Ids;
   signer?: Signer;
@@ -388,8 +427,10 @@ export class MemoryUnitOfWork implements UnitOfWork {
   readonly blobs: BlobStore;
   readonly images: ImageProcessor;
   readonly delivery: MediaDelivery;
+  readonly log: Logger;
 
   constructor(deps: MemoryDeps = {}) {
+    this.log = deps.log ?? noopLogger;
     this.store = deps.store ?? new MemoryStore();
     this.clock = deps.clock ?? new FakeClock();
     this.ids = deps.ids ?? new SequentialIds();
@@ -779,6 +820,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
       blobs: this.blobs,
       images: this.images,
       delivery: this.delivery,
+      log: this.log,
     });
   }
 

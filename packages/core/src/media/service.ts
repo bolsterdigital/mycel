@@ -228,13 +228,16 @@ async function prepare(
   return { kind: 'image', width: size.width, height: size.height, primary, variants, files };
 }
 
-/** Best effort: a failure here is logged by nobody and swept by `media.orphans`. */
+/** Best effort: a failure here is logged and the files are swept later by `media.orphans`. */
 async function removeQuietly(ctx: TransactionContext, keys: string[]): Promise<void> {
   if (keys.length === 0) return;
   try {
     await ctx.blobs.delete(keys);
   } catch (e) {
-    console.error('media: could not remove files of a failed upload', e);
+    ctx.log.warn('media: could not remove files of a failed upload', {
+      files: keys.length,
+      error: e instanceof Error ? e.message : String(e),
+    });
   }
 }
 

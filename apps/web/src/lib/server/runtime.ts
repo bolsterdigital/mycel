@@ -10,5 +10,5 @@ type WithRuntime = typeof globalThis & { [RUNTIME_KEY]?: Runtime };
 
 export function runtime(): Runtime {
   const g = globalThis as WithRuntime;
-  return (g[RUNTIME_KEY] ??= createRuntime());
+  return (g[RUNTIME_KEY] ??= createRuntime(undefined, { service: 'web' }));
 }

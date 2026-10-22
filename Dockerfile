@@ -19,6 +19,7 @@ COPY packages/api/package.json packages/api/
 COPY packages/mail-tem/package.json packages/mail-tem/
 COPY packages/blob/package.json packages/blob/
 COPY packages/media-sharp/package.json packages/media-sharp/
+COPY packages/observability/package.json packages/observability/
 COPY packages/mcp/package.json packages/mcp/
 COPY apps/web/package.json apps/web/
 RUN npm ci --ignore-scripts
@@ -37,6 +38,7 @@ COPY --from=build /app/packages/api/package.json packages/api/
 COPY --from=build /app/packages/mail-tem/package.json packages/mail-tem/
 COPY --from=build /app/packages/blob/package.json packages/blob/
 COPY --from=build /app/packages/media-sharp/package.json packages/media-sharp/
+COPY --from=build /app/packages/observability/package.json packages/observability/
 COPY --from=build /app/packages/mcp/package.json packages/mcp/
 COPY --from=build /app/apps/web/package.json apps/web/
 # sharp needs no install script: its libvips binary for this platform (linux-x64 or arm64, glibc)
@@ -50,6 +52,7 @@ COPY --from=build /app/packages/api/dist packages/api/dist
 COPY --from=build /app/packages/mail-tem/dist packages/mail-tem/dist
 COPY --from=build /app/packages/blob/dist packages/blob/dist
 COPY --from=build /app/packages/media-sharp/dist packages/media-sharp/dist
+COPY --from=build /app/packages/observability/dist packages/observability/dist
 COPY --from=build /app/packages/mcp/dist packages/mcp/dist
 COPY --from=build /app/apps/web/build apps/web/build
 COPY docker/entrypoint.sh docker/healthcheck.mjs /usr/local/lib/mycel/

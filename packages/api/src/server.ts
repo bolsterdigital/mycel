@@ -5,16 +5,15 @@ import { serve } from '@hono/node-server';
 import { createApp } from './app.js';
 import { createRuntime } from './compose.js';
 
-const runtime = createRuntime();
+const runtime = createRuntime(undefined, { service: 'api' });
 const app = createApp({
   invoker: runtime.invoker,
   authenticate: (h) => runtime.authenticateApiKey(h),
   platform: runtime.platformApi,
+  observability: runtime.http,
 });
 const port = Number(process.env['PORT'] ?? 8787);
-const server = serve({ fetch: app.fetch, port }, () =>
-  console.log(`api on http://localhost:${port}`)
-);
+const server = serve({ fetch: app.fetch, port }, () => runtime.log.info('api listening', { port }));
 if (process.env['MYCEL_WORKER'] !== 'off') runtime.startWorker();
 
 const shutdown = () => {

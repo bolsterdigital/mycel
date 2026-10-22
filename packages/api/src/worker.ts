@@ -2,25 +2,24 @@
 // ingest, confirmation mail) and runs due jobs (TODO #15). Several can run side by side thanks
 // to SKIP LOCKED.
 //
-// With PORT set (as in the container image) it also answers GET /healthz, so every entrypoint
-// of the image shares one healthcheck. Rejected: a heartbeat file checked by a separate command,
-// which would give the worker a healthcheck of its own. Without PORT (local `npm run worker`)
-// it opens no port and cannot collide with the API on 8787.
+// With PORT set (as in the container image) it also answers GET /healthz, /readyz and /metrics
+// (health.ts), so every entrypoint of the image shares one healthcheck. Without PORT (local
+// `npm run worker`) it opens no port and cannot collide with the API on 8787.
 
-import { createServer } from 'node:http';
 import { createRuntime } from './compose.js';
+import { startWorkerHealth } from './health.js';
 
-const runtime = createRuntime();
+const runtime = createRuntime(undefined, { service: 'worker' });
 runtime.startWorker();
-console.log('worker running: outbox and jobs');
+runtime.log.info('worker running: outbox and jobs');
 
 const port = process.env['PORT'];
 const health = port
-  ? createServer((req, res) => {
-      const ok = req.method === 'GET' && req.url === '/healthz';
-      res.writeHead(ok ? 200 : 404, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ ok }));
-    }).listen(Number(port), () => console.log(`worker health on :${port}/healthz`))
+  ? startWorkerHealth(
+      Number(port),
+      { readiness: () => runtime.workerReadiness(), metrics: runtime.metrics },
+      () => runtime.log.info('worker health listening', { port: Number(port) })
+    )
   : null;
 
 const shutdown = () => {

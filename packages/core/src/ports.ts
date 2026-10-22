@@ -12,6 +12,37 @@ export interface Clock {
   now(): Date;
 }
 
+/**
+ * Structured log fields: scalars only, so a payload, an input or a principal object cannot ride
+ * along by accident (brief #17a decision 2). Identify actors with `actorRef`, never by address.
+ */
+export type LogFields = Record<string, string | number | boolean | null>;
+
+/** One JSON line per call in production (`@mycel/observability`); the adapter scrubs values. */
+export interface Logger {
+  debug(message: string, fields?: LogFields): void;
+  info(message: string, fields?: LogFields): void;
+  warn(message: string, fields?: LogFields): void;
+  error(message: string, fields?: LogFields): void;
+  child(fields: LogFields): Logger;
+}
+
+/**
+ * Unexpected failures, for an error tracker. Never async for the caller and never throws: a
+ * broken tracker must not turn into a second failure. A `UseCaseError` is not reported.
+ */
+export interface ErrorReporter {
+  capture(
+    error: unknown,
+    context?: {
+      tenantId?: string | undefined;
+      requestId?: string | undefined;
+      job?: string | undefined;
+      tags?: Record<string, string>;
+    }
+  ): void;
+}
+
 export interface Ids {
   /** UUIDv7: time-ordered so exports and merges never collide (ADR 002). */
   next(): string;
@@ -70,4 +101,6 @@ export interface TransactionContext {
   clock: Clock;
   ids: Ids;
   signer: Signer;
+  /** Carries the request or job context of the front that opened the unit of work. */
+  log: Logger;
 }

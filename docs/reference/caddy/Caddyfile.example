@@ -30,9 +30,9 @@ https:// {
 
 	encode zstd gzip
 
-	# The web app handles every path, including /healthz. /internal/* is for Caddy and the
-	# orchestrator only: never route it from the outside.
-	@internal path /internal/*
+	# The web app handles every path, including /healthz. /internal/* and /readyz are for Caddy
+	# and the orchestrator only: never route them from the outside (TODO #17a).
+	@internal path /internal/* /readyz
 	respond @internal 404
 
 	reverse_proxy web:3000 {
@@ -42,7 +42,12 @@ https:// {
 	}
 }
 
-# The HTTP API on its own hostname with an ordinary (not on-demand) certificate.
+# The HTTP API on its own hostname with an ordinary (not on-demand) certificate. /readyz and
+# /metrics are for the orchestrator and Prometheus, which reach `api:3000` inside the network.
+# The worker's health port (/healthz, /readyz, /metrics without a token) is never routed at all.
 api.example.org {
+	@internal path /readyz /metrics
+	respond @internal 404
+
 	reverse_proxy api:3000
 }
