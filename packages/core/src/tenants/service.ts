@@ -5,7 +5,8 @@
 // Verification proves control, not routing: `_mycel-verify.<hostname>` must carry a TXT record
 // with the token. Whether the CNAME points at the platform is reported, never required: if DNS
 // does not point at the box, on-demand TLS simply issues nothing (decision 6). `verifyHostname`
-// is exported on its own because the periodic re-check (TODO #15) is the same function.
+// is exported on its own because the daily re-check (`reverifyHostname` in jobs/handlers.ts,
+// TODO #15) is the same function; `add` and `verify` plan that re-check in their transaction.
 //
 // Entitlement: the number of custom domains is a limit. // ADR 015, TODO #16: custom_domains
 
@@ -13,6 +14,7 @@ import { z } from 'zod';
 import { UseCaseError } from '../errors.js';
 import type { TransactionContext } from '../ports.js';
 import { defineUseCase } from '../registry.js';
+import { jobKey } from '../jobs/types.js';
 import { randomToken } from '../util/token.js';
 import {
   Hostname,
@@ -22,8 +24,12 @@ import {
   platformHostname,
   verificationRecord,
 } from './model.js';
-import type { HostnameRecord } from './ports.js';
-import './ports.js';
+import { DnsUnavailableError, type HostnameRecord } from './ports.js';
+import '../jobs/ports.js';
+
+/** How often a custom hostname is re-checked, and after how many misses in a row it lapses. */
+export const REVERIFY_INTERVAL_MS = 24 * 60 * 60 * 1000;
+export const REVERIFY_MAX_FAILURES = 3;
 
 const HostnameInput = z.object({ hostname: z.string().trim().min(1).max(300) });
 
@@ -34,6 +40,8 @@ function toHostname(ctx: TransactionContext, row: HostnameRecord, slug: string):
     kind: row.kind,
     primary: row.primary,
     verifiedAt: row.verifiedAt?.toISOString() ?? null,
+    lastCheckedAt: row.lastCheckedAt?.toISOString() ?? null,
+    checkFailures: row.checkFailures,
   };
   return row.kind === 'custom' && row.verificationToken
     ? {
@@ -61,8 +69,25 @@ async function requireCustom(ctx: TransactionContext, raw: string): Promise<Host
   return row;
 }
 
+/**
+ * Plan the daily re-check of a custom hostname; a re-check already planned stays as it is. The
+ * key carries the tenant: a hostname can be removed here and added by another site before the
+ * old job has run, and that job (which finds nothing under its own tenant and plans no next run)
+ * must not hold the key the new site's re-check needs.
+ */
+async function planReverify(ctx: TransactionContext, hostname: string): Promise<void> {
+  await ctx.jobs.enqueue({
+    type: 'hostnames.reverify',
+    key: jobKey('hostnames.reverify', `${ctx.principal.tenantId}:${hostname}`),
+    runAt: new Date(ctx.clock.now().getTime() + REVERIFY_INTERVAL_MS),
+    payload: { hostname },
+  });
+}
+
 export const VerifyResult = z.object({
   hostname: z.string(),
+  /** False when DNS gave no answer (server failure, time-out): nothing was decided or changed. */
+  checked: z.boolean(),
   verified: z.boolean(),
   verifiedAt: z.string().datetime().nullable(),
   /** What DNS answered, so the admin sees what is there instead of just "no". */
@@ -74,29 +99,47 @@ export type VerifyResult = z.infer<typeof VerifyResult>;
 
 /**
  * Check the TXT record of a custom hostname: `verifiedAt` is set the first time the token is
- * found and kept afterwards. A later check that finds nothing reports that without changing the
- * state: withdrawing a verification (and what then serves the site) is the periodic job's policy
- * (TODO #15), which calls this same function. A lookup that answers nothing is "not found", not
- * an error.
+ * found and kept afterwards, and a found token resets the run of failed daily checks. A check
+ * that finds nothing reports that without changing anything: counting misses and withdrawing a
+ * verification is the daily job's policy (`reverifyHostname`), which calls this same function.
+ * A name without records is "not found"; DNS that does not answer at all is `checked: false`.
  */
 export async function verifyHostname(
   ctx: TransactionContext,
   row: HostnameRecord
 ): Promise<VerifyResult> {
   const slug = await slugOf(ctx);
-  const [txt, cname] = await Promise.all([
-    ctx.dns.txt(verificationRecord(row.hostname)),
-    ctx.dns.cname(row.hostname),
-  ]);
+  let txt: string[];
+  let cname: string | null;
+  try {
+    [txt, cname] = await Promise.all([
+      ctx.dns.txt(verificationRecord(row.hostname)),
+      ctx.dns.cname(row.hostname),
+    ]);
+  } catch (e) {
+    if (!(e instanceof DnsUnavailableError)) throw e;
+    return {
+      hostname: row.hostname,
+      checked: false,
+      verified: false,
+      verifiedAt: row.verifiedAt?.toISOString() ?? null,
+      found: { txt: [], cname: null },
+      pointsToPlatform: false,
+    };
+  }
   const verified = row.verificationToken !== null && txt.includes(row.verificationToken);
   const now = ctx.clock.now();
   let verifiedAt = row.verifiedAt;
-  if (verified && !verifiedAt) {
-    await ctx.hostnames.setVerified(row.hostname, now);
-    verifiedAt = now;
+  if (verified) {
+    if (!verifiedAt) {
+      await ctx.hostnames.setVerified(row.hostname, now);
+      verifiedAt = now;
+    }
+    await ctx.hostnames.recordCheck(row.hostname, now, 0);
   }
   return {
     hostname: row.hostname,
+    checked: true,
     verified,
     verifiedAt: verifiedAt?.toISOString() ?? null,
     found: { txt, cname },
@@ -132,7 +175,7 @@ export const addHostname = defineUseCase({
   async handler(ctx, input) {
     const hostname = normalizeCustomHostname(input.hostname, ctx.platform);
     const slug = await slugOf(ctx);
-    const row: Omit<HostnameRecord, 'primary'> = {
+    const row: Omit<HostnameRecord, 'primary' | 'checkFailures' | 'lastCheckedAt'> = {
       hostname,
       kind: 'custom',
       verificationToken: randomToken(32),
@@ -142,7 +185,8 @@ export const addHostname = defineUseCase({
     // Global uniqueness: the answer never says which site holds the name.
     if (!(await ctx.hostnames.insert(row)))
       throw new UseCaseError('conflict', 'that hostname is already in use');
-    return toHostname(ctx, { ...row, primary: false }, slug);
+    await planReverify(ctx, hostname);
+    return toHostname(ctx, { ...row, primary: false, checkFailures: 0, lastCheckedAt: null }, slug);
   },
 });
 
@@ -156,7 +200,9 @@ export const verifyHostnameUseCase = defineUseCase({
   output: VerifyResult,
   examples: [{ input: { hostname: 'www.example.org' } }],
   async handler(ctx, input) {
-    return verifyHostname(ctx, await requireCustom(ctx, input.hostname));
+    const row = await requireCustom(ctx, input.hostname);
+    await planReverify(ctx, row.hostname);
+    return verifyHostname(ctx, row);
   },
 });
 

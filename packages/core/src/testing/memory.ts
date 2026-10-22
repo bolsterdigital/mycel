@@ -49,6 +49,9 @@ import type {
   TenantInfo,
 } from '../tenants/ports.js';
 import { platformHostname } from '../tenants/model.js';
+import { DnsUnavailableError } from '../tenants/ports.js';
+import type { JobRecord, JobRequest, Scheduler } from '../jobs/ports.js';
+import type { JobType } from '../jobs/types.js';
 
 export class FakeClock implements Clock {
   constructor(public current = new Date('2026-10-21T12:00:00.000Z')) {}
@@ -131,15 +134,53 @@ export const memoryPlatform: PlatformConfig = {
   siteUrlMode: 'path',
 };
 
-/** Answers from a table; a name without an entry is "not found", like a real resolver. */
+/**
+ * Answers from a table; a name without an entry is "not found", like a real resolver. A name in
+ * `unavailable` answers nothing at all (a server failure or a time-out).
+ */
 export class FakeDns implements DnsResolver {
   readonly txtRecords = new Map<string, string[]>();
   readonly cnames = new Map<string, string>();
+  readonly unavailable = new Set<string>();
   async txt(name: string): Promise<string[]> {
+    if (this.unavailable.has(name)) throw new DnsUnavailableError();
     return [...(this.txtRecords.get(name) ?? [])];
   }
   async cname(name: string): Promise<string | null> {
+    if (this.unavailable.has(name)) throw new DnsUnavailableError();
     return this.cnames.get(name) ?? null;
+  }
+}
+
+/**
+ * `ctx.jobs` over a MemoryStore: one open job per key across all tenants, like the partial
+ * unique index of `jobs` (migration 0009). Not transactional, like the rest of this store.
+ */
+export class MemoryScheduler implements Scheduler {
+  constructor(
+    readonly store: MemoryStore,
+    readonly tenantId: string | null,
+    readonly ids: Ids = new SequentialIds(),
+    readonly clock: Clock = new FakeClock()
+  ) {}
+
+  async enqueue<T extends JobType>(job: JobRequest<T>): Promise<boolean> {
+    if (this.store.jobs.some((j) => j.key === job.key && j.doneAt === null)) return false;
+    this.store.jobs.push({
+      id: this.ids.next(),
+      tenantId: this.tenantId,
+      type: job.type,
+      key: job.key,
+      runAt: new Date(job.runAt),
+      payload: structuredClone(job.payload),
+      attempts: 0,
+      maxAttempts: 10,
+      claimedAt: null,
+      doneAt: null,
+      lastError: null,
+      createdAt: this.clock.now(),
+    });
+    return true;
   }
 }
 
@@ -159,6 +200,8 @@ export class MemoryStore {
   readonly tenants = new Map<string, TenantStore>();
   readonly outbox: DomainEvent[] = [];
   readonly operators = new Map<string, OperatorRow>();
+  /** Every tenant's and the platform's jobs, like the `jobs` table. */
+  readonly jobs: JobRecord[] = [];
 
   for(tenantId: string): TenantStore {
     let store = this.tenants.get(tenantId);
@@ -202,6 +245,8 @@ export class MemoryStore {
       verificationToken: null,
       verifiedAt: at,
       createdAt: at,
+      checkFailures: 0,
+      lastCheckedAt: null,
     });
   }
 }
@@ -419,12 +464,21 @@ export class MemoryUnitOfWork implements UnitOfWork {
       },
       async insert(row) {
         if (store.hostnameOwner(row.hostname)) return false;
-        s.hostnames.set(row.hostname, { ...row, primary: false });
+        s.hostnames.set(row.hostname, {
+          ...row,
+          primary: false,
+          checkFailures: 0,
+          lastCheckedAt: null,
+        });
         return true;
       },
       async setVerified(hostname, at) {
         const h = s.hostnames.get(hostname);
         if (h) h.verifiedAt = at ? new Date(at) : null;
+      },
+      async recordCheck(hostname, at, failures) {
+        const h = s.hostnames.get(hostname);
+        if (h) Object.assign(h, { lastCheckedAt: new Date(at), checkFailures: failures });
       },
       async setPrimary(hostname) {
         for (const h of s.hostnames.values()) h.primary = h.hostname === hostname;
@@ -459,6 +513,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
       members,
       apiKeys,
       hostnames,
+      jobs: new MemoryScheduler(store, principal.tenantId, this.ids, clock),
     });
   }
 

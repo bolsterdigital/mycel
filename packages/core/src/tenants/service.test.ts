@@ -63,6 +63,8 @@ describe('custom domains', () => {
         kind: 'platform',
         primary: true,
         verifiedAt: clock.now().toISOString(),
+        lastCheckedAt: null,
+        checkFailures: 0,
       },
     ]);
   });
@@ -110,6 +112,7 @@ describe('custom domains', () => {
       const r = await invoker.run(useCases.verifyHostname, admin, { hostname: 'www.example.org' });
       expect(r).toEqual({
         hostname: 'www.example.org',
+        checked: true,
         verified: false,
         verifiedAt: null,
         found: { txt: ['something-else'], cname: 'elsewhere.example.net' },

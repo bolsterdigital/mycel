@@ -44,7 +44,8 @@ const APP_ROLE = 'mycel_app';
 // ADR 011 rule 1: cross-tenant (`using (true)`) policies exist only on platform queues, logs and
 // counters: the outbox (worker drain, 0003) and the rate-limit windows (janitor sweep, 0006);
 // plus the one exception, the identity tables read at authentication time (mycel_auth, 0007)
-// and the hostnames read to resolve the site being visited (mycel_auth, 0008).
+// and the hostnames read to resolve the site being visited (mycel_auth, 0008); and the jobs
+// queue the worker claims from (mycel_worker, 0009).
 const CROSS_TENANT_TABLES = [
   'outbox',
   'rate_limits',
@@ -52,6 +53,7 @@ const CROSS_TENANT_TABLES = [
   'tenant_memberships',
   'api_keys',
   'tenant_hostnames',
+  'jobs',
 ];
 const ISOLATION = '(tenant_id = current_tenant_id())';
 

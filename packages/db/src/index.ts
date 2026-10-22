@@ -5,8 +5,8 @@
 // Three connections, three roles: the application pool connects as `mycel_app` (subject to RLS);
 // the authentication pool as `mycel_authenticator`, which can only enter `mycel_auth` (0007,
 // `createIdentityStore`); the operator pool (migrations, seed, tenant directory writes, outbox
-// drain) as the schema owner. Fronts get the unit of work and the identity store, never the
-// operator pool.
+// drain, job claims, platform jobs) as the schema owner. Fronts get the unit of work and the
+// identity store, never the operator pool.
 
 import { Kysely, PostgresDialect, sql } from 'kysely';
 import pg from 'pg';
@@ -23,6 +23,7 @@ import {
   type UnitOfWork,
 } from '@mycel/core';
 import { hostnameRepository } from './hostnames.js';
+import { jobScheduler } from './jobs.js';
 import { apiKeyRepository, membershipRepository, operatorRepository } from './operators.js';
 import { outboxEventBus } from './outbox.js';
 import {
@@ -38,7 +39,23 @@ import type { Database } from './schema.js';
 export type { Database } from './schema.js';
 export { uuidv7, uuidv7Ids } from './ids.js';
 export { drainOutbox, startOutboxWorker, type DrainResult } from './outbox.js';
-export { startJanitor, sweepRateLimits } from './janitor.js';
+export { sweepRateLimits } from './janitor.js';
+export {
+  JOB_LEASE_SECONDS,
+  claimJobs,
+  completeJob,
+  createEventPartitions,
+  ensureRecurring,
+  failJob,
+  nextPeriod,
+  runJobs,
+  startJobWorker,
+  type Cadence,
+  type JobHandler,
+  type JobHandlers,
+  type JobRunResult,
+  type RecurringJob,
+} from './jobs.js';
 export { createIdentityStore } from './operators.js';
 export { createSiteDirectory, SITE_CACHE_TTL_MS } from './hostnames.js';
 export { FIRST_EVENT_MONTH, ensureEventPartitions, migrate } from './migrate.js';
@@ -94,6 +111,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           members: membershipRepository(trx, tenantId),
           apiKeys: apiKeyRepository(trx, tenantId),
           hostnames: hostnameRepository(trx, tenantId),
+          jobs: jobScheduler(trx, tenantId),
         });
       });
     },

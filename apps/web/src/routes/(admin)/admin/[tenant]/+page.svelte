@@ -65,7 +65,11 @@
       {/if}
     </div>
   {/if}
-  {#if verify}
+  {#if verify && !verify.checked}
+    <div class="notice" role="status">
+      <p>{fill(t('admin.domains.done.unavailable'), { hostname: verify.hostname })}</p>
+    </div>
+  {:else if verify}
     <div class="notice" role="status">
       <p>
         {fill(
@@ -174,6 +178,18 @@
           {#if h.primary}<li>{t('admin.domains.primary')}</li>{/if}
           <li>{t(h.verifiedAt ? 'admin.domains.verified' : 'admin.domains.unverified')}</li>
         </ul>
+        {#if h.kind === 'custom'}
+          <p class="muted">
+            {h.lastCheckedAt === null
+              ? t('admin.domains.checks.none')
+              : fill(
+                  t(
+                    h.checkFailures > 0 ? 'admin.domains.checks.failing' : 'admin.domains.checks.ok'
+                  ),
+                  { when: when(h.lastCheckedAt) ?? '', n: h.checkFailures }
+                )}
+          </p>
+        {/if}
         {#if h.dns}
           <h4>{t('admin.domains.dns.title')}</h4>
           <dl>

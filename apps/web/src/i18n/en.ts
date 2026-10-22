@@ -90,6 +90,12 @@ export const en = {
   'admin.domains.dns.target': 'Points to',
   'admin.domains.dns.apex':
     'A domain without a subdomain (example.org itself) cannot take a CNAME at most providers: use the A and AAAA records from your hosting documentation instead. The TXT record is always needed.',
+  'admin.domains.checks.none': 'Checked every day; the first check is within a day.',
+  'admin.domains.checks.ok': 'Last checked {when}: the TXT record was found.',
+  'admin.domains.checks.failing':
+    'Last checked {when}: TXT record missing {n} day(s) in a row. After 3 days the verification is withdrawn and the platform hostname becomes primary again.',
+  'admin.domains.done.unavailable':
+    'DNS did not answer for {hostname}, so nothing was checked or changed. Try again in a few minutes.',
   'admin.domains.check': 'Check DNS',
   'admin.domains.makePrimary': 'Make primary',
   'admin.domains.remove': 'Remove',
