@@ -79,11 +79,93 @@ Pin `MYCEL_IMAGE` to the new release, check out the same release of this reposit
 
 ## Backups
 
-Not part of this release yet: the backup image and its schedule come with TODO #18c. Until then, back up the `postgres` volume with `pg_dump` as the owner (`docker compose exec postgres pg_dump -U mycel -Fc mycel`) and your bucket with your provider's tools.
+The `backup` service takes the database and the media files into one encrypted [restic](https://restic.net) snapshot, applies the retention policy and exits ([`docker/backup/backup.sh`](../docker/backup/backup.sh)). It has no schedule of its own: the host runs it, so a failed run is a failed cron job or timer that you see, not a container that quietly restarts.
+
+**What it needs.** In `.env` (section "Backups" of `.env.example`):
+
+- `MYCEL_BACKUP_PASSWORD`: the password of `mycel_backup`, a read-only login with `BYPASSRLS` that Postgres creates on its first start ([`docker/postgres/init-backup-role.sh`](../docker/postgres/init-backup-role.sh)). The dump needs it because under forced Row Level Security no other role sees every row, the schema owner included; it can read everything and write nothing. A box installed before this release has no such login yet: set the password, run `docker compose up -d postgres`, then `docker compose exec postgres sh /docker-entrypoint-initdb.d/20-backup-role.sh` once.
+- `RESTIC_REPOSITORY` and `RESTIC_PASSWORD`: any restic repository off this server, for instance `sftp:user@backup.example.org:/mycel` (a storage box over SSH) or `s3:https://s3.example.org/bucket/mycel` (then restic's own `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` too). The password encrypts every snapshot: keep a copy somewhere other than this server, because without it no backup can be read. For sftp, mount the SSH key and a `known_hosts` into the service with a `compose.override.yml` (`volumes: ['./backup-ssh:/root/.ssh:ro']` under `services.backup` and `services.restore`).
+
+**One run** (the first one also creates the repository):
+
+```sh
+docker compose --profile backup run --rm backup
+```
+
+It prints what it took at each step: tables in the dump, roles, media files, then restic's summary. The media files come from the bucket in `BLOB_S3_*` (rclone, only what changed since the last run; the copy is kept in the volume `backup-staging`), or from the directory with `BLOB_STORE=fs`.
+
+**Schedule it** once a day, for instance at 03:15. With cron (`crontab -e` as a user in the `docker` group, in the directory of `compose.yml`):
+
+```sh
+15 3 * * * cd /srv/mycel && docker compose --profile backup run --rm -T backup >>/var/log/mycel-backup.log 2>&1
+```
+
+Or with a systemd timer, which also records failures in the journal (`systemctl list-timers`, `journalctl -u mycel-backup`):
+
+```ini
+# /etc/systemd/system/mycel-backup.service
+[Unit]
+Description=Mycel backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/mycel
+ExecStart=/usr/bin/docker compose --profile backup run --rm -T backup
+
+# /etc/systemd/system/mycel-backup.timer
+[Unit]
+Description=Daily Mycel backup
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+RandomizedDelaySec=15m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+Then `systemctl enable --now mycel-backup.timer`.
+
+**What that gives you:**
+
+|                                                        | With the defaults                                                                                                  |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| Interval, and so the RPO                               | once a day: at most a day of changes is lost                                                                       |
+| Retention (`BACKUP_KEEP_DAILY`, `_WEEKLY`, `_MONTHLY`) | 14 daily, 8 weekly and 6 monthly snapshots                                                                         |
+| Expiry window                                          | about six months: nothing older than that can be restored                                                          |
+| Integrity check (`BACKUP_CHECK_WEEKDAY`)               | on Sundays restic reads back a random 5% of the data                                                               |
+| RTO                                                    | what the restore drill measures (§ Restore); minutes for a small installation, growing with the dump and the media |
+
+The expiry window matters for erasure (ADR 019 rule 8): a supporter erased today is still in the snapshots of the last six months, and a restore from one of them brings the data back. Mycel keeps a register of erasures so that a restore applies them again (TODO #18d); until that ships, re-run any erasure after a restore by hand.
+
+**Check every day** that a new snapshot exists; a backup that silently stopped is the usual way to have none:
+
+```sh
+docker compose --profile backup run --rm -T backup restic snapshots --host mycel --latest 3
+```
+
+The newest line should be from last night. A monitoring check can run the same command and alert when the newest snapshot is older than 26 hours.
 
 ## Restore
 
-Comes with the backup image (TODO #18c), as a procedure CI rehearses every month on an empty machine.
+A restore puts a snapshot back on a box with an empty database ([`docker/backup/restore.sh`](../docker/backup/restore.sh)). It runs as the schema owner, an ordinary role: it first creates the database roles the snapshot names, then loads the dump in one transaction (any error rolls it back) and copies the media files into the bucket. It refuses a database that already has tables. CI rehearses exactly this every month on an empty runner and on every change to the backup ([`restore-drill.yml`](../.github/workflows/restore-drill.yml), [`scripts/drill-run.sh`](../scripts/drill-run.sh)): it compares every table and every media file before and after, runs the tenant-isolation and hostname conformance suites against the restored database and waits for a ready worker; the job summary shows the measured RTO.
+
+On a new server, with this repository at the same release and the same `.env` (the restic and database passwords above all):
+
+1. Start only the database, and the local bucket if you use one: `docker compose up -d postgres` (plus `docker compose --profile local-s3 up -d s3`). Postgres creates the owner and `mycel_backup` on its empty volume.
+2. Restore the latest snapshot, or a given one (`restic snapshots` lists their ids):
+
+   ```sh
+   docker compose --profile restore run --rm restore            # or: ... restore <snapshot-id>
+   ```
+
+3. Start the stack: `docker compose up -d`. Its first service, `migrate`, brings a snapshot from an older release up to this one and turns the two runtime roles into logins again; then the rest starts.
+4. Check: `docker compose ps` shows every service healthy, and the sites answer.
+
+To restore onto the same server after losing the data, stop everything first (`docker compose down`), remove the database volume (`docker volume rm <project>_postgres`; this deletes the current data for good, so only when it is lost anyway), and continue at step 1.
 
 ## Export
 
