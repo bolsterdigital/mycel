@@ -251,6 +251,7 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
         'outbox',
         'content_items',
         'content_revisions',
+        'content_block_refs',
         'content_item_locales',
         'authors',
         'sections',

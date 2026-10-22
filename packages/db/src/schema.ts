@@ -81,6 +81,15 @@ export interface Database {
     actor: Json<unknown>;
     created_at: Timestamp;
   };
+  /** Derived from each revision's document on insert (0017); immutable like revisions. */
+  content_block_refs: {
+    tenant_id: string;
+    item_id: string;
+    revision_id: string;
+    block_id: string | null;
+    type: 'form' | 'item' | 'author' | 'section' | 'media';
+    ref_id: string;
+  };
   content_item_locales: {
     tenant_id: string;
     item_id: string;

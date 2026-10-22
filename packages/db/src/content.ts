@@ -8,10 +8,11 @@
 // validates fails loudly instead of reaching a renderer. Rejected: an advisory lock (the item row
 // exists before any write, so a row lock is enough and shows up in pg_locks under its table).
 
-import type { Kysely, Selectable } from 'kysely';
+import { sql, type Kysely, type Selectable } from 'kysely';
 import {
   Actor,
   Author,
+  documentReferences,
   Pattern,
   Revision,
   Section,
@@ -119,7 +120,29 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
         created_at: r.createdAt,
       })
       .execute();
+    const refs = documentReferences(r.document);
+    if (refs.length)
+      await trx
+        .insertInto('content_block_refs')
+        .values(
+          refs.map((ref) => ({
+            tenant_id: tenantId,
+            item_id: r.itemId,
+            revision_id: r.id,
+            block_id: ref.blockId,
+            type: ref.type,
+            ref_id: ref.refId,
+          }))
+        )
+        .execute();
   };
+
+  /** The revisions find searches: the latest, or every one a locale publishes. */
+  const searched = (live: boolean) =>
+    live
+      ? sql<boolean>`r.id in (select l.published_revision_id from content_item_locales l
+                              where l.item_id = i.id)`
+      : sql<boolean>`r.id = i.latest_revision_id`;
 
   return {
     lock: async (itemId) => one(await items().where('id', '=', itemId).forUpdate().execute()),
@@ -172,6 +195,66 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
       await writeLocales(item);
     },
     insertRevision,
+    async find({ blockType, ref, live, type }, after, limit) {
+      // Containment on the whole document, so the GIN jsonb_path_ops index of 0017 applies.
+      const typed = blockType
+        ? sql<boolean>`r.document @> ${JSON.stringify({ blocks: [{ type: blockType }] })}::jsonb`
+        : sql<boolean>`true`;
+      const referenced = ref
+        ? sql<boolean>`r.id in (select f.revision_id from content_block_refs f
+                                where f.type = ${ref.type} and f.ref_id = ${ref.id})`
+        : sql<boolean>`true`;
+      let q = trx
+        .selectFrom('content_items as i')
+        .selectAll('i')
+        .where(
+          sql<boolean>`exists (select 1 from content_revisions r where r.item_id = i.id
+                               and ${searched(live)} and ${typed} and ${referenced})`
+        );
+      if (type) q = q.where('i.type', '=', type);
+      if (after) q = q.where('i.id', '<', after);
+      const rows = await q
+        .orderBy('i.id', 'desc')
+        .limit(limit + 1)
+        .execute();
+      const page = paged(rows, limit);
+      if (!page.rows.length) return { rows: [], next: page.next };
+      const ids = page.rows.map((r) => r.id);
+      // The blocks that matched, per item, over the same revisions.
+      const { rows: hits } = await sql<{ item_id: string; block_id: string }>`
+        select r.item_id, b->>'id' as block_id
+        from content_items i
+        join content_revisions r on r.item_id = i.id and ${searched(live)}
+        cross join lateral jsonb_array_elements(r.document->'blocks') b
+        where ${blockType ?? null}::text is not null and b->>'type' = ${blockType ?? null}
+          and i.id = any(${ids}::uuid[])
+        union
+        select f.item_id, f.block_id
+        from content_items i
+        join content_revisions r on r.item_id = i.id and ${searched(live)}
+        join content_block_refs f on f.revision_id = r.id
+        where f.type = ${ref?.type ?? null} and f.ref_id = ${ref?.id ?? null}::uuid
+          and f.block_id is not null and i.id = any(${ids}::uuid[])
+      `.execute(trx);
+      const records = await withLocales(page.rows);
+      return {
+        rows: records.map((item) => ({
+          item,
+          blockIds: hits.filter((h) => h.item_id === item.id).map((h) => h.block_id),
+        })),
+        next: page.next,
+      };
+    },
+    async liveReferences(ref) {
+      const row = await trx
+        .selectFrom('content_item_locales as l')
+        .innerJoin('content_block_refs as f', 'f.revision_id', 'l.published_revision_id')
+        .where('f.type', '=', ref.type)
+        .where('f.ref_id', '=', ref.id)
+        .select(sql<string>`count(distinct l.item_id)`.as('n'))
+        .executeTakeFirstOrThrow();
+      return Number(row.n);
+    },
     async revision(itemId, revisionId) {
       const r = await trx
         .selectFrom('content_revisions')
