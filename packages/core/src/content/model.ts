@@ -22,7 +22,12 @@ export const SignupFormBlock = z.object({
 export const Block = z.discriminatedUnion('type', [HeadingBlock, SignupFormBlock]);
 export type Block = z.infer<typeof Block>;
 
-export const PageSlug = z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/, 'content.slug.invalid');
+export const PageSlug = z
+  .string()
+  .regex(/^[a-z0-9][a-z0-9-]{0,62}$/, 'content.slug.invalid')
+  // `/media/<id>/<variant>` is the delivery route of every site (TODO #10). A second regex, not
+  // a refine, so the schema stays a string and `content.page.get` keeps its GET.
+  .regex(/^(?!media$)/, 'content.slug.reserved');
 
 export const PageInput = z
   .object({

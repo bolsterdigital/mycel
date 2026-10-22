@@ -11,10 +11,14 @@
 import { Kysely, PostgresDialect, sql } from 'kysely';
 import pg from 'pg';
 import {
+  appDelivery,
   platformHostname,
+  type BlobStore,
   type Clock,
   type DnsResolver,
   type Ids,
+  type ImageProcessor,
+  type MediaDelivery,
   type PlatformConfig,
   type Principal,
   type Signer,
@@ -25,6 +29,7 @@ import {
 import { hostnameRepository } from './hostnames.js';
 import { asPlatform, insertPlatformHostname } from './platform.js';
 import { jobScheduler } from './jobs.js';
+import { mediaRepository } from './media.js';
 import { apiKeyRepository, membershipRepository, operatorRepository } from './operators.js';
 import { outboxEventBus } from './outbox.js';
 import {
@@ -60,6 +65,7 @@ export {
   type RecurringJob,
 } from './jobs.js';
 export { createIdentityStore } from './operators.js';
+export { mediaRepository } from './media.js';
 export { createSiteDirectory, SITE_CACHE_TTL_MS } from './hostnames.js';
 export { FIRST_EVENT_MONTH, ensureEventPartitions, migrate } from './migrate.js';
 export {
@@ -99,7 +105,22 @@ export interface UnitOfWorkDeps {
   signer: Signer;
   dns: DnsResolver;
   platform: PlatformConfig;
+  /**
+   * Storage, processing and delivery of media (TODO #10), wired by the composition root. Absent
+   * in suites that touch no files: then `ctx.blobs` and `ctx.images` refuse when used.
+   */
+  media?: { blobs: BlobStore; images: ImageProcessor; delivery?: MediaDelivery } | undefined;
 }
+
+const unconfigured = (port: string) =>
+  new Proxy(
+    {},
+    {
+      get: () => () => {
+        throw new Error(`${port} is not configured in this unit of work`);
+      },
+    }
+  );
 
 export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): UnitOfWork {
   return {
@@ -127,6 +148,10 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           hostnames: hostnameRepository(trx, tenantId),
           jobs: jobScheduler(trx, tenantId),
           usage: usageReader(trx, tenantId, deps.clock),
+          media: mediaRepository(trx, tenantId),
+          blobs: deps.media?.blobs ?? (unconfigured('BlobStore') as BlobStore),
+          images: deps.media?.images ?? (unconfigured('ImageProcessor') as ImageProcessor),
+          delivery: deps.media?.delivery ?? appDelivery,
         });
       });
     },

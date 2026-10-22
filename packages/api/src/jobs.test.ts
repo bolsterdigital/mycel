@@ -5,8 +5,12 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  Invoker,
   JobPayloads,
   UseCaseError,
+  buildRegistry,
+  systemPrincipal,
+  useCases,
   requireActive,
   type JobRecord,
   type Principal,
@@ -63,7 +67,7 @@ describe('job handlers', () => {
   });
 
   it('refuses a platform job that carries a tenant', async () => {
-    for (const type of ['events.partitions', 'rate_limits.sweep'])
+    for (const type of ['events.partitions', 'rate_limits.sweep', 'media.orphans'])
       await expect(handlers[type]!(job({ type, payload: {} }))).rejects.toThrow(/platform job/);
   });
 
@@ -89,5 +93,37 @@ describe('job handlers', () => {
       tenantStatus: 'active',
       entitlements: { 'supporters.max': 7 },
     });
+  });
+
+  it('purges a deleted asset and sweeps orphans per tenant (TODO #10)', async () => {
+    const OTHER = '01900000-0000-7000-8000-00000000bbbb';
+    const media = new MemoryUnitOfWork({ clock });
+    const invoker = new Invoker(buildRegistry(), media);
+    const system = systemPrincipal(TENANT, 'test');
+    const m = await invoker.run(
+      useCases.uploadMedia,
+      system,
+      useCases.uploadMedia.examples[0].input
+    );
+    await invoker.run(useCases.deleteMedia, system, { id: m.id });
+    const purge = media.store.jobs.find((j) => j.type === 'media.purge')!;
+    const swept: string[] = [];
+    const h = jobHandlers({
+      uow: media,
+      operatorDb,
+      identity: new MemoryIdentityStore(media.store, new MemoryTenants()),
+      tenantIds: async () => [TENANT, OTHER],
+    });
+    await h['media.purge']!(purge);
+    expect(media.store.for(TENANT).media.size).toBe(0);
+
+    const stray = (tenant: string) => `tenants/${tenant}/media/${uuid}/original.png`;
+    const uuid = '01900000-0000-7000-8000-0000000000ff';
+    for (const t of [TENANT, OTHER])
+      await media.blobs.put(stray(t), new Uint8Array(1), { contentType: 'image/png' });
+    clock.advance(25 * 60 * 60 * 1000);
+    await h['media.orphans']!(job({ tenantId: null, type: 'media.orphans', payload: {} }));
+    for await (const b of media.blobs.list('tenants/')) swept.push(b.key);
+    expect(swept).toEqual([]);
   });
 });

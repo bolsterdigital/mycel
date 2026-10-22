@@ -174,7 +174,7 @@ export async function failJob(
   });
 }
 
-export type Cadence = 'hourly' | 'monthly';
+export type Cadence = 'hourly' | 'daily' | 'monthly';
 
 /** A platform job that runs once per period, planned by the worker itself. */
 export interface RecurringJob {
@@ -184,14 +184,20 @@ export interface RecurringJob {
 
 /** The first period that starts strictly after `now` (UTC), and the label its key carries. */
 export function nextPeriod(cadence: Cadence, now: Date): { start: Date; label: string } {
+  const [y, m, d, h] = [
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+    now.getUTCHours(),
+  ];
   const start =
     cadence === 'hourly'
-      ? new Date(
-          Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours() + 1)
-        )
-      : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+      ? new Date(Date.UTC(y, m, d, h + 1))
+      : cadence === 'daily'
+        ? new Date(Date.UTC(y, m, d + 1))
+        : new Date(Date.UTC(y, m + 1, 1));
   const iso = start.toISOString();
-  return { start, label: cadence === 'hourly' ? iso.slice(0, 13) : iso.slice(0, 7) };
+  return { start, label: iso.slice(0, { hourly: 13, daily: 10, monthly: 7 }[cadence]) };
 }
 
 /**

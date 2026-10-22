@@ -98,6 +98,8 @@ try {
       'forms:read',
       'supporters:read',
       'content:write',
+      'media:read',
+      'media:write',
     ];
     const created = await uow
       .run(admin, async (ctx) => {

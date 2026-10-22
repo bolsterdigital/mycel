@@ -35,7 +35,10 @@ export interface Site {
 }
 
 /** What a visitor's Principal is built from: the tenant plus its entitlements and status. */
-export const siteTenant = (site: Site): TenantRef => ({ id: site.tenant.id, ...site.access });
+export const siteTenant = (site: Site): Exclude<TenantRef, string> => ({
+  id: site.tenant.id,
+  ...site.access,
+});
 
 export type SiteDecision =
   | { kind: 'serve'; site: Site }

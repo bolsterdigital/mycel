@@ -61,7 +61,7 @@ Flat keys, the names of ADR 015 rule 2. Missing keys get the default; an empty d
 | `blocks`                  | `{ type: false }` | `{}` (all on) | (TODO #8b, per block type when a tree is saved)            |
 | `supporters.max`          | limit             | 100 000       | `forms.submit`, for a new address only                     |
 | `mail.monthly_max`        | limit             | 1 000 000     | (no consumer yet; TODO #22B)                               |
-| `media.storage_max_bytes` | limit             | 50 GiB        | (TODO #10)                                                 |
+| `media.storage_max_bytes` | limit             | 50 GiB        | `media.upload` (original plus every variant)               |
 | `operators.max`           | limit             | 50            | `tenant.members.invite` (members plus pending invitations) |
 | `custom_domains.max`      | limit             | 20            | `tenant.hostnames.add`                                     |
 

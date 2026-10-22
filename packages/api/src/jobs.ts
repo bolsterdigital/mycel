@@ -14,7 +14,9 @@
 
 import {
   parseJobPayload,
+  purgeMedia,
   reverifyHostname,
+  sweepMediaOrphans,
   systemPrincipal,
   type JobOutcome,
   type JobPayload,
@@ -27,6 +29,7 @@ import {
 import {
   createDb,
   createEventPartitions,
+  listTenants,
   sweepRateLimits,
   type JobHandler,
   type JobHandlers,
@@ -37,6 +40,7 @@ import {
 export const RECURRING_JOBS: readonly RecurringJob[] = [
   { type: 'events.partitions', cadence: 'monthly' },
   { type: 'rate_limits.sweep', cadence: 'hourly' },
+  { type: 'media.orphans', cadence: 'daily' },
 ];
 
 /**
@@ -67,19 +71,48 @@ function platformJob(type: JobType, handler: () => Promise<unknown>): JobHandler
   };
 }
 
+/**
+ * `media.orphans` (TODO #10): the tenant list comes from the platform role, then each tenant is
+ * swept in its own unit of work as mycel_app, so the sweep reads `media` under RLS and never
+ * across tenants (ADR 011 rule 1: platform reports use per-tenant transactions). One tenant's
+ * failure does not stop the others; the job fails afterwards so the worker retries it.
+ */
+export async function sweepAllMediaOrphans(
+  uow: UnitOfWork,
+  tenantIds: () => Promise<string[]>
+): Promise<number> {
+  let swept = 0;
+  const failed: string[] = [];
+  for (const id of await tenantIds())
+    try {
+      swept += (await uow.run(systemPrincipal(id, 'jobs:media.orphans'), sweepMediaOrphans)).length;
+    } catch (e) {
+      console.error(`media.orphans: tenant ${id} failed:`, e);
+      failed.push(id);
+    }
+  if (failed.length) throw new Error(`media.orphans failed for ${failed.length} tenant(s)`);
+  return swept;
+}
+
 export function jobHandlers({
   uow,
   operatorDb,
   identity,
+  tenantIds = async () => (await listTenants(operatorDb)).map((t) => t.id),
 }: {
   uow: UnitOfWork;
   operatorDb: ReturnType<typeof createDb>;
   identity: Pick<IdentityStore, 'tenantAccess'>;
+  /** Every tenant id, for platform jobs that work per tenant; tests pass their own. */
+  tenantIds?: () => Promise<string[]>;
 }): JobHandlers {
   return {
     // A recheck is not a publication: it runs whatever the status (`requireActive` is for #8a).
     'hostnames.reverify': tenantJob({ uow, identity }, 'hostnames.reverify', reverifyHostname),
     'events.partitions': platformJob('events.partitions', () => createEventPartitions(operatorDb)),
     'rate_limits.sweep': platformJob('rate_limits.sweep', () => sweepRateLimits(operatorDb)),
+    // Deleting files is not publishing: a suspended tenant's purge still runs.
+    'media.purge': tenantJob({ uow, identity }, 'media.purge', purgeMedia),
+    'media.orphans': platformJob('media.orphans', () => sweepAllMediaOrphans(uow, tenantIds)),
   } satisfies Record<JobType, JobHandler>;
 }

@@ -65,6 +65,15 @@ import {
   type TenantStatus,
 } from '../entitlements/model.js';
 import type { UsageReader } from '../entitlements/ports.js';
+import { appDelivery } from '../media/delivery.js';
+import type { MediaRecord, NewMedia } from '../media/model.js';
+import type {
+  BlobStore,
+  ImageProbe,
+  ImageProcessor,
+  MediaDelivery,
+  MediaRepository,
+} from '../media/ports.js';
 
 export class FakeClock implements Clock {
   constructor(public current = new Date('2026-10-21T12:00:00.000Z')) {}
@@ -139,6 +148,10 @@ interface TenantStore {
   hostnames: Map<string, HostnameRecord>;
   /** `supporter_admissions` (0010): reserved-at keyed by the hash of tenant and address. */
   admissions: Map<string, Date>;
+  /** `media` (0012), keyed by id; `usageCount` is computed from `mediaUsages`. */
+  media: Map<string, NewMedia & { deletedAt: Date | null }>;
+  /** `media_usages` (0012), keyed by `<media id> <ref> <block id>`. */
+  mediaUsages: Map<string, { mediaId: string; ref: string; blockId: string }>;
 }
 
 /** Development defaults, the shape `.env.example` gives: path form on localhost. */
@@ -199,6 +212,69 @@ export class MemoryScheduler implements Scheduler {
   }
 }
 
+/**
+ * A `BlobStore` in a Map, shared by every tenant like a bucket. `modifiedAt` comes from the clock
+ * so the orphan sweep's age test can be driven by `FakeClock.advance`.
+ */
+export class MemoryBlobStore implements BlobStore {
+  readonly blobs = new Map<string, { bytes: Uint8Array; contentType: string; modifiedAt: Date }>();
+  constructor(readonly clock: Clock = new FakeClock()) {}
+  async put(key: string, bytes: Uint8Array, { contentType }: { contentType: string }) {
+    this.blobs.set(key, {
+      bytes: new Uint8Array(bytes),
+      contentType,
+      modifiedAt: this.clock.now(),
+    });
+  }
+  async get(key: string) {
+    const b = this.blobs.get(key);
+    return b ? new Uint8Array(b.bytes) : null;
+  }
+  async head(key: string) {
+    const b = this.blobs.get(key);
+    return b ? { size: b.bytes.length, contentType: b.contentType } : null;
+  }
+  async delete(keys: readonly string[]) {
+    for (const key of keys) this.blobs.delete(key);
+  }
+  async *list(prefix: string) {
+    for (const [key, b] of [...this.blobs].sort(([a], [z]) => a.localeCompare(z)))
+      if (key.startsWith(prefix)) yield { key, size: b.bytes.length, modifiedAt: b.modifiedAt };
+  }
+}
+
+const sniff = (b: Uint8Array, at: number, text: string) =>
+  [...text].every((c, i) => b[at + i] === c.charCodeAt(0));
+
+/**
+ * An `ImageProcessor` without a codec: `probe` recognises the five formats by their magic bytes
+ * and reads the size from a PNG's IHDR or a GIF's header (anything else is 1x1); `render` returns
+ * the bytes unchanged with the requested width. Enough for the core's rules; real decoding is
+ * `@mycel/media-sharp`'s contract test.
+ */
+export const memoryImageProcessor: ImageProcessor = {
+  async probe(b) {
+    const be32 = (at: number) =>
+      ((b[at]! << 24) | (b[at + 1]! << 16) | (b[at + 2]! << 8) | b[at + 3]!) >>> 0;
+    let found: Omit<ImageProbe, 'pages'> | null = null;
+    if (b.length >= 24 && b[0] === 0x89 && sniff(b, 1, 'PNG'))
+      found = { format: 'png', width: be32(16), height: be32(20) };
+    else if (b.length >= 10 && sniff(b, 0, 'GIF8'))
+      found = { format: 'gif', width: b[6]! | (b[7]! << 8), height: b[8]! | (b[9]! << 8) };
+    else if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff)
+      found = { format: 'jpeg', width: 1, height: 1 };
+    else if (b.length >= 12 && sniff(b, 0, 'RIFF') && sniff(b, 8, 'WEBP'))
+      found = { format: 'webp', width: 1, height: 1 };
+    else if (b.length >= 12 && sniff(b, 4, 'ftypavif'))
+      found = { format: 'avif', width: 1, height: 1 };
+    // A GIF header does not say how many frames follow; a test that needs frames stubs `probe`.
+    return found && found.width > 0 && found.height > 0 ? { ...found, pages: 1 } : null;
+  },
+  async render(bytes, { width }) {
+    return { bytes: new Uint8Array(bytes), width, height: width };
+  },
+};
+
 /** Platform data, like the `operators` table: one row per person, no tenant. */
 export interface OperatorRow {
   id: string;
@@ -252,6 +328,8 @@ export class MemoryStore {
         apiKeys: new Map(),
         hostnames: new Map(),
         admissions: new Map(),
+        media: new Map(),
+        mediaUsages: new Map(),
       };
       this.tenants.set(tenantId, store);
     }
@@ -293,6 +371,9 @@ export interface MemoryDeps {
   signer?: Signer;
   dns?: DnsResolver;
   platform?: PlatformConfig;
+  blobs?: BlobStore;
+  images?: ImageProcessor;
+  delivery?: MediaDelivery;
 }
 
 export class MemoryUnitOfWork implements UnitOfWork {
@@ -302,6 +383,9 @@ export class MemoryUnitOfWork implements UnitOfWork {
   readonly signer: Signer;
   readonly dns: DnsResolver;
   readonly platform: PlatformConfig;
+  readonly blobs: BlobStore;
+  readonly images: ImageProcessor;
+  readonly delivery: MediaDelivery;
 
   constructor(deps: MemoryDeps = {}) {
     this.store = deps.store ?? new MemoryStore();
@@ -310,6 +394,9 @@ export class MemoryUnitOfWork implements UnitOfWork {
     this.signer = deps.signer ?? new FakeSigner();
     this.dns = deps.dns ?? new FakeDns();
     this.platform = deps.platform ?? memoryPlatform;
+    this.blobs = deps.blobs ?? new MemoryBlobStore(this.clock);
+    this.images = deps.images ?? memoryImageProcessor;
+    this.delivery = deps.delivery ?? appDelivery;
   }
 
   async run<T>(principal: Principal, fn: (tx: TransactionContext) => Promise<T>): Promise<T> {
@@ -513,8 +600,8 @@ export class MemoryUnitOfWork implements UnitOfWork {
             m.sentAt.getUTCMonth() === now.getUTCMonth()
         ).length;
       },
-      // TODO #10: sum(size_bytes) over media
-      storageBytes: async () => 0,
+      storageBytes: async () =>
+        [...s.media.values()].reduce((n, m) => n + (m.deletedAt ? 0 : m.totalBytes), 0),
       customHostnames: async () =>
         [...s.hostnames.values()].filter((h) => h.kind === 'custom').length,
       operators: async () => s.members.size,
@@ -561,6 +648,61 @@ export class MemoryUnitOfWork implements UnitOfWork {
         return h ? { ...h } : null;
       },
     };
+    const usageCount = (id: string) =>
+      [...s.mediaUsages.values()].filter((u) => u.mediaId === id).length;
+    const mediaRecord = (m: NewMedia & { deletedAt: Date | null }): MediaRecord => ({
+      ...structuredClone(m),
+      usageCount: usageCount(m.id),
+    });
+    const media: MediaRepository = {
+      // No-op for the same reason as `supporters.lock`; the Postgres conformance proves the lock.
+      async lock() {},
+      get: async (id) => {
+        const m = s.media.get(id);
+        return m ? mediaRecord(m) : null;
+      },
+      async list({ kind, cursor, limit }) {
+        const all = [...s.media.values()]
+          .filter((m) => !m.deletedAt && (!kind || m.kind === kind))
+          .sort((a, b) => +b.createdAt - +a.createdAt || b.id.localeCompare(a.id));
+        const from = cursor ? all.findIndex((m) => m.id === cursor) + 1 : 0;
+        return all.slice(from, from + limit).map(mediaRecord);
+      },
+      async insert(m) {
+        s.media.set(m.id, { ...structuredClone(m), deletedAt: null });
+      },
+      async update(id, patch, at) {
+        const m = s.media.get(id);
+        if (!m || m.deletedAt) return false;
+        Object.assign(m, structuredClone(patch), { updatedAt: new Date(at) });
+        return true;
+      },
+      async softDelete(id, at) {
+        const m = s.media.get(id);
+        if (!m || m.deletedAt) return false;
+        m.deletedAt = new Date(at);
+        return true;
+      },
+      async hardDelete(id) {
+        const m = s.media.get(id);
+        if (!m?.deletedAt) return false;
+        for (const [k, u] of s.mediaUsages) if (u.mediaId === id) s.mediaUsages.delete(k);
+        return s.media.delete(id);
+      },
+      async replaceUsages(ref, usages) {
+        for (const [k, u] of s.mediaUsages) if (u.ref === ref) s.mediaUsages.delete(k);
+        let n = 0;
+        for (const { mediaId, blockId } of usages) {
+          const key = `${mediaId} ${ref} ${blockId}`;
+          if (!s.media.get(mediaId) || s.media.get(mediaId)!.deletedAt || s.mediaUsages.has(key))
+            continue;
+          s.mediaUsages.set(key, { mediaId, ref, blockId });
+          n += 1;
+        }
+        return n;
+      },
+      idsOf: async () => [...s.media.keys()],
+    };
     return fn({
       principal,
       clock,
@@ -588,6 +730,10 @@ export class MemoryUnitOfWork implements UnitOfWork {
       hostnames,
       jobs: new MemoryScheduler(store, principal.tenantId, this.ids, clock),
       usage,
+      media,
+      blobs: this.blobs,
+      images: this.images,
+      delivery: this.delivery,
     });
   }
 

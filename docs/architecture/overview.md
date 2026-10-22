@@ -14,13 +14,14 @@ Short map; the reasoning is in [`../adr/`](../adr/).
                  │ tenants · content (blocks) · forms · supporters (events)   │
                  │ donations (ledger) · mailing · i18n · use-case registry    │
                  │ ports: Repository, Clock, Ids, PaymentProvider, Mailer,    │
-                 │        EventBus, BlobStore                                 │
+                 │        EventBus, BlobStore, ImageProcessor, MediaDelivery  │
                  └───────────────┬───────────────────────┬────────────────────┘
                                  ▼                       ▼
    adapters      ┌──────────────────────┐   ┌──────────────────────────────┐
                  │ packages/db          │   │ packages/payments-mollie     │
                  │ Postgres · Kysely    │   │ packages/mail-tem   (later)  │
-                 │ migrations · RLS     │   │ packages/blob-s3    (later)  │
+                 │ migrations · RLS     │   │ packages/blob (fs, S3)       │
+                 │                      │   │ packages/media-sharp         │
                  └──────────────────────┘   └──────────────────────────────┘
 ```
 
@@ -44,6 +45,8 @@ Short map; the reasoning is in [`../adr/`](../adr/).
 
 **Entitlements** (ADR 015, TODO #16) are a document per tenant on `tenants.entitlements`, plus `tenants.status`, set only through the platform functions in `packages/db/src/platform.ts` (the `/platform/*` API behind `PLATFORM_API_TOKEN`, and `npm run platform`; `docs/reference/platform-api.md`). They are **loaded** before the tenant context, with whatever establishes it: `IdentityStore.tenantAccess` for an API key, an MCP session or an admin membership, and `SiteDirectory.resolve` (same query, same thirty-second cache) for a public page; `mycel_app` never sees either column. They are **carried** on the `Principal` as the effective document (the stored one merged over `DEFAULT_ENTITLEMENTS`, which grant everything and keep the credit on) and `tenantStatus`; caps are enforced where growth starts, at a person's action, so background work does not fail on one. A tenant job carries the tenant's current access (`tenantJob` loads it with `IdentityStore.tenantAccess` just before it runs), and a handler that publishes calls `requireActive`, the same answer `guardSuspended` gives a command; outbox subscribers keep the defaults of `systemPrincipal`, because ingest is not growth (the seat was reserved at the signup, `ctx.admissions`) and a confirmation mail belongs to a signup accepted before any suspension. They are **enforced** in core only: `guardSuspended` in `Invoker.run` refuses every command but exports for a suspended tenant, and a use case that grows something declares `consumes: '<limit>'` and calls `withinLimit` (or `requireEntitled` for a switch); the registry conformance runs each such use case with that limit at zero, and `checkRegistry` makes a create, invite, add, submit or upload command say `consumes`, even if only `null`. Usage is counted on demand in the tenant's transaction (`ctx.usage`, `tenant.usage`).
 
+**Media** (TODO #10, `docs/reference/media.md`) is a register per tenant (`media`, `media_usages`, migration 0012) with the bytes behind three ports: `BlobStore` (storage: `@mycel/blob`, a directory or a private S3-compatible bucket), `ImageProcessor` (processing: `@mycel/media-sharp`, which probes the header, applies the EXIF orientation and writes no metadata) and `MediaDelivery` (where a variant is served: `appDelivery` in core, `/media/<id>/<file>` on the site itself). Content refers to a media id, never to a URL. `media.upload` renders every variant before it takes the tenant's media lock, then counts `media.storage_max_bytes` and writes files and row under it; `media.delete` refuses while `media_usages` has rows and plans `media.purge` in its own transaction; the daily `media.orphans` platform job sweeps each tenant in its own unit of work as `mycel_app`. The site serves a public variant with `immutable` caching and a restricted one only with a signed path; the original has no route.
+
 **Events.** Modules communicate through `EventBus` (a port). The first implementation is an in-process bus backed by a Postgres outbox table so that a crash never loses an event; a worker drains it. The supporter module is the main subscriber (ADR 003).
 
 **Supporter identity and fold.** Ingest locks the event's e-mail address (a transaction-scoped advisory lock per tenant and address), resolves it to a stable `supporter_id` (a new UUIDv7 on first sight), appends the event to the monthly partitioned `events` log (dedup on the deterministic id) and folds it into the `supporters` projection. The projection records `appliedThrough`, the fold position (`occurred_at`, then id) of the last event it applied: a newer event is applied on top, a late one triggers a re-fold of that one supporter from its log, so every arrival order ends in the same projection. An address changes only through `supporters.email.change`, which locks both addresses and logs `supporter.email_changed` (ADR 019 rules 1 to 3). Monthly partitions are created by `migrate` up to three months ahead and kept going by the worker's monthly `events.partitions` job; a backfill calls `ensureEventPartitions` for its own range first.
@@ -54,14 +57,14 @@ Short map; the reasoning is in [`../adr/`](../adr/).
 
 **Where things live**
 
-| Path                            | Contents                                                                              |
-| ------------------------------- | ------------------------------------------------------------------------------------- |
-| `packages/core/src/<module>/`   | `model.ts` (types, schemas), `service.ts` (use cases), `ports.ts`, `events.ts`, tests |
-| `packages/core/src/registry.ts` | the use-case registry every front reads                                               |
-| `packages/db/migrations/`       | plain SQL, forward-only, one file per change, RLS policy next to the table            |
-| `packages/api/src/`             | Hono app, composition root, API-key authentication, route generation, OpenAPI         |
-| `packages/mcp/src/`             | MCP server over stdio (one API key per process), tool/resource generation             |
-| `apps/web/src/routes/(public)/` | tenant sites, rendered from blocks                                                    |
-| `apps/web/src/routes/(admin)/`  | operator admin behind OIDC, on the platform origin only (ADR 014 rule 4)              |
-| `docs/reference/`               | hostnames and custom domains, the Caddy on-demand TLS example, the platform API       |
-| `docs/adr/`                     | decisions; `docs/plans`                                                               | private planning sibling (symlink) |
+| Path                            | Contents                                                                               |
+| ------------------------------- | -------------------------------------------------------------------------------------- |
+| `packages/core/src/<module>/`   | `model.ts` (types, schemas), `service.ts` (use cases), `ports.ts`, `events.ts`, tests  |
+| `packages/core/src/registry.ts` | the use-case registry every front reads                                                |
+| `packages/db/migrations/`       | plain SQL, forward-only, one file per change, RLS policy next to the table             |
+| `packages/api/src/`             | Hono app, composition root, API-key authentication, route generation, OpenAPI          |
+| `packages/mcp/src/`             | MCP server over stdio (one API key per process), tool/resource generation              |
+| `apps/web/src/routes/(public)/` | tenant sites, rendered from blocks                                                     |
+| `apps/web/src/routes/(admin)/`  | operator admin behind OIDC, on the platform origin only (ADR 014 rule 4)               |
+| `docs/reference/`               | hostnames and custom domains, the Caddy on-demand TLS example, the platform API, media |
+| `docs/adr/`                     | decisions; `docs/plans`                                                                | private planning sibling (symlink) |

@@ -171,4 +171,36 @@ export interface Database {
     last_used_at: Timestamp | null;
     revoked_at: Timestamp | null;
   };
+  /** The media register (0012); the bytes are in the BlobStore. */
+  media: {
+    id: string;
+    tenant_id: string;
+    kind: 'image' | 'document';
+    content_type: string;
+    filename: string;
+    checksum: string;
+    /** bigint: pg returns a string. */
+    size_bytes: ColumnType<string, number, number>;
+    total_bytes: ColumnType<string, number, number>;
+    width: number | null;
+    height: number | null;
+    variants: Json<unknown[]>;
+    access: 'public' | 'restricted';
+    caption: Json<Record<string, string>>;
+    credit: Json<unknown>;
+    source: string | null;
+    licence: string | null;
+    focal: Json<unknown>;
+    state: 'ready' | 'failed';
+    created_by: Json<unknown>;
+    created_at: Timestamp;
+    updated_at: Timestamp;
+    deleted_at: Timestamp | null;
+  };
+  media_usages: {
+    tenant_id: string;
+    media_id: string;
+    ref: string;
+    block_id: string;
+  };
 }

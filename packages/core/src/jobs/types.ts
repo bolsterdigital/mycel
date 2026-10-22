@@ -15,6 +15,12 @@ export const JobPayloads = {
   'events.partitions': z.object({}).strict(),
   /** Platform job: delete expired rate-limit windows as mycel_janitor (ADR 011 rule 2). */
   'rate_limits.sweep': z.object({}).strict(),
+  /** Tenant job: delete a soft-deleted asset's files, then its row (`media.delete`, TODO #10). */
+  'media.purge': z
+    .object({ mediaId: z.string().uuid(), keys: z.array(z.string().min(1)).max(64) })
+    .strict(),
+  /** Platform job: per tenant, delete media files without a row that are older than a day. */
+  'media.orphans': z.object({}).strict(),
 } as const;
 
 export type JobType = keyof typeof JobPayloads;

@@ -24,6 +24,8 @@ export const Capability = z.enum([
   'mailing:read',
   'mailing:send',
   'money:refund',
+  'media:read',
+  'media:write',
   'tenant:admin',
 ]);
 export type Capability = z.infer<typeof Capability>;

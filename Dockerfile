@@ -17,6 +17,8 @@ COPY packages/core/package.json packages/core/
 COPY packages/db/package.json packages/db/
 COPY packages/api/package.json packages/api/
 COPY packages/mail-tem/package.json packages/mail-tem/
+COPY packages/blob/package.json packages/blob/
+COPY packages/media-sharp/package.json packages/media-sharp/
 COPY packages/mcp/package.json packages/mcp/
 COPY apps/web/package.json apps/web/
 RUN npm ci --ignore-scripts
@@ -33,8 +35,12 @@ COPY --from=build /app/packages/core/package.json packages/core/
 COPY --from=build /app/packages/db/package.json packages/db/
 COPY --from=build /app/packages/api/package.json packages/api/
 COPY --from=build /app/packages/mail-tem/package.json packages/mail-tem/
+COPY --from=build /app/packages/blob/package.json packages/blob/
+COPY --from=build /app/packages/media-sharp/package.json packages/media-sharp/
 COPY --from=build /app/packages/mcp/package.json packages/mcp/
 COPY --from=build /app/apps/web/package.json apps/web/
+# sharp needs no install script: its libvips binary for this platform (linux-x64 or arm64, glibc)
+# is an optional dependency (@img/sharp-*), installed by npm ci like any other package.
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 
 COPY --from=build /app/packages/core/dist packages/core/dist
@@ -42,6 +48,8 @@ COPY --from=build /app/packages/db/dist packages/db/dist
 COPY --from=build /app/packages/db/migrations packages/db/migrations
 COPY --from=build /app/packages/api/dist packages/api/dist
 COPY --from=build /app/packages/mail-tem/dist packages/mail-tem/dist
+COPY --from=build /app/packages/blob/dist packages/blob/dist
+COPY --from=build /app/packages/media-sharp/dist packages/media-sharp/dist
 COPY --from=build /app/packages/mcp/dist packages/mcp/dist
 COPY --from=build /app/apps/web/build apps/web/build
 COPY docker/entrypoint.sh docker/healthcheck.mjs /usr/local/lib/mycel/

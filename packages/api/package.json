@@ -28,7 +28,9 @@
     "hono": "^4.6.14",
     "@hono/node-server": "^1.13.7",
     "@mycel/mail-tem": "*",
-    "zod": "^3.24.1"
+    "zod": "^3.24.1",
+    "@mycel/blob": "*",
+    "@mycel/media-sharp": "*"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^13.1.0",

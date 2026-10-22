@@ -1,0 +1,22 @@
+{
+  "name": "@mycel/media-sharp",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "description": "ImageProcessor adapter on sharp (libvips): probe, orient, strip metadata, render variants (TODO #10)",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -b",
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@mycel/core": "*",
+    "sharp": "^0.35.5"
+  }
+}

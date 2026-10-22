@@ -42,3 +42,8 @@ export * from './entitlements/model.js';
 export * from './entitlements/check.js';
 export * from './entitlements/ports.js';
 export * from './entitlements/service.js';
+export * from './media/model.js';
+export * from './media/ports.js';
+export * from './media/delivery.js';
+export * from './media/service.js';
+export * from './util/bytes.js';
