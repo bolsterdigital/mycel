@@ -3,7 +3,7 @@
 - **Status**: accepted
 - **Date**: 2026-10-21
 - **Builds on**: ADR 006 (open core boundary is the repository boundary)
-- **Amended**: 2026-10-21 by ADR 017 (`sites.max` removed) and rule 7 below (over-limit, suspension and leaving)
+- **Amended**: 2026-10-21 by ADR 017 (`sites.max` removed) and rule 7 below (over-limit, suspension and leaving); 2026-10-22 by TODO #16 (`custom_domains.max` added to rule 2)
 
 ## Context
 
@@ -12,7 +12,7 @@ Adoption of an open-source platform comes from people being able to run it and f
 ## Decision
 
 1. **There is one edition.** A self-hoster has every feature. Nothing in the public repository is disabled by licence key, build flag or edition.
-2. **Differences per tenant are an `entitlements` document**, platform data on the tenant: feature switches (`blocks.<type>`, `mailing.enabled`, `donations.enabled`, `custom_domain`, `api_keys`, `remove_branding`) and limits (`supporters.max`, `mail.monthly_max`, `media.storage_max_bytes`, `operators.max`). The schema lives in `packages/core`; the defaults grant everything with generous limits, so a self-hoster never has to think about it.
+2. **Differences per tenant are an `entitlements` document**, platform data on the tenant: feature switches (`blocks.<type>`, `mailing.enabled`, `donations.enabled`, `custom_domain`, `api_keys`, `remove_branding`) and limits (`supporters.max`, `mail.monthly_max`, `media.storage_max_bytes`, `operators.max`, `custom_domains.max`; the last added 2026-10-22, because a free tier without its own domain needs a count as well as the `custom_domain` switch). The schema lives in `packages/core`; the defaults grant everything with generous limits, so a self-hoster never has to think about it.
 3. **Enforcement happens in `core`, once per use case**, through the `Principal` (which carries the tenant's entitlements) and an `entitled(principal, feature)` or `withinLimit(ctx, limit, current)` check. A use case that exceeds a limit fails with a typed error the fronts render as "upgrade or contact your host". Hosts, not Mycel, decide what a tier costs; prices never appear in this repository.
 4. **The hosted service sets entitlements through the platform API** (`tenant.entitlements.set`, operator role only), from its private billing system (the client portal). The open-source instance's single operator sets them with the CLI or leaves the defaults.
 5. **A footer credit ("Runs on Mycel") is on by default** and is the one entitlement (`remove_branding`) the hosted free tier keeps switched off. It is a visible link, never tracking.
