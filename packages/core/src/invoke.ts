@@ -1,6 +1,10 @@
 // The one code path every front uses to run a use case: look up, authorize, validate input, run
 // inside a tenant-scoped unit of work, validate output. HTTP, MCP and the web app differ only in
 // how they build the Principal and how they render the result or the UseCaseError.
+//
+// Output is validated inside the unit of work, so a handler that answers outside its schema rolls
+// back what it wrote, events included. Rejected: parsing after commit, which reported a failure for
+// a change that had already happened and whose outbox events would still be delivered.
 
 import type { z } from 'zod';
 import { UseCaseError, type Issue } from './errors.js';
@@ -40,7 +44,8 @@ export class Invoker {
         'input does not match the schema',
         zodIssues(parsed.error)
       );
-    const result = await this.uow.run(principal, (ctx) => useCase.handler(ctx, parsed.data));
-    return useCase.output.parse(result) as z.infer<O>;
+    return this.uow.run(principal, async (ctx) =>
+      useCase.output.parse(await useCase.handler(ctx, parsed.data))
+    ) as Promise<z.infer<O>>;
   }
 }
