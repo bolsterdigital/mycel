@@ -67,13 +67,19 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
 // A second, verified hostname of tenant probe for hostnames.spec.ts (a non-primary hostname is
 // a 301 to the primary). Verification needs a real TXT record, so the fixture goes in through
 // the repository as the use case would leave it, not through DNS.
+//
+// And a higher supporter cap for probe than the seed's 250: every run signs up new addresses, so
+// a long-lived development database reaches 250 probe supporters after some sixty runs, while CI
+// starts empty. The admin still shows used against the limit; the seed itself keeps 250. The
+// document is replaced as a whole, so the credit stays on explicitly (review round 1, F).
 {
-  const { createDb, createTenantDirectory, createUnitOfWork, uuidv7Ids } =
+  const { createDb, createTenantDirectory, createUnitOfWork, setEntitlements, uuidv7Ids } =
     await import('@mycel/db');
   const { systemPrincipal } = await import('@mycel/core');
   const { FakeDns, FakeSigner, memoryPlatform } = await import('@mycel/core/testing');
   const operatorDb = createDb(process.env.DATABASE_URL);
   const probe = await createTenantDirectory(operatorDb).findBySlug('probe');
+  await setEntitlements(operatorDb, probe.id, { remove_branding: false, 'supporters.max': 10000 });
   const uow = createUnitOfWork(operatorDb, {
     clock: { now: () => new Date() },
     ids: uuidv7Ids,
