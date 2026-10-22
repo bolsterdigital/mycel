@@ -53,3 +53,28 @@ grant update (entitlements, status) on tenants to mycel_platform;
 grant select, insert on tenant_hostnames to mycel_platform;
 create policy platform_hostnames on tenant_hostnames to mycel_platform
   using (true) with check (kind = 'platform');
+
+-- Supporter admissions (ADR 015 rule 3 with ADR 019 rule 3; review round 1 of TODO #16, audit
+-- point 3). The supporter projection only grows after the outbox ingest, so counting it in
+-- `forms.submit` lets any number of new addresses past a cap while the worker has not run.
+-- `forms.submit` therefore reserves a seat here, in its own transaction and under a per-tenant
+-- advisory lock, and the ingest that writes the projection releases it in the same transaction:
+-- an address is a reservation or a projection, never both. A reservation older than seven days
+-- no longer counts and is swept by the tenant's next reservation (a signup whose event never
+-- arrived does not hold a seat forever). Tenant data under forced RLS like every other table.
+-- Rejected: counting `form_submissions` (every retry of one address would count) and writing
+-- the projection from forms (ADR 003 rule 3: only the projector writes it).
+create table supporter_admissions (
+  tenant_id    uuid not null references tenants(id),
+  -- sha256 hex of `<tenant id>:<normalised address>`, like the rate-limit key: no second copy of
+  -- the address (ADR 019 rule 7), and release plus the window are its whole lifetime.
+  email_hash   text not null,
+  admitted_at  timestamptz not null default now(),
+  primary key (tenant_id, email_hash)
+);
+alter table supporter_admissions enable row level security;
+alter table supporter_admissions force row level security;
+create policy tenant_isolation on supporter_admissions
+  using (tenant_id = current_tenant_id())
+  with check (tenant_id = current_tenant_id());
+grant select, insert, delete on supporter_admissions to mycel_app;

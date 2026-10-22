@@ -37,7 +37,12 @@ import type {
 } from '../operators/ports.js';
 import type { SupporterEvent } from '../supporters/events.js';
 import type { SupporterProjection } from '../supporters/model.js';
-import type { SupporterRepository } from '../supporters/ports.js';
+import {
+  ADMISSION_WINDOW_MS,
+  type SupporterAdmissions,
+  type SupporterRepository,
+} from '../supporters/ports.js';
+import { sha256Hex } from '../util/digest.js';
 import type {
   DnsResolver,
   HostnameRecord,
@@ -132,6 +137,8 @@ interface TenantStore {
   apiKeys: Map<string, NewApiKey & { lastUsedAt: Date | null; revokedAt: Date | null }>;
   /** Keyed by hostname; global uniqueness is checked across tenants by `MemoryStore.hostnameOwner`. */
   hostnames: Map<string, HostnameRecord>;
+  /** `supporter_admissions` (0010): reserved-at keyed by the hash of tenant and address. */
+  admissions: Map<string, Date>;
 }
 
 /** Development defaults, the shape `.env.example` gives: path form on localhost. */
@@ -244,6 +251,7 @@ export class MemoryStore {
         members: new Map(),
         apiKeys: new Map(),
         hostnames: new Map(),
+        admissions: new Map(),
       };
       this.tenants.set(tenantId, store);
     }
@@ -473,6 +481,26 @@ export class MemoryUnitOfWork implements UnitOfWork {
           k.lastUsedAt = new Date(at);
       },
     };
+    const admissionKey = (email: string) =>
+      sha256Hex(`${principal.tenantId}:${normalizeEmail(email)}`);
+    const live = (at: Date) => clock.now().getTime() - at.getTime() < ADMISSION_WINDOW_MS;
+    const admissions: SupporterAdmissions = {
+      // No-op for the same reason as `supporters.lock`; the Postgres conformance proves the lock.
+      async lock() {},
+      count: async () => s.projections.size + [...s.admissions.values()].filter(live).length,
+      async pending(email) {
+        const at = s.admissions.get(await admissionKey(email));
+        return at !== undefined && live(at);
+      },
+      async reserve(email) {
+        for (const [k, at] of s.admissions) if (!live(at)) s.admissions.delete(k);
+        const key = await admissionKey(email);
+        if (!s.admissions.has(key)) s.admissions.set(key, clock.now());
+      },
+      async release(email) {
+        s.admissions.delete(await admissionKey(email));
+      },
+    };
     const store = this.store;
     const usage: UsageReader = {
       supporters: async () => s.projections.size,
@@ -552,6 +580,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
       submissions,
       rateLimits,
       supporters,
+      admissions,
       mailSends,
       operators,
       members,

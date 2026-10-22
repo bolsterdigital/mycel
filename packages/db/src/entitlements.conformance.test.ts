@@ -9,14 +9,20 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import {
+  ADMISSION_WINDOW_MS,
   DEFAULT_ENTITLEMENTS,
   Invoker,
   UseCaseError,
   buildRegistry,
+  ingest,
   systemPrincipal,
+  toSupporterEvent,
   useCases,
+  withinLimit,
+  type NewsletterSubscribedProps,
+  type Principal,
 } from '@mycel/core';
-import { FakeDns, FakeSigner, memoryPlatform } from '@mycel/core/testing';
+import { FakeDns, FakeSigner, memoryPlatform, probeForm } from '@mycel/core/testing';
 import {
   createDb,
   createIdentityStore,
@@ -52,13 +58,15 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
     devHosts: [`dev-${run}.${DOMAIN}`],
     platformOrigin: `https://admin-${run}.${DOMAIN}`,
   };
-  const uow = createUnitOfWork(appDb, {
-    clock: { now: () => new Date() },
-    ids: uuidv7Ids,
-    signer: new FakeSigner(),
-    dns: new FakeDns(),
-    platform: { ...memoryPlatform, ...platform },
-  });
+  const unitOfWork = (now: () => Date = () => new Date()) =>
+    createUnitOfWork(appDb, {
+      clock: { now },
+      ids: uuidv7Ids,
+      signer: new FakeSigner(),
+      dns: new FakeDns(),
+      platform: { ...memoryPlatform, ...platform },
+    });
+  const uow = unitOfWork();
   const invoker = new Invoker(buildRegistry(), uow);
   const identity = createIdentityStore(authDb, uuidv7Ids);
   const sites = createSiteDirectory(authDb, { ttlMs: 0 });
@@ -323,5 +331,135 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
     expect(await setEntitlements(operatorDb, uuidv7(), {})).toBeNull();
     expect(await setStatus(operatorDb, uuidv7(), 'suspended')).toBeNull();
     expect((await getTenant(operatorDb, t.id))?.storedEntitlements).toEqual({ 'operators.max': 3 });
+  });
+
+  // Review round 1, audit point 3: the supporter cap holds before the worker has ingested
+  // anything, because `forms.submit` reserves a seat in its own transaction (`ctx.admissions`).
+  describe('supporter admissions', () => {
+    const capped = (tenantId: string, max: number): Principal => ({
+      ...systemPrincipal(tenantId, 'admissions'),
+      entitlements: { ...DEFAULT_ENTITLEMENTS, 'supporters.max': max },
+    });
+    /** What forms.submit does for a new address, without the rate limits around it. */
+    const admit = (p: Principal, email: string, pause = 0) =>
+      uow.run(p, async (ctx) => {
+        await ctx.admissions.lock();
+        if (await ctx.admissions.pending(email)) return;
+        const n = await ctx.admissions.count();
+        // Without the lock, both transactions would count the same free seat in this pause.
+        await new Promise((r) => setTimeout(r, pause));
+        withinLimit(ctx, 'supporters.max', n);
+        await ctx.admissions.reserve(email);
+      });
+    /** Rows in the table for this tenant, expired ones included. */
+    const rows = (tenantId: string) =>
+      as(appUrl!, async (c) => {
+        await c.query('begin');
+        await c.query(`select set_config('app.tenant_id', $1, true)`, [tenantId]);
+        const { rows } = await c.query<{ n: string }>(
+          'select count(*) as n from supporter_admissions'
+        );
+        await c.query('commit');
+        return Number(rows[0]?.n);
+      });
+
+    it('gives two concurrent new addresses one free seat between them', async () => {
+      const t = await create('adm-race');
+      const p = capped(t.id, 1);
+      const results = await Promise.allSettled([
+        admit(p, 'a@example.org', 100),
+        admit(p, 'b@example.org', 100),
+      ]);
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      const refused = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+      expect(refused.reason).toMatchObject({ code: 'limit_exceeded' });
+      expect(await rows(t.id)).toBe(1);
+      expect(await uow.run(p, (ctx) => ctx.admissions.count())).toBe(1);
+    });
+
+    it('rolls a reservation back with the transaction that is refused', async () => {
+      const t = await create('adm-roll');
+      const p = capped(t.id, 0);
+      await code(
+        uow.run(p, async (ctx) => {
+          await ctx.admissions.reserve('a@example.org');
+          withinLimit(ctx, 'supporters.max', await ctx.admissions.count());
+        }),
+        'limit_exceeded'
+      );
+      expect(await rows(t.id)).toBe(0);
+
+      // And through the use case: a refused signup leaves no seat behind.
+      const formId = uuidv7();
+      await uow.run(p, (ctx) => ctx.forms.insert(probeForm(formId)));
+      await code(
+        invoker.run(useCases.submitForm, p, {
+          formId,
+          values: { email: 'b@example.org', consent: true },
+          locale: 'nl',
+        }),
+        'limit_exceeded'
+      );
+      expect(await rows(t.id)).toBe(0);
+    });
+
+    it('stops counting a reservation after the window and sweeps it on the next reserve', async () => {
+      const t = await create('adm-old');
+      const p = capped(t.id, 1);
+      const past = unitOfWork(() => new Date(Date.now() - ADMISSION_WINDOW_MS - 24 * 3600_000));
+      await past.run(p, (ctx) => ctx.admissions.reserve('old@example.org'));
+      expect(await rows(t.id)).toBe(1);
+      expect(await uow.run(p, (ctx) => ctx.admissions.count())).toBe(0);
+      expect(await uow.run(p, (ctx) => ctx.admissions.pending('old@example.org'))).toBe(false);
+
+      await admit(p, 'new@example.org');
+      expect(await rows(t.id)).toBe(1);
+      expect(await uow.run(p, (ctx) => ctx.admissions.pending('new@example.org'))).toBe(true);
+    });
+
+    it('releases the seat when ingest writes the projection, in one snapshot', async () => {
+      const t = await create('adm-ingest');
+      const p = capped(t.id, 1);
+      const formId = uuidv7();
+      await uow.run(p, (ctx) => ctx.forms.insert(probeForm(formId)));
+      const submit = (email: string) =>
+        invoker.run(useCases.submitForm, p, {
+          formId,
+          values: { email, consent: true },
+          locale: 'nl',
+        });
+      expect((await submit('a@example.org')).status).toBe('accepted');
+      await code(submit('b@example.org'), 'limit_exceeded');
+      expect((await submit('a@example.org')).status).toBe('accepted');
+      expect(await rows(t.id)).toBe(1);
+
+      // What the ingest subscriber does for the outbox event, in one transaction.
+      const props: NewsletterSubscribedProps = {
+        email: 'a@example.org',
+        list: 'newsletter',
+        formId,
+        submissionId: uuidv7(),
+        locale: 'nl',
+        pageUrl: null,
+        consentTextVersion: 'v1',
+        confirmed: false,
+      };
+      const event = await toSupporterEvent({
+        id: uuidv7(),
+        type: 'newsletter.subscribed',
+        tenantId: t.id,
+        occurredAt: new Date(),
+        actor: { kind: 'system', job: 'test' },
+        props: { ...props },
+      });
+      await uow.run(p, (ctx) => ingest(ctx, event));
+      expect(await rows(t.id)).toBe(0);
+      expect(
+        await uow.run(p, async (ctx) => [
+          await ctx.admissions.count(),
+          await ctx.usage.supporters(),
+        ])
+      ).toEqual([1, 1]);
+    });
   });
 });

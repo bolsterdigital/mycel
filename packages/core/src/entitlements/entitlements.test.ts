@@ -146,6 +146,39 @@ describe('use cases that consume', () => {
     expect(r).toMatchObject({ status: 'rejected', reason: 'spam' });
   });
 
+  // Review round 1, audit point 3: the projection grows only when the worker ingests, so the
+  // cap counts reserved seats too (`ctx.admissions`).
+  const seats = () =>
+    uow.run(admin, async (ctx) => ({
+      admissions: await ctx.admissions.count(),
+      supporters: await ctx.usage.supporters(),
+    }));
+
+  it('forms.submit admits at most one new address per free seat while the worker stands still', async () => {
+    const { supporters } = await seats();
+    const capped = limited({ 'supporters.max': supporters + 1 });
+    expect((await submit('a@example.org', capped)).status).toBe('accepted');
+    await expectCode(submit('b@example.org', capped), 'limit_exceeded');
+    // A retry of the same new address keeps its seat and takes no second one.
+    expect((await submit('A@example.org', capped)).status).toBe('accepted');
+    expect(await seats()).toEqual({ admissions: supporters + 1, supporters });
+
+    await uow.drain([supporterIngestSubscriber(uow)]);
+    // Ingest wrote the projection and released the seat in the same transaction.
+    expect(await seats()).toEqual({ admissions: supporters + 1, supporters: supporters + 1 });
+    expect(await uow.run(admin, (ctx) => ctx.admissions.pending('a@example.org'))).toBe(false);
+  });
+
+  it('forms.submit takes a known address at the cap without reserving a seat', async () => {
+    await submit('known@example.org', admin);
+    await uow.drain([supporterIngestSubscriber(uow)]);
+    const { supporters } = await seats();
+    const full = limited({ 'supporters.max': supporters });
+    expect((await submit('known@example.org', full)).status).toBe('accepted');
+    expect(await uow.run(admin, (ctx) => ctx.admissions.pending('known@example.org'))).toBe(false);
+    expect(await seats()).toEqual({ admissions: supporters, supporters });
+  });
+
   it('tenant.members.invite counts members and pending invitations against operators.max', async () => {
     const two = limited({ 'operators.max': 2 });
     const invite = (email: string) =>

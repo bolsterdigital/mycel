@@ -121,9 +121,16 @@ export const submitForm = defineUseCase({
     if (!(await ctx.rateLimits.hit(`forms.submit:email:${emailKey}`, RATE_LIMITS.perEmail)))
       return reject('rate-limited');
 
-    // ADR 015: past the spam gate, only a new address grows the supporter count (TODO #16).
-    if (!(await ctx.supporters.getProjection(email)))
-      withinLimit(ctx, 'supporters.max', await ctx.usage.supporters());
+    // ADR 015 rule 3: only a new address grows the supporter count. The projection exists only
+    // after the outbox ingest, so the seat is reserved here, under the tenant's admission lock,
+    // and released by ingest (`ctx.admissions`, TODO #16).
+    if (!(await ctx.supporters.getProjection(email))) {
+      await ctx.admissions.lock();
+      if (!(await ctx.admissions.pending(email))) {
+        withinLimit(ctx, 'supporters.max', await ctx.admissions.count());
+        await ctx.admissions.reserve(email);
+      }
+    }
 
     const submissionId = ctx.ids.next();
     await ctx.submissions.insert({

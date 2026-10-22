@@ -168,6 +168,13 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
       },
     };
     await supporterIngestSubscriber(uow).handle(event);
+    // Ingest released that signup's admission seat (0010); a second signup, not ingested, keeps
+    // one in `supporter_admissions`.
+    await invoker.run(useCases.submitForm, admin, {
+      formId,
+      values: { email: `rls-pending-${run}@example.org`, consent: true },
+      locale: 'nl',
+    });
     // Memberships and keys through their use cases (TODO #7).
     await invoker.run(useCases.inviteMember, admin, {
       email: `member-${run}@example.org`,
@@ -204,6 +211,7 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
         'outbox',
         'pages',
         'rate_limits',
+        'supporter_admissions',
         'supporters',
         'tenant_hostnames',
         'tenant_memberships',

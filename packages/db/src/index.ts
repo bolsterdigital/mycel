@@ -37,6 +37,7 @@ import {
 } from './repositories.js';
 import type { Database } from './schema.js';
 import { usageReader } from './usage.js';
+import { supporterAdmissions } from './admissions.js';
 
 export type { Database } from './schema.js';
 export { uuidv7, uuidv7Ids } from './ids.js';
@@ -118,6 +119,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           submissions: submissionRepository(trx, tenantId),
           rateLimits: rateLimiter(trx, tenantId, deps.clock),
           supporters: supporterRepository(trx, tenantId, deps.ids),
+          admissions: supporterAdmissions(trx, tenantId, deps.clock),
           mailSends: mailSendsRepository(trx, tenantId),
           operators: operatorRepository(trx),
           members: membershipRepository(trx, tenantId),
