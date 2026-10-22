@@ -47,14 +47,15 @@ describe('MCP front', () => {
       arguments: { itemId: created.item.id, revisionId: created.revision.id, locale: 'nl' },
     });
 
-    const res = await client.readResource({ uri: 'mycel://pages/signup' });
+    const res = await client.readResource({ uri: 'mycel://published/page/signup' });
     const page = String(res.contents[0]?.text);
     expect(JSON.parse(page)).toMatchObject({ slug: 'signup', locale: 'nl' });
     // Only the published locale leaves the core, never the English draft in the same revision.
     const english = await client.callTool({
-      name: 'content.page.get',
-      arguments: { slug: 'signup', acceptLanguage: 'en' },
+      name: 'content.published.get',
+      arguments: { type: 'page', slug: 'signup', locale: 'en' },
     });
+    expect(text(english)).toMatchObject({ code: 'not_found' });
     expect(JSON.stringify([page, english])).not.toContain('EN-DRAFT-MARKER');
 
     const submitted = await client.callTool({
@@ -90,7 +91,11 @@ describe('MCP front with a key from the table', () => {
     const [a, b] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: 'test', version: '0' });
     await Promise.all([server.connect(a), client.connect(b)]);
-    const read = () => client.callTool({ name: 'content.page.get', arguments: { slug: 'x' } });
+    const read = () =>
+      client.callTool({
+        name: 'content.published.get',
+        arguments: { type: 'page', slug: 'x' },
+      });
 
     expect(text(await read())).toMatchObject({ code: 'not_found' });
     // The key's capabilities, not more: no member management for an agent.
@@ -127,7 +132,10 @@ describe('MCP front and the audit log', () => {
       name: 'content.item.publish',
       arguments: { itemId: created.item.id, revisionId: created.revision.id, locale: 'nl' },
     });
-    const page = await client.callTool({ name: 'content.page.get', arguments: { slug: 'signup' } });
+    const page = await client.callTool({
+      name: 'content.published.get',
+      arguments: { type: 'page', slug: 'signup' },
+    });
     expect(text(page)).toMatchObject({ slug: 'signup', locale: 'nl' });
     const refused = await client.callTool({
       name: 'tenant.keys.create',

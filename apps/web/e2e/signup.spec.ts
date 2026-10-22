@@ -42,13 +42,17 @@ test('signup page renders from blocks without JavaScript and passes axe', async 
 test.describe('an English visitor of a page published in Dutch only', () => {
   test.use({ locale: 'en-GB' });
 
-  test('gets the Dutch publication and never the English draft', async ({ page }) => {
+  test('gets the Dutch publication and never the English draft', async ({ page, request }) => {
     const response = await page.goto('/probe/draft-check');
     expect(response?.status()).toBe(200);
     await expect(page.locator('html')).toHaveAttribute('lang', 'nl');
     const html = await page.content();
     expect(html).toContain('Alleen Nederlands live');
     expect(html).not.toContain('EN-DRAFT');
+    // The English path of an unpublished locale is a 404, never a fallback (TODO #8c2).
+    const english = await request.get('/probe/en/draft-check');
+    expect(english.status()).toBe(404);
+    expect(await english.text()).not.toContain('EN-DRAFT');
   });
 });
 
@@ -141,10 +145,11 @@ test('signup with double opt-in: too-fast post, thank-you page, confirmation lin
 });
 
 test.describe('in English', () => {
-  test.use({ locale: 'en-GB' });
+  // A Dutch browser on the English path: the path decides, not Accept-Language.
+  test.use({ locale: 'nl-NL' });
 
-  test('the page negotiates English from Accept-Language', async ({ page }) => {
-    await page.goto('/probe/signup');
+  test('the English path serves English (the path is the locale, TODO #8c2)', async ({ page }) => {
+    await page.goto('/probe/en/signup');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     await expect(page.getByRole('heading', { level: 1, name: 'Stay informed' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Sign up' })).toBeVisible();

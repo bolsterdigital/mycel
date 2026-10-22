@@ -10,6 +10,11 @@ const app = createApp({
   invoker: runtime.invoker,
   authenticate: (h) => runtime.authenticateApiKey(h),
   platform: runtime.platformApi,
+  contentRead: {
+    invoker: runtime.invoker,
+    tenants: runtime.tenants,
+    access: (id) => runtime.identity.tenantAccess(id),
+  },
   observability: runtime.http,
   trustProxy: runtime.config.MYCEL_TRUST_PROXY === '1',
 });

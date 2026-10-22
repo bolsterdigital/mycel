@@ -66,7 +66,7 @@ test('an admin logs in, makes an API key that works over HTTP, and revokes it', 
   expect(token).toMatch(/^mycel_[A-Za-z0-9_-]{43}$/);
   await expectNoAxeViolations(page);
 
-  expect((await api('/v1/content.page.get?slug=signup', token)).status).toBe(200);
+  expect((await api('/v1/content.published.get?type=page&slug=signup', token)).status).toBe(200);
   // The key's own capabilities: reading content is not managing keys.
   expect((await api('/v1/tenant.keys.list', token)).status).toBe(403);
 
@@ -79,7 +79,7 @@ test('an admin logs in, makes an API key that works over HTTP, and revokes it', 
     .getByRole('button', { name: `Sleutel ${name} intrekken` })
     .click();
   await expect(page.getByRole('status')).toContainText('API-sleutel ingetrokken.');
-  expect((await api('/v1/content.page.get?slug=signup', token)).status).toBe(401);
+  expect((await api('/v1/content.published.get?type=page&slug=signup', token)).status).toBe(401);
   await expectNoAxeViolations(page);
 
   // Logging out ends the session: the admin sends you back through the IdP.

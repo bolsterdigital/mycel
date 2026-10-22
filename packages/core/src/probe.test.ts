@@ -74,7 +74,10 @@ describe('vertical probe in memory', () => {
   }
 
   it('creates, publishes and reads a page; unknown block types and missing forms are rejected', async () => {
-    const page = await invoker.run(useCases.getPage, reader(), { slug: 'signup' });
+    const page = await invoker.run(useCases.getPublished, reader(), {
+      type: 'page',
+      slug: 'signup',
+    });
     expect(page.blocks.map((b) => b.type)).toEqual(['heading', 'signup-form']);
 
     const other = (blocks: unknown[]) => ({
@@ -120,7 +123,10 @@ describe('vertical probe in memory', () => {
 
   it('isolates tenants', async () => {
     await expect(
-      invoker.run(useCases.getPage, anonymousPrincipal(OTHER, ['content:read']), { slug: 'signup' })
+      invoker.run(useCases.getPublished, anonymousPrincipal(OTHER, ['content:read']), {
+        type: 'page',
+        slug: 'signup',
+      })
     ).rejects.toMatchObject({ code: 'not_found' });
   });
 

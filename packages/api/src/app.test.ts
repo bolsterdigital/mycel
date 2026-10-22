@@ -31,7 +31,9 @@ async function setup() {
 describe('HTTP front', () => {
   it('runs the signup flow: create the page, publish it, read it, submit the form', async () => {
     const { post } = await setup();
-    expect((await post('content.page.get', { slug: 'signup' })).status).toBe(404);
+    expect((await post('content.published.get', { type: 'page', slug: 'signup' })).status).toBe(
+      404
+    );
     const created = await post('content.item.create', probePage(FORM));
     expect(created.status).toBe(200);
     const { item, revision } = (await created.json()) as {
@@ -39,13 +41,15 @@ describe('HTTP front', () => {
       revision: { id: string };
     };
     // A draft is not public: nothing is served before an explicit publish.
-    expect((await post('content.page.get', { slug: 'signup' })).status).toBe(404);
+    expect((await post('content.published.get', { type: 'page', slug: 'signup' })).status).toBe(
+      404
+    );
     for (const locale of ['nl', 'en'])
       expect(
         (await post('content.item.publish', { itemId: item.id, revisionId: revision.id, locale }))
           .status
       ).toBe(200);
-    const page = await post('content.page.get', { slug: 'signup' });
+    const page = await post('content.published.get', { type: 'page', slug: 'signup' });
     expect(page.status).toBe(200);
     expect(await page.json()).toMatchObject({ slug: 'signup', locale: 'nl' });
     expect((await post('content.item.create', probePage(FORM))).status).toBe(409);
@@ -72,7 +76,7 @@ describe('HTTP front', () => {
       revision: { id: string };
     };
     await post('content.item.publish', { itemId: item.id, revisionId: revision.id, locale: 'nl' });
-    const page = await post('content.page.get', { slug: 'signup', acceptLanguage: 'en' });
+    const page = await post('content.published.get', { type: 'page', slug: 'signup' });
     expect(page.status).toBe(200);
     const body = await page.text();
     expect(body).not.toContain('EN-DRAFT-MARKER');
@@ -89,7 +93,7 @@ describe('HTTP front', () => {
     };
     await post('content.item.publish', { itemId: item.id, revisionId: revision.id, locale: 'nl' });
     const get = (headers: Record<string, string> = {}) =>
-      app.request('/v1/content.page.get?slug=signup', {
+      app.request('/v1/content.published.get?type=page&slug=signup', {
         headers: { authorization: 'Bearer good', ...headers },
       });
 
@@ -105,7 +109,7 @@ describe('HTTP front', () => {
     expect(await revalidated.text()).toBe('');
     expect((await get({ 'if-none-match': 'W/"other"' })).status).toBe(200);
 
-    const invalid = await app.request('/v1/content.page.get?slug=Nope!', {
+    const invalid = await app.request('/v1/content.published.get?type=page&slug=Nope!', {
       headers: { authorization: 'Bearer good' },
     });
     expect(invalid.status).toBe(400);
@@ -177,7 +181,7 @@ describe('HTTP observability', () => {
   it('echoes a valid request id, replaces an invalid one, and logs one access line each', async () => {
     const { app, lines } = await observed();
     const get = (id?: string) =>
-      app.request('/v1/content.page.get?slug=signup', {
+      app.request('/v1/content.published.get?type=page&slug=signup', {
         headers: { authorization: 'Bearer good', ...(id ? { 'x-request-id': id } : {}) },
       });
     expect((await get('caddy-0123456789')).headers.get('x-request-id')).toBe('caddy-0123456789');

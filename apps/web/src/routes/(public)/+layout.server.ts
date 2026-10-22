@@ -4,9 +4,12 @@
 //
 // The footer credit (ADR 015 rule 5) is decided here, from the visitor's Principal, so the layout
 // only renders what it is given. So is the theme stylesheet (brief #8c § 3): its hashed path and
-// the fonts to preload.
+// the fonts to preload. On a content path the credit's language is the path's locale (brief #8c
+// § 8), so a cached page never depends on Accept-Language; elsewhere (`confirm`) it is negotiated
+// like the page itself.
 import { anonymousPrincipal, entitled, negotiateLocale } from '@mycel/core';
 import { ui } from '../../i18n/index.js';
+import { localeOf } from '#lib/server/content-route.js';
 import { runtime } from '#lib/server/runtime.js';
 import { sitePath, siteTenant } from '#lib/server/site.js';
 import { siteTheme, themePath } from '#lib/server/theme.js';
@@ -14,7 +17,10 @@ import type { LayoutServerLoad } from './$types';
 
 export const csr = false;
 
-export const load: LayoutServerLoad = async ({ locals, request }) => {
+/** The route of every content path (`[[locale=locale]]/[...path]`). */
+const CONTENT_ROUTE = /\/\[\[locale=locale\]\]\/\[\.\.\.path\]$/;
+
+export const load: LayoutServerLoad = async ({ locals, request, params, route }) => {
   const site = locals.site;
   if (!site) return { credit: null, theme: null };
   const { hash, preload } = await siteTheme(site);
@@ -25,13 +31,14 @@ export const load: LayoutServerLoad = async ({ locals, request }) => {
     theme,
     credit: {
       href: runtime().config.PLATFORM_CREDIT_URL,
-      // Layout and page load in parallel, so the page's negotiated locale is not known yet.
       label: ui(
-        negotiateLocale(
-          request.headers.get('accept-language'),
-          site.tenant.locales,
-          site.tenant.defaultLocale
-        )
+        CONTENT_ROUTE.test(route.id ?? '')
+          ? (localeOf(params.locale, site.tenant) ?? site.tenant.defaultLocale)
+          : negotiateLocale(
+              request.headers.get('accept-language'),
+              site.tenant.locales,
+              site.tenant.defaultLocale
+            )
       )('credit.runsOnMycel'),
     },
   };

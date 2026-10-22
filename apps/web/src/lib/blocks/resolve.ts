@@ -8,9 +8,9 @@
 //     renders nothing (no figure, no alt, no path). Signed paths for readers are #19.
 //   - forms: `forms.form.get` with a fresh `startedToken`, as the probe did; unknown is null.
 //   - items: a public path only if the item is published in this locale and its published
-//     revision is `access.level: public`, the rules of `content.page.get`; otherwise null, so an
-//     action without a target is dropped and a text link becomes text. #8c1 keeps the current
-//     grammar (`/<slug>`, pages only); #8c2 adds the locale prefix and `articles/`.
+//     revision is `access.level: public`, the rules of `content.published.get`; otherwise null,
+//     so an action without a target is dropped and a text link becomes text. The path follows
+//     the route grammar (`contentPath`): locale prefix for a non-default locale, `articles/`.
 //
 // No locks, no writes. Rejected: resolving inside each component (a query per block, and a
 // renderer that cannot run without a database), and passing the whole `MediaView` through
@@ -24,6 +24,7 @@ import {
   type UnitOfWork,
   UseCaseError,
   allBlocks,
+  contentPath,
   linkedItemIds,
   pick,
   statusOf,
@@ -60,15 +61,17 @@ const notFound = (e: unknown) => e instanceof UseCaseError && e.code === 'not_fo
 
 /**
  * Reads through the registry where a use case exists (forms, media) and through the unit of work
- * for the item check, which has no public use case of its own. `reader` is the visitor's
- * anonymous principal for the site, with `content:read`, `forms:read` and `media:read`.
+ * for the item check, which needs no projection of the target. `reader` is the visitor's
+ * anonymous principal for the site, with `content:read`, `forms:read` and `media:read`;
+ * `defaultLocale` is the site's, the one locale without a path prefix.
  */
 export function runtimeSource(deps: {
   invoker: Invoker;
   uow: UnitOfWork;
   reader: Principal;
+  defaultLocale: string;
 }): ResolveSource {
-  const { invoker, uow, reader } = deps;
+  const { invoker, uow, reader, defaultLocale } = deps;
   return {
     async form(id) {
       try {
@@ -89,14 +92,14 @@ export function runtimeSource(deps: {
     itemPath: (itemId, locale) =>
       uow.run(reader, async (ctx) => {
         const item = await ctx.content.get(itemId);
-        if (!item || item.type !== 'page') return null;
+        if (!item) return null;
         const state = item.publication.find(
           (s) => s.locale === locale && statusOf(s) === 'published'
         );
         if (!state?.publishedRevisionId) return null;
         const revision = await ctx.content.revision(item.id, state.publishedRevisionId);
         if (!revision || revision.document.access.level !== 'public') return null;
-        return `/${item.slug}`;
+        return contentPath(item, locale, defaultLocale);
       }),
   };
 }

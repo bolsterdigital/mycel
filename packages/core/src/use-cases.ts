@@ -24,7 +24,7 @@ import {
   setBlockProps,
   splitInsertBlock,
 } from './content/operations.js';
-import { getPage } from './content/public.js';
+import { getPublished } from './content/public.js';
 import {
   createItem,
   diffRevisions,
@@ -63,7 +63,7 @@ import {
 } from './tenants/service.js';
 
 export const useCases = {
-  getPage,
+  getPublished,
   createItem,
   updateItem,
   getItem,

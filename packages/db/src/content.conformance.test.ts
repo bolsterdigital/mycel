@@ -304,12 +304,19 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
       locale: 'nl',
     });
     const visitor = anonymousPrincipal(tenantA, ['content:read']);
-    const page = await invoker.run(useCases.getPage, visitor, {
+    const page = await invoker.run(useCases.getPublished, visitor, {
+      type: 'page',
       slug: `bilingual-${run}`,
-      acceptLanguage: 'en',
     });
     expect(page.locale).toBe('nl');
     expect(JSON.stringify(page)).not.toContain('EN-DRAFT-MARKER');
+    await expect(
+      invoker.run(useCases.getPublished, visitor, {
+        type: 'page',
+        slug: `bilingual-${run}`,
+        locale: 'en',
+      })
+    ).rejects.toMatchObject({ code: 'not_found' });
     const { rows } = await withTenant(appDb, a(), (trx) =>
       sql<{ locale: string; status: string }>`select locale, status from content_item_locales
         where item_id = ${item.id} order by locale`.execute(trx)

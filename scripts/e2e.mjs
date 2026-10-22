@@ -156,10 +156,72 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
     });
   }
 
+  // An article with an author and a section, published in nl and en, for content-routes.spec.ts
+  // (TODO #8c2): `/articles/<slug>`, its `/en/` twin, and the public metadata of the read route.
+  const story = { type: 'article', slug: 'bomen-in-de-straat' };
+  if (!(await invoker.run(useCases.listItems, admin, story)).items.length) {
+    const [author, section] = await uow.run(admin, async (ctx) => [
+      await ctx.authors.findBySlug('e2e-auteur'),
+      await ctx.sections.findBySlug('e2e-stad'),
+    ]);
+    const authorId = (
+      author ??
+      (await invoker.run(useCases.createAuthor, admin, {
+        slug: 'e2e-auteur',
+        name: 'Sam de Vries',
+        email: 'sam@probe.test',
+      }))
+    ).id;
+    const sectionId = (
+      section ??
+      (await invoker.run(useCases.createSection, admin, {
+        slug: 'e2e-stad',
+        title: { nl: 'Stad', en: 'City' },
+      }))
+    ).id;
+    const paragraph = (text) => ({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+    });
+    const { item, revision } = await invoker.run(useCases.createItem, admin, {
+      slug: story.slug,
+      document: {
+        type: 'article',
+        defaultLocale: 'nl',
+        locales: ['nl', 'en'],
+        title: { nl: 'Bomen in de straat', en: 'Trees in the street' },
+        lead: {
+          nl: 'Waarom de buurt meer groen wil.',
+          en: 'Why the neighbourhood wants more green.',
+        },
+        authorIds: [authorId],
+        sectionId,
+        blocks: [
+          {
+            type: 'rich-text',
+            version: 1,
+            props: {
+              content: {
+                nl: paragraph('Schaduw, koelte en ruimte voor water.'),
+                en: paragraph('Shade, cool air and room for water.'),
+              },
+            },
+          },
+        ],
+      },
+    });
+    for (const locale of ['nl', 'en'])
+      await invoker.run(useCases.publishItem, admin, {
+        itemId: item.id,
+        revisionId: revision.id,
+        locale,
+      });
+  }
+
   // Two composed pages for blocks.spec.ts (TODO #8c1): a campaign and an article, in nl and en,
   // built from the registry's own examples with the example ids swapped for real data: two
-  // uploaded images, the signup page as the linked item and its form. Published as pages
-  // because articles get their route in #8c2.
+  // uploaded images, the signup page as the linked item and its form. `artikel` stays a page:
+  // the block suite is about blocks, the article route has its own fixture above.
   const composed = {
     campagne: {
       title: { nl: 'Schone lucht, nu', en: 'Clean air, now' },

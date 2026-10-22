@@ -246,7 +246,8 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
 
   it('isolates tenants through RLS, not through where-clauses', async () => {
     await expect(
-      invoker.run(useCases.getPage, anonymousPrincipal(tenantB, ['content:read']), {
+      invoker.run(useCases.getPublished, anonymousPrincipal(tenantB, ['content:read']), {
+        type: 'page',
         slug: 'signup',
       })
     ).rejects.toMatchObject({ code: 'not_found' });

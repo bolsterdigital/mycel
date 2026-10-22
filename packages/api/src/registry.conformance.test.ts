@@ -15,6 +15,7 @@ import {
 import { MemoryUnitOfWork } from '@mycel/core/testing';
 import { createApp } from './app.js';
 import { flatQueryFields, methodsOf } from './http-shape.js';
+import { CONTENT_READ_PATH } from './content-read.js';
 import { openApiDocument } from './openapi.js';
 
 const TENANT = '01900000-0000-7000-8000-00000000aaaa';
@@ -120,7 +121,7 @@ describe('OpenAPI document', () => {
     await expect(SwaggerParser.validate(structuredClone(served))).resolves.toBeTruthy();
   });
 
-  it('has one operation per use case per method, and nothing else', () => {
+  it('has one operation per use case per method, the read route, and nothing else', () => {
     const operations = Object.entries(doc.paths).flatMap(([path, methods]) =>
       Object.entries(methods).map(([method, op]) => `${method} ${path} ${op.operationId}`)
     );
@@ -129,6 +130,7 @@ describe('OpenAPI document', () => {
         ? [`get /v1/${u.name} ${u.name}`, `post /v1/${u.name} ${u.name}.post`]
         : [`post /v1/${u.name} ${u.name}`]
     );
+    expected.push(`get ${CONTENT_READ_PATH} sites.content.read`);
     expect(operations.sort()).toEqual(expected.sort());
   });
 

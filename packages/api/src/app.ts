@@ -33,6 +33,7 @@ import {
   runWithContext,
   setContext,
 } from '@mycel/observability';
+import { createContentReadApp, type ContentReadDeps } from './content-read.js';
 import { coerceQuery, flatQueryFields, methodsOf } from './http-shape.js';
 import { openApiDocument } from './openapi.js';
 import { createPlatformApp, type PlatformDeps } from './platform.js';
@@ -43,6 +44,8 @@ export interface AppDeps {
   authenticate(authorization: string | undefined): Promise<Principal | null>;
   /** The platform API (TODO #16); absent without PLATFORM_API_TOKEN, and `/platform/*` is a 404. */
   platform?: PlatformDeps | undefined;
+  /** The public read route (ADR 012 rule 7, content-read.ts); without it `/v1/sites/*` is a 404. */
+  contentRead?: ContentReadDeps | undefined;
   /** Logs, error reports, metrics and readiness; tests leave it out and get silence. */
   observability?: Partial<HttpObservability> | undefined;
   /** MYCEL_TRUST_PROXY=1: the scheme a request came over is the proxy's X-Forwarded-Proto. */
@@ -108,6 +111,7 @@ export function createApp({
   invoker,
   authenticate,
   platform,
+  contentRead,
   observability,
   trustProxy = false,
 }: AppDeps): Hono {
@@ -182,6 +186,7 @@ export function createApp({
 
   if (platform)
     app.route('/platform', createPlatformApp({ ...platform, log: obs.log, errors: obs.errors }));
+  if (contentRead) app.route('/v1/sites', createContentReadApp(contentRead));
 
   const principalOf = async (c: Context) => {
     const principal = await authenticate(c.req.header('authorization'));

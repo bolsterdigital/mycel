@@ -2,8 +2,18 @@
 // per method, schemas from core's `toJsonSchema`, so the document, the router and the MCP tools
 // describe the same thing. Rejected: `@hono/zod-openapi`, which wants a route definition per use
 // case, exactly what the registry makes unnecessary; and a hand-written document, which drifts.
+//
+// One path is written by hand: the public read route (content-read.ts, ADR 012 rule 7), which is
+// not a use-case route. Its response schema is still the use case's output, so it cannot drift.
 
-import { toJsonSchema, type JsonSchema, type UseCase, type UseCaseRegistry } from '@mycel/core';
+import {
+  toJsonSchema,
+  useCases,
+  type JsonSchema,
+  type UseCase,
+  type UseCaseRegistry,
+} from '@mycel/core';
+import { CONTENT_READ_PATH } from './content-read.js';
 import { flatQueryFields } from './http-shape.js';
 import { PROBLEMS, problemType, type ProblemCode } from './problem.js';
 
@@ -52,6 +62,45 @@ function operation(
   };
 }
 
+function contentReadOperation(): Record<string, unknown> {
+  const param = (name: string, schema: JsonSchema, required = true, where = 'path') => ({
+    name,
+    in: where,
+    required,
+    schema,
+  });
+  const slug = { type: 'string', pattern: '^[a-z0-9][a-z0-9-]{0,62}$' };
+  return {
+    operationId: 'sites.content.read',
+    summary:
+      'Published content of a site as JSON, without an API key: one published locale of a public page or article. Cached publicly with a strong ETag.',
+    tags: ['content'],
+    security: [],
+    parameters: [
+      param('tenant', slug),
+      param('type', { type: 'string', enum: ['page', 'article'] }),
+      param('slug', slug),
+      param('locale', { type: 'string', pattern: '^[a-z]{2,3}(-[A-Z]{2})?$' }, false, 'query'),
+    ],
+    responses: {
+      '200': {
+        description: 'The published item.',
+        headers: {
+          ETag: { schema: { type: 'string' } },
+          'Cache-Control': { schema: { type: 'string' } },
+        },
+        content: {
+          'application/json': { schema: toJsonSchema(useCases.getPublished.output, 'output') },
+        },
+      },
+      '304': { description: 'Not modified (If-None-Match matched).' },
+      '400': problemRef,
+      '404': problemRef,
+      '500': problemRef,
+    },
+  };
+}
+
 export function openApiDocument(registry: UseCaseRegistry): Record<string, unknown> {
   const paths: Record<string, Record<string, unknown>> = {};
   for (const useCase of registry.list()) {
@@ -64,6 +113,7 @@ export function openApiDocument(registry: UseCaseRegistry): Record<string, unkno
         }
       : { post: operation(useCase, 'post', useCase.name, input) };
   }
+  paths[CONTENT_READ_PATH] = { get: contentReadOperation() };
   return {
     openapi: '3.1.0',
     info: {
