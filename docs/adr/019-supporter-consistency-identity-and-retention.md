@@ -31,5 +31,6 @@ ADR 003 makes the supporter a projection over an append-only log and calls inges
 
 - TODO #13 grows: `supporter_id` and `supporter.email_changed`; fold-from-log with `appliedThrough`; per-supporter lock; `mail_sends` with `unknown` state and a reconciliation step; the database conformance suite gets a concurrency test (two events for one supporter in parallel transactions, projection equals the serial fold).
 - ADR 011 rule 4's "record a send key before the first attempt" is read with rule 6 here.
+- 2026-10-22 (TODO #22C, migration 0013): the reconciliation job of rule 6 is `mail.reconcile` on the jobs table, planned in the transaction that claims the attempt. TEM has no idempotency key, so "queries the provider by key" is a count over the provider's listing; `docs/reference/mail.md` has the contract and the residual risk.
 - ADR 016 rule 1: the session is bound to `supporter_id`, and sign-in events follow rule 7.
 - The event contract v1 stays: `supporter_id` is an envelope addition, not a redefinition.

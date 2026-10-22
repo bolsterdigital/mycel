@@ -1,7 +1,10 @@
-// Mail intent rows and the janitor against Postgres (ADR 019 rule 6, ADR 011 rule 2). The memory
-// adapter proves the send-once protocol; this suite proves what only the database can: the intent
-// commits before the provider call and survives a lost response, two simultaneous clicks on one
-// link confirm once, the janitor deletes across tenants and the application role cannot.
+// Mail intent rows and the janitor against Postgres (ADR 019 rule 6, ADR 011 rule 2, brief #22C).
+// The memory adapter proves the send-once protocol; this suite proves what only the database
+// can: the claim commits before the provider call and survives a lost response, two deliveries
+// racing on two connections make one claim and one provider call, the conditional upsert lets
+// exactly one of two simultaneous claims win, `unresolved` shows unknown and abandoned intents,
+// the table holds no address, two simultaneous clicks on one link confirm once, and the janitor
+// deletes across tenants while the application role cannot.
 //
 // Skips without DATABASE_URL and APP_DATABASE_URL; with E2E_REQUIRED=1 (CI) that is a failure.
 
@@ -11,6 +14,7 @@ import {
   Invoker,
   anonymousPrincipal,
   buildRegistry,
+  mailCorrelation,
   renderConfirmationMail,
   sendOnce,
   signConfirmToken,
@@ -18,7 +22,6 @@ import {
   useCases,
   type MailMessage,
   type Mailer,
-  type SendVerdict,
 } from '@mycel/core';
 import { FakeSigner, probeForm, FakeDns, memoryPlatform } from '@mycel/core/testing';
 import {
@@ -36,35 +39,49 @@ const appUrl = process.env['APP_DATABASE_URL'];
 if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
   throw new Error('E2E_REQUIRED=1 but DATABASE_URL or APP_DATABASE_URL is not set');
 
-/** The provider: accepts and loses the response (`timeout`), or answers about an earlier attempt. */
+/**
+ * The provider: accepts every message and keeps the list; `lose` drops the response after
+ * acceptance, `down` makes the listing fail, `delayMs` keeps a call in flight.
+ */
 class FlakyMailer implements Mailer {
   readonly delivered: string[] = [];
-  mode: 'ok' | 'timeout' = 'ok';
-  verdict: SendVerdict = 'unknown';
+  lose = false;
+  down = false;
+  delayMs = 0;
   async send(_m: MailMessage, key: string) {
     this.delivered.push(key);
-    if (this.mode === 'timeout') throw new Error('fetch failed: timeout');
+    if (this.delayMs) await new Promise((r) => setTimeout(r, this.delayMs));
+    if (this.lose) throw new Error('fetch failed: timeout');
     return { providerId: `p-${this.delivered.length}` };
   }
-  async wasSent() {
-    return this.verdict;
+  async lookup() {
+    return this.down ? null : { providerIds: this.delivered.map((_k, i) => `p-${i + 1}`) };
   }
 }
 
 describe.skipIf(!operatorUrl || !appUrl)('mailing conformance', () => {
   const operatorDb = createDb(operatorUrl ?? '');
   const appDb = createDb(appUrl ?? '');
+  // A second pool: two deliveries of one event on two connections, as two workers would.
+  const appDb2 = createDb(appUrl ?? '');
   const signer = new FakeSigner();
   const clock = { now: () => new Date() };
-  const uow = createUnitOfWork(appDb, {
-    clock,
-    ids: uuidv7Ids,
-    signer,
-    dns: new FakeDns(),
-    platform: memoryPlatform,
-  });
+  const uowOn = (db: typeof appDb) =>
+    createUnitOfWork(db, {
+      clock,
+      ids: uuidv7Ids,
+      signer,
+      dns: new FakeDns(),
+      platform: memoryPlatform,
+    });
+  const uow = uowOn(appDb);
+  const uow2 = uowOn(appDb2);
   const invoker = new Invoker(buildRegistry(), uow);
   const run = Math.random().toString(36).slice(2, 8);
+  /** This suite's subscriber; its reconcile jobs are closed in afterAll. */
+  const sub = `test-${run}`;
+  // No budget: the provider stub lists at once, and settling is what is under test.
+  const deps = (mailer: Mailer, u = uow) => ({ mailer, clock, uow: u, reconcileLagMs: 0 });
   let tenantId = '';
   let formId = '';
   const admin = () => systemPrincipal(tenantId, 'test');
@@ -96,38 +113,118 @@ describe.skipIf(!operatorUrl || !appUrl)('mailing conformance', () => {
   });
 
   afterAll(async () => {
+    // No event of this suite is in the outbox: a worker on the same database must not run them.
+    await operatorDb.transaction().execute(async (trx) => {
+      await sql`set local role mycel_worker`.execute(trx);
+      await sql`update jobs set done_at = now()
+                where done_at is null and key like ${`mail.reconcile:${sub}:%`}`.execute(trx);
+    });
     await operatorDb.destroy();
     await appDb.destroy();
+    await appDb2.destroy();
   });
 
-  it('commits the intent before the provider call and reconciles a lost response', async () => {
+  it('commits the claim before the provider call and reconciles a lost response', async () => {
     const mailer = new FlakyMailer();
     const event = { id: uuidv7(), tenantId };
-    const key = `test:${event.id}`;
+    const key = `${sub}:${event.id}`;
     const intent = () => uow.run(admin(), (ctx) => ctx.mailSends.get(key));
 
-    mailer.mode = 'timeout';
-    await expect(sendOnce({ mailer, clock, uow }, event, 'test', message)).rejects.toThrow(
-      'timeout'
-    );
-    // The row is there, committed, attempted and not sent: the state a crash would leave.
-    expect(await intent()).toMatchObject({
-      subscriber: 'test',
+    mailer.lose = true;
+    expect(await sendOnce(deps(mailer), event, sub, message)).toBe('unknown');
+    // The row is there, committed, attempted and not sent: the state a crash would leave, with
+    // the lease ended by the failure and the reconcile job planned in the claim's transaction.
+    const row = await intent();
+    expect(row).toMatchObject({
+      subscriber: sub,
       eventId: event.id,
+      attempts: 1,
       sentAt: null,
+      abandonedAt: null,
       lastError: 'fetch failed: timeout',
+      correlation: await mailCorrelation(tenantId, message),
     });
-    expect((await intent())?.attemptedAt).toBeInstanceOf(Date);
+    expect(row?.attemptedAt).toBeInstanceOf(Date);
+    expect(row?.claimedUntil?.getTime()).toBeLessThanOrEqual(Date.now());
 
-    mailer.mode = 'ok';
-    await expect(sendOnce({ mailer, clock, uow }, event, 'test', message)).rejects.toThrow(
-      /unknown; not resending/
-    );
-    mailer.verdict = 'sent';
-    expect(await sendOnce({ mailer, clock, uow }, event, 'test', message)).toBe('reconciled');
+    // The listing is down: unknown, nothing sent.
+    mailer.lose = false;
+    mailer.down = true;
+    expect(await sendOnce(deps(mailer), event, sub, message)).toBe('unknown');
+    mailer.down = false;
+    expect(await sendOnce(deps(mailer), event, sub, message)).toBe('reconciled');
     expect(mailer.delivered).toEqual([key]);
+    expect(await intent()).toMatchObject({ providerId: 'p-1', attempts: 1 });
     expect((await intent())?.sentAt).toBeInstanceOf(Date);
-    expect(await sendOnce({ mailer, clock, uow }, event, 'test', message)).toBe('skipped');
+    expect(await sendOnce(deps(mailer), event, sub, message)).toBe('skipped');
+  });
+
+  it('makes one claim and one provider call when two deliveries race on two connections', async () => {
+    const mailer = new FlakyMailer();
+    mailer.delayMs = 100;
+    const event = { id: uuidv7(), tenantId };
+    const results = await Promise.all([
+      sendOnce(deps(mailer, uow), event, sub, message),
+      sendOnce(deps(mailer, uow2), event, sub, message),
+    ]);
+    expect(results.sort()).toEqual(['deferred', 'sent']);
+    expect(mailer.delivered).toEqual([`${sub}:${event.id}`]);
+    const row = await uow.run(admin(), (ctx) => ctx.mailSends.get(`${sub}:${event.id}`));
+    expect(row).toMatchObject({ attempts: 1, providerId: 'p-1' });
+  });
+
+  it('lets exactly one of two simultaneous claims win, for a new intent and a takeover', async () => {
+    const key = `${sub}:${uuidv7()}`;
+    const intent = { key, subscriber: sub, eventId: uuidv7(), correlation: 'a'.repeat(64) };
+    const at = new Date();
+    const claim = (u: typeof uow, expected: Date | null, when = at) =>
+      u.run(admin(), (ctx) =>
+        ctx.mailSends.claim(intent, { at: when, until: new Date(when.getTime() + 1000), expected })
+      );
+    const fresh = await Promise.all([claim(uow, null), claim(uow2, null)]);
+    expect(fresh.filter(Boolean)).toHaveLength(1);
+
+    // Both read the expired attempt and both try to take it over: one does.
+    const later = new Date(at.getTime() + 5000);
+    const takeover = await Promise.all([claim(uow, at, later), claim(uow2, at, later)]);
+    expect(takeover.filter(Boolean)).toHaveLength(1);
+    expect(takeover.find(Boolean)).toMatchObject({ attempts: 2, attemptedAt: later });
+    // A stale expectation and a running lease both lose.
+    expect(await claim(uow, at, new Date(later.getTime() + 5000))).toBeNull();
+    expect(await claim(uow, later, new Date(later.getTime() + 500))).toBeNull();
+  });
+
+  it('shows unknown and abandoned intents as unresolved, and nothing in flight or sent', async () => {
+    const at = new Date();
+    const correlation = 'b'.repeat(64);
+    const put = (name: string, until: Date) =>
+      uow.run(admin(), (ctx) =>
+        ctx.mailSends.claim(
+          { key: `${sub}:${name}`, subscriber: sub, eventId: uuidv7(), correlation },
+          { at, until, expected: null }
+        )
+      );
+    await put('unknown', at);
+    await put('abandoned', at);
+    await put('flying', new Date(at.getTime() + 60_000));
+    await put('sent', at);
+    await uow.run(admin(), async (ctx) => {
+      await ctx.mailSends.abandon(`${sub}:abandoned`, at);
+      await ctx.mailSends.sent(`${sub}:sent`, at, 'p-x');
+    });
+    const unresolved = await uow.run(admin(), (ctx) => ctx.mailSends.unresolved(new Date()));
+    const mine = unresolved.filter((m) => m.correlation === correlation);
+    expect(mine.map((m) => [m.key, m.abandonedAt !== null]).sort()).toEqual([
+      [`${sub}:abandoned`, true],
+      [`${sub}:unknown`, false],
+    ]);
+    const siblings = await uow.run(admin(), (ctx) =>
+      ctx.mailSends.siblings(correlation, {
+        since: new Date(at.getTime() - 1),
+        until: new Date(at.getTime() + 1),
+      })
+    );
+    expect(siblings).toHaveLength(4);
   });
 
   it('confirms once when two clicks on one link race', async () => {
@@ -158,12 +255,27 @@ describe.skipIf(!operatorUrl || !appUrl)('mailing conformance', () => {
     expect(Number(rows[0]?.n)).toBe(1);
   });
 
-  it('keeps no address in mail_sends', async () => {
+  it('keeps no address in mail_sends: the correlation is a 64-hex hash', async () => {
     const { rows } = await sql<{ column_name: string }>`
       select column_name from information_schema.columns
       where table_schema = 'public' and table_name = 'mail_sends'`.execute(operatorDb);
     expect(rows.map((r) => r.column_name)).not.toContain('email');
     expect(rows.map((r) => r.column_name)).not.toContain('recipient');
+
+    const event = { id: uuidv7(), tenantId };
+    await sendOnce(deps(new FlakyMailer()), event, sub, message);
+    const row = await uow.run(admin(), (ctx) => ctx.mailSends.get(`${sub}:${event.id}`));
+    expect(row?.correlation).toMatch(/^[0-9a-f]{64}$/);
+    expect(JSON.stringify(row)).not.toContain('ada@example.org');
+    // The column refuses anything but a hash.
+    await expect(
+      uow.run(admin(), (ctx) =>
+        ctx.mailSends.claim(
+          { key: `${sub}:raw`, subscriber: sub, eventId: uuidv7(), correlation: 'ada@example.org' },
+          { at: new Date(), until: new Date(), expected: null }
+        )
+      )
+    ).rejects.toThrow(/check constraint/);
   });
 
   it('lets only the janitor delete expired rate-limit windows', async () => {

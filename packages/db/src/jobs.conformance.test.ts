@@ -13,7 +13,15 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
 import pg from 'pg';
-import { Invoker, buildRegistry, systemPrincipal, useCases, type JobRecord } from '@mycel/core';
+import {
+  Invoker,
+  RECONCILE_LAG_MS,
+  buildRegistry,
+  claimAttempt,
+  systemPrincipal,
+  useCases,
+  type JobRecord,
+} from '@mycel/core';
 import { FakeDns, FakeSigner, memoryPlatform } from '@mycel/core/testing';
 import {
   JOB_LEASE_SECONDS,
@@ -117,6 +125,8 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
       await sql`set local role mycel_worker`.execute(trx);
       await sql`update jobs set done_at = now()
                 where done_at is null and type like ${`conformance.${run}.%`}`.execute(trx);
+      await sql`update jobs set done_at = now()
+                where done_at is null and key like ${`mail.reconcile:test-${run}:%`}`.execute(trx);
     });
     await Promise.all([operatorDb.destroy(), appDb.destroy()]);
   });
@@ -149,6 +159,38 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
       })
     ).rejects.toThrow('use case failed');
     expect(await byKey(key)).toEqual([]);
+  });
+
+  it('plans mail.reconcile in the claim transaction: a rolled-back claim leaves neither', async () => {
+    const intent = (name: string) => ({
+      key: `test-${run}:${name}`,
+      subscriber: `test-${run}`,
+      eventId: uuidv7(),
+      correlation: 'c'.repeat(64),
+    });
+    const at = new Date();
+    const claim = (i: ReturnType<typeof intent>, fail: boolean) =>
+      uow.run(admin(), async (ctx) => {
+        const row = await claimAttempt(ctx, i, { at, expected: null, lagMs: RECONCILE_LAG_MS });
+        if (fail) throw new Error('commit failed');
+        return row;
+      });
+
+    const kept = intent('kept');
+    expect(await claim(kept, false)).toMatchObject({ key: kept.key, attempts: 1 });
+    const [job] = await byKey(`mail.reconcile:${kept.key}`);
+    expect(job).toMatchObject({
+      tenantId,
+      type: 'mail.reconcile',
+      runAt: new Date(at.getTime() + RECONCILE_LAG_MS),
+      payload: { key: kept.key, subscriber: kept.subscriber, eventId: kept.eventId },
+      doneAt: null,
+    });
+
+    const lost = intent('lost');
+    await expect(claim(lost, true)).rejects.toThrow('commit failed');
+    expect(await byKey(`mail.reconcile:${lost.key}`)).toEqual([]);
+    expect(await uow.run(admin(), (ctx) => ctx.mailSends.get(lost.key))).toBeNull();
   });
 
   it('keeps one open job per key, and a finished job does not block the next', async () => {

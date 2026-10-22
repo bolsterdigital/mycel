@@ -48,10 +48,12 @@ describe('TemMailer', () => {
     });
   });
 
-  it('reconciles by listing mail to the recipient since the attempt, and says unknown on doubt', async () => {
+  it('lists by mail_rcpt, subject and window without a status filter, and says null on doubt', async () => {
     const urls: string[] = [];
     let reply: () => Response = () =>
-      new Response(JSON.stringify({ emails: [{ id: 'tem-9' }], total_count: 1 }), { status: 200 });
+      new Response(JSON.stringify({ emails: [{ id: 'tem-9' }, { id: 'tem-7' }], total_count: 2 }), {
+        status: 200,
+      });
     const mailer = new TemMailer({
       secretKey: 's',
       projectId: 'proj',
@@ -61,24 +63,58 @@ describe('TemMailer', () => {
         return reply();
       },
     });
-    const since = new Date('2026-10-21T12:00:00.000Z');
-    expect(await mailer.wasSent('k', message, since)).toBe('sent');
+    const window = {
+      since: new Date('2026-10-21T11:59:00.000Z'),
+      until: new Date('2026-10-21T12:01:30.000Z'),
+    };
+    expect(await mailer.lookup(message, window)).toEqual({ providerIds: ['tem-9', 'tem-7'] });
     const q = new URL(urls[0]!).searchParams;
-    expect(q.get('mail_to')).toBe('ada@example.org');
-    expect(q.get('subject')).toBe('Bevestig je inschrijving bij Probe');
-    expect(q.get('since')).toBe('2026-10-21T11:59:00.000Z');
+    expect(Object.fromEntries(q)).toEqual({
+      project_id: 'proj',
+      mail_rcpt: 'ada@example.org',
+      subject: 'Bevestig je inschrijving bij Probe',
+      since: '2026-10-21T11:59:00.000Z',
+      until: '2026-10-21T12:01:30.000Z',
+      page_size: '100',
+    });
+    expect(q.has('statuses')).toBe(false);
+    expect(q.has('mail_to')).toBe(false);
 
     reply = () => new Response(JSON.stringify({ emails: [], total_count: 0 }), { status: 200 });
-    expect(await mailer.wasSent('k', message, since)).toBe('not_sent');
+    expect(await mailer.lookup(message, window)).toEqual({ providerIds: [] });
+    // Everything the core cannot count completely is null.
     reply = () => new Response('down', { status: 503 });
-    expect(await mailer.wasSent('k', message, since)).toBe('unknown');
+    expect(await mailer.lookup(message, window)).toBeNull();
     reply = () => {
       throw new Error('network');
     };
-    expect(await mailer.wasSent('k', message, since)).toBe('unknown');
+    expect(await mailer.lookup(message, window)).toBeNull();
+    reply = () => new Response(JSON.stringify({ emails: [] }), { status: 200 });
+    expect(await mailer.lookup(message, window)).toBeNull();
+    reply = () =>
+      new Response(JSON.stringify({ emails: [{ id: 'tem-1' }], total_count: 101 }), {
+        status: 200,
+      });
+    expect(await mailer.lookup(message, window)).toBeNull();
+    reply = () => new Response('not json', { status: 200 });
+    expect(await mailer.lookup(message, window)).toBeNull();
   });
 
-  it('throws on an API error so the outbox retries', async () => {
+  it('aborts a send that takes longer than the timeout', async () => {
+    const mailer = new TemMailer({
+      secretKey: 's',
+      projectId: 'p',
+      region: 'fr-par',
+      timeoutMs: 20,
+      fetch: (_url, init) =>
+        new Promise((_resolve, reject) =>
+          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))
+        ),
+    });
+    await expect(mailer.send(message, 'k')).rejects.toMatchObject({ name: 'TimeoutError' });
+  });
+
+  it('throws on an API error, which the core records as an unknown outcome', async () => {
     const mailer = new TemMailer({
       secretKey: 's',
       projectId: 'p',
@@ -102,8 +138,11 @@ describe('ConsoleMailer', () => {
     const spooled = JSON.parse(readFileSync(join(dir, files[0]!), 'utf8'));
     expect(spooled).toMatchObject({ key: 'k1', to: { email: 'ada@example.org' } });
     expect(spooled.text).toContain('https://x.test/probe/confirm?token=abc');
-    expect(await mailer.wasSent('k1', message, new Date())).toBe('sent');
-    expect(await mailer.wasSent('k2', message, new Date())).toBe('not_sent');
+    const window = { since: new Date(Date.now() - 60_000), until: new Date(Date.now() + 60_000) };
+    expect(await mailer.lookup(message, window)).toEqual({ providerIds: ['console-1'] });
+    expect(await mailer.lookup({ ...message, to: { email: 'bob@example.org' } }, window)).toEqual({
+      providerIds: [],
+    });
     rmSync(dir, { recursive: true });
   });
 });

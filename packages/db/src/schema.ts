@@ -138,9 +138,13 @@ export interface Database {
     subscriber: string;
     event_id: string;
     attempted_at: Timestamp | null;
+    claimed_until: Timestamp | null;
+    attempts: Generated<number>;
     sent_at: Timestamp | null;
+    abandoned_at: Timestamp | null;
     provider_id: string | null;
     last_error: string | null;
+    correlation: string | null;
     created_at: Generated<Date>;
   };
   operators: {

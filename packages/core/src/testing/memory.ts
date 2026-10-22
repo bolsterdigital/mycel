@@ -6,13 +6,7 @@ import type { FormDefinition, Submission } from '../forms/model.js';
 import type { FormRepository, RateLimiter, SubmissionRepository } from '../forms/ports.js';
 import type { Page } from '../content/model.js';
 import type { PageRepository } from '../content/ports.js';
-import type {
-  MailMessage,
-  MailSend,
-  MailSendsRepository,
-  Mailer,
-  SendVerdict,
-} from '../mailing/ports.js';
+import type { MailMessage, MailSend, MailSendsRepository, Mailer } from '../mailing/ports.js';
 import type {
   Clock,
   DomainEvent,
@@ -107,17 +101,25 @@ export class FakeSigner implements Signer {
   }
 }
 
-/** Records every delivery with its intent key; `wasSent` answers from that record. */
+/** Records every delivery with its intent key; `lookup` lists what was sent to that address. */
 export class MemoryMailer implements Mailer {
   readonly sent: MailMessage[] = [];
   readonly keys = new Set<string>();
+  readonly #log: { id: string; to: string; subject: string }[] = [];
   async send(message: MailMessage, key: string): Promise<{ providerId: string }> {
     this.sent.push(message);
     this.keys.add(key);
-    return { providerId: `mem-${this.sent.length}` };
+    const id = `mem-${this.sent.length}`;
+    this.#log.push({ id, to: message.to.email.toLowerCase(), subject: message.subject });
+    return { providerId: id };
   }
-  async wasSent(key: string): Promise<SendVerdict> {
-    return this.keys.has(key) ? 'sent' : 'not_sent';
+  async lookup(message: MailMessage): Promise<{ providerIds: string[] }> {
+    const to = message.to.email.toLowerCase();
+    return {
+      providerIds: this.#log
+        .filter((m) => m.to === to && m.subject === message.subject)
+        .map((m) => m.id),
+    };
   }
 }
 
@@ -422,25 +424,68 @@ export class MemoryUnitOfWork implements UnitOfWork {
       },
     };
     const mailSends: MailSendsRepository = {
-      get: async (key) => s.mailSends.get(key) ?? null,
-      async attempt(intent, at) {
-        const row = s.mailSends.get(intent.key) ?? {
-          ...intent,
-          attemptedAt: null,
+      get: async (key) => {
+        const row = s.mailSends.get(key);
+        return row ? { ...row } : null;
+      },
+      // The conditional upsert of the Postgres repository, one statement there and one
+      // synchronous step here: nothing awaits between the check and the write.
+      async claim(intent, { at, until, expected }) {
+        const row = s.mailSends.get(intent.key);
+        if (row) {
+          const leased = row.claimedUntil !== null && row.claimedUntil > at;
+          if (row.sentAt || row.abandonedAt || leased) return null;
+          if ((row.attemptedAt?.getTime() ?? null) !== (expected?.getTime() ?? null)) return null;
+        }
+        const next: MailSend = {
+          key: intent.key,
+          subscriber: intent.subscriber,
+          eventId: intent.eventId,
           sentAt: null,
+          abandonedAt: null,
           providerId: null,
           lastError: null,
+          ...row,
+          correlation: intent.correlation,
+          attemptedAt: new Date(at),
+          claimedUntil: new Date(until),
+          attempts: (row?.attempts ?? 0) + 1,
         };
-        s.mailSends.set(intent.key, { ...row, attemptedAt: new Date(at) });
+        s.mailSends.set(intent.key, next);
+        return { ...next };
       },
       async sent(key, at, providerId) {
         const row = s.mailSends.get(key);
         if (row) s.mailSends.set(key, { ...row, sentAt: new Date(at), providerId });
       },
-      async failed(key, error) {
+      async failed(key, error, at) {
         const row = s.mailSends.get(key);
-        if (row) s.mailSends.set(key, { ...row, lastError: error });
+        if (row) s.mailSends.set(key, { ...row, lastError: error, claimedUntil: new Date(at) });
       },
+      async abandon(key, at) {
+        const row = s.mailSends.get(key);
+        if (row && !row.sentAt && !row.abandonedAt)
+          s.mailSends.set(key, { ...row, abandonedAt: new Date(at) });
+      },
+      siblings: async (correlation, { since, until }) =>
+        [...s.mailSends.values()]
+          .filter(
+            (m) =>
+              m.correlation === correlation &&
+              m.attemptedAt !== null &&
+              m.attemptedAt >= since &&
+              m.attemptedAt <= until
+          )
+          .map((m) => ({ ...m })),
+      unresolved: async (now) =>
+        [...s.mailSends.values()]
+          .filter(
+            (m) =>
+              m.attemptedAt !== null &&
+              m.sentAt === null &&
+              (m.claimedUntil === null || m.claimedUntil <= now)
+          )
+          .map((m) => ({ ...m })),
     };
     const rateLimits: RateLimiter = {
       async hit(key, { max, windowSeconds }) {

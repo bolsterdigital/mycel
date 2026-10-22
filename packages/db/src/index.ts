@@ -46,7 +46,7 @@ import { supporterAdmissions } from './admissions.js';
 
 export type { Database } from './schema.js';
 export { uuidv7, uuidv7Ids } from './ids.js';
-export { drainOutbox, startOutboxWorker, type DrainResult } from './outbox.js';
+export { drainOutbox, readOutboxEvent, startOutboxWorker, type DrainResult } from './outbox.js';
 export { sweepRateLimits } from './janitor.js';
 export {
   JOB_LEASE_SECONDS,

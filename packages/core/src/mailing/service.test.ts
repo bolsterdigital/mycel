@@ -1,6 +1,5 @@
-// `mailing.confirm` (ADR 010 rule 5) and the send-once contract (ADR 019 rule 6) in memory. The
-// mailer stub below is the outside world (testing.md rule 4): it can lose the response after the
-// provider accepted the message, which is the case an intent row exists for.
+// `mailing.confirm` (ADR 010 rule 5) and the confirmation subscriber in memory. The send-once
+// contract (ADR 019 rule 6) has its own suite, delivery.test.ts.
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { Invoker } from '../invoke.js';
@@ -18,11 +17,8 @@ import { supporterIngestSubscriber } from '../supporters/service.js';
 import {
   CONFIRMATION_SUBSCRIBER,
   confirmationMailSubscriber,
-  renderConfirmationMail,
-  sendOnce,
   signConfirmToken,
 } from './confirmation.js';
-import type { MailMessage, Mailer, SendVerdict } from './ports.js';
 
 const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const OTHER = '01900000-0000-7000-8000-00000000bbbb';
@@ -116,115 +112,6 @@ describe('mailing.confirm', () => {
     await expect(
       confirm(await token(), anonymousPrincipal(TENANT, ['forms:read']))
     ).rejects.toMatchObject({ code: 'forbidden' });
-  });
-});
-
-/**
- * A provider that can accept a message and then lose the response (`timeout`), or refuse it
- * (`error`). `verdict` is what its records say when asked about an earlier attempt.
- */
-class FlakyMailer implements Mailer {
-  readonly delivered: string[] = [];
-  readonly asked: { key: string; since: Date }[] = [];
-  mode: 'ok' | 'timeout' | 'error' = 'ok';
-  verdict: SendVerdict = 'not_sent';
-
-  async send(_message: MailMessage, key: string): Promise<{ providerId: string }> {
-    if (this.mode === 'error') throw new Error('TEM API 429: quota exceeded');
-    this.delivered.push(key);
-    if (this.mode === 'timeout') throw new Error('fetch failed: timeout');
-    return { providerId: `p-${this.delivered.length}` };
-  }
-  async wasSent(key: string, _message: MailMessage, since: Date): Promise<SendVerdict> {
-    this.asked.push({ key, since });
-    return this.verdict;
-  }
-}
-
-describe('sendOnce (ADR 019 rule 6)', () => {
-  const event = { id: '01900000-0000-7000-8000-00000000e001', tenantId: TENANT };
-  const message = renderConfirmationMail({
-    locale: 'en',
-    tenantName: 'Probe',
-    confirmUrl: 'https://example.org/probe/confirm?token=x',
-    from: { email: 'noreply@example.org' },
-    to: 'ada@example.org',
-  });
-  let clock: FakeClock;
-  let uow: MemoryUnitOfWork;
-  let mailer: FlakyMailer;
-  const key = `test:${event.id}`;
-  const intent = () => uow.store.for(TENANT).mailSends.get(key);
-  const attempt = () => sendOnce({ mailer, clock, uow }, event, 'test', message);
-
-  beforeEach(() => {
-    clock = new FakeClock();
-    uow = new MemoryUnitOfWork({ clock });
-    mailer = new FlakyMailer();
-  });
-
-  it('writes the intent before the provider call and completes it after', async () => {
-    expect(await attempt()).toBe('sent');
-    expect(mailer.delivered).toEqual([key]);
-    expect(intent()).toMatchObject({
-      key,
-      subscriber: 'test',
-      eventId: event.id,
-      attemptedAt: clock.now(),
-      sentAt: clock.now(),
-      providerId: 'p-1',
-      lastError: null,
-    });
-    // Redelivery of the same event: nothing is asked, nothing is sent.
-    expect(await attempt()).toBe('skipped');
-    expect(mailer.delivered).toHaveLength(1);
-    expect(mailer.asked).toHaveLength(0);
-  });
-
-  it('after a lost response it reconciles and never sends blind', async () => {
-    mailer.mode = 'timeout';
-    const started = clock.now();
-    await expect(attempt()).rejects.toThrow('timeout');
-    expect(mailer.delivered).toEqual([key]);
-    expect(intent()).toMatchObject({
-      attemptedAt: started,
-      sentAt: null,
-      lastError: 'fetch failed: timeout',
-    });
-
-    // The provider cannot answer yet: no retry, the outbox backs off.
-    mailer.mode = 'ok';
-    mailer.verdict = 'unknown';
-    clock.advance(60_000);
-    await expect(attempt()).rejects.toThrow(/unknown; not resending/);
-    expect(mailer.asked).toEqual([{ key, since: started }]);
-    expect(mailer.delivered).toHaveLength(1);
-    expect(intent()?.sentAt).toBeNull();
-
-    // The provider has it: the intent completes without a second message.
-    mailer.verdict = 'sent';
-    expect(await attempt()).toBe('reconciled');
-    expect(mailer.delivered).toHaveLength(1);
-    expect(intent()).toMatchObject({ sentAt: clock.now(), providerId: null });
-    expect(await attempt()).toBe('skipped');
-  });
-
-  it('resends only when the provider says the attempt never arrived', async () => {
-    mailer.mode = 'error';
-    await expect(attempt()).rejects.toThrow('429');
-    expect(mailer.delivered).toHaveLength(0);
-    expect(intent()).toMatchObject({ sentAt: null, lastError: 'TEM API 429: quota exceeded' });
-
-    mailer.mode = 'ok';
-    mailer.verdict = 'not_sent';
-    clock.advance(60_000);
-    expect(await attempt()).toBe('sent');
-    expect(mailer.delivered).toEqual([key]);
-    expect(intent()).toMatchObject({
-      attemptedAt: clock.now(),
-      sentAt: clock.now(),
-      providerId: 'p-1',
-    });
   });
 });
 

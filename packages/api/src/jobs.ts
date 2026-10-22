@@ -15,14 +15,19 @@
 import {
   parseJobPayload,
   purgeMedia,
+  reconcileMail,
   reverifyHostname,
   sweepMediaOrphans,
   systemPrincipal,
+  type Clock,
+  type DomainEvent,
   type JobOutcome,
   type JobPayload,
   type JobRecord,
   type IdentityStore,
   type JobType,
+  type MailSources,
+  type Mailer,
   type TransactionContext,
   type UnitOfWork,
 } from '@mycel/core';
@@ -30,6 +35,7 @@ import {
   createDb,
   createEventPartitions,
   listTenants,
+  readOutboxEvent,
   sweepRateLimits,
   type JobHandler,
   type JobHandlers,
@@ -94,15 +100,68 @@ export async function sweepAllMediaOrphans(
   return swept;
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** What `mail.reconcile` needs besides the unit of work: the provider and the message builders. */
+export interface MailJobDeps {
+  mailer: Mailer;
+  clock: Clock;
+  /** Per subscriber name, how to rebuild its message from the event (`MailSource`). */
+  sources: MailSources;
+  reconcileLagMs?: number | undefined;
+  /** The outbox event by id; `readOutboxEvent` on the operator connection unless a test sets it. */
+  readEvent?: (id: string) => Promise<DomainEvent | null>;
+}
+
+/**
+ * `mail.reconcile` (brief #22C decision 6). Not a `tenantJob`: `reconcileMail` opens its own
+ * units of work, three per send like the outbox subscriber. The event comes from the outbox as
+ * mycel_worker, the cross-tenant log ADR 011 rule 1 allows, and is used only when its tenant is
+ * the job's. A suspended tenant sends nothing and is looked at again in a day (ADR 015 rule 7),
+ * like `content.publish`. A missing event or an unknown subscriber is a programming error: the
+ * job fails and, exhausted, stays visible (#17).
+ */
+export function mailReconcileJob({
+  uow,
+  identity,
+  readEvent,
+  ...mail
+}: MailJobDeps & {
+  uow: UnitOfWork;
+  identity: Pick<IdentityStore, 'tenantAccess'>;
+  readEvent: (id: string) => Promise<DomainEvent | null>;
+}): JobHandler {
+  return async (job: JobRecord) => {
+    if (job.tenantId === null) throw new Error('mail.reconcile is a tenant job but has no tenant');
+    const { key, subscriber, eventId } = parseJobPayload('mail.reconcile', job.payload);
+    const access = await identity.tenantAccess(job.tenantId);
+    if (access.status === 'suspended')
+      return { next: new Date(mail.clock.now().getTime() + DAY_MS) };
+    const event = await readEvent(eventId);
+    if (!event) throw new Error(`mail.reconcile ${key}: outbox event ${eventId} not found`);
+    if (event.tenantId !== job.tenantId)
+      throw new Error(`mail.reconcile ${key}: event ${eventId} belongs to another tenant`);
+    const source = Object.hasOwn(mail.sources, subscriber) ? mail.sources[subscriber] : undefined;
+    if (!source) throw new Error(`mail.reconcile ${key}: no mail source for ${subscriber}`);
+    if (`${subscriber}:${event.id}` !== key)
+      throw new Error(`mail.reconcile ${key}: key does not match subscriber and event`);
+    const message = await source(event);
+    if (!message) return {};
+    return reconcileMail({ ...mail, uow }, event, subscriber, message);
+  };
+}
+
 export function jobHandlers({
   uow,
   operatorDb,
   identity,
+  mail,
   tenantIds = async () => (await listTenants(operatorDb)).map((t) => t.id),
 }: {
   uow: UnitOfWork;
   operatorDb: ReturnType<typeof createDb>;
   identity: Pick<IdentityStore, 'tenantAccess'>;
+  mail: MailJobDeps;
   /** Every tenant id, for platform jobs that work per tenant; tests pass their own. */
   tenantIds?: () => Promise<string[]>;
 }): JobHandlers {
@@ -114,5 +173,11 @@ export function jobHandlers({
     // Deleting files is not publishing: a suspended tenant's purge still runs.
     'media.purge': tenantJob({ uow, identity }, 'media.purge', purgeMedia),
     'media.orphans': platformJob('media.orphans', () => sweepAllMediaOrphans(uow, tenantIds)),
+    'mail.reconcile': mailReconcileJob({
+      uow,
+      identity,
+      readEvent: (id) => readOutboxEvent(operatorDb, id),
+      ...mail,
+    }),
   } satisfies Record<JobType, JobHandler>;
 }

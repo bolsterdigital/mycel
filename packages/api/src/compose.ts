@@ -11,6 +11,8 @@ import {
   Invoker,
   appDelivery,
   buildRegistry,
+  CONFIRMATION_SUBSCRIBER,
+  confirmationMailSource,
   confirmationMailSubscriber,
   normalizeHostname,
   siteUrl,
@@ -87,6 +89,12 @@ const Config = z
     TEM_SECRET_KEY: z.string().optional(),
     TEM_PROJECT_ID: z.string().optional(),
     TEM_REGION: z.string().default('fr-par'),
+    /**
+     * How long after an attempt the provider's listing is trusted to show it before a missing
+     * message counts as not sent (brief #22C, docs/reference/mail.md). Scaleway documents no
+     * indexing delay; 15 is an assumption with a budget until someone measures it.
+     */
+    MAIL_RECONCILE_LAG_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
     /** The API key an MCP process acts with; also seed input (`npm run db:seed`). */
     MYCEL_API_KEY: z.string().min(8).optional(),
     /** Operator login (apps/web). Without an issuer the admin answers 503 and the sites work. */
@@ -315,18 +323,19 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
           region: config.TEM_REGION,
         })
       : new ConsoleMailer(undefined, config.MAIL_SPOOL_DIR);
-  const subscribers = [
-    supporterIngestSubscriber(uow),
-    confirmationMailSubscriber({
-      mailer,
-      signer,
-      clock,
-      tenants,
-      uow,
-      from: parseAddress(config.MAIL_FROM),
-      platform,
-    }),
-  ];
+  const confirmation = {
+    mailer,
+    signer,
+    clock,
+    tenants,
+    uow,
+    from: parseAddress(config.MAIL_FROM),
+    platform,
+    reconcileLagMs: config.MAIL_RECONCILE_LAG_MINUTES * 60 * 1000,
+  };
+  const subscribers = [supporterIngestSubscriber(uow), confirmationMailSubscriber(confirmation)];
+  // What `mail.reconcile` rebuilds a message with, per mail subscriber above.
+  const mailSources = { [CONFIRMATION_SUBSCRIBER]: confirmationMailSource(confirmation) };
   const stops: (() => Promise<void>)[] = [];
   // On the authentication login: each platform function enters mycel_platform itself (0010).
   const platformApi: PlatformDeps | undefined = config.PLATFORM_API_TOKEN
@@ -362,10 +371,20 @@ export function createRuntime(config: RuntimeConfig = loadConfig()): Runtime {
     startWorker() {
       if (!operatorDb) throw new Error('the worker needs DATABASE_URL (operator role)');
       const stopOutbox = startOutboxWorker(operatorDb, subscribers);
-      const stopJobs = startJobWorker(operatorDb, jobHandlers({ uow, operatorDb, identity }), {
-        intervalMs: 5000,
-        recurring: RECURRING_JOBS,
-      });
+      const mail = {
+        mailer,
+        clock,
+        sources: mailSources,
+        reconcileLagMs: confirmation.reconcileLagMs,
+      };
+      const stopJobs = startJobWorker(
+        operatorDb,
+        jobHandlers({ uow, operatorDb, identity, mail }),
+        {
+          intervalMs: 5000,
+          recurring: RECURRING_JOBS,
+        }
+      );
       const stop = async () => {
         await Promise.all([stopOutbox(), stopJobs()]);
       };
