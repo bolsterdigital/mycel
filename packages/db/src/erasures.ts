@@ -2,8 +2,8 @@
 // `register` writes one permanent row as mycel_app; `status` reads which of them a backup holds
 // (0021, written by the backup login only). `apply` enters `mycel_erasure` for the rest of
 // its statements, inside the caller's tenant transaction: that role may tombstone events and the
-// projection, delete submissions, mail intents and jobs, and rewrite outbox props, each on the
-// current tenant's rows only. Only the schema owner's login may enter it, so the worker and the CLI
+// projection, delete submissions, mail intents and jobs, rewrite outbox props and expire export
+// archives (0022), each on the current tenant's rows only. Only the schema owner's login may enter it, so the worker and the CLI
 // apply and a front that tries gets a clear refusal.
 //
 // The addresses to erase are not stored anywhere: apply finds them from the register each time, in
@@ -88,6 +88,20 @@ export function erasureRepository(
 }
 
 async function applyAsEraser(trx: Trx): Promise<number> {
+  const changed = await eraseRows(trx);
+  // ADR 019 rule 8: an archive is a copy too (TODO #28). Expire every archive that may hold a
+  // registered person: any built or building while this apply found something to erase, and any
+  // asked for before the newest registration. The file goes after commit (`expireExports`, run
+  // by `mycel erasures apply` and daily by the worker); the row keeps no trace of who.
+  const r = await sql`
+    update tenant_exports
+    set status = 'expired', error = 'deleted after an erasure', expires_at = now()
+    where status in ('running', 'ready')
+      and (${changed > 0} or requested_at < (select max(erased_at) from erasures))`.execute(trx);
+  return changed + Number(r.numAffectedRows ?? 0n);
+}
+
+async function eraseRows(trx: Trx): Promise<number> {
   const registered = await trx.selectFrom('erasures').select('supporter_id').execute();
   if (!registered.length) return 0;
   const ids = registered.map((r) => r.supporter_id);

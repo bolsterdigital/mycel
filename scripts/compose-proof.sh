@@ -89,6 +89,28 @@ expect 'every migration applied' "$(ls packages/db/migrations/*.sql | wc -l | tr
 expect 'worker /readyz' ok "$(dc exec -T worker node -e \
   "fetch('http://127.0.0.1:3000/readyz').then(async (r) => console.log(r.ok ? 'ok' : r.status + ' ' + (await r.text())))")"
 
+# Self-service export (TODO #28): asked for as a site administrator would, built by the running
+# worker with the image's own `tar`, and written to the bucket outside the media prefix.
+expect 'tar in the runtime image' yes "$(dc exec -T worker sh -c 'tar --version >/dev/null && echo yes || echo no')"
+expect 'export built by the worker' ready "$(dc exec -T worker node --input-type=module -e "
+import { createRuntime } from '@mycel/api/compose';
+import { exportArchiveKey, systemPrincipal, useCases } from '@mycel/core';
+const rt = createRuntime(undefined, { service: 'proof' });
+try {
+  const demo = await rt.tenants.findBySlug('demo');
+  const admin = systemPrincipal(demo.id, 'compose-proof');
+  const { id } = await rt.invoker.run(useCases.requestExport, admin, {});
+  let status = 'queued';
+  for (let i = 0; i < 60 && (status === 'queued' || status === 'running'); i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    status = (await rt.invoker.run(useCases.listExports, admin, {})).exports.find((e) => e.id === id).status;
+  }
+  const head = await rt.blobs.head(exportArchiveKey(demo.id, id));
+  console.log(status === 'ready' && head && head.size > 0 ? 'ready' : status);
+} finally {
+  await rt.close();
+}" | tail -n 1)"
+
 if [ "$failures" -ne 0 ]; then
   echo "$failures check(s) failed" >&2
   exit 1

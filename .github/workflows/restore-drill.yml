@@ -24,6 +24,8 @@ on:
       # list, the schema and the CLI that applies and reports erasures.
       - 'packages/db/src/erasures.ts'
       - 'packages/db/src/export.ts'
+      # The export job and its archives, which a backup leaves out (TODO #28).
+      - 'packages/db/src/exports.ts'
       - 'packages/db/migrations/**'
       - 'packages/api/src/cli.ts'
 

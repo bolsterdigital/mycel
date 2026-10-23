@@ -241,6 +241,8 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     const erased = uuidv7();
     await uow.run(admin, (ctx) => ctx.erasures.register(erased, `rls-erased-${run}@example.org`));
     backupRecorded = await recordBackup(erased);
+    // An export request (TODO #28, 0022): the row only, no job is run here.
+    await invoker.run(useCases.requestExport, admin, {});
     // Memberships and keys through their use cases (TODO #7).
     await invoker.run(useCases.inviteMember, admin, {
       email: `member-${run}@example.org`,
