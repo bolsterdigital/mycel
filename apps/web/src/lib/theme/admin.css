@@ -345,4 +345,32 @@
     vertical-align: top;
     overflow-wrap: anywhere;
   }
+  /* The publication card per locale (#11 A2): up to four actions; on a narrow card they stand
+     in one column at full width, so a long label never shares a line with another button. */
+  .publication {
+    container-type: inline-size;
+    margin-block: var(--space-1);
+  }
+  .publication .schedule {
+    margin-block-start: var(--space-1);
+  }
+  /* A label wraps between words only, never inside one (skill ui-action-layout). */
+  .publication button {
+    hyphens: manual;
+  }
+  .publication .schedule input {
+    min-width: 0;
+    max-width: 100%;
+    min-height: 44px;
+    font: inherit;
+  }
+  @container (max-width: 36rem) {
+    .actions.stack {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .actions.stack button {
+      width: 100%;
+    }
+  }
 }
