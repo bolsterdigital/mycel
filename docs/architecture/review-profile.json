@@ -1,0 +1,308 @@
+{
+  "$comment": "Project profile for targeted review (docs/architecture/review.md). Data, not code: which paths touch which review lens, which ADRs and gates already cover it, and which flags a reviewer reads first. scripts/review-signals.mjs maps a diff through it; scripts/review-signals.test.mjs keeps every path, ADR and gate here real.",
+  "version": 1,
+  "phase": "Phase 1: platform and content foundations. No editor, no public mail, no money yet.",
+  "lenses": [
+    {
+      "id": "security",
+      "title": "Security, privacy and public values",
+      "status": "mandatory",
+      "question": "Can an unauthorised principal read or do something; do consent, erasure, export and the organisation's control stay intact?",
+      "paths": [
+        "packages/db/migrations/**",
+        "packages/db/src/rls*",
+        "packages/db/src/platform*",
+        "packages/db/src/operators*",
+        "packages/db/src/schema.ts",
+        "packages/db/src/erasures*",
+        "packages/db/src/export*",
+        "packages/db/src/login-limit*",
+        "packages/core/src/operators/**",
+        "packages/core/src/principal.ts",
+        "packages/core/src/invoke.ts",
+        "packages/core/src/forms/spam.ts",
+        "packages/core/src/supporters/erasure*",
+        "packages/core/src/audit/**",
+        "packages/core/src/util/scrub*",
+        "packages/api/src/auth*",
+        "packages/api/src/signer.ts",
+        "packages/api/src/platform*",
+        "apps/web/src/hooks.server.ts",
+        "apps/web/src/lib/server/oidc.ts",
+        "apps/web/src/lib/server/security-headers*",
+        "apps/web/src/lib/server/body-limit*",
+        "docker/backup/**",
+        "docker/caddy/**",
+        ".gitleaks.toml",
+        "apps/web/src/lib/server/site*",
+        "apps/web/src/routes/internal/**",
+        "packages/core/src/supporters/**",
+        "packages/core/src/forms/**",
+        "packages/core/src/mailing/**",
+        "packages/db/src/supporters*",
+        "packages/db/src/admissions.ts",
+        "packages/db/src/audit.ts",
+        "packages/db/src/hostnames*"
+      ],
+      "adrs": ["002", "009", "011", "014", "016", "019"],
+      "gates": [
+        "packages/db/src/rls.conformance.test.ts",
+        "packages/api/src/auth.conformance.test.ts",
+        "packages/api/src/redaction.conformance.test.ts",
+        "packages/db/src/erasures.conformance.test.ts",
+        "packages/db/src/login-limit.conformance.test.ts",
+        "apps/web/src/lib/server/security-headers.test.ts",
+        "scripts/gitleaks.test.mjs",
+        ".github/workflows/verify.yml"
+      ],
+      "counterproof": "A second tenant, an anonymous principal or a revoked key against the new path; an address that must be gone, searched in every copy."
+    },
+    {
+      "id": "domain",
+      "title": "Domain, information architecture and taxonomy",
+      "status": "manual",
+      "question": "Do an editor and a visitor understand the content types, sections, labels and navigation; do publication and findability stay coherent?",
+      "paths": [
+        "packages/core/src/content/**",
+        "packages/db/src/content*",
+        "apps/web/src/routes/(public)/**",
+        "apps/web/src/lib/server/content-route*",
+        "docs/reference/content-model.md"
+      ],
+      "adrs": ["004", "012", "017", "020"],
+      "gates": [
+        "packages/core/src/content/blocks.conformance.test.ts",
+        "packages/db/src/content.conformance.test.ts",
+        "packages/db/src/content-operations.conformance.test.ts",
+        "apps/web/src/lib/server/content-route.test.ts"
+      ],
+      "counterproof": "One editorial task written in plain words (find, place, publish, correct) walked through the real routes."
+    },
+    {
+      "id": "contract",
+      "title": "API, MCP and contract",
+      "status": "pilot",
+      "question": "Do HTTP, OpenAPI and MCP mean the same use case and capability; is an external consumer still compatible?",
+      "paths": [
+        "packages/core/src/registry*",
+        "packages/core/src/use-cases.ts",
+        "packages/core/src/json-schema.ts",
+        "packages/core/src/*/service.ts",
+        "packages/api/src/**",
+        "packages/mcp/src/**",
+        "docs/reference/platform-api.md"
+      ],
+      "adrs": ["009", "015", "018"],
+      "gates": [
+        "packages/core/src/registry.conformance.test.ts",
+        "packages/api/src/registry.conformance.test.ts",
+        "packages/mcp/src/registry.conformance.test.ts",
+        "packages/api/src/platform.conformance.test.ts",
+        "packages/api/src/content-read.conformance.test.ts"
+      ],
+      "counterproof": "The same call through HTTP and through the MCP tool, with the capability missing and with the old payload shape."
+    },
+    {
+      "id": "frontend",
+      "title": "Frontend, editor and accessibility",
+      "status": "manual",
+      "question": "Does the real task path work without JavaScript where required, with a keyboard, at 320 px and at 200 % zoom?",
+      "paths": [
+        "apps/web/src/**/*.svelte",
+        "apps/web/src/lib/blocks/**",
+        "apps/web/src/lib/admin/**",
+        "apps/web/src/lib/components/**",
+        "apps/web/src/routes/(admin)/**",
+        "apps/web/src/lib/theme/**",
+        "packages/core/src/theme/**",
+        "apps/web/src/lib/server/theme*",
+        "apps/web/static/**"
+      ],
+      "adrs": ["009", "013", "020"],
+      "gates": [
+        "apps/web/src/lib/blocks/blocks.conformance.test.ts",
+        "apps/web/e2e/blocks.spec.ts",
+        "apps/web/e2e/admin.spec.ts"
+      ],
+      "counterproof": "The task once with JavaScript off and once with the keyboard only; a screenshot at 320 px and at 200 % zoom in the PR (the UI gate)."
+    },
+    {
+      "id": "locale",
+      "title": "Language and publication representations",
+      "status": "manual",
+      "question": "Are locale readiness, translated fields, canonical, feeds and cache right for every representation of the same content?",
+      "paths": [
+        "apps/web/src/i18n/**",
+        "packages/core/src/i18n/**",
+        "apps/web/src/lib/server/http-cache*",
+        "apps/web/src/lib/server/public-page.ts",
+        "apps/web/src/params.ts",
+        "packages/api/src/content-read.ts"
+      ],
+      "adrs": ["007", "012", "018"],
+      "gates": [
+        "apps/web/e2e/content-routes.spec.ts",
+        "apps/web/src/lib/server/http-cache.test.ts",
+        "packages/api/src/content-read.conformance.test.ts"
+      ],
+      "counterproof": "The same item in both locales through HTML and JSON, with a conditional GET after the cache lifetime has passed."
+    },
+    {
+      "id": "reliability",
+      "title": "Reliability, lifecycle and operations",
+      "status": "pilot",
+      "question": "What happens under concurrency, on retry, when a provider fails, in a backup and in a restore after an erasure?",
+      "paths": [
+        "packages/core/src/jobs/**",
+        "packages/core/src/ops/**",
+        "packages/core/src/mailing/**",
+        "packages/core/src/media/**",
+        "packages/db/src/jobs*",
+        "packages/db/src/outbox*",
+        "packages/db/src/migrate*",
+        "packages/db/src/recovery*",
+        "packages/db/src/export*",
+        "packages/db/src/media*",
+        "packages/api/src/worker*",
+        "packages/api/src/jobs.ts",
+        "packages/api/src/health*",
+        "packages/mail-tem/**",
+        "packages/blob/**",
+        "packages/media-sharp/**",
+        "docker/**",
+        "compose*.yml",
+        "scripts/drill-*",
+        "scripts/compose-proof.sh",
+        "docs/self-hosting.md",
+        "docs/upgrading.md",
+        "packages/db/src/janitor.ts",
+        "packages/db/src/repositories.ts",
+        "apps/web/src/routes/healthz/**",
+        "apps/web/src/routes/readyz/**"
+      ],
+      "adrs": ["005", "011", "019"],
+      "gates": [
+        "packages/db/src/jobs.conformance.test.ts",
+        "packages/db/src/recovery.conformance.test.ts",
+        "packages/db/src/mailing.conformance.test.ts",
+        "packages/db/src/migrate.conformance.test.ts",
+        "packages/db/src/export.conformance.test.ts",
+        "packages/api/src/mail.conformance.test.ts",
+        "packages/blob/src/blob.conformance.test.ts",
+        ".github/workflows/restore-drill.yml",
+        "scripts/compose-proof.sh"
+      ],
+      "counterproof": "Two of the same operation at once, a provider that answers late or twice, and a restore from a backup taken before the change."
+    },
+    {
+      "id": "architecture",
+      "title": "Architecture, dependencies and pruning",
+      "status": "pilot",
+      "question": "Does the core stay free of I/O; does a new abstraction demonstrably remove duplicated work; does a removal keep behaviour?",
+      "paths": [
+        "package.json",
+        "package-lock.json",
+        "packages/*/package.json",
+        "apps/*/package.json",
+        "tsconfig*.json",
+        "packages/*/tsconfig*.json",
+        "apps/*/tsconfig*.json",
+        "packages/core/src/ports.ts",
+        "packages/core/src/index.ts",
+        "packages/api/src/compose.ts",
+        "apps/web/src/lib/server/runtime.ts",
+        "packages/observability/**",
+        "scripts/check-dependency-rules*",
+        "docs/architecture/overview.md",
+        "packages/*/src/index.ts",
+        "packages/db/src/ids.ts",
+        "packages/db/src/repositories.ts"
+      ],
+      "adrs": ["001", "006", "008", "013"],
+      "gates": ["scripts/check-dependency-rules.mjs", "scripts/check-dependency-rules.test.mjs"],
+      "counterproof": "Count the call sites the abstraction replaces, or the duplicated lines it removes; a new dependency names what it replaces and its licence."
+    },
+    {
+      "id": "process",
+      "title": "Planning, tests and process",
+      "status": "manual",
+      "question": "Do brief dependencies, delivered claims and regression evidence hold; is an extra gate still earning its place?",
+      "paths": [
+        ".github/**",
+        "scripts/*.test.mjs",
+        "scripts/fixtures/**",
+        "scripts/e2e.mjs",
+        "scripts/release.mjs",
+        "vitest.config.ts",
+        "apps/web/playwright.config.ts",
+        "docs/architecture/testing.md",
+        "docs/architecture/review*",
+        "CONTRIBUTING.md",
+        "CLAUDE.md",
+        "packages/core/src/testing/**",
+        "scripts/**"
+      ],
+      "adrs": ["000"],
+      "gates": [
+        "scripts/workflows.test.mjs",
+        "scripts/docs-links.test.mjs",
+        "scripts/review-signals.test.mjs"
+      ],
+      "counterproof": "Run the changed gate against a change it must refuse."
+    }
+  ],
+  "flags": [
+    {
+      "id": "migration",
+      "paths": ["packages/db/migrations/**"],
+      "note": "A migration. An applied file is never edited (CI refuses it); a role is cluster-shared, not database-bound; a new tenant table needs its place in the export order and an RLS policy next to it."
+    },
+    {
+      "id": "test-surface",
+      "paths": [
+        "**/*.test.ts",
+        "**/*.test.mjs",
+        "**/*.spec.ts",
+        "**/__snapshots__/**",
+        "scripts/fixtures/**",
+        "apps/web/playwright.config.ts",
+        "**/vitest.config.ts"
+      ],
+      "note": "Tests or fixtures changed. Read these diffs before the code: an assertion that got weaker, a skip, or a regenerated snapshot needs its reason in the PR (testing.md rule 5)."
+    },
+    {
+      "id": "adr",
+      "paths": ["docs/adr/**"],
+      "note": "Doctrine changed. Every ADR the changed one references is in scope, and a brief or TODO that contradicts it is wrong until the ADR is superseded."
+    },
+    {
+      "id": "registry",
+      "paths": ["packages/core/src/use-cases.ts", "packages/core/src/*/service.ts"],
+      "note": "A use case changed. HTTP, OpenAPI and the MCP tool change with it even when no front is in the diff; the registry conformance suites are the evidence."
+    },
+    {
+      "id": "ci",
+      "paths": [".github/workflows/**", "Dockerfile", "compose*.yml", "docker/**"],
+      "note": "The gate or the deployable changed. A workflow runs on main only after the merge; a green PR check proves the PR's SHA, not main."
+    },
+    {
+      "id": "env",
+      "paths": [".env.example", "compose.ci.env"],
+      "note": "Configuration surface changed. Every key the code reads is named in .env.example with a placeholder, never a value."
+    }
+  ],
+  "informational": [
+    "**/*.md",
+    "docs/reports/**",
+    "CHANGELOG.md",
+    ".editorconfig",
+    ".prettierrc",
+    ".prettierignore",
+    ".nvmrc",
+    ".gitignore",
+    ".dockerignore",
+    "LICENSE",
+    "SECURITY.md",
+    "TRADEMARK.md"
+  ]
+}

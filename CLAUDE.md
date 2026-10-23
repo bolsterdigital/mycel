@@ -2,7 +2,7 @@
 
 Open-core successor to Dreamkit: campaign sites, forms, donations, supporters and mailing in one EU-hosted application. AGPL-3.0, TypeScript monorepo. This file is also `AGENTS.md`.
 
-**Read first, every session**: `docs/adr/` (twenty short files, the contract you build against), `docs/architecture/overview.md` (package map and import rules) and `docs/architecture/testing.md` (which conformance suite your change must grow). A brief or TODO item that contradicts an accepted ADR is wrong until the ADR is superseded: stop and flag it.
+**Read first, every session**: `docs/adr/` (twenty short files, the contract you build against), `docs/architecture/overview.md` (package map and import rules), `docs/architecture/testing.md` (which conformance suite your change must grow) and, when reviewing, `docs/architecture/review.md` (the six-field record, one extra counterproof at most, `scripts/review-signals.mjs`). A brief or TODO item that contradicts an accepted ADR is wrong until the ADR is superseded: stop and flag it.
 
 ## Commands
 
@@ -73,6 +73,7 @@ Afwijkingen van de universele werkwijze:
 
 1. **`docs/plans/` is een symlink naar de private sibling `../mycel-planning`** (deckyard-model), omdat deze repo publiek is. Planning-commits gaan in die sibling; verse checkout: `ln -s ../../mycel-planning docs/plans`.
 2. **Alle commits zijn signed-off** (`git commit -s`, DCO, ADR 006); CI weigert PR's zonder.
+3. **Review-en-merge volgt `docs/architecture/review.md`** en registreert tijdens de pilot (tot 2026-11-06 of twaalf reviews) elke review in `docs/plans/reference/review-pilot-2026-10.md`: signals-blok, gekozen lens, bestaand bewijs, minuten. Hooguit één extra tegenproef per PR; nooit een fix of merge uit de review zelf.
 
 ## Relation to Dreamkit
 
