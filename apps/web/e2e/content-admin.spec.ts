@@ -226,7 +226,7 @@ async function bySlug<T>(
 // Review of PR #45: the pickers list one page of the directory (newest first, a hundred), so an
 // author or section beyond it, or authors in another order than the directory's, were lost or
 // reordered by a save that only changed the title.
-test('a title-only save keeps authors, their order and the section beyond the first page', async ({
+test('title-only and conflicting saves keep authors, their order and the off-page section', async ({
   page,
   request,
 }) => {
@@ -283,6 +283,50 @@ test('a title-only save keeps authors, their order and the section beyond the fi
   await page.getByRole('button', { name: 'Opslaan' }).click();
   await expect(page).toHaveURL(new RegExp(`${item.id}\\?saved$`));
   expect(await saved()).toMatchObject({ authorIds, sectionId: oldSection.id });
+
+  // Another editor removes every relation after this form was opened. Its latest document
+  // and the directory page no longer contain the off-page choices in this editor's post.
+  const { revision } = await call<{ revision: { id: string; document: Record<string, unknown> } }>(
+    request,
+    'content.item.get',
+    { itemId: item.id }
+  );
+  await page.getByLabel('Titel (nl)').fill('Mijn artikel bij conflict');
+  await call(request, 'content.item.update', {
+    itemId: item.id,
+    baseRevisionId: revision.id,
+    document: { ...revision.document, authorIds: [], sectionId: null },
+  });
+  await page.getByRole('button', { name: 'Opslaan' }).click();
+  await expect(page.getByRole('alert')).toContainText(
+    'Iemand anders heeft dit item intussen opgeslagen'
+  );
+  await expect(page.getByLabel('Titel (nl)')).toHaveValue('Mijn artikel bij conflict');
+  for (const name of [`Eerste ${run}`, `Tweede ${run}`, 'Ver Weg'])
+    await expect(page.getByLabel(name, { exact: true })).toBeChecked();
+  await expect(page.getByLabel('Rubriek')).toHaveValue(oldSection.id);
+  await expectNoAxeViolations(page);
+
+  // A validation error on the new base must preserve the same choices too. They still
+  // are not in the latest document, and the section/old author are outside the directory page.
+  await page.locator('[name="canonical"]').fill('not-a-url');
+  await page.getByRole('button', { name: 'Opslaan' }).click();
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.getByRole('alert')).not.toContainText(
+    'Iemand anders heeft dit item intussen opgeslagen'
+  );
+  for (const name of [`Eerste ${run}`, `Tweede ${run}`, 'Ver Weg'])
+    await expect(page.getByLabel(name, { exact: true })).toBeChecked();
+  await expect(page.getByLabel('Rubriek')).toHaveValue(oldSection.id);
+  await expect(page.getByLabel('Titel (nl)')).toHaveValue('Mijn artikel bij conflict');
+  await page.locator('[name="canonical"]').fill('');
+  await page.getByRole('button', { name: 'Opslaan' }).click();
+  await expect(page).toHaveURL(new RegExp(`${item.id}\\?saved$`));
+  expect(await saved()).toMatchObject({
+    title: { nl: 'Mijn artikel bij conflict' },
+    authorIds,
+    sectionId: oldSection.id,
+  });
 
   // An explicit change still works: one author off, one on, the rest keeps its order.
   await page.getByLabel(`Eerste ${run}`).uncheck();
