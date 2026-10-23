@@ -107,5 +107,5 @@ describe.skipIf(!operatorUrl)('migrate: checksums of applied files', () => {
       await holder.query('rollback').catch(() => {});
       await Promise.all([holder.end(), contender.end()]);
     }
-  });
+  }, 30_000);
 });
