@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DEFAULT_ENTITLEMENTS, systemPrincipal, useCases } from '@mycel/core';
 import { probeForm } from '@mycel/core/testing';
 import { createDb, migrate, uuidv7 } from '@mycel/db';
+import { closeTenantWork } from '@mycel/db/testing';
 import { sql } from 'kysely';
 import { createApp } from './app.js';
 import { createRuntime, loadConfig, tokenFingerprint, type Runtime } from './compose.js';
@@ -56,7 +57,13 @@ describe.skipIf(!ready)('platform API', () => {
     });
   });
 
+  /** Tenants this suite created; their outbox and jobs are closed in afterAll. */
+  const made: string[] = [];
+
   afterAll(async () => {
+    const operatorDb = createDb(env['DATABASE_URL']!);
+    await closeTenantWork(operatorDb, made);
+    await operatorDb.destroy();
     await Promise.all(runtimes.map((rt) => rt.close()));
   });
 
@@ -98,6 +105,7 @@ describe.skipIf(!ready)('platform API', () => {
     });
     expect(created.status).toBe(201);
     const tenant = (await created.json()) as { id: string; slug: string };
+    made.push(tenant.id);
     expect(tenant).toMatchObject({
       slug,
       status: 'active',

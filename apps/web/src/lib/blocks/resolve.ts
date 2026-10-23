@@ -18,6 +18,7 @@
 
 import {
   type FormDefinition,
+  type ProofChallenge,
   type Invoker,
   type MediaView,
   type Principal,
@@ -45,7 +46,9 @@ import { videoUrl } from './model.js';
 
 /** Where the resolver reads tenant data; `runtimeSource` is the real one, tests may stub it. */
 export interface ResolveSource {
-  form(id: string): Promise<{ form: FormDefinition; startedToken: string } | null>;
+  form(
+    id: string
+  ): Promise<{ form: FormDefinition; startedToken: string; proof: ProofChallenge } | null>;
   media(id: string): Promise<MediaView | null>;
   itemPath(itemId: string, locale: string): Promise<string | null>;
 }
@@ -361,18 +364,19 @@ function referencesOf(b: Block): { type: 'media' | 'form' | 'item'; refId: strin
 }
 
 function toRenderForm(
-  found: { form: FormDefinition; startedToken: string } | null,
+  found: { form: FormDefinition; startedToken: string; proof: ProofChallenge } | null,
   locale: string,
   fallback: string
 ): RenderForm | null {
   if (!found) return null;
-  const { form, startedToken } = found;
+  const { form, startedToken, proof } = found;
   // Form copy has its own locales and falls back to the tenant default, as the probe did; the
   // page content around it needs no fallback, it is already one locale.
   const text = (value: Partial<Record<string, string>>) => pick(value, locale, fallback) ?? '';
   return {
     formId: form.id,
     startedToken,
+    proof,
     submitLabel: text(form.submitLabel),
     thankYou: text(form.thankYou),
     fields: form.fields.map((f) => ({

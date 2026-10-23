@@ -38,6 +38,7 @@ import {
   uuidv7,
   uuidv7Ids,
 } from './index.js';
+import { closeTenantWork } from './testing.js';
 
 const operatorUrl = process.env['DATABASE_URL'];
 const appUrl = process.env['APP_DATABASE_URL'];
@@ -270,15 +271,7 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
   });
 
   afterAll(async () => {
-    // The fixture's confirmation planned a `mail.reconcile` job for an event that is not in the
-    // outbox; close it so a worker on the same database never runs it.
-    await operatorDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_worker`.execute(trx);
-      await sql`update jobs set done_at = now()
-                where done_at is null and type = 'mail.reconcile' and tenant_id = ${tenantId}`.execute(
-        trx
-      );
-    });
+    await closeTenantWork(operatorDb, [tenantId]);
     await operatorDb.destroy();
     await appDb.destroy();
   });

@@ -9,7 +9,7 @@
 // path form); HTML prepends it, Markdown makes the path absolute through `siteUrl`. Rejected:
 // storing finished hrefs, which would make the Markdown of a dev request carry the dev prefix.
 
-import type { FormField, MediaCredit, RichTextDoc } from '@mycel/core';
+import type { FormField, MediaCredit, ProofChallenge, RichTextDoc } from '@mycel/core';
 
 /** UI text that does not come from the document (ADR 007), resolved for the model's locale. */
 export interface BlockCopy {
@@ -49,6 +49,8 @@ export interface RenderAction {
 export interface RenderForm {
   formId: string;
   startedToken: string;
+  /** The ALTCHA challenge the form script solves (`forms/proof.ts`); fresh per render. */
+  proof: ProofChallenge;
   submitLabel: string;
   /** Shown on the page's thank-you page after a successful post. */
   thankYou: string;

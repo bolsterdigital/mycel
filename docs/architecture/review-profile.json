@@ -48,6 +48,7 @@
         "apps/web/vite.config.ts",
         "apps/web/src/lib/server/admin*",
         "apps/web/src/lib/server/confirm*",
+        "apps/web/src/lib/server/form-post*",
         "apps/web/src/lib/server/media.ts",
         "packages/core/src/entitlements/**",
         "packages/core/src/tenants/**",
@@ -264,6 +265,7 @@
         "CONTRIBUTING.md",
         "CLAUDE.md",
         "packages/core/src/testing/**",
+        "packages/db/src/testing.ts",
         "scripts/**",
         "packages/db/src/seed.ts"
       ],

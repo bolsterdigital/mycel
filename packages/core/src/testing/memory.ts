@@ -228,6 +228,8 @@ interface TenantStore {
   forms: Map<string, FormDefinition>;
   submissions: Map<string, Submission>;
   counters: Map<string, number>;
+  /** `rate_limits` rows written by `cooldown`: key to the time of the last success, in ms. */
+  cooldowns: Map<string, number>;
   events: Map<string, SupporterEvent>;
   /** Keyed by supporter id. */
   projections: Map<string, SupporterProjection>;
@@ -477,6 +479,7 @@ export class MemoryStore {
         forms: new Map(),
         submissions: new Map(),
         counters: new Map(),
+        cooldowns: new Map(),
         events: new Map(),
         projections: new Map(),
         mailSends: new Map(),
@@ -878,6 +881,13 @@ export class MemoryUnitOfWork implements UnitOfWork {
         const hits = (s.counters.get(k) ?? 0) + 1;
         s.counters.set(k, hits);
         return hits <= max;
+      },
+      async cooldown(key, seconds) {
+        const now = clock.now().getTime();
+        const last = s.cooldowns.get(key);
+        if (last !== undefined && now - last < seconds * 1000) return false;
+        s.cooldowns.set(key, now);
+        return true;
       },
     };
     const ids = this.ids;
