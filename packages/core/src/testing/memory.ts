@@ -636,6 +636,20 @@ function memoryErasures(store: MemoryStore, principal: Principal, clock: Clock):
           changed++;
         }
       }
+      // Archives that may hold a registered person (TODO #28), as packages/db/src/erasures.ts.
+      const newest = Math.max(...[...s.erasures.values()].map((e) => e.erasedAt.getTime()));
+      for (const x of s.exports.values())
+        if (
+          (x.status === 'ready' || x.status === 'running') &&
+          (changed > 0 || x.requestedAt.getTime() < newest)
+        ) {
+          Object.assign(x, {
+            status: 'expired',
+            error: 'deleted after an erasure',
+            expiresAt: clock.now(),
+          });
+          changed++;
+        }
       return changed;
     },
     async status() {

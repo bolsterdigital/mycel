@@ -5,6 +5,7 @@
 // An ask while one is being built gets that one back, so the two projects may share an archive.
 
 import { execFile } from 'node:child_process';
+import { writeFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
@@ -40,12 +41,15 @@ async function login(page: Page, email: string, path: string) {
 async function readyArchive(page: Page) {
   await page.getByRole('button', { name: 'Archief aanvragen' }).click();
   await expect(page.getByRole('status')).toContainText('archief');
-  const download = page.getByRole('link', { name: 'Archief downloaden' }).first();
+  // The newest card may be another project's request still waiting; take one that is ready.
+  const card = page
+    .locator('article', { has: page.getByRole('link', { name: 'Archief downloaden' }) })
+    .first();
   await expect(async () => {
     await page.goto('/admin/probe/export');
-    await expect(download).toBeVisible({ timeout: 1000 });
+    await expect(card).toBeVisible({ timeout: 1000 });
   }).toPass({ timeout: 90_000, intervals: [1000, 2000, 3000] });
-  return download;
+  return card;
 }
 
 test('an administrator asks for an archive and downloads it without JavaScript', async ({
@@ -58,20 +62,30 @@ test('an administrator asks for an archive and downloads it without JavaScript',
   await expect(page.locator('main')).toContainText('7 dagen te downloaden');
   await expectNoAxeViolations(page);
 
-  const link = await readyArchive(page);
-  await expect(page.locator('article').first()).toContainText('Klaar');
+  const card = await readyArchive(page);
+  await expect(card).toContainText('Klaar');
+  const link = card.getByRole('link', { name: 'Archief downloaden' });
   await expectNoAxeViolations(page);
 
-  const [download] = await Promise.all([page.waitForEvent('download'), link.click()]);
-  expect(download.suggestedFilename()).toMatch(/^probe-\d{4}-\d{2}-\d{2}\.tar$/);
+  // Through the page's own session, as media.spec.ts downloads an original: a browser download
+  // would leave out the test's forwarded-address headers, which the server here requires.
+  const href = (await link.getAttribute('href'))!;
+  expect(href).toMatch(/^\/admin\/probe\/export\/[0-9a-f-]{36}\?exp=\d+&sig=/);
+  expect(await link.getAttribute('download')).not.toBeNull();
+  const response = await page.request.get(href);
+  expect(response.status()).toBe(200);
+  expect(response.headers()['content-type']).toBe('application/x-tar');
+  expect(response.headers()['content-disposition']).toMatch(
+    /^attachment; filename="probe-\d{4}-\d{2}-\d{2}\.tar"$/
+  );
+  expect(response.headers()['cache-control']).toBe('private, no-store');
   const file = test.info().outputPath('probe.tar');
-  await download.saveAs(file);
+  await writeFile(file, await response.body());
   const { stdout } = await run('tar', ['-tf', file]);
   expect(stdout.split('\n')).toContain('./manifest.json');
   expect(stdout).toContain('./tables/supporters.ndjson');
 
   // The link is bound to the archive and expires; without its signature it is a 404.
-  const href = (await link.getAttribute('href'))!;
   const bare = await page.request.get(href.split('?')[0]!);
   expect(bare.status()).toBe(404);
 });

@@ -131,7 +131,7 @@ host node scripts/drill-fixture.mjs drill-a drill-b
 deleted=$(host node scripts/drill-media.mjs upload drill-a | tail -n 1)
 purged=$(host node scripts/drill-media.mjs upload drill-a | tail -n 1)
 # An export archive in the bucket (TODO #28): no snapshot may hold it, and an erasure removes it.
-archive=$(host node scripts/drill-export.mjs drill-a | tail -n 1)
+archive=$(host node scripts/drill-export.mjs drill-a)
 host node scripts/drill-verify.mjs fingerprint >"$work/before.json"
 
 step 'backup: the older snapshot, with an image deleted after the dump'

@@ -109,6 +109,27 @@ describe('ctx.erasures in memory', () => {
     expect(copies(OTHER, 'ada@example.org')).toMatchObject({ supporters: 1, submissions: 1 });
   });
 
+  it("expires an export archive that may hold the person, and no other site's", async () => {
+    const ready = async (tenant: string) => {
+      const { record } = await uow.run(admin(tenant), (ctx) =>
+        ctx.exports.request({ id: uow.ids.next(), requestedBy: 'test', requestedAt: new Date(0) })
+      );
+      Object.assign(uow.store.for(tenant).exports.get(record.id)!, { status: 'ready' });
+      return record.id;
+    };
+    const mine = await ready(TENANT);
+    const theirs = await ready(OTHER);
+    const id = (await uow.run(admin(), (ctx) => ctx.supporters.getProjection('ada@example.org')))!
+      .id;
+    await uow.run(admin(), (ctx) => ctx.erasures.register(id, 'ada@example.org'));
+    await uow.run(admin(), (ctx) => ctx.erasures.apply());
+    expect(uow.store.for(TENANT).exports.get(mine)).toMatchObject({
+      status: 'expired',
+      error: 'deleted after an erasure',
+    });
+    expect(uow.store.for(OTHER).exports.get(theirs)?.status).toBe('ready');
+  });
+
   it('finds a submission whose supporter was never ingested, by the registered hash', async () => {
     const s = uow.store.for(TENANT);
     const id = (await uow.run(admin(), (ctx) => ctx.supporters.getProjection('ada@example.org')))!
