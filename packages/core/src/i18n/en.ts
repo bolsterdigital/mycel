@@ -2,6 +2,16 @@
 // Other catalogs are `Partial` and fall back to this one key by key.
 
 export const en = {
+  'assist.error.ai-not-entitled': 'Assistance is not available for this site.',
+  'assist.error.ai-disabled': 'An administrator must enable assistance first.',
+  'assist.error.consent-required': 'Consent is required for the configured processor.',
+  'assist.error.restricted-content': 'Assistance for restricted content is disabled.',
+  'assist.error.limit-reached': 'The assistance limit has been reached. Try again later.',
+  'assist.error.stale': 'The source has changed. Request a new suggestion.',
+  'assist.error.not-ready': 'This suggestion is no longer ready.',
+  'assist.error.unavailable': 'No assistance provider is available.',
+  'assist.error.locale': 'This locale is not part of the item.',
+  'assist.error.image': 'Choose a non-decorative image block.',
   'forms.error.required': 'This field is required.',
   'forms.error.email.invalid':
     'Enter an e-mail address in the right format, like name@example.org.',

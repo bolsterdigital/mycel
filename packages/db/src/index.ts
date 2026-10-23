@@ -30,6 +30,7 @@ import {
   type UnitOfWork,
 } from '@mycel/core';
 import { auditRepository } from './audit.js';
+import { assistRepository } from './assist.js';
 import {
   authorRepository,
   contentRepository,
@@ -174,6 +175,7 @@ export interface UnitOfWorkDeps {
   log?: Logger | undefined;
   /** The audit input hash (AUDIT_HASH_KEY, TODO #17b); the Invoker hashes every command's input. */
   inputHasher: InputHasher;
+  assistProviderLabel?: string | null;
 }
 
 const unconfigured = (port: string) =>
@@ -200,6 +202,8 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           platform: deps.platform,
           events: outboxEventBus(trx),
           content: contentRepository(trx, tenantId),
+          assist: assistRepository(trx, tenantId),
+          assistProviderLabel: deps.assistProviderLabel ?? null,
           authors: authorRepository(trx, tenantId),
           sections: sectionRepository(trx, tenantId),
           patterns: patternRepository(trx, tenantId),

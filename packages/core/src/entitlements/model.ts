@@ -23,6 +23,7 @@ export const FEATURE_SWITCHES = [
   'custom_domain',
   'api_keys',
   'remove_branding',
+  'ai.assist',
 ] as const;
 export type FeatureSwitch = (typeof FEATURE_SWITCHES)[number];
 
@@ -32,6 +33,7 @@ export const LIMITS = [
   'media.storage_max_bytes',
   'operators.max',
   'custom_domains.max',
+  'ai.monthly_max',
 ] as const;
 export const LimitName = z.enum(LIMITS);
 export type LimitName = z.infer<typeof LimitName>;
@@ -46,12 +48,14 @@ export const Entitlements = z
     custom_domain: Switch,
     api_keys: Switch,
     remove_branding: Switch,
+    'ai.assist': Switch,
     blocks: z.record(z.string(), Switch),
     'supporters.max': Limit,
     'mail.monthly_max': Limit,
     'media.storage_max_bytes': Limit,
     'operators.max': Limit,
     'custom_domains.max': Limit,
+    'ai.monthly_max': Limit,
   })
   .strict();
 export type Entitlements = z.infer<typeof Entitlements>;
@@ -70,12 +74,14 @@ export const DEFAULT_ENTITLEMENTS: Entitlements = Object.freeze({
   custom_domain: true,
   api_keys: true,
   remove_branding: false,
+  'ai.assist': true,
   blocks: Object.freeze({}) as Record<string, boolean>,
   'supporters.max': 100_000,
   'mail.monthly_max': 1_000_000,
   'media.storage_max_bytes': 50 * 1024 ** 3,
   'operators.max': 50,
   'custom_domains.max': 20,
+  'ai.monthly_max': 2_000,
 });
 
 /**

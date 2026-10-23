@@ -20,6 +20,8 @@ import {
   reverifyHostname,
   sweepMediaOrphans,
   systemPrincipal,
+  runAssistSuggestion,
+  retainAssistSuggestions,
   type Clock,
   type DomainEvent,
   type ErrorReporter,
@@ -32,6 +34,7 @@ import {
   type Mailer,
   type TransactionContext,
   type UnitOfWork,
+  type TextModel,
 } from '@mycel/core';
 import {
   createDb,
@@ -53,6 +56,7 @@ export const RECURRING_JOBS: readonly RecurringJob[] = [
   { type: 'media.orphans', cadence: 'daily' },
   { type: 'jobs.retention', cadence: 'daily' },
   { type: 'audit.retention', cadence: 'daily' },
+  { type: 'assist.retention', cadence: 'daily' },
 ];
 
 /**
@@ -167,6 +171,7 @@ export function jobHandlers({
   retentionDays = 30,
   auditRetentionDays = 400,
   errors,
+  assist,
 }: {
   uow: UnitOfWork;
   operatorDb: ReturnType<typeof createDb>;
@@ -180,8 +185,29 @@ export function jobHandlers({
   auditRetentionDays?: number;
   /** Per-tenant failures inside a platform job, which the job itself reports only in sum. */
   errors?: ErrorReporter | undefined;
+  assist?: { model: TextModel | null; timeoutMs: number; retentionDays: number; clock: Clock };
 }): JobHandlers {
   return {
+    'assist.run': async (job) => {
+      if (!job.tenantId) throw new Error('assist.run needs a tenant');
+      const { suggestionId } = parseJobPayload('assist.run', job.payload);
+      const access = await identity.tenantAccess(job.tenantId);
+      return runAssistSuggestion({
+        uow,
+        model: assist?.model ?? null,
+        tenantId: job.tenantId,
+        suggestionId,
+        attempts: job.attempts,
+        timeoutMs: assist?.timeoutMs ?? 30000,
+        now: () => (assist?.clock ?? mail.clock).now(),
+        access,
+      });
+    },
+    'assist.retention': platformJob('assist.retention', async () => {
+      const days = assist?.retentionDays ?? 30;
+      const before = new Date((assist?.clock ?? mail.clock).now().getTime() - days * DAY_MS);
+      for (const id of await tenantIds()) await retainAssistSuggestions(uow, id, before);
+    }),
     // A recheck is not a publication: it runs whatever the status (`requireActive` is for #8a).
     'hostnames.reverify': tenantJob({ uow, identity }, 'hostnames.reverify', reverifyHostname),
     'content.publish': tenantJob({ uow, identity }, 'content.publish', publishScheduled),

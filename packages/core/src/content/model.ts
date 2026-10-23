@@ -345,6 +345,17 @@ export const Revision = z.object({
   itemId: z.string().uuid(),
   createdAt: Timestamp,
   actor: Actor,
+  provenance: z
+    .object({
+      suggestionId: z.string().uuid(),
+      task: z.enum(['alt', 'translate']),
+      provider: z.string(),
+      model: z.string(),
+      edited: z.boolean(),
+    })
+    .strict()
+    .nullable()
+    .optional(),
   document: ContentDocument,
 });
 export type Revision = z.infer<typeof Revision>;

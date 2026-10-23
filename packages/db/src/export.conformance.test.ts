@@ -172,6 +172,13 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
       await ctx.admissions.lock();
       await ctx.admissions.reserve(`pending-${t.slug}@example.org`);
       await ctx.erasures.register(uuidv7(), `gone-${t.slug}@example.org`);
+      await ctx.assist.saveSettings({
+        enabled: false,
+        allowRestricted: false,
+        consentedProvider: null,
+        consentedBy: null,
+        consentedAt: null,
+      });
     });
   }
 

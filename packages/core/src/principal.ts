@@ -26,6 +26,7 @@ export const Capability = z.enum([
   'money:refund',
   'media:read',
   'media:write',
+  'ai:assist',
   'tenant:admin',
 ]);
 export type Capability = z.infer<typeof Capability>;

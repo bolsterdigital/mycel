@@ -57,6 +57,8 @@ export interface UseCase<
    * for the published projection only. `registry-rules.ts` says which use cases must set it.
    */
   authenticatedOnly?: boolean;
+  /** An API key or agent cannot truthfully claim a human editorial decision. */
+  actors?: readonly Principal['actor']['kind'][];
   input: TInput;
   output: TOutput;
   handler: (ctx: TransactionContext, input: z.infer<TInput>) => Promise<z.infer<TOutput>>;
@@ -99,6 +101,7 @@ export class UseCaseRegistry {
   /** Authorization check shared by every front, so no front can forget it. */
   authorize(useCase: UseCase, principal: Principal): boolean {
     if (useCase.authenticatedOnly && principal.actor.kind === 'anonymous') return false;
+    if (useCase.actors && !useCase.actors.includes(principal.actor.kind)) return false;
     return (
       principal.capabilities.includes(useCase.requires) ||
       principal.capabilities.includes('tenant:admin')

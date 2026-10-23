@@ -81,7 +81,37 @@ export interface Database {
     item_id: string;
     document: Json<unknown>;
     actor: Json<unknown>;
+    provenance: Json<unknown> | null;
     created_at: Timestamp;
+  };
+  assist_settings: {
+    tenant_id: string;
+    enabled: boolean;
+    allow_restricted: boolean;
+    consented_provider: string | null;
+    consented_by: string | null;
+    consented_at: Timestamp | null;
+  };
+  assist_suggestions: {
+    id: string;
+    tenant_id: string;
+    item_id: string;
+    base_revision_id: string;
+    block_id: string;
+    locale: string;
+    status: 'pending' | 'ready' | 'failed' | 'accepted' | 'dismissed';
+    value: string | null;
+    failure: 'unavailable' | 'timeout' | 'rejected' | 'invalid-output' | null;
+    provider: string;
+    requested_by: string | null;
+    model: string | null;
+    created_at: Timestamp;
+    updated_at: Timestamp;
+  };
+  assist_usage: {
+    tenant_id: string;
+    month: string;
+    count: number;
   };
   /** Derived from each revision's document on insert (0017); immutable like revisions. */
   content_block_refs: {

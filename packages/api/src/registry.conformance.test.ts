@@ -24,11 +24,13 @@ const useCases = registry.list();
 
 // A key never carries tenant:admin, and the member and key use cases refuse one that claims it
 // (TODO #20a); background work is the actor that does hold it without a membership.
-const principal = (capabilities: Capability[]): Principal => ({
+const principal = (capabilities: Capability[], operator = false): Principal => ({
   tenantId: TENANT,
-  actor: capabilities.includes('tenant:admin')
-    ? { kind: 'system', job: 'conformance' }
-    : { kind: 'api-key', keyId: 'conformance' },
+  actor: operator
+    ? { kind: 'operator', operatorId: 'conformance', email: 'operator@probe.test' }
+    : capabilities.includes('tenant:admin')
+      ? { kind: 'system', job: 'conformance' }
+      : { kind: 'api-key', keyId: 'conformance' },
   capabilities,
   entitlements: DEFAULT_ACCESS.entitlements,
   tenantStatus: DEFAULT_ACCESS.status,
@@ -38,8 +40,8 @@ const principal = (capabilities: Capability[]): Principal => ({
 const app = createApp({
   invoker: new Invoker(registry, new MemoryUnitOfWork()),
   authenticate: async (header) => {
-    const caps = header?.match(/^Bearer caps:(.*)$/)?.[1];
-    return caps === undefined ? null : principal(caps ? (caps.split(',') as Capability[]) : []);
+    const auth = header?.match(/^Bearer (operator-)?caps:(.*)$/);
+    return auth ? principal(auth[2] ? (auth[2].split(',') as Capability[]) : [], !!auth[1]) : null;
   },
 });
 
@@ -50,7 +52,8 @@ const post = (useCase: UseCase, body: string, auth?: string) =>
     body,
   });
 
-const exactly = (useCase: UseCase) => `Bearer caps:${useCase.requires}`;
+const exactly = (useCase: UseCase) =>
+  `Bearer ${useCase.actors?.includes('operator') ? 'operator-' : ''}caps:${useCase.requires}`;
 
 /** A body that fails every object schema: the wrong top-level type. */
 const SCHEMA_VIOLATION = '[]';
