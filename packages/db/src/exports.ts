@@ -140,8 +140,11 @@ export function tenantExportRepository(trx: Trx, tenantId: string): TenantExport
 }
 
 /** One statement or a few as mycel_app in the tenant's context, on the operator connection. */
-const asTenant = <T>(operatorDb: Kysely<Database>, tenantId: string, fn: (trx: Trx) => Promise<T>) =>
-  withTenant(operatorDb, systemPrincipal(tenantId, 'jobs:tenant.export'), fn);
+const asTenant = <T>(
+  operatorDb: Kysely<Database>,
+  tenantId: string,
+  fn: (trx: Trx) => Promise<T>
+) => withTenant(operatorDb, systemPrincipal(tenantId, 'jobs:tenant.export'), fn);
 
 /**
  * Take the export for this run: `start` when it is queued, or running with a heartbeat older than
@@ -265,7 +268,8 @@ export async function runExportJob(
 }
 
 /**
- * Expire and purge one tenant's archives: ready ones past `expires_at` become expired; every
+ * Expire and purge one tenant's archives: ready ones past `expires_at` or without their file (after
+ * a restore) become expired; every
  * expired or failed one whose file may remain loses it; rows older than a year go. Returns the
  * number of files deleted. Runs as mycel_app under the tenant's context, never across tenants.
  */
@@ -277,6 +281,15 @@ export async function expireExports(
   return asTenant(operatorDb, tenantId, async (trx) => {
     await sql`update tenant_exports set status = 'expired'
               where status = 'ready' and expires_at <= now()`.execute(trx);
+    // A ready row whose file is gone: a restore brings the row back but never the file (backups
+    // leave `exports/` out). It cannot be downloaded; say so instead of offering a dead link.
+    const { rows: ready } = await sql<{ id: string }>`
+      select id from tenant_exports where status = 'ready'`.execute(trx);
+    for (const { id } of ready)
+      if (!(await blobs.head(exportArchiveKey(tenantId, id))))
+        await sql`update tenant_exports
+                  set status = 'expired', error = 'the archive file is missing', purged_at = now()
+                  where id = ${id}`.execute(trx);
     const { rows } = await sql<{ id: string }>`
       select id from tenant_exports
       where status in ('expired', 'failed') and purged_at is null

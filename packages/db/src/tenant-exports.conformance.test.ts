@@ -227,7 +227,9 @@ describe.skipIf(!operatorUrl || !appUrl)('self-service export', () => {
     const dir = join(scratch.dir, `x-${id}`);
     await run$('mkdir', ['-p', dir]);
     await run$('tar', ['-xf', file, '-C', dir]);
-    const manifest = JSON.parse(await readFile(join(dir, 'manifest.json'), 'utf8')) as ExportManifest;
+    const manifest = JSON.parse(
+      await readFile(join(dir, 'manifest.json'), 'utf8')
+    ) as ExportManifest;
     expect(manifest.tenant.id).toBe(tenant.a.id);
     expect(Object.keys(manifest.media).length).toBeGreaterThan(0);
     for (const key of Object.keys(manifest.media)) expect(key).toMatch(`tenants/${tenant.a.id}/`);
@@ -373,7 +375,9 @@ describe.skipIf(!operatorUrl || !appUrl)('self-service export', () => {
 
     const old = await signExportDownload(signer, tenant.a.id, id, new Date(Date.now() - 1000));
     const editor: Principal = { ...admin(tenant.a), capabilities: ['content:write'] };
-    expect(await open(admin(tenant.a), { ...valid, exp: String(old.exp), sig: old.sig })).toBe(null);
+    expect(await open(admin(tenant.a), { ...valid, exp: String(old.exp), sig: old.sig })).toBe(
+      null
+    );
     expect(await open(admin(tenant.a), { ...valid, sig: link.sig + 'x' })).toBe(null);
     expect(await open(admin(tenant.a), { ...valid, exp: String(link.exp + 60) })).toBe(null);
     // A's link on B's admin: B's context has no such row, and the signature names A.

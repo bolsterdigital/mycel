@@ -180,7 +180,11 @@ fi
 
 blob_location
 say "copying the media files from ${blobs}"
-rclone sync "$blobs" "$blob" --fast-list
+# Export archives (`exports/`, TODO #28) stay out: an archive is a copy of the database and media
+# already in the snapshot, with its own retention (EXPORT_RETENTION_DAYS) and its own deletion
+# after an erasure, neither of which reaches a snapshot. `--delete-excluded` clears the staging
+# volume of anything an older version of this script copied.
+rclone sync "$blobs" "$blob" --fast-list --exclude 'exports/**' --delete-excluded
 say "media files: $(tally "$blob")"
 
 # A snapshot is either complete or not written. Past BACKUP_MAX_SECONDS (half the purge delay)

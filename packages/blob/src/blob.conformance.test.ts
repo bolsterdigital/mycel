@@ -126,7 +126,9 @@ function contract(
         expect(chunks).toBeGreaterThan(1);
         expect(await s.getStream(k('e/missing.tar'))).toBeNull();
         await expect(
-          s.putFile(k('e/never.tar'), join(dir, 'no-such-file'), { contentType: 'application/x-tar' })
+          s.putFile(k('e/never.tar'), join(dir, 'no-such-file'), {
+            contentType: 'application/x-tar',
+          })
         ).rejects.toThrow();
         expect(await s.head(k('e/never.tar'))).toBeNull();
       } finally {

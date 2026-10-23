@@ -95,7 +95,9 @@ export function createS3BlobStore(config: S3BlobStoreConfig): BlobStore {
         if (size <= PART_BYTES) {
           const Body = new Uint8Array(size);
           await file.read(Body, 0, size, 0);
-          await client.send(new PutObjectCommand({ Bucket, Key: key, Body, ContentType: contentType }));
+          await client.send(
+            new PutObjectCommand({ Bucket, Key: key, Body, ContentType: contentType })
+          );
           return;
         }
         ({ UploadId } = await client.send(

@@ -656,7 +656,9 @@ function memoryExports(rows: Map<string, TenantExportRecord>): TenantExportRepos
   const copy = (r: TenantExportRecord) => structuredClone(r);
   return {
     async request({ id, requestedBy, requestedAt }) {
-      const active = [...rows.values()].find((r) => r.status === 'queued' || r.status === 'running');
+      const active = [...rows.values()].find(
+        (r) => r.status === 'queued' || r.status === 'running'
+      );
       if (active) return { record: copy(active), created: false };
       const record: TenantExportRecord = {
         id,

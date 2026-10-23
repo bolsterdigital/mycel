@@ -7,7 +7,8 @@
 #
 # 1. compose.yml as in production (non-superuser owner, migrate, RustFS), `mycel setup` for two
 #    tenants, scripts/drill-fixture.mjs for their data, the fingerprint (scripts/drill-verify.mjs).
-# 2. The backup service into a restic repository on the host: the older snapshot, held after its
+# 2. The backup service into a restic repository on the host (an export archive in the bucket
+#    stays out of it, TODO #28): the older snapshot, held after its
 #    dump while an unused image is deleted (TODO #29A: the purge waits, so the snapshot still has
 #    its files and step 3 finds them). Then two runs that must fail without a snapshot: one held
 #    while a second image is deleted and purged at once (scripts/drill-media.mjs), one over
@@ -129,6 +130,8 @@ host node scripts/drill-fixture.mjs drill-a drill-b
 # holds both.
 deleted=$(host node scripts/drill-media.mjs upload drill-a | tail -n 1)
 purged=$(host node scripts/drill-media.mjs upload drill-a | tail -n 1)
+# An export archive in the bucket (TODO #28): no snapshot may hold it, and an erasure removes it.
+archive=$(host node scripts/drill-export.mjs drill-a | tail -n 1)
 host node scripts/drill-verify.mjs fingerprint >"$work/before.json"
 
 step 'backup: the older snapshot, with an image deleted after the dump'
@@ -139,6 +142,9 @@ release older
 older=$(dc run --rm -T backup restic snapshots --host mycel --latest 1 --json | tail -n 1 |
   node -e "let d = ''; process.stdin.on('data', (c) => (d += c)).on('end', () => console.log(JSON.parse(d).at(-1).short_id))")
 echo "older snapshot: $older"
+# The archive stays out of every snapshot: it is a copy with its own retention (TODO #28).
+in_snapshot=$(dc run --rm -T backup restic ls "$older" | grep -c '/exports/' || true)
+[ "$in_snapshot" = 0 ] || { echo "the snapshot holds $in_snapshot export path(s)" >&2; exit 1; }
 
 step 'backup with an image purged after the dump: fails, no snapshot'
 count=$(snapshots)
@@ -168,6 +174,8 @@ step 'erasure, then the newer full snapshot'
 erased=supporter-drill-a@example.org
 host node scripts/drill-erase.mjs drill-a "$erased"
 dc run --rm -T worker mycel erasures apply
+# The archive of drill-a held that supporter: the apply took it out of the bucket.
+host node scripts/drill-export.mjs absent "$archive"
 dc run --rm -T backup
 dc run --rm -T backup restic snapshots --host mycel
 [ "$(tagged mycel,erasures)" = 3 ] ||
