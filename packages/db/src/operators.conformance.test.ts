@@ -360,6 +360,9 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('operator and key conforman
     const blocker = new pg.Client({ connectionString: operatorUrl });
     await blocker.connect();
     await blocker.query('begin');
+    // The operator login does not bypass forced RLS on the Mac. The tenant-row hold needs the
+    // operator's UPDATE privilege, so only membership holds assume the application role.
+    if (what === 'memberships') await blocker.query('set local role mycel_app');
     await blocker.query(`select set_config('app.tenant_id', $1, true)`, [tenantId]);
     const { rowCount } = await blocker.query(
       what === 'memberships'
