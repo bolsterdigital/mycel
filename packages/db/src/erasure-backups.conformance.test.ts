@@ -31,6 +31,23 @@ if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
 
 const SNAPSHOT = 'ab'.repeat(32);
 
+/**
+ * Drop a scratch database once its pool has really gone. `db.destroy()` resolves when pg-pool has
+ * removed its idle clients, not when their backends have exited; a `drop ... with (force)` in that
+ * gap terminates a backend mid-shutdown and the 57P01 lands on a client with no error listener:
+ * an unhandled error that fails the run with every test green (CI on 1e097cb). Rejected: an error
+ * listener on the pool (would also hide a real connection loss elsewhere in the suite).
+ */
+async function dropDatabase(operatorDb: Kysely<Database>, name: string) {
+  for (let i = 0; i < 50; i++) {
+    const { rows } = await sql<{ n: number }>`
+      select count(*)::int as n from pg_stat_activity where datname = ${name}`.execute(operatorDb);
+    if (rows[0]?.n === 0) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  await sql`drop database if exists ${sql.id(name)} with (force)`.execute(operatorDb);
+}
+
 describe.skipIf(!operatorUrl || !appUrl)('erasure backups conformance', () => {
   const operatorDb = createDb(operatorUrl ?? '');
   const appDb = createDb(appUrl ?? '');
@@ -105,8 +122,7 @@ describe.skipIf(!operatorUrl || !appUrl)('erasure backups conformance', () => {
   });
 
   afterAll(async () => {
-    if (second.url)
-      await sql`drop database if exists ${sql.id(second.name)} with (force)`.execute(operatorDb);
+    if (second.url) await dropDatabase(operatorDb, second.name);
     await operatorDb.destroy();
     await appDb.destroy();
   });
