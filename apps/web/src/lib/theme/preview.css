@@ -1,0 +1,16 @@
+/* The banner on top of the admin preview (TODO #11 A1). The page below it is the site's own
+   theme; the banner only uses the theme's custom properties, so it reads in every theme. */
+@layer components {
+  .preview-banner {
+    margin: 0;
+    padding: var(--space-2) var(--space-1);
+    border-block-end: 4px solid var(--color-accent-bg);
+    background: var(--color-surface-bg);
+    color: var(--color-surface-fg);
+    overflow-wrap: anywhere;
+  }
+  .preview-banner > * {
+    max-width: var(--measure);
+    margin-inline: auto;
+  }
+}

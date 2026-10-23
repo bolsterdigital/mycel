@@ -1,0 +1,178 @@
+// The document fields of the content admin (TODO #11, brief content-editor § A1) as plain form
+// values and back. The edit page posts these fields only; `documentFrom` takes the revision the
+// form was opened on and replaces exactly those fields, so the blocks travel along unchanged and
+// a save never drops what the form does not show (ADR 020 rule 5). Both directions are pure, so a
+// round trip is a unit test, and a failed post re-renders from the posted values without a read.
+//
+// A field left empty in a locale removes that locale's key: an empty string is not a translation.
+// Taking a locale off the document removes its values everywhere in the document, blocks
+// included; the revision history keeps them. Rejected: refusing to remove a locale that still has
+// text (until #11 B there is no way to clear a block's text in the admin), and keeping the values
+// (core rejects a value for a locale the document does not have).
+
+import {
+  canonicalTag,
+  localizedFields,
+  type Actor,
+  type ContentDocument,
+  type ContentDocumentInput,
+} from '@mycel/core';
+
+/** Form values: one string per field, a list for checkboxes and multi-selects. */
+export type FormValues = Record<string, string | string[]>;
+
+/** The values a form post carries, in the shape `valuesOf` gives. */
+export function valuesFromForm(data: FormData): FormValues {
+  const out: FormValues = {};
+  for (const key of new Set(data.keys())) {
+    const all = data.getAll(key).filter((v): v is string => typeof v === 'string');
+    out[key] = LISTS.has(key) ? all : (all[0] ?? '');
+  }
+  for (const key of LISTS) out[key] ??= [];
+  return out;
+}
+
+const LISTS = new Set(['locales', 'authorIds']);
+
+const one = (v: FormValues, key: string): string => {
+  const x = v[key];
+  return typeof x === 'string' ? x : '';
+};
+const many = (v: FormValues, key: string): string[] => {
+  const x = v[key];
+  return Array.isArray(x) ? x : typeof x === 'string' && x ? [x] : [];
+};
+
+/** `{ nl: 'x' }` from `title.nl` and friends; empty values are left out. */
+function localized(v: FormValues, prefix: string, locales: readonly string[]) {
+  const out: Record<string, string> = {};
+  for (const l of locales) {
+    const text = one(v, `${prefix}.${l}`).trim();
+    if (text) out[l] = text;
+  }
+  return out;
+}
+const optional = (m: Record<string, string>) => (Object.keys(m).length ? m : undefined);
+
+/** The form values of a document's fields, for a fresh edit page. */
+export function valuesOf(doc: ContentDocument): FormValues {
+  const v: FormValues = { locales: [...doc.locales] };
+  const put = (prefix: string, m: Partial<Record<string, string>> | undefined) => {
+    for (const [l, text] of Object.entries(m ?? {}))
+      if (text !== undefined) v[`${prefix}.${l}`] = text;
+  };
+  put('title', doc.title);
+  put('seoTitle', doc.seo.title);
+  put('seoDescription', doc.seo.description);
+  if (doc.seo.noindex) v.noindex = 'on';
+  v.canonical = doc.seo.canonical ?? '';
+  v.level = doc.access.level;
+  const teaser = doc.access.teaser;
+  v.teaser = typeof teaser === 'object' ? 'blocks' : teaser;
+  v.teaserBlocks = typeof teaser === 'object' ? String(teaser.blocks) : '';
+  if (doc.type === 'article') {
+    put('lead', doc.lead);
+    v.authorIds = [...doc.authorIds];
+    v.sectionId = doc.sectionId ?? '';
+    v.tags = doc.tags.join(', ');
+  }
+  return v;
+}
+
+/**
+ * `base` with the form's fields put in; the result goes to `content.item.update`, which
+ * validates it. `today` dates a new correction when the form gives no date.
+ */
+export function documentFrom(
+  base: ContentDocument,
+  v: FormValues,
+  today: string
+): ContentDocumentInput {
+  const chosen = many(v, 'locales');
+  const locales = chosen.length ? chosen : [...base.locales];
+  const doc = withoutLocales(base, locales);
+  const teaser = one(v, 'teaser');
+  const level = one(v, 'level') as ContentDocument['access']['level'];
+  const seo: ContentDocumentInput['seo'] = { noindex: one(v, 'noindex') === 'on' };
+  const seoTitle = optional(localized(v, 'seoTitle', locales));
+  const seoDescription = optional(localized(v, 'seoDescription', locales));
+  const canonical = one(v, 'canonical').trim();
+  if (seoTitle) seo.title = seoTitle;
+  if (seoDescription) seo.description = seoDescription;
+  if (canonical) seo.canonical = canonical;
+  if (doc.seo.imageId) seo.imageId = doc.seo.imageId;
+  const tierIds = (level || doc.access.level) === 'tier' ? doc.access.tierIds : undefined;
+  const common = {
+    ...doc,
+    locales,
+    title: localized(v, 'title', locales),
+    seo,
+    access: {
+      level: level || doc.access.level,
+      ...(tierIds ? { tierIds } : {}),
+      teaser:
+        teaser === 'blocks'
+          ? { blocks: Number.parseInt(one(v, 'teaserBlocks'), 10) || 0 }
+          : teaser === 'marker'
+            ? ('marker' as const)
+            : ('lead' as const),
+    },
+  };
+  if (doc.type !== 'article') return common as ContentDocumentInput;
+
+  const correction = localized(v, 'correctionText', locales);
+  return {
+    ...common,
+    type: 'article',
+    lead: optional(localized(v, 'lead', locales)),
+    authorIds: many(v, 'authorIds'),
+    sectionId: one(v, 'sectionId') || null,
+    tags: one(v, 'tags')
+      .split(',')
+      .map(canonicalTag)
+      .filter((t) => t),
+    corrections: Object.keys(correction).length
+      ? [...doc.corrections, { date: one(v, 'correctionDate') || today, text: correction }]
+      : doc.corrections,
+  } as ContentDocumentInput;
+}
+
+/** A copy of `doc` without any value for a locale outside `keep` (see the top of this file). */
+export function withoutLocales(doc: ContentDocument, keep: readonly string[]): ContentDocument {
+  const copy = structuredClone(doc);
+  // `localizedFields` hands out the maps of `copy` itself, so deleting from them edits the copy.
+  for (const field of localizedFields(copy))
+    for (const l of Object.keys(field.value)) if (!keep.includes(l)) delete field.value[l];
+  return copy;
+}
+
+/** Who saved a revision, in a few words. */
+export function actorLabel(actor: Actor): string {
+  switch (actor.kind) {
+    case 'operator':
+      return actor.email;
+    case 'api-key':
+      return `API key ${actor.keyId.slice(0, 8)}`;
+    case 'agent':
+      return `MCP ${actor.keyId.slice(0, 8)}`;
+    case 'system':
+      return actor.job;
+    default:
+      return actor.kind;
+  }
+}
+
+/** `2026-10-23 14:05 UTC`, the admin's one timestamp form. */
+export const when = (iso: string): string => `${iso.slice(0, 16).replace('T', ' ')} UTC`;
+
+/** The rows of a diff table: short JSON per value, never a whole document. */
+export function diffRows(
+  changes: readonly { path: string; before?: unknown; after?: unknown }[]
+): { path: string; before: string; after: string }[] {
+  const show = (v: unknown): string => {
+    if (v === undefined) return '';
+    const s = typeof v === 'string' ? v : JSON.stringify(v);
+    return s.length > 200 ? `${s.slice(0, 199)}…` : s;
+  };
+  return changes.map((c) => ({ path: c.path, before: show(c.before), after: show(c.after) }));
+}

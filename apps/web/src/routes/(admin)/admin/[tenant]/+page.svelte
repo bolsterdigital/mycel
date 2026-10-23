@@ -1,6 +1,6 @@
 <!-- The tenant's admin page: members and API keys (TODO #7), the site's hostnames (TODO #14) and
      its usage against the limits (TODO #16), with a link to the media library (TODO #10b);
-     TODO #11 builds the real admin. Every action is a native form post. Action groups wrap whole
+     its pages and articles have their own pages since TODO #11. Every action is a native form post. Action groups wrap whole
      buttons onto a new line when they do not fit, and a long label wraps inside its own button
      at word boundaries (skill ui-action-layout); the e2e specs check 320 CSS px and 200% text. -->
 <script lang="ts">
@@ -63,6 +63,7 @@
 <main class="page admin">
   <h1>{data.tenant.name}</h1>
   <p><a href="/admin">{t('admin.back')}</a></p>
+  <p><a href="/admin/{data.tenant.slug}/content">{t('admin.content.link')}</a></p>
   <p><a href="/admin/{data.tenant.slug}/media">{t('admin.media.link')}</a></p>
   {#if data.capabilities.includes('tenant:admin')}
     <p><a href="/admin/{data.tenant.slug}/status">{t('admin.status.link')}</a></p>
