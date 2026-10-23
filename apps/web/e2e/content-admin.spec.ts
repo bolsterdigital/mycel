@@ -32,6 +32,11 @@ test.use({
 });
 
 async function login(page: Page, email: string, path: string) {
+  // A fresh address per login: the admin allows twenty logins per address in ten minutes, and
+  // this file logs in more often than that per worker. IPv6 documentation space, so these never
+  // count against the IPv4 addresses the other specs draw.
+  const ip = `2001:db8::${Math.floor(Math.random() * 0xffffffff).toString(16)}`;
+  await page.context().setExtraHTTPHeaders({ 'x-forwarded-proto': 'http', 'x-forwarded-for': ip });
   await page.goto(path);
   await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
   await page.getByLabel('E-mail').fill(email);
@@ -198,6 +203,26 @@ async function call<T>(request: APIRequestContext, name: string, data: unknown):
   return res.json();
 }
 
+/** One entry of a paged directory by its slug, over the HTTP API. */
+async function bySlug<T>(
+  request: APIRequestContext,
+  name: string,
+  key: string,
+  slug: string
+): Promise<T> {
+  let after: string | null = null;
+  do {
+    const page: Record<string, unknown> & { next: string | null } = await call(request, name, {
+      limit: 100,
+      ...(after ? { after } : {}),
+    });
+    const found = (page[key] as (T & { slug: string })[]).find((x) => x.slug === slug);
+    if (found) return found;
+    after = page.next;
+  } while (after);
+  throw new Error(`${slug} is not seeded; run through scripts/e2e.mjs`);
+}
+
 // Review of PR #45: the pickers list one page of the directory (newest first, a hundred), so an
 // author or section beyond it, or authors in another order than the directory's, were lost or
 // reordered by a save that only changed the title.
@@ -206,24 +231,25 @@ test('a title-only save keeps authors, their order and the section beyond the fi
   request,
 }) => {
   test.skip(!process.env['E2E_API_URL'], 'run through scripts/e2e.mjs');
-  test.setTimeout(120_000);
   const run = slugFor('rel');
-  const slugOf = (name: string) => name.toLowerCase().replace(/\W+/g, '-');
   const author = (name: string) =>
-    call<{ id: string }>(request, 'content.author.create', { slug: slugOf(name), name });
-  const section = (name: string) =>
-    call<{ id: string }>(request, 'content.section.create', {
-      slug: slugOf(name),
-      title: { nl: name },
+    call<{ id: string }>(request, 'content.author.create', {
+      slug: name.toLowerCase().replace(/\W+/g, '-'),
+      name,
     });
-  const old = await author(`Oud ${run}`);
-  const oldSection = await section(`Oude sectie ${run}`);
-  for (let i = 0; i < 101; i += 25)
-    await Promise.all(
-      Array.from({ length: Math.min(25, 101 - i) }, (_, j) =>
-        Promise.all([author(`vul ${i + j} ${run}`), section(`vul ${i + j} ${run}`)])
-      )
-    );
+  // Seeded by scripts/e2e.mjs with 101 newer authors and sections after them.
+  const old = await bySlug<{ id: string }>(
+    request,
+    'content.author.list',
+    'authors',
+    'e2e-ver-auteur'
+  );
+  const oldSection = await bySlug<{ id: string }>(
+    request,
+    'content.section.list',
+    'sections',
+    'e2e-ver-rubriek'
+  );
   const first = await author(`Eerste ${run}`);
   const second = await author(`Tweede ${run}`);
   // The directory lists `second` before `first`; the document has them the other way round.
@@ -251,7 +277,7 @@ test('a title-only save keeps authors, their order and the section beyond the fi
 
   const fresh = await author(`Nieuw ${run}`);
   await login(page, ADMIN, `/admin/probe/content/${item.id}`);
-  await expect(page.getByLabel(`Oud ${run}`)).toBeChecked();
+  await expect(page.getByLabel('Ver Weg')).toBeChecked();
   await expect(page.getByLabel('Rubriek')).toHaveValue(oldSection.id);
   await page.getByLabel('Titel (nl)').fill('Alleen de titel');
   await page.getByRole('button', { name: 'Opslaan' }).click();

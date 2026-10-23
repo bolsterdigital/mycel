@@ -373,6 +373,24 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
         });
     }
   }
+  // An author and a section beyond the first page of the admin's pickers (a hundred, newest
+  // first), with 101 newer ones after them, for content-admin.spec.ts (review of PR #45). Seeded
+  // once: every later author or section is newer still. Here and not in the spec, so a run does
+  // not flood the audit log that status.spec.ts reads.
+  if (!(await uow.run(admin, (ctx) => ctx.authors.findBySlug('e2e-ver-auteur')))) {
+    await invoker.run(useCases.createAuthor, admin, { slug: 'e2e-ver-auteur', name: 'Ver Weg' });
+    await invoker.run(useCases.createSection, admin, {
+      slug: 'e2e-ver-rubriek',
+      title: { nl: 'Verre rubriek', en: 'Distant section' },
+    });
+    for (let i = 0; i < 101; i++) {
+      await invoker.run(useCases.createAuthor, admin, { slug: `e2e-vul-${i}`, name: `Vul ${i}` });
+      await invoker.run(useCases.createSection, admin, {
+        slug: `e2e-vul-${i}`,
+        title: { nl: `Vul ${i}` },
+      });
+    }
+  }
   await operatorDb.destroy();
   await appDb.destroy();
 }
