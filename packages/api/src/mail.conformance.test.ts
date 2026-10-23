@@ -144,8 +144,6 @@ describe.skipIf(!ready)('mail.reconcile against Postgres', () => {
 
   beforeAll(async () => {
     await migrate(env['DATABASE_URL']!, {
-      appPassword: env['MYCEL_APP_PASSWORD'],
-      authPassword: env['MYCEL_AUTH_PASSWORD'],
       log: () => {},
     });
     const tenant = async (name: string) =>

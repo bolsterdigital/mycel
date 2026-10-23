@@ -25,6 +25,7 @@ Tests exist to let agents change this codebase without a human re-reading every 
 7. **No coverage percentage gate and no mutation testing.** Coverage is reported for information; the conformance suites are the guarantee.
 8. **Accessibility has a manual layer too**: a screen-reader pass per release on the public flows, recorded in the release notes. Axe is a floor, not a ceiling.
 9. **Performance budget** (ADR 009 rule 4) is a Playwright assertion on the public page: no client JavaScript beyond the enhancement bundle, fonts self-hosted, images sized.
+10. **Test migrations check schema without resetting role passwords.** `verify` runs after `db:migrate` has provisioned the application and authentication logins. Conformance suites call `migrate` with no passwords, including against scratch databases: role passwords are cluster-wide, while the migration lock is per database. RLS catalog checks keep a short `ACCESS SHARE` lock on a partitioned parent until grant checks finish; do not retain names of partitions another suite may drop for a later catalog lookup.
 
 ## What a PR needs
 
