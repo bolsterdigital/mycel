@@ -210,7 +210,7 @@ On a new server, with this repository at the same release and the same `.env` (t
    docker compose run --rm worker mycel erasures apply
    ```
 
-   The first loads into the restored database the erasure register of the newest erasures snapshot (at most 15 minutes old) and of the newest full snapshot, and prints per source how many registrations were new ([`docker/backup/restore-erasures.sh`](../docker/backup/restore-erasures.sh)); the second makes every registered supporter anonymous again in every table and prints how many rows it changed per site. A second run changes nothing. The contract is in [`reference/export.md`](reference/export.md#erasure-register).
+   The first loads into the restored database the erasure register of the newest erasures snapshot (at most 15 minutes old) and of the newest full snapshot, and prints per source how many registrations were new ([`docker/backup/restore-erasures.sh`](../docker/backup/restore-erasures.sh)); the second makes every registered supporter anonymous again in every table and prints how many rows it changed per site. A second run changes nothing. If restic cannot list or read the snapshots of either source, the first command stops with an error and loads nothing: do not open the sites, fix access to the repository and run it again. Only an empty list counts as "no erasures snapshot yet". The contract is in [`reference/export.md`](reference/export.md#erasure-register).
 
 5. Start the stack: `docker compose up -d`. Check: `docker compose ps` shows every service healthy, and the sites answer.
 

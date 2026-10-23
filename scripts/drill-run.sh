@@ -24,7 +24,8 @@
 # 4. The erasures again (TODO #18d and #29B, ADR 019 rule 8): `restore erasures latest` loads the
 #    register of the newest erasures snapshot and of the newest full one, `mycel erasures apply`;
 #    then neither address is in a table or an object key, `pg_dump --data-only` does not contain
-#    them, and the event counts are unchanged.
+#    them, and the event counts are unchanged. First the same command with a restic that cannot
+#    list the erasures snapshots (scripts/drill-restic-fault.sh): it has to fail and load nothing.
 # 5. rls and hostnames conformance against the restored database; then the worker, which has to
 #    report ready. Restore, migrate, the erasure and the worker start are the measured RTO,
 #    written to the job summary.
@@ -232,6 +233,21 @@ step 'verify'
 host node scripts/drill-verify.mjs fingerprint >"$work/after.json"
 host node scripts/drill-verify.mjs compare "$work/before.json" "$work/after.json" | tee "$work/compare.txt"
 [ "$(dc exec -T postgres psql -U mycel -d mycel -Atc "select rolsuper from pg_roles where rolname = current_user")" = f ]
+
+step 'restore erasures latest with an unlistable register: fails, loads nothing'
+# The review of PR #39: restic lists the full snapshots but not the erasures ones. A restore that
+# took that for "no register yet" would load only the full snapshot and miss the late erasure.
+if dc run --rm -T -v "$PWD/scripts/drill-restic-fault.sh:/fault/restic:ro" \
+  -e PATH=/fault:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  restore erasures latest >"$work/restore-erasures-fault.log" 2>&1; then
+  cat "$work/restore-erasures-fault.log" >&2
+  echo 'restore erasures latest succeeded although the register could not be listed' >&2
+  exit 1
+fi
+grep -q 'could not list the snapshots tagged mycel,erasures' "$work/restore-erasures-fault.log" ||
+  { cat "$work/restore-erasures-fault.log" >&2; echo 'the fault failed the restore for another reason' >&2; exit 1; }
+[ "$(dc run --rm -T backup psql --no-psqlrc -Atc 'select count(*) from erasures' | tail -n 1)" = 0 ] ||
+  { echo 'the failed restore loaded registrations anyway' >&2; exit 1; }
 
 step 'erasure after the restore'
 erase_started=$(now)

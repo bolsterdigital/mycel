@@ -31,10 +31,18 @@ q() { psql --no-psqlrc --tuples-only --no-align --command="$1"; }
 [ "$(q "select to_regclass('public.erasures') is not null")" = t ] ||
   die "the database has no erasures table; restore and migrate first (docs/self-hosting.md § Restore)"
 
-# The newest snapshot with these tags, as a full id; empty when there is none.
+# The newest snapshot with these tags, as a full id; empty only when restic answered with an empty
+# list. Any other outcome stops the restore: a register restic could not list is not a register
+# that does not exist, and loading only the older one would bring erased people back (review of
+# PR #39). Not a pipeline: sh has no pipefail, so restic's exit status would be tail's.
 newest() {
-  restic snapshots --host "$restic_host" --tag "$1" --latest 1 --json | tail -n 1 |
-    sed -n 's/.*"id":"\([0-9a-f]\{64\}\)".*/\1/p' | tail -n 1
+  listed=$(restic snapshots --host "$restic_host" --tag "$1" --latest 1 --json) ||
+    die "could not list the snapshots tagged ${1}; nothing restored, fix the repository and run again"
+  listed=$(printf '%s\n' "$listed" | tail -n 1)
+  [ "$listed" = '[]' ] && return 0
+  id=$(printf '%s\n' "$listed" | sed -n 's/.*"id":"\([0-9a-f]\{64\}\)".*/\1/p')
+  [ -n "$id" ] || die "unreadable list of the snapshots tagged ${1}: ${listed}"
+  echo "$id"
 }
 
 # Load the register of snapshot $1 into the database; $2 names the source in the report.
@@ -53,8 +61,12 @@ load() {
     } >"$target/erasures.sql"
   elif [ -f "${target}${snapshot_path}/db/mycel.dump" ]; then
     # The COPY block of that one table, aimed at a temporary table of the same shape.
-    pg_restore --data-only --table=erasures --file=- "${target}${snapshot_path}/db/mycel.dump" |
-      sed 's/^COPY public\.erasures /COPY pg_temp.erasures_incoming /' >"$target/erasures.sql"
+    # Two steps, not a pipe: a dump pg_restore cannot read has to stop the restore, not load nothing.
+    pg_restore --data-only --table=erasures --file="$target/erasures.dump.sql" \
+      "${target}${snapshot_path}/db/mycel.dump" ||
+      die "could not read the register from ${2} snapshot ${1}; nothing loaded from it"
+    sed 's/^COPY public\.erasures /COPY pg_temp.erasures_incoming /' \
+      "$target/erasures.dump.sql" >"$target/erasures.sql"
   else
     die "snapshot ${1} has neither db/mycel.dump nor erasures.copy"
   fi
@@ -96,8 +108,9 @@ SQL
 }
 
 if [ "$snapshot" = latest ]; then
-  register=$(newest mycel,erasures)
-  full=$(newest mycel,db)
+  # `|| exit`: a die inside $( ) ends only the subshell.
+  register=$(newest mycel,erasures) || exit 1
+  full=$(newest mycel,db) || exit 1
   [ -n "$register$full" ] || die "the repository has no snapshot to load a register from"
   if [ -n "$register" ]; then load "$register" erasures; else say "no erasures snapshot yet"; fi
   if [ -n "$full" ]; then load "$full" full; fi
