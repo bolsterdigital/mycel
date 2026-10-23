@@ -9,10 +9,15 @@
 // The ETag is `"<revision>:<locale>:<theme>:<digest>"`. Revision, locale and theme are the brief's
 // key; the digest covers what the page shows besides the revision (resolved links and images,
 // the head, the site's entitlements and status), so unpublishing a linked item or switching the
-// footer credit off also changes the tag. The form's timing token is left out of the digest: it
-// is fresh on every render and a revalidated copy keeps an older one, which only makes a post
-// less "too fast". Rejected: the brief's three parts alone (a 304 would keep a link to an item
-// that is no longer public), and hashing the HTML (it carries that per-request token).
+// footer credit off also changes the tag. Rejected: the brief's three parts alone (a 304 would
+// keep a link to an item that is no longer public), and hashing the HTML.
+//
+// An item with a form has no ETag at all, and the route makes it `no-store` (#30A, brief
+// form-intake § 5): its HTML carries a signed timing token per render, a 304 would keep an old
+// one alive past its 24 hours (a real visitor then posts as spam), and the age of a shared token
+// says nothing about how long this visitor took to fill in the form. Rejected: a weak ETag (the
+// expired token stays), fetching the token outside the HTML (needs JavaScript, ADR 009), and a
+// validator that knows the token's age (a 304 still cannot replace the token).
 
 import { createHash } from 'node:crypto';
 import { error } from '@sveltejs/kit';
@@ -45,8 +50,8 @@ export interface PublicItem {
   locale: string;
   model: RenderModel;
   head: PublicHead;
-  /** Strong; see the comment at the top. */
-  etag: string;
+  /** Strong, or null for an item with a form; see the comment at the top. */
+  etag: string | null;
 }
 
 /** A meta description is a sentence or two; longer text is cut at a word. */
@@ -88,22 +93,22 @@ export async function loadPublicItem(
     description: describe(item.lead ?? firstParagraph(model)),
   };
 
+  if (hasForm(model)) return { tenant, item, locale, model, head, etag: null };
   const theme = await siteTheme(site);
   const digest = createHash('sha256')
-    .update(JSON.stringify({ model: withoutTokens(model), head, access: site.access }))
+    .update(JSON.stringify({ model, head, access: site.access }))
     .digest('base64url')
     .slice(0, 16);
   const etag = `"${item.revisionId}:${locale}:${theme.hash}:${digest}"`;
   return { tenant, item, locale, model, head, etag };
 }
 
-function withoutTokens(model: RenderModel): RenderModel {
-  return {
-    ...model,
-    blocks: model.blocks.map((b) =>
-      b.type === 'form' && b.form ? { ...b, form: { ...b.form, startedToken: '' } } : b
-    ),
-  };
+/**
+ * Whether the page renders a form. The render model is flat: a pattern is copied into the item
+ * as plain blocks (content/patterns.ts), so there is no nesting left to walk.
+ */
+export function hasForm(model: RenderModel): boolean {
+  return model.blocks.some((b) => b.type === 'form' && b.form !== null);
 }
 
 /** The text of the first paragraph of the first rich-text block, if any. */

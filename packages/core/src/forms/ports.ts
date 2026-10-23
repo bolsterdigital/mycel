@@ -23,6 +23,13 @@ export interface SubmissionRepository {
  */
 export interface RateLimiter {
   hit(key: string, limit: { max: number; windowSeconds: number }): Promise<boolean>;
+  /**
+   * Sliding window of one: true when no earlier successful `cooldown` on `key` happened in the
+   * last `seconds`, and records this one; false records nothing, so a refused attempt never
+   * extends the wait (a bot could otherwise keep a real address closed forever). At most one
+   * day: the hourly sweep deletes older windows (brief form-intake § 1).
+   */
+  cooldown(key: string, seconds: number): Promise<boolean>;
 }
 
 declare module '../ports.js' {

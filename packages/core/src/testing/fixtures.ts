@@ -4,12 +4,14 @@
 import type { z } from 'zod';
 import type { ContentItem } from '../content/model.js';
 import type { FormDefinition } from '../forms/model.js';
+import type { ProofChallenge } from '../forms/proof.js';
 import type { Invoker } from '../invoke.js';
 import type { MediaRepository } from '../media/ports.js';
 import type { UnitOfWork } from '../ports.js';
 import type { Principal } from '../principal.js';
 import type { TenantInfo } from '../tenants/ports.js';
 import { useCases } from '../use-cases.js';
+import { sha256Hex } from '../util/digest.js';
 
 export function probeForm(id: string): FormDefinition {
   return {
@@ -129,4 +131,34 @@ export function pauseMedia(uow: UnitOfWork, method: Exclude<keyof MediaRepositor
     },
   }));
   return { uow: paused, reached, release };
+}
+
+/**
+ * Solves a proof-of-work challenge the way the browser script does (apps/web/static/_form/
+ * proof.js) and returns the `_proof` value: base64 of the ALTCHA solution JSON. `number`
+ * overrides the search, to post a wrong answer.
+ */
+export async function solveProof(
+  challenge: ProofChallenge,
+  overrides: { number?: number; signature?: string } = {}
+): Promise<string> {
+  let number = overrides.number;
+  // In batches, like the script: the digests of one batch run concurrently.
+  for (let start = 0; number === undefined && start <= challenge.maxNumber; start += 1000) {
+    const batch = Array.from(
+      { length: Math.min(1000, challenge.maxNumber - start + 1) },
+      (_, i) => start + i
+    );
+    const hashes = await Promise.all(batch.map((n) => sha256Hex(`${challenge.salt}${n}`)));
+    const hit = hashes.indexOf(challenge.challenge);
+    if (hit >= 0) number = batch[hit];
+  }
+  const solution = {
+    algorithm: challenge.algorithm,
+    challenge: challenge.challenge,
+    number,
+    salt: challenge.salt,
+    signature: overrides.signature ?? challenge.signature,
+  };
+  return btoa(JSON.stringify(solution));
 }
