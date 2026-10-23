@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type APIRequestContext, type Page, type Response } from '@playwright/test';
+import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -11,6 +12,19 @@ async function expectNoAxeViolations(page: Page) {
   expect(
     violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)
   ).toEqual([]);
+}
+
+/**
+ * A form page ships exactly one script, the proof-of-work module from its own origin (brief
+ * form-intake § D2.3); nothing inline, nothing from elsewhere.
+ */
+async function expectOnlyProofScript(page: Page) {
+  const scripts = await page
+    .locator('script')
+    .evaluateAll((all) =>
+      all.map((s) => ({ src: s.getAttribute('src'), type: s.getAttribute('type'), inline: s.text }))
+    );
+  expect(scripts).toEqual([{ src: '/_form/proof.js', type: 'module', inline: '' }]);
 }
 
 // Playwright derives Accept-Language from `locale`; the random client address gives each run a
@@ -31,7 +45,7 @@ test('signup page renders from blocks without JavaScript and passes axe', async 
   await expect(
     page.getByRole('heading', { level: 2, name: 'Meld je aan voor de nieuwsbrief' })
   ).toBeVisible();
-  expect(await page.locator('script').count()).toBe(0);
+  await expectOnlyProofScript(page);
   // The seed keeps the footer credit on (ADR 015 rule 5): a plain link, nothing else.
   await expect(
     page.getByRole('contentinfo').getByRole('link', { name: 'Draait op Mycel' })
@@ -190,10 +204,15 @@ test('an English signup is confirmed in English, with every script blocked', asy
   await page.route('**/*.js', (route) => route.abort());
   const email = `e2e-en-${Date.now()}@example.org`;
   await page.goto('/probe/en/signup');
+  await expectNoAxeViolations(page);
   await page.waitForTimeout(3200);
   await page.getByLabel('E-mail address').fill(email);
   await page.getByLabel(/send me the newsletter/).check();
+  // (D2 b) Without the proof script the post carries an empty `_proof` and still goes through,
+  // on the stricter `unproven` route.
+  const posted = page.waitForRequest((r) => r.method() === 'POST');
   await page.getByRole('button', { name: 'Sign up' }).click();
+  expect(new URLSearchParams((await posted).postData() ?? '').get('_proof')).toBe('');
   await expect(page).toHaveURL(/\/probe\/en\/signup\/thanks$/);
 
   // (e) The page speaks the language of the signup, whatever the browser asks for.
@@ -263,7 +282,7 @@ async function gotoWatchingCsp(page: Page, path: string): Promise<[Response, str
   return [response!, seen];
 }
 
-test('a public page has the security headers and a strict CSP, and stays scriptless', async ({
+test('a public page has the security headers and a strict CSP, and only its own form script', async ({
   page,
 }) => {
   const [response, violations] = await gotoWatchingCsp(page, '/probe/signup');
@@ -279,7 +298,10 @@ test('a public page has the security headers and a strict CSP, and stays scriptl
   for (const directive of STRICT_CSP) expect(csp).toContain(directive);
   expect(csp).toMatch(/script-src 'self'(;|$)/);
   expect(csp).not.toMatch(/unsafe-inline|unsafe-eval/);
-  expect(await page.locator('script').count()).toBe(0);
+  await expectOnlyProofScript(page);
+  // With JavaScript, the script ran under that policy (it fills the field) and reported nothing.
+  if (test.info().project.name === 'a11y')
+    await expect(page.locator('input[name="_proof"]')).not.toHaveValue('', { timeout: 10_000 });
   expect(await page.locator('[style]').count()).toBe(0);
   expect(violations).toEqual([]);
   await expectNoAxeViolations(page);
@@ -316,4 +338,226 @@ test('a form post from another origin is refused, from its own origin it is not'
     });
   expect((await post('https://evil.example')).status()).toBe(403);
   expect((await post(baseURL!)).status()).not.toBe(403);
+});
+
+// Brief form-intake (TODO #22D1 + #30A): what happens after a post, against the real stack.
+
+/** The hidden fields of the first form in `html`. */
+function formFields(html: string): { formId: string; started: string } {
+  const value = (name: string) =>
+    new RegExp(`name="${name}"[^>]*value="([^"]*)"`).exec(html)?.[1] ??
+    new RegExp(`value="([^"]*)"[^>]*name="${name}"`).exec(html)![1]!;
+  return { formId: value('formId'), started: value('_started') };
+}
+
+/** A native form post from this origin, from a client address of its own (a fresh IP bucket). */
+function postForm(
+  request: APIRequestContext,
+  baseURL: string,
+  fields: Record<string, string>,
+  ip: string
+) {
+  return request.post('/probe/signup', {
+    headers: {
+      origin: baseURL,
+      accept: 'text/html',
+      'content-type': 'application/x-www-form-urlencoded',
+      'x-forwarded-for': ip,
+    },
+    data: new URLSearchParams(fields).toString(),
+    maxRedirects: 0,
+  });
+}
+
+const freshIp = () => `203.0.113.${Math.floor(Math.random() * 250) + 1}`;
+
+/** How many spooled mails went to `to`. */
+function mailsTo(to: string): number {
+  const dir = process.env['MAIL_SPOOL_DIR']!;
+  return readdirSync(dir).filter(
+    (f) => JSON.parse(readFileSync(join(dir, f), 'utf8')).to.email === to
+  ).length;
+}
+
+test('five signups of one address within a day give five thank-you pages and one mail', async ({
+  request,
+  baseURL,
+}) => {
+  // (e) The bomb: one GET, the minimum fill time, five posts with the same address.
+  const email = `e2e-bomb-${Date.now()}@example.org`;
+  const { formId, started } = formFields(await (await request.get('/probe/signup')).text());
+  await new Promise((r) => setTimeout(r, 3200));
+  // Without a proof, like a browser without JavaScript; each post from its own address, so the
+  // stricter `unproven` bucket (three an hour) is not what stops posts two to five.
+  for (let i = 0; i < 5; i++) {
+    const res = await postForm(
+      request,
+      baseURL!,
+      { formId, _started: started, website: '', email, consent: 'on' },
+      freshIp()
+    );
+    expect(res.status(), `post ${i + 1}`).toBe(303);
+    expect(res.headers()['location']).toBe('/probe/signup/thanks');
+  }
+  await waitForMail(email);
+  // The worker drains the outbox every few seconds: give a second mail the time to show up.
+  await expect
+    .poll(() => supporter(request, email), { timeout: 15_000 })
+    .toMatchObject({ pendingLists: ['newsletter'] });
+  await new Promise((r) => setTimeout(r, 3000));
+  expect(mailsTo(email)).toBe(1);
+});
+
+test('a form page is no-store without an ETag, and revalidation gives a fresh token', async ({
+  request,
+  baseURL,
+}) => {
+  // (f) #30A: no shared copy keeps an old timing token alive.
+  const first = await request.get('/probe/signup');
+  expect(first.headers()['cache-control']).toBe('no-store');
+  expect(first.headers()['etag']).toBeUndefined();
+  const head = await request.head('/probe/signup');
+  expect(head.headers()['cache-control']).toBe('no-store');
+  expect(head.headers()['etag']).toBeUndefined();
+
+  await new Promise((r) => setTimeout(r, 1100));
+  const second = await request.get('/probe/signup', { headers: { 'if-none-match': '*' } });
+  expect(second.status()).toBe(200);
+  const a = formFields(await first.text());
+  const b = formFields(await second.text());
+  expect(b.started).not.toBe(a.started);
+
+  await new Promise((r) => setTimeout(r, 3200));
+  const email = `e2e-fresh-${Date.now()}@example.org`;
+  const res = await postForm(
+    request,
+    baseURL!,
+    { formId: b.formId, _started: b.started, website: '', email, consent: 'on' },
+    freshIp()
+  );
+  expect(res.headers()['location']).toBe('/probe/signup/thanks');
+  await waitForMail(email);
+});
+
+test('the honeypot is out of reach of password managers, and a post without it is refused', async ({
+  page,
+  request,
+  baseURL,
+}) => {
+  // (g) The four attributes the managers read.
+  await page.goto('/probe/signup');
+  const hp = page.locator('input[name="website"]');
+  await expect(hp).toHaveAttribute('data-1p-ignore', '');
+  await expect(hp).toHaveAttribute('data-lpignore', 'true');
+  await expect(hp).toHaveAttribute('data-bwignore', '');
+  await expect(hp).toHaveAttribute('data-form-type', 'other');
+
+  // (h) No `website` field at all: the same thank-you page, no submission, no mail.
+  const { formId, started } = formFields(await page.content());
+  await page.waitForTimeout(3200);
+  const ip = freshIp();
+  const bot = `e2e-nohp-${Date.now()}@example.org`;
+  const refused = await postForm(
+    request,
+    baseURL!,
+    { formId, _started: started, email: bot, consent: 'on' },
+    ip
+  );
+  expect(refused.headers()['location']).toBe('/probe/signup/thanks');
+  // A person right after, through the same worker: once their mail is there, the bot's would be.
+  const person = `e2e-hp-${Date.now()}@example.org`;
+  await postForm(
+    request,
+    baseURL!,
+    { formId, _started: started, website: '', email: person, consent: 'on' },
+    ip
+  );
+  await waitForMail(person);
+  expect(mailsTo(bot)).toBe(0);
+  expect(await supporter(request, bot)).toBeNull();
+});
+
+// Brief form-intake § D2.4: ALTCHA proof of work, with a stricter route instead of a wall.
+
+/** The `data-proof` challenge of the first form in `html`, and its solution as `_proof`. */
+function solveFrom(html: string): string {
+  const attr = /data-proof='([^']*)'|data-proof="([^"]*)"/.exec(html)!;
+  const raw = (attr[1] ?? attr[2]!).replaceAll('&quot;', '"').replaceAll('&#39;', "'");
+  const c = JSON.parse(raw) as { challenge: string; salt: string; maxNumber: number };
+  for (let n = 0; n <= c.maxNumber; n++)
+    if (createHash('sha256').update(`${c.salt}${n}`).digest('hex') === c.challenge)
+      return btoa(JSON.stringify({ ...c, number: n, maxNumber: undefined }));
+  throw new Error('no solution');
+}
+
+test('with JavaScript the post carries a solved proof, and the policy reports nothing', async ({
+  page,
+  request,
+}) => {
+  test.skip(test.info().project.name === 'no-js', 'the proof script needs JavaScript');
+  // (a) The ordinary flow: the script solves while the visitor types.
+  const violations: string[] = [];
+  page.on('console', (msg) => {
+    if (/Content Security Policy/i.test(msg.text())) violations.push(msg.text());
+  });
+  const email = `e2e-proof-${Date.now()}@example.org`;
+  await page.goto('/probe/signup');
+  await page.waitForTimeout(3200);
+  await page.getByLabel('E-mailadres').fill(email);
+  await page.getByLabel(/nieuwsbrief ontvangen/).check();
+  const posted = page.waitForRequest((r) => r.method() === 'POST');
+  await page.getByRole('button', { name: 'Aanmelden' }).click();
+  const proof = new URLSearchParams((await posted).postData() ?? '').get('_proof') ?? '';
+  expect(JSON.parse(atob(proof))).toMatchObject({
+    algorithm: 'SHA-256',
+    number: expect.any(Number),
+  });
+  await expect(page).toHaveURL(/\/probe\/signup\/thanks$/);
+  await waitForMail(email);
+  expect(violations).toEqual([]);
+  expect(await supporter(request, email)).toMatchObject({ pendingLists: ['newsletter'] });
+});
+
+test('a replayed proof with a fresh token gets the thank-you page and no mail', async ({
+  request,
+  baseURL,
+}) => {
+  // (d) One solution, two posts: the second is spam, silently.
+  const first = await (await request.get('/probe/signup')).text();
+  const proof = solveFrom(first);
+  const { formId, started } = formFields(first);
+  await new Promise((r) => setTimeout(r, 3200));
+  const ip = freshIp();
+  const original = `e2e-proof-a-${Date.now()}@example.org`;
+  const res = await postForm(
+    request,
+    baseURL!,
+    { formId, _started: started, _proof: proof, website: '', email: original, consent: 'on' },
+    ip
+  );
+  expect(res.headers()['location']).toBe('/probe/signup/thanks');
+  await waitForMail(original);
+
+  const fresh = formFields(await (await request.get('/probe/signup')).text());
+  await new Promise((r) => setTimeout(r, 3200));
+  const replay = `e2e-proof-b-${Date.now()}@example.org`;
+  const replayed = await postForm(
+    request,
+    baseURL!,
+    { formId, _started: fresh.started, _proof: proof, website: '', email: replay, consent: 'on' },
+    ip
+  );
+  expect(replayed.status()).toBe(303);
+  expect(replayed.headers()['location']).toBe('/probe/signup/thanks');
+  // A person right after through the same worker: once their mail is there, the replay's would be.
+  const person = `e2e-proof-c-${Date.now()}@example.org`;
+  await postForm(
+    request,
+    baseURL!,
+    { formId, _started: fresh.started, website: '', email: person, consent: 'on' },
+    ip
+  );
+  await waitForMail(person);
+  expect(mailsTo(replay)).toBe(0);
+  expect(await supporter(request, replay)).toBeNull();
 });

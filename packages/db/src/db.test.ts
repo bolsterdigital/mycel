@@ -14,6 +14,8 @@ import {
   anonymousPrincipal,
   useCases,
   rebuildProjection,
+  issueProofChallenge,
+  issueStartedToken,
 } from '@mycel/core';
 import {
   FakeDns,
@@ -23,6 +25,7 @@ import {
   memoryPlatform,
   probeForm,
   publishProbePage,
+  solveProof,
 } from '@mycel/core/testing';
 import {
   createDb,
@@ -34,6 +37,7 @@ import {
   uuidv7,
   uuidv7Ids,
 } from './index.js';
+import { closeTenantWork } from './testing.js';
 
 const operatorUrl = process.env['DATABASE_URL'];
 const appUrl = process.env['APP_DATABASE_URL'];
@@ -137,14 +141,7 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
   });
 
   afterAll(async () => {
-    // Each confirmation mail planned a `mail.reconcile` job; close this suite's so they neither
-    // run under a worker on the same database nor pile up ahead of recovery.conformance's claim.
-    await operatorDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_worker`.execute(trx);
-      await sql`update jobs set done_at = now()
-                where done_at is null and type = 'mail.reconcile'
-                  and tenant_id in (${tenantA}, ${tenantB})`.execute(trx);
-    });
+    await closeTenantWork(operatorDb, [tenantA, tenantB]);
     await operatorDb.destroy();
     await appDb.destroy();
   });
@@ -294,7 +291,7 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
     ).rejects.toThrow(/row-level security/);
   });
 
-  it('rate-limits per e-mail address in Postgres, and the rejection commits', async () => {
+  it('sends one confirmation per address per form a day in Postgres, and the refusal commits', async () => {
     const email = `busy-${run}@example.org`;
     const statuses: string[] = [];
     for (let i = 0; i < 4; i++) {
@@ -305,6 +302,31 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
       });
       statuses.push(r.status === 'rejected' ? r.reason : r.status);
     }
-    expect(statuses).toEqual(['accepted', 'accepted', 'accepted', 'rate-limited']);
+    expect(statuses).toEqual([
+      'accepted',
+      'recipient-limited',
+      'recipient-limited',
+      'recipient-limited',
+    ]);
+  });
+
+  // Brief form-intake § D2.4: a solution is good for one post, also when two arrive at once
+  // (the cooldown on the challenge, the same primitive as the recipient's).
+  it('lets one of two simultaneous posts with the same proof through', async () => {
+    const visitor = anonymousPrincipal(tenantA, ['forms:write'], `ip-proof-${run}`);
+    const startedToken = await issueStartedToken(signer, formId, new Date(Date.now() - 10_000));
+    const proof = await solveProof(await issueProofChallenge(signer, formId, new Date(), 20));
+    const post = (n: number) =>
+      invoker.run(useCases.submitForm, visitor, {
+        formId,
+        values: { email: `proof-${n}-${run}@example.org`, consent: true },
+        locale: 'nl',
+        spam: { honeypot: '', startedToken, proof },
+      });
+    const results = await Promise.all([post(1), post(2)]);
+    expect(results.map((r) => (r.status === 'rejected' ? r.reason : r.status)).sort()).toEqual([
+      'accepted',
+      'spam',
+    ]);
   });
 });

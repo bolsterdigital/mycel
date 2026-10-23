@@ -36,6 +36,9 @@ export const en = {
   'patterns.photo-story.title': 'Title of the photo story',
   'patterns.photo-story.intro': 'Introduce the story: where, when and why these photos.',
   'patterns.photo-story.between': 'Tell what this photo shows that the reader would not see.',
+  'forms.error.malformed': 'This form could not be processed. Reload the page and try again.',
+  'forms.error.unavailable':
+    'Something went wrong on our side; your signup was not saved. Please try again later. Reference: {requestId}',
 } as const;
 
 export type MessageKey = keyof typeof en;

@@ -44,6 +44,7 @@ import {
   uuidv7,
   uuidv7Ids,
 } from './index.js';
+import { closeTenantWork } from './testing.js';
 
 const operatorUrl = process.env['DATABASE_URL'];
 const appUrl = process.env['APP_DATABASE_URL'];
@@ -78,13 +79,17 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
   const invoker = new Invoker(buildRegistry(), uow);
   const identity = createIdentityStore(authDb, uuidv7Ids);
   const sites = createSiteDirectory(authDb, { ttlMs: 0 });
-  const create = (slug: string, entitlements?: Record<string, unknown>) =>
-    createTenant(
+  const created: string[] = [];
+  const create = async (slug: string, entitlements?: Record<string, unknown>) => {
+    const t = await createTenant(
       operatorDb,
       { id: uuidv7(), slug: `${slug}-${run}`, name: slug, locales: ['nl', 'en'], entitlements },
       platform,
       testPlatformActor
     );
+    created.push(t.id);
+    return t;
+  };
 
   async function as<T>(url: string, fn: (c: pg.Client) => Promise<T>): Promise<T> {
     const client = new pg.Client({ connectionString: url });
@@ -112,6 +117,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
   });
 
   afterAll(async () => {
+    await closeTenantWork(operatorDb, created);
     await Promise.all([operatorDb.destroy(), appDb.destroy(), authDb.destroy()]);
   });
 
@@ -456,16 +462,19 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
       const t = await create('adm-ingest');
       const p = capped(t.id, 1);
       const formId = uuidv7();
+      // A second form: the same address on the same form is in its recipient cooldown for a day.
+      const other = uuidv7();
       await uow.run(p, (ctx) => ctx.forms.insert(probeForm(formId)));
-      const submit = (email: string) =>
+      await uow.run(p, (ctx) => ctx.forms.insert(probeForm(other)));
+      const submit = (email: string, form = formId) =>
         invoker.run(useCases.submitForm, p, {
-          formId,
+          formId: form,
           values: { email, consent: true },
           locale: 'nl',
         });
       expect((await submit('a@example.org')).status).toBe('accepted');
       await code(submit('b@example.org'), 'limit_exceeded');
-      expect((await submit('a@example.org')).status).toBe('accepted');
+      expect((await submit('a@example.org', other)).status).toBe('accepted');
       expect(await rows(t.id)).toBe(1);
 
       // What the ingest subscriber does for the outbox event, in one transaction.

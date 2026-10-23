@@ -21,6 +21,7 @@ import {
   type Entitlements,
   type Principal,
 } from '../index.js';
+import { CONFIRMATION_COOLDOWN_SECONDS } from '../forms/spam.js';
 import { FakeClock, MemoryUnitOfWork, probeForm, probeTenant } from '../testing/index.js';
 
 const TENANT = '01900000-0000-7000-8000-00000000aaaa';
@@ -129,6 +130,8 @@ describe('use cases that consume', () => {
     expect((await submit('a@example.org', one)).status).toBe('accepted');
     await uow.drain([supporterIngestSubscriber(uow)]);
     await expectCode(submit('b@example.org', one), 'limit_exceeded');
+    // Past the recipient cooldown (one confirmation per address per day, brief form-intake).
+    clock.advance(CONFIRMATION_COOLDOWN_SECONDS * 1000 + 1000);
     expect((await submit('A@example.org', one)).status).toBe('accepted');
   });
 
@@ -159,7 +162,9 @@ describe('use cases that consume', () => {
     const capped = limited({ 'supporters.max': supporters + 1 });
     expect((await submit('a@example.org', capped)).status).toBe('accepted');
     await expectCode(submit('b@example.org', capped), 'limit_exceeded');
-    // A retry of the same new address keeps its seat and takes no second one.
+    // A retry of the same new address (after the recipient cooldown) keeps its seat and takes
+    // no second one.
+    clock.advance(CONFIRMATION_COOLDOWN_SECONDS * 1000 + 1000);
     expect((await submit('A@example.org', capped)).status).toBe('accepted');
     expect(await seats()).toEqual({ admissions: supporters + 1, supporters });
 
@@ -174,6 +179,7 @@ describe('use cases that consume', () => {
     await uow.drain([supporterIngestSubscriber(uow)]);
     const { supporters } = await seats();
     const full = limited({ 'supporters.max': supporters });
+    clock.advance(CONFIRMATION_COOLDOWN_SECONDS * 1000 + 1000);
     expect((await submit('known@example.org', full)).status).toBe('accepted');
     expect(await uow.run(admin, (ctx) => ctx.admissions.pending('known@example.org'))).toBe(false);
     expect(await seats()).toEqual({ admissions: supporters, supporters });
