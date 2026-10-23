@@ -240,6 +240,8 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     const erased = uuidv7();
     await uow.run(admin, (ctx) => ctx.erasures.register(erased, `rls-erased-${run}@example.org`));
     backupRecorded = await recordBackup(erased);
+    // An export request (TODO #28, 0022): the row only, no job is run here.
+    await invoker.run(useCases.requestExport, admin, {});
     // Memberships and keys through their use cases (TODO #7).
     await invoker.run(useCases.inviteMember, admin, {
       email: `member-${run}@example.org`,
@@ -271,13 +273,13 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
 
   afterAll(async () => {
     // The fixture's confirmation planned a `mail.reconcile` job for an event that is not in the
-    // outbox; close it so a worker on the same database never runs it.
+    // outbox, and its export request a `tenant.export` job; close both so a worker on the same
+    // database never runs them.
     await operatorDb.transaction().execute(async (trx) => {
       await sql`set local role mycel_worker`.execute(trx);
       await sql`update jobs set done_at = now()
-                where done_at is null and type = 'mail.reconcile' and tenant_id = ${tenantId}`.execute(
-        trx
-      );
+                where done_at is null and type in ('mail.reconcile', 'tenant.export')
+                  and tenant_id = ${tenantId}`.execute(trx);
     });
     await operatorDb.destroy();
     await appDb.destroy();
