@@ -115,6 +115,8 @@ export const actions: Actions = {
         spam: {
           honeypot: data.has('website') ? text(data, 'website') : undefined,
           startedToken: text(data, '_started'),
+          // Empty without JavaScript: the core then takes the stricter `unproven` route.
+          proof: text(data, '_proof') || undefined,
         },
       });
     } catch (e) {

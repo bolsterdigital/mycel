@@ -64,6 +64,8 @@ export const SubmitInput = z.object({
     .object({
       honeypot: z.string().optional(),
       startedToken: z.string().optional(),
+      /** The ALTCHA solution (base64 JSON, `forms/proof.ts`); absent without JavaScript. */
+      proof: z.string().max(4000).optional(),
     })
     .optional(),
 });

@@ -37,6 +37,15 @@ import type { RenderModel } from './model.js';
 import { resolveDocument, type ResolveSource } from './resolve.js';
 import { STEPS, themeCss } from '../theme/tokens.js';
 
+/** A fixed challenge, so the snapshots do not change per run. */
+const PROOF = {
+  algorithm: 'SHA-256' as const,
+  challenge: '0'.repeat(64),
+  salt: 'salt',
+  maxNumber: 100_000,
+  signature: 'signature',
+};
+
 const LOCALES = ['nl', 'en'] as const;
 const RESTRICTED = '01900000-0000-7000-8000-00000000d0ff';
 const UNPUBLISHED = '01900000-0000-7000-8000-00000000c0ff';
@@ -81,7 +90,9 @@ function asset(id: string, width: number, height: number, focal = { x: 0.5, y: 0
 /** Resolver fixtures for the example ids, plus one restricted image and one unpublished item. */
 const fixtures: ResolveSource = {
   async form(id) {
-    return id === EXAMPLE_IDS.form ? { form: probeForm(id), startedToken: 'started-token' } : null;
+    return id === EXAMPLE_IDS.form
+      ? { form: probeForm(id), startedToken: 'started-token', proof: PROOF }
+      : null;
   },
   async media(id) {
     if (id === EXAMPLE_IDS.image) return asset(id, 1600, 900, { x: 0.3, y: 0.7 });

@@ -3,7 +3,7 @@
 // `blok-<example name>`, in nl and en, with the example ids swapped for real seeded data; this
 // spec walks the same registry. A new example or variant is therefore in the browser gate the
 // moment it is in the registry: there is no second list to keep in step. Per example and locale:
-// the page renders, ships no script, and passes axe (WCAG 2.2 AA tags) in the `a11y` project.
+// the page renders, ships no script but a form's proof-of-work module, and passes axe (WCAG 2.2 AA tags) in the `a11y` project.
 //
 // An example that renders nothing on purpose is named in INVISIBLE with its reason, and the check
 // runs both ways: a visible example must put something in `main` besides the title, an invisible
@@ -42,7 +42,8 @@ for (const name of examples)
       const response = await page.goto(path, { waitUntil: 'load' });
       expect(response?.status()).toBe(200);
       await expect(page.locator('html')).toHaveAttribute('lang', locale);
-      expect(await page.locator('script').count()).toBe(0);
+      // Only a form's own proof-of-work module (brief form-intake § D2.3).
+      expect(await page.locator('script:not([src="/_form/proof.js"])').count()).toBe(0);
       const rendered = await page.locator('main > :not(h1)').count();
       if (name in INVISIBLE) expect(rendered, INVISIBLE[name]).toBe(0);
       else expect(rendered, `${name} rendered nothing`).toBeGreaterThan(0);

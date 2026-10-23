@@ -35,6 +35,7 @@ export * from './forms/model.js';
 export * from './forms/ports.js';
 export * from './forms/events.js';
 export * from './forms/spam.js';
+export * from './forms/proof.js';
 export * from './forms/service.js';
 export * from './supporters/events.js';
 export * from './supporters/model.js';
