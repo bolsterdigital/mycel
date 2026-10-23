@@ -165,7 +165,7 @@ export const originalFile = (m: Pick<MediaRecord, 'contentType' | 'variants'>): 
 
 /**
  * Every blob key of an asset: what `media.purge` deletes, and what a backup or export of a live
- * row must contain (`exportTenant`; `docker/backup/backup.sh` counts the same rule in SQL).
+ * row must contain (`exportTenant`; `docker/backup/media-expected.sql` lists the same keys in SQL).
  */
 export function mediaKeys(
   tenantId: string,
