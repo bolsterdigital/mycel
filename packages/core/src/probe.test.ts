@@ -184,13 +184,20 @@ describe('vertical probe in memory', () => {
     expect(uow.store.for(TENANT).events.size).toBe(1);
     expect(mailer.sent).toHaveLength(1);
 
-    // Following the link records consent once; the list moves from pending to confirmed.
+    // Opening the link reads; the button's post records consent once (TODO #22B), and the list
+    // moves from pending to confirmed.
     clock.advance(60_000);
+    expect(
+      await invoker.run(useCases.previewConfirmation, visitor('ip-2'), {
+        token: url.searchParams.get('token')!,
+      })
+    ).toEqual({ status: 'pending', locale: 'en' });
+    expect(uow.store.outbox).toEqual([]);
     const click = () =>
       invoker.run(useCases.confirmSubscription, visitor('ip-2'), {
         token: url.searchParams.get('token')!,
       });
-    expect(await click()).toEqual({ status: 'confirmed' });
+    expect(await click()).toEqual({ status: 'confirmed', locale: 'en' });
     expect(uow.store.outbox.map((e) => e.type)).toEqual(['consent.given']);
     await uow.drain(subscribers);
     expect(
@@ -198,7 +205,7 @@ describe('vertical probe in memory', () => {
     ).toMatchObject({ lists: ['newsletter'], pendingLists: [] });
     expect(uow.store.for(TENANT).events.size).toBe(2);
 
-    expect(await click()).toEqual({ status: 'already_confirmed' });
+    expect(await click()).toEqual({ status: 'already_confirmed', locale: 'en' });
     expect(uow.store.outbox).toHaveLength(0);
     expect(mailer.sent).toHaveLength(1);
   });
