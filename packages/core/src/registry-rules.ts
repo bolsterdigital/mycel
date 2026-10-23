@@ -16,7 +16,7 @@ const EFFECT_VERBS = ['publish', 'unpublish', 'schedule', 'unschedule', 'send', 
 /**
  * Editorial modules: every use case under these prefixes must be `authenticatedOnly`, so a
  * public visitor's `content:read` never opens a draft, a revision or an author's e-mail address.
- * The public projection (`content.page.get`) is outside them on purpose.
+ * The public projection (`content.published.get`) is outside them on purpose.
  */
 const EDITORIAL_PREFIXES = [
   'content.item.',

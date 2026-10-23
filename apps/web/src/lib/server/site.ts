@@ -91,8 +91,12 @@ export function decideSite(input: {
 export const sitePath = (site: Site, path: string): string =>
   site.form === 'hostname' ? path : `/${site.tenant.slug}${path}`;
 
-/** An absolute URL of the site, on its primary hostname, through the one builder (ADR 014 rule 6). */
-export async function absoluteSiteUrl(site: Site, path: string): Promise<string> {
+/**
+ * The builder of the site's absolute URLs, on its primary hostname, through the one builder
+ * (ADR 014 rule 6). The primary hostname is looked up once, so a page with a canonical link and
+ * one `hreflang` per locale costs at most one read.
+ */
+export async function siteUrls(site: Site): Promise<(path: string) => string> {
   const rt = runtime();
   const primaryHostname =
     site.primaryHostname !== undefined
@@ -102,7 +106,12 @@ export async function absoluteSiteUrl(site: Site, path: string): Promise<string>
             ctx.hostnames.primary()
           )
         )?.hostname ?? null);
-  return rt.siteUrl({ slug: site.tenant.slug, primaryHostname }, path);
+  return (path) => rt.siteUrl({ slug: site.tenant.slug, primaryHostname }, path);
+}
+
+/** One absolute URL of the site; `siteUrls` when you need several. */
+export async function absoluteSiteUrl(site: Site, path: string): Promise<string> {
+  return (await siteUrls(site))(path);
 }
 
 /** The site of a request as the hooks established it; a route without one is a 404. */

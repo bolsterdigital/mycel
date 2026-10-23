@@ -25,6 +25,9 @@
 // lib/server/security-headers.ts): HSTS only when the request came over HTTPS, which with
 // MYCEL_TRUST_PROXY=1 follows Caddy's X-Forwarded-Proto. The CSP is SvelteKit's (vite.config.ts);
 // on the admin only its frame-ancestors is tightened to 'none'.
+//
+// Public responses then pass `conditional` (brief #8c § 9, lib/server/http-cache.ts): a matching
+// If-None-Match on a page with a strong ETag becomes a 304, and a 404 gets `no-store`.
 
 import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit/hooks';
 import { readSession } from '@mycel/core';
@@ -35,6 +38,7 @@ import { runtime } from '#lib/server/runtime.js';
 import { decideSite } from '#lib/server/site.js';
 import { bodyLimit, boundedBody } from '#lib/server/body-limit.js';
 import { applySecurityHeaders, type ResponseKind } from '#lib/server/security-headers.js';
+import { conditional } from '#lib/server/http-cache.js';
 
 const isAdmin = (path: string) => path === '/admin' || path.startsWith('/admin/');
 const isProbe = (path: string) => path === '/healthz' || path === '/readyz';
@@ -60,11 +64,9 @@ export const handle: Handle = async (input) => {
       response = new Response(response.body, response);
       response.headers.set('x-request-id', requestId);
     }
-    applySecurityHeaders(
-      response.headers,
-      kindOf(event.url.pathname),
-      event.url.protocol === 'https:'
-    );
+    const kind = kindOf(event.url.pathname);
+    if (kind === 'public') response = conditional(event.request, response);
+    applySecurityHeaders(response.headers, kind, event.url.protocol === 'https:');
     rt.log[isProbe(event.url.pathname) ? 'debug' : 'info']('request', {
       method: event.request.method,
       route: event.route.id ?? 'unmatched',

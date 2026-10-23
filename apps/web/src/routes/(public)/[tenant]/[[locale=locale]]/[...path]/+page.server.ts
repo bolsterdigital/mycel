@@ -1,0 +1,149 @@
+// Every content path of a site (brief #8c § 8): pages, the homepage, articles and the thank-you
+// page after a form post, with the locale prefix for a non-default locale. The grammar is
+// `parseContentPath` (lib/server/content-route.ts); this file only turns it into a response, and
+// runs the native form post of a page's form (ADR 009: works without JavaScript; validation
+// happens on the server, in the core use case). The tenant is `locals.site` (hooks.server.ts):
+// the hostname, or the dev path form; `params.tenant` is the slug the reroute hook put there and
+// is never read (ADR 014). `confirm`, `media` and `_theme` are routes of their own and win over
+// this one.
+//
+// Caching (§ 9): a published item is `public` with a strong ETag (hooks.server.ts answers the
+// 304); a form post's answer and the thank-you page are `no-store`. No cookie is read or set.
+
+import { error, fail, redirect } from '@sveltejs/kit';
+import { UseCaseError, anonymousPrincipal, contentPath, translate, useCases } from '@mycel/core';
+import { ui } from '../../../../../i18n/index.js';
+import { localeOf, parseContentPath, thanksPath } from '#lib/server/content-route.js';
+import { NO_STORE, PUBLIC_CACHE } from '#lib/server/http-cache.js';
+import { loadPublicItem } from '#lib/server/public-page.js';
+import { runtime } from '#lib/server/runtime.js';
+import { absoluteSiteUrl, requireSite, sitePath, siteTenant } from '#lib/server/site.js';
+import type { Actions, PageServerLoad } from './$types';
+
+/** The site, the item route and the locale of a request, or a 404. */
+function target(locals: App.Locals, params: { locale?: string; path: string }) {
+  const site = requireSite(locals);
+  const route = parseContentPath(params.path);
+  const locale = localeOf(params.locale, site.tenant);
+  if (!route || !locale) error(404, 'Not found');
+  return { site, route, locale };
+}
+
+export const load: PageServerLoad = async ({ params, locals, request, setHeaders }) => {
+  const { site, route, locale } = target(locals, params);
+  const view = await loadPublicItem(site, route, locale);
+  locals.lang = locale;
+  const t = ui(locale);
+
+  if (route.thanks) {
+    setHeaders({ 'cache-control': NO_STORE });
+    const form = view.model.blocks.find((b) => b.type === 'form' && b.form);
+    return {
+      view: 'thanks' as const,
+      title: view.model.title,
+      message: form?.type === 'form' ? (form.form?.thankYou ?? '') : '',
+      back: {
+        href: sitePath(site, contentPath(view.item, locale, site.tenant.defaultLocale)),
+        label: t('thanks.back'),
+      },
+    };
+  }
+
+  // A failed post re-renders the page with the visitor's answers: never for a shared cache.
+  const read = request.method === 'GET' || request.method === 'HEAD';
+  setHeaders(
+    read ? { etag: view.etag, 'cache-control': PUBLIC_CACHE } : { 'cache-control': NO_STORE }
+  );
+  return {
+    view: 'item' as const,
+    model: view.model,
+    head: view.head,
+    errorPrefix: t('error.prefix'),
+  };
+};
+
+const text = (data: FormData, name: string): string => {
+  const v = data.get(name);
+  return typeof v === 'string' ? v : '';
+};
+
+export const actions: Actions = {
+  default: async ({ params, request, locals, getClientAddress }) => {
+    const rt = runtime();
+    const { site, route, locale } = target(locals, params);
+    if (route.thanks) error(404, 'Not found');
+    const { tenant } = site;
+    const data = await request.formData();
+    const formId = text(data, 'formId');
+
+    // Field values are read by name from the definition; the core validates them. Unchecked
+    // checkboxes are absent from the post, which the core reads as "not given".
+    const values: Record<string, string> = {};
+    for (const [name, value] of data)
+      if (
+        typeof value === 'string' &&
+        !name.startsWith('_') &&
+        name !== 'formId' &&
+        name !== 'locale' &&
+        name !== 'website'
+      )
+        values[name] = value;
+
+    // Tenant from the site being visited, identity from the connection: nothing in the posted
+    // body can choose a tenant or raise capabilities (ADR 002 rule 3). The locale is the path's.
+    const visitor = anonymousPrincipal(
+      siteTenant(site),
+      ['forms:write'],
+      rt.signer.hashIp(getClientAddress())
+    );
+    let result;
+    try {
+      result = await rt.invoker.run(useCases.submitForm, visitor, {
+        formId,
+        values,
+        locale,
+        // Provenance in the site's canonical address (ADR 014 rule 6), not the request's.
+        pageUrl: await absoluteSiteUrl(site, contentPath(route, locale, tenant.defaultLocale)),
+        spam: { honeypot: text(data, 'website'), startedToken: text(data, '_started') },
+      });
+    } catch (e) {
+      // The site takes no new signups (ADR 015 rules 3 and 7): no price, no host, just that.
+      if (e instanceof UseCaseError && (e.code === 'limit_exceeded' || e.code === 'suspended'))
+        return fail(403, {
+          formId,
+          errors: [],
+          message: translate(locale, 'forms.rejected.closed'),
+          values: { email: values['email'] ?? '' },
+        });
+      // Unknown or malformed formId: only a hand-crafted post gets here.
+      return fail(400, {
+        formId,
+        errors: [],
+        message: translate(locale, 'forms.error.required'),
+        values,
+      });
+    }
+
+    // A tripped honeypot gets the same thank-you as a person, so bots learn nothing.
+    if (result.status === 'accepted' || (result.status === 'rejected' && result.reason === 'spam'))
+      redirect(303, sitePath(site, thanksPath(route, locale, tenant.defaultLocale)));
+
+    if (result.status === 'invalid')
+      return fail(400, {
+        formId,
+        errors: result.errors.map((e) => ({
+          field: e.field,
+          message: translate(locale, e.message),
+        })),
+        message: null,
+        values: { email: values['email'] ?? '' },
+      });
+
+    return fail(result.reason === 'rate-limited' ? 429 : 400, {
+      formId,
+      errors: [],
+      message: translate(locale, result.message),
+      values: { email: values['email'] ?? '' },
+    });
+  },
+};

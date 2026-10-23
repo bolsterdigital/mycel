@@ -1,8 +1,8 @@
 // The real resolver source over the in-memory unit of work (brief #8c § 1): what a reference
 // resolves to is the access boundary of every representation, so each fail-closed case is
 // checked against the registry, not against a stub. A public image gets its variants; a
-// restricted or deleted one is null. An item is a path only when it is a page published in the
-// asked locale with a public published revision.
+// restricted or deleted one is null. An item is a path only when it is published in the asked
+// locale with a public published revision, in the route grammar of #8c2.
 import { describe, expect, it } from 'vitest';
 import {
   EXAMPLE_PNG,
@@ -56,7 +56,13 @@ async function setup() {
     return item.id;
   };
   const reader = anonymousPrincipal(TENANT, ['content:read', 'forms:read', 'media:read']);
-  return { uow, invoker, upload, page, source: runtimeSource({ invoker, uow, reader }) };
+  return {
+    uow,
+    invoker,
+    upload,
+    page,
+    source: runtimeSource({ invoker, uow, reader, defaultLocale: 'nl' }),
+  };
 }
 
 describe('runtimeSource', () => {
@@ -75,7 +81,7 @@ describe('runtimeSource', () => {
     expect(await source.media('01900000-0000-7000-8000-0000000000ff')).toBeNull();
   });
 
-  it('gives an item a path only when it is a public page published in that locale', async () => {
+  it('gives an item a path only when it is public and published in that locale', async () => {
     const { source, page, invoker } = await setup();
     const both = await page('both', ['nl', 'en']);
     const nlOnly = await page('nl-only', ['nl']);
@@ -89,13 +95,13 @@ describe('runtimeSource', () => {
     });
     const article = await page('article', ['nl'], { authorIds: [author.id] }, 'article');
 
-    expect(await source.itemPath(both, 'en')).toBe('/both');
+    expect(await source.itemPath(both, 'nl')).toBe('/both');
+    expect(await source.itemPath(both, 'en')).toBe('/en/both');
     expect(await source.itemPath(nlOnly, 'nl')).toBe('/nl-only');
     expect(await source.itemPath(nlOnly, 'en')).toBeNull();
     expect(await source.itemPath(draft, 'nl')).toBeNull();
     expect(await source.itemPath(members, 'nl')).toBeNull();
-    // Articles get their route in #8c2; until then a link to one is text.
-    expect(await source.itemPath(article, 'nl')).toBeNull();
+    expect(await source.itemPath(article, 'nl')).toBe('/articles/article');
     expect(await source.itemPath('01900000-0000-7000-8000-0000000000ff', 'nl')).toBeNull();
   });
 

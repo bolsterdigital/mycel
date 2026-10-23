@@ -7,10 +7,12 @@ import { Invoker } from '../invoke.js';
 import { anonymousPrincipal, systemPrincipal, type Principal } from '../principal.js';
 import { FakeClock, MemoryUnitOfWork, probeForm } from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
+import { contentPath } from './public.js';
 
 const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const OTHER = '01900000-0000-7000-8000-00000000bbbb';
 const FORM = '01900000-0000-7000-8000-00000000f000';
+const PAGE_ABOUT = { type: 'page' as const, slug: 'about' };
 
 const text = (t: string) => ({
   type: 'doc' as const,
@@ -141,15 +143,15 @@ describe('content items', () => {
       });
       expect(live.publication.find((s) => s.locale === 'en')!.status).toBe('draft');
 
-      const page = await invoker.run(useCases.getPage, visitor(), {
+      const page = await invoker.run(useCases.getPublished, visitor(), {
+        type: 'page',
         slug: 'about',
-        acceptLanguage: 'en',
       });
       expect(page.locale).toBe('nl');
       expect(page.locales).toEqual(['nl']);
       expect(JSON.stringify(page)).not.toContain('ENGLISH DRAFT');
       await expect(
-        invoker.run(useCases.getPage, visitor(), { slug: 'about', locale: 'en' })
+        invoker.run(useCases.getPublished, visitor(), { type: 'page', slug: 'about', locale: 'en' })
       ).rejects.toMatchObject({ code: 'not_found' });
 
       const saved = await invoker.run(useCases.updateItem, admin, {
@@ -160,7 +162,7 @@ describe('content items', () => {
       const nl = saved.item.publication.find((s) => s.locale === 'nl')!;
       expect(nl.publishedRevisionId).toBe(revision.id);
       expect(nl.hasUnpublishedChanges).toBe(true);
-      expect((await invoker.run(useCases.getPage, visitor(), { slug: 'about' })).title).toBe(
+      expect((await invoker.run(useCases.getPublished, visitor(), PAGE_ABOUT)).title).toBe(
         'Over ons'
       );
     });
@@ -196,7 +198,7 @@ describe('content items', () => {
         ['nl', 'unpublished'],
         ['en', 'published'],
       ]);
-      expect((await invoker.run(useCases.getPage, visitor(), { slug: 'about' })).locale).toBe('en');
+      expect((await invoker.run(useCases.getPublished, visitor(), PAGE_ABOUT)).locale).toBe('en');
     });
 
     it("refuses an incomplete locale, another item's revision and a locale the item lacks", async () => {
@@ -236,7 +238,7 @@ describe('content items', () => {
       ).rejects.toMatchObject({ code: 'forbidden' });
     });
 
-    it('never serves a restricted page or an article through the public page query', async () => {
+    it('never serves a restricted item, and finds an article only as an article', async () => {
       const restricted = {
         ...pageDoc(),
         access: { level: 'members' as const, teaser: { blocks: 0 } },
@@ -248,7 +250,7 @@ describe('content items', () => {
         locale: 'nl',
       });
       await expect(
-        invoker.run(useCases.getPage, visitor(), { slug: 'members' })
+        invoker.run(useCases.getPublished, visitor(), { type: 'page', slug: 'members' })
       ).rejects.toMatchObject({
         code: 'not_found',
       });
@@ -268,19 +270,106 @@ describe('content items', () => {
         locale: 'nl',
       });
       await expect(
-        invoker.run(useCases.getPage, visitor(), { slug: 'story' })
+        invoker.run(useCases.getPublished, visitor(), { type: 'page', slug: 'story' })
       ).rejects.toMatchObject({
         code: 'not_found',
       });
+      const story = await invoker.run(useCases.getPublished, visitor(), {
+        type: 'article',
+        slug: 'story',
+      });
+      expect(story.type).toBe('article');
+      expect(story.authors).toEqual([{ id: author.id, slug: 'sam', name: 'Sam' }]);
+      // The author's e-mail address is internal (model.ts) and never part of the projection.
+      expect(JSON.stringify(story)).not.toContain('sam@example.org');
     });
 
     it('serves nothing when nothing is published, and never falls back to the latest draft', async () => {
       await create();
-      await expect(
-        invoker.run(useCases.getPage, visitor(), { slug: 'about' })
-      ).rejects.toMatchObject({
-        code: 'not_found',
+      await expect(invoker.run(useCases.getPublished, visitor(), PAGE_ABOUT)).rejects.toMatchObject(
+        {
+          code: 'not_found',
+        }
+      );
+    });
+  });
+
+  describe('the public projection (brief #8c § 7)', () => {
+    it('defaults to the default locale when published, else the first published one', async () => {
+      const { item, revision } = await create(pageDoc('In English.'));
+      await invoker.run(useCases.publishItem, admin, {
+        itemId: item.id,
+        revisionId: revision.id,
+        locale: 'en',
       });
+      expect((await invoker.run(useCases.getPublished, visitor(), PAGE_ABOUT)).locale).toBe('en');
+      await invoker.run(useCases.publishItem, admin, {
+        itemId: item.id,
+        revisionId: revision.id,
+        locale: 'nl',
+      });
+      const page = await invoker.run(useCases.getPublished, visitor(), PAGE_ABOUT);
+      expect([page.locale, page.locales]).toEqual(['nl', ['nl', 'en']]);
+      expect(page.revisionId).toBe(revision.id);
+      expect(page.updatedAt).toBe(revision.createdAt);
+      // A page carries none of the article fields.
+      expect(Object.keys(page)).not.toContain('authors');
+    });
+
+    it('projects an article: lead, corrections, authors and section in the asked locale only', async () => {
+      const author = await invoker.run(useCases.createAuthor, admin, {
+        slug: 'sam',
+        name: 'Sam',
+        email: 'sam@example.org',
+      });
+      const section = await invoker.run(useCases.createSection, admin, {
+        slug: 'stad',
+        title: { nl: 'Stad', en: 'City' },
+      });
+      const { item, revision } = await create(
+        {
+          ...pageDoc('In English.'),
+          type: 'article',
+          lead: { nl: 'Kort gezegd.', en: 'EN-LEAD' },
+          authorIds: [author.id],
+          sectionId: section.id,
+          corrections: [{ date: '2026-10-01', text: { nl: 'Datum hersteld.', en: 'EN-FIX' } }],
+        } as never,
+        'story'
+      );
+      await invoker.run(useCases.publishItem, admin, {
+        itemId: item.id,
+        revisionId: revision.id,
+        locale: 'nl',
+      });
+      const story = await invoker.run(useCases.getPublished, visitor(), {
+        type: 'article',
+        slug: 'story',
+        locale: 'nl',
+      });
+      expect(story).toMatchObject({
+        lead: 'Kort gezegd.',
+        corrections: [{ date: '2026-10-01', text: 'Datum hersteld.' }],
+        authors: [{ id: author.id, slug: 'sam', name: 'Sam' }],
+        section: { slug: 'stad', name: 'Stad' },
+      });
+      expect(JSON.stringify(story)).not.toMatch(/EN-LEAD|EN-FIX|In English|sam@example/);
+    });
+  });
+
+  describe('contentPath (brief #8c § 8)', () => {
+    it('prefixes every locale but the default and puts articles under /articles', () => {
+      const page = { type: 'page' as const, slug: 'about' };
+      const article = { type: 'article' as const, slug: 'story' };
+      const index = { type: 'page' as const, slug: 'index' };
+      expect(contentPath(page, 'nl', 'nl')).toBe('/about');
+      expect(contentPath(page, 'en', 'nl')).toBe('/en/about');
+      expect(contentPath(article, 'nl', 'nl')).toBe('/articles/story');
+      expect(contentPath(article, 'en', 'nl')).toBe('/en/articles/story');
+      expect(contentPath(index, 'nl', 'nl')).toBe('/');
+      expect(contentPath(index, 'en', 'nl')).toBe('/en');
+      // An article may be called `index`: it is not the homepage.
+      expect(contentPath({ type: 'article', slug: 'index' }, 'nl', 'nl')).toBe('/articles/index');
     });
   });
 

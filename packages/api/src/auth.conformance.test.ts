@@ -70,7 +70,7 @@ describe.skipIf(!ready)('API keys through the composition root', () => {
     runtime = createRuntime(config(key.token));
     const app = createApp({ invoker: runtime.invoker, authenticate: runtime.authenticateApiKey });
     const get = () =>
-      app.request('/v1/content.page.get?slug=nothing-here', {
+      app.request('/v1/content.published.get?type=page&slug=nothing-here', {
         headers: { authorization: `Bearer ${key.token}` },
       });
 

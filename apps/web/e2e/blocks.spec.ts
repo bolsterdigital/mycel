@@ -47,7 +47,11 @@ for (const [slug, titles] of Object.entries(PAGES))
       test.use({ locale: locale === 'nl' ? 'nl-NL' : 'en-GB' });
 
       test('renders every block, ships no script and passes axe', async ({ page }) => {
-        const { foreign, csp } = await open(page, `/probe/${slug}`);
+        // The locale is the path's (TODO #8c2), whatever the browser asks for.
+        const { foreign, csp } = await open(
+          page,
+          locale === 'nl' ? `/probe/${slug}` : `/probe/en/${slug}`
+        );
         await expect(page.locator('html')).toHaveAttribute('lang', locale);
         await expect(page.getByRole('heading', { level: 1 })).toHaveText(titles[locale]);
         expect(await page.locator('h1').count()).toBe(1);

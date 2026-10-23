@@ -62,7 +62,7 @@ export interface UseCase<
   handler: (ctx: TransactionContext, input: z.infer<TInput>) => Promise<z.infer<TOutput>>;
   /**
    * Queries that address one thing can also be an MCP resource (ADR 009 rule 8). Template
-   * variables map one-to-one to input fields: `mycel://pages/{slug}` reads `{ slug }`.
+   * variables map one-to-one to input fields: `mycel://published/{type}/{slug}` reads `{ type, slug }`.
    */
   resource?: { uriTemplate: string };
   /**
