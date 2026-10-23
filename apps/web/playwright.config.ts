@@ -16,6 +16,14 @@ export default defineConfig({
   fullyParallel: false,
   reporter: process.env['CI'] ? 'github' : 'list',
   use: { baseURL: origin },
+  // Assertions wait up to 15 s instead of Playwright's 5. In a full `verify` the e2e run shares
+  // the machine with the build and the database suites, and the first hop through the mock IdP
+  // (OIDC discovery, a redirect, a cold page) went past 5 s: the `Mock IdP` heading in
+  // media.spec.ts (PR #27, #32) and the hostnames UI gate's login (PR #33), each green alone
+  // (TODO #27). A passing assertion returns as soon as it holds, so only a real failure waits
+  // longer. Rejected: a longer wait in each spec's copy of `login` (five copies, and the next
+  // slow step is not a login), and fewer workers (slows every run for a load spike).
+  expect: { timeout: 15_000 },
   // The same flows run twice. `no-js` proves the product promise (everything works with
   // JavaScript disabled); `a11y` runs axe, which has to inject a script to analyse the page.
   // The pages themselves ship no script (asserted), so both projects see identical documents.

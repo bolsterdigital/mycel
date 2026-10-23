@@ -16,9 +16,9 @@ export interface SiteAddress {
 }
 
 /**
- * `path` starts with `/` (query and fragment included as given). `locale` is reserved for the
- * i18n routing of TODO #8c (ADR 007: locale in the path, never in the hostname) and ignored
- * until then.
+ * `path` starts with `/` (query and fragment included as given) and already carries the locale
+ * prefix where one applies: `contentPath` puts it there since TODO #8c2 (ADR 007: locale in the
+ * path, never in the hostname). `_locale` is unused and kept only for existing call sites.
  */
 export function siteUrl(
   site: SiteAddress,

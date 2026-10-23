@@ -342,6 +342,41 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('operator and key conforman
     ).rejects.toSatisfy((e) => e instanceof UseCaseError && e.code === 'not_found');
   });
 
+  const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  /**
+   * Hold one tenant's writes from now until `ms` have passed. Wrapped, so awaiting the hold does
+   * not also await its release. `memberships` share-locks the tenant's membership rows, which
+   * stops a delete or update of them; `keys` locks the tenant row, which stops an insert into
+   * `api_keys` at its foreign-key check. Row locks of the test's own tenant, not a table lock:
+   * `lock table ... in share mode` also stalled every parallel suite writing memberships or keys
+   * for the length of the hold (TODO #27, `Lock/relation` waits in the Mac measurement).
+   */
+  async function holdWrites(
+    tenantId: string,
+    what: 'memberships' | 'keys',
+    ms: number
+  ): Promise<{ released: Promise<void> }> {
+    const blocker = new pg.Client({ connectionString: operatorUrl });
+    await blocker.connect();
+    await blocker.query('begin');
+    await blocker.query(`select set_config('app.tenant_id', $1, true)`, [tenantId]);
+    const { rowCount } = await blocker.query(
+      what === 'memberships'
+        ? 'select 1 from tenant_memberships where tenant_id = $1 for share'
+        : 'select 1 from tenants where id = $1 for update',
+      [tenantId]
+    );
+    // A hold on no rows holds nothing, and the race below would pass without being a race.
+    expect(rowCount).toBeGreaterThan(0);
+    return {
+      released: pause(ms).then(async () => {
+        await blocker.query('commit');
+        await blocker.end();
+      }),
+    };
+  }
+
   it('keeps one admin when the last two remove each other at the same moment', async () => {
     const c = await tenant('opc');
     const admins: { id: string; principal: Principal }[] = [];
@@ -366,17 +401,12 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('operator and key conforman
     // Make the race real: a share lock lets both transactions read the member list but holds
     // their deletes until both have read it. Without the membership lock both would then pass
     // the "an admin remains" check; with it the second waits and reads the first's result.
-    const blocker = new pg.Client({ connectionString: operatorUrl });
-    await blocker.connect();
-    await blocker.query('begin');
-    await blocker.query('lock table tenant_memberships in share mode');
+    const { released } = await holdWrites(c, 'memberships', 500);
     const racing = Promise.allSettled([
       invoker.run(useCases.removeMember, x.principal, { operatorId: y.id }),
       invoker.run(useCases.removeMember, y.principal, { operatorId: x.id }),
     ]);
-    await new Promise((r) => setTimeout(r, 500));
-    await blocker.query('commit');
-    await blocker.end();
+    await released;
     const results = await racing;
     expect(results.map((r) => r.status).sort()).toEqual(['fulfilled', 'rejected']);
     // The second reads the first's result: it was just removed itself, so it no longer acts
@@ -427,24 +457,6 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('operator and key conforman
         (key) => ({ ok: true as const, key }),
         (e: unknown) => ({ ok: false as const, code: (e as UseCaseError).code })
       );
-    const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-    /**
-     * Hold writes to `table` from now until `ms` have passed. Wrapped, so awaiting the hold does
-     * not also await its release.
-     */
-    async function holdWrites(table: string, ms: number): Promise<{ released: Promise<void> }> {
-      const blocker = new pg.Client({ connectionString: operatorUrl });
-      await blocker.connect();
-      await blocker.query('begin');
-      await blocker.query(`lock table ${table} in share mode`);
-      return {
-        released: pause(ms).then(async () => {
-          await blocker.query('commit');
-          await blocker.end();
-        }),
-      };
-    }
 
     for (const [name, change] of Object.entries(changes)) {
       it(`(a) refuses a stale principal after a ${name}`, async () => {
@@ -455,8 +467,8 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('operator and key conforman
       });
 
       it(`(b) a ${name} waiting for a key in flight revokes it`, async () => {
-        const { x, y } = await twoAdmins(`b${name[0]}`);
-        const { released } = await holdWrites('api_keys', 600);
+        const { t, x, y } = await twoAdmins(`b${name[0]}`);
+        const { released } = await holdWrites(t, 'keys', 600);
         const creating = createKey(x.principal);
         await pause(200);
         const changing = change(y.principal, x.id);
@@ -467,8 +479,8 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('operator and key conforman
       }, 15_000);
 
       it(`(c) refuses a key that waited for a ${name}`, async () => {
-        const { x, y } = await twoAdmins(`c${name[0]}`);
-        const { released } = await holdWrites('tenant_memberships', 600);
+        const { t, x, y } = await twoAdmins(`c${name[0]}`);
+        const { released } = await holdWrites(t, 'memberships', 600);
         const changing = change(y.principal, x.id);
         await pause(200);
         const creating = createKey(x.principal);
