@@ -9,7 +9,7 @@
 // site gets nothing, not even the theme.
 
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
 
 const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 const SITE = 'http://probe.localhost:4173';
@@ -186,6 +186,87 @@ test('a save on an outdated revision is a conflict that keeps what was typed', a
   await page.getByRole('button', { name: 'Opslaan' }).click();
   await expect(page).toHaveURL(`${edit}?saved`);
   await expect(page.getByLabel('Titel (nl)')).toHaveValue('Mijn versie');
+});
+
+/** A use case over the HTTP API with the seed key of tenant probe (scripts/e2e.mjs). */
+async function call<T>(request: APIRequestContext, name: string, data: unknown): Promise<T> {
+  const res = await request.post(`${process.env['E2E_API_URL']}/v1/${name}`, {
+    headers: { authorization: `Bearer ${process.env['MYCEL_API_KEY']}` },
+    data,
+  });
+  expect(res.ok(), await res.text()).toBe(true);
+  return res.json();
+}
+
+// Review of PR #45: the pickers list one page of the directory (newest first, a hundred), so an
+// author or section beyond it, or authors in another order than the directory's, were lost or
+// reordered by a save that only changed the title.
+test('a title-only save keeps authors, their order and the section beyond the first page', async ({
+  page,
+  request,
+}) => {
+  test.skip(!process.env['E2E_API_URL'], 'run through scripts/e2e.mjs');
+  test.setTimeout(120_000);
+  const run = slugFor('rel');
+  const slugOf = (name: string) => name.toLowerCase().replace(/\W+/g, '-');
+  const author = (name: string) =>
+    call<{ id: string }>(request, 'content.author.create', { slug: slugOf(name), name });
+  const section = (name: string) =>
+    call<{ id: string }>(request, 'content.section.create', {
+      slug: slugOf(name),
+      title: { nl: name },
+    });
+  const old = await author(`Oud ${run}`);
+  const oldSection = await section(`Oude sectie ${run}`);
+  for (let i = 0; i < 101; i += 25)
+    await Promise.all(
+      Array.from({ length: Math.min(25, 101 - i) }, (_, j) =>
+        Promise.all([author(`vul ${i + j} ${run}`), section(`vul ${i + j} ${run}`)])
+      )
+    );
+  const first = await author(`Eerste ${run}`);
+  const second = await author(`Tweede ${run}`);
+  // The directory lists `second` before `first`; the document has them the other way round.
+  const authorIds = [first.id, second.id, old.id];
+  const { item } = await call<{ item: { id: string } }>(request, 'content.item.create', {
+    slug: run,
+    document: {
+      type: 'article',
+      title: { nl: 'Met auteurs' },
+      defaultLocale: 'nl',
+      locales: ['nl'],
+      blocks: [],
+      authorIds,
+      sectionId: oldSection.id,
+    },
+  });
+  const saved = async () =>
+    (
+      await call<{ revision: { document: { authorIds: string[]; sectionId: string | null } } }>(
+        request,
+        'content.item.get',
+        { itemId: item.id }
+      )
+    ).revision.document;
+
+  const fresh = await author(`Nieuw ${run}`);
+  await login(page, ADMIN, `/admin/probe/content/${item.id}`);
+  await expect(page.getByLabel(`Oud ${run}`)).toBeChecked();
+  await expect(page.getByLabel('Rubriek')).toHaveValue(oldSection.id);
+  await page.getByLabel('Titel (nl)').fill('Alleen de titel');
+  await page.getByRole('button', { name: 'Opslaan' }).click();
+  await expect(page).toHaveURL(new RegExp(`${item.id}\\?saved$`));
+  expect(await saved()).toMatchObject({ authorIds, sectionId: oldSection.id });
+
+  // An explicit change still works: one author off, one on, the rest keeps its order.
+  await page.getByLabel(`Eerste ${run}`).uncheck();
+  await page.getByLabel(`Nieuw ${run}`).check();
+  await page.getByLabel('Rubriek').selectOption({ label: 'Geen rubriek' });
+  await page.getByRole('button', { name: 'Opslaan' }).click();
+  await expect(page).toHaveURL(new RegExp(`${item.id}\\?saved$`));
+  const after = await saved();
+  expect(after.authorIds).toEqual([second.id, old.id, fresh.id]);
+  expect(after.sectionId).toBeNull();
 });
 
 test('a reserved slug comes back as a message with what was typed', async ({ page }) => {

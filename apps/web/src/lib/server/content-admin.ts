@@ -9,6 +9,14 @@
 // included; the revision history keeps them. Rejected: refusing to remove a locale that still has
 // text (until #11 B there is no way to clear a block's text in the admin), and keeping the values
 // (core rejects a value for a locale the document does not have).
+//
+// Authors and the section are picked from a bounded page of the site's directory, which need not
+// hold what the document already has (review of PR #45). So the edit page lists the document's
+// own authors first, in its order, resolved one by one, and its section even when the page lacks
+// it (`withAssigned`); and `documentFrom` keeps the order of the authors that stay, adding new
+// ones after them. A save that only changes the title then keeps both. Rejected: a hidden field
+// with the ids the form did not show (a second source of truth that a stale form gets wrong too),
+// and loading the whole directory (unbounded).
 
 import {
   canonicalTag,
@@ -125,7 +133,7 @@ export function documentFrom(
     ...common,
     type: 'article',
     lead: optional(localized(v, 'lead', locales)),
-    authorIds: many(v, 'authorIds'),
+    authorIds: keepOrder(doc.authorIds, many(v, 'authorIds')),
     sectionId: one(v, 'sectionId') || null,
     tags: one(v, 'tags')
       .split(',')
@@ -135,6 +143,32 @@ export function documentFrom(
       ? [...doc.corrections, { date: one(v, 'correctionDate') || today, text: correction }]
       : doc.corrections,
   } as ContentDocumentInput;
+}
+
+/** The posted ids with those of `before` first, in `before`'s order; new ones follow as posted. */
+export function keepOrder(before: readonly string[], posted: readonly string[]): string[] {
+  const chosen = new Set(posted);
+  const kept = before.filter((id) => chosen.has(id));
+  return [...new Set([...kept, ...posted])];
+}
+
+/**
+ * The choices of a picker: the document's own entries first and in its order, each from `page`
+ * when the page has it or from `resolve` otherwise (`null` for one that no longer exists, shown
+ * by its id so a save keeps it), then the rest of `page`.
+ */
+export async function withAssigned<T extends { id: string }>(
+  assigned: readonly string[],
+  page: readonly T[],
+  resolve: (id: string) => Promise<T | null>,
+  missing: (id: string) => T
+): Promise<T[]> {
+  const byId = new Map(page.map((x) => [x.id, x]));
+  const own = await Promise.all(
+    assigned.map(async (id) => byId.get(id) ?? (await resolve(id)) ?? missing(id))
+  );
+  const mine = new Set(assigned);
+  return [...own, ...page.filter((x) => !mine.has(x.id))];
 }
 
 /** A copy of `doc` without any value for a locale outside `keep` (see the top of this file). */

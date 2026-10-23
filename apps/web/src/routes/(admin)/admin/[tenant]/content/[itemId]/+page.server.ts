@@ -1,7 +1,8 @@
 // The edit page of one item (TODO #11, brief content-editor § A1): the document fields of the
 // latest revision, saved as a new revision through `content.item.update` with the revision the
 // form was opened on as `baseRevisionId` (ADR 018 rule 2). The blocks are not edited here yet
-// (brief § B); `documentFrom` carries them over unchanged.
+// (brief § B); `documentFrom` carries them over unchanged. Authors and section always list what
+// the document has, also beyond the first page of the directory (`withAssigned`).
 //
 // A conflict shows both versions, as the ADR asks: the form keeps what was typed, a notice names
 // who saved the newer revision and when, and a table lists what changed between the revision the
@@ -9,7 +10,13 @@
 // deliberate choice to put these values on top. Rejected: last-write-wins with a warning, and a
 // silent merge (which field wins is the editor's call, not ours).
 import { error, fail, redirect } from '@sveltejs/kit';
-import { UseCaseError, useCases, type ContentDocument, type Principal } from '@mycel/core';
+import {
+  UseCaseError,
+  useCases,
+  type ContentDocument,
+  type Principal,
+  type Section,
+} from '@mycel/core';
 import { failureOf } from '#lib/server/admin-actions.js';
 import { requireTenantPrincipal } from '#lib/server/admin.js';
 import {
@@ -17,6 +24,7 @@ import {
   diffRows,
   documentFrom,
   valuesFromForm,
+  withAssigned,
   valuesOf,
   when,
 } from '#lib/server/content-admin.js';
@@ -25,6 +33,16 @@ import type { UiKey } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** A lookup's result, or `null` when it is not there (any other error stays an error). */
+async function orNull<T>(run: Promise<T>): Promise<T | null> {
+  try {
+    return await run;
+  } catch (e) {
+    if (e instanceof UseCaseError && e.code === 'not_found') return null;
+    throw e;
+  }
+}
 
 /** The item with its latest revision, or a 404 for an unknown id or another site's. */
 async function latest(principal: Principal, itemId: string) {
@@ -43,13 +61,38 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
   const { item, revision } = await latest(principal, params.itemId);
   const doc = revision.document;
   const { invoker } = runtime();
+  const author = (a: { id: string; name: string }) => ({ id: a.id, name: a.name });
+  const section = (s: Section) => ({
+    id: s.id,
+    title: s.title[tenant.defaultLocale] ?? Object.values(s.title)[0] ?? s.slug,
+  });
   const [authors, sections] =
     doc.type === 'article'
       ? await Promise.all([
-          invoker.run(useCases.listAuthors, principal, { limit: 100 }),
-          invoker.run(useCases.listSections, principal, { limit: 100 }),
+          invoker.run(useCases.listAuthors, principal, { limit: 100 }).then(({ authors }) =>
+            withAssigned(
+              doc.authorIds,
+              authors.map(author),
+              async (authorId) => {
+                const a = await orNull(invoker.run(useCases.getAuthor, principal, { authorId }));
+                return a && author(a);
+              },
+              (id) => ({ id, name: id })
+            )
+          ),
+          invoker.run(useCases.listSections, principal, { limit: 100 }).then(({ sections }) =>
+            withAssigned(
+              doc.sectionId ? [doc.sectionId] : [],
+              sections.map(section),
+              async (sectionId) => {
+                const s = await orNull(invoker.run(useCases.getSection, principal, { sectionId }));
+                return s && section(s);
+              },
+              (id) => ({ id, title: id })
+            )
+          ),
         ])
-      : [{ authors: [] }, { sections: [] }];
+      : [[], []];
   return {
     item: {
       id: item.id,
@@ -68,11 +111,8 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
     values: valuesOf(doc),
     // The site's locales first, then any the document has that the site no longer does.
     locales: [...new Set([...tenant.locales, ...doc.locales])],
-    authors: authors.authors.map((a) => ({ id: a.id, name: a.name })),
-    sections: sections.sections.map((s) => ({
-      id: s.id,
-      title: s.title[tenant.defaultLocale] ?? Object.values(s.title)[0] ?? s.slug,
-    })),
+    authors,
+    sections,
     saved: url.searchParams.has('saved'),
   };
 };
