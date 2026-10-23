@@ -454,4 +454,15 @@ await waitFor('mock IdP', idp, `${env.OIDC_ISSUER}/.well-known/openid-configurat
 // The children keep the event loop alive; stop them explicitly once the tests are done.
 run('npx', ['playwright', 'test', ...process.argv.slice(2)], `${root}apps/web`, env);
 stop();
+// The worker planned a `mail.reconcile` per confirmation it sent, RECONCILE_LAG_MS ahead, and is
+// gone before they fall due. Close probe's so they neither wait for the next run's worker nor
+// crowd recovery.conformance's claim (TODO #32); its other jobs, hostname checks, stay.
+{
+  const { createDb, createTenantDirectory } = await import('@mycel/db');
+  const { closeTenantWork } = await import('@mycel/db/testing');
+  const operatorDb = createDb(process.env.DATABASE_URL);
+  const probe = await createTenantDirectory(operatorDb).findBySlug('probe');
+  if (probe) await closeTenantWork(operatorDb, [probe.id], { jobTypes: ['mail.reconcile'] });
+  await operatorDb.destroy();
+}
 process.exit(0);

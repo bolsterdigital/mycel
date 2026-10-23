@@ -16,6 +16,7 @@ import {
   probeForm,
 } from '@mycel/core/testing';
 import { createDb, createUnitOfWork, migrate, upsertTenant, uuidv7, uuidv7Ids } from './index.js';
+import { closeTenantWork } from './testing.js';
 
 const operatorUrl = process.env['DATABASE_URL'];
 const appUrl = process.env['APP_DATABASE_URL'];
@@ -83,6 +84,7 @@ describe.skipIf(!operatorUrl || !appUrl)('invoke conformance', () => {
   });
 
   afterAll(async () => {
+    await closeTenantWork(operatorDb, [tenantId]);
     await operatorDb.destroy();
     await appDb.destroy();
   });
