@@ -294,7 +294,7 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
     ).rejects.toThrow(/row-level security/);
   });
 
-  it('rate-limits per e-mail address in Postgres, and the rejection commits', async () => {
+  it('sends one confirmation per address per form a day in Postgres, and the refusal commits', async () => {
     const email = `busy-${run}@example.org`;
     const statuses: string[] = [];
     for (let i = 0; i < 4; i++) {
@@ -305,6 +305,11 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
       });
       statuses.push(r.status === 'rejected' ? r.reason : r.status);
     }
-    expect(statuses).toEqual(['accepted', 'accepted', 'accepted', 'rate-limited']);
+    expect(statuses).toEqual([
+      'accepted',
+      'recipient-limited',
+      'recipient-limited',
+      'recipient-limited',
+    ]);
   });
 });

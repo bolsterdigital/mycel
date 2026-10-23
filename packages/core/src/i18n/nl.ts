@@ -38,4 +38,8 @@ export const nl: Partial<Messages> = {
   'patterns.photo-story.title': 'Titel van het fotoverhaal',
   'patterns.photo-story.intro': 'Leid het verhaal in: waar, wanneer en waarom deze foto’s.',
   'patterns.photo-story.between': 'Vertel wat deze foto laat zien dat de lezer anders niet ziet.',
+  'forms.error.malformed':
+    'Dit formulier kon niet worden verwerkt. Laad de pagina opnieuw en probeer het nog eens.',
+  'forms.error.unavailable':
+    'Er ging aan onze kant iets mis; je aanmelding is niet opgeslagen. Probeer het later opnieuw. Kenmerk: {requestId}',
 };

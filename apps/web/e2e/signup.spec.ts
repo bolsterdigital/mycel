@@ -317,3 +317,139 @@ test('a form post from another origin is refused, from its own origin it is not'
   expect((await post('https://evil.example')).status()).toBe(403);
   expect((await post(baseURL!)).status()).not.toBe(403);
 });
+
+// Brief form-intake (TODO #22D1 + #30A): what happens after a post, against the real stack.
+
+/** The hidden fields of the first form in `html`. */
+function formFields(html: string): { formId: string; started: string } {
+  const value = (name: string) =>
+    new RegExp(`name="${name}"[^>]*value="([^"]*)"`).exec(html)?.[1] ??
+    new RegExp(`value="([^"]*)"[^>]*name="${name}"`).exec(html)![1]!;
+  return { formId: value('formId'), started: value('_started') };
+}
+
+/** A native form post from this origin, from a client address of its own (a fresh IP bucket). */
+function postForm(
+  request: APIRequestContext,
+  baseURL: string,
+  fields: Record<string, string>,
+  ip: string
+) {
+  return request.post('/probe/signup', {
+    headers: {
+      origin: baseURL,
+      accept: 'text/html',
+      'content-type': 'application/x-www-form-urlencoded',
+      'x-forwarded-for': ip,
+    },
+    data: new URLSearchParams(fields).toString(),
+    maxRedirects: 0,
+  });
+}
+
+const freshIp = () => `203.0.113.${Math.floor(Math.random() * 250) + 1}`;
+
+/** How many spooled mails went to `to`. */
+function mailsTo(to: string): number {
+  const dir = process.env['MAIL_SPOOL_DIR']!;
+  return readdirSync(dir).filter(
+    (f) => JSON.parse(readFileSync(join(dir, f), 'utf8')).to.email === to
+  ).length;
+}
+
+test('five signups of one address within a day give five thank-you pages and one mail', async ({
+  request,
+  baseURL,
+}) => {
+  // (e) The bomb: one GET, the minimum fill time, five posts with the same address.
+  const email = `e2e-bomb-${Date.now()}@example.org`;
+  const { formId, started } = formFields(await (await request.get('/probe/signup')).text());
+  await new Promise((r) => setTimeout(r, 3200));
+  const ip = freshIp();
+  for (let i = 0; i < 5; i++) {
+    const res = await postForm(
+      request,
+      baseURL!,
+      { formId, _started: started, website: '', email, consent: 'on' },
+      ip
+    );
+    expect(res.status(), `post ${i + 1}`).toBe(303);
+    expect(res.headers()['location']).toBe('/probe/signup/thanks');
+  }
+  await waitForMail(email);
+  // The worker drains the outbox every few seconds: give a second mail the time to show up.
+  await expect
+    .poll(() => supporter(request, email), { timeout: 15_000 })
+    .toMatchObject({ pendingLists: ['newsletter'] });
+  await new Promise((r) => setTimeout(r, 3000));
+  expect(mailsTo(email)).toBe(1);
+});
+
+test('a form page is no-store without an ETag, and revalidation gives a fresh token', async ({
+  request,
+  baseURL,
+}) => {
+  // (f) #30A: no shared copy keeps an old timing token alive.
+  const first = await request.get('/probe/signup');
+  expect(first.headers()['cache-control']).toBe('no-store');
+  expect(first.headers()['etag']).toBeUndefined();
+  const head = await request.head('/probe/signup');
+  expect(head.headers()['cache-control']).toBe('no-store');
+  expect(head.headers()['etag']).toBeUndefined();
+
+  await new Promise((r) => setTimeout(r, 1100));
+  const second = await request.get('/probe/signup', { headers: { 'if-none-match': '*' } });
+  expect(second.status()).toBe(200);
+  const a = formFields(await first.text());
+  const b = formFields(await second.text());
+  expect(b.started).not.toBe(a.started);
+
+  await new Promise((r) => setTimeout(r, 3200));
+  const email = `e2e-fresh-${Date.now()}@example.org`;
+  const res = await postForm(
+    request,
+    baseURL!,
+    { formId: b.formId, _started: b.started, website: '', email, consent: 'on' },
+    freshIp()
+  );
+  expect(res.headers()['location']).toBe('/probe/signup/thanks');
+  await waitForMail(email);
+});
+
+test('the honeypot is out of reach of password managers, and a post without it is refused', async ({
+  page,
+  request,
+  baseURL,
+}) => {
+  // (g) The four attributes the managers read.
+  await page.goto('/probe/signup');
+  const hp = page.locator('input[name="website"]');
+  await expect(hp).toHaveAttribute('data-1p-ignore', '');
+  await expect(hp).toHaveAttribute('data-lpignore', 'true');
+  await expect(hp).toHaveAttribute('data-bwignore', '');
+  await expect(hp).toHaveAttribute('data-form-type', 'other');
+
+  // (h) No `website` field at all: the same thank-you page, no submission, no mail.
+  const { formId, started } = formFields(await page.content());
+  await page.waitForTimeout(3200);
+  const ip = freshIp();
+  const bot = `e2e-nohp-${Date.now()}@example.org`;
+  const refused = await postForm(
+    request,
+    baseURL!,
+    { formId, _started: started, email: bot, consent: 'on' },
+    ip
+  );
+  expect(refused.headers()['location']).toBe('/probe/signup/thanks');
+  // A person right after, through the same worker: once their mail is there, the bot's would be.
+  const person = `e2e-hp-${Date.now()}@example.org`;
+  await postForm(
+    request,
+    baseURL!,
+    { formId, _started: started, website: '', email: person, consent: 'on' },
+    ip
+  );
+  await waitForMail(person);
+  expect(mailsTo(bot)).toBe(0);
+  expect(await supporter(request, bot)).toBeNull();
+});

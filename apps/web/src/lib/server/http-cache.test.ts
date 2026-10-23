@@ -22,6 +22,15 @@ describe('conditional', () => {
     expect(conditional(get({ 'if-none-match': ETAG }, 'HEAD'), page()).status).toBe(304);
   });
 
+  it('strips the validator from a no-store response, so nothing revalidates it (#30A)', () => {
+    const res = conditional(
+      get({ 'if-none-match': '*' }),
+      page({ 'cache-control': NO_STORE, etag: '"sveltekit-hash"' })
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get('etag')).toBeNull();
+  });
+
   it('leaves everything else alone', () => {
     expect(conditional(get(), page()).status).toBe(200);
     expect(conditional(get({ 'if-none-match': '"other"' }), page()).status).toBe(200);

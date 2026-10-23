@@ -205,6 +205,32 @@ export function rateLimiter(trx: Trx, tenantId: string, clock: Clock): RateLimit
         .executeTakeFirstOrThrow();
       return row.hits <= max;
     },
+    async cooldown(key, seconds) {
+      // The hourly sweep keeps a day of windows (janitor.ts); a longer wait would be forgotten.
+      if (!(seconds > 0 && seconds <= 24 * 60 * 60))
+        throw new Error(`cooldown: ${seconds}s is outside (0, one day]`);
+      // Same table, its own key and a sliding window: the latest row says when the last success
+      // was. The advisory lock serialises two attempts on one key, so exactly one sees no row;
+      // rejected: the fixed window of `hit` with max 1 (two mails at 23:59 and 00:01 UTC).
+      await sql`select pg_advisory_xact_lock(hashtextextended(${`rate:${tenantId}:${key}`}, 0))`.execute(
+        trx
+      );
+      const now = clock.now();
+      const recent = await trx
+        .selectFrom('rate_limits')
+        .select('hits')
+        .where('tenant_id', '=', tenantId)
+        .where('key', '=', key)
+        .where('window_start', '>', new Date(now.getTime() - seconds * 1000))
+        .executeTakeFirst();
+      if (recent) return false;
+      await trx
+        .insertInto('rate_limits')
+        .values({ tenant_id: tenantId, key, window_start: now, hits: 1 })
+        .onConflict((oc) => oc.columns(['tenant_id', 'key', 'window_start']).doNothing())
+        .execute();
+      return true;
+    },
   };
 }
 
