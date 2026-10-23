@@ -38,6 +38,7 @@ import {
   currentContext,
   logLevelOf,
   Metrics,
+  buildVersion,
   recordBuildInfo,
   runWithContext,
   sentryErrorReporter,
@@ -212,6 +213,12 @@ const Config = z
      * year-end review still looks back a full year. The database keeps 30 days whatever this says.
      */
     AUDIT_RETENTION_DAYS: z.coerce.number().int().min(30).max(3650).default(400),
+    /**
+     * How many days an archive a tenant administrator asked for (`tenant.export`, TODO #28) can be
+     * downloaded; the daily `tenant.export.expire` deletes it after that. Short on purpose: the
+     * archive holds every supporter of the site.
+     */
+    EXPORT_RETENTION_DAYS: z.coerce.number().int().min(1).max(90).default(7),
   })
   .refine(
     (c) =>
@@ -627,6 +634,12 @@ export function createRuntime(
           timeoutMs: config.ASSIST_TIMEOUT_MS,
           retentionDays: config.ASSIST_RETENTION_DAYS,
           clock,
+        },
+        exports: {
+          blobs,
+          mycelVersion: buildVersion(),
+          retentionDays: config.EXPORT_RETENTION_DAYS,
+          log,
         },
       });
       const stopJobs = startJobWorker(operatorDb, inJobContext(handlers), {

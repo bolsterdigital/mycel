@@ -88,6 +88,9 @@ export const TABLES = {
   // Which of this installation's restic snapshots hold a registration (0021): another
   // installation's snapshot ids say nothing about its backups, so an import starts unsecured.
   erasure_backups: 'operational',
+  // Archives of earlier exports (0022): an archive in an archive would grow with every export,
+  // and the file stays on this installation.
+  tenant_exports: 'operational',
 } as const satisfies Record<keyof Database, 'export' | 'operational' | 'platform'>;
 
 export type ExportTable = {

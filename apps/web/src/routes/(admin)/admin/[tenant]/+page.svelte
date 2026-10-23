@@ -66,6 +66,7 @@
   <p><a href="/admin/{data.tenant.slug}/media">{t('admin.media.link')}</a></p>
   {#if data.capabilities.includes('tenant:admin')}
     <p><a href="/admin/{data.tenant.slug}/status">{t('admin.status.link')}</a></p>
+    <p><a href="/admin/{data.tenant.slug}/export">{t('admin.export.link')}</a></p>
   {/if}
 
   {#if failed}
@@ -125,7 +126,12 @@
   {/if}
 
   {#if data.usage.status === 'suspended'}
-    <div class="notice" role="status"><p>{t('admin.suspended')}</p></div>
+    <div class="notice" role="status">
+      <p>{t('admin.suspended')}</p>
+      {#if data.capabilities.includes('tenant:admin')}
+        <p><a href="/admin/{data.tenant.slug}/export">{t('admin.suspended.export')}</a></p>
+      {/if}
+    </div>
   {/if}
 
   <section aria-labelledby="usage">

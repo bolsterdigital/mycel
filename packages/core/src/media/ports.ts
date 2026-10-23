@@ -16,7 +16,14 @@ import type { ImageFormat, MediaKind, MediaPatch, MediaRecord, NewMedia } from '
  */
 export interface BlobStore {
   put(key: string, bytes: Uint8Array, options: { contentType: string }): Promise<void>;
+  /**
+   * `put` from a local file without holding it in memory (TODO #28: an export archive can be
+   * gigabytes). A reader never sees half a file: the key appears when the write completed.
+   */
+  putFile(key: string, path: string, options: { contentType: string }): Promise<void>;
   get(key: string): Promise<Uint8Array | null>;
+  /** The bytes under `key` in chunks, never all at once; null for a missing key. */
+  getStream(key: string): Promise<AsyncIterable<Uint8Array> | null>;
   head(key: string): Promise<{ size: number; contentType: string } | null>;
   /** A missing key is not an error. */
   delete(keys: readonly string[]): Promise<void>;

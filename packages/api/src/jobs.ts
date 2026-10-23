@@ -30,19 +30,24 @@ import {
   type JobRecord,
   type IdentityStore,
   type JobType,
+  type Logger,
   type MailSources,
   type Mailer,
   type TransactionContext,
   type UnitOfWork,
   type TextModel,
+  type BlobStore,
+  DEFAULT_EXPORT_RETENTION_DAYS,
 } from '@mycel/core';
 import {
   createDb,
   createEventPartitions,
   deleteExpiredAudit,
   deleteFinishedJobs,
+  expireExports,
   listTenants,
   readOutboxEvent,
+  runExportJob,
   sweepRateLimits,
   type JobHandler,
   type JobHandlers,
@@ -57,6 +62,7 @@ export const RECURRING_JOBS: readonly RecurringJob[] = [
   { type: 'jobs.retention', cadence: 'daily' },
   { type: 'audit.retention', cadence: 'daily' },
   { type: 'assist.retention', cadence: 'daily' },
+  { type: 'tenant.export.expire', cadence: 'daily' },
 ];
 
 /**
@@ -109,6 +115,39 @@ export async function sweepAllMediaOrphans(
     }
   if (failed.length) throw new Error(`media.orphans failed for ${failed.length} tenant(s)`);
   return swept;
+}
+
+/**
+ * `tenant.export.expire` (TODO #28): per tenant, like `media.orphans`, as mycel_app under that
+ * tenant's context; one tenant's failure does not stop the others.
+ */
+export async function expireAllExports(
+  operatorDb: ReturnType<typeof createDb>,
+  blobs: BlobStore,
+  tenantIds: () => Promise<string[]>,
+  errors?: ErrorReporter
+): Promise<number> {
+  let purged = 0;
+  const failed: string[] = [];
+  for (const id of await tenantIds())
+    try {
+      purged += await expireExports(operatorDb, blobs, id);
+    } catch (e) {
+      errors?.capture(e, { tenantId: id, job: 'tenant.export.expire' });
+      failed.push(id);
+    }
+  if (failed.length) throw new Error(`tenant.export.expire failed for ${failed.length} tenant(s)`);
+  return purged;
+}
+
+/** What the export jobs need: the store the archives go to and the version in the manifest. */
+export interface ExportJobConfig {
+  blobs: BlobStore;
+  mycelVersion: string;
+  /** EXPORT_RETENTION_DAYS. */
+  retentionDays?: number | undefined;
+  /** Where a failed export is logged (its row says `failed`; the administrator asks again). */
+  log?: Logger | undefined;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -172,6 +211,7 @@ export function jobHandlers({
   auditRetentionDays = 400,
   errors,
   assist,
+  exports,
 }: {
   uow: UnitOfWork;
   operatorDb: ReturnType<typeof createDb>;
@@ -186,7 +226,13 @@ export function jobHandlers({
   /** Per-tenant failures inside a platform job, which the job itself reports only in sum. */
   errors?: ErrorReporter | undefined;
   assist?: { model: TextModel | null; timeoutMs: number; retentionDays: number; clock: Clock };
+  /** The export jobs (TODO #28); without it they fail, which suites that build no archive allow. */
+  exports?: ExportJobConfig | undefined;
 }): JobHandlers {
+  const exportConfig = (): ExportJobConfig => {
+    if (!exports) throw new Error('the export jobs are not configured in this worker');
+    return exports;
+  };
   return {
     'assist.run': async (job) => {
       if (!job.tenantId) throw new Error('assist.run needs a tenant');
@@ -230,5 +276,26 @@ export function jobHandlers({
       readEvent: (id) => readOutboxEvent(operatorDb, id),
       ...mail,
     }),
+    // Not a `tenantJob`: `exportTenant` reads as mycel_app in its own repeatable-read transaction
+    // on the operator connection, and the run outlives any one unit of work. Runs whatever the
+    // tenant's status (ADR 015 rule 7: leaving is never gated).
+    'tenant.export': async (job) => {
+      const { exportId } = parseJobPayload('tenant.export', job.payload);
+      const config = exportConfig();
+      return runExportJob(
+        {
+          operatorDb,
+          blobs: config.blobs,
+          mycelVersion: config.mycelVersion,
+          retentionDays: config.retentionDays ?? DEFAULT_EXPORT_RETENTION_DAYS,
+          log: config.log,
+        },
+        job,
+        exportId
+      );
+    },
+    'tenant.export.expire': platformJob('tenant.export.expire', () =>
+      expireAllExports(operatorDb, exportConfig().blobs, tenantIds, errors)
+    ),
   } satisfies Record<JobType, JobHandler>;
 }

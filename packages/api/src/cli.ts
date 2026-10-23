@@ -23,6 +23,7 @@ import {
 } from '@mycel/core';
 import {
   applyErasures,
+  expireExports,
   createDb,
   erasureStatus,
   createTenant,
@@ -422,8 +423,10 @@ async function main(argv: string[]): Promise<number> {
         let total = 0;
         for (const t of tenants) {
           const changed = await applyErasures(db, t.id);
+          // Archives the apply expired lose their file now, not at the next daily expire.
+          const purged = await expireExports(db, blobStoreFor(config), t.id);
           total += changed;
-          console.log(`${t.slug}\t${changed} rows changed`);
+          console.log(`${t.slug}\t${changed} rows changed, ${purged} archive(s) deleted`);
         }
         console.log(`erasures: ${total} rows changed in ${tenants.length} tenant(s)`);
         break;

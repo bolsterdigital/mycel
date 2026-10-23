@@ -170,9 +170,12 @@ describe('registry rules catch violations', () => {
     );
   });
 
-  it('accepts an effect with its own capability', () => {
+  it('accepts an effect with its own capability, or with tenant:admin', () => {
     expect(
       violations({ name: 'mailing.issue.send', effect: 'send', requires: 'mailing:send' })
+    ).toEqual([]);
+    expect(
+      violations({ name: 'tenant.archive.export', effect: 'export', requires: 'tenant:admin' })
     ).toEqual([]);
   });
 });

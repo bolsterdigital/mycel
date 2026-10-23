@@ -256,6 +256,7 @@ describe.skipIf(!operatorUrl || !appUrl)('erasure conformance', () => {
       'mail_sends.erasure_apply',
       'outbox.erasure_apply',
       'supporters.erasure_apply',
+      'tenant_exports.erasure_apply',
     ]);
     for (const p of policies) {
       expect(p.qual, p.name).toBe('(tenant_id = current_tenant_id())');

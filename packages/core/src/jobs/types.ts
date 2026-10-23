@@ -48,6 +48,16 @@ export const JobPayloads = {
       scheduleId: z.string().uuid(),
     })
     .strict(),
+  /**
+   * Tenant job: build the archive of one `tenant.export` request (TODO #28) and write it to the
+   * blob store under `exports/<tenant>/<id>.tar`. Key `tenant.export:<exportId>`.
+   */
+  'tenant.export': z.object({ exportId: z.string().uuid() }).strict(),
+  /**
+   * Platform job: per tenant, expire archives past EXPORT_RETENTION_DAYS and delete the files of
+   * expired ones, then drop rows older than a year (TODO #28).
+   */
+  'tenant.export.expire': z.object({}).strict(),
 } as const;
 
 export type JobType = keyof typeof JobPayloads;
