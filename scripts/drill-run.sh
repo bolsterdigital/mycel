@@ -113,7 +113,7 @@ dc run --rm -T restore erasures latest
 dc run --rm -T worker mycel erasures apply
 erase_done=$(now)
 host node scripts/drill-verify.mjs absent "$erased" "$work/before.json" | tee -a "$work/compare.txt"
-left=$(dc run --rm -T backup sh -c "pg_dump --data-only | grep -ci '$erased' || true")
+left=$(dc run --rm -T backup sh -c "pg_dump --data-only | grep -ci '$erased' || true" | tail -n 1)
 [ "$left" = 0 ] || { echo "pg_dump --data-only still holds the address $left time(s)" >&2; exit 1; }
 
 step 'conformance'

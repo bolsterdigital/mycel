@@ -40,9 +40,13 @@ pg_restore --data-only --table=erasures --file=- "$src/db/mycel.dump" |
 psql --no-psqlrc --quiet --set=ON_ERROR_STOP=1 <<SQL
 begin;
 create temp table erasures_incoming (like public.erasures) on commit drop;
+\\o /dev/null
 \\i ${target}/erasures.sql
+\\o
+-- pg_restore's preamble set these for the session; the rest runs with the defaults.
 reset search_path;
 reset row_security;
+reset client_min_messages;
 grant select on pg_temp.erasures_incoming to mycel_app;
 set local role mycel_app;
 do \$\$
