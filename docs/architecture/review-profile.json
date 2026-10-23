@@ -42,7 +42,19 @@
         "packages/db/src/supporters*",
         "packages/db/src/admissions.ts",
         "packages/db/src/audit.ts",
-        "packages/db/src/hostnames*"
+        "packages/db/src/hostnames*",
+        "apps/web/src/hooks.ts",
+        "apps/web/vite.config.ts",
+        "apps/web/src/lib/server/admin*",
+        "apps/web/src/lib/server/confirm*",
+        "apps/web/src/lib/server/media.ts",
+        "packages/core/src/entitlements/**",
+        "packages/core/src/tenants/**",
+        "packages/core/src/util/canonical-json*",
+        "packages/core/src/util/digest*",
+        "packages/core/src/util/email*",
+        "packages/core/src/util/log*",
+        "packages/core/src/util/token*"
       ],
       "adrs": ["002", "009", "011", "014", "016", "019"],
       "gates": [
@@ -90,7 +102,8 @@
         "packages/core/src/*/service.ts",
         "packages/api/src/**",
         "packages/mcp/src/**",
-        "docs/reference/platform-api.md"
+        "docs/reference/platform-api.md",
+        "packages/core/src/errors.ts"
       ],
       "adrs": ["009", "015", "018"],
       "gates": [
@@ -116,7 +129,9 @@
         "apps/web/src/lib/theme/**",
         "packages/core/src/theme/**",
         "apps/web/src/lib/server/theme*",
-        "apps/web/static/**"
+        "apps/web/static/**",
+        "apps/web/src/app.html",
+        "apps/web/src/lib/assets/**"
       ],
       "adrs": ["009", "013", "020"],
       "gates": [
@@ -178,7 +193,9 @@
         "packages/db/src/janitor.ts",
         "packages/db/src/repositories.ts",
         "apps/web/src/routes/healthz/**",
-        "apps/web/src/routes/readyz/**"
+        "apps/web/src/routes/readyz/**",
+        "packages/db/src/ops.ts",
+        "packages/db/src/usage.ts"
       ],
       "adrs": ["005", "011", "019"],
       "gates": [
@@ -216,7 +233,12 @@
         "docs/architecture/overview.md",
         "packages/*/src/index.ts",
         "packages/db/src/ids.ts",
-        "packages/db/src/repositories.ts"
+        "packages/db/src/repositories.ts",
+        "apps/*/.npmrc",
+        "apps/web/src/app.d.ts",
+        "apps/web/src/lib/index.ts",
+        "apps/web/src/lib/runtime-key.ts",
+        "packages/core/src/util/bytes*"
       ],
       "adrs": ["001", "006", "008", "013"],
       "gates": ["scripts/check-dependency-rules.mjs", "scripts/check-dependency-rules.test.mjs"],
@@ -240,7 +262,8 @@
         "CONTRIBUTING.md",
         "CLAUDE.md",
         "packages/core/src/testing/**",
-        "scripts/**"
+        "scripts/**",
+        "packages/db/src/seed.ts"
       ],
       "adrs": ["000"],
       "gates": [
@@ -299,10 +322,11 @@
     ".prettierrc",
     ".prettierignore",
     ".nvmrc",
-    ".gitignore",
+    "**/.gitignore",
     ".dockerignore",
     "LICENSE",
     "SECURITY.md",
-    "TRADEMARK.md"
+    "TRADEMARK.md",
+    "**/.vscode/**"
   ]
 }
