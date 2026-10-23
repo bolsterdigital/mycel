@@ -1,5 +1,6 @@
 // The erasure register over Postgres (TODO #18d, migration 0019; ADR 003 rule 5, ADR 019 rule 8).
-// `register` writes one permanent row as mycel_app. `apply` enters `mycel_erasure` for the rest of
+// `register` writes one permanent row as mycel_app; `status` reads which of them a backup holds
+// (0021, written by the backup login only). `apply` enters `mycel_erasure` for the rest of
 // its statements, inside the caller's tenant transaction: that role may tombstone events and the
 // projection, delete submissions, mail intents and jobs, and rewrite outbox props, each on the
 // current tenant's rows only. Only the schema owner's login may enter it, so the worker and the CLI
@@ -67,6 +68,21 @@ export function erasureRepository(
       const changed = await applyAsEraser(trx);
       await sql`set local role mycel_app`.execute(trx);
       return changed;
+    },
+
+    async status() {
+      // As mycel_app under the tenant's context: both tables are readable to it, its rows only.
+      const { rows } = await sql<{ registered: string; secured: string; oldest: Date | null }>`
+        select count(*) as registered, count(b.supporter_id) as secured,
+               min(e.erased_at) filter (where b.supporter_id is null) as oldest
+        from erasures e
+        left join erasure_backups b using (tenant_id, supporter_id)`.execute(trx);
+      const r = rows[0]!;
+      return {
+        registered: Number(r.registered),
+        secured: Number(r.secured),
+        oldestUnsecuredAt: r.oldest,
+      };
     },
   };
 }
@@ -140,6 +156,14 @@ async function applyAsEraser(trx: Trx): Promise<number> {
     )
   );
   return changed;
+}
+
+/** `mycel erasures status`: one tenant's register and how much of it a backup holds. */
+export function erasureStatus(operatorDb: Kysely<Database>, tenantId: string) {
+  const principal = systemPrincipal(tenantId, 'erasures');
+  return withTenant(operatorDb, principal, (trx) =>
+    erasureRepository(trx, tenantId, principal, { now: () => new Date() }).status()
+  );
 }
 
 /**

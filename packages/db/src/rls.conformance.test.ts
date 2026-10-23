@@ -89,6 +89,44 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
   let tables: TenantTable[] = [];
   let partitions: TenantTable[] = [];
   let policies: Policy[] = [];
+  let backupRecorded = false;
+
+  /**
+   * A backup record (TODO #29B, 0021), which only the backup login writes: as that login when the
+   * drill hands its URL over, else as a superuser entering it (CI, the dev stack), made the way
+   * init-backup-role.sh makes it when missing (as erasure-backups.conformance does). An ordinary
+   * owner without that URL (the Mac) cannot, and the vacuity check below leaves the table out.
+   */
+  async function recordBackup(supporterId: string): Promise<boolean> {
+    const insert = sql`insert into erasure_backups (tenant_id, supporter_id, snapshot_id)
+                       values (${tenantId}, ${supporterId}, ${'ef'.repeat(32)})`;
+    const backupUrl = process.env['DRILL_BACKUP_DATABASE_URL'];
+    if (backupUrl) {
+      const backupDb = createDb(backupUrl);
+      try {
+        await insert.execute(backupDb);
+      } finally {
+        await backupDb.destroy();
+      }
+      return true;
+    }
+    const { rows } = await sql<{ superuser: boolean }>`
+      select rolsuper as superuser from pg_roles where rolname = current_user`.execute(operatorDb);
+    if (!rows[0]?.superuser) return false;
+    await sql`
+      do $$ begin
+        if not exists (select from pg_roles where rolname = 'mycel_backup') then
+          create role mycel_backup nologin nosuperuser bypassrls;
+        end if;
+      end $$`.execute(operatorDb);
+    await sql`grant pg_read_all_data to mycel_backup`.execute(operatorDb);
+    await sql`grant insert on erasure_backups to mycel_backup`.execute(operatorDb);
+    await operatorDb.transaction().execute(async (trx) => {
+      await sql`set local role mycel_backup`.execute(trx);
+      await insert.execute(trx);
+    });
+    return true;
+  }
 
   beforeAll(async () => {
     await migrate(operatorUrl!, {
@@ -200,7 +238,9 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     // releases its seat; a reservation without an event cannot be.
     await uow.run(admin, (ctx) => ctx.admissions.reserve(`rls-reserved-${run}@example.org`));
     // An erasure registration (TODO #18d, 0019): the register holds a hash, never the address.
-    await uow.run(admin, (ctx) => ctx.erasures.register(uuidv7(), `rls-erased-${run}@example.org`));
+    const erased = uuidv7();
+    await uow.run(admin, (ctx) => ctx.erasures.register(erased, `rls-erased-${run}@example.org`));
+    backupRecorded = await recordBackup(erased);
     // Memberships and keys through their use cases (TODO #7).
     await invoker.run(useCases.inviteMember, admin, {
       email: `member-${run}@example.org`,
@@ -695,10 +735,11 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     expect(rows[0]).toEqual({ super: false, bypass: false, owns: [] });
   });
 
-  // ADR 011 consequences (TODO #18c): the backup login is the one role that bypasses RLS, and it
-  // can only read. Created by the image's superuser, so a database without it (the dev stack,
-  // the Mac) passes on the first assertion alone; the drill and the compose stack have it.
-  it('lets no role but mycel_backup bypass RLS, and that one only read', async () => {
+  // ADR 011 consequences (TODO #18c, #29B): the backup login is the one role that bypasses RLS,
+  // and it can only read, plus insert which registrations its snapshot holds (0021). Created by
+  // the image's superuser, so a database without it (the Mac) passes on the first assertion
+  // alone; the drill, the compose stack and erasure-backups.conformance (as superuser) have it.
+  it('lets no role but mycel_backup bypass RLS, and that one only read and record backups', async () => {
     const { rows: bypassing } = await sql<{ name: string }>`
       select rolname as name from pg_roles
       where rolbypassrls and not rolsuper order by rolname`.execute(operatorDb);
@@ -706,18 +747,28 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     const { rows } = await sql<{
       createrole: boolean;
       owns: string[];
-      writes: string[];
+      inserts: string[];
+      changes: string[];
     }>`
       select r.rolcreaterole as createrole,
              array(select c.relname::text from pg_class c
                    where c.relowner = r.oid and c.relnamespace = 'public'::regnamespace) as owns,
              array(select distinct c.relname::text from pg_class c
                    where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')
-                     and (has_table_privilege(r.oid, c.oid, 'insert')
-                       or has_table_privilege(r.oid, c.oid, 'update')
-                       or has_table_privilege(r.oid, c.oid, 'delete'))) as writes
+                     and has_table_privilege(r.oid, c.oid, 'insert')) as inserts,
+             array(select distinct c.relname::text from pg_class c
+                   where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')
+                     and (has_table_privilege(r.oid, c.oid, 'update')
+                       or has_table_privilege(r.oid, c.oid, 'delete')
+                       or has_table_privilege(r.oid, c.oid, 'truncate'))) as changes
       from pg_roles r where r.rolname = 'mycel_backup'`.execute(operatorDb);
-    if (rows[0]) expect(rows[0]).toEqual({ createrole: false, owns: [], writes: [] });
+    if (rows[0])
+      expect(rows[0]).toEqual({
+        createrole: false,
+        owns: [],
+        inserts: ['erasure_backups'],
+        changes: [],
+      });
   });
 
   it('returns nothing to mycel_app without set_config, and the seeded rows with it', async () => {
@@ -753,6 +804,11 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
 
       for (const [name, c] of Object.entries(counts)) {
         if (c === 'no select') continue;
+        if (name === 'erasure_backups' && !backupRecorded) {
+          if (process.env['E2E_REQUIRED'] === '1')
+            throw new Error('E2E_REQUIRED=1 but no backup record could be written');
+          continue;
+        }
         expect(c.without, `${name}: rows visible without a tenant context`).toBe(0);
         // Without seeded rows the zero above would prove nothing. A new tenant table needs a
         // row in this test's fixture (beforeAll) before it can pass.

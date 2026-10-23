@@ -2,7 +2,8 @@
      uncertain outcome, the latest actions and the diagnosis to share, every action a native form
      post. Each task's action group wraps whole buttons onto a new line when they do not fit
      (skill ui-action-layout); e2e/status.spec.ts checks 320 CSS px and 200% text. The diagnosis
-     stands on the page as text and in a read-only field to copy from; nothing sends it. -->
+     stands on the page as text and in a read-only field to copy from; nothing sends it. An erasure
+     no backup holds after an hour (TODO #29B) is a notice above everything else. -->
 <script lang="ts">
   import Header from '#lib/admin/Header.svelte';
   import { fill, ui, type UiKey } from '../../../../../i18n/index.js';
@@ -62,7 +63,19 @@
     </form>
   {/if}
 
-  {#if status.jobs.length === 0 && status.mails.length === 0}
+  {#if status.erasures.late && status.erasures.oldestUnsecuredAt}
+    <section class="notice" aria-labelledby="erasures">
+      <h2 id="erasures">{t('admin.status.erasures.title')}</h2>
+      <p>
+        {fill(t('admin.status.erasures.body'), {
+          count: String(status.erasures.unsecured),
+          time: at(status.erasures.oldestUnsecuredAt),
+        })}
+      </p>
+    </section>
+  {/if}
+
+  {#if status.jobs.length === 0 && status.mails.length === 0 && !status.erasures.late}
     <p>{t('admin.status.nothing')}</p>
   {/if}
 

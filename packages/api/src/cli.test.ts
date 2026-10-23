@@ -100,6 +100,11 @@ describe('parseCommand', () => {
       kind: 'erasures.apply',
       slug: 'demo',
     });
+    expect(parseCommand(['erasures', 'status'])).toEqual({ kind: 'erasures.status' });
+    expect(parseCommand(['erasures', 'status', '--tenant=demo'])).toEqual({
+      kind: 'erasures.status',
+      slug: 'demo',
+    });
   });
 
   it('refuses what it does not know instead of guessing', () => {
@@ -121,6 +126,7 @@ describe('parseCommand', () => {
       ['import', 'x', '--tenant', 'y'],
       ['erasures'],
       ['erasures', 'apply', 'demo'],
+      ['erasures', 'status', 'demo'],
     ])
       expect(() => parseCommand(argv), argv.join(' ')).toThrow(UsageError);
   });

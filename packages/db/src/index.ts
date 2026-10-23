@@ -82,7 +82,7 @@ export {
   type Paged,
 } from './recovery.js';
 export { deleteExpiredAudit } from './audit.js';
-export { applyErasures } from './erasures.js';
+export { applyErasures, erasureStatus } from './erasures.js';
 export {
   EXPORT_FORMAT,
   EXPORT_ORDER,

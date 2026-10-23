@@ -12,13 +12,20 @@
 #    its files and step 3 finds them). Then three runs that must fail without a snapshot: one held
 #    while a second image is deleted and purged at once (scripts/drill-media.mjs), one held while
 #    a third image loses its original and gains an unexpected file (same count, review of PR
-#    #38), one over BACKUP_MAX_SECONDS. Then one supporter is erased (scripts/drill-erase.mjs registers, `mycel
-#    erasures apply` applies) and a second backup is the newer snapshot. Then `down --volumes`.
+#    #38), one over BACKUP_MAX_SECONDS. Three erasures runs (`backup erasures`), whose snapshots
+#    the next full run's retention must leave alone. Then one supporter is erased
+#    (scripts/drill-erase.mjs registers, `mycel erasures apply` applies) and a full backup is the
+#    newer snapshot. Then a second supporter is erased and only the erasures backup runs (TODO
+#    #29B): first with a wrong repository password (fails, nothing recorded, `mycel erasures
+#    status` shows it unsecured), then twice for real (both secured, the second adds nothing, its
+#    retention keeps the full snapshots). No full backup after that. Then `down --volumes`.
 # 3. A fresh Postgres and bucket, the restore service as the owner with the older snapshot,
 #    `migrate`; the clock runs from here. The fingerprint again, equal to the first.
-# 4. The erasure again (TODO #18d, ADR 019 rule 8): the register of the newer snapshot
-#    (`restore erasures latest`) and `mycel erasures apply`; then the address is in no table and
-#    no object key, `pg_dump --data-only` does not contain it, and the event counts are unchanged.
+# 4. The erasures again (TODO #18d and #29B, ADR 019 rule 8): `restore erasures latest` loads the
+#    register of the newest erasures snapshot and of the newest full one, `mycel erasures apply`;
+#    then neither address is in a table or an object key, `pg_dump --data-only` does not contain
+#    them, and the event counts are unchanged. First the same command with a restic that cannot
+#    list the erasures snapshots (scripts/drill-restic-fault.sh): it has to fail and load nothing.
 # 5. rls and hostnames conformance against the restored database; then the worker, which has to
 #    report ready. Restore, migrate, the erasure and the worker start are the measured RTO,
 #    written to the job summary.
@@ -82,6 +89,15 @@ release() {
 snapshots() {
   dc run --rm -T backup restic snapshots --host mycel --json | tail -n 1 |
     node -e "let d = ''; process.stdin.on('data', (c) => (d += c)).on('end', () => console.log(JSON.parse(d).length))"
+}
+# How many snapshots carry every tag of $1 (comma-separated).
+tagged() {
+  dc run --rm -T backup restic snapshots --host mycel --tag "$1" --json | tail -n 1 |
+    node -e "let d = ''; process.stdin.on('data', (c) => (d += c)).on('end', () => console.log(JSON.parse(d).length))"
+}
+# Rows in erasure_backups, read as the backup login (the owner sees none under forced RLS).
+secured() {
+  dc run --rm -T backup psql --no-psqlrc -Atc 'select count(*) from erasure_backups' | tail -n 1
 }
 
 # The host side reaches the stack on the drill's loopback ports, with the CI placeholders. Only
@@ -156,12 +172,50 @@ grep -q 'more than BACKUP_MAX_SECONDS=1' "$work/slow.log" ||
   { echo 'the slow backup failed for another reason' >&2; exit 1; }
 [ "$(snapshots)" = "$count" ] || { echo 'the slow backup wrote a snapshot' >&2; exit 1; }
 
-step 'erasure, then the newer snapshot'
+step 'erasures backups do not thin out the full snapshots, nor the full run theirs'
+# Three erasures snapshots before the newer full one: a full run whose retention reached them
+# would keep only the oldest and the newest of the day (restic --keep-daily).
+for i in 1 2 3; do dc run --rm -T backup erasures; done
+[ "$(tagged mycel,erasures)" = 3 ] || { echo 'three erasures runs did not leave three snapshots' >&2; exit 1; }
+
+step 'erasure, then the newer full snapshot'
 erased=supporter-drill-a@example.org
 host node scripts/drill-erase.mjs drill-a "$erased"
 dc run --rm -T worker mycel erasures apply
 dc run --rm -T backup
 dc run --rm -T backup restic snapshots --host mycel
+[ "$(tagged mycel,erasures)" = 3 ] ||
+  { echo "the full run's retention removed erasures snapshots" >&2; exit 1; }
+full=$(tagged mycel,db)
+
+step 'a second erasure, secured only by the erasures backup (TODO #29B)'
+late=supporter-drill-b@example.org
+host node scripts/drill-erase.mjs drill-b "$late"
+dc run --rm -T worker mycel erasures apply
+dc run --rm -T worker mycel erasures apply | tee "$work/apply-again.log"
+grep -q '^erasures: 0 rows changed' "$work/apply-again.log" ||
+  { echo 'a second erasures apply changed rows' >&2; exit 1; }
+# A failed run: restic refuses the password, nothing is recorded, the status says so.
+if dc run --rm -T -e RESTIC_PASSWORD=wrong backup erasures >"$work/wrong.log" 2>&1; then
+  cat "$work/wrong.log"; echo 'the erasures backup passed with a wrong repository password' >&2; exit 1
+fi
+[ "$(secured)" = 1 ] || { echo "a failed erasures backup recorded registrations: $(secured)" >&2; exit 1; }
+dc run --rm -T worker mycel erasures status | tee "$work/status.log"
+grep -Eq '^drill-b[[:space:]]1 registered[[:space:]]1 not secured[[:space:]]oldest since ' "$work/status.log" ||
+  { echo 'mycel erasures status does not show the unsecured registration' >&2; exit 1; }
+# Then the run that works, twice: the second adds no row. Its retention keeps one erasures
+# snapshot and leaves both full ones, so the older one is still there to restore.
+dc run --rm -T -e ERASURES_KEEP_LAST=1 -e ERASURES_KEEP_DAILY=0 backup erasures
+[ "$(secured)" = 2 ] || { echo "the erasures backup secured $(secured) of 2 registrations" >&2; exit 1; }
+dc run --rm -T -e ERASURES_KEEP_LAST=1 -e ERASURES_KEEP_DAILY=0 backup erasures |
+  tee "$work/again.log"
+grep -q 'erasures: 2 in snapshot .*, 0 newly secured' "$work/again.log" ||
+  { echo 'a second erasures backup did not report 0 newly secured' >&2; exit 1; }
+[ "$(secured)" = 2 ] || { echo 'a second erasures backup added rows' >&2; exit 1; }
+[ "$(tagged mycel,erasures)" = 1 ] || { echo 'the erasures retention kept more than one' >&2; exit 1; }
+[ "$(tagged mycel,db)" = "$full" ] ||
+  { echo "the erasures run's retention removed full snapshots" >&2; exit 1; }
+dc run --rm -T worker mycel erasures status
 
 step 'empty box'
 dc down --volumes --remove-orphans
@@ -180,14 +234,36 @@ host node scripts/drill-verify.mjs fingerprint >"$work/after.json"
 host node scripts/drill-verify.mjs compare "$work/before.json" "$work/after.json" | tee "$work/compare.txt"
 [ "$(dc exec -T postgres psql -U mycel -d mycel -Atc "select rolsuper from pg_roles where rolname = current_user")" = f ]
 
+step 'restore erasures latest with an unlistable register: fails, loads nothing'
+# The review of PR #39: restic lists the full snapshots but not the erasures ones. A restore that
+# took that for "no register yet" would load only the full snapshot and miss the late erasure.
+if dc run --rm -T -v "$PWD/scripts/drill-restic-fault.sh:/fault/restic:ro" \
+  -e PATH=/fault:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  restore erasures latest >"$work/restore-erasures-fault.log" 2>&1; then
+  cat "$work/restore-erasures-fault.log" >&2
+  echo 'restore erasures latest succeeded although the register could not be listed' >&2
+  exit 1
+fi
+grep -q 'could not list the snapshots tagged mycel,erasures' "$work/restore-erasures-fault.log" ||
+  { cat "$work/restore-erasures-fault.log" >&2; echo 'the fault failed the restore for another reason' >&2; exit 1; }
+[ "$(dc run --rm -T backup psql --no-psqlrc -Atc 'select count(*) from erasures' | tail -n 1)" = 0 ] ||
+  { echo 'the failed restore loaded registrations anyway' >&2; exit 1; }
+
 step 'erasure after the restore'
 erase_started=$(now)
-dc run --rm -T restore erasures latest
+dc run --rm -T restore erasures latest 2>&1 | tee "$work/restore-erasures.log"
 dc run --rm -T worker mycel erasures apply
 erase_done=$(now)
-host node scripts/drill-verify.mjs absent "$erased" "$work/before.json" | tee -a "$work/compare.txt"
-left=$(dc run --rm -T backup sh -c "pg_dump --data-only | grep -ci '$erased' || true" | tail -n 1)
-[ "$left" = 0 ] || { echo "pg_dump --data-only still holds the address $left time(s)" >&2; exit 1; }
+# Both sources: the erasures snapshot holds both registrations, the newer full one only the first.
+grep -q 'erasures: 2 registration(s) in the snapshot, 2 new here' "$work/restore-erasures.log" ||
+  { echo 'restore erasures latest did not load the erasures snapshot' >&2; exit 1; }
+grep -q 'full: 1 registration(s) in the snapshot, 0 new here' "$work/restore-erasures.log" ||
+  { echo 'restore erasures latest did not load the newer full snapshot' >&2; exit 1; }
+for address in "$erased" "$late"; do
+  host node scripts/drill-verify.mjs absent "$address" "$work/before.json" | tee -a "$work/compare.txt"
+  left=$(dc run --rm -T backup sh -c "pg_dump --data-only | grep -ci '$address' || true" | tail -n 1)
+  [ "$left" = 0 ] || { echo "pg_dump --data-only still holds $address $left time(s)" >&2; exit 1; }
+done
 
 step 'conformance'
 host npx vitest run --project packages packages/db/src/rls.conformance.test.ts \

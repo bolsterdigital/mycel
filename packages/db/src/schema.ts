@@ -298,4 +298,11 @@ export interface Database {
     erased_at: Timestamp;
     actor: Json<unknown>;
   };
+  /** Which registrations a restic snapshot holds (0021); written by mycel_backup only. */
+  erasure_backups: {
+    tenant_id: string;
+    supporter_id: string;
+    snapshot_id: string;
+    secured_at: Timestamp;
+  };
 }

@@ -16,7 +16,7 @@ import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/pr
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { sql } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import {
   Invoker,
   buildRegistry,
@@ -49,6 +49,7 @@ import {
   uuidv7Ids,
   type ExportManifest,
 } from './index.js';
+import type { Database } from './schema.js';
 import { closeTenantWork } from './testing.js';
 
 const operatorUrl = process.env['DATABASE_URL'];
@@ -69,6 +70,23 @@ const roles = {
 // primary; the second database only needs the schema. Rejected: one global lock around every
 // suite's migrate (serialises the whole run for one call site).
 const secondDatabase = { log: () => {} };
+
+/**
+ * Drop a scratch database once its pool has really gone. `db.destroy()` resolves when pg-pool has
+ * removed its idle clients, not when their backends have exited; a `drop ... with (force)` in that
+ * gap terminates a backend mid-shutdown and the 57P01 lands on a client with no error listener:
+ * an unhandled error that fails the run with every test green (CI on 1e097cb). Rejected: an error
+ * listener on the pool (would also hide a real connection loss elsewhere in the suite).
+ */
+async function dropDatabase(operatorDb: Kysely<Database>, name: string) {
+  for (let i = 0; i < 50; i++) {
+    const { rows } = await sql<{ n: number }>`
+      select count(*)::int as n from pg_stat_activity where datname = ${name}`.execute(operatorDb);
+    if (rows[0]?.n === 0) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  await sql`drop database if exists ${sql.id(name)} with (force)`.execute(operatorDb);
+}
 
 describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
   const operatorDb = createDb(operatorUrl ?? '');
@@ -206,6 +224,10 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
       operatorDb
     );
     canCreateDb = rows[0]?.ok === true;
+    // Import and rollback need a second database; in CI their absence is a failure, not a skip
+    // (TODO #29B), as in consent-snapshot-migration.conformance.test.ts.
+    if (!canCreateDb && process.env['E2E_REQUIRED'] === '1')
+      throw new Error('E2E_REQUIRED=1 but the login has neither CREATEDB nor superuser');
     if (canCreateDb) {
       await sql`create database ${sql.id(target.name)}`.execute(operatorDb);
       const url = new URL(operatorUrl!);
@@ -219,8 +241,7 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
   afterAll(async () => {
     await closeTenantWork(operatorDb, [tenant.a.id, tenant.b.id]);
     await target.db?.destroy();
-    if (canCreateDb)
-      await sql`drop database if exists ${sql.id(target.name)} with (force)`.execute(operatorDb);
+    if (canCreateDb) await dropDatabase(operatorDb, target.name);
     if (scratch.dir) await rm(scratch.dir, { recursive: true, force: true });
     await operatorDb.destroy();
     await appDb.destroy();
@@ -569,7 +590,7 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
           ]);
         } finally {
           await db.destroy();
-          await sql`drop database if exists ${sql.id(name)} with (force)`.execute(operatorDb);
+          await dropDatabase(operatorDb, name);
         }
       }
     );

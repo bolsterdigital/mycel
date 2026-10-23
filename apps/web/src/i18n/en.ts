@@ -260,6 +260,9 @@ export const en = {
   'confirm.pending.body':
     'One more step: confirm with the button below. Did you not sign up? Then you need not do anything.',
   'confirm.pending.button': 'Confirm my subscription',
+  'admin.status.erasures.title': 'Erasures not yet in a backup',
+  'admin.status.erasures.body':
+    '{count} erasure(s) of this site are not in a backup yet; the oldest has waited since {time}. Until a backup holds them, a restore after losing the server would bring these people back. Ask whoever hosts this site to check the erasure backup.',
 } as const;
 
 export type UiKey = keyof typeof en;

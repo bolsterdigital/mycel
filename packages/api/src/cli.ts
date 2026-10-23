@@ -12,6 +12,7 @@
 
 import { fileURLToPath } from 'node:url';
 import {
+  ERASURE_UNSECURED_WARN_MS,
   Invoker,
   UseCaseError,
   systemPrincipal,
@@ -23,6 +24,7 @@ import {
 import {
   applyErasures,
   createDb,
+  erasureStatus,
   createTenant,
   exportTenant,
   importTenant,
@@ -65,6 +67,7 @@ export const USAGE = `usage:
   mycel export <slug> --out <directory or file.tar>
   mycel import <directory or file.tar> [--slug <slug>]
   mycel erasures apply [--tenant <slug>]
+  mycel erasures status [--tenant <slug>]
   mycel version`;
 
 export interface SetupInput {
@@ -88,6 +91,7 @@ export type Command =
   | { kind: 'export'; slug: string; out: string }
   | { kind: 'import'; path: string; slug?: string }
   | { kind: 'erasures.apply'; slug?: string }
+  | { kind: 'erasures.status'; slug?: string }
   | { kind: 'version' };
 
 /** A command line the parser refuses; the message says what is wrong, then the usage follows. */
@@ -149,6 +153,10 @@ export function parseCommand(argv: readonly string[]): Command {
   if (noun === 'erasures' && verb === 'apply') {
     const f = flags(rest, ['tenant']);
     return { kind: 'erasures.apply', ...(f['tenant'] ? { slug: f['tenant'] } : {}) };
+  }
+  if (noun === 'erasures' && verb === 'status') {
+    const f = flags(rest, ['tenant']);
+    return { kind: 'erasures.status', ...(f['tenant'] ? { slug: f['tenant'] } : {}) };
   }
   if (noun === 'blob' && verb === 'init' && rest.length === 0) return { kind: 'blob.init' };
   if (noun === 'tenants' && verb === 'list' && rest.length === 0) return { kind: 'tenants.list' };
@@ -418,6 +426,30 @@ async function main(argv: string[]): Promise<number> {
           console.log(`${t.slug}\t${changed} rows changed`);
         }
         console.log(`erasures: ${total} rows changed in ${tenants.length} tenant(s)`);
+        break;
+      }
+      case 'erasures.status': {
+        // TODO #29B: a registration is a completed erasure only once a backup holds it. Exit 1
+        // when one has waited longer than ERASURE_UNSECURED_WARN_MS, so a timer can alarm on it.
+        const tenants = command.slug ? [await bySlug(command.slug)] : await listTenants(db);
+        const now = Date.now();
+        let late = 0;
+        for (const t of tenants) {
+          const s = await erasureStatus(db, t.id);
+          const oldest = s.oldestUnsecuredAt;
+          if (oldest && now - oldest.getTime() > ERASURE_UNSECURED_WARN_MS) late++;
+          console.log(
+            `${t.slug}\t${s.registered} registered\t${s.registered - s.secured} not secured` +
+              (oldest ? `\toldest since ${oldest.toISOString()}` : '')
+          );
+        }
+        if (late) {
+          console.error(
+            `erasures: ${late} site(s) with a registration no backup holds after an hour; ` +
+              'run the erasures backup (docs/self-hosting.md § Backups)'
+          );
+          return 1;
+        }
         break;
       }
       case 'tenants.create': {

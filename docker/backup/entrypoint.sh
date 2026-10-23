@@ -10,6 +10,8 @@ case "${1:-backup}" in
     [ "$#" -gt 0 ] && shift
     exec sh "$dir/backup.sh" "$@"
     ;;
+  # `run --rm backup erasures`: only the erasure register, every 15 minutes (TODO #29B).
+  erasures) exec sh "$dir/backup.sh" erasures ;;
   restore)
     shift
     # `run --rm restore erasures <snapshot>`: the register of a newer snapshot (TODO #18d).
