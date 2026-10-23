@@ -139,7 +139,7 @@ Then `systemctl enable --now mycel-backup.timer`.
 | Integrity check (`BACKUP_CHECK_WEEKDAY`)               | on Sundays restic reads back a random 5% of the data                                                               |
 | RTO                                                    | what the restore drill measures (§ Restore); minutes for a small installation, growing with the dump and the media |
 
-The expiry window matters for erasure (ADR 019 rule 8): a supporter erased today is still in the snapshots of the last six months, and a restore from one of them brings the data back. Mycel keeps a register of erasures so that a restore applies them again (TODO #18d); until that ships, re-run any erasure after a restore by hand.
+The expiry window matters for erasure (ADR 019 rule 8): a supporter erased today is still in the snapshots of the last six months, and a restore from one of them brings the data back. Mycel keeps a register of erasures (who, when, a hash of the address, never the address) so that a restore applies them again: step 4 of [Restore](#restore) below.
 
 **Check every day** that a new snapshot exists; a backup that silently stopped is the usual way to have none:
 
@@ -151,7 +151,7 @@ The newest line should be from last night. A monitoring check can run the same c
 
 ## Restore
 
-A restore puts a snapshot back on a box with an empty database ([`docker/backup/restore.sh`](../docker/backup/restore.sh)). It runs as the schema owner, an ordinary role: it first creates the database roles the snapshot names, then loads the dump in one transaction (any error rolls it back) and copies the media files into the bucket. It refuses a database that already has tables. CI rehearses exactly this every month on an empty runner and on every change to the backup ([`restore-drill.yml`](../.github/workflows/restore-drill.yml), [`scripts/drill-run.sh`](../scripts/drill-run.sh)): it compares every table and every media file before and after, runs the tenant-isolation and hostname conformance suites against the restored database and waits for a ready worker; the job summary shows the measured RTO.
+A restore puts a snapshot back on a box with an empty database ([`docker/backup/restore.sh`](../docker/backup/restore.sh)). It runs as the schema owner, an ordinary role: it first creates the database roles the snapshot names, then loads the dump in one transaction (any error rolls it back) and copies the media files into the bucket. It refuses a database that already has tables. CI rehearses exactly this every month on an empty runner and on every change to the backup ([`restore-drill.yml`](../.github/workflows/restore-drill.yml), [`scripts/drill-run.sh`](../scripts/drill-run.sh)): it compares every table and every media file before and after, restores an older snapshot and proves that an erasure registered after it is applied again (the address in no table, the event counts unchanged), runs the tenant-isolation and hostname conformance suites against the restored database and waits for a ready worker; the job summary shows the measured RTO.
 
 On a new server, with this repository at the same release and the same `.env` (the restic and database passwords above all):
 
@@ -163,10 +163,26 @@ On a new server, with this repository at the same release and the same `.env` (t
    ```
 
 3. Start the stack: `docker compose up -d`. Its first service, `migrate`, brings a snapshot from an older release up to this one and turns the two runtime roles into logins again; then the rest starts.
-4. Check: `docker compose ps` shows every service healthy, and the sites answer.
+4. Apply the erasures. Always run the second command; when you restored an older snapshot than the latest, run the first one before it, so that everybody erased since that snapshot was taken is erased again:
+
+   ```sh
+   docker compose --profile restore run --rm restore erasures latest   # only after an older snapshot
+   docker compose run --rm worker mycel erasures apply
+   ```
+
+   The first loads the erasure register of the latest snapshot into the restored database ([`docker/backup/restore-erasures.sh`](../docker/backup/restore-erasures.sh)); the second makes every registered supporter anonymous again in every table and prints how many rows it changed per site. A second run changes nothing. The contract is in [`reference/export.md`](reference/export.md#erasure-register).
+
+5. Check: `docker compose ps` shows every service healthy, and the sites answer.
 
 To restore onto the same server after losing the data, stop everything first (`docker compose down`), remove the database volume (`docker volume rm <project>_postgres`; this deletes the current data for good, so only when it is lost anyway), and continue at step 1.
 
 ## Export
 
-A per-site export and import with files comes with TODO #18d.
+One site (a tenant) exports to a directory or a `.tar` with its data, its media files and a manifest, and imports into another installation, or into this one after it was lost there. The format, what travels and what does not, is in [`reference/export.md`](reference/export.md).
+
+```sh
+docker compose run --rm -v "$PWD/exports:/exports" worker mycel export <slug> --out /exports/<slug>.tar
+docker compose run --rm -v "$PWD/exports:/exports" worker mycel import /exports/<slug>.tar [--slug <new slug>]
+```
+
+The image runs as user `node` (uid 1000), so the directory must be writable for it: `mkdir -p exports && sudo chown 1000 exports`. Export works for a suspended site too (ADR 015 rule 7). Import refuses an export from a newer database schema than this installation's (upgrade first), a slug or site id that exists here, and an archive whose files do not match its manifest; a failed import leaves nothing behind. The members come back as pending invitations (they log in again here) and custom domains as unverified until their DNS answers here.

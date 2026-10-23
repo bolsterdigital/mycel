@@ -241,6 +241,33 @@ describe.skipIf(!operatorUrl || !appUrl)('erasure conformance', () => {
     await expect(attempt(sql`delete from erasures`)).rejects.toThrow(/permission denied/);
   });
 
+  it('gives mycel_erasure tenant-bound policies only, and no way in for the fronts', async () => {
+    const { rows: role } = await sql<{ canlogin: boolean; app_member: boolean }>`
+      select rolcanlogin as canlogin, pg_has_role('mycel_app', oid, 'MEMBER') as app_member
+      from pg_roles where rolname = 'mycel_erasure'`.execute(operatorDb);
+    expect(role).toEqual([{ canlogin: false, app_member: false }]);
+    const { rows: policies } = await sql<{
+      name: string;
+      qual: string | null;
+      check: string | null;
+    }>`
+      select tablename || '.' || policyname as name, qual, with_check as check from pg_policies
+      where schemaname = 'public' and 'mycel_erasure' = any(roles) order by 1`.execute(operatorDb);
+    expect(policies.map((p) => p.name)).toEqual([
+      'erasures.erasure_apply',
+      'events.erasure_apply',
+      'form_submissions.erasure_apply',
+      'jobs.erasure_apply',
+      'mail_sends.erasure_apply',
+      'outbox.erasure_apply',
+      'supporters.erasure_apply',
+    ]);
+    for (const p of policies) {
+      expect(p.qual, p.name).toBe('(tenant_id = current_tenant_id())');
+      if (p.check) expect(p.check, p.name).toBe('(tenant_id = current_tenant_id())');
+    }
+  });
+
   it('is invisible to mycel_auth and mycel_platform', async () => {
     const { rows } = await sql<{ role: string; granted: boolean }>`
       select r as role, has_table_privilege(r, 'public.erasures', 'select') as granted

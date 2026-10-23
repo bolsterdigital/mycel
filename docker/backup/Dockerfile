@@ -26,7 +26,7 @@ RUN apk add --no-cache \
 ENV RESTIC_CACHE_DIR=/cache \
     STAGING_DIR=/staging
 
-COPY backup.sh restore.sh common.sh entrypoint.sh /usr/local/lib/mycel-backup/
+COPY backup.sh restore.sh restore-erasures.sh common.sh entrypoint.sh /usr/local/lib/mycel-backup/
 WORKDIR /staging
 ENTRYPOINT ["/usr/local/lib/mycel-backup/entrypoint.sh"]
 CMD ["backup"]

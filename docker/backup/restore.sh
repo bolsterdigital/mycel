@@ -12,7 +12,9 @@
 #
 # What it cannot do is the step after it: `migrate` lives in the application image. Start the
 # stack afterwards (`docker compose up -d`), whose first service is `migrate`; the runner is
-# idempotent and brings a dump from an older release up to this one.
+# idempotent and brings a dump from an older release up to this one. Restored an older snapshot
+# than the latest? Then carry the newer erasure register over (`restore erasures latest`,
+# restore-erasures.sh) and apply it (`mycel erasures apply`), so nobody erased since comes back.
 # Rejected: `--clean` over an existing database (drops in dependency order are fragile with
 # partitions and policies, and a half-restored live database is worse than a refusal).
 set -eu
@@ -54,4 +56,5 @@ rclone sync "$src/blob" "$blobs" --fast-list
 say "media files: $(tally "$src/blob")"
 
 rm -rf "$target"
-say "done; now start the stack (docker compose up -d): migrate runs first"
+say "done; now start the stack (docker compose up -d): migrate runs first; then, after an older"
+say "snapshot than the latest, restore erasures latest and mycel erasures apply (self-hosting.md)"
