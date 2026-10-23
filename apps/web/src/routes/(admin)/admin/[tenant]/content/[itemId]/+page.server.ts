@@ -1,7 +1,9 @@
 // The edit page of one item (TODO #11, brief content-editor § A1): the document fields of the
 // latest revision, saved as a new revision through `content.item.update` with the revision the
-// form was opened on as `baseRevisionId` (ADR 018 rule 2). The blocks are not edited here yet
-// (brief § B); `documentFrom` carries them over unchanged. Authors and section always list what
+// form was opened on as `baseRevisionId` (ADR 018 rule 2); `documentFrom` carries the blocks over
+// unchanged. Each block has its own forms (brief § B): its fields through `set_props` and a move
+// up or down through `move`, both on the revision the page showed; inserting and removing have
+// pages of their own (`blocks/new`, `blocks/[blockId]/remove`). Authors and section always list what
 // the document has, also beyond the first page of the directory (`withAssigned`).
 //
 // A conflict shows both versions, as the ADR asks: the form keeps what was typed, a notice names
@@ -16,6 +18,8 @@
 // for `content:publish`; the registry refuses the rest regardless.
 import { error, fail, redirect } from '@sveltejs/kit';
 import {
+  BLOCK_DEFINITIONS,
+  BLOCK_TYPES,
   UseCaseError,
   can,
   readinessIssues,
@@ -24,7 +28,8 @@ import {
   type Principal,
   type Section,
 } from '@mycel/core';
-import { failureOf } from '#lib/server/admin-actions.js';
+import { formValues, posted, propsFromForm } from '#lib/editor/block-form.js';
+import { failureOf, text } from '#lib/server/admin-actions.js';
 import { requireTenantPrincipal } from '#lib/server/admin.js';
 import {
   actorLabel,
@@ -44,6 +49,13 @@ import {
   localInput,
   localLabel,
 } from '#lib/server/content-admin-publication.js';
+import {
+  type FieldIssue,
+  fieldIssues,
+  issueCopy as blockIssueCopy,
+  pickerOptions,
+  summaryOf,
+} from '#lib/server/content-blocks.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { UiKey } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
@@ -128,7 +140,22 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
           ),
         ])
       : [[], []];
+  const options = await pickerOptions(principal, doc.blocks, item.defaultLocale);
   return {
+    blocks: doc.blocks.map((b) => ({
+      id: b.id,
+      type: b.type,
+      summary: summaryOf(b, item.defaultLocale),
+      values: formValues(
+        BLOCK_DEFINITIONS[b.type].fields,
+        b.props as Record<string, unknown>,
+        doc.locales
+      ),
+    })),
+    openBlock: url.searchParams.get('block'),
+    blockTypes: BLOCK_TYPES,
+    docLocales: doc.locales,
+    ...options,
     item: {
       id: item.id,
       type: item.type,
@@ -175,6 +202,10 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
 
 /** The notice after a publication action, by the `done` parameter of its redirect. */
 const DONE: Record<string, UiKey> = {
+  blockSaved: 'admin.block.done.saved',
+  blockMoved: 'admin.block.done.moved',
+  blockInserted: 'admin.block.done.inserted',
+  blockRemoved: 'admin.block.done.removed',
   publish: 'admin.content.publication.done.publish',
   unpublish: 'admin.content.publication.done.unpublish',
   schedule: 'admin.content.publication.done.schedule',
@@ -278,7 +309,121 @@ const ISSUES: Record<string, UiKey> = {
   'content.access.tier-ids-required': 'admin.content.error.tier',
 };
 
+/**
+ * One block action on the revision the page showed (brief content-editor § B). `apply` gets the
+ * block and its index in that revision and runs the operation; a refusal comes back with what was
+ * typed and the issues on their fields, a stale revision as the conflict of A1.
+ */
+async function blockAction(
+  event: Parameters<Actions[string]>[0],
+  done: string,
+  apply: (input: {
+    principal: Principal;
+    data: FormData;
+    blocks: ContentDocument['blocks'];
+    index: number;
+    target: { itemId: string; baseRevisionId: string };
+  }) => Promise<FieldIssue[] | void>
+) {
+  const { tenant, principal } = await requireTenantPrincipal(
+    event.locals,
+    event.url,
+    event.params.tenant!
+  );
+  const data = await event.request.formData();
+  const blockId = text(data, 'blockId');
+  const target = { itemId: event.params.itemId!, baseRevisionId: text(data, 'baseRevisionId') };
+  const blockValues: Record<string, string> = {};
+  for (const [k, v] of data) if (typeof v === 'string' && !(k in blockValues)) blockValues[k] = v;
+  const rt = runtime();
+  let index = -1;
+  try {
+    const { revision } = await rt.invoker.run(useCases.getItem, principal, {
+      itemId: target.itemId,
+      revisionId: target.baseRevisionId,
+    });
+    const blocks = revision.document.blocks;
+    index = blocks.findIndex((b) => b.id === blockId);
+    if (index < 0) error(404, 'Not found');
+    // Rich text the form could not read never reaches core.
+    const unread = await apply({ principal, data, blocks, index, target });
+    if (unread?.length)
+      return fail(400, {
+        action: 'block',
+        error: 'admin.block.error.invalid' as UiKey,
+        blockId,
+        blockValues,
+        fieldIssues: unread,
+        conflict: null,
+      });
+  } catch (e) {
+    if (!(e instanceof UseCaseError)) throw e;
+    const { status, body } = failureOf(e, 'block', {
+      conflict: 'admin.content.conflict.title',
+      invalid: 'admin.block.error.invalid',
+    });
+    const conflict =
+      e.code === 'conflict'
+        ? await conflictOf(principal, target.itemId, target.baseRevisionId)
+        : null;
+    return fail(status, {
+      ...body,
+      blockId,
+      blockValues: conflict ? { ...blockValues, baseRevisionId: conflict.newest } : blockValues,
+      fieldIssues: e.code === 'invalid_input' ? fieldIssues(e, index) : [],
+      conflict: conflict && { who: conflict.who, when: conflict.when, changes: conflict.changes },
+    });
+  }
+  redirect(
+    303,
+    `/admin/${tenant.slug}/content/${target.itemId}?done=${done}&block=${encodeURIComponent(blockId)}#block-${blockId}`
+  );
+}
+
+/** Who saved the newest revision, when, and what changed since `from`. */
+async function conflictOf(principal: Principal, itemId: string, from: string) {
+  const { item, revision } = await latest(principal, itemId);
+  const { changes } = await runtime().invoker.run(useCases.diffRevisions, principal, {
+    itemId: item.id,
+    fromRevisionId: from,
+    toRevisionId: revision.id,
+  });
+  return {
+    newest: revision.id,
+    who: actorLabel(revision.actor),
+    when: when(revision.createdAt),
+    changes: diffRows(changes),
+  };
+}
+
 export const actions: Actions = {
+  setProps: (event) =>
+    blockAction(event, 'blockSaved', async ({ principal, data, blocks, index, target }) => {
+      const block = blocks[index]!;
+      const { props, errors } = propsFromForm(
+        BLOCK_DEFINITIONS[block.type].fields,
+        posted(data),
+        block.props as Record<string, unknown>
+      );
+      if (errors.length)
+        return errors.map((e) => ({ name: e.name, copy: blockIssueCopy(e.message) }));
+      await runtime().invoker.run(useCases.setBlockProps, principal, {
+        ...target,
+        blockId: block.id,
+        props,
+      });
+    }),
+  move: (event) =>
+    blockAction(event, 'blockMoved', async ({ principal, data, blocks, index, target }) => {
+      const up = text(data, 'direction') === 'up';
+      const neighbour = blocks[up ? index - 1 : index + 1];
+      if (!neighbour) return;
+      await runtime().invoker.run(useCases.moveBlock, principal, {
+        ...target,
+        blockId: blocks[index]!.id,
+        place: up ? { before: neighbour.id } : { after: neighbour.id },
+      });
+    }),
   publish: (event) =>
     publication(event, 'publish', (principal, { itemId, locale, revisionId }) =>
       runtime().invoker.run(useCases.publishItem, principal, { itemId, locale, revisionId })

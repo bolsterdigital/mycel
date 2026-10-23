@@ -1,14 +1,20 @@
 <!-- The edit page of one item (TODO #11 A1): its status per locale, the document fields as one
      native form, links to the revisions and to a preview per locale in a new tab. A failed save
      comes back with what was typed; a conflict also shows who saved in between and what changed
-     (ADR 018 rule 2). The blocks get their own forms in brief § B. The action group wraps whole
-     buttons and links onto a new line when they do not fit (skill ui-action-layout).
+     (ADR 018 rule 2). The action group wraps whole buttons and links onto a new line when they
+     do not fit (skill ui-action-layout).
+     Each block (§ B) is a native <details>, open for the block just edited: its fields as one
+     form, then five actions: save, move up, move down, remove (a confirmation page) and insert
+     a block before or after it (a page with the new block's fields). The move and remove actions
+     stand in one column on a narrow card, like the publication actions.
      The publication panel (§ A2) has one card per locale: what is live, what is pinned, what stops
      a publish, and up to four actions, each its own form. They stack into a column when the card
      is narrow, so no label is ever cut (skill ui-action-layout); the restricted notice comes
      before every button and cannot be closed (ADR 018 rule 6). -->
 <script lang="ts">
+  import BlockFields from '#lib/admin/BlockFields.svelte';
   import Diff from '#lib/admin/Diff.svelte';
+  import { BLOCK_DEFINITIONS } from '@mycel/core';
   import Header from '#lib/admin/Header.svelte';
   import { fill, ui, type UiKey } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
@@ -32,6 +38,15 @@
       t('admin.content.untitled')
   );
   const baseRevision = $derived(v('baseRevisionId') || data.revision.id);
+  /** A field name of a block form as words: the field's label, plus its locale. */
+  const fieldLabel = (name: string): string => {
+    const parts = name.split('.').slice(1);
+    const locale = data.docLocales.includes(parts.at(-1) ?? '') ? parts.pop() : null;
+    const key = [...parts].reverse().find((p) => !/^\d+$/.test(p) && p !== 'mode');
+    const label = key ? t(`admin.block.field.${key}` as UiKey) : t('admin.block.title');
+    return locale ? `${label} (${locale})` : label;
+  };
+  const fieldId = (blockId: string, name: string) => `b-${blockId}-${name.replaceAll('.', '-')}`;
   const preview = (l: string) =>
     `${base}/preview/item/${data.item.id}?revision=${data.revision.id}&locale=${l}`;
 </script>
@@ -92,7 +107,17 @@
   {#if form && !form.conflict}
     <div class="error-summary" role="alert">
       <h2>{t('error.summary.title')}</h2>
-      {#if form.issues?.length}
+      {#if form.blockId}
+        <p>{t(form.error as UiKey)}</p>
+        <ul>
+          {#each form.fieldIssues ?? [] as i (i.name + i.copy)}
+            <li>
+              {#if i.name}<a href="#{fieldId(form.blockId, i.name)}">{fieldLabel(i.name)}</a>:
+              {/if}{t(i.copy as UiKey)}
+            </li>
+          {/each}
+        </ul>
+      {:else if form.issues?.length}
         <p>{fill(t('admin.content.publication.error.refused'), { locale: form.locale ?? '' })}</p>
         {@render issueList(form.issues ?? [])}
       {:else}
@@ -357,4 +382,93 @@
       {/each}
     </div>
   </form>
+
+  <section aria-labelledby="blocks">
+    <h2 id="blocks">{t('admin.block.title')}</h2>
+    {#if data.blocks.length === 0}<p>{t('admin.block.empty')}</p>{/if}
+    {#each data.blocks as b, i (b.id)}
+      {@const mine = form?.blockId === b.id}
+      {@const values = (mine && form?.blockValues) || b.values}
+      <details class="card block" id="block-{b.id}" open={mine || data.openBlock === b.id}>
+        <summary
+          >{i + 1}. {t(`admin.block.type.${b.type}` as UiKey)}{#if b.summary}: {b.summary}{/if}</summary
+        >
+        <form method="post" action="?/setProps">
+          <input type="hidden" name="blockId" value={b.id} />
+          <input
+            type="hidden"
+            name="baseRevisionId"
+            value={(mine && form?.blockValues?.baseRevisionId) || data.revision.id}
+          />
+          <BlockFields
+            fields={BLOCK_DEFINITIONS[b.type].fields}
+            {values}
+            locales={data.docLocales}
+            idPrefix="b-{b.id}"
+            media={data.media}
+            items={data.items}
+            invalid={mine ? (form?.fieldIssues ?? []).map((x) => x.name) : []}
+            locale={data.locale}
+          />
+          <div class="actions">
+            <button type="submit">{t('admin.block.save')}</button>
+          </div>
+        </form>
+        <div class="actions stack">
+          {#each [['up', i > 0], ['down', i < data.blocks.length - 1]] as const as [direction, can] (direction)}
+            {#if can}
+              <form method="post" action="?/move">
+                <input type="hidden" name="blockId" value={b.id} />
+                <input type="hidden" name="baseRevisionId" value={data.revision.id} />
+                <input type="hidden" name="direction" value={direction} />
+                <button type="submit" class="secondary"
+                  >{t(`admin.block.move.${direction}` as UiKey)}</button
+                >
+              </form>
+            {/if}
+          {/each}
+          <a
+            class="button secondary"
+            href="{base}/content/{data.item.id}/blocks/{b.id}/remove?revision={data.revision.id}"
+            >{t('admin.block.remove')}</a
+          >
+        </div>
+        {@render insert(b.id, i)}
+      </details>
+    {/each}
+    {@render insert(null, -1)}
+  </section>
 </main>
+
+{#snippet insert(anchor: string | null, i: number)}
+  <form method="get" action="{base}/content/{data.item.id}/blocks/new" class="insert">
+    <input type="hidden" name="revision" value={data.revision.id} />
+    {#if anchor}<input type="hidden" name="anchor" value={anchor} />{/if}
+    <fieldset>
+      <legend
+        >{anchor
+          ? fill(t('admin.block.insert.near'), { n: i + 1 })
+          : t('admin.block.insert.document')}</legend
+      >
+      <div class="field">
+        <label for="type-{anchor ?? 'doc'}">{t('admin.block.insert.type')}</label>
+        <select id="type-{anchor ?? 'doc'}" name="type">
+          {#each data.blockTypes as type (type)}
+            <option value={type}>{t(`admin.block.type.${type}` as UiKey)}</option>
+          {/each}
+        </select>
+      </div>
+      <div class="field">
+        <label for="place-{anchor ?? 'doc'}">{t('admin.block.insert.place')}</label>
+        <select id="place-{anchor ?? 'doc'}" name="place">
+          {#each anchor ? ['after', 'before'] : ['end', 'start'] as place (place)}
+            <option value={place}>{t(`admin.block.place.${place}` as UiKey)}</option>
+          {/each}
+        </select>
+      </div>
+      <div class="actions">
+        <button type="submit" class="secondary">{t('admin.block.insert.go')}</button>
+      </div>
+    </fieldset>
+  </form>
+{/snippet}

@@ -258,6 +258,15 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
         blocks: [e.name],
         ...(type === 'paywall' && { access: { level: 'public', teaser: 'marker' } }),
       };
+  // And one page per Playwright project with the first example of every type, for
+  // content-blocks.spec.ts (TODO #11 B): each block edited once without JavaScript. One per
+  // project, because both projects run that spec at the same time and would conflict on one page.
+  for (const project of ['no-js', 'a11y'])
+    pages[`e2e-blokken-${project}`] = {
+      title: { nl: `Blokken ${project}`, en: `Blocks ${project}` },
+      blocks: Object.values(BLOCK_DEFINITIONS).map((d) => d.examples[0].name),
+      access: { level: 'public', teaser: 'marker' },
+    };
   const needed = [];
   for (const slug of Object.keys(pages))
     if (!(await invoker.run(useCases.listItems, admin, { type: 'page', slug })).items.length)
