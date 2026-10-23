@@ -288,4 +288,12 @@ export interface Database {
     request_id: string | null;
     subject_id: string | null;
   };
+  /** The erasure register (0019): permanent, the hash of the address, never the address. */
+  erasures: {
+    tenant_id: string;
+    supporter_id: string;
+    email_hash: string;
+    erased_at: Timestamp;
+    actor: Json<unknown>;
+  };
 }

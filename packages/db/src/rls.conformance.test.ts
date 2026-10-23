@@ -198,6 +198,8 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     // That signup's outbox event can still be ingested by a worker draining every tenant, which
     // releases its seat; a reservation without an event cannot be.
     await uow.run(admin, (ctx) => ctx.admissions.reserve(`rls-reserved-${run}@example.org`));
+    // An erasure registration (TODO #18d, 0019): the register holds a hash, never the address.
+    await uow.run(admin, (ctx) => ctx.erasures.register(uuidv7(), `rls-erased-${run}@example.org`));
     // Memberships and keys through their use cases (TODO #7).
     await invoker.run(useCases.inviteMember, admin, {
       email: `member-${run}@example.org`,
@@ -698,6 +700,31 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
                    where c.relowner = r.oid and c.relnamespace = 'public'::regnamespace) as owns
       from pg_roles r where r.rolname = ${APP_ROLE}`.execute(operatorDb);
     expect(rows[0]).toEqual({ super: false, bypass: false, owns: [] });
+  });
+
+  // ADR 011 consequences (TODO #18c): the backup login is the one role that bypasses RLS, and it
+  // can only read. Created by the image's superuser, so a database without it (the dev stack,
+  // the Mac) passes on the first assertion alone; the drill and the compose stack have it.
+  it('lets no role but mycel_backup bypass RLS, and that one only read', async () => {
+    const { rows: bypassing } = await sql<{ name: string }>`
+      select rolname as name from pg_roles
+      where rolbypassrls and not rolsuper order by rolname`.execute(operatorDb);
+    expect(bypassing.map((r) => r.name).filter((n) => n !== 'mycel_backup')).toEqual([]);
+    const { rows } = await sql<{
+      createrole: boolean;
+      owns: string[];
+      writes: string[];
+    }>`
+      select r.rolcreaterole as createrole,
+             array(select c.relname::text from pg_class c
+                   where c.relowner = r.oid and c.relnamespace = 'public'::regnamespace) as owns,
+             array(select distinct c.relname::text from pg_class c
+                   where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')
+                     and (has_table_privilege(r.oid, c.oid, 'insert')
+                       or has_table_privilege(r.oid, c.oid, 'update')
+                       or has_table_privilege(r.oid, c.oid, 'delete'))) as writes
+      from pg_roles r where r.rolname = 'mycel_backup'`.execute(operatorDb);
+    if (rows[0]) expect(rows[0]).toEqual({ createrole: false, owns: [], writes: [] });
   });
 
   it('returns nothing to mycel_app without set_config, and the seeded rows with it', async () => {

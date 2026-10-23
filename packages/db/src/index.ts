@@ -36,6 +36,7 @@ import {
   patternRepository,
   sectionRepository,
 } from './content.js';
+import { erasureRepository } from './erasures.js';
 import { hostnameRepository } from './hostnames.js';
 import { asPlatform, insertPlatformHostname } from './platform.js';
 import { jobScheduler } from './jobs.js';
@@ -81,6 +82,19 @@ export {
   type Paged,
 } from './recovery.js';
 export { deleteExpiredAudit } from './audit.js';
+export { applyErasures } from './erasures.js';
+export {
+  EXPORT_FORMAT,
+  EXPORT_ORDER,
+  TABLES,
+  exportTenant,
+  importTenant,
+  schemaVersion,
+  type ExportManifest,
+  type ExportOptions,
+  type ImportOptions,
+  type ImportReport,
+} from './export.js';
 export {
   JOB_LEASE_SECONDS,
   claimJobs,
@@ -209,6 +223,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           log: deps.log ?? noopLogger,
           audit: auditRepository(trx, tenantId),
           inputHasher: deps.inputHasher,
+          erasures: erasureRepository(trx, tenantId, principal, deps.clock),
         });
       });
     },

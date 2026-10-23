@@ -40,6 +40,7 @@ export * from './supporters/events.js';
 export * from './supporters/model.js';
 export * from './supporters/ports.js';
 export * from './supporters/service.js';
+export * from './supporters/erasure.js';
 export * from './mailing/ports.js';
 export * from './mailing/confirmation.js';
 export * from './mailing/delivery.js';
