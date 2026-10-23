@@ -700,6 +700,31 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     expect(rows[0]).toEqual({ super: false, bypass: false, owns: [] });
   });
 
+  // ADR 011 consequences (TODO #18c): the backup login is the one role that bypasses RLS, and it
+  // can only read. Created by the image's superuser, so a database without it (the dev stack,
+  // the Mac) passes on the first assertion alone; the drill and the compose stack have it.
+  it('lets no role but mycel_backup bypass RLS, and that one only read', async () => {
+    const { rows: bypassing } = await sql<{ name: string }>`
+      select rolname as name from pg_roles
+      where rolbypassrls and not rolsuper order by rolname`.execute(operatorDb);
+    expect(bypassing.map((r) => r.name).filter((n) => n !== 'mycel_backup')).toEqual([]);
+    const { rows } = await sql<{
+      createrole: boolean;
+      owns: string[];
+      writes: string[];
+    }>`
+      select r.rolcreaterole as createrole,
+             array(select c.relname::text from pg_class c
+                   where c.relowner = r.oid and c.relnamespace = 'public'::regnamespace) as owns,
+             array(select distinct c.relname::text from pg_class c
+                   where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')
+                     and (has_table_privilege(r.oid, c.oid, 'insert')
+                       or has_table_privilege(r.oid, c.oid, 'update')
+                       or has_table_privilege(r.oid, c.oid, 'delete'))) as writes
+      from pg_roles r where r.rolname = 'mycel_backup'`.execute(operatorDb);
+    if (rows[0]) expect(rows[0]).toEqual({ createrole: false, owns: [], writes: [] });
+  });
+
   it('returns nothing to mycel_app without set_config, and the seeded rows with it', async () => {
     // A fresh connection, not the pool: nothing can have left a setting behind on it.
     const client = new pg.Client({ connectionString: appUrl });

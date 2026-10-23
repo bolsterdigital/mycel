@@ -8,7 +8,10 @@
 // Per table in `public` (from the catalog, so a new table is covered without a list), and within
 // a tenant table per tenant: the number of rows and a sha256 over the rows' text, sorted. Whole rows
 // rather than ids alone, so a restore that keeps the keys but loses a column's value still fails.
-// Per object in the bucket a sha256 of its bytes. And the last applied migration.
+// Per object in the bucket a sha256 of its bytes. The last applied migration. And per `mycel*`
+// role its attributes, settings and memberships: no pg_dump carries roles, backup.sh writes them
+// as roles.sql, and a migration that gives a role an attribute roles.sql does not know fails here
+// instead of after a real restore.
 //
 // Reads through DRILL_BACKUP_DATABASE_URL, the read-only `mycel_backup` login with BYPASSRLS: the
 // owner sees no tenant row under forced RLS (0018), and mycel_app only one tenant at a time. The
@@ -51,7 +54,20 @@ async function fingerprint() {
     const { rows: migration } = await client.query(
       'select max(version) as version from schema_migrations'
     );
-    return { lastMigration: migration[0].version, tables, blobs: await blobs() };
+    const { rows: roles } = await client.query(`
+      select r.rolname as name, r.rolcanlogin as login, r.rolinherit as inherit,
+             r.rolcreaterole as createrole, r.rolbypassrls as bypassrls, r.rolconfig as config,
+             array(select format('%s inherit %s set %s admin %s', g.rolname,
+                                 am.inherit_option, am.set_option, am.admin_option)
+                   from pg_auth_members am join pg_roles g on g.oid = am.roleid
+                   where am.member = r.oid order by 1) as memberships
+      from pg_roles r where r.rolname like 'mycel%' order by r.rolname`);
+    return {
+      lastMigration: migration[0].version,
+      tables,
+      blobs: await blobs(),
+      roles: Object.fromEntries(roles.map(({ name, ...role }) => [name, role])),
+    };
   } finally {
     await client.end();
   }
@@ -102,6 +118,12 @@ function differences(before, after) {
   for (const key of new Set([...Object.keys(before.blobs), ...Object.keys(after.blobs)]))
     if (before.blobs[key] !== after.blobs[key])
       lines.push(`blob ${key}: ${before.blobs[key] ? 'changed or lost' : 'appeared'}`);
+  for (const name of new Set([...Object.keys(before.roles), ...Object.keys(after.roles)]))
+    if (JSON.stringify(before.roles[name]) !== JSON.stringify(after.roles[name]))
+      lines.push(
+        `role ${name}: ${JSON.stringify(before.roles[name] ?? 'absent')} -> ` +
+          JSON.stringify(after.roles[name] ?? 'absent')
+      );
   return lines;
 }
 
@@ -121,7 +143,8 @@ if (command === 'fingerprint') {
   }
   console.log(
     `fingerprints equal: ${Object.keys(before.tables).length} tables, ${tenantRows} tenant rows, ` +
-      `${Object.keys(before.blobs).length} media objects, migration ${before.lastMigration}`
+      `${Object.keys(before.blobs).length} media objects, ${Object.keys(before.roles).length} ` +
+      `roles, migration ${before.lastMigration}`
   );
 } else {
   console.error('usage: drill-verify.mjs fingerprint | compare <before.json> <after.json>');

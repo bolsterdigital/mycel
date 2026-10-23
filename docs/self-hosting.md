@@ -92,7 +92,7 @@ The `backup` service takes the database and the media files into one encrypted [
 docker compose --profile backup run --rm backup
 ```
 
-It prints what it took at each step: tables in the dump, roles, media files, then restic's summary. The media files come from the bucket in `BLOB_S3_*` (rclone, only what changed since the last run; the copy is kept in the volume `backup-staging`), or from the directory with `BLOB_STORE=fs`.
+It prints what it took at each step: tables in the dump, roles, media files, then restic's summary. The media files come from the bucket in `BLOB_S3_*` (rclone, only what changed since the last run; the copy is kept in the volume `backup-staging`).
 
 **Schedule it** once a day, for instance at 03:15. With cron (`crontab -e` as a user in the `docker` group, in the directory of `compose.yml`):
 

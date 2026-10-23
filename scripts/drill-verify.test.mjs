@@ -18,6 +18,10 @@ const before = {
     supporters: { t1: { rows: 1, sha256: 'b' }, t2: { rows: 1, sha256: 'c' } },
   },
   blobs: { 't1/x.jpg': 'd' },
+  roles: {
+    mycel_app: { login: true, inherit: true, memberships: [] },
+    mycel_authenticator: { login: true, inherit: true, memberships: ['mycel_auth inherit f'] },
+  },
 };
 
 function compare(after) {
@@ -40,10 +44,13 @@ function compare(after) {
 test('equal fingerprints pass and say what was compared', () => {
   const r = compare(before);
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /2 tables, 2 tenant rows, 1 media objects, migration 0018_db_boundaries/);
+  assert.match(
+    r.stdout,
+    /2 tables, 2 tenant rows, 1 media objects, 2 roles, migration 0018_db_boundaries/
+  );
 });
 
-test('a lost tenant, a changed row, a lost or extra object and a migration all fail', () => {
+test('a lost tenant, a changed row, a lost or extra object, a role and a migration all fail', () => {
   const r = compare({
     lastMigration: '0017_content_block_refs',
     tables: {
@@ -51,9 +58,14 @@ test('a lost tenant, a changed row, a lost or extra object and a migration all f
       supporters: { t1: { rows: 1, sha256: 'b' } },
     },
     blobs: { 't1/y.jpg': 'e' },
+    roles: {
+      mycel_app: { login: true, inherit: true, memberships: [] },
+      mycel_authenticator: { login: true, inherit: false, memberships: [] },
+    },
   });
   assert.equal(r.status, 1);
   for (const line of [
+    'role mycel_authenticator: {"login":true,"inherit":true,"memberships":["mycel_auth inherit f"]} -> {"login":true,"inherit":false,"memberships":[]}',
     'last migration: 0018_db_boundaries -> 0017_content_block_refs',
     'tenants [-]: 2 rows -> 2 rows',
     'supporters [t2]: 1 rows -> absent rows',
