@@ -72,6 +72,7 @@ const ALLOWED = {
     'packages/mail-tem',
     'packages/blob',
     'packages/media-sharp',
+    'packages/assist-openai',
   ],
   'packages/mcp': ['packages/core', 'packages/api', 'packages/observability'],
   'packages/observability': ['packages/core'],
@@ -79,6 +80,7 @@ const ALLOWED = {
   'packages/mail-tem': ['packages/core'],
   'packages/blob': ['packages/core'],
   'packages/media-sharp': ['packages/core'],
+  'packages/assist-openai': ['packages/core'],
   'packages/core': [],
 };
 const ALLOWED_LICENSES = new Set([

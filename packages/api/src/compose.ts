@@ -73,6 +73,7 @@ import { createFsBlobStore, createS3BlobStore, type S3BlobStoreConfig } from '@m
 import { ConsoleMailer, TemMailer } from '@mycel/mail-tem';
 import { createSharpProcessor } from '@mycel/media-sharp';
 import { FakeTextModel } from '@mycel/core/testing';
+import { OpenAITextModel } from '@mycel/assist-openai';
 import { createAuthenticator, type Authenticator } from './auth.js';
 import { createDnsResolver } from './dns.js';
 import type { HttpObservability } from './app.js';
@@ -251,6 +252,24 @@ const Config = z
   .refine((c) => !(c.NODE_ENV === 'production' && c.ASSIST_PROVIDER === 'fake'), {
     message: 'ASSIST_PROVIDER=fake is not allowed in production',
   })
+  .refine(
+    (c) =>
+      c.ASSIST_PROVIDER !== 'openai-compatible' ||
+      (c.ASSIST_PROVIDER_LABEL &&
+        c.ASSIST_BASE_URL &&
+        c.ASSIST_TEXT_MODEL &&
+        c.ASSIST_VISION_MODEL),
+    { message: 'openai-compatible assistance needs LABEL, BASE_URL, TEXT_MODEL and VISION_MODEL' }
+  )
+  .refine(
+    (c) =>
+      c.ASSIST_PROVIDER !== 'openai-compatible' ||
+      !c.ASSIST_API_KEY ||
+      isHttps(c.ASSIST_BASE_URL) ||
+      (c.NODE_ENV !== 'production' &&
+        ['localhost', '127.0.0.1', '::1'].includes(new URL(c.ASSIST_BASE_URL!).hostname)),
+    { message: 'ASSIST_API_KEY needs an HTTPS API root (local HTTP is development-only)' }
+  )
   .refine((c) => !(c.NODE_ENV === 'production' && blobStoreOf(c) !== 's3'), {
     message: 'BLOB_STORE=s3 is required in production (a directory is not backed up with the data)',
   })
@@ -455,7 +474,18 @@ export function createRuntime(
   const operatorDb = config.DATABASE_URL ? createDb(config.DATABASE_URL) : null;
   const platform = platformOf(config);
   const blobs = blobStoreFor(config);
-  const assistModel = config.ASSIST_PROVIDER === 'fake' ? new FakeTextModel() : null;
+  const assistModel =
+    config.ASSIST_PROVIDER === 'fake'
+      ? new FakeTextModel()
+      : config.ASSIST_PROVIDER === 'openai-compatible'
+        ? new OpenAITextModel({
+            baseUrl: config.ASSIST_BASE_URL!,
+            ...(config.ASSIST_API_KEY ? { apiKey: config.ASSIST_API_KEY } : {}),
+            label: config.ASSIST_PROVIDER_LABEL!,
+            textModel: config.ASSIST_TEXT_MODEL!,
+            visionModel: config.ASSIST_VISION_MODEL!,
+          })
+        : null;
   const assistProviderLabel =
     config.ASSIST_PROVIDER === 'none'
       ? null

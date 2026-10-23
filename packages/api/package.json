@@ -31,7 +31,8 @@
     "zod": "^3.24.1",
     "@mycel/blob": "*",
     "@mycel/media-sharp": "*",
-    "@mycel/observability": "*"
+    "@mycel/observability": "*",
+    "@mycel/assist-openai": "*"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^13.1.0",

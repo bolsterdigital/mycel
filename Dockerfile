@@ -18,6 +18,7 @@ COPY packages/core/package.json packages/core/
 COPY packages/db/package.json packages/db/
 COPY packages/api/package.json packages/api/
 COPY packages/mail-tem/package.json packages/mail-tem/
+COPY packages/assist-openai/package.json packages/assist-openai/
 COPY packages/blob/package.json packages/blob/
 COPY packages/media-sharp/package.json packages/media-sharp/
 COPY packages/observability/package.json packages/observability/
@@ -41,6 +42,7 @@ COPY --from=build /app/packages/core/package.json packages/core/
 COPY --from=build /app/packages/db/package.json packages/db/
 COPY --from=build /app/packages/api/package.json packages/api/
 COPY --from=build /app/packages/mail-tem/package.json packages/mail-tem/
+COPY --from=build /app/packages/assist-openai/package.json packages/assist-openai/
 COPY --from=build /app/packages/blob/package.json packages/blob/
 COPY --from=build /app/packages/media-sharp/package.json packages/media-sharp/
 COPY --from=build /app/packages/observability/package.json packages/observability/
@@ -55,6 +57,7 @@ COPY --from=build /app/packages/db/dist packages/db/dist
 COPY --from=build /app/packages/db/migrations packages/db/migrations
 COPY --from=build /app/packages/api/dist packages/api/dist
 COPY --from=build /app/packages/mail-tem/dist packages/mail-tem/dist
+COPY --from=build /app/packages/assist-openai/dist packages/assist-openai/dist
 COPY --from=build /app/packages/blob/dist packages/blob/dist
 COPY --from=build /app/packages/media-sharp/dist packages/media-sharp/dist
 COPY --from=build /app/packages/observability/dist packages/observability/dist
