@@ -162,7 +162,8 @@ services:
       - s3:/data
 
   # One backup run, then exit (docker/backup/backup.sh, docs/self-hosting.md § Backups): the
-  # database as the read-only `mycel_backup` login and the media files into one restic snapshot.
+  # database as the `mycel_backup` login and the media files into one restic snapshot, or with
+  # `run --rm backup erasures` only the erasure register (TODO #29B).
   # Built from this checkout (`docker/backup`, a few MB of Alpine), not pulled.
   # No loop: a cron job or systemd timer on the host runs `docker compose --profile backup run
   # --rm backup`, so a failed run is the scheduler's failure and not a silent container restart.
@@ -187,6 +188,8 @@ services:
       BACKUP_KEEP_MONTHLY:
       BACKUP_CHECK_WEEKDAY:
       BACKUP_MAX_SECONDS:
+      ERASURES_KEEP_LAST:
+      ERASURES_KEEP_DAILY:
       BLOB_STORE: ${BLOB_STORE:-s3}
       BLOB_S3_ENDPOINT:
       BLOB_S3_REGION:

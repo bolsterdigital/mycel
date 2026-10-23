@@ -20,6 +20,12 @@ on:
       - 'compose.drill.yml'
       - 'scripts/drill-*'
       - '.github/workflows/restore-drill.yml'
+      # What the drill restores and erases with (TODO #29B): the register, the export's table
+      # list, the schema and the CLI that applies and reports erasures.
+      - 'packages/db/src/erasures.ts'
+      - 'packages/db/src/export.ts'
+      - 'packages/db/migrations/**'
+      - 'packages/api/src/cli.ts'
 
 concurrency:
   group: restore-drill-${{ github.ref }}

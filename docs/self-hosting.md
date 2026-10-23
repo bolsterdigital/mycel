@@ -79,11 +79,11 @@ Pin `MYCEL_IMAGE` to the new release, check out the same release of this reposit
 
 ## Backups
 
-The `backup` service takes the database and the media files into one encrypted [restic](https://restic.net) snapshot, applies the retention policy and exits ([`docker/backup/backup.sh`](../docker/backup/backup.sh)). It has no schedule of its own: the host runs it, so a failed run is a failed cron job or timer that you see, not a container that quietly restarts.
+The `backup` service takes the database and the media files into one encrypted [restic](https://restic.net) snapshot, applies the retention policy and exits ([`docker/backup/backup.sh`](../docker/backup/backup.sh)). Run as `backup erasures`, it takes only the register of erased supporters, in seconds, so that an erasure is in a backup within 15 minutes rather than a day. It has no schedule of its own: the host runs both, so a failed run is a failed cron job or timer that you see, not a container that quietly restarts.
 
 **What it needs.** In `.env` (section "Backups" of `.env.example`):
 
-- `MYCEL_BACKUP_PASSWORD`: the password of `mycel_backup`, a read-only login with `BYPASSRLS` that Postgres creates on its first start ([`docker/postgres/init-backup-role.sh`](../docker/postgres/init-backup-role.sh)). The dump needs it because under forced Row Level Security no other role sees every row, the schema owner included; it can read everything and write nothing. A box installed before this release has no such login yet: set the password, run `docker compose up -d postgres`, then `docker compose exec postgres sh /docker-entrypoint-initdb.d/20-backup-role.sh` once.
+- `MYCEL_BACKUP_PASSWORD`: the password of `mycel_backup`, a read-only login with `BYPASSRLS` that Postgres creates on its first start ([`docker/postgres/init-backup-role.sh`](../docker/postgres/init-backup-role.sh)). The dump needs it because under forced Row Level Security no other role sees every row, the schema owner included; it can read everything and write one thing: which erasure registrations a snapshot holds (`erasure_backups`, see below). A box installed before this release has no such login yet: set the password, run `docker compose up -d postgres`, then `docker compose exec postgres sh /docker-entrypoint-initdb.d/20-backup-role.sh` once.
 - `RESTIC_REPOSITORY` and `RESTIC_PASSWORD`: any restic repository off this server, for instance `sftp:user@backup.example.org:/mycel` (a storage box over SSH) or `s3:https://s3.example.org/bucket/mycel` (then restic's own `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` too). The password encrypts every snapshot: keep a copy somewhere other than this server, because without it no backup can be read. For sftp, mount the SSH key and a `known_hosts` into the service with a `compose.override.yml` (`volumes: ['./backup-ssh:/root/.ssh:ro']` under `services.backup` and `services.restore`).
 
 **One run** (the first one also creates the repository):
@@ -129,18 +129,53 @@ WantedBy=timers.target
 
 Then `systemctl enable --now mycel-backup.timer`.
 
+**Schedule the erasure register** every 15 minutes as well. Without it, a supporter erased after last night's snapshot comes back when you restore that snapshot after losing the server, and nothing remembers the erasure. The run copies the register (a hash per address, never the address) into a small snapshot of its own and then records, per registration, that a backup holds it; until then the registration counts as not yet secured (`mycel erasures status`, and a warning on the site's status page after an hour). The full run records the same for what its dump holds. With cron:
+
+```sh
+*/15 * * * * cd /srv/mycel && docker compose --profile backup run --rm -T backup erasures >>/var/log/mycel-backup-erasures.log 2>&1
+```
+
+Or with systemd, next to the daily pair:
+
+```ini
+# /etc/systemd/system/mycel-backup-erasures.service
+[Unit]
+Description=Mycel backup of the erasure register
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/mycel
+ExecStart=/usr/bin/docker compose --profile backup run --rm -T backup erasures
+
+# /etc/systemd/system/mycel-backup-erasures.timer
+[Unit]
+Description=Mycel backup of the erasure register, every 15 minutes
+
+[Timer]
+OnCalendar=*:0/15
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+Then `systemctl enable --now mycel-backup-erasures.timer`. The two runs may overlap: each waits up to ten minutes for the other's retention step to release the repository.
+
 **What that gives you:**
 
 |                                                        | With the defaults                                                                                                  |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| Interval, and so the RPO                               | once a day: at most a day of changes is lost                                                                       |
+| Interval, and so the RPO                               | data: once a day, at most a day of changes is lost; erasure register: every 15 minutes                             |
 | Retention (`BACKUP_KEEP_DAILY`, `_WEEKLY`, `_MONTHLY`) | 14 daily, 8 weekly and 6 monthly snapshots                                                                         |
+| Register retention (`ERASURES_KEEP_LAST`, `_DAILY`)    | the last 48 and one per day for 14 days; the newest holds every registration                                       |
 | Expiry window                                          | about six months: nothing older than that can be restored                                                          |
 | Integrity check (`BACKUP_CHECK_WEEKDAY`)               | on Sundays restic reads back a random 5% of the data                                                               |
 | Time limit (`BACKUP_MAX_SECONDS`)                      | 12 hours; a longer run fails without writing a snapshot                                                            |
 | RTO                                                    | what the restore drill measures (§ Restore); minutes for a small installation, growing with the dump and the media |
 
-The expiry window matters for erasure (ADR 019 rule 8): a supporter erased today is still in the snapshots of the last six months, and a restore from one of them brings the data back. Mycel keeps a register of erasures (who, when, a hash of the address, never the address) so that a restore applies them again: step 4 of [Restore](#restore) below.
+The expiry window matters for erasure (ADR 019 rule 8): a supporter erased today is still in the snapshots of the last six months, and a restore from one of them brings the data back. Mycel keeps a register of erasures (who, when, a hash of the address, never the address) so that a restore applies them again: step 4 of [Restore](#restore) below. The register's own snapshots make that hold for erasures since the last full snapshot too, as long as the 15-minute run works; an erasure counts as completed only once a backup holds it.
 
 **A snapshot is complete or not written.** The dump is taken first and the media files are copied after it, so a file deleted in between could be missing. Two things prevent that. A deleted media file stays in storage for 24 hours before it is removed (not served, not counted against the storage limit), so a backup that started before the delete still finds it. And before writing the snapshot the run checks that every media item that was live at its start has all its files, and that it finished within `BACKUP_MAX_SECONDS`; if not, it fails with the ids of the incomplete items and writes nothing. The previous snapshot stays the newest, and the next run starts over. Uploads during a run are harmless: their files come along without a row, and the orphan sweep removes them a day after a restore.
 
@@ -150,11 +185,11 @@ The expiry window matters for erasure (ADR 019 rule 8): a supporter erased today
 docker compose --profile backup run --rm -T backup restic snapshots --host mycel --latest 3
 ```
 
-The newest line should be from last night. A monitoring check can run the same command and alert when the newest snapshot is older than 26 hours.
+The newest line should be from last night. A monitoring check can run the same command and alert when the newest snapshot is older than 26 hours. For the register, `docker compose run --rm -T worker mycel erasures status` prints per site how many registrations no backup holds yet and since when, and exits with 1 when one has waited longer than an hour.
 
 ## Restore
 
-A restore puts a snapshot back on a box with an empty database ([`docker/backup/restore.sh`](../docker/backup/restore.sh)). It runs as the schema owner, an ordinary role: it first creates the database roles the snapshot names, then loads the dump in one transaction (any error rolls it back) and copies the media files into the bucket. It refuses a database that already has tables. CI rehearses exactly this every month on an empty runner and on every change to the backup ([`restore-drill.yml`](../.github/workflows/restore-drill.yml), [`scripts/drill-run.sh`](../scripts/drill-run.sh)): it compares every table and every media file before and after, restores an older snapshot and proves that an erasure registered after it is applied again (the address in no table, the event counts unchanged), runs the tenant-isolation and hostname conformance suites against the restored database and waits for a ready worker; the job summary shows the measured RTO.
+A restore puts a snapshot back on a box with an empty database ([`docker/backup/restore.sh`](../docker/backup/restore.sh)). It runs as the schema owner, an ordinary role: it first creates the database roles the snapshot names, then loads the dump in one transaction (any error rolls it back) and copies the media files into the bucket. It refuses a database that already has tables. CI rehearses exactly this every month on an empty runner and on every change to the backup ([`restore-drill.yml`](../.github/workflows/restore-drill.yml), [`scripts/drill-run.sh`](../scripts/drill-run.sh)): it compares every table and every media file before and after, restores an older snapshot and proves that erasures registered after it are applied again, also one that only the 15-minute register backup held (the addresses in no table, the event counts unchanged), runs the tenant-isolation and hostname conformance suites against the restored database and waits for a ready worker; the job summary shows the measured RTO.
 
 On a new server, with this repository at the same release and the same `.env` (the restic and database passwords above all):
 
@@ -165,17 +200,17 @@ On a new server, with this repository at the same release and the same `.env` (t
    docker compose --profile restore run --rm restore            # or: ... restore <snapshot-id>
    ```
 
-3. Start the stack: `docker compose up -d`. Its first service, `migrate`, brings a snapshot from an older release up to this one and turns the two runtime roles into logins again; then the rest starts.
-4. Apply the erasures. Always run the second command; when you restored an older snapshot than the latest, run the first one before it, so that everybody erased since that snapshot was taken is erased again:
+3. Migrate, without starting the sites yet: `docker compose run --rm migrate`. It brings a snapshot from an older release up to this one and turns the two runtime roles into logins again.
+4. Apply the erasures, always and before the sites open again, so that everybody erased since the restored snapshot was taken is erased again:
 
    ```sh
-   docker compose --profile restore run --rm restore erasures latest   # only after an older snapshot
+   docker compose --profile restore run --rm restore erasures latest
    docker compose run --rm worker mycel erasures apply
    ```
 
-   The first loads the erasure register of the latest snapshot into the restored database ([`docker/backup/restore-erasures.sh`](../docker/backup/restore-erasures.sh)); the second makes every registered supporter anonymous again in every table and prints how many rows it changed per site. A second run changes nothing. The contract is in [`reference/export.md`](reference/export.md#erasure-register).
+   The first loads into the restored database the erasure register of the newest erasures snapshot (at most 15 minutes old) and of the newest full snapshot, and prints per source how many registrations were new ([`docker/backup/restore-erasures.sh`](../docker/backup/restore-erasures.sh)); the second makes every registered supporter anonymous again in every table and prints how many rows it changed per site. A second run changes nothing. The contract is in [`reference/export.md`](reference/export.md#erasure-register).
 
-5. Check: `docker compose ps` shows every service healthy, and the sites answer.
+5. Start the stack: `docker compose up -d`. Check: `docker compose ps` shows every service healthy, and the sites answer.
 
 To restore onto the same server after losing the data, stop everything first (`docker compose down`), remove the database volume (`docker volume rm <project>_postgres`; this deletes the current data for good, so only when it is lost anyway), and continue at step 1.
 

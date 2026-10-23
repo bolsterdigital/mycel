@@ -248,6 +248,11 @@ interface TenantStore {
   audit: AuditEntry[];
   /** `erasures` (0019), keyed by supporter id: the hash of the address, never the address. */
   erasures: Map<string, { emailHash: string; erasedAt: Date; actor: Principal['actor'] }>;
+  /**
+   * `erasure_backups` (0021), keyed by supporter id. Only the backup writes it over Postgres; a
+   * suite marks a registration secured with `secureErasures`.
+   */
+  erasureBackups: Map<string, { snapshotId: string; securedAt: Date }>;
 }
 
 /** Development defaults, the shape `.env.example` gives: path form on localhost. */
@@ -483,6 +488,7 @@ export class MemoryStore {
         mediaUsages: new Map(),
         audit: [],
         erasures: new Map(),
+        erasureBackups: new Map(),
       };
       this.tenants.set(tenantId, store);
     }
@@ -605,7 +611,32 @@ function memoryErasures(store: MemoryStore, principal: Principal, clock: Clock):
       }
       return changed;
     },
+    async status() {
+      let oldest: Date | null = null;
+      for (const [id, e] of s.erasures)
+        if (!s.erasureBackups.has(id) && (!oldest || e.erasedAt < oldest)) oldest = e.erasedAt;
+      return {
+        registered: s.erasures.size,
+        secured: [...s.erasures.keys()].filter((id) => s.erasureBackups.has(id)).length,
+        oldestUnsecuredAt: oldest,
+      };
+    },
   };
+}
+
+/**
+ * What a backup run does over Postgres (docker/backup/backup.sh, 0021): every registration of the
+ * tenant that is in the register now is held by snapshot `snapshotId`. Existing rows stay.
+ */
+export function secureErasures(
+  store: MemoryStore,
+  tenantId: string,
+  snapshotId: string,
+  at: Date
+): void {
+  const s = store.for(tenantId);
+  for (const id of s.erasures.keys())
+    if (!s.erasureBackups.has(id)) s.erasureBackups.set(id, { snapshotId, securedAt: at });
 }
 
 /** Keeps every line it is given, for assertions; `child` shares the list. */

@@ -264,4 +264,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'confirm.pending.body':
     'Nog één stap: bevestig met de knop hieronder. Heb je je niet aangemeld? Dan hoef je niets te doen.',
   'confirm.pending.button': 'Bevestig mijn inschrijving',
+  'admin.status.erasures.title': 'Wisacties nog niet in een back-up',
+  'admin.status.erasures.body':
+    '{count} wisactie(s) van deze site staan nog niet in een back-up; de oudste wacht sinds {time}. Tot een back-up ze bevat, haalt een herstel na verlies van de server deze mensen terug. Vraag wie deze site host de back-up van het wisregister na te kijken.',
 };

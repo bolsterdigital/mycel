@@ -12,9 +12,9 @@
 // leaves neither a half tenant nor its files.
 //
 // What does not travel: the operational queues (outbox, jobs, mail_sends, rate_limits,
-// login_attempts) are this installation's work in progress, not the tenant's data; operator
-// accounts are people who log in here, so a membership travels as the address and becomes a
-// pending invitation; the platform hostname is this installation's, and custom hostnames arrive
+// login_attempts) and the record of which backups hold an erasure (erasure_backups) are this
+// installation's work in progress, not the tenant's data; operator accounts are people who log in
+// here, so a membership travels as the address and becomes a pending invitation; the platform hostname is this installation's, and custom hostnames arrive
 // unverified (DNS may point elsewhere). Every table of `Database` has its place in `TABLES`, so a
 // new table fails to compile until someone decides, and export.conformance.test.ts holds the
 // live catalog to the same list.
@@ -82,6 +82,9 @@ export const TABLES = {
   mail_sends: 'operational',
   rate_limits: 'operational',
   login_attempts: 'operational',
+  // Which of this installation's restic snapshots hold a registration (0021): another
+  // installation's snapshot ids say nothing about its backups, so an import starts unsecured.
+  erasure_backups: 'operational',
 } as const satisfies Record<keyof Database, 'export' | 'operational' | 'platform'>;
 
 export type ExportTable = {

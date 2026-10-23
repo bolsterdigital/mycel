@@ -32,6 +32,8 @@ const INVENTORY: Record<string, string> = {
   BACKUP_KEEP_MONTHLY: 'docker/backup/backup.sh',
   BACKUP_CHECK_WEEKDAY: 'docker/backup/backup.sh',
   BACKUP_MAX_SECONDS: 'docker/backup/backup.sh',
+  ERASURES_KEEP_LAST: 'docker/backup/backup.sh',
+  ERASURES_KEEP_DAILY: 'docker/backup/backup.sh',
   ACME_EMAIL: 'docker/caddy/Caddyfile',
   API_HOST: 'docker/caddy/Caddyfile',
   MYCEL_PG_PORT: 'compose.dev.yml',

@@ -1,18 +1,23 @@
 #!/bin/sh
-# Carry the erasure register of a newer snapshot into a restored database (TODO #18d, ADR 019
-# rule 8, docs/self-hosting.md § Restore):
+# Carry the newest erasure register into a restored database (TODO #18d and #29B, ADR 019 rule 8,
+# docs/self-hosting.md § Restore):
 #
-#   restore-erasures.sh <snapshot>    # usually `latest`; via `run --rm restore erasures latest`
+#   restore-erasures.sh latest        # via `run --rm restore erasures latest`; always, after migrate
+#   restore-erasures.sh <snapshot>    # the register of one given snapshot, full or erasures
 #
-# A restore of an older snapshot brings back people who were erased after it was taken. Their
-# registrations are in the newer snapshot's `erasures` table, which holds a hash of the address and
-# never the address. This loads those rows into the restored database without touching anything
-# else; `mycel erasures apply` (the worker image) then erases them again. Run it after `migrate`,
-# so the table exists even when the restored snapshot is older than migration 0019.
+# A restored snapshot can be up to a day old and bring back people erased after it was taken.
+# Their registrations are in a newer snapshot: the erasures run (backup.sh erasures) writes one
+# every 15 minutes, the full run once a day, and each holds the `erasures` table, a hash of the
+# address and never the address. `latest` loads both the newest erasures snapshot and the newest
+# full one (whichever exists), so nothing depends on which of the two ran last; a given snapshot
+# loads that one alone. It touches nothing else; `mycel erasures apply` (the worker image) then
+# erases them again. Run it after `migrate`, so the table exists even when the restored snapshot
+# is older than migration 0019.
 #
 # The rows go in as mycel_app, one tenant context at a time, because forced RLS binds the table to
 # that role (0018, 0019); a tenant the restored database does not have is skipped (it was created
 # after the restored snapshot, so none of its data came back either). Existing registrations stay.
+# It reports per source how many registrations were new.
 # Rejected: `pg_restore --data-only --table=erasures` straight into the table (the owner sees no
 # row under forced RLS, and a registration both snapshots hold would stop it at the first conflict).
 set -eu
@@ -21,23 +26,40 @@ set -eu
 : "${PGPASSWORD:?set by compose.yml from MYCEL_DB_PASSWORD (the schema owner)}"
 snapshot="${1:?name the snapshot whose register to load, usually latest}"
 target=/restore-erasures
-src="${target}${snapshot_path}"
 
 q() { psql --no-psqlrc --tuples-only --no-align --command="$1"; }
 [ "$(q "select to_regclass('public.erasures') is not null")" = t ] ||
   die "the database has no erasures table; restore and migrate first (docs/self-hosting.md § Restore)"
 
-say "fetching the database dump of snapshot ${snapshot}"
-rm -rf "$target"
-restic restore "$snapshot" --host "$restic_host" --tag mycel --target "$target" \
-  --include "${snapshot_path}/db"
-[ -f "$src/db/mycel.dump" ] || die "snapshot ${snapshot} has no db/mycel.dump"
+# The newest snapshot with these tags, as a full id; empty when there is none.
+newest() {
+  restic snapshots --host "$restic_host" --tag "$1" --latest 1 --json | tail -n 1 |
+    sed -n 's/.*"id":"\([0-9a-f]\{64\}\)".*/\1/p' | tail -n 1
+}
 
-# The COPY block of that one table, aimed at a temporary table of the same shape.
-pg_restore --data-only --table=erasures --file=- "$src/db/mycel.dump" |
-  sed 's/^COPY public\.erasures /COPY pg_temp.erasures_incoming /' >"$target/erasures.sql"
+# Load the register of snapshot $1 into the database; $2 names the source in the report.
+load() {
+  rm -rf "$target"
+  mkdir -p "$target"
+  say "fetching the register of ${2} snapshot ${1}"
+  restic restore "$1" --host "$restic_host" --tag mycel --target "$target" \
+    --include "${snapshot_path}/db/mycel.dump" --include "${erasures_path}/erasures.copy"
+  if [ -f "${target}${erasures_path}/erasures.copy" ]; then
+    # Written by backup.sh erasures with these columns, in this order.
+    {
+      echo 'COPY pg_temp.erasures_incoming (tenant_id, supporter_id, email_hash, erased_at, actor) FROM stdin;'
+      cat "${target}${erasures_path}/erasures.copy"
+      echo '\.'
+    } >"$target/erasures.sql"
+  elif [ -f "${target}${snapshot_path}/db/mycel.dump" ]; then
+    # The COPY block of that one table, aimed at a temporary table of the same shape.
+    pg_restore --data-only --table=erasures --file=- "${target}${snapshot_path}/db/mycel.dump" |
+      sed 's/^COPY public\.erasures /COPY pg_temp.erasures_incoming /' >"$target/erasures.sql"
+  else
+    die "snapshot ${1} has neither db/mycel.dump nor erasures.copy"
+  fi
 
-psql --no-psqlrc --quiet --set=ON_ERROR_STOP=1 <<SQL
+  psql --no-psqlrc --quiet --set=ON_ERROR_STOP=1 <<SQL
 begin;
 create temp table erasures_incoming (like public.erasures) on commit drop;
 \\o /dev/null
@@ -63,12 +85,23 @@ begin
     get diagnostics k = row_count;
     n := n + k;
   end loop;
-  raise notice '[mycel-backup] % registration(s) in the snapshot, % new here, % for tenants this database does not have',
+  raise notice '[mycel-backup] ${2}: % registration(s) in the snapshot, % new here, % for tenants this database does not have',
     (select count(*) from pg_temp.erasures_incoming), n,
     (select count(*) from pg_temp.erasures_incoming
        where tenant_id not in (select id from public.tenant_directory));
 end \$\$;
 commit;
 SQL
-rm -rf "$target"
+  rm -rf "$target"
+}
+
+if [ "$snapshot" = latest ]; then
+  register=$(newest mycel,erasures)
+  full=$(newest mycel,db)
+  [ -n "$register$full" ] || die "the repository has no snapshot to load a register from"
+  if [ -n "$register" ]; then load "$register" erasures; else say "no erasures snapshot yet"; fi
+  if [ -n "$full" ]; then load "$full" full; fi
+else
+  load "$snapshot" given
+fi
 say "done; now erase them again: docker compose run --rm worker mycel erasures apply"
