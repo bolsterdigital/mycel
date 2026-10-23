@@ -6,7 +6,8 @@
 // the key already says).
 
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import type { BlobStore } from '@mycel/core';
 
@@ -17,6 +18,7 @@ const TYPES: Record<string, string> = {
   avif: 'image/avif',
   gif: 'image/gif',
   pdf: 'application/pdf',
+  tar: 'application/x-tar',
 };
 export const contentTypeOfKey = (key: string): string =>
   TYPES[key.slice(key.lastIndexOf('.') + 1).toLowerCase()] ?? 'application/octet-stream';
@@ -69,6 +71,29 @@ export function createFsBlobStore(dir: string): BlobStore {
         await rm(tmp, { force: true });
         throw e;
       }
+    },
+    async putFile(key, source) {
+      // The same temporary-file-and-rename as `put`; `copyFile` streams in the kernel.
+      const target = path(key);
+      await mkdir(dirname(target), { recursive: true });
+      const tmp = join(dirname(target), `.tmp-${randomUUID()}`);
+      try {
+        await copyFile(source, tmp);
+        await rename(tmp, target);
+      } catch (e) {
+        await rm(tmp, { force: true });
+        throw e;
+      }
+    },
+    async getStream(key) {
+      const full = path(key);
+      try {
+        if (!(await stat(full)).isFile()) return null;
+      } catch (e) {
+        if (missing(e)) return null;
+        throw e;
+      }
+      return createReadStream(full);
     },
     async get(key) {
       try {

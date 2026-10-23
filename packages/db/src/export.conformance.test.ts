@@ -12,14 +12,15 @@
 // E2E_REQUIRED=1 (CI) that is a failure.
 
 import { createHash } from 'node:crypto';
-import { cp, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { sql } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import {
   Invoker,
   buildRegistry,
+  purgeMedia,
   supporterIngestSubscriber,
   systemPrincipal,
   useCases,
@@ -48,6 +49,7 @@ import {
   uuidv7Ids,
   type ExportManifest,
 } from './index.js';
+import type { Database } from './schema.js';
 import { closeTenantWork } from './testing.js';
 
 const operatorUrl = process.env['DATABASE_URL'];
@@ -56,18 +58,27 @@ if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
   throw new Error('E2E_REQUIRED=1 but DATABASE_URL or APP_DATABASE_URL is not set');
 
 const by = { actorId: 'export-test', hasher: new FakeInputHasher() };
-const roles = {
-  appPassword: process.env['MYCEL_APP_PASSWORD'],
-  authPassword: process.env['MYCEL_AUTH_PASSWORD'],
-  log: () => {},
-};
-// The second database migrates without passwords. Roles live in the cluster, not in a database,
-// and migrate's advisory lock is per database, so an `alter role ... password` here raced the
-// suites migrating the primary database at the same moment: `tuple concurrently updated` on
-// pg_authid, red CI on f51bb92 (TODO #27). The roles already have their passwords from the
-// primary; the second database only needs the schema. Rejected: one global lock around every
-// suite's migrate (serialises the whole run for one call site).
-const secondDatabase = { log: () => {} };
+// CI migrates and provisions logins before verify. Test migrations only need schema checks:
+// role passwords live in the cluster, and writing them again across databases raced with
+// test role DDL (`tuple concurrently updated`). Rejected: serialising all database suites.
+const schemaOnly = { log: () => {} };
+
+/**
+ * Drop a scratch database once its pool has really gone. `db.destroy()` resolves when pg-pool has
+ * removed its idle clients, not when their backends have exited; a `drop ... with (force)` in that
+ * gap terminates a backend mid-shutdown and the 57P01 lands on a client with no error listener:
+ * an unhandled error that fails the run with every test green (CI on 1e097cb). Rejected: an error
+ * listener on the pool (would also hide a real connection loss elsewhere in the suite).
+ */
+async function dropDatabase(operatorDb: Kysely<Database>, name: string) {
+  for (let i = 0; i < 50; i++) {
+    const { rows } = await sql<{ n: number }>`
+      select count(*)::int as n from pg_stat_activity where datname = ${name}`.execute(operatorDb);
+    if (rows[0]?.n === 0) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  await sql`drop database if exists ${sql.id(name)} with (force)`.execute(operatorDb);
+}
 
 describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
   const operatorDb = createDb(operatorUrl ?? '');
@@ -153,6 +164,13 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
       await ctx.admissions.lock();
       await ctx.admissions.reserve(`pending-${t.slug}@example.org`);
       await ctx.erasures.register(uuidv7(), `gone-${t.slug}@example.org`);
+      await ctx.assist.saveSettings({
+        enabled: false,
+        allowRestricted: false,
+        consentedProvider: null,
+        consentedBy: null,
+        consentedAt: null,
+      });
     });
   }
 
@@ -166,7 +184,7 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
     );
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, roles);
+    await migrate(operatorUrl!, schemaOnly);
     scratch.dir = await mkdtemp(join(tmpdir(), 'mycel-export-test-'));
     for (const [key, n] of [
       ['a', 1],
@@ -205,12 +223,16 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
       operatorDb
     );
     canCreateDb = rows[0]?.ok === true;
+    // Import and rollback need a second database; in CI their absence is a failure, not a skip
+    // (TODO #29B), as in consent-snapshot-migration.conformance.test.ts.
+    if (!canCreateDb && process.env['E2E_REQUIRED'] === '1')
+      throw new Error('E2E_REQUIRED=1 but the login has neither CREATEDB nor superuser');
     if (canCreateDb) {
       await sql`create database ${sql.id(target.name)}`.execute(operatorDb);
       const url = new URL(operatorUrl!);
       url.pathname = `/${target.name}`;
       target.url = url.href;
-      await migrate(target.url, secondDatabase);
+      await migrate(target.url, schemaOnly);
       target.db = createDb(target.url);
     }
   });
@@ -218,8 +240,7 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
   afterAll(async () => {
     await closeTenantWork(operatorDb, [tenant.a.id, tenant.b.id]);
     await target.db?.destroy();
-    if (canCreateDb)
-      await sql`drop database if exists ${sql.id(target.name)} with (force)`.execute(operatorDb);
+    if (canCreateDb) await dropDatabase(operatorDb, target.name);
     if (scratch.dir) await rm(scratch.dir, { recursive: true, force: true });
     await operatorDb.destroy();
     await appDb.destroy();
@@ -227,10 +248,10 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
 
   it('migrates a second database beside the primary without racing on the shared roles', async (ctx) => {
     if (!canCreateDb) ctx.skip();
-    // The race of TODO #27 on demand: with `roles` on both sides this fails within a few rounds
-    // (236 of 600 calls in a measurement on dev-server-1); with `secondDatabase` it cannot.
+    // Repeated cross-database migration checks: the old password-writing setup failed in 236
+    // of 600 calls on dev-server-1. Both sides now leave cluster roles alone.
     for (let round = 0; round < 10; round++)
-      await Promise.all([migrate(target.url, secondDatabase), migrate(operatorUrl!, roles)]);
+      await Promise.all([migrate(target.url, schemaOnly), migrate(operatorUrl!, schemaOnly)]);
   });
 
   it('places every table of the schema, and the catalog has no tenant table without a place', async () => {
@@ -550,7 +571,7 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
         url.pathname = `/${name}`;
         const db = createDb(url.href);
         try {
-          await migrate(url.href, roles);
+          await migrate(url.href, schemaOnly);
           const report = await importTenant({
             operatorDb: db,
             blobs: new MemoryBlobStore(),
@@ -568,9 +589,144 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
           ]);
         } finally {
           await db.destroy();
-          await sql`drop database if exists ${sql.id(name)} with (force)`.execute(operatorDb);
+          await dropDatabase(operatorDb, name);
         }
       }
     );
+  });
+
+  // TODO #29A, ADR 019 rule 8: media that changes between the table snapshot and the file copy.
+  // An asset deleted during the run keeps its files (the purge waits MEDIA_PURGE_DELAY_MS); one
+  // purged anyway fails the export by id and nothing is left; an upload during the run travels
+  // as files without a row, which media.orphans removes after import.
+  describe('media that changes while the export runs', () => {
+    const c = { id: '', slug: `exp-c-${run}` };
+    const admin = () => systemPrincipal(c.id, 'export-test');
+    const PDF = Buffer.from('%PDF-1.4\n%drill\n').toString('base64');
+    const upload = (input: Parameters<typeof useCases.uploadMedia.handler>[1]) =>
+      invoker.run(useCases.uploadMedia, admin(), input);
+    const png = () => upload(useCases.uploadMedia.examples[0].input);
+    const keysOf = async (mediaId: string) => {
+      const keys: string[] = [];
+      for await (const { key } of blobs.list(`tenants/${c.id}/media/${mediaId}/`)) keys.push(key);
+      return keys;
+    };
+    const mediaRows = async (dir: string) =>
+      (await readFile(join(dir, 'tables', 'media.ndjson'), 'utf8'))
+        .split('\n')
+        .filter(Boolean)
+        .map((l) => JSON.parse(l) as { id: string; checksum: string; deleted_at: string | null });
+
+    beforeAll(async () => {
+      c.id = (
+        await createTenant(
+          operatorDb,
+          { id: uuidv7(), slug: c.slug, name: 'Export c', locales: ['nl'] },
+          memoryPlatform,
+          by
+        )
+      ).id;
+      // A raster image (original plus variants) and a file delivered as stored (`file.pdf`).
+      await png();
+      await upload({ filename: 'flyer.pdf', contentType: 'application/pdf', bytes: PDF });
+    });
+
+    it('refuses a directory that is not empty and leaves it as it was', async () => {
+      const dir = join(scratch.dir, 'c-occupied');
+      await mkdir(dir);
+      await writeFile(join(dir, 'keep.txt'), 'mine');
+      await expect(
+        exportTenant({ operatorDb, blobs, slug: c.slug, out: dir, mycelVersion: 'test' })
+      ).rejects.toThrow(/not empty/);
+      expect(await readdir(dir)).toEqual(['keep.txt']);
+    });
+
+    it('fails naming an asset purged after the snapshot, and leaves no directory or tar', async () => {
+      const doomed = await png();
+      const purgeDuring = async () => {
+        const keys = await keysOf(doomed.id);
+        expect(keys.length).toBeGreaterThan(1);
+        await invoker.run(useCases.deleteMedia, admin(), { id: doomed.id });
+        // The purge forced past its delay, as a worker with a wrong clock or a run over the limit
+        // would.
+        await uow.run(admin(), (ctx) => purgeMedia(ctx, { mediaId: doomed.id, keys }));
+      };
+      const dir = join(scratch.dir, 'c-purged');
+      await expect(
+        exportTenant({
+          operatorDb,
+          blobs,
+          slug: c.slug,
+          out: dir,
+          mycelVersion: 'test',
+          afterSnapshot: purgeDuring,
+        })
+      ).rejects.toThrow(doomed.id);
+      await expect(readdir(dir)).rejects.toMatchObject({ code: 'ENOENT' });
+
+      // The same as a tar, with an asset that has no row by the time the tables are read again.
+      const again = await png();
+      const tar = join(scratch.dir, 'c-purged.tar');
+      await expect(
+        exportTenant({
+          operatorDb,
+          blobs,
+          slug: c.slug,
+          out: tar,
+          mycelVersion: 'test',
+          afterSnapshot: async () => {
+            const keys = await keysOf(again.id);
+            await invoker.run(useCases.deleteMedia, admin(), { id: again.id });
+            await uow.run(admin(), (ctx) => purgeMedia(ctx, { mediaId: again.id, keys }));
+          },
+        })
+      ).rejects.toThrow(again.id);
+      expect((await readdir(scratch.dir)).filter((f) => f.startsWith('c-purged'))).toEqual([]);
+    });
+
+    it('keeps an asset deleted during the run and leaves out the row of an upload during it', async (ctx) => {
+      const deleted = await png();
+      let uploaded = '';
+      const dir = join(scratch.dir, 'c-concurrent');
+      const manifest = await exportTenant({
+        operatorDb,
+        blobs,
+        slug: c.slug,
+        out: dir,
+        mycelVersion: 'test',
+        afterSnapshot: async () => {
+          await invoker.run(useCases.deleteMedia, admin(), { id: deleted.id });
+          uploaded = (
+            await upload({ filename: 'late.pdf', contentType: 'application/pdf', bytes: PDF })
+          ).id;
+        },
+      });
+      const rows = await mediaRows(dir);
+      expect(rows.find((r) => r.id === deleted.id)).toMatchObject({ deleted_at: null });
+      expect(rows.map((r) => r.id)).not.toContain(uploaded);
+      for (const key of await keysOf(deleted.id)) expect(manifest.media[key]).toBeDefined();
+      // The upload's file travels without its row: the orphan sweep's to remove after import.
+      expect(Object.keys(manifest.media).some((k) => k.includes(uploaded))).toBe(true);
+
+      if (!canCreateDb) ctx.skip();
+      const report = await importTenant({
+        operatorDb: target.db!,
+        blobs: new MemoryBlobStore(),
+        path: dir,
+        platform: { ...memoryPlatform, domain: 'other.example' },
+        by,
+      });
+      expect(report.differences).toEqual([]);
+      const { rows: imported } = await sql<{ id: string; checksum: string }>`
+        select id, checksum from media where tenant_id = ${c.id} and deleted_at is null
+        order by id`.execute(target.db!);
+      expect(imported).toEqual(
+        rows
+          .filter((r) => r.deleted_at === null)
+          .map(({ id, checksum }) => ({ id, checksum }))
+          .sort((x, y) => x.id.localeCompare(y.id))
+      );
+      expect(imported.map((r) => r.id)).toContain(deleted.id);
+    });
   });
 });

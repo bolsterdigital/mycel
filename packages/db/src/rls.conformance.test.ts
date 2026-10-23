@@ -88,19 +88,60 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
   let tenantId = '';
   let tables: TenantTable[] = [];
   let partitions: TenantTable[] = [];
+  let partitionGrants: { name: string; granted: string[] }[] = [];
   let policies: Policy[] = [];
+  let backupRecorded = false;
+
+  /**
+   * A backup record (TODO #29B, 0021), which only the backup login writes: as that login when the
+   * drill hands its URL over, else as a superuser entering it (CI, the dev stack), made the way
+   * init-backup-role.sh makes it when missing (as erasure-backups.conformance does). An ordinary
+   * owner without that URL (the Mac) cannot, and the vacuity check below leaves the table out.
+   */
+  async function recordBackup(supporterId: string): Promise<boolean> {
+    const insert = sql`insert into erasure_backups (tenant_id, supporter_id, snapshot_id)
+                       values (${tenantId}, ${supporterId}, ${'ef'.repeat(32)})`;
+    const backupUrl = process.env['DRILL_BACKUP_DATABASE_URL'];
+    if (backupUrl) {
+      const backupDb = createDb(backupUrl);
+      try {
+        await insert.execute(backupDb);
+      } finally {
+        await backupDb.destroy();
+      }
+      return true;
+    }
+    const { rows } = await sql<{ superuser: boolean }>`
+      select rolsuper as superuser from pg_roles where rolname = current_user`.execute(operatorDb);
+    if (!rows[0]?.superuser) return false;
+    await sql`
+      do $$ begin
+        if not exists (select from pg_roles where rolname = 'mycel_backup') then
+          create role mycel_backup nologin nosuperuser bypassrls;
+        end if;
+      end $$`.execute(operatorDb);
+    await sql`grant pg_read_all_data to mycel_backup`.execute(operatorDb);
+    await sql`grant insert on erasure_backups to mycel_backup`.execute(operatorDb);
+    await operatorDb.transaction().execute(async (trx) => {
+      await sql`set local role mycel_backup`.execute(trx);
+      await insert.execute(trx);
+    });
+    return true;
+  }
 
   beforeAll(async () => {
     await migrate(operatorUrl!, {
-      appPassword: process.env['MYCEL_APP_PASSWORD'],
-      authPassword: process.env['MYCEL_AUTH_PASSWORD'],
       log: () => {},
     });
 
     // Every relation in `public` with a tenant_id column: plain and partitioned tables both.
     // Partitions are checked separately: their parent carries RLS and grants for them.
-    const all = (
-      await sql<TenantTable>`
+    const catalog = await operatorDb.transaction().execute(async (trx) => {
+      // A partition DDL needs ACCESS EXCLUSIVE on events. Hold this lock only while reading
+      // the catalog and its grants, so the snapshot cannot name a partition another suite drops.
+      await sql`lock table events in access share mode`.execute(trx);
+      const all = (
+        await sql<TenantTable>`
         select c.relname as name, c.relrowsecurity as rowsecurity,
                c.relforcerowsecurity as forcerowsecurity, p.relname as parent
         from pg_class c join pg_attribute a on a.attrelid = c.oid
@@ -108,15 +149,30 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
         left join pg_class p on p.oid = i.inhparent
         where a.attname = 'tenant_id' and not a.attisdropped and c.relkind in ('r', 'p')
           and c.relnamespace = 'public'::regnamespace
-        order by c.relname`.execute(operatorDb)
-    ).rows;
-    tables = all.filter((t) => t.parent === null);
-    partitions = all.filter((t) => t.parent !== null);
-    policies = (
-      await sql<Policy>`
+        order by c.relname`.execute(trx)
+      ).rows;
+      const partitions = all.filter((t) => t.parent !== null);
+      const partitionGrants = [];
+      for (const partition of partitions) {
+        const { rows } = await sql<{ granted: string[] }>`
+          select array(
+            select p from unnest(array['select', 'insert', 'update', 'delete', 'truncate',
+                                       'references', 'trigger']) p
+            where has_table_privilege(${APP_ROLE}, ${`public.${partition.name}`}, p)
+          ) as granted`.execute(trx);
+        partitionGrants.push({ name: partition.name, granted: rows[0]!.granted });
+      }
+      const policies = (
+        await sql<Policy>`
         select tablename, policyname, permissive, roles::text[] as roles, cmd, qual, with_check
-        from pg_policies where schemaname = 'public'`.execute(operatorDb)
-    ).rows;
+        from pg_policies where schemaname = 'public'`.execute(trx)
+      ).rows;
+      return { all, partitions, partitionGrants, policies };
+    });
+    tables = catalog.all.filter((t) => t.parent === null);
+    partitions = catalog.partitions;
+    partitionGrants = catalog.partitionGrants;
+    policies = catalog.policies;
 
     // Put at least one row for this tenant into every tenant table mycel_app can read, through
     // the real use-case path: a signup writes forms, submissions, rate limits and the
@@ -154,7 +210,31 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     await uow.run(admin, (ctx) => ctx.forms.insert(probeForm(formId)));
     // Content (0011): an item with its revision and locale rows, plus an author, a section and
     // a pattern through their use cases.
-    await publishProbePage(invoker, admin, formId);
+    const page = await publishProbePage(invoker, admin, formId);
+    await uow.run(admin, async (ctx) => {
+      await ctx.assist.saveSettings({
+        enabled: false,
+        allowRestricted: false,
+        consentedProvider: null,
+        consentedBy: null,
+        consentedAt: null,
+      });
+      await ctx.assist.insert({
+        id: uuidv7(),
+        itemId: page.id,
+        baseRevisionId: page.latestRevisionId,
+        blockId: 'fixture',
+        locale: 'nl',
+        status: 'failed',
+        value: null,
+        failure: 'unavailable',
+        provider: 'fixture',
+        requestedBy: null,
+        model: null,
+        createdAt: clock.now(),
+        updatedAt: clock.now(),
+      });
+    });
     await invoker.run(useCases.createAuthor, admin, { slug: 'rls', name: 'RLS' });
     await invoker.run(useCases.createSection, admin, { slug: 'rls', title: { nl: 'RLS' } });
     await invoker.run(useCases.createPattern, admin, {
@@ -200,7 +280,11 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     // releases its seat; a reservation without an event cannot be.
     await uow.run(admin, (ctx) => ctx.admissions.reserve(`rls-reserved-${run}@example.org`));
     // An erasure registration (TODO #18d, 0019): the register holds a hash, never the address.
-    await uow.run(admin, (ctx) => ctx.erasures.register(uuidv7(), `rls-erased-${run}@example.org`));
+    const erased = uuidv7();
+    await uow.run(admin, (ctx) => ctx.erasures.register(erased, `rls-erased-${run}@example.org`));
+    backupRecorded = await recordBackup(erased);
+    // An export request (TODO #28, 0022): the row only, no job is run here.
+    await invoker.run(useCases.requestExport, admin, {});
     // Memberships and keys through their use cases (TODO #7).
     await invoker.run(useCases.inviteMember, admin, {
       email: `member-${run}@example.org`,
@@ -271,7 +355,7 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     expect(failing).toEqual([]);
   });
 
-  it('covers every partition through its parent: RLS forced there, no grants on the partition', async () => {
+  it('covers every partition through its parent: RLS forced there, no grants on the partition', () => {
     // Proves the check is not vacuous: 0005's default partition is the known instance.
     expect(partitions.map((p) => p.name)).toContain('events_default');
     for (const partition of partitions) {
@@ -280,16 +364,47 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
         parent,
         `${partition.name}: parent ${partition.parent} not a tenant table`
       ).toMatchObject({ rowsecurity: true, forcerowsecurity: true });
-      const { rows } = await sql<{ granted: string[] }>`
-        select array(
-          select p from unnest(array['select', 'insert', 'update', 'delete', 'truncate',
-                                     'references', 'trigger']) p
-          where has_table_privilege(${APP_ROLE}, ${`public.${partition.name}`}, p)
-        ) as granted`.execute(operatorDb);
       expect(
-        rows[0]?.granted,
+        partitionGrants.find((p) => p.name === partition.name)?.granted,
         `${partition.name}: ${APP_ROLE} has rights on the partition`
       ).toEqual([]);
+    }
+  });
+
+  it('keeps a partition present while its catalog row and grants are inspected', async () => {
+    const name = 'events_2199_01';
+    await sql`select ensure_event_partitions('2199-01-01', '2199-01-01')`.execute(operatorDb);
+    const reader = new pg.Client({ connectionString: operatorUrl });
+    const dropper = new pg.Client({ connectionString: operatorUrl });
+    await Promise.all([reader.connect(), dropper.connect()]);
+    try {
+      await reader.query('begin');
+      await reader.query('lock table events in access share mode');
+      const snapshot = await reader.query<{ name: string }>(
+        `select c.relname as name from pg_inherits i join pg_class c on c.oid = i.inhrelid
+         where i.inhparent = 'events'::regclass and c.relname = $1`,
+        [name]
+      );
+      expect(snapshot.rows.map((r) => r.name)).toEqual([name]);
+      await dropper.query(`set lock_timeout = '100ms'`);
+      // The old two-phase check had no lock: this DROP completed between catalog and grant
+      // reads, then has_table_privilege(name) raised 42P01. The new check holds it back.
+      await expect(dropper.query(`drop table ${name}`)).rejects.toMatchObject({ code: '55P03' });
+      const grants = await reader.query<{ granted: string[] }>(
+        `select array(select p from unnest(array['select', 'insert', 'update', 'delete']) p
+                      where has_table_privilege('mycel_app', $1, p)) as granted`,
+        [`public.${name}`]
+      );
+      expect(grants.rows[0]?.granted).toEqual([]);
+      await reader.query('commit');
+      await dropper.query(`drop table ${name}`);
+      await expect(
+        reader.query(`select has_table_privilege('mycel_app', $1, 'select')`, [`public.${name}`])
+      ).rejects.toMatchObject({ code: '42P01' });
+    } finally {
+      await reader.query('rollback').catch(() => {});
+      await Promise.all([reader.end(), dropper.end()]);
+      await sql.raw(`drop table if exists ${name}`).execute(operatorDb);
     }
   });
 
@@ -695,10 +810,11 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     expect(rows[0]).toEqual({ super: false, bypass: false, owns: [] });
   });
 
-  // ADR 011 consequences (TODO #18c): the backup login is the one role that bypasses RLS, and it
-  // can only read. Created by the image's superuser, so a database without it (the dev stack,
-  // the Mac) passes on the first assertion alone; the drill and the compose stack have it.
-  it('lets no role but mycel_backup bypass RLS, and that one only read', async () => {
+  // ADR 011 consequences (TODO #18c, #29B): the backup login is the one role that bypasses RLS,
+  // and it can only read, plus insert which registrations its snapshot holds (0021). Created by
+  // the image's superuser, so a database without it (the Mac) passes on the first assertion
+  // alone; the drill, the compose stack and erasure-backups.conformance (as superuser) have it.
+  it('lets no role but mycel_backup bypass RLS, and that one only read and record backups', async () => {
     const { rows: bypassing } = await sql<{ name: string }>`
       select rolname as name from pg_roles
       where rolbypassrls and not rolsuper order by rolname`.execute(operatorDb);
@@ -706,18 +822,28 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     const { rows } = await sql<{
       createrole: boolean;
       owns: string[];
-      writes: string[];
+      inserts: string[];
+      changes: string[];
     }>`
       select r.rolcreaterole as createrole,
              array(select c.relname::text from pg_class c
                    where c.relowner = r.oid and c.relnamespace = 'public'::regnamespace) as owns,
              array(select distinct c.relname::text from pg_class c
                    where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')
-                     and (has_table_privilege(r.oid, c.oid, 'insert')
-                       or has_table_privilege(r.oid, c.oid, 'update')
-                       or has_table_privilege(r.oid, c.oid, 'delete'))) as writes
+                     and has_table_privilege(r.oid, c.oid, 'insert')) as inserts,
+             array(select distinct c.relname::text from pg_class c
+                   where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')
+                     and (has_table_privilege(r.oid, c.oid, 'update')
+                       or has_table_privilege(r.oid, c.oid, 'delete')
+                       or has_table_privilege(r.oid, c.oid, 'truncate'))) as changes
       from pg_roles r where r.rolname = 'mycel_backup'`.execute(operatorDb);
-    if (rows[0]) expect(rows[0]).toEqual({ createrole: false, owns: [], writes: [] });
+    if (rows[0])
+      expect(rows[0]).toEqual({
+        createrole: false,
+        owns: [],
+        inserts: ['erasure_backups'],
+        changes: [],
+      });
   });
 
   it('returns nothing to mycel_app without set_config, and the seeded rows with it', async () => {
@@ -753,6 +879,11 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
 
       for (const [name, c] of Object.entries(counts)) {
         if (c === 'no select') continue;
+        if (name === 'erasure_backups' && !backupRecorded) {
+          if (process.env['E2E_REQUIRED'] === '1')
+            throw new Error('E2E_REQUIRED=1 but no backup record could be written');
+          continue;
+        }
         expect(c.without, `${name}: rows visible without a tenant context`).toBe(0);
         // Without seeded rows the zero above would prove nothing. A new tenant table needs a
         // row in this test's fixture (beforeAll) before it can pass.

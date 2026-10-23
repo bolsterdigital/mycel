@@ -48,10 +48,12 @@ function checkUseCase(useCase: UseCase, fail: (rule: string) => void): void {
   if (!description.trim()) fail('description is empty');
   else if (!description.trim().endsWith('.')) fail('description does not end with a full stop');
 
-  // ADR 018 rule 5: publishing, sending, exporting and refunding need their own capability.
+  // ADR 018 rule 5: publishing, sending, exporting and refunding need their own capability. Or
+  // `tenant:admin`, which holds every capability and is never weaker: `tenant.export` (TODO #28)
+  // hands over members, key hashes and the audit log, more than `supporters:export` covers.
   if (effect) {
     if (kind === 'query') fail(`a query cannot have effect "${effect}"`);
-    else if (requires !== EFFECT_CAPABILITY[effect])
+    else if (requires !== EFFECT_CAPABILITY[effect] && requires !== 'tenant:admin')
       fail(`effect "${effect}" requires ${EFFECT_CAPABILITY[effect]}, not ${requires}`);
   }
   const verb = name.split('.').at(-1) ?? '';
@@ -67,6 +69,11 @@ function checkUseCase(useCase: UseCase, fail: (rule: string) => void): void {
 
   if (EDITORIAL_PREFIXES.some((p) => name.startsWith(p)) && !useCase.authenticatedOnly)
     fail('an editorial use case must be authenticatedOnly');
+  if (
+    useCase.actors &&
+    (!useCase.actors.length || new Set(useCase.actors).size !== useCase.actors.length)
+  )
+    fail('actors must be a nonempty list without duplicates');
 
   // testing.md rule 1: a registry entry without a fixture fails verify.
   if (!Array.isArray(examples) || examples.length === 0) fail('has no examples');

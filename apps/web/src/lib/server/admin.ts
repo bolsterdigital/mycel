@@ -62,7 +62,8 @@ export async function requireTenantPrincipal(
 
 /**
  * The operator's principal for the tenant in an /admin/[tenant]/... file route, or null: no
- * session, an unknown tenant or no membership all end as a 403 in `serveAdminMedia` (lib/server/media.ts).
+ * session, an unknown tenant or no membership all end as a 403 in `serveAdminMedia`
+ * (lib/server/media.ts) and as a 404 in `serveExportDownload` (lib/server/export-download.ts).
  */
 export async function adminMediaPrincipal(
   locals: App.Locals,

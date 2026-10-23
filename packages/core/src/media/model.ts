@@ -34,6 +34,18 @@ export const VARIANT_WIDTHS = [320, 640, 960, 1280, 1920] as const;
 export const VARIANT_FORMATS = ['avif', 'webp'] as const;
 export const THUMB_WIDTH = 160;
 
+/**
+ * How long `media.delete` waits before `media.purge` removes the files (ADR 019 rule 8, TODO
+ * #29A). The delay is the window in which a backup or export that began before the delete still
+ * finds the files of a row its database snapshot holds: the backup (`BACKUP_MAX_SECONDS`, half of
+ * this) and `exportTenant` fail rather than finish later than that. A soft-deleted asset is
+ * already invisible and no longer counts against the storage limit, so nothing else waits.
+ * Rejected: versioned objects in the bucket (no such thing for `BLOB_STORE=fs`, and a restore
+ * would pick a version per object) and a maintenance window without purges (the backup container
+ * and the worker would have to coordinate).
+ */
+export const MEDIA_PURGE_DELAY_MS = 24 * 60 * 60 * 1000;
+
 export type ImageFormat = 'jpeg' | 'png' | 'webp' | 'avif' | 'gif';
 export type FileFormat = ImageFormat | 'pdf';
 
@@ -151,8 +163,14 @@ export const originalFile = (m: Pick<MediaRecord, 'contentType' | 'variants'>): 
     ? null
     : `original.${EXTENSION_OF[FORMAT_OF[m.contentType]]}`;
 
-/** Every blob key of an asset: what `media.purge` deletes. */
-export function mediaKeys(tenantId: string, m: MediaRecord): string[] {
+/**
+ * Every blob key of an asset: what `media.purge` deletes, and what a backup or export of a live
+ * row must contain (`exportTenant`; `docker/backup/media-expected.sql` lists the same keys in SQL).
+ */
+export function mediaKeys(
+  tenantId: string,
+  m: Pick<MediaRecord, 'id' | 'contentType' | 'variants'>
+): string[] {
   const original = originalFile(m);
   return [
     ...(original ? [mediaKey(tenantId, m.id, original)] : []),

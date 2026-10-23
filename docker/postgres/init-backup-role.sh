@@ -2,8 +2,10 @@
 # The backup login `mycel_backup` (TODO #18c, docker/backup/backup.sh): read-only on every table
 # (pg_read_all_data) and BYPASSRLS, because under forced RLS with every tenant policy bound to
 # mycel_app no other role sees all rows, the owner included (0018). It can read everything and
-# write nothing; only the superuser can grant BYPASSRLS, which is why this runs here and not in a
-# migration. Runs once on an empty volume (docker-entrypoint-initdb.d) and is idempotent, so a box
+# write one thing: which erasure registrations its snapshot holds, `insert` on erasure_backups
+# (0021, TODO #29B). Migration 0021 grants that where the login exists; this grants it where the
+# login comes later. Only the superuser can grant BYPASSRLS, which is why this runs here and not
+# in a migration. Runs once on an empty volume (docker-entrypoint-initdb.d) and is idempotent, so a box
 # installed before this file existed runs it by hand (docs/self-hosting.md § Backups):
 #
 #   docker compose exec postgres sh /docker-entrypoint-initdb.d/20-backup-role.sh
@@ -27,4 +29,6 @@ select format('alter role mycel_backup with login nosuperuser bypassrls password
               :'backup_password') \gexec
 grant pg_read_all_data to mycel_backup;
 grant connect on database mycel to mycel_backup;
+select 'grant insert on erasure_backups to mycel_backup'
+where to_regclass('public.erasure_backups') is not null \gexec
 SQL

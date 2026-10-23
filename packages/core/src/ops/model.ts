@@ -35,6 +35,18 @@ export const UnresolvedMailView = z.object({
 });
 export type UnresolvedMailView = z.infer<typeof UnresolvedMailView>;
 
+/**
+ * The site's erasure register against its backups (TODO #29B): counts only, never an id. `late`
+ * when a registration has waited longer than ERASURE_UNSECURED_WARN_MS for a backup to hold it.
+ */
+export const ErasureBackupView = z.object({
+  registered: z.number().int(),
+  unsecured: z.number().int(),
+  oldestUnsecuredAt: Timestamp.nullable(),
+  late: z.boolean(),
+});
+export type ErasureBackupView = z.infer<typeof ErasureBackupView>;
+
 /** Longest key shown in the diagnosis: enough to recognise the subject, not to reconstruct it. */
 export const DIAGNOSIS_KEY_CHARS = 48;
 
@@ -49,6 +61,7 @@ export interface DiagnosisInput {
   at: Date;
   jobs: readonly StuckJobView[];
   mails: readonly UnresolvedMailView[];
+  erasures: ErasureBackupView;
   /** Request ids of the most recent refused or failed commands, newest first. */
   failedRequests: readonly string[];
 }
@@ -63,6 +76,7 @@ export function buildDiagnosis({
   at,
   jobs,
   mails,
+  erasures,
   failedRequests,
 }: DiagnosisInput): string {
   const lines = [
@@ -81,6 +95,11 @@ export function buildDiagnosis({
         (m.abandonedAt ? ` abandoned ${m.abandonedAt}` : '') +
         `: ${oneLine(m.lastError)}`
     );
+  lines.push(
+    `erasures not in a backup: ${erasures.unsecured}` +
+      (erasures.oldestUnsecuredAt ? ` oldest since ${erasures.oldestUnsecuredAt}` : '') +
+      (erasures.late ? ' (late)' : '')
+  );
   lines.push(
     `failed requests: ${failedRequests.length ? failedRequests.map(oneLine).join(' ') : '-'}`
   );

@@ -17,6 +17,7 @@ import {
 } from '../index.js';
 import { DEFAULT_ENTITLEMENTS } from '../entitlements/model.js';
 import { FakeClock, FakeSigner, MemoryBlobStore, MemoryUnitOfWork } from '../testing/index.js';
+import { MEDIA_PURGE_DELAY_MS } from './model.js';
 import { EXAMPLE_PNG, ORPHAN_AGE_MS } from './service.js';
 
 const TENANT = '01900000-0000-7000-8000-00000000aaaa';
@@ -341,6 +342,8 @@ describe('media', () => {
       await invoker.run(useCases.deleteMedia, system, { id: m.id });
       const job = uow.store.jobs.find((j) => j.key === jobKey('media.purge', m.id))!;
       expect(job).toMatchObject({ tenantId: TENANT, type: 'media.purge' });
+      // TODO #29A: not before a backup or export that holds the row has copied the files.
+      expect(job.runAt).toEqual(new Date(clock.now().getTime() + MEDIA_PURGE_DELAY_MS));
       const payload = job.payload as { mediaId: string; keys: string[] };
       expect(payload.keys.sort()).toEqual(keys());
       // A deleted asset no longer counts against the cap, even before the purge.

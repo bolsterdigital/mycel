@@ -362,6 +362,39 @@ export const en = {
     '"Everything above the paywall block" needs exactly one paywall block at the top level.',
   'admin.content.error.teaserTooLong': 'More blocks are visible to everyone than the item has.',
   'admin.content.error.tier': 'A paid tier needs a tier; that is not available yet.',
+  'admin.status.erasures.title': 'Erasures not yet in a backup',
+  'admin.status.erasures.body':
+    '{count} erasure(s) of this site are not in a backup yet; the oldest has waited since {time}. Until a backup holds them, a restore after losing the server would bring these people back. Ask whoever hosts this site to check the erasure backup.',
+  'admin.export.link': 'Export this site',
+  'admin.export.title': 'Export',
+  'admin.export.request.title': 'Ask for an archive',
+  'admin.export.intro.contents':
+    'An archive holds everything of this site: pages and articles, media, forms and submissions, supporters, members, API keys and the log of actions. Another host can import it with Mycel.',
+  'admin.export.intro.lifetime':
+    'It is built in the background, usually within minutes, and can be downloaded for {days} days; then it is deleted. It is also deleted when someone in it is erased.',
+  'admin.export.request.button': 'Ask for an archive',
+  'admin.export.done.requested':
+    'The archive is being built. Reload this page to see when it is ready.',
+  'admin.export.done.running':
+    'An archive is already being built; this request is that one. Reload this page to see when it is ready.',
+  'admin.export.list.title': 'Archives',
+  'admin.export.list.none': 'No archive has been asked for yet.',
+  'admin.export.list.reload': 'Reload this page to see the latest status.',
+  'admin.export.item': 'Asked for on {time}',
+  'admin.export.field.status': 'Status',
+  'admin.export.field.by': 'Asked for by',
+  'admin.export.field.size': 'Size',
+  'admin.export.field.expires': 'Can be downloaded until',
+  'admin.export.field.sha256': 'Checksum (SHA-256)',
+  'admin.export.field.error': 'Error',
+  'admin.export.status.queued': 'Waiting to be built',
+  'admin.export.status.running': 'Being built',
+  'admin.export.status.ready': 'Ready',
+  'admin.export.status.failed': 'Failed; ask for a new one',
+  'admin.export.status.expired': 'Deleted',
+  'admin.export.download': 'Download archive',
+  'admin.export.expired': 'This archive has been deleted. Ask for a new one.',
+  'admin.suspended.export': 'Export your data',
 } as const;
 
 export type UiKey = keyof typeof en;

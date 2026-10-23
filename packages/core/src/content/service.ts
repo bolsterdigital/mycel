@@ -161,7 +161,8 @@ const revisionRef = (revision: Revision) => `item:${revision.itemId}:rev:${revis
 export async function writeRevision(
   ctx: TransactionContext,
   item: ItemRecord,
-  doc: ContentDocument
+  doc: ContentDocument,
+  provenance?: Revision['provenance']
 ): Promise<{ item: ContentItem; revision: Revision }> {
   await assertReferences(ctx, doc);
   const now = ctx.clock.now();
@@ -170,6 +171,7 @@ export async function writeRevision(
     itemId: item.id,
     createdAt: now.toISOString(),
     actor: ctx.principal.actor,
+    ...(provenance ? { provenance } : {}),
     document: doc,
   };
   const next: ItemRecord = {

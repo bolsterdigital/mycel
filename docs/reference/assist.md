@@ -1,0 +1,10 @@
+# Assistance data contract
+
+Assistance is off for each tenant until an administrator enables it and consents to the configured provider label. The hoster may disable the feature through `ai.assist`. Restricted items require a separate `allowRestricted` setting. A request reserves one monthly suggestion and creates a pending row; a worker calls the provider outside the tenant transaction. A provider error leaves a failed suggestion with an error class, never its response body.
+
+| Task                   | Sent to the provider                                                                                                                      | Never sent                                                      |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Image alt              | One re-encoded WebP variant, at most 960 pixels wide, the image block's caption in the requested locale when present, and the locale code | Original upload, filename, credit, other blocks, title, authors |
+| Translation (later PR) | Chosen source values and the source and target locale codes                                                                               | Other locales or blocks, authors, forms, supporter data         |
+
+No operator id, email address or tenant name is sent. A model result is a proposal. An editor may adjust or dismiss it; only acceptance creates a revision and no acceptance publishes content. The accepted row loses its output immediately. Pending rows older than ten minutes read as failed. The daily retention job deletes rows older than `ASSIST_RETENTION_DAYS` (default 30). A content-free monthly counter keeps the full calendar month's usage even when a 30-day-old suggestion is deleted on day 31. Tenant export includes the consent settings and excludes suggestions and usage counters. No supporter data belongs in this store.

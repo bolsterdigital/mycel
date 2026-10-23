@@ -3,25 +3,32 @@
 // the per-tenant lock makes the storage cap hold under concurrency, a delete plans its purge in
 // the same transaction and the purge job removes files and row, and the orphan sweep works per
 // tenant without any cross-tenant policy. The files live in an in-memory BlobStore: the store's
-// own contract is packages/blob's suite.
+// own contract is packages/blob's suite. The backup's list of required files
+// (docker/backup/media-expected.sql, TODO #29A) is held to `mediaKeys` here.
 //
 // Skips without DATABASE_URL and APP_DATABASE_URL; with E2E_REQUIRED=1 (CI) that is a failure.
 
+import { readFile } from 'node:fs/promises';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
 import {
   DEFAULT_ENTITLEMENTS,
   EXAMPLE_PNG,
   Invoker,
+  MEDIA_PURGE_DELAY_MS,
   ORPHAN_AGE_MS,
   UseCaseError,
   buildRegistry,
+  jobKey,
+  mediaKeys,
   parseJobPayload,
   purgeMedia,
   sweepMediaOrphans,
   systemPrincipal,
   useCases,
+  type MediaContentType,
   type Principal,
+  type StoredVariant,
 } from '@mycel/core';
 import {
   FakeClock,
@@ -87,8 +94,6 @@ describe.skipIf(!operatorUrl || !appUrl)('media conformance', () => {
 
   beforeAll(async () => {
     await migrate(operatorUrl!, {
-      appPassword: process.env['MYCEL_APP_PASSWORD'],
-      authPassword: process.env['MYCEL_AUTH_PASSWORD'],
       log: () => {},
     });
     const tenant = (slug: string) =>
@@ -167,16 +172,28 @@ describe.skipIf(!operatorUrl || !appUrl)('media conformance', () => {
     await invoker.run(useCases.deleteMedia, A, { id: m.id });
     expect(await keys(`tenants/${a}/media/${m.id}/`)).toHaveLength(4);
 
-    const result = await runJobs(
-      operatorDb,
-      {
-        'media.purge': async (job) =>
-          uow.run(systemPrincipal(job.tenantId!, 'jobs:media.purge'), (ctx) =>
-            purgeMedia(ctx, parseJobPayload('media.purge', job.payload))
-          ),
-      },
-      { types: ['media.purge'] }
-    );
+    const purge = () =>
+      runJobs(
+        operatorDb,
+        {
+          'media.purge': async (job) =>
+            uow.run(systemPrincipal(job.tenantId!, 'jobs:media.purge'), (ctx) =>
+              purgeMedia(ctx, parseJobPayload('media.purge', job.payload))
+            ),
+        },
+        { types: ['media.purge'] }
+      );
+    // TODO #29A: the purge waits MEDIA_PURGE_DELAY_MS, so a backup that began before the delete
+    // still finds the files; the runner does not claim it before then.
+    const key = jobKey('media.purge', m.id);
+    const { rows: planned } = await sql<{ runAt: Date }>`
+      select run_at as "runAt" from jobs where key = ${key}`.execute(operatorDb);
+    expect(planned[0]?.runAt).toEqual(new Date(clock.now().getTime() + MEDIA_PURGE_DELAY_MS));
+    await purge();
+    expect(await keys(`tenants/${a}/media/${m.id}/`)).toHaveLength(4);
+
+    await sql`update jobs set run_at = now() where key = ${key}`.execute(operatorDb);
+    const result = await purge();
     expect(result.failed).toBe(0);
     expect(result.completed).toBeGreaterThanOrEqual(1);
     expect(await keys(`tenants/${a}/media/${m.id}/`)).toEqual([]);
@@ -202,5 +219,66 @@ describe.skipIf(!operatorUrl || !appUrl)('media conformance', () => {
     const left = await keys('tenants/');
     expect(left).toEqual(expect.arrayContaining([young, elsewhere]));
     expect(left.filter((k) => k.includes(kept.id))).toHaveLength(4);
+  });
+  it('lists every file of every live asset for the backup by its key, as mediaKeys does', async () => {
+    const c = await upsertTenant(
+      operatorDb,
+      {
+        id: uuidv7(),
+        slug: `media-keys-${run}`,
+        name: 'keys',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+      },
+      { platformDomain: 'localhost' }
+    ).then((t) => t.id);
+    const v = (name: string, format: StoredVariant['format']): StoredVariant => ({
+      name,
+      format,
+      width: null,
+      height: null,
+      bytes: 1,
+    });
+    // Every content type, a raster original next to its variants, and the two kinds stored as
+    // `file` (a PDF, an animated GIF), which have no separate original.
+    const fixtures: { contentType: MediaContentType; variants: StoredVariant[] }[] = [
+      {
+        contentType: 'image/jpeg',
+        variants: [v('w320', 'avif'), v('w320', 'webp'), v('thumb', 'webp')],
+      },
+      { contentType: 'image/png', variants: [v('w640', 'webp')] },
+      { contentType: 'image/webp', variants: [] },
+      { contentType: 'image/avif', variants: [v('thumb', 'avif')] },
+      { contentType: 'image/gif', variants: [v('file', 'gif'), v('thumb', 'webp')] },
+      { contentType: 'application/pdf', variants: [v('file', 'pdf')] },
+    ];
+    const rows = fixtures.map((f) => ({ id: uuidv7(), ...f }));
+    const gone = uuidv7();
+    const insert = (id: string, f: (typeof fixtures)[number], deleted: boolean) => sql`
+      insert into media (id, tenant_id, kind, content_type, filename, checksum, size_bytes,
+        total_bytes, variants, created_by, deleted_at)
+      values (${id}, ${c}, ${f.contentType === 'application/pdf' ? 'document' : 'image'},
+        ${f.contentType}, 'x', ${'0'.repeat(64)}, 1, 1, ${JSON.stringify(f.variants)}::jsonb,
+        '{"type": "system"}'::jsonb, ${deleted ? sql`now()` : null})`;
+    const query = await readFile(
+      new URL('../../../docker/backup/media-expected.sql', import.meta.url),
+      'utf8'
+    );
+    const listed = await operatorDb.transaction().execute(async (trx) => {
+      await sql`select set_config('role', 'mycel_app', true),
+        set_config('app.tenant_id', ${c}, true)`.execute(trx);
+      for (const r of rows) await insert(r.id, r, false).execute(trx);
+      await insert(gone, fixtures[0]!, true).execute(trx);
+      return (await sql<{ id: string; key: string }>`${sql.raw(query)}`.execute(trx)).rows;
+    });
+
+    const t0 = listed.filter((r) => r.id === 't0');
+    expect(t0).toHaveLength(1);
+    expect(Math.abs(Number(t0[0]!.key) - Date.now() / 1000)).toBeLessThan(60);
+    const files = listed.filter((r) => r.id !== 't0');
+    expect(files.map((r) => r.key).sort()).toEqual(rows.flatMap((r) => mediaKeys(c, r)).sort());
+    for (const r of files) expect(r.key.startsWith(`tenants/${c}/media/${r.id}/`)).toBe(true);
+    // A soft-deleted asset may miss its files (its purge runs again after a restore).
+    expect(files.some((r) => r.id === gone)).toBe(false);
   });
 });

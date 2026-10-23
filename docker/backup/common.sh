@@ -1,5 +1,5 @@
 #!/bin/sh
-# Shared by backup.sh and restore.sh: logging, the restic host, and where the media files live.
+# Shared by backup.sh, restore.sh and restore-erasures.sh: logging, the restic host, and where the media files live.
 # Sourced, not run.
 
 say() { echo "[mycel-backup] $*"; }
@@ -15,6 +15,9 @@ die() {
 # hostname, and restic's `forget` groups by host, so without this no snapshot would ever expire.
 restic_host=mycel
 snapshot_path="${STAGING_DIR}"
+# The erasures run's snapshot (backup.sh erasures, TODO #29B): its own path, so restic keeps its
+# snapshots in a group of their own and the full run never carries a stale copy of it.
+erasures_path=/erasures
 
 # The media files as an rclone location: the bucket through an rclone remote built from the same
 # BLOB_S3_* keys the application reads (rclone takes a remote from RCLONE_CONFIG_<NAME>_* in the

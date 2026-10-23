@@ -40,6 +40,7 @@ describe('a use case that consumes a limit checks it (ADR 015)', () => {
 
   it('has consumers to check', () => {
     expect(consumers.map((u) => u.name).sort()).toEqual([
+      'assist.alt.suggest',
       'forms.submit',
       'media.upload',
       'tenant.hostnames.add',
@@ -169,9 +170,12 @@ describe('registry rules catch violations', () => {
     );
   });
 
-  it('accepts an effect with its own capability', () => {
+  it('accepts an effect with its own capability, or with tenant:admin', () => {
     expect(
       violations({ name: 'mailing.issue.send', effect: 'send', requires: 'mailing:send' })
+    ).toEqual([]);
+    expect(
+      violations({ name: 'tenant.archive.export', effect: 'export', requires: 'tenant:admin' })
     ).toEqual([]);
   });
 });

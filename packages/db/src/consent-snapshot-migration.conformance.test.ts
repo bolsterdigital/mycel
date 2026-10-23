@@ -48,14 +48,20 @@ describe.skipIf(!operatorUrl)('migration 0020 backfill', () => {
     }));
     await client.query('begin');
     try {
-      // The state before 0020: the columns exist but nothing fills them.
-      await client.query(`alter table form_submissions alter column list drop not null,
-                                                     alter column consent_text_version drop not null`);
       for (const t of tenants)
         await client.query(
           `insert into tenants (id, slug, name, default_locale, locales) values ($1, $2, $2, 'nl', '{nl}')`,
           [t.id, `snapshot-${t.key}-${run}`]
         );
+      // Both tables at once, forms first, the order every other suite touches them in (a submit
+      // reads the form, an export reads forms before submissions), and only after the tenant
+      // rows: altering form_submissions first and forms later, or holding forms while inserting
+      // a tenant, deadlocked with suites running beside this one on the same database (TODO #28
+      // branch).
+      await client.query('lock table forms, form_submissions in access exclusive mode');
+      // The state before 0020: the columns exist but nothing fills them.
+      await client.query(`alter table form_submissions alter column list drop not null,
+                                                     alter column consent_text_version drop not null`);
       const role = `snapshot_app_${run}`;
       await client.query(`create role ${role} nologin in role mycel_app`);
       // A non-superuser with CREATEROLE administers the new role but is not yet a member (16+).

@@ -81,7 +81,37 @@ export interface Database {
     item_id: string;
     document: Json<unknown>;
     actor: Json<unknown>;
+    provenance: Json<unknown> | null;
     created_at: Timestamp;
+  };
+  assist_settings: {
+    tenant_id: string;
+    enabled: boolean;
+    allow_restricted: boolean;
+    consented_provider: string | null;
+    consented_by: string | null;
+    consented_at: Timestamp | null;
+  };
+  assist_suggestions: {
+    id: string;
+    tenant_id: string;
+    item_id: string;
+    base_revision_id: string;
+    block_id: string;
+    locale: string;
+    status: 'pending' | 'ready' | 'failed' | 'accepted' | 'dismissed';
+    value: string | null;
+    failure: 'unavailable' | 'timeout' | 'rejected' | 'invalid-output' | null;
+    provider: string;
+    requested_by: string | null;
+    model: string | null;
+    created_at: Timestamp;
+    updated_at: Timestamp;
+  };
+  assist_usage: {
+    tenant_id: string;
+    month: string;
+    count: number;
   };
   /** Derived from each revision's document on insert (0017); immutable like revisions. */
   content_block_refs: {
@@ -297,5 +327,29 @@ export interface Database {
     email_hash: string;
     erased_at: Timestamp;
     actor: Json<unknown>;
+  };
+  /** Which registrations a restic snapshot holds (0021); written by mycel_backup only. */
+  erasure_backups: {
+    tenant_id: string;
+    supporter_id: string;
+    snapshot_id: string;
+    secured_at: Timestamp;
+  };
+  /** Archives a tenant administrator asked for (0022); the file is `exports/<tenant>/<id>.tar`. */
+  tenant_exports: {
+    id: string;
+    tenant_id: string;
+    requested_by: string;
+    requested_at: Generated<Date>;
+    status: Generated<'queued' | 'running' | 'ready' | 'failed' | 'expired'>;
+    started_at: Date | null;
+    heartbeat_at: Date | null;
+    finished_at: Date | null;
+    size_bytes: ColumnType<string | null, number | null, number | null>;
+    sha256: string | null;
+    schema_version: string | null;
+    error: string | null;
+    expires_at: Date | null;
+    purged_at: Date | null;
   };
 }

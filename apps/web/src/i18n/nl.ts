@@ -369,4 +369,37 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.error.teaserTooLong':
     'Er zijn meer blokken voor iedereen zichtbaar dan het item heeft.',
   'admin.content.error.tier': 'Een betaald niveau vraagt een niveau; dat is er nog niet.',
+  'admin.status.erasures.title': 'Wisacties nog niet in een back-up',
+  'admin.status.erasures.body':
+    '{count} wisactie(s) van deze site staan nog niet in een back-up; de oudste wacht sinds {time}. Tot een back-up ze bevat, haalt een herstel na verlies van de server deze mensen terug. Vraag wie deze site host de back-up van het wisregister na te kijken.',
+  'admin.export.link': 'Deze site exporteren',
+  'admin.export.title': 'Export',
+  'admin.export.request.title': 'Archief aanvragen',
+  'admin.export.intro.contents':
+    "Een archief bevat alles van deze site: pagina's en artikelen, media, formulieren en inzendingen, supporters, leden, API-sleutels en het logboek van acties. Een andere hoster kan het met Mycel importeren.",
+  'admin.export.intro.lifetime':
+    'Het wordt op de achtergrond gemaakt, meestal binnen een paar minuten, en is {days} dagen te downloaden; daarna wordt het verwijderd. Het wordt ook verwijderd als iemand die erin staat gewist wordt.',
+  'admin.export.request.button': 'Archief aanvragen',
+  'admin.export.done.requested':
+    'Het archief wordt gemaakt. Laad deze pagina opnieuw om te zien wanneer het klaar is.',
+  'admin.export.done.running':
+    'Er wordt al een archief gemaakt; deze aanvraag is dat archief. Laad deze pagina opnieuw om te zien wanneer het klaar is.',
+  'admin.export.list.title': 'Archieven',
+  'admin.export.list.none': 'Er is nog geen archief aangevraagd.',
+  'admin.export.list.reload': 'Laad deze pagina opnieuw voor de laatste stand.',
+  'admin.export.item': 'Aangevraagd op {time}',
+  'admin.export.field.status': 'Status',
+  'admin.export.field.by': 'Aangevraagd door',
+  'admin.export.field.size': 'Grootte',
+  'admin.export.field.expires': 'Te downloaden tot',
+  'admin.export.field.sha256': 'Controlegetal (SHA-256)',
+  'admin.export.field.error': 'Fout',
+  'admin.export.status.queued': 'Wacht op verwerking',
+  'admin.export.status.running': 'Wordt gemaakt',
+  'admin.export.status.ready': 'Klaar',
+  'admin.export.status.failed': 'Mislukt; vraag een nieuw archief aan',
+  'admin.export.status.expired': 'Verwijderd',
+  'admin.export.download': 'Archief downloaden',
+  'admin.export.expired': 'Dit archief is verwijderd. Vraag een nieuw archief aan.',
+  'admin.suspended.export': 'Exporteer je gegevens',
 };
