@@ -137,9 +137,12 @@ Then `systemctl enable --now mycel-backup.timer`.
 | Retention (`BACKUP_KEEP_DAILY`, `_WEEKLY`, `_MONTHLY`) | 14 daily, 8 weekly and 6 monthly snapshots                                                                         |
 | Expiry window                                          | about six months: nothing older than that can be restored                                                          |
 | Integrity check (`BACKUP_CHECK_WEEKDAY`)               | on Sundays restic reads back a random 5% of the data                                                               |
+| Time limit (`BACKUP_MAX_SECONDS`)                      | 12 hours; a longer run fails without writing a snapshot                                                            |
 | RTO                                                    | what the restore drill measures (§ Restore); minutes for a small installation, growing with the dump and the media |
 
 The expiry window matters for erasure (ADR 019 rule 8): a supporter erased today is still in the snapshots of the last six months, and a restore from one of them brings the data back. Mycel keeps a register of erasures (who, when, a hash of the address, never the address) so that a restore applies them again: step 4 of [Restore](#restore) below.
+
+**A snapshot is complete or not written.** The dump is taken first and the media files are copied after it, so a file deleted in between could be missing. Two things prevent that. A deleted media file stays in storage for 24 hours before it is removed (not served, not counted against the storage limit), so a backup that started before the delete still finds it. And before writing the snapshot the run checks that every media item that was live at its start has all its files, and that it finished within `BACKUP_MAX_SECONDS`; if not, it fails with the ids of the incomplete items and writes nothing. The previous snapshot stays the newest, and the next run starts over. Uploads during a run are harmless: their files come along without a row, and the orphan sweep removes them a day after a restore.
 
 **Check every day** that a new snapshot exists; a backup that silently stopped is the usual way to have none:
 

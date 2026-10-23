@@ -13,9 +13,11 @@ import {
   DEFAULT_ENTITLEMENTS,
   EXAMPLE_PNG,
   Invoker,
+  MEDIA_PURGE_DELAY_MS,
   ORPHAN_AGE_MS,
   UseCaseError,
   buildRegistry,
+  jobKey,
   parseJobPayload,
   purgeMedia,
   sweepMediaOrphans,
@@ -167,16 +169,28 @@ describe.skipIf(!operatorUrl || !appUrl)('media conformance', () => {
     await invoker.run(useCases.deleteMedia, A, { id: m.id });
     expect(await keys(`tenants/${a}/media/${m.id}/`)).toHaveLength(4);
 
-    const result = await runJobs(
-      operatorDb,
-      {
-        'media.purge': async (job) =>
-          uow.run(systemPrincipal(job.tenantId!, 'jobs:media.purge'), (ctx) =>
-            purgeMedia(ctx, parseJobPayload('media.purge', job.payload))
-          ),
-      },
-      { types: ['media.purge'] }
-    );
+    const purge = () =>
+      runJobs(
+        operatorDb,
+        {
+          'media.purge': async (job) =>
+            uow.run(systemPrincipal(job.tenantId!, 'jobs:media.purge'), (ctx) =>
+              purgeMedia(ctx, parseJobPayload('media.purge', job.payload))
+            ),
+        },
+        { types: ['media.purge'] }
+      );
+    // TODO #29A: the purge waits MEDIA_PURGE_DELAY_MS, so a backup that began before the delete
+    // still finds the files; the runner does not claim it before then.
+    const key = jobKey('media.purge', m.id);
+    const { rows: planned } = await sql<{ runAt: Date }>`
+      select run_at as "runAt" from jobs where key = ${key}`.execute(operatorDb);
+    expect(planned[0]?.runAt).toEqual(new Date(clock.now().getTime() + MEDIA_PURGE_DELAY_MS));
+    await purge();
+    expect(await keys(`tenants/${a}/media/${m.id}/`)).toHaveLength(4);
+
+    await sql`update jobs set run_at = now() where key = ${key}`.execute(operatorDb);
+    const result = await purge();
     expect(result.failed).toBe(0);
     expect(result.completed).toBeGreaterThanOrEqual(1);
     expect(await keys(`tenants/${a}/media/${m.id}/`)).toEqual([]);

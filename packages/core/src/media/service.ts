@@ -22,6 +22,7 @@ import {
   CONTENT_TYPE_OF,
   MAX_PIXELS,
   MAX_UPLOAD_BYTES,
+  MEDIA_PURGE_DELAY_MS,
   MediaAccess,
   MediaCaption,
   MediaContentType,
@@ -404,7 +405,7 @@ export const deleteMedia = defineUseCase({
   name: 'media.delete',
   kind: 'command',
   description:
-    'Delete a media item that nothing uses any more; its files are removed shortly after by a job.',
+    'Delete a media item that nothing uses any more; a job removes its files 24 hours later, so a running backup still finds them.',
   requires: 'media:write',
   consumes: null,
   input: z.object({ id: MediaId }).strict(),
@@ -422,11 +423,12 @@ export const deleteMedia = defineUseCase({
       ]);
     const now = ctx.clock.now();
     await ctx.media.softDelete(id, now);
-    // In this transaction: the files go if and only if the delete commits.
+    // In this transaction: the files go if and only if the delete commits, and not before a
+    // backup or export that already holds the row has copied them (MEDIA_PURGE_DELAY_MS).
     const purgeScheduled = await ctx.jobs.enqueue({
       type: 'media.purge',
       key: jobKey('media.purge', id),
-      runAt: now,
+      runAt: new Date(now.getTime() + MEDIA_PURGE_DELAY_MS),
       payload: { mediaId: id, keys: mediaKeys(ctx.principal.tenantId, m) },
     });
     return { id, purgeScheduled };

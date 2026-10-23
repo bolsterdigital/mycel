@@ -41,6 +41,31 @@ case "$status" in
 esac
 
 started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+max_seconds="${BACKUP_MAX_SECONDS:-43200}"
+case "$max_seconds" in '' | *[!0-9]*) die "BACKUP_MAX_SECONDS must be a number of seconds, got ${max_seconds}" ;; esac
+
+# What the snapshot must hold (TODO #29A, ADR 019 rule 8): every media asset that is live now,
+# with the number of files `mediaKeys` (packages/core/src/media/model.ts) gives it: one per
+# variant, plus the private original unless a variant is named `file`. Read before the dump, in
+# the same statement as t0 from the database's clock: an asset live here is in the dump, because
+# `media.delete` purges only MEDIA_PURGE_DELAY_MS (24 hours) later. After rclone the same query
+# would be useless: a purged asset has no row any more, which is exactly the case to catch.
+# Rejected: the exact key list in SQL (duplicates EXTENSION_OF and FORMAT_OF from core), a node
+# step in this image (Alpine without node, on purpose), and `pg_dump --snapshot` with a
+# transaction held open while rclone runs (a snapshot open for hours, and a second session in sh).
+expected="${STAGING_DIR}/media-expected.txt"
+psql --no-psqlrc --quiet --tuples-only --no-align --field-separator=' ' \
+  --set=ON_ERROR_STOP=1 --output="$expected" <<'SQL'
+select 't0', extract(epoch from now())::bigint
+union all
+select tenant_id || '/' || id,
+  (jsonb_array_length(variants)
+    + case when variants @> '[{"name": "file"}]' then 0 else 1 end)::bigint
+from media where deleted_at is null;
+SQL
+t0=$(sed -n 's/^t0 //p' "$expected")
+[ -n "$t0" ] || die "could not read the start time from the database"
+
 say "dumping the database"
 pg_dump --format=custom --file="$db/mycel.dump.part"
 mv "$db/mycel.dump.part" "$db/mycel.dump"
@@ -79,10 +104,38 @@ SQL
 mv "$db/roles.sql.part" "$db/roles.sql"
 say "roles: $(grep -c '^do ' "$db/roles.sql") roles, $(grep -c '^grant ' "$db/roles.sql") memberships"
 
+# The restore drill holds the run here (scripts/drill-run.sh) to delete or purge media while a
+# backup is under way. Unset in production.
+if [ -n "${BACKUP_HOLD_AFTER_DUMP:-}" ]; then
+  touch "${BACKUP_HOLD_AFTER_DUMP}.dumped"
+  waited=0
+  until [ -e "${BACKUP_HOLD_AFTER_DUMP}.go" ]; do
+    [ "$waited" -lt 120 ] || die "held after the dump for 120 s without ${BACKUP_HOLD_AFTER_DUMP}.go"
+    sleep 1
+    waited=$((waited + 1))
+  done
+fi
+
 blob_location
 say "copying the media files from ${blobs}"
 rclone sync "$blobs" "$blob" --fast-list
 say "media files: $(tally "$blob")"
+
+# A snapshot is either complete or not written. Past BACKUP_MAX_SECONDS (half the purge delay)
+# an asset deleted after the dump may already be purged, so the guarantee no longer holds.
+elapsed=$(psql --no-psqlrc --tuples-only --no-align \
+  --command="select extract(epoch from now())::bigint - ${t0}")
+[ "$elapsed" -le "$max_seconds" ] ||
+  die "the run took ${elapsed} s, more than BACKUP_MAX_SECONDS=${max_seconds}; no snapshot written"
+missing=""
+while read -r asset count; do
+  [ "$asset" = t0 ] && continue
+  found=$(find "$blob/tenants/${asset%%/*}/media/${asset#*/}" -type f 2>/dev/null | wc -l | tr -d ' ')
+  [ "$found" -ge "$count" ] || missing="${missing} ${asset#*/} (${found} of ${count})"
+done <"$expected"
+[ -z "$missing" ] ||
+  die "media files missing for live assets, no snapshot written:${missing}"
+say "media complete: $(($(wc -l <"$expected") - 1)) live assets"
 
 cat >"${STAGING_DIR}/manifest.txt" <<EOF
 started_at=${started}

@@ -25,16 +25,19 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { mkdir, mkdtemp, open, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, open, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { promisify } from 'node:util';
 import { sql, type Kysely, type RawBuilder } from 'kysely';
 import {
+  MEDIA_PURGE_DELAY_MS,
   UseCaseError,
+  mediaKeys,
   type BlobStore,
   type EntitlementsDocument,
+  type MediaRecord,
   type PlatformConfig,
   type TenantStatus,
 } from '@mycel/core';
@@ -168,13 +171,15 @@ async function readTenant(
   operatorDb: Kysely<Database>,
   tenantId: string,
   each: (table: ExportTable, line: string) => Promise<void> | void
-): Promise<void> {
-  await operatorDb
+): Promise<Date> {
+  return operatorDb
     .transaction()
     .setIsolationLevel('repeatable read')
     .execute(async (trx) => {
-      await sql`select set_config('role', 'mycel_app', true),
-                       set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
+      // The first statement takes the snapshot; `now()` is its start, on the database's clock.
+      const { rows } = await sql<{ t0: Date }>`
+        select now() as t0, set_config('role', 'mycel_app', true),
+               set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
       for (const table of EXPORT_ORDER) {
         await sql`declare export_rows no scroll cursor for ${rowQuery(table)}`.execute(trx);
         for (;;) {
@@ -184,7 +189,16 @@ async function readTenant(
         }
         await sql`close export_rows`.execute(trx);
       }
+      return rows[0]!.t0;
     });
+}
+
+/** The fields of a `media` export line that decide its blob keys. */
+interface MediaLine {
+  id: string;
+  content_type: MediaRecord['contentType'];
+  variants: MediaRecord['variants'];
+  deleted_at: string | null;
 }
 
 const run = promisify(execFile);
@@ -197,14 +211,39 @@ export interface ExportOptions {
   /** A directory (created, must be empty or absent) or a path ending in `.tar`. */
   out: string;
   mycelVersion: string;
+  /**
+   * Tests only: runs after the tables are read and before the files are, so a test can delete,
+   * purge or upload media between the two (export.conformance.test.ts).
+   */
+  afterSnapshot?: () => Promise<void>;
 }
 
-/** `mycel export <slug> --out <dir|file.tar>`. */
+/** Whether `path` exists; refuses a non-empty directory, which a failed export would empty. */
+async function emptyOrAbsent(path: string): Promise<boolean> {
+  try {
+    if ((await readdir(path)).length > 0)
+      throw new UseCaseError('invalid_input', `${path} is not empty`);
+    return true;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw e;
+  }
+}
+
+/**
+ * `mycel export <slug> --out <dir|file.tar>`. Complete or nothing (TODO #29A, ADR 019 rule 8):
+ * every file of every media row that is live in the table snapshot is in the archive, or the
+ * export fails naming the media ids and leaves no directory or tar behind. `media.delete` purges
+ * only after MEDIA_PURGE_DELAY_MS, so an export that reads the files within half of that finds
+ * them; one that takes longer fails rather than trust it.
+ */
 export async function exportTenant(options: ExportOptions): Promise<ExportManifest> {
   const tenant = await getTenantBySlug(options.operatorDb, options.slug);
   if (!tenant) throw new UseCaseError('not_found', `no tenant with slug "${options.slug}"`);
   const out = resolve(options.out);
+  const existed = isTar(out) ? false : await emptyOrAbsent(out);
   const dir = isTar(out) ? await mkdtemp(join(dirname(out), '.mycel-export-')) : out;
+  let complete = false;
   try {
     await mkdir(join(dir, 'tables'), { recursive: true });
     const manifest: ExportManifest = {
@@ -238,13 +277,25 @@ export async function exportTenant(options: ExportOptions): Promise<ExportManife
         hash: createHash('sha256'),
         rows: 0,
       });
+    // The keys every live media row of the snapshot needs; a soft-deleted row's may be gone.
+    const required = new Map<string, string>();
+    let t0: Date;
     try {
-      await readTenant(options.operatorDb, tenant.id, async (table, line) => {
+      t0 = await readTenant(options.operatorDb, tenant.id, async (table, line) => {
         const f = files.get(table)!;
         const text = line + '\n';
         f.hash.update(text);
         f.rows++;
         await f.handle.write(text);
+        if (table !== 'media') return;
+        const m = JSON.parse(line) as MediaLine;
+        if (m.deleted_at === null)
+          for (const key of mediaKeys(tenant.id, {
+            id: m.id,
+            contentType: m.content_type,
+            variants: m.variants,
+          }))
+            required.set(key, m.id);
       });
     } finally {
       for (const f of files.values()) await f.handle.close();
@@ -262,8 +313,11 @@ export async function exportTenant(options: ExportOptions): Promise<ExportManife
       };
     }
 
+    await options.afterSnapshot?.();
+
     // The tenant's files: everything under `tenants/<id>/`, whatever the media register says, so
-    // a variant the register lost still travels.
+    // a variant the register lost still travels. A file that vanished between `list` and `get`
+    // is skipped here and caught below if a live row needs it.
     const keys: string[] = [];
     for await (const { key } of options.blobs.list(`tenants/${tenant.id}/`)) keys.push(key);
     for (const key of keys.sort()) {
@@ -280,13 +334,37 @@ export async function exportTenant(options: ExportOptions): Promise<ExportManife
         contentType: head?.contentType ?? 'application/octet-stream',
       };
     }
+    const missing = new Set(
+      [...required].filter(([key]) => !manifest.media[key]).map(([, mediaId]) => mediaId)
+    );
+    if (missing.size)
+      throw new Error(
+        `export of ${tenant.slug}: files of live media are missing, nothing written: ` +
+          [...missing].sort().join(', ')
+      );
+    const { rows } = await sql<{ lag: number }>`
+      select extract(epoch from now() - ${t0}::timestamptz) * 1000 as lag`.execute(
+      options.operatorDb
+    );
+    const limitHours = MEDIA_PURGE_DELAY_MS / 2 / 3_600_000;
+    if (Number(rows[0]?.lag) > MEDIA_PURGE_DELAY_MS / 2)
+      throw new Error(
+        `export of ${tenant.slug} read its files more than ${limitHours} hours after its ` +
+          'tables, past half the purge delay; nothing written'
+      );
+
     await writeFile(join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n', {
       flag: 'wx',
     });
     if (isTar(out)) await run('tar', ['-cf', out, '-C', dir, '.']);
+    complete = true;
     return manifest;
   } finally {
     if (isTar(out)) await rm(dir, { recursive: true, force: true });
+    else if (!complete) {
+      await rm(dir, { recursive: true, force: true });
+      if (existed) await mkdir(dir);
+    }
   }
 }
 
