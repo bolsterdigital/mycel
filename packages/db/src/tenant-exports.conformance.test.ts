@@ -65,8 +65,6 @@ if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
 const run$ = promisify(execFile);
 const by = { actorId: 'tenant-exports-test', hasher: new FakeInputHasher() };
 const roles = {
-  appPassword: process.env['MYCEL_APP_PASSWORD'],
-  authPassword: process.env['MYCEL_AUTH_PASSWORD'],
   log: () => {},
 };
 

@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { applyMigrations } from './migrate.js';
+import { applyMigrations, migrate } from './migrate.js';
 
 const operatorUrl = process.env['DATABASE_URL'];
 if (process.env['E2E_REQUIRED'] === '1' && !operatorUrl)
@@ -82,5 +82,30 @@ describe.skipIf(!operatorUrl)('migrate: checksums of applied files', () => {
   it('accepts a recorded version without a file (an image one release back)', async () => {
     await client.query(`insert into schema_migrations (version, checksum) values ('0099_z', 'x')`);
     expect(await applyMigrations(client, dir)).toEqual([]);
+  });
+
+  it('checks an already migrated schema without rewriting a cluster role', async (ctx) => {
+    const { rows } = await client.query<{ can_alter: boolean }>(
+      `select rolsuper or rolcreaterole as can_alter from pg_roles where rolname = current_user`
+    );
+    if (!rows[0]?.can_alter) ctx.skip();
+    const holder = new pg.Client({ connectionString: operatorUrl });
+    const contender = new pg.Client({ connectionString: operatorUrl });
+    await Promise.all([holder.connect(), contender.connect()]);
+    try {
+      await holder.query('begin');
+      await holder.query('alter role mycel_app connection limit 42');
+      // A second role update is the old conformance setup. It cannot finish while the first
+      // transaction owns the catalog tuple; in full parallel runs it hit tuple concurrently updated.
+      await contender.query(`set lock_timeout = '100ms'`);
+      await expect(
+        contender.query('alter role mycel_app connection limit 43')
+      ).rejects.toMatchObject({ code: '55P03' });
+      // The schema-only test setup can still finish while that role transaction is open.
+      await expect(migrate(operatorUrl!, { log: () => {} })).resolves.toEqual([]);
+    } finally {
+      await holder.query('rollback').catch(() => {});
+      await Promise.all([holder.end(), contender.end()]);
+    }
   });
 });

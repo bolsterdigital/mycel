@@ -122,7 +122,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
     `${x.type}${x.ref_id}${x.block_id}`.localeCompare(`${y.type}${y.ref_id}${y.block_id}`);
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, { appPassword: process.env['MYCEL_APP_PASSWORD'], log: () => {} });
+    await migrate(operatorUrl!, { log: () => {} });
     const tenant = (slug: string) =>
       upsertTenant(
         operatorDb,

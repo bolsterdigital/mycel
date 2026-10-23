@@ -58,18 +58,10 @@ if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
   throw new Error('E2E_REQUIRED=1 but DATABASE_URL or APP_DATABASE_URL is not set');
 
 const by = { actorId: 'export-test', hasher: new FakeInputHasher() };
-const roles = {
-  appPassword: process.env['MYCEL_APP_PASSWORD'],
-  authPassword: process.env['MYCEL_AUTH_PASSWORD'],
-  log: () => {},
-};
-// The second database migrates without passwords. Roles live in the cluster, not in a database,
-// and migrate's advisory lock is per database, so an `alter role ... password` here raced the
-// suites migrating the primary database at the same moment: `tuple concurrently updated` on
-// pg_authid, red CI on f51bb92 (TODO #27). The roles already have their passwords from the
-// primary; the second database only needs the schema. Rejected: one global lock around every
-// suite's migrate (serialises the whole run for one call site).
-const secondDatabase = { log: () => {} };
+// CI migrates and provisions logins before verify. Test migrations only need schema checks:
+// role passwords live in the cluster, and writing them again across databases raced with
+// test role DDL (`tuple concurrently updated`). Rejected: serialising all database suites.
+const schemaOnly = { log: () => {} };
 
 /**
  * Drop a scratch database once its pool has really gone. `db.destroy()` resolves when pg-pool has
@@ -185,7 +177,7 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
     );
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, roles);
+    await migrate(operatorUrl!, schemaOnly);
     scratch.dir = await mkdtemp(join(tmpdir(), 'mycel-export-test-'));
     for (const [key, n] of [
       ['a', 1],
@@ -233,7 +225,7 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
       const url = new URL(operatorUrl!);
       url.pathname = `/${target.name}`;
       target.url = url.href;
-      await migrate(target.url, secondDatabase);
+      await migrate(target.url, schemaOnly);
       target.db = createDb(target.url);
     }
   });
@@ -252,7 +244,7 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
     // The race of TODO #27 on demand: with `roles` on both sides this fails within a few rounds
     // (236 of 600 calls in a measurement on dev-server-1); with `secondDatabase` it cannot.
     for (let round = 0; round < 10; round++)
-      await Promise.all([migrate(target.url, secondDatabase), migrate(operatorUrl!, roles)]);
+      await Promise.all([migrate(target.url, schemaOnly), migrate(operatorUrl!, schemaOnly)]);
   });
 
   it('places every table of the schema, and the catalog has no tenant table without a place', async () => {
@@ -572,7 +564,7 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
         url.pathname = `/${name}`;
         const db = createDb(url.href);
         try {
-          await migrate(url.href, roles);
+          await migrate(url.href, schemaOnly);
           const report = await importTenant({
             operatorDb: db,
             blobs: new MemoryBlobStore(),

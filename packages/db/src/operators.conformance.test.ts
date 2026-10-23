@@ -91,8 +91,6 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('operator and key conforman
 
   beforeAll(async () => {
     await migrate(operatorUrl!, {
-      appPassword: process.env['MYCEL_APP_PASSWORD'],
-      authPassword: process.env['MYCEL_AUTH_PASSWORD'],
       log: () => {},
     });
     a = await tenant('opa');

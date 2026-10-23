@@ -88,6 +88,7 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
   let tenantId = '';
   let tables: TenantTable[] = [];
   let partitions: TenantTable[] = [];
+  let partitionGrants: { name: string; granted: string[] }[] = [];
   let policies: Policy[] = [];
   let backupRecorded = false;
 
@@ -130,15 +131,17 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
 
   beforeAll(async () => {
     await migrate(operatorUrl!, {
-      appPassword: process.env['MYCEL_APP_PASSWORD'],
-      authPassword: process.env['MYCEL_AUTH_PASSWORD'],
       log: () => {},
     });
 
     // Every relation in `public` with a tenant_id column: plain and partitioned tables both.
     // Partitions are checked separately: their parent carries RLS and grants for them.
-    const all = (
-      await sql<TenantTable>`
+    const catalog = await operatorDb.transaction().execute(async (trx) => {
+      // A partition DDL needs ACCESS EXCLUSIVE on events. Hold this lock only while reading
+      // the catalog and its grants, so the snapshot cannot name a partition another suite drops.
+      await sql`lock table events in access share mode`.execute(trx);
+      const all = (
+        await sql<TenantTable>`
         select c.relname as name, c.relrowsecurity as rowsecurity,
                c.relforcerowsecurity as forcerowsecurity, p.relname as parent
         from pg_class c join pg_attribute a on a.attrelid = c.oid
@@ -146,15 +149,30 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
         left join pg_class p on p.oid = i.inhparent
         where a.attname = 'tenant_id' and not a.attisdropped and c.relkind in ('r', 'p')
           and c.relnamespace = 'public'::regnamespace
-        order by c.relname`.execute(operatorDb)
-    ).rows;
-    tables = all.filter((t) => t.parent === null);
-    partitions = all.filter((t) => t.parent !== null);
-    policies = (
-      await sql<Policy>`
+        order by c.relname`.execute(trx)
+      ).rows;
+      const partitions = all.filter((t) => t.parent !== null);
+      const partitionGrants = [];
+      for (const partition of partitions) {
+        const { rows } = await sql<{ granted: string[] }>`
+          select array(
+            select p from unnest(array['select', 'insert', 'update', 'delete', 'truncate',
+                                       'references', 'trigger']) p
+            where has_table_privilege(${APP_ROLE}, ${`public.${partition.name}`}, p)
+          ) as granted`.execute(trx);
+        partitionGrants.push({ name: partition.name, granted: rows[0]!.granted });
+      }
+      const policies = (
+        await sql<Policy>`
         select tablename, policyname, permissive, roles::text[] as roles, cmd, qual, with_check
-        from pg_policies where schemaname = 'public'`.execute(operatorDb)
-    ).rows;
+        from pg_policies where schemaname = 'public'`.execute(trx)
+      ).rows;
+      return { all, partitions, partitionGrants, policies };
+    });
+    tables = catalog.all.filter((t) => t.parent === null);
+    partitions = catalog.partitions;
+    partitionGrants = catalog.partitionGrants;
+    policies = catalog.policies;
 
     // Put at least one row for this tenant into every tenant table mycel_app can read, through
     // the real use-case path: a signup writes forms, submissions, rate limits and the
@@ -313,7 +331,7 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     expect(failing).toEqual([]);
   });
 
-  it('covers every partition through its parent: RLS forced there, no grants on the partition', async () => {
+  it('covers every partition through its parent: RLS forced there, no grants on the partition', () => {
     // Proves the check is not vacuous: 0005's default partition is the known instance.
     expect(partitions.map((p) => p.name)).toContain('events_default');
     for (const partition of partitions) {
@@ -322,16 +340,47 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
         parent,
         `${partition.name}: parent ${partition.parent} not a tenant table`
       ).toMatchObject({ rowsecurity: true, forcerowsecurity: true });
-      const { rows } = await sql<{ granted: string[] }>`
-        select array(
-          select p from unnest(array['select', 'insert', 'update', 'delete', 'truncate',
-                                     'references', 'trigger']) p
-          where has_table_privilege(${APP_ROLE}, ${`public.${partition.name}`}, p)
-        ) as granted`.execute(operatorDb);
       expect(
-        rows[0]?.granted,
+        partitionGrants.find((p) => p.name === partition.name)?.granted,
         `${partition.name}: ${APP_ROLE} has rights on the partition`
       ).toEqual([]);
+    }
+  });
+
+  it('keeps a partition present while its catalog row and grants are inspected', async () => {
+    const name = 'events_2199_01';
+    await sql`select ensure_event_partitions('2199-01-01', '2199-01-01')`.execute(operatorDb);
+    const reader = new pg.Client({ connectionString: operatorUrl });
+    const dropper = new pg.Client({ connectionString: operatorUrl });
+    await Promise.all([reader.connect(), dropper.connect()]);
+    try {
+      await reader.query('begin');
+      await reader.query('lock table events in access share mode');
+      const snapshot = await reader.query<{ name: string }>(
+        `select c.relname as name from pg_inherits i join pg_class c on c.oid = i.inhrelid
+         where i.inhparent = 'events'::regclass and c.relname = $1`,
+        [name]
+      );
+      expect(snapshot.rows.map((r) => r.name)).toEqual([name]);
+      await dropper.query(`set lock_timeout = '100ms'`);
+      // The old two-phase check had no lock: this DROP completed between catalog and grant
+      // reads, then has_table_privilege(name) raised 42P01. The new check holds it back.
+      await expect(dropper.query(`drop table ${name}`)).rejects.toMatchObject({ code: '55P03' });
+      const grants = await reader.query<{ granted: string[] }>(
+        `select array(select p from unnest(array['select', 'insert', 'update', 'delete']) p
+                      where has_table_privilege('mycel_app', $1, p)) as granted`,
+        [`public.${name}`]
+      );
+      expect(grants.rows[0]?.granted).toEqual([]);
+      await reader.query('commit');
+      await dropper.query(`drop table ${name}`);
+      await expect(
+        reader.query(`select has_table_privilege('mycel_app', $1, 'select')`, [`public.${name}`])
+      ).rejects.toMatchObject({ code: '42P01' });
+    } finally {
+      await reader.query('rollback').catch(() => {});
+      await Promise.all([reader.end(), dropper.end()]);
+      await sql.raw(`drop table if exists ${name}`).execute(operatorDb);
     }
   });
 
