@@ -246,8 +246,20 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
       ],
     },
   };
+  // And one page per registry example for blocks-registry.spec.ts (TODO #30B): slug
+  // `blok-<example name>`, the example alone, in nl and en. Walked from the registry, so a new
+  // example is seeded and checked without a list here or in the spec. A paywall is only valid
+  // with the marker teaser (ADR 016); the page stays public, so the boundary renders nothing.
+  const pages = { ...composed };
+  for (const [type, d] of Object.entries(BLOCK_DEFINITIONS))
+    for (const e of d.examples)
+      pages[`blok-${e.name}`] = {
+        title: { nl: `Voorbeeld ${e.name}`, en: `Example ${e.name}` },
+        blocks: [e.name],
+        ...(type === 'paywall' && { access: { level: 'public', teaser: 'marker' } }),
+      };
   const needed = [];
-  for (const slug of Object.keys(composed))
+  for (const slug of Object.keys(pages))
     if (!(await invoker.run(useCases.listItems, admin, { type: 'page', slug })).items.length)
       needed.push(slug);
   if (needed.length) {
@@ -348,8 +360,9 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
           type: 'page',
           defaultLocale: 'nl',
           locales: ['nl', 'en'],
-          title: composed[slug].title,
-          blocks: composed[slug].blocks.map((name) => swap(examples[name])),
+          title: pages[slug].title,
+          blocks: pages[slug].blocks.map((name) => swap(examples[name])),
+          ...(pages[slug].access && { access: pages[slug].access }),
         },
       });
       for (const locale of ['nl', 'en'])
