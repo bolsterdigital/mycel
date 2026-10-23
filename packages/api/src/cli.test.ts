@@ -83,6 +83,25 @@ describe('parseCommand', () => {
     expect(parseCommand(['blob', 'init'])).toEqual({ kind: 'blob.init' });
   });
 
+  it('reads export, import and erasures apply (TODO #18d)', () => {
+    expect(parseCommand(['export', 'demo', '--out', 'demo.tar'])).toEqual({
+      kind: 'export',
+      slug: 'demo',
+      out: 'demo.tar',
+    });
+    expect(parseCommand(['import', 'demo.tar'])).toEqual({ kind: 'import', path: 'demo.tar' });
+    expect(parseCommand(['import', 'dir', '--slug=demo2'])).toEqual({
+      kind: 'import',
+      path: 'dir',
+      slug: 'demo2',
+    });
+    expect(parseCommand(['erasures', 'apply'])).toEqual({ kind: 'erasures.apply' });
+    expect(parseCommand(['erasures', 'apply', '--tenant', 'demo'])).toEqual({
+      kind: 'erasures.apply',
+      slug: 'demo',
+    });
+  });
+
   it('refuses what it does not know instead of guessing', () => {
     for (const argv of [
       [],
@@ -96,6 +115,12 @@ describe('parseCommand', () => {
       ['ops', 'close', 'outbox', 'x1'],
       ['ops', 'list', 'tenants'],
       ['version', 'extra'],
+      ['export', 'demo'],
+      ['export', '--out', 'x'],
+      ['import'],
+      ['import', 'x', '--tenant', 'y'],
+      ['erasures'],
+      ['erasures', 'apply', 'demo'],
     ])
       expect(() => parseCommand(argv), argv.join(' ')).toThrow(UsageError);
   });

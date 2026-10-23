@@ -30,6 +30,7 @@ import type { MailMessage, MailSend, MailSendsRepository, Mailer } from '../mail
 import type {
   Clock,
   DomainEvent,
+  Erasures,
   ErrorReporter,
   Ids,
   LogFields,
@@ -40,6 +41,8 @@ import type {
   UnitOfWork,
 } from '../ports.js';
 import { noopLogger } from '../util/log.js';
+import { scrubText } from '../util/scrub.js';
+import { erasureEmailHash, isTombstone, tombstoneEmail } from '../supporters/erasure.js';
 import type { Capability, Principal } from '../principal.js';
 import { normalizeEmail } from '../util/email.js';
 import type { ApiKeySummary, Member, Operator } from '../operators/model.js';
@@ -243,6 +246,8 @@ interface TenantStore {
   mediaUsages: Map<string, { mediaId: string; ref: string; blockId: string }>;
   /** `audit_log` (0015), in insertion order. */
   audit: AuditEntry[];
+  /** `erasures` (0019), keyed by supporter id: the hash of the address, never the address. */
+  erasures: Map<string, { emailHash: string; erasedAt: Date; actor: Principal['actor'] }>;
 }
 
 /** Development defaults, the shape `.env.example` gives: path form on localhost. */
@@ -477,6 +482,7 @@ export class MemoryStore {
         media: new Map(),
         mediaUsages: new Map(),
         audit: [],
+        erasures: new Map(),
       };
       this.tenants.set(tenantId, store);
     }
@@ -509,6 +515,97 @@ export class MemoryStore {
       lastCheckedAt: null,
     });
   }
+}
+
+/**
+ * `ctx.erasures` over a MemoryStore: what packages/db/src/erasures.ts does over Postgres, on the
+ * same rows (ADR 019 rule 8). The addresses to erase are found from the register at apply time
+ * (the supporter's projection and events, and any value whose hash is registered) and never kept.
+ */
+function memoryErasures(store: MemoryStore, principal: Principal, clock: Clock): Erasures {
+  const tenantId = principal.tenantId;
+  const s = store.for(tenantId);
+  return {
+    async register(supporterId, email) {
+      if (s.erasures.has(supporterId)) return;
+      s.erasures.set(supporterId, {
+        emailHash: await erasureEmailHash(tenantId, email),
+        erasedAt: clock.now(),
+        actor: structuredClone(principal.actor),
+      });
+    },
+    async apply() {
+      if (!s.erasures.size) return 0;
+      const ids = new Set(s.erasures.keys());
+      const hashes = new Set([...s.erasures.values()].map((e) => e.emailHash));
+      const addresses = new Set<string>();
+      const consider = async (value: string) => {
+        if (
+          value.includes('@') &&
+          !isTombstone(value) &&
+          hashes.has(await erasureEmailHash(tenantId, value))
+        )
+          addresses.add(value.trim().toLowerCase());
+      };
+      for (const p of s.projections.values())
+        if (ids.has(p.id) && !isTombstone(p.email)) addresses.add(p.email.toLowerCase());
+        else await consider(p.email);
+      for (const e of s.events.values())
+        if (e.supporter_id && ids.has(e.supporter_id) && !isTombstone(e.email))
+          addresses.add(e.email.toLowerCase());
+        else await consider(e.email);
+      for (const sub of s.submissions.values())
+        for (const v of Object.values(sub.values)) if (typeof v === 'string') await consider(v);
+      const carries = (value: unknown) => {
+        const text = JSON.stringify(value).toLowerCase();
+        return [...addresses].some((a) => text.includes(a));
+      };
+
+      let changed = 0;
+      for (const e of s.events.values()) {
+        const owner = e.supporter_id ?? '';
+        if (!(ids.has(owner) || addresses.has(e.email.toLowerCase()))) continue;
+        const tomb = tombstoneEmail(owner || e.id);
+        if (e.email === tomb && !Object.keys(e.props).length) continue;
+        e.email = tomb;
+        e.props = {};
+        changed++;
+      }
+      for (const p of s.projections.values()) {
+        if (!(ids.has(p.id) || addresses.has(p.email.toLowerCase()))) continue;
+        const tomb = tombstoneEmail(p.id);
+        if (p.email === tomb && !p.lists.length && !p.pendingLists.length) continue;
+        Object.assign(p, { email: tomb, lists: [], pendingLists: [] });
+        changed++;
+      }
+      // Mail intents and their reconcile jobs hang off the outbox event that carried the address;
+      // find them before the scrub below takes the address out of that event.
+      const tenantOutbox = store.outbox.filter((e) => e.tenantId === tenantId);
+      const eventIds = new Set(tenantOutbox.filter((e) => carries(e.props)).map((e) => e.id));
+      for (const [key, send] of s.mailSends)
+        if (eventIds.has(send.eventId) && s.mailSends.delete(key)) changed++;
+      for (const [id, sub] of s.submissions)
+        if (carries(sub.values) && s.submissions.delete(id)) changed++;
+      for (const e of tenantOutbox)
+        if (carries(e.props)) {
+          e.props = JSON.parse(scrubText(JSON.stringify(e.props))) as Record<string, unknown>;
+          changed++;
+        }
+      for (let i = store.jobs.length - 1; i >= 0; i--) {
+        const job = store.jobs[i]!;
+        const eventId = (job.payload as { eventId?: unknown } | null)?.eventId;
+        if (
+          job.tenantId === tenantId &&
+          (carries(job.payload) ||
+            (job.type === 'mail.reconcile' && typeof eventId === 'string' && eventIds.has(eventId)))
+        ) {
+          store.jobs.splice(i, 1);
+          changed++;
+        }
+      }
+      return changed;
+    },
+  };
 }
 
 /** Keeps every line it is given, for assertions; `child` shares the list. */
@@ -1086,6 +1183,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
         log: this.log,
         audit,
         inputHasher: this.inputHasher,
+        erasures: memoryErasures(store, principal, clock),
       });
     } finally {
       releaseMembers?.();

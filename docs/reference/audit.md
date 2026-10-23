@@ -4,19 +4,19 @@ Who did what on a site, and how it ended (TODO #17b). Every command, over HTTP, 
 
 ## What a row holds
 
-| Column        | Content                                                                                                                                  |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`          | UUIDv7                                                                                                                                   |
-| `tenant_id`   | the tenant the command ran in; a command always has one (every `Principal` carries a tenant)                                             |
-| `occurred_at` | when the row was written                                                                                                                 |
-| `actor_kind`  | `operator`, `api-key`, `agent`, `system`, `anonymous` or `platform`                                                                      |
-| `actor_id`    | operator id, API key id, the agent's key id, the job name, null for an anonymous visitor; `platform`: token fingerprint, `cli` or `seed` |
-| `operation`   | the use-case name (`media.upload`) or `platform.tenant.create`, `platform.set_entitlements`, `platform.set_status`                       |
-| `effect`      | the command's ADR 018 effect (`publish`, `send`, `export`, `refund`), when it has one                                                    |
-| `input_hash`  | HMAC-SHA256 of the canonical input, hex (below)                                                                                          |
-| `result`      | `ok`, a use-case error code (`forbidden`, `invalid_input`, `suspended`, `limit_exceeded`, `not_found`, `conflict`) or `error`            |
-| `request_id`  | the request id of the front's log context, so a row leads to its log lines                                                               |
-| `subject_id`  | the `id` of the command's output, when it has one (the media item uploaded, the key created)                                             |
+| Column        | Content                                                                                                                                      |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`          | UUIDv7                                                                                                                                       |
+| `tenant_id`   | the tenant the command ran in; a command always has one (every `Principal` carries a tenant)                                                 |
+| `occurred_at` | when the row was written                                                                                                                     |
+| `actor_kind`  | `operator`, `api-key`, `agent`, `system`, `anonymous` or `platform`                                                                          |
+| `actor_id`    | operator id, API key id, the agent's key id, the job name, null for an anonymous visitor; `platform`: token fingerprint, `cli` or `seed`     |
+| `operation`   | the use-case name (`media.upload`) or `platform.tenant.create`, `platform.tenant.import`, `platform.set_entitlements`, `platform.set_status` |
+| `effect`      | the command's ADR 018 effect (`publish`, `send`, `export`, `refund`), when it has one                                                        |
+| `input_hash`  | HMAC-SHA256 of the canonical input, hex (below)                                                                                              |
+| `result`      | `ok`, a use-case error code (`forbidden`, `invalid_input`, `suspended`, `limit_exceeded`, `not_found`, `conflict`) or `error`                |
+| `request_id`  | the request id of the front's log context, so a row leads to its log lines                                                                   |
+| `subject_id`  | the `id` of the command's output, when it has one (the media item uploaded, the key created)                                                 |
 
 Never in a row: an e-mail address (an operator is its operator id), an IP address or its hash, the input itself, a token. The registry conformance runs every command and fails when any column of any row contains `@`.
 

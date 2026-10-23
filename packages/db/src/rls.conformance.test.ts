@@ -198,6 +198,8 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     // That signup's outbox event can still be ingested by a worker draining every tenant, which
     // releases its seat; a reservation without an event cannot be.
     await uow.run(admin, (ctx) => ctx.admissions.reserve(`rls-reserved-${run}@example.org`));
+    // An erasure registration (TODO #18d, 0019): the register holds a hash, never the address.
+    await uow.run(admin, (ctx) => ctx.erasures.register(uuidv7(), `rls-erased-${run}@example.org`));
     // Memberships and keys through their use cases (TODO #7).
     await invoker.run(useCases.inviteMember, admin, {
       email: `member-${run}@example.org`,

@@ -4,6 +4,7 @@
 //
 //   node scripts/drill-verify.mjs fingerprint > before.json
 //   node scripts/drill-verify.mjs compare before.json after.json   # exit 1 on any difference
+//   node scripts/drill-verify.mjs absent <address> before.json      # exit 1 if any copy is left
 //
 // Per table in `public` (from the catalog, so a new table is covered without a list), and within
 // a tenant table per tenant: the number of rows and a sha256 over the rows' text, sorted. Whole rows
@@ -16,6 +17,10 @@
 // Reads through DRILL_BACKUP_DATABASE_URL, the read-only `mycel_backup` login with BYPASSRLS: the
 // owner sees no tenant row under forced RLS (0018), and mycel_app only one tenant at a time. The
 // bucket through the BLOB_S3_* keys the application reads.
+// `absent` is the erasure step (TODO #18d, ADR 019 rule 8): after a restore of a snapshot that
+// still held a person, the newer register and `mycel erasures apply`, the address is in no row of
+// any table and no object key, and every tenant has as many events as before (tombstones keep the
+// counts, ADR 003 rule 5).
 // Rejected: comparing two pg_dump files, which differ in timestamps and object order between runs
 // and say nothing about the media files.
 
@@ -127,8 +132,50 @@ function differences(before, after) {
   return lines;
 }
 
+/** Tables (and object keys) whose text holds the address; the event count per tenant. */
+async function absent(address, before) {
+  const needle = address.toLowerCase();
+  const client = new pg.Client({ connectionString: process.env.DRILL_BACKUP_DATABASE_URL });
+  await client.connect();
+  const lines = [];
+  try {
+    const { rows: relations } = await client.query(`
+      select c.relname as name from pg_class c
+      where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')
+        and not c.relispartition order by 1`);
+    for (const { name } of relations) {
+      const { rows } = await client.query(
+        `select count(*)::int as n from ${pg.escapeIdentifier(name)} t
+         where strpos(lower(t::text), $1) > 0`,
+        [needle]
+      );
+      if (rows[0].n) lines.push(`${name}: ${rows[0].n} row(s) hold the address`);
+    }
+    const { rows: counts } = await client.query(
+      'select tenant_id::text as tenant, count(*)::int as n from events group by 1'
+    );
+    for (const { tenant, n } of counts) {
+      const was = before.tables.events?.[tenant]?.rows;
+      if (was !== n) lines.push(`events [${tenant}]: ${was ?? 'absent'} -> ${n}`);
+    }
+  } finally {
+    await client.end();
+  }
+  for (const key of Object.keys(await blobs()))
+    if (key.toLowerCase().includes(needle)) lines.push(`blob ${key} holds the address`);
+  return lines;
+}
+
 const [command, ...rest] = process.argv.slice(2);
-if (command === 'fingerprint') {
+if (command === 'absent' && rest.length === 2) {
+  const lines = await absent(rest[0], JSON.parse(readFileSync(rest[1], 'utf8')));
+  if (lines.length) {
+    console.error(`the erased address is still there in ${lines.length} place(s):`);
+    for (const line of lines) console.error(`  ${line}`);
+    process.exit(1);
+  }
+  console.log('erasure applied: the address is in no table and no object key; event counts equal');
+} else if (command === 'fingerprint') {
   console.log(JSON.stringify(await fingerprint(), null, 2));
 } else if (command === 'compare' && rest.length === 2) {
   const [before, after] = rest.map((file) => JSON.parse(readFileSync(file, 'utf8')));
@@ -147,6 +194,8 @@ if (command === 'fingerprint') {
       `roles, migration ${before.lastMigration}`
   );
 } else {
-  console.error('usage: drill-verify.mjs fingerprint | compare <before.json> <after.json>');
+  console.error(
+    'usage: drill-verify.mjs fingerprint | compare <before.json> <after.json> | absent <address> <before.json>'
+  );
   process.exit(64);
 }

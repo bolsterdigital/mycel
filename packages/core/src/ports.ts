@@ -103,4 +103,24 @@ export interface TransactionContext {
   signer: Signer;
   /** Carries the request or job context of the front that opened the unit of work. */
   log: Logger;
+  /** The erasure register of this tenant (ADR 019 rule 8, TODO #18d). */
+  erasures: Erasures;
+}
+
+/**
+ * The erasure register (ADR 003 rule 5, ADR 019 rule 8; migration 0019). `register` records that
+ * a supporter is erased, permanently and without the address (only `erasureEmailHash`); `apply`
+ * makes every copy of every registered supporter in this tenant anonymous: events and the
+ * projection become tombstones (`tombstoneEmail`, empty props and lists; type and time stay, so
+ * counts hold), submissions that carry the address go, outbox props are scrubbed, mail intents
+ * and queued jobs for those events go. The audit log stays: it holds pseudonymous ids only.
+ *
+ * `apply` is idempotent and returns how many rows it changed, so a second call returns 0. It
+ * runs after a restore (`mycel erasures apply`) to erase again what an older backup brought back.
+ * Over Postgres it needs the `mycel_erasure` role, which the worker and the CLI can enter and the
+ * fronts cannot: a web request registers, the worker applies.
+ */
+export interface Erasures {
+  register(supporterId: string, email: string): Promise<void>;
+  apply(): Promise<number>;
 }

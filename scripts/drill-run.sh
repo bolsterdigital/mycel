@@ -7,11 +7,17 @@
 #
 # 1. compose.yml as in production (non-superuser owner, migrate, RustFS), `mycel setup` for two
 #    tenants, scripts/drill-fixture.mjs for their data, the fingerprint (scripts/drill-verify.mjs).
-# 2. The backup service into a restic repository on the host, then `down --volumes`.
-# 3. A fresh Postgres and bucket, the restore service as the owner, `migrate`; the clock runs from
-#    here. The fingerprint again, equal to the first; rls and hostnames conformance against the
-#    restored database; then the worker, which has to report ready. Restore plus migrate plus
-#    worker start is the measured RTO, written to the job summary.
+# 2. The backup service into a restic repository on the host: the older snapshot. Then one
+#    supporter is erased (scripts/drill-erase.mjs registers, `mycel erasures apply` applies) and a
+#    second backup is the newer snapshot. Then `down --volumes`.
+# 3. A fresh Postgres and bucket, the restore service as the owner with the older snapshot,
+#    `migrate`; the clock runs from here. The fingerprint again, equal to the first.
+# 4. The erasure again (TODO #18d, ADR 019 rule 8): the register of the newer snapshot
+#    (`restore erasures latest`) and `mycel erasures apply`; then the address is in no table and
+#    no object key, `pg_dump --data-only` does not contain it, and the event counts are unchanged.
+# 5. rls and hostnames conformance against the restored database; then the worker, which has to
+#    report ready. Restore, migrate, the erasure and the worker start are the measured RTO,
+#    written to the job summary.
 #
 # It stops at the first failure and prints the stack's logs. KEEP=1 leaves the restored stack.
 # Rejected: the steps inline in the workflow, which a developer cannot run before pushing (the
@@ -70,7 +76,17 @@ dc run --rm -T worker mycel setup --tenant drill-b --name 'Drill B' --locales nl
 host node scripts/drill-fixture.mjs drill-a drill-b
 host node scripts/drill-verify.mjs fingerprint >"$work/before.json"
 
-step 'backup'
+step 'backup: the older snapshot'
+dc run --rm -T backup
+# The last line: `run` may print the image build first (pull_policy: build).
+older=$(dc run --rm -T backup restic snapshots --host mycel --latest 1 --json | tail -n 1 |
+  node -e "let d = ''; process.stdin.on('data', (c) => (d += c)).on('end', () => console.log(JSON.parse(d).at(-1).short_id))")
+echo "older snapshot: $older"
+
+step 'erasure, then the newer snapshot'
+erased=supporter-drill-a@example.org
+host node scripts/drill-erase.mjs drill-a "$erased"
+dc run --rm -T worker mycel erasures apply
 dc run --rm -T backup
 dc run --rm -T backup restic snapshots --host mycel
 
@@ -81,8 +97,8 @@ dc up -d --wait --wait-timeout 180 postgres s3
 [ "$(dc exec -T postgres psql -U mycel -d mycel -Atc "select count(*) from pg_class where relnamespace = 'public'::regnamespace")" = 0 ] ||
   { echo 'the new box is not empty' >&2; exit 1; }
 
-step 'restore'
-dc run --rm -T restore
+step 'restore the older snapshot'
+dc run --rm -T restore "$older"
 dc run --rm -T migrate
 restored=$(now)
 
@@ -90,6 +106,17 @@ step 'verify'
 host node scripts/drill-verify.mjs fingerprint >"$work/after.json"
 host node scripts/drill-verify.mjs compare "$work/before.json" "$work/after.json" | tee "$work/compare.txt"
 [ "$(dc exec -T postgres psql -U mycel -d mycel -Atc "select rolsuper from pg_roles where rolname = current_user")" = f ]
+
+step 'erasure after the restore'
+erase_started=$(now)
+dc run --rm -T restore erasures latest
+dc run --rm -T worker mycel erasures apply
+erase_done=$(now)
+host node scripts/drill-verify.mjs absent "$erased" "$work/before.json" | tee -a "$work/compare.txt"
+left=$(dc run --rm -T backup sh -c "pg_dump --data-only | grep -ci '$erased' || true" | tail -n 1)
+[ "$left" = 0 ] || { echo "pg_dump --data-only still holds the address $left time(s)" >&2; exit 1; }
+
+step 'conformance'
 host npx vitest run --project packages packages/db/src/rls.conformance.test.ts \
   packages/db/src/hostnames.conformance.test.ts
 
@@ -101,8 +128,8 @@ ready=$(dc exec -T worker node -e \
 [ "$ready" = ok ] || { echo "worker /readyz: $ready" >&2; exit 1; }
 worker_ready=$(now)
 
-rto=$((restored - started + worker_ready - worker_started))
-echo "restore drill passed: RTO ${rto}s (restore and migrate $((restored - started))s, worker $((worker_ready - worker_started))s)"
+rto=$((restored - started + erase_done - erase_started + worker_ready - worker_started))
+echo "restore drill passed: RTO ${rto}s (restore and migrate $((restored - started))s, erasure $((erase_done - erase_started))s, worker $((worker_ready - worker_started))s)"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
     echo '## Restore drill'
@@ -110,6 +137,7 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     echo "| Measured | Seconds |"
     echo "| --- | --- |"
     echo "| Empty box to restored and migrated | $((restored - started)) |"
+    echo "| Erasure register carried over and applied | $((erase_done - erase_started)) |"
     echo "| Worker start to ready | $((worker_ready - worker_started)) |"
     echo "| **RTO** | **${rto}** |"
     echo

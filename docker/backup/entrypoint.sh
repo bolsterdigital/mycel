@@ -12,6 +12,11 @@ case "${1:-backup}" in
     ;;
   restore)
     shift
+    # `run --rm restore erasures <snapshot>`: the register of a newer snapshot (TODO #18d).
+    if [ "${1:-}" = erasures ]; then
+      shift
+      exec sh "$dir/restore-erasures.sh" "$@"
+    fi
     exec sh "$dir/restore.sh" "$@"
     ;;
   *) exec "$@" ;;

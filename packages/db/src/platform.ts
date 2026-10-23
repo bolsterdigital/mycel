@@ -78,7 +78,7 @@ async function audit(
   trx: Trx,
   by: PlatformActor,
   tenantId: string,
-  action: 'tenant.create' | 'set_entitlements' | 'set_status',
+  action: 'tenant.create' | 'tenant.import' | 'set_entitlements' | 'set_status',
   input: unknown
 ): Promise<void> {
   await recordPlatformAudit(trx, {
@@ -163,6 +163,21 @@ export async function createTenant(
   platform: Platform,
   by: PlatformActor
 ): Promise<PlatformTenant> {
+  return asPlatform(db, (trx) => createTenantIn(trx, tenant, platform, by));
+}
+
+/**
+ * `createTenant` inside a transaction that already runs as mycel_platform, for a caller that
+ * writes more in the same transaction: the tenant import (export.ts), which must leave no tenant
+ * behind when its data fails. `action` names the audit row; an import keeps the exported status.
+ */
+export async function createTenantIn(
+  trx: Trx,
+  tenant: NewTenant & { status?: TenantStatus | undefined },
+  platform: Platform,
+  by: PlatformActor,
+  action: 'tenant.create' | 'tenant.import' = 'tenant.create'
+): Promise<PlatformTenant> {
   if (!SLUG.test(tenant.slug))
     throw new UseCaseError('invalid_input', 'slug must match ^[a-z0-9][a-z0-9-]{1,62}$', [
       { path: 'slug', message: 'invalid' },
@@ -184,37 +199,37 @@ export async function createTenant(
       { path: 'defaultLocale', message: 'invalid' },
     ]);
 
-  return asPlatform(db, async (trx) => {
-    const taken = await trx
-      .selectFrom('tenant_hostnames')
-      .select('hostname')
-      .where('hostname', '=', hostname)
-      .executeTakeFirst();
-    if (taken) throw new UseCaseError('conflict', `the hostname ${hostname} is already in use`);
-    const row = await trx
-      .insertInto('tenants')
-      .values({
-        id: tenant.id,
-        slug: tenant.slug,
-        name: tenant.name,
-        default_locale: defaultLocale,
-        locales,
-        entitlements: JSON.stringify(entitlements),
-      })
-      .onConflict((oc) => oc.column('slug').doNothing())
-      .returning(['id', 'slug'])
-      .executeTakeFirst();
-    if (!row) throw new UseCaseError('conflict', `a tenant with slug "${tenant.slug}" exists`);
-    await insertPlatformHostname(trx, row, platform.domain);
-    await audit(trx, by, row.id, 'tenant.create', {
+  const taken = await trx
+    .selectFrom('tenant_hostnames')
+    .select('hostname')
+    .where('hostname', '=', hostname)
+    .executeTakeFirst();
+  if (taken) throw new UseCaseError('conflict', `the hostname ${hostname} is already in use`);
+  const row = await trx
+    .insertInto('tenants')
+    .values({
+      id: tenant.id,
       slug: tenant.slug,
       name: tenant.name,
+      default_locale: defaultLocale,
       locales,
-      defaultLocale,
-      entitlements,
-    });
-    return (await readTenant(trx, tenant.id))!;
+      entitlements: JSON.stringify(entitlements),
+      ...(tenant.status ? { status: TenantStatus.parse(tenant.status) } : {}),
+    })
+    .onConflict((oc) => oc.column('slug').doNothing())
+    .returning(['id', 'slug'])
+    .executeTakeFirst();
+  if (!row) throw new UseCaseError('conflict', `a tenant with slug "${tenant.slug}" exists`);
+  await insertPlatformHostname(trx, row, platform.domain);
+  await audit(trx, by, row.id, action, {
+    slug: tenant.slug,
+    name: tenant.name,
+    locales,
+    defaultLocale,
+    entitlements,
+    ...(tenant.status ? { status: tenant.status } : {}),
   });
+  return (await readTenant(trx, tenant.id))!;
 }
 
 function tenantQuery(trx: Trx) {
