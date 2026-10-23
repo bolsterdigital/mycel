@@ -22,6 +22,15 @@ const INVENTORY: Record<string, string> = {
   MYCEL_IMAGE: 'compose.yml',
   MYCEL_DB_PASSWORD: 'compose.yml',
   PG_SUPERUSER_PASSWORD: 'compose.yml',
+  MYCEL_BACKUP_PASSWORD: 'compose.yml',
+  RESTIC_REPOSITORY: 'docker/backup/common.sh',
+  RESTIC_PASSWORD: 'docker/backup/common.sh',
+  AWS_ACCESS_KEY_ID: 'compose.yml',
+  AWS_SECRET_ACCESS_KEY: 'compose.yml',
+  BACKUP_KEEP_DAILY: 'docker/backup/backup.sh',
+  BACKUP_KEEP_WEEKLY: 'docker/backup/backup.sh',
+  BACKUP_KEEP_MONTHLY: 'docker/backup/backup.sh',
+  BACKUP_CHECK_WEEKDAY: 'docker/backup/backup.sh',
   ACME_EMAIL: 'docker/caddy/Caddyfile',
   API_HOST: 'docker/caddy/Caddyfile',
   MYCEL_PG_PORT: 'compose.dev.yml',
@@ -47,6 +56,11 @@ const NOT_IN_EXAMPLE: Record<string, string> = {
   E2E_WORKER_PORT: 'test harness',
   CI: 'set by the CI runner',
   MYCEL_VERSION: 'set by the release image from its build argument (Dockerfile)',
+  STAGING_DIR: 'set by the backup image (docker/backup/Dockerfile)',
+  PGUSER: 'set by compose.yml per backup service (backup: mycel_backup, restore: the owner)',
+  PGPASSWORD: 'built by compose.yml from MYCEL_BACKUP_PASSWORD or MYCEL_DB_PASSWORD',
+  PGDATABASE: 'set by compose.yml for the backup services',
+  DRILL_BACKUP_DATABASE_URL: 'restore drill harness, set by scripts/drill-run.sh',
 };
 
 /**
@@ -113,7 +127,14 @@ function usedKeys(): string[] {
         if (!relative(root, file).includes('/e2e/')) scan(file, processEnv);
   scan(join(root, 'apps/web/playwright.config.ts'), processEnv);
   const shell = /\$\{([A-Z][A-Z0-9_]*)/g;
-  for (const file of ['compose.yml', 'compose.dev.yml', 'docker/entrypoint.sh'])
+  for (const file of [
+    'compose.yml',
+    'compose.dev.yml',
+    'docker/entrypoint.sh',
+    'docker/backup/common.sh',
+    'docker/backup/backup.sh',
+    'docker/backup/restore.sh',
+  ])
     scan(join(root, file), shell);
   scan(join(root, 'docker/caddy/Caddyfile'), /\{\$([A-Z][A-Z0-9_]*)/g);
   return [...used];

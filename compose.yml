@@ -66,9 +66,13 @@ services:
       # The image's superuser, used by nothing after the first start (docker/postgres/init-owner.sh).
       POSTGRES_PASSWORD: ${PG_SUPERUSER_PASSWORD:?set PG_SUPERUSER_PASSWORD}
       MYCEL_DB_PASSWORD: ${MYCEL_DB_PASSWORD:?set MYCEL_DB_PASSWORD}
+      # Optional so a box from before TODO #18c keeps starting; without it no backup login exists
+      # and the backup service refuses (docker/postgres/init-backup-role.sh).
+      MYCEL_BACKUP_PASSWORD: ${MYCEL_BACKUP_PASSWORD:-}
     volumes:
       - postgres:/var/lib/postgresql/data
       - ./docker/postgres/init-owner.sh:/docker-entrypoint-initdb.d/10-owner.sh:ro
+      - ./docker/postgres/init-backup-role.sh:/docker-entrypoint-initdb.d/20-backup-role.sh:ro
     # Over TCP: during the first-start init the server listens on its socket only, so a socket
     # probe would report ready before the owner exists.
     healthcheck:
@@ -157,8 +161,74 @@ services:
     volumes:
       - s3:/data
 
+  # One backup run, then exit (docker/backup/backup.sh, docs/self-hosting.md § Backups): the
+  # database as the read-only `mycel_backup` login and the media files into one restic snapshot.
+  # Built from this checkout (`docker/backup`, a few MB of Alpine), not pulled.
+  # No loop: a cron job or systemd timer on the host runs `docker compose --profile backup run
+  # --rm backup`, so a failed run is the scheduler's failure and not a silent container restart.
+  backup:
+    profiles: ['backup']
+    build: ./docker/backup
+    image: mycel-backup:local
+    pull_policy: build
+    restart: 'no'
+    environment: &backup-env
+      PGHOST: postgres
+      PGDATABASE: mycel
+      PGUSER: mycel_backup
+      PGPASSWORD: ${MYCEL_BACKUP_PASSWORD:-}
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-}
+      RESTIC_PASSWORD: ${RESTIC_PASSWORD:-}
+      # restic's own keys for an S3 repository (`s3:https://...`); unused for sftp or a path.
+      AWS_ACCESS_KEY_ID:
+      AWS_SECRET_ACCESS_KEY:
+      BACKUP_KEEP_DAILY:
+      BACKUP_KEEP_WEEKLY:
+      BACKUP_KEEP_MONTHLY:
+      BACKUP_CHECK_WEEKDAY:
+      BLOB_STORE: ${BLOB_STORE:-s3}
+      BLOB_S3_ENDPOINT:
+      BLOB_S3_REGION:
+      BLOB_S3_BUCKET:
+      BLOB_S3_ACCESS_KEY_ID:
+      BLOB_S3_SECRET_ACCESS_KEY:
+      BLOB_S3_FORCE_PATH_STYLE:
+    volumes:
+      - backup-staging:/staging
+      - backup-cache:/cache
+    healthcheck:
+      disable: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # A restore onto an empty database (docker/backup/restore.sh, docs/self-hosting.md § Restore),
+  # as the schema owner: `docker compose --profile restore run --rm restore [snapshot]`, then
+  # `docker compose up -d`, whose `migrate` brings the restored schema up to this release.
+  restore:
+    profiles: ['restore']
+    build: ./docker/backup
+    image: mycel-backup:local
+    pull_policy: build
+    # Fixed, so `run --rm restore <snapshot>` passes the snapshot to restore.sh.
+    entrypoint: ['/usr/local/lib/mycel-backup/entrypoint.sh', 'restore']
+    restart: 'no'
+    environment:
+      <<: *backup-env
+      PGUSER: mycel
+      PGPASSWORD: ${MYCEL_DB_PASSWORD:?set MYCEL_DB_PASSWORD}
+    volumes:
+      - backup-cache:/cache
+    healthcheck:
+      disable: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres:
+  backup-staging:
+  backup-cache:
   caddy-data:
   caddy-config:
   s3:
