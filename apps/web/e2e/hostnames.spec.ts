@@ -57,7 +57,8 @@ test('the site is served from Host on its platform hostname, and the mail links 
   const response = await page.goto(`${SITE}/signup`);
   expect(response?.status()).toBe(200);
   await expect(page.getByRole('heading', { level: 1, name: 'Blijf op de hoogte' })).toBeVisible();
-  expect(await page.locator('script').count()).toBe(0);
+  // Only the form's own proof-of-work module (brief form-intake § D2.3).
+  expect(await page.locator('script:not([src="/_form/proof.js"])').count()).toBe(0);
   await expectNoAxeViolations(page);
 
   const email = `e2e-host-${Date.now()}@example.org`;

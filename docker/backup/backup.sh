@@ -106,25 +106,17 @@ started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 max_seconds="${BACKUP_MAX_SECONDS:-43200}"
 case "$max_seconds" in '' | *[!0-9]*) die "BACKUP_MAX_SECONDS must be a number of seconds, got ${max_seconds}" ;; esac
 
-# What the snapshot must hold (TODO #29A, ADR 019 rule 8): every media asset that is live now,
-# with the number of files `mediaKeys` (packages/core/src/media/model.ts) gives it: one per
-# variant, plus the private original unless a variant is named `file`. Read before the dump, in
-# the same statement as t0 from the database's clock: an asset live here is in the dump, because
-# `media.delete` purges only MEDIA_PURGE_DELAY_MS (24 hours) later. After rclone the same query
-# would be useless: a purged asset has no row any more, which is exactly the case to catch.
-# Rejected: the exact key list in SQL (duplicates EXTENSION_OF and FORMAT_OF from core), a node
-# step in this image (Alpine without node, on purpose), and `pg_dump --snapshot` with a
-# transaction held open while rclone runs (a snapshot open for hours, and a second session in sh).
+# What the snapshot must hold (TODO #29A, ADR 019 rule 8): every file of every media asset that
+# is live now, by its key (media-expected.sql, which follows `mediaKeys` in
+# packages/core/src/media/model.ts). Read before the dump, in the same statement as t0 from the
+# database's clock: an asset live here is in the dump, because `media.delete` purges only
+# MEDIA_PURGE_DELAY_MS (24 hours) later. After rclone the same query would be useless: a purged
+# asset has no row any more, which is exactly the case to catch.
+# Rejected: `pg_dump --snapshot` with a transaction held open while rclone runs (a snapshot open
+# for hours, and a second session in sh).
 expected="${STAGING_DIR}/media-expected.txt"
 psql --no-psqlrc --quiet --tuples-only --no-align --field-separator=' ' \
-  --set=ON_ERROR_STOP=1 --output="$expected" <<'SQL'
-select 't0', extract(epoch from now())::bigint
-union all
-select tenant_id || '/' || id,
-  (jsonb_array_length(variants)
-    + case when variants @> '[{"name": "file"}]' then 0 else 1 end)::bigint
-from media where deleted_at is null;
-SQL
+  --set=ON_ERROR_STOP=1 --output="$expected" --file=/usr/local/lib/mycel-backup/media-expected.sql
 t0=$(sed -n 's/^t0 //p' "$expected")
 [ -n "$t0" ] || die "could not read the start time from the database"
 
@@ -193,15 +185,18 @@ elapsed=$(psql --no-psqlrc --tuples-only --no-align \
   --command="select extract(epoch from now())::bigint - ${t0}")
 [ "$elapsed" -le "$max_seconds" ] ||
   die "the run took ${elapsed} s, more than BACKUP_MAX_SECONDS=${max_seconds}; no snapshot written"
+# Each required file by name: a count would let an unexpected file in the asset's folder stand in
+# for a missing one. Ids and file names only, never contents.
 missing=""
-while read -r asset count; do
+while read -r asset key; do
   [ "$asset" = t0 ] && continue
-  found=$(find "$blob/tenants/${asset%%/*}/media/${asset#*/}" -type f 2>/dev/null | wc -l | tr -d ' ')
-  [ "$found" -ge "$count" ] || missing="${missing} ${asset#*/} (${found} of ${count})"
+  [ -f "$blob/$key" ] || missing="${missing} ${asset}/${key##*/}"
 done <"$expected"
 [ -z "$missing" ] ||
   die "media files missing for live assets, no snapshot written:${missing}"
-say "media complete: $(($(wc -l <"$expected") - 1)) live assets"
+files=$(grep -vc '^t0 ' "$expected" || true)
+assets=$(grep -v '^t0 ' "$expected" | cut -d' ' -f1 | sort -u | wc -l | tr -d ' ')
+say "media complete: ${files} files of ${assets} live assets"
 
 cat >"${STAGING_DIR}/manifest.txt" <<EOF
 started_at=${started}

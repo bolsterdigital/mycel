@@ -50,6 +50,7 @@ import {
   type ExportManifest,
 } from './index.js';
 import type { Database } from './schema.js';
+import { closeTenantWork } from './testing.js';
 
 const operatorUrl = process.env['DATABASE_URL'];
 const appUrl = process.env['APP_DATABASE_URL'];
@@ -238,6 +239,7 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
   });
 
   afterAll(async () => {
+    await closeTenantWork(operatorDb, [tenant.a.id, tenant.b.id]);
     await target.db?.destroy();
     if (canCreateDb) await dropDatabase(operatorDb, target.name);
     if (scratch.dir) await rm(scratch.dir, { recursive: true, force: true });

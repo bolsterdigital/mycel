@@ -40,6 +40,7 @@ import {
   uuidv7,
   uuidv7Ids,
 } from '@mycel/db';
+import { closeTenantWork } from '@mycel/db/testing';
 import { mailReconcileJob } from './jobs.js';
 
 const env = process.env;
@@ -160,6 +161,7 @@ describe.skipIf(!ready)('mail.reconcile against Postgres', () => {
   });
 
   afterAll(async () => {
+    await closeTenantWork(operatorDb, [tenantA, tenantB]);
     await asWorker((trx) =>
       sql`update jobs set done_at = now()
           where done_at is null

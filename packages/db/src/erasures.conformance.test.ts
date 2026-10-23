@@ -38,6 +38,7 @@ import {
   uuidv7,
   uuidv7Ids,
 } from './index.js';
+import { closeTenantWork } from './testing.js';
 
 const operatorUrl = process.env['DATABASE_URL'];
 const appUrl = process.env['APP_DATABASE_URL'];
@@ -159,13 +160,7 @@ describe.skipIf(!operatorUrl || !appUrl)('erasure conformance', () => {
   });
 
   afterAll(async () => {
-    // The confirmations planned `mail.reconcile` jobs; close what apply left so a worker on the
-    // same database never runs them (TODO #26).
-    await operatorDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_worker`.execute(trx);
-      await sql`update jobs set done_at = now() where done_at is null
-                and tenant_id in (${tenants.a}, ${tenants.b})`.execute(trx);
-    });
+    await closeTenantWork(operatorDb, [tenants.a, tenants.b]);
     await operatorDb.destroy();
     await appDb.destroy();
   });

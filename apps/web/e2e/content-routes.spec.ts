@@ -86,7 +86,9 @@ test('the default locale has no prefix; an unknown or default prefix is a no-sto
 test('published HTML is publicly cacheable, revalidates to a 304 and sets no cookie', async ({
   request,
 }) => {
-  const first = await request.get('/probe/campagne');
+  // An item without a form: the campaign page renders one and is `no-store` (#30A, signup.spec).
+  const path = `/probe/articles/${ARTICLE}`;
+  const first = await request.get(path);
   expect(first.status()).toBe(200);
   const headers = first.headers();
   expect(headers['cache-control']).toBe('public, max-age=60, stale-while-revalidate=600');
@@ -94,19 +96,17 @@ test('published HTML is publicly cacheable, revalidates to a 304 and sets no coo
   expect(headers['set-cookie']).toBeUndefined();
   expect(headers['vary'] ?? '').not.toMatch(/cookie|accept-language/i);
 
-  const again = await request.get('/probe/campagne', {
+  const again = await request.get(path, {
     headers: { 'if-none-match': headers['etag']! },
   });
   expect(again.status()).toBe(304);
   expect(await again.body()).toHaveLength(0);
   expect(again.headers()['etag']).toBe(headers['etag']);
 
-  const english = await request.get('/probe/en/campagne');
+  const english = await request.get(`/probe/en/articles/${ARTICLE}`);
   expect(english.headers()['etag']).not.toBe(headers['etag']);
   expect(
-    (await request.get('/probe/campagne', { headers: { 'accept-language': 'en' } })).headers()[
-      'etag'
-    ]
+    (await request.get(path, { headers: { 'accept-language': 'en' } })).headers()['etag']
   ).toBe(headers['etag']);
 });
 
