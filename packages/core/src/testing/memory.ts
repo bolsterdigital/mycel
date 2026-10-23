@@ -79,6 +79,7 @@ import { DnsUnavailableError } from '../tenants/ports.js';
 import type { JobRecord, JobRequest, Scheduler } from '../jobs/ports.js';
 import type { JobRecovery, RecoveryResult, StuckJob } from '../ops/ports.js';
 import type { JobType } from '../jobs/types.js';
+import type { TenantExportRecord, TenantExportRepository } from '../tenants/exports.js';
 import {
   DEFAULT_ACCESS,
   effectiveEntitlements,
@@ -253,6 +254,8 @@ interface TenantStore {
    * suite marks a registration secured with `secureErasures`.
    */
   erasureBackups: Map<string, { snapshotId: string; securedAt: Date }>;
+  /** `tenant_exports` (0022), keyed by id. The job side lives in packages/db; suites edit rows. */
+  exports: Map<string, TenantExportRecord>;
 }
 
 /** Development defaults, the shape `.env.example` gives: path form on localhost. */
@@ -363,17 +366,40 @@ export class MemoryJobRecovery implements JobRecovery {
  */
 export class MemoryBlobStore implements BlobStore {
   readonly blobs = new Map<string, { bytes: Uint8Array; contentType: string; modifiedAt: Date }>();
-  constructor(readonly clock: Clock = new FakeClock()) {}
+  /**
+   * `readFile` serves `putFile`: the core may not touch the file system, so a suite that streams
+   * a file into this store hands over `node:fs/promises`' readFile itself.
+   */
+  constructor(
+    readonly clock: Clock = new FakeClock(),
+    readonly readFile?: (path: string) => Promise<Uint8Array>
+  ) {}
   async put(key: string, bytes: Uint8Array, { contentType }: { contentType: string }) {
+    // The contract of the real stores (packages/blob): a key never escapes the store.
+    if (!key || key.startsWith('/') || key.split('/').some((p) => ['', '.', '..'].includes(p)))
+      throw new Error(`invalid blob key: ${key}`);
     this.blobs.set(key, {
       bytes: new Uint8Array(bytes),
       contentType,
       modifiedAt: this.clock.now(),
     });
   }
+  async putFile(key: string, path: string, options: { contentType: string }) {
+    if (!this.readFile) throw new Error('MemoryBlobStore.putFile needs a readFile');
+    await this.put(key, await this.readFile(path), options);
+  }
   async get(key: string) {
     const b = this.blobs.get(key);
     return b ? new Uint8Array(b.bytes) : null;
+  }
+  async getStream(key: string) {
+    const b = this.blobs.get(key);
+    if (!b) return null;
+    const bytes = new Uint8Array(b.bytes);
+    // In chunks, as the real stores deliver, so a consumer that assumes one chunk fails here.
+    return (async function* () {
+      for (let i = 0; i < bytes.length; i += 64 * 1024) yield bytes.subarray(i, i + 64 * 1024);
+    })();
   }
   async head(key: string) {
     const b = this.blobs.get(key);
@@ -489,6 +515,7 @@ export class MemoryStore {
         audit: [],
         erasures: new Map(),
         erasureBackups: new Map(),
+        exports: new Map(),
       };
       this.tenants.set(tenantId, store);
     }
@@ -620,6 +647,43 @@ function memoryErasures(store: MemoryStore, principal: Principal, clock: Clock):
         secured: [...s.erasures.keys()].filter((id) => s.erasureBackups.has(id)).length,
         oldestUnsecuredAt: oldest,
       };
+    },
+  };
+}
+
+/** `ctx.exports` over a MemoryStore: one queued or running export per tenant, like 0022's index. */
+function memoryExports(rows: Map<string, TenantExportRecord>): TenantExportRepository {
+  const copy = (r: TenantExportRecord) => structuredClone(r);
+  return {
+    async request({ id, requestedBy, requestedAt }) {
+      const active = [...rows.values()].find((r) => r.status === 'queued' || r.status === 'running');
+      if (active) return { record: copy(active), created: false };
+      const record: TenantExportRecord = {
+        id,
+        requestedBy,
+        requestedAt,
+        status: 'queued',
+        startedAt: null,
+        heartbeatAt: null,
+        finishedAt: null,
+        sizeBytes: null,
+        sha256: null,
+        schemaVersion: null,
+        error: null,
+        expiresAt: null,
+      };
+      rows.set(id, record);
+      return { record: copy(record), created: true };
+    },
+    async get(id) {
+      const r = rows.get(id);
+      return r ? copy(r) : null;
+    },
+    async list(limit) {
+      return [...rows.values()]
+        .sort((a, b) => +b.requestedAt - +a.requestedAt || b.id.localeCompare(a.id))
+        .slice(0, limit)
+        .map(copy);
     },
   };
 }
@@ -1216,6 +1280,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
         audit,
         inputHasher: this.inputHasher,
         erasures: memoryErasures(store, principal, clock),
+        exports: memoryExports(s.exports),
       });
     } finally {
       releaseMembers?.();

@@ -305,4 +305,21 @@ export interface Database {
     snapshot_id: string;
     secured_at: Timestamp;
   };
+  /** Archives a tenant administrator asked for (0022); the file is `exports/<tenant>/<id>.tar`. */
+  tenant_exports: {
+    id: string;
+    tenant_id: string;
+    requested_by: string;
+    requested_at: Generated<Date>;
+    status: Generated<'queued' | 'running' | 'ready' | 'failed' | 'expired'>;
+    started_at: Date | null;
+    heartbeat_at: Date | null;
+    finished_at: Date | null;
+    size_bytes: ColumnType<string | null, number | null, number | null>;
+    sha256: string | null;
+    schema_version: string | null;
+    error: string | null;
+    expires_at: Date | null;
+    purged_at: Date | null;
+  };
 }

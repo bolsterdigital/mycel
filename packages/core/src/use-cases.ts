@@ -61,6 +61,7 @@ import {
   setPrimaryHostname,
   verifyHostnameUseCase,
 } from './tenants/service.js';
+import { listExports, requestExport } from './tenants/exports.js';
 
 export const useCases = {
   getPublished,
@@ -110,6 +111,8 @@ export const useCases = {
   verifyHostname: verifyHostnameUseCase,
   setPrimaryHostname,
   removeHostname,
+  requestExport,
+  listExports,
   getUsage,
   getEntitlements,
   uploadMedia,
