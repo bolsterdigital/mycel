@@ -244,7 +244,7 @@ export async function runExportJob(
       sql`update tenant_exports
           set status = 'ready', finished_at = now(), heartbeat_at = now(), size_bytes = ${size},
               sha256 = ${sha256}, schema_version = ${version},
-              expires_at = now() + make_interval(days => ${deps.retentionDays})
+              expires_at = now() + (${deps.retentionDays} * interval '24 hours')
           where id = ${exportId} and status = 'running'`.execute(trx)
     );
     // An erasure expired it while it ran (its snapshot may hold the person): the file goes.
