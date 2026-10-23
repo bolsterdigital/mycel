@@ -266,6 +266,32 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
     ).rejects.toThrow(/events.ndjson does not match the manifest/);
   });
 
+  it('refuses a manifest that names a file outside the format', async () => {
+    const crafted = join(scratch.dir, 'crafted');
+    await cp(join(scratch.dir, 'a'), crafted, { recursive: true });
+    const [key, media] = Object.entries(manifestA.media)[0]!;
+    await writeFile(
+      join(crafted, 'manifest.json'),
+      JSON.stringify({
+        ...manifestA,
+        media: { [key]: { ...media, file: '../../package.json' } },
+      })
+    );
+    await expect(
+      importTenant({ operatorDb, blobs, path: crafted, platform: memoryPlatform, by })
+    ).rejects.toThrow(/names a file outside the format/);
+    await writeFile(
+      join(crafted, 'manifest.json'),
+      JSON.stringify({
+        ...manifestA,
+        tables: { ...manifestA.tables, forms: { ...manifestA.tables['forms'], file: '../x' } },
+      })
+    );
+    await expect(
+      importTenant({ operatorDb, blobs, path: crafted, platform: memoryPlatform, by })
+    ).rejects.toThrow(/names a file outside the format/);
+  });
+
   it('refuses a newer schema and a tenant that exists', async () => {
     const newer = join(scratch.dir, 'newer');
     await cp(join(scratch.dir, 'a'), newer, { recursive: true });

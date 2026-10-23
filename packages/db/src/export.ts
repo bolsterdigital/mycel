@@ -306,7 +306,11 @@ async function fileSha256(path: string): Promise<{ sha256: string; lines: number
   return { sha256: hash.digest('hex'), lines };
 }
 
-/** The manifest of an export directory, checked against every file it names. */
+/**
+ * The manifest of an export directory, checked against every file it names. A file name is the
+ * one the format prescribes (`tables/<table>.ndjson`, `media/<key>`), never one the manifest
+ * chooses: a crafted archive could otherwise name any readable path on this box as media.
+ */
 async function verifiedManifest(dir: string): Promise<ExportManifest> {
   let manifest: ExportManifest;
   try {
@@ -325,6 +329,8 @@ async function verifiedManifest(dir: string): Promise<ExportManifest> {
         'invalid_input',
         `the export has a table this version does not know: ${table}`
       );
+    if (entry.file !== `tables/${table}.ndjson`)
+      throw new UseCaseError('invalid_input', `${table} names a file outside the format`);
     const found = await fileSha256(join(dir, entry.file));
     if (found.sha256 !== entry.sha256 || found.lines !== entry.rows)
       throw new UseCaseError('invalid_input', `${entry.file} does not match the manifest`);
@@ -332,6 +338,8 @@ async function verifiedManifest(dir: string): Promise<ExportManifest> {
   for (const [key, entry] of Object.entries(manifest.media)) {
     if (!key.startsWith(`tenants/${manifest.tenant.id}/`))
       throw new UseCaseError('invalid_input', `media key ${key} is not under the tenant`);
+    if (entry.file !== `media/${key}` || key.split('/').some((s) => s === '' || s === '..'))
+      throw new UseCaseError('invalid_input', `media key ${key} names a file outside the format`);
     const bytes = await readFile(join(dir, entry.file));
     if (sha256(bytes) !== entry.sha256)
       throw new UseCaseError('invalid_input', `${entry.file} does not match the manifest`);
