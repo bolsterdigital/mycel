@@ -21,8 +21,11 @@ import {
   type TenantStatus,
 } from '@mycel/core';
 import {
+  applyErasures,
   createDb,
   createTenant,
+  exportTenant,
+  importTenant,
   getTenantBySlug,
   listTenants,
   opsCloseJob,
@@ -39,7 +42,14 @@ import {
 } from '@mycel/db';
 import { ensureS3Bucket } from '@mycel/blob';
 import { buildVersion } from '@mycel/observability';
-import { createRuntime, inputHasherOf, loadConfig, platformOf, s3ConfigOf } from './compose.js';
+import {
+  blobStoreFor,
+  createRuntime,
+  inputHasherOf,
+  loadConfig,
+  platformOf,
+  s3ConfigOf,
+} from './compose.js';
 
 export const USAGE = `usage:
   mycel setup --tenant <slug> --name <name> --operator <e-mail> [--locales nl,en] [--hostname <domain>]
@@ -52,6 +62,9 @@ export const USAGE = `usage:
   mycel ops retry jobs|outbox <id>
   mycel ops close jobs <id>
   mycel blob init
+  mycel export <slug> --out <directory or file.tar>
+  mycel import <directory or file.tar> [--slug <slug>]
+  mycel erasures apply [--tenant <slug>]
   mycel version`;
 
 export interface SetupInput {
@@ -72,6 +85,9 @@ export type Command =
   | { kind: 'ops.list'; list: 'jobs' | 'outbox' | 'mail'; slug?: string }
   | { kind: 'ops.recover'; action: 'retry' | 'close'; queue: 'jobs' | 'outbox'; id: string }
   | { kind: 'blob.init' }
+  | { kind: 'export'; slug: string; out: string }
+  | { kind: 'import'; path: string; slug?: string }
+  | { kind: 'erasures.apply'; slug?: string }
   | { kind: 'version' };
 
 /** A command line the parser refuses; the message says what is wrong, then the usage follows. */
@@ -121,6 +137,19 @@ export function parseCommand(argv: readonly string[]): Command {
     };
   }
   if (noun === 'version' && verb === undefined) return { kind: 'version' };
+  if (noun === 'export' && verb && !verb.startsWith('--')) {
+    const f = flags(rest, ['out']);
+    if (!f['out']) throw new UsageError('export needs --out');
+    return { kind: 'export', slug: verb, out: f['out'] };
+  }
+  if (noun === 'import' && verb && !verb.startsWith('--')) {
+    const f = flags(rest, ['slug']);
+    return { kind: 'import', path: verb, ...(f['slug'] ? { slug: f['slug'] } : {}) };
+  }
+  if (noun === 'erasures' && verb === 'apply') {
+    const f = flags(rest, ['tenant']);
+    return { kind: 'erasures.apply', ...(f['tenant'] ? { slug: f['tenant'] } : {}) };
+  }
   if (noun === 'blob' && verb === 'init' && rest.length === 0) return { kind: 'blob.init' };
   if (noun === 'tenants' && verb === 'list' && rest.length === 0) return { kind: 'tenants.list' };
   if (noun === 'tenants' && verb === 'create' && rest[0] && rest[1] && rest.length <= 3)
@@ -346,6 +375,51 @@ async function main(argv: string[]): Promise<number> {
       case 'tenants.list':
         for (const t of await listTenants(db)) console.log(show(t));
         break;
+      case 'export': {
+        // ADR 015 rule 7: never gated, a suspended tenant exports like any other.
+        const manifest = await exportTenant({
+          operatorDb: db,
+          blobs: blobStoreFor(config),
+          slug: command.slug,
+          out: command.out,
+          mycelVersion: version(),
+        });
+        for (const [table, t] of Object.entries(manifest.tables))
+          console.log(`${table}\t${t.rows} rows`);
+        console.log(`media\t${Object.keys(manifest.media).length} files`);
+        console.log(
+          `exported ${manifest.tenant.slug} (${manifest.tenant.id}) at schema ${manifest.schemaVersion} to ${command.out}`
+        );
+        break;
+      }
+      case 'import': {
+        const report = await importTenant({
+          operatorDb: db,
+          blobs: blobStoreFor(config),
+          path: command.path,
+          slug: command.slug,
+          platform,
+          by,
+        });
+        for (const line of report.lines) console.log(line);
+        for (const line of report.differences) console.error(`  ${line}`);
+        if (report.differences.length) return 1;
+        console.log(`admin: ${new URL(`/admin/${report.slug}`, platform.platformOrigin).href}`);
+        break;
+      }
+      case 'erasures.apply': {
+        // After a restore (docs/self-hosting.md § Restore): the register of the newer backup
+        // erases again what the older one brought back. Each tenant in its own transaction.
+        const tenants = command.slug ? [await bySlug(command.slug)] : await listTenants(db);
+        let total = 0;
+        for (const t of tenants) {
+          const changed = await applyErasures(db, t.id);
+          total += changed;
+          console.log(`${t.slug}\t${changed} rows changed`);
+        }
+        console.log(`erasures: ${total} rows changed in ${tenants.length} tenant(s)`);
+        break;
+      }
       case 'tenants.create': {
         const { slug, name, locales } = command;
         const t = await createTenant(db, { id: uuidv7(), slug, name, locales }, platform, by);
