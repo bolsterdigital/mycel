@@ -370,9 +370,32 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
   describe('events.partitions', () => {
     const created = ['2098_12', '2099_01', '2099_02', '2099_03'];
 
+    /**
+     * Run DDL on `events` under a short lock_timeout and retry when it expires (TODO #27). Adding
+     * or dropping a partition takes an ACCESS EXCLUSIVE lock on `events`; while that request
+     * waits behind a parallel suite's transaction, every later reader and writer of `events`
+     * queues behind it too. A short timeout keeps that queue short. Rejected: running this
+     * describe alone (serialises the whole run for two tests).
+     */
+    async function briefly<T>(work: () => Promise<T>, tries = 20): Promise<T> {
+      for (let i = 1; ; i++) {
+        try {
+          return await work();
+        } catch (e) {
+          if ((e as { code?: string }).code !== '55P03' || i >= tries) throw e;
+          await new Promise((r) => setTimeout(r, 25 * i));
+        }
+      }
+    }
+
     afterAll(async () => {
       for (const m of created)
-        await sql.raw(`drop table if exists events_${m}`).execute(operatorDb);
+        await briefly(() =>
+          operatorDb.transaction().execute(async (trx) => {
+            await sql`set local lock_timeout = '200ms'`.execute(trx);
+            await sql.raw(`drop table if exists events_${m}`).execute(trx);
+          })
+        );
     });
 
     it('creates the months from now up to three ahead, once', async () => {
@@ -391,53 +414,59 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
     it('refuses a month with rows in events_default, names month, count and a recovery that works', async () => {
       // Everything happens in one transaction that is rolled back: events_default is never
       // visibly filled for the suites that run beside this one.
-      const client = new pg.Client({ connectionString: operatorUrl });
-      await client.connect();
-      try {
-        await client.query('begin');
-        // The stray rows go in as mycel_app, like ingest would (0018); the recovery is the owner's.
-        await client.query('set local role mycel_app');
-        await client.query(`select set_config('app.tenant_id', $1, true)`, [tenantId]);
-        for (const day of ['10', '11'])
-          await client.query(
-            `insert into events (tenant_id, id, supporter_id, schema, type, email, occurred_at,
+      await briefly(async () => {
+        const client = new pg.Client({ connectionString: operatorUrl });
+        await client.connect();
+        try {
+          await client.query('begin');
+          await client.query(`set local lock_timeout = '200ms'`);
+          // The stray rows go in as mycel_app, like ingest would (0018); the recovery is the owner's.
+          await client.query('set local role mycel_app');
+          await client.query(`select set_config('app.tenant_id', $1, true)`, [tenantId]);
+          for (const day of ['10', '11'])
+            await client.query(
+              `insert into events (tenant_id, id, supporter_id, schema, type, email, occurred_at,
                source, source_site, source_ref)
              values ($1, $2, $3, 'wings.supporter-event.v1', 'test', 'a@example.org',
                $4, 'test', 'urn:mycel:test', $2)`,
-            [tenantId, `${run}-${day}`, uuidv7(), `2097-05-${day}T12:00:00Z`]
-          );
-        await client.query('reset role');
-        await client.query('savepoint before');
-        const error = await client
-          .query(`select ensure_event_partitions('2097-04-01', '2097-06-01')`)
-          .then(
-            () => null,
-            (e: Error) => e
-          );
-        expect(error?.message).toMatch(/events_default holds 2 row\(s\) from 2097-05/);
-        await client.query('rollback to savepoint before');
-        // Nothing half done: not even April, which had no stray rows.
-        const exists = async (m: string) =>
-          (await client.query(`select to_regclass($1) as t`, [`public.events_${m}`])).rows[0].t;
-        expect(await exists('2097_04')).toBeNull();
-        expect(await exists('2097_05')).toBeNull();
+              [tenantId, `${run}-${day}`, uuidv7(), `2097-05-${day}T12:00:00Z`]
+            );
+          await client.query('reset role');
+          await client.query('savepoint before');
+          const error = await client
+            .query(`select ensure_event_partitions('2097-04-01', '2097-06-01')`)
+            .then(
+              () => null,
+              (e: Error & { code?: string }) => {
+                if (e.code === '55P03') throw e; // a lock timeout is a retry, not the refusal
+                return e;
+              }
+            );
+          expect(error?.message).toMatch(/events_default holds 2 row\(s\) from 2097-05/);
+          await client.query('rollback to savepoint before');
+          // Nothing half done: not even April, which had no stray rows.
+          const exists = async (m: string) =>
+            (await client.query(`select to_regclass($1) as t`, [`public.events_${m}`])).rows[0].t;
+          expect(await exists('2097_04')).toBeNull();
+          expect(await exists('2097_05')).toBeNull();
 
-        // The recovery the message names, run as written.
-        const recovery = /Move them in one transaction as the schema owner: (.*)$/.exec(
-          error!.message
-        )![1]!;
-        await client.query(recovery);
-        expect(await exists('2097_05')).not.toBeNull();
-        const { rows } = await client.query(
-          `select (select count(*) from events_2097_05)::int as moved,
+          // The recovery the message names, run as written.
+          const recovery = /Move them in one transaction as the schema owner: (.*)$/.exec(
+            error!.message
+          )![1]!;
+          await client.query(recovery);
+          expect(await exists('2097_05')).not.toBeNull();
+          const { rows } = await client.query(
+            `select (select count(*) from events_2097_05)::int as moved,
                   (select count(*) from events_default
                    where occurred_at >= '2097-05-01T00:00:00Z')::int as stray`
-        );
-        expect(rows[0]).toEqual({ moved: 2, stray: 0 });
-      } finally {
-        await client.query('rollback');
-        await client.end();
-      }
+          );
+          expect(rows[0]).toEqual({ moved: 2, stray: 0 });
+        } finally {
+          await client.query('rollback');
+          await client.end();
+        }
+      });
     });
   });
 

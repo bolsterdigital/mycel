@@ -70,7 +70,10 @@ describe.skipIf(!operatorUrl || !authUrl)('shared login limit', () => {
     );
     expect(await old.loginAttempt(key('old'), limit)).toBe(true);
     expect(await windows('old')).toHaveLength(1);
-    expect(await sweepRateLimits(operatorDb)).toBeGreaterThanOrEqual(1);
+    // The effect, not the count (TODO #27): the jobs and mailing suites sweep in parallel and may
+    // remove this window first, so `sweepRateLimits` can return 0 here. Only the janitor deletes
+    // from login_attempts, so the window being gone after a sweep is the proof either way.
+    expect(await sweepRateLimits(operatorDb)).toBeGreaterThanOrEqual(0);
     expect(await windows('old')).toEqual([]);
     expect(await windows('x')).toHaveLength(2);
     // Whatever its query asks, the janitor's policies reach no live window.

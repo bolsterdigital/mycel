@@ -60,6 +60,13 @@ const roles = {
   authPassword: process.env['MYCEL_AUTH_PASSWORD'],
   log: () => {},
 };
+// The second database migrates without passwords. Roles live in the cluster, not in a database,
+// and migrate's advisory lock is per database, so an `alter role ... password` here raced the
+// suites migrating the primary database at the same moment: `tuple concurrently updated` on
+// pg_authid, red CI on f51bb92 (TODO #27). The roles already have their passwords from the
+// primary; the second database only needs the schema. Rejected: one global lock around every
+// suite's migrate (serialises the whole run for one call site).
+const secondDatabase = { log: () => {} };
 
 describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
   const operatorDb = createDb(operatorUrl ?? '');
@@ -202,7 +209,7 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
       const url = new URL(operatorUrl!);
       url.pathname = `/${target.name}`;
       target.url = url.href;
-      await migrate(target.url, roles);
+      await migrate(target.url, secondDatabase);
       target.db = createDb(target.url);
     }
   });
@@ -214,6 +221,14 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
     if (scratch.dir) await rm(scratch.dir, { recursive: true, force: true });
     await operatorDb.destroy();
     await appDb.destroy();
+  });
+
+  it('migrates a second database beside the primary without racing on the shared roles', async (ctx) => {
+    if (!canCreateDb) ctx.skip();
+    // The race of TODO #27 on demand: with `roles` on both sides this fails within a few rounds
+    // (236 of 600 calls in a measurement on dev-server-1); with `secondDatabase` it cannot.
+    for (let round = 0; round < 10; round++)
+      await Promise.all([migrate(target.url, secondDatabase), migrate(operatorUrl!, roles)]);
   });
 
   it('places every table of the schema, and the catalog has no tenant table without a place', async () => {
