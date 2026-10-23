@@ -55,7 +55,11 @@ export const SubmitInput = z.object({
   locale: Locale,
   /** The page the form was on, for provenance and the supporter event's `source_site`. */
   pageUrl: z.string().url().optional(),
-  /** Spam signals the public front collects; required for anonymous principals. */
+  /**
+   * Spam signals the public front collects; required for anonymous principals. `honeypot` is
+   * the posted value of the hidden field, absent when the post had no such field: an anonymous
+   * post without it is refused as spam (the handler, not the schema, since integrations omit it).
+   */
   spam: z
     .object({
       honeypot: z.string().optional(),
@@ -74,7 +78,12 @@ export const SubmitResult = z.discriminatedUnion('status', [
   }),
   z.object({
     status: z.literal('rejected'),
-    reason: z.enum(['spam', 'too-fast', 'rate-limited']),
+    /**
+     * `recipient-limited`: this address already got a confirmation from this form in the last
+     * 24 hours. A public front shows it like `spam` (the thank-you page), so nobody learns
+     * whether an address was used; an authenticated integration sees why nothing happened.
+     */
+    reason: z.enum(['spam', 'too-fast', 'rate-limited', 'recipient-limited']),
     message: z.string(),
   }),
 ]);

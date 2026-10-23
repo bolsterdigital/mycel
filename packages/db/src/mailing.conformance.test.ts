@@ -313,4 +313,51 @@ describe.skipIf(!operatorUrl || !appUrl)('mailing conformance', () => {
     expect(left.some((w) => w < new Date(Date.now() - 24 * 60 * 60 * 1000))).toBe(false);
     expect(left.length).toBe(1);
   });
+
+  // Brief form-intake § 1: the recipient cooldown, one success per key per window.
+  it('lets exactly one of five simultaneous cooldowns through, again after the window, per tenant', async () => {
+    const key = `cooldown-${run}`;
+    const day = 24 * 60 * 60;
+    // Five transactions on separate connections at once; the advisory lock serialises them.
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => uow.run(admin(), (ctx) => ctx.rateLimits.cooldown(key, day)))
+    );
+    expect(results.filter(Boolean)).toHaveLength(1);
+    // A refusal recorded nothing: still one row.
+    const count = async (t: string) =>
+      Number(
+        (
+          await sql<{ n: string }>`select count(*) as n from rate_limits
+            where tenant_id = ${t} and key = ${key}`.execute(operatorDb)
+        ).rows[0]?.n
+      );
+    expect(await count(tenantId)).toBe(1);
+
+    // A day and a second later, through a clock in the future.
+    const later = createUnitOfWork(appDb, {
+      clock: { now: () => new Date(Date.now() + (day + 1) * 1000) },
+      ids: uuidv7Ids,
+      signer,
+      inputHasher: new FakeInputHasher(),
+    });
+    expect(await later.run(admin(), (ctx) => ctx.rateLimits.cooldown(key, day))).toBe(true);
+    expect(await later.run(admin(), (ctx) => ctx.rateLimits.cooldown(key, day))).toBe(false);
+
+    // Another tenant with the same key has a window of its own (RLS on rate_limits).
+    const other = (
+      await upsertTenant(
+        operatorDb,
+        { id: uuidv7(), slug: `mail-b-${run}`, name: 'M2', defaultLocale: 'nl', locales: ['nl'] },
+        { platformDomain: 'localhost' }
+      )
+    ).id;
+    expect(
+      await uow.run(systemPrincipal(other, 'test'), (ctx) => ctx.rateLimits.cooldown(key, day))
+    ).toBe(true);
+    expect(await count(other)).toBe(1);
+
+    await expect(uow.run(admin(), (ctx) => ctx.rateLimits.cooldown(key, day + 1))).rejects.toThrow(
+      /outside/
+    );
+  });
 });

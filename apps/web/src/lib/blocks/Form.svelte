@@ -1,7 +1,8 @@
 <!-- A form block (`form` and the legacy `signup-form`): a native form that posts to the page's
      own action and works without JavaScript (ADR 009). Moved from the probe's page unchanged:
      labels tied to inputs, errors linked with aria-describedby, an error summary on top after a
-     failed post, the honeypot out of sight and the signed `_started` token. `card` is a wrapper
+     failed post, the honeypot out of sight (and out of reach of the password managers that fill
+     a `website` field anyway: the four `data-*ignore` attributes) and the signed `_started` token. `card` is a wrapper
      class. No ARIA where native semantics suffice. -->
 <script lang="ts">
   import type { FormState, RenderForm, RenderModel } from './model.js';
@@ -52,6 +53,10 @@
         type="text"
         tabindex="-1"
         autocomplete="off"
+        data-1p-ignore
+        data-lpignore="true"
+        data-bwignore
+        data-form-type="other"
       />
     </div>
 

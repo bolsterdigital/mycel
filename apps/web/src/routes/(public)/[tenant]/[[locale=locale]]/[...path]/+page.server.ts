@@ -8,12 +8,16 @@
 // this one.
 //
 // Caching (§ 9): a published item is `public` with a strong ETag (hooks.server.ts answers the
-// 304); a form post's answer and the thank-you page are `no-store`. No cookie is read or set.
+// 304), except an item with a form, which is `no-store` without a validator so every visitor
+// gets a fresh timing token (public-page.ts); a form post's answer and the thank-you page are
+// `no-store`. No cookie is read or set.
 
 import { error, fail, redirect } from '@sveltejs/kit';
-import { UseCaseError, anonymousPrincipal, contentPath, translate, useCases } from '@mycel/core';
+import { anonymousPrincipal, contentPath, translate, useCases } from '@mycel/core';
+import { currentContext } from '@mycel/observability';
 import { ui } from '../../../../../i18n/index.js';
 import { localeOf, parseContentPath, thanksPath } from '#lib/server/content-route.js';
+import { failureFor } from '#lib/server/form-post.js';
 import { NO_STORE, PUBLIC_CACHE } from '#lib/server/http-cache.js';
 import { loadPublicItem } from '#lib/server/public-page.js';
 import { runtime } from '#lib/server/runtime.js';
@@ -52,7 +56,9 @@ export const load: PageServerLoad = async ({ params, locals, request, setHeaders
   // A failed post re-renders the page with the visitor's answers: never for a shared cache.
   const read = request.method === 'GET' || request.method === 'HEAD';
   setHeaders(
-    read ? { etag: view.etag, 'cache-control': PUBLIC_CACHE } : { 'cache-control': NO_STORE }
+    read && view.etag
+      ? { etag: view.etag, 'cache-control': PUBLIC_CACHE }
+      : { 'cache-control': NO_STORE }
   );
   return {
     view: 'item' as const,
@@ -88,6 +94,7 @@ export const actions: Actions = {
         name !== 'website'
       )
         values[name] = value;
+    const email = values['email'] ?? '';
 
     // Tenant from the site being visited, identity from the connection: nothing in the posted
     // body can choose a tenant or raise capabilities (ADR 002 rule 3). The locale is the path's.
@@ -104,28 +111,33 @@ export const actions: Actions = {
         locale,
         // Provenance in the site's canonical address (ADR 014 rule 6), not the request's.
         pageUrl: await absoluteSiteUrl(site, contentPath(route, locale, tenant.defaultLocale)),
-        spam: { honeypot: text(data, 'website'), startedToken: text(data, '_started') },
+        // An absent honeypot field is not an empty one: the core refuses a post without it.
+        spam: {
+          honeypot: data.has('website') ? text(data, 'website') : undefined,
+          startedToken: text(data, '_started'),
+        },
       });
     } catch (e) {
-      // The site takes no new signups (ADR 015 rules 3 and 7): no price, no host, just that.
-      if (e instanceof UseCaseError && (e.code === 'limit_exceeded' || e.code === 'suspended'))
-        return fail(403, {
-          formId,
-          errors: [],
-          message: translate(locale, 'forms.rejected.closed'),
-          values: { email: values['email'] ?? '' },
-        });
-      // Unknown or malformed formId: only a hand-crafted post gets here.
-      return fail(400, {
+      const failure = failureFor(e, locale, currentContext().requestId ?? '-');
+      if (failure.report === 'error') {
+        rt.errors.capture(e, { tags: { operation: 'forms.submit' } });
+        rt.log.error('forms.submit failed', { formId });
+      } else if (failure.report === 'info') rt.log.info('forms.submit malformed', { formId });
+      return fail(failure.status, {
         formId,
         errors: [],
-        message: translate(locale, 'forms.error.required'),
-        values,
+        message: failure.message,
+        values: { email },
       });
     }
 
-    // A tripped honeypot gets the same thank-you as a person, so bots learn nothing.
-    if (result.status === 'accepted' || (result.status === 'rejected' && result.reason === 'spam'))
+    // A tripped honeypot and a recipient in cooldown get the same thank-you as a person, so a
+    // bot learns nothing, and nobody learns whether an address was just used.
+    if (
+      result.status === 'accepted' ||
+      (result.status === 'rejected' &&
+        (result.reason === 'spam' || result.reason === 'recipient-limited'))
+    )
       redirect(303, sitePath(site, thanksPath(route, locale, tenant.defaultLocale)));
 
     if (result.status === 'invalid')
@@ -136,14 +148,14 @@ export const actions: Actions = {
           message: translate(locale, e.message),
         })),
         message: null,
-        values: { email: values['email'] ?? '' },
+        values: { email },
       });
 
     return fail(result.reason === 'rate-limited' ? 429 : 400, {
       formId,
       errors: [],
       message: translate(locale, result.message),
-      values: { email: values['email'] ?? '' },
+      values: { email },
     });
   },
 };
