@@ -84,22 +84,26 @@ describe.skipIf(!operatorUrl)('migrate: checksums of applied files', () => {
     expect(await applyMigrations(client, dir)).toEqual([]);
   });
 
-  it('checks an already migrated schema without rewriting a cluster role', async (ctx) => {
-    const { rows } = await client.query<{ can_alter: boolean }>(
-      `select rolsuper or rolcreaterole as can_alter from pg_roles where rolname = current_user`
+  it('checks an already migrated schema without rewriting a cluster role', async () => {
+    const { rows } = await client.query<{ name: string; superuser: boolean }>(
+      `select current_user as name, rolsuper as superuser from pg_roles where rolname = current_user`
     );
-    if (!rows[0]?.can_alter) ctx.skip();
+    // An ordinary operator can change its own password, but not mycel_app's. The dev/CI
+    // superuser exercises the exact application-role race; the Mac exercises the same catalog
+    // tuple conflict on its own role without skipping the regression.
+    const role = rows[0]?.superuser ? 'mycel_app' : rows[0]!.name;
+    const quotedRole = `"${role.replaceAll('"', '""')}"`;
     const holder = new pg.Client({ connectionString: operatorUrl });
     const contender = new pg.Client({ connectionString: operatorUrl });
     await Promise.all([holder.connect(), contender.connect()]);
     try {
       await holder.query('begin');
-      await holder.query('alter role mycel_app connection limit 42');
+      await holder.query(`alter role ${quotedRole} password 'rolled-back-test-value'`);
       // A second role update is the old conformance setup. It cannot finish while the first
       // transaction owns the catalog tuple; in full parallel runs it hit tuple concurrently updated.
       await contender.query(`set lock_timeout = '100ms'`);
       await expect(
-        contender.query('alter role mycel_app connection limit 43')
+        contender.query(`alter role ${quotedRole} password 'another-test-value'`)
       ).rejects.toMatchObject({ code: '55P03' });
       // The schema-only test setup can still finish while that role transaction is open.
       await expect(migrate(operatorUrl!, { log: () => {} })).resolves.toEqual([]);
