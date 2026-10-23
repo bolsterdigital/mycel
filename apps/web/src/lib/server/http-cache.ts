@@ -8,8 +8,12 @@
 //     restricted now may be public later, and a shared cache must not keep the 404 meanwhile.
 //
 // The routes set ETag and Cache-Control themselves (they know the revision); this is only the
-// conditional half, which a SvelteKit `load` cannot express. Rejected: computing the 304 inside
-// `load` by throwing (SvelteKit has no way to end a page load with an empty 304).
+// conditional half, which a SvelteKit `load` cannot express. SvelteKit's own `respond` already
+// answers a 304 when If-None-Match equals the ETag exactly (one tag, after stripping `W/`); this
+// adds the RFC 9110 list form and `*`, and is the one place for the 404 policy, so the e2e suite
+// proves the behaviour against this module rather than against a framework default. Rejected:
+// computing the 304 inside `load` by throwing (SvelteKit has no way to end a page load with an
+// empty 304).
 
 /** Content items: one minute fresh, ten more minutes served stale while revalidating. */
 export const PUBLIC_CACHE = 'public, max-age=60, stale-while-revalidate=600';
