@@ -84,6 +84,18 @@ export {
 export { deleteExpiredAudit } from './audit.js';
 export { applyErasures } from './erasures.js';
 export {
+  EXPORT_FORMAT,
+  EXPORT_ORDER,
+  TABLES,
+  exportTenant,
+  importTenant,
+  schemaVersion,
+  type ExportManifest,
+  type ExportOptions,
+  type ImportOptions,
+  type ImportReport,
+} from './export.js';
+export {
   JOB_LEASE_SECONDS,
   claimJobs,
   completeJob,
