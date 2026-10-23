@@ -28,4 +28,4 @@ Tests exist to let agents change this codebase without a human re-reading every 
 
 ## What a PR needs
 
-The PR description names the conformance suite that grew (or says why none did), the hand-written invariants added, and what could not be run locally. Review reads the fixtures first: if the examples are right, the generic suites have already read the rest.
+The PR description names the conformance suite that grew (or says why none did), the hand-written invariants added, and what could not be run locally. Review reads the fixtures first: if the examples are right, the generic suites have already read the rest. The pull request template asks for exactly that, plus the block `scripts/review-signals.mjs` prints; how a reviewer uses it to pick at most one extra counterproof is [review.md](review.md).
