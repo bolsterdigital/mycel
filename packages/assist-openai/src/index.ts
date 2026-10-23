@@ -91,6 +91,7 @@ export class OpenAITextModel implements TextModel {
               : { type: 'json_object' },
         }),
         signal: request.signal,
+        redirect: 'error',
       });
       return response;
     };
@@ -107,6 +108,7 @@ export class OpenAITextModel implements TextModel {
       try {
         raw = await response.json();
       } catch {
+        if (request.signal.aborted) throw new TextModelError('timeout');
         throw new TextModelError('invalid-output');
       }
       const reply = Reply.safeParse(raw);

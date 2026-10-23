@@ -1,5 +1,6 @@
 // Recorded response shapes exercise the provider boundary without a network or tenant data.
 import { readFileSync } from 'node:fs';
+import { createServer, type Server } from 'node:http';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { TextModelError } from '@mycel/core';
@@ -25,6 +26,25 @@ const options = {
   textModel: 'text',
   visionModel: 'vision',
 };
+
+async function serve(handler: Parameters<typeof createServer>[0]): Promise<Server> {
+  const server = createServer(handler);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  return server;
+}
+
+function address(server: Server): string {
+  const bound = server.address();
+  if (!bound || typeof bound === 'string') throw new Error('Expected a loopback TCP server');
+  return `http://127.0.0.1:${bound.port}`;
+}
+
+async function close(server: Server): Promise<void> {
+  server.closeAllConnections();
+  await new Promise<void>((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve()))
+  );
+}
 
 it('sends a schema-bound image request without an identifying user field', async () => {
   const fetcher = vi.fn(async () => Response.json(fixture('structured')));
@@ -65,6 +85,49 @@ it('uses the text model when no image is sent', async () => {
 });
 
 describe('failure classification', () => {
+  it('does not forward tenant content to a redirect destination', async () => {
+    const received: string[] = [];
+    const destination = await serve(async (incoming, response) => {
+      let body = '';
+      for await (const chunk of incoming) body += chunk;
+      received.push(body);
+      response.end();
+    });
+    const source = await serve((_incoming, response) => {
+      response.writeHead(307, { location: `${address(destination)}/other-provider` });
+      response.end();
+    });
+    try {
+      const model = new OpenAITextModel({ ...options, baseUrl: address(source) });
+      await expect(
+        model.complete({
+          ...request,
+          parts: [{ kind: 'text', text: 'private tenant caption' }],
+        })
+      ).rejects.toEqual(new TextModelError('unavailable'));
+      expect(received).toEqual([]);
+    } finally {
+      await close(source);
+      await close(destination);
+    }
+  });
+
+  it('classifies an abort while reading the response body as timeout', async () => {
+    const source = await serve((_incoming, response) => {
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.flushHeaders();
+      response.write('{');
+    });
+    try {
+      const model = new OpenAITextModel({ ...options, baseUrl: address(source) });
+      await expect(
+        model.complete({ ...request, signal: AbortSignal.timeout(100) })
+      ).rejects.toEqual(new TextModelError('timeout'));
+    } finally {
+      await close(source);
+    }
+  });
+
   it.each([
     [401, 'rejected'],
     [429, 'unavailable'],
