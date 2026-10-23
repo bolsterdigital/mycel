@@ -85,13 +85,10 @@ describe.skipIf(!operatorUrl)('migrate: checksums of applied files', () => {
   });
 
   it('checks an already migrated schema without rewriting a cluster role', async () => {
-    const { rows } = await client.query<{ name: string; superuser: boolean }>(
-      `select current_user as name, rolsuper as superuser from pg_roles where rolname = current_user`
-    );
-    // An ordinary operator can change its own password, but not mycel_app's. The dev/CI
-    // superuser exercises the exact application-role race; the Mac exercises the same catalog
-    // tuple conflict on its own role without skipping the regression.
-    const role = rows[0]?.superuser ? 'mycel_app' : rows[0]!.name;
+    const { rows } = await client.query<{ name: string }>('select current_user as name');
+    // The operator can change its own password on both CI and the Mac. Locking mycel_app here
+    // would hold up unrelated suites that grant privileges to it while applying migrations.
+    const role = rows[0]!.name;
     const quotedRole = `"${role.replaceAll('"', '""')}"`;
     const holder = new pg.Client({ connectionString: operatorUrl });
     const contender = new pg.Client({ connectionString: operatorUrl });
