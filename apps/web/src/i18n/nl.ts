@@ -260,4 +260,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'block.video.on': 'Video op {provider}',
   'block.footnotes': 'Noten',
   'block.footnote.back': 'Terug naar de tekst',
+  'confirm.pending.title': 'Bevestig je inschrijving',
+  'confirm.pending.body':
+    'Nog één stap: bevestig met de knop hieronder. Heb je je niet aangemeld? Dan hoef je niets te doen.',
+  'confirm.pending.button': 'Bevestig mijn inschrijving',
 };

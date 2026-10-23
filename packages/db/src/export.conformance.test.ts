@@ -513,5 +513,62 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
       expect(after.tables).toEqual(exportB.tables);
       expect(after.media).toEqual(exportB.media);
     });
+
+    it.skipIf(!operatorUrl)(
+      'imports an export from before the consent snapshot (0019), deriving it from the form',
+      async (ctx) => {
+        if (!canCreateDb) ctx.skip();
+        // B as an 0019 installation exported it: form_submissions without the two columns.
+        const older = join(scratch.dir, 'b-0019');
+        await cp(join(scratch.dir, 'b-before'), older, { recursive: true });
+        const file = join(older, 'tables', 'form_submissions.ndjson');
+        const text = (await readFile(file, 'utf8'))
+          .trim()
+          .split('\n')
+          .map((line) => {
+            const { list: _list, consent_text_version: _version, ...row } = JSON.parse(line);
+            return JSON.stringify(row);
+          })
+          .join('\n')
+          .concat('\n');
+        await writeFile(file, text);
+        const manifest = JSON.parse(await readFile(join(older, 'manifest.json'), 'utf8'));
+        manifest.schemaVersion = '0019_erasures';
+        const entry = manifest.tables.form_submissions;
+        entry.sha256 = createHash('sha256').update(text).digest('hex');
+        entry.columns = entry.columns.filter(
+          (c: string) => c !== 'list' && c !== 'consent_text_version'
+        );
+        await writeFile(join(older, 'manifest.json'), JSON.stringify(manifest));
+
+        // A database of its own: B also travels into the shared target below.
+        const name = `${target.name}_0019`;
+        await sql`create database ${sql.id(name)}`.execute(operatorDb);
+        const url = new URL(operatorUrl!);
+        url.pathname = `/${name}`;
+        const db = createDb(url.href);
+        try {
+          await migrate(url.href, roles);
+          const report = await importTenant({
+            operatorDb: db,
+            blobs: new MemoryBlobStore(),
+            path: older,
+            platform: otherPlatform,
+            by,
+          });
+          // The fingerprint differs exactly where the newer schema has more than the export.
+          expect(report.differences).toEqual([expect.stringMatching(/^form_submissions/)]);
+          const { rows } = await sql<{ list: string; consent_text_version: string }>`
+            select list, consent_text_version from form_submissions
+             where tenant_id = ${tenant.b.id}`.execute(db);
+          expect(rows).toEqual([
+            { list: 'newsletter', consent_text_version: probeForm(uuidv7()).consentTextVersion },
+          ]);
+        } finally {
+          await db.destroy();
+          await sql`drop database if exists ${sql.id(name)} with (force)`.execute(operatorDb);
+        }
+      }
+    );
   });
 });

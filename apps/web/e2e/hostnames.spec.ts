@@ -75,7 +75,10 @@ test('the site is served from Host on its platform hostname, and the mail links 
   const mail = await waitForMail(email);
   const link = /https?:\/\/\S+\/confirm\?token=\S+/.exec(mail.text)![0];
   expect(link.startsWith(`${SITE}/confirm?token=`)).toBe(true);
+  // The button posts on the hostname and the outcome stays there, without the slug or the token.
   await page.goto(link);
+  await page.getByRole('button', { name: 'Bevestig mijn inschrijving' }).click();
+  await expect(page).toHaveURL(`${SITE}/confirm/confirmed?locale=nl`);
   await expect(
     page.getByRole('heading', { level: 1, name: 'Inschrijving bevestigd' })
   ).toBeVisible();
