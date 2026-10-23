@@ -44,6 +44,7 @@ import {
   uuidv7,
   uuidv7Ids,
 } from './index.js';
+import { closeTenantWork } from './testing.js';
 
 const operatorUrl = process.env['DATABASE_URL'];
 const appUrl = process.env['APP_DATABASE_URL'];
@@ -78,13 +79,17 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
   const invoker = new Invoker(buildRegistry(), uow);
   const identity = createIdentityStore(authDb, uuidv7Ids);
   const sites = createSiteDirectory(authDb, { ttlMs: 0 });
-  const create = (slug: string, entitlements?: Record<string, unknown>) =>
-    createTenant(
+  const created: string[] = [];
+  const create = async (slug: string, entitlements?: Record<string, unknown>) => {
+    const t = await createTenant(
       operatorDb,
       { id: uuidv7(), slug: `${slug}-${run}`, name: slug, locales: ['nl', 'en'], entitlements },
       platform,
       testPlatformActor
     );
+    created.push(t.id);
+    return t;
+  };
 
   async function as<T>(url: string, fn: (c: pg.Client) => Promise<T>): Promise<T> {
     const client = new pg.Client({ connectionString: url });
@@ -112,6 +117,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
   });
 
   afterAll(async () => {
+    await closeTenantWork(operatorDb, created);
     await Promise.all([operatorDb.destroy(), appDb.destroy(), authDb.destroy()]);
   });
 
