@@ -30,7 +30,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { promisify } from 'node:util';
-import { sql, type Kysely } from 'kysely';
+import { sql, type Kysely, type RawBuilder } from 'kysely';
 import {
   UseCaseError,
   type BlobStore,
@@ -485,6 +485,19 @@ async function importDirectory(dir: string, options: ImportOptions): Promise<Imp
   return { tenantId, slug, lines, differences };
 }
 
+/**
+ * Columns a later migration added as `not null` without a default, derived on import from an
+ * export that predates them, the way that migration backfilled them; the row alias is `r`. An
+ * older export would otherwise fail on the constraint instead of taking the newer schema.
+ */
+const DERIVED: Partial<Record<ExportTable, Record<string, RawBuilder<unknown>>>> = {
+  // 0020: the consent snapshot, from the form's definition (forms come first in EXPORT_ORDER).
+  form_submissions: {
+    list: sql`(select f.definition->>'list' from forms f where f.id = r.form_id)`,
+    consent_text_version: sql`(select f.definition->>'consentTextVersion' from forms f where f.id = r.form_id)`,
+  },
+};
+
 /** Write one table's lines as mycel_app; RLS refuses a row of any other tenant. */
 async function importTable(
   trx: Trx,
@@ -521,12 +534,19 @@ async function importTable(
 
   const present = new Set(await columnsOf(trx, table));
   const columns = exported.filter((c) => present.has(c));
-  const list = sql.join(columns.map((c) => sql.id(c)));
+  const derived = Object.entries(DERIVED[table] ?? {}).filter(
+    ([c]) => present.has(c) && !columns.includes(c)
+  );
+  const list = sql.join([...columns, ...derived.map(([c]) => c)].map((c) => sql.id(c)));
+  const values = sql.join([
+    ...columns.map((c) => sql`r.${sql.id(c)}`),
+    ...derived.map(([, expression]) => expression),
+  ]);
   let batch: unknown[] = [];
   const flush = async () => {
     if (!batch.length) return;
     await sql`insert into ${sql.table(table)} (${list})
-              select ${list} from jsonb_populate_recordset(null::${sql.table(table)}, ${JSON.stringify(batch)}::jsonb)`.execute(
+              select ${values} from jsonb_populate_recordset(null::${sql.table(table)}, ${JSON.stringify(batch)}::jsonb) r`.execute(
       trx
     );
     imported += batch.length;

@@ -89,7 +89,16 @@ async function supporter(
   return res.json();
 }
 
-test('signup with double opt-in: too-fast post, thank-you page, confirmation link, confirmed list', async ({
+/** The confirmation link in the mail to `to`: the site's canonical address (ADR 014 rule 6). */
+async function linkFor(request: APIRequestContext, to: string): Promise<string> {
+  const mail = await waitForMail(to);
+  await expect
+    .poll(() => supporter(request, to), { timeout: 15_000 })
+    .toMatchObject({ lists: [], pendingLists: ['newsletter'] });
+  return /https?:\/\/\S+\/confirm\?token=\S+/.exec(mail.text)![0];
+}
+
+test('signup with double opt-in: too-fast post, thank-you page, confirmation page, one deliberate post', async ({
   page,
   request,
 }) => {
@@ -113,27 +122,56 @@ test('signup with double opt-in: too-fast post, thank-you page, confirmation lin
   await expect(page.getByText('Bedankt! Check je mailbox')).toBeVisible();
   await expectNoAxeViolations(page);
 
-  // The worker ingests the signup (pending, ADR 010 rule 5) and sends the confirmation mail.
-  const mail = await waitForMail(email);
-  await expect
-    .poll(() => supporter(request, email), { timeout: 15_000 })
-    .toMatchObject({
-      lists: [],
-      pendingLists: ['newsletter'],
-    });
-  // The link is the site's canonical address (ADR 014 rule 6): its platform hostname
-  // probe.localhost, which Chromium resolves to loopback, not the path form this spec posts from.
-  const link = /https?:\/\/\S+\/confirm\?token=\S+/.exec(mail.text)![0];
+  // The worker ingests the signup (pending, ADR 010 rule 5) and sends the confirmation mail. The
+  // link is on the site's platform hostname probe.localhost, which Chromium resolves to loopback.
+  const link = await linkFor(request, email);
   expect(link.startsWith('http://probe.localhost:4173/confirm?token=')).toBe(true);
+  const token = new URL(link).searchParams.get('token')!;
 
-  // Following the link confirms; a second visit says so without doing it again.
+  // (a) A link scanner or preview fetch reads the page and confirms nothing. The route's
+  // referrer policy wins over the public default (`strict-origin`, not `no-referrer`, which
+  // would make the button's post `Origin: null`), and nothing is stored on the way.
+  const scanned = await request.get(link);
+  expect(scanned.status()).toBe(200);
+  expect(scanned.headers()['cache-control']).toBe('no-store');
+  expect(scanned.headers()['referrer-policy']).toBe('strict-origin');
+  expect((await request.head(link)).status()).toBe(200);
+
+  // (d) A post from another origin is refused before the action runs.
+  const forged = await request.post('http://probe.localhost:4173/confirm', {
+    headers: {
+      origin: 'https://evil.example',
+      'content-type': 'application/x-www-form-urlencoded',
+    },
+    data: `token=${encodeURIComponent(token)}`,
+    maxRedirects: 0,
+  });
+  expect(forged.status()).toBe(403);
+  expect(await supporter(request, email)).toMatchObject({
+    lists: [],
+    pendingLists: ['newsletter'],
+  });
+
+  // (b) The person opens the link and presses the one button: a 303 to a tokenless outcome.
   await page.goto(link);
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Bevestig je inschrijving' })
+  ).toBeVisible();
+  await expectNoAxeViolations(page);
+  await page.getByRole('button', { name: 'Bevestig mijn inschrijving' }).click();
+  await expect(page).toHaveURL(/^http:\/\/probe\.localhost:4173\/confirm\/confirmed\?locale=nl$/);
   await expect(
     page.getByRole('heading', { level: 1, name: 'Inschrijving bevestigd' })
   ).toBeVisible();
   await expectNoAxeViolations(page);
+  const outcome = await request.get(page.url());
+  expect(outcome.headers()['cache-control']).toBe('no-store');
+  expect(outcome.headers()['referrer-policy']).toBe('strict-origin');
+
+  // (c) The link once more: it says so, without a button and without doing it again.
   await page.goto(link);
   await expect(page.getByRole('heading', { level: 1, name: 'Al bevestigd' })).toBeVisible();
+  await expect(page.getByRole('button')).toHaveCount(0);
   await expectNoAxeViolations(page);
 
   await expect
@@ -142,6 +180,37 @@ test('signup with double opt-in: too-fast post, thank-you page, confirmation lin
       lists: ['newsletter'],
       pendingLists: [],
     });
+});
+
+test('an English signup is confirmed in English, with every script blocked', async ({
+  page,
+  request,
+}) => {
+  // (g) Nothing on the flow needs JavaScript: block every script the browser would load.
+  await page.route('**/*.js', (route) => route.abort());
+  const email = `e2e-en-${Date.now()}@example.org`;
+  await page.goto('/probe/en/signup');
+  await page.waitForTimeout(3200);
+  await page.getByLabel('E-mail address').fill(email);
+  await page.getByLabel(/send me the newsletter/).check();
+  await page.getByRole('button', { name: 'Sign up' }).click();
+  await expect(page).toHaveURL(/\/probe\/en\/signup\/thanks$/);
+
+  // (e) The page speaks the language of the signup, whatever the browser asks for.
+  await page.goto(await linkFor(request, email));
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Confirm your subscription' })
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Confirm my subscription' }).click();
+  await expect(page).toHaveURL(/\/confirm\/confirmed\?locale=en$/);
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Subscription confirmed' })
+  ).toBeVisible();
+  await expect
+    .poll(() => supporter(request, email), { timeout: 15_000 })
+    .toMatchObject({ lists: ['newsletter'], pendingLists: [] });
 });
 
 test.describe('in English', () => {
@@ -157,10 +226,15 @@ test.describe('in English', () => {
   });
 });
 
-test('an invalid confirmation link explains itself and passes axe', async ({ page }) => {
+test('an invalid confirmation link explains itself and passes axe', async ({ page, request }) => {
   await page.goto('/probe/confirm?token=forged');
   await expect(page.getByRole('heading', { level: 1, name: 'Deze link werkt niet' })).toBeVisible();
+  await expect(page.getByRole('button')).toHaveCount(0);
   await expectNoAxeViolations(page);
+  // A forged post lands on the tokenless invalid page; an unknown outcome is a 404.
+  await page.goto('/probe/confirm/invalid');
+  await expect(page.getByRole('heading', { level: 1, name: 'Deze link werkt niet' })).toBeVisible();
+  expect((await request.get('/probe/confirm/whatever')).status()).toBe(404);
 });
 
 // TODO #20c: the response headers and the CSP of a public page, the nonce mode on a page that

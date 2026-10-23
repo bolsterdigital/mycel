@@ -54,6 +54,8 @@ export function submissionRepository(trx: Trx, tenantId: string): SubmissionRepo
           ip_hash: s.ipHash,
           created_at: s.createdAt,
           confirmed_at: s.confirmedAt,
+          list: s.list,
+          consent_text_version: s.consentTextVersion,
         })
         .execute();
     },
@@ -73,6 +75,8 @@ export function submissionRepository(trx: Trx, tenantId: string): SubmissionRepo
         ipHash: row.ip_hash,
         createdAt: new Date(row.created_at),
         confirmedAt: row.confirmed_at ? new Date(row.confirmed_at) : null,
+        list: row.list,
+        consentTextVersion: row.consent_text_version,
       };
     },
     async confirm(id, at) {

@@ -39,7 +39,7 @@ import {
 } from './content/service.js';
 import { getEntitlements, getUsage } from './entitlements/service.js';
 import { getForm, submitForm } from './forms/service.js';
-import { confirmSubscription } from './mailing/service.js';
+import { confirmSubscription, previewConfirmation } from './mailing/service.js';
 import { deleteMedia, getMedia, listMedia, updateMedia, uploadMedia } from './media/service.js';
 import {
   createKey,
@@ -95,6 +95,7 @@ export const useCases = {
   getForm,
   submitForm,
   confirmSubscription,
+  previewConfirmation,
   getSupporter,
   changeSupporterEmail,
   listMembers,

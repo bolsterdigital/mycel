@@ -256,6 +256,10 @@ export const en = {
   'block.video.on': 'Video on {provider}',
   'block.footnotes': 'Notes',
   'block.footnote.back': 'Back to the text',
+  'confirm.pending.title': 'Confirm your subscription',
+  'confirm.pending.body':
+    'One more step: confirm with the button below. Did you not sign up? Then you need not do anything.',
+  'confirm.pending.button': 'Confirm my subscription',
 } as const;
 
 export type UiKey = keyof typeof en;

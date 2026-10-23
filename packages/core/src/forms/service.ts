@@ -141,6 +141,8 @@ export const submitForm = defineUseCase({
       pageUrl: input.pageUrl ?? null,
       ipHash: ipHash ?? null,
       createdAt: now,
+      list: form.list,
+      consentTextVersion: form.consentTextVersion,
       confirmedAt: null,
     });
 

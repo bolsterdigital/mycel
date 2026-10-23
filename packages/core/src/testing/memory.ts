@@ -767,7 +767,8 @@ export class MemoryUnitOfWork implements UnitOfWork {
     };
     const submissions: SubmissionRepository = {
       insert: async (sub) => void s.submissions.set(sub.id, structuredClone(sub)),
-      findById: async (id) => s.submissions.get(id) ?? null,
+      // A copy, like a row from Postgres: a caller mutating it changes nothing stored.
+      findById: async (id) => structuredClone(s.submissions.get(id) ?? null),
       async confirm(id, at) {
         const sub = s.submissions.get(id);
         if (!sub || sub.confirmedAt) return false;

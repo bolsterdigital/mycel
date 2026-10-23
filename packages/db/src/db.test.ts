@@ -182,16 +182,37 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
     );
     expect(again).toBe(false);
 
-    // Following the link as a visitor confirms once; the list moves to `lists`.
+    // Opening the link only reads (TODO #22B); the button's post confirms, exactly once even
+    // when three posts race (the conditional update on `confirmed_at`), and the list moves to
+    // `lists` with the snapshot of the submission as evidence.
     const token = new URL(
       /http:\/\/\S+\/confirm\?token=\S+/.exec(mail[0]!.text)![0]
     ).searchParams.get('token')!;
-    const click = () =>
-      invoker.run(useCases.confirmSubscription, anonymousPrincipal(tenantA, ['forms:write']), {
-        token,
+    const visitor = anonymousPrincipal(tenantA, ['forms:write']);
+    const consents = () =>
+      operatorDb.transaction().execute(async (trx) => {
+        await sql`set local role mycel_worker`.execute(trx);
+        const { rows } = await sql<{ props: Record<string, unknown> }>`
+          select props from outbox where tenant_id = ${tenantA} and type = 'consent.given'
+             and props->>'email' = ${email}`.execute(trx);
+        return rows.map((r) => r.props);
       });
-    expect(await click()).toEqual({ status: 'confirmed' });
-    expect(await click()).toEqual({ status: 'already_confirmed' });
+    expect(await invoker.run(useCases.previewConfirmation, visitor, { token })).toEqual({
+      status: 'pending',
+      locale: 'en',
+    });
+    expect(await consents()).toEqual([]);
+    const click = () => invoker.run(useCases.confirmSubscription, visitor, { token });
+    const outcomes = (await Promise.all([click(), click(), click()])).map((r) => r.status).sort();
+    expect(outcomes).toEqual(['already_confirmed', 'already_confirmed', 'confirmed']);
+    expect(await consents()).toEqual([
+      expect.objectContaining({
+        list: 'newsletter',
+        locale: 'en',
+        consentTextVersion: probeForm(formId).consentTextVersion,
+      }),
+    ]);
+    expect(await click()).toEqual({ status: 'already_confirmed', locale: 'en' });
     await drainOwn();
     const confirmed = await invoker.run(useCases.getSupporter, systemPrincipal(tenantA, 'test'), {
       email,

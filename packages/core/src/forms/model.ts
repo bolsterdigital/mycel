@@ -88,6 +88,14 @@ export interface Submission {
   pageUrl: string | null;
   ipHash: string | null;
   createdAt: Date;
-  /** When the double opt-in link was followed; null until then (ADR 010 rule 5). */
+  /**
+   * The consent evidence as the visitor saw it, copied from the form when they submitted: the
+   * list they asked to join and the version of the consent text. `mailing.confirm` reads these,
+   * never the form's current definition, so a later edit of the form (#11) cannot change what a
+   * click confirms (ADR 003, ADR 010 rule 5).
+   */
+  list: string;
+  consentTextVersion: string;
+  /** When the double opt-in was confirmed with the button on the page; null until then. */
   confirmedAt: Date | null;
 }

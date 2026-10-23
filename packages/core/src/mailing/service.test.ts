@@ -40,6 +40,10 @@ describe('mailing.confirm', () => {
     );
   const confirm = async (t: string, principal = visitor()) =>
     invoker.run(useCases.confirmSubscription, principal, { token: t });
+  const preview = async (t: string, principal = visitor()) =>
+    invoker.run(useCases.previewConfirmation, principal, { token: t });
+  const stored = () =>
+    uow.run(systemPrincipal(TENANT, 'test'), (ctx) => ctx.submissions.findById(submissionId));
 
   beforeEach(async () => {
     clock = new FakeClock();
@@ -59,7 +63,7 @@ describe('mailing.confirm', () => {
 
   it('confirms once and publishes consent.given with the submission as evidence', async () => {
     const t = await token();
-    expect(await confirm(t)).toEqual({ status: 'confirmed' });
+    expect(await confirm(t)).toEqual({ status: 'confirmed', locale: 'nl' });
     expect(uow.store.outbox).toHaveLength(1);
     expect(uow.store.outbox[0]).toMatchObject({
       type: 'consent.given',
@@ -76,41 +80,88 @@ describe('mailing.confirm', () => {
         confirmedAt: clock.now().toISOString(),
       },
     });
-    const stored = await uow.run(systemPrincipal(TENANT, 'test'), (ctx) =>
-      ctx.submissions.findById(submissionId)
-    );
-    expect(stored?.confirmedAt).toEqual(clock.now());
+    expect((await stored())?.confirmedAt).toEqual(clock.now());
 
     // The second click, even with a freshly signed token, is an outcome without an event.
     clock.advance(1000);
-    expect(await confirm(await token())).toEqual({ status: 'already_confirmed' });
+    expect(await confirm(await token())).toEqual({ status: 'already_confirmed', locale: 'nl' });
     expect(uow.store.outbox).toHaveLength(1);
   });
 
-  it('treats a forged, expired or foreign token as invalid, without an event', async () => {
-    expect(await confirm('forged')).toEqual({ status: 'invalid' });
+  it('treats a forged, expired or foreign token as invalid on preview and confirm, without a write', async () => {
+    // Each case through both steps: the page's read and the button's post.
+    const both = async (t: string, principal = visitor()) => {
+      expect(await preview(t, principal)).toEqual({ status: 'invalid' });
+      expect(await confirm(t, principal)).toEqual({ status: 'invalid' });
+    };
+    await both('forged');
     const t = await token();
     clock.advance(15 * DAY);
-    expect(await confirm(t)).toEqual({ status: 'invalid' });
+    await both(t);
     clock.current = new FakeClock().now();
     // A link for this tenant followed on another tenant's site, and vice versa.
-    expect(await confirm(await token(), visitor(OTHER))).toEqual({ status: 'invalid' });
-    expect(await confirm(await token({ tenantId: OTHER }))).toEqual({ status: 'invalid' });
-    // A token for a list the form does not add to, or a submission that is gone.
-    expect(await confirm(await token({ list: 'other' }))).toEqual({ status: 'invalid' });
-    expect(
-      await confirm(await token({ submissionId: '01900000-0000-7000-8000-0000000000ff' }))
-    ).toEqual({ status: 'invalid' });
+    await both(await token(), visitor(OTHER));
+    await both(await token({ tenantId: OTHER }));
+    // A token for a list other than the submission's, or a submission that is gone.
+    await both(await token({ list: 'other' }));
+    await both(await token({ submissionId: '01900000-0000-7000-8000-0000000000ff' }));
     expect(uow.store.outbox).toHaveLength(0);
-    const stored = await uow.run(systemPrincipal(TENANT, 'test'), (ctx) =>
-      ctx.submissions.findById(submissionId)
+    expect((await stored())?.confirmedAt).toBeNull();
+  });
+
+  it('previews without writing: pending, then already confirmed, never an event', async () => {
+    const t = await token();
+    expect(await preview(t)).toEqual({ status: 'pending', locale: 'nl' });
+    expect(await preview(t)).toEqual({ status: 'pending', locale: 'nl' });
+    expect((await stored())?.confirmedAt).toBeNull();
+    expect(uow.store.outbox).toHaveLength(0);
+
+    await confirm(t);
+    uow.store.outbox.length = 0;
+    const before = await stored();
+    expect(await preview(t)).toEqual({ status: 'already_confirmed', locale: 'nl' });
+    expect(await stored()).toEqual(before);
+    expect(uow.store.outbox).toHaveLength(0);
+  });
+
+  it('confirms the snapshot on the submission, not the form as it is now', async () => {
+    expect(await stored()).toMatchObject({
+      list: 'newsletter',
+      consentTextVersion: 'newsletter-2026-10',
+      locale: 'nl',
+    });
+    // The form is edited after the signup (#11 will make this possible): new text, new list.
+    await uow.run(systemPrincipal(TENANT, 'test'), (ctx) =>
+      ctx.forms.insert({ ...probeForm(FORM), list: 'campaign', consentTextVersion: 'v2' })
     );
-    expect(stored?.confirmedAt).toBeNull();
+    // A token for the form's new list confirms nothing; the original link still works.
+    expect(await confirm(await token({ list: 'campaign' }))).toEqual({ status: 'invalid' });
+    expect(await confirm(await token())).toEqual({ status: 'confirmed', locale: 'nl' });
+    expect(uow.store.outbox).toHaveLength(1);
+    expect(uow.store.outbox[0]?.props).toMatchObject({
+      list: 'newsletter',
+      consentTextVersion: 'newsletter-2026-10',
+    });
+  });
+
+  it('answers in the locale of the signup', async () => {
+    const result = await invoker.run(useCases.submitForm, systemPrincipal(TENANT, 'test'), {
+      formId: FORM,
+      values: { email: 'grace@example.org', consent: true },
+      locale: 'en',
+    });
+    if (result.status !== 'accepted') throw new Error(result.status);
+    const t = await token({ submissionId: result.submissionId });
+    expect(await preview(t)).toEqual({ status: 'pending', locale: 'en' });
+    expect(await confirm(t)).toEqual({ status: 'confirmed', locale: 'en' });
   });
 
   it('is the second step of the public flow: forms:write suffices, nothing less does', async () => {
     await expect(
       confirm(await token(), anonymousPrincipal(TENANT, ['forms:read']))
+    ).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(
+      preview(await token(), anonymousPrincipal(TENANT, ['forms:read']))
     ).rejects.toMatchObject({ code: 'forbidden' });
   });
 });
