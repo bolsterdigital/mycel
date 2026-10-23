@@ -1,6 +1,6 @@
-// Spam defence that is not optional (ADR 010 rule 5): honeypot, minimum fill time and rate
-// limits. ALTCHA proof-of-work is a follow-up (brief form-intake, PR D2). The timing token is
-// signed so a bot cannot simply post an old timestamp.
+// Spam defence that is not optional (ADR 010 rule 5): honeypot, minimum fill time, rate limits
+// and ALTCHA proof-of-work (proof.ts). The timing token is signed so a bot cannot simply post an
+// old timestamp.
 //
 // Two limits with two faces. Per IP a visible 429: a person behind a shared address deserves a
 // real message. Per recipient a silent cooldown (`CONFIRMATION_COOLDOWN_SECONDS`, house rule 1
@@ -11,8 +11,12 @@
 
 import type { Signer } from '../ports.js';
 
+// A post without a proof (no JavaScript, or a client that gave up) is not refused, ADR 009 wins:
+// it takes the stricter `perIpUnproven` bucket on top of `perIp` (brief form-intake § D2.2,
+// decisions.md 2026-10-23). The recipient cooldown protects a victim on either route.
 export const RATE_LIMITS = {
   perIp: { max: 10, windowSeconds: 10 * 60 },
+  perIpUnproven: { max: 3, windowSeconds: 60 * 60 },
 } as const;
 
 /** One confirmation mail per address per form within this many seconds (sliding). */

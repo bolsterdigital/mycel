@@ -28,7 +28,9 @@ import {
   probePage,
   probeTenant,
   publishProbePage,
+  solveProof,
 } from './testing/index.js';
+import { issueProofChallenge, type ProofChallenge } from './forms/proof.js';
 
 const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const OTHER = '01900000-0000-7000-8000-00000000bbbb';
@@ -61,11 +63,31 @@ describe('vertical probe in memory', () => {
     return startedToken;
   }
 
+  /**
+   * A valid proof without the real search: a challenge signed by the same signer over a tiny
+   * space. The handler trusts its own signature, not `maxNumber`, so this is what a browser
+   * would post; the real search space is covered once, in the D2 test below.
+   */
+  async function cheapProof(form = FORM): Promise<string> {
+    const challenge = await uow.run(admin, (ctx) =>
+      issueProofChallenge(ctx.signer, form, clock.now(), 20)
+    );
+    return solveProof(challenge);
+  }
+
   async function submit(
     values: Record<string, string | boolean>,
-    opts: { wait?: number; ip?: string; honeypot?: string | null; form?: string } = {}
+    opts: {
+      wait?: number;
+      ip?: string;
+      honeypot?: string | null;
+      form?: string;
+      /** `null` posts no proof (a browser without JavaScript). */
+      proof?: string | null;
+    } = {}
   ) {
     const token = await startedToken(opts.form);
+    const proof = opts.proof === undefined ? await cheapProof(opts.form) : opts.proof;
     clock.advance(opts.wait ?? 4000);
     return invoker.run(useCases.submitForm, visitor(opts.ip), {
       formId: opts.form ?? FORM,
@@ -75,6 +97,7 @@ describe('vertical probe in memory', () => {
       spam: {
         startedToken: token,
         ...(opts.honeypot !== null && { honeypot: opts.honeypot ?? '' }),
+        ...(proof !== null && { proof }),
       },
     });
   }
@@ -339,13 +362,78 @@ describe('vertical probe in memory', () => {
     expect(rejections()).toEqual(['token-invalid']);
   });
 
-  it('lets trusted integrations submit without timing token but not past the rate limit', async () => {
+  it('lets trusted integrations submit without timing token or proof but not past the rate limit', async () => {
     const result = await invoker.run(useCases.submitForm, admin, {
       formId: FORM,
       values: { email: 'api@example.org', consent: true },
       locale: 'nl',
     });
     expect(result.status).toBe('accepted');
+    expect(log.lines.map((l) => l.message)).not.toContain('forms.submit.unproven');
+  });
+
+  // Brief form-intake § D2.4: ALTCHA, with a stricter route instead of a wall without JavaScript.
+  describe('proof of work', () => {
+    async function challenge(form = FORM): Promise<ProofChallenge> {
+      return (await invoker.run(useCases.getForm, reader(), { id: form })).proof;
+    }
+    const email = (n: number) => ({ email: `w${n}@example.org`, consent: 'on' });
+
+    it('issues a signed challenge with every form and accepts its solution', async () => {
+      const c = await challenge();
+      expect(c).toMatchObject({ algorithm: 'SHA-256', maxNumber: 100_000 });
+      expect(c.challenge).toMatch(/^[0-9a-f]{64}$/);
+      expect(await challenge()).not.toEqual(c);
+      expect((await submit(email(1), { proof: await solveProof(c) })).status).toBe('accepted');
+      expect(rejections()).toEqual([]);
+    });
+
+    it('refuses a wrong number, a forged signature, an expired, foreign or reused solution as spam', async () => {
+      const OTHER_FORM = '01900000-0000-7000-8000-00000000f001';
+      await uow.run(admin, (ctx) => ctx.forms.insert(probeForm(OTHER_FORM)));
+      const c = await uow.run(admin, (ctx) =>
+        issueProofChallenge(ctx.signer, FORM, clock.now(), 20)
+      );
+      const right = await solveProof(c);
+      const number = (JSON.parse(atob(right)) as { number: number }).number;
+      const spam = { status: 'rejected', reason: 'spam', message: '' };
+
+      expect(
+        await submit(email(1), { proof: await solveProof(c, { number: number + 1 }) })
+      ).toEqual(spam);
+      expect(
+        await submit(email(2), { proof: await solveProof(c, { signature: `${c.signature}x` }) })
+      ).toEqual(spam);
+      expect(await submit(email(3), { proof: 'not base64 json' })).toEqual(spam);
+      expect(await submit(email(4), { proof: await cheapProof(OTHER_FORM) })).toEqual(spam);
+
+      expect((await submit(email(5), { proof: right })).status).toBe('accepted');
+      expect(await submit(email(6), { proof: right })).toEqual(spam);
+
+      const late = await cheapProof();
+      clock.advance(24 * 60 * 60 * 1000 + 1000);
+      expect(await submit(email(7), { proof: late })).toEqual(spam);
+
+      expect(rejections()).toEqual(Array(6).fill('proof-invalid'));
+      expect(uow.store.for(TENANT).submissions.size).toBe(1);
+    });
+
+    it('accepts a post without proof on a stricter per-IP bucket, and says so in the log', async () => {
+      for (let i = 0; i < 3; i++)
+        expect((await submit(email(i), { proof: null, ip: 'nojs' })).status).toBe('accepted');
+      expect(await submit(email(3), { proof: null, ip: 'nojs' })).toMatchObject({
+        status: 'rejected',
+        reason: 'rate-limited',
+        message: 'forms.rejected.rate-limited',
+      });
+      // The same address with a proof is on the ordinary bucket.
+      expect((await submit(email(4), { ip: 'nojs' })).status).toBe('accepted');
+      expect(log.lines.filter((l) => l.message === 'forms.submit.unproven')).toHaveLength(4);
+      expect(rejections()).toEqual(['ip-limited']);
+      // An hour later the bucket is open again.
+      clock.advance(60 * 60 * 1000);
+      expect((await submit(email(5), { proof: null, ip: 'nojs' })).status).toBe('accepted');
+    });
   });
 });
 
