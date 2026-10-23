@@ -92,12 +92,27 @@ describe.each(useCases.map((u) => [u.name, u] as const))('MCP conformance: %s', 
     const result = await call([useCase.requires], brokenArgs(useCase));
     expect(result.isError).toBe(true);
     const error = payload(result);
+    if (
+      useCase.actors &&
+      !useCase.actors.includes(useCase.requires === 'tenant:admin' ? 'system' : 'agent')
+    ) {
+      expect(error).toMatchObject({ code: 'forbidden' });
+      return;
+    }
     expect(error).toMatchObject({ code: 'invalid_input' });
     expect((error.issues as unknown[]).length).toBeGreaterThan(0);
   });
 
   it('accepts examples[0] with exactly the required capability', async () => {
     const result = await call([useCase.requires], useCase.examples[0].input);
+    if (
+      useCase.actors &&
+      !useCase.actors.includes(useCase.requires === 'tenant:admin' ? 'system' : 'agent')
+    ) {
+      expect(result.isError).toBe(true);
+      expect(payload(result)).toMatchObject({ code: 'forbidden' });
+      return;
+    }
     // The example's data need not exist in an empty tenant: not_found and conflict are fine.
     if (result.isError) expect(['not_found', 'conflict']).toContain(payload(result).code);
     else expect(result.structuredContent).toBeDefined();

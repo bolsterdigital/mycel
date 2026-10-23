@@ -69,6 +69,11 @@ function checkUseCase(useCase: UseCase, fail: (rule: string) => void): void {
 
   if (EDITORIAL_PREFIXES.some((p) => name.startsWith(p)) && !useCase.authenticatedOnly)
     fail('an editorial use case must be authenticatedOnly');
+  if (
+    useCase.actors &&
+    (!useCase.actors.length || new Set(useCase.actors).size !== useCase.actors.length)
+  )
+    fail('actors must be a nonempty list without duplicates');
 
   // testing.md rule 1: a registry entry without a fixture fails verify.
   if (!Array.isArray(examples) || examples.length === 0) fail('has no examples');

@@ -210,7 +210,31 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     await uow.run(admin, (ctx) => ctx.forms.insert(probeForm(formId)));
     // Content (0011): an item with its revision and locale rows, plus an author, a section and
     // a pattern through their use cases.
-    await publishProbePage(invoker, admin, formId);
+    const page = await publishProbePage(invoker, admin, formId);
+    await uow.run(admin, async (ctx) => {
+      await ctx.assist.saveSettings({
+        enabled: false,
+        allowRestricted: false,
+        consentedProvider: null,
+        consentedBy: null,
+        consentedAt: null,
+      });
+      await ctx.assist.insert({
+        id: uuidv7(),
+        itemId: page.id,
+        baseRevisionId: page.latestRevisionId,
+        blockId: 'fixture',
+        locale: 'nl',
+        status: 'failed',
+        value: null,
+        failure: 'unavailable',
+        provider: 'fixture',
+        requestedBy: null,
+        model: null,
+        createdAt: clock.now(),
+        updatedAt: clock.now(),
+      });
+    });
     await invoker.run(useCases.createAuthor, admin, { slug: 'rls', name: 'RLS' });
     await invoker.run(useCases.createSection, admin, { slug: 'rls', title: { nl: 'RLS' } });
     await invoker.run(useCases.createPattern, admin, {

@@ -72,6 +72,7 @@ import {
 import { createFsBlobStore, createS3BlobStore, type S3BlobStoreConfig } from '@mycel/blob';
 import { ConsoleMailer, TemMailer } from '@mycel/mail-tem';
 import { createSharpProcessor } from '@mycel/media-sharp';
+import { FakeTextModel } from '@mycel/core/testing';
 import { createAuthenticator, type Authenticator } from './auth.js';
 import { createDnsResolver } from './dns.js';
 import type { HttpObservability } from './app.js';
@@ -121,6 +122,14 @@ const Config = z
      * indexing delay; 15 is an assumption with a budget until someone measures it.
      */
     MAIL_RECONCILE_LAG_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
+    ASSIST_PROVIDER: z.enum(['none', 'fake', 'openai-compatible']).default('none'),
+    ASSIST_PROVIDER_LABEL: z.string().min(1).optional(),
+    ASSIST_BASE_URL: z.string().url().optional(),
+    ASSIST_API_KEY: z.string().optional(),
+    ASSIST_TEXT_MODEL: z.string().optional(),
+    ASSIST_VISION_MODEL: z.string().optional(),
+    ASSIST_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(30000),
+    ASSIST_RETENTION_DAYS: z.coerce.number().int().min(1).max(365).default(30),
     /** The API key an MCP process acts with; also seed input (`npm run db:seed`). */
     MYCEL_API_KEY: z.string().min(8).optional(),
     /** Operator login (apps/web). Without an issuer the admin answers 503 and the sites work. */
@@ -238,6 +247,9 @@ const Config = z
   })
   .refine((c) => !(c.NODE_ENV === 'production' && c.MAIL_SPOOL_DIR), {
     message: 'MAIL_SPOOL_DIR is not allowed in production',
+  })
+  .refine((c) => !(c.NODE_ENV === 'production' && c.ASSIST_PROVIDER === 'fake'), {
+    message: 'ASSIST_PROVIDER=fake is not allowed in production',
   })
   .refine((c) => !(c.NODE_ENV === 'production' && blobStoreOf(c) !== 's3'), {
     message: 'BLOB_STORE=s3 is required in production (a directory is not backed up with the data)',
@@ -443,6 +455,11 @@ export function createRuntime(
   const operatorDb = config.DATABASE_URL ? createDb(config.DATABASE_URL) : null;
   const platform = platformOf(config);
   const blobs = blobStoreFor(config);
+  const assistModel = config.ASSIST_PROVIDER === 'fake' ? new FakeTextModel() : null;
+  const assistProviderLabel =
+    config.ASSIST_PROVIDER === 'none'
+      ? null
+      : (config.ASSIST_PROVIDER_LABEL ?? assistModel?.describe().label ?? null);
   const uow = createUnitOfWork(appDb, {
     clock,
     ids: uuidv7Ids,
@@ -452,6 +469,7 @@ export function createRuntime(
     media: { blobs, images: createSharpProcessor(), delivery: appDelivery },
     log,
     inputHasher,
+    assistProviderLabel,
   });
   const tenants = createTenantDirectory(appDb);
   const identity = createIdentityStore(authDb, uuidv7Ids);
@@ -611,6 +629,12 @@ export function createRuntime(
         retentionDays: config.JOBS_RETENTION_DAYS,
         auditRetentionDays: config.AUDIT_RETENTION_DAYS,
         errors,
+        assist: {
+          model: assistModel,
+          timeoutMs: config.ASSIST_TIMEOUT_MS,
+          retentionDays: config.ASSIST_RETENTION_DAYS,
+          clock,
+        },
         exports: {
           blobs,
           mycelVersion: buildVersion(),
