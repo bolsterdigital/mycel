@@ -7,9 +7,13 @@
 #
 # 1. compose.yml as in production (non-superuser owner, migrate, RustFS), `mycel setup` for two
 #    tenants, scripts/drill-fixture.mjs for their data, the fingerprint (scripts/drill-verify.mjs).
-# 2. The backup service into a restic repository on the host: the older snapshot. Then one
-#    supporter is erased (scripts/drill-erase.mjs registers, `mycel erasures apply` applies) and a
-#    second backup is the newer snapshot. Then `down --volumes`.
+# 2. The backup service into a restic repository on the host: the older snapshot, held after its
+#    dump while an unused image is deleted (TODO #29A: the purge waits, so the snapshot still has
+#    its files and step 3 finds them). Then three runs that must fail without a snapshot: one held
+#    while a second image is deleted and purged at once (scripts/drill-media.mjs), one held while
+#    a third image loses its original and gains an unexpected file (same count, review of PR
+#    #38), one over BACKUP_MAX_SECONDS. Then one supporter is erased (scripts/drill-erase.mjs registers, `mycel
+#    erasures apply` applies) and a second backup is the newer snapshot. Then `down --volumes`.
 # 3. A fresh Postgres and bucket, the restore service as the owner with the older snapshot,
 #    `migrate`; the clock runs from here. The fingerprint again, equal to the first.
 # 4. The erasure again (TODO #18d, ADR 019 rule 8): the register of the newer snapshot
@@ -27,7 +31,10 @@ set -eu
 export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-mycel-drill}"
 work=$(mktemp -d "${TMPDIR:-/tmp}/mycel-drill.XXXXXX")
 export DRILL_RESTIC_DIR="$work/restic"
-mkdir -p "$DRILL_RESTIC_DIR"
+export DRILL_HOLD_DIR="$work/hold"
+mkdir -p "$DRILL_RESTIC_DIR" "$DRILL_HOLD_DIR"
+# The backup container writes its `.dumped` marker here, whatever user it runs as.
+chmod 777 "$DRILL_HOLD_DIR"
 dc() {
   docker compose --env-file compose.ci.env -f compose.yml -f compose.ci.yml -f compose.drill.yml \
     --profile local-s3 --profile backup --profile restore "$@"
@@ -38,7 +45,7 @@ cleanup() {
   if [ "$status" -ne 0 ]; then dc logs --no-color --tail 200 || true; fi
   [ "${KEEP:-0}" = 1 ] || dc down --volumes --remove-orphans >/dev/null 2>&1 || true
   # restic writes its repository as root inside the container.
-  docker run --rm -v "$work:/work" alpine:3.24.3 rm -rf /work/restic >/dev/null 2>&1 || true
+  docker run --rm -v "$work:/work" alpine:3.24.3 rm -rf /work/restic /work/hold >/dev/null 2>&1 || true
   rm -rf "$work"
   exit "$status"
 }
@@ -46,6 +53,36 @@ trap cleanup EXIT
 
 step() { echo "== $*"; }
 now() { date +%s; }
+
+# A backup held after its dump (BACKUP_HOLD_AFTER_DUMP in docker/backup/backup.sh): `hold <name>
+# [-e VAR=value ...]` starts it in the background and returns once the dump is written; `release
+# <name>` lets it go on and returns its exit status, its output in $work/<name>.log. The first
+# run builds the backup image, hence the long wait.
+hold() {
+  name=$1
+  shift
+  dc run --rm -T -e "BACKUP_HOLD_AFTER_DUMP=/hold/$name" "$@" backup >"$work/$name.log" 2>&1 &
+  echo $! >"$work/$name.pid"
+  waited=0
+  until [ -e "$DRILL_HOLD_DIR/$name.dumped" ]; do
+    kill -0 "$(cat "$work/$name.pid")" 2>/dev/null ||
+      { cat "$work/$name.log" >&2; echo "backup $name ended before its dump was held" >&2; exit 1; }
+    [ "$waited" -lt 600 ] || { echo "backup $name: no dump after 600 s" >&2; exit 1; }
+    sleep 1
+    waited=$((waited + 1))
+  done
+}
+release() {
+  touch "$DRILL_HOLD_DIR/$1.go"
+  status=0
+  wait "$(cat "$work/$1.pid")" || status=$?
+  cat "$work/$1.log"
+  return "$status"
+}
+snapshots() {
+  dc run --rm -T backup restic snapshots --host mycel --json | tail -n 1 |
+    node -e "let d = ''; process.stdin.on('data', (c) => (d += c)).on('end', () => console.log(JSON.parse(d).length))"
+}
 
 # The host side reaches the stack on the drill's loopback ports, with the CI placeholders. Only
 # through `host`: compose lets the shell environment win over --env-file, so an exported override
@@ -74,14 +111,50 @@ dc run --rm -T worker mycel setup --tenant drill-a --name 'Drill A' --locales nl
 dc run --rm -T worker mycel setup --tenant drill-b --name 'Drill B' --locales nl \
   --operator editor@example.test
 host node scripts/drill-fixture.mjs drill-a drill-b
+# Three unused images for the media steps below; part of the fingerprint, as the older snapshot
+# holds all three.
+deleted=$(host node scripts/drill-media.mjs upload drill-a | tail -n 1)
+purged=$(host node scripts/drill-media.mjs upload drill-a | tail -n 1)
+masked=$(host node scripts/drill-media.mjs upload drill-a | tail -n 1)
 host node scripts/drill-verify.mjs fingerprint >"$work/before.json"
 
-step 'backup: the older snapshot'
-dc run --rm -T backup
+step 'backup: the older snapshot, with an image deleted after the dump'
+hold older
+host node scripts/drill-media.mjs delete drill-a "$deleted"
+release older
 # The last line: `run` may print the image build first (pull_policy: build).
 older=$(dc run --rm -T backup restic snapshots --host mycel --latest 1 --json | tail -n 1 |
   node -e "let d = ''; process.stdin.on('data', (c) => (d += c)).on('end', () => console.log(JSON.parse(d).at(-1).short_id))")
 echo "older snapshot: $older"
+
+step 'backup with an image purged after the dump: fails, no snapshot'
+count=$(snapshots)
+hold purged
+host node scripts/drill-media.mjs delete drill-a "$purged"
+host node scripts/drill-media.mjs purge drill-a "$purged"
+if release purged; then echo 'the backup passed although files of a live image were gone' >&2; exit 1; fi
+grep -q "media files missing for live assets.*$purged" "$work/purged.log" ||
+  { echo "the failed backup does not name $purged" >&2; exit 1; }
+[ "$(snapshots)" = "$count" ] || { echo 'the failed backup wrote a snapshot' >&2; exit 1; }
+
+step 'backup with an original replaced by an unexpected file: fails, no snapshot'
+hold masked
+host node scripts/drill-media.mjs mask drill-a "$masked"
+if release masked; then echo 'the backup passed although the original of a live image was gone' >&2; exit 1; fi
+grep -q "media files missing for live assets.*$masked/original.png" "$work/masked.log" ||
+  { echo "the failed backup does not name the original of $masked" >&2; exit 1; }
+[ "$(snapshots)" = "$count" ] || { echo 'the masked backup wrote a snapshot' >&2; exit 1; }
+# The image stays broken; gone, as an editor would remove it, so the newer snapshot can pass.
+host node scripts/drill-media.mjs delete drill-a "$masked"
+host node scripts/drill-media.mjs purge drill-a "$masked"
+
+step 'backup over BACKUP_MAX_SECONDS: fails, no snapshot'
+hold slow -e BACKUP_MAX_SECONDS=1
+sleep 2
+if release slow; then echo 'the backup passed although it ran over BACKUP_MAX_SECONDS' >&2; exit 1; fi
+grep -q 'more than BACKUP_MAX_SECONDS=1' "$work/slow.log" ||
+  { echo 'the slow backup failed for another reason' >&2; exit 1; }
+[ "$(snapshots)" = "$count" ] || { echo 'the slow backup wrote a snapshot' >&2; exit 1; }
 
 step 'erasure, then the newer snapshot'
 erased=supporter-drill-a@example.org

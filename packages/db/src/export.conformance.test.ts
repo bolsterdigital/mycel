@@ -12,7 +12,7 @@
 // E2E_REQUIRED=1 (CI) that is a failure.
 
 import { createHash } from 'node:crypto';
-import { cp, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -20,6 +20,7 @@ import { sql } from 'kysely';
 import {
   Invoker,
   buildRegistry,
+  purgeMedia,
   supporterIngestSubscriber,
   systemPrincipal,
   useCases,
@@ -572,5 +573,140 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
         }
       }
     );
+  });
+
+  // TODO #29A, ADR 019 rule 8: media that changes between the table snapshot and the file copy.
+  // An asset deleted during the run keeps its files (the purge waits MEDIA_PURGE_DELAY_MS); one
+  // purged anyway fails the export by id and nothing is left; an upload during the run travels
+  // as files without a row, which media.orphans removes after import.
+  describe('media that changes while the export runs', () => {
+    const c = { id: '', slug: `exp-c-${run}` };
+    const admin = () => systemPrincipal(c.id, 'export-test');
+    const PDF = Buffer.from('%PDF-1.4\n%drill\n').toString('base64');
+    const upload = (input: Parameters<typeof useCases.uploadMedia.handler>[1]) =>
+      invoker.run(useCases.uploadMedia, admin(), input);
+    const png = () => upload(useCases.uploadMedia.examples[0].input);
+    const keysOf = async (mediaId: string) => {
+      const keys: string[] = [];
+      for await (const { key } of blobs.list(`tenants/${c.id}/media/${mediaId}/`)) keys.push(key);
+      return keys;
+    };
+    const mediaRows = async (dir: string) =>
+      (await readFile(join(dir, 'tables', 'media.ndjson'), 'utf8'))
+        .split('\n')
+        .filter(Boolean)
+        .map((l) => JSON.parse(l) as { id: string; checksum: string; deleted_at: string | null });
+
+    beforeAll(async () => {
+      c.id = (
+        await createTenant(
+          operatorDb,
+          { id: uuidv7(), slug: c.slug, name: 'Export c', locales: ['nl'] },
+          memoryPlatform,
+          by
+        )
+      ).id;
+      // A raster image (original plus variants) and a file delivered as stored (`file.pdf`).
+      await png();
+      await upload({ filename: 'flyer.pdf', contentType: 'application/pdf', bytes: PDF });
+    });
+
+    it('refuses a directory that is not empty and leaves it as it was', async () => {
+      const dir = join(scratch.dir, 'c-occupied');
+      await mkdir(dir);
+      await writeFile(join(dir, 'keep.txt'), 'mine');
+      await expect(
+        exportTenant({ operatorDb, blobs, slug: c.slug, out: dir, mycelVersion: 'test' })
+      ).rejects.toThrow(/not empty/);
+      expect(await readdir(dir)).toEqual(['keep.txt']);
+    });
+
+    it('fails naming an asset purged after the snapshot, and leaves no directory or tar', async () => {
+      const doomed = await png();
+      const purgeDuring = async () => {
+        const keys = await keysOf(doomed.id);
+        expect(keys.length).toBeGreaterThan(1);
+        await invoker.run(useCases.deleteMedia, admin(), { id: doomed.id });
+        // The purge forced past its delay, as a worker with a wrong clock or a run over the limit
+        // would.
+        await uow.run(admin(), (ctx) => purgeMedia(ctx, { mediaId: doomed.id, keys }));
+      };
+      const dir = join(scratch.dir, 'c-purged');
+      await expect(
+        exportTenant({
+          operatorDb,
+          blobs,
+          slug: c.slug,
+          out: dir,
+          mycelVersion: 'test',
+          afterSnapshot: purgeDuring,
+        })
+      ).rejects.toThrow(doomed.id);
+      await expect(readdir(dir)).rejects.toMatchObject({ code: 'ENOENT' });
+
+      // The same as a tar, with an asset that has no row by the time the tables are read again.
+      const again = await png();
+      const tar = join(scratch.dir, 'c-purged.tar');
+      await expect(
+        exportTenant({
+          operatorDb,
+          blobs,
+          slug: c.slug,
+          out: tar,
+          mycelVersion: 'test',
+          afterSnapshot: async () => {
+            const keys = await keysOf(again.id);
+            await invoker.run(useCases.deleteMedia, admin(), { id: again.id });
+            await uow.run(admin(), (ctx) => purgeMedia(ctx, { mediaId: again.id, keys }));
+          },
+        })
+      ).rejects.toThrow(again.id);
+      expect((await readdir(scratch.dir)).filter((f) => f.startsWith('c-purged'))).toEqual([]);
+    });
+
+    it('keeps an asset deleted during the run and leaves out the row of an upload during it', async (ctx) => {
+      const deleted = await png();
+      let uploaded = '';
+      const dir = join(scratch.dir, 'c-concurrent');
+      const manifest = await exportTenant({
+        operatorDb,
+        blobs,
+        slug: c.slug,
+        out: dir,
+        mycelVersion: 'test',
+        afterSnapshot: async () => {
+          await invoker.run(useCases.deleteMedia, admin(), { id: deleted.id });
+          uploaded = (
+            await upload({ filename: 'late.pdf', contentType: 'application/pdf', bytes: PDF })
+          ).id;
+        },
+      });
+      const rows = await mediaRows(dir);
+      expect(rows.find((r) => r.id === deleted.id)).toMatchObject({ deleted_at: null });
+      expect(rows.map((r) => r.id)).not.toContain(uploaded);
+      for (const key of await keysOf(deleted.id)) expect(manifest.media[key]).toBeDefined();
+      // The upload's file travels without its row: the orphan sweep's to remove after import.
+      expect(Object.keys(manifest.media).some((k) => k.includes(uploaded))).toBe(true);
+
+      if (!canCreateDb) ctx.skip();
+      const report = await importTenant({
+        operatorDb: target.db!,
+        blobs: new MemoryBlobStore(),
+        path: dir,
+        platform: { ...memoryPlatform, domain: 'other.example' },
+        by,
+      });
+      expect(report.differences).toEqual([]);
+      const { rows: imported } = await sql<{ id: string; checksum: string }>`
+        select id, checksum from media where tenant_id = ${c.id} and deleted_at is null
+        order by id`.execute(target.db!);
+      expect(imported).toEqual(
+        rows
+          .filter((r) => r.deleted_at === null)
+          .map(({ id, checksum }) => ({ id, checksum }))
+          .sort((x, y) => x.id.localeCompare(y.id))
+      );
+      expect(imported.map((r) => r.id)).toContain(deleted.id);
+    });
   });
 });
