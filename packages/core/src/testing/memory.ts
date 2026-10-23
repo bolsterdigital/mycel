@@ -6,6 +6,7 @@
 // save/delete race (TODO #8b2) can be proven here too.
 
 import type { AuditEntry } from '../audit/model.js';
+import type { AssistRepository, AssistSettings, AssistSuggestion } from '../assist/ports.js';
 import type { AuditLog, InputHasher } from '../audit/ports.js';
 import type { FormDefinition, Submission } from '../forms/model.js';
 import type { FormRepository, RateLimiter, SubmissionRepository } from '../forms/ports.js';
@@ -219,6 +220,9 @@ function sluggedRepository<T extends { id: string; slug: string }>(
 }
 
 interface TenantStore {
+  assistSettings: AssistSettings;
+  suggestions: Map<string, AssistSuggestion>;
+  assistUsage: Map<string, number>;
   items: Map<string, ItemRecord>;
   revisions: Map<string, Revision>;
   /** `content_block_refs`, keyed by revision id. */
@@ -496,6 +500,15 @@ export class MemoryStore {
     let store = this.tenants.get(tenantId);
     if (!store) {
       store = {
+        assistSettings: {
+          enabled: false,
+          allowRestricted: false,
+          consentedProvider: null,
+          consentedBy: null,
+          consentedAt: null,
+        },
+        suggestions: new Map(),
+        assistUsage: new Map(),
         items: new Map(),
         revisions: new Map(),
         blockRefs: new Map(),
@@ -768,6 +781,7 @@ export interface MemoryDeps {
   images?: ImageProcessor;
   delivery?: MediaDelivery;
   inputHasher?: InputHasher;
+  assistProviderLabel?: string | null;
 }
 
 export class MemoryUnitOfWork implements UnitOfWork {
@@ -782,6 +796,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
   readonly delivery: MediaDelivery;
   readonly log: Logger;
   readonly inputHasher: InputHasher;
+  readonly assistProviderLabel: string | null;
 
   constructor(deps: MemoryDeps = {}) {
     this.log = deps.log ?? noopLogger;
@@ -795,6 +810,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
     this.images = deps.images ?? memoryImageProcessor;
     this.delivery = deps.delivery ?? appDelivery;
     this.inputHasher = deps.inputHasher ?? new FakeInputHasher();
+    this.assistProviderLabel = deps.assistProviderLabel ?? null;
   }
 
   async run<T>(principal: Principal, fn: (tx: TransactionContext) => Promise<T>): Promise<T> {
@@ -873,6 +889,58 @@ export class MemoryUnitOfWork implements UnitOfWork {
           limit
         );
         return { ...page, rows: page.rows.map(({ document: _d, ...summary }) => summary) };
+      },
+    };
+    const assist: AssistRepository = {
+      settings: async () => structuredClone(s.assistSettings),
+      saveSettings: async (settings) => {
+        s.assistSettings = structuredClone(settings);
+      },
+      lockQuota: async () => {},
+      countSince: async (since) => s.assistUsage.get(since.toISOString().slice(0, 7)) ?? 0,
+      pendingCount: async (since) =>
+        [...s.suggestions.values()].filter((v) => v.status === 'pending' && v.createdAt >= since)
+          .length,
+      countByOperatorSince: async (operatorId, since) =>
+        [...s.suggestions.values()].filter(
+          (v) => v.requestedBy === operatorId && v.createdAt >= since
+        ).length,
+      insert: async (row) => {
+        s.suggestions.set(row.id, structuredClone(row));
+        const month = row.createdAt.toISOString().slice(0, 7);
+        s.assistUsage.set(month, (s.assistUsage.get(month) ?? 0) + 1);
+      },
+      get: async (id) => structuredClone(s.suggestions.get(id) ?? null),
+      list: async (itemId) =>
+        [...s.suggestions.values()]
+          .filter((v) => v.itemId === itemId)
+          .map((v) => structuredClone(v)),
+      async complete(id, patch) {
+        const row = s.suggestions.get(id);
+        if (!row || row.status !== 'pending') return false;
+        s.suggestions.set(id, { ...row, ...patch });
+        return true;
+      },
+      async decide(id, status, at) {
+        const row = s.suggestions.get(id);
+        if (
+          !row ||
+          (status === 'accepted'
+            ? row.status !== 'ready'
+            : !['ready', 'failed', 'pending'].includes(row.status))
+        )
+          return false;
+        s.suggestions.set(id, { ...row, status, value: null, updatedAt: at });
+        return true;
+      },
+      async deleteBefore(before) {
+        let deleted = 0;
+        for (const [id, row] of s.suggestions)
+          if (row.createdAt < before) {
+            s.suggestions.delete(id);
+            deleted++;
+          }
+        return deleted;
       },
     };
     const forms: FormRepository = {
@@ -1282,6 +1350,8 @@ export class MemoryUnitOfWork implements UnitOfWork {
           },
         },
         content,
+        assist,
+        assistProviderLabel: this.assistProviderLabel,
         authors: sluggedRepository(s.authors),
         sections: sluggedRepository(s.sections),
         patterns: entityRepository(s.patterns),

@@ -3,6 +3,15 @@
 
 import { listAudit } from './audit/service.js';
 import {
+  acceptSuggestion,
+  dismissSuggestion,
+  getAssistSettings,
+  getSuggestion,
+  listSuggestions,
+  suggestAlt,
+  updateAssistSettings,
+} from './assist/service.js';
+import {
   createAuthor,
   createPattern,
   createSection,
@@ -64,6 +73,13 @@ import {
 import { listExports, requestExport } from './tenants/exports.js';
 
 export const useCases = {
+  getAssistSettings,
+  updateAssistSettings,
+  suggestAlt,
+  getSuggestion,
+  listSuggestions,
+  dismissSuggestion,
+  acceptSuggestion,
   getPublished,
   createItem,
   updateItem,
