@@ -8,23 +8,34 @@ import { defineUseCase } from '../registry.js';
 import { sha256Hex } from '../util/digest.js';
 import type { NewsletterSubscribedProps } from './events.js';
 import { FormDefinition, SubmitInput, SubmitResult, type FormField } from './model.js';
-import { RATE_LIMITS, checkStartedToken, issueStartedToken } from './spam.js';
+import { ProofChallenge, checkProof, issueProofChallenge } from './proof.js';
+import {
+  CONFIRMATION_COOLDOWN_SECONDS,
+  RATE_LIMITS,
+  checkStartedToken,
+  issueStartedToken,
+} from './spam.js';
 import './ports.js';
 
 export const getForm = defineUseCase({
   name: 'forms.form.get',
   kind: 'query',
   description:
-    'Get a form definition by id, plus a fresh signed timing token for rendering it publicly.',
+    'Get a form definition by id, plus a fresh signed timing token and proof-of-work challenge for rendering it publicly.',
   requires: 'forms:read',
   input: z.object({ id: z.string().uuid() }),
-  output: z.object({ form: FormDefinition, startedToken: z.string() }),
+  output: z.object({ form: FormDefinition, startedToken: z.string(), proof: ProofChallenge }),
   resource: { uriTemplate: 'mycel://forms/{id}' },
   examples: [{ input: { id: '01900000-0000-7000-8000-00000000f000' } }],
   async handler(ctx, { id }) {
     const form = await ctx.forms.findById(id);
     if (!form) throw new UseCaseError('not_found', `no form with id "${id}"`);
-    return { form, startedToken: await issueStartedToken(ctx.signer, id, ctx.clock.now()) };
+    const now = ctx.clock.now();
+    return {
+      form,
+      startedToken: await issueStartedToken(ctx.signer, id, now),
+      proof: await issueProofChallenge(ctx.signer, id, now),
+    };
   },
 });
 
@@ -87,39 +98,77 @@ export const submitForm = defineUseCase({
     const form = await ctx.forms.findById(input.formId);
     if (!form) throw new UseCaseError('not_found', `no form with id "${input.formId}"`);
 
-    const reject = (reason: 'spam' | 'too-fast' | 'rate-limited'): SubmitResult => ({
-      status: 'rejected',
-      reason,
-      message: reason === 'spam' ? '' : `forms.rejected.${reason}`,
-    });
+    // One log line per refusal with a fixed reason, never the address, IP hash or token (house
+    // rule 7: fail visibly for us, silently for the bot); tenant and request id come from the
+    // log context. The public `reason` is coarser: honeypot and a bad token are both `spam`.
+    const reject = (
+      why:
+        | 'honeypot'
+        | 'token-invalid'
+        | 'too-fast'
+        | 'proof-invalid'
+        | 'ip-limited'
+        | 'recipient-limited'
+    ): SubmitResult => {
+      ctx.log.info('forms.submit.rejected', { formId: form.id, reason: why });
+      const reason =
+        why === 'honeypot' || why === 'token-invalid' || why === 'proof-invalid'
+          ? 'spam'
+          : why === 'ip-limited'
+            ? 'rate-limited'
+            : why;
+      return {
+        status: 'rejected',
+        reason,
+        message:
+          reason === 'too-fast' || reason === 'rate-limited' ? `forms.rejected.${reason}` : '',
+      };
+    };
 
-    // Honeypot and timing apply to the public. Authenticated integrations (API key, agent) are
-    // trusted callers and still pass the rate limits below.
+    // Honeypot, timing and proof apply to the public. Authenticated integrations (API key, agent)
+    // are trusted callers and still pass the rate limits below. A post without the honeypot
+    // field is not from our form (checklist rule 8 of `formulieren-en-mail`); a post without a
+    // proof is, from a browser without JavaScript, and takes the stricter bucket below.
     const anonymous = principal.actor.kind === 'anonymous';
+    let unproven = false;
     if (anonymous) {
-      if (input.spam?.honeypot) return reject('spam');
+      if (input.spam?.honeypot === undefined || input.spam.honeypot !== '')
+        return reject('honeypot');
       const timing = await checkStartedToken(
         ctx.signer,
-        input.spam?.startedToken,
+        input.spam.startedToken,
         form.id,
         form.minFillSeconds,
         now
       );
-      if (timing === 'invalid') return reject('spam');
+      if (timing === 'invalid') return reject('token-invalid');
       if (timing === 'too-fast') return reject('too-fast');
+      const proof = await checkProof(ctx.signer, input.spam.proof, form.id, now);
+      if (proof.kind === 'invalid') return reject('proof-invalid');
+      // One use per solution, for as long as the challenge lives. The cooldown is the same
+      // primitive as the recipient's, so two posts of one solution at once count as two.
+      if (
+        proof.kind === 'ok' &&
+        !(await ctx.rateLimits.cooldown(`forms.proof:${proof.challenge}`, 24 * 3600))
+      )
+        return reject('proof-invalid');
+      unproven = proof.kind === 'absent';
     }
 
     const ipHash = principal.actor.kind === 'anonymous' ? principal.actor.ipHash : undefined;
     if (ipHash && !(await ctx.rateLimits.hit(`forms.submit:ip:${ipHash}`, RATE_LIMITS.perIp)))
-      return reject('rate-limited');
+      return reject('ip-limited');
+    if (unproven) {
+      ctx.log.info('forms.submit.unproven', { formId: form.id });
+      if (
+        ipHash &&
+        !(await ctx.rateLimits.hit(`forms.submit:unproven:${ipHash}`, RATE_LIMITS.perIpUnproven))
+      )
+        return reject('ip-limited');
+    }
 
     const { values, email, errors } = validateValues(form.fields, input.values);
     if (errors.length) return { status: 'invalid', errors };
-
-    // Hashed so the counter table holds no address (the submission row is the only copy).
-    const emailKey = await sha256Hex(`${principal.tenantId}:${email}`);
-    if (!(await ctx.rateLimits.hit(`forms.submit:email:${emailKey}`, RATE_LIMITS.perEmail)))
-      return reject('rate-limited');
 
     // ADR 015 rule 3: only a new address grows the supporter count. The projection exists only
     // after the outbox ingest, so the seat is reserved here and released by ingest
@@ -127,6 +176,20 @@ export const submitForm = defineUseCase({
     // it releases, so a projection cannot land between this check and the reservation and leave
     // a seat taken for the whole admission window.
     await ctx.admissions.lock();
+
+    // Every signup causes a confirmation mail, so every signup passes the recipient cooldown.
+    // After the tenant lock, which already serialises submissions; the adapter's own lock makes
+    // the primitive safe without it. Hashed so the table holds no address (the submission row is
+    // the only copy). A refusal writes nothing: no submission, no event, no seat.
+    const emailKey = await sha256Hex(`${principal.tenantId}:${email}`);
+    if (
+      !(await ctx.rateLimits.cooldown(
+        `forms.confirm:${form.id}:${emailKey}`,
+        CONFIRMATION_COOLDOWN_SECONDS
+      ))
+    )
+      return reject('recipient-limited');
+
     if (!(await ctx.supporters.getProjection(email)) && !(await ctx.admissions.pending(email))) {
       withinLimit(ctx, 'supporters.max', await ctx.admissions.count());
       await ctx.admissions.reserve(email);

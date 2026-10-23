@@ -5,7 +5,10 @@
 //     same validators, so a revalidation costs no body (the page has rendered, but the bytes
 //     are not sent);
 //   - a 404 gets `no-store` unless the route said otherwise: an item that is unpublished or
-//     restricted now may be public later, and a shared cache must not keep the 404 meanwhile.
+//     restricted now may be public later, and a shared cache must not keep the 404 meanwhile;
+//   - a `no-store` response carries no validator. SvelteKit adds an ETag of its own to a page
+//     the route gave none, and a form page (#30A) must never be revalidated into a 304 that
+//     keeps an old timing token, not even by `If-None-Match: *`.
 //
 // The routes set ETag and Cache-Control themselves (they know the revision); this is only the
 // conditional half, which a SvelteKit `load` cannot express. SvelteKit's own `respond` already
@@ -29,6 +32,10 @@ export function noneMatch(header: string | null, etag: string): boolean {
 export function conditional(request: Request, response: Response): Response {
   if (response.status === 404 && !response.headers.has('cache-control')) {
     response.headers.set('cache-control', NO_STORE);
+    return response;
+  }
+  if (response.headers.get('cache-control') === NO_STORE) {
+    response.headers.delete('etag');
     return response;
   }
   const etag = response.headers.get('etag');

@@ -462,16 +462,19 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
       const t = await create('adm-ingest');
       const p = capped(t.id, 1);
       const formId = uuidv7();
+      // A second form: the same address on the same form is in its recipient cooldown for a day.
+      const other = uuidv7();
       await uow.run(p, (ctx) => ctx.forms.insert(probeForm(formId)));
-      const submit = (email: string) =>
+      await uow.run(p, (ctx) => ctx.forms.insert(probeForm(other)));
+      const submit = (email: string, form = formId) =>
         invoker.run(useCases.submitForm, p, {
-          formId,
+          formId: form,
           values: { email, consent: true },
           locale: 'nl',
         });
       expect((await submit('a@example.org')).status).toBe('accepted');
       await code(submit('b@example.org'), 'limit_exceeded');
-      expect((await submit('a@example.org')).status).toBe('accepted');
+      expect((await submit('a@example.org', other)).status).toBe('accepted');
       expect(await rows(t.id)).toBe(1);
 
       // What the ingest subscriber does for the outbox event, in one transaction.

@@ -56,7 +56,8 @@ for (const [slug, titles] of Object.entries(PAGES))
         await expect(page.getByRole('heading', { level: 1 })).toHaveText(titles[locale]);
         expect(await page.locator('h1').count()).toBe(1);
         // ADR 009 rule 4: no client JavaScript on a content page.
-        expect(await page.locator('script').count()).toBe(0);
+        // Only a form's own proof-of-work module (brief form-intake § D2.3).
+        expect(await page.locator('script:not([src="/_form/proof.js"])').count()).toBe(0);
         expect(await page.locator('[style]').count()).toBe(0);
         // Every image is sized and comes from the site; the theme is a linked stylesheet.
         for (const img of await page.locator('main img').all()) {
