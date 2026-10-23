@@ -29,7 +29,7 @@ describe.skipIf(!operatorUrl || !appUrl)('assistance tenant isolation', () => {
   let b = '';
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, { appPassword: process.env['MYCEL_APP_PASSWORD'], log: () => {} });
+    await migrate(operatorUrl!, { log: () => {} });
     const tenant = async (slug: string) =>
       (
         await upsertTenant(
