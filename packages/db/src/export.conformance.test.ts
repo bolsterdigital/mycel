@@ -248,8 +248,8 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
 
   it('migrates a second database beside the primary without racing on the shared roles', async (ctx) => {
     if (!canCreateDb) ctx.skip();
-    // The race of TODO #27 on demand: with `roles` on both sides this fails within a few rounds
-    // (236 of 600 calls in a measurement on dev-server-1); with `secondDatabase` it cannot.
+    // Repeated cross-database migration checks: the old password-writing setup failed in 236
+    // of 600 calls on dev-server-1. Both sides now leave cluster roles alone.
     for (let round = 0; round < 10; round++)
       await Promise.all([migrate(target.url, schemaOnly), migrate(operatorUrl!, schemaOnly)]);
   });
