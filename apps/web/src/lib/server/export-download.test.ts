@@ -27,7 +27,11 @@ async function setup() {
   const invoker = new Invoker(buildRegistry(), uow);
   const admin = (tenant = TENANT): Principal => ({
     ...systemPrincipal(tenant, 'test'),
-    actor: { kind: 'operator', operatorId: '01900000-0000-7000-8000-0000000000op' },
+    actor: {
+      kind: 'operator',
+      email: 'admin@example.org',
+      operatorId: '01900000-0000-7000-8000-0000000000aa',
+    },
   });
   const { id } = await invoker.run(useCases.requestExport, admin(), {});
   const bytes = new TextEncoder().encode('archive bytes '.repeat(10_000));
