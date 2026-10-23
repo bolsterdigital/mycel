@@ -13,9 +13,10 @@ import type { Signer } from '../ports.js';
 import { sha256Hex } from '../util/digest.js';
 
 /**
- * The search space. About half of it is searched on average: measured at ~0.2 s in headless
- * Chromium on an M-series laptop for 100 000, so a mid-range phone stays well under a second
- * (brief form-intake § D2.1; the measurement is in the PR).
+ * The search space; on average half of it is searched. Measured 2026-10-23 in headless Chromium
+ * with the script's batching (apps/web/static/_form/proof.js): 0.4 s on average on an M4 Pro,
+ * 0.6 s with the CPU throttled four times (about a mid-range phone), 1.5 s for the whole space
+ * at that throttle. The script waits at most two seconds before it posts without.
  */
 export const PROOF_MAX_NUMBER = 100_000;
 
@@ -26,7 +27,7 @@ export const ProofChallenge = z.object({
   algorithm: z.literal('SHA-256'),
   challenge: z.string(),
   salt: z.string(),
-  maxNumber: z.number().int().positive(),
+  maxNumber: z.number().int().min(1),
   signature: z.string(),
 });
 export type ProofChallenge = z.infer<typeof ProofChallenge>;

@@ -2,8 +2,9 @@
      own action and works without JavaScript (ADR 009). Moved from the probe's page unchanged:
      labels tied to inputs, errors linked with aria-describedby, an error summary on top after a
      failed post, the honeypot out of sight (and out of reach of the password managers that fill
-     a `website` field anyway: the four `data-*ignore` attributes) and the signed `_started` token. `card` is a wrapper
-     class. No ARIA where native semantics suffice. -->
+     a `website` field anyway: the four `data-*ignore` attributes), the signed `_started` token
+     and the proof-of-work challenge for `static/_form/proof.js`, which adds nothing visible.
+     `card` is a wrapper class. No ARIA where native semantics suffice. -->
 <script lang="ts">
   import type { FormState, RenderForm, RenderModel } from './model.js';
 
@@ -26,8 +27,14 @@
   const errorFor = (field: string) => mine?.errors.find((e) => e.field === field)?.message;
 </script>
 
+<svelte:head>
+  <!-- Solves the proof-of-work challenge in `data-proof` into `_proof`; one module per page,
+       however many forms. Without it the form still posts, on the stricter route. -->
+  <script type="module" src="/_form/proof.js"></script>
+</svelte:head>
+
 <div class="block form form-{variant} width-{width}">
-  <form method="post" class="signup">
+  <form method="post" class="signup" data-proof={JSON.stringify(def.proof)}>
     {#if mine && hasProblem}
       <div class="error-summary" role="alert" aria-labelledby="summary-{def.formId}">
         <h2 id="summary-{def.formId}">{model.copy.summaryTitle}</h2>
@@ -45,6 +52,7 @@
     <input type="hidden" name="formId" value={def.formId} />
     <input type="hidden" name="locale" value={model.locale} />
     <input type="hidden" name="_started" value={def.startedToken} />
+    <input type="hidden" name="_proof" value="" />
     <div class="hp" aria-hidden="true">
       <label for="f-{def.formId}-website">{model.copy.honeypotLabel}</label>
       <input

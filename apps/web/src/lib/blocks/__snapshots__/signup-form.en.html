@@ -1,8 +1,13 @@
 <div class="block form form-default width-content">
-  <form method="post" class="signup">
+  <form
+    method="post"
+    class="signup"
+    data-proof='{"algorithm":"SHA-256","challenge":"0000000000000000000000000000000000000000000000000000000000000000","salt":"salt","maxNumber":100000,"signature":"signature"}'
+  >
     <input type="hidden" name="formId" value="01900000-0000-7000-8000-00000000f001" />
     <input type="hidden" name="locale" value="en" />
     <input type="hidden" name="_started" value="started-token" />
+    <input type="hidden" name="_proof" value="" />
     <div class="hp" aria-hidden="true">
       <label for="f-01900000-0000-7000-8000-00000000f001-website">Leave this field empty</label>
       <input
