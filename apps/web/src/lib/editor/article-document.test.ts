@@ -1,8 +1,14 @@
 // Every registry block example is an editor fixture: adding a block cannot silently make the
 // article editor lossy for its props, variants, ids or translations (ADR 020.5).
 import { describe, expect, it } from 'vitest';
+import { getSchema } from '@tiptap/core';
 import { BLOCK_DEFINITIONS, BLOCK_TYPES, Block, ContentDocument } from '@mycel/core';
 import { fromArticleEditor, toArticleEditor } from './article-document.js';
+import { articleExtensions } from './article-extensions.js';
+
+const editorSchema = getSchema(articleExtensions);
+const throughEditorSchema = (document: ContentDocument, locale: string) =>
+  editorSchema.nodeFromJSON(toArticleEditor(document, locale)).toJSON();
 
 const blocks = BLOCK_TYPES.flatMap((type) =>
   BLOCK_DEFINITIONS[type].examples.map((example, i) =>
@@ -26,11 +32,59 @@ describe('article editor document', () => {
     (_name, block) => {
       const document = base(block);
       for (const locale of ['nl', 'en']) {
-        const editor = toArticleEditor(document, locale);
+        const editor = throughEditorSchema(document, locale);
         expect(fromArticleEditor(document, locale, editor)).toEqual(document);
       }
     }
   );
+
+  it('keeps a numbered list start, marks, block id and the other locale through TipTap', () => {
+    const prose = blocks.find((block) => block.type === 'rich-text')!;
+    const document = ContentDocument.parse({
+      ...base(prose),
+      blocks: [
+        {
+          ...prose,
+          props: {
+            content: {
+              nl: {
+                type: 'doc',
+                content: [
+                  {
+                    type: 'ordered_list',
+                    attrs: { start: 3 },
+                    content: [
+                      {
+                        type: 'list_item',
+                        content: [
+                          {
+                            type: 'paragraph',
+                            content: [
+                              { type: 'text', text: 'Derde', marks: [{ type: 'bold' }] },
+                              { type: 'text', text: ' punt' },
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+              en: {
+                type: 'doc',
+                content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Third point' }] }],
+              },
+            },
+          },
+        },
+      ],
+    });
+    const actual = throughEditorSchema(document, 'nl');
+    expect(actual.content[0]?.content?.[0]?.attrs).toEqual({ start: 3, type: null });
+    expect(fromArticleEditor(document, 'nl', actual)).toEqual(document);
+    actual.content[0]!.content![0]!.attrs.unexpected = true;
+    expect(() => fromArticleEditor(document, 'nl', actual)).toThrow('Unrecognized key');
+  });
 
   it('preserves order and refuses missing, duplicate and invented block ids', () => {
     const document = ContentDocument.parse({ ...base(blocks[0]!), blocks: [blocks[0], blocks[1]] });

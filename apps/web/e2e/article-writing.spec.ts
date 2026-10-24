@@ -280,6 +280,24 @@ test('TipTap saves headings, lists, links and notes without changing stored stru
           },
         ],
       },
+      {
+        type: 'ordered_list',
+        attrs: { start: 3 },
+        content: [
+          {
+            type: 'list_item',
+            content: [
+              {
+                type: 'paragraph',
+                content: [
+                  { type: 'text', text: 'Derde', marks: [{ type: 'bold' }] },
+                  { type: 'text', text: ' punt' },
+                ],
+              },
+            ],
+          },
+        ],
+      },
     ],
   };
   const updated = await request.post(`${api()}/content.item.update`, {
@@ -307,8 +325,61 @@ test('TipTap saves headings, lists, links and notes without changing stored stru
     data: { itemId },
   });
   const { revision: latest } = (await saved.json()) as { revision: { document: any } };
+  expect(latest.document.blocks[0].id).toBe(revision.document.blocks[0].id);
   expect(latest.document.blocks[0].props.content.nl).toEqual(rich);
   expect(latest.document.blocks[0].props.content.en).toEqual(
+    revision.document.blocks[0].props.content.en
+  );
+  const listItem = page.locator('.writing-surface .ProseMirror ol li p');
+  await listItem.click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' aangevuld');
+  await expect(listItem).toContainText('Derde punt aangevuld');
+  await expect
+    .poll(async () => {
+      const response = await request.post(`${api()}/content.item.get`, {
+        headers: headers(),
+        data: { itemId },
+      });
+      const { revision: current } = (await response.json()) as { revision: { document: any } };
+      return current.document.blocks[0].props.content.nl.content[3].content[0].content[0].content
+        .map((part: { text: string }) => part.text)
+        .join('');
+    })
+    .toBe('Derde punt aangevuld');
+  await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');
+  const edited = await request.post(`${api()}/content.item.get`, {
+    headers: headers(),
+    data: { itemId },
+  });
+  expect(edited.ok(), await edited.text()).toBe(true);
+  const { revision: afterEdit } = (await edited.json()) as { revision: { document: any } };
+  expect(afterEdit.document.blocks[0].id).toBe(revision.document.blocks[0].id);
+  expect(afterEdit.document.blocks[0].props.content.nl).toEqual({
+    ...rich,
+    content: rich.content.map((node) =>
+      node.type === 'ordered_list'
+        ? {
+            ...node,
+            content: [
+              {
+                type: 'list_item',
+                content: [
+                  {
+                    type: 'paragraph',
+                    content: [
+                      { type: 'text', text: 'Derde', marks: [{ type: 'bold' }] },
+                      { type: 'text', text: ' punt aangevuld' },
+                    ],
+                  },
+                ],
+              },
+            ],
+          }
+        : node
+    ),
+  });
+  expect(afterEdit.document.blocks[0].props.content.en).toEqual(
     revision.document.blocks[0].props.content.en
   );
 });

@@ -59,6 +59,22 @@ const fromTiptap = (value: unknown): unknown => {
     );
     return { type, attrs };
   }
+  if (type === 'ordered_list') {
+    const normalized: Record<string, unknown> = { ...node, type };
+    if (normalized.attrs && typeof normalized.attrs === 'object') {
+      // TipTap adds `type: null` and a default start of 1; neither belongs to stored rich text.
+      const attrs = Object.fromEntries(
+        Object.entries(normalized.attrs).filter(
+          ([key, entry]) => !(key === 'type' && entry === null) && !(key === 'start' && entry === 1)
+        )
+      );
+      if (Object.keys(attrs).length) normalized.attrs = attrs;
+      else delete normalized.attrs;
+    }
+    return Object.fromEntries(
+      Object.entries(normalized).map(([key, item]) => [key, fromTiptap(item)])
+    );
+  }
   return Object.fromEntries(
     Object.entries('type' in node ? { ...node, type } : node).map(([key, item]) => [
       key,
