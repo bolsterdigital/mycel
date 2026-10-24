@@ -24,9 +24,9 @@ export const SettingsView = z.object({
 });
 
 export const SuggestionView = z.object({
-  id: z.string().uuid(),
-  itemId: z.string().uuid(),
-  baseRevisionId: z.string().uuid(),
+  id: z.string().guid(),
+  itemId: z.string().guid(),
+  baseRevisionId: z.string().guid(),
   blockId: z.string(),
   locale: z.string(),
   status: z.enum(['pending', 'ready', 'failed', 'accepted', 'dismissed']),

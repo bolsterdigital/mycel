@@ -13,7 +13,7 @@ import { AltResult, SettingsView, SuggestionView } from './model.js';
 import type { AssistSettings, AssistSuggestion } from './ports.js';
 import './ports.js';
 
-const uuid = z.string().uuid();
+const uuid = z.string().guid();
 const exampleId = '01900000-0000-7000-8000-000000000001';
 const iso = (date: Date | null) => date?.toISOString() ?? null;
 const settingsView = (settings: AssistSettings, provider: string | null) => ({

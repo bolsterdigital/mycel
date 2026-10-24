@@ -97,7 +97,7 @@ export const Seo = z
     description: localized(z.string().min(1).max(500)).optional(),
     noindex: z.boolean().default(false),
     canonical: CanonicalUrl.optional(),
-    imageId: z.string().uuid().optional(),
+    imageId: z.string().guid().optional(),
   })
   .strict();
 
@@ -110,7 +110,7 @@ export const Teaser = z.union([
 export const Access = z
   .object({
     level: z.enum(['public', 'members', 'tier']),
-    tierIds: z.array(z.string().uuid()).min(1).max(20).optional(),
+    tierIds: z.array(z.string().guid()).min(1).max(20).optional(),
     teaser: Teaser.default('lead'),
   })
   .strict();
@@ -152,8 +152,9 @@ function documentSchemas<B extends typeof Block | typeof BlockInput>(block: B) {
     defaultLocale: Locale,
     locales: LocaleList,
     blocks: z.array(block).max(1000),
-    seo: Seo.default({}),
-    access: Access.default({ level: 'public' }),
+    // Zod 4 defaults return directly; prefault keeps parsing the nested defaults as Zod 3 did.
+    seo: Seo.prefault({}),
+    access: Access.prefault({ level: 'public' }),
   };
   const page = z.object({ type: z.literal('page'), ...base }).strict();
   const article = z
@@ -162,14 +163,14 @@ function documentSchemas<B extends typeof Block | typeof BlockInput>(block: B) {
       ...base,
       lead: localized(z.string().min(1).max(1000)).optional(),
       authorIds: z
-        .array(z.string().uuid())
+        .array(z.string().guid())
         .max(20)
         .refine((a) => new Set(a).size === a.length, 'content.authors.duplicate')
         .default([]),
-      sectionId: z.string().uuid().nullable().default(null),
+      sectionId: z.string().guid().nullable().default(null),
       tags: Tags.default([]),
       corrections: z.array(Correction).max(100).default([]),
-      delivery: Delivery.default({}),
+      delivery: Delivery.prefault({}),
     })
     .strict();
   return z.discriminatedUnion('type', [page, article]).superRefine((doc, ctx) => {
@@ -315,25 +316,25 @@ const Timestamp = z.string().datetime({ offset: true });
 export const LocalePublication = z.object({
   locale: Locale,
   status: LocaleStatus,
-  publishedRevisionId: z.string().uuid().nullable(),
+  publishedRevisionId: z.string().guid().nullable(),
   publishedAt: Timestamp.nullable(),
   firstPublishedAt: Timestamp.nullable(),
-  scheduledRevisionId: z.string().uuid().nullable(),
+  scheduledRevisionId: z.string().guid().nullable(),
   scheduledFor: Timestamp.nullable(),
-  scheduleId: z.string().uuid().nullable(),
+  scheduleId: z.string().guid().nullable(),
   /** Published, and the latest revision is not the published one (ADR 018 rule 3). */
   hasUnpublishedChanges: z.boolean(),
 });
 export type LocalePublication = z.infer<typeof LocalePublication>;
 
 export const ContentItem = z.object({
-  id: z.string().uuid(),
+  id: z.string().guid(),
   type: ContentType,
   slug: Slug,
   title: localized(z.string()),
   defaultLocale: Locale,
   locales: z.array(Locale),
-  latestRevisionId: z.string().uuid(),
+  latestRevisionId: z.string().guid(),
   createdAt: Timestamp,
   updatedAt: Timestamp,
   publication: z.array(LocalePublication),
@@ -341,13 +342,13 @@ export const ContentItem = z.object({
 export type ContentItem = z.infer<typeof ContentItem>;
 
 export const Revision = z.object({
-  id: z.string().uuid(),
-  itemId: z.string().uuid(),
+  id: z.string().guid(),
+  itemId: z.string().guid(),
   createdAt: Timestamp,
   actor: Actor,
   provenance: z
     .object({
-      suggestionId: z.string().uuid(),
+      suggestionId: z.string().guid(),
       task: z.enum(['alt', 'translate']),
       provider: z.string(),
       model: z.string(),
@@ -368,7 +369,7 @@ export const AuthorInput = z
   .object({
     name: z.string().min(1).max(200),
     bio: localized(z.string().min(1).max(5000)).optional(),
-    imageId: z.string().uuid().optional(),
+    imageId: z.string().guid().optional(),
     links: z
       .array(z.object({ label: z.string().min(1).max(100), url: CanonicalUrl }).strict())
       .max(10)
@@ -377,7 +378,7 @@ export const AuthorInput = z
   })
   .strict();
 export const Author = AuthorInput.extend({
-  id: z.string().uuid(),
+  id: z.string().guid(),
   slug: Slug,
   createdAt: Timestamp,
   updatedAt: Timestamp,
@@ -392,7 +393,7 @@ export const SectionInput = z
   })
   .strict();
 export const Section = SectionInput.extend({
-  id: z.string().uuid(),
+  id: z.string().guid(),
   slug: Slug,
   createdAt: Timestamp,
   updatedAt: Timestamp,
@@ -416,7 +417,7 @@ export const PatternInput = z
   .strict();
 export type PatternInput = z.infer<typeof PatternInput>;
 export const Pattern = PatternInput.extend({
-  id: z.string().uuid(),
+  id: z.string().guid(),
   blocks: z.array(Block),
   createdAt: Timestamp,
   updatedAt: Timestamp,

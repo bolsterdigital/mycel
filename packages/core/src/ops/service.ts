@@ -100,8 +100,8 @@ export const getOpsStatus = defineUseCase({
   },
 });
 
-const JobId = z.object({ id: z.string().uuid() }).strict();
-const Recovered = z.object({ id: z.string().uuid() });
+const JobId = z.object({ id: z.string().guid() }).strict();
+const Recovered = z.object({ id: z.string().guid() });
 
 function recovered(result: RecoveryResult, id: string): { id: string } {
   if (result === 'not_found') throw new UseCaseError('not_found', 'no job with that id');

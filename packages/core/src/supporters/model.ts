@@ -8,7 +8,7 @@ import { z } from 'zod';
 import type { SupporterEvent } from './events.js';
 
 export const SupporterProjection = z.object({
-  id: z.string().uuid(),
+  id: z.string().guid(),
   email: z.string().email(),
   firstSeen: z.string().datetime({ offset: true }),
   lastActivity: z.string().datetime({ offset: true }),

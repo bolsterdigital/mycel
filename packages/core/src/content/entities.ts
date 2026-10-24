@@ -73,7 +73,7 @@ export const updateAuthor = defineUseCase({
   description: 'Replace the fields of an author profile; the slug stays as it is.',
   requires: 'content:write',
   authenticatedOnly: true,
-  input: AuthorInput.extend({ authorId: z.string().uuid() }),
+  input: AuthorInput.extend({ authorId: z.string().guid() }),
   output: Author,
   examples: [{ input: { authorId: ExampleId, name: 'Sam de Vries' } }],
   async handler(ctx, { authorId, ...fields }) {
@@ -97,7 +97,7 @@ export const getAuthor = defineUseCase({
   description: 'Get an author profile, including its internal e-mail address.',
   requires: 'content:read',
   authenticatedOnly: true,
-  input: z.object({ authorId: z.string().uuid() }),
+  input: z.object({ authorId: z.string().guid() }),
   output: Author,
   examples: [{ input: { authorId: ExampleId } }],
   async handler(ctx, { authorId }) {
@@ -111,8 +111,8 @@ export const listAuthors = defineUseCase({
   description: 'List author profiles newest first, a page at a time.',
   requires: 'content:read',
   authenticatedOnly: true,
-  input: z.object({ after: z.string().uuid().optional(), limit: Limit }),
-  output: z.object({ authors: z.array(Author), next: z.string().uuid().nullable() }),
+  input: z.object({ after: z.string().guid().optional(), limit: Limit }),
+  output: z.object({ authors: z.array(Author), next: z.string().guid().nullable() }),
   examples: [{ input: {} }],
   async handler(ctx, { after, limit }) {
     const page = await ctx.authors.list(after ?? null, limit ?? DEFAULT_PAGE_SIZE);
@@ -151,7 +151,7 @@ export const updateSection = defineUseCase({
   description: 'Replace the title, description and order of a section; the slug stays as it is.',
   requires: 'content:write',
   authenticatedOnly: true,
-  input: SectionInput.extend({ sectionId: z.string().uuid() }),
+  input: SectionInput.extend({ sectionId: z.string().guid() }),
   output: Section,
   examples: [{ input: { sectionId: ExampleId, title: { nl: 'Politiek' } } }],
   async handler(ctx, { sectionId, ...fields }) {
@@ -175,7 +175,7 @@ export const getSection = defineUseCase({
   description: 'Get a section.',
   requires: 'content:read',
   authenticatedOnly: true,
-  input: z.object({ sectionId: z.string().uuid() }),
+  input: z.object({ sectionId: z.string().guid() }),
   output: Section,
   examples: [{ input: { sectionId: ExampleId } }],
   async handler(ctx, { sectionId }) {
@@ -189,8 +189,8 @@ export const listSections = defineUseCase({
   description: 'List sections newest first, a page at a time.',
   requires: 'content:read',
   authenticatedOnly: true,
-  input: z.object({ after: z.string().uuid().optional(), limit: Limit }),
-  output: z.object({ sections: z.array(Section), next: z.string().uuid().nullable() }),
+  input: z.object({ after: z.string().guid().optional(), limit: Limit }),
+  output: z.object({ sections: z.array(Section), next: z.string().guid().nullable() }),
   examples: [{ input: {} }],
   async handler(ctx, { after, limit }) {
     const page = await ctx.sections.list(after ?? null, limit ?? DEFAULT_PAGE_SIZE);
@@ -261,7 +261,7 @@ export const updatePattern = defineUseCase({
   description: 'Replace a pattern; documents created from it earlier keep their own copy.',
   requires: 'content:write',
   authenticatedOnly: true,
-  input: PatternInput.extend({ patternId: z.string().uuid() }),
+  input: PatternInput.extend({ patternId: z.string().guid() }),
   output: Pattern,
   examples: [
     {
@@ -295,7 +295,7 @@ export const getPattern = defineUseCase({
   description: 'Get a pattern with its block tree.',
   requires: 'content:read',
   authenticatedOnly: true,
-  input: z.object({ patternId: z.string().uuid() }),
+  input: z.object({ patternId: z.string().guid() }),
   output: Pattern,
   examples: [{ input: { patternId: ExampleId } }],
   async handler(ctx, { patternId }) {
@@ -309,8 +309,8 @@ export const listPatterns = defineUseCase({
   description: 'List patterns newest first, a page at a time.',
   requires: 'content:read',
   authenticatedOnly: true,
-  input: z.object({ after: z.string().uuid().optional(), limit: Limit }),
-  output: z.object({ patterns: z.array(Pattern), next: z.string().uuid().nullable() }),
+  input: z.object({ after: z.string().guid().optional(), limit: Limit }),
+  output: z.object({ patterns: z.array(Pattern), next: z.string().guid().nullable() }),
   examples: [{ input: {} }],
   async handler(ctx, { after, limit }) {
     const page = await ctx.patterns.list(after ?? null, limit ?? DEFAULT_PAGE_SIZE);

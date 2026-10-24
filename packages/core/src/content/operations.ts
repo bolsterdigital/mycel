@@ -39,7 +39,7 @@ import {
 } from './service.js';
 import './ports.js';
 
-const ItemId = z.string().uuid();
+const ItemId = z.string().guid();
 const Limit = z.number().int().min(1).max(100).optional();
 
 /** Where a block goes: next to an id, or at the start or end of the document's block list. */
@@ -50,7 +50,7 @@ const Placement = z.union([
 ]);
 type Placement = z.infer<typeof Placement>;
 
-const Target = { itemId: ItemId, baseRevisionId: z.string().uuid() };
+const Target = { itemId: ItemId, baseRevisionId: z.string().guid() };
 
 const OperationResult = ItemWithRevision.extend({
   /** Ids that did not exist in the base revision. */
@@ -275,7 +275,7 @@ export const splitInsertBlock = defineUseCase({
     }),
 });
 
-const ReferenceFilter = z.object({ type: z.enum(REFERENCE_TYPES), id: z.string().uuid() });
+const ReferenceFilter = z.object({ type: z.enum(REFERENCE_TYPES), id: z.string().guid() });
 
 export const findItems = defineUseCase({
   name: 'content.item.find',
@@ -289,13 +289,13 @@ export const findItems = defineUseCase({
     ref: ReferenceFilter.optional(),
     live: z.boolean().optional(),
     type: ContentType.optional(),
-    after: z.string().uuid().optional(),
+    after: z.string().guid().optional(),
     limit: Limit,
   }),
   output: z.object({
     items: z.array(ContentItem),
-    matches: z.array(z.object({ itemId: z.string().uuid(), blockIds: z.array(z.string()) })),
-    next: z.string().uuid().nullable(),
+    matches: z.array(z.object({ itemId: z.string().guid(), blockIds: z.array(z.string()) })),
+    next: z.string().guid().nullable(),
   }),
   examples: [
     { input: { blockType: 'signup-form' } },
