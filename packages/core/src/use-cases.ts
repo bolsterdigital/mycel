@@ -3,6 +3,16 @@
 
 import { listAudit } from './audit/service.js';
 import {
+  createConnection,
+  disconnectConnection,
+  getConnection,
+  listConnections,
+  pauseConnection,
+  replaceConnectionCredential,
+  resumeConnection,
+  updateConnection,
+} from './connections/service.js';
+import {
   acceptSuggestion,
   dismissSuggestion,
   getAssistSettings,
@@ -73,6 +83,14 @@ import {
 import { listExports, requestExport } from './tenants/exports.js';
 
 export const useCases = {
+  listConnections,
+  getConnection,
+  createConnection,
+  updateConnection,
+  pauseConnection,
+  resumeConnection,
+  disconnectConnection,
+  replaceConnectionCredential,
   getAssistSettings,
   updateAssistSettings,
   suggestAlt,

@@ -103,7 +103,12 @@ export async function claimJobs(
   {
     batchSize = 10,
     types,
-  }: { batchSize?: number | undefined; types?: readonly string[] | undefined } = {}
+    tenantId,
+  }: {
+    batchSize?: number | undefined;
+    types?: readonly string[] | undefined;
+    tenantId?: string | undefined;
+  } = {}
 ): Promise<JobRecord[]> {
   const only = types ? [...types] : null;
   return asWorker(operatorDb, async (trx) => {
@@ -115,6 +120,7 @@ export async function claimJobs(
           and (claimed_at is null
                or claimed_at < now() - make_interval(secs => ${JOB_LEASE_SECONDS}))
           and (${only}::text[] is null or type = any(${only}::text[]))
+          and (${tenantId ?? null}::uuid is null or tenant_id = ${tenantId ?? null}::uuid)
         order by run_at, id
         limit ${batchSize}
         for update skip locked)
@@ -283,19 +289,22 @@ export async function runJobs(
   {
     batchSize,
     types,
+    tenantId,
     onError,
     onRun,
     log = noopLogger,
   }: {
     batchSize?: number;
     types?: readonly string[];
+    /** Narrow a test run to its own tenant; production workers leave this unset. */
+    tenantId?: string;
     onError?: (e: unknown, job: JobRecord) => void;
     /** Each job's result, for the `mycel_jobs_runs_total` counter. */
     onRun?: ((job: JobRecord, outcome: JobRunOutcome) => void) | undefined;
     log?: Logger;
   } = {}
 ): Promise<JobRunResult> {
-  const jobs = await claimJobs(operatorDb, { batchSize, types });
+  const jobs = await claimJobs(operatorDb, { batchSize, types, tenantId });
   const result: JobRunResult = { claimed: jobs.length, completed: 0, failed: 0, superseded: 0 };
   for (const job of jobs) {
     const handler = Object.hasOwn(handlers, job.type) ? handlers[job.type] : undefined;
