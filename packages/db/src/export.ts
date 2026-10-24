@@ -56,6 +56,8 @@ export const EXPORT_FORMAT = 'mycel-tenant-export/1';
  */
 export const TABLES = {
   connections: 'export',
+  connection_intents: 'operational',
+  connection_attempts: 'operational',
   // Credentials are encrypted but still installation-bound secrets; an import reconnects.
   connection_credentials: 'operational',
   tenants: 'platform',

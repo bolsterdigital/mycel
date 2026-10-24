@@ -13,6 +13,8 @@
 // rights.
 
 import {
+  runConnectionIntent,
+  type ConnectionDispatchDeps,
   parseJobPayload,
   publishScheduled,
   purgeMedia,
@@ -212,6 +214,7 @@ export function jobHandlers({
   errors,
   assist,
   exports,
+  connections,
 }: {
   uow: UnitOfWork;
   operatorDb: ReturnType<typeof createDb>;
@@ -228,12 +231,23 @@ export function jobHandlers({
   assist?: { model: TextModel | null; timeoutMs: number; retentionDays: number; clock: Clock };
   /** The export jobs (TODO #28); without it they fail, which suites that build no archive allow. */
   exports?: ExportJobConfig | undefined;
+  connections?: Pick<ConnectionDispatchDeps, 'sources' | 'transport'>;
 }): JobHandlers {
   const exportConfig = (): ExportJobConfig => {
     if (!exports) throw new Error('the export jobs are not configured in this worker');
     return exports;
   };
   return {
+    'connections.run': async (job) => {
+      if (!job.tenantId) throw new Error('connections.run requires a tenant');
+      const { intentId } = parseJobPayload('connections.run', job.payload);
+      if (!connections) throw new Error('connection transport is not configured');
+      return runConnectionIntent(
+        { uow, identity, clock: mail.clock, ...connections },
+        job.tenantId,
+        intentId
+      );
+    },
     'assist.run': async (job) => {
       if (!job.tenantId) throw new Error('assist.run needs a tenant');
       const { suggestionId } = parseJobPayload('assist.run', job.payload);

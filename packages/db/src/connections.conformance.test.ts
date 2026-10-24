@@ -3,8 +3,22 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
-import { Invoker, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
-import { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } from '@mycel/core/testing';
+import {
+  Invoker,
+  buildRegistry,
+  systemPrincipal,
+  useCases,
+  planConnectionIntent,
+  runConnectionIntent,
+} from '@mycel/core';
+import {
+  FakeDns,
+  FakeInputHasher,
+  FakeSigner,
+  memoryPlatform,
+  FakeClock,
+  FakeConnectionTransport,
+} from '@mycel/core/testing';
 import {
   createDb,
   createUnitOfWork,
@@ -16,12 +30,16 @@ import {
   upsertTenant,
   uuidv7,
   uuidv7Ids,
+  applyErasures,
+  withTenant,
 } from './index.js';
 
 const operatorUrl = process.env['DATABASE_URL'];
 const appUrl = process.env['APP_DATABASE_URL'];
 if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
   throw new Error('E2E_REQUIRED=1 but database URLs are unset');
+
+import { closeTenantWork } from './testing.js';
 
 const key = '10'.repeat(32);
 const input = {
@@ -59,8 +77,9 @@ it('authenticates credential ciphertext to tenant, connection and version', () =
 describe.skipIf(!operatorUrl || !appUrl)('managed connection storage', () => {
   const operatorDb = createDb(operatorUrl ?? '');
   const appDb = createDb(appUrl ?? '');
+  const clock = new FakeClock(new Date());
   const uow = createUnitOfWork(appDb, {
-    clock: { now: () => new Date() },
+    clock,
     ids: uuidv7Ids,
     signer: new FakeSigner(),
     inputHasher: new FakeInputHasher(),
@@ -93,6 +112,8 @@ describe.skipIf(!operatorUrl || !appUrl)('managed connection storage', () => {
     b = await tenant(`connections-b-${suffix}`);
   });
   afterAll(async () => {
+    if (a) await closeTenantWork(operatorDb, [a]);
+    if (b) await closeTenantWork(operatorDb, [b]);
     await operatorDb.destroy();
     await appDb.destroy();
   });
@@ -174,5 +195,140 @@ describe.skipIf(!operatorUrl || !appUrl)('managed connection storage', () => {
         .where('connection_id', '=', created.id)
         .executeTakeFirst()
     ).toBeUndefined();
+  });
+
+  async function planned() {
+    const p = systemPrincipal(a, 'connection-conformance');
+    let c = await invoker.run(useCases.createConnection, p, input);
+    c = await invoker.run(useCases.replaceConnectionCredential, p, {
+      id: c.id,
+      baseVersion: c.version,
+      secret: 'test-only',
+    });
+    c = await invoker.run(useCases.resumeConnection, p, { id: c.id, baseVersion: c.version });
+    const supporterId = uuidv7();
+    const at = clock.now().toISOString();
+    await uow.run(p, (ctx) =>
+      ctx.supporters.saveProjection({
+        id: supporterId,
+        email: `${supporterId}@example.org`,
+        lists: ['newsletter:main'],
+        pendingLists: [],
+        firstSeen: at,
+        lastActivity: at,
+        appliedThrough: { at, id: 'fixture' },
+      })
+    );
+    const request = {
+      connectionId: c.id,
+      connectionVersion: c.version,
+      businessId: uuidv7(),
+      source: 'fixture',
+      mappingVersion: 'v1',
+      supporterId,
+      scope: 'newsletter:main',
+    };
+    return { p, c, request };
+  }
+
+  it('rolls back intent and job together, deduplicates concurrent inserts, and fences stale updates', async () => {
+    const { p, request } = await planned();
+    let rolledBackId = '';
+    await expect(
+      uow.run(p, async (ctx) => {
+        rolledBackId = (await planConnectionIntent(ctx, request)).id;
+        throw new Error('rollback');
+      })
+    ).rejects.toThrow('rollback');
+    expect(
+      await uow.run(p, (ctx) =>
+        ctx.connectionIntents.byBusiness(request.connectionId, request.businessId)
+      )
+    ).toBeNull();
+    expect(
+      await withTenant(appDb, p, (trx) =>
+        trx
+          .selectFrom('jobs')
+          .select('id')
+          .where('key', '=', `connections.run:${a}:${rolledBackId}`)
+          .execute()
+      )
+    ).toEqual([]);
+    const rows = await Promise.all([
+      uow.run(p, (ctx) => planConnectionIntent(ctx, request)),
+      uow.run(p, (ctx) => planConnectionIntent(ctx, request)),
+    ]);
+    const row = rows[0]!;
+    expect(rows[1]?.id).toBe(row.id);
+    const jobs = await withTenant(appDb, p, (trx) =>
+      trx
+        .selectFrom('jobs')
+        .select('id')
+        .where('tenant_id', '=', a)
+        .where('key', '=', `connections.run:${a}:${row.id}`)
+        .execute()
+    );
+    expect(jobs).toHaveLength(1);
+    const [first, second] = await Promise.all([
+      uow.run(p, (ctx) =>
+        ctx.connectionIntents.replace({ ...row, state: 'unknown' }, row.revision)
+      ),
+      uow.run(p, (ctx) =>
+        ctx.connectionIntents.replace({ ...row, state: 'unknown' }, row.revision)
+      ),
+    ]);
+    expect([first, second].filter(Boolean)).toHaveLength(1);
+    expect(
+      await uow.run(systemPrincipal(b, 'test'), (ctx) => ctx.connectionIntents.get(row.id))
+    ).toBeNull();
+    expect(
+      await uow.run(systemPrincipal(b, 'test'), (ctx) =>
+        ctx.connectionIntents.replace({ ...row, state: 'succeeded' }, 1)
+      )
+    ).toBe(false);
+    expect(TABLES.connection_intents).toBe('operational');
+    expect(TABLES.connection_attempts).toBe('operational');
+  });
+
+  it('recovers committed uncertainty under RLS without a second effect and detaches erased references', async () => {
+    const { p, request } = await planned();
+    const row = await uow.run(p, (ctx) => planConnectionIntent(ctx, request));
+    const transport = new FakeConnectionTransport();
+    transport.result = 'unknown';
+    const deps = {
+      uow,
+      clock,
+      transport,
+      identity: {
+        tenantAccess: async () => ({ status: 'active' as const, entitlements: p.entitlements }),
+      },
+      sources: {
+        fixture: { prepare: async () => ({ ready: true as const, payload: { synthetic: true } }) },
+      },
+    };
+    await runConnectionIntent(deps, b, row.id);
+    expect(transport.dispatched).toHaveLength(0);
+    await Promise.all([runConnectionIntent(deps, a, row.id), runConnectionIntent(deps, a, row.id)]);
+    expect(transport.dispatched).toHaveLength(1);
+    clock.advance(120_000);
+    transport.lookup = 'succeeded';
+    await runConnectionIntent(deps, a, row.id);
+    expect(transport.reconciled).toHaveLength(1);
+    expect(await uow.run(p, (ctx) => ctx.connectionIntents.get(row.id))).toMatchObject({
+      state: 'succeeded',
+    });
+    expect(
+      await uow.run(systemPrincipal(b, 'test'), (ctx) => ctx.connectionIntents.attempts(row.id))
+    ).toEqual([]);
+    expect(await uow.run(p, (ctx) => ctx.connectionIntents.attempts(row.id))).toHaveLength(4);
+    await uow.run(p, (ctx) =>
+      ctx.erasures.register(request.supporterId, `${request.supporterId}@example.org`)
+    );
+    await applyErasures(operatorDb, a);
+    expect(await uow.run(p, (ctx) => ctx.connectionIntents.get(row.id))).toMatchObject({
+      state: 'succeeded',
+      supporterId: null,
+      failure: 'erasure',
+    });
   });
 });

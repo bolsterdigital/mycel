@@ -227,6 +227,38 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
       baseVersion: connection.version,
       secret: 'fixture-only',
     });
+    await uow.run(admin, async (ctx) => {
+      const intentId = uuidv7();
+      await ctx.connectionIntents.insert({
+        id: intentId,
+        connectionId: connection.id,
+        businessId: uuidv7(),
+        connectionVersion: 2,
+        credentialVersion: 1,
+        source: 'fixture',
+        mappingVersion: 'v1',
+        supporterId: null,
+        scope: 'newsletter:rls',
+        actor: { kind: 'system', id: 'rls' },
+        key: intentId,
+        state: 'blocked',
+        failure: 'erasure',
+        attempts: 0,
+        revision: 0,
+        leaseToken: null,
+        leaseUntil: null,
+        nextAt: clock.now(),
+        createdAt: clock.now(),
+        updatedAt: clock.now(),
+      });
+      await ctx.connectionIntents.record({
+        id: uuidv7(),
+        intentId,
+        at: clock.now(),
+        kind: 'dispatch',
+        outcome: 'blocked',
+      });
+    });
     const formId = uuidv7();
     await uow.run(admin, (ctx) => ctx.forms.insert(probeForm(formId)));
     // Content (0011): an item with its revision and locale rows, plus an author, a section and

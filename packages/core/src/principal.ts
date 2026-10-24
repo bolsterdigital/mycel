@@ -30,6 +30,7 @@ export const Capability = z.enum([
   'connections:read',
   'connections:configure',
   'connections:credentials',
+  'connections:replay',
   'tenant:admin',
 ]);
 export type Capability = z.infer<typeof Capability>;

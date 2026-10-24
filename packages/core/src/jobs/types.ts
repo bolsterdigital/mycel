@@ -8,6 +8,7 @@
 import { z } from 'zod';
 
 export const JobPayloads = {
+  'connections.run': z.object({ intentId: z.string().guid() }).strict(),
   /** Tenant job: evaluate one pending proposal outside the request transaction. */
   'assist.run': z.object({ suggestionId: z.string().guid() }).strict(),
   /** Platform job: visit each tenant separately to remove expired proposals. */

@@ -78,3 +78,6 @@ export * from './audit/service.js';
 export * from './ops/model.js';
 export * from './ops/ports.js';
 export * from './ops/service.js';
+
+export * from './connections/intents.js';
+export * from './connections/dispatch.js';

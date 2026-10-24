@@ -105,6 +105,12 @@ async function eraseRows(trx: Trx): Promise<number> {
   const registered = await trx.selectFrom('erasures').select('supporter_id').execute();
   if (!registered.length) return 0;
   const ids = registered.map((r) => r.supporter_id);
+  // No address or provider payload is stored. Detach the pseudonymous supporter reference while
+  // retaining honest external uncertainty; an erasure never claims the provider deleted a copy.
+  const intentChanges = await sql`update connection_intents set supporter_id = null,
+    state = case when state in ('unknown','succeeded') then state else 'blocked' end,
+    failure = 'erasure', lease_token = null, lease_until = null, revision = revision + 1
+    where supporter_id = any(${ids}::uuid[])`.execute(trx);
   const addresses = (
     await sql<{ a: string }>`
       with reg as (select supporter_id, email_hash from erasures)
@@ -125,7 +131,7 @@ async function eraseRows(trx: Trx): Promise<number> {
   const carries = (column: string) =>
     sql`exists (select from unnest(${addresses}::text[]) a where strpos(lower(${sql.raw(column)}::text), a) > 0)`;
 
-  let changed = 0;
+  let changed = Number(intentChanges.numAffectedRows ?? 0n);
   const count = (r: { numAffectedRows?: bigint }) => (changed += Number(r.numAffectedRows ?? 0n));
 
   count(
