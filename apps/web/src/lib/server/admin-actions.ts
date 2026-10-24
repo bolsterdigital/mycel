@@ -94,19 +94,31 @@ export async function act<T>(
       id: text(data, 'id'),
       ...(details ? await details(e, principal, data) : {}),
     };
-    if (e.code === 'limit_exceeded')
-      return fail(statusOf[e.code], { action, ...limitFailure(e, action), ...extra });
-    if (e.code === 'suspended')
-      return fail(statusOf[e.code], { action, error: 'admin.error.suspended' as UiKey, ...extra });
-    const issue = copy.issues?.[e.issues[0]?.message ?? ''];
-    const error: UiKey =
-      e.code === 'conflict'
-        ? copy.conflict
-        : e.code === 'not_found'
-          ? (copy.notFound ?? 'admin.error.notFound')
-          : e.code === 'forbidden'
-            ? 'admin.error.forbidden'
-            : (issue ?? copy.invalid ?? 'admin.error.invalid');
-    return fail(statusOf[e.code], { action, error, ...extra });
+    const { status, body } = failureOf(e, action, copy);
+    return fail(status, { ...body, ...extra });
   }
+}
+
+/**
+ * The status and catalog copy of a UseCaseError, for an action that builds its own failure (the
+ * content admin re-renders a whole form from the posted values).
+ */
+export function failureOf(
+  e: UseCaseError,
+  action: string,
+  copy: ActionCopy
+): { status: number; body: { action: string; error: UiKey; what?: UiKey } } {
+  const status = statusOf[e.code];
+  if (e.code === 'limit_exceeded') return { status, body: { action, ...limitFailure(e, action) } };
+  if (e.code === 'suspended') return { status, body: { action, error: 'admin.error.suspended' } };
+  const issue = copy.issues?.[e.issues[0]?.message ?? ''];
+  const error: UiKey =
+    e.code === 'conflict'
+      ? copy.conflict
+      : e.code === 'not_found'
+        ? (copy.notFound ?? 'admin.error.notFound')
+        : e.code === 'forbidden'
+          ? 'admin.error.forbidden'
+          : (issue ?? copy.invalid ?? 'admin.error.invalid');
+  return { status, body: { action, error } };
 }

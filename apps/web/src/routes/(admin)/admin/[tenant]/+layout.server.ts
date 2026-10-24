@@ -6,7 +6,12 @@ import type { LayoutServerLoad } from './$types';
 export const load: LayoutServerLoad = async ({ locals, url, params }) => {
   const { tenant, principal, session } = await requireTenantPrincipal(locals, url, params.tenant);
   return {
-    tenant: { slug: tenant.slug, name: tenant.name },
+    tenant: {
+      slug: tenant.slug,
+      name: tenant.name,
+      locales: tenant.locales,
+      defaultLocale: tenant.defaultLocale,
+    },
     capabilities: principal.capabilities,
     email: session.email,
   };

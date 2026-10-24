@@ -1,6 +1,7 @@
 <!-- The block list of one render model: one component per type, nothing resolved here. `paywall`
      renders nothing (the teaser boundary of #19), and a block whose reference did not resolve
-     (restricted or deleted image, unknown form) renders nothing either. -->
+     (restricted or deleted image, unknown form) renders nothing either. `preview` is the admin
+     preview's note for forms (#11), which then do not post. -->
 <script lang="ts">
   import type { FormState, RenderModel } from './model.js';
   import Callout from './Callout.svelte';
@@ -14,7 +15,11 @@
   import RichText from './RichText.svelte';
   import VideoEmbed from './VideoEmbed.svelte';
 
-  let { model, formState = null }: { model: RenderModel; formState?: FormState | null } = $props();
+  let {
+    model,
+    formState = null,
+    preview = null,
+  }: { model: RenderModel; formState?: FormState | null; preview?: string | null } = $props();
 
   // The first image of the page loads eagerly: it is likely above the fold.
   const firstImage = $derived(
@@ -51,6 +56,7 @@
         width={block.width}
         {model}
         state={formState}
+        {preview}
       />
     {/if}
   {/if}

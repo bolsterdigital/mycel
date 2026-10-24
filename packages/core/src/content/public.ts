@@ -10,6 +10,9 @@
 // a shared cache needs no `Vary`. Without one, the item's default locale if it is published,
 // else the first published one; an asked locale that is not published is `not_found`.
 //
+// The projection itself is `projectDocument`, a pure function the admin preview (#11) shares, so
+// a preview shows a draft exactly as this route would show it once published.
+//
 // Rejected: returning the whole revision and letting the front pick a locale (an unpublished
 // English draft would be in the HTML's data and the MCP output), falling back to the latest
 // revision when nothing is published (a frontend must never promote a draft on its own), and
@@ -19,8 +22,8 @@ import { z } from 'zod';
 import { UseCaseError } from '../errors.js';
 import { Locale } from '../i18n/locale.js';
 import { defineUseCase } from '../registry.js';
-import { Block, projectBlock } from './blocks.js';
-import { ContentType, Slug } from './model.js';
+import { Block, blockLocalized, projectBlock } from './blocks.js';
+import { ContentType, Slug, type ContentDocument } from './model.js';
 import { statusOf } from './lifecycle.js';
 import './ports.js';
 
@@ -61,6 +64,24 @@ export function contentPath(
   return `${prefix}${item.type === 'article' ? '/articles' : ''}/${item.slug}`;
 }
 
+/**
+ * One locale of a document: its title and the blocks reduced to that locale's values. A block
+ * that lacks a required value in the locale is left out: a published locale passed
+ * `readinessIssues`, so that never happens there, and a preview of an unfinished translation
+ * shows what exists instead of an empty block.
+ */
+export function projectDocument(
+  doc: Pick<ContentDocument, 'title' | 'blocks'>,
+  locale: string
+): { title: string; blocks: Block[] } {
+  return {
+    title: doc.title[locale] ?? '',
+    blocks: doc.blocks
+      .filter((b) => blockLocalized(b).every((f) => !f.required || f.value[locale] !== undefined))
+      .map((b) => projectBlock(b, locale)),
+  };
+}
+
 export const getPublished = defineUseCase({
   name: 'content.published.get',
   kind: 'query',
@@ -92,8 +113,7 @@ export const getPublished = defineUseCase({
       revisionId: revision.id,
       locale: chosen,
       locales: published,
-      title: doc.title[chosen] ?? '',
-      blocks: doc.blocks.map((b) => projectBlock(b, chosen)),
+      ...projectDocument(doc, chosen),
       publishedAt: state.publishedAt!.toISOString(),
       updatedAt: revision.createdAt,
     };
