@@ -28,10 +28,10 @@ import { statusOf } from './lifecycle.js';
 import './ports.js';
 
 export const PublishedItem = z.object({
-  id: z.string().uuid(),
+  id: z.string().guid(),
   type: ContentType,
   slug: Slug,
-  revisionId: z.string().uuid(),
+  revisionId: z.string().guid(),
   /** The one locale this projection carries. */
   locale: Locale,
   /** Every locale of the item that is published, for language links. */
@@ -44,7 +44,7 @@ export const PublishedItem = z.object({
   /** Articles only, in this locale. */
   lead: z.string().nullable().optional(),
   corrections: z.array(z.object({ date: z.string().date(), text: z.string() })).optional(),
-  authors: z.array(z.object({ id: z.string().uuid(), slug: Slug, name: z.string() })).optional(),
+  authors: z.array(z.object({ id: z.string().guid(), slug: Slug, name: z.string() })).optional(),
   section: z.object({ slug: Slug, name: z.string() }).nullable().optional(),
 });
 export type PublishedItem = z.infer<typeof PublishedItem>;

@@ -23,7 +23,7 @@ export const getForm = defineUseCase({
   description:
     'Get a form definition by id, plus a fresh signed timing token and proof-of-work challenge for rendering it publicly.',
   requires: 'forms:read',
-  input: z.object({ id: z.string().uuid() }),
+  input: z.object({ id: z.string().guid() }),
   output: z.object({ form: FormDefinition, startedToken: z.string(), proof: ProofChallenge }),
   resource: { uriTemplate: 'mycel://forms/{id}' },
   examples: [{ input: { id: '01900000-0000-7000-8000-00000000f000' } }],

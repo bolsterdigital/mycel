@@ -34,7 +34,7 @@ export const SupporterEvent = z.object({
    * Stable supporter id (ADR 019 rule 1), an envelope addition: ingest assigns it when it resolves
    * the e-mail address, so a backfill or another producer never has to supply it.
    */
-  supporter_id: z.string().uuid().optional(),
+  supporter_id: z.string().guid().optional(),
   type: SupporterEventType,
   /**
    * Lowercased and trimmed; resolves to `supporter_id` at ingest (ADR 019 rule 1). For
@@ -46,6 +46,6 @@ export const SupporterEvent = z.object({
   source_site: z.string().url(),
   source_ref: z.string().min(1),
   /** Type-specific extras. No special-category personal data beyond what the type implies. */
-  props: z.record(z.unknown()).default({}),
+  props: z.record(z.string(), z.unknown()).default({}),
 });
 export type SupporterEvent = z.infer<typeof SupporterEvent>;

@@ -108,7 +108,7 @@ async function validSignature(
 }
 
 export const ExportView = z.object({
-  id: z.string().uuid(),
+  id: z.string().guid(),
   status: ExportStatus,
   requestedBy: z.string(),
   requestedAt: z.string().datetime(),
@@ -156,7 +156,7 @@ export const requestExport = defineUseCase({
   consumes: null,
   authenticatedOnly: true,
   input: z.object({}).strict(),
-  output: z.object({ id: z.string().uuid(), status: ExportStatus, created: z.boolean() }),
+  output: z.object({ id: z.string().guid(), status: ExportStatus, created: z.boolean() }),
   examples: [{ input: {} }],
   async handler(ctx) {
     const now = ctx.clock.now();
@@ -210,7 +210,7 @@ export async function openExportDownload(
   requestId: string | null = null
 ): Promise<ExportDownload | null> {
   if (!can(ctx.principal, 'tenant:admin')) return null;
-  if (!z.string().uuid().safeParse(id).success) return null;
+  if (!z.string().guid().safeParse(id).success) return null;
   const now = ctx.clock.now();
   const tenantId = ctx.principal.tenantId;
   if (!(await validSignature(ctx.signer, tenantId, id, exp, sig, now))) return null;

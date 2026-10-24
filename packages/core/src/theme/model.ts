@@ -38,35 +38,44 @@ export const THEME_RANGES = {
 } as const;
 type RangeName = keyof typeof THEME_RANGES;
 
-const notAllowed = { errorMap: () => ({ message: 'theme.value.not-allowed' }) };
+const notAllowed = { error: 'theme.value.not-allowed' };
+const unknownKey = {
+  error: (issue: { code: string }) =>
+    issue.code === 'unrecognized_keys' ? 'theme.key.unknown' : undefined,
+};
 
 /** An opaque sRGB colour; no alpha, names, functions or CSS expressions. */
 export const ThemeColor = z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'theme.color.invalid');
 
-const RolePair = z
-  .object({ foreground: ThemeColor, background: ThemeColor })
-  .strict('theme.key.unknown');
+const RolePair = z.object({ foreground: ThemeColor, background: ThemeColor }, unknownKey).strict();
 
 export const Palette = z
-  .object({
-    body: RolePair,
-    surface: RolePair,
-    primary: RolePair,
-    accent: RolePair,
-    muted: RolePair,
-    warning: RolePair,
-    /** Link text on body and surface; #8c keeps links underlined. */
-    link: ThemeColor,
-    /** The focus indicator on every role background. */
-    focus: ThemeColor,
-  })
-  .strict('theme.key.unknown');
+  .object(
+    {
+      body: RolePair,
+      surface: RolePair,
+      primary: RolePair,
+      accent: RolePair,
+      muted: RolePair,
+      warning: RolePair,
+      /** Link text on body and surface; #8c keeps links underlined. */
+      link: ThemeColor,
+      /** The focus indicator on every role background. */
+      focus: ThemeColor,
+    },
+    unknownKey
+  )
+  .strict();
 export type Palette = z.infer<typeof Palette>;
 
 const range = (name: RangeName) =>
   z
-    .number(notAllowed)
-    .finite('theme.value.out-of-range')
+    .number({
+      error: (issue) =>
+        issue.input === Infinity || issue.input === -Infinity
+          ? 'theme.value.out-of-range'
+          : 'theme.value.not-allowed',
+    })
     .min(THEME_RANGES[name].min, 'theme.value.out-of-range')
     .max(THEME_RANGES[name].max, 'theme.value.out-of-range');
 
@@ -83,18 +92,21 @@ const HeadingWeight = z.union(
 
 /** The structure of a theme; absent values take the defaults in `resolveTheme`. */
 export const ThemeInput = z
-  .object({
-    version: z.literal(THEME_VERSION, notAllowed).default(THEME_VERSION),
-    palettes: z.object({ light: Palette, dark: Palette }).strict('theme.key.unknown').optional(),
-    fontPair: z.enum(FONT_PAIRS, notAllowed).optional(),
-    baseSize: range('baseSize').optional(),
-    scaleRatio: range('scaleRatio').optional(),
-    measure: range('measure').optional(),
-    radius: range('radius').optional(),
-    density: range('density').optional(),
-    headingWeight: HeadingWeight.optional(),
-  })
-  .strict('theme.key.unknown');
+  .object(
+    {
+      version: z.literal(THEME_VERSION, notAllowed).default(THEME_VERSION),
+      palettes: z.object({ light: Palette, dark: Palette }, unknownKey).strict().optional(),
+      fontPair: z.enum(FONT_PAIRS, notAllowed).optional(),
+      baseSize: range('baseSize').optional(),
+      scaleRatio: range('scaleRatio').optional(),
+      measure: range('measure').optional(),
+      radius: range('radius').optional(),
+      density: range('density').optional(),
+      headingWeight: HeadingWeight.optional(),
+    },
+    unknownKey
+  )
+  .strict();
 export type ThemeInput = z.infer<typeof ThemeInput>;
 
 /** Every value explicit: what the renderer applies and a theme write stores. */

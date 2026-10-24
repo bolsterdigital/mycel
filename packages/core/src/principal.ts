@@ -55,7 +55,7 @@ export const Actor = z.discriminatedUnion('kind', [
 export type Actor = z.infer<typeof Actor>;
 
 export const Principal = z.object({
-  tenantId: z.string().uuid(),
+  tenantId: z.string().guid(),
   actor: Actor,
   capabilities: z.array(Capability),
   /**

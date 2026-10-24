@@ -1,17 +1,73 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { ContentDocumentInput } from './content/model.js';
 import { DEFAULT_ENTITLEMENTS } from './entitlements/model.js';
 import { UseCaseError } from './errors.js';
 import { Invoker } from './invoke.js';
+import { toJsonSchema } from './json-schema.js';
 import { anonymousPrincipal, Capability, systemPrincipal, type Principal } from './principal.js';
 import { checkRegistry } from './registry-rules.js';
 import type { UseCase } from './registry.js';
 import { MemoryUnitOfWork, probeForm, probeTenant } from './testing/index.js';
-import { buildRegistry } from './use-cases.js';
+import { buildRegistry, useCases } from './use-cases.js';
 
 describe('registry conformance', () => {
   it('every registered use case satisfies the registry rules', () => {
     expect(checkRegistry(buildRegistry())).toEqual([]);
+  });
+});
+
+// Dependency upgrades must keep the stored/wire vocabulary while refusing an oversized
+// constrained collection before walking its attacker-controlled elements (GHSA-mrhx-c7xc-m3w5).
+describe('validation boundary', () => {
+  const document = {
+    type: 'article',
+    title: { en: 'A title' },
+    defaultLocale: 'en',
+    locales: ['en'],
+    blocks: [],
+  };
+
+  it('parses nested defaults instead of returning an incomplete default object', () => {
+    expect(ContentDocumentInput.parse(document)).toMatchObject({
+      seo: { noindex: false },
+      access: { level: 'public', teaser: 'lead' },
+      delivery: { web: true },
+      authorIds: [],
+      sectionId: null,
+      tags: [],
+      corrections: [],
+    });
+    expect(ContentDocumentInput.safeParse({ ...document, seo: { css: 'injected' } }).success).toBe(
+      false
+    );
+  });
+
+  it('keeps existing GUID-shaped ids and the UUID wire label', () => {
+    // Zod 3 uuid() accepted this shape without checking the version and variant bits.
+    const id = '12345678-1234-0000-0000-123456789abc';
+    expect(useCases.getItem.input.parse({ itemId: id })).toEqual({ itemId: id });
+    expect(useCases.getItem.input.safeParse({ itemId: 'not-an-id' }).success).toBe(false);
+    expect(toJsonSchema(useCases.getItem.input, 'input').properties).toMatchObject({
+      itemId: { type: 'string', format: 'uuid' },
+    });
+  });
+
+  it('rejects an oversized block array before reading any block', () => {
+    const block = {
+      get type(): string {
+        throw new Error('oversized collection was traversed');
+      },
+    };
+    const result = ContentDocumentInput.safeParse({
+      ...document,
+      blocks: Array.from({ length: 1001 }, () => block),
+    });
+    expect(result.success).toBe(false);
+    if (!result.success)
+      expect(result.error.issues).toEqual([
+        expect.objectContaining({ code: 'too_big', path: ['blocks'], maximum: 1000 }),
+      ]);
   });
 });
 

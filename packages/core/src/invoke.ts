@@ -65,7 +65,7 @@ export class Invoker {
     if (useCase.kind !== 'command') {
       const parsed = admit(useCase as unknown as UseCase, this.registry, principal, input);
       return this.uow.run(principal, async (ctx) =>
-        useCase.output.parse(await useCase.handler(ctx, parsed))
+        useCase.output.parse(await useCase.handler(ctx, parsed as z.infer<I>))
       ) as Promise<z.infer<O>>;
     }
     const requestId = this.options.requestId?.() ?? null;
@@ -75,7 +75,7 @@ export class Invoker {
       const parsed = admit(useCase as unknown as UseCase, this.registry, principal, input);
       hashed = parsed;
       return (await this.uow.run(principal, async (ctx) => {
-        const output = useCase.output.parse(await useCase.handler(ctx, parsed));
+        const output = useCase.output.parse(await useCase.handler(ctx, parsed as z.infer<I>));
         await ctx.audit.record(
           await auditEntry(ctx, useCase as unknown as UseCase, parsed, 'ok', requestId, output)
         );

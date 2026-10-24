@@ -45,7 +45,7 @@ import {
 } from './model.js';
 import './ports.js';
 
-const MediaId = z.string().uuid();
+const MediaId = z.string().guid();
 
 /** Base64 of `MAX_UPLOAD_BYTES`, rounded up to whole quads. */
 const MAX_BASE64 = Math.ceil(MAX_UPLOAD_BYTES / 3) * 4;

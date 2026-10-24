@@ -59,25 +59,15 @@ function blockSchema(id: z.ZodTypeAny): z.ZodTypeAny {
       })
       .strict()
   );
-  return z.discriminatedUnion(
-    'type',
-    options as unknown as [
-      z.ZodDiscriminatedUnionOption<'type'>,
-      ...z.ZodDiscriminatedUnionOption<'type'>[],
-    ]
-  );
+  return z.discriminatedUnion('type', options as unknown as [z.ZodObject, ...z.ZodObject[]]);
 }
 
 /** A stored block: the id is required. */
-export const Block = blockSchema(BlockId) as z.ZodType<StoredBlock, z.ZodTypeDef, StoredBlockIn>;
+export const Block = blockSchema(BlockId) as z.ZodType<StoredBlock, StoredBlockIn>;
 export type Block = StoredBlock;
 
 /** A block as a caller sends it: a new block may omit its id. */
-export const BlockInput = blockSchema(BlockId.optional()) as z.ZodType<
-  NewBlock,
-  z.ZodTypeDef,
-  NewBlockIn
->;
+export const BlockInput = blockSchema(BlockId.optional()) as z.ZodType<NewBlock, NewBlockIn>;
 export type BlockInput = NewBlock;
 
 /** Every block of the tree, depth first. Flat for now: no #8a block has child blocks. */

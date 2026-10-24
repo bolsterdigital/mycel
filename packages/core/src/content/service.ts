@@ -53,7 +53,7 @@ export const DEFAULT_PAGE_SIZE = 20;
 /** How long a scheduled publication of a suspended site waits before it looks again. */
 export const SUSPENDED_RETRY_MS = 24 * 60 * 60 * 1000;
 const Limit = z.number().int().min(1).max(100).optional();
-const ItemId = z.string().uuid();
+const ItemId = z.string().guid();
 
 export function toContentItem(r: ItemRecord): ContentItem {
   const iso = (d: Date | null) => d?.toISOString() ?? null;
@@ -305,7 +305,7 @@ export const createItem = defineUseCase({
   input: z.object({
     slug: Slug,
     document: ContentDocumentInput,
-    patternId: z.string().uuid().optional(),
+    patternId: z.string().guid().optional(),
   }),
   output: ItemWithRevision,
   examples: [
@@ -367,7 +367,7 @@ export const updateItem = defineUseCase({
   authenticatedOnly: true,
   input: z.object({
     itemId: ItemId,
-    baseRevisionId: z.string().uuid(),
+    baseRevisionId: z.string().guid(),
     document: ContentDocumentInput,
   }),
   output: ItemWithRevision,
@@ -403,7 +403,7 @@ export const getItem = defineUseCase({
     'Get an item with its publication state and one revision: the latest, or revisionId if given.',
   requires: 'content:read',
   authenticatedOnly: true,
-  input: z.object({ itemId: ItemId, revisionId: z.string().uuid().optional() }),
+  input: z.object({ itemId: ItemId, revisionId: z.string().guid().optional() }),
   output: ItemWithRevision,
   resource: { uriTemplate: 'mycel://content/{itemId}' },
   examples: [{ input: { itemId: '01900000-0000-7000-8000-000000000001' } }],
@@ -426,10 +426,10 @@ export const listItems = defineUseCase({
   input: z.object({
     type: ContentType.optional(),
     slug: Slug.optional(),
-    after: z.string().uuid().optional(),
+    after: z.string().guid().optional(),
     limit: Limit,
   }),
-  output: z.object({ items: z.array(ContentItem), next: z.string().uuid().nullable() }),
+  output: z.object({ items: z.array(ContentItem), next: z.string().guid().nullable() }),
   examples: [{ input: { type: 'article' } }],
   async handler(ctx, { type, slug, after, limit }) {
     const page = await ctx.content.list({ type, slug }, after ?? null, limit ?? DEFAULT_PAGE_SIZE);
@@ -443,8 +443,8 @@ export const listRevisions = defineUseCase({
   description: 'List the revisions of an item newest first, with who saved each and when.',
   requires: 'content:read',
   authenticatedOnly: true,
-  input: z.object({ itemId: ItemId, after: z.string().uuid().optional(), limit: Limit }),
-  output: z.object({ revisions: z.array(RevisionSummary), next: z.string().uuid().nullable() }),
+  input: z.object({ itemId: ItemId, after: z.string().guid().optional(), limit: Limit }),
+  output: z.object({ revisions: z.array(RevisionSummary), next: z.string().guid().nullable() }),
   examples: [{ input: { itemId: '01900000-0000-7000-8000-000000000001' } }],
   async handler(ctx, { itemId, after, limit }) {
     if (!(await ctx.content.get(itemId))) throw notFound('content item');
@@ -462,11 +462,13 @@ export const diffRevisions = defineUseCase({
   authenticatedOnly: true,
   input: z.object({
     itemId: ItemId,
-    fromRevisionId: z.string().uuid(),
-    toRevisionId: z.string().uuid(),
+    fromRevisionId: z.string().guid(),
+    toRevisionId: z.string().guid(),
   }),
   output: z.object({
-    changes: z.array(z.object({ path: z.string(), before: z.unknown(), after: z.unknown() })),
+    changes: z.array(
+      z.object({ path: z.string(), before: z.unknown().optional(), after: z.unknown().optional() })
+    ),
   }),
   examples: [
     {
@@ -524,7 +526,7 @@ async function publishableRevision(
 
 const PublicationTarget = z.object({
   itemId: ItemId,
-  revisionId: z.string().uuid(),
+  revisionId: z.string().guid(),
   locale: Locale,
 });
 const exampleTarget = {

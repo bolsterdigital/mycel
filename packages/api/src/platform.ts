@@ -105,7 +105,7 @@ const CreateTenant = z
   })
   .strict();
 const SetStatus = z.object({ status: TenantStatus }).strict();
-const Id = z.string().uuid();
+const Id = z.string().guid();
 const OpsQuery = z
   .object({
     tenantId: Id.optional(),
