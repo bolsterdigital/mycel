@@ -1,0 +1,32 @@
+# ADR 024 - Managed integrations and explicit external ownership
+
+- **Status**: accepted
+- **Date**: 2026-10-24
+- **Supersedes**: ADR 010 rule 6 only where it requires Mycel to own every tenant's lists, campaigns and automations; ADR 008's blanket exclusion of tenant-selected US-hosted SaaS from the data path; refines ADR 002 rule 6's EU-data statement for deliberate tenant-authorized exports
+- **Preserves**: an available native suite, EU-hosted Mycel core and default processors, framework-free core, tenant separation, consent evidence, ledger ownership when Mycel charges, and outbox/intent reconciliation (ADRs 001, 002, 003, 005, 008, 010, 011, 019)
+
+## Context
+
+An organisation may adopt Mycel for its site and forms while permanently keeping an existing CRM, mail platform or subscription system. Requiring native migration before use blocks that path and can create two systems acting as owner. A usable integration must include self-service configuration, visible health and a maintainer, rather than only a working HTTP request.
+
+## Decision
+
+1. **Adoption has no forced native migration.** Site-only, site-plus-forms/connectors and full-suite tenants are supported modes. The native supporter, mailing and payment capabilities remain available. For each connected domain and consent scope, configuration names the source of truth and permitted direction of transfer. Mycel keeps only the local identity, source reference, submission and consent evidence, delivery status and suppression mapping needed for its own duties when the external CRM or ESP owns the fuller record. Contact or consent in one tenant, list or provider never implies permission in another.
+2. **Standard connectors are reusable and self-service; one-off work is valid.** Operators can configure an installed trusted connector's account, audience, mapping, predicates and test without installing server code. A paid one-off connector or managed relay need not go upstream or activate for other tenants. Every connection or relay appears in a tenant-visible inventory with provider, owner, repository, deploy location, version and data contract, credentials/reconnect state, last success, pending and failed intents, health/alert route, pause, safe replay and disconnect. Disconnect stops new work and retries, revokes credentials when supported, and displays unresolved transfers. A maintainer can locate and take over the work.
+3. **The destination is deliberate and authorized.** Mycel's own infrastructure and default processors stay EU-hosted and do not require a US SaaS. A tenant may explicitly select a named external service, including one outside the EU, after seeing what categories of data and consent evidence will be exported and who operates it. Destination approval and any legal/privacy assessment are separate from this technical architecture; this ADR makes no regulatory-approval claim. Other tenants are unaffected.
+4. **Connector effects use durable intent and reconciliation.** Tenant-scoped connection records hold encrypted credentials with least-privilege scopes, approved destinations, mappings and external ids. The outbox plans intents with idempotency keys, bounded backoff, quotas and visible states. A timeout or HTTP 2xx is not proof of final business state. Before retry after an ambiguous attempt, query provider state where possible; otherwise keep uncertainty visible and reconcile later. Do not promise exactly-once delivery. Provider fixtures cover new, existing, unsubscribed, bounced, changed-address and re-subscribed contacts. Logs avoid full submitted personal data by default.
+5. **Consent has one confirmation owner per scope.** Either Mycel confirms before delivery or the external provider confirms and returns trustworthy evidence; never both. Pending is not confirmed. Suppression, withdrawal and erasure are distinct from an ordinary profile update. Dispatch and replay check current consent, suppression, destination authorization and erasure state immediately before an external write, so in-flight or old work cannot resubscribe a withdrawn or erased person. A disconnect or Mycel erasure cannot claim to delete external copies automatically; the inventory records requested, confirmed, failed and manual external actions, with financial retention handled separately.
+6. **Outbound webhooks are a supported escape route.** A versioned event envelope carries an id and timestamp and is signed for an authenticated destination. Registration and delivery enforce destination authorization, DNS/IP and redirect checks against SSRF, egress restrictions, quotas and bounded retries. Receivers must handle duplicates and out-of-order delivery. A managed external workflow remains inventoried even if Mycel only knows its webhook endpoint; no general embedded workflow engine is required.
+7. **Payment processing and subscription ownership are different.** A payment-provider adapter may implement the capability set in ADR 005, but a provider that owns recurring billing is not merely a PSP adapter. If an external system owns a subscription, Mycel may ingest verified status for access but must not schedule a second charge or pretend mandates moved. Supported capabilities such as refunds, recurring charges, cancellation, reconciliation and self-service are explicit; unavailable operations are not shown. Changing financial ownership needs a migration and reconciliation contract before activation.
+
+## Rejected alternatives
+
+- **Native suite as the only valid end state**: forces migrations unrelated to the site and forms an organisation wants to use.
+- **A generic contact upsert with assumed exactly-once delivery**: provider suppression and opt-in semantics differ, and network outcomes may be ambiguous.
+- **A webhook with no owner or inventory**: recreates invisible customer infrastructure and an unmaintainable support path.
+- **Treating external subscription status as a second charging authority**: can double charge and misstate access.
+
+## Consequences
+
+- The first real connector flow and one CRM flow should prove mapping, confirmation ownership, suppression, reconnect, pause, replay, disconnect and reconciliation before a generic connector catalogue is claimed. A generic webhook and a one-off relay share the inventory and safety rules.
+- Core interfaces express ownership, allowed operations and current capabilities; adapters implement provider-specific semantics. Every external write remains tenant-authorized and auditable. None of these connectors is claimed as implemented by this ADR.

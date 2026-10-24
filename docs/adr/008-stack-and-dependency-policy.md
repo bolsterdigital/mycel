@@ -2,6 +2,7 @@
 
 - **Status**: accepted
 - **Date**: 2026-10-21
+- **Dependency/data-path scope refined**: 2026-10-24 by [ADR 024](024-managed-integrations-and-external-ownership.md). The default Mycel stack still excludes mandatory US-hosted SaaS; a tenant may deliberately authorize a named external destination, including a US service, without making it a core dependency.
 
 ## Context
 

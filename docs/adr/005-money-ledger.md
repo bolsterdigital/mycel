@@ -3,6 +3,7 @@
 - **Status**: accepted
 - **Date**: 2026-10-21
 - **Amended**: 2026-10-21, rule 7 added after the second-opinion review (subscription semantics for paid access)
+- **Ownership scope**: 2026-10-24 [ADR 024](024-managed-integrations-and-external-ownership.md) permits an external subscription owner for a tenant; this ledger remains authoritative only where Mycel owns charging. No dual charging authority is permitted.
 
 ## Context
 

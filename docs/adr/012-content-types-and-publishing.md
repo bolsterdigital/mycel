@@ -5,6 +5,7 @@
 - **Builds on**: ADR 004 (block tree), ADR 007 (i18n), ADR 009 rule 9 (versioned mutations)
 - **Amended**: 2026-10-21 by ADR 018 (scheduled publish pins a revision, optimistic concurrency, immutable sent editions, per-locale status, access-aware caching on the read route)
 - **Rule 6 superseded**: 2026-10-22 by [ADR 020](020-editing-surface-and-block-operations.md) (relative headings in prose, quotations as cards and the editing contract). Only rule 6 is superseded; its original wording is retained below.
+- **Type extension scope**: 2026-10-24 [ADR 022](022-managed-extensions-and-site-integrations.md) distinguishes a registered block, a type profile over `page`/`article`, and a new domain entity that needs an ADR. The two stored content types and publication invariants remain in force.
 
 ## Context
 
