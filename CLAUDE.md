@@ -52,6 +52,10 @@ docs/adr/                     decisions · docs/plans → ../mycel-planning (pri
 
 Imports between workspaces go through package names (`@mycel/core`), never relative paths across packages.
 
+## Frontend quality
+
+For frontend plans, changes and quality regressions, load `.agents/skills/mycel-frontend-quality/SKILL.md`. The measurable contract is `docs/architecture/frontend-quality.md`: public Lighthouse 100 in all four categories, accessibility and task-level gates, representative fixtures and repair work that strengthens the shared construction rules. Check its implementation-status paragraph; a specified gate is not an active check.
+
 ## Conventions
 
 - TypeScript strict + `noUncheckedIndexedAccess`; ESM; Prettier 2 spaces, single quotes, 100 columns.
