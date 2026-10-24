@@ -16,6 +16,7 @@ import {
   systemPrincipal,
   useCases,
   requireActive,
+  planConnectionIntent,
   type DomainEvent,
   type JobRecord,
   type Mailer,
@@ -23,6 +24,7 @@ import {
 } from '@mycel/core';
 import {
   FakeClock,
+  FakeConnectionTransport,
   MemoryIdentityStore,
   MemoryMailer,
   MemoryTenants,
@@ -263,5 +265,84 @@ describe('job handlers', () => {
     uow.store.setAccess(TENANT, { status: 'active' });
     expect(await handlers['content.publish']!(planned)).toEqual({});
     expect(await nl()).toMatchObject({ status: 'published', publishedRevisionId: revision.id });
+  });
+});
+
+describe('connection intent job composition', () => {
+  it('keeps the tenant in the job authoritative and refuses a missing transport', async () => {
+    const clock = new FakeClock();
+    const uow = new MemoryUnitOfWork({ clock });
+    const identity = new MemoryIdentityStore(uow.store, new MemoryTenants());
+    const mail = { mailer: new MemoryMailer(), clock, sources: {} };
+    const transport = new FakeConnectionTransport();
+    const p = systemPrincipal(TENANT, 'test');
+    const invoker = new Invoker(buildRegistry(), uow);
+    let c = await invoker.run(useCases.createConnection, p, {
+      provider: 'webhook',
+      accountRef: null,
+      externalOwner: 'Fixture',
+      maintainer: 'Fixture',
+      purpose: 'Fixture',
+      direction: 'outbound',
+      dataAuthority: 'mycel',
+      consentAuthority: 'mycel',
+      consentScopes: ['newsletter'],
+      formIds: [],
+      destination: 'https://example.org/hook',
+      contractVersion: 'v1',
+      adapterVersion: 'v1',
+    });
+    c = await invoker.run(useCases.replaceConnectionCredential, p, {
+      id: c.id,
+      baseVersion: c.version,
+      secret: 'fixture',
+    });
+    c = await invoker.run(useCases.resumeConnection, p, { id: c.id, baseVersion: c.version });
+    const supporterId = uow.ids.next();
+    const at = clock.now().toISOString();
+    await uow.run(p, (ctx) =>
+      ctx.supporters.saveProjection({
+        id: supporterId,
+        email: 'fixture@example.org',
+        lists: ['newsletter'],
+        pendingLists: [],
+        firstSeen: at,
+        lastActivity: at,
+        appliedThrough: { at, id: 'fixture' },
+      })
+    );
+    const row = await uow.run(p, (ctx) =>
+      planConnectionIntent(ctx, {
+        connectionId: c.id,
+        connectionVersion: c.version,
+        businessId: uow.ids.next(),
+        source: 'fixture',
+        mappingVersion: 'v1',
+        supporterId,
+        scope: 'newsletter',
+      })
+    );
+    const j = job({ type: 'connections.run', payload: { intentId: row.id } });
+    const disabled = jobHandlers({ uow, operatorDb, identity, mail })['connections.run']!;
+    await expect(disabled(j)).rejects.toThrow('not configured');
+    const handler = jobHandlers({
+      uow,
+      operatorDb,
+      identity,
+      mail,
+      connections: {
+        transport,
+        sources: {
+          fixture: {
+            prepare: async () => ({ ready: true as const, payload: { synthetic: true } }),
+          },
+        },
+      },
+    })['connections.run']!;
+    await expect(handler({ ...j, tenantId: null })).rejects.toThrow('tenant');
+    await handler({ ...j, tenantId: '01900000-0000-7000-8000-00000000bbbb' });
+    expect(transport.dispatched).toHaveLength(0);
+    await handler(j);
+    expect(transport.dispatched).toHaveLength(1);
   });
 });

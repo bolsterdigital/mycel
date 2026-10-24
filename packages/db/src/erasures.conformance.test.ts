@@ -247,6 +247,7 @@ describe.skipIf(!operatorUrl || !appUrl)('erasure conformance', () => {
       select tablename || '.' || policyname as name, qual, with_check as check from pg_policies
       where schemaname = 'public' and 'mycel_erasure' = any(roles) order by 1`.execute(operatorDb);
     expect(policies.map((p) => p.name)).toEqual([
+      'connection_intents.erasure',
       'erasures.erasure_apply',
       'events.erasure_apply',
       'form_submissions.erasure_apply',

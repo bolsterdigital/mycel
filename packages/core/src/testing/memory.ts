@@ -7,6 +7,11 @@
 
 import type { AuditEntry } from '../audit/model.js';
 import type { AssistRepository, AssistSettings, AssistSuggestion } from '../assist/ports.js';
+import type {
+  ConnectionIntent,
+  ConnectionAttempt,
+  ConnectionIntents,
+} from '../connections/intents.js';
 import type { ConnectionRecord, ConnectionRepository } from '../connections/ports.js';
 import type { AuditLog, InputHasher } from '../audit/ports.js';
 import type { FormDefinition, Submission } from '../forms/model.js';
@@ -222,6 +227,8 @@ function sluggedRepository<T extends { id: string; slug: string }>(
 
 interface TenantStore {
   connections: Map<string, ConnectionRecord>;
+  connectionIntents: Map<string, ConnectionIntent>;
+  connectionAttempts: ConnectionAttempt[];
   assistSettings: AssistSettings;
   suggestions: Map<string, AssistSuggestion>;
   assistUsage: Map<string, number>;
@@ -503,6 +510,8 @@ export class MemoryStore {
     if (!store) {
       store = {
         connections: new Map(),
+        connectionIntents: new Map(),
+        connectionAttempts: [],
         assistSettings: {
           enabled: false,
           allowRestricted: false,
@@ -588,6 +597,17 @@ function memoryErasures(store: MemoryStore, principal: Principal, clock: Clock):
     },
     async apply() {
       if (!s.erasures.size) return 0;
+      let changed = 0;
+      for (const row of s.connectionIntents.values())
+        if (row.supporterId && s.erasures.has(row.supporterId)) {
+          changed++;
+          row.supporterId = null;
+          if (row.state !== 'unknown' && row.state !== 'succeeded') row.state = 'blocked';
+          row.failure = 'erasure';
+          row.revision += 1;
+          row.leaseToken = null;
+          row.leaseUntil = null;
+        }
       const ids = new Set(s.erasures.keys());
       const hashes = new Set([...s.erasures.values()].map((e) => e.emailHash));
       const addresses = new Set<string>();
@@ -613,7 +633,6 @@ function memoryErasures(store: MemoryStore, principal: Principal, clock: Clock):
         return [...addresses].some((a) => text.includes(a));
       };
 
-      let changed = 0;
       for (const e of s.events.values()) {
         const owner = e.supporter_id ?? '';
         if (!(ids.has(owner) || addresses.has(e.email.toLowerCase()))) continue;
@@ -893,6 +912,36 @@ export class MemoryUnitOfWork implements UnitOfWork {
         );
         return { ...page, rows: page.rows.map(({ document: _d, ...summary }) => summary) };
       },
+    };
+    const connectionIntents: ConnectionIntents = {
+      get: async (id) => structuredClone(s.connectionIntents.get(id) ?? null),
+      byBusiness: async (connectionId, businessId) =>
+        structuredClone(
+          [...s.connectionIntents.values()].find(
+            (r) => r.connectionId === connectionId && r.businessId === businessId
+          ) ?? null
+        ),
+      async insert(row) {
+        if (
+          [...s.connectionIntents.values()].some(
+            (r) => r.connectionId === row.connectionId && r.businessId === row.businessId
+          )
+        )
+          return false;
+        s.connectionIntents.set(row.id, structuredClone(row));
+        return true;
+      },
+      async replace(row, revision) {
+        if (s.connectionIntents.get(row.id)?.revision !== revision) return false;
+        s.connectionIntents.set(row.id, structuredClone({ ...row, revision: revision + 1 }));
+        return true;
+      },
+      async record(attempt) {
+        s.connectionAttempts.push(structuredClone(attempt));
+      },
+      attempts: async (id) =>
+        structuredClone(s.connectionAttempts.filter((a) => a.intentId === id)),
+      erased: async (id) => s.erasures.has(id),
     };
     const connections: ConnectionRepository = {
       get: async (id) => structuredClone(s.connections.get(id) ?? null),
@@ -1413,6 +1462,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
         content,
         assist,
         connections,
+        connectionIntents,
         assistProviderLabel: this.assistProviderLabel,
         authors: sluggedRepository(s.authors),
         sections: sluggedRepository(s.sections),
