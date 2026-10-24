@@ -132,6 +132,7 @@ export async function runConnectionIntent(
     const resolved = await source.prepare(ctx, current);
     if (!resolved.ready) return resolved;
     // Preparation can await a mapping/suppression lookup. Never dispatch on the earlier snapshot.
+    const access = await deps.identity.tenantAccess(tenantId);
     const latest = await ctx.connectionIntents.get(id);
     if (
       !latest ||
@@ -140,7 +141,10 @@ export async function runConnectionIntent(
       latest.leaseUntil <= deps.clock.now()
     )
       return null;
-    const lateFailure = await connectionIntentGuard(ctx, latest);
+    const lateFailure = await connectionIntentGuard(
+      { ...ctx, principal: systemPrincipal(tenantId, 'connections.run', access) },
+      latest
+    );
     return lateFailure ? { ready: false as const, failure: lateFailure } : resolved;
   });
   if (!prepared) return { next: row.nextAt };

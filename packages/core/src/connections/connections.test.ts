@@ -404,6 +404,33 @@ describe('durable connection effects', () => {
     expect((await e.read(row.id))?.failure).toBe('paused');
   });
 
+  it.each([false, true])(
+    'checks suspension after source preparation and preserves prior uncertainty (%s)',
+    async (unknown) => {
+      const e = await engine();
+      const row = await e.plan();
+      if (unknown) {
+        e.transport.result = 'unknown';
+        await runConnectionIntent(e.deps, A, row.id);
+        e.clock.advance(120_000);
+      }
+      e.deps.sources.fixture.prepare = async () => {
+        e.uow.store.setAccess(A, { status: 'suspended' });
+        return { ready: true, payload: { synthetic: true } };
+      };
+      await runConnectionIntent(e.deps, A, row.id);
+      expect((await e.deps.identity.tenantAccess(A)).status).toBe('suspended');
+      expect(e.transport.dispatched).toHaveLength(unknown ? 1 : 0);
+      expect(e.transport.reconciled).toHaveLength(0);
+      expect(await e.read(row.id)).toMatchObject({
+        state: unknown ? 'unknown' : 'blocked',
+        failure: 'suspended',
+        leaseToken: null,
+        leaseUntil: null,
+      });
+    }
+  );
+
   it('fences late completions after another worker reconciles the expired lease', async () => {
     const e = await engine();
     const row = await e.plan();
