@@ -5,6 +5,7 @@
 - **Supersedes**: ADR 012 rule 6 only (rich-text vocabulary and editor contract); the rest of ADR 012 remains in force
 - **Refines**: ADR 004 rules 1 to 3 and 6 (block identity, heading context, rendering and references)
 - **Builds on**: ADR 007 (localisation), ADR 009 (HTML first and one registry), ADR 013 (bounded customisation), ADR 018 (revisions, capabilities and publication)
+- **Managed extension scope**: 2026-10-24 [ADR 022](022-managed-extensions-and-site-integrations.md) allows reviewed style parts, slots and type profiles within the same bounded block tree. The free canvas and arbitrary layout code rejected below remain rejected.
 
 ## Context
 

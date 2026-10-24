@@ -2,6 +2,7 @@
 
 - **Status**: accepted
 - **Date**: 2026-10-21
+- **Rule 4 partly superseded**: 2026-10-24 by [ADR 022](022-managed-extensions-and-site-integrations.md). Validated theme data remains the default and arbitrary tenant CSS/code uploads remain excluded; the absolute ban on trusted operator-installed managed extensions no longer applies.
 
 ## Context
 

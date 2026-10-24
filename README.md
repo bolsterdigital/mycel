@@ -10,9 +10,11 @@ Mycel is the successor to [Dreamkit](https://github.com/bolsterdigital/dreamkit)
 
 - **Accessibility and standards first**: server-rendered semantic HTML, JavaScript as enhancement, WCAG 2.2 AA gated in CI, open formats everywhere.
 - **MCP first**: every operation an operator can do, an agent can do, with the same authorization.
-- **Own the domain, buy the commodity**: forms, donations, supporters and mailing are Mycel's; payment processing and mail delivery are adapters.
+- **Own the domain, buy the commodity**: Mycel offers forms, donations, supporters and mailing; payment processing and mail delivery are adapters. A tenant may instead keep a named external CRM, mail or subscription owner through a managed connection ([ADRs 023 and 024](docs/architecture/extensibility.md)).
 - **One database, strict tenancy**: Postgres with Row Level Security; per-tenant export is a first-class feature.
-- **EU hosting, open source**: AGPL-3.0, DCO, no CLA; data stays on owned infrastructure in the EU.
+- **EU hosting, open source**: AGPL-3.0, DCO, no CLA; Mycel's own storage and default processors stay in the EU. A tenant may explicitly authorize an external destination for its own data ([ADR 024](docs/adr/024-managed-integrations-and-external-ownership.md)).
+
+The accepted contracts for managed extensions, configurable forms and external integrations are in [extensibility and external ownership](docs/architecture/extensibility.md). They describe direction, not features already delivered in this early build.
 
 ## Layout
 

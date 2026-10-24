@@ -1,6 +1,6 @@
 # Theme
 
-What a tenant's theme may contain and how it is checked (TODO #8b2). The decision is [ADR 013](../adr/013-customisation-ladder.md) rule 1: validated values inside bounded ranges, never CSS. Code: `packages/core/src/theme/`. This page is the contract; there is no stored tenant theme yet. The mapping to CSS is in `apps/web/src/lib/theme/tokens.ts` (#8c1).
+What a tenant's currently implemented theme may contain and how it is checked (TODO #8b2). [ADR 013](../adr/013-customisation-ladder.md) rule 1 defines validated values inside bounded ranges; the current theme schema stores no CSS. [ADR 022](../adr/022-managed-extensions-and-site-integrations.md) additionally accepts reviewed managed style extensions with visible effective values, but that contract is not implemented by this schema. Code: `packages/core/src/theme/`. There is no stored tenant theme yet. The mapping to CSS is in `apps/web/src/lib/theme/tokens.ts` (#8c1).
 
 ## What exists and what does not
 
@@ -25,7 +25,7 @@ Until tenant themes are stored, the renderer applies `DEFAULT_THEME`. The asset 
 | `headingWeight` | 400, 500, 600, 700 or 800                       | 700     |
 | `fontPair`      | `inter` or `source-serif-inter`                 | `inter` |
 
-`fontPair` is a closed product catalogue: Inter for headings and body, or Source Serif 4 headings with Inter body. A new pair is a product change in this repository (ADR 013 rule 5).
+`fontPair` is currently a closed product catalogue: Inter for headings and body, or Source Serif 4 headings with Inter body. Adding one to this schema is a product change; the managed extension route accepted in ADR 022 has a separate compatibility and effective-style contract.
 
 `palettes` holds a complete `light` and a complete `dark` palette. Whoever changes colours sends both, so no unrelated dark default lands on a brand's own light design. Each palette has six role pairs, `body`, `surface`, `primary`, `accent`, `muted` and `warning`, each `{ foreground, background }`, plus `link` and `focus`. Every colour is an opaque `#RRGGBB`: no alpha, names, functions or CSS expressions. Every object is strict, so an unknown key is refused (`theme.key.unknown`).
 

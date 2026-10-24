@@ -3,6 +3,7 @@
 - **Status**: accepted
 - **Date**: 2026-10-21
 - **Refines**: ADR 004 rule 4 (client differences are data)
+- **Rule 5 and absolute exclusions partly superseded**: 2026-10-24 by [ADR 022](022-managed-extensions-and-site-integrations.md). General upstream inclusion is optional for reviewed managed packages; arbitrary tenant CSS/code uploads and hidden style overrides remain excluded. Rungs 1 to 4 remain the default self-service options.
 
 ## Context
 
