@@ -1,8 +1,9 @@
 // The erasure register over Postgres (TODO #18d, migration 0019; ADR 003 rule 5, ADR 019 rule 8).
-// `register` writes one permanent row as mycel_app. `apply` enters `mycel_erasure` for the rest of
+// `register` writes one permanent row as mycel_app; `status` reads which of them a backup holds
+// (0021, written by the backup login only). `apply` enters `mycel_erasure` for the rest of
 // its statements, inside the caller's tenant transaction: that role may tombstone events and the
-// projection, delete submissions, mail intents and jobs, and rewrite outbox props, each on the
-// current tenant's rows only. Only the schema owner's login may enter it, so the worker and the CLI
+// projection, delete submissions, mail intents and jobs, rewrite outbox props and expire export
+// archives (0022), each on the current tenant's rows only. Only the schema owner's login may enter it, so the worker and the CLI
 // apply and a front that tries gets a clear refusal.
 //
 // The addresses to erase are not stored anywhere: apply finds them from the register each time, in
@@ -68,10 +69,39 @@ export function erasureRepository(
       await sql`set local role mycel_app`.execute(trx);
       return changed;
     },
+
+    async status() {
+      // As mycel_app under the tenant's context: both tables are readable to it, its rows only.
+      const { rows } = await sql<{ registered: string; secured: string; oldest: Date | null }>`
+        select count(*) as registered, count(b.supporter_id) as secured,
+               min(e.erased_at) filter (where b.supporter_id is null) as oldest
+        from erasures e
+        left join erasure_backups b using (tenant_id, supporter_id)`.execute(trx);
+      const r = rows[0]!;
+      return {
+        registered: Number(r.registered),
+        secured: Number(r.secured),
+        oldestUnsecuredAt: r.oldest,
+      };
+    },
   };
 }
 
 async function applyAsEraser(trx: Trx): Promise<number> {
+  const changed = await eraseRows(trx);
+  // ADR 019 rule 8: an archive is a copy too (TODO #28). Expire every archive that may hold a
+  // registered person: any built or building while this apply found something to erase, and any
+  // asked for before the newest registration. The file goes after commit (`expireExports`, run
+  // by `mycel erasures apply` and daily by the worker); the row keeps no trace of who.
+  const r = await sql`
+    update tenant_exports
+    set status = 'expired', error = 'deleted after an erasure', expires_at = now()
+    where status in ('running', 'ready')
+      and (${changed > 0} or requested_at < (select max(erased_at) from erasures))`.execute(trx);
+  return changed + Number(r.numAffectedRows ?? 0n);
+}
+
+async function eraseRows(trx: Trx): Promise<number> {
   const registered = await trx.selectFrom('erasures').select('supporter_id').execute();
   if (!registered.length) return 0;
   const ids = registered.map((r) => r.supporter_id);
@@ -140,6 +170,14 @@ async function applyAsEraser(trx: Trx): Promise<number> {
     )
   );
   return changed;
+}
+
+/** `mycel erasures status`: one tenant's register and how much of it a backup holds. */
+export function erasureStatus(operatorDb: Kysely<Database>, tenantId: string) {
+  const principal = systemPrincipal(tenantId, 'erasures');
+  return withTenant(operatorDb, principal, (trx) =>
+    erasureRepository(trx, tenantId, principal, { now: () => new Date() }).status()
+  );
 }
 
 /**

@@ -132,8 +132,6 @@ describe.skipIf(!operatorUrl || !appUrl)('erasure conformance', () => {
 
   beforeAll(async () => {
     await migrate(operatorUrl!, {
-      appPassword: process.env['MYCEL_APP_PASSWORD'],
-      authPassword: process.env['MYCEL_AUTH_PASSWORD'],
       log: () => {},
     });
     for (const key of ['a', 'b'] as const)
@@ -256,6 +254,7 @@ describe.skipIf(!operatorUrl || !appUrl)('erasure conformance', () => {
       'mail_sends.erasure_apply',
       'outbox.erasure_apply',
       'supporters.erasure_apply',
+      'tenant_exports.erasure_apply',
     ]);
     for (const p of policies) {
       expect(p.qual, p.name).toBe('(tenant_id = current_tenant_id())');

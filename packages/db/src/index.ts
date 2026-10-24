@@ -30,6 +30,7 @@ import {
   type UnitOfWork,
 } from '@mycel/core';
 import { auditRepository } from './audit.js';
+import { assistRepository } from './assist.js';
 import {
   authorRepository,
   contentRepository,
@@ -37,6 +38,7 @@ import {
   sectionRepository,
 } from './content.js';
 import { erasureRepository } from './erasures.js';
+import { tenantExportRepository } from './exports.js';
 import { hostnameRepository } from './hostnames.js';
 import { asPlatform, insertPlatformHostname } from './platform.js';
 import { jobScheduler } from './jobs.js';
@@ -82,7 +84,8 @@ export {
   type Paged,
 } from './recovery.js';
 export { deleteExpiredAudit } from './audit.js';
-export { applyErasures } from './erasures.js';
+export { applyErasures, erasureStatus } from './erasures.js';
+export { expireExports, runExportJob, type ExportJobDeps } from './exports.js';
 export {
   EXPORT_FORMAT,
   EXPORT_ORDER,
@@ -103,6 +106,7 @@ export {
   ensureRecurring,
   failJob,
   nextPeriod,
+  touchJob,
   runJobs,
   startJobWorker,
   type Cadence,
@@ -174,6 +178,7 @@ export interface UnitOfWorkDeps {
   log?: Logger | undefined;
   /** The audit input hash (AUDIT_HASH_KEY, TODO #17b); the Invoker hashes every command's input. */
   inputHasher: InputHasher;
+  assistProviderLabel?: string | null;
 }
 
 const unconfigured = (port: string) =>
@@ -200,6 +205,8 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           platform: deps.platform,
           events: outboxEventBus(trx),
           content: contentRepository(trx, tenantId),
+          assist: assistRepository(trx, tenantId),
+          assistProviderLabel: deps.assistProviderLabel ?? null,
           authors: authorRepository(trx, tenantId),
           sections: sectionRepository(trx, tenantId),
           patterns: patternRepository(trx, tenantId),
@@ -224,6 +231,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           audit: auditRepository(trx, tenantId),
           inputHasher: deps.inputHasher,
           erasures: erasureRepository(trx, tenantId, principal, deps.clock),
+          exports: tenantExportRepository(trx, tenantId),
         });
       });
     },

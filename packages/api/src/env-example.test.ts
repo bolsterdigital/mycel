@@ -31,6 +31,9 @@ const INVENTORY: Record<string, string> = {
   BACKUP_KEEP_WEEKLY: 'docker/backup/backup.sh',
   BACKUP_KEEP_MONTHLY: 'docker/backup/backup.sh',
   BACKUP_CHECK_WEEKDAY: 'docker/backup/backup.sh',
+  BACKUP_MAX_SECONDS: 'docker/backup/backup.sh',
+  ERASURES_KEEP_LAST: 'docker/backup/backup.sh',
+  ERASURES_KEEP_DAILY: 'docker/backup/backup.sh',
   ACME_EMAIL: 'docker/caddy/Caddyfile',
   API_HOST: 'docker/caddy/Caddyfile',
   MYCEL_PG_PORT: 'compose.dev.yml',
@@ -61,6 +64,7 @@ const NOT_IN_EXAMPLE: Record<string, string> = {
   PGPASSWORD: 'built by compose.yml from MYCEL_BACKUP_PASSWORD or MYCEL_DB_PASSWORD',
   PGDATABASE: 'set by compose.yml for the backup services',
   DRILL_BACKUP_DATABASE_URL: 'restore drill harness, set by scripts/drill-run.sh',
+  BACKUP_HOLD_AFTER_DUMP: 'restore drill harness, passed by scripts/drill-run.sh (TODO #29A)',
 };
 
 /**

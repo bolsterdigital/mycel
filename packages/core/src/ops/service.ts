@@ -12,7 +12,8 @@ import '../mailing/ports.js';
 import type { TransactionContext } from '../ports.js';
 import { defineUseCase } from '../registry.js';
 import '../tenants/ports.js';
-import { StuckJobView, UnresolvedMailView, buildDiagnosis } from './model.js';
+import { ERASURE_UNSECURED_WARN_MS } from '../supporters/erasure.js';
+import { ErasureBackupView, StuckJobView, UnresolvedMailView, buildDiagnosis } from './model.js';
 import type { RecoveryResult } from './ports.js';
 import './ports.js';
 
@@ -34,21 +35,23 @@ export const getOpsStatus = defineUseCase({
   name: 'ops.status',
   kind: 'query',
   description:
-    'Show the work of this site that is stuck: jobs that used up their attempts, mail whose delivery is unknown or was given up, the latest actions, and a redacted diagnosis to share with support.',
+    'Show the work of this site that is stuck: jobs that used up their attempts, mail whose delivery is unknown or was given up, erasures no backup holds yet, the latest actions, and a redacted diagnosis to share with support.',
   requires: 'tenant:admin',
   input: z.object({}).strict(),
   output: z.object({
     jobs: z.array(StuckJobView),
     mails: z.array(UnresolvedMailView),
+    erasures: ErasureBackupView,
     audit: z.array(AuditRow),
     diagnosis: z.string(),
   }),
   examples: [{ input: {} }],
   async handler(ctx) {
     const now = ctx.clock.now();
-    const [stuck, unresolved, recent, failed, slug] = await Promise.all([
+    const [stuck, unresolved, register, recent, failed, slug] = await Promise.all([
       ctx.jobRecovery.exhausted(STATUS_JOBS),
       ctx.mailSends.unresolved(now),
+      ctx.erasures.status(),
       ctx.audit.list({ limit: STATUS_AUDIT }),
       ctx.audit.list({ failed: true, limit: DIAGNOSIS_FAILED_REQUESTS }),
       siteSlug(ctx),
@@ -73,15 +76,24 @@ export const getOpsStatus = defineUseCase({
         abandonedAt: m.abandonedAt?.toISOString() ?? null,
         lastError: m.lastError,
       }));
+    const oldest = register.oldestUnsecuredAt;
+    const erasures = {
+      registered: register.registered,
+      unsecured: register.registered - register.secured,
+      oldestUnsecuredAt: oldest?.toISOString() ?? null,
+      late: oldest !== null && now.getTime() - oldest.getTime() > ERASURE_UNSECURED_WARN_MS,
+    };
     return {
       jobs,
       mails,
+      erasures,
       audit: recent.map(toAuditRow),
       diagnosis: buildDiagnosis({
         tenantSlug: slug,
         at: now,
         jobs,
         mails,
+        erasures,
         failedRequests: failed.flatMap((r) => (r.requestId ? [r.requestId] : [])),
       }),
     };

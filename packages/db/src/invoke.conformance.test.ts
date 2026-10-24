@@ -73,7 +73,7 @@ describe.skipIf(!operatorUrl || !appUrl)('invoke conformance', () => {
   });
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, { appPassword: process.env['MYCEL_APP_PASSWORD'], log: () => {} });
+    await migrate(operatorUrl!, { log: () => {} });
     tenantId = (
       await upsertTenant(
         operatorDb,

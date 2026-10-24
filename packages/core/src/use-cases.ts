@@ -3,6 +3,15 @@
 
 import { listAudit } from './audit/service.js';
 import {
+  acceptSuggestion,
+  dismissSuggestion,
+  getAssistSettings,
+  getSuggestion,
+  listSuggestions,
+  suggestAlt,
+  updateAssistSettings,
+} from './assist/service.js';
+import {
   createAuthor,
   createPattern,
   createSection,
@@ -61,8 +70,16 @@ import {
   setPrimaryHostname,
   verifyHostnameUseCase,
 } from './tenants/service.js';
+import { listExports, requestExport } from './tenants/exports.js';
 
 export const useCases = {
+  getAssistSettings,
+  updateAssistSettings,
+  suggestAlt,
+  getSuggestion,
+  listSuggestions,
+  dismissSuggestion,
+  acceptSuggestion,
   getPublished,
   createItem,
   updateItem,
@@ -110,6 +127,8 @@ export const useCases = {
   verifyHostname: verifyHostnameUseCase,
   setPrimaryHostname,
   removeHostname,
+  requestExport,
+  listExports,
   getUsage,
   getEntitlements,
   uploadMedia,

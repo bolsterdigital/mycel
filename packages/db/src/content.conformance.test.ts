@@ -123,7 +123,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
     );
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, { appPassword: process.env['MYCEL_APP_PASSWORD'], log: () => {} });
+    await migrate(operatorUrl!, { log: () => {} });
     const tenant = (slug: string) =>
       upsertTenant(
         operatorDb,

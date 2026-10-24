@@ -24,6 +24,9 @@
     },
     {
       "path": "../observability"
+    },
+    {
+      "path": "../assist-openai"
     }
   ]
 }

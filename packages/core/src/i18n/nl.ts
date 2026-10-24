@@ -4,6 +4,16 @@
 import type { Messages } from './en.js';
 
 export const nl: Partial<Messages> = {
+  'assist.error.ai-not-entitled': 'AI-hulp is niet beschikbaar voor deze site.',
+  'assist.error.ai-disabled': 'Een beheerder moet AI-hulp eerst aanzetten.',
+  'assist.error.consent-required': 'Toestemming voor de ingestelde verwerker is nodig.',
+  'assist.error.restricted-content': 'AI-hulp voor afgeschermde inhoud staat uit.',
+  'assist.error.limit-reached': 'De limiet voor AI-hulp is bereikt. Probeer het later opnieuw.',
+  'assist.error.stale': 'De bron is gewijzigd. Vraag een nieuwe suggestie aan.',
+  'assist.error.not-ready': 'Deze suggestie is niet meer beschikbaar.',
+  'assist.error.unavailable': 'Er is geen AI-verwerker beschikbaar.',
+  'assist.error.locale': 'Deze taal hoort niet bij het item.',
+  'assist.error.image': 'Kies een afbeelding die niet decoratief is.',
   'forms.error.required': 'Dit veld is verplicht.',
   'forms.error.email.invalid': 'Vul een e-mailadres in zoals naam@voorbeeld.nl.',
   'forms.error.consent.required': 'Vink het vakje aan om te bevestigen dat je je wilt aanmelden.',
