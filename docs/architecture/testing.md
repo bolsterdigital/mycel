@@ -32,3 +32,7 @@ Accepted but unimplemented contracts in [ADRs 022 to 024](extensibility.md) grow
 ## What a PR needs
 
 The PR description names the conformance suite that grew (or says why none did), the hand-written invariants added, and what could not be run locally. Review reads the fixtures first: if the examples are right, the generic suites have already read the rest. The pull request template asks for exactly that, plus the block `scripts/review-signals.mjs` prints; how a reviewer uses it to pick at most one extra counterproof is [review.md](review.md).
+
+## Frontend quality contract
+
+The [frontend quality contract](frontend-quality.md) defines measurable Lighthouse, accessibility, task, resource and field-performance criteria, repeated measurement, adoption and repair routing. Its status section distinguishes existing gates from planned automation. Add frontend defect fixtures to the existing suites; every repair must also address why construction allowed that defect. Lighthouse is a separate measured job, not a replacement for `verify`, manual accessibility or the security boundaries.
