@@ -8,6 +8,10 @@
 import { z } from 'zod';
 
 export const JobPayloads = {
+  /** Tenant job: evaluate one pending proposal outside the request transaction. */
+  'assist.run': z.object({ suggestionId: z.string().guid() }).strict(),
+  /** Platform job: visit each tenant separately to remove expired proposals. */
+  'assist.retention': z.object({}).strict(),
   /** Tenant job: re-check the TXT record of one custom hostname (ADR 014). */
   'hostnames.reverify': z.object({ hostname: z.string().min(1) }).strict(),
   /** Platform job: monthly `events` partitions up to three months ahead (ADR 003). */
@@ -16,7 +20,7 @@ export const JobPayloads = {
   'rate_limits.sweep': z.object({}).strict(),
   /** Tenant job: delete a soft-deleted asset's files, then its row (`media.delete`, TODO #10). */
   'media.purge': z
-    .object({ mediaId: z.string().uuid(), keys: z.array(z.string().min(1)).max(64) })
+    .object({ mediaId: z.string().guid(), keys: z.array(z.string().min(1)).max(64) })
     .strict(),
   /** Platform job: per tenant, delete media files without a row that are older than a day. */
   'media.orphans': z.object({}).strict(),
@@ -29,7 +33,7 @@ export const JobPayloads = {
    * message is rebuilt from the outbox event, so no address sits in the queue.
    */
   'mail.reconcile': z
-    .object({ key: z.string().min(1), subscriber: z.string().min(1), eventId: z.string().uuid() })
+    .object({ key: z.string().min(1), subscriber: z.string().min(1), eventId: z.string().guid() })
     .strict(),
   /**
    * Tenant job: publish exactly the pinned revision of one locale (ADR 018 rule 1, #8a). Key
@@ -38,12 +42,22 @@ export const JobPayloads = {
    */
   'content.publish': z
     .object({
-      itemId: z.string().uuid(),
-      revisionId: z.string().uuid(),
+      itemId: z.string().guid(),
+      revisionId: z.string().guid(),
       locale: z.string().min(1),
-      scheduleId: z.string().uuid(),
+      scheduleId: z.string().guid(),
     })
     .strict(),
+  /**
+   * Tenant job: build the archive of one `tenant.export` request (TODO #28) and write it to the
+   * blob store under `exports/<tenant>/<id>.tar`. Key `tenant.export:<exportId>`.
+   */
+  'tenant.export': z.object({ exportId: z.string().guid() }).strict(),
+  /**
+   * Platform job: per tenant, expire archives past EXPORT_RETENTION_DAYS and delete the files of
+   * expired ones, then drop rows older than a year (TODO #28).
+   */
+  'tenant.export.expire': z.object({}).strict(),
 } as const;
 
 export type JobType = keyof typeof JobPayloads;

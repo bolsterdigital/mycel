@@ -30,6 +30,8 @@
     const x = values[k];
     return Array.isArray(x) ? x : [];
   };
+  const authors = $derived(form?.authors ?? data.authors);
+  const sections = $derived(form?.sections ?? data.sections);
   const docLocales = $derived(list('locales'));
   const base = $derived(`/admin/${data.tenant.slug}`);
   const article = $derived(data.item.type === 'article');
@@ -200,7 +202,7 @@
               {@render act('publish', p.locale, t('admin.content.publication.publish'))}
             {/if}
             {#if p.pin && !p.pin.revision.latest}
-              {@render act('schedule', p.locale, t('admin.content.publication.repin'), p.pin.input)}
+              {@render act('repin', p.locale, t('admin.content.publication.repin'))}
             {/if}
             {#if p.pin}
               {@render act('unschedule', p.locale, t('admin.content.publication.unschedule'))}
@@ -268,10 +270,10 @@
         {/each}
         <fieldset id="authors">
           <legend>{t('admin.content.field.authors')}</legend>
-          {#if data.authors.length === 0}<p class="muted">
+          {#if authors.length === 0}<p class="muted">
               {t('admin.content.edit.noAuthors')}
             </p>{/if}
-          {#each data.authors as a (a.id)}
+          {#each authors as a (a.id)}
             <div class="check">
               <input
                 type="checkbox"
@@ -288,7 +290,7 @@
           <label for="sectionId">{t('admin.content.field.section')}</label>
           <select id="sectionId" name="sectionId">
             <option value="">{t('admin.content.edit.noSection')}</option>
-            {#each data.sections as s (s.id)}
+            {#each sections as s (s.id)}
               <option value={s.id} selected={v('sectionId') === s.id}>{s.title}</option>
             {/each}
           </select>

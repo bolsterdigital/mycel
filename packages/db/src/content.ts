@@ -116,6 +116,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
         tenant_id: tenantId,
         item_id: r.itemId,
         document: JSON.stringify(r.document),
+        provenance: r.provenance ? JSON.stringify(r.provenance) : null,
         actor: JSON.stringify(r.actor),
         created_at: r.createdAt,
       })
@@ -269,6 +270,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
             itemId: r.item_id,
             createdAt: iso(r.created_at),
             actor: r.actor,
+            ...(r.provenance ? { provenance: r.provenance } : {}),
             document: r.document,
           })
         : null;

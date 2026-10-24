@@ -34,7 +34,7 @@ export const Capabilities = capabilitySet(Capability);
 export const KeyCapabilities = capabilitySet(KeyCapability);
 
 export const Operator = z.object({
-  id: z.string().uuid(),
+  id: z.string().guid(),
   email: z.string().email(),
   name: z.string().nullable(),
   emailVerifiedAt: z.string().datetime().nullable(),
@@ -44,7 +44,7 @@ export type Operator = z.infer<typeof Operator>;
 
 /** A row of the member list of one tenant. `pending`: the operator has never logged in. */
 export const Member = z.object({
-  operatorId: z.string().uuid(),
+  operatorId: z.string().guid(),
   email: z.string().email(),
   name: z.string().nullable(),
   capabilities: z.array(Capability),
@@ -54,7 +54,7 @@ export type Member = z.infer<typeof Member>;
 
 /** What the key list shows. Never the hash, never the token. */
 export const ApiKeySummary = z.object({
-  id: z.string().uuid(),
+  id: z.string().guid(),
   name: z.string(),
   prefix: z.string(),
   capabilities: z.array(KeyCapability),

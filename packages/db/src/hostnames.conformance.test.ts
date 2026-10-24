@@ -79,8 +79,6 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('hostname conformance', () 
 
   beforeAll(async () => {
     await migrate(operatorUrl!, {
-      appPassword: process.env['MYCEL_APP_PASSWORD'],
-      authPassword: process.env['MYCEL_AUTH_PASSWORD'],
       log: () => {},
     });
     const ta = await tenant('hna');

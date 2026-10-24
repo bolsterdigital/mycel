@@ -6,7 +6,9 @@
 # Two differences from production. Postgres and the bucket are published on loopback ports, so
 # the fixture, the fingerprint and the conformance suites run from the host as they do in `verify`.
 # And the restic repository is a directory on the host (DRILL_RESTIC_DIR), so it outlives
-# `down --volumes`, which is the empty box the drill restores onto.
+# `down --volumes`, which is the empty box the drill restores onto. A second host directory
+# (DRILL_HOLD_DIR) carries the files with which the drill holds a backup after its dump
+# (BACKUP_HOLD_AFTER_DUMP in docker/backup/backup.sh) and lets it go again.
 services:
   postgres:
     ports: ['127.0.0.1:${DRILL_PG_PORT:-55432}:5432']
@@ -15,6 +17,7 @@ services:
   backup:
     volumes:
       - ${DRILL_RESTIC_DIR:?set DRILL_RESTIC_DIR}:/restic
+      - ${DRILL_HOLD_DIR:?set DRILL_HOLD_DIR}:/hold
   restore:
     volumes:
       - ${DRILL_RESTIC_DIR:?set DRILL_RESTIC_DIR}:/restic

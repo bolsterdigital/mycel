@@ -108,7 +108,7 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
   }
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, { appPassword: process.env['MYCEL_APP_PASSWORD'], log: () => {} });
+    await migrate(operatorUrl!, { log: () => {} });
     tenantA = (
       await upsertTenant(
         operatorDb,

@@ -12,9 +12,10 @@
 #
 # What it cannot do is the step after it: `migrate` lives in the application image. Start the
 # stack afterwards (`docker compose up -d`), whose first service is `migrate`; the runner is
-# idempotent and brings a dump from an older release up to this one. Restored an older snapshot
-# than the latest? Then carry the newer erasure register over (`restore erasures latest`,
-# restore-erasures.sh) and apply it (`mycel erasures apply`), so nobody erased since comes back.
+# idempotent and brings a dump from an older release up to this one. Then, always, carry the
+# newest erasure register over (`restore erasures latest`, restore-erasures.sh: the newest
+# erasures snapshot is at most 15 minutes old, the full one a day) and apply it (`mycel erasures
+# apply`), so nobody erased since comes back.
 # Rejected: `--clean` over an existing database (drops in dependency order are fragile with
 # partitions and policies, and a half-restored live database is worse than a refusal).
 set -eu
@@ -35,9 +36,15 @@ tables=$(q "select count(*) from pg_class where relnamespace = 'public'::regname
 
 say "fetching snapshot ${snapshot}"
 rm -rf "$target"
-restic restore "$snapshot" --host "$restic_host" --tag mycel --target "$target"
+# Tags mycel and db: `latest` is the newest full snapshot, never an erasures one (TODO #29B).
+restic restore "$snapshot" --host "$restic_host" --tag mycel,db --target "$target"
 [ -f "$src/db/mycel.dump" ] || die "snapshot ${snapshot} has no db/mycel.dump"
 say "snapshot: $(cat "$src/manifest.txt" | tr '\n' ' ')"
+
+# The dump grants insert on erasure_backups to the backup login (0021), and pg_restore stops at a
+# grant to a role that does not exist. Only the image's superuser can create that login.
+[ "$(q "select count(*) from pg_roles where rolname = 'mycel_backup'")" = 1 ] ||
+  die "no mycel_backup role on this box; set MYCEL_BACKUP_PASSWORD and run init-backup-role.sh first (docs/self-hosting.md § Backups)"
 
 say "creating the roles"
 psql --no-psqlrc --quiet --set=ON_ERROR_STOP=1 --file="$src/db/roles.sql"
@@ -56,5 +63,5 @@ rclone sync "$src/blob" "$blobs" --fast-list
 say "media files: $(tally "$src/blob")"
 
 rm -rf "$target"
-say "done; now start the stack (docker compose up -d): migrate runs first; then, after an older"
-say "snapshot than the latest, restore erasures latest and mycel erasures apply (self-hosting.md)"
+say "done; now run migrate (docker compose run --rm migrate), then restore erasures latest and"
+say "mycel erasures apply, before the sites open again (docs/self-hosting.md § Restore)"

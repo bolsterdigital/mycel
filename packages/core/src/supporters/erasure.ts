@@ -16,3 +16,9 @@ export const isTombstone = (email: string): boolean => email.endsWith(`@${ERASED
 /** Hex `sha256(tenant id, newline, lower-case address)`; `encode(sha256(...))` in SQL is equal. */
 export const erasureEmailHash = (tenantId: string, email: string): Promise<string> =>
   sha256Hex(`${tenantId}\n${email.trim().toLowerCase()}`);
+
+/**
+ * A registration no backup holds after this long is a warning (`ops.status`, `mycel erasures
+ * status`, TODO #29B): the `erasures` backup runs every 15 minutes, so an hour is four missed runs.
+ */
+export const ERASURE_UNSECURED_WARN_MS = 60 * 60 * 1000;

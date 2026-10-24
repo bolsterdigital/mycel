@@ -19,7 +19,7 @@ const SessionPayload = z.object({
   typ: z.literal('session'),
   /** Random per login, so two sessions of one operator never share a cookie value. */
   sid: z.string().min(16),
-  op: z.string().uuid(),
+  op: z.string().guid(),
   email: z.string().email(),
   name: z.string().nullable(),
   iat: z.number().int(),

@@ -4,7 +4,7 @@
 // unchanged. Each block has its own forms (brief § B): its fields through `set_props` and a move
 // up or down through `move`, both on the revision the page showed; inserting and removing have
 // pages of their own (`blocks/new`, `blocks/[blockId]/remove`). Authors and section always list what
-// the document has, also beyond the first page of the directory (`withAssigned`).
+// the document or a failed post has, also beyond the first page of the directory (`withAssigned`).
 //
 // A conflict shows both versions, as the ADR asks: the form keeps what was typed, a notice names
 // who saved the newer revision and when, and a table lists what changed between the revision the
@@ -83,6 +83,53 @@ async function latest(principal: Principal, itemId: string) {
   }
 }
 
+/** Resolve picker choices under the operator's tenant, including a failed post's selections. */
+async function relationshipChoices(
+  principal: Principal,
+  defaultLocale: string,
+  article: boolean,
+  authorIds: string[],
+  sectionId: string
+) {
+  const { invoker } = runtime();
+  const author = (a: { id: string; name: string }) => ({ id: a.id, name: a.name });
+  const section = (s: Section) => ({
+    id: s.id,
+    title: s.title[defaultLocale] ?? Object.values(s.title)[0] ?? s.slug,
+  });
+  const [authors, sections] = article
+    ? await Promise.all([
+        invoker.run(useCases.listAuthors, principal, { limit: 100 }).then(({ authors }) =>
+          withAssigned(
+            authorIds,
+            authors.map(author),
+            async (authorId) => {
+              const a = UUID.test(authorId)
+                ? await orNull(invoker.run(useCases.getAuthor, principal, { authorId }))
+                : null;
+              return a && author(a);
+            },
+            (id) => ({ id, name: id })
+          )
+        ),
+        invoker.run(useCases.listSections, principal, { limit: 100 }).then(({ sections }) =>
+          withAssigned(
+            sectionId ? [sectionId] : [],
+            sections.map(section),
+            async (sectionId) => {
+              const s = UUID.test(sectionId)
+                ? await orNull(invoker.run(useCases.getSection, principal, { sectionId }))
+                : null;
+              return s && section(s);
+            },
+            (id) => ({ id, title: id })
+          )
+        ),
+      ])
+    : [[], []];
+  return { authors, sections };
+}
+
 export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
   const { tenant } = await parent();
   const principal = locals.principal!;
@@ -108,38 +155,13 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
       );
     return seen.get(id)!;
   };
-  const author = (a: { id: string; name: string }) => ({ id: a.id, name: a.name });
-  const section = (s: Section) => ({
-    id: s.id,
-    title: s.title[tenant.defaultLocale] ?? Object.values(s.title)[0] ?? s.slug,
-  });
-  const [authors, sections] =
-    doc.type === 'article'
-      ? await Promise.all([
-          invoker.run(useCases.listAuthors, principal, { limit: 100 }).then(({ authors }) =>
-            withAssigned(
-              doc.authorIds,
-              authors.map(author),
-              async (authorId) => {
-                const a = await orNull(invoker.run(useCases.getAuthor, principal, { authorId }));
-                return a && author(a);
-              },
-              (id) => ({ id, name: id })
-            )
-          ),
-          invoker.run(useCases.listSections, principal, { limit: 100 }).then(({ sections }) =>
-            withAssigned(
-              doc.sectionId ? [doc.sectionId] : [],
-              sections.map(section),
-              async (sectionId) => {
-                const s = await orNull(invoker.run(useCases.getSection, principal, { sectionId }));
-                return s && section(s);
-              },
-              (id) => ({ id, title: id })
-            )
-          ),
-        ])
-      : [[], []];
+  const { authors, sections } = await relationshipChoices(
+    principal,
+    tenant.defaultLocale,
+    doc.type === 'article',
+    doc.type === 'article' ? doc.authorIds : [],
+    doc.type === 'article' ? (doc.sectionId ?? '') : ''
+  );
   const options = await pickerOptions(principal, doc.blocks, item.defaultLocale);
   return {
     blocks: doc.blocks.map((b) => ({
@@ -209,6 +231,7 @@ const DONE: Record<string, UiKey> = {
   publish: 'admin.content.publication.done.publish',
   unpublish: 'admin.content.publication.done.unpublish',
   schedule: 'admin.content.publication.done.schedule',
+  repin: 'admin.content.publication.done.schedule',
   unschedule: 'admin.content.publication.done.unschedule',
 };
 
@@ -441,6 +464,23 @@ export const actions: Actions = {
         at: instant(at),
       })
     ),
+  repin: (event) =>
+    publication(event, 'repin', async (principal, { itemId, locale, revisionId }) => {
+      if (!can(principal, 'content:publish'))
+        throw new UseCaseError('forbidden', 'missing capability content:publish');
+      const { item } = await runtime().invoker.run(useCases.getItem, principal, { itemId });
+      const at = item.publication.find((state) => state.locale === locale)?.scheduledFor;
+      if (!at)
+        throw new UseCaseError('invalid_input', 'no schedule to replace', [
+          { path: 'at', message: 'admin.content.publication.time-invalid' },
+        ]);
+      return runtime().invoker.run(useCases.scheduleItem, principal, {
+        itemId,
+        locale,
+        revisionId,
+        at,
+      });
+    }),
   unschedule: (event) =>
     publication(event, 'unschedule', (principal, { itemId, locale }) =>
       runtime().invoker.run(useCases.unscheduleItem, principal, { itemId, locale })
@@ -469,8 +509,16 @@ export const actions: Actions = {
         invalid: 'admin.content.error.invalid',
         issues: ISSUES,
       });
-      if (e.code !== 'conflict') return fail(status, { ...body, values, conflict: null });
       const { item, revision } = await latest(principal, params.itemId);
+      const choices = await relationshipChoices(
+        principal,
+        tenant.defaultLocale,
+        revision.document.type === 'article',
+        Array.isArray(values.authorIds) ? [...new Set(values.authorIds)] : [],
+        typeof values.sectionId === 'string' ? values.sectionId : ''
+      );
+      if (e.code !== 'conflict')
+        return fail(status, { ...body, ...choices, values, conflict: null });
       const { changes } = await rt.invoker.run(useCases.diffRevisions, principal, {
         itemId: item.id,
         fromRevisionId: baseRevisionId,
@@ -478,6 +526,7 @@ export const actions: Actions = {
       });
       return fail(status, {
         ...body,
+        ...choices,
         values: { ...values, baseRevisionId: revision.id },
         conflict: {
           who: actorLabel(revision.actor),

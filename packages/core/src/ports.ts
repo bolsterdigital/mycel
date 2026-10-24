@@ -123,4 +123,19 @@ export interface TransactionContext {
 export interface Erasures {
   register(supporterId: string, email: string): Promise<void>;
   apply(): Promise<number>;
+  /**
+   * How many registrations this tenant has and how many a backup holds (TODO #29B, 0021). A
+   * registration counts as a completed erasure only once it is secured: before that, losing the
+   * server and restoring the last backup brings the person back with nothing to erase them again.
+   * Only the backup writes `secured` (docker/backup/backup.sh, after `restic backup`).
+   */
+  status(): Promise<ErasureStatus>;
+}
+
+export interface ErasureStatus {
+  registered: number;
+  /** Registrations a restic snapshot of this installation holds. */
+  secured: number;
+  /** When the oldest registration no backup holds yet was made; null when all are secured. */
+  oldestUnsecuredAt: Date | null;
 }

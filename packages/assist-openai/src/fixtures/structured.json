@@ -1,0 +1,5 @@
+{
+  "model": "vision-fixture",
+  "choices": [{ "message": { "content": "{\"alt\":\"A red bicycle\"}" } }],
+  "usage": { "prompt_tokens": 42, "completion_tokens": 7 }
+}

@@ -123,7 +123,6 @@ function shapeOf(schema: z.ZodTypeAny): Record<string, z.ZodTypeAny> | null {
     schema instanceof z.ZodDefault
   )
     return shapeOf(schema._def.innerType);
-  if (schema instanceof z.ZodEffects) return shapeOf(schema._def.schema);
   if (schema instanceof z.ZodArray) return shapeOf(schema.element);
   return null;
 }

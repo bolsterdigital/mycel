@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { Invoker } from '../invoke.js';
 import type { JobRecord } from '../jobs/ports.js';
 import { systemPrincipal, type Principal } from '../principal.js';
-import { FakeClock, MemoryUnitOfWork, probeTenant } from '../testing/index.js';
+import { FakeClock, MemoryUnitOfWork, probeTenant, secureErasures } from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { buildDiagnosis, keyPrefix } from './model.js';
 
@@ -172,7 +172,45 @@ describe('job recovery (TODO #17c)', () => {
     it('is empty when nothing is stuck', async () => {
       const status = await invoker.run(useCases.getOpsStatus, admin(), {});
       expect(status).toMatchObject({ jobs: [], mails: [], audit: [] });
+      expect(status.erasures).toEqual({
+        registered: 0,
+        unsecured: 0,
+        oldestUnsecuredAt: null,
+        late: false,
+      });
       expect(status.diagnosis).toContain('exhausted jobs: 0');
+      expect(status.diagnosis).toContain('erasures not in a backup: 0\n');
+    });
+
+    it('warns about an erasure no backup holds after an hour, and not before (TODO #29B)', async () => {
+      const erased = clock.now();
+      await uow.run(admin(), (ctx) =>
+        ctx.erasures.register('01900000-0000-7000-8000-0000000e0001', 'ada@example.org')
+      );
+      clock.advance(59 * 60_000);
+      let status = await invoker.run(useCases.getOpsStatus, admin(), {});
+      expect(status.erasures).toEqual({
+        registered: 1,
+        unsecured: 1,
+        oldestUnsecuredAt: erased.toISOString(),
+        late: false,
+      });
+      clock.advance(2 * 60_000);
+      status = await invoker.run(useCases.getOpsStatus, admin(), {});
+      expect(status.erasures.late).toBe(true);
+      expect(status.diagnosis).toContain(
+        `erasures not in a backup: 1 oldest since ${erased.toISOString()} (late)`
+      );
+      expect(status.diagnosis).not.toContain('@');
+
+      secureErasures(uow.store, TENANT, 'a'.repeat(64), clock.now());
+      status = await invoker.run(useCases.getOpsStatus, admin(), {});
+      expect(status.erasures).toEqual({
+        registered: 1,
+        unsecured: 0,
+        oldestUnsecuredAt: null,
+        late: false,
+      });
     });
   });
 });
@@ -204,6 +242,7 @@ describe('the diagnosis to share (brief decision 6)', () => {
           lastError: 'rcpt a%40b.nl refused',
         },
       ],
+      erasures: { registered: 3, unsecured: 0, oldestUnsecuredAt: null, late: false },
       failedRequests: ['req-1', 'req-2'],
     });
     expect(text).toBe(
@@ -214,6 +253,7 @@ describe('the diagnosis to share (brief decision 6)', () => {
         `- mail.reconcile ${keyPrefix('mail.reconcile:confirmation:01900000-0000-7000-8000-0000000e0001')} attempts 10/10 since 2026-10-22T12:00:00.000Z: unknown supporter [email] at line 3`,
         'unresolved mail: 1',
         '- unknown mailing.confirmation attempts 2 attempted 2026-10-22T12:00:00.000Z: rcpt [email] refused',
+        'erasures not in a backup: 0',
         'failed requests: req-1 req-2',
       ].join('\n')
     );

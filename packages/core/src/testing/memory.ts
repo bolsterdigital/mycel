@@ -6,6 +6,7 @@
 // save/delete race (TODO #8b2) can be proven here too.
 
 import type { AuditEntry } from '../audit/model.js';
+import type { AssistRepository, AssistSettings, AssistSuggestion } from '../assist/ports.js';
 import type { AuditLog, InputHasher } from '../audit/ports.js';
 import type { FormDefinition, Submission } from '../forms/model.js';
 import type { FormRepository, RateLimiter, SubmissionRepository } from '../forms/ports.js';
@@ -79,6 +80,7 @@ import { DnsUnavailableError } from '../tenants/ports.js';
 import type { JobRecord, JobRequest, Scheduler } from '../jobs/ports.js';
 import type { JobRecovery, RecoveryResult, StuckJob } from '../ops/ports.js';
 import type { JobType } from '../jobs/types.js';
+import type { TenantExportRecord, TenantExportRepository } from '../tenants/exports.js';
 import {
   DEFAULT_ACCESS,
   effectiveEntitlements,
@@ -218,6 +220,9 @@ function sluggedRepository<T extends { id: string; slug: string }>(
 }
 
 interface TenantStore {
+  assistSettings: AssistSettings;
+  suggestions: Map<string, AssistSuggestion>;
+  assistUsage: Map<string, number>;
   items: Map<string, ItemRecord>;
   revisions: Map<string, Revision>;
   /** `content_block_refs`, keyed by revision id. */
@@ -250,6 +255,13 @@ interface TenantStore {
   audit: AuditEntry[];
   /** `erasures` (0019), keyed by supporter id: the hash of the address, never the address. */
   erasures: Map<string, { emailHash: string; erasedAt: Date; actor: Principal['actor'] }>;
+  /**
+   * `erasure_backups` (0021), keyed by supporter id. Only the backup writes it over Postgres; a
+   * suite marks a registration secured with `secureErasures`.
+   */
+  erasureBackups: Map<string, { snapshotId: string; securedAt: Date }>;
+  /** `tenant_exports` (0022), keyed by id. The job side lives in packages/db; suites edit rows. */
+  exports: Map<string, TenantExportRecord>;
 }
 
 /** Development defaults, the shape `.env.example` gives: path form on localhost. */
@@ -360,17 +372,40 @@ export class MemoryJobRecovery implements JobRecovery {
  */
 export class MemoryBlobStore implements BlobStore {
   readonly blobs = new Map<string, { bytes: Uint8Array; contentType: string; modifiedAt: Date }>();
-  constructor(readonly clock: Clock = new FakeClock()) {}
+  /**
+   * `readFile` serves `putFile`: the core may not touch the file system, so a suite that streams
+   * a file into this store hands over `node:fs/promises`' readFile itself.
+   */
+  constructor(
+    readonly clock: Clock = new FakeClock(),
+    readonly readFile?: (path: string) => Promise<Uint8Array>
+  ) {}
   async put(key: string, bytes: Uint8Array, { contentType }: { contentType: string }) {
+    // The contract of the real stores (packages/blob): a key never escapes the store.
+    if (!key || key.startsWith('/') || key.split('/').some((p) => ['', '.', '..'].includes(p)))
+      throw new Error(`invalid blob key: ${key}`);
     this.blobs.set(key, {
       bytes: new Uint8Array(bytes),
       contentType,
       modifiedAt: this.clock.now(),
     });
   }
+  async putFile(key: string, path: string, options: { contentType: string }) {
+    if (!this.readFile) throw new Error('MemoryBlobStore.putFile needs a readFile');
+    await this.put(key, await this.readFile(path), options);
+  }
   async get(key: string) {
     const b = this.blobs.get(key);
     return b ? new Uint8Array(b.bytes) : null;
+  }
+  async getStream(key: string) {
+    const b = this.blobs.get(key);
+    if (!b) return null;
+    const bytes = new Uint8Array(b.bytes);
+    // In chunks, as the real stores deliver, so a consumer that assumes one chunk fails here.
+    return (async function* () {
+      for (let i = 0; i < bytes.length; i += 64 * 1024) yield bytes.subarray(i, i + 64 * 1024);
+    })();
   }
   async head(key: string) {
     const b = this.blobs.get(key);
@@ -465,6 +500,15 @@ export class MemoryStore {
     let store = this.tenants.get(tenantId);
     if (!store) {
       store = {
+        assistSettings: {
+          enabled: false,
+          allowRestricted: false,
+          consentedProvider: null,
+          consentedBy: null,
+          consentedAt: null,
+        },
+        suggestions: new Map(),
+        assistUsage: new Map(),
         items: new Map(),
         revisions: new Map(),
         blockRefs: new Map(),
@@ -486,6 +530,8 @@ export class MemoryStore {
         mediaUsages: new Map(),
         audit: [],
         erasures: new Map(),
+        erasureBackups: new Map(),
+        exports: new Map(),
       };
       this.tenants.set(tenantId, store);
     }
@@ -606,9 +652,87 @@ function memoryErasures(store: MemoryStore, principal: Principal, clock: Clock):
           changed++;
         }
       }
+      // Archives that may hold a registered person (TODO #28), as packages/db/src/erasures.ts.
+      const newest = Math.max(...[...s.erasures.values()].map((e) => e.erasedAt.getTime()));
+      for (const x of s.exports.values())
+        if (
+          (x.status === 'ready' || x.status === 'running') &&
+          (changed > 0 || x.requestedAt.getTime() < newest)
+        ) {
+          Object.assign(x, {
+            status: 'expired',
+            error: 'deleted after an erasure',
+            expiresAt: clock.now(),
+          });
+          changed++;
+        }
       return changed;
     },
+    async status() {
+      let oldest: Date | null = null;
+      for (const [id, e] of s.erasures)
+        if (!s.erasureBackups.has(id) && (!oldest || e.erasedAt < oldest)) oldest = e.erasedAt;
+      return {
+        registered: s.erasures.size,
+        secured: [...s.erasures.keys()].filter((id) => s.erasureBackups.has(id)).length,
+        oldestUnsecuredAt: oldest,
+      };
+    },
   };
+}
+
+/** `ctx.exports` over a MemoryStore: one queued or running export per tenant, like 0022's index. */
+function memoryExports(rows: Map<string, TenantExportRecord>): TenantExportRepository {
+  const copy = (r: TenantExportRecord) => structuredClone(r);
+  return {
+    async request({ id, requestedBy, requestedAt }) {
+      const active = [...rows.values()].find(
+        (r) => r.status === 'queued' || r.status === 'running'
+      );
+      if (active) return { record: copy(active), created: false };
+      const record: TenantExportRecord = {
+        id,
+        requestedBy,
+        requestedAt,
+        status: 'queued',
+        startedAt: null,
+        heartbeatAt: null,
+        finishedAt: null,
+        sizeBytes: null,
+        sha256: null,
+        schemaVersion: null,
+        error: null,
+        expiresAt: null,
+      };
+      rows.set(id, record);
+      return { record: copy(record), created: true };
+    },
+    async get(id) {
+      const r = rows.get(id);
+      return r ? copy(r) : null;
+    },
+    async list(limit) {
+      return [...rows.values()]
+        .sort((a, b) => +b.requestedAt - +a.requestedAt || b.id.localeCompare(a.id))
+        .slice(0, limit)
+        .map(copy);
+    },
+  };
+}
+
+/**
+ * What a backup run does over Postgres (docker/backup/backup.sh, 0021): every registration of the
+ * tenant that is in the register now is held by snapshot `snapshotId`. Existing rows stay.
+ */
+export function secureErasures(
+  store: MemoryStore,
+  tenantId: string,
+  snapshotId: string,
+  at: Date
+): void {
+  const s = store.for(tenantId);
+  for (const id of s.erasures.keys())
+    if (!s.erasureBackups.has(id)) s.erasureBackups.set(id, { snapshotId, securedAt: at });
 }
 
 /** Keeps every line it is given, for assertions; `child` shares the list. */
@@ -657,6 +781,7 @@ export interface MemoryDeps {
   images?: ImageProcessor;
   delivery?: MediaDelivery;
   inputHasher?: InputHasher;
+  assistProviderLabel?: string | null;
 }
 
 export class MemoryUnitOfWork implements UnitOfWork {
@@ -671,6 +796,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
   readonly delivery: MediaDelivery;
   readonly log: Logger;
   readonly inputHasher: InputHasher;
+  readonly assistProviderLabel: string | null;
 
   constructor(deps: MemoryDeps = {}) {
     this.log = deps.log ?? noopLogger;
@@ -684,6 +810,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
     this.images = deps.images ?? memoryImageProcessor;
     this.delivery = deps.delivery ?? appDelivery;
     this.inputHasher = deps.inputHasher ?? new FakeInputHasher();
+    this.assistProviderLabel = deps.assistProviderLabel ?? null;
   }
 
   async run<T>(principal: Principal, fn: (tx: TransactionContext) => Promise<T>): Promise<T> {
@@ -762,6 +889,58 @@ export class MemoryUnitOfWork implements UnitOfWork {
           limit
         );
         return { ...page, rows: page.rows.map(({ document: _d, ...summary }) => summary) };
+      },
+    };
+    const assist: AssistRepository = {
+      settings: async () => structuredClone(s.assistSettings),
+      saveSettings: async (settings) => {
+        s.assistSettings = structuredClone(settings);
+      },
+      lockQuota: async () => {},
+      countSince: async (since) => s.assistUsage.get(since.toISOString().slice(0, 7)) ?? 0,
+      pendingCount: async (since) =>
+        [...s.suggestions.values()].filter((v) => v.status === 'pending' && v.createdAt >= since)
+          .length,
+      countByOperatorSince: async (operatorId, since) =>
+        [...s.suggestions.values()].filter(
+          (v) => v.requestedBy === operatorId && v.createdAt >= since
+        ).length,
+      insert: async (row) => {
+        s.suggestions.set(row.id, structuredClone(row));
+        const month = row.createdAt.toISOString().slice(0, 7);
+        s.assistUsage.set(month, (s.assistUsage.get(month) ?? 0) + 1);
+      },
+      get: async (id) => structuredClone(s.suggestions.get(id) ?? null),
+      list: async (itemId) =>
+        [...s.suggestions.values()]
+          .filter((v) => v.itemId === itemId)
+          .map((v) => structuredClone(v)),
+      async complete(id, patch) {
+        const row = s.suggestions.get(id);
+        if (!row || row.status !== 'pending') return false;
+        s.suggestions.set(id, { ...row, ...patch });
+        return true;
+      },
+      async decide(id, status, at) {
+        const row = s.suggestions.get(id);
+        if (
+          !row ||
+          (status === 'accepted'
+            ? row.status !== 'ready'
+            : !['ready', 'failed', 'pending'].includes(row.status))
+        )
+          return false;
+        s.suggestions.set(id, { ...row, status, value: null, updatedAt: at });
+        return true;
+      },
+      async deleteBefore(before) {
+        let deleted = 0;
+        for (const [id, row] of s.suggestions)
+          if (row.createdAt < before) {
+            s.suggestions.delete(id);
+            deleted++;
+          }
+        return deleted;
       },
     };
     const forms: FormRepository = {
@@ -1171,6 +1350,8 @@ export class MemoryUnitOfWork implements UnitOfWork {
           },
         },
         content,
+        assist,
+        assistProviderLabel: this.assistProviderLabel,
         authors: sluggedRepository(s.authors),
         sections: sluggedRepository(s.sections),
         patterns: entityRepository(s.patterns),
@@ -1195,6 +1376,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
         audit,
         inputHasher: this.inputHasher,
         erasures: memoryErasures(store, principal, clock),
+        exports: memoryExports(s.exports),
       });
     } finally {
       releaseMembers?.();

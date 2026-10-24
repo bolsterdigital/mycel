@@ -5,8 +5,12 @@
 // right against every provider's quirks) and presigned URLs for delivery (the bucket would then
 // decide cache headers and access, ADR 018 rules 7 and 8).
 
+import { open } from 'node:fs/promises';
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
   CreateBucketCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
@@ -15,6 +19,7 @@ import {
   NotFound,
   PutObjectCommand,
   S3Client,
+  UploadPartCommand,
 } from '@aws-sdk/client-s3';
 import type { BlobStore } from '@mycel/core';
 import { assertKey } from './fs.js';
@@ -35,6 +40,13 @@ const notFound = (e: unknown) =>
 
 /** DeleteObjects takes at most a thousand keys per call. */
 const BATCH = 1000;
+
+/**
+ * `putFile` uploads in parts of this size (S3's minimum is 5 MiB except for the last part): one
+ * part in memory at a time, and 10,000 parts reach 160 GiB. Rejected: `@aws-sdk/lib-storage`
+ * (a dependency for forty lines) and a single PutObject from a stream (capped at 5 GiB).
+ */
+const PART_BYTES = 16 * 1024 * 1024;
 
 function clientOf(config: S3BlobStoreConfig): S3Client {
   return new S3Client({
@@ -73,6 +85,69 @@ export function createS3BlobStore(config: S3BlobStoreConfig): BlobStore {
       await client.send(
         new PutObjectCommand({ Bucket, Key: key, Body: bytes, ContentType: contentType })
       );
+    },
+    async putFile(key, path, { contentType }) {
+      assertKey(key);
+      const file = await open(path, 'r');
+      let UploadId: string | undefined;
+      try {
+        const { size } = await file.stat();
+        if (size <= PART_BYTES) {
+          const Body = new Uint8Array(size);
+          await file.read(Body, 0, size, 0);
+          await client.send(
+            new PutObjectCommand({ Bucket, Key: key, Body, ContentType: contentType })
+          );
+          return;
+        }
+        ({ UploadId } = await client.send(
+          new CreateMultipartUploadCommand({ Bucket, Key: key, ContentType: contentType })
+        ));
+        const parts: { ETag: string; PartNumber: number }[] = [];
+        const buffer = new Uint8Array(PART_BYTES);
+        for (let at = 0, PartNumber = 1; at < size; at += PART_BYTES, PartNumber++) {
+          const { bytesRead } = await file.read(buffer, 0, PART_BYTES, at);
+          const out = await client.send(
+            new UploadPartCommand({
+              Bucket,
+              Key: key,
+              UploadId,
+              PartNumber,
+              Body: buffer.subarray(0, bytesRead),
+            })
+          );
+          parts.push({ ETag: out.ETag ?? '', PartNumber });
+        }
+        await client.send(
+          new CompleteMultipartUploadCommand({
+            Bucket,
+            Key: key,
+            UploadId,
+            MultipartUpload: { Parts: parts },
+          })
+        );
+        UploadId = undefined;
+      } catch (e) {
+        // An unfinished upload is invisible but billed; abort it.
+        if (UploadId)
+          await client
+            .send(new AbortMultipartUploadCommand({ Bucket, Key: key, UploadId }))
+            .catch(() => {});
+        throw e;
+      } finally {
+        await file.close();
+      }
+    },
+    async getStream(key) {
+      assertKey(key);
+      try {
+        const out = await client.send(new GetObjectCommand({ Bucket, Key: key }));
+        // In Node the body is a Readable, which is an AsyncIterable of chunks.
+        return (out.Body as AsyncIterable<Uint8Array> | undefined) ?? (async function* () {})();
+      } catch (e) {
+        if (notFound(e)) return null;
+        throw e;
+      }
     },
     async get(key) {
       assertKey(key);

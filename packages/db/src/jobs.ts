@@ -160,6 +160,25 @@ export async function completeJob(
 }
 
 /**
+ * Renew the lease of a claimed job that is still running (TODO #28: an export can take longer than
+ * JOB_LEASE_SECONDS). The same `attempts` guard as `completeJob`: false when another run owns the
+ * job, and then the caller should stop. Rejected: a longer lease for every job type, which keeps a
+ * job of a crashed worker waiting that long too.
+ */
+export async function touchJob(operatorDb: Kysely<Database>, job: JobRecord): Promise<boolean> {
+  return asWorker(operatorDb, async (trx) => {
+    const r = await trx
+      .updateTable('jobs')
+      .set({ claimed_at: sql`now()` })
+      .where('id', '=', job.id)
+      .where('attempts', '=', job.attempts)
+      .where('done_at', 'is', null)
+      .executeTakeFirst();
+    return r.numUpdatedRows > 0n;
+  });
+}
+
+/**
  * Record a failed run: release the lease and retry after the backoff, until `max_attempts`. The
  * error text is scrubbed: an exception may quote an address, and #17c shows this column.
  */

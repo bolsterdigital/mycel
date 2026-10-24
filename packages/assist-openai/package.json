@@ -1,0 +1,22 @@
+{
+  "name": "@mycel/assist-openai",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "description": "OpenAI-compatible TextModel adapter for assistance",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -b",
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@mycel/core": "*",
+    "zod": "^4.6.7"
+  }
+}

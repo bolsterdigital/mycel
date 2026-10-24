@@ -9,6 +9,8 @@
 // site gets nothing, not even the theme.
 
 import AxeBuilder from '@axe-core/playwright';
+import { createApp } from '@mycel/api';
+import { Invoker, buildRegistry, systemPrincipal } from '@mycel/core';
 import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
 
 const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
@@ -226,7 +228,7 @@ async function bySlug<T>(
 // Review of PR #45: the pickers list one page of the directory (newest first, a hundred), so an
 // author or section beyond it, or authors in another order than the directory's, were lost or
 // reordered by a save that only changed the title.
-test('a title-only save keeps authors, their order and the section beyond the first page', async ({
+test('title-only and conflicting saves keep authors, their order and the off-page section', async ({
   page,
   request,
 }) => {
@@ -283,6 +285,50 @@ test('a title-only save keeps authors, their order and the section beyond the fi
   await page.getByRole('button', { name: 'Opslaan' }).click();
   await expect(page).toHaveURL(new RegExp(`${item.id}\\?saved$`));
   expect(await saved()).toMatchObject({ authorIds, sectionId: oldSection.id });
+
+  // Another editor removes every relation after this form was opened. Its latest document
+  // and the directory page no longer contain the off-page choices in this editor's post.
+  const { revision } = await call<{ revision: { id: string; document: Record<string, unknown> } }>(
+    request,
+    'content.item.get',
+    { itemId: item.id }
+  );
+  await page.getByLabel('Titel (nl)').fill('Mijn artikel bij conflict');
+  await call(request, 'content.item.update', {
+    itemId: item.id,
+    baseRevisionId: revision.id,
+    document: { ...revision.document, authorIds: [], sectionId: null },
+  });
+  await page.getByRole('button', { name: 'Opslaan' }).click();
+  await expect(page.getByRole('alert')).toContainText(
+    'Iemand anders heeft dit item intussen opgeslagen'
+  );
+  await expect(page.getByLabel('Titel (nl)')).toHaveValue('Mijn artikel bij conflict');
+  for (const name of [`Eerste ${run}`, `Tweede ${run}`, 'Ver Weg'])
+    await expect(page.getByLabel(name, { exact: true })).toBeChecked();
+  await expect(page.getByLabel('Rubriek')).toHaveValue(oldSection.id);
+  await expectNoAxeViolations(page);
+
+  // A validation error on the new base must preserve the same choices too. They still
+  // are not in the latest document, and the section/old author are outside the directory page.
+  await page.locator('[name="canonical"]').fill('not-a-url');
+  await page.getByRole('button', { name: 'Opslaan' }).click();
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.getByRole('alert')).not.toContainText(
+    'Iemand anders heeft dit item intussen opgeslagen'
+  );
+  for (const name of [`Eerste ${run}`, `Tweede ${run}`, 'Ver Weg'])
+    await expect(page.getByLabel(name, { exact: true })).toBeChecked();
+  await expect(page.getByLabel('Rubriek')).toHaveValue(oldSection.id);
+  await expect(page.getByLabel('Titel (nl)')).toHaveValue('Mijn artikel bij conflict');
+  await page.locator('[name="canonical"]').fill('');
+  await page.getByRole('button', { name: 'Opslaan' }).click();
+  await expect(page).toHaveURL(new RegExp(`${item.id}\\?saved$`));
+  expect(await saved()).toMatchObject({
+    title: { nl: 'Mijn artikel bij conflict' },
+    authorIds,
+    sectionId: oldSection.id,
+  });
 
   // An explicit change still works: one author off, one on, the rest keeps its order.
   await page.getByLabel(`Eerste ${run}`).uncheck();
@@ -405,6 +451,85 @@ test('a schedule pins a revision; a newer one can take its place', async ({ page
   await expect(nl.getByRole('heading')).toContainText('concept');
 });
 
+test('repinning an HTTP schedule preserves the second autumn hour and seconds', async ({
+  page,
+}) => {
+  const { createDb, createTenantDirectory, createUnitOfWork, uuidv7Ids } =
+    await import('@mycel/db');
+  const { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } =
+    await import('@mycel/core/testing');
+  const operatorDb = createDb(process.env['DATABASE_URL']!);
+  const appDb = createDb(process.env['APP_DATABASE_URL']!);
+  try {
+    const probe = await createTenantDirectory(operatorDb).findBySlug('probe');
+    const invoker = new Invoker(
+      buildRegistry(),
+      createUnitOfWork(appDb, {
+        clock: { now: () => new Date() },
+        ids: uuidv7Ids,
+        signer: new FakeSigner(),
+        inputHasher: new FakeInputHasher(),
+        dns: new FakeDns(),
+        platform: memoryPlatform,
+      })
+    );
+    const api = createApp({
+      invoker,
+      authenticate: async (authorization) =>
+        authorization === 'Bearer e2e' ? systemPrincipal(probe!.id, 'e2e') : null,
+    });
+    const call = async (name: string, input: Record<string, string>) => {
+      const response = await api.request(`/v1/${name}`, {
+        method: 'POST',
+        headers: { authorization: 'Bearer e2e', 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      expect(response.status, response.status === 200 ? '' : await response.text()).toBe(200);
+      return response.json();
+    };
+    await login(page, ADMIN, '/admin/probe');
+    for (const [label, at] of [
+      ['autumn', '2030-10-27T01:30:00.000Z'],
+      ['seconds', '2030-01-04T08:00:45.123Z'],
+    ]) {
+      const edit = await newPage(page, slugFor(`repin-${label}`), `Planned ${label}`);
+      const itemId = edit.split('/').at(-1)!;
+      const oldRevisionId = await page.locator('input[name="baseRevisionId"]').inputValue();
+      const before = await call('content.item.schedule', {
+        itemId,
+        revisionId: oldRevisionId,
+        locale: 'nl',
+        at,
+      });
+      expect(
+        before.publication.find((state: { locale: string }) => state.locale === 'nl')
+      ).toMatchObject({
+        scheduledRevisionId: oldRevisionId,
+        scheduledFor: at,
+      });
+
+      await page.goto(edit);
+      await page.getByLabel('Titel (nl)').fill(`Updated ${label}`);
+      await page.getByRole('button', { name: 'Opslaan' }).click();
+      const newRevisionId = await page.locator('input[name="baseRevisionId"]').inputValue();
+      expect(newRevisionId).not.toBe(oldRevisionId);
+      await card(page, 'nl')
+        .getByRole('button', { name: 'Deze revisie op dat moment publiceren (nl)' })
+        .click();
+      await expect(page).toHaveURL(`${edit}?done=repin&locale=nl`);
+      const after = await call('content.item.get', { itemId });
+      expect(
+        after.item.publication.find((state: { locale: string }) => state.locale === 'nl')
+      ).toMatchObject({
+        scheduledRevisionId: newRevisionId,
+        scheduledFor: at,
+      });
+    }
+  } finally {
+    await Promise.all([operatorDb.destroy(), appDb.destroy()]);
+  }
+});
+
 test('a restricted item says what visitors get before any publish button', async ({ page }) => {
   await login(page, ADMIN, '/admin/probe');
   await newPage(page, slugFor('restricted'), 'Voor leden');
@@ -451,6 +576,11 @@ test('a writer without content:publish sees the state, no buttons, and gets a 40
       form: { locale: 'nl', revisionId },
     });
     expect(res.status()).toBe(403);
+    const repin = await page.request.post(`${edit}?/repin`, {
+      headers: { origin: 'http://127.0.0.1:4173' },
+      form: { locale: 'nl', revisionId },
+    });
+    expect(repin.status()).toBe(403);
   } finally {
     await context.clearCookies();
     await login(page, ADMIN, '/admin/probe');

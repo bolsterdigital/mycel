@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { applyMigrations } from './migrate.js';
+import { applyMigrations, migrate } from './migrate.js';
 
 const operatorUrl = process.env['DATABASE_URL'];
 if (process.env['E2E_REQUIRED'] === '1' && !operatorUrl)
@@ -83,4 +83,30 @@ describe.skipIf(!operatorUrl)('migrate: checksums of applied files', () => {
     await client.query(`insert into schema_migrations (version, checksum) values ('0099_z', 'x')`);
     expect(await applyMigrations(client, dir)).toEqual([]);
   });
+
+  it('checks an already migrated schema without rewriting a cluster role', async () => {
+    const { rows } = await client.query<{ name: string }>('select current_user as name');
+    // The operator can change its own password on both CI and the Mac. Locking mycel_app here
+    // would hold up unrelated suites that grant privileges to it while applying migrations.
+    const role = rows[0]!.name;
+    const quotedRole = `"${role.replaceAll('"', '""')}"`;
+    const holder = new pg.Client({ connectionString: operatorUrl });
+    const contender = new pg.Client({ connectionString: operatorUrl });
+    await Promise.all([holder.connect(), contender.connect()]);
+    try {
+      await holder.query('begin');
+      await holder.query(`alter role ${quotedRole} password 'rolled-back-test-value'`);
+      // A second role update is the old conformance setup. It cannot finish while the first
+      // transaction owns the catalog tuple; in full parallel runs it hit tuple concurrently updated.
+      await contender.query(`set lock_timeout = '100ms'`);
+      await expect(
+        contender.query(`alter role ${quotedRole} password 'another-test-value'`)
+      ).rejects.toMatchObject({ code: '55P03' });
+      // The schema-only test setup can still finish while that role transaction is open.
+      await expect(migrate(operatorUrl!, { log: () => {} })).resolves.toEqual([]);
+    } finally {
+      await holder.query('rollback').catch(() => {});
+      await Promise.all([holder.end(), contender.end()]);
+    }
+  }, 30_000);
 });

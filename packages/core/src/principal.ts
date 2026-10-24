@@ -26,6 +26,7 @@ export const Capability = z.enum([
   'money:refund',
   'media:read',
   'media:write',
+  'ai:assist',
   'tenant:admin',
 ]);
 export type Capability = z.infer<typeof Capability>;
@@ -54,7 +55,7 @@ export const Actor = z.discriminatedUnion('kind', [
 export type Actor = z.infer<typeof Actor>;
 
 export const Principal = z.object({
-  tenantId: z.string().uuid(),
+  tenantId: z.string().guid(),
   actor: Actor,
   capabilities: z.array(Capability),
   /**

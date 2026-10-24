@@ -51,8 +51,6 @@ describe.skipIf(!ready)('platform API', () => {
 
   beforeAll(async () => {
     await migrate(env['DATABASE_URL']!, {
-      appPassword: env['MYCEL_APP_PASSWORD'],
-      authPassword: env['MYCEL_AUTH_PASSWORD'],
       log: () => {},
     });
   });

@@ -1,6 +1,10 @@
 // Public surface of the domain core. Adapters and fronts import from here only (plus
 // `@mycel/core/testing` for in-memory ports in tests).
 export * from './ports.js';
+export * from './assist/ports.js';
+export * from './assist/model.js';
+export * from './assist/service.js';
+export * from './assist/worker.js';
 export * from './principal.js';
 export * from './registry.js';
 export * from './registry-rules.js';
@@ -13,6 +17,7 @@ export * from './tenants/ports.js';
 export * from './tenants/model.js';
 export * from './tenants/url.js';
 export * from './tenants/service.js';
+export * from './tenants/exports.js';
 export * from './jobs/types.js';
 export * from './jobs/ports.js';
 export * from './jobs/handlers.js';

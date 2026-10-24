@@ -21,19 +21,18 @@ function scalarType(schema: z.ZodTypeAny): ScalarType | null {
 
 /** True for a string validated with `.email()`: personal data that must not travel in a URL. */
 export function isEmailField(schema: z.ZodTypeAny): boolean {
-  return schema instanceof z.ZodString && schema._def.checks.some((c) => c.kind === 'email');
+  return schema instanceof z.ZodString && z.toJSONSchema(schema).format === 'email';
 }
 
 /** The fields of a flat query's input, or null when the use case is POST-only. */
 export function flatQueryFields(useCase: UseCase): FlatFields | null {
   if (useCase.kind !== 'query') return null;
-  let input: z.ZodTypeAny = useCase.input;
-  while (input instanceof z.ZodEffects) input = input.innerType();
+  const input: z.ZodTypeAny = useCase.input;
   if (!(input instanceof z.ZodObject)) return null;
   const fields: FlatFields = {};
-  for (const [name, field] of Object.entries(input.shape as z.ZodRawShape)) {
+  for (const [name, field] of Object.entries(input.shape as Record<string, z.ZodTypeAny>)) {
     const optional = field instanceof z.ZodOptional;
-    const inner: z.ZodTypeAny = optional ? field.unwrap() : field;
+    const inner: z.ZodTypeAny = optional ? (field.unwrap() as z.ZodTypeAny) : field;
     const type = scalarType(inner);
     if (!type || isEmailField(inner)) return null;
     fields[name] = { type, required: !optional };

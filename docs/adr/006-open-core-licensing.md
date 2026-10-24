@@ -2,6 +2,7 @@
 
 - **Status**: accepted
 - **Date**: 2026-10-21
+- **Extension scope**: 2026-10-24 [ADR 022](022-managed-extensions-and-site-integrations.md) permits selective trusted packages without promising proprietary in-process modules; existing AGPL and external API boundaries remain in force.
 
 ## Context
 

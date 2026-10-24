@@ -110,8 +110,6 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
 
   beforeAll(async () => {
     await migrate(operatorUrl!, {
-      appPassword: process.env['MYCEL_APP_PASSWORD'],
-      authPassword: process.env['MYCEL_AUTH_PASSWORD'],
       log: () => {},
     });
   });

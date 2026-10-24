@@ -34,7 +34,7 @@ import {
 } from './model.js';
 import './ports.js';
 
-const OperatorId = z.string().uuid();
+const OperatorId = z.string().guid();
 
 /** The capabilities `held` grants, read the way `can` reads them. */
 const covers = (held: readonly Capability[], wanted: readonly Capability[]) =>
@@ -197,7 +197,7 @@ export const createKey = defineUseCase({
   // Keys are a switch (`api_keys`), not a counted limit.
   consumes: null,
   input: z.object({ name: z.string().trim().min(1).max(100), capabilities: KeyCapabilities }),
-  output: z.object({ id: z.string().uuid(), token: z.string(), prefix: z.string() }),
+  output: z.object({ id: z.string().guid(), token: z.string(), prefix: z.string() }),
   examples: [{ input: { name: 'Newsletter sync', capabilities: ['supporters:read'] } }],
   async handler(ctx, { name, capabilities }) {
     requireEntitled(ctx.principal, 'api_keys');
@@ -226,8 +226,8 @@ export const revokeKey = defineUseCase({
   kind: 'command',
   description: 'Revoke an API key; it stops working on its next request and stays listed.',
   requires: 'tenant:admin',
-  input: z.object({ id: z.string().uuid() }),
-  output: z.object({ id: z.string().uuid() }),
+  input: z.object({ id: z.string().guid() }),
+  output: z.object({ id: z.string().guid() }),
   examples: [{ input: { id: '01900000-0000-7000-8000-000000000001' } }],
   async handler(ctx, { id }) {
     if (!(await ctx.apiKeys.revoke(id, ctx.clock.now())))

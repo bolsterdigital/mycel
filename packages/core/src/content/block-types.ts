@@ -108,7 +108,7 @@ const Action = z
   .object({
     label: localized(LabelText),
     target: z.discriminatedUnion('kind', [
-      z.object({ kind: z.literal('item'), itemId: z.string().uuid() }).strict(),
+      z.object({ kind: z.literal('item'), itemId: z.string().guid() }).strict(),
       z.object({ kind: z.literal('url'), url: SafeUrl }).strict(),
     ]),
   })
@@ -123,7 +123,7 @@ type Action = z.infer<typeof Action>;
 function imageProps<L extends readonly [string, ...string[]]>(layouts: L) {
   return z
     .object({
-      mediaId: z.string().uuid(),
+      mediaId: z.string().guid(),
       decorative: z.boolean(),
       alt: localized(z.string().min(1).max(1000).regex(/\S/, 'content.image.alt-empty')).nullable(),
       caption: localized(CaptionText).optional(),
@@ -278,7 +278,7 @@ export const BLOCK_DEFINITIONS = {
   // supported legacy type next to `form`, with its own entitlement.
   'signup-form': define({
     version: 1,
-    props: z.object({ formId: z.string().uuid() }).strict(),
+    props: z.object({ formId: z.string().guid() }).strict(),
     fields: [{ key: 'formId', kind: 'reference', to: 'form' }],
     variants: {},
     localized: () => [],
@@ -755,7 +755,7 @@ export const BLOCK_DEFINITIONS = {
     version: 1,
     props: z
       .object({
-        formId: z.string().uuid(),
+        formId: z.string().guid(),
         variant: z.enum(FORM_VARIANTS).default('default'),
         width: Width.default('content'),
       })
