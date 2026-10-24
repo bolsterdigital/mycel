@@ -9,9 +9,16 @@
 // form was opened on and the newest. The form then carries the newest id, so saving again is a
 // deliberate choice to put these values on top. Rejected: last-write-wins with a warning, and a
 // silent merge (which field wins is the editor's call, not ours).
+//
+// The publication panel (brief § A2) acts per locale on the revision this page shows: publish,
+// take offline, schedule (a time in the site zone, `content-admin-publication.ts`) and cancel a
+// schedule; pinning the newest revision is a schedule of it at the pinned time. Buttons show only
+// for `content:publish`; the registry refuses the rest regardless.
 import { error, fail, redirect } from '@sveltejs/kit';
 import {
   UseCaseError,
+  can,
+  readinessIssues,
   useCases,
   type ContentDocument,
   type Principal,
@@ -28,6 +35,15 @@ import {
   valuesOf,
   when,
 } from '#lib/server/content-admin.js';
+import {
+  SITE_TIME_ZONE,
+  fieldOf,
+  fromLocalInput,
+  issueKey,
+  issuePath,
+  localInput,
+  localLabel,
+} from '#lib/server/content-admin-publication.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { UiKey } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
@@ -107,6 +123,26 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
   const principal = locals.principal!;
   const { item, revision } = await latest(principal, params.itemId);
   const doc = revision.document;
+  const { invoker } = runtime();
+  // Which revision is live or pinned, in the words of the revisions page; one lookup per id.
+  const seen = new Map<string, Promise<{ when: string; who: string; latest: boolean }>>();
+  const describe = (id: string) => {
+    if (!seen.has(id))
+      seen.set(
+        id,
+        (id === revision.id
+          ? Promise.resolve(revision)
+          : invoker
+              .run(useCases.getItem, principal, { itemId: item.id, revisionId: id })
+              .then((r) => r.revision)
+        ).then((r) => ({
+          when: when(r.createdAt),
+          who: actorLabel(r.actor),
+          latest: r.id === revision.id,
+        }))
+      );
+    return seen.get(id)!;
+  };
   const { authors, sections } = await relationshipChoices(
     principal,
     tenant.defaultLocale,
@@ -120,12 +156,33 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
       type: item.type,
       slug: item.slug,
       defaultLocale: item.defaultLocale,
-      publication: item.publication.map((p) => ({
-        locale: p.locale,
-        status: p.status,
-        changes: p.hasUnpublishedChanges,
-      })),
+      publication: await Promise.all(
+        item.publication.map(async (p) => ({
+          locale: p.locale,
+          status: p.status,
+          changes: p.hasUnpublishedChanges,
+          live: p.publishedRevisionId ? await describe(p.publishedRevisionId) : null,
+          pin:
+            p.scheduledRevisionId && p.scheduledFor
+              ? {
+                  at: localLabel(new Date(p.scheduledFor)),
+                  input: localInput(new Date(p.scheduledFor)),
+                  revision: await describe(p.scheduledRevisionId),
+                }
+              : null,
+          issues: readinessIssues(doc, p.locale).map((i) => ({
+            path: issuePath(i.path, i.message, p.locale),
+            field: fieldOf(i.path, p.locale),
+            copy: issueCopy(i.message),
+          })),
+        }))
+      ),
     },
+    canPublish: can(principal, 'content:publish'),
+    restricted: doc.access.level !== 'public',
+    timeZone: SITE_TIME_ZONE,
+    done: DONE[url.searchParams.get('done') ?? ''] ?? null,
+    doneLocale: url.searchParams.get('locale') ?? '',
     revision: { id: revision.id, when: when(revision.createdAt), who: actorLabel(revision.actor) },
     blockCount: doc.blocks.length,
     corrections: doc.type === 'article' ? doc.corrections : [],
@@ -138,6 +195,102 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
   };
 };
 
+/** The notice after a publication action, by the `done` parameter of its redirect. */
+const DONE: Record<string, UiKey> = {
+  publish: 'admin.content.publication.done.publish',
+  unpublish: 'admin.content.publication.done.unpublish',
+  schedule: 'admin.content.publication.done.schedule',
+  repin: 'admin.content.publication.done.schedule',
+  unschedule: 'admin.content.publication.done.unschedule',
+};
+
+/** Core's readiness and reference issues as admin copy; unknown keys get the generic line. */
+const ISSUE_COPY: Record<string, UiKey> = {
+  'content.publish.locale-not-in-document': 'admin.content.issue.localeNotInDocument',
+  'content.publish.locale-not-in-item': 'admin.content.issue.localeNotInDocument',
+  'content.publish.missing-translation': 'admin.content.issue.missingTranslation',
+  'content.publish.author-required': 'admin.content.issue.authorRequired',
+  'content.publish.teaser-lead-required': 'admin.content.issue.teaserLeadRequired',
+  'content.publish.tier-unverifiable': 'admin.content.issue.tierUnverifiable',
+  'content.reference.author-unknown': 'admin.content.issue.referenceUnknown',
+  'content.reference.section-unknown': 'admin.content.issue.referenceUnknown',
+  'content.reference.item-unknown': 'admin.content.issue.referenceUnknown',
+  'content.reference.form-unknown': 'admin.content.issue.referenceUnknown',
+  'content.reference.media-unknown': 'admin.content.issue.referenceUnknown',
+  'content.reference.media-not-image': 'admin.content.issue.mediaNotImage',
+  'content.schedule.not-in-future': 'admin.content.issue.notInFuture',
+  'admin.content.publication.time-invalid': 'admin.content.issue.timeInvalid',
+};
+const issueCopy = (message: string): UiKey =>
+  ISSUE_COPY[issueKey(message)] ?? 'admin.content.issue.other';
+
+/**
+ * One publication action on one locale (brief content-editor § A2). Core decides: `content:publish`
+ * through the registry (a member without it gets a 403 whatever the page showed), readiness and
+ * references on publish and schedule. A refusal names the locale and every issue with its path.
+ */
+async function publication(
+  event: Parameters<Actions[string]>[0],
+  action: keyof typeof DONE,
+  run: (
+    principal: Principal,
+    input: { itemId: string; locale: string; revisionId: string; at: string }
+  ) => Promise<unknown>
+) {
+  const { tenant, principal } = await requireTenantPrincipal(
+    event.locals,
+    event.url,
+    event.params.tenant!
+  );
+  const data = await event.request.formData();
+  const field = (name: string) => {
+    const v = data.get(name);
+    return typeof v === 'string' ? v : '';
+  };
+  const locale = field('locale');
+  try {
+    await run(principal, {
+      itemId: event.params.itemId!,
+      locale,
+      revisionId: field('revisionId'),
+      at: field('at'),
+    });
+  } catch (e) {
+    if (!(e instanceof UseCaseError)) throw e;
+    const { status, body } = failureOf(e, action, {
+      conflict: 'admin.content.error.invalid',
+      invalid: 'admin.content.publication.error.refused',
+      issues: { 'content.schedule.not-in-future': 'admin.content.issue.notInFuture' },
+    });
+    return fail(status, {
+      ...body,
+      locale,
+      issues:
+        e.code === 'invalid_input'
+          ? e.issues.map((i) => ({
+              path: issuePath(i.path, i.message, locale),
+              field: fieldOf(i.path, locale),
+              copy: issueCopy(i.message),
+            }))
+          : [],
+    });
+  }
+  redirect(
+    303,
+    `/admin/${tenant.slug}/content/${event.params.itemId}?done=${action}&locale=${encodeURIComponent(locale)}`
+  );
+}
+
+/** The time of the schedule form, or a refusal core will word like its own. */
+function instant(at: string): string {
+  const parsed = fromLocalInput(at);
+  if (!parsed)
+    throw new UseCaseError('invalid_input', 'no time given', [
+      { path: 'at', message: 'admin.content.publication.time-invalid' },
+    ]);
+  return parsed.toISOString();
+}
+
 /** Core's issue keys on a save, as admin copy; anything else is the generic invalid message. */
 const ISSUES: Record<string, UiKey> = {
   'i18n.default-not-in-locales': 'admin.content.error.defaultLocale',
@@ -149,6 +302,44 @@ const ISSUES: Record<string, UiKey> = {
 };
 
 export const actions: Actions = {
+  publish: (event) =>
+    publication(event, 'publish', (principal, { itemId, locale, revisionId }) =>
+      runtime().invoker.run(useCases.publishItem, principal, { itemId, locale, revisionId })
+    ),
+  unpublish: (event) =>
+    publication(event, 'unpublish', (principal, { itemId, locale }) =>
+      runtime().invoker.run(useCases.unpublishItem, principal, { itemId, locale })
+    ),
+  schedule: (event) =>
+    publication(event, 'schedule', async (principal, { itemId, locale, revisionId, at }) =>
+      runtime().invoker.run(useCases.scheduleItem, principal, {
+        itemId,
+        locale,
+        revisionId,
+        at: instant(at),
+      })
+    ),
+  repin: (event) =>
+    publication(event, 'repin', async (principal, { itemId, locale, revisionId }) => {
+      if (!can(principal, 'content:publish'))
+        throw new UseCaseError('forbidden', 'missing capability content:publish');
+      const { item } = await runtime().invoker.run(useCases.getItem, principal, { itemId });
+      const at = item.publication.find((state) => state.locale === locale)?.scheduledFor;
+      if (!at)
+        throw new UseCaseError('invalid_input', 'no schedule to replace', [
+          { path: 'at', message: 'admin.content.publication.time-invalid' },
+        ]);
+      return runtime().invoker.run(useCases.scheduleItem, principal, {
+        itemId,
+        locale,
+        revisionId,
+        at,
+      });
+    }),
+  unschedule: (event) =>
+    publication(event, 'unschedule', (principal, { itemId, locale }) =>
+      runtime().invoker.run(useCases.unscheduleItem, principal, { itemId, locale })
+    ),
   save: async ({ locals, url, params, request }) => {
     const { tenant, principal } = await requireTenantPrincipal(locals, url, params.tenant);
     const values = valuesFromForm(await request.formData());

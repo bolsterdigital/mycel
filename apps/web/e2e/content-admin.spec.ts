@@ -9,6 +9,8 @@
 // site gets nothing, not even the theme.
 
 import AxeBuilder from '@axe-core/playwright';
+import { createApp } from '@mycel/api';
+import { Invoker, buildRegistry, systemPrincipal } from '@mycel/core';
 import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
 
 const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
@@ -31,6 +33,8 @@ test.use({
   },
 });
 
+const address = () => `198.51.100.${Math.floor(Math.random() * 250) + 1}`;
+
 async function login(page: Page, email: string, path: string) {
   // A fresh address per login: the admin allows twenty logins per address in ten minutes, and
   // this file logs in more often than that per worker. IPv6 documentation space, so these never
@@ -43,8 +47,6 @@ async function login(page: Page, email: string, path: string) {
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page).toHaveURL(new RegExp(`${path.replace(/[/?]/g, '\\$&')}$`));
 }
-
-const address = () => `198.51.100.${Math.floor(Math.random() * 250) + 1}`;
 
 /** Another browser, as the test's own: same origin, headers and JavaScript setting. */
 const freshContext = (
@@ -349,6 +351,245 @@ test('a reserved slug comes back as a message with what was typed', async ({ pag
   await expectNoAxeViolations(page);
 });
 
+// Publication per locale (brief content-editor § A2): core decides, the panel shows what it
+// decided. One card per locale; every action is its own native form.
+const card = (page: Page, locale: string) =>
+  page.locator('section.publication', {
+    has: page.getByRole('heading', { name: new RegExp(`^Taal ${locale}:`) }),
+  });
+
+test('publishing puts a locale live; a later edit stays unpublished until published', async ({
+  page,
+  request,
+}) => {
+  await login(page, ADMIN, '/admin/probe');
+  const slug = slugFor('publish');
+  const edit = await newPage(page, slug, 'Buurtfeest');
+  await expect(card(page, 'nl')).toContainText('Klaar om te publiceren.');
+  await card(page, 'nl').getByRole('button', { name: 'Publiceren (nl)' }).click();
+  await expect(page).toHaveURL(`${edit}?done=publish&locale=nl`);
+  await expect(page.getByRole('status')).toContainText('Gepubliceerd in nl.');
+  await expect(card(page, 'nl')).toContainText('Live staat de revisie die je bewerkt.');
+  await expect(card(page, 'nl').getByRole('button', { name: 'Publiceren (nl)' })).toHaveCount(0);
+  await expectNoAxeViolations(page);
+  expect((await request.get(`${SITE}/${slug}`)).status()).toBe(200);
+  expect((await request.get(`${SITE}/en/${slug}`)).status()).toBe(404);
+
+  // A new revision: the site keeps the old title until it is published.
+  await page.getByLabel('Titel (nl)').fill('Buurtfeest verplaatst');
+  await page.getByRole('button', { name: 'Opslaan' }).click();
+  await expect(page).toHaveURL(`${edit}?saved`);
+  await expect(card(page, 'nl').getByRole('heading')).toContainText(
+    'gepubliceerd, ongepubliceerde wijzigingen'
+  );
+  await expect(card(page, 'nl')).toContainText(`opgeslagen door ${ADMIN}`);
+  const live = await (await request.get(`${SITE}/${slug}`)).text();
+  expect(live).toContain('Buurtfeest');
+  expect(live).not.toContain('Buurtfeest verplaatst');
+  await page.goto('/admin/probe/content?type=page');
+  await expect(page.locator('.content-list > li', { hasText: `/${slug}` })).toContainText(
+    'nl: gepubliceerd, ongepubliceerde wijzigingen'
+  );
+
+  // Offline again: the address is gone, the card says it was live once.
+  await page.goto(edit);
+  await card(page, 'nl').getByRole('button', { name: 'Offline halen (nl)' }).click();
+  await expect(page.getByRole('status')).toContainText('Offline gehaald in nl.');
+  await expect(card(page, 'nl').getByRole('heading')).toContainText('offline');
+  expect((await request.get(`${SITE}/${slug}`)).status()).toBe(404);
+});
+
+test('a locale without its translation is refused with the path', async ({ page }) => {
+  await login(page, ADMIN, '/admin/probe/content/new?type=page');
+  await page.getByLabel('Slug').fill(slugFor('untranslated'));
+  await page.getByLabel('Titel (nl)').fill('Alleen Nederlands');
+  await page.getByRole('button', { name: 'Concept maken' }).click();
+  await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
+  const en = card(page, 'en');
+  await expect(en).toContainText('title.en: de vertaling ontbreekt');
+  await expect(en.getByRole('link', { name: 'title.en' })).toHaveAttribute('href', '#title.en');
+
+  await en.getByRole('button', { name: 'Publiceren (en)' }).click();
+  const alert = page.getByRole('alert');
+  await expect(alert).toContainText('Dit kan in en nog niet:');
+  await expect(alert).toContainText('title.en: de vertaling ontbreekt');
+  await expectNoAxeViolations(page);
+});
+
+test('a schedule pins a revision; a newer one can take its place', async ({ page }) => {
+  await login(page, ADMIN, '/admin/probe');
+  const edit = await newPage(page, slugFor('schedule'), 'Op vrijdag');
+  const nl = card(page, 'nl');
+  await nl.getByLabel('Publiceren op').fill('2030-01-04T09:00');
+  await nl.getByRole('button', { name: 'Inplannen (nl)' }).click();
+  await expect(page).toHaveURL(`${edit}?done=schedule&locale=nl`);
+  await expect(nl.getByRole('heading')).toContainText('ingepland');
+  await expect(nl).toContainText(
+    'De revisie die je bewerkt gaat op 2030-01-04 09:00 (Europe/Amsterdam) live.'
+  );
+
+  // Edited after planning: the pin stays on the old revision until the editor moves it.
+  await page.getByLabel('Titel (nl)').fill('Op vrijdagochtend');
+  await page.getByRole('button', { name: 'Opslaan' }).click();
+  await expect(page).toHaveURL(`${edit}?saved`);
+  await expect(nl).toContainText('gaat op 2030-01-04 09:00 (Europe/Amsterdam) live.');
+  await expect(nl).toContainText('Je bewerkt een nieuwere revisie');
+  await expectNoAxeViolations(page);
+  await nl.getByRole('button', { name: 'Deze revisie op dat moment publiceren (nl)' }).click();
+  await expect(nl).toContainText(
+    'De revisie die je bewerkt gaat op 2030-01-04 09:00 (Europe/Amsterdam) live.'
+  );
+
+  // A time in the past is core's refusal, worded in the panel's terms.
+  await nl.getByLabel('Publiceren op').fill('2020-01-01T09:00');
+  await nl.getByRole('button', { name: 'Inplannen (nl)' }).click();
+  await expect(page.getByRole('alert')).toContainText('at: de tijd ligt niet in de toekomst');
+
+  await page.goto(edit);
+  await nl.getByRole('button', { name: 'Planning intrekken (nl)' }).click();
+  await expect(page.getByRole('status')).toContainText('Planning ingetrokken in nl.');
+  await expect(nl.getByRole('heading')).toContainText('concept');
+});
+
+test('repinning an HTTP schedule preserves the second autumn hour and seconds', async ({
+  page,
+}) => {
+  const { createDb, createTenantDirectory, createUnitOfWork, uuidv7Ids } =
+    await import('@mycel/db');
+  const { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } =
+    await import('@mycel/core/testing');
+  const operatorDb = createDb(process.env['DATABASE_URL']!);
+  const appDb = createDb(process.env['APP_DATABASE_URL']!);
+  try {
+    const probe = await createTenantDirectory(operatorDb).findBySlug('probe');
+    const invoker = new Invoker(
+      buildRegistry(),
+      createUnitOfWork(appDb, {
+        clock: { now: () => new Date() },
+        ids: uuidv7Ids,
+        signer: new FakeSigner(),
+        inputHasher: new FakeInputHasher(),
+        dns: new FakeDns(),
+        platform: memoryPlatform,
+      })
+    );
+    const api = createApp({
+      invoker,
+      authenticate: async (authorization) =>
+        authorization === 'Bearer e2e' ? systemPrincipal(probe!.id, 'e2e') : null,
+    });
+    const call = async (name: string, input: Record<string, string>) => {
+      const response = await api.request(`/v1/${name}`, {
+        method: 'POST',
+        headers: { authorization: 'Bearer e2e', 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      expect(response.status, response.status === 200 ? '' : await response.text()).toBe(200);
+      return response.json();
+    };
+    await login(page, ADMIN, '/admin/probe');
+    for (const [label, at] of [
+      ['autumn', '2030-10-27T01:30:00.000Z'],
+      ['seconds', '2030-01-04T08:00:45.123Z'],
+    ]) {
+      const edit = await newPage(page, slugFor(`repin-${label}`), `Planned ${label}`);
+      const itemId = edit.split('/').at(-1)!;
+      const oldRevisionId = await page.locator('input[name="baseRevisionId"]').inputValue();
+      const before = await call('content.item.schedule', {
+        itemId,
+        revisionId: oldRevisionId,
+        locale: 'nl',
+        at,
+      });
+      expect(
+        before.publication.find((state: { locale: string }) => state.locale === 'nl')
+      ).toMatchObject({
+        scheduledRevisionId: oldRevisionId,
+        scheduledFor: at,
+      });
+
+      await page.goto(edit);
+      await page.getByLabel('Titel (nl)').fill(`Updated ${label}`);
+      await page.getByRole('button', { name: 'Opslaan' }).click();
+      const newRevisionId = await page.locator('input[name="baseRevisionId"]').inputValue();
+      expect(newRevisionId).not.toBe(oldRevisionId);
+      await card(page, 'nl')
+        .getByRole('button', { name: 'Deze revisie op dat moment publiceren (nl)' })
+        .click();
+      await expect(page).toHaveURL(`${edit}?done=repin&locale=nl`);
+      const after = await call('content.item.get', { itemId });
+      expect(
+        after.item.publication.find((state: { locale: string }) => state.locale === 'nl')
+      ).toMatchObject({
+        scheduledRevisionId: newRevisionId,
+        scheduledFor: at,
+      });
+    }
+  } finally {
+    await Promise.all([operatorDb.destroy(), appDb.destroy()]);
+  }
+});
+
+test('a restricted item says what visitors get before any publish button', async ({ page }) => {
+  await login(page, ADMIN, '/admin/probe');
+  await newPage(page, slugFor('restricted'), 'Voor leden');
+  await page.getByLabel('Wie het mag lezen').selectOption({ label: 'Lezers met een account' });
+  await page.getByRole('button', { name: 'Opslaan' }).click();
+  const panel = page.getByRole('region', { name: 'Publicatie' });
+  const notice = panel.getByText('Bezoekers zonder account zien dit item niet');
+  await expect(notice).toBeVisible();
+  // Before the first button in document order, and no button closes it.
+  const before = await notice.evaluate((el) => {
+    const button = document.querySelector('section.publication button')!;
+    return !!(el.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+  expect(before).toBe(true);
+  await expectNoAxeViolations(page);
+});
+
+test('a writer without content:publish sees the state, no buttons, and gets a 403', async ({
+  page,
+  context,
+}) => {
+  const email = `writer-${test.info().project.name}-${Date.now()}@probe.test`;
+  await login(page, ADMIN, '/admin/probe');
+  const edit = await newPage(page, slugFor('writer'), 'Schrijverswerk');
+  await page.goto('/admin/probe');
+  const invite = page.locator('form[action="?/invite"]');
+  await invite.getByLabel('E-mailadres', { exact: true }).fill(email);
+  await invite.getByLabel('content:read', { exact: true }).check();
+  await invite.getByLabel('content:write', { exact: true }).check();
+  await invite.getByRole('button', { name: 'Uitnodigen' }).click();
+  await expect(page.getByRole('status')).toContainText(email);
+  try {
+    await context.clearCookies();
+    await login(page, email, edit);
+    await expect(card(page, 'nl').getByRole('heading')).toContainText('concept');
+    await expect(page.getByText('vragen de bevoegdheid content:publish')).toBeVisible();
+    await expect(page.locator('section.publication button')).toHaveCount(0);
+    await expectNoAxeViolations(page);
+
+    // The registry refuses, whatever the page showed.
+    const revisionId = await page.locator('input[name="baseRevisionId"]').inputValue();
+    const res = await page.request.post(`${edit}?/publish`, {
+      headers: { origin: 'http://127.0.0.1:4173' },
+      form: { locale: 'nl', revisionId },
+    });
+    expect(res.status()).toBe(403);
+    const repin = await page.request.post(`${edit}?/repin`, {
+      headers: { origin: 'http://127.0.0.1:4173' },
+      form: { locale: 'nl', revisionId },
+    });
+    expect(repin.status()).toBe(403);
+  } finally {
+    await context.clearCookies();
+    await login(page, ADMIN, '/admin/probe');
+    const member = page.locator('form', { has: page.getByRole('heading', { name: email }) });
+    await member.locator('button[formaction="?/remove"]').click();
+    await expect(page.getByRole('status')).toContainText('Lid verwijderd');
+  }
+});
+
 test.describe('UI gate: the content admin at 320 CSS px and 200% text', () => {
   test.use({ viewport: { width: 320, height: 900 } });
 
@@ -366,6 +607,7 @@ test.describe('UI gate: the content admin at 320 CSS px and 200% text', () => {
           locale,
           slugFor(`gate-${locale}-${text.replace('%', '')}`)
         );
+        await fourActions(page, locale);
         for (const path of [
           edit,
           `${edit}/revisions`,
@@ -376,17 +618,41 @@ test.describe('UI gate: the content admin at 320 CSS px and 200% text', () => {
           if (text !== '100%')
             await page.evaluate((size) => (document.documentElement.style.fontSize = size), text);
           const problems = await page.evaluate(layoutProblems);
-          if (path === edit)
+          if (path === edit) {
             await page.locator('form .actions').screenshot({
               path: test
                 .info()
                 .outputPath(`content-edit-320-${locale}-${text.replace('%', '')}.png`),
             });
+            await page
+              .locator('section.publication')
+              .first()
+              .screenshot({
+                path: test
+                  .info()
+                  .outputPath(`content-publication-320-${locale}-${text.replace('%', '')}.png`),
+              });
+            await expect(page.locator('section.publication').first().locator('button')).toHaveCount(
+              5
+            );
+          }
           expect(problems, path).toEqual([]);
         }
         await context.close();
       });
 });
+
+/** Live, pinned to an older revision: all four actions of the nl card, plus the schedule. */
+async function fourActions(page: Page, locale: string) {
+  const nl = locale.startsWith('nl');
+  const card = page.locator('section.publication').first();
+  await card.getByRole('button', { name: nl ? 'Publiceren (nl)' : 'Publish (nl)' }).click();
+  await card.locator('input[type="datetime-local"]').fill('2030-01-04T09:00');
+  await card.getByRole('button', { name: nl ? 'Inplannen (nl)' : 'Schedule (nl)' }).click();
+  await page.getByLabel(nl ? 'Titel (nl)' : 'Title (nl)').fill('Poort 2');
+  await page.getByRole('button', { name: nl ? 'Opslaan' : 'Save' }).click();
+  await expect(page).toHaveURL(/\?saved$/);
+}
 
 /** `newPage` in either admin language. */
 async function newPageIn(page: Page, locale: string, slug: string): Promise<string> {
