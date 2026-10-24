@@ -928,7 +928,13 @@ export class MemoryUnitOfWork implements UnitOfWork {
       async state(id, baseVersion, state, at) {
         const row = s.connections.get(id);
         if (!row || row.version !== baseVersion || row.state === 'disconnected') return null;
-        const next = { ...row, state, version: row.version + 1, updatedAt: at };
+        const next = {
+          ...row,
+          state,
+          hasCredential: state === 'disconnected' ? false : row.hasCredential,
+          version: row.version + 1,
+          updatedAt: at,
+        };
         s.connections.set(id, next);
         return structuredClone(next);
       },

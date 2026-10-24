@@ -76,6 +76,28 @@ describe('managed connection inventory', () => {
       (await invoker.run(useCases.getConnection, systemPrincipal(A, 'admin'), { id: created.id }))
         .id
     ).toBe(created.id);
+    const disconnected = await invoker.run(useCases.disconnectConnection, configure, {
+      id: created.id,
+      baseVersion: replaced.version,
+    });
+    expect(disconnected).toMatchObject({
+      state: 'disconnected',
+      credentialStatus: 'reconnect-required',
+      credentialVersion: 1,
+    });
+    expect(await invoker.run(useCases.getConnection, read, { id: created.id })).toMatchObject({
+      state: 'disconnected',
+      credentialStatus: 'reconnect-required',
+      credentialVersion: 1,
+    });
+    expect((await invoker.run(useCases.listConnections, read, {})).connections).toContainEqual(
+      expect.objectContaining({
+        id: created.id,
+        state: 'disconnected',
+        credentialStatus: 'reconnect-required',
+        credentialVersion: 1,
+      })
+    );
   });
 
   it('does not cross tenants and fails stale or disconnected writes', async () => {

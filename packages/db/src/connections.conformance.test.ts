@@ -145,5 +145,34 @@ describe.skipIf(!operatorUrl || !appUrl)('managed connection storage', () => {
       'connection_credentials',
       'connections',
     ]);
+    const disconnected = await invoker.run(useCases.disconnectConnection, pa, {
+      id: created.id,
+      baseVersion: replaced.version,
+    });
+    expect(disconnected).toMatchObject({
+      state: 'disconnected',
+      credentialStatus: 'reconnect-required',
+      credentialVersion: 1,
+    });
+    expect(await invoker.run(useCases.getConnection, pa, { id: created.id })).toMatchObject({
+      state: 'disconnected',
+      credentialStatus: 'reconnect-required',
+      credentialVersion: 1,
+    });
+    expect((await invoker.run(useCases.listConnections, pa, {})).connections).toContainEqual(
+      expect.objectContaining({
+        id: created.id,
+        state: 'disconnected',
+        credentialStatus: 'reconnect-required',
+        credentialVersion: 1,
+      })
+    );
+    expect(
+      await operatorDb
+        .selectFrom('connection_credentials')
+        .select('connection_id')
+        .where('connection_id', '=', created.id)
+        .executeTakeFirst()
+    ).toBeUndefined();
   });
 });
