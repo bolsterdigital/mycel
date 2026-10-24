@@ -364,12 +364,36 @@
     min-height: 44px;
     font: inherit;
   }
+  /* A block of the content admin (#11 B): a native <details> per block whose summary names it;
+     its move and remove actions stack like the publication actions on a narrow card. */
+  .block {
+    container-type: inline-size;
+  }
+  .block > summary,
+  .markdown-help > summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--color-accent);
+    overflow-wrap: anywhere;
+  }
+  .block button,
+  .block a.button {
+    hyphens: manual;
+  }
+  .block .insert,
+  .admin section > .insert {
+    margin-block-start: var(--space-1);
+  }
   @container (max-width: 36rem) {
     .actions.stack {
       flex-direction: column;
       align-items: stretch;
     }
-    .actions.stack button {
+    .actions.stack button,
+    .actions.stack a.button {
       width: 100%;
     }
   }

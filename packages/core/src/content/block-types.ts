@@ -36,9 +36,39 @@ export interface BlockExample<P> {
   props: P;
 }
 
+/**
+ * How the admin edits one prop (brief content-editor § B): the no-JavaScript block forms are
+ * generated from these, so no block gets a hand-built form. The label is the catalog key
+ * `admin.block.field.<key>`. `optional` says what an empty field stores: `omit` leaves the key
+ * out, `null` stores null. An optional `group` gets an explicit "present" choice, because absent
+ * and empty can mean different things (a credit override of nothing versus the asset's credit).
+ * A `caption` is a localised text where an absent locale inherits the asset's caption and an
+ * empty one hides it. `blocks.conformance.test.ts` requires one entry for every key of every
+ * props schema, nested ones included.
+ */
+export type BlockField =
+  | {
+      key: string;
+      kind: 'text';
+      localized: boolean;
+      multiline?: boolean;
+      optional?: 'omit' | 'null';
+    }
+  | { key: string; kind: 'caption' }
+  | { key: string; kind: 'rich-text' }
+  | { key: string; kind: 'media' }
+  | { key: string; kind: 'reference'; to: 'form' | 'item' }
+  | { key: string; kind: 'choice'; options: readonly string[] }
+  | { key: string; kind: 'boolean' }
+  | { key: string; kind: 'actions'; min: number; max: number }
+  | { key: string; kind: 'group'; optional?: 'omit' | 'null'; fields: readonly BlockField[] }
+  | { key: string; kind: 'list'; min: number; max: number; fields: readonly BlockField[] };
+
 export interface BlockDefinition<S extends z.ZodTypeAny> {
   version: 1;
   props: S;
+  /** One per prop, in the order the form shows them. */
+  fields: readonly BlockField[];
   /** Enumerated props (variant, layout, width, align): every value has an example. */
   variants: Record<string, readonly string[]>;
   localized(props: z.infer<S>): LocalField[];
@@ -114,6 +144,40 @@ type ImageUse = {
   alt: Record<string, string> | null;
   caption?: Record<string, string> | undefined;
 };
+
+// --- field descriptions shared by several types ---------------------------------------------
+
+const textField = (
+  key: string,
+  opts: Omit<Extract<BlockField, { kind: 'text' }>, 'key' | 'kind'>
+) => ({ key, kind: 'text', ...opts }) as const;
+const choice = (key: string, options: readonly string[]): BlockField => ({
+  key,
+  kind: 'choice',
+  options,
+});
+const creditField: BlockField = {
+  key: 'credit',
+  kind: 'group',
+  optional: 'omit',
+  fields: [
+    {
+      key: 'work',
+      kind: 'group',
+      optional: 'null',
+      fields: [textField('title', { localized: false }), textField('maker', { localized: false })],
+    },
+    textField('photographer', { localized: false, optional: 'null' }),
+  ],
+};
+const imageFieldsOf = (layouts: readonly string[]): BlockField[] => [
+  { key: 'mediaId', kind: 'media' },
+  { key: 'decorative', kind: 'boolean' },
+  textField('alt', { localized: true, optional: 'null' }),
+  { key: 'caption', kind: 'caption' },
+  creditField,
+  choice('layout', layouts),
+];
 
 // --- helpers for `localized` and `references` -----------------------------------------------
 
@@ -204,6 +268,7 @@ export const BLOCK_DEFINITIONS = {
   heading: define({
     version: 1,
     props: z.object({ text: localized(z.string().min(1).max(200)) }).strict(),
+    fields: [textField('text', { localized: true })],
     variants: {},
     localized: (p) => present(['text'], p.text),
     references: () => [],
@@ -214,6 +279,7 @@ export const BLOCK_DEFINITIONS = {
   'signup-form': define({
     version: 1,
     props: z.object({ formId: z.string().guid() }).strict(),
+    fields: [{ key: 'formId', kind: 'reference', to: 'form' }],
     variants: {},
     localized: () => [],
     references: (p) => [{ type: 'form', refId: p.formId }],
@@ -222,6 +288,7 @@ export const BLOCK_DEFINITIONS = {
   'rich-text': define({
     version: 1,
     props: z.object({ content: localized(RichTextDoc) }).strict(),
+    fields: [{ key: 'content', kind: 'rich-text' }],
     variants: {},
     localized: (p) => present(['content'], p.content),
     references: (p) => docRefs(p.content),
@@ -241,6 +308,7 @@ export const BLOCK_DEFINITIONS = {
   paywall: define({
     version: 1,
     props: z.object({}).strict(),
+    fields: [],
     variants: {},
     localized: () => [],
     references: () => [],
@@ -250,6 +318,7 @@ export const BLOCK_DEFINITIONS = {
   image: define({
     version: 1,
     props: ImageProps,
+    fields: imageFieldsOf(IMAGE_LAYOUTS),
     variants: { layout: IMAGE_LAYOUTS },
     localized: (p) => imageFields([], p),
     references: (p) => [{ type: 'media', refId: p.mediaId }],
@@ -304,6 +373,15 @@ export const BLOCK_DEFINITIONS = {
         path: ['image'],
         message: 'content.hero.image-required',
       }),
+    fields: [
+      choice('variant', HERO_VARIANTS),
+      textField('title', { localized: true }),
+      textField('body', { localized: true, multiline: true, optional: 'omit' }),
+      { key: 'image', kind: 'group', optional: 'omit', fields: imageFieldsOf(['content']) },
+      { key: 'actions', kind: 'actions', min: 0, max: 2 },
+      choice('width', WIDTHS),
+      choice('align', ALIGNS),
+    ],
     variants: { variant: HERO_VARIANTS, width: WIDTHS, align: ALIGNS },
     localized: (p) => [
       ...present(['title'], p.title),
@@ -367,6 +445,14 @@ export const BLOCK_DEFINITIONS = {
         align: Align.default('start'),
       })
       .strict(),
+    fields: [
+      choice('variant', CTA_VARIANTS),
+      textField('title', { localized: true }),
+      textField('body', { localized: true, multiline: true, optional: 'omit' }),
+      { key: 'actions', kind: 'actions', min: 1, max: 2 },
+      choice('width', WIDTHS),
+      choice('align', ALIGNS),
+    ],
     variants: { variant: CTA_VARIANTS, width: WIDTHS, align: ALIGNS },
     localized: (p) => [
       ...present(['title'], p.title),
@@ -414,6 +500,11 @@ export const BLOCK_DEFINITIONS = {
         body: localized(RichTextDoc),
       })
       .strict(),
+    fields: [
+      choice('variant', CALLOUT_VARIANTS),
+      textField('title', { localized: true, optional: 'omit' }),
+      { key: 'body', kind: 'rich-text' },
+    ],
     variants: { variant: CALLOUT_VARIANTS },
     localized: (p) => [...present(['title'], p.title), ...present(['body'], p.body)],
     references: (p) => docRefs(p.body),
@@ -464,6 +555,17 @@ export const BLOCK_DEFINITIONS = {
           .max(30),
       })
       .strict(),
+    fields: [
+      choice('variant', FAQ_VARIANTS),
+      textField('title', { localized: true, optional: 'omit' }),
+      {
+        key: 'entries',
+        kind: 'list',
+        min: 1,
+        max: 30,
+        fields: [textField('question', { localized: true }), { key: 'answer', kind: 'rich-text' }],
+      },
+    ],
     variants: { variant: FAQ_VARIANTS },
     localized: (p) => [
       ...present(['title'], p.title),
@@ -526,6 +628,21 @@ export const BLOCK_DEFINITIONS = {
         width: Width.default('content'),
       })
       .strict(),
+    fields: [
+      textField('text', { localized: true, multiline: true }),
+      {
+        key: 'attribution',
+        kind: 'group',
+        fields: [
+          textField('name', { localized: false }),
+          textField('role', { localized: true, optional: 'omit' }),
+          textField('source', { localized: true, optional: 'omit' }),
+          textField('url', { localized: false, optional: 'omit' }),
+        ],
+      },
+      choice('variant', QUOTE_VARIANTS),
+      choice('width', WIDTHS),
+    ],
     variants: { variant: QUOTE_VARIANTS, width: WIDTHS },
     localized: (p) => [
       ...present(['text'], p.text),
@@ -591,6 +708,13 @@ export const BLOCK_DEFINITIONS = {
             : /^[0-9]{1,20}$/.test(p.videoId),
         { path: ['videoId'], message: 'content.video.id-invalid' }
       ),
+    fields: [
+      choice('provider', VIDEO_PROVIDERS),
+      textField('videoId', { localized: false }),
+      textField('title', { localized: true }),
+      textField('caption', { localized: true, multiline: true, optional: 'omit' }),
+      choice('width', WIDTHS),
+    ],
     variants: { provider: VIDEO_PROVIDERS, width: WIDTHS },
     localized: (p) => [...present(['title'], p.title), ...present(['caption'], p.caption)],
     references: () => [],
@@ -636,6 +760,11 @@ export const BLOCK_DEFINITIONS = {
         width: Width.default('content'),
       })
       .strict(),
+    fields: [
+      { key: 'formId', kind: 'reference', to: 'form' },
+      choice('variant', FORM_VARIANTS),
+      choice('width', WIDTHS),
+    ],
     variants: { variant: FORM_VARIANTS, width: WIDTHS },
     localized: () => [],
     references: (p) => [{ type: 'form', refId: p.formId }],

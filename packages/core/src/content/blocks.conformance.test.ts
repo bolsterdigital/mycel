@@ -17,6 +17,7 @@ import {
   blockReferenceRows,
   blockTreeIssues,
   projectBlock,
+  type BlockField,
   type BlockType,
 } from './blocks.js';
 import { DEFAULT_ENTITLEMENTS } from '../entitlements/model.js';
@@ -110,6 +111,56 @@ describe('block registry', () => {
     const { toJsonSchema } = await import('../json-schema.js');
     const schema = JSON.stringify(toJsonSchema(BlockInput as unknown as z.ZodTypeAny));
     for (const type of BLOCK_TYPES) expect(schema).toContain(`"${type}"`);
+  });
+});
+
+/** The object shape under defaults, optionals, nullables and refinements, or null for a leaf. */
+function shapeOf(schema: z.ZodTypeAny): Record<string, z.ZodTypeAny> | null {
+  if (schema instanceof z.ZodObject) return schema.shape as Record<string, z.ZodTypeAny>;
+  if (
+    schema instanceof z.ZodOptional ||
+    schema instanceof z.ZodNullable ||
+    schema instanceof z.ZodDefault
+  )
+    return shapeOf(schema._def.innerType);
+  if (schema instanceof z.ZodArray) return shapeOf(schema.element);
+  return null;
+}
+
+/** Keys of the shape without a field description, and descriptions without a key, as paths. */
+function undescribed(schema: z.ZodTypeAny, fields: readonly BlockField[], at: string): string[] {
+  const shape = shapeOf(schema) ?? {};
+  const keys = Object.keys(shape);
+  const described = fields.map((f) => f.key);
+  return [
+    ...keys.filter((k) => !described.includes(k)).map((k) => `${at}.${k} has no description`),
+    ...described.filter((k) => !keys.includes(k)).map((k) => `${at}.${k} is not in the schema`),
+    ...fields.flatMap((f) =>
+      (f.kind === 'group' || f.kind === 'list') && shape[f.key]
+        ? undescribed(shape[f.key]!, f.fields, `${at}.${f.key}`)
+        : []
+    ),
+  ];
+}
+
+describe('field descriptions (brief content-editor § B)', () => {
+  it('describes every prop of every type, nested ones included, and nothing else', () => {
+    expect(
+      BLOCK_TYPES.flatMap((type) =>
+        undescribed(BLOCK_DEFINITIONS[type].props, BLOCK_DEFINITIONS[type].fields, type)
+      )
+    ).toEqual([]);
+  });
+
+  it('offers exactly the enumerated values of every choice', () => {
+    for (const type of BLOCK_TYPES) {
+      const d = BLOCK_DEFINITIONS[type];
+      for (const f of d.fields)
+        if (f.kind === 'choice' && f.key in d.variants)
+          expect(f.options, `${type}.${f.key}`).toEqual(
+            (d.variants as Record<string, readonly string[]>)[f.key]
+          );
+    }
   });
 });
 

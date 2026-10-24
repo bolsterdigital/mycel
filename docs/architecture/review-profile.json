@@ -133,6 +133,8 @@
         "apps/web/src/lib/components/**",
         "apps/web/src/routes/(admin)/**",
         "apps/web/src/lib/server/content-admin*",
+        "apps/web/src/lib/server/content-blocks*",
+        "apps/web/src/lib/editor/**",
         "apps/web/src/lib/theme/**",
         "packages/core/src/theme/**",
         "apps/web/src/lib/server/theme*",

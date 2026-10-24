@@ -619,7 +619,7 @@ test.describe('UI gate: the content admin at 320 CSS px and 200% text', () => {
             await page.evaluate((size) => (document.documentElement.style.fontSize = size), text);
           const problems = await page.evaluate(layoutProblems);
           if (path === edit) {
-            await page.locator('form .actions').screenshot({
+            await page.locator('form.card > .actions').screenshot({
               path: test
                 .info()
                 .outputPath(`content-edit-320-${locale}-${text.replace('%', '')}.png`),
