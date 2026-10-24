@@ -22,13 +22,13 @@ CI runs `verify` plus a DCO check (`.github/workflows/verify.yml`). Commits are 
 - **One Postgres, `tenant_id` on every tenant-owned row, forced RLS**, tenant context from authentication via `set_config` per transaction, never from a payload (ADR 002).
 - **Supporter = normalised e-mail + append-only event log + projection**; envelope `wings.supporter-event.v1` inherited from Dreamkit (ADR 003).
 - **Pages are JSON block trees with Zod schemas; rendering is an adapter; ordinary client differences are validated data, and reviewed managed extensions have a versioned contract** (ADRs 004, 022).
-- **Donations and subscriptions are an owned ledger with explicit state machines; Mollie is an adapter** (ADR 005).
+- **Where Mycel owns charging, donations and subscriptions use its ledger and explicit state machines; Mollie is an adapter; an externally owned subscription cannot trigger a second Mycel charge** (ADRs 005, 024).
 - **Every localisable string or field is localisable from the start**; copy in i18n catalogs only (ADR 007).
 - **HTML first, JavaScript as enhancement, axe gate in CI; every use case is an MCP tool with the same authorization** (ADR 009).
 - **Forms and mailing are available natively; ordinary forms include typed conditional fields, multiple per-form notifications and connector actions; delivery and spam defence follow the `formulieren-en-mail` checklist** (ADRs 010, 023, 024).
 - **Background work crosses tenants only through a dedicated role and the outbox** (ADR 011).
 - **Two content types, `page` and `article`, one block tree; authors and sections are entities; status plus revisions; a newsletter issue is an article with e-mail delivery; rich text is constrained ProseMirror JSON; published content has a cached read route** (ADR 012).
-- **Customisation ladder: validated theme values, block variants, patterns and composed blocks; trusted operator-installed packages may serve selected sites without compulsory upstream inclusion; no arbitrary tenant CSS/code uploads** (ADRs 013, 022).
+- **Customisation ladder: validated theme values, block variants, patterns and composed blocks; platform-maintainer-installed packages may serve selected sites without compulsory upstream inclusion; no arbitrary tenant CSS/code uploads** (ADRs 013, 022).
 - **Managed CMP, tags and embeds require route, consent, preview and fallback controls; selective loading does not isolate server code** (ADR 022).
 - **External CRM, ESP and subscription ownership are supported tenant choices; connectors and one-off relays are inventoried and reconciled, with one owner per scope** (ADR 024).
 - **Tenants resolve from the hostname; custom domains are tenant data with on-demand TLS; admin never runs on tenant domains** (ADR 014).

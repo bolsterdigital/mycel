@@ -4,6 +4,7 @@
 - **Date**: 2026-10-21
 - **Builds on**: ADR 003 (supporter identity), ADR 005 rule 7 (membership as subscription kind), ADR 012 (articles)
 - **Amended**: 2026-10-21 by ADR 018 (rule 3: explicit teaser replaces `teaserBlocks`; access applies to every representation; access-aware caching) and ADR 019 (session bound to `supporter_id`; sign-in retention)
+- **Paid-tier ownership refined**: 2026-10-24 by [ADR 024](024-managed-integrations-and-external-ownership.md). Rule 2's mandatory Mycel membership-subscription backing and the rejected alternative's blanket refusal of an external membership system are superseded only for an explicitly externally owned subscription. Mycel still enforces access server-side from verified, tenant-scoped entitlement status; the client-side paywall rejection remains in force. Rule 6 self-service exposes only operations the configured owner supports.
 
 ## Context
 

@@ -2,7 +2,7 @@
 
 - **Status**: accepted
 - **Date**: 2026-10-24
-- **Supersedes**: ADR 004 rule 4 only where it forbids all tenant-specific code; ADR 013 rule 5 and its absolute ban on operator-managed packages and scripts; ADR 020's rejection of per-tenant layout code only where it would also reject bounded managed style extensions
+- **Supersedes**: ADR 004 rule 4 only where it forbids all tenant-specific code; ADR 012 rule 1's ADR-free allowance for additional stored content types; ADR 013 rule 5 and its absolute ban on operator-managed packages and scripts; ADR 020's rejection of per-tenant layout code only where it would also reject bounded managed style extensions
 - **Preserves**: the validated block tree, framework-free core, one edition, HTML-first rendering, tenant isolation and accessible bounded layouts (ADRs 001, 004, 009, 013, 015, 020)
 
 ## Context
