@@ -13,6 +13,7 @@ regexes = [
   # Match the entire extracted secret, never a substring of a provider token.
   '^ci-only-signing-secret$',
   '^ci-only-audit-hash-key$',
+  '^1010101010101010101010101010101010101010101010101010101010101010$',
   '^mycel_app_ci$',
   '^mycel_auth_ci$',
   '^mycel_owner_ci$',

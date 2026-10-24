@@ -7,6 +7,7 @@
 
 import type { AuditEntry } from '../audit/model.js';
 import type { AssistRepository, AssistSettings, AssistSuggestion } from '../assist/ports.js';
+import type { ConnectionRecord, ConnectionRepository } from '../connections/ports.js';
 import type { AuditLog, InputHasher } from '../audit/ports.js';
 import type { FormDefinition, Submission } from '../forms/model.js';
 import type { FormRepository, RateLimiter, SubmissionRepository } from '../forms/ports.js';
@@ -220,6 +221,7 @@ function sluggedRepository<T extends { id: string; slug: string }>(
 }
 
 interface TenantStore {
+  connections: Map<string, ConnectionRecord>;
   assistSettings: AssistSettings;
   suggestions: Map<string, AssistSuggestion>;
   assistUsage: Map<string, number>;
@@ -500,6 +502,7 @@ export class MemoryStore {
     let store = this.tenants.get(tenantId);
     if (!store) {
       store = {
+        connections: new Map(),
         assistSettings: {
           enabled: false,
           allowRestricted: false,
@@ -889,6 +892,64 @@ export class MemoryUnitOfWork implements UnitOfWork {
           limit
         );
         return { ...page, rows: page.rows.map(({ document: _d, ...summary }) => summary) };
+      },
+    };
+    const connections: ConnectionRepository = {
+      get: async (id) => structuredClone(s.connections.get(id) ?? null),
+      list: async () => [...s.connections.values()].map((row) => structuredClone(row)),
+      async insert(input, at) {
+        const row: ConnectionRecord = {
+          ...structuredClone(input),
+          state: 'paused',
+          version: 1,
+          credentialVersion: 0,
+          hasCredential: false,
+          createdAt: at,
+          updatedAt: at,
+        };
+        s.connections.set(row.id, row);
+        return structuredClone(row);
+      },
+      async update(id, baseVersion, changes, at) {
+        const row = s.connections.get(id);
+        if (!row || row.version !== baseVersion || row.state === 'disconnected') return null;
+        const defined = Object.fromEntries(
+          Object.entries(changes).filter(([, value]) => value !== undefined)
+        );
+        const next = {
+          ...row,
+          ...structuredClone(defined),
+          version: row.version + 1,
+          updatedAt: at,
+        };
+        s.connections.set(id, next);
+        return structuredClone(next);
+      },
+      async state(id, baseVersion, state, at) {
+        const row = s.connections.get(id);
+        if (!row || row.version !== baseVersion || row.state === 'disconnected') return null;
+        const next = {
+          ...row,
+          state,
+          hasCredential: state === 'disconnected' ? false : row.hasCredential,
+          version: row.version + 1,
+          updatedAt: at,
+        };
+        s.connections.set(id, next);
+        return structuredClone(next);
+      },
+      async replaceCredential(id, baseVersion, _secret, at) {
+        const row = s.connections.get(id);
+        if (!row || row.version !== baseVersion || row.state === 'disconnected') return null;
+        const next = {
+          ...row,
+          hasCredential: true,
+          credentialVersion: row.credentialVersion + 1,
+          version: row.version + 1,
+          updatedAt: at,
+        };
+        s.connections.set(id, next);
+        return structuredClone(next);
       },
     };
     const assist: AssistRepository = {
@@ -1351,6 +1412,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
         },
         content,
         assist,
+        connections,
         assistProviderLabel: this.assistProviderLabel,
         authors: sluggedRepository(s.authors),
         sections: sluggedRepository(s.sections),

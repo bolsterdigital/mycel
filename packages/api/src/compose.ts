@@ -209,6 +209,11 @@ const Config = z
      * production; elsewhere a fixed development key. Rotating it makes older hashes unlinkable.
      */
     AUDIT_HASH_KEY: z.string().min(16).optional(),
+    /** Separate encryption key for tenant connector credentials (32 bytes as hex). */
+    CONNECTION_CREDENTIAL_KEY: z
+      .string()
+      .regex(/^[0-9a-fA-F]{64}$/)
+      .optional(),
     /**
      * Audit rows older than this many days are deleted by the daily `audit.retention`. 400: a
      * year-end review still looks back a full year. The database keeps 30 days whatever this says.
@@ -242,6 +247,9 @@ const Config = z
   })
   .refine((c) => !(c.NODE_ENV === 'production' && !c.AUDIT_HASH_KEY), {
     message: 'AUDIT_HASH_KEY is required in production',
+  })
+  .refine((c) => !(c.NODE_ENV === 'production' && !c.CONNECTION_CREDENTIAL_KEY), {
+    message: 'CONNECTION_CREDENTIAL_KEY is required in production',
   })
   .refine((c) => !(c.NODE_ENV === 'production' && c.MAILER === 'console'), {
     message: 'MAILER=console is not allowed in production',
@@ -495,6 +503,7 @@ export function createRuntime(
     media: { blobs, images: createSharpProcessor(), delivery: appDelivery },
     log,
     inputHasher,
+    connectionCredentialKey: config.CONNECTION_CREDENTIAL_KEY,
     assistProviderLabel,
   });
   const tenants = createTenantDirectory(appDb);

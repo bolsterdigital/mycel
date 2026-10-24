@@ -181,7 +181,7 @@ describe.skipIf(!operatorUrl || !appUrl)('media conformance', () => {
               purgeMedia(ctx, parseJobPayload('media.purge', job.payload))
             ),
         },
-        { types: ['media.purge'] }
+        { types: ['media.purge'], tenantId: a }
       );
     // TODO #29A: the purge waits MEDIA_PURGE_DELAY_MS, so a backup that began before the delete
     // still finds the files; the runner does not claim it before then.

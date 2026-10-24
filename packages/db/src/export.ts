@@ -55,6 +55,9 @@ export const EXPORT_FORMAT = 'mycel-tenant-export/1';
  * not the tenant's rows (the tenant row goes in the manifest, operators as addresses).
  */
 export const TABLES = {
+  connections: 'export',
+  // Credentials are encrypted but still installation-bound secrets; an import reconnects.
+  connection_credentials: 'operational',
   tenants: 'platform',
   tenant_directory: 'platform',
   operators: 'platform',
@@ -102,6 +105,7 @@ export type ExportTable = {
  * of `content_items` is deferred to commit, 0011). Import writes in this order.
  */
 export const EXPORT_ORDER: readonly ExportTable[] = [
+  'connections',
   'tenant_hostnames',
   'forms',
   'form_submissions',

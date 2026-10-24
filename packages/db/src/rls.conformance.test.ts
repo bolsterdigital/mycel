@@ -203,9 +203,30 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
       dns: new FakeDns(),
       platform: memoryPlatform,
       media: { blobs: new MemoryBlobStore(), images: memoryImageProcessor },
+      connectionCredentialKey: '10'.repeat(32),
     });
     const invoker = new Invoker(buildRegistry(), uow);
     const admin = systemPrincipal(tenantId, 'rls-test');
+    const connection = await invoker.run(useCases.createConnection, admin, {
+      provider: 'webhook',
+      accountRef: null,
+      externalOwner: 'RLS',
+      maintainer: 'RLS',
+      purpose: 'Fixture',
+      direction: 'outbound',
+      dataAuthority: 'mycel',
+      consentAuthority: 'mycel',
+      consentScopes: ['newsletter:rls'],
+      formIds: [],
+      destination: 'https://hooks.example.org/rls',
+      contractVersion: 'v1',
+      adapterVersion: 'v1',
+    });
+    await invoker.run(useCases.replaceConnectionCredential, admin, {
+      id: connection.id,
+      baseVersion: connection.version,
+      secret: 'fixture-only',
+    });
     const formId = uuidv7();
     await uow.run(admin, (ctx) => ctx.forms.insert(probeForm(formId)));
     // Content (0011): an item with its revision and locale rows, plus an author, a section and
