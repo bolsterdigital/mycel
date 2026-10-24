@@ -7,7 +7,7 @@ import { defineUseCase } from '../registry.js';
 import { AuditActorKind, type AuditEntry } from './model.js';
 import './ports.js';
 
-const AuditId = z.string().uuid();
+const AuditId = z.string().guid();
 
 export const AuditRow = z.object({
   id: AuditId,

@@ -11,9 +11,7 @@ export type Locale = z.infer<typeof Locale>;
 export type Localized<T> = Partial<Record<string, T>>;
 
 /** Schema for a localisable field: a non-empty map from locale to value. */
-export function localized<T extends z.ZodTypeAny>(
-  schema: T
-): z.ZodEffects<z.ZodRecord<typeof Locale, T>> {
+export function localized<T extends z.ZodTypeAny>(schema: T): z.ZodRecord<typeof Locale, T> {
   return z
     .record(Locale, schema)
     .refine((value) => Object.keys(value).length > 0, 'i18n.localized.empty');

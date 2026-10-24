@@ -43,7 +43,7 @@ export function isSafeHref(href: string): boolean {
 const LinkAttrs = z
   .object({
     href: z.string().min(1).max(2048).optional(),
-    itemId: z.string().uuid().optional(),
+    itemId: z.string().guid().optional(),
   })
   .strict()
   .refine((a) => (a.href === undefined) !== (a.itemId === undefined), 'content.link.one-target')

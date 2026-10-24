@@ -140,7 +140,7 @@ export const changeSupporterEmail = defineUseCase({
     'Change the e-mail address of a supporter; the change is a logged event, never an overwrite.',
   requires: 'supporters:write',
   input: z.object({
-    supporterId: z.string().uuid(),
+    supporterId: z.string().guid(),
     newEmail: z.string().trim().toLowerCase().email(),
     /** Evidence for the change (ADR 019 rule 1): who asked, through which channel. */
     reason: z.string().trim().min(1).max(500),

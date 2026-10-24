@@ -26,7 +26,7 @@ export type FormField = z.infer<typeof FormField>;
 
 export const FormDefinition = z
   .object({
-    id: z.string().uuid(),
+    id: z.string().guid(),
     kind: z.literal('signup'),
     /** The consent scope a signup adds to (ADR 010 rule 6: a list is a consent scope). */
     list: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/),
@@ -47,10 +47,10 @@ export const FormDefinition = z
 export type FormDefinition = z.infer<typeof FormDefinition>;
 
 /** Raw values as a front received them: strings from HTML forms, booleans from JSON clients. */
-export const RawValues = z.record(z.union([z.string(), z.boolean()]));
+export const RawValues = z.record(z.string(), z.union([z.string(), z.boolean()]));
 
 export const SubmitInput = z.object({
-  formId: z.string().uuid(),
+  formId: z.string().guid(),
   values: RawValues,
   locale: Locale,
   /** The page the form was on, for provenance and the supporter event's `source_site`. */
@@ -72,7 +72,7 @@ export const SubmitInput = z.object({
 export type SubmitInput = z.infer<typeof SubmitInput>;
 
 export const SubmitResult = z.discriminatedUnion('status', [
-  z.object({ status: z.literal('accepted'), submissionId: z.string().uuid() }),
+  z.object({ status: z.literal('accepted'), submissionId: z.string().guid() }),
   z.object({
     status: z.literal('invalid'),
     /** `message` is an i18n key (ADR 007); fronts translate it into the visitor's locale. */

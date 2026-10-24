@@ -194,7 +194,7 @@ export function variantWidths(width: number): number[] {
 
 /** The view every front shows (`media.get`, `media.list`, upload and update). */
 export const MediaView = z.object({
-  id: z.string().uuid(),
+  id: z.string().guid(),
   kind: MediaKind,
   contentType: MediaContentType,
   filename: z.string(),

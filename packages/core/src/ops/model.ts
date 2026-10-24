@@ -11,7 +11,7 @@ import { scrubText } from '../util/scrub.js';
 const Timestamp = z.string().datetime({ offset: true });
 
 export const StuckJobView = z.object({
-  id: z.string().uuid(),
+  id: z.string().guid(),
   type: z.string(),
   key: z.string(),
   attempts: z.number().int(),
