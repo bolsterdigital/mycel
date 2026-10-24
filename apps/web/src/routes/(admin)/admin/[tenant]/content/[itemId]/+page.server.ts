@@ -200,6 +200,7 @@ const DONE: Record<string, UiKey> = {
   publish: 'admin.content.publication.done.publish',
   unpublish: 'admin.content.publication.done.unpublish',
   schedule: 'admin.content.publication.done.schedule',
+  repin: 'admin.content.publication.done.schedule',
   unschedule: 'admin.content.publication.done.unschedule',
 };
 
@@ -318,6 +319,23 @@ export const actions: Actions = {
         at: instant(at),
       })
     ),
+  repin: (event) =>
+    publication(event, 'repin', async (principal, { itemId, locale, revisionId }) => {
+      if (!can(principal, 'content:publish'))
+        throw new UseCaseError('forbidden', 'missing capability content:publish');
+      const { item } = await runtime().invoker.run(useCases.getItem, principal, { itemId });
+      const at = item.publication.find((state) => state.locale === locale)?.scheduledFor;
+      if (!at)
+        throw new UseCaseError('invalid_input', 'no schedule to replace', [
+          { path: 'at', message: 'admin.content.publication.time-invalid' },
+        ]);
+      return runtime().invoker.run(useCases.scheduleItem, principal, {
+        itemId,
+        locale,
+        revisionId,
+        at,
+      });
+    }),
   unschedule: (event) =>
     publication(event, 'unschedule', (principal, { itemId, locale }) =>
       runtime().invoker.run(useCases.unscheduleItem, principal, { itemId, locale })

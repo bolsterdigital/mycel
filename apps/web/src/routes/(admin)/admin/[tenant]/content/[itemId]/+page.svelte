@@ -177,7 +177,7 @@
               {@render act('publish', p.locale, t('admin.content.publication.publish'))}
             {/if}
             {#if p.pin && !p.pin.revision.latest}
-              {@render act('schedule', p.locale, t('admin.content.publication.repin'), p.pin.input)}
+              {@render act('repin', p.locale, t('admin.content.publication.repin'))}
             {/if}
             {#if p.pin}
               {@render act('unschedule', p.locale, t('admin.content.publication.unschedule'))}
