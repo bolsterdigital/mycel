@@ -30,6 +30,7 @@ import {
   type UnitOfWork,
 } from '@mycel/core';
 import { auditRepository } from './audit.js';
+import { connectionRepository, credentialKey } from './connections.js';
 import { assistRepository } from './assist.js';
 import {
   authorRepository,
@@ -58,6 +59,7 @@ import { usageReader } from './usage.js';
 import { supporterAdmissions } from './admissions.js';
 
 export type { Database } from './schema.js';
+export { credentialKey, encryptCredential, decryptCredential } from './connections.js';
 export { uuidv7, uuidv7Ids } from './ids.js';
 export {
   MAX_ATTEMPTS as OUTBOX_MAX_ATTEMPTS,
@@ -178,6 +180,8 @@ export interface UnitOfWorkDeps {
   log?: Logger | undefined;
   /** The audit input hash (AUDIT_HASH_KEY, TODO #17b); the Invoker hashes every command's input. */
   inputHasher: InputHasher;
+  /** A separate 32-byte key for encrypted connector credentials, hex encoded. */
+  connectionCredentialKey?: string | undefined;
   assistProviderLabel?: string | null;
 }
 
@@ -192,6 +196,9 @@ const unconfigured = (port: string) =>
   );
 
 export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): UnitOfWork {
+  const connectionKey = deps.connectionCredentialKey
+    ? credentialKey(deps.connectionCredentialKey)
+    : null;
   return {
     run(principal, fn) {
       return withTenant(db, principal, (trx) => {
@@ -206,6 +213,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           events: outboxEventBus(trx),
           content: contentRepository(trx, tenantId),
           assist: assistRepository(trx, tenantId),
+          connections: connectionRepository(trx, tenantId, connectionKey),
           assistProviderLabel: deps.assistProviderLabel ?? null,
           authors: authorRepository(trx, tenantId),
           sections: sectionRepository(trx, tenantId),

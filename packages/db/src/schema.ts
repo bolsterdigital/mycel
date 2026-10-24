@@ -8,6 +8,34 @@ type Timestamp = ColumnType<Date, Date | string, Date | string>;
 type Json<T> = ColumnType<T, string, string>;
 
 export interface Database {
+  connections: {
+    id: string;
+    tenant_id: string;
+    provider: 'webhook' | 'mailchimp';
+    account_ref: string | null;
+    external_owner: string;
+    maintainer: string;
+    purpose: string;
+    direction: 'outbound' | 'inbound' | 'bidirectional';
+    data_authority: 'mycel' | 'external';
+    consent_authority: 'mycel' | 'external';
+    consent_scopes: Json<string[]>;
+    form_ids: string[];
+    destination: string | null;
+    contract_version: string;
+    adapter_version: string;
+    state: 'active' | 'paused' | 'disconnected';
+    version: number;
+    credential_version: number;
+    created_at: Timestamp;
+    updated_at: Timestamp;
+  };
+  connection_credentials: {
+    connection_id: string;
+    tenant_id: string;
+    ciphertext: string;
+    updated_at: Timestamp;
+  };
   tenants: {
     id: string;
     slug: string;

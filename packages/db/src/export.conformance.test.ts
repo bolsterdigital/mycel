@@ -93,6 +93,7 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
     dns: new FakeDns(),
     platform: memoryPlatform,
     media: { blobs, images: memoryImageProcessor },
+    connectionCredentialKey: '10'.repeat(32),
   });
   const invoker = new Invoker(buildRegistry(), uow);
   const tenant = { a: { id: '', slug: `exp-a-${run}` }, b: { id: '', slug: `exp-b-${run}` } };
@@ -108,6 +109,26 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
 
   async function populate(t: { id: string; slug: string }, n: number) {
     const admin = systemPrincipal(t.id, 'export-test');
+    const connection = await invoker.run(useCases.createConnection, admin, {
+      provider: 'webhook',
+      accountRef: null,
+      externalOwner: 'Export fixture',
+      maintainer: 'Export maintainer',
+      purpose: 'Newsletter',
+      direction: 'outbound',
+      dataAuthority: 'mycel',
+      consentAuthority: 'mycel',
+      consentScopes: ['newsletter:main'],
+      formIds: [],
+      destination: `https://hooks.${t.slug}.example.org/mycel`,
+      contractVersion: 'v1',
+      adapterVersion: 'v1',
+    });
+    await invoker.run(useCases.replaceConnectionCredential, admin, {
+      id: connection.id,
+      baseVersion: connection.version,
+      secret: `export-secret-${t.slug}`,
+    });
     const formId = uuidv7();
     await uow.run(admin, (ctx) => ctx.forms.insert(probeForm(formId)));
     await publishProbePage(invoker, admin, formId);
@@ -279,9 +300,17 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
     });
     const empty = EXPORT_ORDER.filter((t) => manifestA.tables[t]!.rows === 0);
     expect(empty).toEqual([]);
+    expect(manifestA.tables).not.toHaveProperty('connection_credentials');
     const keys = Object.keys(manifestA.media);
     expect(keys.length).toBeGreaterThan(1);
     expect(keys.every((k) => k.startsWith(`tenants/${tenant.a.id}/`))).toBe(true);
+  });
+
+  it('exports connection metadata without an installation credential', async () => {
+    const rows = await readFile(join(scratch.dir, 'a', 'tables', 'connections.ndjson'), 'utf8');
+    expect(rows).toContain('Export maintainer');
+    expect(rows).not.toContain(`export-secret-${tenant.a.slug}`);
+    expect(JSON.stringify(manifestA)).not.toContain(`export-secret-${tenant.a.slug}`);
   });
 
   it('holds no row and no file of the other tenant (sentinel)', async () => {
