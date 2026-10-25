@@ -124,7 +124,7 @@ export {
 export { createIdentityStore } from './operators.js';
 export { mediaRepository } from './media.js';
 export { createSiteDirectory, SITE_CACHE_TTL_MS } from './hostnames.js';
-export { FIRST_EVENT_MONTH, ensureEventPartitions, migrate } from './migrate.js';
+export { FIRST_EVENT_MONTH, ensureEventPartitions, migrate, migrationsAhead } from './migrate.js';
 export {
   createTenant,
   getTenant,

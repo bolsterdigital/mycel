@@ -29,6 +29,16 @@ Accepted but unimplemented contracts in [ADRs 022 to 024](extensibility.md) grow
 9. **Performance budget** (ADR 009 rule 4) is a Playwright assertion on the public page: no client JavaScript beyond the enhancement bundle, fonts self-hosted, images sized.
 10. **Test migrations check schema without resetting role passwords.** `verify` runs after `db:migrate` has provisioned the application and authentication logins. Conformance suites call `migrate` with no passwords, including against scratch databases: role passwords are cluster-wide, while the migration lock is per database. RLS catalog checks keep a short `ACCESS SHARE` lock on a partitioned parent until grant checks finish; do not retain names of partitions another suite may drop for a later catalog lookup.
 
+11. **A test hook never asserts inside code that catches.** A hook that runs inside a job or use case whose errors become a state (`runExportJob` marks the export failed) keeps its own failure and the test throws it after the run; otherwise the report names a later symptom (`expected undefined`) instead of the cause. Wait for a condition with a deadline (`expect.poll`), not for a fixed time beside a timer the code runs.
+
+## Local database
+
+CI starts every run on an empty database; a laptop or the dev server reuses one, and that one is shared by every branch and worktree on the machine. Three guards keep a local run telling the truth about the checkout (TODO #27):
+
+- **Schema.** `scripts/test-db-preflight.mjs` (Vitest global setup) and `scripts/e2e.mjs` stop when the database holds a migration this checkout has no file for: a newer branch migrated it, and its suites would prove another schema. Give such a branch its own database, `createdb mycel_<branch>` as the schema owner with the three URLs in `.env` pointing at it, then `npm run db:migrate` and `npm run db:seed`; switch back by pointing them at the old one.
+- **One end-to-end run per database.** `scripts/e2e.mjs` holds an advisory lock for the run and refuses a second one. It checks its ports first (web 4173, API 8797, mock IdP 8798, worker 8796; `E2E_*_PORT` to move them) and names a port that is still taken, usually by an interrupted run.
+- **Fixture operators.** The mock IdP's issuer includes its port, so a run on another port would log in as new operators without memberships. Before the seed, `scripts/e2e.mjs` moves the synthetic `@probe.test` operators onto the current mock issuer; the dev operator (`npm run dev`) is left alone. Production keeps issuer plus subject as the identity.
+
 ## What a PR needs
 
 The PR description names the conformance suite that grew (or says why none did), the hand-written invariants added, and what could not be run locally. Review reads the fixtures first: if the examples are right, the generic suites have already read the rest. The pull request template asks for exactly that, plus the block `scripts/review-signals.mjs` prints; how a reviewer uses it to pick at most one extra counterproof is [review.md](review.md).
