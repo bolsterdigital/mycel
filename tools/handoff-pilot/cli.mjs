@@ -458,6 +458,10 @@ async function daemon() {
         save(state);
         return;
       }
+      if (['blocked', 'complete', 'stopped'].includes(state.status)) {
+        if (!(await terminateAndConfirm(state))) await holdUntilDead(state, 'terminal-state');
+        return;
+      }
       const paused = existsSync(ctl('pause'));
       if (paused && state.status === 'active') {
         pause(state);
@@ -505,6 +509,7 @@ async function daemon() {
           });
         }
         save(state);
+        if (state.status !== 'active') return;
         continue;
       }
       if (paused) return;
@@ -738,7 +743,10 @@ try {
     console.log('Paused; no new sessions will start');
   } else if (command === 'resume') {
     const state = load();
-    if (state.status === 'stopped' || state.status === 'complete') fail('This run cannot resume');
+    if (['stopped', 'complete', 'blocked'].includes(state.status))
+      fail(
+        `Cannot resume ${state.status} run; inspect the saved proof and start a new bounded run`
+      );
     rmSync(ctl('pause'), { force: true });
     if (supervisorAlive()) {
       console.log('Supervisor resumed');
