@@ -72,7 +72,7 @@
         {#if kind === 'font'}<label
             >{t('admin.site.licence')}<input name="licence" maxlength="500" required /></label
           >{/if}
-        <div class="brand-actions">
+        <div class="actions brand-actions">
           <button type="submit" name="intent" value="upload"
             >{t(state.active ? 'admin.site.replace' : 'admin.site.upload')}</button
           >
@@ -280,17 +280,8 @@
     min-height: 2.75rem;
     justify-self: start;
   }
-  .brand-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
   .brand-actions button {
-    max-width: 100%;
     min-width: 0;
-    white-space: normal;
-    overflow-wrap: normal;
-    hyphens: manual;
   }
   section img {
     max-width: 12rem;

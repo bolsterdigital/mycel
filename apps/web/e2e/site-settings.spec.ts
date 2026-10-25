@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { Invoker, THEME_PRESETS, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
 import { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } from '@mycel/core/testing';
 import { createDb, createUnitOfWork, upsertTenant, uuidv7, uuidv7Ids } from '@mycel/db';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 const slug = `chrome-${Math.random().toString(36).slice(2, 8)}`;
 const singleSlug = `chrome-single-${Math.random().toString(36).slice(2, 8)}`;
@@ -266,15 +266,14 @@ test('single-locale site saves without another translation', async ({ page }) =>
   expect((await chromeState(singleTenantId)).value.footer).toEqual({ nl: 'Nieuwe tekst' });
 });
 
-test('native brand upload, public derivative and removal stay tenant scoped', async ({
-  page,
-  request,
-}) => {
-  await page.goto(`/admin/${slug}/site`);
-  await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
-  await page.getByLabel('E-mail').fill(`site-editor-${slug}@probe.test`);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  const logo = page.locator('form[action="?/brand"]').first();
+// Uploads the logo and wordmark font through the real brand forms. The site settings gate seeds
+// them itself so it measures the longest action labels ("Vervangen"/"Verwijderen") even when run
+// alone; rejected: relying on the upload test running first in the same worker.
+const uploadBrand = async (page: Page) => {
+  const [logo, font] = [
+    page.locator('form[action="?/brand"]').first(),
+    page.locator('form[action="?/brand"]').last(),
+  ];
   await logo.locator('input[type=file]').setInputFiles({
     name: 'mark.svg',
     mimeType: 'image/svg+xml',
@@ -282,9 +281,8 @@ test('native brand upload, public derivative and removal stay tenant scoped', as
       '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="#123456"/></svg>'
     ),
   });
-  await logo.getByRole('button', { name: 'Upload' }).click();
+  await logo.locator('button[value=upload]').click();
   await expect(page.locator('p[role="status"]')).toBeVisible();
-  const font = page.locator('form[action="?/brand"]').last();
   await font.locator('input[type=file]').setInputFiles({
     name: 'inter.woff2',
     mimeType: 'font/woff2',
@@ -293,8 +291,19 @@ test('native brand upload, public derivative and removal stay tenant scoped', as
     ),
   });
   await font.locator('input[name=licence]').fill('SIL Open Font License 1.1');
-  await font.getByRole('button', { name: 'Upload' }).click();
+  await font.locator('button[value=upload]').click();
   await expect(page.locator('p[role="status"]')).toBeVisible();
+};
+
+test('native brand upload, public derivative and removal stay tenant scoped', async ({
+  page,
+  request,
+}) => {
+  await page.goto(`/admin/${slug}/site`);
+  await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
+  await page.getByLabel('E-mail').fill(`site-editor-${slug}@probe.test`);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await uploadBrand(page);
 
   await page.goto(`/admin/${slug}/preview/item/${homeItemId}?locale=nl`);
   await expect(page.locator('.site-identity img')).toBeVisible();
@@ -368,6 +377,9 @@ for (const [locale, language, title, actions] of [
       await expect(page.locator('html')).toHaveAttribute('lang', locale);
       await expect(page.locator('form[action="?/theme"]')).toBeVisible();
       await expect(page.locator('form[action="?/chrome"]')).toBeVisible();
+      await uploadBrand(page);
+      await page.goto(`/admin/${slug}/site`);
+      await expect(page.locator('.brand-actions button[value=remove]')).toHaveCount(2);
 
       const buttons = actions.map((name) => page.getByRole('button', { name, exact: true }));
       for (const button of buttons) await expect(button).toBeVisible();

@@ -269,13 +269,17 @@
   .live-preview[hidden] {
     display: none;
   }
+  /* Inline padding follows the public `.button` (base.css): at 320 px and 200% text a fixed
+     0.875rem eats 56 px of a narrow column, and one long unbreakable label ("Verwijderen" in a
+     wide system font) then runs out of its own button. 4vw keeps the label room without a smaller
+     font or clipping. Rejected: a local exception per action group, which the next group repeats. */
   .actions button,
   .actions a.button,
   .admin-header button,
   .admin form > button {
     min-height: 44px;
     max-width: 100%;
-    padding: 0.625rem 0.875rem;
+    padding: 0.625rem min(0.875rem, 4vw);
     overflow-wrap: normal;
     hyphens: manual;
     text-align: start;
