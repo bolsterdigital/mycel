@@ -264,7 +264,8 @@ export function recordResult(state, result, external) {
     if (
       result.outcome === 'audit_done' &&
       external.auditTask?.id === state.auditTask?.id &&
-      external.auditTask.status === 'done'
+      external.auditTask.status === 'done' &&
+      external.handoffCommitted
     ) {
       state.events.push({
         kind: 'audit',
@@ -276,7 +277,8 @@ export function recordResult(state, result, external) {
       result.outcome === 'audit_taken_elsewhere' &&
       external.auditTask?.id === state.auditTask?.id &&
       external.auditTask.status === 'claimed' &&
-      external.auditTask.owner?.lane === 'dev'
+      external.auditTask.owner?.lane === 'dev' &&
+      external.handoffCommitted
     ) {
       state.events.push({
         kind: 'audit',

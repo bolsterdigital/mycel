@@ -310,11 +310,21 @@ test('threshold routes to a separate claimed audit before the next item', () => 
     () =>
       recordResult(state, result(state, 'auditor', 'audit_done'), {
         auditTask: { id: 'reorg-1', status: 'claimed', owner: { lane: 'mbp' } },
+        handoffCommitted: true,
+      }),
+    /unverified/
+  );
+  assert.throws(
+    () =>
+      recordResult(state, result(state, 'auditor', 'audit_done'), {
+        auditTask: { id: 'reorg-1', status: 'done' },
+        handoffCommitted: false,
       }),
     /unverified/
   );
   recordResult(state, result(state, 'auditor', 'audit_done'), {
     auditTask: { id: 'reorg-1', status: 'done' },
+    handoffCommitted: true,
   });
   assert.deepEqual(nextAction(state).item, '#43A');
   assert.equal(state.sessions.length, 4);
@@ -335,6 +345,24 @@ test('a dev lane audit claim leaves the mbp continuation intact', () => {
   });
   assert.deepEqual(nextAction(state).item, '#43A');
   assert.equal(state.auditTask, null);
+});
+
+test('audit taken by dev still requires the published mbp handoff', () => {
+  const state = approved(run());
+  launch(state, 'merger');
+  recordResult(state, result(state, 'merger', 'merged', { planningCommit: sha('d') }), {
+    ...merge,
+    auditTask: { threshold_met: true, exists: true, task_id: 'reorg-1', status: 'open' },
+  });
+  launch(state, 'auditor');
+  const proof = result(state, 'auditor', 'audit_taken_elsewhere');
+  const auditTask = { id: 'reorg-1', status: 'claimed', owner: { lane: 'dev' } };
+  assert.throws(
+    () => recordResult(state, proof, { auditTask, handoffCommitted: false }),
+    /unverified/
+  );
+  recordResult(state, proof, { auditTask, handoffCommitted: true });
+  assert.deepEqual(nextAction(state).item, '#43A');
 });
 
 test('ordinary handoffs do not inspect an audit ref before the threshold', () => {
