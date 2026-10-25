@@ -84,10 +84,14 @@ test('dry-run launches no agent and writes no run state', (t) => {
 
 test('a second supervisor is excluded; stop terminates the active agent group', async (t) => {
   const f = fixture(t);
-  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
-    detached: true,
-    stdio: 'ignore',
-  });
+  const child = spawn(
+    process.execPath,
+    ['-e', 'process.on("SIGTERM", () => {}); setInterval(() => {}, 1000)'],
+    {
+      detached: true,
+      stdio: 'ignore',
+    }
+  );
   const childExit = new Promise((done) => child.once('exit', done));
   t.after(() => {
     try {
@@ -228,10 +232,14 @@ test('stop during model selection acknowledges only after any late child is gone
 
 test('pause keeps enforcing the wall-clock deadline for a running child', async (t) => {
   const f = fixture(t);
-  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
-    detached: true,
-    stdio: 'ignore',
-  });
+  const child = spawn(
+    process.execPath,
+    ['-e', 'process.on("SIGTERM", () => {}); setInterval(() => {}, 1000)'],
+    {
+      detached: true,
+      stdio: 'ignore',
+    }
+  );
   const childExit = new Promise((done) => child.once('exit', done));
   t.after(() => {
     try {
@@ -278,4 +286,5 @@ test('pause keeps enforcing the wall-clock deadline for a running child', async 
     'wall-clock-limit'
   );
   await childExit;
+  assert.equal(spawnSync('test', ['-e', join(f.home, 'mbp.lock')]).status, 1);
 });

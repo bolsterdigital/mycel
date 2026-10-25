@@ -296,7 +296,29 @@ function terminateChild(state, signal = 'SIGTERM') {
   try {
     process.kill(-state.pending.childPid, signal);
   } catch {
-    process.kill(state.pending.childPid, signal);
+    try {
+      process.kill(state.pending.childPid, signal);
+    } catch {
+      // The child may have exited between the liveness check and the signal.
+    }
+  }
+}
+async function terminateAndConfirm(state) {
+  if (!alive(state.pending?.childPid)) return true;
+  terminateChild(state);
+  for (let attempt = 0; attempt < 10 && alive(state.pending?.childPid); attempt++) await sleep(100);
+  if (!alive(state.pending?.childPid)) return true;
+  terminateChild(state, 'SIGKILL');
+  for (let attempt = 0; attempt < 20 && alive(state.pending?.childPid); attempt++) await sleep(100);
+  return !alive(state.pending?.childPid);
+}
+async function holdUntilDead(state, reason) {
+  state.status = 'blocked';
+  state.stopReason = `${reason}: child termination unconfirmed`;
+  save(state);
+  while (alive(state.pending?.childPid)) {
+    terminateChild(state, 'SIGKILL');
+    await sleep(1000);
   }
 }
 function supervisorAlive() {
@@ -429,7 +451,7 @@ async function daemon() {
     while (true) {
       let state = load();
       if (existsSync(ctl('stop'))) {
-        terminateChild(state);
+        if (!(await terminateAndConfirm(state))) await holdUntilDead(state, 'operator-stop');
         stop(state);
         save(state);
         return;
@@ -443,7 +465,7 @@ async function daemon() {
         save(state);
       }
       if (Date.now() - Date.parse(state.startedAt) >= state.maxMinutes * 60_000) {
-        terminateChild(state);
+        if (!(await terminateAndConfirm(state))) await holdUntilDead(state, 'wall-clock-limit');
         state.status = 'blocked';
         state.stopReason = 'wall-clock-limit';
         save(state);
@@ -497,7 +519,7 @@ async function daemon() {
         launch(state, action, cfg);
       } catch (error) {
         state = load();
-        terminateChild(state);
+        if (!(await terminateAndConfirm(state))) await holdUntilDead(state, 'prelaunch');
         state.status = 'blocked';
         state.stopReason = `prelaunch: ${error.message}`;
         state.events.push({
@@ -725,7 +747,12 @@ try {
       const state = load();
       if (state.pending?.status === 'reserved')
         fail('Supervisor exited with an unconfirmed launch; inspect processes and logs');
-      terminateChild(state);
+      if (!(await terminateAndConfirm(state))) {
+        state.status = 'blocked';
+        state.stopReason = 'operator-stop: child termination unconfirmed';
+        save(state);
+        fail('Agent process remains alive after stop');
+      }
       stop(state);
       save(state);
     }
