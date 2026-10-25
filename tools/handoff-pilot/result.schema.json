@@ -1,0 +1,74 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "runId",
+    "sessionId",
+    "item",
+    "lane",
+    "phase",
+    "outcome",
+    "pr",
+    "headSha",
+    "reviewedHeadSha",
+    "planningCommit",
+    "reviewRecord",
+    "mergeCommit",
+    "housekeepingCommit",
+    "finding",
+    "finishedAt",
+    "deviations"
+  ],
+  "properties": {
+    "runId": { "type": "string" },
+    "sessionId": { "type": "string" },
+    "item": { "type": "string" },
+    "lane": { "const": "mbp" },
+    "phase": { "enum": ["execute", "review", "merge", "audit"] },
+    "outcome": {
+      "enum": [
+        "pr_ready",
+        "approved",
+        "changes_requested",
+        "merged",
+        "audit_done",
+        "audit_taken_elsewhere",
+        "blocked"
+      ]
+    },
+    "pr": { "type": ["integer", "null"] },
+    "headSha": { "type": ["string", "null"] },
+    "reviewedHeadSha": { "type": ["string", "null"] },
+    "planningCommit": { "type": ["string", "null"] },
+    "reviewRecord": { "type": ["string", "null"] },
+    "mergeCommit": { "type": ["string", "null"] },
+    "housekeepingCommit": { "type": ["string", "null"] },
+    "finding": { "type": ["string", "null"] },
+    "finishedAt": { "type": "string" },
+    "deviations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected",
+          "observed",
+          "detection",
+          "repair",
+          "cause",
+          "preventionAddress",
+          "evidence"
+        ],
+        "properties": {
+          "expected": { "type": "string" },
+          "observed": { "type": "string" },
+          "detection": { "type": "string" },
+          "repair": { "type": "string" },
+          "cause": { "type": "string" },
+          "preventionAddress": { "type": "string" },
+          "evidence": { "type": "string" }
+        }
+      }
+    }
+  }
+}
