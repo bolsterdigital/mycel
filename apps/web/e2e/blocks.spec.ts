@@ -88,7 +88,7 @@ for (const [slug, titles] of Object.entries(PAGES))
       });
     });
 
-test('the theme stylesheet is immutable under its hash, and any other hash is a 404', async ({
+test('the theme stylesheet is immutable under its hash and redirects stale hashes without caching', async ({
   page,
   request,
 }) => {
@@ -100,7 +100,19 @@ test('the theme stylesheet is immutable under its hash, and any other hash is a 
   expect(res.headers()['content-type']).toContain('text/css');
   expect(res.headers()['cache-control']).toBe('public, max-age=31536000, immutable');
   expect(await res.text()).toContain('--color-body-bg:');
-  expect((await request.get('/probe/_theme/0000000000000000.css')).status()).toBe(404);
+  const staleHash = href!.includes('/0000000000000000.css')
+    ? 'ffffffffffffffff'
+    : '0000000000000000';
+  const stale = await request.get(`/probe/_theme/${staleHash}.css`, { maxRedirects: 0 });
+  expect(stale.status()).toBe(302);
+  expect(stale.headers()['location']).toBe(href);
+  expect(stale.headers()['cache-control']).toBe('no-store');
+  const redirected = await request.get(`/probe/_theme/${staleHash}.css`);
+  expect(redirected.status()).toBe(200);
+  expect(redirected.url()).toContain(href!);
+  expect(redirected.headers()['cache-control']).toBe('public, max-age=31536000, immutable');
+  expect(await redirected.text()).toBe(await res.text());
+  expect((await request.get('/probe/_theme/not-a-hash.css')).status()).toBe(404);
 });
 
 test.describe('without JavaScript', () => {

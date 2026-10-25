@@ -1,6 +1,6 @@
 // The theme stylesheet (brief #8c § 3): `/_theme/<hash>.css`, the hash of the CSS itself, so the
-// response is immutable and a changed theme is simply a new URL the layout links. Any other hash
-// is a 404 rather than the current CSS, so a stale URL never caches a theme under the wrong key.
+// response is immutable and a changed theme is simply a new URL the layout links. A former valid
+// hash redirects without caching; malformed hashes are 404. Never serve new CSS under an old key.
 // `_theme` cannot collide with a page: a `Slug` starts with `[a-z0-9]`.
 
 import { error } from '@sveltejs/kit';
