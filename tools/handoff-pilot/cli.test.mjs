@@ -39,12 +39,15 @@ function fixture(t) {
   writeFileSync(join(planning, 'handoff/mbp.md'), '');
   writeFileSync(join(planning, 'handoff/queue.md'), '');
   const codexMarker = join(root, 'codex-called');
+  const notifyMarker = join(root, 'notify-called');
   for (const [name, body] of Object.entries({
     git: '#!/bin/sh\ncase "$1" in rev-parse) echo aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;; ls-remote) echo "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa refs/heads/main";; esac\n',
     gh: '#!/bin/sh\necho "[]"\n',
     'model-mode':
       '#!/bin/sh\nif [ "$1" = name-for ] && [ -n "$MYCEL_PILOT_BLOCK_MODEL_MARKER" ]; then touch "$MYCEL_PILOT_BLOCK_MODEL_MARKER"; while [ ! -e "$MYCEL_PILOT_BLOCK_MODEL_RELEASE" ]; do sleep 0.05; done; fi\ncase "$1" in name-for) echo Sol;; name) if [ "$2" = stuur ]; then echo Astra; else echo Sol; fi;; get) echo gpt-6-sol;; esac\n',
     codex: `#!/bin/sh\ntouch '${codexMarker}'\nif [ -n "$MYCEL_PILOT_FAKE_CODEX_SLEEP" ]; then sleep 30; fi\nexit 97\n`,
+    'claude-notify':
+      '#!/bin/sh\nprintf "%s|%s|%s|%s\\n" "$CLAUDE_NOTIFY_BANNER_ONLY" "$1" "$2" "$3" >> "$MYCEL_PILOT_NOTIFY_MARKER"\nexit "${MYCEL_PILOT_NOTIFY_EXIT:-0}"\n',
   })) {
     const path = join(bin, name);
     writeFileSync(path, body, { mode: 0o755 });
@@ -69,9 +72,10 @@ function fixture(t) {
     HOME: root,
     MYCEL_PILOT_HOME: home,
     MYCEL_PILOT_PLANNING: planning,
+    MYCEL_PILOT_NOTIFY_MARKER: notifyMarker,
   };
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  return { root, home, config, env, codexMarker };
+  return { root, home, config, env, codexMarker, notifyMarker };
 }
 function call(env, ...args) {
   return spawnSync(process.execPath, [cli, ...args], { env, encoding: 'utf8', timeout });
@@ -227,6 +231,7 @@ test('invalid handoff exits the supervisor once and preserves the blocked reserv
     maxMinutes: 360,
   });
   state.config = { tiers: { '#44': 'workhorse' } };
+  state.terminalNotice = null;
   reserveSession(state, {
     id: 'reviewed',
     item: '#44',
@@ -248,17 +253,86 @@ test('invalid handoff exits the supervisor once and preserves the blocked reserv
   assert.match(blocked.stopReason, /invalid-handoff: Missing prior planning commit/);
   assert.equal(blocked.pending.id, 'reviewed');
   assert.equal(blocked.events.filter((entry) => entry.kind === 'invalid-handoff').length, 1);
+  assert.equal(blocked.terminalNotice.terminalStatus, 'blocked');
+  assert.equal(blocked.terminalNotice.commandExit, 0);
+  assert.equal(readFileSync(f.notifyMarker, 'utf8').trim().split('\n').length, 1);
+  assert.match(readFileSync(f.notifyMarker, 'utf8'), /^0\|mycel · pilot wacht\|/);
   assert.throws(() => readFileSync(join(f.home, 'mbp.lock/pid')));
 
   const restarted = call(f.env, 'daemon');
   assert.equal(restarted.status, 0, restarted.stderr);
   const afterRestart = JSON.parse(readFileSync(join(f.home, 'state.json'), 'utf8'));
   assert.deepEqual(afterRestart, blocked);
+  assert.equal(readFileSync(f.notifyMarker, 'utf8').trim().split('\n').length, 1);
   const resumed = call(f.env, 'resume');
   assert.equal(resumed.status, 1);
   assert.match(resumed.stderr, /Cannot resume blocked run/);
   assert.deepEqual(JSON.parse(readFileSync(join(f.home, 'state.json'), 'utf8')), blocked);
   assert.throws(() => readFileSync(f.codexMarker));
+});
+
+test('completion uses a local banner once and pause sends nothing', (t) => {
+  const f = fixture(t);
+  const state = newRun({
+    runId: 'fixture',
+    lane: 'mbp',
+    allowlist: ['#44'],
+    maxSessions: 8,
+    maxRepairs: 2,
+    maxMinutes: 360,
+  });
+  state.config = { tiers: { '#44': 'workhorse' } };
+  state.terminalNotice = null;
+  state.status = 'paused';
+  writeFileSync(join(f.home, 'state.json'), JSON.stringify(state));
+  writeFileSync(join(f.home, 'pause'), '1');
+  assert.equal(call(f.env, 'daemon').status, 0);
+  assert.throws(() => readFileSync(f.notifyMarker));
+  rmSync(join(f.home, 'pause'));
+  state.status = 'active';
+  state.index = 1;
+  writeFileSync(join(f.home, 'state.json'), JSON.stringify(state));
+  assert.equal(call(f.env, 'daemon').status, 0);
+  const completed = JSON.parse(readFileSync(join(f.home, 'state.json'), 'utf8'));
+  assert.equal(completed.status, 'complete');
+  assert.equal(completed.terminalNotice.commandExit, 0);
+  assert.match(readFileSync(f.notifyMarker, 'utf8'), /^1\|mycel · pilot klaar\|/);
+  assert.equal(call(f.env, 'daemon').status, 0);
+  assert.equal(readFileSync(f.notifyMarker, 'utf8').trim().split('\n').length, 1);
+});
+
+test('notification failure stays visible without retry or changing a blocked reason', (t) => {
+  const f = fixture(t);
+  const state = newRun({
+    runId: 'fixture',
+    lane: 'mbp',
+    allowlist: ['#44'],
+    maxSessions: 8,
+    maxRepairs: 2,
+    maxMinutes: 360,
+  });
+  state.config = {
+    tiers: { '#44': 'workhorse' },
+    notifyCommand: join(f.root, 'missing-notifier'),
+  };
+  state.terminalNotice = null;
+  state.status = 'blocked';
+  state.stopReason = 'missing-authority';
+  writeFileSync(join(f.home, 'state.json'), JSON.stringify(state));
+  const failed = call(f.env, 'daemon');
+  assert.equal(failed.status, 0, failed.stderr);
+  const report = JSON.parse(call(f.env, 'status').stdout);
+  assert.equal(report.status, 'blocked');
+  assert.equal(report.stopReason, 'missing-authority');
+  assert.equal(report.notification?.status, 'failed');
+  assert.equal(report.notification?.error, 'ENOENT');
+  assert.match(readFileSync(join(f.home, 'fixture-notification.stderr.log'), 'utf8'), /failed/);
+  assert.equal(call(f.env, 'daemon').status, 0);
+  assert.equal(
+    readFileSync(join(f.home, 'fixture-notification.stderr.log'), 'utf8').trim().split('\n').length,
+    1
+  );
+  assert.throws(() => readFileSync(f.notifyMarker));
 });
 
 test('changed PR head blocks review before a new agent is launched', (t) => {
