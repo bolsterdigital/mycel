@@ -254,6 +254,10 @@ test('invalid handoff exits the supervisor once and preserves the blocked reserv
   assert.equal(restarted.status, 0, restarted.stderr);
   const afterRestart = JSON.parse(readFileSync(join(f.home, 'state.json'), 'utf8'));
   assert.deepEqual(afterRestart, blocked);
+  const resumed = call(f.env, 'resume');
+  assert.equal(resumed.status, 1);
+  assert.match(resumed.stderr, /Cannot resume blocked run/);
+  assert.deepEqual(JSON.parse(readFileSync(join(f.home, 'state.json'), 'utf8')), blocked);
   assert.throws(() => readFileSync(f.codexMarker));
 });
 

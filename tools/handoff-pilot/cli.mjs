@@ -743,7 +743,10 @@ try {
     console.log('Paused; no new sessions will start');
   } else if (command === 'resume') {
     const state = load();
-    if (state.status === 'stopped' || state.status === 'complete') fail('This run cannot resume');
+    if (['stopped', 'complete', 'blocked'].includes(state.status))
+      fail(
+        `Cannot resume ${state.status} run; inspect the saved proof and start a new bounded run`
+      );
     rmSync(ctl('pause'), { force: true });
     if (supervisorAlive()) {
       console.log('Supervisor resumed');
