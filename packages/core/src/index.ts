@@ -38,6 +38,7 @@ export * from './theme/model.js';
 export * from './theme/check.js';
 export * from './theme/presets.js';
 export * from './theme/service.js';
+export * from './theme/settings.js';
 export * from './forms/model.js';
 export * from './forms/ports.js';
 export * from './forms/events.js';

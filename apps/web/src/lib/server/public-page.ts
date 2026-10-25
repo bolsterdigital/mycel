@@ -35,7 +35,7 @@ import { resolveDocument, runtimeSource } from '../blocks/resolve.js';
 import type { ContentRoute } from './content-route.js';
 import { runtime } from './runtime.js';
 import { sitePath, siteTenant, siteUrls, type Site } from './site.js';
-import { siteTheme } from './theme.js';
+import { siteChrome, siteTheme } from './theme.js';
 
 export interface PublicHead {
   canonical: string;
@@ -95,8 +95,9 @@ export async function loadPublicItem(
 
   if (hasForm(model)) return { tenant, item, locale, model, head, etag: null };
   const theme = await siteTheme(site);
+  const chrome = await siteChrome(site);
   const digest = createHash('sha256')
-    .update(JSON.stringify({ model, head, access: site.access }))
+    .update(JSON.stringify({ model, head, access: site.access, chrome }))
     .digest('base64url')
     .slice(0, 16);
   const etag = `"${item.revisionId}:${locale}:${theme.hash}:${digest}"`;

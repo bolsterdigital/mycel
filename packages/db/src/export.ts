@@ -55,6 +55,7 @@ export const EXPORT_FORMAT = 'mycel-tenant-export/1';
  * not the tenant's rows (the tenant row goes in the manifest, operators as addresses).
  */
 export const TABLES = {
+  site_settings: 'export',
   connections: 'export',
   connection_intents: 'operational',
   connection_attempts: 'operational',
@@ -107,6 +108,7 @@ export type ExportTable = {
  * of `content_items` is deferred to commit, 0011). Import writes in this order.
  */
 export const EXPORT_ORDER: readonly ExportTable[] = [
+  'site_settings',
   'connections',
   'tenant_hostnames',
   'forms',

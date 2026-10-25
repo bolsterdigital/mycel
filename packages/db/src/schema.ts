@@ -9,6 +9,13 @@ type Timestamp = ColumnType<Date, Date | string, Date | string>;
 type Json<T> = ColumnType<T, string, string>;
 
 export interface Database {
+  site_settings: {
+    tenant_id: string;
+    theme: Json<unknown>;
+    theme_version: number;
+    chrome: Json<unknown>;
+    chrome_version: number;
+  };
   connection_intents: {
     id: string;
     tenant_id: string;

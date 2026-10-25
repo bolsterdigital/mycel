@@ -80,6 +80,12 @@ import { UseCaseRegistry, type UseCase } from './registry.js';
 import { changeSupporterEmail, getSupporter } from './supporters/service.js';
 import { checkThemeUseCase } from './theme/service.js';
 import {
+  getSiteTheme,
+  updateSiteTheme,
+  getSiteChrome,
+  updateSiteChrome,
+} from './theme/settings.js';
+import {
   addHostname,
   listHostnames,
   removeHostname,
@@ -169,6 +175,10 @@ export const useCases = {
   retryJob,
   closeJob,
   checkTheme: checkThemeUseCase,
+  getSiteTheme,
+  updateSiteTheme,
+  getSiteChrome,
+  updateSiteChrome,
 } as const;
 
 export function buildRegistry(): UseCaseRegistry {

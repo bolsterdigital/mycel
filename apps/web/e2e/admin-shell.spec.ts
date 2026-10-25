@@ -122,7 +122,7 @@ test('site navigation persists through content, editor, media, settings and a se
     .getByRole('navigation', { name: 'Site navigation' })
     .getByRole('link', { name: 'Site settings' })
     .click();
-  await expect(page).toHaveURL(/\/admin\/probe#members$/);
+  await expect(page).toHaveURL(/\/admin\/probe\/site$/);
   await page.getByRole('link', { name: 'Back to your sites' }).click();
   await page.getByRole('main').getByRole('link', { name: 'Second editorial site' }).click();
   await checkShell(page, 'Second editorial site', 'Overview');

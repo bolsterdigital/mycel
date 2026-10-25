@@ -5,6 +5,6 @@
   let { href, label }: { href: string; label: string } = $props();
 </script>
 
-<footer class="mycel-credit">
+<div class="mycel-credit">
   <p><a {href} rel="noopener">{label}</a></p>
-</footer>
+</div>

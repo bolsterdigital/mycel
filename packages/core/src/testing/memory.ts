@@ -6,6 +6,9 @@
 // save/delete race (TODO #8b2) can be proven here too.
 
 import type { AuditEntry } from '../audit/model.js';
+import { DEFAULT_THEME } from '../theme/presets.js';
+import { DEFAULT_CHROME, type SiteChrome } from '../theme/settings.js';
+import type { ResolvedTheme } from '../theme/model.js';
 import type { AssistRepository, AssistSettings, AssistSuggestion } from '../assist/ports.js';
 import type {
   ConnectionIntent,
@@ -226,6 +229,8 @@ function sluggedRepository<T extends { id: string; slug: string }>(
 }
 
 interface TenantStore {
+  siteTheme: { version: number; value: ResolvedTheme };
+  siteChrome: { version: number; value: SiteChrome };
   connections: Map<string, ConnectionRecord>;
   connectionSecrets: Map<string, string>;
   connectionIntents: Map<string, ConnectionIntent>;
@@ -510,6 +515,8 @@ export class MemoryStore {
     let store = this.tenants.get(tenantId);
     if (!store) {
       store = {
+        siteTheme: { version: 0, value: DEFAULT_THEME },
+        siteChrome: { version: 0, value: DEFAULT_CHROME },
         connections: new Map(),
         connectionSecrets: new Map(),
         connectionIntents: new Map(),
@@ -1479,6 +1486,20 @@ export class MemoryUnitOfWork implements UnitOfWork {
           },
         },
         content,
+        siteSettings: {
+          theme: async () => structuredClone(s.siteTheme),
+          chrome: async () => structuredClone(s.siteChrome),
+          updateTheme: async (baseVersion, value) => {
+            if (s.siteTheme.version !== baseVersion) return null;
+            s.siteTheme = { version: baseVersion + 1, value: structuredClone(value) };
+            return s.siteTheme.version;
+          },
+          updateChrome: async (baseVersion, value) => {
+            if (s.siteChrome.version !== baseVersion) return null;
+            s.siteChrome = { version: baseVersion + 1, value: structuredClone(value) };
+            return s.siteChrome.version;
+          },
+        },
         assist,
         connections,
         connectionIntents,

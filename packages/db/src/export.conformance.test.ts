@@ -129,6 +129,20 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
       baseVersion: connection.version,
       secret: `export-secret-${t.slug}`,
     });
+    await invoker.run(useCases.updateSiteTheme, admin, {
+      baseVersion: 0,
+      theme: useCases.updateSiteTheme.examples[0].input.theme,
+    });
+    await invoker.run(useCases.updateSiteChrome, admin, {
+      baseVersion: 0,
+      chrome: {
+        navigation: [],
+        footer: { nl: 'Voettekst', en: 'Footer' },
+        legal: [],
+        support: null,
+        help: null,
+      },
+    });
     const formId = uuidv7();
     await uow.run(admin, (ctx) => ctx.forms.insert(probeForm(formId)));
     await publishProbePage(invoker, admin, formId);

@@ -600,3 +600,40 @@
     font-size: var(--step--1);
   }
 }
+
+@layer components {
+  .public-skip {
+    position: absolute;
+    inset-block-start: -10rem;
+    background: var(--color-body-bg);
+    color: var(--color-link);
+    padding: var(--space-2);
+    z-index: 10;
+  }
+  .public-skip:focus {
+    inset-block-start: 0;
+  }
+  .site-header,
+  .site-footer {
+    padding: var(--space-2) var(--gutter);
+    border-block: 1px solid var(--color-surface-bg);
+  }
+  .site-header nav,
+  .site-footer nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+    max-width: var(--wide-width);
+    margin-inline: auto;
+  }
+  .site-header a,
+  .site-footer a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap);
+  }
+  .site-footer p {
+    max-width: var(--wide-width);
+    margin-inline: auto;
+  }
+}
