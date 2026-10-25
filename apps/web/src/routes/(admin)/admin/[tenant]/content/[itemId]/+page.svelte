@@ -387,6 +387,9 @@
 
   <section aria-labelledby="blocks">
     <h2 id="blocks">{t('admin.block.title')}</h2>
+    {#if article}
+      <p><a href="{base}/content/{data.item.id}/write">{t('admin.editor.title')}</a></p>
+    {/if}
     {#if data.blocks.length === 0}<p>{t('admin.block.empty')}</p>{/if}
     {#each data.blocks as b, i (b.id)}
       {@const mine = form?.blockId === b.id}
