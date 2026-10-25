@@ -302,6 +302,13 @@ describe.skipIf(!operatorUrl || !appUrl)('self-service export', () => {
       return r.rows[0]?.fresh;
     };
     let second: unknown;
+    // runExportJob turns any error into a failed export, including an assertion thrown in this
+    // hook, so a failure here would surface only as `second` being undefined. Keep it and throw
+    // it after the run. The heartbeat runs every 30 ms beside the hook, so the lease is polled
+    // until it is fresh again, not read once after a fixed sleep: under CI load the old lease
+    // could already be renewed before the first read, or not yet after 200 ms (TODO #27).
+    // Rejected: a fake clock, which cannot drive the heartbeat's own transactions.
+    let hookFailure: unknown;
     await runExportJob(
       {
         ...deps(),
@@ -309,24 +316,31 @@ describe.skipIf(!operatorUrl || !appUrl)('self-service export', () => {
         // Between the tables and the files: the lease is made old, as after five minutes, and a
         // second worker comes for the same job.
         afterSnapshot: async () => {
-          await operatorDb.transaction().execute(async (trx) => {
-            await sql`set local role mycel_worker`.execute(trx);
-            await sql`update jobs set claimed_at = now() - interval '10 minutes'
-                      where id = ${job.id}`.execute(trx);
-          });
-          expect(await leaseFresh()).toBe(false);
-          await new Promise((resolve) => setTimeout(resolve, 200));
-          expect(await leaseFresh()).toBe(true);
-          second = await runExportJob(deps(), job, id);
+          try {
+            const aged = await operatorDb.transaction().execute(async (trx) => {
+              await sql`set local role mycel_worker`.execute(trx);
+              return sql<{ fresh: boolean }>`
+                update jobs set claimed_at = now() - interval '10 minutes' where id = ${job.id}
+                returning claimed_at > now() - make_interval(secs => ${JOB_LEASE_SECONDS})
+                  as fresh`.execute(trx);
+            });
+            expect(aged.rows).toEqual([{ fresh: false }]);
+            await expect.poll(leaseFresh, { timeout: 10_000, interval: 20 }).toBe(true);
+            second = await runExportJob(deps(), job, id);
+          } catch (e) {
+            hookFailure = e;
+          }
         },
       },
       job,
       id
     );
     await close(job);
+    if (hookFailure) throw hookFailure;
+    const row = (await list(tenant.a)).exports.find((e) => e.id === id);
+    expect(row?.status, row?.error ?? undefined).toBe('ready');
     // The second run left it alone and looks again after a lease.
     expect(second).toEqual({ next: expect.any(Date) });
-    expect((await list(tenant.a)).exports.find((e) => e.id === id)?.status).toBe('ready');
 
     // A crash: running, heartbeat older than a lease. The next run starts it again.
     const crashed = await request(tenant.a);

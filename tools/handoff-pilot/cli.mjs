@@ -601,7 +601,7 @@ async function daemon() {
         continue;
       }
       if (paused) return;
-      let action = nextAction(state);
+      let action = nextAction(state, new Date().toISOString());
       if (action.kind === 'halt') {
         state.status = action.reason === 'allowlist-complete' ? 'complete' : 'blocked';
         state.stopReason = action.reason;
@@ -784,7 +784,7 @@ function status() {
     elapsedMinutes,
     sessions: state.sessions.length,
     deviations: state.deviations.length,
-    next: nextAction(state),
+    next: nextAction(state, new Date().toISOString()),
     stopReason: state.stopReason,
     notification: state.terminalNotice?.attemptedAt
       ? {

@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { applyMigrations, migrate } from './migrate.js';
+import { applyMigrations, migrate, migrationsAhead } from './migrate.js';
 
 const operatorUrl = process.env['DATABASE_URL'];
 if (process.env['E2E_REQUIRED'] === '1' && !operatorUrl)
@@ -42,6 +42,7 @@ describe.skipIf(!operatorUrl)('migrate: checksums of applied files', () => {
   });
 
   it('records a sha256 per applied file and applies only what is new', async () => {
+    expect(await migrationsAhead(client, dir)).toEqual([]); // no schema_migrations yet
     await write('0001_a.sql', 'create table a (id int);');
     expect(await applyMigrations(client, dir)).toEqual(['0001_a']);
     const [first] = await rows();
@@ -80,8 +81,11 @@ describe.skipIf(!operatorUrl)('migrate: checksums of applied files', () => {
   });
 
   it('accepts a recorded version without a file (an image one release back)', async () => {
+    expect(await migrationsAhead(client, dir)).toEqual([]);
     await client.query(`insert into schema_migrations (version, checksum) values ('0099_z', 'x')`);
     expect(await applyMigrations(client, dir)).toEqual([]);
+    // Accepted, but named: the test preflights refuse a database ahead of the checkout.
+    expect(await migrationsAhead(client, dir)).toEqual(['0099_z']);
   });
 
   it('checks an already migrated schema without rewriting a cluster role', async () => {
