@@ -29,12 +29,17 @@ const toTiptap = (value: unknown): unknown => {
             : node.type === 'footnote_reference'
               ? 'footnoteReference'
               : node.type;
-  return Object.fromEntries(
-    Object.entries('type' in node ? { ...node, type } : node).map(([key, item]) => [
-      key,
-      toTiptap(item),
-    ])
-  );
+  const converted =
+    node.type === 'ordered_list' &&
+    node.attrs &&
+    typeof node.attrs === 'object' &&
+    'start' in node.attrs &&
+    (node.attrs as Record<string, unknown>).start === 1
+      ? { ...node, attrs: { ...node.attrs, mycelExplicitStart: true }, type }
+      : 'type' in node
+        ? { ...node, type }
+        : node;
+  return Object.fromEntries(Object.entries(converted).map(([key, item]) => [key, toTiptap(item)]));
 };
 
 const fromTiptap = (value: unknown): unknown => {
@@ -62,10 +67,15 @@ const fromTiptap = (value: unknown): unknown => {
   if (type === 'ordered_list') {
     const normalized: Record<string, unknown> = { ...node, type };
     if (normalized.attrs && typeof normalized.attrs === 'object') {
-      // TipTap adds `type: null` and a default start of 1; neither belongs to stored rich text.
+      // TipTap adds `type: null` and a default start of 1. Only an omitted start loses the default.
+      const explicitStart =
+        (normalized.attrs as Record<string, unknown>).mycelExplicitStart === true;
       const attrs = Object.fromEntries(
         Object.entries(normalized.attrs).filter(
-          ([key, entry]) => !(key === 'type' && entry === null) && !(key === 'start' && entry === 1)
+          ([key, entry]) =>
+            key !== 'mycelExplicitStart' &&
+            !(key === 'type' && entry === null) &&
+            !(key === 'start' && entry === 1 && !explicitStart)
         )
       );
       if (Object.keys(attrs).length) normalized.attrs = attrs;

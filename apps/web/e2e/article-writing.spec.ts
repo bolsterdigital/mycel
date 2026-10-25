@@ -298,6 +298,24 @@ test('TipTap saves headings, lists, links and notes without changing stored stru
           },
         ],
       },
+      {
+        type: 'ordered_list',
+        attrs: { start: 1 },
+        content: [
+          {
+            type: 'list_item',
+            content: [
+              {
+                type: 'paragraph',
+                content: [
+                  { type: 'text', text: 'Eerste', marks: [{ type: 'bold' }] },
+                  { type: 'text', text: ' punt' },
+                ],
+              },
+            ],
+          },
+        ],
+      },
     ],
   };
   const updated = await request.post(`${api()}/content.item.update`, {
@@ -330,11 +348,11 @@ test('TipTap saves headings, lists, links and notes without changing stored stru
   expect(latest.document.blocks[0].props.content.en).toEqual(
     revision.document.blocks[0].props.content.en
   );
-  const listItem = page.locator('.writing-surface .ProseMirror ol li p');
+  const listItem = page.locator('.writing-surface .ProseMirror ol li p').last();
   await listItem.click();
   await page.keyboard.press('End');
   await page.keyboard.type(' aangevuld');
-  await expect(listItem).toContainText('Derde punt aangevuld');
+  await expect(listItem).toContainText('Eerste punt aangevuld');
   await expect
     .poll(async () => {
       const response = await request.post(`${api()}/content.item.get`, {
@@ -342,11 +360,11 @@ test('TipTap saves headings, lists, links and notes without changing stored stru
         data: { itemId },
       });
       const { revision: current } = (await response.json()) as { revision: { document: any } };
-      return current.document.blocks[0].props.content.nl.content[3].content[0].content[0].content
+      return current.document.blocks[0].props.content.nl.content[4].content[0].content[0].content
         .map((part: { text: string }) => part.text)
         .join('');
     })
-    .toBe('Derde punt aangevuld');
+    .toBe('Eerste punt aangevuld');
   await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');
   const edited = await request.post(`${api()}/content.item.get`, {
     headers: headers(),
@@ -358,7 +376,7 @@ test('TipTap saves headings, lists, links and notes without changing stored stru
   expect(afterEdit.document.blocks[0].props.content.nl).toEqual({
     ...rich,
     content: rich.content.map((node) =>
-      node.type === 'ordered_list'
+      node.type === 'ordered_list' && node.attrs?.start === 1
         ? {
             ...node,
             content: [
@@ -368,7 +386,7 @@ test('TipTap saves headings, lists, links and notes without changing stored stru
                   {
                     type: 'paragraph',
                     content: [
-                      { type: 'text', text: 'Derde', marks: [{ type: 'bold' }] },
+                      { type: 'text', text: 'Eerste', marks: [{ type: 'bold' }] },
                       { type: 'text', text: ' punt aangevuld' },
                     ],
                   },

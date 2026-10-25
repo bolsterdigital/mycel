@@ -38,53 +38,73 @@ describe('article editor document', () => {
     }
   );
 
-  it('keeps a numbered list start, marks, block id and the other locale through TipTap', () => {
-    const prose = blocks.find((block) => block.type === 'rich-text')!;
-    const document = ContentDocument.parse({
-      ...base(prose),
-      blocks: [
-        {
-          ...prose,
-          props: {
-            content: {
-              nl: {
-                type: 'doc',
-                content: [
-                  {
-                    type: 'ordered_list',
-                    attrs: { start: 3 },
-                    content: [
-                      {
-                        type: 'list_item',
-                        content: [
-                          {
-                            type: 'paragraph',
-                            content: [
-                              { type: 'text', text: 'Derde', marks: [{ type: 'bold' }] },
-                              { type: 'text', text: ' punt' },
-                            ],
-                          },
-                        ],
-                      },
-                    ],
-                  },
-                ],
-              },
-              en: {
-                type: 'doc',
-                content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Third point' }] }],
+  it.each([undefined, 1, 3])(
+    'keeps a numbered list start of %s, marks, block id and the other locale through TipTap',
+    (start) => {
+      const prose = blocks.find((block) => block.type === 'rich-text')!;
+      const document = ContentDocument.parse({
+        ...base(prose),
+        blocks: [
+          {
+            ...prose,
+            props: {
+              content: {
+                nl: {
+                  type: 'doc',
+                  content: [
+                    {
+                      type: 'ordered_list',
+                      ...(start === undefined ? {} : { attrs: { start } }),
+                      content: [
+                        {
+                          type: 'list_item',
+                          content: [
+                            {
+                              type: 'paragraph',
+                              content: [
+                                { type: 'text', text: 'Derde', marks: [{ type: 'bold' }] },
+                                { type: 'text', text: ' punt' },
+                              ],
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+                en: {
+                  type: 'doc',
+                  content: [
+                    { type: 'paragraph', content: [{ type: 'text', text: 'Third point' }] },
+                  ],
+                },
               },
             },
           },
-        },
-      ],
-    });
-    const actual = throughEditorSchema(document, 'nl');
-    expect(actual.content[0]?.content?.[0]?.attrs).toEqual({ start: 3, type: null });
-    expect(fromArticleEditor(document, 'nl', actual)).toEqual(document);
-    actual.content[0]!.content![0]!.attrs.unexpected = true;
-    expect(() => fromArticleEditor(document, 'nl', actual)).toThrow('Unrecognized key');
-  });
+        ],
+      });
+      const actual = throughEditorSchema(document, 'nl');
+      expect(actual.content[0]?.content?.[0]?.attrs).toEqual({
+        start: start ?? 1,
+        type: null,
+        mycelExplicitStart: start === 1 ? true : null,
+      });
+      expect(fromArticleEditor(document, 'nl', actual)).toEqual(document);
+      actual.content[0]!.content![0]!.content![0]!.content![0]!.content![0]!.text = 'Gewijzigd';
+      const edited = fromArticleEditor(document, 'nl', actual);
+      expect(edited.blocks[0]?.id).toBe(document.blocks[0]?.id);
+      const editedProse = edited.blocks[0];
+      const originalProse = document.blocks[0];
+      if (editedProse?.type !== 'rich-text' || originalProse?.type !== 'rich-text')
+        throw new Error('Expected rich-text block');
+      expect(editedProse.props.content.en).toEqual(originalProse.props.content.en);
+      const editedList = editedProse.props.content.nl?.content[0];
+      if (editedList?.type !== 'ordered_list') throw new Error('Expected ordered list');
+      expect(editedList.attrs).toEqual(start === undefined ? undefined : { start });
+      actual.content[0]!.content![0]!.attrs.unexpected = true;
+      expect(() => fromArticleEditor(document, 'nl', actual)).toThrow('Unrecognized key');
+    }
+  );
 
   it('preserves order and refuses missing, duplicate and invented block ids', () => {
     const document = ContentDocument.parse({ ...base(blocks[0]!), blocks: [blocks[0], blocks[1]] });

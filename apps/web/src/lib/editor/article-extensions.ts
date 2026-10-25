@@ -1,7 +1,7 @@
 // Only the nodes and marks of ADR 020.2 are admitted to the article editor. StarterKit's extra
 // marks and nodes are disabled; the few Mycel nodes carry block identity, not a second storage
 // schema. Rejected: StarterKit defaults, which would silently admit blockquotes and code blocks.
-import { Mark, Node } from '@tiptap/core';
+import { Extension, Mark, Node } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 
 const ArticleDocument = Node.create({
@@ -98,6 +98,20 @@ const FootnoteReference = Mark.create({
   },
 });
 
+// TipTap supplies start: 1 to every ordered list. Keep whether it was present in the stored
+// document so the adapter can distinguish an omitted default from an explicit start of 1.
+const ExplicitListStart = Extension.create({
+  name: 'mycelExplicitListStart',
+  addGlobalAttributes() {
+    return [
+      {
+        types: ['orderedList'],
+        attributes: { mycelExplicitStart: { default: null, rendered: false } },
+      },
+    ];
+  },
+});
+
 export const articleExtensions = [
   StarterKit.configure({
     document: false,
@@ -115,4 +129,5 @@ export const articleExtensions = [
   Card,
   SafeLink,
   FootnoteReference,
+  ExplicitListStart,
 ];
