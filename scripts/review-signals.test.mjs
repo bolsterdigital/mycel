@@ -102,6 +102,13 @@ test('a changed use case raises the registry flag and the contract lens', () => 
   assert.ok(r.flags.some((f) => f.id === 'registry'));
 });
 
+test('the quality corpus is reviewed as frontend evidence', () => {
+  const r = route(['apps/web/e2e/quality-corpus.json'], profile);
+  assert.equal(r.verdict, 'route');
+  assert.ok(r.lenses.some((l) => l.id === 'frontend'));
+  assert.deepEqual(r.unmapped, []);
+});
+
 test('a weakened test is a flag even when its module maps to no lens', () => {
   const r = route(['packages/core/src/util/x.test.ts'], profile);
   assert.equal(r.verdict, 'route');

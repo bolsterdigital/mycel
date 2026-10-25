@@ -147,7 +147,8 @@
         "apps/web/src/lib/server/theme*",
         "apps/web/static/**",
         "apps/web/src/app.html",
-        "apps/web/src/lib/assets/**"
+        "apps/web/src/lib/assets/**",
+        "apps/web/e2e/quality-corpus.json"
       ],
       "adrs": ["009", "013", "020"],
       "gates": [
