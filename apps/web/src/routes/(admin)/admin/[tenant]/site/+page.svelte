@@ -1,12 +1,25 @@
 <script lang="ts">
   import { FONT_PAIRS, THEME_MODES, THEME_ROLES } from '@mycel/core';
-  import { ui } from '../../../../../i18n/index.js';
+  import { fill, ui } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
   let { data, form }: PageProps = $props();
   const t = $derived(ui(data.locale));
+  const extraRoles = ['link', 'focus'] as const;
+  const numericFields = [
+    'baseSize',
+    'scaleRatio',
+    'measure',
+    'radius',
+    'density',
+    'headingWeight',
+  ] as const;
   const value = (name: string, fallback: string) => String(form?.values?.[name] ?? fallback);
   const row = (links: { href: string; label: Record<string, string> }[]) =>
-    links.map((item) => `${item.href}|${item.label.nl ?? ''}|${item.label.en ?? ''}`).join('\n');
+    links
+      .map((item) =>
+        [item.href, ...data.tenant.locales.map((locale) => item.label[locale] ?? '')].join('|')
+      )
+      .join('\n');
   let changed = $state<Record<string, string>>({});
   const colour = (name: string, fallback: string) => changed[name] ?? value(name, fallback);
   const luminance = (hex: string) => {
@@ -41,10 +54,10 @@
       />
       {#each THEME_MODES as mode}
         <fieldset>
-          <legend>{mode}</legend>
+          <legend>{t(`admin.site.mode.${mode}`)}</legend>
           {#each THEME_ROLES as role}
             <div class="site-color-pair">
-              <strong>{role}</strong>
+              <strong>{t(`admin.site.role.${role}`)}</strong>
               <label
                 >{t('admin.site.foreground')}<input
                   type="color"
@@ -79,9 +92,9 @@
               >
             </div>
           {/each}
-          {#each ['link', 'focus'] as key}
+          {#each extraRoles as key}
             <label
-              >{key}<input
+              >{t(`admin.site.role.${key}`)}<input
                 type="color"
                 name="{mode}.{key}"
                 value={value(
@@ -101,9 +114,9 @@
             >{/each}</select
         ></label
       >
-      {#each ['baseSize', 'scaleRatio', 'measure', 'radius', 'density', 'headingWeight'] as key}
+      {#each numericFields as key}
         <label
-          >{key}<input
+          >{t(`admin.site.field.${key}`)}<input
             type="number"
             name={key}
             step="any"
@@ -117,7 +130,7 @@
   </section>
   <section>
     <h2>{t('admin.site.chrome')}</h2>
-    <p>{t('admin.site.linkHint')}</p>
+    <p>{fill(t('admin.site.linkHint'), { locales: data.tenant.locales.join('|') })}</p>
     <form method="post" action="?/chrome">
       <input
         type="hidden"
@@ -131,7 +144,7 @@
           >{value('navigation', row(data.chrome.value.navigation))}</textarea
         ></label
       >
-      {#each ['nl', 'en'] as locale}
+      {#each data.tenant.locales as locale (locale)}
         <label
           >{t('admin.site.footer')} ({locale})<input
             name="footer.{locale}"
@@ -148,7 +161,7 @@
         <fieldset>
           <legend>{kind === 'support' ? t('admin.site.support') : t('admin.site.help')}</legend>
           <label
-            >URL<input
+            >{t('admin.site.url')}<input
               name="{kind}.href"
               value={value(
                 `${kind}.href`,
@@ -156,7 +169,7 @@
               )}
             /></label
           >
-          {#each ['nl', 'en'] as locale}
+          {#each data.tenant.locales as locale (locale)}
             <label
               >{locale}<input
                 name="{kind}.{locale}"

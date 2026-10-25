@@ -25,14 +25,35 @@ export const load: PageServerLoad = async ({ parent, locals }) => {
   ]);
   return { theme, chrome };
 };
-const lines = (raw: string) =>
+const localized = (
+  data: FormData,
+  prefix: string,
+  locales: readonly string[],
+  previous: Record<string, string> = {}
+) => {
+  const values = { ...previous };
+  for (const locale of locales) {
+    const value = text(data, `${prefix}.${locale}`);
+    if (value) values[locale] = value;
+    else delete values[locale];
+  }
+  return values;
+};
+const lines = (raw: string, locales: readonly string[], previous: SiteChrome['navigation']) =>
   raw
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
-    .map((line) => {
-      const [href = '', nl = '', en = ''] = line.split('|').map((part) => part.trim());
-      return { href, label: { nl, en } };
+    .map((line, index) => {
+      const [href = '', ...labels] = line.split('|').map((part) => part.trim());
+      const prior = previous.find((item) => item.href === href) ?? previous[index];
+      const label = { ...(prior?.label ?? {}) };
+      for (const [position, locale] of locales.entries()) {
+        const value = labels[position] ?? '';
+        if (value) label[locale] = value;
+        else delete label[locale];
+      }
+      return { href, label };
     });
 export const actions: Actions = {
   theme: async ({ request, locals, url, params }) => {
@@ -78,23 +99,30 @@ export const actions: Actions = {
   },
   chrome: async ({ request, locals, url, params }) => {
     const data = await request.formData();
-    const { principal } = await requireTenantPrincipal(locals, url, params.tenant);
+    const { principal, tenant } = await requireTenantPrincipal(locals, url, params.tenant);
     if (!can(principal, 'content:write')) error(403, 'content:write');
-    const optional = (name: string) =>
-      text(data, `${name}.href`)
-        ? {
-            href: text(data, `${name}.href`),
-            label: { nl: text(data, `${name}.nl`), en: text(data, `${name}.en`) },
-          }
-        : null;
-    const chrome = {
-      navigation: lines(text(data, 'navigation')),
-      footer: { nl: text(data, 'footer.nl'), en: text(data, 'footer.en') },
-      legal: lines(text(data, 'legal')),
-      support: optional('support'),
-      help: optional('help'),
-    };
     try {
+      const current = await runtime().invoker.run(useCases.getSiteChrome, principal, {});
+      if (current.version !== baseVersion(data))
+        return fail(409, {
+          action: 'chrome',
+          problem: 'conflict',
+          values: Object.fromEntries(data),
+        });
+      const optional = (name: 'support' | 'help') =>
+        text(data, `${name}.href`)
+          ? {
+              href: text(data, `${name}.href`),
+              label: localized(data, name, tenant.locales, current.value[name]?.label),
+            }
+          : null;
+      const chrome = {
+        navigation: lines(text(data, 'navigation'), tenant.locales, current.value.navigation),
+        footer: localized(data, 'footer', tenant.locales, current.value.footer),
+        legal: lines(text(data, 'legal'), tenant.locales, current.value.legal),
+        support: optional('support'),
+        help: optional('help'),
+      };
       const result = await runtime().invoker.run(useCases.updateSiteChrome, principal, {
         baseVersion: baseVersion(data),
         chrome: chrome as SiteChrome,

@@ -7,6 +7,28 @@ import { createDb, createUnitOfWork, upsertTenant, uuidv7, uuidv7Ids } from '@my
 import { expect, test } from '@playwright/test';
 
 const slug = `chrome-${Math.random().toString(36).slice(2, 8)}`;
+const singleSlug = `chrome-single-${Math.random().toString(36).slice(2, 8)}`;
+let tenantId = '';
+let singleTenantId = '';
+const chromeState = async (id: string) => {
+  const app = createDb(process.env['APP_DATABASE_URL']!);
+  try {
+    const invoker = new Invoker(
+      buildRegistry(),
+      createUnitOfWork(app, {
+        clock: { now: () => new Date() },
+        ids: uuidv7Ids,
+        signer: new FakeSigner(),
+        inputHasher: new FakeInputHasher(),
+        dns: new FakeDns(),
+        platform: memoryPlatform,
+      })
+    );
+    return await invoker.run(useCases.getSiteChrome, systemPrincipal(id, 'e2e'), {});
+  } finally {
+    await app.destroy();
+  }
+};
 test.use({
   extraHTTPHeaders: {
     'x-forwarded-proto': 'http',
@@ -20,9 +42,28 @@ test.beforeAll(async () => {
   try {
     const tenant = await upsertTenant(
       owner,
-      { id: uuidv7(), slug, name: 'Chrome fixture', defaultLocale: 'nl', locales: ['nl', 'en'] },
+      {
+        id: uuidv7(),
+        slug,
+        name: 'Chrome fixture',
+        defaultLocale: 'nl',
+        locales: ['nl', 'en', 'de'],
+      },
       { platformDomain: process.env['PLATFORM_DOMAIN']! }
     );
+    tenantId = tenant.id;
+    const singleTenant = await upsertTenant(
+      owner,
+      {
+        id: uuidv7(),
+        slug: singleSlug,
+        name: 'Single-locale fixture',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+      },
+      { platformDomain: process.env['PLATFORM_DOMAIN']! }
+    );
+    singleTenantId = singleTenant.id;
     const invoker = new Invoker(
       buildRegistry(),
       createUnitOfWork(app, {
@@ -37,6 +78,10 @@ test.beforeAll(async () => {
     const principal = systemPrincipal(tenant.id, 'e2e');
     await invoker.run(useCases.inviteMember, principal, {
       email: `site-editor-${slug}@probe.test`,
+      capabilities: ['content:write', 'content:read'],
+    });
+    await invoker.run(useCases.inviteMember, systemPrincipal(singleTenant.id, 'e2e'), {
+      email: `site-editor-${singleSlug}@probe.test`,
       capabilities: ['content:write', 'content:read'],
     });
     const { item, revision } = await invoker.run(useCases.createItem, principal, {
@@ -63,17 +108,34 @@ test.beforeAll(async () => {
       baseVersion: 0,
       chrome: {
         navigation: [
-          { href: '/home', label: { nl: 'Welkom', en: 'Home' } },
-          { href: '/en/home', label: { nl: 'English', en: 'English' } },
+          { href: '/home', label: { nl: 'Welkom', en: 'Home', de: 'Startseite' } },
+          { href: '/en/home', label: { nl: 'English', en: 'English', de: 'Englisch' } },
         ],
-        footer: { nl: 'Een onafhankelijke site', en: 'An independent site' },
+        footer: {
+          nl: 'Een onafhankelijke site',
+          en: 'An independent site',
+          de: 'Eine unabhängige Website',
+        },
         legal: [
           {
             href: 'https://example.org/privacy',
-            label: { nl: 'Privacyverklaring', en: 'Privacy policy' },
+            label: { nl: 'Privacyverklaring', en: 'Privacy policy', de: 'Datenschutz' },
           },
         ],
-        support: { href: 'https://example.org/support', label: { nl: 'Hulp', en: 'Support' } },
+        support: {
+          href: 'https://example.org/support',
+          label: { nl: 'Hulp', en: 'Support', de: 'Unterstützung' },
+        },
+        help: { href: 'https://example.org/help', label: { nl: 'Vraag', en: 'Help', de: 'Hilfe' } },
+      },
+    });
+    await invoker.run(useCases.updateSiteChrome, systemPrincipal(singleTenant.id, 'e2e'), {
+      baseVersion: 0,
+      chrome: {
+        navigation: [{ href: '/home', label: { nl: 'Welkom' } }],
+        footer: { nl: 'Een taal' },
+        legal: [],
+        support: null,
         help: null,
       },
     });
@@ -126,7 +188,11 @@ for (const locale of ['nl', 'en'])
     }
   });
 
-test('native site forms save theme and chrome with no JavaScript', async ({ page, request }) => {
+test('native site forms preserve locales and reject stale changes', async ({
+  page,
+  request,
+  context,
+}) => {
   await page.goto(`/${slug}/home`);
   const oldCss = await page.locator('link[rel=stylesheet][href*="/_theme/"]').getAttribute('href');
   await page.goto(`/admin/${slug}/site`);
@@ -137,12 +203,36 @@ test('native site forms save theme and chrome with no JavaScript', async ({ page
   await page.locator('select[name="fontPair"]').selectOption('inter');
   await page.locator('form[action="?/theme"]').getByRole('button').click();
   await expect(page.locator('p[role="status"]')).toHaveText('Settings saved.');
-  await page.locator('input[name="footer.nl"]').fill('Nieuwe voettekst');
+  const stalePage = await context.newPage();
+  await stalePage.goto(`/admin/${slug}/site`);
   await page.locator('input[name="footer.en"]').fill('New footer');
   await page.locator('form[action="?/chrome"]').getByRole('button').click();
   await expect(page.locator('p[role="status"]')).toHaveText('Settings saved.');
-  await page.reload();
+  let saved = await chromeState(tenantId);
+  expect(saved.value.footer).toEqual({
+    nl: 'Een onafhankelijke site',
+    en: 'New footer',
+    de: 'Eine unabhängige Website',
+  });
+  expect(saved.value.navigation[0]?.label.de).toBe('Startseite');
+  expect(saved.value.legal[0]?.label.de).toBe('Datenschutz');
+  expect(saved.value.support?.label.de).toBe('Unterstützung');
+  expect(saved.value.help?.label.de).toBe('Hilfe');
+  await stalePage.locator('input[name="footer.en"]').fill('Stale footer');
+  await stalePage.locator('form[action="?/chrome"]').getByRole('button').click();
+  await expect(stalePage.locator('p[role="alert"]')).toBeVisible();
+  expect((await chromeState(tenantId)).value.footer.en).toBe('New footer');
+  await page.goto(`/admin/${slug}/site`);
   await expect(page.locator('input[name="footer.en"]')).toHaveValue('New footer');
+  await expect(page.locator('input[name="footer.de"]')).toHaveValue('Eine unabhängige Website');
+  await page.locator('input[name="footer.de"]').fill('');
+  await page.locator('input[name="help.href"]').fill('');
+  await page.locator('form[action="?/chrome"]').getByRole('button').click();
+  await expect(page.locator('p[role="status"]')).toHaveText('Settings saved.');
+  saved = await chromeState(tenantId);
+  expect(saved.value.footer.de).toBeUndefined();
+  expect(saved.value.help).toBeNull();
+  expect(saved.value.legal[0]?.label.de).toBe('Datenschutz');
   await page.goto(`/${slug}/en/home`);
   await expect(page.getByRole('contentinfo')).toContainText('New footer');
   const newCss = await page.locator('link[rel=stylesheet][href*="/_theme/"]').getAttribute('href');
@@ -158,6 +248,19 @@ test('native site forms save theme and chrome with no JavaScript', async ({ page
       .analyze();
     expect(violations.map((violation) => violation.id)).toEqual([]);
   }
+});
+
+test('single-locale site saves without another translation', async ({ page }) => {
+  await page.goto(`/admin/${singleSlug}/site`);
+  await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
+  await page.getByLabel('E-mail').fill(`site-editor-${singleSlug}@probe.test`);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.locator('input[name="footer.nl"]')).toHaveValue('Een taal');
+  await expect(page.locator('input[name="footer.en"]')).toHaveCount(0);
+  await page.locator('input[name="footer.nl"]').fill('Nieuwe tekst');
+  await page.locator('form[action="?/chrome"]').getByRole('button').click();
+  await expect(page.locator('p[role="status"]')).toBeVisible();
+  expect((await chromeState(singleTenantId)).value.footer).toEqual({ nl: 'Nieuwe tekst' });
 });
 
 for (const [locale, language, title, actions] of [
