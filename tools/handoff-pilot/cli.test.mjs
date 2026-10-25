@@ -216,6 +216,47 @@ test('daemon recovers an interrupted reservation by blocking, never relaunching'
   assert.throws(() => readFileSync(f.codexMarker));
 });
 
+test('invalid handoff exits the supervisor once and preserves the blocked reservation', (t) => {
+  const f = fixture(t);
+  const state = newRun({
+    runId: 'fixture',
+    lane: 'mbp',
+    allowlist: ['#44'],
+    maxSessions: 8,
+    maxRepairs: 2,
+    maxMinutes: 360,
+  });
+  state.config = { tiers: { '#44': 'workhorse' } };
+  reserveSession(state, {
+    id: 'reviewed',
+    item: '#44',
+    phase: 'execute',
+    model: 'Sol',
+    startedAt: new Date().toISOString(),
+  });
+  markLaunched(state, 99999999);
+  state.pending.resultPath = join(f.home, 'invalid-result.json');
+  state.pending.jsonlPath = join(f.home, 'reviewed.jsonl');
+  writeFileSync(state.pending.resultPath, JSON.stringify({ pr: 60, outcome: 'pr_ready' }));
+  writeFileSync(state.pending.jsonlPath, '{"type":"thread.started","thread_id":"fresh"}\n');
+  writeFileSync(join(f.home, 'state.json'), JSON.stringify(state));
+
+  const first = call(f.env, 'daemon');
+  assert.equal(first.status, 0, first.stderr);
+  const blocked = JSON.parse(readFileSync(join(f.home, 'state.json'), 'utf8'));
+  assert.equal(blocked.status, 'blocked');
+  assert.match(blocked.stopReason, /invalid-handoff: Missing prior planning commit/);
+  assert.equal(blocked.pending.id, 'reviewed');
+  assert.equal(blocked.events.filter((entry) => entry.kind === 'invalid-handoff').length, 1);
+  assert.throws(() => readFileSync(join(f.home, 'mbp.lock/pid')));
+
+  const restarted = call(f.env, 'daemon');
+  assert.equal(restarted.status, 0, restarted.stderr);
+  const afterRestart = JSON.parse(readFileSync(join(f.home, 'state.json'), 'utf8'));
+  assert.deepEqual(afterRestart, blocked);
+  assert.throws(() => readFileSync(f.codexMarker));
+});
+
 test('changed PR head blocks review before a new agent is launched', (t) => {
   const f = fixture(t);
   const state = newRun({

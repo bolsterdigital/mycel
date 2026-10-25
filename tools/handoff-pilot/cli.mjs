@@ -458,6 +458,10 @@ async function daemon() {
         save(state);
         return;
       }
+      if (['blocked', 'complete', 'stopped'].includes(state.status)) {
+        if (!(await terminateAndConfirm(state))) await holdUntilDead(state, 'terminal-state');
+        return;
+      }
       const paused = existsSync(ctl('pause'));
       if (paused && state.status === 'active') {
         pause(state);
@@ -505,6 +509,7 @@ async function daemon() {
           });
         }
         save(state);
+        if (state.status !== 'active') return;
         continue;
       }
       if (paused) return;
