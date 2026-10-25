@@ -20,6 +20,7 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  activationHeadEvidence,
   auditTaskToInspect,
   currentItem,
   handoffEvidence,
@@ -121,10 +122,21 @@ function runId() {
 function toolExists(name) {
   return spawnSync('/usr/bin/env', ['which', name], { encoding: 'utf8' }).status === 0;
 }
+const runnerFiles = ['cli.mjs', 'state.mjs', 'result.schema.json'];
 function shaFiles() {
   const hash = createHash('sha256');
-  for (const name of ['cli.mjs', 'state.mjs', 'result.schema.json'])
-    hash.update(readFileSync(join(here, name)));
+  for (const name of runnerFiles) hash.update(readFileSync(join(here, name)));
+  return hash.digest('hex');
+}
+function shaFilesAt(ref) {
+  const hash = createHash('sha256');
+  for (const name of runnerFiles)
+    hash.update(
+      execFileSync('git', ['show', `${ref}:tools/handoff-pilot/${name}`], {
+        cwd: repo,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+    );
   return hash.digest('hex');
 }
 function model(phase, tier) {
@@ -269,6 +281,7 @@ function externalFor(state, result) {
 }
 function verifyActivation(approval, proof) {
   const head = shell('git', ['rev-parse', 'HEAD']);
+  const remoteHead = shell('git', ['ls-remote', 'origin', 'refs/heads/main']).split(/\s+/)[0];
   if (
     approval.outcome !== 'approved' ||
     !approval.runnerPr ||
@@ -276,13 +289,25 @@ function verifyActivation(approval, proof) {
     !approval.authorSessionId ||
     approval.reviewSessionId === approval.authorSessionId ||
     !approval.reviewRecord?.startsWith('reference/') ||
-    !approval.approvedHeadSha ||
-    !approval.mergedSha ||
+    !/^[0-9a-f]{40}$/.test(approval.approvedHeadSha ?? '') ||
+    !/^[0-9a-f]{40}$/.test(approval.mergedSha ?? '') ||
     !approval.planningCommit ||
-    approval.codeDigest !== shaFiles() ||
-    proof.codeDigest !== shaFiles() ||
-    proof.codeHead !== head ||
-    approval.mergedSha !== head
+    !activationHeadEvidence({
+      approvedMerge: approval.mergedSha,
+      localHead: head,
+      remoteHead,
+      preflightHead: proof.codeHead,
+      approvedDigest: approval.codeDigest,
+      mergedDigest: approval.mergedSha ? shaFilesAt(approval.mergedSha) : null,
+      workingDigest: shaFiles(),
+      preflightDigest: proof.codeDigest,
+      isAncestor:
+        !!approval.mergedSha &&
+        spawnSync('git', ['merge-base', '--is-ancestor', approval.mergedSha, head], {
+          cwd: repo,
+          stdio: 'ignore',
+        }).status === 0,
+    })
   )
     fail('Independent activation record does not match this merged runner');
   const pr = prEvidence(approval.runnerPr);

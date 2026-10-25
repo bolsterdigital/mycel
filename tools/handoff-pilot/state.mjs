@@ -2,6 +2,30 @@
 // prose or exit status as delivery. Rejected: deriving progress from the latest handoff text.
 export const PHASES = ['execute', 'review', 'merge', 'audit'];
 
+// A later published main may reuse the independently reviewed runner only while its bytes
+// match the reviewed merge and the new preflight names that exact later head. Rejected: pinning
+// activation to one main HEAD, which prevents a second bounded run after ordinary code merges.
+export function activationHeadEvidence({
+  approvedMerge,
+  localHead,
+  remoteHead,
+  preflightHead,
+  approvedDigest,
+  mergedDigest,
+  workingDigest,
+  preflightDigest,
+  isAncestor,
+}) {
+  return (
+    Boolean(approvedMerge && localHead && approvedDigest && isAncestor) &&
+    localHead === remoteHead &&
+    localHead === preflightHead &&
+    approvedDigest === mergedDigest &&
+    approvedDigest === workingDigest &&
+    approvedDigest === preflightDigest
+  );
+}
+
 export function newRun(config, now = new Date().toISOString()) {
   if (config.lane !== 'mbp') throw new Error('The pilot is limited to the mbp lane');
   if (
