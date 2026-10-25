@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "fixtureVersion": "43a-v3",
+  "tenant": "probe",
+  "themeProfiles": {
+    "default": { "status": "active", "source": "DEFAULT_THEME" },
+    "demanding": {
+      "status": "simulated",
+      "source": "validated editorial preset via CSS response in browser; tenant selection waits on #11 E / #38"
+    }
+  },
+  "public": {
+    "campaign": {
+      "slug": "campagne",
+      "routeClass": "page",
+      "indexable": true,
+      "state": "published",
+      "locales": {
+        "nl": { "path": "/probe/campagne", "title": "Schone lucht, nu" },
+        "en": { "path": "/probe/en/campagne", "title": "Clean air, now" }
+      },
+      "expected": { "status": 200, "form": true, "minImages": 1, "font": "Inter", "headings": [1] }
+    },
+    "article": {
+      "slug": "quality-article-v3",
+      "routeClass": "article",
+      "indexable": true,
+      "state": "published",
+      "locales": {
+        "nl": {
+          "path": "/probe/articles/quality-article-v3",
+          "title": "De straat die ruimte maakt"
+        },
+        "en": { "path": "/probe/en/articles/quality-article-v3", "title": "A street making room" }
+      },
+      "expected": {
+        "status": 200,
+        "minWords": 2000,
+        "minImages": 4,
+        "font": "Inter",
+        "headings": [1, 2],
+        "lists": ["ul", "ol"],
+        "quote": true
+      }
+    }
+  },
+  "admin": {
+    "auth": "synthetic mock IdP operator",
+    "routes": [
+      {
+        "name": "populated-list",
+        "path": "/admin/probe/content",
+        "state": "populated",
+        "indexable": false
+      },
+      {
+        "name": "native-editor",
+        "path": "/admin/probe/content/{quality-article-id}",
+        "state": "editing",
+        "indexable": false
+      },
+      {
+        "name": "enhanced-writer",
+        "path": "/admin/probe/content/{quality-article-id}/write",
+        "state": "editing",
+        "indexable": false
+      }
+    ]
+  },
+  "planned": [
+    { "route": "site-chrome", "dependency": "#11 E" },
+    { "route": "collections-and-search", "dependency": "#21 / #42" },
+    { "route": "restricted-reader", "dependency": "#19" },
+    { "route": "conditional-form", "dependency": "#39" },
+    { "route": "managed-embeds-consent", "dependency": "#41" }
+  ]
+}
