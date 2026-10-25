@@ -119,7 +119,9 @@
   }
   .admin-workspace .page.admin {
     max-width: 72rem;
-    padding: var(--space-2);
+    /* Match the original page inset: doubling it consumed the width needed by whole action
+       labels at 320 CSS px and 200% text. */
+    padding: var(--inset);
   }
   .admin-workspace .page.admin > p,
   .admin-workspace .page.admin > h1 {
@@ -266,6 +268,7 @@
     max-width: 100%;
     padding: 0.625rem 0.875rem;
     overflow-wrap: normal;
+    hyphens: manual;
     text-align: start;
   }
   /* A link that is an action next to buttons (download original) looks and sizes like one. */
