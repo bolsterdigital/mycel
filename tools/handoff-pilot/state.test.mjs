@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  activationHeadEvidence,
   auditTaskToInspect,
   handoffEvidence,
   markLaunched,
@@ -18,6 +19,33 @@ import {
 
 const at = '2026-10-25T12:00:00.000Z';
 const sha = (char) => char.repeat(40);
+test('later main reuses reviewed runner only with unchanged bytes and fresh published preflight', () => {
+  const evidence = {
+    approvedMerge: sha('a'),
+    localHead: sha('b'),
+    remoteHead: sha('b'),
+    preflightHead: sha('b'),
+    approvedDigest: sha('c'),
+    mergedDigest: sha('c'),
+    workingDigest: sha('c'),
+    preflightDigest: sha('c'),
+    isAncestor: true,
+  };
+  assert.equal(activationHeadEvidence(evidence), true);
+  for (const changed of [
+    { isAncestor: false },
+    { remoteHead: sha('d') },
+    { preflightHead: sha('a') },
+    { mergedDigest: sha('d') },
+    { workingDigest: sha('d') },
+    { preflightDigest: sha('d') },
+  ])
+    assert.equal(
+      activationHeadEvidence({ ...evidence, ...changed }),
+      false,
+      JSON.stringify(changed)
+    );
+});
 function run(allowlist = ['#44', '#43A'], maxSessions = 8) {
   return newRun(
     { runId: 'pilot-1', lane: 'mbp', allowlist, maxSessions, maxRepairs: 2, maxMinutes: 360 },
