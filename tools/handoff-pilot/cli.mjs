@@ -145,6 +145,9 @@ function model(phase, tier) {
         : fail(`Unknown model name ${selected}`);
   return { name: selected, id: shell('model-mode', ['get', role, 'codex']) };
 }
+function codexBaseArgs(modelId) {
+  return ['exec', '--json', '--approve-for-me', '-C', repo, '--add-dir', planning, '-m', modelId];
+}
 function config(path) {
   const value = json(resolve(path));
   if (
@@ -425,17 +428,7 @@ function launch(state, action, cfg) {
   const logFd = openSync(`${prefix}.jsonl`, 'w', 0o600);
   const errorFd = openSync(`${prefix}.stderr.log`, 'w', 0o600);
   const argv = [
-    'exec',
-    '--json',
-    '--sandbox',
-    'workspace-write',
-    '--approve-for-me',
-    '-C',
-    repo,
-    '--add-dir',
-    planning,
-    '-m',
-    chosen.id,
+    ...codexBaseArgs(chosen.id),
     '--output-schema',
     join(here, 'result.schema.json'),
     '-o',
@@ -613,25 +606,41 @@ function preflight(cfg) {
       fail(`Unattended signing probe failed (${probe.status ?? probe.signal})`);
     signing = 'Bounded real commit-tree signature succeeded without changing refs';
   }
+  ensureHome();
+  const probeSchema = ctl('probe.schema.json');
+  writeFileSync(
+    probeSchema,
+    JSON.stringify({
+      type: 'object',
+      properties: { ready: { const: true } },
+      required: ['ready'],
+      additionalProperties: false,
+    }),
+    { mode: 0o600 }
+  );
   for (const selected of new Map(
     Object.values(dry.selectedModels).map((entry) => [entry.id, entry])
   ).values()) {
+    const probeResult = ctl(`probe-${selected.id}.json`);
+    rmSync(probeResult, { force: true });
     const probe = spawnSync(
       'codex',
       [
-        'exec',
-        '--json',
-        '--sandbox',
-        'read-only',
-        '-C',
-        repo,
-        '-m',
-        selected.id,
-        'Reply READY and do not use tools.',
+        ...codexBaseArgs(selected.id),
+        '--output-schema',
+        probeSchema,
+        '-o',
+        probeResult,
+        'Return {"ready":true}. Do not use tools or change files.',
       ],
       { cwd: repo, encoding: 'utf8', timeout: 90_000 }
     );
-    if (probe.status !== 0 || !probe.stdout.includes('"turn.completed"'))
+    if (
+      probe.status !== 0 ||
+      !probe.stdout.includes('"turn.completed"') ||
+      !existsSync(probeResult) ||
+      json(probeResult).ready !== true
+    )
       fail(`Model access failed: ${selected.name}`);
   }
   const proof = {

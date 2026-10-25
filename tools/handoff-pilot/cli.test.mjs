@@ -15,10 +15,14 @@ function fixture(t) {
   const home = join(root, 'home');
   const planning = join(root, 'planning');
   const bin = join(root, 'bin');
+  const sharedTask = join(root, '.claude/bin/shared-task');
   mkdirSync(home);
   mkdirSync(planning);
   mkdirSync(join(planning, 'handoff'));
   mkdirSync(bin);
+  mkdirSync(join(root, '.claude/bin'), { recursive: true });
+  writeFileSync(sharedTask, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  writeFileSync(join(bin, 'gtimeout'), '#!/bin/sh\nexec "$@"\n', { mode: 0o755 });
   writeFileSync(
     join(planning, 'TODO.md'),
     '# TODO\n\n## Claimbord\n\n| Item | Wie | Sinds |\n\n## Open werk\n\n### 44. Pilot item\n'
@@ -53,6 +57,7 @@ function fixture(t) {
   const env = {
     ...process.env,
     PATH: `${bin}:${process.env.PATH}`,
+    HOME: root,
     MYCEL_PILOT_HOME: home,
     MYCEL_PILOT_PLANNING: planning,
   };
@@ -79,6 +84,39 @@ test('dry-run launches no agent and writes no run state', (t) => {
   assert.equal(ran.status, 0, ran.stderr);
   assert.equal(JSON.parse(ran.stdout).allowlist[0], '#44');
   assert.throws(() => readFileSync(f.codexMarker));
+  assert.throws(() => readFileSync(join(f.home, 'state.json')));
+});
+
+test('preflight exercises the launch approval flags without a conflicting sandbox flag', (t) => {
+  const f = fixture(t);
+  writeFileSync(
+    join(f.root, 'bin/gh'),
+    '#!/bin/sh\nif [ "$1" = api ]; then echo \'{"permissions":{"push":true}}\'; else echo "[]"; fi\n',
+    { mode: 0o755 }
+  );
+  writeFileSync(
+    join(f.root, 'bin/codex'),
+    `#!/bin/sh
+if [ "$1" = login ]; then exit 0; fi
+seen_approval=0
+result=''
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --approve-for-me) seen_approval=1;;
+    --sandbox) exit 91;;
+    -o) shift; result="$1";;
+  esac
+  shift
+done
+[ "$seen_approval" -eq 1 ] || exit 92
+printf '{"ready":true}' > "$result"
+printf '{"type":"turn.completed"}\\n'
+`,
+    { mode: 0o755 }
+  );
+  const ran = call(f.env, 'preflight', f.config);
+  assert.equal(ran.status, 0, ran.stderr);
+  assert.equal(JSON.parse(ran.stdout).models['#44:execute'].id, 'gpt-6-sol');
   assert.throws(() => readFileSync(join(f.home, 'state.json')));
 });
 
