@@ -15,10 +15,14 @@ function fixture(t) {
   const home = join(root, 'home');
   const planning = join(root, 'planning');
   const bin = join(root, 'bin');
+  const sharedTask = join(root, '.claude/bin/shared-task');
   mkdirSync(home);
   mkdirSync(planning);
   mkdirSync(join(planning, 'handoff'));
   mkdirSync(bin);
+  mkdirSync(join(root, '.claude/bin'), { recursive: true });
+  writeFileSync(sharedTask, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  writeFileSync(join(bin, 'gtimeout'), '#!/bin/sh\nexec "$@"\n', { mode: 0o755 });
   writeFileSync(
     join(planning, 'TODO.md'),
     '# TODO\n\n## Claimbord\n\n| Item | Wie | Sinds |\n\n## Open werk\n\n### 44. Pilot item\n'
@@ -53,6 +57,7 @@ function fixture(t) {
   const env = {
     ...process.env,
     PATH: `${bin}:${process.env.PATH}`,
+    HOME: root,
     MYCEL_PILOT_HOME: home,
     MYCEL_PILOT_PLANNING: planning,
   };
