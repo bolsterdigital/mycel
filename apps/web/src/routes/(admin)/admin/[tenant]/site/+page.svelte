@@ -232,10 +232,17 @@
   .admin-page {
     max-width: 54rem;
     padding: 1rem;
+    min-width: 0;
+    overflow-wrap: break-word;
+  }
+  section {
+    min-width: 0;
   }
   form {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 1rem;
+    min-width: 0;
   }
   label {
     display: grid;

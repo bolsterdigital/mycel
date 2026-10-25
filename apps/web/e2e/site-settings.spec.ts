@@ -401,9 +401,20 @@ for (const [locale, language, title, actions] of [
             scrollWidth: node.scrollWidth,
             clientWidth: node.clientWidth,
           })),
+          overflowing: [...document.querySelectorAll<HTMLElement>('.admin-page *')]
+            .filter((node) => node.getBoundingClientRect().right > innerWidth)
+            .map((node) => ({
+              tag: node.tagName,
+              className: node.className,
+              text: node.textContent?.trim().slice(0, 80),
+              right: node.getBoundingClientRect().right,
+            }))
+            .slice(0, 10),
         };
       });
-      expect(layout.document).toBeLessThanOrEqual(layout.viewport);
+      expect(layout.document, JSON.stringify(layout.overflowing)).toBeLessThanOrEqual(
+        layout.viewport
+      );
       for (const control of layout.controls) {
         expect(control.width, control.name).toBeGreaterThanOrEqual(44);
         expect(control.height, control.name).toBeGreaterThanOrEqual(44);
