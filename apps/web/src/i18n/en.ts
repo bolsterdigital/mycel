@@ -596,7 +596,7 @@ export const en = {
   'admin.connections.credential.reconnect-required': 'Reconnect required',
   'admin.connections.secret': 'New signing secret',
   'admin.connections.credential.replace': 'Replace signing secret',
-  'admin.connections.save': 'Save connection',
+  'admin.connections.save': 'Save',
   'admin.connections.pause': 'Pause delivery',
   'admin.connections.resume': 'Resume delivery',
   'admin.connections.test': 'Send test',
