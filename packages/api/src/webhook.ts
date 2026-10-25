@@ -105,6 +105,12 @@ export const sendWebhook = (
 ): Promise<number> =>
   new Promise((resolve, reject) => {
     const family = isIP(address);
+    const fail = (error: Error) => {
+      clearTimeout(deadline);
+      // Settle directly: destroying an already-closed request need not emit another error.
+      reject(error);
+      request.destroy();
+    };
     const request = httpsRequest(
       url,
       {
@@ -118,19 +124,20 @@ export const sendWebhook = (
         },
       },
       (response) => {
-        response.resume();
+        response.on('error', fail);
+        response.on('close', () => {
+          if (!response.complete) fail(new Error('webhook response closed before completion'));
+        });
         response.on('end', () => {
           clearTimeout(deadline);
           resolve(response.statusCode ?? 0);
         });
+        response.resume();
       }
     );
-    const deadline = setTimeout(() => request.destroy(new Error('webhook deadline')), 5000);
-    request.on('timeout', () => request.destroy(new Error('webhook timeout')));
-    request.on('error', (error) => {
-      clearTimeout(deadline);
-      reject(error);
-    });
+    const deadline = setTimeout(() => fail(new Error('webhook deadline')), 5000);
+    request.on('timeout', () => fail(new Error('webhook timeout')));
+    request.on('error', fail);
     request.end(body);
   });
 

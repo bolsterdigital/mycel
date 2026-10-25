@@ -1,5 +1,6 @@
 // A checked DNS answer is pinned to a signed request; redirects and uncertain responses never
 // become a second delivery. A local TLS server exercises Node's real lookup callback.
+import { performance } from 'node:perf_hooks';
 import { createHmac } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -56,6 +57,7 @@ describe('webhook destination and transport', () => {
         ],
         { stdio: 'ignore' }
       );
+      const paths: string[] = [];
       const received: { address?: string; host?: string; body?: string } = {};
       const server = createServer(
         { key: readFileSync(keyPath), cert: readFileSync(certPath) },
@@ -66,7 +68,20 @@ describe('webhook destination and transport', () => {
           request.on('data', (chunk: Buffer) => chunks.push(chunk));
           request.on('end', () => {
             received.body = Buffer.concat(chunks).toString('utf8');
-            response.writeHead(204).end();
+            paths.push(request.url!);
+            if (request.url === '/truncated') {
+              response.writeHead(200, { 'content-length': '100' });
+              response.write('x', () => response.destroy());
+            } else if (request.url === '/trickle') {
+              response.writeHead(200);
+              response.write('x');
+              const interval = setInterval(() => response.write('x'), 100);
+              response.on('close', () => clearInterval(interval));
+            } else if (request.url === '/redirect') {
+              response.writeHead(302, { location: '/mycel' }).end();
+            } else {
+              response.writeHead(204).end();
+            }
           });
         }
       );
@@ -100,6 +115,47 @@ describe('webhook destination and transport', () => {
             { ca: readFileSync(certPath) }
           )
         ).rejects.toThrow('Hostname/IP does not match certificate');
+        const send = (path: string, trusted = true) =>
+          sendWebhook(
+            {
+              url: new URL(`https://hooks.example.org:${address.port}${path}`),
+              address: '127.0.0.1',
+              body: '{}',
+              headers: {},
+            },
+            trusted ? { ca: readFileSync(certPath) } : {}
+          );
+        await expect(send('/untrusted', false)).rejects.toThrow();
+        expect(paths).toEqual(['/mycel']);
+        expect(await send('/redirect')).toBe(302);
+        expect(paths).toEqual(['/mycel', '/redirect']);
+
+        // A receiver can accept headers/body before dropping the socket. This must release
+        // the sequential worker promptly, while preserving the ambiguous delivery outcome.
+        const transport = webhookTransport({
+          lookup: async () => ['8.8.8.8'],
+          send: () => send('/truncated'),
+        });
+        const started = performance.now();
+        expect(
+          await transport.dispatch({
+            tenantId: 'tenant',
+            intent,
+            connection,
+            credential: 'synthetic-secret',
+            payload,
+          })
+        ).toBe('unknown');
+        expect(performance.now() - started).toBeLessThan(2000);
+        expect(paths.filter((path) => path === '/truncated')).toHaveLength(1);
+        expect(await transport.reconcile({ tenantId: 'tenant', intent })).toBe('unknown');
+        expect(paths.filter((path) => path === '/truncated')).toHaveLength(1);
+
+        // Activity defeats the socket inactivity timeout, but never the total deadline.
+        const deadlineStarted = performance.now();
+        await expect(send('/trickle')).rejects.toThrow('webhook deadline');
+        expect(performance.now() - deadlineStarted).toBeGreaterThanOrEqual(4900);
+        expect(performance.now() - deadlineStarted).toBeLessThan(6500);
       } finally {
         await new Promise<void>((resolve, reject) =>
           server.close((error) => (error ? reject(error) : resolve()))
@@ -108,7 +164,7 @@ describe('webhook destination and transport', () => {
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
-  });
+  }, 10000);
 
   it('rejects local, metadata, mapped IPv6, mixed DNS and non-HTTPS destinations', async () => {
     for (const address of [
