@@ -20,6 +20,7 @@ import {
   supporterIngestSubscriber,
   type BlobStore,
   type Clock,
+  type ConnectionSource,
   type ErrorReporter,
   type IdentityStore,
   type Logger,
@@ -81,6 +82,7 @@ import { assessWorker, type WorkerReadiness } from './health.js';
 import type { PlatformDeps } from './platform.js';
 import { RECURRING_JOBS, jobHandlers } from './jobs.js';
 import { HmacInputHasher, HmacSigner } from './signer.js';
+import { checkedDestination, webhookTransport } from './webhook.js';
 
 export { createAuthenticator, type Authenticator, type AuthenticatorDeps } from './auth.js';
 
@@ -504,6 +506,9 @@ export function createRuntime(
     log,
     inputHasher,
     connectionCredentialKey: config.CONNECTION_CREDENTIAL_KEY,
+    connectionDestinationValidator: async (url) => {
+      await checkedDestination(url);
+    },
     assistProviderLabel,
   });
   const tenants = createTenantDirectory(appDb);
@@ -675,6 +680,20 @@ export function createRuntime(
           mycelVersion: buildVersion(),
           retentionDays: config.EXPORT_RETENTION_DAYS,
           log,
+        },
+        connections: {
+          transport: webhookTransport(),
+          sources: {
+            'synthetic.test': {
+              async prepare(_ctx, intent) {
+                return intent.source === 'synthetic.test' &&
+                  intent.supporterId === null &&
+                  intent.scope === 'synthetic:test'
+                  ? { ready: true, payload: { category: 'synthetic.test' } }
+                  : { ready: false, failure: 'source' };
+              },
+            } satisfies ConnectionSource,
+          },
         },
       });
       const stopJobs = startJobWorker(operatorDb, inJobContext(handlers), {

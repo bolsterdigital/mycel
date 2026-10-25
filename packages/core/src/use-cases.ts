@@ -1,7 +1,12 @@
 // Every use case in the system, in one list (ADR 009). Fronts call `buildRegistry()`; nothing
 // registers itself as an import side effect, so what is exposed is exactly what is listed here.
 
-import { getConnectionIntent, replayConnectionIntent } from './connections/intents.js';
+import {
+  getConnectionIntent,
+  listConnectionIntents,
+  replayConnectionIntent,
+  testConnection,
+} from './connections/intents.js';
 import { listAudit } from './audit/service.js';
 import {
   createConnection,
@@ -85,7 +90,9 @@ import { listExports, requestExport } from './tenants/exports.js';
 
 export const useCases = {
   getConnectionIntent,
+  listConnectionIntents,
   replayConnectionIntent,
+  testConnection,
   listConnections,
   getConnection,
   createConnection,

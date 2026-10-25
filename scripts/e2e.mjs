@@ -60,6 +60,8 @@ const run = (cmd, args, cwd = root, env = process.env) => {
 };
 // The seed stores this token's hash as the `seed` key of tenant probe; API and spec use it.
 const apiKey = process.env.MYCEL_API_KEY ?? `mycel_${randomBytes(32).toString('base64url')}`;
+// The synthetic webhook fixture needs the same installation-local key in the web and worker.
+process.env.CONNECTION_CREDENTIAL_KEY ??= randomBytes(32).toString('hex');
 run('npm', ['run', '-s', 'migrate', '-w', '@mycel/db']);
 // The e2e admin is its own address: the mock IdP here has another issuer (port) than the one
 // `npm run dev` starts, so sharing admin@probe.test would let one claim the other's invitation.

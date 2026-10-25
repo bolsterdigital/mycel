@@ -105,7 +105,9 @@ function updates(changes: ConnectionChanges): Updateable<Database['connections']
 export function connectionRepository(
   trx: Kysely<Database>,
   tenantId: string,
-  key: Buffer | null
+  key: Buffer | null,
+  validateDestination?: (url: string) => Promise<void>,
+  allowCredentialRead = false
 ): ConnectionRepository {
   const query = () =>
     trx
@@ -122,10 +124,26 @@ export function connectionRepository(
   };
   return {
     get,
+    async credential(id, version) {
+      if (!key || !allowCredentialRead) return null;
+      const row = await trx
+        .selectFrom('connection_credentials as k')
+        .innerJoin('connections as c', 'c.id', 'k.connection_id')
+        .select(['k.ciphertext', 'c.credential_version'])
+        .where('k.tenant_id', '=', tenantId)
+        .where('c.tenant_id', '=', tenantId)
+        .where('c.id', '=', id)
+        .where('c.credential_version', '=', version)
+        .where('c.state', '=', 'active')
+        .executeTakeFirst();
+      return row ? decryptCredential(row.ciphertext, key, tenantId, id, version) : null;
+    },
     async list() {
       return (await query().orderBy('c.created_at', 'desc').execute()).map(asRecord);
     },
     async insert(record: NewConnection, at: Date) {
+      if (record.provider === 'webhook' && record.destination && validateDestination)
+        await validateDestination(record.destination);
       await trx
         .insertInto('connections')
         .values({
@@ -154,6 +172,8 @@ export function connectionRepository(
       return (await get(record.id))!;
     },
     async update(id, baseVersion, changes, at) {
+      if (changes.destination && validateDestination)
+        await validateDestination(changes.destination);
       const row = await trx
         .updateTable('connections')
         .set({ ...updates(changes), version: sql`version + 1`, updated_at: at })

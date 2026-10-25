@@ -65,6 +65,9 @@
   <p><a href="/admin">{t('admin.back')}</a></p>
   <p><a href="/admin/{data.tenant.slug}/content">{t('admin.content.link')}</a></p>
   <p><a href="/admin/{data.tenant.slug}/media">{t('admin.media.link')}</a></p>
+  {#if data.capabilities.includes('connections:read') || data.capabilities.includes('tenant:admin')}
+    <p><a href="/admin/{data.tenant.slug}/connections">{t('admin.connections.link')}</a></p>
+  {/if}
   {#if data.capabilities.includes('tenant:admin')}
     <p><a href="/admin/{data.tenant.slug}/status">{t('admin.status.link')}</a></p>
     <p><a href="/admin/{data.tenant.slug}/export">{t('admin.export.link')}</a></p>

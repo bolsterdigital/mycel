@@ -121,6 +121,8 @@ describe.skipIf(!operatorUrl || !appUrl)('managed connection storage', () => {
   it('keeps metadata and ciphertext within A, and the secret out of reads and audit', async () => {
     const pa = systemPrincipal(a, 'test');
     const pb = systemPrincipal(b, 'test');
+    const workerA = systemPrincipal(a, 'connections.run');
+    const workerB = systemPrincipal(b, 'connections.run');
     const created = await invoker.run(useCases.createConnection, pa, input);
     const replaced = await invoker.run(useCases.replaceConnectionCredential, pa, {
       id: created.id,
@@ -146,6 +148,17 @@ describe.skipIf(!operatorUrl || !appUrl)('managed connection storage', () => {
     expect(decryptCredential(secret.ciphertext, Buffer.from(key, 'hex'), a, created.id, 1)).toBe(
       'private-connector-token'
     );
+    expect(await uow.run(workerA, (ctx) => ctx.connections.credential(created.id, 1))).toBeNull();
+    const active = await invoker.run(useCases.resumeConnection, pa, {
+      id: created.id,
+      baseVersion: replaced.version,
+    });
+    expect(await uow.run(pa, (ctx) => ctx.connections.credential(created.id, 1))).toBeNull();
+    expect(await uow.run(workerA, (ctx) => ctx.connections.credential(created.id, 1))).toBe(
+      'private-connector-token'
+    );
+    expect(await uow.run(workerB, (ctx) => ctx.connections.credential(created.id, 1))).toBeNull();
+    expect(await uow.run(workerA, (ctx) => ctx.connections.credential(created.id, 2))).toBeNull();
     expect(() =>
       decryptCredential(secret.ciphertext, Buffer.from(key, 'hex'), b, created.id, 1)
     ).toThrow();
@@ -168,8 +181,9 @@ describe.skipIf(!operatorUrl || !appUrl)('managed connection storage', () => {
     ]);
     const disconnected = await invoker.run(useCases.disconnectConnection, pa, {
       id: created.id,
-      baseVersion: replaced.version,
+      baseVersion: active.version,
     });
+    expect(await uow.run(workerA, (ctx) => ctx.connections.credential(created.id, 1))).toBeNull();
     expect(disconnected).toMatchObject({
       state: 'disconnected',
       credentialStatus: 'reconnect-required',
