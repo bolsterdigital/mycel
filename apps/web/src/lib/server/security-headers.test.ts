@@ -46,6 +46,11 @@ describe('applySecurityHeaders', () => {
     const pub = new Headers({ 'content-security-policy': policy });
     applySecurityHeaders(pub, 'public', false);
     expect(pub.get('content-security-policy')).toBe(policy);
+    const live = new Headers({ 'content-security-policy': policy });
+    applySecurityHeaders(live, 'admin', false, true);
+    expect(live.get('content-security-policy')).toBe(
+      "default-src 'self'; script-src 'self' 'nonce-abc'; frame-ancestors 'self'"
+    );
   });
 
   it('adds no CSP where SvelteKit generated none', () => {

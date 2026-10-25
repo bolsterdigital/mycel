@@ -404,6 +404,10 @@ export const en = {
   'admin.content.preview.issues': 'Not ready to publish in this language yet:',
   'admin.content.preview.edit': 'Back to editing',
   'admin.content.preview.form': 'The form does not work in the preview.',
+  'admin.content.preview.live': 'Live preview of unsaved changes',
+  'admin.content.preview.locale': 'Live preview language',
+  'admin.content.preview.keyboard':
+    'Use the block list below to edit every block with the keyboard.',
   'admin.content.error.invalid': 'This could not be saved. Check the fields and try again.',
   'admin.content.error.slugTaken': 'There is already an item of this type with this slug.',
   'admin.content.error.slugReserved': 'The site uses this slug itself. Choose another.',

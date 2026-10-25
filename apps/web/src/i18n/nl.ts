@@ -409,6 +409,10 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.preview.issues': 'Nog niet klaar om in deze taal te publiceren:',
   'admin.content.preview.edit': 'Terug naar bewerken',
   'admin.content.preview.form': 'Het formulier werkt niet in het voorbeeld.',
+  'admin.content.preview.live': 'Live voorbeeld van niet-opgeslagen wijzigingen',
+  'admin.content.preview.locale': 'Taal van het live voorbeeld',
+  'admin.content.preview.keyboard':
+    'Met het toetsenbord kun je elk blok via de bloklijst hieronder bewerken.',
   'admin.content.error.invalid':
     'Dit kon niet worden opgeslagen. Controleer de velden en probeer het opnieuw.',
   'admin.content.error.slugTaken': 'Er is al een item van deze soort met deze slug.',

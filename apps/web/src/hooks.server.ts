@@ -24,7 +24,7 @@
 // After `route`, every response gets the security headers of its kind (TODO #20c,
 // lib/server/security-headers.ts): HSTS only when the request came over HTTPS, which with
 // MYCEL_TRUST_PROXY=1 follows Caddy's X-Forwarded-Proto. The CSP is SvelteKit's (vite.config.ts);
-// on the admin only its frame-ancestors is tightened to 'none'.
+// on the admin its frame-ancestors is tightened to 'none', except the live draft route ('self').
 //
 // Public responses then pass `conditional` (brief #8c § 9, lib/server/http-cache.ts): a matching
 // If-None-Match on a page with a strong ETag becomes a 304, and a 404 gets `no-store`.
@@ -66,7 +66,12 @@ export const handle: Handle = async (input) => {
     }
     const kind = kindOf(event.url.pathname);
     if (kind === 'public') response = conditional(event.request, response);
-    applySecurityHeaders(response.headers, kind, event.url.protocol === 'https:');
+    const liveDraft = /^\/admin\/[^/]+\/preview\/draft$/.test(event.url.pathname);
+    if (liveDraft) {
+      response.headers.set('cache-control', 'private, no-store');
+      response.headers.set('x-robots-tag', 'noindex');
+    }
+    applySecurityHeaders(response.headers, kind, event.url.protocol === 'https:', liveDraft);
     rt.log[isProbe(event.url.pathname) ? 'debug' : 'info']('request', {
       method: event.request.method,
       route: event.route.id ?? 'unmatched',

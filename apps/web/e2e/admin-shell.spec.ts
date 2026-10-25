@@ -83,7 +83,18 @@ async function checkShell(page: Page, name: string, current: string) {
       .analyze();
     expect(violations.map((v) => v.id)).toEqual([]);
   } else {
-    expect(await page.locator('script').count()).toBe(0);
+    const scripts = await page
+      .locator('script')
+      .evaluateAll((nodes) =>
+        nodes.map((node) => ({ src: node.getAttribute('src'), type: node.getAttribute('type') }))
+      );
+    // The content editor's optional module is inert in this project; the native edit flow
+    // remains the no-JS contract. Other shell routes still emit no script.
+    expect(scripts).toEqual(
+      /\/content\/[^/]+$/.test(new URL(page.url()).pathname)
+        ? [{ src: '/_admin/live-preview-parent.js', type: 'module' }]
+        : []
+    );
   }
 }
 

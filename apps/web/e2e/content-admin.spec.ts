@@ -1,8 +1,8 @@
 // Content admin (TODO #11, brief content-editor § A1): an operator makes a page in two locales,
 // edits it, reads its revisions and their diff, and opens a preview that the public site never
 // serves. A save on an outdated revision is a conflict that keeps what was typed. The admin and
-// the preview ship no script (`csr = false`), so the `no-js` project is the no-JavaScript proof;
-// the `a11y` project runs axe on every page and the UI gate (skill ui-action-layout).
+// the saved preview ship no script (`csr = false`); live preview adds a small optional script.
+// The `no-js` project proves the native path; `a11y` runs axe and the UI gate.
 //
 // Tenant isolation of the item itself is the database's (RLS on content_items, asserted by
 // rls.conformance); here the preview routes prove that a session without a membership of the
@@ -10,12 +10,50 @@
 
 import AxeBuilder from '@axe-core/playwright';
 import { createApp } from '@mycel/api';
-import { Invoker, buildRegistry, systemPrincipal } from '@mycel/core';
+import { Invoker, UseCaseError, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
+import { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } from '@mycel/core/testing';
+import { createDb, createTenantDirectory, createUnitOfWork, uuidv7Ids } from '@mycel/db';
 import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
 
 const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 const SITE = 'http://probe.localhost:4173';
 const ADMIN = 'e2e-admin@probe.test';
+const LIVE_ADMIN = 'live-preview-admin@probe.test';
+const LIVE_READER = 'live-preview-reader@probe.test';
+
+async function ensureLiveAdmin() {
+  const owner = createDb(process.env['DATABASE_URL']!);
+  const probe = await createTenantDirectory(owner).findBySlug('probe');
+  if (!probe) throw new Error('probe tenant missing');
+  const app = createDb(process.env['APP_DATABASE_URL']!);
+  const uow = createUnitOfWork(app, {
+    clock: { now: () => new Date() },
+    ids: uuidv7Ids,
+    signer: new FakeSigner(),
+    inputHasher: new FakeInputHasher(process.env['AUDIT_HASH_KEY']),
+    dns: new FakeDns(),
+    platform: memoryPlatform,
+  });
+  try {
+    const invoker = new Invoker(buildRegistry(), uow);
+    for (const [email, capability] of [
+      [LIVE_ADMIN, 'tenant:admin'],
+      [LIVE_READER, 'content:read'],
+    ] as const) {
+      try {
+        await invoker.run(useCases.inviteMember, systemPrincipal(probe.id, 'e2e'), {
+          email,
+          capabilities: [capability],
+        });
+      } catch (e) {
+        if (!(e instanceof UseCaseError && e.code === 'conflict')) throw e;
+      }
+    }
+  } finally {
+    await app.destroy();
+    await owner.destroy();
+  }
+}
 
 async function expectNoAxeViolations(page: Page) {
   if (test.info().project.name !== 'a11y') return;
@@ -153,6 +191,84 @@ test('the preview shows a draft that the site does not serve', async ({ page, re
     expect((await other.goto(href))!.status()).toBe(403);
     expect((await other.request.get(css!)).status()).toBe(403);
   });
+});
+
+test('live preview shows unsaved fields, isolates tenants and opens a clicked block', async ({
+  page,
+  browser,
+}) => {
+  test.skip(test.info().project.name !== 'a11y', 'live preview is a JavaScript enhancement');
+  await ensureLiveAdmin();
+  await login(page, LIVE_ADMIN, '/admin/probe');
+  const edit = await newPage(page, slugFor('live'), 'Saved title');
+
+  // Give the preview a block to select. Its native details remains the keyboard route.
+  const insert = page.locator('section > form.insert');
+  await insert.getByLabel('Soort').selectOption({ label: 'Kop' });
+  await insert.getByLabel('Waar').selectOption({ label: 'Onderaan' });
+  await insert.getByRole('button', { name: 'Velden invullen' }).click();
+  await page.getByLabel('Tekst (nl)').fill('Saved heading');
+  await page.getByLabel('Tekst (en)').fill('Saved heading');
+  await page.getByRole('button', { name: 'Blok invoegen' }).click();
+  await expect(page).toHaveURL(/\?done=blockInserted&block=/);
+
+  const frame = page.frameLocator('[data-live-preview-frame]');
+  await expect(frame.getByRole('heading', { level: 1, name: 'Saved title' })).toBeVisible();
+  const draft = await page.request.get('/admin/probe/preview/draft');
+  expect(draft.headers()['content-security-policy']).toContain("frame-ancestors 'self'");
+  expect(draft.headers()['cache-control']).toBe('private, no-store');
+  expect(draft.headers()['x-robots-tag']).toBe('noindex');
+  const normal = await page.request.get(edit);
+  expect(normal.headers()['content-security-policy']).toContain("frame-ancestors 'none'");
+
+  await page.getByLabel('Titel (nl)').fill('Unsaved title');
+  await expect(frame.getByRole('heading', { level: 1, name: 'Unsaved title' })).toBeVisible();
+  await frame.getByRole('heading', { name: 'Saved heading' }).click();
+  const details = page.locator('details.block').first();
+  await expect(details).toHaveAttribute('open', '');
+  await expect(details.locator('summary')).toBeFocused();
+  await details.getByLabel('Tekst (nl)').fill('Unsaved heading');
+  await expect(frame.getByRole('heading', { name: 'Unsaved heading' })).toBeVisible();
+  await details.locator('summary').press('Enter');
+  await expect(details).not.toHaveAttribute('open');
+  await expectNoAxeViolations(page);
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth
+    )
+  ).toBe(true);
+  await expect(page.getByLabel('Taal van het live voorbeeld')).toBeVisible();
+  await expect(frame.getByRole('heading', { name: 'Unsaved heading' })).toBeVisible();
+
+  const itemId = edit.split('/').at(-1)!;
+  const revisionId = await page
+    .locator('[data-live-preview-source] [name="baseRevisionId"]')
+    .inputValue();
+  await stranger(browser, async (other) => {
+    const denied = await other.request.post('/admin/probe/preview/draft', {
+      headers: { origin: 'http://127.0.0.1:4173' },
+      form: { itemId, baseRevisionId: revisionId, previewLocale: 'nl' },
+    });
+    expect(denied.status()).toBe(403);
+    expect(await denied.text()).not.toContain('Unsaved title');
+  });
+  const readerContext = await freshContext(browser);
+  try {
+    const reader = await readerContext.newPage();
+    await login(reader, LIVE_READER, '/admin/probe');
+    const denied = await reader.request.post('/admin/probe/preview/draft', {
+      headers: { origin: 'http://127.0.0.1:4173' },
+      form: { itemId, baseRevisionId: revisionId, previewLocale: 'nl' },
+    });
+    expect(denied.status()).toBe(403);
+  } finally {
+    await readerContext.close();
+  }
+  await page.reload();
+  await expect(page.getByLabel('Titel (nl)')).toHaveValue('Saved title');
+  await expect(page.locator('details.block').first()).toContainText('Saved heading');
 });
 
 /** A second browser context logged in as an operator without a membership of probe. */
