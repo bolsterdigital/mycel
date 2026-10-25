@@ -5,6 +5,7 @@ import type { IdentityStore } from '../operators/ports.js';
 import type { JobOutcome } from '../jobs/ports.js';
 import { systemPrincipal } from '../principal.js';
 import { connectionIntentGuard, type ConnectionIntent, type ConnectionFailure } from './intents.js';
+import type { ConnectionRecord } from './ports.js';
 
 export const CONNECTION_LEASE_MS = 60_000;
 export const CONNECTION_MAX_ATTEMPTS = 5;
@@ -27,6 +28,8 @@ export interface ConnectionTransport {
   dispatch(input: {
     tenantId: string;
     intent: Readonly<ConnectionIntent>;
+    connection: Readonly<ConnectionRecord>;
+    credential: string;
     payload: Readonly<Record<string, unknown>>;
   }): Promise<'succeeded' | 'pre_send' | 'unknown'>;
   /** `absent` must prove no previous or still-running call can later perform the effect. */
@@ -145,7 +148,15 @@ export async function runConnectionIntent(
       { ...ctx, principal: systemPrincipal(tenantId, 'connections.run', access) },
       latest
     );
-    return lateFailure ? { ready: false as const, failure: lateFailure } : resolved;
+    if (lateFailure) return { ready: false as const, failure: lateFailure };
+    const connection = await ctx.connections.get(latest.connectionId);
+    const credential = await ctx.connections.credential(
+      latest.connectionId,
+      latest.credentialVersion
+    );
+    if (!connection || !credential)
+      return { ready: false as const, failure: 'credential' as const };
+    return { ...resolved, connection, credential };
   });
   if (!prepared) return { next: row.nextAt };
   let result: 'succeeded' | 'absent' | 'pre_send' | 'unknown' | 'blocked';
@@ -157,7 +168,13 @@ export async function runConnectionIntent(
     try {
       result = reconcile
         ? await deps.transport.reconcile({ tenantId, intent: row })
-        : await deps.transport.dispatch({ tenantId, intent: row, payload: prepared.payload });
+        : await deps.transport.dispatch({
+            tenantId,
+            intent: row,
+            connection: prepared.connection,
+            credential: prepared.credential,
+            payload: prepared.payload,
+          });
     } catch {
       // Provider text can contain both credentials and personal data; retain a closed class only.
       result = 'unknown';

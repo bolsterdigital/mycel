@@ -63,6 +63,7 @@ export interface ConnectionAttempt {
 }
 export interface ConnectionIntents {
   get(id: string): Promise<ConnectionIntent | null>;
+  list(connectionId: string, limit: number): Promise<ConnectionIntent[]>;
   byBusiness(connectionId: string, businessId: string): Promise<ConnectionIntent | null>;
   insert(row: ConnectionIntent): Promise<boolean>;
   /** Atomically replace only the revision read; every successful replacement increments it. */
@@ -108,10 +109,12 @@ export async function connectionIntentGuard(
   const c = await ctx.connections.get(row.connectionId);
   if (!c || c.state === 'disconnected') return 'disconnected';
   if (c.state === 'paused') return 'paused';
+  const synthetic =
+    row.source === 'synthetic.test' && row.scope === 'synthetic:test' && row.supporterId === null;
   if (
     c.version !== row.connectionVersion ||
     c.direction === 'inbound' ||
-    !c.consentScopes.includes(row.scope)
+    (!synthetic && !c.consentScopes.includes(row.scope))
   )
     return 'version';
   if (!c.hasCredential || c.credentialVersion !== row.credentialVersion) return 'credential';
@@ -124,6 +127,7 @@ export async function connectionIntentGuard(
     if (!k || k.revokedAt || !k.capabilities.includes('connections:configure'))
       return 'authorization';
   }
+  if (synthetic) return null;
   if (!row.supporterId || (await ctx.connectionIntents.erased(row.supporterId))) return 'erasure';
   const supporter = await ctx.supporters.getProjectionById(row.supporterId);
   if (!supporter || supporter.email.endsWith('@erased.invalid')) return 'erasure';
@@ -200,6 +204,7 @@ const view = z.object({
   attempts: z.number().int().nonnegative(),
   nextAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  externalCopyAction: z.enum(['requested', 'confirmed', 'failed', 'manual']).nullable(),
 });
 const asView = (r: ConnectionIntent) => ({
   id: r.id,
@@ -209,6 +214,83 @@ const asView = (r: ConnectionIntent) => ({
   attempts: r.attempts,
   nextAt: r.nextAt.toISOString(),
   updatedAt: r.updatedAt.toISOString(),
+  externalCopyAction:
+    r.source === 'synthetic.test'
+      ? null
+      : ((r.state === 'succeeded'
+          ? 'confirmed'
+          : r.state === 'unknown'
+            ? 'manual'
+            : r.state === 'blocked' || r.state === 'failed'
+              ? 'failed'
+              : 'requested') as 'requested' | 'confirmed' | 'failed' | 'manual'),
+});
+export const listConnectionIntents = defineUseCase({
+  name: 'connections.intent.list',
+  description: 'List redacted recent delivery status for one managed connection.',
+  kind: 'query',
+  requires: 'connections:read',
+  authenticatedOnly: true,
+  input: z.object({ connectionId: z.string().guid() }).strict(),
+  output: z.object({ intents: z.array(view) }),
+  examples: [{ input: { connectionId: example.id } }],
+  async handler(ctx, { connectionId }) {
+    if (!(await ctx.connections.get(connectionId)))
+      throw new UseCaseError('not_found', 'connection not found');
+    return { intents: (await ctx.connectionIntents.list(connectionId, 30)).map(asView) };
+  },
+});
+
+export const testConnection = defineUseCase({
+  name: 'connections.test',
+  description: 'Queue a signed webhook containing synthetic data only.',
+  kind: 'command',
+  requires: 'connections:configure',
+  authenticatedOnly: true,
+  input: z.object({ id: z.string().guid() }).strict(),
+  output: view,
+  examples: [{ input: example }],
+  async handler(ctx, { id }) {
+    const c = await ctx.connections.get(id);
+    if (!c) throw new UseCaseError('not_found', 'connection not found');
+    if (c.provider !== 'webhook') throw new UseCaseError('invalid_input', 'not a webhook');
+    const actor = ctx.principal.actor;
+    if (actor.kind === 'anonymous') throw new UseCaseError('forbidden', 'authentication required');
+    const at = ctx.clock.now();
+    const businessId = ctx.ids.next();
+    const row: ConnectionIntent = {
+      id: ctx.ids.next(),
+      connectionId: id,
+      businessId,
+      connectionVersion: c.version,
+      credentialVersion: c.credentialVersion,
+      source: 'synthetic.test',
+      mappingVersion: c.contractVersion,
+      supporterId: null,
+      scope: 'synthetic:test',
+      actor:
+        actor.kind === 'operator'
+          ? { kind: 'operator', id: actor.operatorId }
+          : actor.kind === 'api-key' || actor.kind === 'agent'
+            ? { kind: 'api-key', id: actor.keyId }
+            : { kind: 'system', id: actor.job },
+      key: await sha256Hex(JSON.stringify([ctx.principal.tenantId, id, businessId])),
+      state: 'pending',
+      failure: null,
+      attempts: 0,
+      revision: 0,
+      leaseToken: null,
+      leaseUntil: null,
+      nextAt: at,
+      createdAt: at,
+      updatedAt: at,
+    };
+    const failure = await connectionIntentGuard(ctx, row);
+    if (failure) throw new UseCaseError('conflict', `connection test blocked: ${failure}`);
+    await ctx.connectionIntents.insert(row);
+    await enqueueConnectionIntent(ctx, row.id, at);
+    return asView(row);
+  },
 });
 export const getConnectionIntent = defineUseCase({
   name: 'connections.intent.get',

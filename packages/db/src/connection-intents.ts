@@ -60,6 +60,15 @@ export function connectionIntentsRepository(
       const r = await query().where('id', '=', id).executeTakeFirst();
       return r ? decode(r) : null;
     },
+    async list(connectionId, limit) {
+      return (
+        await query()
+          .where('connection_id', '=', connectionId)
+          .orderBy('created_at', 'desc')
+          .limit(limit)
+          .execute()
+      ).map(decode);
+    },
     async byBusiness(connectionId, businessId) {
       const r = await query()
         .where('connection_id', '=', connectionId)

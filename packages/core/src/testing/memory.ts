@@ -227,6 +227,7 @@ function sluggedRepository<T extends { id: string; slug: string }>(
 
 interface TenantStore {
   connections: Map<string, ConnectionRecord>;
+  connectionSecrets: Map<string, string>;
   connectionIntents: Map<string, ConnectionIntent>;
   connectionAttempts: ConnectionAttempt[];
   assistSettings: AssistSettings;
@@ -510,6 +511,7 @@ export class MemoryStore {
     if (!store) {
       store = {
         connections: new Map(),
+        connectionSecrets: new Map(),
         connectionIntents: new Map(),
         connectionAttempts: [],
         assistSettings: {
@@ -915,6 +917,12 @@ export class MemoryUnitOfWork implements UnitOfWork {
     };
     const connectionIntents: ConnectionIntents = {
       get: async (id) => structuredClone(s.connectionIntents.get(id) ?? null),
+      list: async (connectionId, limit) =>
+        [...s.connectionIntents.values()]
+          .filter((row) => row.connectionId === connectionId)
+          .sort((a, b) => +b.createdAt - +a.createdAt)
+          .slice(0, limit)
+          .map((row) => structuredClone(row)),
       byBusiness: async (connectionId, businessId) =>
         structuredClone(
           [...s.connectionIntents.values()].find(
@@ -945,6 +953,15 @@ export class MemoryUnitOfWork implements UnitOfWork {
     };
     const connections: ConnectionRepository = {
       get: async (id) => structuredClone(s.connections.get(id) ?? null),
+      credential: async (id, version) => {
+        const row = s.connections.get(id);
+        return principal.actor.kind === 'system' &&
+          principal.actor.job === 'connections.run' &&
+          row?.state === 'active' &&
+          row.credentialVersion === version
+          ? (s.connectionSecrets.get(id) ?? null)
+          : null;
+      },
       list: async () => [...s.connections.values()].map((row) => structuredClone(row)),
       async insert(input, at) {
         const row: ConnectionRecord = {
@@ -985,9 +1002,10 @@ export class MemoryUnitOfWork implements UnitOfWork {
           updatedAt: at,
         };
         s.connections.set(id, next);
+        if (state === 'disconnected') s.connectionSecrets.delete(id);
         return structuredClone(next);
       },
-      async replaceCredential(id, baseVersion, _secret, at) {
+      async replaceCredential(id, baseVersion, secret, at) {
         const row = s.connections.get(id);
         if (!row || row.version !== baseVersion || row.state === 'disconnected') return null;
         const next = {
@@ -998,6 +1016,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
           updatedAt: at,
         };
         s.connections.set(id, next);
+        s.connectionSecrets.set(id, secret);
         return structuredClone(next);
       },
     };

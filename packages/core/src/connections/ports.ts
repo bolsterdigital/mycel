@@ -54,6 +54,8 @@ export type ConnectionChanges = { [K in keyof ChangeFields]?: ChangeFields[K] | 
 export interface ConnectionRepository {
   get(id: string): Promise<ConnectionRecord | null>;
   list(): Promise<ConnectionRecord[]>;
+  /** Worker-only read. Never expose this value through a use case or audit record. */
+  credential(id: string, version: number): Promise<string | null>;
   insert(record: NewConnection, at: Date): Promise<ConnectionRecord>;
   /** Compare-and-swap makes stale config and credential writes fail closed. */
   update(
