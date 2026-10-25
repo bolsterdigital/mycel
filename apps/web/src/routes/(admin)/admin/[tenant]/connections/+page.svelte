@@ -1,7 +1,6 @@
 <!-- Managed webhooks use native forms and one registry. Action buttons wrap at narrow widths;
      no credential, payload or error body is rendered after submission. -->
 <script lang="ts">
-  import Header from '#lib/admin/Header.svelte';
   import { ui, type UiKey } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -17,7 +16,6 @@
 </script>
 
 <svelte:head><title>{t('admin.connections.title')} · {data.tenant.name}</title></svelte:head>
-<Header locale={data.locale} email={data.email} />
 <main class="page admin">
   <h1>{t('admin.connections.title')}</h1>
   <p><a href="/admin/{data.tenant.slug}">{t('admin.connections.back')}</a></p>

@@ -1,5 +1,4 @@
-/* The provisional operator admin (TODO #7): only what legibility and the axe gate ask for; TODO
-   #11 designs the real one. base.css reads a site theme's custom properties; the admin is on
+/* The operator shell shares navigation and spacing across tenant routes. base.css reads a site theme's custom properties; the admin is on
    no site, so it supplies fixed values for the same properties here (the probe's palette),
    plus the short names this file uses. Action groups wrap whole buttons; a label too long for
    the line wraps inside its own button at word boundaries, never clipped (skill
@@ -41,6 +40,108 @@
 }
 
 @layer components {
+  .admin-skip {
+    position: absolute;
+    inset-block-start: -10rem;
+    inset-inline-start: 1rem;
+    z-index: 10;
+    padding: 0.75rem;
+    background: var(--color-surface);
+  }
+  .admin-skip:focus {
+    inset-block-start: 1rem;
+  }
+  .admin-shell {
+    min-width: 0;
+  }
+  .admin-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
+    padding: var(--space-2);
+    background: var(--color-surface);
+    border-block-end: 1px solid #d6d3d1;
+  }
+  .admin-sidebar-top p,
+  .admin-sidebar-bottom p {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+  .admin-brand {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    font-weight: 700;
+  }
+  .admin-site-name {
+    font-size: var(--step-1);
+    font-weight: 700;
+  }
+  .admin-menu summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-weight: 700;
+  }
+  .admin-menu nav {
+    display: grid;
+    gap: 0.25rem;
+  }
+  .admin-menu nav a,
+  .admin-sidebar-bottom > a,
+  .admin-sidebar-bottom button {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    min-width: 0;
+    padding: 0.5rem 0.75rem;
+    overflow-wrap: anywhere;
+    border-radius: var(--radius);
+  }
+  .admin-menu nav a[aria-current='page'] {
+    background: #dcfce7;
+    font-weight: 700;
+  }
+  .admin-sidebar-bottom {
+    display: grid;
+    gap: 0.25rem;
+    border-block-start: 1px solid #d6d3d1;
+    padding-block-start: var(--space-1);
+  }
+  .admin-sidebar-bottom button {
+    width: 100%;
+    text-align: start;
+  }
+  .admin-workspace {
+    min-width: 0;
+  }
+  .admin-workspace .page.admin {
+    max-width: 72rem;
+    padding: var(--space-2);
+  }
+  .admin-workspace .page.admin > p,
+  .admin-workspace .page.admin > h1 {
+    max-width: 48rem;
+  }
+  @media (min-width: 60rem) {
+    .admin-shell {
+      display: grid;
+      grid-template-columns: minmax(14rem, 17rem) minmax(0, 1fr);
+      min-height: 100vh;
+    }
+    .admin-sidebar {
+      position: sticky;
+      inset-block-start: 0;
+      height: 100vh;
+      border-inline-end: 1px solid #d6d3d1;
+      border-block-end: 0;
+    }
+    .admin-menu {
+      flex: 1;
+    }
+  }
   /* The public column rules of base.css do not apply: the admin page sets its own width. */
   .page.admin > * {
     width: auto;

@@ -1,7 +1,6 @@
 <!-- A new page or article (TODO #11 A1). One native form; the title fields follow the site's
      locales, and a failed post comes back with what was typed. -->
 <script lang="ts">
-  import Header from '#lib/admin/Header.svelte';
   import { ui, type UiKey } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -28,7 +27,6 @@
   >
 </svelte:head>
 
-<Header locale={data.locale} email={data.email} />
 <main class="page admin">
   <h1>{t('admin.content.new')}</h1>
   <p><a href="/admin/{data.tenant.slug}/content">{t('admin.content.title')}</a></p>

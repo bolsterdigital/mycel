@@ -4,7 +4,6 @@
      buttons onto a new line when they do not fit, and a long label wraps inside its own button
      at word boundaries (skill ui-action-layout); the e2e specs check 320 CSS px and 200% text. -->
 <script lang="ts">
-  import Header from '#lib/admin/Header.svelte';
   import { fill, ui, type UiKey } from '../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -59,19 +58,8 @@
   </ul>
 {/snippet}
 
-<Header locale={data.locale} email={data.email} />
 <main class="page admin">
   <h1>{data.tenant.name}</h1>
-  <p><a href="/admin">{t('admin.back')}</a></p>
-  <p><a href="/admin/{data.tenant.slug}/content">{t('admin.content.link')}</a></p>
-  <p><a href="/admin/{data.tenant.slug}/media">{t('admin.media.link')}</a></p>
-  {#if data.capabilities.includes('connections:read') || data.capabilities.includes('tenant:admin')}
-    <p><a href="/admin/{data.tenant.slug}/connections">{t('admin.connections.link')}</a></p>
-  {/if}
-  {#if data.capabilities.includes('tenant:admin')}
-    <p><a href="/admin/{data.tenant.slug}/status">{t('admin.status.link')}</a></p>
-    <p><a href="/admin/{data.tenant.slug}/export">{t('admin.export.link')}</a></p>
-  {/if}
 
   {#if failed}
     <div class="error-summary" role="alert">
