@@ -5,6 +5,7 @@
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import {
+  appendFileSync,
   existsSync,
   mkdirSync,
   openSync,
@@ -162,6 +163,11 @@ function config(path) {
   for (const item of value.allowlist)
     if (!['workhorse', 'flagship-review', 'flagship-only'].includes(value.tiers[item]))
       fail(`Invalid tier for ${item}`);
+  if (
+    value.notifyCommand !== undefined &&
+    (typeof value.notifyCommand !== 'string' || !value.notifyCommand.trim())
+  )
+    fail('notifyCommand must name one executable, without arguments');
   return value;
 }
 function publishedPlanning() {
@@ -394,6 +400,63 @@ function unlock() {
 function sleep(ms) {
   return new Promise((done) => setTimeout(done, ms));
 }
+function notifyTerminal() {
+  let state;
+  try {
+    state = load();
+    if (
+      !Object.hasOwn(state, 'terminalNotice') ||
+      state.terminalNotice !== null ||
+      existsSync(ctl('stop')) ||
+      !['blocked', 'complete'].includes(state.status)
+    )
+      return;
+    state.terminalNotice = {
+      attemptedAt: new Date().toISOString(),
+      terminalStatus: state.status,
+      commandExit: null,
+      error: null,
+    };
+    save(state); // Persist before external delivery: a restart must not send a second push.
+    const command = state.config.notifyCommand ?? 'claude-notify';
+    const complete = state.status === 'complete';
+    const reason = String(state.stopReason ?? state.status)
+      .replaceAll(/\s+/g, ' ')
+      .slice(0, 160);
+    const message = complete
+      ? `Run ${state.runId} is klaar. Bekijk de pilotstatus voor het resultaat.`
+      : `Run ${state.runId} is geblokkeerd: ${reason}. Bekijk de pilotstatus en logs.`;
+    const result = spawnSync(
+      command,
+      [`mycel · pilot ${complete ? 'klaar' : 'wacht'}`, message, ''],
+      {
+        encoding: 'utf8',
+        timeout: 10_000,
+        stdio: 'ignore',
+        env: { ...process.env, CLAUDE_NOTIFY_BANNER_ONLY: complete ? '1' : '0' },
+      }
+    );
+    state.terminalNotice.commandExit = result.status;
+    state.terminalNotice.error =
+      result.error?.code ?? (result.status === 0 ? null : 'nonzero-exit');
+    save(state);
+    if (state.terminalNotice.error)
+      appendFileSync(
+        join(home, `${state.runId}-notification.stderr.log`),
+        `${state.terminalNotice.attemptedAt} terminal notification failed (${state.terminalNotice.error}, exit ${result.status ?? 'none'})\n`,
+        { mode: 0o600 }
+      );
+  } catch (error) {
+    // A notification failure must not erase or override the terminal run result.
+    if (state?.terminalNotice?.attemptedAt)
+      try {
+        state.terminalNotice.error = error.code ?? 'notification-error';
+        save(state);
+      } catch {
+        /* the original terminal state remains the authority */
+      }
+  }
+}
 function promptFor(state, phase, item, tier, sessionId) {
   const handoff = readFileSync(join(planning, 'handoff/mbp.md'), 'utf8');
   const queue = readFileSync(join(planning, 'handoff/queue.md'), 'utf8');
@@ -540,7 +603,11 @@ async function daemon() {
       }
     }
   } finally {
-    unlock();
+    try {
+      notifyTerminal();
+    } finally {
+      unlock();
+    }
   }
 }
 function dryRun(cfg) {
@@ -584,7 +651,15 @@ function preflight(cfg) {
     dry.activePrs.some((pr) => cfg.allowlist.some((item) => pr.title.includes(item)))
   )
     fail('Allowlisted item is already claimed or has an open PR');
-  const tools = ['node', 'git', 'gh', 'codex', 'model-mode', 'gtimeout'];
+  const tools = [
+    'node',
+    'git',
+    'gh',
+    'codex',
+    'model-mode',
+    'gtimeout',
+    cfg.notifyCommand ?? 'claude-notify',
+  ];
   const missing = tools.filter((name) => !toolExists(name));
   if (!existsSync(sharedTask)) missing.push(sharedTask);
   if (missing.length) fail(`Missing tools: ${missing.join(', ')}`);
@@ -686,6 +761,17 @@ function status() {
     deviations: state.deviations.length,
     next: nextAction(state),
     stopReason: state.stopReason,
+    notification: state.terminalNotice?.attemptedAt
+      ? {
+          attemptedAt: state.terminalNotice.attemptedAt,
+          status: state.terminalNotice.error
+            ? 'failed'
+            : state.terminalNotice.commandExit === 0
+              ? 'invoked'
+              : 'unconfirmed',
+          error: state.terminalNotice.error,
+        }
+      : null,
   };
 }
 
@@ -716,6 +802,7 @@ try {
       fail('Start requires a clean main checkout');
     const state = newRun({ ...cfg, runId: runId() });
     state.config = { ...cfg, baselinePlanningCommit: publishedPlanning().remote };
+    state.terminalNotice = null;
     ensureHome();
     writeFileSync(stateFile, `${JSON.stringify(state, null, 2)}\n`, { flag: 'wx', mode: 0o600 });
     const child = spawn(process.execPath, [fileURLToPath(import.meta.url), 'daemon'], {
