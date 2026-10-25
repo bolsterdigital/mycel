@@ -236,7 +236,7 @@
     {/each}
   </section>
 
-  <form method="post" action="?/save" class="card">
+  <form method="post" action="?/save" class="card" data-live-preview-source>
     <input type="hidden" name="baseRevisionId" value={baseRevision} />
 
     <fieldset>
@@ -382,6 +382,33 @@
       {/each}
     </div>
   </form>
+
+  {#if !article && data.canWrite}
+    <section
+      class="card live-preview"
+      data-live-preview
+      data-item-id={data.item.id}
+      data-preview-action="{base}/preview/draft"
+      hidden
+      aria-labelledby="live-preview-title"
+    >
+      <h2 id="live-preview-title">{t('admin.content.preview.live')}</h2>
+      <div class="field">
+        <label for="live-preview-locale">{t('admin.content.preview.locale')}</label>
+        <select id="live-preview-locale" data-live-preview-locale>
+          {#each data.docLocales as l (l)}<option value={l}>{l}</option>{/each}
+        </select>
+      </div>
+      <p class="muted" role="status" data-live-preview-status></p>
+      <iframe
+        name="mycel-live-preview"
+        title={t('admin.content.preview.live')}
+        data-live-preview-frame
+      ></iframe>
+      <p class="muted">{t('admin.content.preview.keyboard')}</p>
+    </section>
+    <script type="module" src="/_admin/live-preview-parent.js"></script>
+  {/if}
 
   <section aria-labelledby="blocks">
     <h2 id="blocks">{t('admin.block.title')}</h2>

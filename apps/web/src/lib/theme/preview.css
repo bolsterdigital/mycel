@@ -13,4 +13,8 @@
     max-width: var(--measure);
     margin-inline: auto;
   }
+  .preview-selectable > :hover {
+    outline: 2px solid var(--color-accent-bg);
+    outline-offset: 2px;
+  }
 }

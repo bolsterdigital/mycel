@@ -206,6 +206,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
       ),
     },
     canPublish: can(principal, 'content:publish'),
+    canWrite: can(principal, 'content:write'),
     restricted: doc.access.level !== 'public',
     timeZone: SITE_TIME_ZONE,
     done: DONE[url.searchParams.get('done') ?? ''] ?? null,

@@ -3,7 +3,7 @@
      (restricted or deleted image, unknown form) renders nothing either. `preview` is the admin
      preview's note for forms (#11), which then do not post. -->
 <script lang="ts">
-  import type { FormState, RenderModel } from './model.js';
+  import type { FormState, RenderBlock, RenderModel } from './model.js';
   import Callout from './Callout.svelte';
   import Cta from './Cta.svelte';
   import Faq from './Faq.svelte';
@@ -19,7 +19,13 @@
     model,
     formState = null,
     preview = null,
-  }: { model: RenderModel; formState?: FormState | null; preview?: string | null } = $props();
+    selectable = false,
+  }: {
+    model: RenderModel;
+    formState?: FormState | null;
+    preview?: string | null;
+    selectable?: boolean;
+  } = $props();
 
   // The first image of the page loads eagerly: it is likely above the fold.
   const firstImage = $derived(
@@ -27,7 +33,7 @@
   );
 </script>
 
-{#each model.blocks as block (block.id)}
+{#snippet rendered(block: RenderBlock)}
   {#if block.type === 'heading'}
     <Heading text={block.text} />
   {:else if block.type === 'rich-text'}
@@ -59,5 +65,13 @@
         {preview}
       />
     {/if}
+  {/if}
+{/snippet}
+
+{#each model.blocks as block (block.id)}
+  {#if selectable}
+    <div data-block-id={block.id} class="preview-selectable">{@render rendered(block)}</div>
+  {:else}
+    {@render rendered(block)}
   {/if}
 {/each}

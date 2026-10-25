@@ -119,17 +119,20 @@
     --content-width: var(--measure);
     padding-block: var(--space-3) var(--space-4);
   }
-  .page > * {
+  .page > .preview-selectable {
+    display: contents;
+  }
+  :is(.page, .page > .preview-selectable) > * {
     width: min(var(--content-width), 100% - 2 * var(--gutter));
     margin-inline: auto;
   }
-  .page > .width-wide,
-  .page > .layout-wide {
+  :is(.page, .page > .preview-selectable) > .width-wide,
+  :is(.page, .page > .preview-selectable) > .layout-wide {
     width: min(var(--wide-width), 100% - 2 * var(--gutter));
     clear: both;
   }
-  .page > .width-full,
-  .page > .layout-full {
+  :is(.page, .page > .preview-selectable) > .width-full,
+  :is(.page, .page > .preview-selectable) > .layout-full {
     width: 100%;
     clear: both;
   }
@@ -162,21 +165,21 @@
   .credit {
     display: inline-block;
   }
-  .page > .layout-float-left,
-  .page > .layout-float-right {
+  :is(.page, .page > .preview-selectable) > .layout-float-left,
+  :is(.page, .page > .preview-selectable) > .layout-float-right {
     width: min(20rem, 45%);
   }
-  .page > .layout-float-left {
+  :is(.page, .page > .preview-selectable) > .layout-float-left {
     float: left;
     margin: 0 var(--space-3) var(--space-2) max(var(--gutter), (100% - var(--content-width)) / 2);
   }
-  .page > .layout-float-right {
+  :is(.page, .page > .preview-selectable) > .layout-float-right {
     float: right;
     margin: 0 max(var(--gutter), (100% - var(--content-width)) / 2) var(--space-2) var(--space-3);
   }
   @media (max-width: 40rem) {
-    .page > .layout-float-left,
-    .page > .layout-float-right {
+    :is(.page, .page > .preview-selectable) > .layout-float-left,
+    :is(.page, .page > .preview-selectable) > .layout-float-right {
       float: none;
       width: calc(100% - 2 * var(--gutter));
       margin-inline: auto;
