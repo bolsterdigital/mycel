@@ -40,7 +40,10 @@
     "headSha": { "type": ["string", "null"] },
     "reviewedHeadSha": { "type": ["string", "null"] },
     "planningCommit": { "type": ["string", "null"] },
-    "reviewRecord": { "type": ["string", "null"] },
+    "reviewRecord": {
+      "type": ["string", "null"],
+      "pattern": "^reference/[A-Za-z0-9][A-Za-z0-9/_-]*\\.md$"
+    },
     "mergeCommit": { "type": ["string", "null"] },
     "housekeepingCommit": { "type": ["string", "null"] },
     "finding": { "type": ["string", "null"] },

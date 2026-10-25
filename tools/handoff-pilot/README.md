@@ -30,6 +30,8 @@ After independent flagship review and merge of the runner PR, create `activation
 
 Each agent returns a schema-checked technical result with run and reserved session IDs, item, lane, phase, PR, head SHA, planning commit, outcome and evaluation observations. The supervisor additionally reads the actual Codex thread ID from JSONL. Before every next launch it checks GitHub's PR/head/merge/CI state, published planning and the normal mbp handoff. Review approval is pinned to the PR head; a changed head sends work back for independent review. Merge uses `--match-head-commit`. After merge, the published housekeeping commit must touch TODO, done register, drift log and the next handoff; the drift log must name the PR. At a drift threshold the merge session registers the shared task, then a separate audit session claims it atomically before working. If dev owns the task, mbp proceeds with its own lane.
 
+`reviewRecord` in a review result is a `reference/*.md` path relative to the private planning repository. The structured output schema rejects absolute paths before the supervisor evaluates an approval. The review file must already be published and contain the exact PR head.
+
 On crash, `resume` inspects the saved reservation and child process. If the child finished, it validates the saved result against GitHub and Git before advancing. It never replays an already verified merge. A reservation with no result, invalid handoff, stale approval or exhausted limit blocks and needs manual inspection of `status`, logs and external systems before a new run. Do not edit state to force a transition. Use a new bounded pilot after repairing the cause and preserving the previous logs. `stop` ends a run permanently.
 
 ## Evaluation

@@ -10,6 +10,15 @@ import { newRun, reserveSession, markLaunched } from './state.mjs';
 
 const cli = resolve('tools/handoff-pilot/cli.mjs');
 const timeout = 10_000;
+
+test('review proof accepts a published relative path and rejects an absolute path', () => {
+  const schema = JSON.parse(readFileSync(resolve('tools/handoff-pilot/result.schema.json')));
+  const pattern = new RegExp(schema.properties.reviewRecord.pattern);
+  assert.ok(pattern.test('reference/review-pr62-2026-10-25.md'));
+  assert.ok(!pattern.test('/Users/jstronks/mycel-planning/reference/review-pr62-2026-10-25.md'));
+  assert.ok(!pattern.test('../reference/review-pr62-2026-10-25.md'));
+});
+
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'mycel-pilot-test-'));
   const home = join(root, 'home');
