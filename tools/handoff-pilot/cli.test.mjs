@@ -82,6 +82,39 @@ test('dry-run launches no agent and writes no run state', (t) => {
   assert.throws(() => readFileSync(join(f.home, 'state.json')));
 });
 
+test('preflight exercises the launch approval flags without a conflicting sandbox flag', (t) => {
+  const f = fixture(t);
+  writeFileSync(
+    join(f.root, 'bin/gh'),
+    '#!/bin/sh\nif [ "$1" = api ]; then echo \'{"permissions":{"push":true}}\'; else echo "[]"; fi\n',
+    { mode: 0o755 }
+  );
+  writeFileSync(
+    join(f.root, 'bin/codex'),
+    `#!/bin/sh
+if [ "$1" = login ]; then exit 0; fi
+seen_approval=0
+result=''
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --approve-for-me) seen_approval=1;;
+    --sandbox) exit 91;;
+    -o) shift; result="$1";;
+  esac
+  shift
+done
+[ "$seen_approval" -eq 1 ] || exit 92
+printf '{"ready":true}' > "$result"
+printf '{"type":"turn.completed"}\\n'
+`,
+    { mode: 0o755 }
+  );
+  const ran = call(f.env, 'preflight', f.config);
+  assert.equal(ran.status, 0, ran.stderr);
+  assert.equal(JSON.parse(ran.stdout).models['#44:execute'].id, 'gpt-6-sol');
+  assert.throws(() => readFileSync(join(f.home, 'state.json')));
+});
+
 test('a second supervisor is excluded; stop terminates the active agent group', async (t) => {
   const f = fixture(t);
   const child = spawn(
