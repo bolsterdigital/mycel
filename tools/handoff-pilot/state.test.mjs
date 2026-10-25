@@ -18,6 +18,8 @@ import {
 } from './state.mjs';
 
 const at = '2026-10-25T12:00:00.000Z';
+// The time every check of a run started `at` happens: fixed, so no test depends on the real clock.
+const soon = '2026-10-25T12:01:00.000Z';
 const sha = (char) => char.repeat(40);
 test('later main reuses reviewed runner only with unchanged bytes and fresh published preflight', () => {
   const evidence = {
@@ -165,7 +167,7 @@ function approved(state) {
 test('a fresh session is reserved before launch and a duplicate cannot start', () => {
   const state = run();
   launch(state, 'author');
-  assert.equal(nextAction(state).kind, 'reconcile');
+  assert.equal(nextAction(state, soon).kind, 'reconcile');
   assert.throws(() =>
     reserveSession(state, { id: 'author', item: '#44', phase: 'execute', startedAt: at })
   );
@@ -248,18 +250,18 @@ test('repair and session limits stop the chain', () => {
   assert.equal(state.stopReason, 'repair-limit');
   const short = run(['#44'], 1);
   executed(short);
-  assert.deepEqual(nextAction(short).reason, 'session-limit');
+  assert.deepEqual(nextAction(short, soon).reason, 'session-limit');
   assert.equal(nextAction(run(), '2026-10-25T18:00:00.000Z').reason, 'wall-clock-limit');
 });
 
 test('pause blocks new launch and stop is terminal', () => {
   const state = run();
   pause(state);
-  assert.equal(nextAction(state).kind, 'halt');
+  assert.equal(nextAction(state, soon).kind, 'halt');
   resume(state);
-  assert.equal(nextAction(state).kind, 'launch');
+  assert.equal(nextAction(state, soon).kind, 'launch');
   stop(state);
-  assert.equal(nextAction(state).reason, 'operator-stop');
+  assert.equal(nextAction(state, soon).reason, 'operator-stop');
   assert.throws(() => resume(state));
 });
 
@@ -270,7 +272,7 @@ test('recovery reuses verified result without repeating an earlier merge', () =>
   reconcilePending(state, { childAlive: false, result: proof, external: merge });
   assert.equal(state.index, 1);
   assert.equal(state.items['#44'].mergeCommit, sha('c'));
-  assert.deepEqual(nextAction(state).item, '#43A');
+  assert.deepEqual(nextAction(state, soon).item, '#43A');
   assert.throws(() => recordResult(state, proof, merge), /No launched session/);
 });
 
@@ -331,8 +333,8 @@ test('threshold routes to a separate claimed audit before the next item', () => 
     ...merge,
     auditTask: { threshold_met: true, exists: true, task_id: 'reorg-1', status: 'open' },
   });
-  assert.deepEqual(nextAction(state).phase, 'audit');
-  assert.deepEqual(nextAction(state).item, '#44');
+  assert.deepEqual(nextAction(state, soon).phase, 'audit');
+  assert.deepEqual(nextAction(state, soon).item, '#44');
   launch(state, 'auditor');
   assert.throws(
     () =>
@@ -354,7 +356,7 @@ test('threshold routes to a separate claimed audit before the next item', () => 
     auditTask: { id: 'reorg-1', status: 'done' },
     handoffCommitted: true,
   });
-  assert.deepEqual(nextAction(state).item, '#43A');
+  assert.deepEqual(nextAction(state, soon).item, '#43A');
   assert.equal(state.sessions.length, 4);
 });
 
@@ -371,7 +373,7 @@ test('a dev lane audit claim leaves the mbp continuation intact', () => {
       owner: { lane: 'dev' },
     },
   });
-  assert.deepEqual(nextAction(state).item, '#43A');
+  assert.deepEqual(nextAction(state, soon).item, '#43A');
   assert.equal(state.auditTask, null);
 });
 
@@ -390,7 +392,7 @@ test('audit taken by dev still requires the published mbp handoff', () => {
     /unverified/
   );
   recordResult(state, proof, { auditTask, handoffCommitted: true });
-  assert.deepEqual(nextAction(state).item, '#43A');
+  assert.deepEqual(nextAction(state, soon).item, '#43A');
 });
 
 test('ordinary handoffs do not inspect an audit ref before the threshold', () => {

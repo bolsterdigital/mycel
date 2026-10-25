@@ -41,6 +41,29 @@ export async function ensureEventPartitions(
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
 
 /**
+ * Versions recorded in `schema_migrations` that have no file in `dir`: the database was migrated
+ * by a newer branch or image. `migrate` accepts that (after a rollback the newer schema stays),
+ * but a test run against such a database proves another schema than the checkout's, and an
+ * export from it refuses to import into a fresh one. The test preflights (scripts/
+ * test-db-preflight.mjs, scripts/e2e.mjs) stop on it with one message instead (TODO #27).
+ */
+export async function migrationsAhead(
+  db: pg.ClientBase | pg.Pool,
+  dir: string = MIGRATIONS_DIR
+): Promise<string[]> {
+  const { rows } = await db
+    .query<{ version: string }>('select version from schema_migrations order by version')
+    .catch((e: { code?: string }) => {
+      if (e.code === '42P01') return { rows: [] }; // no schema_migrations: an empty database
+      throw e;
+    });
+  const files = new Set(
+    (await readdir(dir)).filter((f) => /^\d{4}_.+\.sql$/.test(f)).map((f) => f.slice(0, -4))
+  );
+  return rows.map((r) => r.version).filter((v) => !files.has(v));
+}
+
+/**
  * Apply the pending files of `dir` on `client`, in the schema its `search_path` names; returns
  * the versions it applied. Refuses, before applying or recording anything, when an applied file
  * no longer matches its recorded checksum. Rows from before TODO #18b have no checksum and get the

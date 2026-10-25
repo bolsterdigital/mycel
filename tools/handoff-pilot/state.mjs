@@ -98,7 +98,10 @@ export function handoffEvidence({
   return handoff.includes(currentTier) && handoff.includes(`#${pr}`) && handoff.includes(headSha);
 }
 
-export function nextAction(state, now = new Date().toISOString()) {
+// `now` has no default: a test that left it out ran against the real clock and broke once the
+// fixture run was older than its wall-clock limit (2026-10-25, TODO #27). Callers pass the time.
+export function nextAction(state, now) {
+  if (typeof now !== 'string') throw new TypeError('nextAction needs the current time');
   if (state.status !== 'active') return { kind: 'halt', reason: state.stopReason ?? state.status };
   if (Date.parse(now) - Date.parse(state.startedAt) >= state.maxMinutes * 60_000)
     return { kind: 'halt', reason: 'wall-clock-limit' };

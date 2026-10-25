@@ -43,7 +43,7 @@ npm run verify
 
 `verify` is the gate: formatting, dependency rules, types, tests, build and the Playwright + axe end-to-end tests. CI runs the same command. Keep it green on every commit.
 
-With `DATABASE_URL` and `APP_DATABASE_URL` set (they are, after the steps above), `verify` also runs the database suites, including the Row Level Security conformance test (`packages/db/src/rls.conformance.test.ts`), and the end-to-end tests (after `npx playwright install chromium`). The end-to-end run starts the API with its worker on port 8797 (`E2E_API_PORT` to change it) and a console mailer that spools to a temporary directory, so the signup spec can follow the confirmation link. Without a database those suites skip; in CI (`E2E_REQUIRED=1`) a missing database fails the build instead. Load the env first: `set -a; . ./.env; set +a; npm run verify`.
+With `DATABASE_URL` and `APP_DATABASE_URL` set (they are, after the steps above), `verify` also runs the database suites, including the Row Level Security conformance test (`packages/db/src/rls.conformance.test.ts`), and the end-to-end tests (after `npx playwright install chromium`). The end-to-end run starts the API with its worker on port 8797 (`E2E_API_PORT` to change it; the other ports and the guards are in [testing.md](docs/architecture/testing.md#local-database)) and a console mailer that spools to a temporary directory, so the signup spec can follow the confirmation link. Without a database those suites skip; in CI (`E2E_REQUIRED=1`) a missing database fails the build instead. Load the env first: `set -a; . ./.env; set +a; npm run verify`.
 
 ## Container image
 

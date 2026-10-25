@@ -22,6 +22,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -61,11 +62,102 @@ const run = (cmd, args, cwd = root, env = process.env) => {
   const r = spawnSync(cmd, args, { cwd, stdio: 'inherit', env });
   if (r.status !== 0) process.exit(r.status ?? 1);
 };
+const fail = (why) => {
+  console.error(`e2e: ${why}`);
+  process.exit(1);
+};
+
+// Ports of the processes this script starts. The worker's default is not 8799: that is where
+// `npm run dev` starts its mock IdP, and a running dev server used to push a run onto other
+// ports, which forked the fixture operators below (TODO #27).
+const API_PORT = process.env.E2E_API_PORT ?? '8797';
+const OIDC_PORT = process.env.E2E_OIDC_PORT ?? '8798';
+const WORKER_PORT = process.env.E2E_WORKER_PORT ?? '8796';
+const ISSUER = `http://127.0.0.1:${OIDC_PORT}`;
+for (const [name, port] of [
+  ['web server', '4173'],
+  ['API process', API_PORT],
+  ['mock IdP', OIDC_PORT],
+  ['worker', WORKER_PORT],
+]) {
+  const free = await new Promise((resolve) => {
+    const probe = createServer()
+      .once('error', () => resolve(false))
+      .listen(Number(port), '127.0.0.1', () => probe.close(() => resolve(true)));
+  });
+  if (!free)
+    fail(
+      `port ${port} for the ${name} is in use (\`lsof -nP -iTCP:${port} -sTCP:LISTEN\` names ` +
+        'the process); stop it, probably a leftover of an interrupted run, or set E2E_*_PORT'
+    );
+}
+
+// The database this run works in, held for the whole run. The specs share fixtures in it
+// (tenant probe, its entitlements, the operators below), so a second run on the same database
+// at the same time changes them under the first. A session advisory lock ends with the process,
+// also when it is killed. Rejected: a lock file, which a killed run leaves behind.
+const pg = (await import('pg')).default;
+const runLock = new pg.Client({ connectionString: process.env.DATABASE_URL });
+await runLock.connect();
+if (!(await runLock.query('select pg_try_advisory_lock(4242027) as ok')).rows[0].ok)
+  fail(`another e2e run holds database ${runLock.database}; wait for it or use another database`);
+// A schema ahead of this checkout (another branch migrated the shared local database) fails
+// specs that have nothing to do with the diff; scripts/test-db-preflight.mjs explains it.
+const { migrationsAhead } = await import('@mycel/db');
+const ahead = await migrationsAhead(runLock);
+if (ahead.length)
+  fail(
+    `database ${runLock.database} has migration(s) this checkout does not know: ` +
+      `${ahead.join(', ')}; use a database for this checkout (docs/architecture/testing.md ` +
+      '§ Local database)'
+  );
 // The seed stores this token's hash as the `seed` key of tenant probe; API and spec use it.
 const apiKey = process.env.MYCEL_API_KEY ?? `mycel_${randomBytes(32).toString('base64url')}`;
 // The synthetic webhook fixture needs the same installation-local key in the web and worker.
 process.env.CONNECTION_CREDENTIAL_KEY ??= randomBytes(32).toString('hex');
 run('npm', ['run', '-s', 'migrate', '-w', '@mycel/db']);
+
+// The fixture operators belong to this run's mock IdP. An operator is its issuer plus subject,
+// and the issuer carries the port, so one run with E2E_OIDC_PORT set claimed the invitations of
+// e2e-admin@probe.test and the others under that port; every later run on the default port then
+// logged in as a new operator without a membership ("Geen toegang tot deze site", TODO #27), and
+// the invitation could no longer repair it (two verified operators: ambiguous). Production keeps
+// that rule; here a mock subject is one synthetic person whatever the port. Per subject: drop the
+// rows without a membership (a foreign key refuses the others), then move a remaining one onto
+// this issuer. The dev operator (`npm run dev`, its own port) is left alone.
+{
+  const devOperator = process.env.MYCEL_SEED_OPERATOR_EMAIL ?? 'admin@probe.test';
+  const { rows } = await runLock.query(
+    `select id, issuer, subject, email from operators o
+     where subject like 'mock-%' and issuer ~ '^http://127\\.0\\.0\\.1:[0-9]+$'
+       and email like '%@probe.test' and email <> $1
+       and exists (select 1 from operators x where x.subject = o.subject
+                   and x.issuer ~ '^http://127\\.0\\.0\\.1:[0-9]+$' and x.issuer <> $2)
+     order by subject, (issuer = $2) desc, last_login_at desc nulls last`,
+    [devOperator, ISSUER]
+  );
+  const bySubject = Map.groupBy(rows, (r) => r.subject);
+  for (const group of bySubject.values()) {
+    const kept = [];
+    for (const row of group) {
+      try {
+        await runLock.query('delete from operators where id = $1', [row.id]);
+      } catch (e) {
+        if (e.code !== '23503') throw e;
+        kept.push(row);
+      }
+    }
+    const current = kept.find((r) => r.issuer === ISSUER) ?? kept[0];
+    if (current && current.issuer !== ISSUER)
+      await runLock.query('update operators set issuer = $2 where id = $1', [current.id, ISSUER]);
+    const others = kept.length - (current ? 1 : 0);
+    console.log(
+      `e2e: fixture operator ${group[0].email} ` +
+        (current ? `is now ${ISSUER}'s` : 'had no membership; its invitations start over') +
+        (others ? ` (${others} other row(s) keep memberships: invitations are ambiguous)` : '')
+    );
+  }
+}
 // The e2e admin is its own address: the mock IdP here has another issuer (port) than the one
 // `npm run dev` starts, so sharing admin@probe.test would let one claim the other's invitation.
 run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
@@ -531,9 +623,6 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
 // the hostname probe.localhost, Chromium resolves it to loopback, and the specs cover both the
 // hostname form (hostnames.spec.ts) and the development path form (signup.spec.ts).
 const WEB_ORIGIN = 'http://127.0.0.1:4173';
-const API_PORT = process.env.E2E_API_PORT ?? '8797';
-const OIDC_PORT = process.env.E2E_OIDC_PORT ?? '8798';
-const WORKER_PORT = process.env.E2E_WORKER_PORT ?? '8799';
 const spool = mkdtempSync(join(tmpdir(), 'mycel-e2e-mail-'));
 const env = {
   ...process.env,
