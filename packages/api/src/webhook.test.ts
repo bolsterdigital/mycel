@@ -1,11 +1,17 @@
 // A checked DNS answer is pinned to a signed request; redirects and uncertain responses never
-// become a second delivery. Fake sender avoids public network and personal data in the suite.
+// become a second delivery. A local TLS server exercises Node's real lookup callback.
 import { createHmac } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { createServer } from 'node:https';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ConnectionIntent, ConnectionRecord } from '@mycel/core';
 import {
   checkedDestination,
   publicAddress,
+  sendWebhook,
   webhookTransport,
   type WebhookRequest,
 } from './webhook.js';
@@ -24,6 +30,86 @@ const connection = {
 const payload = { category: 'synthetic.test' };
 
 describe('webhook destination and transport', () => {
+  it('sends over TLS to the pinned address and checks the URL hostname certificate', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'mycel-webhook-tls-'));
+    const keyPath = join(directory, 'key.pem');
+    const certPath = join(directory, 'cert.pem');
+    try {
+      execFileSync(
+        'openssl',
+        [
+          'req',
+          '-x509',
+          '-newkey',
+          'rsa:2048',
+          '-nodes',
+          '-days',
+          '1',
+          '-keyout',
+          keyPath,
+          '-out',
+          certPath,
+          '-subj',
+          '/CN=hooks.example.org',
+          '-addext',
+          'subjectAltName=DNS:hooks.example.org',
+        ],
+        { stdio: 'ignore' }
+      );
+      const received: { address?: string; host?: string; body?: string } = {};
+      const server = createServer(
+        { key: readFileSync(keyPath), cert: readFileSync(certPath) },
+        (request, response) => {
+          received.address = request.socket.remoteAddress;
+          received.host = request.headers.host;
+          const chunks: Buffer[] = [];
+          request.on('data', (chunk: Buffer) => chunks.push(chunk));
+          request.on('end', () => {
+            received.body = Buffer.concat(chunks).toString('utf8');
+            response.writeHead(204).end();
+          });
+        }
+      );
+      try {
+        await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+        const address = server.address();
+        if (!address || typeof address === 'string') throw new Error('no TLS test port');
+        const status = await sendWebhook(
+          {
+            url: new URL(`https://hooks.example.org:${address.port}/mycel`),
+            address: '127.0.0.1',
+            body: '{"synthetic":true}',
+            headers: { 'content-type': 'application/json' },
+          },
+          { ca: readFileSync(certPath) }
+        );
+        expect(status).toBe(204);
+        expect(received).toEqual({
+          address: '127.0.0.1',
+          host: `hooks.example.org:${address.port}`,
+          body: '{"synthetic":true}',
+        });
+        await expect(
+          sendWebhook(
+            {
+              url: new URL(`https://other.example.org:${address.port}/mycel`),
+              address: '127.0.0.1',
+              body: '{}',
+              headers: {},
+            },
+            { ca: readFileSync(certPath) }
+          )
+        ).rejects.toThrow('Hostname/IP does not match certificate');
+      } finally {
+        await new Promise<void>((resolve, reject) =>
+          server.close((error) => (error ? reject(error) : resolve()))
+        );
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it('rejects local, metadata, mapped IPv6, mixed DNS and non-HTTPS destinations', async () => {
     for (const address of [
       '127.0.0.1',

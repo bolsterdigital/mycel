@@ -3,6 +3,7 @@
 import { createHmac } from 'node:crypto';
 import { resolve4, resolve6 } from 'node:dns/promises';
 import { request as httpsRequest } from 'node:https';
+import type { RequestOptions } from 'node:https';
 import { BlockList, isIP } from 'node:net';
 import { UseCaseError, type ConnectionTransport } from '@mycel/core';
 
@@ -98,7 +99,10 @@ export interface WebhookRequest {
 export type WebhookSender = (request: WebhookRequest) => Promise<number>;
 
 /** The checked address is used for TCP; URL hostname remains Host and TLS SNI. No redirect loop. */
-export const sendWebhook: WebhookSender = ({ url, address, body, headers }) =>
+export const sendWebhook = (
+  { url, address, body, headers }: WebhookRequest,
+  { ca }: Pick<RequestOptions, 'ca'> = {}
+): Promise<number> =>
   new Promise((resolve, reject) => {
     const family = isIP(address);
     const request = httpsRequest(
@@ -106,8 +110,12 @@ export const sendWebhook: WebhookSender = ({ url, address, body, headers }) =>
       {
         method: 'POST',
         headers,
+        ca,
         timeout: 5000,
-        lookup: (_hostname, _options, callback) => callback(null, address, family),
+        lookup: (_hostname, options, callback) => {
+          if (options.all) callback(null, [{ address, family }]);
+          else callback(null, address, family);
+        },
       },
       (response) => {
         response.resume();
