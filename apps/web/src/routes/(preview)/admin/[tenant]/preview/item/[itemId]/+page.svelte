@@ -34,6 +34,17 @@
   {/if}
   <p><a href={data.edit}>{t('admin.content.preview.edit')}</a></p>
 </aside>
+<header class="site-header">
+  <span class="site-identity">
+    {#if data.brand.logo}<img
+        src={data.brand.logo}
+        width={data.brand.width ?? 1}
+        height={data.brand.height ?? 1}
+        alt=""
+      />{/if}
+    <span class:site-wordmark={data.brand.wordmark}>{data.brand.name}</span>
+  </span>
+</header>
 
 <main class="page">
   <h1>{data.model.title}</h1>

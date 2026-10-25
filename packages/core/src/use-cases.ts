@@ -79,6 +79,7 @@ import { closeJob, getOpsStatus, retryJob } from './ops/service.js';
 import { UseCaseRegistry, type UseCase } from './registry.js';
 import { changeSupporterEmail, getSupporter } from './supporters/service.js';
 import { checkThemeUseCase } from './theme/service.js';
+import { getBrandAsset, putBrandAsset, removeBrandAsset } from './theme/assets.js';
 import {
   getSiteTheme,
   updateSiteTheme,
@@ -179,6 +180,9 @@ export const useCases = {
   updateSiteTheme,
   getSiteChrome,
   updateSiteChrome,
+  getBrandAsset,
+  putBrandAsset,
+  removeBrandAsset,
 } as const;
 
 export function buildRegistry(): UseCaseRegistry {

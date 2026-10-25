@@ -15,6 +15,13 @@ export interface Database {
     theme_version: number;
     chrome: Json<unknown>;
     chrome_version: number;
+    logo_bytes: Generated<Buffer | null>;
+    logo_width: Generated<number | null>;
+    logo_height: Generated<number | null>;
+    logo_version: Generated<number>;
+    font_bytes: Generated<Buffer | null>;
+    font_licence: Generated<string | null>;
+    font_version: Generated<number>;
   };
   connection_intents: {
     id: string;

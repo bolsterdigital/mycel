@@ -93,6 +93,16 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
     dns: new FakeDns(),
     platform: memoryPlatform,
     media: { blobs, images: memoryImageProcessor },
+    brandProcessor: {
+      logo: async (bytes) => ({
+        bytes,
+        contentType: 'image/webp' as const,
+        width: 1,
+        height: 1,
+        licence: null,
+      }),
+      font: async () => {},
+    },
     connectionCredentialKey: '10'.repeat(32),
   });
   const invoker = new Invoker(buildRegistry(), uow);
@@ -142,6 +152,19 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
         support: null,
         help: null,
       },
+    });
+    await invoker.run(useCases.putBrandAsset, admin, {
+      kind: 'logo',
+      baseVersion: 0,
+      contentType: 'image/png',
+      bytes: useCases.uploadMedia.examples[0].input.bytes,
+    });
+    await invoker.run(useCases.putBrandAsset, admin, {
+      kind: 'font',
+      baseVersion: 0,
+      contentType: 'font/woff2',
+      bytes: useCases.uploadMedia.examples[0].input.bytes,
+      licence: `Fixture licence ${t.slug}`,
     });
     const formId = uuidv7();
     await uow.run(admin, (ctx) => ctx.forms.insert(probeForm(formId)));
@@ -325,6 +348,14 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
     expect(rows).toContain('Export maintainer');
     expect(rows).not.toContain(`export-secret-${tenant.a.slug}`);
     expect(JSON.stringify(manifestA)).not.toContain(`export-secret-${tenant.a.slug}`);
+  });
+
+  it('exports only the tenant brand bytes and licence in the settings snapshot', async () => {
+    const row = await readFile(join(scratch.dir, 'a', 'tables', 'site_settings.ndjson'), 'utf8');
+    expect(row).toContain(`Fixture licence ${tenant.a.slug}`);
+    expect(row).toContain('logo_bytes');
+    expect(row).toContain('font_bytes');
+    expect(row).not.toContain(`Fixture licence ${tenant.b.slug}`);
   });
 
   it('holds no row and no file of the other tenant (sentinel)', async () => {

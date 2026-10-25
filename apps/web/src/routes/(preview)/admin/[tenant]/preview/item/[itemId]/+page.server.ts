@@ -8,7 +8,7 @@ import { requireTenantPrincipal } from '#lib/server/admin.js';
 import { actorLabel, when } from '#lib/server/content-admin.js';
 import { PREVIEW_HEADERS, previewBase, previewSite, siteReader } from '#lib/server/preview.js';
 import { runtime } from '#lib/server/runtime.js';
-import { siteTheme } from '#lib/server/theme.js';
+import { siteBrand, siteTheme } from '#lib/server/theme.js';
 import { resolveDocument, runtimeSource } from '#lib/blocks/resolve.js';
 import { ui } from '../../../../../../../i18n/index.js';
 import type { PageServerLoad } from './$types';
@@ -53,12 +53,20 @@ export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) 
     { base, fallbackLocale: tenant.defaultLocale }
   );
   const theme = await siteTheme(site);
+  const brand = await siteBrand(site);
   const admin = locals.lang ?? 'en';
   locals.lang = locale;
   return {
     admin,
     model,
     theme: { href: `${base}/_theme/${theme.hash}.css`, preload: theme.preload },
+    brand: {
+      name: tenant.name,
+      logo: brand.logo.active ? `${base}/_brand/logo/${brand.logo.version}.webp` : null,
+      width: brand.logo.width,
+      height: brand.logo.height,
+      wordmark: brand.font.active,
+    },
     issues: readinessIssues(doc, locale).map((i) => i.path),
     revision: {
       when: when(revision.createdAt),

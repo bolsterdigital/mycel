@@ -626,6 +626,21 @@
     max-width: var(--wide-width);
     margin-inline: auto;
   }
+  .site-identity {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: var(--tap);
+    max-width: 100%;
+    font-weight: 700;
+  }
+  .site-identity img {
+    display: block;
+    max-width: min(12rem, 45vw);
+    max-height: 4rem;
+    width: auto;
+    height: auto;
+  }
   .site-header a,
   .site-footer a {
     display: inline-flex;

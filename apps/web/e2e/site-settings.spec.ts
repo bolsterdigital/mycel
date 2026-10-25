@@ -1,6 +1,7 @@
 // A complete bilingual site: tenant chrome and theme through real use cases and the public
 // renderer, including the no-JavaScript/320 px/200% task gate (#11 E, ADR 009/013).
 import AxeBuilder from '@axe-core/playwright';
+import { readFile } from 'node:fs/promises';
 import { Invoker, THEME_PRESETS, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
 import { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } from '@mycel/core/testing';
 import { createDb, createUnitOfWork, upsertTenant, uuidv7, uuidv7Ids } from '@mycel/db';
@@ -10,6 +11,7 @@ const slug = `chrome-${Math.random().toString(36).slice(2, 8)}`;
 const singleSlug = `chrome-single-${Math.random().toString(36).slice(2, 8)}`;
 let tenantId = '';
 let singleTenantId = '';
+let homeItemId = '';
 const chromeState = async (id: string) => {
   const app = createDb(process.env['APP_DATABASE_URL']!);
   try {
@@ -94,6 +96,7 @@ test.beforeAll(async () => {
         blocks: [],
       },
     });
+    homeItemId = item.id;
     for (const locale of ['nl', 'en'])
       await invoker.run(useCases.publishItem, principal, {
         itemId: item.id,
@@ -263,6 +266,91 @@ test('single-locale site saves without another translation', async ({ page }) =>
   expect((await chromeState(singleTenantId)).value.footer).toEqual({ nl: 'Nieuwe tekst' });
 });
 
+test('native brand upload, public derivative and removal stay tenant scoped', async ({
+  page,
+  request,
+}) => {
+  await page.goto(`/admin/${slug}/site`);
+  await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
+  await page.getByLabel('E-mail').fill(`site-editor-${slug}@probe.test`);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  const logo = page.locator('form[action="?/brand"]').first();
+  await logo.locator('input[type=file]').setInputFiles({
+    name: 'mark.svg',
+    mimeType: 'image/svg+xml',
+    buffer: Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="#123456"/></svg>'
+    ),
+  });
+  await logo.getByRole('button', { name: 'Upload' }).click();
+  await expect(page.locator('p[role="status"]')).toBeVisible();
+  const font = page.locator('form[action="?/brand"]').last();
+  await font.locator('input[type=file]').setInputFiles({
+    name: 'inter.woff2',
+    mimeType: 'font/woff2',
+    buffer: await readFile(
+      new URL('../static/fonts/inter/inter-latin-roman.woff2', import.meta.url)
+    ),
+  });
+  await font.locator('input[name=licence]').fill('SIL Open Font License 1.1');
+  await font.getByRole('button', { name: 'Upload' }).click();
+  await expect(page.locator('p[role="status"]')).toBeVisible();
+
+  await page.goto(`/admin/${slug}/preview/item/${homeItemId}?locale=nl`);
+  await expect(page.locator('.site-identity img')).toBeVisible();
+  await expect(page.locator('.site-wordmark')).toContainText('Chrome fixture');
+
+  await page.goto(`/${slug}/home`);
+  const identity = page.locator('.site-identity');
+  await expect(identity).toContainText('Chrome fixture');
+  await expect(identity.locator('img')).toBeVisible();
+  const logoUrl = await identity.locator('img').getAttribute('src');
+  expect(logoUrl).toBeTruthy();
+  const logoResponse = await request.get(logoUrl!);
+  expect(logoResponse.status()).toBe(200);
+  expect(logoResponse.headers()['content-type']).toBe('image/webp');
+  expect(logoResponse.headers()['x-content-type-options']).toBe('nosniff');
+  const previewLogo = await page.request.get(`/admin/${slug}/preview/_brand/logo/1.webp`);
+  expect(previewLogo.status()).toBe(200);
+  expect(previewLogo.headers()['cache-control']).toBe('no-store');
+  expect((await request.get(`/${singleSlug}/_brand/logo/1.webp`)).status()).toBe(404);
+  const stylesheet = await page
+    .locator('link[rel=stylesheet][href*="/_theme/"]')
+    .getAttribute('href');
+  const css = await (await request.get(stylesheet!)).text();
+  expect(css).toContain("font-family: 'Mycel Wordmark'");
+  expect(css).toContain('font-display: swap');
+  const fontResponse = await request.get(`/${slug}/_brand/font/1.woff2`);
+  expect(fontResponse.status()).toBe(200);
+  expect(fontResponse.headers()['content-type']).toBe('font/woff2');
+  const activeEtag = (await request.get(`/${slug}/home`)).headers()['etag'];
+  if (test.info().project.name === 'a11y') {
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+    expect(violations.map((violation) => violation.id)).toEqual([]);
+  }
+  await page.goto(`/admin/${slug}/site`);
+  await page
+    .locator('form[action="?/brand"]')
+    .first()
+    .getByRole('button', { name: 'Remove' })
+    .click();
+  await expect(page.locator('p[role="status"]')).toBeVisible();
+  expect((await request.get(logoUrl!)).status()).toBe(404);
+  const freshPage = await request.get(`/${slug}/home`, {
+    headers: { 'if-none-match': activeEtag! },
+  });
+  expect(freshPage.status()).toBe(200);
+  expect(freshPage.headers()['etag']).not.toBe(activeEtag);
+  await page.goto(`/${slug}/home`);
+  // A normal navigation may reuse the prior HTML inside the one-minute public freshness window;
+  // reload revalidates the changed brand ETag, as a new visitor would.
+  await page.reload();
+  await expect(page.locator('.site-identity img')).toHaveCount(0);
+  await expect(page.locator('.site-identity')).toContainText('Chrome fixture');
+});
+
 for (const [locale, language, title, actions] of [
   ['nl', 'nl-NL', 'Site-instellingen', ['Thema opslaan', 'Navigatie en voettekst opslaan']],
   ['en', 'en-US', 'Site settings', ['Save theme', 'Save navigation and footer']],
@@ -326,6 +414,26 @@ for (const [locale, language, title, actions] of [
         expect(label.right, label.text).toBeLessThanOrEqual(layout.viewport);
         expect(label.scrollWidth, label.text).toBeLessThanOrEqual(label.clientWidth);
       }
+      await page.setViewportSize({ width: 640, height: 720 });
+      const zoomedActions = await page.evaluate(() => {
+        document.documentElement.style.fontSize = '';
+        document.documentElement.style.zoom = '2';
+        const actions = [...document.querySelectorAll<HTMLElement>('.brand-actions button')];
+        const ok = actions.every(
+          (button) =>
+            button.getBoundingClientRect().right <= innerWidth &&
+            button.scrollWidth <= button.clientWidth
+        );
+        const overflow = document.documentElement.scrollWidth > innerWidth;
+        document.documentElement.style.zoom = '';
+        return { ok, overflow };
+      });
+      expect(zoomedActions.ok).toBe(true);
+      expect(zoomedActions.overflow).toBe(false);
+      await page.setViewportSize({ width: 320, height: 720 });
+      await page.evaluate(() => {
+        document.documentElement.style.fontSize = '200%';
+      });
       await page.screenshot({
         path: test.info().outputPath(`site-settings-${locale}-320-text-200.png`),
         fullPage: true,

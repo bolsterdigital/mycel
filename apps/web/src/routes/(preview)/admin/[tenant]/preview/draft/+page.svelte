@@ -29,6 +29,17 @@
       </ul>
     {/if}
   </aside>
+  <header class="site-header">
+    <span class="site-identity">
+      {#if form.brand.logo}<img
+          src={form.brand.logo}
+          width={form.brand.width ?? 1}
+          height={form.brand.height ?? 1}
+          alt=""
+        />{/if}
+      <span class:site-wordmark={form.brand.wordmark}>{form.brand.name}</span>
+    </span>
+  </header>
   <main class="page">
     <h1>{form.model.title}</h1>
     <Blocks model={form.model} preview={form.formNote} selectable />

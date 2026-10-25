@@ -15,7 +15,29 @@ export interface SiteTheme {
 
 const bySite = new WeakMap<Site, Promise<SiteTheme>>();
 const chromeBySite = new WeakMap<Site, Promise<SiteChrome>>();
+const brandBySite = new WeakMap<
+  Site,
+  Promise<{
+    logo: Awaited<ReturnType<typeof useCases.getBrandAsset.handler>>;
+    font: Awaited<ReturnType<typeof useCases.getBrandAsset.handler>>;
+  }>
+>();
 const cssCache = new Map<string, Promise<SiteTheme>>();
+
+export function siteBrand(site: Site) {
+  let found = brandBySite.get(site);
+  if (!found) {
+    const principal = anonymousPrincipal(siteTenant(site), ['content:read']);
+    found = Promise.all([
+      runtime().invoker.run(useCases.getBrandAsset, principal, { kind: 'logo' }),
+      runtime().invoker.run(useCases.getBrandAsset, principal, { kind: 'font' }),
+    ]).then(([logo, font]) => ({ logo, font }));
+    brandBySite.set(site, found);
+  }
+  return found;
+}
+export const brandPath = (kind: 'logo' | 'font', version: number) =>
+  `/_brand/${kind}/${version}.${kind === 'logo' ? 'webp' : 'woff2'}`;
 
 async function loadSiteTheme(site: Site): Promise<SiteTheme> {
   const { value: theme } = await runtime().invoker.run(
@@ -23,10 +45,20 @@ async function loadSiteTheme(site: Site): Promise<SiteTheme> {
     anonymousPrincipal(siteTenant(site), ['content:read']),
     {}
   );
-  const key = JSON.stringify(theme);
+  const { font } = await siteBrand(site);
+  const key = JSON.stringify({
+    theme,
+    font: font.version,
+    active: font.active,
+    tenant: site.tenant.id,
+  });
   let found = cssCache.get(key);
   if (!found) {
-    const css = themeCss(theme as ResolvedTheme);
+    const css =
+      themeCss(theme as ResolvedTheme) +
+      (font.active
+        ? `@font-face { font-family: 'Mycel Wordmark'; src: url('../_brand/font/${font.version}.woff2') format('woff2'); font-display: swap; }\n.site-wordmark { font-family: 'Mycel Wordmark', Inter, sans-serif; }\n`
+        : '');
     found = themeHash(css).then((hash) => ({ css, hash, preload: preloadFonts(theme.fontPair) }));
     // The cache is only an optimization for repeated themes; tenant data is read on each request.
     if (cssCache.size >= 128) cssCache.delete(cssCache.keys().next().value!);

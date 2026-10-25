@@ -7,6 +7,9 @@ import {
   SiteChrome,
   Theme,
   type SiteSettingsRepository,
+  type BrandAssetsRepository,
+  type BrandKind,
+  type BrandAsset,
 } from '@mycel/core';
 import type { Database } from './schema.js';
 export function siteSettingsRepository(
@@ -93,6 +96,82 @@ export function siteSettingsRepository(
         .returning('chrome_version')
         .executeTakeFirst();
       return baseVersion === 0 && row?.chrome_version !== 1 ? null : (row?.chrome_version ?? null);
+    },
+  };
+}
+
+export function brandAssetsRepository(
+  db: Kysely<Database>,
+  tenantId: string
+): BrandAssetsRepository {
+  const fields = (kind: BrandKind) =>
+    kind === 'logo'
+      ? { bytes: 'logo_bytes' as const, version: 'logo_version' as const }
+      : { bytes: 'font_bytes' as const, version: 'font_version' as const };
+  return {
+    async get(kind) {
+      const row = await db
+        .selectFrom('site_settings')
+        .selectAll()
+        .where('tenant_id', '=', tenantId)
+        .executeTakeFirst();
+      const { bytes, version } = fields(kind);
+      const data = row?.[bytes] ?? null;
+      const asset: BrandAsset | null = data
+        ? {
+            bytes: data,
+            contentType: kind === 'logo' ? 'image/webp' : 'font/woff2',
+            width: kind === 'logo' ? (row?.logo_width ?? null) : null,
+            height: kind === 'logo' ? (row?.logo_height ?? null) : null,
+            licence: kind === 'font' ? (row?.font_licence ?? null) : null,
+          }
+        : null;
+      return { version: row?.[version] ?? 0, asset };
+    },
+    async replace(kind, baseVersion, asset) {
+      const changes =
+        kind === 'logo'
+          ? {
+              logo_bytes: asset ? Buffer.from(asset.bytes) : null,
+              logo_width: asset?.width ?? null,
+              logo_height: asset?.height ?? null,
+              logo_version: baseVersion + 1,
+            }
+          : {
+              font_bytes: asset ? Buffer.from(asset.bytes) : null,
+              font_licence: asset?.licence ?? null,
+              font_version: baseVersion + 1,
+            };
+      const version = fields(kind).version;
+      if (baseVersion > 0) {
+        const changed = await db
+          .updateTable('site_settings')
+          .set(changes)
+          .where('tenant_id', '=', tenantId)
+          .where(version, '=', baseVersion)
+          .returning(version)
+          .executeTakeFirst();
+        return changed?.[version] ?? null;
+      }
+      const row = await db
+        .insertInto('site_settings')
+        .values({
+          tenant_id: tenantId,
+          theme: JSON.stringify(DEFAULT_THEME),
+          theme_version: 0,
+          chrome: JSON.stringify(DEFAULT_CHROME),
+          chrome_version: 0,
+          ...changes,
+        })
+        .onConflict((oc) =>
+          oc
+            .column('tenant_id')
+            .doUpdateSet(changes)
+            .where(`site_settings.${version}`, '=', baseVersion)
+        )
+        .returning(version)
+        .executeTakeFirst();
+      return row?.[version] ?? null;
     },
   };
 }

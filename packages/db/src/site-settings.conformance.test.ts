@@ -23,6 +23,16 @@ describe.skipIf(!operatorUrl || !appUrl)('site settings conformance', () => {
       inputHasher: new FakeInputHasher(),
       dns: new FakeDns(),
       platform: memoryPlatform,
+      brandProcessor: {
+        logo: async (bytes) => ({
+          bytes,
+          contentType: 'image/webp' as const,
+          width: 1,
+          height: 1,
+          licence: null,
+        }),
+        font: async () => {},
+      },
     })
   );
   let a = '';
@@ -90,5 +100,37 @@ describe.skipIf(!operatorUrl || !appUrl)('site settings conformance', () => {
     expect(await invoker.run(useCases.getSiteChrome, systemPrincipal(b, 'test'), {})).toMatchObject(
       { version: 0, value: DEFAULT_CHROME }
     );
+  });
+  it('isolates brand bytes and versions under the same forced RLS row', async () => {
+    const aPrincipal = systemPrincipal(a, 'test');
+    const bPrincipal = systemPrincipal(b, 'test');
+    const bytes = useCases.uploadMedia.examples[0].input.bytes;
+    expect(
+      await invoker.run(useCases.putBrandAsset, aPrincipal, {
+        kind: 'logo',
+        baseVersion: 0,
+        contentType: 'image/png',
+        bytes,
+      })
+    ).toMatchObject({ version: 1, active: true });
+    expect(await invoker.run(useCases.getBrandAsset, bPrincipal, { kind: 'logo' })).toMatchObject({
+      version: 0,
+      active: false,
+    });
+    await expect(
+      invoker.run(useCases.putBrandAsset, aPrincipal, {
+        kind: 'logo',
+        baseVersion: 0,
+        contentType: 'image/png',
+        bytes,
+      })
+    ).rejects.toMatchObject({ code: 'conflict' });
+    expect(
+      await invoker.run(useCases.removeBrandAsset, aPrincipal, { kind: 'logo', baseVersion: 1 })
+    ).toMatchObject({ version: 2, active: false });
+    expect(await invoker.run(useCases.getBrandAsset, bPrincipal, { kind: 'logo' })).toMatchObject({
+      version: 0,
+      active: false,
+    });
   });
 });

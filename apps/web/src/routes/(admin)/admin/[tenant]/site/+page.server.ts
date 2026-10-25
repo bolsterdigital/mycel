@@ -19,11 +19,13 @@ export const load: PageServerLoad = async ({ parent, locals }) => {
   await parent();
   const principal = locals.principal!;
   if (!can(principal, 'content:write')) error(403, 'content:write');
-  const [theme, chrome] = await Promise.all([
+  const [theme, chrome, logo, font] = await Promise.all([
     runtime().invoker.run(useCases.getSiteTheme, principal, {}),
     runtime().invoker.run(useCases.getSiteChrome, principal, {}),
+    runtime().invoker.run(useCases.getBrandAsset, principal, { kind: 'logo' }),
+    runtime().invoker.run(useCases.getBrandAsset, principal, { kind: 'font' }),
   ]);
-  return { theme, chrome };
+  return { theme, chrome, logo, font };
 };
 const localized = (
   data: FormData,
@@ -56,6 +58,44 @@ const lines = (raw: string, locales: readonly string[], previous: SiteChrome['na
       return { href, label };
     });
 export const actions: Actions = {
+  brand: async ({ request, locals, url, params }) => {
+    const data = await request.formData();
+    const { principal } = await requireTenantPrincipal(locals, url, params.tenant);
+    if (!can(principal, 'content:write')) error(403, 'content:write');
+    const kind = text(data, 'kind');
+    if (kind !== 'logo' && kind !== 'font')
+      return fail(400, { action: 'brand', problem: 'invalid' });
+    try {
+      const version = baseVersion(data);
+      if (text(data, 'intent') === 'remove') {
+        await runtime().invoker.run(useCases.removeBrandAsset, principal, {
+          kind,
+          baseVersion: version,
+        });
+      } else {
+        const file = data.get('file');
+        if (
+          !(file instanceof File) ||
+          file.size === 0 ||
+          file.size > (kind === 'logo' ? 2 * 1024 * 1024 : 1024 * 1024)
+        )
+          return fail(400, { action: 'brand', problem: 'invalid' });
+        await runtime().invoker.run(useCases.putBrandAsset, principal, {
+          kind,
+          baseVersion: version,
+          contentType: file.type,
+          bytes: Buffer.from(await file.arrayBuffer()).toString('base64'),
+          ...(kind === 'font' ? { licence: text(data, 'licence') } : {}),
+        });
+      }
+      return { saved: 'brand' };
+    } catch (e) {
+      return fail(e instanceof UseCaseError && e.code === 'conflict' ? 409 : 400, {
+        action: 'brand',
+        problem: report(e),
+      });
+    }
+  },
   theme: async ({ request, locals, url, params }) => {
     const data = await request.formData();
     const { principal } = await requireTenantPrincipal(locals, url, params.tenant);
