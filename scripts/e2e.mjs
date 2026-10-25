@@ -21,12 +21,15 @@
 
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
+const qualityCorpus = JSON.parse(
+  readFileSync(new URL('../apps/web/e2e/quality-corpus.json', import.meta.url), 'utf8')
+);
 const required = process.env.E2E_REQUIRED === '1';
 const skip = (why) => {
   if (required) {
@@ -247,6 +250,23 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
         'video-vimeo-wide',
       ],
     },
+    [qualityCorpus.public.article.slug]: {
+      type: 'article',
+      title: { nl: 'De straat die ruimte maakt', en: 'A street making room' },
+      lead: {
+        nl: 'Een synthetisch lang verhaal over bomen, water en toegankelijkheid.',
+        en: 'A synthetic long read about trees, water and access.',
+      },
+      blocks: [
+        'hero-split-long-label',
+        'quality-long-read',
+        'image-wide-caption-credit',
+        'quote-blockquote',
+        'image-float-left',
+        'image-float-right',
+        'image-full-decorative',
+      ],
+    },
   };
   // And one page per registry example for blocks-registry.spec.ts (TODO #30B): slug
   // `blok-<example name>`, the example alone, in nl and en. Walked from the registry, so a new
@@ -271,7 +291,10 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
     };
   const needed = [];
   for (const slug of Object.keys(pages))
-    if (!(await invoker.run(useCases.listItems, admin, { type: 'page', slug })).items.length)
+    if (
+      !(await invoker.run(useCases.listItems, admin, { type: pages[slug].type ?? 'page', slug }))
+        .items.length
+    )
       needed.push(slug);
   if (needed.length) {
     const sharp = (await import('sharp')).default;
@@ -302,6 +325,8 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
       y: 0.6,
     });
     const portrait = await upload('bomen.jpg', await picture(800, 1000, 110), { x: 0.5, y: 0.5 });
+    const square = await upload('plein.jpg', await picture(1000, 1000, 45), { x: 0.5, y: 0.5 });
+    const panorama = await upload('water.jpg', await picture(1800, 750, 175), { x: 0.5, y: 0.5 });
     const [signupItem] = (
       await invoker.run(useCases.listItems, admin, { type: 'page', slug: 'signup' })
     ).items;
@@ -356,6 +381,86 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
         ),
       },
     };
+    // A stable long read makes image loading, lists, links, headings and text layout measurable.
+    // The short registry examples remain the per-block edge cases, never the quality benchmark.
+    const paragraph = (sentences) => ({
+      type: 'paragraph',
+      content: [{ type: 'text', text: sentences.join(' ') }],
+    });
+    const list = (type, labels) => ({
+      type,
+      content: labels.map((label) => ({ type: 'list_item', content: [paragraph([label])] })),
+    });
+    const longRead = (locale) => {
+      const nl = locale === 'nl';
+      const sentences = nl
+        ? [
+            'Bewoners bespreken de schaduw van bomen, veilige stoepen en ruimte om elkaar te ontmoeten.',
+            'Een brede oversteek helpt kinderen en ouderen om de drukke straat zelfstandig te gebruiken.',
+            'Op warme dagen zoeken wandelaars koelte terwijl regenwater langzaam naar de nieuwe plantvakken stroomt.',
+            'De buurt telt bestaande bomen en noteert zorgvuldig waar wortels en leidingen elkaar raken.',
+            'Vrijwilligers spreken met winkeliers over laden, lossen, fietsparkeren en een toegankelijke ingang.',
+            'De gemeente legt de tekeningen op tafel zodat iedereen de gevolgen per straatdeel kan zien.',
+            'Na iedere bijeenkomst verschijnt een samenvatting met open vragen en een datum voor reactie.',
+            'Het voorstel combineert onderhoud, veilig verkeer en meer groen zonder de doorgang te blokkeren.',
+          ]
+        : [
+            'Neighbours discuss tree shade, safe pavements and space to meet each other in the street.',
+            'A broad crossing helps children and older people use the busy road without assistance.',
+            'On hot days walkers find shade while rainwater flows slowly towards the new planting beds.',
+            'Residents count existing trees and carefully note where roots and underground pipes meet.',
+            'Volunteers ask shopkeepers about deliveries, bicycle parking and an entrance everyone can use.',
+            'The council lays out the drawings so everyone can see the effect on each block.',
+            'Every meeting is followed by a summary with open questions and a date for responses.',
+            'The proposal combines maintenance, safe movement and more greenery without blocking the route.',
+          ];
+      return {
+        type: 'doc',
+        content: [
+          {
+            type: 'heading',
+            attrs: { level: 2 },
+            content: [{ type: 'text', text: nl ? 'Een gedeelde straat' : 'A shared street' }],
+          },
+          ...Array.from({ length: 9 }, (_, i) =>
+            paragraph([...sentences.slice(i % 4), ...sentences.slice(0, i % 4)])
+          ),
+          list('bullet_list', sentences.slice(0, 2)),
+          {
+            type: 'heading',
+            attrs: { level: 2 },
+            content: [{ type: 'text', text: nl ? 'Wat verandert' : 'What changes' }],
+          },
+          ...Array.from({ length: 9 }, (_, i) =>
+            paragraph([...sentences.slice(i % 4), ...sentences.slice(0, i % 4)])
+          ),
+          list('ordered_list', sentences.slice(2, 4)),
+          {
+            type: 'heading',
+            attrs: { level: 2 },
+            content: [{ type: 'text', text: nl ? 'Lees verder' : 'Read more' }],
+          },
+          ...Array.from({ length: 5 }, (_, i) =>
+            paragraph([...sentences.slice(i % 4), ...sentences.slice(0, i % 4)])
+          ),
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: nl ? 'Bekijk het formulier' : 'See the form',
+                marks: [{ type: 'link', attrs: { itemId: EXAMPLE_IDS.item } }],
+              },
+            ],
+          },
+        ],
+      };
+    };
+    examples['quality-long-read'] = {
+      type: 'rich-text',
+      version: 1,
+      props: { content: { nl: longRead('nl'), en: longRead('en') } },
+    };
     const swap = (block) =>
       JSON.parse(
         JSON.stringify(block)
@@ -364,15 +469,29 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
           .replaceAll(EXAMPLE_IDS.item, signupItem.id)
           .replaceAll(EXAMPLE_IDS.form, formId)
       );
+    const qualityImages = [landscape.id, portrait.id, square.id, panorama.id];
+    const qualityAuthor = await uow.run(admin, (ctx) => ctx.authors.findBySlug('e2e-auteur'));
+    const qualitySection = await uow.run(admin, (ctx) => ctx.sections.findBySlug('e2e-stad'));
     for (const slug of needed) {
+      const blocks = pages[slug].blocks.map((name) => swap(examples[name]));
+      if (slug === qualityCorpus.public.article.slug) {
+        let image = 0;
+        for (const block of blocks)
+          if (block.type === 'image') block.props.mediaId = qualityImages[image++];
+      }
       const { item, revision } = await invoker.run(useCases.createItem, admin, {
         slug,
         document: {
-          type: 'page',
+          type: pages[slug].type ?? 'page',
           defaultLocale: 'nl',
           locales: ['nl', 'en'],
           title: pages[slug].title,
-          blocks: pages[slug].blocks.map((name) => swap(examples[name])),
+          blocks,
+          ...(pages[slug].lead && { lead: pages[slug].lead }),
+          ...(pages[slug].type === 'article' && {
+            authorIds: [qualityAuthor.id],
+            sectionId: qualitySection.id,
+          }),
           ...(pages[slug].access && { access: pages[slug].access }),
         },
       });
