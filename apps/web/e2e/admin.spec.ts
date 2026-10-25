@@ -47,7 +47,12 @@ test('an admin logs in, makes an API key that works over HTTP, and revokes it', 
 }) => {
   await login(page, 'e2e-admin@probe.test', '/admin/probe');
   await expect(page.getByRole('heading', { level: 1, name: 'Probe' })).toBeVisible();
-  await expect(page.getByText('Ingelogd als e2e-admin@probe.test.')).toBeVisible();
+  await expect(
+    page.locator('.admin-sidebar-bottom').getByText('e2e-admin@probe.test')
+  ).toBeVisible();
+  await expect(
+    page.locator('.admin-sidebar-bottom').getByRole('button', { name: 'Uitloggen' })
+  ).toBeVisible();
   expect(await page.locator('script').count()).toBe(0);
   await expectNoAxeViolations(page);
 

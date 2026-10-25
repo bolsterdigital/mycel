@@ -3,7 +3,6 @@
      issues linked to their fields. -->
 <script lang="ts">
   import BlockFields from '#lib/admin/BlockFields.svelte';
-  import Header from '#lib/admin/Header.svelte';
   import { BLOCK_DEFINITIONS } from '@mycel/core';
   import { fill, ui, type UiKey } from '../../../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
@@ -33,7 +32,6 @@
   <title>{form ? `${t('error.prefix')} ` : ''}{heading} · {t('admin.title')}</title>
 </svelte:head>
 
-<Header locale={data.locale} email={data.email} />
 <main class="page admin">
   <h1>{heading}</h1>
   <p>{fill(t('admin.block.new.where'), { title: data.item.title, where })}</p>

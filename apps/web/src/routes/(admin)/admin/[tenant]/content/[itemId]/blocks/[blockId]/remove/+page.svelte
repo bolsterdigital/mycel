@@ -1,7 +1,6 @@
 <!-- Confirm removing one block (TODO #11 B): what goes, and two actions, remove or go back. A
      stale revision is not removed from: the page says who saved in between and links back. -->
 <script lang="ts">
-  import Header from '#lib/admin/Header.svelte';
   import { fill, ui, type UiKey } from '../../../../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -21,7 +20,6 @@
   >
 </svelte:head>
 
-<Header locale={data.locale} email={data.email} />
 <main class="page admin">
   <h1>{t('admin.block.remove.title')}</h1>
   {#if form}

@@ -2,7 +2,6 @@
      its status per locale, and links to edit it or start a new one. Links only, no actions to
      post, so it works without JavaScript; the filter is a list of links that wraps. -->
 <script lang="ts">
-  import Header from '#lib/admin/Header.svelte';
   import { fill, ui, type UiKey } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -16,7 +15,6 @@
   <title>{t('admin.content.title')} · {data.tenant.name} · {t('admin.title')}</title>
 </svelte:head>
 
-<Header locale={data.locale} email={data.email} />
 <main class="page admin">
   <h1>{t('admin.content.title')}</h1>
   <p>

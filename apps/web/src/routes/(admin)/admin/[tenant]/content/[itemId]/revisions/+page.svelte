@@ -2,7 +2,6 @@
      revision (new tab, the default locale), and a GET form that compares two revisions. -->
 <script lang="ts">
   import Diff from '#lib/admin/Diff.svelte';
-  import Header from '#lib/admin/Header.svelte';
   import { fill, ui } from '../../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -19,7 +18,6 @@
   <title>{t('admin.content.revisions')} · {title} · {t('admin.title')}</title>
 </svelte:head>
 
-<Header locale={data.locale} email={data.email} />
 <main class="page admin">
   <h1>{fill(t('admin.content.revisions.title'), { title })}</h1>
   <p><a href="{base}/content/{data.item.id}">{t('admin.content.revisions.back')}</a></p>

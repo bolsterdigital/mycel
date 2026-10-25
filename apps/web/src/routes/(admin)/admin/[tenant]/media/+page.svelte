@@ -4,7 +4,6 @@
      they do not fit, and a long label wraps inside its own control at word boundaries (skill
      ui-action-layout); e2e/media.spec.ts checks 320 CSS px and 200% text. -->
 <script lang="ts">
-  import Header from '#lib/admin/Header.svelte';
   import { fill, ui, type UiKey } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -53,7 +52,6 @@
   >
 </svelte:head>
 
-<Header locale={data.locale} email={data.email} />
 <main class="page admin">
   <h1>{t('admin.media.title')}</h1>
   <p>

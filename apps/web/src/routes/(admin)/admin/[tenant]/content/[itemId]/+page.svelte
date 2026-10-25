@@ -15,7 +15,6 @@
   import BlockFields from '#lib/admin/BlockFields.svelte';
   import Diff from '#lib/admin/Diff.svelte';
   import { BLOCK_DEFINITIONS } from '@mycel/core';
-  import Header from '#lib/admin/Header.svelte';
   import { fill, ui, type UiKey } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -101,7 +100,6 @@
   </div>
 {/snippet}
 
-<Header locale={data.locale} email={data.email} />
 <main class="page admin">
   <h1>{title}</h1>
   <p><a href="{base}/content?type={data.item.type}">{t('admin.content.title')}</a></p>

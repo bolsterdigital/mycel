@@ -5,7 +5,6 @@
      ask button stands alone. e2e/export.spec.ts checks 320 CSS px and 200% text (skill
      ui-action-layout). -->
 <script lang="ts">
-  import Header from '#lib/admin/Header.svelte';
   import { fill, ui, type UiKey } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -40,7 +39,6 @@
   >
 </svelte:head>
 
-<Header locale={data.locale} email={data.email} />
 <main class="page admin">
   <h1>{t('admin.export.title')}</h1>
   <p>

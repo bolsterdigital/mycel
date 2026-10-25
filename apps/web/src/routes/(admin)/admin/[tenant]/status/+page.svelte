@@ -5,7 +5,6 @@
      stands on the page as text and in a read-only field to copy from; nothing sends it. An erasure
      no backup holds after an hour (TODO #29B) is a notice above everything else. -->
 <script lang="ts">
-  import Header from '#lib/admin/Header.svelte';
   import { fill, ui, type UiKey } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -28,7 +27,6 @@
   >
 </svelte:head>
 
-<Header locale={data.locale} email={data.email} />
 <main class="page admin">
   <h1>{t('admin.status.title')}</h1>
   <p>
