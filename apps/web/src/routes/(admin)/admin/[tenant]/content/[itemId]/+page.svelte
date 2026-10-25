@@ -399,7 +399,6 @@
           {#each data.docLocales as l (l)}<option value={l}>{l}</option>{/each}
         </select>
       </div>
-      <p class="muted" role="status" data-live-preview-status></p>
       <iframe
         name="mycel-live-preview"
         title={t('admin.content.preview.live')}

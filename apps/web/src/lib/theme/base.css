@@ -122,17 +122,17 @@
   .page > .preview-selectable {
     display: contents;
   }
-  :is(.page, .page > .preview-selectable) > * {
+  :is(.page, .page > :where(.preview-selectable)) > * {
     width: min(var(--content-width), 100% - 2 * var(--gutter));
     margin-inline: auto;
   }
-  :is(.page, .page > .preview-selectable) > .width-wide,
-  :is(.page, .page > .preview-selectable) > .layout-wide {
+  :is(.page, .page > :where(.preview-selectable)) > .width-wide,
+  :is(.page, .page > :where(.preview-selectable)) > .layout-wide {
     width: min(var(--wide-width), 100% - 2 * var(--gutter));
     clear: both;
   }
-  :is(.page, .page > .preview-selectable) > .width-full,
-  :is(.page, .page > .preview-selectable) > .layout-full {
+  :is(.page, .page > :where(.preview-selectable)) > .width-full,
+  :is(.page, .page > :where(.preview-selectable)) > .layout-full {
     width: 100%;
     clear: both;
   }
@@ -165,21 +165,21 @@
   .credit {
     display: inline-block;
   }
-  :is(.page, .page > .preview-selectable) > .layout-float-left,
-  :is(.page, .page > .preview-selectable) > .layout-float-right {
+  :is(.page, .page > :where(.preview-selectable)) > .layout-float-left,
+  :is(.page, .page > :where(.preview-selectable)) > .layout-float-right {
     width: min(20rem, 45%);
   }
-  :is(.page, .page > .preview-selectable) > .layout-float-left {
+  :is(.page, .page > :where(.preview-selectable)) > .layout-float-left {
     float: left;
     margin: 0 var(--space-3) var(--space-2) max(var(--gutter), (100% - var(--content-width)) / 2);
   }
-  :is(.page, .page > .preview-selectable) > .layout-float-right {
+  :is(.page, .page > :where(.preview-selectable)) > .layout-float-right {
     float: right;
     margin: 0 max(var(--gutter), (100% - var(--content-width)) / 2) var(--space-2) var(--space-3);
   }
   @media (max-width: 40rem) {
-    :is(.page, .page > .preview-selectable) > .layout-float-left,
-    :is(.page, .page > .preview-selectable) > .layout-float-right {
+    :is(.page, .page > :where(.preview-selectable)) > .layout-float-left,
+    :is(.page, .page > :where(.preview-selectable)) > .layout-float-right {
       float: none;
       width: calc(100% - 2 * var(--gutter));
       margin-inline: auto;

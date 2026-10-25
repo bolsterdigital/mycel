@@ -266,6 +266,9 @@
     min-block-size: 28rem;
     border: 2px solid var(--color-muted);
   }
+  .live-preview[hidden] {
+    display: none;
+  }
   .actions button,
   .actions a.button,
   .admin-header button,
