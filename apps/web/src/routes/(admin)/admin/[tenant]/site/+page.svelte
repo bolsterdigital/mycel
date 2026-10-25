@@ -248,6 +248,10 @@
     max-width: 100%;
     min-height: 2.75rem;
   }
+  input[type='file'] {
+    width: 100%;
+    min-width: 0;
+  }
   textarea {
     width: 100%;
   }
@@ -275,8 +279,11 @@
     gap: 0.5rem;
   }
   .brand-actions button {
-    white-space: nowrap;
-    min-width: max-content;
+    max-width: 100%;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: normal;
+    hyphens: manual;
   }
   section img {
     max-width: 12rem;
