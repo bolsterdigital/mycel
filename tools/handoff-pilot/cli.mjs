@@ -79,7 +79,11 @@ function alive(pid) {
   if (!pid) return false;
   try {
     process.kill(pid, 0);
-    return true;
+    const processState = spawnSync('/bin/ps', ['-o', 'stat=', '-p', String(pid)], {
+      encoding: 'utf8',
+      timeout: 1000,
+    });
+    return processState.status === 0 && !processState.stdout.trim().startsWith('Z');
   } catch {
     return false;
   }
@@ -287,18 +291,44 @@ function verifyActivation(approval, proof) {
   shell('git', ['cat-file', '-e', `${approval.planningCommit}:${approval.reviewRecord}`], planning);
   shell('git', ['merge-base', '--is-ancestor', approval.planningCommit, 'origin/main'], planning);
 }
-function stopIfControl(state) {
-  if (existsSync(ctl('stop'))) {
-    stop(state);
-    save(state);
-    return true;
+function terminateChild(state, signal = 'SIGTERM') {
+  if (!alive(state.pending?.childPid)) return;
+  try {
+    process.kill(-state.pending.childPid, signal);
+  } catch {
+    process.kill(state.pending.childPid, signal);
   }
-  if (existsSync(ctl('pause'))) {
-    pause(state);
-    save(state);
-    return true;
+}
+function supervisorAlive() {
+  const pidFile = join(lockDir, 'pid');
+  return existsSync(pidFile) && alive(Number(readFileSync(pidFile, 'utf8')));
+}
+function beforeLaunch(state) {
+  const item = currentItem(state);
+  if (state.phase !== 'review' && state.phase !== 'merge') return;
+  const proof = state.items[item];
+  if (!proof?.pr || !proof.headSha) fail('No published PR head for next session');
+  const current = prEvidence(proof.pr);
+  if (current.merged || current.headSha !== proof.headSha)
+    fail('PR head changed before the next session');
+  if (state.phase === 'merge') {
+    if (proof.approval?.headSha !== current.headSha || !current.checksGreen)
+      fail('Merge head lacks exact independent approval or green CI');
+    const plan = publishedPlanning();
+    if (plan.local !== plan.remote) fail('Review planning record changed before merge');
+    shell(
+      'git',
+      ['merge-base', '--is-ancestor', proof.approval.planningCommit, plan.remote],
+      planning
+    );
+    const approvedHandoff = shell(
+      'git',
+      ['show', `${proof.approval.planningCommit}:handoff/mbp.md`],
+      planning
+    );
+    if (readFileSync(join(planning, 'handoff/mbp.md'), 'utf8').trim() !== approvedHandoff)
+      fail('Mbp handoff changed after review approval');
   }
-  return false;
 }
 function lock() {
   ensureHome();
@@ -398,22 +428,28 @@ async function daemon() {
   try {
     while (true) {
       let state = load();
-      if (stopIfControl(state)) return;
-      let action = nextAction(state);
-      if (action.kind === 'halt') {
-        if (action.reason === 'wall-clock-limit' && alive(state.pending?.childPid)) {
-          try {
-            process.kill(-state.pending.childPid, 'SIGTERM');
-          } catch {
-            process.kill(state.pending.childPid, 'SIGTERM');
-          }
-        }
-        state.status = action.reason === 'allowlist-complete' ? 'complete' : 'blocked';
-        state.stopReason = action.reason;
+      if (existsSync(ctl('stop'))) {
+        terminateChild(state);
+        stop(state);
         save(state);
         return;
       }
-      if (action.kind === 'reconcile') {
+      const paused = existsSync(ctl('pause'));
+      if (paused && state.status === 'active') {
+        pause(state);
+        save(state);
+      } else if (!paused && state.status === 'paused') {
+        resume(state);
+        save(state);
+      }
+      if (Date.now() - Date.parse(state.startedAt) >= state.maxMinutes * 60_000) {
+        terminateChild(state);
+        state.status = 'blocked';
+        state.stopReason = 'wall-clock-limit';
+        save(state);
+        return;
+      }
+      if (state.pending) {
         const pending = state.pending;
         if (pending.status === 'reserved') {
           state.status = 'blocked';
@@ -447,8 +483,32 @@ async function daemon() {
         save(state);
         continue;
       }
+      if (paused) return;
+      let action = nextAction(state);
+      if (action.kind === 'halt') {
+        state.status = action.reason === 'allowlist-complete' ? 'complete' : 'blocked';
+        state.stopReason = action.reason;
+        save(state);
+        return;
+      }
       const cfg = state.config;
-      launch(state, action, cfg);
+      try {
+        beforeLaunch(state);
+        launch(state, action, cfg);
+      } catch (error) {
+        state = load();
+        terminateChild(state);
+        state.status = 'blocked';
+        state.stopReason = `prelaunch: ${error.message}`;
+        state.events.push({
+          kind: 'prelaunch-block',
+          item: action.item,
+          phase: action.phase,
+          reason: error.message,
+        });
+        save(state);
+        return;
+      }
     }
   } finally {
     unlock();
@@ -559,11 +619,15 @@ function status() {
   return {
     runId: state.runId,
     lane: state.lane,
-    status: existsSync(ctl('pause'))
-      ? 'paused'
+    status: ['blocked', 'complete', 'stopped'].includes(state.status)
+      ? state.status
       : existsSync(ctl('stop'))
-        ? 'stopped'
-        : state.status,
+        ? 'stopping'
+        : existsSync(ctl('pause'))
+          ? state.status === 'paused'
+            ? 'paused'
+            : 'pausing'
+          : state.status,
     item,
     phase,
     model: state.pending?.model ?? (item ? model(phase, state.config.tiers[item]).name : null),
@@ -618,19 +682,28 @@ try {
   } else if (command === 'daemon') await daemon();
   else if (command === 'status') console.log(JSON.stringify(status(), null, 2));
   else if (command === 'pause') {
-    load();
+    const state = load();
+    if (['complete', 'stopped', 'blocked'].includes(state.status))
+      fail(`Cannot pause ${state.status} run`);
     ensureHome();
     writeFileSync(ctl('pause'), '1', { mode: 0o600 });
-    console.log('Pause requested; no new sessions will start');
+    if (!supervisorAlive()) {
+      pause(state);
+      save(state);
+    } else {
+      for (let attempt = 0; attempt < 300 && load().status !== 'paused'; attempt++)
+        await sleep(100);
+      if (load().status !== 'paused') fail('Supervisor did not acknowledge pause');
+    }
+    console.log('Paused; no new sessions will start');
   } else if (command === 'resume') {
     const state = load();
     if (state.status === 'stopped' || state.status === 'complete') fail('This run cannot resume');
-    if (
-      existsSync(join(lockDir, 'pid')) &&
-      alive(Number(readFileSync(join(lockDir, 'pid'), 'utf8')))
-    )
-      fail('Supervisor is already running');
     rmSync(ctl('pause'), { force: true });
+    if (supervisorAlive()) {
+      console.log('Supervisor resumed');
+      process.exit(0);
+    }
     if (state.status === 'paused') resume(state);
     save(state);
     const child = spawn(process.execPath, [fileURLToPath(import.meta.url), 'daemon'], {
@@ -642,17 +715,27 @@ try {
   } else if (command === 'stop') {
     ensureHome();
     writeFileSync(ctl('stop'), '1', { mode: 0o600 });
-    const state = load();
-    if (alive(state.pending?.childPid)) {
-      try {
-        process.kill(-state.pending.childPid, 'SIGTERM');
-      } catch {
-        process.kill(state.pending.childPid, 'SIGTERM');
+    if (supervisorAlive()) {
+      for (let attempt = 0; attempt < 300 && load().status !== 'stopped'; attempt++) {
+        if (!supervisorAlive()) break;
+        await sleep(100);
       }
     }
-    stop(state);
-    save(state);
-    console.log('Stop requested and active agent process group terminated');
+    if (load().status !== 'stopped' && !supervisorAlive()) {
+      const state = load();
+      if (state.pending?.status === 'reserved')
+        fail('Supervisor exited with an unconfirmed launch; inspect processes and logs');
+      terminateChild(state);
+      stop(state);
+      save(state);
+    }
+    if (load().status !== 'stopped') fail('Supervisor did not acknowledge stop');
+    const stopped = load();
+    for (let attempt = 0; attempt < 50 && alive(stopped.pending?.childPid); attempt++)
+      await sleep(100);
+    if (alive(stopped.pending?.childPid)) terminateChild(stopped, 'SIGKILL');
+    if (alive(stopped.pending?.childPid)) fail('Agent process remains alive after stop');
+    console.log('Stopped; active agent process group terminated');
   } else if (command === 'logs') {
     ensureHome();
     const files = readdirSync(home)

@@ -305,3 +305,19 @@ test('ordinary handoffs do not inspect an audit ref before the threshold', () =>
     'registered-task'
   );
 });
+
+test('wall-clock configuration cannot exceed the six-hour pilot ceiling', () => {
+  assert.throws(
+    () =>
+      newRun({
+        runId: 'oversize',
+        lane: 'mbp',
+        allowlist: ['#44'],
+        maxSessions: 8,
+        maxRepairs: 2,
+        maxMinutes: 361,
+      }),
+    /1 to 360 minutes/
+  );
+  assert.equal(run(['#44']).maxMinutes, 360);
+});

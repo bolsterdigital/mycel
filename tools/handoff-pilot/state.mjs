@@ -15,8 +15,8 @@ export function newRun(config, now = new Date().toISOString()) {
     throw new Error('Session limit must be 1 to 8');
   if (!Number.isInteger(config.maxRepairs) || config.maxRepairs < 0 || config.maxRepairs > 2)
     throw new Error('Repair limit must be 0 to 2');
-  if (!Number.isInteger(config.maxMinutes) || config.maxMinutes < 1)
-    throw new Error('Wall clock limit required');
+  if (!Number.isInteger(config.maxMinutes) || config.maxMinutes < 1 || config.maxMinutes > 360)
+    throw new Error('Wall clock limit must be 1 to 360 minutes');
   return {
     schema: 1,
     runId: config.runId,
