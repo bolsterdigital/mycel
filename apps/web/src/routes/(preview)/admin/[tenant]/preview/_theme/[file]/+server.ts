@@ -4,7 +4,7 @@ import { error } from '@sveltejs/kit';
 import { adminMediaPrincipal } from '#lib/server/admin.js';
 import { PREVIEW_HEADERS, previewSite } from '#lib/server/preview.js';
 import { runtime } from '#lib/server/runtime.js';
-import { siteTheme } from '#lib/server/theme.js';
+import { siteTheme, themePath } from '#lib/server/theme.js';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ params, locals }) => {
@@ -12,7 +12,15 @@ export const GET: RequestHandler = async ({ params, locals }) => {
   const tenant = await runtime().tenants.findBySlug(params.tenant);
   if (!tenant) error(404, 'Not found');
   const theme = await siteTheme(await previewSite(tenant));
-  if (params.file !== `${theme.hash}.css`) error(404, 'Not found');
+  if (!/^[0-9a-f]{16}\.css$/.test(params.file)) error(404, 'Not found');
+  if (params.file !== `${theme.hash}.css`)
+    return new Response(null, {
+      status: 302,
+      headers: {
+        location: `/admin/${params.tenant}/preview${themePath(theme.hash)}`,
+        ...PREVIEW_HEADERS,
+      },
+    });
   return new Response(theme.css, {
     headers: { 'content-type': 'text/css; charset=utf-8', ...PREVIEW_HEADERS },
   });

@@ -30,6 +30,7 @@ import {
   type UnitOfWork,
 } from '@mycel/core';
 import { auditRepository } from './audit.js';
+import { siteSettingsRepository } from './site-settings.js';
 import { connectionIntentsRepository } from './connection-intents.js';
 import { connectionRepository, credentialKey } from './connections.js';
 import { assistRepository } from './assist.js';
@@ -214,6 +215,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           platform: deps.platform,
           events: outboxEventBus(trx),
           content: contentRepository(trx, tenantId),
+          siteSettings: siteSettingsRepository(trx, tenantId),
           assist: assistRepository(trx, tenantId),
           connections: connectionRepository(
             trx,

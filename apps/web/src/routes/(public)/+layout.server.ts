@@ -12,7 +12,7 @@ import { ui } from '../../i18n/index.js';
 import { localeOf } from '#lib/server/content-route.js';
 import { runtime } from '#lib/server/runtime.js';
 import { sitePath, siteTenant } from '#lib/server/site.js';
-import { siteTheme, themePath } from '#lib/server/theme.js';
+import { siteChrome, siteTheme, themePath } from '#lib/server/theme.js';
 import type { LayoutServerLoad } from './$types';
 
 export const csr = false;
@@ -22,13 +22,37 @@ const CONTENT_ROUTE = /\/\[\[locale=locale\]\]\/\[\.\.\.path\]$/;
 
 export const load: LayoutServerLoad = async ({ locals, request, params, route }) => {
   const site = locals.site;
-  if (!site) return { credit: null, theme: null };
+  if (!site) return { credit: null, theme: null, chrome: null, locale: 'en' };
   const { hash, preload } = await siteTheme(site);
   const theme = { href: sitePath(site, themePath(hash)), preload };
+  const locale = CONTENT_ROUTE.test(route.id ?? '')
+    ? (localeOf(params.locale, site.tenant) ?? site.tenant.defaultLocale)
+    : negotiateLocale(
+        request.headers.get('accept-language'),
+        site.tenant.locales,
+        site.tenant.defaultLocale
+      );
+  const chrome = await siteChrome(site);
+  const link = (item: { label: Record<string, string>; href: string }) => ({
+    label:
+      item.label[locale] ??
+      item.label[site.tenant.defaultLocale] ??
+      Object.values(item.label)[0] ??
+      '',
+    href: item.href.startsWith('/') ? sitePath(site, item.href) : item.href,
+  });
+  const publicChrome = {
+    navigation: chrome.navigation.map(link),
+    legal: chrome.legal.map(link),
+    footer: chrome.footer[locale] ?? chrome.footer[site.tenant.defaultLocale] ?? '',
+    support: chrome.support ? link(chrome.support) : null,
+    help: chrome.help ? link(chrome.help) : null,
+  };
+  const base = { theme, chrome: publicChrome, locale };
   if (entitled(anonymousPrincipal(siteTenant(site), []), 'remove_branding'))
-    return { credit: null, theme };
+    return { ...base, credit: null };
   return {
-    theme,
+    ...base,
     credit: {
       href: runtime().config.PLATFORM_CREDIT_URL,
       label: ui(

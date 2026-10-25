@@ -16,11 +16,13 @@
         ? 'media'
         : path.startsWith(`${base}/connections`)
           ? 'connections'
-          : path.startsWith(`${base}/status`)
-            ? 'status'
-            : path.startsWith(`${base}/export`)
-              ? 'export'
-              : 'overview'
+          : path.startsWith(`${base}/site`)
+            ? 'site'
+            : path.startsWith(`${base}/status`)
+              ? 'status'
+              : path.startsWith(`${base}/export`)
+                ? 'export'
+                : 'overview'
   );
   const has = (capability: (typeof data.capabilities)[number]) =>
     data.capabilities.includes(capability) || data.capabilities.includes('tenant:admin');
@@ -54,6 +56,11 @@
             >{t('admin.connections.link')}</a
           >
         {/if}
+        {#if has('content:write')}
+          <a href="{base}/site" aria-current={section === 'site' ? 'page' : undefined}
+            >{t('admin.shell.settings')}</a
+          >
+        {/if}
         {#if has('tenant:admin')}
           <a href="{base}/status" aria-current={section === 'status' ? 'page' : undefined}
             >{t('admin.status.link')}</a
@@ -61,7 +68,6 @@
           <a href="{base}/export" aria-current={section === 'export' ? 'page' : undefined}
             >{t('admin.export.link')}</a
           >
-          <a href="{base}#members">{t('admin.shell.settings')}</a>
         {/if}
       </nav>
     </details>

@@ -1,31 +1,60 @@
-// The stylesheet of a site's theme (brief #8c § 3). Until tenant themes are stored (#11) every
-// site gets DEFAULT_THEME; #11 changes only `themeOf`. The CSS and its hash are computed once per
-// theme and kept, because the theme is the same on every request until #11 makes it data.
-
-import { DEFAULT_THEME, type ResolvedTheme } from '@mycel/core';
+// Public appearance is read through the registry under the site's tenant context (ADR 002, 013).
+// A request may ask for the theme and chrome from both page and layout loads: keep one promise
+// per Site object so those loads cannot disagree or duplicate transactions. Rejected: process-
+// global caching of tenant values, which could outlive an edit without a reliable invalidation.
+import { anonymousPrincipal, useCases, type ResolvedTheme, type SiteChrome } from '@mycel/core';
 import { preloadFonts, themeCss, themeHash } from '../theme/tokens.js';
-import type { Site } from './site.js';
+import { runtime } from './runtime.js';
+import { siteTenant, type Site } from './site.js';
 
 export interface SiteTheme {
   css: string;
   hash: string;
-  /** Font files the layout preloads. */
   preload: string[];
 }
 
-const cache = new WeakMap<ResolvedTheme, Promise<SiteTheme>>();
+const bySite = new WeakMap<Site, Promise<SiteTheme>>();
+const chromeBySite = new WeakMap<Site, Promise<SiteChrome>>();
+const cssCache = new Map<string, Promise<SiteTheme>>();
 
-function themeOf(_site: Site): ResolvedTheme {
-  return DEFAULT_THEME;
+async function loadSiteTheme(site: Site): Promise<SiteTheme> {
+  const { value: theme } = await runtime().invoker.run(
+    useCases.getSiteTheme,
+    anonymousPrincipal(siteTenant(site), ['content:read']),
+    {}
+  );
+  const key = JSON.stringify(theme);
+  let found = cssCache.get(key);
+  if (!found) {
+    const css = themeCss(theme as ResolvedTheme);
+    found = themeHash(css).then((hash) => ({ css, hash, preload: preloadFonts(theme.fontPair) }));
+    // The cache is only an optimization for repeated themes; tenant data is read on each request.
+    if (cssCache.size >= 128) cssCache.delete(cssCache.keys().next().value!);
+    cssCache.set(key, found);
+  }
+  return found;
 }
 
 export function siteTheme(site: Site): Promise<SiteTheme> {
-  const theme = themeOf(site);
-  let found = cache.get(theme);
+  let found = bySite.get(site);
   if (!found) {
-    const css = themeCss(theme);
-    found = themeHash(css).then((hash) => ({ css, hash, preload: preloadFonts(theme.fontPair) }));
-    cache.set(theme, found);
+    found = loadSiteTheme(site);
+    bySite.set(site, found);
+  }
+  return found;
+}
+
+export function siteChrome(site: Site): Promise<SiteChrome> {
+  let found = chromeBySite.get(site);
+  if (!found) {
+    found = runtime()
+      .invoker.run(
+        useCases.getSiteChrome,
+        anonymousPrincipal(siteTenant(site), ['content:read']),
+        {}
+      )
+      .then(({ value }) => value);
+    chromeBySite.set(site, found);
   }
   return found;
 }

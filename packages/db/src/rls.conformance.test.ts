@@ -207,6 +207,10 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     });
     const invoker = new Invoker(buildRegistry(), uow);
     const admin = systemPrincipal(tenantId, 'rls-test');
+    await invoker.run(useCases.updateSiteTheme, admin, {
+      baseVersion: 0,
+      theme: useCases.updateSiteTheme.examples[0].input.theme,
+    });
     const connection = await invoker.run(useCases.createConnection, admin, {
       provider: 'webhook',
       accountRef: null,
