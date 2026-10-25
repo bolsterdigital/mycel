@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   auditTaskToInspect,
+  handoffEvidence,
   markLaunched,
   newRun,
   nextAction,
@@ -80,6 +81,47 @@ const merge = {
   handoffCommitted: true,
   housekeepingVerified: true,
 };
+
+test('merged item accepts the next handoff tier after an exact-head merge', () => {
+  const files = ['handoff/mbp.md'];
+  const handoff = 'uitvoer\n# Bouw #11 D live preview, tier flagship-review';
+  assert.equal(
+    handoffEvidence({
+      phase: 'merge',
+      outcome: 'merged',
+      files,
+      handoff,
+      currentTier: 'workhorse',
+      nextItem: null,
+      nextTier: null,
+    }),
+    true
+  );
+  assert.equal(
+    handoffEvidence({
+      phase: 'merge',
+      outcome: 'merged',
+      files,
+      handoff,
+      currentTier: 'workhorse',
+      nextItem: '#43B',
+      nextTier: 'workhorse',
+    }),
+    false
+  );
+  assert.equal(
+    handoffEvidence({
+      phase: 'audit',
+      outcome: 'audit_done',
+      files,
+      handoff: 'uitvoer\n# Build #43B, tier workhorse',
+      currentTier: 'flagship-review',
+      nextItem: '#43B',
+      nextTier: 'workhorse',
+    }),
+    true
+  );
+});
 function executed(state) {
   launch(state, 'author');
   recordResult(state, result(state, 'author', 'pr_ready'), execution);

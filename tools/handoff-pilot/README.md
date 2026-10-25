@@ -34,6 +34,8 @@ Each agent returns a schema-checked technical result with run and reserved sessi
 
 On crash, `resume` inspects the saved reservation and child process. If the child finished, it validates the saved result against GitHub and Git before advancing. It never replays an already verified merge. A reservation with no result, invalid handoff, stale approval or exhausted limit blocks and needs manual inspection of `status`, logs and external systems before a new run. Do not edit state to force a transition. Use a new bounded pilot after repairing the cause and preserving the previous logs. `stop` ends a run permanently.
 
+After merge or audit, the verifier checks the next handoff against the next allowlisted item's tier. When the allowlist is exhausted, the ordinary repo handoff may point to a different tier; the completed item's tier is no longer a valid requirement for that handoff.
+
 ## Evaluation
 
 Every session reports deviations with expected criterion, observation, detection, repair, suspected cause, prevention address and evidence. These are persisted alongside immutable session events but have no authority to pass a gate. During and after the pilot, reconcile these observations against [the evaluation brief](../../docs/plans/briefs/handoff-pilot-evaluation.md): whether the cause belongs in a planning brief, an existing conformance test, review criteria, a skill or runner infrastructure. Record the actual edit and a counterexample that would have failed before it. A clean run is not the goal; detecting and preventing repeatable drift is.
