@@ -159,3 +159,81 @@ test('native site forms save theme and chrome with no JavaScript', async ({ page
     expect(violations.map((violation) => violation.id)).toEqual([]);
   }
 });
+
+for (const [locale, language, title, actions] of [
+  ['nl', 'nl-NL', 'Site-instellingen', ['Thema opslaan', 'Navigatie en voettekst opslaan']],
+  ['en', 'en-US', 'Site settings', ['Save theme', 'Save navigation and footer']],
+] as const) {
+  test.describe(`${locale} admin site settings gate`, () => {
+    test.use({ locale: language });
+
+    test('keeps the real admin form accessible at 320 px and enlarged text', async ({ page }) => {
+      await page.goto(`/admin/${slug}/site`);
+      await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
+      await page.getByLabel('E-mail').fill(`site-editor-${slug}@probe.test`);
+      await page.getByRole('button', { name: 'Sign in' }).click();
+      await expect(page).toHaveURL(new RegExp(`/admin/${slug}/site$`));
+      await expect(page.getByRole('heading', { name: title, level: 1 })).toBeVisible();
+      await expect(page.locator('html')).toHaveAttribute('lang', locale);
+      await expect(page.locator('form[action="?/theme"]')).toBeVisible();
+      await expect(page.locator('form[action="?/chrome"]')).toBeVisible();
+
+      const buttons = actions.map((name) => page.getByRole('button', { name, exact: true }));
+      for (const button of buttons) await expect(button).toBeVisible();
+      const fontSize = await page.evaluate(() => {
+        document.documentElement.style.fontSize = '200%';
+        return parseFloat(getComputedStyle(document.documentElement).fontSize);
+      });
+      expect(fontSize).toBeGreaterThanOrEqual(32);
+
+      const layout = await page.evaluate(() => {
+        const controls = [
+          ...document.querySelectorAll<HTMLElement>(
+            '.admin-page input:not([type="hidden"]), .admin-page select, .admin-page textarea, .admin-page button'
+          ),
+        ];
+        const labels = [...document.querySelectorAll<HTMLElement>('.admin-page label')];
+        return {
+          viewport: innerWidth,
+          document: document.documentElement.scrollWidth,
+          controls: controls.map((node) => ({
+            name: node.getAttribute('name') ?? node.textContent?.trim() ?? '',
+            width: node.getBoundingClientRect().width,
+            height: node.getBoundingClientRect().height,
+            right: node.getBoundingClientRect().right,
+            scrollWidth: node.scrollWidth,
+            clientWidth: node.clientWidth,
+          })),
+          labels: labels.map((node) => ({
+            text: node.textContent?.trim() ?? '',
+            right: node.getBoundingClientRect().right,
+            scrollWidth: node.scrollWidth,
+            clientWidth: node.clientWidth,
+          })),
+        };
+      });
+      expect(layout.document).toBeLessThanOrEqual(layout.viewport);
+      for (const control of layout.controls) {
+        expect(control.width, control.name).toBeGreaterThanOrEqual(44);
+        expect(control.height, control.name).toBeGreaterThanOrEqual(44);
+        expect(control.right, control.name).toBeLessThanOrEqual(layout.viewport);
+        expect(control.scrollWidth, control.name).toBeLessThanOrEqual(control.clientWidth);
+      }
+      for (const label of layout.labels) {
+        expect(label.right, label.text).toBeLessThanOrEqual(layout.viewport);
+        expect(label.scrollWidth, label.text).toBeLessThanOrEqual(label.clientWidth);
+      }
+      await page.screenshot({
+        path: test.info().outputPath(`site-settings-${locale}-320-text-200.png`),
+        fullPage: true,
+      });
+      if (test.info().project.name === 'a11y') {
+        const { violations } = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
+          .analyze();
+        expect(violations.map((violation) => violation.id)).toEqual([]);
+      }
+      await expect(page).toHaveURL(new RegExp(`/admin/${slug}/site$`));
+    });
+  });
+}
