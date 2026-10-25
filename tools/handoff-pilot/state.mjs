@@ -48,6 +48,32 @@ export function auditTaskToInspect(state, ledger) {
   return state.auditTask?.id ?? (ledger.threshold_met ? ledger.task_id : null);
 }
 
+export function handoffEvidence({
+  phase,
+  outcome,
+  files,
+  handoff,
+  currentTier,
+  nextItem,
+  nextTier,
+  pr,
+  headSha,
+}) {
+  if (!files.includes('handoff/mbp.md')) return false;
+  const phaseWord =
+    phase === 'execute'
+      ? 'review'
+      : phase === 'review'
+        ? outcome === 'approved'
+          ? 'merge'
+          : 'uitvoer'
+        : 'uitvoer';
+  if (!handoff.toLowerCase().includes(phaseWord)) return false;
+  if (phase === 'merge' || phase === 'audit')
+    return !nextItem || (handoff.includes(nextItem) && handoff.includes(nextTier));
+  return handoff.includes(currentTier) && handoff.includes(`#${pr}`) && handoff.includes(headSha);
+}
+
 export function nextAction(state, now = new Date().toISOString()) {
   if (state.status !== 'active') return { kind: 'halt', reason: state.stopReason ?? state.status };
   if (Date.parse(now) - Date.parse(state.startedAt) >= state.maxMinutes * 60_000)
@@ -238,7 +264,8 @@ export function recordResult(state, result, external) {
     if (
       result.outcome === 'audit_done' &&
       external.auditTask?.id === state.auditTask?.id &&
-      external.auditTask.status === 'done'
+      external.auditTask.status === 'done' &&
+      external.handoffCommitted
     ) {
       state.events.push({
         kind: 'audit',
@@ -250,7 +277,8 @@ export function recordResult(state, result, external) {
       result.outcome === 'audit_taken_elsewhere' &&
       external.auditTask?.id === state.auditTask?.id &&
       external.auditTask.status === 'claimed' &&
-      external.auditTask.owner?.lane === 'dev'
+      external.auditTask.owner?.lane === 'dev' &&
+      external.handoffCommitted
     ) {
       state.events.push({
         kind: 'audit',

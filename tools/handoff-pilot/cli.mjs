@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 import {
   auditTaskToInspect,
   currentItem,
+  handoffEvidence,
   markLaunched,
   newRun,
   nextAction,
@@ -217,27 +218,21 @@ function externalFor(state, result) {
   ).split('\n');
   if (files.includes('handoff/dev.md')) fail('The mbp chain changed the dev handoff');
   const handoff = readFileSync(join(planning, 'handoff/mbp.md'), 'utf8');
-  const phaseWord =
-    state.pending.phase === 'execute'
-      ? 'review'
-      : state.pending.phase === 'review'
-        ? result.outcome === 'approved'
-          ? 'merge'
-          : 'uitvoer'
-        : 'uitvoer';
-  const nextItem = state.allowlist[state.index + 1];
-  const handoffValid =
-    files.includes('handoff/mbp.md') &&
-    handoff.toLowerCase().includes(phaseWord) &&
-    handoff.includes(state.config.tiers[state.pending.item]) &&
-    (state.pending.phase === 'merge'
-      ? !nextItem || handoff.includes(nextItem)
-      : handoff.includes(`#${result.pr ?? item.pr}`)) &&
-    (state.pending.phase === 'execute'
-      ? handoff.includes(result.headSha)
-      : state.pending.phase === 'review'
-        ? handoff.includes(item.headSha)
-        : true);
+  const nextItem =
+    state.pending.phase === 'audit'
+      ? state.allowlist[state.index]
+      : state.allowlist[state.index + 1];
+  const handoffValid = handoffEvidence({
+    phase: state.pending.phase,
+    outcome: result.outcome,
+    files,
+    handoff,
+    currentTier: state.config.tiers[state.pending.item],
+    nextItem,
+    nextTier: nextItem ? state.config.tiers[nextItem] : null,
+    pr: result.pr ?? item.pr,
+    headSha: state.pending.phase === 'execute' ? result.headSha : item.headSha,
+  });
   const housekeepingFiles = ['TODO.md', 'done/register.md', '_reconcile/drift-log.md'];
   const housekeepingVerified =
     !!result.housekeepingCommit &&
