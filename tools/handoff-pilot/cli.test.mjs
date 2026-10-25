@@ -232,14 +232,12 @@ test('stop during model selection acknowledges only after any late child is gone
 
 test('pause keeps enforcing the wall-clock deadline for a running child', async (t) => {
   const f = fixture(t);
-  const child = spawn(
-    process.execPath,
-    ['-e', 'process.on("SIGTERM", () => {}); setInterval(() => {}, 1000)'],
-    {
-      detached: true,
-      stdio: 'ignore',
-    }
-  );
+  const descendantMarker = join(f.root, 'descendant.pid');
+  const leaderCode = `const { spawn } = require('node:child_process'); const fs = require('node:fs'); const child = spawn(process.execPath, ['-e', 'process.on("SIGTERM", () => {}); setInterval(() => {}, 1000)'], { stdio: 'ignore' }); fs.writeFileSync(${JSON.stringify(descendantMarker)}, String(child.pid)); process.on('SIGTERM', () => process.exit(0)); setInterval(() => {}, 1000);`;
+  const child = spawn(process.execPath, ['-e', leaderCode], {
+    detached: true,
+    stdio: 'ignore',
+  });
   const childExit = new Promise((done) => child.once('exit', done));
   t.after(() => {
     try {
@@ -248,6 +246,8 @@ test('pause keeps enforcing the wall-clock deadline for a running child', async 
       /* already stopped */
     }
   });
+  await waitForFile(descendantMarker);
+  const descendantPid = Number(readFileSync(descendantMarker, 'utf8'));
   const state = newRun(
     {
       runId: 'fixture',
@@ -287,4 +287,8 @@ test('pause keeps enforcing the wall-clock deadline for a running child', async 
   );
   await childExit;
   assert.equal(spawnSync('test', ['-e', join(f.home, 'mbp.lock')]).status, 1);
+  const descendant = spawnSync('/bin/ps', ['-o', 'stat=', '-p', String(descendantPid)], {
+    encoding: 'utf8',
+  });
+  assert.ok(descendant.status !== 0 || descendant.stdout.trim().startsWith('Z'));
 });

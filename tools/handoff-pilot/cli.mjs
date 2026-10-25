@@ -88,6 +88,18 @@ function alive(pid) {
     return false;
   }
 }
+function groupAlive(pgid) {
+  if (!pgid) return false;
+  const processes = spawnSync('/bin/ps', ['-A', '-o', 'pgid=,stat='], {
+    encoding: 'utf8',
+    timeout: 1000,
+  });
+  if (processes.status !== 0) return true;
+  return processes.stdout.split('\n').some((line) => {
+    const match = /^\s*(\d+)\s+(\S+)/.exec(line);
+    return match && Number(match[1]) === pgid && !match[2].startsWith('Z');
+  });
+}
 function ctl(name) {
   return join(home, name);
 }
@@ -292,7 +304,7 @@ function verifyActivation(approval, proof) {
   shell('git', ['merge-base', '--is-ancestor', approval.planningCommit, 'origin/main'], planning);
 }
 function terminateChild(state, signal = 'SIGTERM') {
-  if (!alive(state.pending?.childPid)) return;
+  if (!groupAlive(state.pending?.childPid)) return;
   try {
     process.kill(-state.pending.childPid, signal);
   } catch {
@@ -304,19 +316,21 @@ function terminateChild(state, signal = 'SIGTERM') {
   }
 }
 async function terminateAndConfirm(state) {
-  if (!alive(state.pending?.childPid)) return true;
+  if (!groupAlive(state.pending?.childPid)) return true;
   terminateChild(state);
-  for (let attempt = 0; attempt < 10 && alive(state.pending?.childPid); attempt++) await sleep(100);
-  if (!alive(state.pending?.childPid)) return true;
+  for (let attempt = 0; attempt < 10 && groupAlive(state.pending?.childPid); attempt++)
+    await sleep(100);
+  if (!groupAlive(state.pending?.childPid)) return true;
   terminateChild(state, 'SIGKILL');
-  for (let attempt = 0; attempt < 20 && alive(state.pending?.childPid); attempt++) await sleep(100);
-  return !alive(state.pending?.childPid);
+  for (let attempt = 0; attempt < 20 && groupAlive(state.pending?.childPid); attempt++)
+    await sleep(100);
+  return !groupAlive(state.pending?.childPid);
 }
 async function holdUntilDead(state, reason) {
   state.status = 'blocked';
   state.stopReason = `${reason}: child termination unconfirmed`;
   save(state);
-  while (alive(state.pending?.childPid)) {
+  while (groupAlive(state.pending?.childPid)) {
     terminateChild(state, 'SIGKILL');
     await sleep(1000);
   }
@@ -386,7 +400,7 @@ function promptFor(state, phase, item, tier, sessionId) {
   const handoff = readFileSync(join(planning, 'handoff/mbp.md'), 'utf8');
   const queue = readFileSync(join(planning, 'handoff/queue.md'), 'utf8');
   const proof = state.items[item] ?? {};
-  const common = `Fresh session in Mycel's mbp lane. Read AGENTS.md, the relevant ADRs, docs/architecture/overview.md, testing.md, review.md and the werkwijze skill. Execute the ordinary /handoff procedure. The approved pilot scope is only item ${item}, tier ${tier}; do not take another item, answer a Jaap decision, or modify dev handoff. Run ${state.runId}; reserved sessionId ${sessionId}; phase ${phase}. Copy this exact sessionId into the technical result. Write the normal mbp handoff and publish both repos as applicable. Your final response must conform to the supplied JSON schema, with null for unused fields. Include deviations even if empty: observed drift, repairs, cause, prevention address and evidence are evaluation data, never authorization.\n\nCurrent mbp handoff:\n${handoff}\n\nShared queue:\n${queue}`;
+  const common = `Fresh session in Mycel's mbp lane. Read AGENTS.md, the relevant ADRs, docs/architecture/overview.md, testing.md, review.md and the werkwijze skill. Execute the ordinary /handoff procedure. The approved pilot scope is only item ${item}, tier ${tier}; do not take another item, answer a Jaap decision, or modify dev handoff. Do not daemonize work or leave detached subprocesses; finish or terminate child processes before returning. Run ${state.runId}; reserved sessionId ${sessionId}; phase ${phase}. Copy this exact sessionId into the technical result. Write the normal mbp handoff and publish both repos as applicable. Your final response must conform to the supplied JSON schema, with null for unused fields. Include deviations even if empty: observed drift, repairs, cause, prevention address and evidence are evaluation data, never authorization.\n\nCurrent mbp handoff:\n${handoff}\n\nShared queue:\n${queue}`;
   if (phase === 'execute')
     return `${common}\n\nBuild only ${item}, one PR. Do not merge your own PR. Return pr_ready only when the PR, exact head and planning commit are published. For a repair, address the prior review finding on a new head and request independent re-review.`;
   if (phase === 'review')
@@ -479,7 +493,7 @@ async function daemon() {
           save(state);
           return;
         }
-        if (alive(pending.childPid)) {
+        if (groupAlive(pending.childPid)) {
           await sleep(3000);
           continue;
         }
@@ -758,10 +772,10 @@ try {
     }
     if (load().status !== 'stopped') fail('Supervisor did not acknowledge stop');
     const stopped = load();
-    for (let attempt = 0; attempt < 50 && alive(stopped.pending?.childPid); attempt++)
+    for (let attempt = 0; attempt < 50 && groupAlive(stopped.pending?.childPid); attempt++)
       await sleep(100);
-    if (alive(stopped.pending?.childPid)) terminateChild(stopped, 'SIGKILL');
-    if (alive(stopped.pending?.childPid)) fail('Agent process remains alive after stop');
+    if (groupAlive(stopped.pending?.childPid)) terminateChild(stopped, 'SIGKILL');
+    if (groupAlive(stopped.pending?.childPid)) fail('Agent process group remains alive after stop');
     console.log('Stopped; active agent process group terminated');
   } else if (command === 'logs') {
     ensureHome();
