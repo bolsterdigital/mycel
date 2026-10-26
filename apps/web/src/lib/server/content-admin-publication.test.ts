@@ -38,6 +38,7 @@ describe('fieldOf', () => {
     expect(fieldOf('seo.title.en', 'en')).toBe('seoTitle.en');
     expect(fieldOf('authorIds', 'nl')).toBe('authors');
     expect(fieldOf('access.tierIds', 'nl')).toBe('level');
+    expect(fieldOf('locales', 'en')).toBe('publication-en');
     expect(fieldOf('blocks.0.props.text.en', 'en')).toBeNull();
     expect(issuePath('title', 'content.publish.missing-translation', 'en')).toBe('title.en');
     expect(issuePath('authorIds', 'content.publish.author-required', 'en')).toBe('authorIds');
