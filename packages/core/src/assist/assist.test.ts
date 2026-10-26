@@ -10,6 +10,7 @@ import { EXAMPLE_PNG } from '../media/service.js';
 import { FakeClock, FakeTextModel, MemoryLogger, MemoryUnitOfWork } from '../testing/index.js';
 import { runAssistSuggestion } from './worker.js';
 import { readinessIssues } from '../content/model.js';
+import { normalizeBlocks } from '../content/blocks.js';
 
 const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const system = systemPrincipal(TENANT, 'test');
@@ -86,6 +87,79 @@ async function setup() {
 }
 
 describe('translation boundary', () => {
+  it('keeps review required after a pre-normalised whole-document save', async () => {
+    const { invoker, run, created } = await setup();
+    const text = (value: string) => ({
+      type: 'doc' as const,
+      content: [{ type: 'paragraph' as const, content: [{ type: 'text' as const, text: value }] }],
+    });
+    const rich = (id: string) => ({
+      id,
+      type: 'rich-text' as const,
+      version: 1 as const,
+      props: { content: { nl: text(id), en: text(id) } },
+    });
+    const prepared = await invoker.run(useCases.updateItem, operator, {
+      itemId: created.item.id,
+      baseRevisionId: created.revision.id,
+      document: {
+        ...created.revision.document,
+        blocks: [
+          rich('first'),
+          {
+            id: 'separator',
+            type: 'heading' as const,
+            version: 1 as const,
+            props: { text: { nl: 'Kop', en: 'Heading' } },
+          },
+          rich('second'),
+        ],
+      },
+    });
+    const suggested = await invoker.run(useCases.suggestTranslation, operator, {
+      itemId: created.item.id,
+      baseRevisionId: prepared.revision.id,
+      from: 'nl',
+      to: 'en',
+      targets: ['second'],
+    });
+    await run(suggested.suggestionId);
+    const accepted = await invoker.run(useCases.acceptSuggestion, operator, {
+      suggestionId: suggested.suggestionId,
+      baseRevisionId: prepared.revision.id,
+    });
+    const before = await invoker.run(useCases.getItem, operator, { itemId: created.item.id });
+    const normalized = normalizeBlocks(
+      before.revision.document.blocks.filter((b) => b.id !== 'separator')
+    );
+    expect(normalized.merged).toEqual([{ from: 'second', into: 'first' }]);
+    const agent = { ...system, capabilities: ['content:write', 'content:publish'] as const };
+    const saved = await invoker.run(useCases.updateItem, agent, {
+      itemId: created.item.id,
+      baseRevisionId: accepted.revisionId,
+      document: { ...before.revision.document, blocks: normalized.blocks },
+    });
+    expect(saved.revision.document.machineTranslation?.en).toEqual(['blocks.first.props.content']);
+    expect(JSON.stringify(saved.revision.document.blocks)).toContain('[en] second');
+    expect(readinessIssues(saved.revision.document, 'en')).toContainEqual({
+      path: 'blocks.first.props.content',
+      message: 'content.publish.machine-translation-unreviewed',
+    });
+    await expect(
+      invoker.run(useCases.publishItem, agent, {
+        itemId: created.item.id,
+        revisionId: saved.revision.id,
+        locale: 'en',
+      })
+    ).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(
+      invoker.run(useCases.updateItem, agent, {
+        itemId: created.item.id,
+        baseRevisionId: saved.revision.id,
+        document: { ...saved.revision.document, blocks: [rich('replacement')] },
+      })
+    ).rejects.toMatchObject({ code: 'invalid_input' });
+  });
   it.each(['remove', 'move'] as const)(
     'keeps an accepted translation unreviewed when %s merges its block',
     async (operation) => {

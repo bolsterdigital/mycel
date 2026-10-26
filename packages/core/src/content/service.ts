@@ -227,6 +227,45 @@ export async function writeRevision(
   return { item: toContentItem(next), revision };
 }
 
+/** A whole-document editor may normalise two prose blocks before sending the save. Transfer a
+ * retired block's review marker only when its translated nodes survive intact in one block.
+ * An ambiguous or edited transfer needs explicit approval, so it must fail closed here. */
+function preserveNormalizedTranslationMarkers(
+  previous: ContentDocument,
+  next: ContentDocument
+): ContentDocument {
+  const markers: Record<string, string[]> = {};
+  for (const [locale, paths] of Object.entries(previous.machineTranslation ?? {})) {
+    markers[locale] = [...paths];
+    for (const path of paths) {
+      const match = /^blocks\.([^.]+)\.props\.content$/.exec(path);
+      if (!match) continue;
+      const id = match[1]!;
+      const retained = next.blocks.find((block) => block.id === id);
+      if (retained?.type === 'rich-text' && retained.props.content[locale]) continue;
+      const old = previous.blocks.find((block) => block.id === id);
+      if (old?.type !== 'rich-text') continue;
+      const nodes = old.props.content[locale]?.content;
+      if (!nodes?.length) continue;
+      const candidates = next.blocks.filter((block) => {
+        if (block.type !== 'rich-text') return false;
+        const content = block.props.content[locale]?.content ?? [];
+        return content.some((_, start) =>
+          nodes.every(
+            (node, offset) => JSON.stringify(node) === JSON.stringify(content[start + offset])
+          )
+        );
+      });
+      if (candidates.length !== 1)
+        throw new UseCaseError('invalid_input', 'translated prose cannot be transferred safely', [
+          { path: 'document.blocks', message: 'content.publish.machine-translation-unreviewed' },
+        ]);
+      markers[locale].push(`blocks.${candidates[0]!.id}.props.content`);
+    }
+  }
+  return { ...next, machineTranslation: markers };
+}
+
 /**
  * The references of a block tree must point at this tenant's data (ADR 004 rule 6): forms,
  * linked items, and media that exists, is not deleted and is an image (every media slot is an
@@ -428,7 +467,10 @@ export const updateItem = defineUseCase({
         throw new UseCaseError('invalid_input', `locale "${s.locale}" is published or planned`, [
           { path: 'document.locales', message: `content.locale.still-live:${s.locale}` },
         ]);
-    return writeRevision(ctx, item, finalize(ctx, document, document.blocks));
+    const previous = await ctx.content.revision(itemId, baseRevisionId);
+    if (!previous) throw notFound('revision');
+    const next = finalize(ctx, document, document.blocks);
+    return writeRevision(ctx, item, preserveNormalizedTranslationMarkers(previous.document, next));
   },
 });
 
