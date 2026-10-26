@@ -14,6 +14,8 @@ import {
   recordResult,
   reserveSession as reserve,
   resume,
+  scopeAllows,
+  validateScopes,
   stop,
 } from './state.mjs';
 
@@ -510,4 +512,118 @@ test('green PR evidence cannot replace independent scope proof', () => {
     assert.equal(state.phase, 'execute');
     assert.equal(state.pending.id, 'execute');
   }
+});
+
+test('SvelteKit scope components are literal exact paths and bounded directories', () => {
+  const exact = 'apps/web/src/routes/(admin)/admin/[tenant]/site/+page.server.ts';
+  const directory = 'apps/web/src/routes/(admin)/admin/[tenant]/site/';
+  const sitemap = 'apps/web/src/routes/(public)/[tenant]/sitemap.xml/+server.ts';
+  const scope = { paths: [exact, sitemap], directories: [directory] };
+  assert.equal(validateScopes({ allowlist: ['#38'], scopes: { '#38': scope } })['#38'], scope);
+  for (const path of [exact, sitemap, `${directory}nested/+page.svelte`])
+    assert.equal(scopeAllows(scope, path), true, path);
+  for (const path of [
+    exact.replace('[tenant]', '[site]'),
+    exact.replace('[tenant]', 't'),
+    exact.replace('(admin)', 'admin'),
+    exact.replace('/site/', '/site-extra/'),
+    exact.replace('/site/', '/status/'),
+    sitemap.replace('[tenant]', '[site]'),
+    `${directory}AGENTS.md`,
+    `${directory}.git/config`,
+  ])
+    assert.equal(scopeAllows(scope, path), false, path);
+});
+
+test('route syntax rejects malformed components and authority outside the route root', () => {
+  const root = 'apps/web/src/routes/';
+  for (const path of [
+    `${root}(admin|public)/+page.ts`,
+    `${root}(.*)/+page.ts`,
+    `${root}(admin)?/+page.ts`,
+    `${root}()/+page.ts`,
+    `${root}prefix(admin)/+page.ts`,
+    `${root}[a-z]/+page.ts`,
+    `${root}[tenant*]/+page.ts`,
+    `${root}[tenant]/../+page.ts`,
+    `${root}(admin)/CLAUDE.md`,
+    `${root}(admin)/.git/config`,
+    'apps/web/src/lib/(admin)/file.ts',
+    'apps/web/src/routes-other/[tenant]/file.ts',
+    'tools/handoff-pilot/[tenant]/file.ts',
+    'docs/plans/(admin)/file.ts',
+    `${root}[tenant]/bad\\file.ts`,
+    `${root}[tenant]/bad\nfile.ts`,
+  ]) {
+    for (const scope of [
+      { paths: [path], directories: [] },
+      { paths: [], directories: [path + '/'] },
+    ])
+      assert.throws(
+        () => validateScopes({ allowlist: ['#38'], scopes: { '#38': scope } }),
+        /scope/,
+        path
+      );
+  }
+});
+
+// These are filesystem names from the actual public/preview tree, not URL patterns.
+test('real public route grammar stays literal for optional, rest and matcher components', () => {
+  const root = 'apps/web/src/routes/(public)/[tenant]/';
+  for (const component of ['[[locale=locale]]', '[[locale]]', '[locale=locale]', '[...path]']) {
+    const directory = `${root}${component}/`;
+    const exact = `${directory}+page.svelte`;
+    const scope = { paths: [exact], directories: [] };
+    const prefix = { paths: [], directories: [directory] };
+    for (const value of [scope, prefix]) {
+      validateScopes({ allowlist: ['#9 PR 1'], scopes: { '#9 PR 1': value } });
+      assert.equal(scopeAllows(value, exact), true);
+      for (const other of [
+        exact.replace(component, 'nl'),
+        exact.replace(component, '[other]'),
+        exact.replace(component, `${component}suffix`),
+        `${directory}AGENTS.md`,
+      ])
+        assert.equal(scopeAllows(value, other), false, other);
+    }
+  }
+  const exact = `${root}[[locale=locale]]/[...path]/+page.svelte`;
+  validateScopes({
+    allowlist: ['#9 PR 1'],
+    scopes: { '#9 PR 1': { paths: [exact], directories: [] } },
+  });
+  for (const component of [
+    '[[...path]]',
+    '[...path=matcher]',
+    '[locale=]',
+    '[=locale]',
+    '[[locale=foo=bar]]',
+    '[locale=a-z]',
+    '[[locale]',
+    '[....path]',
+    '[...path*]',
+    'prefix[locale=locale]',
+  ])
+    for (const value of [
+      { paths: [`${root}${component}/+page.ts`], directories: [] },
+      { paths: [], directories: [`${root}${component}/`] },
+    ])
+      assert.throws(
+        () => validateScopes({ allowlist: ['#9 PR 1'], scopes: { '#9 PR 1': value } }),
+        /scope/,
+        component
+      );
+  for (const path of [
+    'apps/web/src/lib/[[locale]]/file.ts',
+    'apps/web/src/routes-other/[...path]/file.ts',
+  ])
+    assert.throws(
+      () =>
+        validateScopes({
+          allowlist: ['#9 PR 1'],
+          scopes: { '#9 PR 1': { paths: [path], directories: [] } },
+        }),
+      /scope/,
+      path
+    );
 });

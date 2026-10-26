@@ -61,8 +61,19 @@ export function validateScopes(config) {
           typeof path !== 'string' ||
           !path ||
           directory !== path.endsWith('/') ||
-          /[\\\x00-\x1f\x7f*?\[\]{}():]/.test(path) ||
-          plain.split('/').some((part) => !part || part === '.' || part === '..') ||
+          /[\\\x00-\x1f\x7f*?{}:]/.test(path) ||
+          plain.split('/').some((part) => {
+            if (!part || part === '.' || part === '..') return true;
+            if (!/[()[\]]/.test(part)) return false;
+            // Only whole supported SvelteKit filesystem components are admitted. Optional,
+            // rest and matcher names remain literal, never URL patterns or glob authority.
+            return (
+              !plain.startsWith('apps/web/src/routes/') ||
+              !/^(?:\([A-Za-z_][A-Za-z0-9_-]*\)|\[(?:[A-Za-z_][A-Za-z0-9_]*(?:=[A-Za-z_][A-Za-z0-9_]*)?|\.\.\.[A-Za-z_][A-Za-z0-9_]*)\]|\[\[[A-Za-z_][A-Za-z0-9_]*(?:=[A-Za-z_][A-Za-z0-9_]*)?\]\])$/.test(
+                part
+              )
+            );
+          }) ||
           path.startsWith('-') ||
           forbiddenPath(plain) ||
           (directory && ['tools', 'docs'].includes(plain))
