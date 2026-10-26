@@ -567,3 +567,20 @@ test('a non-pass shard summary cannot be upgraded by its passing available cells
     assert.equal(consumeRun(run, load).state, state);
   }
 });
+
+test('historically routed product causes retain their address, owner and security tier', () => {
+  const run = retained();
+  const report = run.artifacts[0].report;
+  const cell = report.cells[0];
+  cell.state = cell.batches[0].state = 'fail';
+  cell.batches[0].reasons = ['accessibility'];
+  cell.batches[0].raw[0].accessibility = 0.98;
+  report.repairs = [
+    { key: 'accessibility:', address: '#39', owner: 'mbp', tier: 'flagship-review' },
+  ];
+  const result = consumeRun(run, load);
+  assert.equal(result.proposals[0].sourceAddress, '#39');
+  assert.equal(result.proposals[0].address, '#39');
+  assert.equal(result.proposals[0].owner, 'mbp');
+  assert.equal(result.proposals[0].tier, 'flagship-review');
+});

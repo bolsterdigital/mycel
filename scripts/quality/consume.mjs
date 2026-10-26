@@ -161,6 +161,7 @@ export function consumeRun(run, load) {
   const coverage = [];
   const artifacts = [];
   const sourceAddresses = new Map();
+  const sourceOwnership = new Map();
   const reportStates = [];
   let expected = [];
   let referenceTools;
@@ -207,8 +208,15 @@ export function consumeRun(run, load) {
       const report = load(artifact);
       const env = report.environment;
       for (const proposal of report.repairs ?? []) {
-        if (token(proposal.key) && token(proposal.address))
+        if (token(proposal.key) && token(proposal.address)) {
           sourceAddresses.set(proposal.key, proposal.address);
+          sourceOwnership.set(proposal.key, {
+            ...(['dev', 'mbp'].includes(proposal.owner) ? { owner: proposal.owner } : {}),
+            ...(['workhorse', 'flagship-review', 'flagship-only'].includes(proposal.tier)
+              ? { tier: proposal.tier }
+              : {}),
+          });
+        }
       }
       if (
         report.schemaVersion !== 1 ||
@@ -358,8 +366,9 @@ export function consumeRun(run, load) {
   if (missingCells.length) issues.push(issue('missing-cell'));
   const proposals = repairProposals(cells).map((p) => ({
     ...p,
+    ...sourceOwnership.get(p.key),
     sourceAddress: sourceAddresses.get(p.key) ?? p.address,
-    address: currentAddress(p.address),
+    address: currentAddress(sourceAddresses.get(p.key) ?? p.address),
   }));
   // Retain historical source addresses even as the current evaluator uses C.
   for (const p of proposals) if (p.address === '#43C-report') p.aliases = ['#43B'];
