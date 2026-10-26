@@ -48,6 +48,14 @@ export function collectHistory({ repo, out, runIds = [], api, download }) {
     }
     return sources.get(id);
   };
+  const contractFor = (commit) =>
+    sourceContract({
+      corpus: source(commit, 'apps/web/e2e/quality-corpus.json'),
+      seed: source(commit, 'scripts/e2e.mjs'),
+      matrixSource: source(commit, 'scripts/quality/matrix.mjs'),
+      workflow: source(commit, '.github/workflows/frontend-quality.yml'),
+      lock: source(commit, 'package-lock.json'),
+    });
   let runs = [];
   try {
     // Paginate all runs from rollout, including failed/cancelled runs, not only green artifacts.
@@ -82,6 +90,9 @@ export function collectHistory({ repo, out, runIds = [], api, download }) {
           createdAt: run.run_started_at ?? run.created_at,
           url: `${run.html_url}/attempts/${attempt}`,
         });
+        if (!/^[a-f0-9]{40}$/.test(record.headSha)) throw new Error('invalid-head-sha');
+        record.contract = contractFor(record.headSha);
+        record.expectationSha = record.headSha;
         let artifacts = [];
         for (let page = 1; ; page++) {
           const batch = api(
@@ -129,13 +140,8 @@ export function collectHistory({ repo, out, runIds = [], api, download }) {
           !(record.event === 'pull_request' && commit.parents.some((p) => p.sha === record.headSha))
         )
           throw new Error('unrelated-merge-sha');
-        record.contract = sourceContract({
-          corpus: source(record.measuredSha, 'apps/web/e2e/quality-corpus.json'),
-          seed: source(record.measuredSha, 'scripts/e2e.mjs'),
-          matrixSource: source(record.measuredSha, 'scripts/quality/matrix.mjs'),
-          workflow: source(record.measuredSha, '.github/workflows/frontend-quality.yml'),
-          lock: source(record.measuredSha, 'package-lock.json'),
-        });
+        record.contract = contractFor(record.measuredSha);
+        record.expectationSha = record.measuredSha;
       } catch {
         record.error = 'incomplete-run-or-source-contract';
       }

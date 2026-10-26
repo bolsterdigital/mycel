@@ -155,6 +155,7 @@ export function consumeRun(run, load) {
   const coverage = [];
   const artifacts = [];
   const sourceAddresses = new Map();
+  const reportStates = [];
   let expected = [];
   let referenceTools;
   const profiles = [];
@@ -243,6 +244,8 @@ export function consumeRun(run, load) {
         },
       });
       if (!Array.isArray(report.cells) || !states.includes(report.state)) throw new Error('shape');
+      reportStates.push(report.state);
+      artifacts.at(-1).state = report.state;
       if (report.error || report.interrupted || report.activeCell)
         issues.push(issue('report-interrupted'));
       for (const cell of report.cells) {
@@ -357,6 +360,7 @@ export function consumeRun(run, load) {
       run.event === 'pull_request' ? 'pr-merge' : run.event === 'push' ? 'main' : run.event,
     headSha: run.headSha,
     measuredSha: run.measuredSha,
+    expectationSha: run.expectationSha ?? run.measuredSha,
     url: run.url,
     createdAt: run.createdAt,
     status: run.status,
@@ -365,11 +369,12 @@ export function consumeRun(run, load) {
     fixtureHash: run.contract?.fixtureHash ?? null,
     tools: referenceTools ?? null,
     profiles,
-    state: cells.some((c) => c.state === 'fail')
-      ? 'fail'
-      : issues.length
-        ? 'not-measured'
-        : worst(cells.map((c) => c.state)),
+    state:
+      cells.some((c) => c.state === 'fail') || reportStates.includes('fail')
+        ? 'fail'
+        : issues.length
+          ? 'not-measured'
+          : worst([...cells.map((c) => c.state), ...reportStates]),
     expected: expected.reduce((n, s) => n + s.ids.length, 0),
     present: cells.length,
     samples: cells.reduce((n, c) => n + c.batches.reduce((m, b) => m + b.sampleIds.length, 0), 0),

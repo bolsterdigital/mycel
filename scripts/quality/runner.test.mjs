@@ -523,7 +523,30 @@ test('GitHub adapter separates rerun artifacts by attempt and preserves corrupt 
     assert.equal(report.runs[1].state, 'not-measured');
     assert.equal(report.runs[1].present, 2);
     assert.ok(report.runs[1].issues.length);
+    artifacts.length = 0;
+    const missing = collectHistory({
+      repo: 'owner/repo',
+      out: join(dir, 'missing'),
+      api,
+      download: () => {
+        throw new Error('no artifacts');
+      },
+    });
+    const absent = consume(missing, load, clock);
+    assert.equal(absent.runs[0].expected, 4);
+    assert.equal(absent.runs[0].present, 0);
+    assert.equal(absent.runs[0].missingShards.length, 2);
+    assert.equal(absent.runs[0].expectationSha, original.headSha);
+    assert.notEqual(absent.runs[0].state, 'pass');
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a non-pass shard summary cannot be upgraded by its passing available cells', () => {
+  for (const state of ['fail', 'inconclusive', 'not-measured']) {
+    const run = retained();
+    run.artifacts[0].report.state = state;
+    assert.equal(consumeRun(run, load).state, state);
   }
 });
