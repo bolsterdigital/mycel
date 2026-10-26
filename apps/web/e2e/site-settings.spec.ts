@@ -1,6 +1,8 @@
 // A complete bilingual site: tenant chrome and theme through real use cases and the public
 // renderer, including the no-JavaScript/320 px/200% task gate (#11 E, ADR 009/013).
 import AxeBuilder from '@axe-core/playwright';
+import { randomBytes } from 'node:crypto';
+import sharp from 'sharp';
 import { readFile } from 'node:fs/promises';
 import { Invoker, THEME_PRESETS, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
 import { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } from '@mycel/core/testing';
@@ -269,17 +271,19 @@ test('single-locale site saves without another translation', async ({ page }) =>
 // Uploads the logo and wordmark font through the real brand forms. The site settings gate seeds
 // them itself so it measures the longest action labels ("Vervangen"/"Verwijderen") even when run
 // alone; rejected: relying on the upload test running first in the same worker.
-const uploadBrand = async (page: Page) => {
+const uploadBrand = async (page: Page, largeLogo?: Buffer) => {
   const [logo, font] = [
     page.locator('form[action="?/brand"]').first(),
     page.locator('form[action="?/brand"]').last(),
   ];
   await logo.locator('input[type=file]').setInputFiles({
-    name: 'mark.svg',
-    mimeType: 'image/svg+xml',
-    buffer: Buffer.from(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="#123456"/></svg>'
-    ),
+    name: largeLogo ? 'large.png' : 'mark.svg',
+    mimeType: largeLogo ? 'image/png' : 'image/svg+xml',
+    buffer:
+      largeLogo ??
+      Buffer.from(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="#123456"/></svg>'
+      ),
   });
   await logo.locator('button[value=upload]').click();
   await expect(page.locator('p[role="status"]')).toBeVisible();
@@ -303,7 +307,35 @@ test('native brand upload, public derivative and removal stay tenant scoped', as
   await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
   await page.getByLabel('E-mail').fill(`site-editor-${slug}@probe.test`);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await uploadBrand(page);
+  const largeLogo = await sharp(randomBytes(512 * 512 * 3), {
+    raw: { width: 512, height: 512, channels: 3 },
+  })
+    .png()
+    .toBuffer();
+  expect(largeLogo.length).toBeGreaterThan(512 * 1024);
+  expect(largeLogo.length).toBeLessThan(2 * 1024 * 1024);
+  await uploadBrand(page, largeLogo);
+
+  // Over-limit files fit the multipart allowance but must still fail in the native action.
+  for (const [index, size, mimeType] of [
+    [0, 2 * 1024 * 1024 + 1, 'image/png'],
+    [1, 1024 * 1024 + 1, 'font/woff2'],
+  ] as const) {
+    const form = page.locator('form[action="?/brand"]').nth(index);
+    await form.locator('input[type=file]').setInputFiles({
+      name: 'oversized',
+      mimeType,
+      buffer: Buffer.alloc(size),
+    });
+    if (index === 1) await form.locator('input[name=licence]').fill('SIL Open Font License 1.1');
+    const response = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' && new URL(response.url()).searchParams.has('/brand')
+    );
+    await form.locator('button[value=upload]').click();
+    expect((await response).status()).toBe(400);
+    await expect(page.locator('[role=alert]')).toBeVisible();
+  }
 
   await page.goto(`/admin/${slug}/preview/item/${homeItemId}?locale=nl`);
   await expect(page.locator('.site-identity img')).toBeVisible();
