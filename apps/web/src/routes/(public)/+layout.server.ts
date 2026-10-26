@@ -12,7 +12,7 @@ import { ui } from '../../i18n/index.js';
 import { localeOf } from '#lib/server/content-route.js';
 import { runtime } from '#lib/server/runtime.js';
 import { sitePath, siteTenant } from '#lib/server/site.js';
-import { siteChrome, siteTheme, themePath } from '#lib/server/theme.js';
+import { brandPath, siteBrand, siteChrome, siteTheme, themePath } from '#lib/server/theme.js';
 import type { LayoutServerLoad } from './$types';
 
 export const csr = false;
@@ -33,6 +33,7 @@ export const load: LayoutServerLoad = async ({ locals, request, params, route })
         site.tenant.defaultLocale
       );
   const chrome = await siteChrome(site);
+  const brand = await siteBrand(site);
   const link = (item: { label: Record<string, string>; href: string }) => ({
     label:
       item.label[locale] ??
@@ -42,6 +43,16 @@ export const load: LayoutServerLoad = async ({ locals, request, params, route })
     href: item.href.startsWith('/') ? sitePath(site, item.href) : item.href,
   });
   const publicChrome = {
+    name: site.tenant.name,
+    home: sitePath(site, '/'),
+    logo: brand.logo.active
+      ? {
+          src: sitePath(site, brandPath('logo', brand.logo.version)),
+          width: brand.logo.width!,
+          height: brand.logo.height!,
+        }
+      : null,
+    wordmark: brand.font.active,
     navigation: chrome.navigation.map(link),
     legal: chrome.legal.map(link),
     footer: chrome.footer[locale] ?? chrome.footer[site.tenant.defaultLocale] ?? '',

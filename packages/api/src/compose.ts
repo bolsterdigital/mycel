@@ -72,7 +72,7 @@ import {
 } from '@mycel/db';
 import { createFsBlobStore, createS3BlobStore, type S3BlobStoreConfig } from '@mycel/blob';
 import { ConsoleMailer, TemMailer } from '@mycel/mail-tem';
-import { createSharpProcessor } from '@mycel/media-sharp';
+import { createSharpProcessor, createBrandProcessor } from '@mycel/media-sharp';
 import { FakeTextModel } from '@mycel/core/testing';
 import { OpenAITextModel } from '@mycel/assist-openai';
 import { createAuthenticator, type Authenticator } from './auth.js';
@@ -503,6 +503,7 @@ export function createRuntime(
     dns: createDnsResolver(),
     platform,
     media: { blobs, images: createSharpProcessor(), delivery: appDelivery },
+    brandProcessor: createBrandProcessor(),
     log,
     inputHasher,
     connectionCredentialKey: config.CONNECTION_CREDENTIAL_KEY,

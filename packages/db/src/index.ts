@@ -30,7 +30,7 @@ import {
   type UnitOfWork,
 } from '@mycel/core';
 import { auditRepository } from './audit.js';
-import { siteSettingsRepository } from './site-settings.js';
+import { siteSettingsRepository, brandAssetsRepository } from './site-settings.js';
 import { connectionIntentsRepository } from './connection-intents.js';
 import { connectionRepository, credentialKey } from './connections.js';
 import { assistRepository } from './assist.js';
@@ -178,6 +178,7 @@ export interface UnitOfWorkDeps {
    * in suites that touch no files: then `ctx.blobs` and `ctx.images` refuse when used.
    */
   media?: { blobs: BlobStore; images: ImageProcessor; delivery?: MediaDelivery } | undefined;
+  brandProcessor?: import('@mycel/core').BrandProcessor | undefined;
   /** `ctx.log`; the composition root passes the process logger, suites get `noopLogger`. */
   log?: Logger | undefined;
   /** The audit input hash (AUDIT_HASH_KEY, TODO #17b); the Invoker hashes every command's input. */
@@ -216,6 +217,10 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           events: outboxEventBus(trx),
           content: contentRepository(trx, tenantId),
           siteSettings: siteSettingsRepository(trx, tenantId),
+          brandAssets: brandAssetsRepository(trx, tenantId),
+          brandProcessor:
+            deps.brandProcessor ??
+            (unconfigured('BrandProcessor') as import('@mycel/core').BrandProcessor),
           assist: assistRepository(trx, tenantId),
           connections: connectionRepository(
             trx,

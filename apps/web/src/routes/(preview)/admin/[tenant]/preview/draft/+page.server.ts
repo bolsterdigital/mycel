@@ -20,7 +20,7 @@ import { text } from '#lib/server/admin-actions.js';
 import { documentFrom, valuesFromForm } from '#lib/server/content-admin.js';
 import { PREVIEW_HEADERS, previewBase, previewSite, siteReader } from '#lib/server/preview.js';
 import { runtime } from '#lib/server/runtime.js';
-import { siteTheme } from '#lib/server/theme.js';
+import { siteBrand, siteTheme } from '#lib/server/theme.js';
 import { ui } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -93,6 +93,7 @@ export const actions: Actions = {
       ),
       siteTheme(site),
     ]);
+    const brand = await siteBrand(site);
     const admin = locals.lang ?? 'en';
     locals.lang = locale;
     return {
@@ -101,6 +102,13 @@ export const actions: Actions = {
       model,
       issues: readinessIssues(doc, locale).map((issue) => issue.path),
       theme: { href: `${base}/_theme/${theme.hash}.css`, preload: theme.preload },
+      brand: {
+        name: tenant.name,
+        logo: brand.logo.active ? `${base}/_brand/logo/${brand.logo.version}.webp` : null,
+        width: brand.logo.width,
+        height: brand.logo.height,
+        wordmark: brand.font.active,
+      },
       formNote: ui(admin)('admin.content.preview.form'),
     };
   },

@@ -231,6 +231,8 @@ function sluggedRepository<T extends { id: string; slug: string }>(
 interface TenantStore {
   siteTheme: { version: number; value: ResolvedTheme };
   siteChrome: { version: number; value: SiteChrome };
+  brandLogo: { version: number; asset: import('../theme/assets.js').BrandAsset | null };
+  brandFont: { version: number; asset: import('../theme/assets.js').BrandAsset | null };
   connections: Map<string, ConnectionRecord>;
   connectionSecrets: Map<string, string>;
   connectionIntents: Map<string, ConnectionIntent>;
@@ -517,6 +519,8 @@ export class MemoryStore {
       store = {
         siteTheme: { version: 0, value: DEFAULT_THEME },
         siteChrome: { version: 0, value: DEFAULT_CHROME },
+        brandLogo: { version: 0, asset: null },
+        brandFont: { version: 0, asset: null },
         connections: new Map(),
         connectionSecrets: new Map(),
         connectionIntents: new Map(),
@@ -1499,6 +1503,27 @@ export class MemoryUnitOfWork implements UnitOfWork {
             s.siteChrome = { version: baseVersion + 1, value: structuredClone(value) };
             return s.siteChrome.version;
           },
+        },
+        brandAssets: {
+          get: async (kind) => structuredClone(kind === 'logo' ? s.brandLogo : s.brandFont),
+          replace: async (kind, baseVersion, asset) => {
+            const state = kind === 'logo' ? s.brandLogo : s.brandFont;
+            if (state.version !== baseVersion) return null;
+            const next = { version: baseVersion + 1, asset: structuredClone(asset) };
+            if (kind === 'logo') s.brandLogo = next;
+            else s.brandFont = next;
+            return next.version;
+          },
+        },
+        brandProcessor: {
+          logo: async (bytes) => ({
+            bytes,
+            contentType: 'image/webp' as const,
+            width: 1,
+            height: 1,
+            licence: null,
+          }),
+          font: async () => {},
         },
         assist,
         connections,

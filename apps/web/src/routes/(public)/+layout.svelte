@@ -20,6 +20,15 @@
 {#if data.chrome}
   <a class="public-skip" href="#public-main">{t('public.skip')}</a>
   <header class="site-header">
+    <a class="site-identity" href={data.chrome.home} aria-label={data.chrome.name}>
+      {#if data.chrome.logo}<img
+          src={data.chrome.logo.src}
+          width={data.chrome.logo.width}
+          height={data.chrome.logo.height}
+          alt=""
+        />{/if}
+      <span class:site-wordmark={data.chrome.wordmark}>{data.chrome.name}</span>
+    </a>
     <nav aria-label={t('public.navigation')}>
       {#each data.chrome.navigation as item (item.href)}<a href={item.href}>{item.label}</a>{/each}
     </nav>

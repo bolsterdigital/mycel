@@ -7,12 +7,17 @@ export const SMALL_BODY = 512 * 1024;
 
 export function bodyLimit(request: Request, url: URL): number {
   const action = [...url.searchParams.keys()].find((key) => key.startsWith('/'));
-  return request.method === 'POST' &&
-    /^\/admin\/[^/]+\/media\/?$/.test(url.pathname) &&
-    action === '/upload' &&
-    request.headers.get('content-type')?.split(';')[0]?.trim() === 'multipart/form-data'
-    ? 26 * 1024 * 1024
-    : SMALL_BODY;
+  const multipartPost =
+    request.method === 'POST' &&
+    request.headers.get('content-type')?.split(';')[0]?.trim() === 'multipart/form-data';
+  if (!multipartPost) return SMALL_BODY;
+  if (/^\/admin\/[^/]+\/media\/?$/.test(url.pathname) && action === '/upload')
+    return 26 * 1024 * 1024;
+  // One brand file per native form: at most a 2 MiB logo (or 1 MiB font), plus 64 KiB
+  // for multipart headers and fields. File-specific validation stays in the action/core.
+  if (/^\/admin\/[^/]+\/site\/?$/.test(url.pathname) && action === '/brand')
+    return 2 * 1024 * 1024 + 64 * 1024;
+  return SMALL_BODY;
 }
 
 /** Return a replayable request, or null for 413, including bodies without Content-Length. */

@@ -43,6 +43,47 @@
     </p>{/if}
   {#if form?.saved}<p role="status">{t('admin.site.saved')}</p>{/if}
   <section>
+    <h2>{t('admin.site.brand')}</h2>
+    {#each ['logo', 'font'] as kind (kind)}
+      {@const state = kind === 'logo' ? data.logo : data.font}
+      <form method="post" action="?/brand" enctype="multipart/form-data">
+        <h3>{t(kind === 'logo' ? 'admin.site.logo' : 'admin.site.wordmarkFont')}</h3>
+        <input type="hidden" name="kind" value={kind} />
+        <input type="hidden" name="baseVersion" value={state.version} />
+        {#if state.active}
+          <p>{t('admin.site.active')}</p>
+          {#if kind === 'logo'}<img
+              src="/admin/{data.tenant.slug}/preview/_brand/logo/{state.version}.webp"
+              width={state.width ?? 1}
+              height={state.height ?? 1}
+              alt={data.tenant.name}
+            />{/if}
+          {#if kind === 'font'}<p>{t('admin.site.licence')}: {state.licence}</p>{/if}
+        {/if}
+        <label
+          >{t('admin.site.file')}<input
+            type="file"
+            name="file"
+            accept={kind === 'logo'
+              ? 'image/svg+xml,image/png,image/jpeg,image/webp,image/avif,image/gif'
+              : '.woff2,font/woff2'}
+          /></label
+        >
+        {#if kind === 'font'}<label
+            >{t('admin.site.licence')}<input name="licence" maxlength="500" required /></label
+          >{/if}
+        <div class="actions brand-actions">
+          <button type="submit" name="intent" value="upload"
+            >{t(state.active ? 'admin.site.replace' : 'admin.site.upload')}</button
+          >
+          {#if state.active}<button type="submit" name="intent" value="remove" formnovalidate
+              >{t('admin.site.remove')}</button
+            >{/if}
+        </div>
+      </form>
+    {/each}
+  </section>
+  <section>
     <h2>{t('admin.site.theme')}</h2>
     <form method="post" action="?/theme">
       <input
@@ -191,10 +232,17 @@
   .admin-page {
     max-width: 54rem;
     padding: 1rem;
+    min-width: 0;
+    overflow-wrap: break-word;
+  }
+  section {
+    min-width: 0;
   }
   form {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 1rem;
+    min-width: 0;
   }
   label {
     display: grid;
@@ -206,6 +254,10 @@
   textarea {
     max-width: 100%;
     min-height: 2.75rem;
+  }
+  input[type='file'] {
+    width: 100%;
+    min-width: 0;
   }
   textarea {
     width: 100%;
@@ -227,5 +279,14 @@
   button {
     min-height: 2.75rem;
     justify-self: start;
+  }
+  .brand-actions button {
+    min-width: 0;
+  }
+  section img {
+    max-width: 12rem;
+    max-height: 4rem;
+    width: auto;
+    height: auto;
   }
 </style>

@@ -8,8 +8,8 @@
 //      development host, from the first path segment. The decision table is `decideSite`
 //      (lib/server/site.ts); here it only becomes `locals.site`, a 301 or a 404.
 //
-// Before all that, a request body above 512K is a 413 unless it is the media admin's upload
-// (TODO #10b): BODY_SIZE_LIMIT is 26M for that one form (docker/entrypoint.sh), and a public
+// Before all that, a request body above 512K is a 413 unless it is a bounded media or brand upload
+// (TODO #10b, #11 F): BODY_SIZE_LIMIT is 26M for media (docker/entrypoint.sh), and a public
 // signup form has no reason to take more than adapter-node's default did. Actual bytes are
 // counted as well as Content-Length, including chunked bodies and other media actions.
 //
