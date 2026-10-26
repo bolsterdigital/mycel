@@ -87,7 +87,8 @@ export function collectHistory({ repo, out, runIds = [], api, download }) {
           headSha: run.head_sha,
           status: run.status,
           conclusion: run.conclusion,
-          createdAt: run.run_started_at ?? run.created_at,
+          createdAt: run.created_at,
+          startedAt: run.run_started_at,
           url: `${run.html_url}/attempts/${attempt}`,
         });
         if (!/^[a-f0-9]{40}$/.test(record.headSha)) throw new Error('invalid-head-sha');

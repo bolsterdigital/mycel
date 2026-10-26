@@ -374,6 +374,7 @@ export function consumeRun(run, load) {
     expectationSha: run.expectationSha ?? run.measuredSha,
     url: run.url,
     createdAt: run.createdAt,
+    startedAt: run.startedAt ?? run.createdAt,
     status: run.status,
     conclusion: run.conclusion,
     fixtureVersion: run.contract?.fixtureVersion ?? null,
@@ -427,13 +428,15 @@ export function scheduleStatus(workflow, runs, now) {
       (r) =>
         r.event === 'schedule' &&
         Date.parse(r.createdAt) >= due.getTime() &&
-        Date.parse(r.createdAt) < Math.min(next.getTime(), due.getTime() + 86400000)
+        Date.parse(r.createdAt) < next.getTime() &&
+        Date.parse(r.createdAt) <= clock
     );
     windows.push({
       dueAt: due.toISOString(),
       overdueAt,
       graceHours: 24,
       runIds: actual.map((r) => r.id),
+      late: actual.some((r) => Date.parse(r.createdAt) >= Date.parse(overdueAt)),
       state: actual.length
         ? worst(actual.map((r) => r.state))
         : clock >= Date.parse(overdueAt)

@@ -378,6 +378,14 @@ test('weekly due/overdue clock never borrows manual or main measurements', () =>
   assert.equal(scheduleStatus(workflow, runs, '2026-11-03T05:17:00Z').state, 'not-measured');
   runs.push({ id: 3, event: 'schedule', createdAt: '2026-11-02T05:19:00Z', state: 'fail' });
   assert.equal(scheduleStatus(workflow, runs, '2026-11-03T06:00:00Z').state, 'fail');
+  assert.equal(scheduleStatus(workflow, runs, clock).state, 'pending');
+  const late = scheduleStatus(
+    workflow,
+    [{ id: 4, event: 'schedule', createdAt: '2026-11-03T07:00:00Z', state: 'pass' }],
+    '2026-11-03T07:01:00Z'
+  );
+  assert.equal(late.state, 'pass');
+  assert.equal(late.windows[0].late, true);
   assert.equal(
     scheduleStatus({ ...workflow, state: 'disabled_manually' }, [], clock).state,
     'not-measured'
@@ -472,6 +480,7 @@ test('GitHub adapter separates rerun artifacts by attempt and preserves corrupt 
     id: 123,
     path: '.github/workflows/frontend-quality.yml',
     run_attempt: 2,
+    created_at: '2026-10-26T18:00:00Z',
     event: 'push',
     head_sha: original.headSha,
     html_url: original.url,
@@ -524,6 +533,8 @@ test('GitHub adapter separates rerun artifacts by attempt and preserves corrupt 
       [1, 2]
     );
     assert.equal(report.runs[0].state, 'pass');
+    assert.equal(report.runs[0].createdAt, report.runs[1].createdAt);
+    assert.notEqual(report.runs[0].startedAt, report.runs[1].startedAt);
     assert.equal(report.runs[1].state, 'not-measured');
     assert.equal(report.runs[1].present, 2);
     assert.ok(report.runs[1].issues.length);
