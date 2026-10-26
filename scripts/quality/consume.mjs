@@ -479,7 +479,8 @@ export function consume(history, load, now) {
   if (
     watchdog.state !== 'active' ||
     !iso(watchdog.lastCompletedAt) ||
-    Date.parse(now) - Date.parse(watchdog.lastCompletedAt) > 48 * 3600000 ||
+    Date.parse(now) - Date.parse(watchdog.lastScheduledAt ?? watchdog.lastCompletedAt) >
+      48 * 3600000 ||
     watchdog.conclusion !== 'success'
   )
     issues.push(issue('watchdog-not-observed-healthy'));
@@ -492,6 +493,7 @@ export function consume(history, load, now) {
     watchdog: {
       state: watchdog.state,
       lastCompletedAt: watchdog.lastCompletedAt ?? null,
+      lastScheduledAt: watchdog.lastScheduledAt ?? null,
       conclusion: watchdog.conclusion ?? null,
     },
     issues,
@@ -537,7 +539,7 @@ export function markdown(report) {
     '',
     ...(report.schedule.windows?.map(
       (w) =>
-        `Weekly ${w.dueAt}: **${w.state}**; overdue ${w.overdueAt} (24h operational grace); dev #43C-report.`
+        `Weekly ${w.dueAt}: **${w.state}**; overdue ${w.overdueAt} (24h operational grace); late firing: ${w.late ? 'yes' : 'no'}; dev #43C-report.`
     ) ?? []),
     '',
     ...report.runs.flatMap((r) => [

@@ -34,6 +34,7 @@ export function collectHistory({ repo, out, runIds = [], api, download }) {
     history.watchdog = {
       state: watchdog.state,
       lastCompletedAt: previous?.updated_at,
+      lastScheduledAt: previous?.created_at,
       conclusion: previous?.conclusion,
     };
   } catch {

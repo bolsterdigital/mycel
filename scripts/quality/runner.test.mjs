@@ -421,6 +421,8 @@ test('consumer retains attempts and separates head/merge/local provenance; unkno
   assert.equal(consume(history, load, clock).state, 'not-measured');
   history.watchdog.lastCompletedAt = clock;
   assert.equal(consume(history, load, clock).state, 'pending');
+  history.watchdog.lastScheduledAt = '2026-10-24T00:00:00Z';
+  assert.equal(consume(history, load, clock).state, 'not-measured');
 });
 test('artifact adapter records API outage and independent watchdog has only read permissions', () => {
   const dir = mkdtempSync(join(tmpdir(), 'quality-history-'));
