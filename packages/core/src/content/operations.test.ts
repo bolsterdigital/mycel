@@ -242,7 +242,7 @@ describe('block operations', () => {
     expect(out).toMatchObject({ retired: [], merged: [] });
   });
 
-  it('marks both retained halves of an unreviewed machine translation after a split', async () => {
+  it('upgrades a legacy field marker to locale review across a split', async () => {
     const { item, revision } = await invoker.run(useCases.createItem, admin, {
       slug: 'translated-split',
       document: {
@@ -266,10 +266,7 @@ describe('block operations', () => {
       at: { nl: 1, en: 1 },
       block: headingBlock('between'),
     });
-    expect(out.revision.document.machineTranslation?.en).toEqual([
-      'blocks.t.props.content',
-      `blocks.${out.created[1]}.props.content`,
-    ]);
+    expect(out.revision.document.machineTranslation?.en).toEqual(['locales']);
     await expect(
       invoker.run(useCases.publishItem, admin, {
         itemId: item.id,

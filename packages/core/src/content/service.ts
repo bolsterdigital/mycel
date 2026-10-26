@@ -37,7 +37,6 @@ import {
 } from './lifecycle.js';
 import {
   ContentDocument,
-  localizedFields,
   ContentDocumentInput,
   ContentItem,
   ContentType,
@@ -48,6 +47,7 @@ import {
   readinessIssues,
 } from './model.js';
 import type { ItemRecord } from './ports.js';
+import { preserveTranslationReview } from './translation-review.js';
 import './ports.js';
 
 export const DEFAULT_PAGE_SIZE = 20;
@@ -168,38 +168,10 @@ export async function writeRevision(
   clearTranslationLocale?: string
 ): Promise<{ item: ContentItem; revision: Revision }> {
   const previous = await ctx.content.revision(item.id, item.latestRevisionId);
-  const inherited = previous?.document.machineTranslation ?? {};
-  const combined = Object.fromEntries(
-    Object.keys(inherited)
-      .concat(Object.keys(doc.machineTranslation ?? {}))
-      .map((locale) => [
-        locale,
-        [...new Set([...(inherited[locale] ?? []), ...(doc.machineTranslation?.[locale] ?? [])])],
-      ])
+  if (!previous) throw notFound('revision');
+  doc = ContentDocument.parse(
+    preserveTranslationReview(previous.document, doc, clearTranslationLocale)
   );
-  if (clearTranslationLocale) delete combined[clearTranslationLocale];
-  const unmarked = { ...doc };
-  delete unmarked.machineTranslation;
-  doc = ContentDocument.parse({
-    ...unmarked,
-    ...(Object.keys(combined).length ? { machineTranslation: combined } : {}),
-  });
-  const existing = new Set(
-    localizedFields(doc).map(({ path }) => {
-      if (path[0] !== 'blocks') return path.join('.');
-      return `blocks.${doc.blocks[Number(path[1])]?.id}.${path.slice(2).join('.')}`;
-    })
-  );
-  const markers = Object.fromEntries(
-    Object.entries(doc.machineTranslation ?? {})
-      .filter(([locale]) => doc.locales.includes(locale))
-      .map(([locale, paths]) => [locale, paths.filter((path) => existing.has(path))])
-      .filter(([, paths]) => (paths as string[]).length > 0)
-  );
-  doc = ContentDocument.parse({
-    ...unmarked,
-    ...(Object.keys(markers).length ? { machineTranslation: markers } : {}),
-  });
   await assertReferences(ctx, doc);
   const now = ctx.clock.now();
   const revision: Revision = {
@@ -225,45 +197,6 @@ export async function writeRevision(
   await recordMediaUsages(ctx, revisionRef(revision), doc.blocks);
   await ctx.content.save(next);
   return { item: toContentItem(next), revision };
-}
-
-/** A whole-document editor may normalise two prose blocks before sending the save. Transfer a
- * retired block's review marker only when its translated nodes survive intact in one block.
- * An ambiguous or edited transfer needs explicit approval, so it must fail closed here. */
-function preserveNormalizedTranslationMarkers(
-  previous: ContentDocument,
-  next: ContentDocument
-): ContentDocument {
-  const markers: Record<string, string[]> = {};
-  for (const [locale, paths] of Object.entries(previous.machineTranslation ?? {})) {
-    markers[locale] = [...paths];
-    for (const path of paths) {
-      const match = /^blocks\.([^.]+)\.props\.content$/.exec(path);
-      if (!match) continue;
-      const id = match[1]!;
-      const retained = next.blocks.find((block) => block.id === id);
-      if (retained?.type === 'rich-text' && retained.props.content[locale]) continue;
-      const old = previous.blocks.find((block) => block.id === id);
-      if (old?.type !== 'rich-text') continue;
-      const nodes = old.props.content[locale]?.content;
-      if (!nodes?.length) continue;
-      const candidates = next.blocks.filter((block) => {
-        if (block.type !== 'rich-text') return false;
-        const content = block.props.content[locale]?.content ?? [];
-        return content.some((_, start) =>
-          nodes.every(
-            (node, offset) => JSON.stringify(node) === JSON.stringify(content[start + offset])
-          )
-        );
-      });
-      if (candidates.length !== 1)
-        throw new UseCaseError('invalid_input', 'translated prose cannot be transferred safely', [
-          { path: 'document.blocks', message: 'content.publish.machine-translation-unreviewed' },
-        ]);
-      markers[locale].push(`blocks.${candidates[0]!.id}.props.content`);
-    }
-  }
-  return { ...next, machineTranslation: markers };
 }
 
 /**
@@ -470,7 +403,7 @@ export const updateItem = defineUseCase({
     const previous = await ctx.content.revision(itemId, baseRevisionId);
     if (!previous) throw notFound('revision');
     const next = finalize(ctx, document, document.blocks);
-    return writeRevision(ctx, item, preserveNormalizedTranslationMarkers(previous.document, next));
+    return writeRevision(ctx, item, next);
   },
 });
 

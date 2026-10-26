@@ -140,6 +140,92 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
     await appDb.destroy();
   });
 
+  it('preserves pending locales across transactional split/save/remove and refuses stale or cross-tenant approval', async () => {
+    const created = await invoker.run(useCases.createItem, a(), {
+      slug: `pending-ops-${run}`,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: 'Pending' },
+        blocks: [richText('body', para('One'), para('Two'))],
+        machineTranslation: { nl: ['blocks.body.props.content'] },
+      },
+    });
+    const target = { itemId: created.item.id };
+    const human = {
+      ...a(),
+      actor: { kind: 'operator' as const, operatorId: uuidv7(), email: 'reviewer@probe.test' },
+    };
+    const split = await invoker.run(useCases.splitInsertBlock, a(), {
+      ...target,
+      baseRevisionId: created.revision.id,
+      blockId: 'body',
+      at: { nl: 1 },
+      block: heading('separator'),
+    });
+    const saved = await invoker.run(useCases.updateItem, a(), {
+      ...target,
+      baseRevisionId: split.revision.id,
+      document: { ...split.revision.document, machineTranslation: {} },
+    });
+    const removed = await invoker.run(useCases.removeBlock, a(), {
+      ...target,
+      baseRevisionId: saved.revision.id,
+      blockId: 'body',
+    });
+    expect(removed.revision.document.machineTranslation).toEqual({ nl: ['locales'] });
+    expect(JSON.stringify(removed.revision.document.blocks)).toContain('Two');
+    expect(removed.item.publication).toEqual(created.item.publication);
+    for (const p of [human, { ...human, tenantId: tenantB }]) {
+      await expect(
+        invoker.run(useCases.approveTranslation, p, {
+          ...target,
+          baseRevisionId: saved.revision.id,
+          locale: 'nl',
+        })
+      ).rejects.toMatchObject({ code: p.tenantId === tenantA ? 'conflict' : 'not_found' });
+    }
+    await expect(
+      invoker.run(useCases.getItem, b(), { ...target, revisionId: removed.revision.id })
+    ).rejects.toMatchObject({ code: 'not_found' });
+    await expect(
+      invoker.run(useCases.updateItem, b(), {
+        ...target,
+        baseRevisionId: removed.revision.id,
+        document: removed.revision.document,
+      })
+    ).rejects.toMatchObject({ code: 'not_found' });
+    const revisions = await invoker.run(useCases.listRevisions, a(), target);
+    expect(revisions.revisions).toHaveLength(4);
+    expect(await invoker.run(useCases.getItem, a(), target)).toEqual({
+      item: removed.item,
+      revision: removed.revision,
+    });
+    const outcomes = await Promise.allSettled([
+      invoker.run(useCases.approveTranslation, human, {
+        ...target,
+        baseRevisionId: removed.revision.id,
+        locale: 'nl',
+      }),
+      invoker.run(useCases.updateItem, a(), {
+        ...target,
+        baseRevisionId: removed.revision.id,
+        document: removed.revision.document,
+      }),
+    ]);
+    expect(outcomes.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(outcomes.find((r) => r.status === 'rejected')).toMatchObject({
+      reason: { code: 'conflict' },
+    });
+    expect((await invoker.run(useCases.listRevisions, a(), target)).revisions).toHaveLength(5);
+    const latest = await invoker.run(useCases.getItem, a(), target);
+    if (outcomes[0]!.status === 'fulfilled')
+      expect(latest.revision.document.machineTranslation).toBeUndefined();
+    else expect(latest.revision.document.machineTranslation).toEqual({ nl: ['locales'] });
+    expect(latest.item.publication).toEqual(created.item.publication);
+  });
+
   it('lets exactly one of eight concurrent operations on one base win, refs included', async () => {
     for (let round = 0; round < 3; round++) {
       const { item, revision } = await page(`race-op-${round}`, [

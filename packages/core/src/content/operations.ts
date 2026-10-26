@@ -67,8 +67,6 @@ interface Applied {
   created: string[];
   retired: string[];
   merged: { from: string; into: string }[];
-  /** A split retains marked content under both the original and the new block id. */
-  markerCopies?: { from: string; into: string }[];
 }
 
 const fail = (path: string, issue: string): never => {
@@ -119,26 +117,7 @@ async function mutate(
       { path: e.path, message: e.issue },
     ]);
   }
-  let doc: ContentDocument = finalize(ctx, base.document, applied.blocks);
-  // A retired id may still have its text in the surviving block. Copy markers before
-  // writeRevision prunes paths that no longer exist; a split marks both retained halves.
-  const transfers = [...applied.merged, ...(applied.markerCopies ?? [])];
-  if (transfers.length && base.document.machineTranslation) {
-    const markers = Object.fromEntries(
-      Object.entries(base.document.machineTranslation).map(([locale, paths]) => [
-        locale,
-        [
-          ...paths,
-          ...transfers.flatMap(({ from, into }) =>
-            paths
-              .filter((path) => path.startsWith(`blocks.${from}.`))
-              .map((path) => `blocks.${into}.${path.slice(`blocks.${from}.`.length)}`)
-          ),
-        ],
-      ])
-    );
-    doc = { ...doc, machineTranslation: markers };
-  }
+  const doc: ContentDocument = finalize(ctx, base.document, applied.blocks);
   const saved = await writeRevision(ctx, item, doc);
   return { ...saved, created: applied.created, retired: applied.retired, merged: applied.merged };
 }
@@ -297,7 +276,6 @@ export const splitInsertBlock = defineUseCase({
         created: [added.id, rest.id],
         retired: [],
         merged: [],
-        markerCopies: [{ from: text.id, into: rest.id }],
       };
     }),
 });
