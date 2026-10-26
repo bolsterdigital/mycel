@@ -109,6 +109,7 @@ seen_approval=0
 seen_repo=0
 seen_planning=0
 seen_schema=0
+seen_approval_prompt=0
 result=''
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -118,10 +119,11 @@ while [ "$#" -gt 0 ]; do
     --add-dir) shift; [ "$1" = '${join(f.root, 'planning')}' ] && seen_planning=1;;
     --output-schema) shift; [ -f "$1" ] && seen_schema=1;;
     -o) shift; result="$1";;
+    *"ordinary on-request approval route"*"If approval is rejected"*) seen_approval_prompt=1;;
   esac
   shift
 done
-[ "$seen_approval" -eq 1 ] && [ "$seen_repo" -eq 1 ] && [ "$seen_planning" -eq 1 ] && [ "$seen_schema" -eq 1 ] || exit 92
+[ "$seen_approval" -eq 1 ] && [ "$seen_repo" -eq 1 ] && [ "$seen_planning" -eq 1 ] && [ "$seen_schema" -eq 1 ] && [ "$seen_approval_prompt" -eq 1 ] || exit 92
 printf '%s' "$MYCEL_PILOT_FAKE_PROBE_RESULT" > "$result"
 printf '{"type":"turn.completed"}\\n'
 `,
@@ -164,6 +166,7 @@ for (const axis of Object.keys(passingProbe)) {
       { mode: 0o755 }
     );
     fakePreflightCodex(f);
+    writeFileSync(join(f.home, 'preflight.json'), '{"stale":true}\n');
     const evidence = structuredClone(passingProbe);
     evidence[axis].ok = false;
     const ran = call(
