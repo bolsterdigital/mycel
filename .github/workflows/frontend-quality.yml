@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: frontend-quality-${{ github.ref }}
@@ -96,12 +97,28 @@ jobs:
           echo '5c218bc34c9197369263da7e9317a83acdbd80ef45d94dca5eff76e727c67cdd  /tmp/caddy.tar.gz' | sha256sum --check
           tar -xzf /tmp/caddy.tar.gz -C /tmp caddy
           sudo install /tmp/caddy /usr/local/bin/caddy
+      - name: Retrieve previous sanitized main summary
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/quality/baseline.mjs quality-summary-${{ matrix.scope }}-${{ matrix.locale }}-${{ matrix.profile }}-${{ matrix.cache }}
       - name: Five samples per cell (calibration, actual state stays in reports)
         id: measurement
         continue-on-error: true
-        run: npm run quality -- --scope=${{ matrix.scope }} --locale=${{ matrix.locale }} --profile=${{ matrix.profile }} --cache=${{ matrix.cache }} --out=.scratch/quality-report
-      # Public reports only. Authenticated reports can contain cookies and synthetic page bodies;
-      # they stay in private/ on the isolated runner, never in public repository artifacts.
+        run: npm run quality -- --scope=${{ matrix.scope }} --locale=${{ matrix.locale }} --profile=${{ matrix.profile }} --cache=${{ matrix.cache }} --out=.scratch/quality-report --baseline=.scratch/quality-baseline/summary.json
+      # Preserve private originals encrypted to the operator's public certificate. Run again
+      # after timeout/interruption too; the private key never enters GitHub or the repository.
+      - name: Encrypt authenticated reports even after failure
+        if: always()
+        run: node scripts/quality/protect.mjs .scratch/quality-report
+      - name: Preserve encrypted authenticated reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: quality-private-${{ matrix.scope }}-${{ matrix.locale }}-${{ matrix.profile }}-${{ matrix.cache }}
+          path: .scratch/quality-report/private.tar.gz.cms
+          retention-days: 30
+          if-no-files-found: warn
       - name: Preserve public raw reports even on failure
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

@@ -52,6 +52,26 @@ export function evaluateBatch(contract, samples) {
       min: completePerformance ? Math.min(...performance) : null,
       max: completePerformance ? Math.max(...performance) : null,
     },
+    failedAuditIdsByCategory: Object.fromEntries(
+      applicable.map((category) => [
+        category,
+        [
+          ...new Set(
+            samples.flatMap((sample) =>
+              (sample.report?.categories?.[category]?.auditRefs ?? [])
+                .filter(
+                  (ref) =>
+                    ref.weight > 0 &&
+                    typeof sample.report?.audits?.[ref.id]?.score === 'number' &&
+                    sample.report.audits[ref.id].score < 1
+                )
+                .map((ref) => ref.id)
+            )
+          ),
+        ],
+      ])
+    ),
+    identityIssues: [...new Set(samples.flatMap((sample) => sample.identity?.reasons ?? []))],
     failedAuditIds: [
       ...new Set(
         samples.flatMap((sample) =>
@@ -99,6 +119,12 @@ export function repairProposals(cells, ledger = [], now = new Date()) {
     for (const reason of new Set(
       cell.batches.length ? cell.batches.flatMap((batch) => batch.reasons) : ['not-measured']
     )) {
+      if (
+        reason === 'page-identity' &&
+        cell.batches.some((b) => b.reasons.includes('admin-private-cache'))
+      )
+        continue;
+      const privacy = reason === 'admin-private-cache';
       const category = ['performance', 'accessibility', 'best-practices', 'seo'].includes(reason)
         ? reason
         : 'measurement';
@@ -106,16 +132,23 @@ export function repairProposals(cells, ledger = [], now = new Date()) {
         category === 'measurement'
           ? reason
           : `${category}:${cell.batches
-              .flatMap((b) => b.failedAuditIds)
+              .flatMap((b) => b.failedAuditIdsByCategory?.[category] ?? b.failedAuditIds)
               .sort()
               .join(',')}`;
       const previous = ledger.find((item) => item.key === key);
       const proposal = proposals.get(key) ?? {
         key,
-        owner: category === 'measurement' ? 'dev' : 'mbp',
+        owner: privacy ? 'mbp' : category === 'measurement' ? 'dev' : 'mbp',
+        tier: privacy ? 'flagship-review' : 'workhorse',
         address:
           previous?.address ??
-          (category === 'seo' ? '#9' : category === 'measurement' ? '#43B' : '#43C'),
+          (privacy
+            ? '#11'
+            : category === 'seo'
+              ? '#9'
+              : category === 'measurement'
+                ? '#43B'
+                : '#43C'),
         recurrence: previous?.status === 'closed',
         expiredException: Boolean(previous?.expires && new Date(previous.expires) <= now),
         cells: [],

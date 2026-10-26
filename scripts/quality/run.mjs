@@ -14,6 +14,8 @@ import lighthouse, { desktopConfig as desktop } from 'lighthouse';
 import * as chromeLauncher from 'chrome-launcher';
 import { IdentityGatherer, IdentityAudit } from './gatherer.mjs';
 import { validateIdentity } from './identity.mjs';
+import { compareBaseline } from './baseline.mjs';
+import { protectReports } from './protect.mjs';
 import { evaluateCell, repairProposals } from './evaluate.mjs';
 
 const require = createRequire(import.meta.url);
@@ -47,7 +49,7 @@ if (
   !['default', 'full', 'admin'].includes(scope) ||
   !['mobile', 'desktop'].includes(profile) ||
   !['nl', 'en'].includes(locale) ||
-  !['fresh', 'warm'].includes(cache)
+  !['fresh', 'warm', 'cold'].includes(cache)
 )
   throw new Error('Unsupported scope/profile/locale/cache');
 const started = Date.now();
@@ -79,8 +81,11 @@ const result = {
     cache,
     scope,
     theme: 'seeded-default',
-    warmup: 'none',
-    baseline: 'no baseline',
+    warmup: cache === 'warm' ? 'one unmeasured navigation per fresh browser' : 'none',
+    serverCache:
+      cache === 'cold'
+        ? 'new web process per sample; database/proxy remain warm'
+        : 'shared web process',
   },
   cells: [],
   coverage: [
@@ -97,13 +102,6 @@ const result = {
       owner: 'mbp',
       address: '#38',
       reason: '43a-v3 theme is simulated, not a persisted tenant fixture',
-    },
-    {
-      state: 'not-measured',
-      route: 'cold server startup',
-      owner: 'dev',
-      address: '#43B',
-      reason: 'readiness starts the server; fresh browser cache is not cold server evidence',
     },
     ...corpus.planned
       .filter((p) => p.route !== 'site-chrome')
@@ -151,15 +149,17 @@ save('summary.json', { ...result, state: 'not-measured' });
 let browser;
 try {
   const { DATABASE_URL: _owner, ...frontEnv } = process.env;
-  const web = launch('node', ['apps/web/build/index.js'], {
-    ...frontEnv,
-    HOST: '127.0.0.1',
-    PORT: '4173',
-    PUBLIC_BASE_URL: origin,
-    ADDRESS_HEADER: 'x-forwarded-for',
-    PROTOCOL_HEADER: 'x-forwarded-proto',
-    BODY_SIZE_LIMIT: '26M',
-  });
+  const startWeb = () =>
+    launch('node', ['apps/web/build/index.js'], {
+      ...frontEnv,
+      HOST: '127.0.0.1',
+      PORT: '4173',
+      PUBLIC_BASE_URL: origin,
+      ADDRESS_HEADER: 'x-forwarded-for',
+      PROTOCOL_HEADER: 'x-forwarded-proto',
+      BODY_SIZE_LIMIT: '26M',
+    });
+  let web = startWeb();
   await ready('http://127.0.0.1:4173/healthz', web);
   execFileSync(
     'openssl',
@@ -297,6 +297,14 @@ try {
         mkdirSync(dir, { recursive: true, mode: 0o700 });
         let chrome;
         try {
+          if (cache === 'cold') {
+            await new Promise((resolve) => {
+              web.once('exit', resolve);
+              web.kill('SIGTERM');
+            });
+            web = startWeb();
+            await ready('http://127.0.0.1:4173/healthz', web);
+          }
           chrome = await chromeLauncher.launch({
             chromePath: chromium.executablePath(),
             chromeFlags: [
@@ -306,9 +314,7 @@ try {
             ],
             logLevel: 'error',
           });
-          const headers = {
-            'Accept-Language': locale,
-          };
+          const headers = { 'Accept-Language': locale };
           const config = {
             ...(profile === 'desktop' ? desktop : { extends: 'lighthouse:default' }),
             artifacts: [
@@ -368,7 +374,7 @@ try {
           // Validate every declared image, including below-fold lazy images. Outside the timed
           // window, using URLs from this exact measured document and the same HTTPS origin.
           for (const url of facts.imageUrls ?? []) {
-            const response = await pageRequest(url, headers, spki);
+            const response = await pageRequest(url, headers);
             if (!response) facts.failedRequests.push(url);
           }
           sample.identity = validateIdentity(entry, facts);
@@ -424,6 +430,11 @@ try {
   await browser?.close();
   result.durationMinutes = (Date.now() - started) / 60000;
   result.repairs = repairProposals(result.cells);
+  try {
+    protectReports(out);
+  } catch (error) {
+    result.error = `Private evidence encryption failed: ${error.message}`;
+  }
   result.state =
     result.error || !result.cells.length
       ? 'inconclusive'
@@ -432,6 +443,16 @@ try {
         : result.cells.some((c) => c.state !== 'pass')
           ? 'inconclusive'
           : 'pass';
+  let previous;
+  const baseline = option('baseline');
+  if (baseline && existsSync(baseline)) {
+    try {
+      previous = JSON.parse(readFileSync(baseline, 'utf8'));
+    } catch {
+      /* Invalid predecessor cannot establish a baseline. */
+    }
+  }
+  result.baselineComparison = compareBaseline(result, previous);
   save('summary.json', result);
   console.log(`quality: ${result.state}; reports ${out}`);
   stop();

@@ -2,7 +2,12 @@
 // scheduled and manual runs. These are contract tests, not snapshots of the implementation.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { protectReports } from './protect.mjs';
+import { compareBaseline } from './baseline.mjs';
 import { IdentityGatherer, IdentityAudit } from './gatherer.mjs';
 import { matrix } from './matrix.mjs';
 import { status } from './status.mjs';
@@ -49,10 +54,72 @@ test('quality proxy preserves production compression and closed operational path
   );
   assert.match(workflow, /timeout-minutes: 10/);
   assert.match(workflow, /if: always\(\)/);
-  assert.doesNotMatch(workflow, /path: .*private/);
+  assert.doesNotMatch(workflow, /path: .*\/private\s*$/m);
 });
 
 test('pinned Lighthouse loads the identity extension', () => {
   assert.ok(new IdentityGatherer().meta.supportedModes.includes('navigation'));
   assert.deepEqual(IdentityAudit.meta.requiredArtifacts, ['MycelIdentity']);
+});
+
+test('authenticated originals survive public-key encryption and round-trip locally', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'mycel-private-report-'));
+  try {
+    mkdirSync(join(dir, 'private'));
+    writeFileSync(join(dir, 'private', 'sample.json'), '{"synthetic":"private"}');
+    execFileSync(
+      'openssl',
+      [
+        'req',
+        '-x509',
+        '-newkey',
+        'rsa:2048',
+        '-nodes',
+        '-keyout',
+        join(dir, 'key.pem'),
+        '-out',
+        join(dir, 'cert.pem'),
+        '-days',
+        '1',
+        '-subj',
+        '/CN=test',
+      ],
+      { stdio: 'ignore' }
+    );
+    protectReports(dir, join(dir, 'cert.pem'));
+    execFileSync('openssl', [
+      'cms',
+      '-decrypt',
+      '-binary',
+      '-inform',
+      'DER',
+      '-in',
+      join(dir, 'private.tar.gz.cms'),
+      '-inkey',
+      join(dir, 'key.pem'),
+      '-out',
+      join(dir, 'decrypted.tar.gz'),
+    ]);
+    const text = execFileSync(
+      'tar',
+      ['-xOzf', join(dir, 'decrypted.tar.gz'), 'private/sample.json'],
+      { encoding: 'utf8' }
+    );
+    assert.equal(text, '{"synthetic":"private"}');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+test('failed or mismatched baselines cannot redefine absolute acceptance', () => {
+  const current = { fixtureHash: 'a', environment: { lighthouse: '13.5.0' }, cells: [] };
+  assert.equal(compareBaseline(current).state, 'no baseline');
+  assert.equal(compareBaseline(current, { ...current, state: 'fail' }).state, 'no baseline');
+  assert.equal(
+    compareBaseline(current, { ...current, state: 'pass', fixtureHash: 'b' }).state,
+    'no baseline'
+  );
+  assert.equal(
+    compareBaseline(current, { ...current, state: 'pass', commit: 'previous' }).state,
+    'compared'
+  );
 });

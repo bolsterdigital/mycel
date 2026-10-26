@@ -6,7 +6,7 @@ export function matrix(event) {
   for (const scope of full ? ['default', 'admin'] : ['default'])
     for (const locale of full ? ['nl', 'en'] : ['nl'])
       for (const profile of ['mobile', 'desktop'])
-        for (const cache of full && scope === 'default' ? ['fresh', 'warm'] : ['fresh'])
+        for (const cache of full && scope === 'default' ? ['fresh', 'warm', 'cold'] : ['fresh'])
           include.push({ scope, locale, profile, cache });
   return { include };
 }
