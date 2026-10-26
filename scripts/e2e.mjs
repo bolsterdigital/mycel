@@ -31,7 +31,8 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const qualityCorpus = JSON.parse(
   readFileSync(new URL('../apps/web/e2e/quality-corpus.json', import.meta.url), 'utf8')
 );
-const required = process.env.E2E_REQUIRED === '1';
+const quality = process.argv.includes('--quality');
+const required = quality || process.env.E2E_REQUIRED === '1';
 const skip = (why) => {
   if (required) {
     console.error(`e2e: required but ${why}`);
@@ -622,7 +623,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
 // run with SITE_URL_MODE=hostnames and PLATFORM_DOMAIN=localhost: the seed gives tenant probe
 // the hostname probe.localhost, Chromium resolves it to loopback, and the specs cover both the
 // hostname form (hostnames.spec.ts) and the development path form (signup.spec.ts).
-const WEB_ORIGIN = 'http://127.0.0.1:4173';
+const WEB_ORIGIN = quality ? 'https://localhost:4443' : 'http://127.0.0.1:4173';
 const spool = mkdtempSync(join(tmpdir(), 'mycel-e2e-mail-'));
 const env = {
   ...process.env,
@@ -689,7 +690,16 @@ await waitFor('worker', worker, `http://127.0.0.1:${WORKER_PORT}/healthz`);
 await waitFor('mock IdP', idp, `${env.OIDC_ISSUER}/.well-known/openid-configuration`);
 
 // The children keep the event loop alive; stop them explicitly once the tests are done.
-run('npx', ['playwright', 'test', ...process.argv.slice(2)], `${root}apps/web`, env);
+if (quality) {
+  run(
+    'node',
+    ['scripts/quality/run.mjs', ...process.argv.slice(2).filter((arg) => arg !== '--quality')],
+    root,
+    env
+  );
+} else {
+  run('npx', ['playwright', 'test', ...process.argv.slice(2)], `${root}apps/web`, env);
+}
 stop();
 // The worker planned a `mail.reconcile` per confirmation it sent, RECONCILE_LAG_MS ahead, and is
 // gone before they fall due. Close probe's so they neither wait for the next run's worker nor

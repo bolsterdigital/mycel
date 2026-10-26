@@ -30,10 +30,12 @@
     "db:migrate": "npm run -s migrate -w @mycel/db",
     "mycel": "tsc -b packages/api && node --env-file-if-exists=.env packages/api/dist/cli.js",
     "platform": "npm run -s mycel --",
-    "db:seed": "tsc -b packages/db && npm run -s migrate -w @mycel/db && npm run -s seed -w @mycel/db"
+    "db:seed": "tsc -b packages/db && npm run -s migrate -w @mycel/db && npm run -s seed -w @mycel/db",
+    "quality": "node --env-file-if-exists=.env scripts/e2e.mjs --quality"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "lighthouse": "13.5.0",
     "prettier": "^3.4.2",
     "prettier-plugin-svelte": "^3.3.3",
     "tsx": "^4.19.2",
