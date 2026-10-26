@@ -26,10 +26,7 @@ const option = (name, fallback) =>
     .slice(1)
     .join('=') ?? fallback;
 const origin = 'https://localhost:4443';
-const route = optionRoute();
-function optionRoute() {
-  return process.argv.find((arg) => arg.startsWith('--route='))?.slice(8);
-}
+const route = option('route');
 const corpusPath = 'apps/web/e2e/quality-corpus.json';
 const corpus = JSON.parse(readFileSync(corpusPath));
 const commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
@@ -151,6 +148,7 @@ async function ready(url, child) {
   }
   throw new Error(`Readiness deadline: ${url}`);
 }
+save('summary.json', { ...result, state: 'not-measured' });
 let browser;
 try {
   const { DATABASE_URL: _owner, ...frontEnv } = process.env;
@@ -392,6 +390,8 @@ try {
           await chrome?.kill();
         }
         samples.push(sample);
+        result.activeCell = { id: entry.id, samples: samples.length, expected: 5 };
+        save('summary.json', { ...result, state: 'inconclusive' });
         // Never persist cookies/extraHeaders in a summary; Lighthouse raw admin reports stay
         // in private/ and CI uploads only public/ plus this sanitized summary.
         const { report: _report, ...metadata } = sample;
@@ -402,6 +402,7 @@ try {
       }
       batches.push(samples);
     }
+    delete result.activeCell;
     result.cells.push({
       id: entry.id,
       route: entry.url,

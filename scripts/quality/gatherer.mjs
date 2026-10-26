@@ -1,7 +1,7 @@
 // Read identity from Lighthouse's own measured document. A separate Playwright probe could
 // pass while Lighthouse measures a login page. This artifact adds no scoring category.
 import BaseGatherer from 'lighthouse/core/gather/base-gatherer.js';
-import Audit from 'lighthouse/core/audits/audit.js';
+import { Audit } from 'lighthouse/core/audits/audit.js';
 
 export class IdentityGatherer extends BaseGatherer {
   meta = { supportedModes: ['navigation'] };
