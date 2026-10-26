@@ -24,3 +24,20 @@ test('every `uses:` is pinned to a commit sha with a version comment', () => {
   }
   assert.deepEqual(unpinned, []);
 });
+
+test('only the non-production verify job selects the fake assist provider', () => {
+  const workflow = readFileSync(dir + 'verify.yml', 'utf8');
+  const verifyJob = workflow.split(/^  verify:\n/m)[1]?.split(/^  [\w-]+:\n/m)[0];
+  assert.ok(verifyJob, 'verify job must exist');
+  const jobEnv = /^    env:\n([\s\S]*?)(?=^    steps:)/m.exec(verifyJob)?.[1];
+  assert.ok(jobEnv, 'provider must be inherited by all verify steps');
+  assert.match(jobEnv, /^      ASSIST_PROVIDER: fake$/m);
+  assert.doesNotMatch(verifyJob, /NODE_ENV:\s*['"]?production/);
+
+  // Image/compose/release use the production default, never the browser fixture provider.
+  for (const file of readdirSync(dir).filter((f) => /\.ya?ml$/.test(f))) {
+    const contents = readFileSync(dir + file, 'utf8');
+    const otherJobs = file === 'verify.yml' ? contents.replace(verifyJob, '') : contents;
+    assert.doesNotMatch(otherJobs, /ASSIST_PROVIDER/, `${file}: provider outside verify job`);
+  }
+});
