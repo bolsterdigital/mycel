@@ -101,7 +101,7 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node scripts/quality/baseline.mjs quality-summary-${{ matrix.scope }}-${{ matrix.locale }}-${{ matrix.profile }}-${{ matrix.cache }}
+        run: node scripts/quality/baseline.mjs quality-baseline-${{ matrix.scope }}-${{ matrix.locale }}-${{ matrix.profile }}-${{ matrix.cache }}
       - name: Five samples per cell (calibration, actual state stays in reports)
         id: measurement
         continue-on-error: true
@@ -132,6 +132,15 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: quality-summary-${{ matrix.scope }}-${{ matrix.locale }}-${{ matrix.profile }}-${{ matrix.cache }}
+          path: .scratch/quality-report/summary.json
+          retention-days: 90
+          if-no-files-found: error
+      # Failed observation runs never overwrite the latest successful baseline history.
+      - name: Retain a successful baseline summary
+        if: steps.measurement.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: quality-baseline-${{ matrix.scope }}-${{ matrix.locale }}-${{ matrix.profile }}-${{ matrix.cache }}
           path: .scratch/quality-report/summary.json
           retention-days: 90
           if-no-files-found: error
