@@ -152,6 +152,7 @@ function documentSchemas<B extends typeof Block | typeof BlockInput>(block: B) {
     defaultLocale: Locale,
     locales: LocaleList,
     blocks: z.array(block).max(1000),
+    machineTranslation: z.record(Locale, z.array(z.string().min(1))).optional(),
     // Zod 4 defaults return directly; prefault keeps parsing the nested defaults as Zod 3 did.
     seo: Seo.prefault({}),
     access: Access.prefault({ level: 'public' }),
@@ -281,6 +282,8 @@ export function readinessIssues(
     if (doc.access.level !== 'public' && doc.access.teaser === 'lead' && !doc.lead)
       issues.push({ path: 'lead', message: 'content.publish.teaser-lead-required' });
   }
+  for (const path of doc.machineTranslation?.[locale] ?? [])
+    issues.push({ path, message: 'content.publish.machine-translation-unreviewed' });
   if (doc.access.level === 'tier')
     issues.push({ path: 'access.tierIds', message: 'content.publish.tier-unverifiable' });
   return issues;

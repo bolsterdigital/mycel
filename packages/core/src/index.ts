@@ -24,6 +24,7 @@ export * from './jobs/types.js';
 export * from './jobs/ports.js';
 export * from './jobs/handlers.js';
 export * from './content/rich-text.js';
+export * from './content/markdown.js';
 export * from './content/blocks.js';
 export * from './content/model.js';
 export * from './content/lifecycle.js';

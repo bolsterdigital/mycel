@@ -4,7 +4,8 @@
 // documents on every run and needs no dependency admission (ADR 008).
 
 import { describe, expect, it } from 'vitest';
-import { BLOCK_DEFINITIONS, RichTextDoc, type Mark } from '@mycel/core';
+import { BLOCK_DEFINITIONS } from './blocks.js';
+import { RichTextDoc, type Mark } from './rich-text.js';
 import { canonicalRichText, fromMarkdown, toMarkdown } from './markdown.js';
 
 function roundTrip(doc: RichTextDoc) {

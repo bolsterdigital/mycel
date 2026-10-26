@@ -9,6 +9,7 @@ import { buildRegistry, useCases } from '../use-cases.js';
 import { EXAMPLE_PNG } from '../media/service.js';
 import { FakeClock, FakeTextModel, MemoryLogger, MemoryUnitOfWork } from '../testing/index.js';
 import { runAssistSuggestion } from './worker.js';
+import { readinessIssues } from '../content/model.js';
 
 const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const system = systemPrincipal(TENANT, 'test');
@@ -83,6 +84,163 @@ async function setup() {
     });
   return { uow, invoker, model, created, suggest, run, log };
 }
+
+describe('translation boundary', () => {
+  it('sends only selected Markdown, rejects changed structure, and needs a human publisher', async () => {
+    const { uow, invoker, model, created, run } = await setup();
+    const source = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Source ', marks: [] },
+            {
+              type: 'text',
+              text: 'link',
+              marks: [{ type: 'link', attrs: { href: 'https://example.org/source' } }],
+            },
+            {
+              type: 'text',
+              text: ' note',
+              marks: [{ type: 'footnote_reference', attrs: { text: 'Reference' } }],
+            },
+          ],
+        },
+      ],
+    };
+    const changed = await invoker.run(useCases.updateItem, operator, {
+      itemId: created.item.id,
+      baseRevisionId: created.revision.id,
+      document: {
+        ...created.revision.document,
+        blocks: [
+          ...created.revision.document.blocks.map((block) =>
+            block.type === 'image'
+              ? {
+                  ...block,
+                  props: {
+                    ...block.props,
+                    caption: { nl: 'Visible caption', en: 'Visible caption en' },
+                  },
+                }
+              : block
+          ),
+          { id: 'body', type: 'rich-text', version: 1, props: { content: { nl: source } } },
+        ],
+      },
+    });
+    const input = {
+      itemId: created.item.id,
+      baseRevisionId: changed.revision.id,
+      from: 'nl',
+      to: 'en',
+      targets: ['body'],
+    };
+    const first = await invoker.run(useCases.suggestTranslation, operator, input);
+    const original = 'Source [link](https://example.org/source)[ note][^1]\n\n[^1]: Reference';
+    model.result = {
+      values: {
+        'blocks.body.props.content':
+          'Translated [link](https://example.org/changed)[ note][^1]\n\n[^1]: Reference',
+      },
+    };
+    await run(first.suggestionId);
+    expect(model.requests.at(-1)?.parts).toEqual([
+      {
+        kind: 'text',
+        text: JSON.stringify({
+          from: 'nl',
+          to: 'en',
+          values: { 'blocks.body.props.content': original },
+        }),
+      },
+    ]);
+    expect(
+      (await invoker.run(useCases.getSuggestion, operator, { suggestionId: first.suggestionId }))
+        .failure
+    ).toBe('invalid-output');
+    const second = await invoker.run(useCases.suggestTranslation, operator, input);
+    model.result = {
+      values: {
+        'blocks.body.props.content':
+          'Translated [link](https://example.org/source)[ note][^2]\n\n[^2]: Reference',
+      },
+    };
+    await run(second.suggestionId);
+    expect(
+      (await invoker.run(useCases.getSuggestion, operator, { suggestionId: second.suggestionId }))
+        .failure
+    ).toBe('invalid-output');
+    const third = await invoker.run(useCases.suggestTranslation, operator, input);
+    model.result = {
+      values: {
+        'blocks.body.props.content':
+          'Translated [link](https://example.org/source)[ note][^1]\n\n[^1]: Reference',
+      },
+    };
+    await run(third.suggestionId);
+    const accepted = await invoker.run(useCases.acceptSuggestion, operator, {
+      suggestionId: third.suggestionId,
+      baseRevisionId: changed.revision.id,
+    });
+    const saved = await invoker.run(useCases.getItem, operator, { itemId: created.item.id });
+    expect(saved.revision.document.machineTranslation?.en).toEqual(['blocks.body.props.content']);
+    await expect(
+      invoker.run(useCases.publishItem, operator, {
+        itemId: created.item.id,
+        revisionId: accepted.revisionId,
+        locale: 'en',
+      })
+    ).rejects.toThrow();
+    const agent = { ...operator, actor: { kind: 'system' as const, name: 'agent' } };
+    await expect(
+      invoker.run(useCases.approveTranslation, agent, {
+        itemId: created.item.id,
+        locale: 'en',
+        baseRevisionId: accepted.revisionId,
+      })
+    ).rejects.toThrow();
+    await expect(
+      invoker.run(
+        useCases.approveTranslation,
+        {
+          ...operator,
+          capabilities: ['content:write'],
+        },
+        { itemId: created.item.id, locale: 'en', baseRevisionId: accepted.revisionId }
+      )
+    ).rejects.toThrow();
+    const ordinaryDocument = structuredClone(saved.revision.document);
+    delete ordinaryDocument.machineTranslation;
+    const ordinary = await invoker.run(useCases.updateItem, operator, {
+      itemId: created.item.id,
+      baseRevisionId: accepted.revisionId,
+      document: ordinaryDocument,
+    });
+    expect(ordinary.revision.document.machineTranslation?.en).toEqual([
+      'blocks.body.props.content',
+    ]);
+    const approved = await invoker.run(useCases.approveTranslation, operator, {
+      itemId: created.item.id,
+      locale: 'en',
+      baseRevisionId: ordinary.revision.id,
+    });
+    const after = await invoker.run(useCases.getItem, operator, { itemId: created.item.id });
+    expect(after.revision.document.machineTranslation?.en).toBeUndefined();
+    expect(approved.revisionId).not.toBe(accepted.revisionId);
+    expect(readinessIssues(after.revision.document, 'en')).toEqual([]);
+    const published = await invoker.run(useCases.publishItem, operator, {
+      itemId: created.item.id,
+      revisionId: approved.revisionId,
+      locale: 'en',
+    });
+    expect(published.publication.find((state) => state.locale === 'en')?.publishedRevisionId).toBe(
+      approved.revisionId
+    );
+    void uow;
+  });
+});
 
 describe('assistance proposal boundary', () => {
   it('sends only the selected variant, caption and locale, then accepts without publishing', async () => {

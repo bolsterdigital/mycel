@@ -37,6 +37,7 @@ import {
 } from './lifecycle.js';
 import {
   ContentDocument,
+  localizedFields,
   ContentDocumentInput,
   ContentItem,
   ContentType,
@@ -111,6 +112,7 @@ export function finalize(
 ): ContentDocument {
   const parsed = ContentDocument.safeParse({
     ...input,
+    machineTranslation: input.machineTranslation,
     blocks: assignBlockIds(blocks, () => ctx.ids.next()),
   });
   if (!parsed.success)
@@ -162,8 +164,42 @@ export async function writeRevision(
   ctx: TransactionContext,
   item: ItemRecord,
   doc: ContentDocument,
-  provenance?: Revision['provenance']
+  provenance?: Revision['provenance'],
+  clearTranslationLocale?: string
 ): Promise<{ item: ContentItem; revision: Revision }> {
+  const previous = await ctx.content.revision(item.id, item.latestRevisionId);
+  const inherited = previous?.document.machineTranslation ?? {};
+  const combined = Object.fromEntries(
+    Object.keys(inherited)
+      .concat(Object.keys(doc.machineTranslation ?? {}))
+      .map((locale) => [
+        locale,
+        [...new Set([...(inherited[locale] ?? []), ...(doc.machineTranslation?.[locale] ?? [])])],
+      ])
+  );
+  if (clearTranslationLocale) delete combined[clearTranslationLocale];
+  const unmarked = { ...doc };
+  delete unmarked.machineTranslation;
+  doc = ContentDocument.parse({
+    ...unmarked,
+    ...(Object.keys(combined).length ? { machineTranslation: combined } : {}),
+  });
+  const existing = new Set(
+    localizedFields(doc).map(({ path }) => {
+      if (path[0] !== 'blocks') return path.join('.');
+      return `blocks.${doc.blocks[Number(path[1])]?.id}.${path.slice(2).join('.')}`;
+    })
+  );
+  const markers = Object.fromEntries(
+    Object.entries(doc.machineTranslation ?? {})
+      .filter(([locale]) => doc.locales.includes(locale))
+      .map(([locale, paths]) => [locale, paths.filter((path) => existing.has(path))])
+      .filter(([, paths]) => (paths as string[]).length > 0)
+  );
+  doc = ContentDocument.parse({
+    ...unmarked,
+    ...(Object.keys(markers).length ? { machineTranslation: markers } : {}),
+  });
   await assertReferences(ctx, doc);
   const now = ctx.clock.now();
   const revision: Revision = {

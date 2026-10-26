@@ -25,6 +25,8 @@ import {
   getSuggestion,
   listSuggestions,
   suggestAlt,
+  suggestTranslation,
+  approveTranslation,
   updateAssistSettings,
 } from './assist/service.js';
 import {
@@ -111,6 +113,8 @@ export const useCases = {
   getAssistSettings,
   updateAssistSettings,
   suggestAlt,
+  suggestTranslation,
+  approveTranslation,
   getSuggestion,
   listSuggestions,
   dismissSuggestion,
