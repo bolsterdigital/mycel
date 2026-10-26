@@ -535,7 +535,7 @@ test('SvelteKit scope components are literal exact paths and bounded directories
     assert.equal(scopeAllows(scope, path), false, path);
 });
 
-test('route syntax admits only complete named groups and parameters under the route root', () => {
+test('route syntax rejects malformed components and authority outside the route root', () => {
   const root = 'apps/web/src/routes/';
   for (const path of [
     `${root}(admin|public)/+page.ts`,
@@ -545,9 +545,6 @@ test('route syntax admits only complete named groups and parameters under the ro
     `${root}prefix(admin)/+page.ts`,
     `${root}[a-z]/+page.ts`,
     `${root}[tenant*]/+page.ts`,
-    `${root}[[tenant]]/+page.ts`,
-    `${root}[...tenant]/+page.ts`,
-    `${root}[tenant=matcher]/+page.ts`,
     `${root}[tenant]/../+page.ts`,
     `${root}(admin)/CLAUDE.md`,
     `${root}(admin)/.git/config`,
@@ -568,4 +565,65 @@ test('route syntax admits only complete named groups and parameters under the ro
         path
       );
   }
+});
+
+// These are filesystem names from the actual public/preview tree, not URL patterns.
+test('real public route grammar stays literal for optional, rest and matcher components', () => {
+  const root = 'apps/web/src/routes/(public)/[tenant]/';
+  for (const component of ['[[locale=locale]]', '[[locale]]', '[locale=locale]', '[...path]']) {
+    const directory = `${root}${component}/`;
+    const exact = `${directory}+page.svelte`;
+    const scope = { paths: [exact], directories: [] };
+    const prefix = { paths: [], directories: [directory] };
+    for (const value of [scope, prefix]) {
+      validateScopes({ allowlist: ['#9 PR 1'], scopes: { '#9 PR 1': value } });
+      assert.equal(scopeAllows(value, exact), true);
+      for (const other of [
+        exact.replace(component, 'nl'),
+        exact.replace(component, '[other]'),
+        exact.replace(component, `${component}suffix`),
+        `${directory}AGENTS.md`,
+      ])
+        assert.equal(scopeAllows(value, other), false, other);
+    }
+  }
+  const exact = `${root}[[locale=locale]]/[...path]/+page.svelte`;
+  validateScopes({
+    allowlist: ['#9 PR 1'],
+    scopes: { '#9 PR 1': { paths: [exact], directories: [] } },
+  });
+  for (const component of [
+    '[[...path]]',
+    '[...path=matcher]',
+    '[locale=]',
+    '[=locale]',
+    '[[locale=foo=bar]]',
+    '[locale=a-z]',
+    '[[locale]',
+    '[....path]',
+    '[...path*]',
+    'prefix[locale=locale]',
+  ])
+    for (const value of [
+      { paths: [`${root}${component}/+page.ts`], directories: [] },
+      { paths: [], directories: [`${root}${component}/`] },
+    ])
+      assert.throws(
+        () => validateScopes({ allowlist: ['#9 PR 1'], scopes: { '#9 PR 1': value } }),
+        /scope/,
+        component
+      );
+  for (const path of [
+    'apps/web/src/lib/[[locale]]/file.ts',
+    'apps/web/src/routes-other/[...path]/file.ts',
+  ])
+    assert.throws(
+      () =>
+        validateScopes({
+          allowlist: ['#9 PR 1'],
+          scopes: { '#9 PR 1': { paths: [path], directories: [] } },
+        }),
+      /scope/,
+      path
+    );
 });

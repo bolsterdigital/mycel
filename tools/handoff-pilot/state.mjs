@@ -65,11 +65,13 @@ export function validateScopes(config) {
           plain.split('/').some((part) => {
             if (!part || part === '.' || part === '..') return true;
             if (!/[()[\]]/.test(part)) return false;
-            // Only whole named SvelteKit route components are admitted. They remain literal
-            // strings, never glob classes, regex groups or optional/rest/matcher patterns.
+            // Only whole supported SvelteKit filesystem components are admitted. Optional,
+            // rest and matcher names remain literal, never URL patterns or glob authority.
             return (
               !plain.startsWith('apps/web/src/routes/') ||
-              !/^(?:\([A-Za-z_][A-Za-z0-9_-]*\)|\[[A-Za-z_][A-Za-z0-9_]*\])$/.test(part)
+              !/^(?:\([A-Za-z_][A-Za-z0-9_-]*\)|\[(?:[A-Za-z_][A-Za-z0-9_]*(?:=[A-Za-z_][A-Za-z0-9_]*)?|\.\.\.[A-Za-z_][A-Za-z0-9_]*)\]|\[\[[A-Za-z_][A-Za-z0-9_]*(?:=[A-Za-z_][A-Za-z0-9_]*)?\]\])$/.test(
+                part
+              )
             );
           }) ||
           path.startsWith('-') ||
