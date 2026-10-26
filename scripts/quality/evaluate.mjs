@@ -166,7 +166,7 @@ export function repairProposals(cells, ledger = [], now = new Date()) {
             : category === 'seo'
               ? '#9'
               : category === 'measurement'
-                ? '#43B'
+                ? '#43C-report'
                 : '#43C'),
         recurrence: previous?.status === 'closed',
         expiredException: Boolean(previous?.expires && new Date(previous.expires) <= now),

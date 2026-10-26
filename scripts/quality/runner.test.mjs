@@ -198,3 +198,332 @@ test('measured writer DOM passes the same identity path; wrong article and empty
     await browser.close();
   }
 });
+
+// The consumer grows this existing suite: score fixtures remain the evaluator's contract;
+// these cases cover the history/provenance boundary that a green observation job cannot prove.
+import {
+  consume,
+  consumeRun,
+  sourceContract,
+  expectedShards,
+  scheduleStatus,
+  markdown,
+} from './consume.mjs';
+import { collectHistory } from './history.mjs';
+const clock = '2026-10-27T12:00:00Z';
+const source = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
+const contract = sourceContract({
+  corpus: source('apps/web/e2e/quality-corpus.json'),
+  seed: source('scripts/e2e.mjs'),
+  matrixSource: source('scripts/quality/matrix.mjs'),
+  workflow: source('.github/workflows/frontend-quality.yml'),
+  lock: source('package-lock.json'),
+});
+function retained(event = 'workflow_dispatch') {
+  const run = {
+    id: 123,
+    attempt: 1,
+    event,
+    headSha: 'a'.repeat(40),
+    measuredSha: 'a'.repeat(40),
+    status: 'completed',
+    conclusion: 'success',
+    createdAt: '2026-10-26T18:00:00Z',
+    url: 'https://github.com/bolsterdigital/mycel/actions/runs/123',
+    contract,
+    artifacts: [],
+  };
+  for (const shard of expectedShards(contract, event)) {
+    const { ids, name, ...profile } = shard;
+    run.artifacts.push({
+      name,
+      id: run.artifacts.length + 1,
+      report: {
+        schemaVersion: 1,
+        commit: run.measuredSha,
+        fixtureVersion: contract.fixtureVersion,
+        fixtureHash: contract.fixtureHash,
+        state: 'pass',
+        environment: {
+          ...profile,
+          ...contract.tools,
+          chromium: '156.0.8078.4',
+          caddy: `v${contract.tools.caddy} test`,
+          runner: 'github-ubuntu-24.04:20261023.334.3',
+          mode: 'ci',
+        },
+        coverage: [
+          {
+            route: 'dynamic POST/iframe preview',
+            state: 'not-measured',
+            owner: 'dev',
+            address: '#43B',
+            reason: 'PRIVATE secret@invalid.test',
+          },
+        ],
+        cells: ids.map((id) => ({
+          id,
+          route:
+            'https://localhost:4443' +
+            (Object.entries(contract.manifest.public).find(
+              ([name]) => id === `${name}-${shard.locale}-${shard.profile}-${shard.cache}`
+            )?.[1].locales[shard.locale].path ??
+              contract.manifest.admin.routes
+                .find(
+                  (entry) => id === `${entry.name}-${shard.locale}-${shard.profile}-${shard.cache}`
+                )
+                .path.replace('{quality-article-id}', 'a'.repeat(36))),
+          profile: shard.profile,
+          locale: shard.locale,
+          cache: shard.cache,
+          indexable: shard.scope !== 'admin',
+          state: 'pass',
+          batches: [
+            {
+              state: 'pass',
+              sampleIds: [1, 2, 3, 4, 5].map((n) => `${id}-${n}`),
+              reasons: [],
+              failedAuditIds: [],
+              raw: Array.from({ length: 5 }, () => ({
+                performance: 1,
+                accessibility: 1,
+                'best-practices': 1,
+                seo: 1,
+              })),
+              performance: { median: 1, min: 1, max: 1 },
+            },
+          ],
+        })),
+      },
+    });
+  }
+  return run;
+}
+const load = (a) => a.report;
+test('consumer counts the versioned full matrix and retains all red observation batches', () => {
+  const run = retained();
+  const bad = run.artifacts[0].report.cells[0];
+  bad.state = bad.batches[0].state = 'fail';
+  bad.batches[0].reasons = ['page-identity:wrong-item'];
+  bad.batches.push(structuredClone(bad.batches[0]));
+  bad.batches[1].state = 'pass';
+  bad.batches[1].reasons = [];
+  const result = consumeRun(run, load);
+  assert.equal(result.expected, 36);
+  assert.equal(result.samples, 185);
+  assert.equal(result.state, 'fail');
+  assert.equal(result.conclusion, 'success');
+  assert.equal(result.cells[0].batches.length, 2);
+  assert.equal(result.proposals[0].address, '#43C-report');
+  assert.deepEqual(result.proposals[0].aliases, ['#43B']);
+  assert.equal(result.coverage[0].sourceAddress, '#43B');
+  assert.equal(result.coverage[0].address, '#43C-preview');
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE|secret@/);
+});
+test('missing, duplicate, corrupt, interrupted and mismatched evidence can never pass', () => {
+  for (const mutate of [
+    (r) => r.artifacts.pop(),
+    (r) => r.artifacts[0].report.cells.pop(),
+    (r) => r.artifacts.push(structuredClone(r.artifacts[0])),
+    (r) => r.artifacts[0].report.cells.push(structuredClone(r.artifacts[0].report.cells[0])),
+    (r) => {
+      r.artifacts[0].report.cells[0].route = 'https://localhost:4443/login';
+    },
+    (r) => {
+      r.artifacts[0].report.commit = 'b'.repeat(40);
+    },
+    (r) => {
+      r.artifacts[0].report.fixtureHash = 'b'.repeat(64);
+    },
+    (r) => {
+      r.artifacts[0].report.environment.profile = 'desktop';
+    },
+    (r) => {
+      r.artifacts[0].report.environment.chromium = '1.2.3';
+    },
+    (r) => {
+      r.artifacts[0].report = null;
+    },
+    (r) => {
+      r.artifacts[0].error = 'unavailable';
+    },
+    (r) => {
+      r.status = 'cancelled';
+    },
+    (r) => {
+      r.artifacts[0].report.interrupted = true;
+    },
+    (r) => {
+      r.artifacts[0].report.cells[0].batches[0].raw[0].accessibility = 0.98;
+    },
+    (r) => {
+      r.artifacts[0].report.cells[0].batches[0].sampleIds.pop();
+    },
+  ]) {
+    const run = retained();
+    mutate(run);
+    const result = consumeRun(run, load);
+    assert.notEqual(result.state, 'pass');
+    assert.ok(result.issues.length);
+  }
+});
+test('weekly due/overdue clock never borrows manual or main measurements', () => {
+  const workflow = { activatedAt: '2026-10-26T17:30:57Z', state: 'active', cron: '17 5 * * 1' };
+  const runs = [{ event: 'workflow_dispatch', createdAt: '2026-11-02T05:18:00Z', state: 'pass' }];
+  assert.equal(scheduleStatus(workflow, runs, clock).state, 'pending');
+  assert.equal(scheduleStatus(workflow, runs, '2026-11-03T05:16:59Z').state, 'pending');
+  assert.equal(scheduleStatus(workflow, runs, '2026-11-03T05:17:00Z').state, 'not-measured');
+  runs.push({ id: 3, event: 'schedule', createdAt: '2026-11-02T05:19:00Z', state: 'fail' });
+  assert.equal(scheduleStatus(workflow, runs, '2026-11-03T06:00:00Z').state, 'fail');
+  assert.equal(
+    scheduleStatus({ ...workflow, state: 'disabled_manually' }, [], clock).state,
+    'not-measured'
+  );
+  assert.equal(scheduleStatus({ ...workflow, state: 'unknown' }, [], clock).state, 'not-measured');
+});
+test('consumer retains attempts and separates head/merge/local provenance; unknown API/watchdog is not healthy', () => {
+  const first = retained('pull_request');
+  first.measuredSha = 'b'.repeat(40);
+  for (const a of first.artifacts) a.report.commit = first.measuredSha;
+  const second = structuredClone(first);
+  second.attempt = 2;
+  const history = {
+    schemaVersion: 1,
+    workflow: { state: 'active', cron: '17 5 * * 1', activatedAt: '2026-10-26T17:30:57Z' },
+    runs: [first, second],
+    errors: ['unavailable'],
+  };
+  const result = consume(history, load, clock);
+  assert.equal(result.runs.length, 2);
+  assert.equal(result.runs[0].evidenceKind, 'pr-merge');
+  assert.notEqual(result.runs[0].headSha, result.runs[0].measuredSha);
+  assert.equal(result.state, 'not-measured');
+  assert.match(markdown(result), /not-measured/);
+  assert.throws(() => consume({ ...history, runs: [first, first] }, load, clock), /Duplicate/);
+  history.errors = [];
+  history.watchdog = {
+    state: 'active',
+    lastCompletedAt: '2026-10-24T00:00:00Z',
+    conclusion: 'success',
+  };
+  assert.equal(consume(history, load, clock).state, 'not-measured');
+  history.watchdog.lastCompletedAt = clock;
+  assert.equal(consume(history, load, clock).state, 'pending');
+});
+test('artifact adapter records API outage and independent watchdog has only read permissions', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'quality-history-'));
+  try {
+    const h = collectHistory({
+      repo: 'owner/repo',
+      out: join(dir, 'history'),
+      api: () => {
+        throw new Error('PRIVATE token');
+      },
+      download: () => {
+        throw new Error('unused');
+      },
+    });
+    assert.equal(h.errors.length, 2);
+    assert.equal(consume(h, load, clock).state, 'not-measured');
+    assert.doesNotMatch(readFileSync(join(dir, 'history/history.json'), 'utf8'), /PRIVATE/);
+    const workflow = source('.github/workflows/frontend-quality-watchdog.yml');
+    assert.match(workflow, /cron: '31 6 \* \* \*'/);
+    assert.match(workflow, /actions: read/);
+    assert.match(workflow, /contents: read/);
+    assert.doesNotMatch(workflow, /: write|workflow_run:|issues:|pull-requests:/);
+    assert.match(workflow, /retention-days: 90/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('an inconclusive scheduled batch stays inconclusive, and cancelled attempts cannot pass', () => {
+  const workflow = { activatedAt: '2026-10-26T17:30:57Z', state: 'active', cron: '17 5 * * 1' };
+  const result = scheduleStatus(
+    workflow,
+    [{ id: 3, event: 'schedule', createdAt: '2026-11-02T05:19:00Z', state: 'inconclusive' }],
+    '2026-11-03T06:00:00Z'
+  );
+  assert.equal(result.state, 'inconclusive');
+  const run = retained();
+  run.conclusion = 'cancelled';
+  assert.notEqual(consumeRun(run, load).state, 'pass');
+  const local = retained('push');
+  local.event = 'local';
+  local.selection = { scope: 'default', locale: 'nl', profile: 'mobile', cache: 'fresh' };
+  local.artifacts = local.artifacts.slice(0, 1);
+  Object.assign(local.artifacts[0].report.environment, {
+    mode: 'local',
+    runner: 'local:linux:test',
+  });
+  const output = consumeRun(local, load);
+  assert.equal(output.state, 'pass');
+  assert.equal(output.evidenceKind, 'local');
+});
+
+test('GitHub adapter separates rerun artifacts by attempt and preserves corrupt originals as missing evidence', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'quality-attempts-'));
+  const original = retained('push');
+  const run = {
+    id: 123,
+    path: '.github/workflows/frontend-quality.yml',
+    run_attempt: 2,
+    event: 'push',
+    head_sha: original.headSha,
+    html_url: original.url,
+    status: 'completed',
+    conclusion: 'success',
+  };
+  const files = {
+    'apps/web/e2e/quality-corpus.json': source('apps/web/e2e/quality-corpus.json'),
+    'scripts/e2e.mjs': source('scripts/e2e.mjs'),
+    'scripts/quality/matrix.mjs': source('scripts/quality/matrix.mjs'),
+    '.github/workflows/frontend-quality.yml': source('.github/workflows/frontend-quality.yml'),
+    'package-lock.json': source('package-lock.json'),
+  };
+  const artifacts = [1, 2].flatMap((attempt) =>
+    original.artifacts.map((a) => ({
+      id: a.id + attempt * 10,
+      name: a.name,
+      created_at: `2026-10-26T${attempt === 1 ? '18' : '19'}:05:00Z`,
+    }))
+  );
+  const api = (path) => {
+    if (path.includes('/contents/'))
+      return {
+        content: Buffer.from(files[path.split('/contents/')[1].split('?')[0]]).toString('base64'),
+      };
+    if (path.includes('/commits/')) return { parents: [] };
+    if (path.includes('/artifacts?')) return { artifacts };
+    if (path.includes('/attempts/')) {
+      const attempt = Number(path.split('/').at(-1));
+      return { ...run, run_started_at: `2026-10-26T${attempt === 1 ? '18' : '19'}:00:00Z` };
+    }
+    if (path.includes('frontend-quality-watchdog.yml/runs')) return { workflow_runs: [] };
+    if (path.includes('/runs?')) return { workflow_runs: [run] };
+    if (path.includes('/workflows/')) return { state: 'active' };
+    throw new Error(`Unexpected fixture request: ${path}`);
+  };
+  try {
+    const h = collectHistory({
+      repo: 'owner/repo',
+      out: join(dir, 'history'),
+      api,
+      download: (id) =>
+        id === 21
+          ? '{corrupt'
+          : JSON.stringify(original.artifacts.find((a) => a.id === id % 10).report),
+    });
+    const report = consume(h, (a) => JSON.parse(readFileSync(join(dir, 'history', a.path))), clock);
+    assert.deepEqual(
+      report.runs.map((r) => r.attempt),
+      [1, 2]
+    );
+    assert.equal(report.runs[0].state, 'pass');
+    assert.equal(report.runs[1].state, 'not-measured');
+    assert.equal(report.runs[1].present, 2);
+    assert.ok(report.runs[1].issues.length);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
