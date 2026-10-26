@@ -233,6 +233,61 @@ async function imagePage(page: Page, project: string) {
 for (const locale of ['nl-NL', 'en-GB']) {
   test.describe(locale, () => {
     test.use({ locale });
+    test('missing and stale provider context requires fresh consent; disabling stays available', async ({
+      page,
+    }) => {
+      await login(page);
+      const provider = page.locator('input[name="provider"]');
+      await expect(provider).toHaveValue('Fake model');
+      const before = await inSite(page, (invoker, principal) =>
+        invoker.run(useCases.getAssistSettings, principal, {})
+      );
+      for (const submitted of [undefined, '', 'Previously displayed processor']) {
+        const response = await page.request.post(`${base(page)}/assist?/save`, {
+          form: {
+            enabled: 'on',
+            consent: 'on',
+            ...(submitted === undefined ? {} : { provider: submitted }),
+          },
+          headers: { origin: 'http://127.0.0.1:4173' },
+        });
+        expect(response.status()).toBe(400);
+        const html = await response.text();
+        expect(html).toContain(
+          locale === 'nl-NL' ? 'De provider is gewijzigd' : 'The provider has changed'
+        );
+        expect(html).toContain('value="Fake model"');
+        const consentInput = html.match(/<input[^>]*name="consent"[^>]*>/)?.[0];
+        expect(consentInput).toBeTruthy();
+        expect(consentInput).not.toContain('checked');
+        expect(
+          await inSite(page, (invoker, principal) =>
+            invoker.run(useCases.getAssistSettings, principal, {})
+          )
+        ).toEqual(before);
+      }
+      await enable(page);
+      await expect(page).toHaveURL(`${base(page)}/assist?saved=1`);
+      expect(
+        await inSite(page, (invoker, principal) =>
+          invoker.run(useCases.getAssistSettings, principal, {})
+        )
+      ).toMatchObject({ enabled: true, consentedProvider: 'Fake model' });
+      // Revocation never depends on a valid hidden label or a new consent checkbox.
+      const disabled = await page.request.post(`${base(page)}/assist?/save`, {
+        form: { provider: 'Old processor' },
+        headers: { origin: 'http://127.0.0.1:4173' },
+      });
+      expect(disabled.status()).toBe(200);
+      expect(
+        await inSite(page, (invoker, principal) =>
+          invoker.run(useCases.getAssistSettings, principal, {})
+        )
+      ).toMatchObject({ enabled: false, consentedProvider: null });
+      await page.goto(`${base(page)}/assist`);
+      await axe(page);
+    });
+
     test('consent, pending translation, edited acceptance and human publication approval', async ({
       page,
     }) => {

@@ -794,6 +794,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.assist.error.disabled':
     'AI-hulp staat uit of toestemming voor de ingestelde verwerker ontbreekt.',
   'admin.assist.error.restricted': 'Deze site staat AI-hulp voor afgeschermde inhoud niet toe.',
+  'admin.assist.error.provider':
+    'De provider is gewijzigd of ontbreekt. Controleer de getoonde provider en geef opnieuw expliciet toestemming.',
   'admin.assist.error.consent': 'Expliciete toestemming is nodig om AI-hulp aan te zetten.',
   'admin.assist.error.unavailable': 'De hoster staat AI-hulp niet toe.',
   'admin.assist.error.invalid': 'Deze instellingen konden niet worden opgeslagen.',

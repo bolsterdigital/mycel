@@ -27,6 +27,7 @@
     </tbody>
   </table>
   <form method="post" action="?/save">
+    <input type="hidden" name="provider" value={data.settings.provider ?? ''} />
     <label
       ><input
         type="checkbox"

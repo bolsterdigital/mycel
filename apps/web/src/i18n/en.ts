@@ -785,6 +785,8 @@ export const en = {
   'admin.assist.error.disabled':
     'Assistance is disabled or consent for the configured processor is missing.',
   'admin.assist.error.restricted': 'This site has not allowed assistance for restricted content.',
+  'admin.assist.error.provider':
+    'The provider has changed or is missing. Review the displayed provider and give fresh explicit consent.',
   'admin.assist.error.consent': 'Explicit consent is required to enable assistance.',
   'admin.assist.error.unavailable': 'The host has not allowed assistance.',
   'admin.assist.error.invalid': 'These settings could not be saved.',
