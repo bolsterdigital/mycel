@@ -323,6 +323,9 @@ test('consumer counts the versioned full matrix and retains all red observation 
 test('missing, duplicate, corrupt, interrupted and mismatched evidence can never pass', () => {
   for (const mutate of [
     (r) => r.artifacts.pop(),
+    (r) => {
+      r.headSha = 'b'.repeat(40);
+    },
     (r) => r.artifacts[0].report.cells.pop(),
     (r) => r.artifacts.push(structuredClone(r.artifacts[0])),
     (r) => r.artifacts[0].report.cells.push(structuredClone(r.artifacts[0].report.cells[0])),
@@ -384,6 +387,7 @@ test('weekly due/overdue clock never borrows manual or main measurements', () =>
 test('consumer retains attempts and separates head/merge/local provenance; unknown API/watchdog is not healthy', () => {
   const first = retained('pull_request');
   first.measuredSha = 'b'.repeat(40);
+  first.mergeParents = [first.headSha];
   for (const a of first.artifacts) a.report.commit = first.measuredSha;
   const second = structuredClone(first);
   second.attempt = 2;

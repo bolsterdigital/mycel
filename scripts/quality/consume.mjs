@@ -111,6 +111,12 @@ function safeBatch(batch) {
     !batch.failedAuditIds.every(token)
   )
     throw new Error('invalid-batch');
+  if (
+    ['median', 'min', 'max'].some(
+      (key) => batch.performance?.[key] !== null && !Number.isFinite(batch.performance?.[key])
+    )
+  )
+    throw new Error('invalid-performance');
   const raw = batch.raw.map((scores) =>
     Object.fromEntries(
       ['performance', 'accessibility', 'best-practices', 'seo'].map((c) => {
@@ -170,6 +176,11 @@ export function consumeRun(run, load) {
     !['local', 'push', 'pull_request', 'schedule', 'workflow_dispatch'].includes(run.event)
   )
     issues.push(issue('invalid-run-provenance'));
+  if (
+    run.measuredSha !== run.headSha &&
+    !(run.event === 'pull_request' && run.mergeParents?.includes(run.headSha))
+  )
+    issues.push(issue('unrelated-measured-sha'));
   if (run.error) issues.push(issue('run-or-source-unavailable'));
   if (run.status !== 'completed') issues.push(issue('run-incomplete'));
   if (run.conclusion !== 'success') issues.push(issue('run-unsuccessful'));

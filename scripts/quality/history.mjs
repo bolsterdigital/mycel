@@ -135,6 +135,7 @@ export function collectHistory({ repo, out, runIds = [], api, download }) {
         // For PRs, checkout measures the merge commit. Verify its relationship to the run's
         // head; never relabel an arbitrary artifact SHA as PR evidence.
         const commit = api(`${base}/commits/${record.measuredSha}`);
+        record.mergeParents = commit.parents.map((p) => p.sha);
         if (
           record.measuredSha !== record.headSha &&
           !(record.event === 'pull_request' && commit.parents.some((p) => p.sha === record.headSha))
