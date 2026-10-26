@@ -410,6 +410,7 @@ function verifyActivation(approval, proof, cfg) {
     !approval.authorSessionId ||
     approval.reviewSessionId === approval.authorSessionId ||
     !approval.reviewRecord?.startsWith('reference/') ||
+    !/^reference\/[a-zA-Z0-9_/-]+\.json$/.test(approval.configRecord ?? '') ||
     !/^[0-9a-f]{40}$/.test(approval.approvedHeadSha ?? '') ||
     !/^[0-9a-f]{40}$/.test(approval.mergedSha ?? '') ||
     !approval.planningCommit ||
@@ -442,6 +443,11 @@ function verifyActivation(approval, proof, cfg) {
     !pr.checksGreen
   )
     fail('Runner PR is not merged from the independently approved green head');
+  const publishedConfig = JSON.parse(
+    shell('git', ['show', `${approval.planningCommit}:${approval.configRecord}`], planning)
+  );
+  if (configDigest(publishedConfig) !== configDigest(cfg))
+    fail('Published activation config differs from the new run');
   const record = shell(
     'git',
     ['show', `${approval.planningCommit}:${approval.reviewRecord}`],
