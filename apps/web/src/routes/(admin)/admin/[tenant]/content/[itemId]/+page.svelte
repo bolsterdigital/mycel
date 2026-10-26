@@ -50,7 +50,20 @@
   const fieldId = (blockId: string, name: string) => `b-${blockId}-${name.replaceAll('.', '-')}`;
   const preview = (l: string) =>
     `${base}/preview/item/${data.item.id}?revision=${data.revision.id}&locale=${l}`;
+  const assist = (params: Record<string, string>) =>
+    `${base}/content/${data.item.id}/assist?${new URLSearchParams(params)}`;
 </script>
+
+{#snippet translateLinks(field: string, target: string, locale: string, label: string)}
+  {#if data.assistEnabled}
+    {#each docLocales.filter((source: string) => source !== locale && !!v(`${field}.${source}`)) as source (source)}
+      <a href={assist({ task: 'translate', from: source, to: locale, target })}>
+        {fill(t('admin.assist.translateFrom'), { locale: source })}
+        {label} ({locale})
+      </a>
+    {/each}
+  {/if}
+{/snippet}
 
 <svelte:head>
   <title
@@ -194,6 +207,16 @@
         {:else}
           <p>{t('admin.content.publication.ready')}</p>
         {/if}
+        {#if data.machineTranslation[p.locale]?.length}
+          <p class="notice">{t('admin.assist.unreviewed')} ({p.locale})</p>
+          {#if data.canPublish}
+            <form method="post" action="?/approveTranslation" class="translation-approval">
+              <input type="hidden" name="locale" value={p.locale} />
+              <input type="hidden" name="baseRevisionId" value={data.revision.id} />
+              <button type="submit">{fill(t('admin.assist.approve'), { locale: p.locale })}</button>
+            </form>
+          {/if}
+        {/if}
         {#if data.canPublish}
           <div class="actions stack">
             {#if p.live?.latest !== true || p.pin}
@@ -261,10 +284,12 @@
         {@render text(`title.${l}`, `${t('admin.content.field.title')} (${l})`, {
           required: l === data.item.defaultLocale,
         })}
+        {@render translateLinks('title', 'title', l, t('admin.content.field.title'))}
       {/each}
       {#if article}
         {#each docLocales as l (l)}
           {@render area(`lead.${l}`, `${t('admin.content.field.lead')} (${l})`, 1000)}
+          {@render translateLinks('lead', 'lead', l, t('admin.content.field.lead'))}
         {/each}
         <fieldset id="authors">
           <legend>{t('admin.content.field.authors')}</legend>
@@ -323,10 +348,17 @@
       <legend>{t('admin.content.edit.seo')}</legend>
       {#each docLocales as l (l)}
         {@render text(`seoTitle.${l}`, `${t('admin.content.field.seoTitle')} (${l})`)}
+        {@render translateLinks('seoTitle', 'seo.title', l, t('admin.content.field.seoTitle'))}
         {@render area(
           `seoDescription.${l}`,
           `${t('admin.content.field.seoDescription')} (${l})`,
           500
+        )}
+        {@render translateLinks(
+          'seoDescription',
+          'seo.description',
+          l,
+          t('admin.content.field.seoDescription')
         )}
       {/each}
       <div class="check">
@@ -439,6 +471,27 @@
             invalid={mine ? (form?.fieldIssues ?? []).map((x) => x.name) : []}
             locale={data.locale}
           />
+          {#if data.assistEnabled && b.type === 'image' && b.values['p.decorative'] !== 'on'}
+            {#each data.docLocales as l (l)}
+              <a href={assist({ task: 'alt', block: b.id, locale: l })}
+                >{t('admin.assist.alt')} ({l})</a
+              >
+            {/each}
+          {/if}
+          {#if data.assistEnabled && b.type === 'rich-text'}
+            {#each data.docLocales as l (l)}
+              {#each data.docLocales.filter((source: string) => source !== l && !!b.values[`p.content.${source}`]) as source (source)}
+                <a
+                  href={assist({
+                    task: 'translate',
+                    from: source,
+                    to: l,
+                    target: `blocks.${b.id}.props.content`,
+                  })}>{fill(t('admin.assist.translateFrom'), { locale: source })} ({l})</a
+                >
+              {/each}
+            {/each}
+          {/if}
           <div class="actions">
             <button type="submit">{t('admin.block.save')}</button>
           </div>

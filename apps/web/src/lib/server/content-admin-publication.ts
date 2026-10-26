@@ -59,6 +59,7 @@ export function fromLocalInput(value: string, zone = SITE_TIME_ZONE): Date | nul
  */
 export function fieldOf(path: string, locale: string): string | null {
   const [head, ...rest] = path.split('.');
+  if (head === 'locales') return `publication-${locale}`;
   if (head === 'title') return `title.${rest[0] ?? locale}`;
   if (head === 'lead') return `lead.${rest[0] ?? locale}`;
   if (head === 'seo' && rest[0] === 'title') return `seoTitle.${rest[1] ?? locale}`;

@@ -57,7 +57,7 @@ import {
   summaryOf,
 } from '#lib/server/content-blocks.js';
 import { runtime } from '#lib/server/runtime.js';
-import type { UiKey } from '../../../../../../i18n/index.js';
+import { ui, type UiKey } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -163,7 +163,20 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
     doc.type === 'article' ? (doc.sectionId ?? '') : ''
   );
   const options = await pickerOptions(principal, doc.blocks, item.defaultLocale);
+  const assistSettings =
+    can(principal, 'ai:assist') && can(principal, 'content:write')
+      ? await invoker.run(useCases.getAssistSettings, principal, {})
+      : null;
+  const assistEnabled = !!(
+    assistSettings?.enabled &&
+    assistSettings.provider &&
+    assistSettings.consentedProvider === assistSettings.provider &&
+    principal.entitlements['ai.assist'] &&
+    (doc.access.level === 'public' || assistSettings.allowRestricted)
+  );
   return {
+    assistEnabled,
+    machineTranslation: doc.machineTranslation ?? {},
     blocks: doc.blocks.map((b) => ({
       id: b.id,
       type: b.type,
@@ -199,7 +212,11 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
               : null,
           issues: readinessIssues(doc, p.locale).map((i) => ({
             path: issuePath(i.path, i.message, p.locale),
-            field: fieldOf(i.path, p.locale),
+            field: i.path.startsWith('blocks.')
+              ? doc.blocks[Number(i.path.split('.')[1])]?.id
+                ? `block-${doc.blocks[Number(i.path.split('.')[1])]!.id}`
+                : null
+              : fieldOf(i.path, p.locale),
             copy: issueCopy(i.message),
           })),
         }))
@@ -234,6 +251,7 @@ const DONE: Record<string, UiKey> = {
   schedule: 'admin.content.publication.done.schedule',
   repin: 'admin.content.publication.done.schedule',
   unschedule: 'admin.content.publication.done.unschedule',
+  translationApproved: 'admin.assist.approved',
 };
 
 /** Core's readiness and reference issues as admin copy; unknown keys get the generic line. */
@@ -241,6 +259,7 @@ const ISSUE_COPY: Record<string, UiKey> = {
   'content.publish.locale-not-in-document': 'admin.content.issue.localeNotInDocument',
   'content.publish.locale-not-in-item': 'admin.content.issue.localeNotInDocument',
   'content.publish.missing-translation': 'admin.content.issue.missingTranslation',
+  'content.publish.machine-translation-unreviewed': 'admin.assist.unreviewed',
   'content.publish.author-required': 'admin.content.issue.authorRequired',
   'content.publish.teaser-lead-required': 'admin.content.issue.teaserLeadRequired',
   'content.publish.tier-unverifiable': 'admin.content.issue.tierUnverifiable',
@@ -486,6 +505,32 @@ export const actions: Actions = {
     publication(event, 'unschedule', (principal, { itemId, locale }) =>
       runtime().invoker.run(useCases.unscheduleItem, principal, { itemId, locale })
     ),
+  approveTranslation: async ({ locals, url, params, request }) => {
+    const { tenant, principal } = await requireTenantPrincipal(locals, url, params.tenant);
+    if (!can(principal, 'content:publish'))
+      error(403, ui(locals.lang ?? 'en')('admin.assist.error.forbidden'));
+    const data = await request.formData();
+    const locale = text(data, 'locale');
+    try {
+      await runtime().invoker.run(useCases.approveTranslation, principal, {
+        itemId: params.itemId,
+        locale,
+        baseRevisionId: text(data, 'baseRevisionId'),
+      });
+    } catch (e) {
+      if (!(e instanceof UseCaseError)) throw e;
+      return fail(e.code === 'conflict' ? 409 : 400, {
+        action: 'approveTranslation',
+        error: (e.code === 'conflict'
+          ? 'admin.assist.error.conflict'
+          : 'admin.assist.error.invalid_input') as UiKey,
+      });
+    }
+    redirect(
+      303,
+      `/admin/${tenant.slug}/content/${params.itemId}?done=translationApproved&locale=${encodeURIComponent(locale)}`
+    );
+  },
   save: async ({ locals, url, params, request }) => {
     const { tenant, principal } = await requireTenantPrincipal(locals, url, params.tenant);
     const values = valuesFromForm(await request.formData());

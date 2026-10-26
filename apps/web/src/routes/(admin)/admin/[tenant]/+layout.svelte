@@ -14,15 +14,17 @@
       ? 'content'
       : path.startsWith(`${base}/media`)
         ? 'media'
-        : path.startsWith(`${base}/connections`)
-          ? 'connections'
-          : path.startsWith(`${base}/site`)
-            ? 'site'
-            : path.startsWith(`${base}/status`)
-              ? 'status'
-              : path.startsWith(`${base}/export`)
-                ? 'export'
-                : 'overview'
+        : path.startsWith(`${base}/assist`)
+          ? 'assist'
+          : path.startsWith(`${base}/connections`)
+            ? 'connections'
+            : path.startsWith(`${base}/site`)
+              ? 'site'
+              : path.startsWith(`${base}/status`)
+                ? 'status'
+                : path.startsWith(`${base}/export`)
+                  ? 'export'
+                  : 'overview'
   );
   const has = (capability: (typeof data.capabilities)[number]) =>
     data.capabilities.includes(capability) || data.capabilities.includes('tenant:admin');
@@ -62,6 +64,9 @@
           >
         {/if}
         {#if has('tenant:admin')}
+          <a href="{base}/assist" aria-current={section === 'assist' ? 'page' : undefined}
+            >{t('admin.assist.title')}</a
+          >
           <a href="{base}/status" aria-current={section === 'status' ? 'page' : undefined}
             >{t('admin.status.link')}</a
           >
