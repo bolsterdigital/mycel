@@ -107,3 +107,10 @@ test('one cause on many routes gives one proposal, with recurrence and expired e
   assert.equal(next[0].recurrence, true);
   assert.equal(next[0].expiredException, true);
 });
+
+test('a weighted audit error cannot hide behind a category score of 100', () => {
+  const batch = samples();
+  batch[0].report.categories.accessibility.auditRefs = [{ id: 'broken-audit', weight: 1 }];
+  batch[0].report.audits['broken-audit'] = { score: null, scoreDisplayMode: 'error' };
+  assert.equal(evaluateBatch(contract, batch).state, 'inconclusive');
+});

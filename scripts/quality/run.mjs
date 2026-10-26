@@ -195,6 +195,7 @@ try {
     auto_https disable_redirects
   }
   https://localhost:4443 {
+    bind 127.0.0.1
     tls ${scratch}/cert.pem ${scratch}/key.pem
     encode zstd gzip
     @internal path /internal/* /readyz /metrics
@@ -329,6 +330,7 @@ try {
             port: chrome.port,
             output: ['json', 'html'],
             logLevel: 'error',
+            enableErrorReporting: false,
             onlyCategories: ['performance', 'accessibility', 'best-practices', 'seo'],
             onlyAudits: ['mycel-identity'],
             extraHeaders: headers,
@@ -338,6 +340,9 @@ try {
           if (cache === 'warm') await lighthouse(entry.url, flags, config);
           const measured = await lighthouse(entry.url, flags, config);
           sample.report = measured.lhr;
+          sample.measurementSettings = measured.lhr.configSettings;
+          if (!measured.lhr.environment.hostUserAgent.includes(result.environment.chromium))
+            sample.error = 'Measured Chromium version differs from the declared browser';
           writeFileSync(join(dir, 'lighthouse.json'), measured.report[0]);
           writeFileSync(join(dir, 'lighthouse.html'), measured.report[1]);
           const logs = measured.artifacts.DevtoolsLog;

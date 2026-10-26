@@ -13,6 +13,14 @@ export function evaluateBatch(contract, samples) {
     const report = sample.report;
     if (!equal(sample.provenance, contract.provenance)) structural.push('provenance');
     if (!report || report.runtimeError || sample.error) structural.push('runtime-error');
+    for (const key of applicable) {
+      if (
+        report?.categories?.[key]?.auditRefs?.some(
+          (ref) => ref.weight > 0 && report.audits?.[ref.id]?.scoreDisplayMode === 'error'
+        )
+      )
+        structural.push('audit-error');
+    }
     if (!sample.identity?.valid) structural.push('page-identity');
     if (sample.identity?.functionalFailures?.length)
       failures.push(...sample.identity.functionalFailures);
