@@ -249,7 +249,11 @@ for (const locale of ['nl-NL', 'en-GB']) {
             consent: 'on',
             ...(submitted === undefined ? {} : { provider: submitted }),
           },
-          headers: { origin: 'http://127.0.0.1:4173', accept: 'text/html' },
+          headers: {
+            origin: 'http://127.0.0.1:4173',
+            accept: 'text/html',
+            'accept-language': locale,
+          },
         });
         expect(response.status()).toBe(400);
         const html = await response.text();
@@ -276,7 +280,11 @@ for (const locale of ['nl-NL', 'en-GB']) {
       // Revocation never depends on a valid hidden label or a new consent checkbox.
       const disabled = await page.request.post(`${base(page)}/assist?/save`, {
         form: { provider: 'Old processor' },
-        headers: { origin: 'http://127.0.0.1:4173', accept: 'text/html' },
+        headers: {
+          origin: 'http://127.0.0.1:4173',
+          accept: 'text/html',
+          'accept-language': locale,
+        },
       });
       expect(disabled.status()).toBe(200);
       expect(
