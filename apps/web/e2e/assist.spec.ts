@@ -19,9 +19,21 @@ import {
   uuidv7Ids,
 } from '@mycel/db';
 
+import { closeTenantWork } from '@mycel/db/testing';
+
 test.use({
   locale: 'nl-NL',
   extraHTTPHeaders: { 'x-forwarded-proto': 'http', 'x-forwarded-for': '2001:db8:24a::1' },
+});
+
+const fixtureTenants = new Set<string>();
+test.afterAll(async () => {
+  const owner = createDb(process.env['DATABASE_URL']!);
+  try {
+    await closeTenantWork(owner, [...fixtureTenants]);
+  } finally {
+    await owner.destroy();
+  }
 });
 
 const sites = new WeakMap<Page, { id: string; slug: string; email: string }>();
@@ -45,6 +57,7 @@ async function login(page: Page) {
       { platformDomain: process.env['PLATFORM_DOMAIN']! }
     );
     sites.set(page, { ...tenant, email });
+    fixtureTenants.add(tenant.id);
     const uow = createUnitOfWork(app, {
       clock: { now: () => new Date() },
       ids: uuidv7Ids,
