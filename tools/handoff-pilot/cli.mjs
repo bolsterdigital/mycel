@@ -122,7 +122,7 @@ function runId() {
 function toolExists(name) {
   return spawnSync('/usr/bin/env', ['which', name], { encoding: 'utf8' }).status === 0;
 }
-const runnerFiles = ['cli.mjs', 'state.mjs', 'result.schema.json'];
+const runnerFiles = ['cli.mjs', 'child-probe.mjs', 'state.mjs', 'result.schema.json'];
 function shaFiles() {
   const hash = createHash('sha256');
   for (const name of runnerFiles) hash.update(readFileSync(join(here, name)));
@@ -670,6 +670,8 @@ function jsonFromGhPrList() {
   );
 }
 function preflight(cfg) {
+  ensureHome();
+  rmSync(ctl('preflight.json'), { force: true });
   const dry = dryRun(cfg);
   if (
     dry.existingClaims.length ||
@@ -706,14 +708,38 @@ function preflight(cfg) {
       fail(`Unattended signing probe failed (${probe.status ?? probe.signal})`);
     signing = 'Bounded real commit-tree signature succeeded without changing refs';
   }
-  ensureHome();
   const probeSchema = ctl('probe.schema.json');
   writeFileSync(
     probeSchema,
     JSON.stringify({
       type: 'object',
-      properties: { ready: { const: true } },
-      required: ['ready'],
+      properties: {
+        git: {
+          type: 'object',
+          properties: { ok: { type: 'boolean' }, exitCode: { type: 'integer' } },
+          required: ['ok', 'exitCode'],
+          additionalProperties: false,
+        },
+        loopback: {
+          type: 'object',
+          properties: { ok: { type: 'boolean' }, port: { type: 'integer' } },
+          required: ['ok', 'port'],
+          additionalProperties: false,
+        },
+        database: {
+          type: 'object',
+          properties: { ok: { type: 'boolean' }, value: { type: ['integer', 'null'] } },
+          required: ['ok', 'value'],
+          additionalProperties: false,
+        },
+        dependencies: {
+          type: 'object',
+          properties: { ok: { type: 'boolean' }, exitCode: { type: 'integer' } },
+          required: ['ok', 'exitCode'],
+          additionalProperties: false,
+        },
+      },
+      required: ['git', 'loopback', 'database', 'dependencies'],
       additionalProperties: false,
     }),
     { mode: 0o600 }
@@ -731,17 +757,33 @@ function preflight(cfg) {
         probeSchema,
         '-o',
         probeResult,
-        'Return {"ready":true}. Do not use tools or change files.',
+        'Run node --env-file-if-exists=.env tools/handoff-pilot/child-probe.mjs once from the repository root. Return exactly its JSON output using the supplied schema. Do not edit files or start the pilot.',
       ],
-      { cwd: repo, encoding: 'utf8', timeout: 90_000 }
+      {
+        cwd: repo,
+        env: { ...process.env, MYCEL_PILOT_PLANNING: planning },
+        encoding: 'utf8',
+        timeout: 90_000,
+      }
     );
     if (
       probe.status !== 0 ||
       !probe.stdout.includes('"turn.completed"') ||
-      !existsSync(probeResult) ||
-      json(probeResult).ready !== true
+      !existsSync(probeResult)
     )
       fail(`Model access failed: ${selected.name}`);
+    const evidence = json(probeResult);
+    for (const [axis, valid] of Object.entries({
+      git: evidence.git?.ok === true && evidence.git.exitCode === 0,
+      loopback:
+        evidence.loopback?.ok === true &&
+        Number.isInteger(evidence.loopback.port) &&
+        evidence.loopback.port > 0,
+      database: evidence.database?.ok === true && evidence.database.value === 1,
+      dependencies: evidence.dependencies?.ok === true && evidence.dependencies.exitCode === 0,
+    })) {
+      if (!valid) fail(`Child preflight ${axis} failed for ${selected.name}`);
+    }
   }
   const proof = {
     at: new Date().toISOString(),
