@@ -100,38 +100,82 @@ test('dry-run launches no agent and writes no run state', (t) => {
   assert.throws(() => readFileSync(join(f.home, 'state.json')));
 });
 
-test('preflight exercises the launch approval flags without a conflicting sandbox flag', (t) => {
+function fakePreflightCodex(f) {
+  writeFileSync(
+    join(f.root, 'bin/codex'),
+    `#!/bin/sh
+if [ "$1" = login ]; then exit 0; fi
+seen_approval=0
+seen_repo=0
+seen_planning=0
+seen_schema=0
+result=''
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --approve-for-me) seen_approval=1;;
+    --sandbox) exit 91;;
+    -C) shift; [ "$1" = '${resolve('.')}' ] && seen_repo=1;;
+    --add-dir) shift; [ "$1" = '${join(f.root, 'planning')}' ] && seen_planning=1;;
+    --output-schema) shift; [ -f "$1" ] && seen_schema=1;;
+    -o) shift; result="$1";;
+  esac
+  shift
+done
+[ "$seen_approval" -eq 1 ] && [ "$seen_repo" -eq 1 ] && [ "$seen_planning" -eq 1 ] && [ "$seen_schema" -eq 1 ] || exit 92
+printf '%s' "$MYCEL_PILOT_FAKE_PROBE_RESULT" > "$result"
+printf '{"type":"turn.completed"}\\n'
+`,
+    { mode: 0o755 }
+  );
+}
+
+const passingProbe = {
+  git: { ok: true, exitCode: 0 },
+  loopback: { ok: true, port: 54321 },
+  database: { ok: true, value: 1 },
+  dependencies: { ok: true, exitCode: 0 },
+};
+
+test('preflight exercises the launch flags and accepts all four child axes', (t) => {
   const f = fixture(t);
   writeFileSync(
     join(f.root, 'bin/gh'),
     '#!/bin/sh\nif [ "$1" = api ]; then echo \'{"permissions":{"push":true}}\'; else echo "[]"; fi\n',
     { mode: 0o755 }
   );
-  writeFileSync(
-    join(f.root, 'bin/codex'),
-    `#!/bin/sh
-if [ "$1" = login ]; then exit 0; fi
-seen_approval=0
-result=''
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --approve-for-me) seen_approval=1;;
-    --sandbox) exit 91;;
-    -o) shift; result="$1";;
-  esac
-  shift
-done
-[ "$seen_approval" -eq 1 ] || exit 92
-printf '{"ready":true}' > "$result"
-printf '{"type":"turn.completed"}\\n'
-`,
-    { mode: 0o755 }
+  fakePreflightCodex(f);
+  const ran = call(
+    { ...f.env, MYCEL_PILOT_FAKE_PROBE_RESULT: JSON.stringify(passingProbe) },
+    'preflight',
+    f.config
   );
-  const ran = call(f.env, 'preflight', f.config);
   assert.equal(ran.status, 0, ran.stderr);
   assert.equal(JSON.parse(ran.stdout).models['#44:execute'].id, 'gpt-6-sol');
+  assert.ok(readFileSync(join(f.home, 'preflight.json'), 'utf8').includes('codeDigest'));
   assert.throws(() => readFileSync(join(f.home, 'state.json')));
 });
+
+for (const axis of Object.keys(passingProbe)) {
+  test(`preflight rejects a failed ${axis} child axis without writing proof`, (t) => {
+    const f = fixture(t);
+    writeFileSync(
+      join(f.root, 'bin/gh'),
+      '#!/bin/sh\nif [ "$1" = api ]; then echo \'{"permissions":{"push":true}}\'; else echo "[]"; fi\n',
+      { mode: 0o755 }
+    );
+    fakePreflightCodex(f);
+    const evidence = structuredClone(passingProbe);
+    evidence[axis].ok = false;
+    const ran = call(
+      { ...f.env, MYCEL_PILOT_FAKE_PROBE_RESULT: JSON.stringify(evidence) },
+      'preflight',
+      f.config
+    );
+    assert.equal(ran.status, 1);
+    assert.match(ran.stderr, new RegExp(`Child preflight ${axis} failed`));
+    assert.throws(() => readFileSync(join(f.home, 'preflight.json')));
+  });
+}
 
 test('a second supervisor is excluded; stop terminates the active agent group', async (t) => {
   const f = fixture(t);
