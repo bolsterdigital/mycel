@@ -242,6 +242,43 @@ describe('block operations', () => {
     expect(out).toMatchObject({ retired: [], merged: [] });
   });
 
+  it('marks both retained halves of an unreviewed machine translation after a split', async () => {
+    const { item, revision } = await invoker.run(useCases.createItem, admin, {
+      slug: 'translated-split',
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl', 'en'],
+        title: { nl: 'Titel', en: 'Title' },
+        blocks: [
+          richText('t', {
+            nl: doc(para('Een'), para('Twee')),
+            en: doc(para('One'), para('Two')),
+          }),
+        ],
+        machineTranslation: { en: ['blocks.t.props.content'] },
+      },
+    });
+    const out = await invoker.run(useCases.splitInsertBlock, admin, {
+      itemId: item.id,
+      baseRevisionId: revision.id,
+      blockId: 't',
+      at: { nl: 1, en: 1 },
+      block: headingBlock('between'),
+    });
+    expect(out.revision.document.machineTranslation?.en).toEqual([
+      'blocks.t.props.content',
+      `blocks.${out.created[1]}.props.content`,
+    ]);
+    await expect(
+      invoker.run(useCases.publishItem, admin, {
+        itemId: item.id,
+        revisionId: out.revision.id,
+        locale: 'en',
+      })
+    ).rejects.toMatchObject({ code: 'invalid_input' });
+  });
+
   it.each([
     [{ nl: 0, en: 1 }, 'at.nl', 'content.split.empty-part'],
     [{ nl: 1, en: 2 }, 'at.en', 'content.split.empty-part'],

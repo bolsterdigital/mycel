@@ -86,6 +86,101 @@ async function setup() {
 }
 
 describe('translation boundary', () => {
+  it.each(['remove', 'move'] as const)(
+    'keeps an accepted translation unreviewed when %s merges its block',
+    async (operation) => {
+      const { invoker, run, created } = await setup();
+      const text = (value: string) => ({
+        type: 'doc' as const,
+        content: [
+          { type: 'paragraph' as const, content: [{ type: 'text' as const, text: value }] },
+        ],
+      });
+      const rich = (id: string) => ({
+        id,
+        type: 'rich-text' as const,
+        version: 1 as const,
+        props: { content: { nl: text(id), en: text(id) } },
+      });
+      const prepared = await invoker.run(useCases.updateItem, operator, {
+        itemId: created.item.id,
+        baseRevisionId: created.revision.id,
+        document: {
+          ...created.revision.document,
+          blocks: [
+            rich('first'),
+            {
+              id: 'separator',
+              type: 'heading',
+              version: 1,
+              props: { text: { nl: 'Kop', en: 'Heading' } },
+            },
+            rich('second'),
+          ],
+        },
+      });
+      const suggested = await invoker.run(useCases.suggestTranslation, operator, {
+        itemId: created.item.id,
+        baseRevisionId: prepared.revision.id,
+        from: 'nl',
+        to: 'en',
+        targets: ['second'],
+      });
+      await run(suggested.suggestionId);
+      const accepted = await invoker.run(useCases.acceptSuggestion, operator, {
+        suggestionId: suggested.suggestionId,
+        baseRevisionId: prepared.revision.id,
+      });
+      const agent = { ...system, capabilities: ['content:write', 'content:publish'] as const };
+      const target = { itemId: created.item.id, baseRevisionId: accepted.revisionId };
+      const changed =
+        operation === 'remove'
+          ? await invoker.run(useCases.removeBlock, agent, { ...target, blockId: 'separator' })
+          : await invoker.run(useCases.moveBlock, agent, {
+              ...target,
+              blockId: 'separator',
+              place: { at: 'end' },
+            });
+      expect(changed.merged).toEqual([{ from: 'second', into: 'first' }]);
+      expect(JSON.stringify(changed.revision.document.blocks)).toContain('[en] second');
+      expect(changed.revision.document.machineTranslation?.en).toEqual([
+        'blocks.first.props.content',
+      ]);
+      expect(readinessIssues(changed.revision.document, 'en')).toContainEqual({
+        path: 'blocks.first.props.content',
+        message: 'content.publish.machine-translation-unreviewed',
+      });
+      await expect(
+        invoker.run(useCases.publishItem, agent, {
+          itemId: created.item.id,
+          revisionId: changed.revision.id,
+          locale: 'en',
+        })
+      ).rejects.toMatchObject({ code: 'invalid_input' });
+      await expect(
+        invoker.run(useCases.approveTranslation, agent, {
+          itemId: created.item.id,
+          locale: 'en',
+          baseRevisionId: changed.revision.id,
+        })
+      ).rejects.toMatchObject({ code: 'forbidden' });
+      const approved = await invoker.run(useCases.approveTranslation, operator, {
+        itemId: created.item.id,
+        locale: 'en',
+        baseRevisionId: changed.revision.id,
+      });
+      const afterApproval = await invoker.run(useCases.getItem, operator, {
+        itemId: created.item.id,
+      });
+      expect(afterApproval.revision.document.machineTranslation?.en).toBeUndefined();
+      await invoker.run(useCases.publishItem, agent, {
+        itemId: created.item.id,
+        revisionId: approved.revisionId,
+        locale: 'en',
+      });
+    }
+  );
+
   it('sends only selected Markdown, rejects changed structure, and needs a human publisher', async () => {
     const { uow, invoker, model, created, run } = await setup();
     const source = {
