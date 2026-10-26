@@ -114,3 +114,33 @@ test('a weighted audit error cannot hide behind a category score of 100', () => 
   batch[0].report.audits['broken-audit'] = { score: null, scoreDisplayMode: 'error' };
   assert.equal(evaluateBatch(contract, batch).state, 'inconclusive');
 });
+
+test('cache failure retains every independent identity cause and its measurement owner', () => {
+  const batch = samples();
+  batch[0].identity = {
+    valid: false,
+    noindex: true,
+    privateCache: false,
+    functionalFailures: ['admin-private-cache'],
+    reasons: ['admin-private-cache', 'wrong-item', 'empty-editor', 'locale'],
+  };
+  const proposals = repairProposals([
+    { id: 'writer', ...evaluateCell({ ...contract, indexable: false }, [batch]) },
+  ]);
+  assert.deepEqual(
+    new Set(proposals.map((p) => p.key)),
+    new Set([
+      'admin-private-cache',
+      'page-identity:wrong-item',
+      'page-identity:empty-editor',
+      'page-identity:locale',
+    ])
+  );
+  for (const proposal of proposals.filter((p) => p.key.startsWith('page-identity:'))) {
+    assert.equal(proposal.owner, 'dev');
+    assert.equal(proposal.address, '#43B');
+  }
+  const privacy = proposals.find((p) => p.key === 'admin-private-cache');
+  assert.equal(privacy.owner, 'mbp');
+  assert.equal(privacy.address, '#11');
+});

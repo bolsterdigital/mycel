@@ -1,6 +1,21 @@
 // Validate the measured document, not a separate successful health request. The browser adapter
 // supplies facts from the same navigation as Lighthouse; a 200 alone proves neither identity nor
 // complete resources. Rejected: trusting a high score from a login, redirect or empty page.
+const normalize = (text) => text.replace(/\s+/gu, ' ').trim();
+const proseText = (node) =>
+  node.text ?? (node.content ?? []).map(proseText).filter(Boolean).join(' ');
+
+// Resolve expectations from the seeded revision, never from the measured editor itself.
+export function writerExpectation(document, locale) {
+  return document.blocks.map((block) => ({
+    id: block.id,
+    type: block.type,
+    ...(block.type === 'rich-text'
+      ? { text: normalize(proseText(block.props.content[locale])) }
+      : {}),
+  }));
+}
+
 export function validateIdentity(expected, facts) {
   const reasons = [];
   if (facts.url !== expected.url) reasons.push('final-url');
@@ -25,6 +40,13 @@ export function validateIdentity(expected, facts) {
     if (!facts.authenticated) reasons.push('authentication');
     if (expected.populated && !facts.populated) reasons.push('empty-list');
     if (expected.writer && !facts.writer) reasons.push('writer');
+    if (expected.item && !expected.writer && !facts.itemText) reasons.push('wrong-item');
+    if (expected.writerBlocks) {
+      if (JSON.stringify(facts.writerBlocks) !== JSON.stringify(expected.writerBlocks))
+        reasons.push('wrong-item');
+      if (!facts.writerBlocks?.some((block) => block.type === 'rich-text' && block.text?.trim()))
+        reasons.push('empty-editor');
+    }
   }
   // An explicit integration expectation cannot be improved away by suppressing its request.
   for (const path of expected.requiredRequests ?? [])

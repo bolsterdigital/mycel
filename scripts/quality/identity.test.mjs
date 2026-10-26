@@ -86,3 +86,43 @@ test('authenticated admin requires private noindex populated tenant state', () =
     assert.equal(validateIdentity(admin, { ...facts, [key]: false }).valid, false, key);
   assert.equal(validateIdentity(admin, { ...facts, siteName: 'Other tenant' }).valid, false);
 });
+
+test('writer uses seeded block identity and body, without requiring the document title', () => {
+  const writerBlocks = [
+    { id: 'prose-id', type: 'rich-text', text: 'Een gedeelde straat Bewoners bespreken bomen.' },
+    { id: 'image-id', type: 'image' },
+  ];
+  const admin = {
+    ...expected,
+    title: '',
+    indexable: false,
+    item: true,
+    writer: true,
+    writerBlocks,
+  };
+  const facts = {
+    ...good,
+    title: 'Artikel schrijven',
+    noindex: true,
+    privateCache: true,
+    siteName: 'Probe',
+    authenticated: true,
+    writer: true,
+    itemText: false,
+    writerBlocks,
+  };
+  assert.equal(validateIdentity(admin, facts).valid, true);
+  for (const changed of [
+    { url: expected.url + '/other' },
+    { writerBlocks: [{ ...writerBlocks[0], id: 'another-article' }, writerBlocks[1]] },
+    { writerBlocks: [{ ...writerBlocks[0], text: 'Another article body' }, writerBlocks[1]] },
+    { writerBlocks: [{ ...writerBlocks[0], text: '' }, writerBlocks[1]] },
+    { writerBlocks: [] },
+    { writer: false, writerBlocks: undefined },
+  ])
+    assert.equal(validateIdentity(admin, { ...facts, ...changed }).valid, false);
+  assert.ok(
+    validateIdentity(admin, { ...facts, writerBlocks: [] }).reasons.includes('empty-editor')
+  );
+  assert.ok(validateIdentity({ ...admin, writer: false }, facts).reasons.includes('wrong-item'));
+});

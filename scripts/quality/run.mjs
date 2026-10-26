@@ -13,7 +13,7 @@ import { chromium } from '@playwright/test';
 import lighthouse, { desktopConfig as desktop } from 'lighthouse';
 import * as chromeLauncher from 'chrome-launcher';
 import { IdentityGatherer, IdentityAudit } from './gatherer.mjs';
-import { validateIdentity } from './identity.mjs';
+import { validateIdentity, writerExpectation } from './identity.mjs';
 import { compareBaseline } from './baseline.mjs';
 import { protectReports } from './protect.mjs';
 import { evaluateCell, repairProposals } from './evaluate.mjs';
@@ -249,6 +249,21 @@ try {
     if (!list.ok) throw new Error('Cannot resolve corpus article');
     const { items } = await list.json();
     if (items.length !== 1) throw new Error('Ambiguous corpus article');
+    const detail = await fetch(`${process.env.E2E_API_URL}/v1/content.item.get`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${process.env.MYCEL_API_KEY}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ itemId: items[0].id }),
+    });
+    if (!detail.ok) throw new Error('Cannot resolve corpus revision');
+    const { revision } = await detail.json();
+    // The corpus writer URL has no locale query: its body uses Probe's default locale (nl),
+    // independently of the admin chrome's Accept-Language. Do not invent an English body.
+    const writerBlocks = writerExpectation(revision.document, 'nl');
+    if (!writerBlocks.some((block) => block.type === 'rich-text' && block.text))
+      throw new Error('Corpus revision has no representative prose');
     await page.goto(`${origin}/admin/probe/content`);
     await page.getByLabel('E-mail').fill('e2e-admin@probe.test');
     await page.getByRole('button', { name: 'Sign in' }).click();
@@ -265,6 +280,7 @@ try {
         title: '',
         populated: entry.name === 'populated-list',
         writer: entry.name === 'enhanced-writer',
+        ...(entry.name === 'enhanced-writer' ? { writerBlocks } : {}),
         item: entry.name !== 'populated-list',
       });
   } else
@@ -387,10 +403,6 @@ try {
             if (!response) facts.failedRequests.push(url);
           }
           sample.identity = validateIdentity(entry, facts);
-          if (entry.item && !facts.itemText) {
-            sample.identity.valid = false;
-            sample.identity.reasons.push('wrong-item');
-          }
           sample.facts = facts;
           writeFileSync(join(dir, 'trace.json'), JSON.stringify(measured.artifacts.Trace));
           // Full devtools logs contain credentials; persist a network summary instead.

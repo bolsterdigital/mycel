@@ -123,3 +123,78 @@ test('failed or mismatched baselines cannot redefine absolute acceptance', () =>
     'compared'
   );
 });
+
+test('measured writer DOM passes the same identity path; wrong article and empty prose fail', async (t) => {
+  const { chromium } = await import('@playwright/test');
+  const { existsSync } = await import('node:fs');
+  if (!existsSync(chromium.executablePath())) {
+    if (process.env.CI) throw new Error('Chromium required for measured writer regression');
+    return t.skip('Playwright Chromium is not installed');
+  }
+  const { validateIdentity, writerExpectation } = await import('./identity.mjs');
+  const blocks = [
+    {
+      id: 'prose-id',
+      type: 'rich-text',
+      props: {
+        content: {
+          nl: {
+            type: 'doc',
+            content: [
+              { type: 'heading', content: [{ type: 'text', text: 'Een gedeelde straat' }] },
+              { type: 'paragraph', content: [{ type: 'text', text: 'Bewoners bespreken bomen.' }] },
+            ],
+          },
+        },
+      },
+    },
+    { id: 'image-id', type: 'image', props: {} },
+  ];
+  const expected = {
+    url: 'about:blank',
+    locale: 'nl',
+    title: '',
+    indexable: false,
+    item: true,
+    writer: true,
+    writerBlocks: writerExpectation({ blocks }, 'nl'),
+  };
+  const browser = await chromium.launch({ args: ['--no-sandbox'] });
+  try {
+    const page = await browser.newPage();
+    // Same structure as article-extensions.ts: the writer h1 is generic, prose and opaque
+    // cards carry stable block ids; document.title is absent from the visible body.
+    await page.setContent(`<html lang="nl"><head><meta name="robots" content="noindex"></head>
+      <body><span class="admin-site-name">Probe</span><form action="/admin/logout"></form>
+      <main><h1>Artikel schrijven</h1><div class="writing-surface"><div class="ProseMirror">
+      <section data-mycel-prose data-block-id="prose-id"><h2>Een gedeelde straat</h2>
+      <p>Bewoners bespreken bomen.</p></section>
+      <div data-mycel-card data-block-id="image-id" data-block-type="image">image</div>
+      </div></div></main></body></html>`);
+    const gather = () =>
+      new IdentityGatherer().getArtifact({
+        driver: {
+          executionContext: { evaluate: (callback) => page.evaluate(callback) },
+        },
+      });
+    const check = async () =>
+      validateIdentity(expected, {
+        ...(await gather()),
+        status: 200,
+        csp: true,
+        privateCache: true,
+      });
+    assert.equal((await check()).valid, true);
+    await page
+      .locator('[data-mycel-prose]')
+      .evaluate((node) => node.setAttribute('data-block-id', 'wrong'));
+    assert.ok((await check()).reasons.includes('wrong-item'));
+    await page.locator('[data-mycel-prose]').evaluate((node) => {
+      node.setAttribute('data-block-id', 'prose-id');
+      node.textContent = '';
+    });
+    assert.ok((await check()).reasons.includes('empty-editor'));
+  } finally {
+    await browser.close();
+  }
+});

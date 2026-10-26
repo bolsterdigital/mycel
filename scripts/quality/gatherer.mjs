@@ -26,6 +26,13 @@ export class IdentityGatherer extends BaseGatherer {
         await document.fonts.ready;
         const main = document.querySelector('main');
         const has = (selector) => Boolean(main?.querySelector(selector));
+        const writer = main?.querySelector('.writing-surface .ProseMirror');
+        const text = (element) => {
+          const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+          const parts = [];
+          while (walker.nextNode()) parts.push(walker.currentNode.textContent);
+          return parts.join(' ').replace(/\s+/gu, ' ').trim();
+        };
         const images = [...(main?.querySelectorAll('img') ?? [])];
         return {
           url: location.href,
@@ -55,7 +62,14 @@ export class IdentityGatherer extends BaseGatherer {
           siteName: document.querySelector('.admin-site-name')?.textContent?.trim(),
           authenticated: Boolean(document.querySelector('form[action*="logout"]')),
           populated: has('.content-list li'),
-          writer: has('.writing-surface .ProseMirror'),
+          writer: Boolean(writer),
+          writerBlocks: [...(writer?.children ?? [])].map((block) => ({
+            id: block.getAttribute('data-block-id'),
+            type: block.hasAttribute('data-mycel-prose')
+              ? 'rich-text'
+              : block.getAttribute('data-block-type'),
+            ...(block.hasAttribute('data-mycel-prose') ? { text: text(block) } : {}),
+          })),
           itemText: main?.textContent.includes('De straat die ruimte maakt'),
         };
       },

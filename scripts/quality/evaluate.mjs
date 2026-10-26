@@ -125,11 +125,22 @@ export function repairProposals(cells, ledger = [], now = new Date()) {
   for (const cell of cells) {
     if (cell.state === 'pass') continue;
     for (const reason of new Set(
-      cell.batches.length ? cell.batches.flatMap((batch) => batch.reasons) : ['not-measured']
+      cell.batches.length
+        ? cell.batches.flatMap((batch) => [
+            ...batch.reasons.filter((reason) => reason !== 'page-identity'),
+            ...(batch.identityIssues?.length
+              ? batch.identityIssues.map((issue) => `page-identity:${issue}`)
+              : batch.reasons.includes('page-identity')
+                ? ['page-identity']
+                : []),
+          ])
+        : ['not-measured']
     )) {
+      // These identity issues already have their own functional proposal. No other identity
+      // cause may disappear merely because the same batch also failed private caching.
       if (
-        reason === 'page-identity' &&
-        cell.batches.some((b) => b.reasons.includes('admin-private-cache'))
+        reason.startsWith('page-identity:') &&
+        cell.batches.some((batch) => batch.reasons.includes(reason.slice(14)))
       )
         continue;
       const privacy = reason === 'admin-private-cache';
