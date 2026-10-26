@@ -160,8 +160,7 @@ export function consumeRun(run, load) {
   const cells = [];
   const coverage = [];
   const artifacts = [];
-  const sourceAddresses = new Map();
-  const sourceOwnership = new Map();
+  const proposals = [];
   const reportStates = [];
   let expected = [];
   let referenceTools;
@@ -207,17 +206,6 @@ export function consumeRun(run, load) {
       if (artifact.error) throw new Error('unavailable');
       const report = load(artifact);
       const env = report.environment;
-      for (const proposal of report.repairs ?? []) {
-        if (token(proposal.key) && token(proposal.address)) {
-          sourceAddresses.set(proposal.key, proposal.address);
-          sourceOwnership.set(proposal.key, {
-            ...(['dev', 'mbp'].includes(proposal.owner) ? { owner: proposal.owner } : {}),
-            ...(['workhorse', 'flagship-review', 'flagship-only'].includes(proposal.tier)
-              ? { tier: proposal.tier }
-              : {}),
-          });
-        }
-      }
       if (
         report.schemaVersion !== 1 ||
         report.commit !== run.measuredSha ||
@@ -267,6 +255,7 @@ export function consumeRun(run, load) {
       artifacts.at(-1).state = report.state;
       if (report.error || report.interrupted || report.activeCell)
         issues.push(issue('report-interrupted'));
+      const artifactCells = [];
       for (const cell of report.cells) {
         if (ids.has(cell.id)) {
           issues.push(issue('duplicate-cell'));
@@ -343,7 +332,7 @@ export function consumeRun(run, load) {
           )
         )
           throw new Error('false-pass');
-        cells.push({
+        const retainedCell = {
           id: cell.id,
           route: cell.route,
           state: cell.state,
@@ -351,9 +340,33 @@ export function consumeRun(run, load) {
           locale: shard.locale,
           cache: shard.cache,
           batches,
-        });
+        };
+        cells.push(retainedCell);
+        artifactCells.push(retainedCell);
       }
       coverage.push(...coverageView(report.coverage ?? []));
+      // Bind claims to their validated shard cells before any cause is deduplicated.
+      // A run-wide map would let an unrelated later shard replace the source route.
+      for (const p of repairProposals(artifactCells)) {
+        const claims = (report.repairs ?? []).filter(
+          (claim) => claim.key === p.key && token(claim.address)
+        );
+        for (const claim of claims.length ? claims : [p]) {
+          const sourceAddress = claim.address;
+          const address = currentAddress(sourceAddress);
+          proposals.push({
+            ...p,
+            artifact: name,
+            sourceAddress,
+            address,
+            ...(['dev', 'mbp'].includes(claim.owner) ? { owner: claim.owner } : {}),
+            ...(['workhorse', 'flagship-review', 'flagship-only'].includes(claim.tier)
+              ? { tier: claim.tier }
+              : {}),
+            ...(address === '#43C-report' ? { aliases: ['#43B'] } : {}),
+          });
+        }
+      }
       if (report.state === 'pass' && report.cells.some((c) => c.state !== 'pass'))
         throw new Error('summary-state');
     } catch {
@@ -364,14 +377,6 @@ export function consumeRun(run, load) {
   const missingCells = expected.flatMap((s) => s.ids).filter((id) => !ids.has(id));
   if (missingShards.length) issues.push(issue('missing-shard'));
   if (missingCells.length) issues.push(issue('missing-cell'));
-  const proposals = repairProposals(cells).map((p) => ({
-    ...p,
-    ...sourceOwnership.get(p.key),
-    sourceAddress: sourceAddresses.get(p.key) ?? p.address,
-    address: currentAddress(sourceAddresses.get(p.key) ?? p.address),
-  }));
-  // Retain historical source addresses even as the current evaluator uses C.
-  for (const p of proposals) if (p.address === '#43C-report') p.aliases = ['#43B'];
   return {
     id: run.id,
     attempt: run.attempt,
@@ -490,7 +495,12 @@ function aggregateProposals(runs) {
       };
       if (!entry.sourceAddresses.includes(proposal.sourceAddress))
         entry.sourceAddresses.push(proposal.sourceAddress);
-      const ref = { id: run.id, attempt: run.attempt, cells: proposal.cells };
+      const ref = {
+        id: run.id,
+        attempt: run.attempt,
+        artifact: proposal.artifact,
+        cells: proposal.cells,
+      };
       entry.runs.push(ref);
       let claim = entry.routingClaims.find(
         (c) =>
@@ -599,7 +609,7 @@ export function markdown(report) {
     '',
     ...report.proposals.map(
       (p) =>
-        `- ${p.routingState === 'conflict' ? 'Routing conflict' : 'Aggregate routing'} ${p.key}: ${p.owner ?? 'unresolved'} ${p.address ?? 'unresolved'} (${p.tier}); claims ${p.routingClaims.map((c) => `${c.owner} ${c.address} (${c.tier}), source ${c.sourceAddress}, runs ${c.runs.map((r) => `${r.id}/${r.attempt}`).join(', ')}`).join('; ')}.`
+        `- ${p.routingState === 'conflict' ? 'Routing conflict' : 'Aggregate routing'} ${p.key}: ${p.owner ?? 'unresolved'} ${p.address ?? 'unresolved'} (${p.tier}); claims ${p.routingClaims.map((c) => `${c.owner} ${c.address} (${c.tier}), source ${c.sourceAddress}, runs ${c.runs.map((r) => `${r.id}/${r.attempt} artifact ${r.artifact} cells ${r.cells.join(',')}`).join(', ')}`).join('; ')}.`
     ),
     '',
     `Monitoring issues: ${report.issues.map((i) => i.reason).join(', ') || 'none'}.`,

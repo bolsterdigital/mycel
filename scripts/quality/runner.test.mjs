@@ -619,6 +619,7 @@ test('aggregate routing preserves established claims and highest tier in both ru
       result.runs.map((r) => ({
         id: r.id,
         attempt: r.attempt,
+        artifact: r.proposals[0].artifact,
         cells: r.proposals[0].cells,
       }))
     );
@@ -661,5 +662,56 @@ test('aggregate routing preserves established claims and highest tier in both ru
     );
     assert.equal(proposal.runs.find((r) => r.id === 102).attempt, 2);
     assert.match(markdown(result), /Routing conflict/);
+  }
+});
+
+test('routing retains artifact-scoped claims and exact cells in both shard orders', () => {
+  const product = { address: '#39', owner: 'mbp', tier: 'flagship-review' };
+  for (const other of [
+    { address: '#43C', owner: 'mbp', tier: 'workhorse' },
+    { address: '#40', owner: 'dev', tier: 'flagship-only' },
+    { address: '#39', owner: 'dev', tier: 'workhorse' },
+    { address: '#39', owner: 'mbp', tier: 'flagship-only' },
+  ]) {
+    const run = retained();
+    const sources = [product, other].map((routing, index) => {
+      const artifact = run.artifacts[index];
+      const report = artifact.report;
+      const cell = report.cells[0];
+      cell.state = cell.batches[0].state = report.state = 'fail';
+      cell.batches[0].reasons = ['accessibility'];
+      cell.batches[0].raw[0].accessibility = 0.98;
+      report.repairs = [{ key: 'accessibility:', ...routing }];
+      return { ...routing, artifact: artifact.name, cells: [cell.id] };
+    });
+    for (const artifacts of [run.artifacts, [...run.artifacts].reverse()]) {
+      const result = consume(
+        { schemaVersion: 1, workflow: {}, runs: [{ ...run, artifacts }] },
+        load,
+        clock
+      );
+      assert.deepEqual(result.runs[0].issues, []);
+      const proposal = result.proposals[0];
+      const conflict =
+        other.address !== '#43C' && (other.address !== '#39' || other.owner !== 'mbp');
+      assert.equal(proposal.address, conflict ? null : '#39');
+      assert.equal(proposal.owner, conflict ? null : 'mbp');
+      assert.equal(proposal.routingState, conflict ? 'conflict' : 'resolved');
+      assert.equal(
+        proposal.tier,
+        other.tier === 'flagship-only' ? 'flagship-only' : 'flagship-review'
+      );
+      assert.equal(proposal.routingClaims.length, 2);
+      for (const source of sources) {
+        const claim = proposal.routingClaims.find(
+          (c) => c.address === source.address && c.owner === source.owner && c.tier === source.tier
+        );
+        assert.deepEqual(claim.runs, [
+          { id: run.id, attempt: run.attempt, artifact: source.artifact, cells: source.cells },
+        ]);
+      }
+      assert.equal(proposal.runs.length, 2);
+      assert.match(markdown(result), new RegExp(sources[0].artifact));
+    }
   }
 });
