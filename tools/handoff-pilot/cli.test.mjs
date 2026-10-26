@@ -532,7 +532,11 @@ test('pause keeps enforcing the wall-clock deadline for a running child', async 
 
 // Real local Git history is the counterexample: fake Git output would merely restate the
 // checker, and could not prove rename parsing or distinguish concurrent main commits.
-function scopeFixture(t, edit, { concurrent = false, phase = 'execute', repair = false } = {}) {
+function scopeFixture(
+  t,
+  edit,
+  { concurrent = false, phase = 'execute', repair = false, scope, files = {} } = {}
+) {
   const f = fixture(t);
   const code = join(f.root, 'code');
   const origin = join(f.root, 'origin.git');
@@ -549,6 +553,10 @@ function scopeFixture(t, edit, { concurrent = false, phase = 'execute', repair =
     copyFileSync(resolve('tools/handoff-pilot', name), join(code, 'tools/handoff-pilot', name));
   writeFileSync(join(code, 'apps/web/allowed.txt'), 'original\n');
   writeFileSync(join(code, 'scripts/e2e.mjs'), 'original script\n');
+  for (const [path, contents] of Object.entries(files)) {
+    mkdirSync(join(code, path, '..'), { recursive: true });
+    writeFileSync(join(code, path), contents);
+  }
   git('init', '-b', 'main');
   git('config', 'user.name', 'Pilot Fixture');
   git('config', 'user.email', 'pilot@probe.test');
@@ -611,6 +619,7 @@ statusCheckRollup:['verify','security','image','compose'].map(name=>({name,concl
   );
   writeFileSync(join(f.root, 'planning/handoff/mbp.md'), `stuur\n# review #60 ${head} workhorse\n`);
   const state = newRun({
+    ...(scope ? { scopes: { '#44': scope } } : {}),
     runId: 'scope-fixture',
     lane: 'mbp',
     allowlist: ['#44'],
@@ -861,4 +870,134 @@ test('terminal legacy state stays readable and cannot resume without a migration
   assert.equal(call(f.env, 'status').status, 0);
   assert.equal(call(f.env, 'resume').status, 1);
   assert.deepEqual(JSON.parse(readFileSync(join(f.home, 'state.json'))), legacy);
+});
+
+const siteRoute = 'apps/web/src/routes/(admin)/admin/[tenant]/site/+page.server.ts';
+const siteDirectory = 'apps/web/src/routes/(admin)/admin/[tenant]/site/';
+const sitemapRoute = 'apps/web/src/routes/(public)/[tenant]/sitemap.xml/+server.ts';
+for (const [name, path, scope, allowed] of [
+  ['exact site', siteRoute, { paths: [siteRoute], directories: [] }, true],
+  ['exact sitemap', sitemapRoute, { paths: [sitemapRoute], directories: [] }, true],
+  [
+    'nested site',
+    `${siteDirectory}nested/+page.ts`,
+    { paths: [], directories: [siteDirectory] },
+    true,
+  ],
+  [
+    'different parameter',
+    siteRoute.replace('[tenant]', '[site]'),
+    { paths: [siteRoute], directories: [] },
+    false,
+  ],
+  [
+    'brackets are not a character class',
+    siteRoute.replace('[tenant]', 't'),
+    { paths: [siteRoute], directories: [] },
+    false,
+  ],
+  [
+    'parentheses are not grouping',
+    siteRoute.replace('(admin)', 'admin'),
+    { paths: [siteRoute], directories: [] },
+    false,
+  ],
+  [
+    'sibling site',
+    siteRoute.replace('/site/', '/site-extra/'),
+    { paths: [], directories: [siteDirectory] },
+    false,
+  ],
+  [
+    'dev status',
+    siteRoute.replace('/site/', '/status/'),
+    { paths: [], directories: [siteDirectory] },
+    false,
+  ],
+  [
+    'authority inside site',
+    `${siteDirectory}AGENTS.md`,
+    { paths: [], directories: [siteDirectory] },
+    false,
+  ],
+]) {
+  test(`real Git route scope: ${name}`, (t) => {
+    const f = scopeFixture(
+      t,
+      ({ code }) => {
+        mkdirSync(join(code, path, '..'), { recursive: true });
+        writeFileSync(join(code, path), 'route addition\n');
+      },
+      { scope }
+    );
+    const { after, proofs } = f.finish();
+    assert.equal(after.phase, allowed ? 'review' : 'execute', after.stopReason);
+    if (allowed) assert.equal(proofs[0].reason, null);
+    else assert.ok(proofs[0].reason.startsWith(`Forbidden path ${JSON.stringify(path)} (`));
+    assert.ok(proofs[0].changes.some((change) => change.paths.includes(path)));
+    if (!allowed) assert.equal(after.status, 'blocked');
+  });
+}
+for (const kind of ['rename-out', 'rename-in', 'delete', 'untracked', 'repair']) {
+  test(`real Git route scope preserves ${kind} boundary`, (t) => {
+    const forbidden = siteRoute.replace('/site/', '/status/');
+    const scope = { paths: [], directories: [siteDirectory] };
+    const f = scopeFixture(
+      t,
+      ({ code, git }) => {
+        if (kind === 'rename-out') {
+          mkdirSync(join(code, forbidden, '..'), { recursive: true });
+          git('mv', siteRoute, forbidden);
+        } else if (kind === 'rename-in') {
+          mkdirSync(join(code, siteRoute, '..'), { recursive: true });
+          git('mv', forbidden, siteRoute);
+        } else if (kind === 'delete') git('rm', forbidden);
+        else writeFileSync(join(code, kind === 'repair' ? forbidden : siteRoute), 'changed\n');
+      },
+      {
+        scope,
+        files:
+          kind === 'rename-out'
+            ? { [siteRoute]: 'same\n' }
+            : kind === 'rename-in'
+              ? { [forbidden]: 'same\n' }
+              : { [siteRoute]: 'same\n', [forbidden]: 'same\n' },
+        repair: kind === 'repair',
+        concurrent: kind === 'repair',
+      }
+    );
+    if (kind === 'untracked') writeFileSync(join(f.code, forbidden + '.new'), 'outside\n');
+    const { after, proofs } = f.finish();
+    assert.equal(after.status, 'blocked');
+    assert.equal(after.phase, 'execute');
+    assert.match(after.stopReason, /Forbidden path/);
+    assert.equal(proofs[0].base, f.base);
+    assert.equal(after.repairs['#44'], undefined);
+    if (kind.startsWith('rename'))
+      assert.ok(
+        proofs[0].changes.some(
+          (change) =>
+            change.status === 'R100' &&
+            change.paths.includes(siteRoute) &&
+            change.paths.includes(forbidden)
+        )
+      );
+  });
+}
+
+test('bounded route dry-run retains the complete config digest without activating', (t) => {
+  const f = fixture(t);
+  const config = JSON.parse(readFileSync(f.config));
+  config.scopes = { '#44': { paths: [sitemapRoute], directories: [siteDirectory] } };
+  writeFileSync(f.config, JSON.stringify(config));
+  const ran = call(f.env, 'dry-run', f.config);
+  assert.equal(ran.status, 0, ran.stderr);
+  const output = JSON.parse(ran.stdout);
+  assert.deepEqual(output.scopes, config.scopes);
+  assert.equal(
+    output.configDigest,
+    createHash('sha256').update(JSON.stringify(config)).digest('hex')
+  );
+  assert.throws(() => readFileSync(join(f.home, 'state.json')));
+  assert.throws(() => readFileSync(f.codexMarker));
 });

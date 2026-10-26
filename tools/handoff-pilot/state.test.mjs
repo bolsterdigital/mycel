@@ -14,6 +14,8 @@ import {
   recordResult,
   reserveSession as reserve,
   resume,
+  scopeAllows,
+  validateScopes,
   stop,
 } from './state.mjs';
 
@@ -509,5 +511,61 @@ test('green PR evidence cannot replace independent scope proof', () => {
     );
     assert.equal(state.phase, 'execute');
     assert.equal(state.pending.id, 'execute');
+  }
+});
+
+test('SvelteKit scope components are literal exact paths and bounded directories', () => {
+  const exact = 'apps/web/src/routes/(admin)/admin/[tenant]/site/+page.server.ts';
+  const directory = 'apps/web/src/routes/(admin)/admin/[tenant]/site/';
+  const sitemap = 'apps/web/src/routes/(public)/[tenant]/sitemap.xml/+server.ts';
+  const scope = { paths: [exact, sitemap], directories: [directory] };
+  assert.equal(validateScopes({ allowlist: ['#38'], scopes: { '#38': scope } })['#38'], scope);
+  for (const path of [exact, sitemap, `${directory}nested/+page.svelte`])
+    assert.equal(scopeAllows(scope, path), true, path);
+  for (const path of [
+    exact.replace('[tenant]', '[site]'),
+    exact.replace('[tenant]', 't'),
+    exact.replace('(admin)', 'admin'),
+    exact.replace('/site/', '/site-extra/'),
+    exact.replace('/site/', '/status/'),
+    sitemap.replace('[tenant]', '[site]'),
+    `${directory}AGENTS.md`,
+    `${directory}.git/config`,
+  ])
+    assert.equal(scopeAllows(scope, path), false, path);
+});
+
+test('route syntax admits only complete named groups and parameters under the route root', () => {
+  const root = 'apps/web/src/routes/';
+  for (const path of [
+    `${root}(admin|public)/+page.ts`,
+    `${root}(.*)/+page.ts`,
+    `${root}(admin)?/+page.ts`,
+    `${root}()/+page.ts`,
+    `${root}prefix(admin)/+page.ts`,
+    `${root}[a-z]/+page.ts`,
+    `${root}[tenant*]/+page.ts`,
+    `${root}[[tenant]]/+page.ts`,
+    `${root}[...tenant]/+page.ts`,
+    `${root}[tenant=matcher]/+page.ts`,
+    `${root}[tenant]/../+page.ts`,
+    `${root}(admin)/CLAUDE.md`,
+    `${root}(admin)/.git/config`,
+    'apps/web/src/lib/(admin)/file.ts',
+    'apps/web/src/routes-other/[tenant]/file.ts',
+    'tools/handoff-pilot/[tenant]/file.ts',
+    'docs/plans/(admin)/file.ts',
+    `${root}[tenant]/bad\\file.ts`,
+    `${root}[tenant]/bad\nfile.ts`,
+  ]) {
+    for (const scope of [
+      { paths: [path], directories: [] },
+      { paths: [], directories: [path + '/'] },
+    ])
+      assert.throws(
+        () => validateScopes({ allowlist: ['#38'], scopes: { '#38': scope } }),
+        /scope/,
+        path
+      );
   }
 });
