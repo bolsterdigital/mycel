@@ -988,7 +988,20 @@ for (const kind of ['rename-out', 'rename-in', 'delete', 'untracked', 'repair'])
 test('bounded route dry-run retains the complete config digest without activating', (t) => {
   const f = fixture(t);
   const config = JSON.parse(readFileSync(f.config));
-  config.scopes = { '#44': { paths: [sitemapRoute], directories: [siteDirectory] } };
+  config.scopes = {
+    '#44': {
+      paths: [
+        sitemapRoute,
+        'apps/web/src/routes/(public)/[tenant]/robots.txt/+server.ts',
+        'apps/web/src/routes/(public)/[tenant]/[[locale=locale]]/[...path]/+page.svelte',
+        'apps/web/src/routes/(public)/[tenant]/[[locale=locale]]/[...path]/+page.server.ts',
+        'apps/web/src/routes/(preview)/admin/[tenant]/preview/item/[itemId]/+page.server.ts',
+        'apps/web/src/routes/(preview)/admin/[tenant]/preview/draft/+page.server.ts',
+        'apps/web/src/routes/(preview)/admin/[tenant]/preview/[...path]/+server.ts',
+      ],
+      directories: [siteDirectory],
+    },
+  };
   writeFileSync(f.config, JSON.stringify(config));
   const ran = call(f.env, 'dry-run', f.config);
   assert.equal(ran.status, 0, ran.stderr);
@@ -1001,3 +1014,73 @@ test('bounded route dry-run retains the complete config digest without activatin
   assert.throws(() => readFileSync(join(f.home, 'state.json')));
   assert.throws(() => readFileSync(f.codexMarker));
 });
+
+const publicDirectory = 'apps/web/src/routes/(public)/[tenant]/[[locale=locale]]/[...path]/';
+const publicRoute = `${publicDirectory}+page.svelte`;
+for (const [name, path, scope, allowed] of [
+  ['public exact', publicRoute, { paths: [publicRoute], directories: [] }, true],
+  [
+    'public prefix',
+    `${publicDirectory}+page.server.ts`,
+    { paths: [], directories: [publicDirectory] },
+    true,
+  ],
+  [
+    'preview rest',
+    'apps/web/src/routes/(preview)/admin/[tenant]/preview/[...path]/+server.ts',
+    {
+      paths: ['apps/web/src/routes/(preview)/admin/[tenant]/preview/[...path]/+server.ts'],
+      directories: [],
+    },
+    true,
+  ],
+  [
+    'optional is literal',
+    publicRoute.replace('[[locale=locale]]', 'nl'),
+    { paths: [], directories: [publicDirectory] },
+    false,
+  ],
+  [
+    'matcher is literal',
+    publicRoute.replace('locale=locale', 'locale=other'),
+    { paths: [publicRoute], directories: [] },
+    false,
+  ],
+  [
+    'rest is literal',
+    publicRoute.replace('[...path]', 'nested/path'),
+    { paths: [], directories: [publicDirectory] },
+    false,
+  ],
+  [
+    'public sibling',
+    publicRoute.replace('[...path]', '[...other]'),
+    { paths: [], directories: [publicDirectory] },
+    false,
+  ],
+  [
+    'public authority',
+    `${publicDirectory}CLAUDE.md`,
+    { paths: [], directories: [publicDirectory] },
+    false,
+  ],
+]) {
+  test(`real Git public route scope: ${name}`, (t) => {
+    const f = scopeFixture(
+      t,
+      ({ code }) => {
+        mkdirSync(join(code, path, '..'), { recursive: true });
+        writeFileSync(join(code, path), 'literal route addition\n');
+      },
+      { scope }
+    );
+    const { after, proofs } = f.finish();
+    assert.equal(after.phase, allowed ? 'review' : 'execute', after.stopReason);
+    assert.ok(proofs[0].changes.some((change) => change.paths.includes(path)));
+    if (allowed) assert.equal(proofs[0].reason, null);
+    else {
+      assert.equal(after.status, 'blocked');
+      assert.match(after.stopReason, /Forbidden path/);
+    }
+  });
+}
