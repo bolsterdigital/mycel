@@ -1,15 +1,34 @@
 // A process-level fixture checks the supervisor boundary with fake external CLIs and isolated
 // state, rather than giving the test real GitHub or Codex credentials.
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
-import { newRun, reserveSession, markLaunched } from './state.mjs';
+import { newRun as createRun, reserveSession as reserve, markLaunched } from './state.mjs';
+
+const scopesFor = (items) =>
+  Object.fromEntries(items.map((item) => [item, { paths: [], directories: ['apps/web/'] }]));
+function newRun(config, now) {
+  const state = createRun({ scopes: scopesFor(config.allowlist), ...config }, now);
+  // Synthetic daemon fixtures still pin the real executable bytes.
+  state.config = { runnerDigest: runnerDigest() };
+  return state;
+}
+function reserveSession(state, session) {
+  return reserve(state, { codeBase: 'e'.repeat(40), ...session });
+}
 
 const cli = resolve('tools/handoff-pilot/cli.mjs');
 const timeout = 10_000;
+function runnerDigest() {
+  const hash = createHash('sha256');
+  for (const name of ['cli.mjs', 'child-probe.mjs', 'state.mjs', 'result.schema.json'])
+    hash.update(readFileSync(resolve('tools/handoff-pilot', name)));
+  return hash.digest('hex');
+}
 
 test('review proof accepts a published relative path and rejects an absolute path', () => {
   const schema = JSON.parse(readFileSync(resolve('tools/handoff-pilot/result.schema.json')));
@@ -60,6 +79,7 @@ function fixture(t) {
       planning,
       lane: 'mbp',
       allowlist: ['#44'],
+      scopes: scopesFor(['#44']),
       tiers: { '#44': 'workhorse' },
       maxSessions: 8,
       maxRepairs: 2,
@@ -78,7 +98,11 @@ function fixture(t) {
   return { root, home, config, env, codexMarker, notifyMarker };
 }
 function call(env, ...args) {
-  return spawnSync(process.execPath, [cli, ...args], { env, encoding: 'utf8', timeout });
+  return spawnSync(process.execPath, [env.MYCEL_TEST_CLI ?? cli, ...args], {
+    env,
+    encoding: 'utf8',
+    timeout,
+  });
 }
 function sleep(ms) {
   return new Promise((done) => setTimeout(done, ms));
@@ -206,7 +230,7 @@ test('a second supervisor is excluded; stop terminates the active agent group', 
     maxRepairs: 2,
     maxMinutes: 360,
   });
-  state.config = { tiers: { '#44': 'workhorse' } };
+  state.config = { runnerDigest: runnerDigest(), tiers: { '#44': 'workhorse' } };
   reserveSession(state, {
     id: 'reserved',
     item: '#44',
@@ -248,7 +272,7 @@ test('daemon recovers an interrupted reservation by blocking, never relaunching'
     maxRepairs: 2,
     maxMinutes: 360,
   });
-  state.config = { tiers: { '#44': 'workhorse' } };
+  state.config = { runnerDigest: runnerDigest(), tiers: { '#44': 'workhorse' } };
   reserveSession(state, {
     id: 'reserved',
     item: '#44',
@@ -277,7 +301,7 @@ test('invalid handoff exits the supervisor once and preserves the blocked reserv
     maxRepairs: 2,
     maxMinutes: 360,
   });
-  state.config = { tiers: { '#44': 'workhorse' } };
+  state.config = { runnerDigest: runnerDigest(), tiers: { '#44': 'workhorse' } };
   state.terminalNotice = null;
   reserveSession(state, {
     id: 'reviewed',
@@ -297,7 +321,7 @@ test('invalid handoff exits the supervisor once and preserves the blocked reserv
   assert.equal(first.status, 0, first.stderr);
   const blocked = JSON.parse(readFileSync(join(f.home, 'state.json'), 'utf8'));
   assert.equal(blocked.status, 'blocked');
-  assert.match(blocked.stopReason, /invalid-handoff: Missing prior planning commit/);
+  assert.match(blocked.stopReason, /invalid-handoff: scope: .*Missing scope base or head/);
   assert.equal(blocked.pending.id, 'reviewed');
   assert.equal(blocked.events.filter((entry) => entry.kind === 'invalid-handoff').length, 1);
   assert.equal(blocked.terminalNotice.terminalStatus, 'blocked');
@@ -328,7 +352,7 @@ test('completion uses a local banner once and pause sends nothing', (t) => {
     maxRepairs: 2,
     maxMinutes: 360,
   });
-  state.config = { tiers: { '#44': 'workhorse' } };
+  state.config = { runnerDigest: runnerDigest(), tiers: { '#44': 'workhorse' } };
   state.terminalNotice = null;
   state.status = 'paused';
   writeFileSync(join(f.home, 'state.json'), JSON.stringify(state));
@@ -392,7 +416,7 @@ test('changed PR head blocks review before a new agent is launched', (t) => {
     maxRepairs: 2,
     maxMinutes: 360,
   });
-  state.config = { tiers: { '#44': 'workhorse' } };
+  state.config = { runnerDigest: runnerDigest(), tiers: { '#44': 'workhorse' } };
   state.phase = 'review';
   state.items['#44'] = { pr: 60, headSha: 'a'.repeat(40), authorSession: 'earlier' };
   writeFileSync(join(f.home, 'state.json'), JSON.stringify(state));
@@ -422,7 +446,7 @@ test('stop during model selection acknowledges only after any late child is gone
     maxRepairs: 2,
     maxMinutes: 360,
   });
-  state.config = { tiers: { '#44': 'workhorse' } };
+  state.config = { runnerDigest: runnerDigest(), tiers: { '#44': 'workhorse' } };
   writeFileSync(join(f.home, 'state.json'), JSON.stringify(state));
   const daemon = spawn(process.execPath, [cli, 'daemon'], { env, stdio: 'ignore' });
   t.after(() => daemon.kill('SIGKILL'));
@@ -472,7 +496,7 @@ test('pause keeps enforcing the wall-clock deadline for a running child', async 
     },
     new Date(Date.now() - 55_000).toISOString()
   );
-  state.config = { tiers: { '#44': 'workhorse' } };
+  state.config = { runnerDigest: runnerDigest(), tiers: { '#44': 'workhorse' } };
   reserveSession(state, {
     id: 'running',
     item: '#44',
@@ -504,4 +528,337 @@ test('pause keeps enforcing the wall-clock deadline for a running child', async 
     encoding: 'utf8',
   });
   assert.ok(descendant.status !== 0 || descendant.stdout.trim().startsWith('Z'));
+});
+
+// Real local Git history is the counterexample: fake Git output would merely restate the
+// checker, and could not prove rename parsing or distinguish concurrent main commits.
+function scopeFixture(t, edit, { concurrent = false, phase = 'execute', repair = false } = {}) {
+  const f = fixture(t);
+  const code = join(f.root, 'code');
+  const origin = join(f.root, 'origin.git');
+  const realGit = spawnSync('which', ['git'], { encoding: 'utf8' }).stdout.trim();
+  function git(...args) {
+    const ran = spawnSync(realGit, args, { cwd: code, encoding: 'utf8' });
+    assert.equal(ran.status, 0, ran.stderr);
+    return ran.stdout.trim();
+  }
+  mkdirSync(join(code, 'tools/handoff-pilot'), { recursive: true });
+  mkdirSync(join(code, 'apps/web'), { recursive: true });
+  mkdirSync(join(code, 'scripts'));
+  for (const name of ['cli.mjs', 'state.mjs', 'child-probe.mjs', 'result.schema.json'])
+    copyFileSync(resolve('tools/handoff-pilot', name), join(code, 'tools/handoff-pilot', name));
+  writeFileSync(join(code, 'apps/web/allowed.txt'), 'original\n');
+  writeFileSync(join(code, 'scripts/e2e.mjs'), 'original script\n');
+  git('init', '-b', 'main');
+  git('config', 'user.name', 'Pilot Fixture');
+  git('config', 'user.email', 'pilot@probe.test');
+  git('config', 'commit.gpgsign', 'false');
+  git('config', 'core.hooksPath', '/dev/null');
+  git('init', '--bare', origin);
+  git('remote', 'add', 'origin', origin);
+  git('add', '.');
+  git('commit', '-m', 'base');
+  const base = git('rev-parse', 'HEAD');
+  git('push', 'origin', 'main');
+  git('switch', '-c', 'item');
+  edit({ code, git });
+  git('add', '.');
+  git('commit', '--allow-empty', '-m', 'item result');
+  let main = base;
+  if (concurrent) {
+    git('switch', 'main');
+    writeFileSync(join(code, 'scripts/independent-dev.mjs'), 'independent main change\n');
+    git('add', '.');
+    git('commit', '-m', 'independent dev work');
+    main = git('rev-parse', 'HEAD');
+    git('push', 'origin', 'main');
+    git('switch', 'item');
+    git('merge', '--no-edit', 'main');
+  }
+  const head = git('rev-parse', 'HEAD');
+  git('push', 'origin', 'HEAD:refs/pull/60/head');
+  // Planning and GitHub are external services; only those answers are synthetic.
+  const plan = 'b'.repeat(40);
+  writeFileSync(
+    join(f.root, 'bin/git'),
+    `#!${process.execPath}
+const {spawnSync} = require('node:child_process');
+const args = process.argv.slice(2);
+if (process.env.MYCEL_TEST_UNREADABLE_DIFF && args[0] === 'diff') process.exit(71);
+if (process.cwd() === require('node:fs').realpathSync(${JSON.stringify(join(f.root, 'planning'))})) {
+  if (args[0] === 'rev-parse') console.log('${plan}');
+  if (args[0] === 'ls-remote') console.log('${plan} refs/heads/main');
+  if (args[0] === 'diff') console.log('handoff/mbp.md');
+} else {
+  const r = spawnSync(${JSON.stringify(realGit)}, args, {stdio:'inherit'});
+  process.exit(r.status ?? 1);
+}
+`,
+    { mode: 0o755 }
+  );
+  writeFileSync(
+    join(f.root, 'bin/gh'),
+    `#!${process.execPath}
+console.log(JSON.stringify({number:60,headRefOid:'${head}',mergedAt:null,
+statusCheckRollup:['verify','security','image','compose'].map(name=>({name,conclusion:'SUCCESS'}))}));
+`,
+    { mode: 0o755 }
+  );
+  writeFileSync(
+    join(f.root, '.claude/bin/shared-task'),
+    '#!/bin/sh\necho \'{"threshold_met":false}\'\n',
+    { mode: 0o755 }
+  );
+  writeFileSync(join(f.root, 'planning/handoff/mbp.md'), `stuur\n# review #60 ${head} workhorse\n`);
+  const state = newRun({
+    runId: 'scope-fixture',
+    lane: 'mbp',
+    allowlist: ['#44'],
+    maxSessions: 1,
+    maxRepairs: 2,
+    maxMinutes: 360,
+  });
+  state.config = {
+    tiers: { '#44': 'workhorse' },
+    runnerDigest: runnerDigest(),
+    baselinePlanningCommit: plan,
+  };
+  state.items['#44'] = {
+    scopeBase: base,
+    worktrees: git('worktree', 'list', '--porcelain', '-z')
+      .split('\0')
+      .filter((field) => field.startsWith('worktree '))
+      .sort(),
+  };
+  if (phase === 'execute') {
+    reserveSession(state, {
+      id: 'scope-child',
+      item: '#44',
+      phase,
+      codeBase: repair ? main : base,
+      model: 'Sol',
+      startedAt: new Date().toISOString(),
+    });
+    markLaunched(state, 99999999);
+    state.pending.resultPath = join(f.home, 'result.json');
+    state.pending.jsonlPath = join(f.home, 'child.jsonl');
+    writeFileSync(
+      state.pending.resultPath,
+      JSON.stringify({
+        runId: state.runId,
+        lane: 'mbp',
+        item: '#44',
+        phase,
+        sessionId: 'scope-child',
+        outcome: 'pr_ready',
+        pr: 60,
+        headSha: head,
+        planningCommit: plan,
+        deviations: [],
+        finishedAt: new Date().toISOString(),
+      })
+    );
+    writeFileSync(
+      state.pending.jsonlPath,
+      '{"type":"thread.started","thread_id":"scope-thread"}\n'
+    );
+  } else {
+    state.phase = phase;
+    Object.assign(state.items['#44'], {
+      pr: 60,
+      headSha: head,
+      authorSession: 'other',
+      approval: { headSha: head, planningCommit: plan },
+    });
+  }
+  function finish() {
+    writeFileSync(join(f.home, 'state.json'), JSON.stringify(state));
+    const ran = call(
+      { ...f.env, MYCEL_TEST_CLI: join(code, 'tools/handoff-pilot/cli.mjs') },
+      'daemon'
+    );
+    assert.equal(ran.status, 0, ran.stderr);
+    assert.throws(() => readFileSync(f.codexMarker), 'No next child may launch');
+    const after = JSON.parse(readFileSync(join(f.home, 'state.json')));
+    const proofs = spawnSync('ls', [f.home], { encoding: 'utf8' })
+      .stdout.split('\n')
+      .filter((name) => name.includes('-scope-') && name.endsWith('.json'))
+      .map((name) => JSON.parse(readFileSync(join(f.home, name))));
+    return { after, proofs };
+  }
+  return { ...f, code, git, state, base, main, head, finish };
+}
+
+for (const [name, edit, path] of [
+  [
+    'green CI with dev script',
+    ({ code }) => writeFileSync(join(code, 'scripts/e2e.mjs'), 'forbidden\n'),
+    'scripts/e2e.mjs',
+  ],
+  [
+    'rename out of scope',
+    ({ git }) => git('mv', 'apps/web/allowed.txt', 'scripts/moved.txt'),
+    'scripts/moved.txt',
+  ],
+  [
+    'rename into scope',
+    ({ git }) => git('mv', 'scripts/e2e.mjs', 'apps/web/moved.txt'),
+    'scripts/e2e.mjs',
+  ],
+  ['delete out of scope', ({ git }) => git('rm', 'scripts/e2e.mjs'), 'scripts/e2e.mjs'],
+  [
+    'newline path out of scope',
+    ({ code }) => writeFileSync(join(code, 'scripts/bad\nname.mjs'), 'forbidden'),
+    'scripts/bad\nname.mjs',
+  ],
+]) {
+  test(`scope rejects ${name} and preserves result/diff without another launch`, (t) => {
+    const f = scopeFixture(t, edit);
+    const { after, proofs } = f.finish();
+    assert.equal(after.status, 'blocked');
+    assert.equal(after.phase, 'execute');
+    assert.equal(after.pending.id, 'scope-child');
+    assert.equal(after.repairs['#44'], undefined);
+    assert.match(after.stopReason, /Forbidden path/);
+    assert.ok(after.stopReason.includes(JSON.stringify(path)));
+    assert.ok(proofs[0].changes.some((change) => change.paths.includes(path)));
+    assert.equal(proofs[0].base, f.base);
+    assert.equal(proofs[0].head, f.head);
+    assert.ok(readFileSync(join(f.home, 'result.json')));
+    assert.equal(f.git('rev-parse', 'HEAD'), f.head);
+  });
+}
+
+for (const kind of ['untracked', 'unstaged', 'staged']) {
+  test(`scope rejects ${kind} worktree evidence after a valid PR`, (t) => {
+    const f = scopeFixture(t, ({ code }) =>
+      writeFileSync(join(code, 'apps/web/allowed.txt'), 'valid\n')
+    );
+    const path = kind === 'untracked' ? 'scripts/new.mjs' : 'scripts/e2e.mjs';
+    writeFileSync(join(f.code, path), 'forbidden local write\n');
+    if (kind === 'staged') f.git('add', path);
+    const { after, proofs } = f.finish();
+    assert.match(after.stopReason, /Forbidden path/);
+    assert.ok(proofs[0].worktree.some((change) => change.paths.includes(path)));
+    assert.equal(readFileSync(join(f.code, path), 'utf8'), 'forbidden local write\n');
+  });
+}
+
+test('valid mbp diff excludes independent later main work, including during repair', (t) => {
+  const f = scopeFixture(
+    t,
+    ({ code }) => writeFileSync(join(code, 'apps/web/allowed.txt'), 'valid\n'),
+    { concurrent: true, repair: true }
+  );
+  const { after, proofs } = f.finish();
+  assert.equal(after.phase, 'review', after.stopReason);
+  assert.equal(after.stopReason, 'session-limit');
+  assert.equal(after.items['#44'].scopeBase, f.base);
+  assert.equal(proofs[0].diffBase, f.main);
+  assert.equal(proofs[0].reason, null);
+  assert.deepEqual(
+    proofs[0].changes.flatMap((change) => change.paths),
+    ['apps/web/allowed.txt']
+  );
+});
+
+test('repair does not reset the cumulative item diff to its newer reservation', (t) => {
+  const f = scopeFixture(
+    t,
+    ({ code }) => writeFileSync(join(code, 'scripts/e2e.mjs'), 'earlier forbidden write\n'),
+    { concurrent: true, repair: true }
+  );
+  const { after, proofs } = f.finish();
+  assert.match(after.stopReason, /Forbidden path/);
+  assert.equal(proofs[0].base, f.base);
+  assert.equal(after.pending.codeBase, f.main);
+});
+
+for (const phase of ['review', 'merge']) {
+  test(`scope is rechecked on the pinned head before ${phase}`, (t) => {
+    const f = scopeFixture(
+      t,
+      ({ code }) => writeFileSync(join(code, 'scripts/e2e.mjs'), 'forbidden\n'),
+      { phase }
+    );
+    const { after } = f.finish();
+    assert.match(after.stopReason, /prelaunch: scope: .*Forbidden path/);
+    assert.equal(after.sessions.length, 0);
+  });
+}
+
+for (const kind of [
+  'changed-remote-head',
+  'changed-base',
+  'unreadable-diff',
+  'unexpected-worktree',
+]) {
+  test(`scope fails closed for ${kind}`, (t) => {
+    const f = scopeFixture(t, ({ code }) =>
+      writeFileSync(join(code, 'apps/web/allowed.txt'), 'valid\n')
+    );
+    if (kind === 'changed-remote-head')
+      f.git('push', 'origin', `${f.base}:refs/pull/60/head`, '--force');
+    if (kind === 'changed-base') f.state.items['#44'].scopeBase = f.head;
+    if (kind === 'unreadable-diff') f.env.MYCEL_TEST_UNREADABLE_DIFF = '1';
+    if (kind === 'unexpected-worktree')
+      f.git('worktree', 'add', '--detach', join(f.root, 'unexpected'), f.base);
+    const { after, proofs } = f.finish();
+    assert.equal(after.phase, 'execute');
+    assert.equal(after.status, 'blocked');
+    assert.match(after.stopReason, /scope:/);
+    assert.ok(proofs[0].reason);
+  });
+}
+
+test('missing or malformed scopes fail every new-run entry before external work', (t) => {
+  const f = fixture(t);
+  for (const scopes of [undefined, {}, { '#44': { paths: ['scripts/*'], directories: [] } }]) {
+    const cfg = JSON.parse(readFileSync(f.config));
+    cfg.scopes = scopes;
+    writeFileSync(f.config, JSON.stringify(cfg));
+    for (const entry of ['dry-run', 'preflight', 'start']) {
+      const ran = call(f.env, entry, f.config);
+      assert.equal(ran.status, 1);
+      assert.match(ran.stderr, /scope/);
+    }
+  }
+  assert.throws(() => readFileSync(f.codexMarker));
+  assert.throws(() => readFileSync(join(f.home, 'state.json')));
+});
+
+test('product child cannot admit runner authority through its result', (t) => {
+  const f = scopeFixture(t, ({ code }) =>
+    writeFileSync(join(code, 'tools/handoff-pilot/result.schema.json'), '{}\n')
+  );
+  const { after, proofs } = f.finish();
+  assert.match(after.stopReason, /Forbidden path/);
+  assert.ok(
+    proofs[0].changes.some((change) =>
+      change.paths.includes('tools/handoff-pilot/result.schema.json')
+    )
+  );
+});
+
+test('terminal legacy state stays readable and cannot resume without a migration', (t) => {
+  const f = fixture(t);
+  const legacy = {
+    schema: 1,
+    runId: 'old',
+    status: 'stopped',
+    stopReason: 'operator-stop',
+    lane: 'mbp',
+    phase: 'execute',
+    index: 0,
+    allowlist: ['#44'],
+    sessions: [],
+    config: { tiers: { '#44': 'workhorse' } },
+    deviations: [],
+    items: {},
+    startedAt: new Date().toISOString(),
+  };
+  writeFileSync(join(f.home, 'state.json'), JSON.stringify(legacy));
+  assert.equal(call(f.env, 'status').status, 0);
+  assert.equal(call(f.env, 'resume').status, 1);
+  assert.deepEqual(JSON.parse(readFileSync(join(f.home, 'state.json'))), legacy);
 });

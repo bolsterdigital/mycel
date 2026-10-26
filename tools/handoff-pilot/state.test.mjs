@@ -7,15 +7,24 @@ import {
   auditTaskToInspect,
   handoffEvidence,
   markLaunched,
-  newRun,
+  newRun as createRun,
   nextAction,
   pause,
   reconcilePending,
   recordResult,
-  reserveSession,
+  reserveSession as reserve,
   resume,
   stop,
 } from './state.mjs';
+
+const scopesFor = (items) =>
+  Object.fromEntries(items.map((item) => [item, { paths: [], directories: ['apps/web/'] }]));
+function newRun(config, now) {
+  return createRun({ scopes: scopesFor(config.allowlist), ...config }, now);
+}
+function reserveSession(state, session) {
+  return reserve(state, { codeBase: 'e'.repeat(40), ...session });
+}
 
 const at = '2026-10-25T12:00:00.000Z';
 // The time every check of a run started `at` happens: fixed, so no test depends on the real clock.
@@ -32,10 +41,16 @@ test('later main reuses reviewed runner only with unchanged bytes and fresh publ
     workingDigest: sha('c'),
     preflightDigest: sha('c'),
     isAncestor: true,
+    approvedConfig: sha('f'),
+    preflightConfig: sha('f'),
+    currentConfig: sha('f'),
   };
   assert.equal(activationHeadEvidence(evidence), true);
   for (const changed of [
     { isAncestor: false },
+    { approvedConfig: undefined },
+    { preflightConfig: sha('d') },
+    { currentConfig: sha('d') },
     { remoteHead: sha('d') },
     { preflightHead: sha('a') },
     { mergedDigest: sha('d') },
@@ -88,6 +103,9 @@ function result(state, id, outcome, extra = {}) {
   };
 }
 const execution = {
+  scopeVerified: true,
+  scopeBase: sha('e'),
+  scopeHead: sha('a'),
   pr: 60,
   headSha: sha('a'),
   planningCommit: sha('b'),
@@ -231,6 +249,7 @@ test('review rejection creates a fresh repair session and another independent re
   launch(state, 'repair-1');
   recordResult(state, result(state, 'repair-1', 'pr_ready', { headSha: sha('e') }), {
     ...execution,
+    scopeHead: sha('e'),
     headSha: sha('e'),
   });
   assert.equal(state.phase, 'review');
@@ -420,4 +439,75 @@ test('wall-clock configuration cannot exceed the six-hour pilot ceiling', () => 
     /1 to 360 minutes/
   );
   assert.equal(run(['#44']).maxMinutes, 360);
+});
+
+test('new runs require closed scopes and reservations pin the original repair base', () => {
+  const config = {
+    runId: 'scope',
+    lane: 'mbp',
+    allowlist: ['#44'],
+    maxSessions: 8,
+    maxRepairs: 2,
+    maxMinutes: 360,
+  };
+  assert.throws(() => createRun(config), /file scope/);
+  for (const path of [
+    '/',
+    './',
+    '../apps/',
+    '/apps/',
+    'apps/*/',
+    'apps/**',
+    'apps/../scripts/',
+    'apps//web/',
+    'apps/\\web/',
+    'tools/',
+    'docs/',
+    'tools/handoff-pilot/',
+    'docs/plans/',
+    '.git/',
+    'apps/\nweb/',
+  ]) {
+    assert.throws(
+      () => createRun({ ...config, scopes: { '#44': { paths: [], directories: [path] } } }),
+      /scope/,
+      JSON.stringify(path)
+    );
+  }
+  const state = run();
+  assert.throws(
+    () => reserve(state, { id: 'missing', item: '#44', phase: 'execute', startedAt: soon }),
+    /code base/
+  );
+  launch(state, 'first');
+  const base = state.items['#44'].scopeBase;
+  assert.equal(state.pending.codeBase, base);
+  state.pending = null;
+  reserveSession(state, {
+    id: 'repair',
+    item: '#44',
+    phase: 'execute',
+    codeBase: sha('f'),
+    startedAt: soon,
+  });
+  assert.equal(state.items['#44'].scopeBase, base);
+  assert.equal(state.pending.scopeBase, base);
+  assert.equal(state.pending.codeBase, sha('f'));
+});
+
+test('green PR evidence cannot replace independent scope proof', () => {
+  for (const change of [
+    { scopeVerified: false },
+    { scopeBase: sha('f') },
+    { scopeHead: sha('f') },
+  ]) {
+    const state = run();
+    launch(state, 'execute');
+    assert.throws(
+      () => recordResult(state, result(state, 'execute', 'pr_ready'), { ...execution, ...change }),
+      /scope/
+    );
+    assert.equal(state.phase, 'execute');
+    assert.equal(state.pending.id, 'execute');
+  }
 });
