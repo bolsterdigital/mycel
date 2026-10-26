@@ -757,7 +757,7 @@ function preflight(cfg) {
         probeSchema,
         '-o',
         probeResult,
-        'Run node --env-file-if-exists=.env tools/handoff-pilot/child-probe.mjs once from the repository root. Return exactly its JSON output using the supplied schema. Do not edit files or start the pilot.',
+        'Run node --env-file-if-exists=.env tools/handoff-pilot/child-probe.mjs once from the repository root using the ordinary on-request approval route: this fixed probe needs local network access for its ephemeral loopback listener and scalar database query. Request approval for this exact command only; keep the configured sandbox and automatic approval reviewer, do not change permissions or config, and do not use bypass flags. If approval is rejected, stop without retrying the rejected action and return all four axes with ok false, exitCode -1, port 0 and database value null. Otherwise return exactly the actual probe JSON using the supplied schema. Do not edit files or start the pilot.',
       ],
       {
         cwd: repo,
