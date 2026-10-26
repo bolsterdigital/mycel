@@ -91,9 +91,17 @@ jobs:
           name: quality-build
           path: .
       - name: Install pinned browser and proxy
+        timeout-minutes: 3
         run: |
+          # The image's Azure mirror stalled signed font/library downloads for ten minutes
+          # in the initial matrix. Keep apt signature checks; change only the ephemeral mirror.
+          printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
+          if [ -f /etc/apt/apt-mirrors-security.txt ]; then
+            printf '%s\n' 'https://security.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors-security.txt > /dev/null
+          fi
+          printf '%s\n' 'Acquire::http::Timeout "20";' 'Acquire::https::Timeout "20";' 'Acquire::Retries "2";' | sudo tee /etc/apt/apt.conf.d/99-mycel-quality-network > /dev/null
           npx playwright install --with-deps chromium
-          curl --fail --location --retry 3 -o /tmp/caddy.tar.gz https://github.com/caddyserver/caddy/releases/download/v2.10.2/caddy_2.10.2_linux_amd64.tar.gz
+          curl --fail --location --connect-timeout 15 --max-time 60 --retry 2 -o /tmp/caddy.tar.gz https://github.com/caddyserver/caddy/releases/download/v2.10.2/caddy_2.10.2_linux_amd64.tar.gz
           echo '5c218bc34c9197369263da7e9317a83acdbd80ef45d94dca5eff76e727c67cdd  /tmp/caddy.tar.gz' | sha256sum --check
           tar -xzf /tmp/caddy.tar.gz -C /tmp caddy
           sudo install /tmp/caddy /usr/local/bin/caddy
@@ -104,6 +112,7 @@ jobs:
         run: node scripts/quality/baseline.mjs quality-baseline-${{ matrix.scope }}-${{ matrix.locale }}-${{ matrix.profile }}-${{ matrix.cache }}
       - name: Five samples per cell (calibration, actual state stays in reports)
         id: measurement
+        timeout-minutes: 6
         continue-on-error: true
         run: npm run quality -- --scope=${{ matrix.scope }} --locale=${{ matrix.locale }} --profile=${{ matrix.profile }} --cache=${{ matrix.cache }} --out=.scratch/quality-report --baseline=.scratch/quality-baseline/summary.json
       # Preserve private originals encrypted to the operator's public certificate. Run again
