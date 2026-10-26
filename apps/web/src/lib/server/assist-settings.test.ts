@@ -22,17 +22,24 @@ function form(provider?: string) {
 }
 function setup() {
   const uow = new MemoryUnitOfWork({ assistProviderLabel: 'Processor A' });
-  const invoker = new Invoker(buildRegistry(), uow);
+  let invoker = new Invoker(buildRegistry(), uow);
   const settings = () => invoker.run(useCases.getAssistSettings, principal, {});
-  return { uow, invoker, settings };
+  // A deployment composes new ports over the same persisted tenant state.
+  const deploy = (provider: string | null) => {
+    const next = new MemoryUnitOfWork({ store: uow.store, assistProviderLabel: provider });
+    invoker = new Invoker(buildRegistry(), next);
+    return invoker;
+  };
+  return { invoker, settings, deploy };
 }
 
 describe('native assistance consent', () => {
   it('refuses A-render → B-configuration → old POST without changing consent; fresh B succeeds', async () => {
-    const { uow, invoker, settings } = setup();
+    const { invoker: initial, settings, deploy } = setup();
+    let invoker = initial;
     const displayed = await settings();
     await saveAssistSettings(invoker, principal, form(displayed.provider!));
-    uow.assistProviderLabel = 'Processor B';
+    invoker = deploy('Processor B');
     const before = await settings();
     expect(before.consentedProvider).toBe('Processor A');
     expect(await saveAssistSettings(invoker, principal, form(displayed.provider!))).toMatchObject({
@@ -62,9 +69,10 @@ describe('native assistance consent', () => {
   it.each(['Processor B', null])(
     'allows disabling after a change to %s without consent context',
     async (provider) => {
-      const { uow, invoker, settings } = setup();
+      const { invoker: initial, settings, deploy } = setup();
+      let invoker = initial;
       await saveAssistSettings(invoker, principal, form('Processor A'));
-      uow.assistProviderLabel = provider;
+      invoker = deploy(provider);
       expect(await saveAssistSettings(invoker, principal, new FormData())).toBeNull();
       expect(await settings()).toMatchObject({ enabled: false, consentedProvider: null });
     }
