@@ -584,3 +584,82 @@ test('historically routed product causes retain their address, owner and securit
   assert.equal(result.proposals[0].owner, 'mbp');
   assert.equal(result.proposals[0].tier, 'flagship-review');
 });
+
+test('aggregate routing preserves established claims and highest tier in both run orders', () => {
+  const makeRun = (id, routing) => {
+    const run = retained();
+    run.id = id;
+    run.attempt = id === 102 ? 2 : 1;
+    const report = run.artifacts[0].report;
+    const cell = report.cells[0];
+    cell.state = cell.batches[0].state = 'fail';
+    cell.batches[0].reasons = ['accessibility'];
+    cell.batches[0].raw[0].accessibility = 0.98;
+    if (routing) report.repairs = [{ key: 'accessibility:', ...routing }];
+    return run;
+  };
+  const generic = makeRun(100);
+  const product = makeRun(101, { address: '#39', owner: 'mbp', tier: 'flagship-review' });
+  const conflict = makeRun(102, { address: '#40', owner: 'dev', tier: 'flagship-only' });
+  const history = { schemaVersion: 1, runs: [], workflow: {} };
+  for (const runs of [
+    [generic, product],
+    [product, generic],
+  ]) {
+    const result = consume({ ...history, runs }, load, clock);
+    const proposal = result.proposals[0];
+    assert.equal(proposal.address, '#39');
+    assert.equal(proposal.owner, 'mbp');
+    assert.equal(proposal.tier, 'flagship-review');
+    assert.equal(proposal.routingState, 'resolved');
+    assert.equal(proposal.routingClaims.length, 2);
+    assert.deepEqual(new Set(proposal.sourceAddresses), new Set(['#43C', '#39']));
+    assert.deepEqual(
+      proposal.runs,
+      result.runs.map((r) => ({
+        id: r.id,
+        attempt: r.attempt,
+        cells: r.proposals[0].cells,
+      }))
+    );
+    assert.deepEqual(proposal.routingClaims.map((c) => c.runs).flat(), proposal.runs);
+  }
+  const sameAddress = makeRun(103, { address: '#39', owner: 'mbp', tier: 'flagship-only' });
+  const ownerConflict = makeRun(104, { address: '#39', owner: 'dev', tier: 'workhorse' });
+  for (const runs of [
+    [product, sameAddress],
+    [sameAddress, product],
+  ]) {
+    const proposal = consume({ ...history, runs }, load, clock).proposals[0];
+    assert.equal(proposal.address, '#39');
+    assert.equal(proposal.routingState, 'resolved');
+    assert.equal(proposal.tier, 'flagship-only');
+  }
+  for (const runs of [
+    [product, ownerConflict],
+    [ownerConflict, product],
+  ]) {
+    const proposal = consume({ ...history, runs }, load, clock).proposals[0];
+    assert.equal(proposal.routingState, 'conflict');
+    assert.equal(proposal.owner, null);
+    assert.equal(proposal.tier, 'flagship-review');
+  }
+  for (const runs of [
+    [generic, product, conflict],
+    [conflict, product, generic],
+  ]) {
+    const result = consume({ ...history, runs }, load, clock);
+    const proposal = result.proposals[0];
+    assert.equal(proposal.routingState, 'conflict');
+    assert.equal(proposal.address, null);
+    assert.equal(proposal.owner, null);
+    assert.equal(proposal.tier, 'flagship-only');
+    assert.equal(proposal.routingClaims.length, 3);
+    assert.deepEqual(
+      new Set(proposal.routingClaims.map((c) => c.address)),
+      new Set(['#43C', '#39', '#40'])
+    );
+    assert.equal(proposal.runs.find((r) => r.id === 102).attempt, 2);
+    assert.match(markdown(result), /Routing conflict/);
+  }
+});

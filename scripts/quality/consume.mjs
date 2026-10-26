@@ -473,6 +473,61 @@ export function scheduleStatus(workflow, runs, now) {
   };
 }
 
+// Resolve routing from every source claim, not whichever API run arrives first. Conflicting
+// established addresses/owners need human deduplication; a generic fallback cannot settle them.
+function aggregateProposals(runs) {
+  const all = new Map();
+  const tiers = ['workhorse', 'flagship-review', 'flagship-only'];
+  const generic = new Set(['#43B', '#43C', '#43C-report']);
+  for (const run of runs) {
+    for (const proposal of run.proposals) {
+      const entry = all.get(proposal.key) ?? {
+        key: proposal.key,
+        sourceAddresses: [],
+        routingClaims: [],
+        runs: [],
+        registration: 'requires six-field record and planning deduplication',
+      };
+      if (!entry.sourceAddresses.includes(proposal.sourceAddress))
+        entry.sourceAddresses.push(proposal.sourceAddress);
+      const ref = { id: run.id, attempt: run.attempt, cells: proposal.cells };
+      entry.runs.push(ref);
+      let claim = entry.routingClaims.find(
+        (c) =>
+          c.address === proposal.address &&
+          c.sourceAddress === proposal.sourceAddress &&
+          c.owner === proposal.owner &&
+          c.tier === proposal.tier
+      );
+      if (!claim) {
+        claim = {
+          address: proposal.address,
+          sourceAddress: proposal.sourceAddress,
+          owner: proposal.owner,
+          tier: proposal.tier,
+          runs: [],
+        };
+        entry.routingClaims.push(claim);
+      }
+      claim.runs.push(ref);
+      all.set(proposal.key, entry);
+    }
+  }
+  return [...all.values()].map((entry) => {
+    const established = entry.routingClaims.filter((c) => !generic.has(c.address));
+    const candidates = established.length ? established : entry.routingClaims;
+    const routes = new Set(candidates.map((c) => JSON.stringify([c.address, c.owner])));
+    const conflict = routes.size > 1;
+    return {
+      ...entry,
+      address: conflict ? null : candidates[0].address,
+      owner: conflict ? null : candidates[0].owner,
+      tier: tiers[Math.max(...entry.routingClaims.map((c) => tiers.indexOf(c.tier)))],
+      routingState: conflict ? 'conflict' : 'resolved',
+    };
+  });
+}
+
 export function consume(history, load, now) {
   if (history.schemaVersion !== 1) throw new Error('Unsupported history schema');
   const seen = new Set();
@@ -507,28 +562,7 @@ export function consume(history, load, now) {
     },
     issues,
     runs,
-    proposals: [
-      ...runs
-        .reduce((all, run) => {
-          for (const proposal of run.proposals) {
-            const entry = all.get(proposal.key) ?? {
-              key: proposal.key,
-              owner: proposal.owner,
-              address: proposal.address,
-              tier: proposal.tier,
-              sourceAddresses: [],
-              runs: [],
-              registration: 'requires six-field record and planning deduplication',
-            };
-            if (!entry.sourceAddresses.includes(proposal.sourceAddress))
-              entry.sourceAddresses.push(proposal.sourceAddress);
-            entry.runs.push({ id: run.id, attempt: run.attempt, cells: proposal.cells });
-            all.set(proposal.key, entry);
-          }
-          return all;
-        }, new Map())
-        .values(),
-    ],
+    proposals: aggregateProposals(runs),
   };
 }
 export function markdown(report) {
@@ -562,6 +596,11 @@ export function markdown(report) {
           `- Proposal ${p.key}: ${p.owner} ${p.address} (${p.tier}); source ${p.sourceAddress}; aliases ${(p.aliases ?? []).join(', ') || 'none'}.`
       ),
     ]),
+    '',
+    ...report.proposals.map(
+      (p) =>
+        `- ${p.routingState === 'conflict' ? 'Routing conflict' : 'Aggregate routing'} ${p.key}: ${p.owner ?? 'unresolved'} ${p.address ?? 'unresolved'} (${p.tier}); claims ${p.routingClaims.map((c) => `${c.owner} ${c.address} (${c.tier}), source ${c.sourceAddress}, runs ${c.runs.map((r) => `${r.id}/${r.attempt}`).join(', ')}`).join('; ')}.`
+    ),
     '',
     `Monitoring issues: ${report.issues.map((i) => i.reason).join(', ') || 'none'}.`,
     '',
