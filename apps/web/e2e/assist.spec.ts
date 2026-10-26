@@ -161,13 +161,10 @@ async function enable(page: Page) {
 
 // Only the real process started by scripts/e2e.mjs completes jobs. Native refresh reads its
 // result; there is no competing helper worker and alt must read the actual stored image bytes.
+// Wait for that refresh instead of reloading in the test: competing navigations can detach
+// Chromium's page, and a manual reload would not prove the no-JavaScript refresh works.
 async function ready(page: Page) {
-  await expect
-    .poll(async () => {
-      await page.reload();
-      return page.locator('#assist-value').count();
-    })
-    .toBe(1);
+  await expect(page.locator('#assist-value')).toBeVisible();
 }
 
 async function imagePage(page: Page, project: string) {
