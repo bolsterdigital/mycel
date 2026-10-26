@@ -35,6 +35,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "chrome-launcher": "1.2.1",
     "lighthouse": "13.5.0",
     "prettier": "^3.4.2",
     "prettier-plugin-svelte": "^3.3.3",

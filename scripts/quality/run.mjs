@@ -10,9 +10,8 @@ import { tmpdir, cpus, platform, release } from 'node:os';
 import { resolve, join } from 'node:path';
 import { createRequire } from 'node:module';
 import { chromium } from '@playwright/test';
-import lighthouse from 'lighthouse';
+import lighthouse, { desktopConfig as desktop } from 'lighthouse';
 import * as chromeLauncher from 'chrome-launcher';
-import desktop from 'lighthouse/core/config/desktop-config.js';
 import { IdentityGatherer, IdentityAudit } from './gatherer.mjs';
 import { validateIdentity } from './identity.mjs';
 import { evaluateCell, repairProposals } from './evaluate.mjs';
@@ -203,11 +202,11 @@ try {
     reverse_proxy 127.0.0.1:4173
   }`
   );
-  launch(
-    'caddy',
-    ['run', '--config', `${scratch}/Caddyfile`, '--adapter', 'caddyfile'],
-    process.env
-  );
+  launch('caddy', ['run', '--config', `${scratch}/Caddyfile`, '--adapter', 'caddyfile'], {
+    ...process.env,
+    XDG_CONFIG_HOME: scratch,
+    XDG_DATA_HOME: scratch,
+  });
   browser = await chromium.launch({ args: [`--ignore-certificate-errors-spki-list=${spki}`] });
   result.environment.chromium = browser.version();
   const context = await browser.newContext();
@@ -309,11 +308,15 @@ try {
           });
           const headers = {
             'Accept-Language': locale,
-            ...(entry.indexable ? {} : { Cookie: `${cookie.name}=${cookie.value}` }),
           };
           const config = {
             ...(profile === 'desktop' ? desktop : { extends: 'lighthouse:default' }),
-            artifacts: [{ id: 'MycelIdentity', gatherer: new IdentityGatherer() }],
+            artifacts: [
+              {
+                id: 'MycelIdentity',
+                gatherer: new IdentityGatherer(entry.indexable ? undefined : cookie),
+              },
+            ],
             audits: [IdentityAudit],
           };
           const flags = {

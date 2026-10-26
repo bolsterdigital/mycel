@@ -1,10 +1,25 @@
 // Read identity from Lighthouse's own measured document. A separate Playwright probe could
 // pass while Lighthouse measures a login page. This artifact adds no scoring category.
-import BaseGatherer from 'lighthouse/core/gather/base-gatherer.js';
-import { Audit } from 'lighthouse/core/audits/audit.js';
+import { Gatherer as BaseGatherer, Audit } from 'lighthouse';
 
 export class IdentityGatherer extends BaseGatherer {
   meta = { supportedModes: ['navigation'] };
+  constructor(cookie) {
+    super();
+    this.cookie = cookie;
+  }
+  async startInstrumentation({ driver }) {
+    if (this.cookie)
+      await driver.defaultSession.sendCommand('Network.setCookie', {
+        name: this.cookie.name,
+        value: this.cookie.value,
+        domain: 'localhost',
+        path: '/admin',
+        secure: true,
+        httpOnly: true,
+        sameSite: 'Lax',
+      });
+  }
   async getArtifact({ driver }) {
     return driver.executionContext.evaluate(
       async () => {
@@ -44,7 +59,7 @@ export class IdentityGatherer extends BaseGatherer {
           itemText: main?.textContent.includes('De straat die ruimte maakt'),
         };
       },
-      { useIsolation: true }
+      { args: [], useIsolation: true }
     );
   }
 }
