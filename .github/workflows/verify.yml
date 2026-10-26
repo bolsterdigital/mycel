@@ -52,6 +52,8 @@ jobs:
       PLATFORM_DOMAIN: localhost
       MAIL_FROM: CI <noreply@example.org>
       MAILER: console
+      # The browser flows need the same deterministic model in web, API and worker.
+      ASSIST_PROVIDER: fake
       BLOB_S3_ENDPOINT: http://127.0.0.1:9000
       BLOB_S3_REGION: us-east-1
       BLOB_S3_BUCKET: mycel-ci
