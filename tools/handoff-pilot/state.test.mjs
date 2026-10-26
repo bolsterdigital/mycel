@@ -627,3 +627,93 @@ test('real public route grammar stays literal for optional, rest and matcher com
       path
     );
 });
+
+const deviation = {
+  expected: 'Build within approved scope',
+  observed: 'Required env inventory is outside scope',
+  detection: 'Existing env conformance',
+  repair: 'Stop without product changes',
+  cause: 'Missing scope dependency',
+  preventionAddress: '#45',
+  evidence: 'reference/product-block.md',
+};
+function blockedResult(state) {
+  return result(state, 'builder', 'blocked', {
+    pr: null,
+    headSha: null,
+    reviewedHeadSha: null,
+    reviewRecord: null,
+    mergeCommit: null,
+    housekeepingCommit: null,
+    deviations: [deviation],
+  });
+}
+test('a verified block without PR preserves its finding and deviations without advancing', () => {
+  const state = run();
+  launch(state, 'builder');
+  reconcilePending(state, {
+    childAlive: false,
+    result: blockedResult(state),
+    external: { ...execution, pr: null },
+  });
+  assert.equal(state.status, 'blocked');
+  assert.equal(state.stopReason, 'Concrete failed criterion');
+  assert.equal(state.pending, null);
+  assert.equal(state.sessions[0].status, 'completed');
+  assert.equal(state.sessions[0].codexThreadId, 'thread-builder');
+  assert.equal(state.sessions[0].finding, state.stopReason);
+  assert.equal(state.deviations[0].observed, deviation.observed);
+  assert.equal(state.index, 0);
+  assert.equal(state.phase, 'execute');
+  assert.equal(state.items['#44'].pr, undefined);
+  assert.equal(nextAction(state, soon).kind, 'halt');
+});
+for (const [name, resultPatch, externalPatch] of [
+  ['identity', { sessionId: 'another' }, {}],
+  ['thread', { codexThreadId: null }, {}],
+  ['planning', {}, { planningCommit: sha('f') }],
+  ['handoff', {}, { handoffCommitted: false }],
+  ['finding', { finding: null }, {}],
+  ['scope', {}, { scopeVerified: false }],
+  ['scope head', {}, { scopeHead: null, headSha: null }],
+  ['scope base', {}, { scopeBase: sha('f') }],
+  ['reported head', { headSha: sha('f') }, {}],
+]) {
+  test(`a block without PR refuses invalid ${name}`, () => {
+    const state = run();
+    launch(state, 'builder');
+    assert.throws(() =>
+      recordResult(
+        state,
+        { ...blockedResult(state), ...resultPatch },
+        {
+          ...execution,
+          pr: null,
+          ...externalPatch,
+        }
+      )
+    );
+    assert.equal(state.pending.id, 'builder');
+    assert.equal(state.deviations.length, 0);
+    assert.equal(state.index, 0);
+  });
+}
+
+test('a blocked result with a PR still requires matching external PR and head evidence', () => {
+  for (const patch of [{ pr: 61 }, { headSha: sha('f') }]) {
+    const state = run();
+    launch(state, 'builder');
+    assert.throws(() =>
+      recordResult(
+        state,
+        {
+          ...blockedResult(state),
+          pr: 60,
+          headSha: sha('a'),
+        },
+        { ...execution, ...patch }
+      )
+    );
+    assert.equal(state.pending.id, 'builder');
+  }
+});
