@@ -58,6 +58,12 @@ const NOT_IN_EXAMPLE: Record<string, string> = {
   E2E_OIDC_PORT: 'test harness',
   E2E_WORKER_PORT: 'test harness',
   CI: 'set by the CI runner',
+  GITHUB_REPOSITORY: 'GitHub Actions repository identity, quality baseline lookup',
+  GITHUB_RUN_ID: 'GitHub Actions run identity, excludes itself from baseline lookup',
+  GITHUB_ACTIONS: 'GitHub Actions runner detection for quality provenance',
+  ImageVersion: 'GitHub hosted runner image build, quality provenance',
+  EVENT: 'quality workflow matrix event, set by its Matrix step',
+  MEASUREMENT_OUTCOME: 'quality workflow observation result, set by its status step',
   MYCEL_VERSION: 'set by the release image from its build argument (Dockerfile)',
   STAGING_DIR: 'set by the backup image (docker/backup/Dockerfile)',
   PGUSER: 'set by compose.yml per backup service (backup: mycel_backup, restore: the owner)',
@@ -124,7 +130,7 @@ function usedKeys(): string[] {
   const scan = (file: string, pattern: RegExp) => {
     for (const m of readFileSync(file, 'utf8').matchAll(pattern)) used.add(m[1]!);
   };
-  const processEnv = /process\.env(?:\.|\[\s*['"])([A-Z][A-Z0-9_]*)/g;
+  const processEnv = /process\.env(?:\.|\[\s*['"])([A-Za-z_][A-Za-z0-9_]*)/g;
   for (const dir of ['packages', 'apps/web/src', 'scripts'])
     for (const file of files(join(root, dir)))
       if (/\.(ts|mjs|js|svelte)$/.test(file) && !/\.test\.(ts|mjs)$/.test(file))
