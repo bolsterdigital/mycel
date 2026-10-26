@@ -15,14 +15,78 @@ export function activationHeadEvidence({
   workingDigest,
   preflightDigest,
   isAncestor,
+  approvedConfig,
+  preflightConfig,
+  currentConfig,
 }) {
   return (
-    Boolean(approvedMerge && localHead && approvedDigest && isAncestor) &&
+    Boolean(approvedMerge && localHead && approvedDigest && isAncestor && currentConfig) &&
+    approvedConfig === currentConfig &&
+    preflightConfig === currentConfig &&
     localHead === remoteHead &&
     localHead === preflightHead &&
     approvedDigest === mergedDigest &&
     approvedDigest === workingDigest &&
     approvedDigest === preflightDigest
+  );
+}
+
+// Closed path data is authority; child-reported paths never grant it. Rejected: globs and
+// implicit root prefixes, which can silently admit runner or planning changes.
+export function validateScopes(config) {
+  const scopes = config.scopes;
+  if (
+    !scopes ||
+    typeof scopes !== 'object' ||
+    Array.isArray(scopes) ||
+    Object.keys(scopes).length !== config.allowlist.length ||
+    Object.keys(scopes).some((item) => !config.allowlist.includes(item))
+  )
+    throw new Error('Each allowlisted item needs a closed file scope');
+  for (const item of config.allowlist) {
+    const scope = scopes[item];
+    if (
+      !scope ||
+      Object.keys(scope).sort().join(',') !== 'directories,paths' ||
+      !Array.isArray(scope.paths) ||
+      !Array.isArray(scope.directories) ||
+      scope.paths.length + scope.directories.length === 0
+    )
+      throw new Error(`Invalid file scope for ${item}`);
+    for (const [kind, entries] of Object.entries(scope)) {
+      for (const path of entries) {
+        const directory = kind === 'directories';
+        const plain = directory && typeof path === 'string' ? path.slice(0, -1) : path;
+        if (
+          typeof path !== 'string' ||
+          !path ||
+          directory !== path.endsWith('/') ||
+          /[\\\x00-\x1f\x7f*?\[\]{}():]/.test(path) ||
+          plain.split('/').some((part) => !part || part === '.' || part === '..') ||
+          path.startsWith('-') ||
+          forbiddenPath(plain) ||
+          (directory && ['tools', 'docs'].includes(plain))
+        )
+          throw new Error(`Invalid scope path for ${item}: ${JSON.stringify(path)}`);
+      }
+    }
+  }
+  return scopes;
+}
+
+export function forbiddenPath(path) {
+  return (
+    ['.git', '.claude', '.agents', 'tools/handoff-pilot', 'docs/plans'].some(
+      (root) => path === root || path.startsWith(`${root}/`)
+    ) || path.split('/').some((part) => ['AGENTS.md', 'CLAUDE.md', '.git'].includes(part))
+  );
+}
+
+export function scopeAllows(scope, path) {
+  return (
+    !forbiddenPath(path) &&
+    (scope.paths.includes(path) ||
+      scope.directories.some((directory) => path.startsWith(directory)))
   );
 }
 
@@ -35,6 +99,7 @@ export function newRun(config, now = new Date().toISOString()) {
   )
     throw new Error('Allowlist must contain one or two items');
   if (new Set(config.allowlist).size !== config.allowlist.length) throw new Error('Duplicate item');
+  const scopes = structuredClone(validateScopes(config));
   if (!Number.isInteger(config.maxSessions) || config.maxSessions < 1 || config.maxSessions > 8)
     throw new Error('Session limit must be 1 to 8');
   if (!Number.isInteger(config.maxRepairs) || config.maxRepairs < 0 || config.maxRepairs > 2)
@@ -42,7 +107,8 @@ export function newRun(config, now = new Date().toISOString()) {
   if (!Number.isInteger(config.maxMinutes) || config.maxMinutes < 1 || config.maxMinutes > 360)
     throw new Error('Wall clock limit must be 1 to 360 minutes');
   return {
-    schema: 1,
+    schema: 2,
+    scopes,
     runId: config.runId,
     lane: config.lane,
     allowlist: config.allowlist,
@@ -136,7 +202,18 @@ export function reserveSession(state, session) {
     throw new Error('Unexpected item or phase');
   if (state.sessions.some((entry) => entry.id === session.id))
     throw new Error('Duplicate session id');
-  state.pending = { ...session, status: 'reserved' };
+  if (session.phase === 'execute') {
+    if (!/^[0-9a-f]{40}$/.test(session.codeBase ?? ''))
+      throw new Error('Execution reservation needs a published code base');
+    const item = state.items[session.item] ?? {};
+    item.scopeBase ??= session.codeBase;
+    state.items[session.item] = item;
+  }
+  state.pending = {
+    ...session,
+    scopeBase: state.items[session.item]?.scopeBase,
+    status: 'reserved',
+  };
   return state;
 }
 
@@ -180,6 +257,13 @@ export function recordResult(state, result, external) {
     )
       throw new Error('Incomplete evaluation observation');
   }
+  if (
+    pending.phase === 'execute' &&
+    (!external.scopeVerified ||
+      external.scopeBase !== item.scopeBase ||
+      external.scopeHead !== result.headSha)
+  )
+    throw new Error('Execution file scope lacks independent Git proof');
   if (pending.phase === 'execute') {
     if (
       result.outcome !== 'pr_ready' ||

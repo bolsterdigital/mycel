@@ -45,3 +45,28 @@ After merge or audit, the verifier checks the next handoff against the next allo
 Every session reports deviations with expected criterion, observation, detection, repair, suspected cause, prevention address and evidence. These are persisted alongside immutable session events but have no authority to pass a gate. During and after the pilot, reconcile these observations against [the evaluation brief](../../docs/plans/briefs/handoff-pilot-evaluation.md): whether the cause belongs in a planning brief, an existing conformance test, review criteria, a skill or runner infrastructure. Record the actual edit and a counterexample that would have failed before it. A clean run is not the goal; detecting and preventing repeatable drift is.
 
 Moving the runner to dev-server-1 is separate work. It requires path and CLI checks there, a new unattended signing probe, lane ownership and conflict review, and another independent activation review. No second-machine coordinator is included here.
+
+## Closed product file scopes
+
+Every new config requires `scopes` with exactly the allowlisted item keys. Each scope has exactly `paths` (exact repo-relative files) and `directories` (explicit repo-relative prefixes ending in `/`), with at least one entry overall. For example, a bounded synthetic item can use:
+
+```json
+{
+  "scopes": {
+    "#44": {
+      "paths": ["packages/core/src/content/model.ts"],
+      "directories": ["apps/web/src/lib/blocks/"]
+    }
+  }
+}
+```
+
+This is format documentation, not a current product authorization. Copy the historical `pilot.example.json` to a private config and add the independently reviewed, published item scopes before using it; the historical example deliberately fails the new missing-scope gate. Exact paths and directory prefixes are literal data. Globs, regex syntax, absolute paths, backslashes, control characters, traversal, empty components and blanket root prefixes are refused. Runner files under `tools/handoff-pilot/`, Git metadata, agent instructions and `docs/plans` authority cannot be admitted as product paths. Ordinary handoff/claim/review publication still happens in the separate planning repo under the existing planning checks, including the dev-handoff prohibition.
+
+`dry-run`, `preflight` and `start` validate the same contract. Dry-run reports the scopes and `configDigest`, the SHA-256 of `JSON.stringify` of the parsed complete config. Preflight retains that digest. Independent activation must publish the complete parsed config as a `reference/*.json` file in planning, referenced by `configRecord` in `activation.json` at `planningCommit`. It must also publish that exact `configDigest` in its planning review record and `activation.json`; start checks the published config bytes semantically through the same digest and requires config, preflight and approval digests to agree. Changing scopes or any config field requires fresh published approval and preflight. The four-file runner digest order above is unchanged; all scope implementation lives in its already covered `cli.mjs` and `state.mjs`. No helper is omitted from activation.
+
+Every execute reservation fetches the published main SHA into `codeBase`. The first reservation also fixes the item's `scopeBase` and worktree set; repairs preserve them. After the child returns, the parent fetches the actual PR ref and requires its exact Git object to match GitHub's head. It computes the cumulative item diff from the merge base of that head and current published main, requiring the original item base to remain an ancestor of both. This excludes later independent main changes incorporated into the branch without treating a repair's newer reservation as permission to forget earlier unmerged item changes. It checks both paths of renames/copies, additions and deletions with NUL-delimited Git output, staged and unstaged diffs, and non-ignored untracked paths. New/missing worktrees, an unexpected local HEAD, changed reserved base, unreadable Git evidence or a stale remote PR head fail closed. The same scope is rechecked before review and merge.
+
+A refusal uses the existing terminal blocked/notification route, naming run, item, original base, head, path and reason when available. Private `*-scope-*.json`, binary Git patches and worktree patches retain the evidence; result, state and child logs remain in place. No revert, stash, cleanup, extra repair or counter reset occurs. Historical terminal states remain readable and cannot resume; active legacy states without scopes cannot advance and are never migrated automatically.
+
+This gate checks results and launch transitions. It is not an OS sandbox or tenant isolation and cannot detect temporary changes reverted during a child, ignored build artifacts, arbitrary writes outside the observed checkout, or hostile tampering with the supervisor's own process/state. A shared process and Git repository still require a trusted child, operator observation and the existing stop policy. An admitted net result is not evidence that every intermediate action stayed in scope. R8 requires its own later activation; this change starts no pilot.

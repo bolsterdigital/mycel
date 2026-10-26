@@ -33,6 +33,8 @@ import {
   reserveSession,
   resume,
   stop,
+  validateScopes,
+  scopeAllows,
 } from './state.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -164,6 +166,7 @@ function codexBaseArgs(modelId) {
 }
 function config(path) {
   const value = json(resolve(path));
+  newRun(value);
   if (
     value.lane !== 'mbp' ||
     value.repo !== 'bolsterdigital/mycel' ||
@@ -181,6 +184,119 @@ function config(path) {
   )
     fail('notifyCommand must name one executable, without arguments');
   return value;
+}
+function configDigest(cfg) {
+  return createHash('sha256').update(JSON.stringify(cfg)).digest('hex');
+}
+function gitRaw(argv) {
+  return execFileSync('git', argv, {
+    cwd: repo,
+    encoding: 'utf8',
+    timeout: 30_000,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+}
+function worktrees() {
+  return gitRaw(['worktree', 'list', '--porcelain', '-z'])
+    .split('\0')
+    .filter((field) => field.startsWith('worktree '))
+    .sort();
+}
+function publishedCode() {
+  shell('git', ['fetch', '--no-tags', 'origin', 'refs/heads/main']);
+  const head = shell('git', ['rev-parse', 'FETCH_HEAD']);
+  if (!/^[0-9a-f]{40}$/.test(head)) fail('Unreadable published code base');
+  return head;
+}
+function changedPaths(argv) {
+  const fields = gitRaw(['diff', '--name-status', '-z', '--find-renames', ...argv]).split('\0');
+  if (fields.pop() !== '') fail('Unterminated Git diff');
+  const changes = [];
+  while (fields.length) {
+    const status = fields.shift();
+    if (!/^(?:[AMDUT]|[RC]\d+)$/.test(status)) fail('Unreadable Git diff status');
+    const paths = fields.splice(0, /^[RC]/.test(status) ? 2 : 1);
+    if (paths.length !== (/^[RC]/.test(status) ? 2 : 1) || paths.some((path) => !path))
+      fail('Unreadable Git diff path');
+    changes.push({ status, paths });
+  }
+  return changes;
+}
+// This is a result boundary, not a write sandbox. Keep independent raw diff evidence even
+// when the result is refused, rather than reverting files and hiding the child's output.
+function verifyScope(state, itemId, pr, head) {
+  const item = state.items[itemId];
+  const evidence = {
+    run: state.runId,
+    item: itemId,
+    base: item?.scopeBase,
+    head,
+    at: new Date().toISOString(),
+    changes: [],
+    worktree: [],
+    reason: null,
+  };
+  const proofPath = join(
+    home,
+    `${state.runId}-${state.pending?.id ?? state.sessions.length}-scope-${randomUUID()}.json`
+  );
+  try {
+    validateScopes({ allowlist: state.allowlist, scopes: state.scopes });
+    if (!item?.scopeBase || !/^[0-9a-f]{40}$/.test(head ?? '')) fail('Missing scope base or head');
+    if (state.pending?.phase === 'execute' && state.pending.scopeBase !== item.scopeBase)
+      fail('Reserved item base changed');
+    const main = publishedCode();
+    shell('git', ['merge-base', '--is-ancestor', item.scopeBase, main]);
+    shell('git', ['fetch', '--no-tags', 'origin', `refs/pull/${pr}/head`]);
+    if (shell('git', ['rev-parse', 'FETCH_HEAD']) !== head) fail('Remote PR head changed');
+    shell('git', ['merge-base', '--is-ancestor', item.scopeBase, head]);
+    const diffBase = shell('git', ['merge-base', main, head]);
+    shell('git', ['merge-base', '--is-ancestor', item.scopeBase, diffBase]);
+    evidence.main = main;
+    evidence.diffBase = diffBase;
+    evidence.changes = changedPaths([diffBase, head]);
+    evidence.diffPath = `${proofPath}.diff`;
+    writeFileSync(
+      evidence.diffPath,
+      gitRaw(['diff', '--binary', '--no-ext-diff', '--no-textconv', diffBase, head]),
+      { mode: 0o600 }
+    );
+    evidence.worktreeDiffPath = `${proofPath}.worktree.diff`;
+    writeFileSync(
+      evidence.worktreeDiffPath,
+      gitRaw(['diff', '--binary', '--no-ext-diff', '--no-textconv', '--cached']) +
+        gitRaw(['diff', '--binary', '--no-ext-diff', '--no-textconv']),
+      { mode: 0o600 }
+    );
+    evidence.worktree = [...changedPaths(['--cached']), ...changedPaths([])];
+    const untracked = gitRaw(['ls-files', '--others', '--exclude-standard', '-z']);
+    if (untracked && !untracked.endsWith('\0')) fail('Unreadable untracked paths');
+    evidence.worktree.push(
+      ...untracked
+        .split('\0')
+        .filter(Boolean)
+        .map((path) => ({ status: '?', paths: [path] }))
+    );
+    const currentTrees = worktrees();
+    if (JSON.stringify(currentTrees) !== JSON.stringify(item.worktrees))
+      fail('Unexpected worktree set after child');
+    const local = shell('git', ['rev-parse', 'HEAD']);
+    if (local !== head && local !== main) fail('Unexpected worktree HEAD after child');
+    for (const change of [...evidence.changes, ...evidence.worktree])
+      for (const path of change.paths)
+        if (!scopeAllows(state.scopes[itemId], path))
+          fail(`Forbidden path ${JSON.stringify(path)} (${change.status})`);
+    if (state.config.runnerDigest !== shaFiles()) fail('Runner authority bytes changed');
+    return { scopeVerified: true, scopeBase: item.scopeBase, scopeHead: head };
+  } catch (error) {
+    evidence.reason = error.message;
+    fail(
+      `scope: run=${state.runId} item=${itemId} base=${item?.scopeBase ?? 'missing'} head=${head ?? 'missing'}: ${error.message}; evidence=${proofPath}`
+    );
+  } finally {
+    ensureHome();
+    writeFileSync(proofPath, `${JSON.stringify(evidence, null, 2)}\n`, { mode: 0o600 });
+  }
 }
 function publishedPlanning() {
   const local = shell('git', ['rev-parse', 'HEAD'], planning);
@@ -217,6 +333,10 @@ function prEvidence(pr) {
 function externalFor(state, result) {
   const item = state.items[state.pending.item] ?? {};
   const pr = prEvidence(result.pr ?? item.pr);
+  const scope =
+    state.pending.phase === 'execute'
+      ? verifyScope(state, state.pending.item, pr.pr, pr.headSha)
+      : {};
   const plan = publishedPlanning();
   if (plan.local !== plan.remote) fail('Planning main is not published');
   const previousPlanning =
@@ -272,6 +392,7 @@ function externalFor(state, result) {
     shell('git', ['show', `${plan.local}:${result.reviewRecord}`], planning).includes(item.headSha);
   return {
     ...pr,
+    ...scope,
     planningCommit: plan.remote,
     reviewRecordCommit: reviewRecordValid ? plan.remote : null,
     handoffCommitted: handoffValid,
@@ -279,7 +400,7 @@ function externalFor(state, result) {
     auditTask: state.pending.phase === 'audit' ? inspected : { ...ledger, ...inspected },
   };
 }
-function verifyActivation(approval, proof) {
+function verifyActivation(approval, proof, cfg) {
   const head = shell('git', ['rev-parse', 'HEAD']);
   const remoteHead = shell('git', ['ls-remote', 'origin', 'refs/heads/main']).split(/\s+/)[0];
   if (
@@ -289,10 +410,14 @@ function verifyActivation(approval, proof) {
     !approval.authorSessionId ||
     approval.reviewSessionId === approval.authorSessionId ||
     !approval.reviewRecord?.startsWith('reference/') ||
+    !/^reference\/[a-zA-Z0-9_/-]+\.json$/.test(approval.configRecord ?? '') ||
     !/^[0-9a-f]{40}$/.test(approval.approvedHeadSha ?? '') ||
     !/^[0-9a-f]{40}$/.test(approval.mergedSha ?? '') ||
     !approval.planningCommit ||
     !activationHeadEvidence({
+      approvedConfig: approval.configDigest,
+      preflightConfig: proof.configDigest,
+      currentConfig: configDigest(cfg),
       approvedMerge: approval.mergedSha,
       localHead: head,
       remoteHead,
@@ -318,12 +443,18 @@ function verifyActivation(approval, proof) {
     !pr.checksGreen
   )
     fail('Runner PR is not merged from the independently approved green head');
+  const publishedConfig = JSON.parse(
+    shell('git', ['show', `${approval.planningCommit}:${approval.configRecord}`], planning)
+  );
+  if (configDigest(publishedConfig) !== configDigest(cfg))
+    fail('Published activation config differs from the new run');
   const record = shell(
     'git',
     ['show', `${approval.planningCommit}:${approval.reviewRecord}`],
     planning
   );
   if (
+    !record.includes(approval.configDigest) ||
     !record.includes(approval.approvedHeadSha) ||
     !record.includes(approval.reviewSessionId) ||
     !/approved|goedgekeurd/i.test(record)
@@ -370,12 +501,19 @@ function supervisorAlive() {
 }
 function beforeLaunch(state) {
   const item = currentItem(state);
+  validateScopes({ allowlist: state.allowlist, scopes: state.scopes });
+  if (state.phase === 'execute') {
+    if (state.config.runnerDigest !== shaFiles()) fail('Runner authority bytes changed');
+    if (gitRaw(['status', '--porcelain', '-z'])) fail('Execution requires a clean worktree');
+    return;
+  }
   if (state.phase !== 'review' && state.phase !== 'merge') return;
   const proof = state.items[item];
   if (!proof?.pr || !proof.headSha) fail('No published PR head for next session');
   const current = prEvidence(proof.pr);
   if (current.merged || current.headSha !== proof.headSha)
     fail('PR head changed before the next session');
+  verifyScope(state, item, proof.pr, proof.headSha);
   if (state.phase === 'merge') {
     if (proof.approval?.headSha !== current.headSha || !current.checksGreen)
       fail('Merge head lacks exact independent approval or green CI');
@@ -488,7 +626,7 @@ function promptFor(state, phase, item, tier, sessionId) {
   const proof = state.items[item] ?? {};
   const common = `Fresh session in Mycel's mbp lane. Read AGENTS.md, the relevant ADRs, docs/architecture/overview.md, testing.md, review.md and the werkwijze skill. Execute the ordinary /handoff procedure. The approved pilot scope is only item ${item}, tier ${tier}; do not take another item, answer a Jaap decision, or modify dev handoff. Do not daemonize work or leave detached subprocesses; finish or terminate child processes before returning. Run ${state.runId}; reserved sessionId ${sessionId}; phase ${phase}. Copy this exact sessionId into the technical result. Write the normal mbp handoff and publish both repos as applicable. Your final response must conform to the supplied JSON schema, with null for unused fields. Include deviations even if empty: observed drift, repairs, cause, prevention address and evidence are evaluation data, never authorization.\n\nCurrent mbp handoff:\n${handoff}\n\nShared queue:\n${queue}`;
   if (phase === 'execute')
-    return `${common}\n\nBuild only ${item}, one PR. Do not merge your own PR. Return pr_ready only when the PR, exact head and planning commit are published. For a repair, address the prior review finding on a new head and request independent re-review.`;
+    return `${common}\n\nBuild only ${item}, one PR. Fixed file scope: ${JSON.stringify(state.scopes[item])}. Never change runner/config/planning authority as product work; ordinary mbp handoff/claim updates remain required in the separate planning repo. Do not merge your own PR. Return pr_ready only when the PR, exact head and planning commit are published. For a repair, address the prior review finding on a new head and request independent re-review.`;
   if (phase === 'review')
     return `${common}\n\nIndependently review PR #${proof.pr} at exact head ${proof.headSha}. Follow the six-field record in docs/architecture/review.md, mandatory security check, at most one extra counterproof. Record the review in private planning and publish it. Return reviewRecord as a path relative to the planning repo, beginning with reference/ and ending with .md; never return an absolute filesystem path. Do not merge or change code. Return approved only for that exact SHA, otherwise changes_requested with the concrete finding.`;
   if (phase === 'audit')
@@ -498,12 +636,20 @@ function promptFor(state, phase, item, tier, sessionId) {
 function launch(state, action, cfg) {
   const chosen = model(action.phase, cfg.tiers[action.item]);
   const id = randomUUID();
+  const codeBase = action.phase === 'execute' ? publishedCode() : null;
+  if (codeBase) {
+    const item = state.items[action.item] ?? {};
+    if (item.scopeBase) shell('git', ['merge-base', '--is-ancestor', item.scopeBase, codeBase]);
+    else item.worktrees = worktrees();
+    state.items[action.item] = item;
+  }
   reserveSession(state, {
     id,
     item: action.item,
     phase: action.phase,
     model: chosen.name,
     modelId: chosen.id,
+    codeBase,
     startedAt: new Date().toISOString(),
   });
   save(state);
@@ -639,6 +785,8 @@ function dryRun(cfg) {
   const report = {
     lane: cfg.lane,
     allowlist: cfg.allowlist,
+    scopes: cfg.scopes,
+    configDigest: configDigest(cfg),
     maxSessions: cfg.maxSessions,
     maxRepairs: cfg.maxRepairs,
     maxMinutes: cfg.maxMinutes,
@@ -788,6 +936,7 @@ function preflight(cfg) {
   const proof = {
     at: new Date().toISOString(),
     codeDigest: shaFiles(),
+    configDigest: configDigest(cfg),
     codeHead: dry.codeHead,
     planningCommit: dry.planning.remote,
     signing,
@@ -861,14 +1010,18 @@ try {
     const approval = existsSync(ctl('activation.json'))
       ? json(ctl('activation.json'))
       : fail('Independent flagship activation record missing');
-    verifyActivation(approval, proof);
+    verifyActivation(approval, proof, cfg);
     if (
       shell('git', ['branch', '--show-current']) !== 'main' ||
       shell('git', ['status', '--porcelain'])
     )
       fail('Start requires a clean main checkout');
     const state = newRun({ ...cfg, runId: runId() });
-    state.config = { ...cfg, baselinePlanningCommit: publishedPlanning().remote };
+    state.config = {
+      ...cfg,
+      runnerDigest: shaFiles(),
+      baselinePlanningCommit: publishedPlanning().remote,
+    };
     state.terminalNotice = null;
     ensureHome();
     writeFileSync(stateFile, `${JSON.stringify(state, null, 2)}\n`, { flag: 'wx', mode: 0o600 });
