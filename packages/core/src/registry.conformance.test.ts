@@ -97,6 +97,7 @@ describe('a use case that consumes a limit checks it (ADR 015)', () => {
   it('has consumers to check', () => {
     expect(consumers.map((u) => u.name).sort()).toEqual([
       'assist.alt.suggest',
+      'assist.translate.suggest',
       'forms.submit',
       'media.upload',
       'tenant.hostnames.add',

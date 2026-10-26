@@ -47,6 +47,7 @@ import {
   readinessIssues,
 } from './model.js';
 import type { ItemRecord } from './ports.js';
+import { preserveTranslationReview } from './translation-review.js';
 import './ports.js';
 
 export const DEFAULT_PAGE_SIZE = 20;
@@ -111,6 +112,7 @@ export function finalize(
 ): ContentDocument {
   const parsed = ContentDocument.safeParse({
     ...input,
+    machineTranslation: input.machineTranslation,
     blocks: assignBlockIds(blocks, () => ctx.ids.next()),
   });
   if (!parsed.success)
@@ -162,8 +164,14 @@ export async function writeRevision(
   ctx: TransactionContext,
   item: ItemRecord,
   doc: ContentDocument,
-  provenance?: Revision['provenance']
+  provenance?: Revision['provenance'],
+  clearTranslationLocale?: string
 ): Promise<{ item: ContentItem; revision: Revision }> {
+  const previous = await ctx.content.revision(item.id, item.latestRevisionId);
+  if (!previous) throw notFound('revision');
+  doc = ContentDocument.parse(
+    preserveTranslationReview(previous.document, doc, clearTranslationLocale)
+  );
   await assertReferences(ctx, doc);
   const now = ctx.clock.now();
   const revision: Revision = {
@@ -392,7 +400,10 @@ export const updateItem = defineUseCase({
         throw new UseCaseError('invalid_input', `locale "${s.locale}" is published or planned`, [
           { path: 'document.locales', message: `content.locale.still-live:${s.locale}` },
         ]);
-    return writeRevision(ctx, item, finalize(ctx, document, document.blocks));
+    const previous = await ctx.content.revision(itemId, baseRevisionId);
+    if (!previous) throw notFound('revision');
+    const next = finalize(ctx, document, document.blocks);
+    return writeRevision(ctx, item, next);
   },
 });
 

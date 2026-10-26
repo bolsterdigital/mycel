@@ -4,6 +4,16 @@
 
 import { z } from 'zod';
 import { ContentDocument } from '../content/model.js';
+import {
+  TranslationResult,
+  TranslationTargets,
+  expandTranslationTargets,
+  encodeTranslation,
+  decodeTranslation,
+  translationValue,
+  translatedValue,
+  applyTranslation,
+} from './translation.js';
 import { assertBase, lockItem, writeRevision } from '../content/service.js';
 import { UseCaseError } from '../errors.js';
 import type { TransactionContext } from '../ports.js';
@@ -244,12 +254,12 @@ export const dismissSuggestion = defineUseCase({
 export const acceptSuggestion = defineUseCase({
   name: 'assist.suggestion.accept',
   kind: 'command',
-  description: 'Accept or edit an alt-text proposal as a new unpublished revision.',
+  description: 'Accept or edit an assistance proposal as a new unpublished revision.',
   requires: 'content:write',
   authenticatedOnly: true,
   actors: ['operator'],
   input: z
-    .object({ suggestionId: uuid, baseRevisionId: uuid, value: AltResult.shape.alt.optional() })
+    .object({ suggestionId: uuid, baseRevisionId: uuid, value: z.string().optional() })
     .strict(),
   output: z.object({ revisionId: uuid }),
   examples: [{ input: { suggestionId: exampleId, baseRevisionId: exampleId } }],
@@ -261,6 +271,48 @@ export const acceptSuggestion = defineUseCase({
     if (row.baseRevisionId !== item.latestRevisionId) refuse('conflict', 'stale');
     const revision = await ctx.content.revision(item.id, item.latestRevisionId);
     if (!revision) throw new UseCaseError('not_found', 'revision not found');
+    const translation = decodeTranslation(row.blockId);
+    if (translation) {
+      let parsedValue: unknown;
+      try {
+        parsedValue = JSON.parse(value ?? row.value!);
+      } catch {
+        refuse('invalid_input', 'invalid-output');
+      }
+      const edited = TranslationResult.safeParse(parsedValue);
+      if (
+        !edited.success ||
+        Object.keys(edited.data.values).sort().join() !== translation.targets.slice().sort().join()
+      )
+        throw new UseCaseError('invalid_input', 'invalid-output');
+      let doc: ContentDocument = revision.document;
+      for (const target of translation.targets) {
+        const source = translationValue(doc, target, translation.from);
+        if (source === null) refuse('conflict', 'stale');
+        const text = edited.data.values[target];
+        if (text === undefined) throw new UseCaseError('invalid_input', 'invalid-output');
+        const validated = translatedValue(doc, target, translation.from, translation.to, text);
+        if (validated === null) refuse('invalid_input', 'invalid-output');
+        const next = applyTranslation(doc, target, translation.to, validated);
+        if (!next) throw new UseCaseError('invalid_input', 'invalid-output');
+        doc = next;
+      }
+      const markers = { ...(doc.machineTranslation ?? {}) };
+      markers[translation.to] = [
+        ...new Set([...(markers[translation.to] ?? []), ...translation.targets]),
+      ];
+      doc = ContentDocument.parse({ ...doc, machineTranslation: markers });
+      const written = await writeRevision(ctx, item, doc, {
+        suggestionId: row.id,
+        task: 'translate',
+        provider: row.provider,
+        model: row.model!,
+        edited: value !== undefined && value !== row.value,
+      });
+      if (!(await ctx.assist.decide(row.id, 'accepted', ctx.clock.now())))
+        refuse('conflict', 'not-ready');
+      return { revisionId: written.revision.id };
+    }
     const alt = AltResult.safeParse({ alt: value ?? row.value });
     if (!alt.success || !alt.data) {
       throw new UseCaseError('invalid_input', 'image', [
@@ -291,6 +343,130 @@ export const acceptSuggestion = defineUseCase({
     });
     if (!(await ctx.assist.decide(row.id, 'accepted', ctx.clock.now())))
       refuse('conflict', 'not-ready');
+    return { revisionId: written.revision.id };
+  },
+});
+
+export const suggestTranslation = defineUseCase({
+  name: 'assist.translate.suggest',
+  kind: 'command',
+  description: 'Queue a proposal for selected fields in one source and target locale.',
+  requires: 'ai:assist',
+  authenticatedOnly: true,
+  consumes: 'ai.monthly_max',
+  input: z
+    .object({
+      itemId: uuid,
+      baseRevisionId: uuid,
+      from: z.string().min(2),
+      to: z.string().min(2),
+      targets: TranslationTargets,
+    })
+    .strict(),
+  output: z.object({ suggestionId: uuid, status: z.literal('pending') }),
+  examples: [
+    {
+      input: {
+        itemId: exampleId,
+        baseRevisionId: exampleId,
+        from: 'nl',
+        to: 'en',
+        targets: ['title'],
+      },
+    },
+  ],
+  async handler(ctx, input) {
+    if (!ctx.principal.entitlements['ai.assist']) refuse('limit_exceeded', 'ai-not-entitled');
+    await ctx.assist.lockQuota();
+    const now = ctx.clock.now();
+    const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    if ((await ctx.assist.countSince(month)) >= ctx.principal.entitlements['ai.monthly_max'])
+      refuse('limit_exceeded', 'limit-reached');
+    if ((await ctx.assist.pendingCount(new Date(now.getTime() - 600_000))) >= 3)
+      refuse('limit_exceeded', 'limit-reached');
+    if (
+      ctx.principal.actor.kind === 'operator' &&
+      (await ctx.assist.countByOperatorSince(
+        ctx.principal.actor.operatorId,
+        new Date(now.getTime() - 3_600_000)
+      )) >= 30
+    )
+      refuse('limit_exceeded', 'limit-reached');
+    const item = await ctx.content.get(input.itemId);
+    if (!item) throw new UseCaseError('not_found', 'item not found');
+    assertBase(item, input.baseRevisionId);
+    const revision = await ctx.content.revision(item.id, item.latestRevisionId);
+    if (!revision) throw new UseCaseError('not_found', 'revision not found');
+    const provider = ctx.assistProviderLabel;
+    if (!provider) refuse('invalid_input', 'unavailable');
+    const settings = await ctx.assist.settings();
+    if (!settings.enabled) refuse('invalid_input', 'ai-disabled');
+    if (settings.consentedProvider !== provider) refuse('invalid_input', 'consent-required');
+    const doc = revision.document;
+    if (
+      input.from === input.to ||
+      !doc.locales.includes(input.from) ||
+      !doc.locales.includes(input.to)
+    )
+      refuse('invalid_input', 'locale');
+    if (doc.access.level !== 'public' && !settings.allowRestricted)
+      refuse('invalid_input', 'restricted-content');
+    const targets = expandTranslationTargets(doc, input.targets);
+    if (targets.length === 0 || targets.length > 20 || new Set(targets).size !== targets.length)
+      refuse('invalid_input', 'target');
+    for (const target of targets)
+      if (translationValue(doc, target, input.from) === null) refuse('invalid_input', 'target');
+    const id = ctx.ids.next();
+    await ctx.assist.insert({
+      id,
+      itemId: item.id,
+      baseRevisionId: input.baseRevisionId,
+      blockId: encodeTranslation({ from: input.from, to: input.to, targets }),
+      locale: input.to,
+      status: 'pending',
+      value: null,
+      failure: null,
+      provider: provider!,
+      requestedBy: ctx.principal.actor.kind === 'operator' ? ctx.principal.actor.operatorId : null,
+      model: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await ctx.jobs.enqueue({
+      type: 'assist.run',
+      key: jobKey('assist.run', id),
+      runAt: now,
+      payload: { suggestionId: id },
+    });
+    return { suggestionId: id, status: 'pending' as const };
+  },
+});
+
+export const approveTranslation = defineUseCase({
+  name: 'content.item.translation.approve',
+  kind: 'command',
+  description: 'Approve the machine-translated fields of one locale as a human publisher.',
+  requires: 'content:publish',
+  authenticatedOnly: true,
+  actors: ['operator'],
+  input: z.object({ itemId: uuid, locale: z.string().min(2), baseRevisionId: uuid }).strict(),
+  output: z.object({ revisionId: uuid }),
+  examples: [{ input: { itemId: exampleId, locale: 'en', baseRevisionId: exampleId } }],
+  async handler(ctx, input) {
+    const item = await lockItem(ctx, input.itemId);
+    assertBase(item, input.baseRevisionId);
+    const revision = await ctx.content.revision(item.id, item.latestRevisionId);
+    if (!revision) throw new UseCaseError('not_found', 'revision not found');
+    if (!revision.document.locales.includes(input.locale)) refuse('invalid_input', 'locale');
+    const markers = { ...(revision.document.machineTranslation ?? {}) };
+    delete markers[input.locale];
+    const written = await writeRevision(
+      ctx,
+      item,
+      ContentDocument.parse({ ...revision.document, machineTranslation: markers }),
+      undefined,
+      input.locale
+    );
     return { revisionId: written.revision.id };
   },
 });

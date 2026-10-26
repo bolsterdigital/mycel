@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { preserveTranslationReview } from './translation-review.js';
+import { BLOCK_DEFINITIONS } from './block-types.js';
 import { MAX_BLOCKS, assignBlockIds, projectBlock, type Block } from './blocks.js';
 import {
   ContentDocument,
@@ -227,5 +229,143 @@ describe('routes and tags (brief #8a § 2)', () => {
     ]);
     expect(Tags.safeParse(['#hashtag']).success).toBe(false);
     expect(Tags.safeParse(Array.from({ length: 21 }, (_, i) => `t${i}`)).success).toBe(false);
+  });
+});
+
+describe('locale-wide translation review', () => {
+  it.each([undefined, {}, { en: [] }])(
+    'preserves ordinary documents without pending review (%j)',
+    (markers) => {
+      const previous = ContentDocument.parse(
+        page({ ...(markers ? { machineTranslation: markers } : {}) })
+      );
+      const next = ContentDocument.parse({
+        ...previous,
+        title: { nl: 'Gewijzigd', en: 'Changed' },
+      });
+      // Empty client metadata is not a review requirement; no new metadata is invented.
+      const saved = preserveTranslationReview(previous, next);
+      expect(saved.machineTranslation).toBeUndefined();
+      expect({ ...saved, machineTranslation: next.machineTranslation }).toEqual(next);
+    }
+  );
+
+  it.each(['locales', 'blocks.deleted.props.content'])(
+    'blocks reserved and legacy markers immediately, even without that field (%s)',
+    (path) => {
+      const previous = ContentDocument.parse(page({ machineTranslation: { en: [path] } }));
+      expect(readinessIssues(previous, 'en')).toContainEqual({
+        path,
+        message: 'content.publish.machine-translation-unreviewed',
+      });
+      const next = preserveTranslationReview(
+        previous,
+        ContentDocument.parse({ ...previous, machineTranslation: {} })
+      );
+      expect(next.machineTranslation).toEqual({ en: ['locales'] });
+      expect(previous.machineTranslation).toEqual({ en: [path] });
+    }
+  );
+
+  it.each([
+    ['canonical', { seo: { canonical: 'https://example.org/translated' } }],
+    ['tags', { tags: ['translated text'] }],
+    [
+      'list slug',
+      { delivery: { email: { listId: 'translated-text', subject: { nl: 'Onderwerp' } } } },
+    ],
+    [
+      'credit',
+      {
+        blocks: [
+          {
+            id: 'photo',
+            type: 'image',
+            version: 1,
+            props: {
+              ...BLOCK_DEFINITIONS.image.examples[0]!.props,
+              credit: { work: { title: 'Translated text', maker: 'Maker' }, photographer: null },
+            },
+          },
+        ],
+      },
+    ],
+    [
+      'quote name and URL',
+      {
+        blocks: [
+          {
+            id: 'quote',
+            type: 'quote',
+            version: 1,
+            props: {
+              text: { en: 'Text' },
+              attribution: { name: 'Translated text', url: 'https://example.org/text' },
+            },
+          },
+        ],
+      },
+    ],
+    [
+      'action URL',
+      {
+        blocks: [
+          {
+            id: 'cta',
+            type: 'cta',
+            version: 1,
+            props: {
+              title: { en: 'Text' },
+              actions: [
+                { label: { en: 'Text' }, target: { kind: 'url', url: '/translated-text' } },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+    [
+      'video id',
+      {
+        blocks: [
+          {
+            id: 'video',
+            type: 'video-embed',
+            version: 1,
+            props: { provider: 'vimeo', videoId: '123456', title: { en: 'Text' } },
+          },
+        ],
+      },
+    ],
+  ])('refuses nonprojected text in %s while review is pending', (_name, change) => {
+    const previous = ContentDocument.parse(article({ machineTranslation: { en: ['locales'] } }));
+    const next = ContentDocument.parse({ ...previous, ...change });
+    expect(() => preserveTranslationReview(previous, next)).toThrowError(
+      expect.objectContaining({ code: 'invalid_input' })
+    );
+  });
+
+  it('allows known non-text controls while retaining review', () => {
+    const previous = ContentDocument.parse(
+      page({
+        machineTranslation: { en: ['locales'] },
+        blocks: [
+          {
+            id: 'image',
+            type: 'image',
+            version: 1,
+            props: BLOCK_DEFINITIONS.image.examples[0]!.props,
+          },
+        ],
+      })
+    );
+    const next = ContentDocument.parse({
+      ...previous,
+      seo: { noindex: true },
+      blocks: [{ ...previous.blocks[0]!, props: { ...previous.blocks[0]!.props, layout: 'wide' } }],
+    });
+    const saved = preserveTranslationReview(previous, next);
+    expect(saved.machineTranslation).toEqual({ en: ['locales'] });
+    expect(saved.blocks).toEqual(next.blocks);
   });
 });

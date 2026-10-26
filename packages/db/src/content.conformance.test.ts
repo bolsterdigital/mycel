@@ -143,6 +143,44 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
     await appDb.destroy();
   });
 
+  it('retains an older scheduled pin through pending writes, refusal and human approval', async () => {
+    const created = await create('pending-pin');
+    await plan(created.item.id, created.revision.id, 'en');
+    const pinned = await state(created.item.id, 'en');
+    const pending = await invoker.run(useCases.updateItem, a(), {
+      itemId: created.item.id,
+      baseRevisionId: created.revision.id,
+      document: { ...created.revision.document, machineTranslation: { en: ['locales'] } },
+    });
+    const target = { itemId: created.item.id, revisionId: pending.revision.id, locale: 'en' };
+    await expect(invoker.run(useCases.publishItem, a(), target)).rejects.toMatchObject({
+      code: 'invalid_input',
+    });
+    await expect(
+      invoker.run(useCases.scheduleItem, a(), {
+        ...target,
+        at: new Date(clock.now().getTime() + MINUTE).toISOString(),
+      })
+    ).rejects.toMatchObject({ code: 'invalid_input' });
+    const human = {
+      ...a(),
+      actor: { kind: 'operator' as const, operatorId: uuidv7(), email: 'reviewer@probe.test' },
+    };
+    const approved = await invoker.run(useCases.approveTranslation, human, {
+      itemId: created.item.id,
+      baseRevisionId: pending.revision.id,
+      locale: 'en',
+    });
+    expect(await state(created.item.id, 'en')).toMatchObject({
+      ...pinned,
+      hasUnpublishedChanges: false,
+    });
+    const latest = await invoker.run(useCases.getItem, a(), { itemId: created.item.id });
+    expect(latest.revision.id).toBe(approved.revisionId);
+    expect(latest.revision.document.machineTranslation).toBeUndefined();
+    expect(latest.revision.document.blocks).toEqual(created.revision.document.blocks);
+  });
+
   it('round-trips items, revisions, authors, sections and patterns, per tenant', async () => {
     const author = await invoker.run(useCases.createAuthor, a(), {
       slug: `sam-${run}`,

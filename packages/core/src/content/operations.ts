@@ -271,7 +271,12 @@ export const splitInsertBlock = defineUseCase({
       const rest: Block = { ...text, id: ctx.ids.next(), props: { content: second } };
       const out = [...blocks];
       out.splice(i, 1, { ...text, props: { content: first } }, added, rest);
-      return { blocks: out, created: [added.id, rest.id], retired: [], merged: [] };
+      return {
+        blocks: out,
+        created: [added.id, rest.id],
+        retired: [],
+        merged: [],
+      };
     }),
 });
 
