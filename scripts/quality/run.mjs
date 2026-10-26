@@ -315,6 +315,12 @@ try {
             ],
             logLevel: 'error',
           });
+          const browserInfo = await fetch(`http://127.0.0.1:${chrome.port}/json/version`).then(
+            (r) => r.json()
+          );
+          sample.browserVersion = browserInfo.Browser;
+          if (browserInfo.Browser?.split('/').at(-1) !== result.environment.chromium)
+            throw new Error('Measured Chromium version differs from the declared browser');
           const headers = { 'Accept-Language': locale };
           const config = {
             ...(profile === 'desktop' ? desktop : { extends: 'lighthouse:default' }),
@@ -341,8 +347,6 @@ try {
           const measured = await lighthouse(entry.url, flags, config);
           sample.report = measured.lhr;
           sample.measurementSettings = measured.lhr.configSettings;
-          if (!measured.lhr.environment.hostUserAgent.includes(result.environment.chromium))
-            sample.error = 'Measured Chromium version differs from the declared browser';
           writeFileSync(join(dir, 'lighthouse.json'), measured.report[0]);
           writeFileSync(join(dir, 'lighthouse.html'), measured.report[1]);
           const logs = measured.artifacts.DevtoolsLog;
