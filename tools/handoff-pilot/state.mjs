@@ -61,8 +61,17 @@ export function validateScopes(config) {
           typeof path !== 'string' ||
           !path ||
           directory !== path.endsWith('/') ||
-          /[\\\x00-\x1f\x7f*?\[\]{}():]/.test(path) ||
-          plain.split('/').some((part) => !part || part === '.' || part === '..') ||
+          /[\\\x00-\x1f\x7f*?{}:]/.test(path) ||
+          plain.split('/').some((part) => {
+            if (!part || part === '.' || part === '..') return true;
+            if (!/[()[\]]/.test(part)) return false;
+            // Only whole named SvelteKit route components are admitted. They remain literal
+            // strings, never glob classes, regex groups or optional/rest/matcher patterns.
+            return (
+              !plain.startsWith('apps/web/src/routes/') ||
+              !/^(?:\([A-Za-z_][A-Za-z0-9_-]*\)|\[[A-Za-z_][A-Za-z0-9_]*\])$/.test(part)
+            );
+          }) ||
           path.startsWith('-') ||
           forbiddenPath(plain) ||
           (directory && ['tools', 'docs'].includes(plain))
