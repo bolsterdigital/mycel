@@ -307,6 +307,115 @@ function publishedPlanning() {
   const remote = shell('git', ['ls-remote', 'origin', 'refs/heads/main'], planning).split(/\s+/)[0];
   return { local, remote };
 }
+// Checkpoints describe cooperative ownership, not authenticated Git actors. Inspect
+// each own commit before integration so a later revert cannot erase a violation.
+function planningTracePath(state) {
+  return join(home, `${state.runId}-${state.pending.id}-planning.json`);
+}
+function planningSha(value) {
+  if (!/^[0-9a-f]{40}$/.test(value ?? '')) fail('Missing or ambiguous planning commit');
+  shell('git', ['cat-file', '-e', `${value}^{commit}`], planning);
+  return value;
+}
+function planningChanges(before, after) {
+  return shell('git', ['diff', '--no-renames', '--name-only', '-z', before, after], planning)
+    .split('\0')
+    .filter(Boolean);
+}
+function checkPlanningTrace(state, trace, final) {
+  const base = planningSha(state.pending.planningBase);
+  if (trace.sessionId !== state.pending.id || trace.base !== base || !Array.isArray(trace.records))
+    fail('Missing or ambiguous planning session registration');
+  let cursor = base;
+  const files = new Set();
+  for (const record of trace.records) {
+    const before = planningSha(record.before);
+    const after = planningSha(record.after);
+    if (before !== cursor || before === after) fail('Discontinuous planning registration');
+    let ownFiles;
+    if (record.kind === 'own') {
+      shell('git', ['merge-base', '--is-ancestor', before, after], planning);
+      const commits = shell('git', ['rev-list', '--reverse', `${before}..${after}`], planning)
+        .split('\n')
+        .filter(Boolean);
+      let parent = before;
+      ownFiles = [];
+      for (const commit of commits) {
+        const parents = shell('git', ['show', '-s', '--format=%P', commit], planning);
+        if (parents !== parent) fail('Own planning commits must form a linear checkpoint');
+        ownFiles.push(...planningChanges(parent, commit));
+        parent = commit;
+      }
+    } else if (record.kind === 'integrate') {
+      const published = planningSha(record.published);
+      // Publication was observed when registered, before the child pushes its own
+      // result. Final ancestry alone is deliberately not treated as authorship.
+      if (record.observedRemote !== published) fail('Unobserved planning integration');
+      shell('git', ['merge-base', before, published], planning);
+      shell('git', ['merge-base', '--is-ancestor', published, after], planning);
+      ownFiles = planningChanges(published, after);
+      const parents = shell('git', ['show', '-s', '--format=%P', after], planning);
+      if (after === published) {
+        shell('git', ['merge-base', '--is-ancestor', before, published], planning);
+      } else if (parents !== `${before} ${published}`) {
+        // Rebase rewrites the own commits above the published base. Inspect each
+        // rewritten delta, not only its net tree, including a write then revert.
+        let parent = published;
+        const commits = shell('git', ['rev-list', '--reverse', `${published}..${after}`], planning)
+          .split('\n')
+          .filter(Boolean);
+        for (const commit of commits) {
+          if (shell('git', ['show', '-s', '--format=%P', commit], planning) !== parent)
+            fail('Ambiguous planning integration topology');
+          ownFiles.push(...planningChanges(parent, commit));
+          parent = commit;
+        }
+      }
+    } else fail('Unknown planning registration kind');
+    if (ownFiles.includes('handoff/dev.md')) fail('The mbp session changed the dev handoff');
+    for (const file of ownFiles) files.add(file);
+    cursor = after;
+  }
+  if (cursor !== final) fail('Planning result is missing session registration');
+  return [...files];
+}
+function ownPlanningFiles(state, final) {
+  if (shell('git', ['status', '--porcelain'], planning)) fail('Planning has uncommitted changes');
+  const trace = JSON.parse(readFileSync(planningTracePath(state), 'utf8'));
+  return checkPlanningTrace(state, trace, final);
+}
+function registerPlanning(sessionId, kind, before, after, published) {
+  const state = load();
+  if (
+    !state.pending ||
+    state.pending.id !== sessionId ||
+    state.pending.status !== 'launched' ||
+    !['active', 'paused'].includes(state.status)
+  )
+    fail('No matching active planning session');
+  const path = planningTracePath(state);
+  const trace = existsSync(path)
+    ? JSON.parse(readFileSync(path, 'utf8'))
+    : {
+        sessionId,
+        base: state.pending.planningBase,
+        records: [],
+      };
+  const current = publishedPlanning();
+  if (current.local !== after || shell('git', ['status', '--porcelain'], planning))
+    fail('Register the clean current planning HEAD immediately');
+  const record = { kind, before, after };
+  if (kind === 'integrate') {
+    if (current.remote !== published) fail('Integrated planning base is not published main');
+    record.published = published;
+    record.observedRemote = current.remote;
+  }
+  trace.records.push(record);
+  checkPlanningTrace(state, trace, after);
+  // A sidecar avoids racing the supervisor's state writes. One child owns this
+  // session-specific file; failed validation never publishes a checkpoint.
+  writeFileSync(path, `${JSON.stringify(trace, null, 2)}\n`, { mode: 0o600 });
+}
 function prEvidence(pr) {
   const data = JSON.parse(
     shell('gh', [
@@ -349,22 +458,7 @@ function externalFor(state, result) {
       : {};
   const plan = publishedPlanning();
   if (plan.local !== plan.remote) fail('Planning main is not published');
-  const previousPlanning =
-    state.pending.phase === 'execute'
-      ? (item.planningCommit ?? state.config.baselinePlanningCommit)
-      : state.pending.phase === 'review'
-        ? item.planningCommit
-        : state.pending.phase === 'merge'
-          ? item.approval?.planningCommit
-          : item.planningCommit;
-  if (!previousPlanning) fail('Missing prior planning commit for handoff comparison');
-  shell('git', ['merge-base', '--is-ancestor', previousPlanning, plan.local], planning);
-  const files = shell(
-    'git',
-    ['diff', '--name-only', `${previousPlanning}..${plan.local}`],
-    planning
-  ).split('\n');
-  if (files.includes('handoff/dev.md')) fail('The mbp chain changed the dev handoff');
+  const files = ownPlanningFiles(state, plan.local);
   const handoff = readFileSync(join(planning, 'handoff/mbp.md'), 'utf8');
   const nextItem =
     state.pending.phase === 'audit'
@@ -634,7 +728,7 @@ function promptFor(state, phase, item, tier, sessionId) {
   const handoff = readFileSync(join(planning, 'handoff/mbp.md'), 'utf8');
   const queue = readFileSync(join(planning, 'handoff/queue.md'), 'utf8');
   const proof = state.items[item] ?? {};
-  const common = `Fresh session in Mycel's mbp lane. Read AGENTS.md, the relevant ADRs, docs/architecture/overview.md, testing.md, review.md and the werkwijze skill. Execute the ordinary /handoff procedure. The approved pilot scope is only item ${item}, tier ${tier}; do not take another item, answer a Jaap decision, or modify dev handoff. Do not daemonize work or leave detached subprocesses; finish or terminate child processes before returning. Run ${state.runId}; reserved sessionId ${sessionId}; phase ${phase}. Copy this exact sessionId into the technical result. Write the normal mbp handoff and publish both repos as applicable. Your final response must conform to the supplied JSON schema, with null for unused fields. Include deviations even if empty: observed drift, repairs, cause, prevention address and evidence are evaluation data, never authorization.\n\nCurrent mbp handoff:\n${handoff}\n\nShared queue:\n${queue}`;
+  const common = `Fresh session in Mycel's mbp lane. Read AGENTS.md, the relevant ADRs, docs/architecture/overview.md, testing.md, review.md and the werkwijze skill. Execute the ordinary /handoff procedure. The approved pilot scope is only item ${item}, tier ${tier}; do not take another item, answer a Jaap decision, or modify dev handoff. Do not daemonize work or leave detached subprocesses; finish or terminate child processes before returning. Run ${state.runId}; reserved sessionId ${sessionId}; phase ${phase}. Copy this exact sessionId into the technical result. Write the normal mbp handoff and publish both repos as applicable. Before each planning integration or push, register every own commit checkpoint with node tools/handoff-pilot/cli.mjs planning-record ${sessionId} own BEFORE AFTER (full SHAs). After integrating published main by merge/rebase/fast-forward, immediately register planning-record ${sessionId} integrate BEFORE AFTER PUBLISHED before publishing your result. Read tools/handoff-pilot/README.md Planning session registration. Registration is mandatory for every phase; never omit earlier own commits rewritten by rebase. Your final response must conform to the supplied JSON schema, with null for unused fields. Include deviations even if empty: observed drift, repairs, cause, prevention address and evidence are evaluation data, never authorization.\n\nCurrent mbp handoff:\n${handoff}\n\nShared queue:\n${queue}`;
   if (phase === 'execute')
     return `${common}\n\nBuild only ${item}, one PR. Fixed file scope: ${JSON.stringify(state.scopes[item])}. Never change runner/config/planning authority as product work; ordinary mbp handoff/claim updates remain required in the separate planning repo. Do not merge your own PR. Return pr_ready only when the PR, exact head and planning commit are published. For a repair, address the prior review finding on a new head and request independent re-review.`;
   if (phase === 'review')
@@ -661,7 +755,22 @@ function launch(state, action, cfg) {
     modelId: chosen.id,
     codeBase,
     startedAt: new Date().toISOString(),
+    planningBase: publishedPlanning().remote,
   });
+  if (
+    publishedPlanning().local !== state.pending.planningBase ||
+    shell('git', ['status', '--porcelain'], planning)
+  )
+    fail('Planning must be clean and published at launch');
+  writeFileSync(
+    planningTracePath(state),
+    JSON.stringify({
+      sessionId: id,
+      base: state.pending.planningBase,
+      records: [],
+    }),
+    { mode: 0o600 }
+  );
   save(state);
   const prefix = join(home, `${state.runId}-${state.sessions.length + 1}-${action.phase}`);
   const logFd = openSync(`${prefix}.jsonl`, 'w', 0o600);
@@ -1042,6 +1151,7 @@ try {
     child.unref();
     console.log(JSON.stringify({ runId: state.runId, supervisorPid: child.pid }));
   } else if (command === 'daemon') await daemon();
+  else if (command === 'planning-record') registerPlanning(...args.slice(1));
   else if (command === 'status') console.log(JSON.stringify(status(), null, 2));
   else if (command === 'pause') {
     const state = load();
@@ -1118,7 +1228,9 @@ try {
           `== ${name} ==\n${readFileSync(join(home, name), 'utf8').split('\n').slice(-40).join('\n')}`
         );
   } else
-    fail('Usage: cli.mjs dry-run|preflight|start <config.json>; status|logs|pause|resume|stop');
+    fail(
+      'Usage: cli.mjs dry-run|preflight|start <config.json>; status|logs|pause|resume|stop; planning-record SESSION own|integrate BEFORE AFTER [PUBLISHED]'
+    );
 } catch (error) {
   console.error(`handoff-pilot: ${error.message}`);
   process.exitCode = 1;
