@@ -155,7 +155,7 @@ describe('managed connection inventory', () => {
 // The intent engine reuses the inventory and registry boundaries, with a fake external system.
 import { FakeClock, MemoryIdentityStore, MemoryTenants } from '../testing/memory.js';
 import { FakeConnectionTransport } from '../testing/fake-connection-transport.js';
-import { planConnectionIntent } from './intents.js';
+import { connectionIntentGuard, planConnectionIntent } from './intents.js';
 import { runConnectionIntent, CONNECTION_LEASE_MS, type ConnectionSource } from './dispatch.js';
 
 async function engine() {
@@ -355,6 +355,69 @@ describe('durable connection effects', () => {
     expect(e.uow.store.for(A).audit.some((a) => a.operation === 'connections.intent.replay')).toBe(
       true
     );
+  });
+
+  // One authorization rule (`grants`, behind `can`): a key and an operator holding the same
+  // capabilities get the same answer when the worker rechecks the actor that planned the intent.
+  it.each([
+    [['connections:configure'], null],
+    [['connections:read'], 'authorization'],
+    [['connections:replay'], 'authorization'],
+  ] as const)('rechecks an operator and an API key alike: %j', async (capabilities, expected) => {
+    const e = await engine();
+    const row = await e.plan();
+    const keyId = e.uow.ids.next();
+    e.uow.store.operators.set('op-alike', {
+      id: 'op-alike',
+      issuer: null,
+      subject: null,
+      email: 'alike@example.org',
+      emailVerifiedAt: null,
+      name: null,
+      lastLoginAt: null,
+    });
+    e.uow.store.for(A).members.set('op-alike', {
+      capabilities: [...capabilities],
+      createdAt: new Date(0),
+    });
+    await e.uow.run(e.principal, (ctx) =>
+      ctx.apiKeys.insert({
+        id: keyId,
+        name: 'alike',
+        prefix: 'test',
+        keyHash: 'hash',
+        capabilities: [...capabilities],
+        createdBy: e.principal.actor,
+        createdAt: e.clock.now(),
+      })
+    );
+    const outcome = (actor: (typeof row)['actor']) =>
+      e.uow.run(e.principal, (ctx) => connectionIntentGuard(ctx, { ...row, actor }));
+    expect(await outcome({ kind: 'operator', id: 'op-alike' })).toBe(expected);
+    expect(await outcome({ kind: 'api-key', id: keyId })).toBe(expected);
+  });
+
+  it('honours tenant:admin on a rechecked operator as can() does', async () => {
+    const e = await engine();
+    const row = await e.plan();
+    e.uow.store.operators.set('op-admin', {
+      id: 'op-admin',
+      issuer: null,
+      subject: null,
+      email: 'admin@example.org',
+      emailVerifiedAt: null,
+      name: null,
+      lastLoginAt: null,
+    });
+    e.uow.store.for(A).members.set('op-admin', {
+      capabilities: ['tenant:admin'],
+      createdAt: new Date(0),
+    });
+    expect(
+      await e.uow.run(e.principal, (ctx) =>
+        connectionIntentGuard(ctx, { ...row, actor: { kind: 'operator', id: 'op-admin' } })
+      )
+    ).toBeNull();
   });
 
   it('bounds retries, preserves manual unknown and never stores thrown provider text', async () => {

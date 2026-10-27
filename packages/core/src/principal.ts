@@ -72,9 +72,16 @@ export const Principal = z.object({
 export type Principal = z.infer<typeof Principal>;
 
 export function can(principal: Principal, capability: Capability): boolean {
-  return (
-    principal.capabilities.includes(capability) || principal.capabilities.includes('tenant:admin')
-  );
+  return grants(principal.capabilities, capability);
+}
+
+/**
+ * The same rule over a stored capability set, for work that rechecks an actor's current grants
+ * after the request (a membership or API key at dispatch time). One rule, so no two principals
+ * can get different answers for the same capability.
+ */
+export function grants(capabilities: readonly Capability[], capability: Capability): boolean {
+  return capabilities.includes(capability) || capabilities.includes('tenant:admin');
 }
 
 /**

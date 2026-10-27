@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { TransactionContext } from '../ports.js';
 import { UseCaseError } from '../errors.js';
 import { defineUseCase } from '../registry.js';
-import { can } from '../principal.js';
+import { can, grants } from '../principal.js';
 import { sha256Hex } from '../util/digest.js';
 
 export const ConnectionIntentState = z.enum([
@@ -120,11 +120,10 @@ export async function connectionIntentGuard(
   if (!c.hasCredential || c.credentialVersion !== row.credentialVersion) return 'credential';
   if (row.actor.kind === 'operator') {
     const m = await ctx.members.get(row.actor.id);
-    if (!m || !m.capabilities.some((c) => c === 'tenant:admin' || c === 'connections:configure'))
-      return 'authorization';
+    if (!m || !grants(m.capabilities, 'connections:configure')) return 'authorization';
   } else if (row.actor.kind === 'api-key') {
     const k = (await ctx.apiKeys.list()).find((k) => k.id === row.actor.id);
-    if (!k || k.revokedAt || !k.capabilities.includes('connections:configure'))
+    if (!k || k.revokedAt || !grants(k.capabilities, 'connections:configure'))
       return 'authorization';
   }
   if (synthetic) return null;
