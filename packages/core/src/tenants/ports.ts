@@ -80,6 +80,8 @@ export interface HostnameRepository {
 export interface DnsResolver {
   txt(name: string): Promise<string[]>;
   cname(name: string): Promise<string | null>;
+  /** A and AAAA answers together, for webhook destinations (connections/destination.ts). */
+  addresses(name: string): Promise<string[]>;
 }
 
 export class DnsUnavailableError extends Error {

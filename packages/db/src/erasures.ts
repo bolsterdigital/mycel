@@ -108,7 +108,7 @@ async function eraseRows(trx: Trx): Promise<number> {
   // No address or provider payload is stored. Detach the pseudonymous supporter reference while
   // retaining honest external uncertainty; an erasure never claims the provider deleted a copy.
   const intentChanges = await sql`update connection_intents set supporter_id = null,
-    state = case when state in ('unknown','succeeded') then state else 'blocked' end,
+    state = case when state in ('unknown','succeeded','resolved') then state else 'blocked' end,
     failure = 'erasure', lease_token = null, lease_until = null, revision = revision + 1
     where supporter_id = any(${ids}::uuid[])`.execute(trx);
   const addresses = (

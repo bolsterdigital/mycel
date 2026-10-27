@@ -3,10 +3,10 @@
 
 import { z } from 'zod';
 import { UseCaseError } from '../errors.js';
+import { checkDestination } from './destination.js';
 import { defineUseCase } from '../registry.js';
 import type { TransactionContext } from '../ports.js';
-import type { ConnectionRecord } from './ports.js';
-import './ports.js';
+import { CONNECTION_DIRECTIONS, CONNECTION_PROVIDERS, type ConnectionRecord } from './ports.js';
 
 const uuid = z.string().guid();
 const exampleId = '01900000-0000-7000-8000-000000000001';
@@ -23,8 +23,8 @@ const destination = z
     return url.protocol === 'https:' && !url.username && !url.password && !url.search && !url.hash;
   })
   .nullable();
-const provider = z.enum(['webhook', 'mailchimp']);
-const direction = z.enum(['outbound', 'inbound', 'bidirectional']);
+const provider = z.enum(CONNECTION_PROVIDERS);
+const direction = z.enum(CONNECTION_DIRECTIONS);
 const authority = z.enum(['mycel', 'external']);
 const state = z.enum(['active', 'paused', 'disconnected']);
 const fields = {
@@ -123,10 +123,9 @@ export const createConnection = defineUseCase({
   output: view,
   examples: [{ input: { provider: 'webhook', ...exampleFields } }],
   async handler(ctx, input) {
-    if (input.provider === 'mailchimp' && input.destination !== null)
-      throw new UseCaseError('invalid_input', 'mailchimp destination is managed by its adapter');
     if (input.provider === 'webhook' && input.destination === null)
       throw new UseCaseError('invalid_input', 'webhook destination required');
+    if (input.destination !== null) await checkDestination(ctx.dns, input.destination);
     return asView(await ctx.connections.insert({ id: ctx.ids.next(), ...input }, ctx.clock.now()));
   },
 });
@@ -154,8 +153,7 @@ export const updateConnection = defineUseCase({
       changes.destination === undefined ? prior.destination : changes.destination;
     if (prior.provider === 'webhook' && nextDestination === null)
       throw new UseCaseError('invalid_input', 'webhook destination required');
-    if (prior.provider === 'mailchimp' && nextDestination !== null)
-      throw new UseCaseError('invalid_input', 'mailchimp destination is managed by its adapter');
+    if (changes.destination) await checkDestination(ctx.dns, changes.destination);
     return changed(await ctx.connections.update(id, baseVersion, changes, ctx.clock.now()));
   },
 });

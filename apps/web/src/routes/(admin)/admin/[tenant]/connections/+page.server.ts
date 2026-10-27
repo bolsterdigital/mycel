@@ -123,4 +123,11 @@ export const actions: Actions = {
       });
       return { action: 'replay', done: 'admin.connections.done.replay' };
     }),
+  resolve: (event) =>
+    act(event, 'resolve', copy, async (principal, data) => {
+      await runtime().invoker.run(useCases.resolveConnectionIntent, principal, {
+        id: text(data, 'id'),
+      });
+      return { action: 'resolve', done: 'admin.connections.done.resolve' };
+    }),
 };

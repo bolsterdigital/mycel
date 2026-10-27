@@ -731,14 +731,16 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.connections.delivery.succeeded': 'Afgeleverd',
   'admin.connections.delivery.blocked': 'Geblokkeerd',
   'admin.connections.delivery.failed': 'Mislukt',
+  'admin.connections.delivery.resolved': 'Handmatig afgehandeld',
   'admin.connections.copy.requested': 'Externe kopie aangevraagd',
   'admin.connections.copy.confirmed': 'Externe kopie bevestigd',
   'admin.connections.copy.failed': 'Externe kopie mislukt',
   'admin.connections.copy.manual': 'Externe kopie handmatig controleren',
   'admin.connections.synthetic': 'Proef, geen persoon gekopieerd',
   'admin.connections.replay': 'Probeer opnieuw',
+  'admin.connections.resolve': 'Markeer als afgehandeld',
   'admin.connections.unknown.help':
-    'Vraag bij een onbekende uitkomst de ontvanger om het event-ID te controleren. Een webhook wordt niet opnieuw verzonden zolang afwezigheid niet bewezen is.',
+    'Mycel weet niet of de ontvanger dit event heeft verwerkt. Vraag de ontvanger het event-ID te controleren en markeer het daarna als afgehandeld. Een webhook wordt nooit automatisch opnieuw verzonden.',
   'admin.connections.error.conflict':
     'De koppeling is gewijzigd of deze actie kan niet. Laad opnieuw en controleer de status.',
   'admin.connections.error.invalid':
@@ -752,6 +754,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.connections.done.disconnected': 'Koppeling ontkoppeld.',
   'admin.connections.done.test': 'Synthetische proef ingepland.',
   'admin.connections.done.replay': 'Beveiligde herpoging aangevraagd.',
+  'admin.connections.done.resolve': 'Gemarkeerd als afgehandeld.',
   'admin.assist.title': 'AI-hulp',
   'admin.assist.allowed': 'De hoster staat hulp voor deze site toe.',
   'admin.assist.unavailable': 'De hoster heeft hulp voor deze site niet aangezet.',

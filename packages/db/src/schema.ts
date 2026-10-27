@@ -1,7 +1,7 @@
 // Kysely table types, written by hand next to the SQL migrations they mirror. Rejected:
 // kysely-codegen, one more tool and a live database at build time for a handful of tables.
 
-import type { ConnectionIntent, ConnectionAttempt } from '@mycel/core';
+import type { ConnectionIntent, ConnectionAttempt, ConnectionRecord } from '@mycel/core';
 import type { ColumnType, Generated } from 'kysely';
 
 type Timestamp = ColumnType<Date, Date | string, Date | string>;
@@ -57,12 +57,12 @@ export interface Database {
   connections: {
     id: string;
     tenant_id: string;
-    provider: 'webhook' | 'mailchimp';
+    provider: ConnectionRecord['provider'];
     account_ref: string | null;
     external_owner: string;
     maintainer: string;
     purpose: string;
-    direction: 'outbound' | 'inbound' | 'bidirectional';
+    direction: ConnectionRecord['direction'];
     data_authority: 'mycel' | 'external';
     consent_authority: 'mycel' | 'external';
     consent_scopes: Json<string[]>;

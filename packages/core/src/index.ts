@@ -85,3 +85,5 @@ export * from './ops/service.js';
 
 export * from './connections/intents.js';
 export * from './connections/dispatch.js';
+export * from './connections/destination.js';
+export * from './connections/synthetic.js';

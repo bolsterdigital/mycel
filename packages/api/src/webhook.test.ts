@@ -8,27 +8,29 @@ import { createServer } from 'node:https';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { ConnectionIntent, ConnectionRecord } from '@mycel/core';
 import {
-  checkedDestination,
-  publicAddress,
-  sendWebhook,
-  webhookTransport,
-  type WebhookRequest,
-} from './webhook.js';
+  PROVIDER_RECONCILES,
+  SYNTHETIC_SCOPE,
+  SYNTHETIC_SOURCE,
+  type ConnectionIntent,
+  type ConnectionRecord,
+} from '@mycel/core';
+import { sendWebhook, webhookTransport, type WebhookRequest } from './webhook.js';
 
 const intent = {
   id: '01900000-0000-7000-8000-000000000001',
   key: 'stable-key',
-  source: 'synthetic.test',
+  source: SYNTHETIC_SOURCE,
   supporterId: null,
-  scope: 'synthetic:test',
+  scope: SYNTHETIC_SCOPE,
 } as ConnectionIntent;
+/** The core DNS port with fixed A/AAAA answers. */
+const answering = (addresses: () => string[]) => ({ addresses: async () => addresses() });
 const connection = {
   provider: 'webhook',
   destination: 'https://hooks.example.org/mycel',
 } as ConnectionRecord;
-const payload = { category: 'synthetic.test' };
+const payload = { category: SYNTHETIC_SOURCE };
 
 describe('webhook destination and transport', () => {
   it('sends over TLS to the pinned address and checks the URL hostname certificate', async () => {
@@ -133,7 +135,7 @@ describe('webhook destination and transport', () => {
         // A receiver can accept headers/body before dropping the socket. This must release
         // the sequential worker promptly, while preserving the ambiguous delivery outcome.
         const transport = webhookTransport({
-          lookup: async () => ['8.8.8.8'],
+          dns: answering(() => ['8.8.8.8']),
           send: () => send('/truncated'),
         });
         const started = performance.now();
@@ -147,8 +149,6 @@ describe('webhook destination and transport', () => {
           })
         ).toBe('unknown');
         expect(performance.now() - started).toBeLessThan(2000);
-        expect(paths.filter((path) => path === '/truncated')).toHaveLength(1);
-        expect(await transport.reconcile({ tenantId: 'tenant', intent })).toBe('unknown');
         expect(paths.filter((path) => path === '/truncated')).toHaveLength(1);
 
         // Activity defeats the socket inactivity timeout, but never the total deadline.
@@ -166,36 +166,16 @@ describe('webhook destination and transport', () => {
     }
   }, 10000);
 
-  it('rejects local, metadata, mapped IPv6, mixed DNS and non-HTTPS destinations', async () => {
-    for (const address of [
-      '127.0.0.1',
-      '10.2.3.4',
-      '169.254.169.254',
-      '::1',
-      'fc00::1',
-      '::ffff:127.0.0.1',
-      '2001:db8::1',
-    ])
-      expect(publicAddress(address)).toBe(false);
-    expect(publicAddress('8.8.8.8')).toBe(true);
-    expect(publicAddress('2606:4700:4700::1111')).toBe(true);
-    for (const url of [
-      'http://hooks.example.org',
-      'https://127.0.0.1/',
-      'https://hooks.example.org:8443/',
-      'https://localhost/',
-    ])
-      await expect(checkedDestination(url, async () => ['8.8.8.8'])).rejects.toThrow();
-    await expect(
-      checkedDestination(connection.destination!, async () => ['8.8.8.8', '169.254.169.254'])
-    ).rejects.toThrow();
+  it('offers no reconciliation, as the core provider table says', () => {
+    const transport = webhookTransport({ dns: answering(() => ['8.8.8.8']) });
+    expect(transport.reconcile === undefined).toBe(!PROVIDER_RECONCILES.webhook);
   });
 
   it('checks DNS again for delivery, signs a stable envelope, and pins the checked address', async () => {
     let addresses = ['8.8.8.8'];
     const sent: WebhookRequest[] = [];
     const transport = webhookTransport({
-      lookup: async () => addresses,
+      dns: answering(() => addresses),
       now: () => new Date('2026-10-25T12:00:00.000Z'),
       send: async (request) => {
         sent.push(request);
@@ -217,7 +197,7 @@ describe('webhook destination and transport', () => {
       version: 'mycel.webhook.v1',
       eventId: intent.id,
       idempotencyKey: intent.key,
-      category: 'synthetic.test',
+      category: SYNTHETIC_SOURCE,
       data: { synthetic: true },
     });
     expect(JSON.stringify(body)).not.toContain('synthetic-secret');
@@ -230,7 +210,6 @@ describe('webhook destination and transport', () => {
     addresses = ['127.0.0.1'];
     expect(await transport.dispatch(input)).toBe('pre_send');
     expect(sent).toHaveLength(1);
-    expect(await transport.reconcile({ tenantId: 'tenant', intent })).toBe('unknown');
   });
 
   it('keeps redirects, timeouts and dropped connections uncertain', async () => {
@@ -241,7 +220,7 @@ describe('webhook destination and transport', () => {
         throw new Error('closed');
       },
     ]) {
-      const transport = webhookTransport({ lookup: async () => ['8.8.8.8'], send });
+      const transport = webhookTransport({ dns: answering(() => ['8.8.8.8']), send });
       expect(
         await transport.dispatch({
           tenantId: 'tenant',

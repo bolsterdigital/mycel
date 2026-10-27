@@ -22,7 +22,7 @@ export function createDnsResolver({
 }: {
   timeoutMs?: number;
   /** Tests pass a stand-in; production uses the system's DNS servers. */
-  resolver?: Pick<Resolver, 'resolveTxt' | 'resolveCname'>;
+  resolver?: Pick<Resolver, 'resolveTxt' | 'resolveCname' | 'resolve4' | 'resolve6'>;
 } = {}): DnsResolver {
   const code = (e: unknown) => (e as { code?: string }).code ?? '';
   /** Map a resolver error to "not found", or throw what it means. */
@@ -46,6 +46,15 @@ export function createDnsResolver({
       } catch (e) {
         return missing(e, null);
       }
+    },
+    async addresses(name) {
+      // Both families, each "missing" on its own: a host with only AAAA is ordinary. No answer
+      // from either side is DnsUnavailableError, as for TXT and CNAME.
+      const [v4, v6] = await Promise.all([
+        resolver.resolve4(name).catch((e: unknown) => missing<string[]>(e, [])),
+        resolver.resolve6(name).catch((e: unknown) => missing<string[]>(e, [])),
+      ]);
+      return [...v4, ...v6];
     },
   };
 }
