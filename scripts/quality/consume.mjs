@@ -27,11 +27,15 @@ export function sourceContract({ corpus, seed, matrixSource, workflow, lock }) {
   if (matrixSource !== readFileSync(new URL('./matrix.mjs', import.meta.url), 'utf8'))
     throw new Error('unsupported-matrix');
   const packages = JSON.parse(lock).packages;
+  const runnerImage = /QUALITY_RUNNER_IMAGE: \S+@((?:sha256:)[a-f0-9]{64})\s/.exec(workflow)?.[1];
+  if (workflow.includes('QUALITY_RUNNER_IMAGE:') && !runnerImage)
+    throw new Error('unsupported-runner-image');
   return {
     schemaVersion: 1,
     fixtureVersion: manifest.fixtureVersion,
     fixtureHash: createHash('sha256').update(corpus).update(seed).digest('hex'),
     manifest,
+    ...(runnerImage ? { runnerImage } : {}),
     tools: {
       node: `v${/node-version: '([^']+)'/.exec(workflow)?.[1]}`,
       lighthouse: packages['node_modules/lighthouse'].version,
@@ -220,12 +224,17 @@ export function consumeRun(run, load) {
         !token(env.runner) ||
         !(run.event === 'local'
           ? env.runner.startsWith('local:')
-          : env.runner.startsWith('github-ubuntu-24.04:'))
+          : run.contract.runnerImage
+            ? env.runner === `github-container:${run.contract.runnerImage}` &&
+              token(env.kernel) &&
+              token(env.hostImage)
+            : env.runner.startsWith('github-ubuntu-24.04:'))
       )
         throw new Error('profile');
       const tools = Object.fromEntries(
         ['node', 'lighthouse', 'playwright', 'chromium', 'caddy', 'runner'].map((f) => [f, env[f]])
       );
+      if (run.event !== 'local' && run.contract.runnerImage) tools.kernel = env.kernel;
       if (Object.values(tools).some((v) => typeof v !== 'string' || v.length > 200))
         throw new Error('tools');
       if (
@@ -234,7 +243,9 @@ export function consumeRun(run, load) {
           !tools.caddy.startsWith(`v${run.contract.tools.caddy} `))
       )
         throw new Error('tools');
-      // CPU model may vary by hosted shard, but image/browser/tool versions must agree.
+      // Container userspace and the shared host kernel must agree. Retain the rolling host
+      // image as metadata; it no longer supplies browser libraries/fonts. Legacy host runs
+      // still compare that image strictly through their original runner identity.
       if (referenceTools && JSON.stringify(referenceTools) !== JSON.stringify(tools))
         throw new Error('tool-drift');
       referenceTools ??= tools;
@@ -243,7 +254,17 @@ export function consumeRun(run, load) {
         environment: {
           ...tools,
           ...Object.fromEntries(
-            ['scope', 'locale', 'profile', 'cache', 'theme', 'warmup', 'serverCache', 'cpu']
+            [
+              'scope',
+              'locale',
+              'profile',
+              'cache',
+              'theme',
+              'warmup',
+              'serverCache',
+              'cpu',
+              'hostImage',
+            ]
               .filter((f) => token(env[f]))
               .map((f) => [f, env[f]])
           ),

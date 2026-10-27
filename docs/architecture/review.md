@@ -2,6 +2,8 @@
 
 Every pull request already gets an independent review (the author never merges their own PR) and `npm run verify` as the gate ([testing.md](testing.md)). This document adds one thing: a way to decide, per PR, whether the gate already proves the behaviour that changed, and if not, which **one** extra counterproof is worth twenty to thirty minutes. A cheap, deterministic step proposes; the reviewer chooses; every piece of evidence hangs on a claim, a SHA and an owner.
 
+Independence means a separate agent session with fresh context, not a second human or GitHub account. Author, reviewer and merger agents may use the same owner's GitHub identity. In that case the reviewer publishes the verdict as a COMMENT with the exact reviewed SHA, and a separate merger session verifies that verdict and the unchanged head before merging. A COMMENT can carry the agent's approval; GitHub's APPROVED state is not required. The protection request keeps pull requests and required CI checks mandatory without imposing a second GitHub identity. GitHub enforces those checks; session separation and the review record enforce the agent workflow procedurally.
+
 Rejected: a fixed set of reviewer agents per PR (expensive, mostly duplicates of what the conformance suites already prove), a numeric risk score (false precision: a path list cannot see that a cache change breaks a form post), and periodic broad audits after every N merges (they mix progress, architecture, code and a moving CI state into one report nobody can repeat). The broad check of 2026-10-23 was useful for finding chains of defects; it was not a unit worth repeating.
 
 ## The record
