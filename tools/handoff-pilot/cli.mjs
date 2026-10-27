@@ -247,8 +247,12 @@ function verifyScope(state, itemId, pr, head) {
       fail('Reserved item base changed');
     const main = publishedCode();
     shell('git', ['merge-base', '--is-ancestor', item.scopeBase, main]);
-    shell('git', ['fetch', '--no-tags', 'origin', `refs/pull/${pr}/head`]);
-    if (shell('git', ['rev-parse', 'FETCH_HEAD']) !== head) fail('Remote PR head changed');
+    if (pr != null) {
+      shell('git', ['fetch', '--no-tags', 'origin', `refs/pull/${pr}/head`]);
+      if (shell('git', ['rev-parse', 'FETCH_HEAD']) !== head) fail('Remote PR head changed');
+    } else if (shell('git', ['rev-parse', 'HEAD']) !== head) {
+      fail('Local blocked head changed');
+    }
     shell('git', ['merge-base', '--is-ancestor', item.scopeBase, head]);
     const diffBase = shell('git', ['merge-base', main, head]);
     shell('git', ['merge-base', '--is-ancestor', item.scopeBase, diffBase]);
@@ -332,7 +336,13 @@ function prEvidence(pr) {
 }
 function externalFor(state, result) {
   const item = state.items[state.pending.item] ?? {};
-  const pr = prEvidence(result.pr ?? item.pr);
+  const prNumber = result.pr ?? item.pr;
+  // A terminal block can precede a PR. Prove its local Git scope instead of
+  // inventing a remote ref; existing PRs still require ordinary GitHub evidence.
+  const pr =
+    result.outcome === 'blocked' && prNumber == null
+      ? { pr: null, headSha: shell('git', ['rev-parse', 'HEAD']) }
+      : prEvidence(prNumber);
   const scope =
     state.pending.phase === 'execute'
       ? verifyScope(state, state.pending.item, pr.pr, pr.headSha)
