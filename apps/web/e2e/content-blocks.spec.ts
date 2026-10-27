@@ -280,45 +280,33 @@ test('the enhanced article writer keeps a native FAQ card through autosave and l
     (entry: { type: string }) => entry.type === 'rich-text'
   );
   expect(prose).toBeTruthy();
-  const faq = {
-    id: 'writer-faq',
-    type: 'faq',
-    version: 2,
-    props: {
-      variant: 'accordion',
-      width: 'wide',
-      title: { nl: 'Schrijfvragen', en: 'Writing questions' },
-      entries: [
-        {
-          question: { nl: 'Blijft dit bewaard?', en: 'Does this survive?' },
-          answer: {
-            nl: {
-              type: 'doc',
-              content: [
-                { type: 'paragraph', content: [{ type: 'text', text: 'Ja, in beide talen.' }] },
-              ],
-            },
-            en: {
-              type: 'doc',
-              content: [
-                { type: 'paragraph', content: [{ type: 'text', text: 'Yes, in both languages.' }] },
-              ],
-            },
-          },
-        },
-      ],
-    },
-  };
   const document = {
     ...fetched.revision.document,
     title: { nl: 'Schrijfproef', en: 'Writer proof' },
-    blocks: [prose, faq],
+    blocks: [prose],
   };
   const created = await api('content.item.create', { slug: `faq-writer-${Date.now()}`, document });
   const edit = `/admin/probe/content/${created.item.id}`;
   await login(page, `${edit}/write`);
+  await page.getByRole('link', { name: 'Kaart invoegen' }).click();
+  await expect(page).toHaveURL(new RegExp(`${edit}#insert-document$`));
+  await insert(page, 'Vragen en antwoorden', 'Onderaan');
+  await page.getByLabel('Variant').selectOption('accordion');
+  await page.getByLabel('Breedte').selectOption('wide');
+  await page.getByLabel('Titel (nl)').fill('Schrijfvragen');
+  await page.getByLabel('Titel (en)').fill('Writing questions');
+  await page.getByLabel('Vraag (nl)').first().fill('Blijft dit bewaard?');
+  await page.getByLabel('Vraag (en)').first().fill('Does this survive?');
+  await page.getByLabel('Antwoord (nl)').first().fill('Ja, in beide talen.');
+  await page.getByLabel('Antwoord (en)').first().fill('Yes, in both languages.');
+  await page.getByRole('button', { name: 'Blok invoegen' }).click();
+  const faqId = await page.locator('details.block').nth(1).getAttribute('id');
+  await (await block(page, 2)).getByRole('button', { name: 'Omhoog' }).click();
+  await expect(page.locator('details.block').first()).toHaveAttribute('id', faqId!);
+  await (await block(page, 1)).getByRole('button', { name: 'Omlaag' }).click();
+  await page.goto(`${edit}/write`);
   await expect(
-    page.locator('.writing-surface .editor-card[data-block-id="writer-faq"]')
+    page.locator(`.writing-surface .editor-card[data-block-id="${faqId?.replace('block-', '')}"]`)
   ).toBeVisible();
   await page.locator('.writing-surface .editor-prose p').first().click();
   await page.keyboard.press('End');
@@ -326,14 +314,14 @@ test('the enhanced article writer keeps a native FAQ card through autosave and l
   await expect(page.getByRole('status')).toHaveText('Alle wijzigingen opgeslagen.');
   await page.reload();
   await expect(
-    page.locator('.writing-surface .editor-card[data-block-id="writer-faq"]')
+    page.locator(`.writing-surface .editor-card[data-block-id="${faqId?.replace('block-', '')}"]`)
   ).toBeVisible();
   await page.goto(edit);
   await (await block(page, 2)).getByLabel('Breedte').selectOption('full');
   await save(page, 2);
   await page.goto(`${edit}/write?locale=en`);
   await expect(
-    page.locator('.writing-surface .editor-card[data-block-id="writer-faq"]')
+    page.locator(`.writing-surface .editor-card[data-block-id="${faqId?.replace('block-', '')}"]`)
   ).toBeVisible();
   await page.goto(edit);
   await expect((await block(page, 2)).getByLabel('Breedte')).toHaveValue('full');
