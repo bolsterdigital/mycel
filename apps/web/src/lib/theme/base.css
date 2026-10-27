@@ -16,7 +16,7 @@
 @property --content-width {
   syntax: '<length>';
   inherits: true;
-  initial-value: 40rem;
+  initial-value: 640px;
 }
 
 @layer tokens {
@@ -41,6 +41,7 @@
     box-sizing: border-box;
   }
   body {
+    --content-width: var(--measure);
     margin: 0;
     font-family: var(--font-body);
     font-size: var(--step-0);
@@ -115,8 +116,16 @@
 @layer components {
   /* The page is full width; each child sits in the content column, a `wide` or `full` block
      breaks out of it. No viewport units, so nothing can cause horizontal scroll. */
-  .page {
+  .page:not(.admin) {
+    /* A length initial value must be computationally independent: rem invalidates the
+       registration and lets headings resolve the inherited ch in their own larger font. */
     --content-width: var(--measure);
+    --gutter: min(1rem, 4cqi);
+    --inset: min(var(--space-3), 5cqi);
+    container-type: inline-size;
+    display: flow-root;
+  }
+  .page {
     padding-block: var(--space-3) var(--space-4);
   }
   .page > .preview-selectable {
@@ -159,8 +168,13 @@
     font-size: var(--step--1);
     color: var(--color-muted-fg);
   }
-  .layout-full figcaption {
-    padding-inline: var(--gutter);
+  .page :is(.image, .video) figcaption {
+    width: min(var(--content-width), 100% - 2 * var(--gutter));
+    margin-inline: auto;
+  }
+  .page :is(.cta, .quote, .form) > * {
+    max-width: var(--content-width);
+    margin-inline: auto;
   }
   .credit {
     display: inline-block;
@@ -177,7 +191,7 @@
     float: right;
     margin: 0 max(var(--gutter), (100% - var(--content-width)) / 2) var(--space-2) var(--space-3);
   }
-  @media (max-width: 40rem) {
+  @container (max-width: 40rem) {
     :is(.page, .page > :where(.preview-selectable)) > .layout-float-left,
     :is(.page, .page > :where(.preview-selectable)) > .layout-float-right {
       float: none;
@@ -624,6 +638,11 @@
     flex-wrap: wrap;
     gap: var(--space-1) var(--space-3);
     max-width: var(--wide-width);
+    margin-inline: auto;
+  }
+  .site-header > .site-identity {
+    display: flex;
+    width: min(var(--wide-width), 100%);
     margin-inline: auto;
   }
   .site-identity {

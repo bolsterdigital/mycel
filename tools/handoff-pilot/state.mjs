@@ -161,6 +161,7 @@ export function handoffEvidence({
   headSha,
 }) {
   if (!files.includes('handoff/mbp.md')) return false;
+  if (outcome === 'blocked') return handoff.trim().length > 0;
   const phaseWord =
     phase === 'execute'
       ? 'review'
@@ -272,10 +273,25 @@ export function recordResult(state, result, external) {
     pending.phase === 'execute' &&
     (!external.scopeVerified ||
       external.scopeBase !== item.scopeBase ||
-      external.scopeHead !== result.headSha)
+      external.scopeHead !==
+        (result.outcome === 'blocked' && result.pr == null && item.pr == null
+          ? (result.headSha ?? external.headSha)
+          : result.headSha) ||
+      !/^[0-9a-f]{40}$/.test(external.scopeHead ?? ''))
   )
     throw new Error('Execution file scope lacks independent Git proof');
-  if (pending.phase === 'execute') {
+  if (result.outcome === 'blocked') {
+    if (
+      !result.finding?.trim() ||
+      !result.planningCommit ||
+      external.planningCommit !== result.planningCommit ||
+      !external.handoffCommitted ||
+      ((result.pr ?? item.pr) != null &&
+        (external.pr !== (result.pr ?? item.pr) ||
+          external.headSha !== (result.headSha ?? item.headSha)))
+    )
+      throw new Error('Blocked result lacks verified planning, finding or PR evidence');
+  } else if (pending.phase === 'execute') {
     if (
       result.outcome !== 'pr_ready' ||
       !result.pr ||
@@ -434,6 +450,10 @@ export function recordResult(state, result, external) {
     at: result.finishedAt,
     outcome: result.outcome,
   });
+  if (result.outcome === 'blocked') {
+    session.finding = result.finding;
+    return block(state, pending, result.finding);
+  }
   session.status = 'completed';
   state.pending = null;
   if (state.index >= state.allowlist.length && !state.auditTask) {

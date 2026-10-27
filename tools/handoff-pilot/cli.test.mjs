@@ -1084,3 +1084,123 @@ for (const [name, path, scope, allowed] of [
     }
   });
 }
+
+function blockedFixture(t, edit = () => {}) {
+  const f = scopeFixture(t, edit);
+  const proof = {
+    runId: f.state.runId,
+    sessionId: f.state.pending.id,
+    item: '#44',
+    lane: 'mbp',
+    phase: 'execute',
+    outcome: 'blocked',
+    pr: null,
+    headSha: null,
+    reviewedHeadSha: null,
+    planningCommit: 'b'.repeat(40),
+    reviewRecord: null,
+    mergeCommit: null,
+    housekeepingCommit: null,
+    finding: 'Required env inventory is outside scope',
+    finishedAt: new Date().toISOString(),
+    deviations: [
+      {
+        expected: 'Stay within scope',
+        observed: 'Env dependency outside scope',
+        detection: 'env conformance',
+        repair: 'Stop',
+        cause: 'Missing dependency',
+        preventionAddress: '#45',
+        evidence: 'reference/product-block.md',
+      },
+    ],
+  };
+  writeFileSync(f.state.pending.resultPath, JSON.stringify(proof));
+  writeFileSync(
+    join(f.root, 'planning/handoff/mbp.md'),
+    'uitvoer\n# Blocked: dependency needs scope preparation\n'
+  );
+  // A no-PR result must not consult GitHub, even if GitHub would return a PR.
+  writeFileSync(
+    join(f.root, 'bin/gh'),
+    `#!/bin/sh\necho queried > '${join(f.root, 'gh-called')}'\nexit 72\n`,
+    { mode: 0o755 }
+  );
+  return { ...f, proof };
+}
+test('schema-conform blocked without PR preserves the product cause and stops without PR queries', (t) => {
+  const f = blockedFixture(t);
+  // R8 removed its incomplete product work and returned to clean main.
+  f.git('switch', 'main');
+  const schema = JSON.parse(readFileSync(resolve('tools/handoff-pilot/result.schema.json')));
+  assert.deepEqual(Object.keys(f.proof).sort(), schema.required.slice().sort());
+  const { after, proofs } = f.finish();
+  assert.equal(after.status, 'blocked');
+  assert.equal(after.stopReason, f.proof.finding);
+  assert.equal(after.pending, null);
+  assert.equal(after.sessions[0].finding, f.proof.finding);
+  assert.equal(after.deviations[0].observed, f.proof.deviations[0].observed);
+  assert.equal(after.index, 0);
+  assert.equal(after.items['#44'].pr, undefined);
+  assert.equal(proofs[0].head, f.base);
+  assert.equal(proofs[0].reason, null);
+  assert.throws(() => readFileSync(join(f.root, 'gh-called')));
+});
+for (const kind of [
+  'identity',
+  'planning',
+  'handoff',
+  'dev handoff',
+  'unpublished planning',
+  'committed',
+  'staged',
+  'unstaged',
+  'untracked',
+]) {
+  test(`blocked without PR fails closed for invalid ${kind}`, (t) => {
+    const f = blockedFixture(
+      t,
+      kind === 'committed'
+        ? ({ code }) => writeFileSync(join(code, 'scripts/e2e.mjs'), 'forbidden\n')
+        : undefined
+    );
+    if (kind === 'identity') f.proof.sessionId = 'wrong';
+    if (kind === 'unpublished planning') {
+      const path = join(f.root, 'bin/git');
+      writeFileSync(
+        path,
+        readFileSync(path, 'utf8').replace(
+          "if (args[0] === 'ls-remote') console.log('" + 'b'.repeat(40),
+          "if (args[0] === 'ls-remote') console.log('" + 'f'.repeat(40)
+        )
+      );
+    }
+    if (kind === 'planning') f.proof.planningCommit = 'f'.repeat(40);
+    if (kind === 'handoff') writeFileSync(join(f.root, 'planning/handoff/mbp.md'), '');
+    if (kind === 'dev handoff') {
+      const path = join(f.root, 'bin/git');
+      writeFileSync(
+        path,
+        readFileSync(path, 'utf8').replace(
+          "console.log('handoff/mbp.md')",
+          "console.log('handoff/mbp.md\\nhandoff/dev.md')"
+        )
+      );
+    }
+    if (['staged', 'unstaged', 'untracked'].includes(kind)) {
+      writeFileSync(
+        join(f.code, kind === 'untracked' ? 'scripts/new.mjs' : 'scripts/e2e.mjs'),
+        'forbidden\n'
+      );
+      if (kind === 'staged') f.git('add', '.');
+    }
+    writeFileSync(f.state.pending.resultPath, JSON.stringify(f.proof));
+    const { after } = f.finish();
+    assert.equal(after.status, 'blocked');
+    assert.match(after.stopReason, /invalid-handoff:/);
+    assert.equal(after.pending.id, 'scope-child');
+    assert.equal(after.deviations.length, 0);
+    assert.equal(after.index, 0);
+    assert.throws(() => readFileSync(join(f.root, 'gh-called')));
+  });
+}
