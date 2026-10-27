@@ -1,8 +1,11 @@
-// Read retained evidence without changing scores or private planning. A run is a boundary:
-// mixing attempts, commits or profiles would hide the failures this consumer must preserve.
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
-import { resolve, join, relative } from 'node:path';
-import { fileURLToPath } from 'node:url';
+// Validate the retained evidence of one quality run without changing scores. A run is a
+// boundary: mixing attempts, commits or profiles would hide the failures this validator must
+// preserve. It stays in this repository because the required `frontend-quality` gate imports it;
+// everything that reads the Actions history, keeps the weekly clock or routes a cause to a
+// planning item is the owner's process and lives in the private planning sibling. Rejected:
+// keeping that routing here behind a flag, because every contributor would still read lane
+// names and item numbers that mean nothing outside the owner's planning.
+import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { matrix } from './matrix.mjs';
 import { repairProposals } from './evaluate.mjs';
@@ -11,8 +14,7 @@ const states = ['pass', 'fail', 'inconclusive', 'not-measured'];
 const token = (v) => typeof v === 'string' && /^[a-zA-Z0-9_.:#, /+-]{1,240}$/.test(v);
 const sha = (v) => typeof v === 'string' && /^[a-f0-9]{40}$/.test(v);
 const hash = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
-const iso = (v) => typeof v === 'string' && Number.isFinite(Date.parse(v));
-const issue = (reason) => ({ reason, owner: 'dev', address: '#43C-report' });
+const issue = (reason) => ({ reason });
 const key = (s) => `${s.scope}-${s.locale}-${s.profile}-${s.cache}`;
 const worst = (values) =>
   ['fail', 'not-measured', 'inconclusive'].find((state) => values.includes(state)) ??
@@ -77,9 +79,9 @@ export function expectedShards(contract, event, selection) {
   });
 }
 
-export function currentAddress(address, preview = false) {
-  return address === '#43B' ? (preview ? '#43C-preview' : '#43C-report') : address;
-}
+// Coverage entries keep what the report said about where a gap belongs (`sourceAddress`,
+// `sourceOwner`, `dependency`) as bounded tokens; resolving them to a current planning address
+// is routing and happens outside this repository.
 function coverageView(entries) {
   return entries.map((entry) => ({
     route: token(entry.route) ? entry.route : 'unclassified',
@@ -90,12 +92,8 @@ function coverageView(entries) {
           ? entry.state
           : 'not-measured',
     representation: entry.route === 'demanding tenant theme' ? 'simulated' : null,
-    owner: entry.owner === 'dev' ? 'dev' : 'mbp',
     sourceAddress: token(entry.address) ? entry.address : null,
-    address:
-      currentAddress(entry.address, entry.route === 'dynamic POST/iframe preview') ??
-      entry.dependency ??
-      '#43C-report',
+    sourceOwner: token(entry.owner) ? entry.owner : null,
     dependency: token(entry.dependency) ? entry.dependency : null,
     // Coverage remains explicit; arbitrary free text and report errors are never published.
   }));
@@ -373,27 +371,23 @@ export function consumeRun(run, load) {
       }
       coverage.push(...coverageView(report.coverage ?? []));
       // Bind claims to their validated shard cells before any cause is deduplicated.
-      // A run-wide map would let an unrelated later shard replace the source route.
-      for (const p of repairProposals(artifactCells)) {
-        const claims = (report.repairs ?? []).filter(
-          (claim) => claim.key === p.key && token(claim.address)
-        );
-        for (const claim of claims.length ? claims : [p]) {
-          const sourceAddress = claim.address;
-          const address = currentAddress(sourceAddress);
-          proposals.push({
-            ...p,
-            artifact: name,
-            sourceAddress,
-            address,
-            ...(['dev', 'mbp'].includes(claim.owner) ? { owner: claim.owner } : {}),
-            ...(['workhorse', 'flagship-review', 'flagship-only'].includes(claim.tier)
-              ? { tier: claim.tier }
-              : {}),
-            ...(address === '#43C-report' ? { aliases: ['#43B'] } : {}),
-          });
-        }
-      }
+      // A run-wide map would let an unrelated later shard replace the source route. A claim
+      // is what the measured report said about a cause (address, owner, tier) as bounded
+      // tokens; which of them wins, and where an unclaimed cause goes, is routing.
+      for (const p of repairProposals(artifactCells))
+        proposals.push({
+          ...p,
+          artifact: name,
+          claims: (report.repairs ?? [])
+            .filter((claim) => claim.key === p.key && token(claim.address))
+            .map((claim) =>
+              Object.fromEntries(
+                ['address', 'owner', 'tier']
+                  .filter((field) => token(claim[field]))
+                  .map((field) => [field, claim[field]])
+              )
+            ),
+        });
       if (report.state === 'pass' && report.cells.some((c) => c.state !== 'pass'))
         throw new Error('summary-state');
     } catch {
@@ -445,232 +439,4 @@ export function consumeRun(run, load) {
     coverage: [...new Map(coverage.map((entry) => [JSON.stringify(entry), entry])).values()],
     proposals,
   };
-}
-
-export function scheduleStatus(workflow, runs, now) {
-  const issues = [];
-  if (!iso(now) || !iso(workflow?.activatedAt) || workflow.cron !== '17 5 * * 1')
-    return { state: 'not-measured', issues: [issue('unknown-schedule-contract')] };
-  if (workflow.state !== 'active')
-    issues.push(
-      issue(
-        workflow.state === 'disabled_manually' || workflow.state === 'disabled_inactivity'
-          ? 'workflow-disabled'
-          : 'workflow-state-unknown'
-      )
-    );
-  const start = new Date(workflow.activatedAt);
-  const due = new Date(start);
-  due.setUTCHours(5, 17, 0, 0);
-  while (due <= start || due.getUTCDay() !== 1) due.setUTCDate(due.getUTCDate() + 1);
-  const windows = [];
-  const clock = Date.parse(now);
-  while (due.getTime() <= clock || !windows.length) {
-    const next = new Date(due.getTime() + 7 * 86400000);
-    const overdueAt = new Date(due.getTime() + 86400000).toISOString();
-    const actual = runs.filter(
-      (r) =>
-        r.event === 'schedule' &&
-        Date.parse(r.createdAt) >= due.getTime() &&
-        Date.parse(r.createdAt) < next.getTime() &&
-        Date.parse(r.createdAt) <= clock
-    );
-    windows.push({
-      dueAt: due.toISOString(),
-      overdueAt,
-      graceHours: 24,
-      runIds: actual.map((r) => r.id),
-      late: actual.some((r) => Date.parse(r.createdAt) >= Date.parse(overdueAt)),
-      state: actual.length
-        ? worst(actual.map((r) => r.state))
-        : clock >= Date.parse(overdueAt)
-          ? 'not-measured'
-          : 'pending',
-      owner: 'dev',
-      address: '#43C-report',
-    });
-    if (next.getTime() > clock) break;
-    due.setTime(next.getTime());
-  }
-  return {
-    state:
-      issues.length || windows.some((w) => w.state === 'not-measured')
-        ? 'not-measured'
-        : windows.some((w) => w.state === 'fail')
-          ? 'fail'
-          : windows.some((w) => w.state === 'inconclusive')
-            ? 'inconclusive'
-            : windows.some((w) => w.state === 'pending')
-              ? 'pending'
-              : 'pass',
-    issues,
-    windows,
-  };
-}
-
-// Resolve routing from every source claim, not whichever API run arrives first. Conflicting
-// established addresses/owners need human deduplication; a generic fallback cannot settle them.
-function aggregateProposals(runs) {
-  const all = new Map();
-  const tiers = ['workhorse', 'flagship-review', 'flagship-only'];
-  const generic = new Set(['#43B', '#43C', '#43C-report']);
-  for (const run of runs) {
-    for (const proposal of run.proposals) {
-      const entry = all.get(proposal.key) ?? {
-        key: proposal.key,
-        sourceAddresses: [],
-        routingClaims: [],
-        runs: [],
-        registration: 'requires six-field record and planning deduplication',
-      };
-      if (!entry.sourceAddresses.includes(proposal.sourceAddress))
-        entry.sourceAddresses.push(proposal.sourceAddress);
-      const ref = {
-        id: run.id,
-        attempt: run.attempt,
-        artifact: proposal.artifact,
-        cells: proposal.cells,
-      };
-      entry.runs.push(ref);
-      let claim = entry.routingClaims.find(
-        (c) =>
-          c.address === proposal.address &&
-          c.sourceAddress === proposal.sourceAddress &&
-          c.owner === proposal.owner &&
-          c.tier === proposal.tier
-      );
-      if (!claim) {
-        claim = {
-          address: proposal.address,
-          sourceAddress: proposal.sourceAddress,
-          owner: proposal.owner,
-          tier: proposal.tier,
-          runs: [],
-        };
-        entry.routingClaims.push(claim);
-      }
-      claim.runs.push(ref);
-      all.set(proposal.key, entry);
-    }
-  }
-  return [...all.values()].map((entry) => {
-    const established = entry.routingClaims.filter((c) => !generic.has(c.address));
-    const candidates = established.length ? established : entry.routingClaims;
-    const routes = new Set(candidates.map((c) => JSON.stringify([c.address, c.owner])));
-    const conflict = routes.size > 1;
-    return {
-      ...entry,
-      address: conflict ? null : candidates[0].address,
-      owner: conflict ? null : candidates[0].owner,
-      tier: tiers[Math.max(...entry.routingClaims.map((c) => tiers.indexOf(c.tier)))],
-      routingState: conflict ? 'conflict' : 'resolved',
-    };
-  });
-}
-
-export function consume(history, load, now) {
-  if (history.schemaVersion !== 1) throw new Error('Unsupported history schema');
-  const seen = new Set();
-  const runs = history.runs.map((run) => {
-    const id = `${run.id}:${run.attempt}`;
-    if (seen.has(id)) throw new Error('Duplicate run/attempt');
-    seen.add(id);
-    return consumeRun(run, load);
-  });
-  const schedule = scheduleStatus(history.workflow, runs, now);
-  const watchdog = history.watchdog ?? { state: 'not-measured' };
-  const issues = (history.errors ?? []).map(() => issue('api-unavailable'));
-  if (
-    watchdog.state !== 'active' ||
-    !iso(watchdog.lastCompletedAt) ||
-    Date.parse(now) - Date.parse(watchdog.lastScheduledAt ?? watchdog.lastCompletedAt) >
-      48 * 3600000 ||
-    watchdog.conclusion !== 'success'
-  )
-    issues.push(issue('watchdog-not-observed-healthy'));
-  return {
-    schemaVersion: 1,
-    asOf: now,
-    state: issues.length ? 'not-measured' : schedule.state,
-    aliases: { '#43B': ['#43C-report', '#43C-preview'] },
-    schedule,
-    watchdog: {
-      state: watchdog.state,
-      lastCompletedAt: watchdog.lastCompletedAt ?? null,
-      lastScheduledAt: watchdog.lastScheduledAt ?? null,
-      conclusion: watchdog.conclusion ?? null,
-    },
-    issues,
-    runs,
-    proposals: aggregateProposals(runs),
-  };
-}
-export function markdown(report) {
-  return [
-    `# Frontend quality evidence`,
-    '',
-    `As of ${report.asOf}. Monitoring: **${report.state}**. Weekly schedule: **${report.schedule.state}**.`,
-    '',
-    'Observation job success does not establish a passing measurement. Coverage and original attempts remain separate.',
-    '',
-    '| Run / attempt | Event | Measured SHA (head separately in JSON) | State | Present / expected | Samples |',
-    '| --- | --- | --- | --- | --- | --- |',
-    ...report.runs.map(
-      (r) =>
-        `| [${r.id}/${r.attempt}](${r.url}) | ${r.event} | ${r.measuredSha} | ${r.state} | ${r.present}/${r.expected} | ${r.samples} |`
-    ),
-    '',
-    ...(report.schedule.windows?.map(
-      (w) =>
-        `Weekly ${w.dueAt}: **${w.state}**; overdue ${w.overdueAt} (24h operational grace); late firing: ${w.late ? 'yes' : 'no'}; dev #43C-report.`
-    ) ?? []),
-    '',
-    ...report.runs.flatMap((r) => [
-      `Run ${r.id}/${r.attempt}: ${JSON.stringify(r.counts)}. Issues: ${r.issues.map((i) => i.reason).join(', ') || 'none'}.`,
-      ...r.coverage.map(
-        (c) =>
-          `- Coverage ${c.route}: ${c.state}; ${c.owner} ${c.address}; source ${c.sourceAddress ?? 'unspecified'}; dependency ${c.dependency ?? 'see contract'}.`
-      ),
-      ...r.proposals.map(
-        (p) =>
-          `- Proposal ${p.key}: ${p.owner} ${p.address} (${p.tier}); source ${p.sourceAddress}; aliases ${(p.aliases ?? []).join(', ') || 'none'}.`
-      ),
-    ]),
-    '',
-    ...report.proposals.map(
-      (p) =>
-        `- ${p.routingState === 'conflict' ? 'Routing conflict' : 'Aggregate routing'} ${p.key}: ${p.owner ?? 'unresolved'} ${p.address ?? 'unresolved'} (${p.tier}); claims ${p.routingClaims.map((c) => `${c.owner} ${c.address} (${c.tier}), source ${c.sourceAddress}, runs ${c.runs.map((r) => `${r.id}/${r.attempt} artifact ${r.artifact} cells ${r.cells.join(',')}`).join(', ')}`).join('; ')}.`
-    ),
-    '',
-    `Monitoring issues: ${report.issues.map((i) => i.reason).join(', ') || 'none'}.`,
-    '',
-    'First actual weekly firing requires a schedule event. Manual/main/local evidence cannot replace it. This watchdog is not independent external monitoring.',
-    '',
-  ].join('\n');
-}
-
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const args = process.argv.slice(2);
-  const option = (name) => args.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
-  const root = resolve(option('input') ?? '');
-  const out = resolve(option('out') ?? '');
-  const now = option('as-of');
-  if (!option('input') || !option('out') || !iso(now) || existsSync(out))
-    throw new Error('Use --input=DIR --as-of=ISO --out=NEW-DIR');
-  const history = JSON.parse(readFileSync(join(root, 'history.json'), 'utf8'));
-  const report = consume(
-    history,
-    (a) => {
-      const path = resolve(root, a.path);
-      if (relative(root, path).startsWith('..')) throw new Error('Artifact outside input');
-      return JSON.parse(readFileSync(path, 'utf8'));
-    },
-    now
-  );
-  mkdirSync(out, { recursive: true, mode: 0o700 });
-  writeFileSync(join(out, 'summary.json'), JSON.stringify(report, null, 2));
-  writeFileSync(join(out, 'summary.md'), markdown(report));
-  console.log(
-    `Monitoring ${report.state}; schedule ${report.schedule.state}; ${report.runs.length} retained run attempts. ${out}`
-  );
 }

@@ -119,8 +119,11 @@ export function evaluateCell(contract, batches) {
   };
 }
 
-// The proposal key is a cause class, never a route. Private planning owns triage and closure.
-export function repairProposals(cells, ledger = [], now = new Date()) {
+// The proposal key is a cause class, never a route. Who repairs it and under which planning
+// item is routing, added outside this repository; the evaluator only marks the class that
+// touches a security boundary (a private admin page served cacheable). Rejected: a ledger of
+// closed causes here, because closure is a planning fact the product cannot verify.
+export function repairProposals(cells) {
   const proposals = new Map();
   for (const cell of cells) {
     if (cell.state === 'pass') continue;
@@ -154,24 +157,7 @@ export function repairProposals(cells, ledger = [], now = new Date()) {
               .flatMap((b) => b.failedAuditIdsByCategory?.[category] ?? b.failedAuditIds)
               .sort()
               .join(',')}`;
-      const previous = ledger.find((item) => item.key === key);
-      const proposal = proposals.get(key) ?? {
-        key,
-        owner: privacy ? 'mbp' : category === 'measurement' ? 'dev' : 'mbp',
-        tier: privacy ? 'flagship-review' : 'workhorse',
-        address:
-          previous?.address ??
-          (privacy
-            ? '#11'
-            : category === 'seo'
-              ? '#9'
-              : category === 'measurement'
-                ? '#43C-report'
-                : '#43C'),
-        recurrence: previous?.status === 'closed',
-        expiredException: Boolean(previous?.expires && new Date(previous.expires) <= now),
-        cells: [],
-      };
+      const proposal = proposals.get(key) ?? { key, category, security: privacy, cells: [] };
       proposal.cells.push(cell.id);
       proposals.set(key, proposal);
     }

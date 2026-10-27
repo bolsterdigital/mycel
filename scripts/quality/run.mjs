@@ -98,16 +98,11 @@ const result = {
     {
       state: 'not-measured',
       route: 'dynamic POST/iframe preview',
-      owner: 'dev',
-      address: '#43C-preview',
-      aliases: ['#43B'],
       reason: 'requires a versioned dynamic-state measurement contract; GET is an empty shell',
     },
     {
       state: 'not-measured',
       route: 'demanding tenant theme',
-      owner: 'mbp',
-      address: '#38',
       reason: `${corpus.fixtureVersion} theme is simulated, not a persisted tenant fixture`,
     },
     ...corpus.planned
@@ -116,8 +111,6 @@ const result = {
     {
       state: 'not-measured',
       route: 'manual accessibility and field data',
-      owner: 'mbp',
-      address: '#43C',
       reason:
         'see release scenarios in frontend-quality.md; no real-user data or screen reader available',
     },
@@ -294,9 +287,6 @@ try {
     result.coverage.push({
       state: 'not-measured',
       route: 'admin corpus',
-      owner: 'dev',
-      address: '#43C-report',
-      aliases: ['#43B'],
       reason: 'default set is public; use --scope=full locally',
     });
   await context.close();

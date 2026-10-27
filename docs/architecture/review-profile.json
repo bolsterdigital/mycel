@@ -62,8 +62,7 @@
         "packages/core/src/util/digest*",
         "packages/core/src/util/email*",
         "packages/core/src/util/log*",
-        "packages/core/src/util/token*",
-        "tools/handoff-pilot/**"
+        "packages/core/src/util/token*"
       ],
       "adrs": ["002", "009", "011", "014", "016", "019", "024"],
       "gates": [
@@ -76,8 +75,6 @@
         "packages/db/src/login-limit.conformance.test.ts",
         "apps/web/src/lib/server/security-headers.test.ts",
         "scripts/gitleaks.test.mjs",
-        "tools/handoff-pilot/cli.test.mjs",
-        "tools/handoff-pilot/state.test.mjs",
         ".github/workflows/verify.yml"
       ],
       "counterproof": "A second tenant, an anonymous principal or a revoked key against the new path; an address that must be gone, searched in every copy."
@@ -281,16 +278,13 @@
         "packages/core/src/testing/**",
         "packages/db/src/testing.ts",
         "scripts/**",
-        "tools/handoff-pilot/**",
         "packages/db/src/seed.ts"
       ],
       "adrs": ["000"],
       "gates": [
         "scripts/workflows.test.mjs",
         "scripts/docs-links.test.mjs",
-        "scripts/review-signals.test.mjs",
-        "tools/handoff-pilot/cli.test.mjs",
-        "tools/handoff-pilot/state.test.mjs"
+        "scripts/review-signals.test.mjs"
       ],
       "counterproof": "Run the changed gate against a change it must refuse."
     }
