@@ -160,16 +160,16 @@ for (const locale of ['nl-NL', 'en-US']) {
             .analyze();
           expect(violations.map((v) => v.id)).toEqual([]);
         }
-        // The unknown attempt offers only a manual close, never a retry.
-        await expect(card).toContainText(
+        // The unknown attempt offers only a manual close, never a retry. The synthetic test sent
+        // above is a separate, pending attempt and may keep its own retry.
+        const unknown = card.locator('.intent', {
+          hasText: locale.startsWith('nl') ? 'Uitkomst onbekend' : 'Outcome unknown',
+        });
+        await expect(unknown).toContainText(
           locale.startsWith('nl') ? 'Mycel weet niet of de ontvanger' : 'Mycel cannot tell whether'
         );
-        await expect(
-          card.getByRole('button', {
-            name: locale.startsWith('nl') ? 'Probeer opnieuw' : 'Request guarded retry',
-          })
-        ).toHaveCount(0);
-        await card
+        await expect(unknown.getByRole('button')).toHaveCount(1);
+        await unknown
           .getByRole('button', {
             name: locale.startsWith('nl') ? 'Markeer als afgehandeld' : 'Mark as handled',
           })
