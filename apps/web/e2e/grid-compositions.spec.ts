@@ -1,6 +1,6 @@
 // Composition coverage uses real published documents and the existing preview renderer.
 // Rejected: standalone HTML fixtures that drift from production blocks.
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium, expect, test, type APIRequestContext, type Page } from '@playwright/test';
@@ -307,6 +307,45 @@ test('real Chromium 200% browser zoom reflows the composition', async () => {
       contentType: 'application/json',
     });
     await page.screenshot({ path: test.info().outputPath('browser-zoom-200.png'), fullPage: true });
+    await page.goto('http://127.0.0.1:4173/probe/blok-faq-accordion-full');
+    const faq = await page.evaluate(() => {
+      const section = document.querySelector('main > .faq')!.getBoundingClientRect();
+      const answer = document.querySelector('.faq .answer')!.getBoundingClientRect();
+      return {
+        viewport: document.documentElement.clientWidth,
+        scroll: document.documentElement.scrollWidth,
+        section: section.width,
+        answer: answer.width,
+        ratio: devicePixelRatio,
+      };
+    });
+    expect(faq.viewport).toBeCloseTo(before.width / 2, 0);
+    expect(faq.ratio).toBe(before.ratio * 2);
+    expect(faq.scroll).toBeLessThanOrEqual(faq.viewport + 1);
+    expect(faq.section).toBe(faq.viewport);
+    expect(faq.answer).toBeLessThanOrEqual(faq.section);
+    await page.locator('summary').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.faq details')).toHaveAttribute('open', '');
+    await page.screenshot({
+      path: test.info().outputPath('faq-browser-zoom-200.png'),
+      fullPage: true,
+    });
+    if (process.env['FAQ_REPORT_DIR']) {
+      await mkdir(process.env['FAQ_REPORT_DIR'], { recursive: true });
+      await page.screenshot({
+        path: join(process.env['FAQ_REPORT_DIR'], 'faq-browser-zoom-200.png'),
+        fullPage: true,
+      });
+      await writeFile(
+        join(process.env['FAQ_REPORT_DIR'], 'faq-browser-zoom.json'),
+        JSON.stringify({ faq, version: context.browser()?.version() }, null, 2) + '\n'
+      );
+    }
+    await test.info().attach('faq-browser-zoom.json', {
+      body: JSON.stringify({ faq, version: context.browser()?.version() }),
+      contentType: 'application/json',
+    });
   } finally {
     await context?.close();
     await rm(directory, { recursive: true, force: true });

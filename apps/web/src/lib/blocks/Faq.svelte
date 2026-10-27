@@ -13,7 +13,7 @@
   const question = $derived(headingTag(depth));
 </script>
 
-<section class="block faq faq-{block.variant}">
+<section class="block faq faq-{block.variant} width-{block.width}">
   {#if block.title}<svelte:element this={headingTag(BLOCK_DEPTH)}>{block.title}</svelte:element
     >{/if}
   {#each block.entries as entry, i (i)}

@@ -454,6 +454,15 @@
   .faq details .answer {
     padding-block: var(--space-1) var(--space-2);
   }
+  /* A wide FAQ uses its wider rail for the section while questions and answers keep a
+     readable measure within the actual container, including a narrow preview. */
+  .faq > :is(h2, h3, details, .answer) {
+    max-width: min(var(--content-width), 100% - 2 * var(--inset));
+    margin-inline: auto;
+  }
+  .faq :is(summary, .answer) {
+    overflow-wrap: anywhere;
+  }
 
   /* Quotes */
   .quote blockquote {

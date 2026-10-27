@@ -267,6 +267,7 @@ export async function resolveDocument(
           id,
           type: 'faq',
           variant: b.props.variant,
+          width: b.props.width,
           title: text(b.props.title),
           entries: b.props.entries.map((e) => ({
             question: text(e.question) ?? '',

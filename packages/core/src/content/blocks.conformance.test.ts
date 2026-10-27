@@ -17,6 +17,7 @@ import {
   blockReferenceRows,
   blockTreeIssues,
   projectBlock,
+  upgradeFaqV1InDocument,
   type BlockField,
   type BlockType,
 } from './blocks.js';
@@ -31,7 +32,12 @@ const examples = BLOCK_TYPES.flatMap((type) =>
   BLOCK_DEFINITIONS[type].examples.map((e, i) => ({
     type,
     name: e.name,
-    input: { id: `${type}-${i}`, type, version: 1, props: e.props } as unknown,
+    input: {
+      id: `${type}-${i}`,
+      type,
+      version: BLOCK_DEFINITIONS[type].version,
+      props: e.props,
+    } as unknown,
   }))
 );
 const stored = (input: unknown) => Block.parse(input);
@@ -77,10 +83,10 @@ function localeKeysOf(value: unknown, out: string[][] = []): string[][] {
 }
 
 describe('block registry', () => {
-  it('lists every type once and gives each version 1 and at least one example', () => {
+  it('lists every type once and gives each its current version and examples', () => {
     expect(new Set(BLOCK_TYPES).size).toBe(BLOCK_TYPES.length);
     for (const type of BLOCK_TYPES) {
-      expect(BLOCK_DEFINITIONS[type].version).toBe(1);
+      expect(BLOCK_DEFINITIONS[type].version).toBe(type === 'faq' ? 2 : 1);
       expect(BLOCK_DEFINITIONS[type].examples.length).toBeGreaterThan(0);
     }
   });
@@ -111,6 +117,48 @@ describe('block registry', () => {
     const { toJsonSchema } = await import('../json-schema.js');
     const schema = JSON.stringify(toJsonSchema(BlockInput as unknown as z.ZodTypeAny));
     for (const type of BLOCK_TYPES) expect(schema).toContain(`"${type}"`);
+  });
+});
+
+describe('FAQ v1 read conversion', () => {
+  const old = () => ({
+    id: 'faq-legacy',
+    type: 'faq',
+    version: 1,
+    props: structuredClone(BLOCK_DEFINITIONS.faq.examples[0]!.props),
+  });
+
+  it('upgrades only the FAQ in memory and keeps identity, locales and item links', () => {
+    const raw = docOf([]);
+    const before = { ...raw, blocks: [old()] };
+    const bytes = JSON.stringify(before);
+    const upgraded = upgradeFaqV1InDocument(before);
+    const parsed = ContentDocument.parse(upgraded);
+    expect(JSON.stringify(before)).toBe(bytes);
+    expect(parsed.blocks[0]).toMatchObject({
+      id: 'faq-legacy',
+      type: 'faq',
+      version: 2,
+      props: { width: 'content' },
+    });
+    expect(parsed.blocks[0]?.props.entries).toEqual(old().props.entries);
+    expect(blockReferenceRows(parsed.blocks)).toEqual([
+      { blockId: 'faq-legacy', type: 'item', refId: EXAMPLE_IDS.item },
+    ]);
+    expect(upgradeFaqV1InDocument(upgraded)).toEqual(upgraded);
+  });
+
+  it('refuses malformed old props, extra keys and future versions', () => {
+    const raw = docOf([]);
+    for (const props of [
+      { ...old().props, width: 'wide' },
+      { ...old().props, unknown: 'x' },
+      { ...old().props, entries: [] },
+    ])
+      expect(() => upgradeFaqV1InDocument({ ...raw, blocks: [{ ...old(), props }] })).toThrow();
+    expect(() =>
+      ContentDocument.parse(upgradeFaqV1InDocument({ ...raw, blocks: [{ ...old(), version: 3 }] }))
+    ).toThrow();
   });
 });
 
@@ -250,7 +298,7 @@ describe('refusals', () => {
   it('refuses an unknown type, a future version and an unknown prop on every type', () => {
     refused({ type: 'gallery', version: 1, props: {} });
     for (const type of BLOCK_TYPES) {
-      refused({ ...base(type), version: 2 });
+      refused({ ...base(type), version: BLOCK_DEFINITIONS[type].version + 1 });
       refused({ ...base(type), props: { ...base(type).props, className: 'x' } });
     }
   });

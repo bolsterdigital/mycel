@@ -18,6 +18,8 @@
 
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import { BLOCK_DEFINITIONS, BLOCK_TYPES } from '@mycel/core';
 
 const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
@@ -53,3 +55,64 @@ for (const name of examples)
         violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)
       ).toEqual([]);
     });
+
+for (const variant of ['list', 'accordion'] as const)
+  for (const width of ['content', 'wide', 'full'] as const)
+    for (const locale of ['nl', 'en'] as const)
+      test(`FAQ ${variant} ${width} ${locale} keeps readable rails and native disclosure`, async ({
+        page,
+      }) => {
+        const name = `faq-${variant}${width === 'content' ? '' : `-${width}`}`;
+        const path = `/probe/${locale === 'en' ? 'en/' : ''}blok-${name}`;
+        for (const viewport of [320, 768, 1440]) {
+          await page.setViewportSize({ width: viewport, height: 900 });
+          expect((await page.goto(path))?.status()).toBe(200);
+          if (viewport === 320)
+            await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
+          const section = page.locator(`main > .faq.width-${width}`);
+          await expect(section).toBeVisible();
+          const dimensions = await page.evaluate(() => {
+            const section = document.querySelector('main > .faq')!;
+            const answer = section.querySelector('.answer')!;
+            const box = (element: Element) => element.getBoundingClientRect();
+            return {
+              viewport: document.documentElement.clientWidth,
+              scroll: document.documentElement.scrollWidth,
+              section: box(section).width,
+              answer: box(answer).width,
+              summary: section.querySelector('summary')
+                ? box(section.querySelector('summary')!).height
+                : null,
+            };
+          });
+          expect(dimensions.scroll).toBeLessThanOrEqual(dimensions.viewport + 1);
+          expect(dimensions.answer).toBeLessThanOrEqual(dimensions.section);
+          if (viewport === 1440 && width === 'wide') expect(dimensions.section).toBe(1088);
+          if (viewport === 1440 && width === 'full') expect(dimensions.section).toBe(1440);
+          if (variant === 'accordion') {
+            expect(dimensions.summary).toBeGreaterThanOrEqual(44);
+            await page.locator('summary').focus();
+            await page.keyboard.press('Enter');
+            await expect(page.locator('details')).toHaveAttribute('open', '');
+            await expect(page.locator('.faq .answer')).toBeVisible();
+          }
+          const report = process.env['FAQ_REPORT_DIR'];
+          if (
+            viewport === 320 &&
+            report &&
+            ((variant === 'list' && width === 'wide') ||
+              (variant === 'accordion' && width === 'full'))
+          ) {
+            await mkdir(report, { recursive: true });
+            await page.screenshot({
+              path: join(report, `${name}-${locale}-320-text200.png`),
+              fullPage: true,
+            });
+          }
+          if (viewport === 320)
+            await page.screenshot({
+              path: test.info().outputPath(`${name}-${locale}-320-text200.png`),
+              fullPage: true,
+            });
+        }
+      });

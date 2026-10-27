@@ -16,6 +16,7 @@ import {
   Pattern,
   Revision,
   Section,
+  upgradeFaqV1InDocument,
   type ContentRepository,
   type EntityRepository,
   type ItemRecord,
@@ -271,7 +272,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
             createdAt: iso(r.created_at),
             actor: r.actor,
             ...(r.provenance ? { provenance: r.provenance } : {}),
-            document: r.document,
+            document: upgradeFaqV1InDocument(r.document),
           })
         : null;
     },

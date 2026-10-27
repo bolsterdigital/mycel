@@ -138,6 +138,105 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
     clock.current = new Date(Date.now() - 60 * MINUTE);
   });
 
+  it('reads FAQ v1 as v2 without changing raw revision or publication pins', async () => {
+    const faq = {
+      id: 'legacy-faq',
+      type: 'faq' as const,
+      version: 2 as const,
+      props: {
+        variant: 'accordion' as const,
+        width: 'content' as const,
+        title: { nl: 'Vragen', en: 'Questions' },
+        entries: [
+          {
+            question: { nl: 'Waarom?', en: 'Why?' },
+            answer: {
+              nl: {
+                type: 'doc' as const,
+                content: [
+                  { type: 'paragraph' as const, content: [{ type: 'text' as const, text: 'Ja.' }] },
+                ],
+              },
+              en: {
+                type: 'doc' as const,
+                content: [
+                  {
+                    type: 'paragraph' as const,
+                    content: [{ type: 'text' as const, text: 'Yes.' }],
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      },
+    };
+    const created = await invoker.run(useCases.createItem, a(), {
+      slug: `faq-v1-${run}`,
+      document: { ...doc('FAQ'), blocks: [faq] },
+    });
+    const raw = structuredClone(created.revision.document);
+    const old = raw.blocks[0] as typeof faq;
+    old.version = 1 as never;
+    delete (old.props as Partial<typeof faq.props>).width;
+    await operatorDb
+      .updateTable('content_revisions')
+      .set({ document: JSON.stringify(raw) })
+      .where('id', '=', created.revision.id)
+      .execute();
+    const rawBytes = async () =>
+      (
+        await operatorDb
+          .selectFrom('content_revisions')
+          .select(sql<string>`document::text`.as('bytes'))
+          .where('id', '=', created.revision.id)
+          .executeTakeFirstOrThrow()
+      ).bytes;
+    const beforeBytes = await rawBytes();
+    const read = await invoker.run(useCases.getItem, a(), { itemId: created.item.id });
+    expect(read.revision.document.blocks[0]).toMatchObject({
+      id: 'legacy-faq',
+      version: 2,
+      props: { width: 'content' },
+    });
+    await invoker.run(useCases.publishItem, a(), {
+      itemId: created.item.id,
+      revisionId: created.revision.id,
+      locale: 'nl',
+    });
+    await plan(created.item.id, created.revision.id, 'en', 10);
+    const pinned = await state(created.item.id, 'en');
+    const live = await state(created.item.id, 'nl');
+    expect(pinned.scheduledRevisionId).toBe(created.revision.id);
+    const saved = await invoker.run(useCases.setBlockProps, a(), {
+      itemId: created.item.id,
+      baseRevisionId: created.revision.id,
+      blockId: faq.id,
+      props: { ...faq.props, width: 'wide' },
+    });
+    expect(saved.revision.document.blocks[0]).toMatchObject({
+      version: 2,
+      props: { width: 'wide' },
+    });
+    expect(await state(created.item.id, 'nl')).toMatchObject({
+      publishedRevisionId: live.publishedRevisionId,
+      publishedAt: live.publishedAt,
+      firstPublishedAt: live.firstPublishedAt,
+    });
+    expect(await state(created.item.id, 'en')).toMatchObject({
+      scheduledRevisionId: pinned.scheduledRevisionId,
+      scheduledFor: pinned.scheduledFor,
+      scheduleId: pinned.scheduleId,
+    });
+    const stored = await operatorDb
+      .selectFrom('content_revisions')
+      .select('document')
+      .where('id', '=', created.revision.id)
+      .executeTakeFirstOrThrow();
+    expect(stored.document).toEqual(raw);
+    expect(await rawBytes()).toBe(beforeBytes);
+  });
+
   afterAll(async () => {
     await operatorDb.destroy();
     await appDb.destroy();

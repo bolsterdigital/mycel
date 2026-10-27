@@ -4,7 +4,12 @@ import { BLOCK_DEFINITIONS, Block, UseCaseError } from '@mycel/core';
 import { fieldIssues, summaryOf } from './content-blocks.js';
 
 const example = (type: keyof typeof BLOCK_DEFINITIONS, n = 0) =>
-  Block.parse({ id: 'b', type, version: 1, props: BLOCK_DEFINITIONS[type].examples[n]!.props });
+  Block.parse({
+    id: 'b',
+    type,
+    version: BLOCK_DEFINITIONS[type].version,
+    props: BLOCK_DEFINITIONS[type].examples[n]!.props,
+  });
 
 describe('summaryOf', () => {
   it('names a block by its first text in the locale, rich text and list rows included', () => {

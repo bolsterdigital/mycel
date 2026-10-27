@@ -111,6 +111,13 @@ test('every block type is edited once through its form, without JavaScript', asy
   await expect(
     (await block(page, 9)).getByLabel('Vraag (nl)', { exact: true }).first()
   ).toHaveValue(`Wat? ${stamp}`);
+  await (await block(page, 9)).getByLabel('Breedte').selectOption('wide');
+  await save(page, 9);
+  await page.reload();
+  await expect((await block(page, 9)).getByLabel('Breedte')).toHaveValue('wide');
+  await expect(
+    (await block(page, 9)).getByLabel('Vraag (en)', { exact: true }).first()
+  ).toHaveValue(/.+/);
   const width = (await block(page, 12)).getByLabel('Breedte');
   const next = (await width.inputValue()) === 'wide' ? 'Volle breedte' : 'Breed';
   await width.selectOption({ label: next });
@@ -130,6 +137,15 @@ test('every block type is edited once through its form, without JavaScript', asy
   await page.goto(preview!);
   await expect(page.locator('main strong', { hasText: 'tekst' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'een link' })).toHaveAttribute('href', /\/over$/);
+  await expect(page.locator('main .faq.width-wide')).toContainText(`Wat? ${stamp}`);
+  await page.goto(edit);
+  if (test.info().project.name === 'a11y')
+    await expect(
+      page.frameLocator('iframe[data-live-preview-frame]').locator('.faq.width-wide')
+    ).toBeVisible();
+  await page.getByRole('button', { name: 'Publiceren (nl)' }).click();
+  await page.goto(`/probe/e2e-blokken-${test.info().project.name}`);
+  await expect(page.locator('main .faq.width-wide')).toContainText(`Wat? ${stamp}`);
 });
 
 /** Make a page through the "new" form; returns its edit URL. */
@@ -201,6 +217,132 @@ test('a block is inserted, moved and removed, each through a form of its own', a
   await expect(page).toHaveURL(new RegExp(`${edit}\\?done=blockRemoved`));
   await expect(page.getByRole('status')).toContainText('Blok verwijderd.');
   await expect(summaries).toHaveText([/^1\. Tekst/]);
+});
+
+test('FAQ v2 inserts, moves and publishes through native forms in both locales', async ({
+  page,
+}) => {
+  await login(page, '/admin/probe');
+  const edit = await newPage(page, 'faq-width');
+  await insert(page, 'Kop', 'Onderaan');
+  await page.getByLabel('Tekst (nl)').fill('Vooraf');
+  await page.getByLabel('Tekst (en)').fill('Before');
+  await page.getByRole('button', { name: 'Blok invoegen' }).click();
+  await insert(page, 'Vragen en antwoorden', 'Na dit blok', 1);
+  await page.getByLabel('Variant').selectOption('accordion');
+  await page.getByLabel('Breedte').selectOption('full');
+  await page.getByLabel('Vraag (nl)').first().fill('Waarom is dit belangrijk?');
+  await page.getByLabel('Vraag (en)').first().fill('Why does this matter?');
+  await page.getByLabel('Antwoord (nl)').first().fill('Omdat iedereen kan meedoen.');
+  await page.getByLabel('Antwoord (en)').first().fill('Because everyone can take part.');
+  await page.getByRole('button', { name: 'Blok invoegen' }).click();
+  await expect(page.getByRole('status')).toContainText('Blok ingevoegd.');
+  const id = await page.locator('details.block').nth(1).getAttribute('id');
+  await (await block(page, 2)).getByRole('button', { name: 'Omhoog' }).click();
+  await expect(page.locator('details.block').first()).toHaveAttribute('id', id!);
+  await page.reload();
+  await expect((await block(page, 1)).getByLabel('Breedte')).toHaveValue('full');
+  await expect((await block(page, 1)).getByLabel('Vraag (en)').first()).toHaveValue(
+    'Why does this matter?'
+  );
+  for (const locale of ['nl', 'en']) {
+    const preview = await page
+      .getByRole('link', { name: `Voorbeeld (${locale})` })
+      .getAttribute('href');
+    await page.goto(preview!);
+    await expect(page.locator('main .faq-accordion.width-full')).toContainText(
+      locale === 'nl' ? 'Waarom is dit belangrijk?' : 'Why does this matter?'
+    );
+    await page.goto(edit);
+    await page.getByRole('button', { name: `Publiceren (${locale})` }).click();
+  }
+  await expectNoAxeViolations(page);
+});
+
+test('the enhanced article writer keeps a native FAQ card through autosave and locale changes', async ({
+  page,
+  request,
+}) => {
+  test.skip(test.info().project.name !== 'a11y', 'the enhanced writer requires JavaScript');
+  test.skip(!process.env['E2E_API_URL'], 'run through scripts/e2e.mjs');
+  const api = async (name: string, data: unknown) => {
+    const response = await request.post(`${process.env['E2E_API_URL']}/v1/${name}`, {
+      headers: { authorization: `Bearer ${process.env['MYCEL_API_KEY']}` },
+      data,
+    });
+    expect(response.ok(), await response.text()).toBe(true);
+    return response.json();
+  };
+  const source = await api('content.item.list', { type: 'article', slug: 'quality-article-v3' });
+  expect(source.items).toHaveLength(1);
+  const fetched = await api('content.item.get', { itemId: source.items[0].id });
+  const prose = fetched.revision.document.blocks.find(
+    (entry: { type: string }) => entry.type === 'rich-text'
+  );
+  expect(prose).toBeTruthy();
+  const faq = {
+    id: 'writer-faq',
+    type: 'faq',
+    version: 2,
+    props: {
+      variant: 'accordion',
+      width: 'wide',
+      title: { nl: 'Schrijfvragen', en: 'Writing questions' },
+      entries: [
+        {
+          question: { nl: 'Blijft dit bewaard?', en: 'Does this survive?' },
+          answer: {
+            nl: {
+              type: 'doc',
+              content: [
+                { type: 'paragraph', content: [{ type: 'text', text: 'Ja, in beide talen.' }] },
+              ],
+            },
+            en: {
+              type: 'doc',
+              content: [
+                { type: 'paragraph', content: [{ type: 'text', text: 'Yes, in both languages.' }] },
+              ],
+            },
+          },
+        },
+      ],
+    },
+  };
+  const document = {
+    ...fetched.revision.document,
+    title: { nl: 'Schrijfproef', en: 'Writer proof' },
+    blocks: [prose, faq],
+  };
+  const created = await api('content.item.create', { slug: `faq-writer-${Date.now()}`, document });
+  const edit = `/admin/probe/content/${created.item.id}`;
+  await login(page, `${edit}/write`);
+  await expect(
+    page.locator('.writing-surface .editor-card[data-block-id="writer-faq"]')
+  ).toBeVisible();
+  await page.locator('.writing-surface .editor-prose p').first().click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' A new sentence.');
+  await expect(page.getByRole('status')).toHaveText('Alle wijzigingen opgeslagen.');
+  await page.reload();
+  await expect(
+    page.locator('.writing-surface .editor-card[data-block-id="writer-faq"]')
+  ).toBeVisible();
+  await page.goto(edit);
+  await (await block(page, 2)).getByLabel('Breedte').selectOption('full');
+  await save(page, 2);
+  await page.goto(`${edit}/write?locale=en`);
+  await expect(
+    page.locator('.writing-surface .editor-card[data-block-id="writer-faq"]')
+  ).toBeVisible();
+  await page.goto(edit);
+  await expect((await block(page, 2)).getByLabel('Breedte')).toHaveValue('full');
+  await expect((await block(page, 2)).getByLabel('Vraag (en)').first()).toHaveValue(
+    'Does this survive?'
+  );
+  const preview = await page.getByRole('link', { name: 'Voorbeeld (en)' }).getAttribute('href');
+  await page.goto(preview!);
+  await expect(page.locator('main .faq.width-full')).toContainText('Does this survive?');
 });
 
 test('a block save on an outdated revision is a conflict that keeps what was typed', async ({
