@@ -54,6 +54,12 @@ export class IdentityGatherer extends BaseGatherer {
             document.querySelector('link[rel="stylesheet"][href*="/_theme/"]')
           ),
           form: has('form[method="post"]'),
+          hero: has('.hero'),
+          proseBlocks: main?.querySelectorAll('.rich-text').length ?? 0,
+          closingProse: Boolean(
+            main?.lastElementChild?.matches('.rich-text') &&
+            main.lastElementChild.textContent.trim()
+          ),
           h2: has('h2'),
           ul: has('ul'),
           ol: has('ol'),

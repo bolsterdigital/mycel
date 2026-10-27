@@ -54,9 +54,7 @@ test.use({ extraHTTPHeaders: { 'x-forwarded-proto': 'http' } });
 
 for (const entry of entries)
   for (const [locale, identity] of Object.entries(entry.locales))
-    test(`${entry.routeClass} ${locale}: published identity, content and resources`, async ({
-      page,
-    }) => {
+    test(`${entry.slug} ${locale}: published identity, content and resources`, async ({ page }) => {
       const failed: string[] = [];
       const foreign: string[] = [];
       const origin = new URL(test.info().project.use.baseURL ?? 'http://127.0.0.1:4173').origin;
@@ -81,7 +79,7 @@ for (const entry of entries)
       expect(await page.locator('main img').count()).toBeGreaterThanOrEqual(
         entry.expected.minImages
       );
-      if ('minWords' in entry.expected) {
+      if (entry.routeClass === 'article' && 'minWords' in entry.expected) {
         const words = (await page.locator('main').innerText()).trim().split(/\s+/u);
         expect(words.length).toBeGreaterThanOrEqual(entry.expected.minWords);
         await expect(page.locator('main h2')).not.toHaveCount(0);
@@ -89,8 +87,19 @@ for (const entry of entries)
         await expect(page.locator('main ol')).not.toHaveCount(0);
         await expect(page.locator('main blockquote')).not.toHaveCount(0);
         await expect(page.locator('main a[href]')).not.toHaveCount(0);
-      } else {
-        await expect(page.locator('main form[method="post"]')).toHaveCount(1);
+      } else if ('form' in entry.expected) {
+        await expect(page.locator('main form[method="post"]')).toHaveCount(
+          entry.expected.form ? 1 : 0
+        );
+      }
+      if ('closingProse' in entry.expected) {
+        await expect(page.locator('main .hero')).toHaveCount(0);
+        expect(await page.locator('main .rich-text').count()).toBeGreaterThanOrEqual(
+          entry.expected.minProseBlocks
+        );
+        const prose = page.locator('main > .rich-text');
+        await expect(prose.last()).toHaveText((await prose.first().textContent())!);
+        await expect(page.locator('main > :last-child')).toHaveClass(/rich-text/);
       }
       for (const img of await page.locator('main img').all()) {
         await expect(img).toHaveAttribute('width', /\d+/);
@@ -155,9 +164,7 @@ test.describe('quality corpus reflow and text spacing', () => {
   test.use({ viewport: { width: 320, height: 900 } });
   for (const entry of entries)
     for (const [locale, identity] of Object.entries(entry.locales))
-      test(`${entry.routeClass} ${locale}: 320 CSS px, 200% text and WCAG spacing`, async ({
-        page,
-      }) => {
+      test(`${entry.slug} ${locale}: 320 CSS px, 200% text and WCAG spacing`, async ({ page }) => {
         test.skip(test.info().project.name !== 'a11y', 'requires DOM measurements');
         await page.goto(identity.path);
         await page.evaluate(() => {
@@ -183,9 +190,7 @@ test.describe('validated demanding theme simulation', () => {
   test.use({ viewport: { width: 320, height: 900 } });
   for (const entry of entries)
     for (const [locale, identity] of Object.entries(entry.locales))
-      test(`${entry.routeClass} ${locale}: editorial CSS keeps content and actions`, async ({
-        page,
-      }) => {
+      test(`${entry.slug} ${locale}: editorial CSS keeps content and actions`, async ({ page }) => {
         test.skip(test.info().project.name !== 'a11y', 'requires DOM measurements');
         const editorial = Theme.parse(THEME_PRESETS.editorial);
         await page.route('**/_theme/*.css', async (route) => {

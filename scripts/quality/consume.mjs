@@ -22,7 +22,7 @@ const worst = (values) =>
 // A new corpus/matrix protocol requires an explicit consumer adapter, not guessing coverage.
 export function sourceContract({ corpus, seed, matrixSource, workflow, lock }) {
   const manifest = JSON.parse(corpus);
-  if (manifest.fixtureVersion !== '43a-v3' || manifest.schemaVersion !== 1)
+  if (!['43a-v3', '43a-v4'].includes(manifest.fixtureVersion) || manifest.schemaVersion !== 1)
     throw new Error('unsupported-corpus');
   if (matrixSource !== readFileSync(new URL('./matrix.mjs', import.meta.url), 'utf8'))
     throw new Error('unsupported-matrix');
@@ -47,7 +47,7 @@ export function sourceContract({ corpus, seed, matrixSource, workflow, lock }) {
 export function expectedShards(contract, event, selection) {
   if (
     contract.schemaVersion !== 1 ||
-    contract.fixtureVersion !== '43a-v3' ||
+    !['43a-v3', '43a-v4'].includes(contract.fixtureVersion) ||
     !hash(contract.fixtureHash)
   )
     throw new Error('invalid-contract');
