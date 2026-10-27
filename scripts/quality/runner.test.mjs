@@ -249,7 +249,9 @@ function retained(event = 'workflow_dispatch') {
           ...contract.tools,
           chromium: '156.0.8078.4',
           caddy: `v${contract.tools.caddy} test`,
-          runner: 'github-ubuntu-24.04:20261023.334.3',
+          runner: `github-container:${contract.runnerImage}`,
+          hostImage: '20261023.334.3',
+          kernel: '6.11.0-1018-azure',
           mode: 'ci',
         },
         coverage: [
@@ -916,4 +918,289 @@ test('factory rejects private notes, arbitrary evidence URLs, duplicate closures
   r.runnerMinutes = 3.5;
   const future = { ...r, id: 200, startedAt: '2027-01-01T00:00:00Z', runnerMinutes: 100 };
   assert.equal(factory(processReport([r, future])).cost.knownRunnerMinutes, 3.5);
+});
+
+// The required check consumes real report fixtures, not a matrix job's success colour.
+import { gate, enforcement } from './gate.mjs';
+const policy = JSON.parse(source('scripts/quality/enforcement.json'));
+function gateFixture(event = 'pull_request') {
+  const run = retained(event);
+  for (const artifact of run.artifacts)
+    artifact.report.workflow = { runId: String(run.id), attempt: String(run.attempt) };
+  return {
+    run,
+    load,
+    policy,
+    downloadOutcome: 'success',
+    now: '2026-11-09T00:00:00Z',
+    needs: {
+      prepare: { result: 'success', outputs: { matrix: JSON.stringify(matrix(event)) } },
+      measure: { result: 'success' },
+    },
+  };
+}
+test('container shards bind the immutable userspace and kernel while retaining host images', () => {
+  const input = gateFixture();
+  const digest = 'd65108d1a8095d8b0c4a5e32bf1807a40a5ce90ff0c78473e1116b1c243235e8';
+  input.run.contract = { ...input.run.contract, runnerImage: `sha256:${digest}` };
+  for (const [n, artifact] of input.run.artifacts.entries()) {
+    Object.assign(artifact.report.environment, {
+      runner: `github-container:sha256:${digest}`,
+      hostImage: ['20261026.354.1', '20261023.334.3'][n],
+      kernel: '6.11.0-1018-azure',
+    });
+  }
+  const result = gate(input);
+  assert.equal(result.blocks, false);
+  assert.equal(result.report.present, 4);
+  assert.equal(result.report.samples, 20);
+  assert.deepEqual(
+    result.report.profiles.map((p) => p.environment.hostImage),
+    ['20261026.354.1', '20261023.334.3']
+  );
+  assert.notEqual(
+    environmentKey(result.report),
+    environmentKey({ ...result.report, tools: { ...result.report.tools, kernel: 'other' } })
+  );
+  for (const field of [
+    'runner',
+    'kernel',
+    'node',
+    'lighthouse',
+    'playwright',
+    'chromium',
+    'caddy',
+  ]) {
+    const bad = { ...input, run: structuredClone(input.run) };
+    bad.run.artifacts[1].report.environment[field] += '-changed';
+    assert.equal(gate(bad).blocks, true, field);
+  }
+  for (const field of ['runner', 'kernel', 'hostImage']) {
+    const bad = { ...input, run: structuredClone(input.run) };
+    delete bad.run.artifacts[1].report.environment[field];
+    assert.equal(gate(bad).blocks, true, `missing ${field}`);
+  }
+  // Historical host runs keep their original strict image comparison.
+  delete input.run.contract.runnerImage;
+  for (const a of input.run.artifacts)
+    a.report.environment.runner = `github-ubuntu-24.04:${a.report.environment.hostImage}`;
+  assert.equal(gate(input).blocks, true);
+});
+test('measurement installs no mutable host browser dependencies and pins its container to source', () => {
+  const workflow = source('.github/workflows/frontend-quality.yml');
+  assert.match(
+    workflow,
+    new RegExp(`playwright:v${contract.tools.playwright}-noble@${contract.runnerImage}`)
+  );
+  assert.match(workflow, /docker pull "\$QUALITY_RUNNER_IMAGE"/);
+  assert.match(workflow, /"\$QUALITY_RUNNER_IMAGE" \\\n\s+npm run quality/);
+  assert.match(workflow, /--env "QUALITY_HOST_IMAGE=\$ImageVersion"/);
+  assert.match(workflow, /--volume .*\/opt\/quality-node:ro/);
+  assert.match(workflow, /--volume \/usr\/local\/bin\/caddy:.*:ro/);
+  assert.doesNotMatch(workflow, /playwright install|apt-get|apt-mirrors/);
+  const inputs = {
+    corpus: source('apps/web/e2e/quality-corpus.json'),
+    seed: source('scripts/e2e.mjs'),
+    matrixSource: source('scripts/quality/matrix.mjs'),
+    workflow,
+    lock: source('package-lock.json'),
+  };
+  assert.throws(() =>
+    sourceContract({ ...inputs, workflow: workflow.replace(/@sha256:[a-f0-9]{64}/, '') })
+  );
+});
+test('required quality context validates complete default and full evidence at the UTC boundary', () => {
+  for (const event of ['pull_request', 'push', 'schedule', 'workflow_dispatch']) {
+    const input = gateFixture(event);
+    assert.equal(gate(input).blocks, false);
+    assert.equal(gate(input).measured, 'pass');
+    for (const state of ['fail', 'inconclusive', 'not-measured']) {
+      const changed = gateFixture(event);
+      const cell = changed.run.artifacts[0].report.cells[0];
+      cell.state = cell.batches[0].state = state;
+      changed.run.artifacts[0].report.state = state;
+      assert.equal(gate({ ...changed, now: '2026-11-08T23:59:59.999Z' }).blocks, false);
+      assert.equal(gate(changed).blocks, true);
+      assert.equal(gate(changed).measured, state);
+    }
+  }
+});
+test('green observation jobs cannot hide missing, stale, corrupt or contradictory matrix evidence', () => {
+  const mutations = [
+    (i) => {
+      i.downloadOutcome = 'failure';
+    },
+    (i) => {
+      i.run.artifacts = [];
+    },
+    (i) => {
+      i.run.artifacts.pop();
+    },
+    (i) => {
+      i.run.artifacts[0].report.cells.pop();
+    },
+    (i) => {
+      i.run.artifacts[0].report.cells = [];
+    },
+    (i) => {
+      i.run.artifacts.push(structuredClone(i.run.artifacts[0]));
+    },
+    (i) => {
+      i.run.artifacts[0].report.workflow.attempt = '0';
+    },
+    (i) => {
+      i.run.artifacts[0].report.workflow.runId = '999';
+    },
+    (i) => {
+      delete i.run.artifacts[0].report.workflow;
+    },
+    (i) => {
+      i.run.artifacts[0].report.commit = 'b'.repeat(40);
+    },
+    (i) => {
+      i.run.artifacts[0].report.fixtureHash = 'b'.repeat(64);
+    },
+    (i) => {
+      i.run.artifacts[0].report.environment.lighthouse = 'unknown';
+    },
+    (i) => {
+      i.run.artifacts[0].report.interrupted = true;
+    },
+    (i) => {
+      i.run.artifacts[0].report.cells[0].batches[0].sampleIds.pop();
+    },
+    (i) => {
+      i.run.artifacts[0].report.cells[0].batches[0].raw[0].accessibility = 0.99;
+    },
+    (i) => {
+      i.load = () => {
+        throw new Error('corrupt JSON');
+      };
+    },
+    (i) => {
+      i.needs.prepare.outputs.matrix = '{"include":[]}';
+    },
+    (i) => {
+      delete i.needs.prepare.outputs;
+    },
+    (i) => {
+      i.run.event = 'unknown';
+    },
+  ];
+  for (const job of ['prepare', 'measure'])
+    for (const result of ['failure', 'cancelled', 'skipped', undefined])
+      mutations.push((i) => {
+        i.needs[job].result = result;
+      });
+  for (const [n, mutate] of mutations.entries()) {
+    const input = gateFixture();
+    mutate(input);
+    for (const now of ['2026-10-27T12:00:00Z', '2026-11-09T00:00:00Z']) {
+      const result = gate({ ...input, now });
+      assert.equal(result.blocks, true, `mutation ${n}, ${now}`);
+      assert.equal(result.measured, 'not-measured');
+    }
+  }
+});
+test('early enforcement requires an explicit reviewed pair of independent run records', () => {
+  const early = {
+    at: '2026-11-02T12:00:00Z',
+    candidateSha: 'a'.repeat(40),
+    fixtureHash: 'b'.repeat(64),
+    runs: [1, 2].map((n) => `https://github.com/bolsterdigital/mycel/actions/runs/${n}`),
+    review: 'https://github.com/bolsterdigital/mycel/pull/90#pullrequestreview-123',
+  };
+  const activated = { ...policy, earlyActivation: early };
+  assert.equal(enforcement(activated, '2026-11-02T11:59:59.999Z'), false);
+  assert.equal(enforcement(activated, early.at), true);
+  const input = gateFixture();
+  input.run.artifacts[0].report.state = 'fail';
+  assert.equal(gate({ ...input, policy: activated, now: early.at }).blocks, true);
+  assert.throws(() => enforcement({ ...activated, deadline: '2026-12-01' }, early.at));
+  assert.throws(() => enforcement({ ...policy, earlyActivation: {} }, early.at));
+  assert.throws(() =>
+    enforcement(
+      { ...policy, earlyActivation: { ...early, runs: [early.runs[0], early.runs[0]] } },
+      early.at
+    )
+  );
+});
+
+test('required job always validates after both dependencies and cannot ignore its own failure', () => {
+  const workflow = source('.github/workflows/frontend-quality.yml');
+  const job = workflow.split('\n  frontend-quality:\n')[1];
+  assert.ok(job);
+  assert.match(job, /name: frontend-quality\n    if: always\(\)\n    needs: \[prepare, measure\]/);
+  assert.match(job, /pattern: quality-summary-\*/);
+  assert.match(job, /QUALITY_DOWNLOAD_OUTCOME: \$\{\{ steps.download.outcome \}\}/);
+  const validation = job
+    .split('name: Validate expected matrix')[1]
+    .split('name: Retain gate evidence')[0];
+  assert.match(validation, /if: always\(\)/);
+  assert.match(validation, /node scripts\/quality\/gate.mjs/);
+  assert.doesNotMatch(validation, /continue-on-error/);
+  const protection = JSON.parse(source('.github/main-protection.json'));
+  const expected = [
+    'verify',
+    'security',
+    'image',
+    'compose',
+    'observe',
+    'prepare',
+    'frontend-quality',
+    ...matrix('pull_request').include.map(
+      (s) => `measure (${s.scope}, ${s.locale}, ${s.profile}, ${s.cache})`
+    ),
+  ];
+  assert.deepEqual(
+    protection.required_status_checks.checks.map((c) => c.context).sort(),
+    expected.sort()
+  );
+  assert.ok(protection.required_status_checks.checks.every((c) => c.app_id === 15368));
+  assert.equal(protection.required_status_checks.strict, true);
+  assert.equal(protection.enforce_admins, true);
+  // Independent agents share the owner's GitHub identity. Keep the PR requirement;
+  // freshness and exact-SHA approval are checked by the separate merger session.
+  assert.ok(protection.required_pull_request_reviews);
+  assert.equal(protection.required_pull_request_reviews.required_approving_review_count, 0);
+  assert.equal(protection.required_pull_request_reviews.require_last_push_approval, false);
+  assert.deepEqual(protection.required_pull_request_reviews.bypass_pull_request_allowances, {
+    users: [],
+    teams: [],
+    apps: [],
+  });
+});
+test('gate CLI retains full reports and fails for absent downloads instead of passing an empty set', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'mycel-quality-gate-'));
+  try {
+    const input = gateFixture();
+    const root = join(dir, 'shards');
+    for (const a of input.run.artifacts) {
+      mkdirSync(join(root, a.name), { recursive: true });
+      writeFileSync(join(root, a.name, 'summary.json'), JSON.stringify(a.report));
+    }
+    const env = {
+      ...process.env,
+      GITHUB_RUN_ID: String(input.run.id),
+      GITHUB_RUN_ATTEMPT: String(input.run.attempt),
+      GITHUB_SHA: input.run.measuredSha,
+      GITHUB_EVENT_NAME: input.run.event,
+      QUALITY_NEEDS: JSON.stringify(input.needs),
+      QUALITY_DOWNLOAD_OUTCOME: 'success',
+    };
+    const command = (path, out) =>
+      execFileSync(process.execPath, ['scripts/quality/gate.mjs', path, out], {
+        env,
+        stdio: 'pipe',
+      });
+    command(root, join(dir, 'good'));
+    const result = JSON.parse(readFileSync(join(dir, 'good', 'summary.json')));
+    assert.equal(result.measured, 'pass');
+    assert.equal(result.report.samples, 20);
+    assert.equal(result.report.cells[0].batches[0].sampleIds.length, 5);
+    assert.throws(() => command(join(dir, 'absent'), join(dir, 'bad')));
+    assert.equal(JSON.parse(readFileSync(join(dir, 'bad', 'summary.json'))).blocks, true);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
