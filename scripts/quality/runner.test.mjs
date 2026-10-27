@@ -11,7 +11,7 @@ import { protectReports } from './protect.mjs';
 import { compareBaseline } from './baseline.mjs';
 import { IdentityGatherer, IdentityAudit } from './gatherer.mjs';
 import { matrix } from './matrix.mjs';
-import { status } from './status.mjs';
+import { status as qualityStatus } from './status.mjs';
 
 test('PR set covers both public profiles; scheduled/manual expand locale, cache and admin', () => {
   const pr = matrix('pull_request').include;
@@ -29,6 +29,9 @@ test('PR set covers both public profiles; scheduled/manual expand locale, cache 
   assert.ok(matrix('schedule').include.some((c) => c.cache === 'warm'));
 });
 test('calibration keeps raw fail visible, deadline blocks fail/inconclusive/missing', () => {
+  const dated = { deadline: '2026-11-09T00:00:00Z', earlyActivation: null };
+  const status = (report, outcome, now, policy = dated) =>
+    qualityStatus(report, outcome, now, policy);
   for (const state of ['fail', 'inconclusive', 'not-measured']) {
     const report = { state, cells: [{}] };
     assert.equal(status(report, 'failure', '2026-10-26').measured, state);
@@ -37,6 +40,9 @@ test('calibration keeps raw fail visible, deadline blocks fail/inconclusive/miss
   assert.equal(status(undefined, 'failure', '2026-11-09').blocks, true);
   assert.equal(status({ state: 'pass', cells: [{}] }, 'success', '2026-11-09').blocks, false);
   assert.equal(status({ state: 'pass', cells: [] }, 'success', '2026-11-09').blocks, true);
+  const suspended = { deadline: null, earlyActivation: null };
+  assert.equal(status(undefined, 'failure', '2030-01-01', suspended).blocks, false);
+  assert.equal(status(undefined, 'failure', '2030-01-01', suspended).measured, 'not-measured');
 });
 test('quality proxy preserves production compression and closed operational paths', () => {
   const production = readFileSync(new URL('../../docker/caddy/Caddyfile', import.meta.url), 'utf8');
@@ -923,7 +929,11 @@ test('factory rejects private notes, arbitrary evidence URLs, duplicate closures
 
 // The required check consumes real report fixtures, not a matrix job's success colour.
 import { gate, enforcement } from './gate.mjs';
-const policy = JSON.parse(source('scripts/quality/enforcement.json'));
+// The committed policy may suspend the deadline (null); these fixtures exercise a dated policy.
+const policy = {
+  ...JSON.parse(source('scripts/quality/enforcement.json')),
+  deadline: '2026-11-09T00:00:00Z',
+};
 function gateFixture(event = 'pull_request') {
   const run = retained(event);
   for (const artifact of run.artifacts)
@@ -1218,7 +1228,10 @@ test('early enforcement requires an explicit reviewed pair of independent run re
   const input = gateFixture();
   input.run.artifacts[0].report.state = 'fail';
   assert.equal(gate({ ...input, policy: activated, now: early.at }).blocks, true);
-  assert.throws(() => enforcement({ ...activated, deadline: '2026-12-01' }, early.at));
+  assert.throws(() => enforcement({ ...activated, deadline: '2026-11-01T00:00:00Z' }, early.at));
+  assert.throws(() => enforcement({ ...policy, deadline: 'soon' }, early.at));
+  assert.equal(enforcement({ ...policy, deadline: null }, '2030-01-01T00:00:00Z'), false);
+  assert.equal(enforcement({ ...activated, deadline: null }, early.at), true);
   assert.throws(() => enforcement({ ...policy, earlyActivation: {} }, early.at));
   assert.throws(() =>
     enforcement(
@@ -1247,7 +1260,6 @@ test('required job always validates after both dependencies and cannot ignore it
     'security',
     'image',
     'compose',
-    'observe',
     'prepare',
     'frontend-quality',
     ...matrix('pull_request').include.map(
