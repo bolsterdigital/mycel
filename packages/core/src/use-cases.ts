@@ -5,6 +5,7 @@ import {
   getConnectionIntent,
   listConnectionIntents,
   replayConnectionIntent,
+  resolveConnectionIntent,
   testConnection,
 } from './connections/intents.js';
 import { listAudit } from './audit/service.js';
@@ -101,6 +102,7 @@ export const useCases = {
   getConnectionIntent,
   listConnectionIntents,
   replayConnectionIntent,
+  resolveConnectionIntent,
   testConnection,
   listConnections,
   getConnection,

@@ -297,6 +297,16 @@ export class FakeDns implements DnsResolver {
   readonly txtRecords = new Map<string, string[]>();
   readonly cnames = new Map<string, string>();
   readonly unavailable = new Set<string>();
+  /**
+   * A/AAAA answers. By default only the webhook host of the use-case examples and fixtures
+   * (`hooks.example.org`) resolves, to a public address; a test passes its own map instead.
+   */
+  readonly addressRecords: Map<string, string[]>;
+  constructor(
+    addresses: Readonly<Record<string, string[]>> = { 'hooks.example.org': ['8.8.8.8'] }
+  ) {
+    this.addressRecords = new Map(Object.entries(addresses));
+  }
   async txt(name: string): Promise<string[]> {
     if (this.unavailable.has(name)) throw new DnsUnavailableError();
     return [...(this.txtRecords.get(name) ?? [])];
@@ -304,6 +314,10 @@ export class FakeDns implements DnsResolver {
   async cname(name: string): Promise<string | null> {
     if (this.unavailable.has(name)) throw new DnsUnavailableError();
     return this.cnames.get(name) ?? null;
+  }
+  async addresses(name: string): Promise<string[]> {
+    if (this.unavailable.has(name)) throw new DnsUnavailableError();
+    return [...(this.addressRecords.get(name) ?? [])];
   }
 }
 

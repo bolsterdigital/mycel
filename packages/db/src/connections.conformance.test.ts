@@ -10,6 +10,10 @@ import {
   useCases,
   planConnectionIntent,
   runConnectionIntent,
+  CONNECTION_DIRECTIONS,
+  CONNECTION_PROVIDERS,
+  ConnectionFailure,
+  ConnectionIntentState,
 } from '@mycel/core';
 import {
   FakeDns,
@@ -83,7 +87,7 @@ describe.skipIf(!operatorUrl || !appUrl)('managed connection storage', () => {
     ids: uuidv7Ids,
     signer: new FakeSigner(),
     inputHasher: new FakeInputHasher(),
-    dns: new FakeDns(),
+    dns: new FakeDns({ 'hooks.example.org': ['8.8.8.8'] }),
     platform: memoryPlatform,
     connectionCredentialKey: key,
   });
@@ -116,6 +120,27 @@ describe.skipIf(!operatorUrl || !appUrl)('managed connection storage', () => {
     if (b) await closeTenantWork(operatorDb, [b]);
     await operatorDb.destroy();
     await appDb.destroy();
+  });
+
+  // Migration 0028 copies the core value sets into check constraints; this keeps them equal, so a
+  // value cannot be stored that no code serves, nor produced that the database refuses.
+  it('stores exactly the provider, direction, state and failure values the core defines', async () => {
+    const checks = await sql<{ name: string; def: string }>`
+      select conname as name, pg_get_constraintdef(oid) as def from pg_constraint
+      where conrelid in ('connections'::regclass, 'connection_intents'::regclass)
+        and contype = 'c'`.execute(operatorDb);
+    const values = (name: string) =>
+      [...(checks.rows.find((c) => c.name === name)?.def ?? '').matchAll(/'([a-z_]+)'::text/g)]
+        .map((m) => m[1])
+        .sort();
+    expect(values('connections_provider_check')).toEqual([...CONNECTION_PROVIDERS].sort());
+    expect(values('connections_direction_check')).toEqual([...CONNECTION_DIRECTIONS].sort());
+    expect(values('connection_intents_state_check')).toEqual(
+      [...ConnectionIntentState.options].sort()
+    );
+    expect(values('connection_intents_failure_check')).toEqual(
+      [...ConnectionFailure.options].sort()
+    );
   });
 
   it('keeps metadata and ciphertext within A, and the secret out of reads and audit', async () => {

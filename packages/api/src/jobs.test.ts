@@ -25,6 +25,7 @@ import {
 import {
   FakeClock,
   FakeConnectionTransport,
+  FakeDns,
   MemoryIdentityStore,
   MemoryMailer,
   MemoryTenants,
@@ -271,7 +272,7 @@ describe('job handlers', () => {
 describe('connection intent job composition', () => {
   it('keeps the tenant in the job authoritative and refuses a missing transport', async () => {
     const clock = new FakeClock();
-    const uow = new MemoryUnitOfWork({ clock });
+    const uow = new MemoryUnitOfWork({ clock, dns: new FakeDns({ 'example.org': ['8.8.8.8'] }) });
     const identity = new MemoryIdentityStore(uow.store, new MemoryTenants());
     const mail = { mailer: new MemoryMailer(), clock, sources: {} };
     const transport = new FakeConnectionTransport();

@@ -10,7 +10,7 @@ export class FakeConnectionTransport implements ConnectionTransport {
     this.dispatched.push(structuredClone(intent));
     return this.result;
   }
-  async reconcile({ intent }: Parameters<ConnectionTransport['reconcile']>[0]) {
+  async reconcile({ intent }: Parameters<NonNullable<ConnectionTransport['reconcile']>>[0]) {
     this.reconciled.push(structuredClone(intent));
     return this.lookup;
   }

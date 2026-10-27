@@ -130,7 +130,7 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
       consentAuthority: 'mycel',
       consentScopes: ['newsletter:main'],
       formIds: [],
-      destination: `https://hooks.${t.slug}.example.org/mycel`,
+      destination: `https://hooks.example.org/${t.slug}`,
       contractVersion: 'v1',
       adapterVersion: 'v1',
     });

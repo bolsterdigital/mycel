@@ -201,10 +201,13 @@
                 : t(`admin.connections.copy.${intent.externalCopyAction}` as UiKey)} · {intent.failure ??
                 ''}
             </p>
-            {#if allowed('connections:replay') && (intent.state === 'pending' || intent.state === 'unknown')}
-              <form method="post" action="?/replay">
+            {#if intent.operatorAction === 'resolve'}
+              <p>{t('admin.connections.unknown.help')}</p>
+            {/if}
+            {#if allowed('connections:replay') && intent.operatorAction}
+              <form method="post" action="?/{intent.operatorAction}">
                 <input type="hidden" name="id" value={intent.id} /><button type="submit"
-                  >{t('admin.connections.replay')}</button
+                  >{t(`admin.connections.${intent.operatorAction}` as UiKey)}</button
                 >
               </form>
             {/if}
@@ -213,7 +216,6 @@
       </article>
     {/each}
   </section>
-  <p>{t('admin.connections.unknown.help')}</p>
 </main>
 
 <style>

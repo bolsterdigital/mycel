@@ -1,5 +1,6 @@
-// Managed connection controls use native posts and the same registry as HTTP/MCP. A synthetic
-// fixture points at localhost: the worker must reject it before DNS or network I/O.
+// Managed connection controls use native posts and the same registry as HTTP/MCP. The fixture's
+// destination passes the configuration check through a fake DNS answer; the worker checks DNS
+// again itself before any send. A seeded `unknown` intent proves the manual resolution path.
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
@@ -14,7 +15,8 @@ async function login(page: Page) {
 async function fixture() {
   const { createDb, createTenantDirectory, createUnitOfWork, uuidv7Ids } =
     await import('@mycel/db');
-  const { Invoker, buildRegistry, systemPrincipal, useCases } = await import('@mycel/core');
+  const { Invoker, buildRegistry, systemPrincipal, useCases, SYNTHETIC_SCOPE, SYNTHETIC_SOURCE } =
+    await import('@mycel/core');
   const { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } =
     await import('@mycel/core/testing');
   const db = createDb(process.env['APP_DATABASE_URL']!);
@@ -25,7 +27,7 @@ async function fixture() {
     ids: uuidv7Ids,
     signer: new FakeSigner(),
     inputHasher: new FakeInputHasher(),
-    dns: new FakeDns(),
+    dns: new FakeDns({ 'hooks.example.org': ['8.8.8.8'] }),
     platform: memoryPlatform,
     connectionCredentialKey: process.env['CONNECTION_CREDENTIAL_KEY'],
   });
@@ -43,10 +45,36 @@ async function fixture() {
     consentAuthority: 'mycel',
     consentScopes: ['newsletter:main'],
     formIds: [],
-    destination: 'https://localhost/mycel',
+    destination: 'https://hooks.example.org/mycel',
     contractVersion: 'v1',
     adapterVersion: 'v1',
   });
+  // An earlier attempt whose outcome the receiver never proved; a webhook cannot reconcile it.
+  const at = new Date();
+  await uow.run(principal, (ctx) =>
+    ctx.connectionIntents.insert({
+      id: uuidv7Ids.next(),
+      connectionId: connection.id,
+      businessId: uuidv7Ids.next(),
+      connectionVersion: connection.version,
+      credentialVersion: 1,
+      source: SYNTHETIC_SOURCE,
+      mappingVersion: 'v1',
+      supporterId: null,
+      scope: SYNTHETIC_SCOPE,
+      actor: { kind: 'system', id: 'e2e' },
+      key: `e2e-${uuidv7Ids.next()}`,
+      state: 'unknown',
+      failure: 'ambiguous',
+      attempts: 1,
+      revision: 0,
+      leaseToken: null,
+      leaseUntil: null,
+      nextAt: at,
+      createdAt: at,
+      updatedAt: at,
+    })
+  );
   return {
     purpose,
     id: connection.id,
@@ -132,6 +160,23 @@ for (const locale of ['nl-NL', 'en-US']) {
             .analyze();
           expect(violations.map((v) => v.id)).toEqual([]);
         }
+        // The unknown attempt offers only a manual close, never a retry. The synthetic test sent
+        // above is a separate, pending attempt and may keep its own retry.
+        const unknown = card.locator('.intent', {
+          hasText: locale.startsWith('nl') ? 'Uitkomst onbekend' : 'Outcome unknown',
+        });
+        await expect(unknown).toContainText(
+          locale.startsWith('nl') ? 'Mycel weet niet of de ontvanger' : 'Mycel cannot tell whether'
+        );
+        await expect(unknown.getByRole('button')).toHaveCount(1);
+        await unknown
+          .getByRole('button', {
+            name: locale.startsWith('nl') ? 'Markeer als afgehandeld' : 'Mark as handled',
+          })
+          .click();
+        await expect(card).toContainText(
+          locale.startsWith('nl') ? 'Handmatig afgehandeld' : 'Handled by hand'
+        );
         await card
           .getByRole('button', {
             name: locale.startsWith('nl') ? 'Aflevering pauzeren' : 'Pause delivery',
