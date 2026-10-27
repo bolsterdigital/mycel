@@ -1087,8 +1087,11 @@ test('required job always validates after both dependencies and cannot ignore it
   assert.ok(protection.required_status_checks.checks.every((c) => c.app_id === 15368));
   assert.equal(protection.required_status_checks.strict, true);
   assert.equal(protection.enforce_admins, true);
-  assert.equal(protection.required_pull_request_reviews.required_approving_review_count, 1);
-  assert.equal(protection.required_pull_request_reviews.require_last_push_approval, true);
+  // Independent agents share the owner's GitHub identity. Keep the PR requirement;
+  // freshness and exact-SHA approval are checked by the separate merger session.
+  assert.ok(protection.required_pull_request_reviews);
+  assert.equal(protection.required_pull_request_reviews.required_approving_review_count, 0);
+  assert.equal(protection.required_pull_request_reviews.require_last_push_approval, false);
   assert.deepEqual(protection.required_pull_request_reviews.bypass_pull_request_allowances, {
     users: [],
     teams: [],
