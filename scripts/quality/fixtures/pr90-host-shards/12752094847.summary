@@ -1,0 +1,339 @@
+{
+  "schemaVersion": 1,
+  "commit": "e4c0880856cc06f04c20a83bfc752f310e9b6989",
+  "fixtureHash": "6995f2d5a43c5b006d46e1508b64acc27a763010b4d2d6c61f99509957c7da97",
+  "fixtureVersion": "43a-v3",
+  "fixtureFiles": [
+    "apps/web/e2e/quality-corpus.json",
+    "scripts/e2e.mjs"
+  ],
+  "startedAt": "2026-10-27T16:58:20.859Z",
+  "workflow": {
+    "runId": "40545789572",
+    "attempt": "1"
+  },
+  "environment": {
+    "node": "v22.22.0",
+    "lighthouse": "13.5.0",
+    "playwright": "1.64.1",
+    "runner": "github-container:sha256:d65108d1a8095d8b0c4a5e32bf1807a40a5ce90ff0c78473e1116b1c243235e8",
+    "hostImage": "20261023.334.3",
+    "kernel": "6.17.0-1022-azure",
+    "mode": "ci",
+    "cpu": "AMD EPYC 7763 64-Core Processor",
+    "cores": 4,
+    "caddy": "v2.10.2 h1:g/gTYjGMD0dec+UgMw8SnfmJ3I9+M2TdvoRL/Ovu6U8=",
+    "profile": "desktop",
+    "locale": "nl",
+    "cache": "fresh",
+    "scope": "default",
+    "theme": "seeded-default",
+    "warmup": "none",
+    "serverCache": "shared web process",
+    "chromium": "156.0.8078.4"
+  },
+  "cells": [
+    {
+      "id": "campaign-nl-desktop-fresh",
+      "route": "https://localhost:4443/probe/campagne",
+      "locale": "nl",
+      "state": "pass",
+      "profile": "desktop",
+      "cache": "fresh",
+      "indexable": true,
+      "batches": [
+        {
+          "state": "pass",
+          "reasons": [],
+          "sampleIds": [
+            "campaign-nl-desktop-fresh-b1-1",
+            "campaign-nl-desktop-fresh-b1-2",
+            "campaign-nl-desktop-fresh-b1-3",
+            "campaign-nl-desktop-fresh-b1-4",
+            "campaign-nl-desktop-fresh-b1-5"
+          ],
+          "raw": [
+            {
+              "performance": 1,
+              "accessibility": 1,
+              "best-practices": 1,
+              "seo": 1
+            },
+            {
+              "performance": 1,
+              "accessibility": 1,
+              "best-practices": 1,
+              "seo": 1
+            },
+            {
+              "performance": 1,
+              "accessibility": 1,
+              "best-practices": 1,
+              "seo": 1
+            },
+            {
+              "performance": 1,
+              "accessibility": 1,
+              "best-practices": 1,
+              "seo": 1
+            },
+            {
+              "performance": 1,
+              "accessibility": 1,
+              "best-practices": 1,
+              "seo": 1
+            }
+          ],
+          "performance": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "failedAuditIdsByCategory": {
+            "performance": [],
+            "accessibility": [],
+            "best-practices": [],
+            "seo": []
+          },
+          "identityIssues": [],
+          "failedAuditIds": [
+            "cache-insight",
+            "network-dependency-tree-insight",
+            "render-blocking-insight",
+            "bootup-time",
+            "interactive",
+            "mainthread-work-breakdown"
+          ],
+          "metrics": [
+            {
+              "first-contentful-paint": 241.2467,
+              "largest-contentful-paint": 355.24670000000003,
+              "total-blocking-time": 0,
+              "cumulative-layout-shift": 0,
+              "speed-index": 338.88876763356643,
+              "total-byte-weight": 123330,
+              "mainthread-work-breakdown": 533.854999999949
+            },
+            {
+              "first-contentful-paint": 220.8319,
+              "largest-contentful-paint": 333.8319,
+              "total-blocking-time": 0,
+              "cumulative-layout-shift": 0,
+              "speed-index": 220.8319,
+              "total-byte-weight": 123323,
+              "mainthread-work-breakdown": 178.42999999999734
+            },
+            {
+              "first-contentful-paint": 238.2073,
+              "largest-contentful-paint": 345.20730000000003,
+              "total-blocking-time": 0,
+              "cumulative-layout-shift": 0,
+              "speed-index": 241.22616576166928,
+              "total-byte-weight": 123327,
+              "mainthread-work-breakdown": 613.6379999998859
+            },
+            {
+              "first-contentful-paint": 231.052,
+              "largest-contentful-paint": 346.052,
+              "total-blocking-time": 0,
+              "cumulative-layout-shift": 0,
+              "speed-index": 250.480216289713,
+              "total-byte-weight": 123321,
+              "mainthread-work-breakdown": 1646.5129999964513
+            },
+            {
+              "first-contentful-paint": 221.10829999999999,
+              "largest-contentful-paint": 342.6083,
+              "total-blocking-time": 16,
+              "cumulative-layout-shift": 0,
+              "speed-index": 236.93443095795388,
+              "total-byte-weight": 123321,
+              "mainthread-work-breakdown": 2054.37799999497
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "article-nl-desktop-fresh",
+      "route": "https://localhost:4443/probe/articles/quality-article-v3",
+      "locale": "nl",
+      "state": "pass",
+      "profile": "desktop",
+      "cache": "fresh",
+      "indexable": true,
+      "batches": [
+        {
+          "state": "pass",
+          "reasons": [],
+          "sampleIds": [
+            "article-nl-desktop-fresh-b1-1",
+            "article-nl-desktop-fresh-b1-2",
+            "article-nl-desktop-fresh-b1-3",
+            "article-nl-desktop-fresh-b1-4",
+            "article-nl-desktop-fresh-b1-5"
+          ],
+          "raw": [
+            {
+              "performance": 1,
+              "accessibility": 1,
+              "best-practices": 1,
+              "seo": 1
+            },
+            {
+              "performance": 1,
+              "accessibility": 1,
+              "best-practices": 1,
+              "seo": 1
+            },
+            {
+              "performance": 1,
+              "accessibility": 1,
+              "best-practices": 1,
+              "seo": 1
+            },
+            {
+              "performance": 1,
+              "accessibility": 1,
+              "best-practices": 1,
+              "seo": 1
+            },
+            {
+              "performance": 1,
+              "accessibility": 1,
+              "best-practices": 1,
+              "seo": 1
+            }
+          ],
+          "performance": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "failedAuditIdsByCategory": {
+            "performance": [],
+            "accessibility": [],
+            "best-practices": [],
+            "seo": []
+          },
+          "identityIssues": [],
+          "failedAuditIds": [
+            "cache-insight",
+            "network-dependency-tree-insight",
+            "render-blocking-insight"
+          ],
+          "metrics": [
+            {
+              "first-contentful-paint": 228.1859,
+              "largest-contentful-paint": 335.1859,
+              "total-blocking-time": 0,
+              "cumulative-layout-shift": 0,
+              "speed-index": 228.1859,
+              "total-byte-weight": 115493,
+              "mainthread-work-breakdown": 55.759000000000015
+            },
+            {
+              "first-contentful-paint": 228.8216,
+              "largest-contentful-paint": 333.8216,
+              "total-blocking-time": 0,
+              "cumulative-layout-shift": 0,
+              "speed-index": 228.8216,
+              "total-byte-weight": 115502,
+              "mainthread-work-breakdown": 52.773999999999994
+            },
+            {
+              "first-contentful-paint": 229.8329,
+              "largest-contentful-paint": 334.8329,
+              "total-blocking-time": 0,
+              "cumulative-layout-shift": 0,
+              "speed-index": 229.8329,
+              "total-byte-weight": 115503,
+              "mainthread-work-breakdown": 51.412000000000006
+            },
+            {
+              "first-contentful-paint": 228.3223,
+              "largest-contentful-paint": 331.32230000000004,
+              "total-blocking-time": 0,
+              "cumulative-layout-shift": 0,
+              "speed-index": 228.3223,
+              "total-byte-weight": 115503,
+              "mainthread-work-breakdown": 51.53099999999998
+            },
+            {
+              "first-contentful-paint": 233.8506,
+              "largest-contentful-paint": 338.8506,
+              "total-blocking-time": 0,
+              "cumulative-layout-shift": 0,
+              "speed-index": 233.8506,
+              "total-byte-weight": 115494,
+              "mainthread-work-breakdown": 58.96900000000002
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "coverage": [
+    {
+      "state": "not-measured",
+      "route": "dynamic POST/iframe preview",
+      "owner": "dev",
+      "address": "#43C-preview",
+      "aliases": [
+        "#43B"
+      ],
+      "reason": "requires a versioned dynamic-state measurement contract; GET is an empty shell"
+    },
+    {
+      "state": "not-measured",
+      "route": "demanding tenant theme",
+      "owner": "mbp",
+      "address": "#38",
+      "reason": "43a-v3 theme is simulated, not a persisted tenant fixture"
+    },
+    {
+      "route": "collections-and-search",
+      "dependency": "#21 / #42",
+      "state": "not-measured"
+    },
+    {
+      "route": "restricted-reader",
+      "dependency": "#19",
+      "state": "not-measured"
+    },
+    {
+      "route": "conditional-form",
+      "dependency": "#39",
+      "state": "not-measured"
+    },
+    {
+      "route": "managed-embeds-consent",
+      "dependency": "#41",
+      "state": "not-measured"
+    },
+    {
+      "state": "not-measured",
+      "route": "manual accessibility and field data",
+      "owner": "mbp",
+      "address": "#43C",
+      "reason": "see release scenarios in frontend-quality.md; no real-user data or screen reader available"
+    },
+    {
+      "state": "not-measured",
+      "route": "admin corpus",
+      "owner": "dev",
+      "address": "#43C-report",
+      "aliases": [
+        "#43B"
+      ],
+      "reason": "default set is public; use --scope=full locally"
+    }
+  ],
+  "durationMinutes": 1.458,
+  "repairs": [],
+  "state": "pass",
+  "baselineComparison": {
+    "state": "no baseline",
+    "reason": "corpus/tool/runner profile changed"
+  }
+}

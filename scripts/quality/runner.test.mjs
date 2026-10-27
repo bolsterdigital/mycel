@@ -2,6 +2,7 @@
 // scheduled and manual runs. These are contract tests, not snapshots of the implementation.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { createHash } from 'node:crypto';
 import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -939,7 +940,105 @@ function gateFixture(event = 'pull_request') {
     },
   };
 }
-test('container shards bind the immutable userspace and kernel while retaining host images', () => {
+// Original sanitized summaries are kept byte-for-byte; run.json records API/source hashes.
+function historicalHostShards() {
+  const root = new URL('./fixtures/pr90-host-shards/', import.meta.url);
+  const run = JSON.parse(readFileSync(new URL('run.json', root), 'utf8'));
+  for (const artifact of run.artifacts) {
+    const bytes = readFileSync(new URL(`${artifact.id}.summary`, root));
+    assert.equal(createHash('sha256').update(bytes).digest('hex'), artifact.summaryHash);
+    artifact.report = JSON.parse(bytes);
+  }
+  return { ...gateFixture(), run, now: '2026-10-27T18:00:00Z' };
+}
+test('original PR90 independent-host shards retain all four cells and twenty samples', () => {
+  for (const reverse of [false, true]) {
+    const input = historicalHostShards();
+    if (reverse) input.run.artifacts.reverse();
+    const result = gate(input);
+    assert.deepEqual(result.issues, []);
+    assert.equal(result.report.fixtureVersion, '43a-v3');
+    assert.equal(result.report.expected, 4);
+    assert.equal(result.report.present, 4);
+    assert.equal(result.report.samples, 20);
+    assert.equal(result.measured, 'fail');
+    assert.equal(result.blocks, false);
+    assert.deepEqual(result.report.cells, consumeRun(input.run, load).cells);
+    for (const artifact of input.run.artifacts) {
+      const retained = result.report.profiles.find((p) => p.artifact === artifact.name);
+      for (const field of ['kernel', 'hostImage'])
+        assert.equal(retained.environment[field], artifact.report.environment[field]);
+      for (const cell of artifact.report.cells) {
+        const kept = result.report.cells.find((c) => c.id === cell.id);
+        assert.deepEqual(
+          kept.batches.map((b) => b.raw),
+          cell.batches.map((b) => b.raw)
+        );
+        assert.equal(kept.state, cell.state);
+      }
+    }
+    assert.equal(gate({ ...input, now: policy.deadline }).blocks, true);
+  }
+});
+test('historical v3 and current v4 shards reject provenance, tool and artifact corruption', () => {
+  const mutations = {
+    sha: (i) => {
+      i.run.artifacts[0].report.commit = 'b'.repeat(40);
+    },
+    corpus: (i) => {
+      i.run.artifacts[0].report.fixtureVersion = '43a-v99';
+    },
+    hash: (i) => {
+      i.run.artifacts[0].report.fixtureHash = 'b'.repeat(64);
+    },
+    run: (i) => {
+      i.run.artifacts[0].report.workflow.runId = '999';
+    },
+    attempt: (i) => {
+      i.run.artifacts[0].report.workflow.attempt = '0';
+    },
+    missing: (i) => {
+      i.run.artifacts.pop();
+    },
+    corrupt: (i) => {
+      i.load = () => {
+        throw new Error('corrupt JSON');
+      };
+    },
+    samples: (i) => {
+      i.run.artifacts[0].report.cells[0].batches[0].sampleIds.pop();
+    },
+  };
+  for (const field of ['runner', 'node', 'lighthouse', 'playwright', 'chromium', 'caddy'])
+    mutations[field] = (i) => {
+      i.run.artifacts[1].report.environment[field] += '-changed';
+    };
+  for (const fixture of [historicalHostShards, gateFixture]) {
+    for (const [name, mutate] of Object.entries(mutations)) {
+      const input = fixture();
+      mutate(input);
+      for (const now of ['2026-10-27T18:00:00Z', policy.deadline]) {
+        const result = gate({ ...input, now });
+        assert.equal(result.blocks, true, name);
+        assert.equal(result.measured, 'not-measured', name);
+      }
+    }
+    const input = fixture();
+    const forward = gate(input);
+    input.run.artifacts.reverse();
+    assert.deepEqual(gate(input).report.tools, forward.report.tools);
+    assert.equal(environmentKey(gate(input).report), environmentKey(forward.report));
+    // Host-image identity stays strict for legacy evidence in either shard order.
+    input.run.contract = { ...input.run.contract };
+    delete input.run.contract.runnerImage;
+    for (const [n, artifact] of input.run.artifacts.entries())
+      artifact.report.environment.runner = `github-ubuntu-24.04:2026102${n}.354.1`;
+    assert.equal(gate(input).blocks, true);
+    input.run.artifacts.reverse();
+    assert.equal(gate(input).blocks, true);
+  }
+});
+test('container shards bind immutable userspace and tools while retaining independent hosts', () => {
   const input = gateFixture();
   const digest = 'd65108d1a8095d8b0c4a5e32bf1807a40a5ce90ff0c78473e1116b1c243235e8';
   input.run.contract = { ...input.run.contract, runnerImage: `sha256:${digest}` };
@@ -947,7 +1046,7 @@ test('container shards bind the immutable userspace and kernel while retaining h
     Object.assign(artifact.report.environment, {
       runner: `github-container:sha256:${digest}`,
       hostImage: ['20261026.354.1', '20261023.334.3'][n],
-      kernel: '6.11.0-1018-azure',
+      kernel: ['6.17.0-1022-azure', '7.0.0-1017-azure'][n],
     });
   }
   const result = gate(input);
@@ -958,19 +1057,12 @@ test('container shards bind the immutable userspace and kernel while retaining h
     result.report.profiles.map((p) => p.environment.hostImage),
     ['20261026.354.1', '20261023.334.3']
   );
-  assert.notEqual(
-    environmentKey(result.report),
-    environmentKey({ ...result.report, tools: { ...result.report.tools, kernel: 'other' } })
+  assert.equal('kernel' in result.report.tools, false);
+  assert.deepEqual(
+    result.report.profiles.map((p) => p.environment.kernel),
+    ['6.17.0-1022-azure', '7.0.0-1017-azure']
   );
-  for (const field of [
-    'runner',
-    'kernel',
-    'node',
-    'lighthouse',
-    'playwright',
-    'chromium',
-    'caddy',
-  ]) {
+  for (const field of ['runner', 'node', 'lighthouse', 'playwright', 'chromium', 'caddy']) {
     const bad = { ...input, run: structuredClone(input.run) };
     bad.run.artifacts[1].report.environment[field] += '-changed';
     assert.equal(gate(bad).blocks, true, field);
@@ -979,6 +1071,16 @@ test('container shards bind the immutable userspace and kernel while retaining h
     const bad = { ...input, run: structuredClone(input.run) };
     delete bad.run.artifacts[1].report.environment[field];
     assert.equal(gate(bad).blocks, true, `missing ${field}`);
+  }
+  for (const [field, values] of Object.entries({
+    kernel: ['unknown', '6.17.0\n', '6.17.0\nforged', '6.17.0/' + 'a'.repeat(240)],
+    hostImage: ['unknown', '20261026.354.1\n', '20261026.354.1\nforged', '20261026'],
+  })) {
+    for (const value of values) {
+      const bad = { ...input, run: structuredClone(input.run) };
+      bad.run.artifacts[1].report.environment[field] = value;
+      assert.equal(gate(bad).blocks, true, `invalid ${field}: ${value}`);
+    }
   }
   // Historical host runs keep their original strict image comparison.
   delete input.run.contract.runnerImage;
