@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { Invoker } from '../invoke.js';
 import { systemPrincipal, type Capability, type Principal } from '../principal.js';
-import { MemoryUnitOfWork } from '../testing/memory.js';
+import { FakeDns, MemoryUnitOfWork } from '../testing/memory.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 
 const A = '01900000-0000-7000-8000-00000000aaaa';
@@ -25,8 +25,16 @@ const input = {
   adapterVersion: 'v1',
 };
 
+/** The destination host of every fixture resolves to a public address, as a real one would. */
+function publicDns(): FakeDns {
+  return new FakeDns({
+    'hooks.example.org': ['8.8.8.8'],
+    'new.example.org': ['2606:4700:4700::1111'],
+  });
+}
+
 describe('managed connection inventory', () => {
-  const uow = new MemoryUnitOfWork();
+  const uow = new MemoryUnitOfWork({ dns: publicDns() });
   const invoker = new Invoker(buildRegistry(), uow);
   const principal = (tenantId: string, capabilities: Capability[]): Principal => ({
     ...systemPrincipal(tenantId, 'connection-test'),
@@ -150,6 +158,31 @@ describe('managed connection inventory', () => {
         })
       ).rejects.toMatchObject({ code: 'invalid_input' });
   });
+
+  it('checks the destination through the DNS port and refuses a private answer', async () => {
+    const dns = publicDns();
+    dns.addressRecords.set('internal.example.org', ['8.8.8.8', '10.0.0.5']);
+    dns.unavailable.add('flaky.example.org');
+    const local = new Invoker(buildRegistry(), new MemoryUnitOfWork({ dns }));
+    const admin = principal(A, ['tenant:admin']);
+    for (const [destination, message] of [
+      ['https://internal.example.org/hook', 'not public'],
+      ['https://unknown.example.org/hook', 'not public'],
+      ['https://flaky.example.org/hook', 'unavailable'],
+      ['https://localhost/hook', 'port 443'],
+    ] as const)
+      await expect(
+        local.run(useCases.createConnection, admin, { ...input, destination })
+      ).rejects.toMatchObject({ code: 'invalid_input', message: expect.stringContaining(message) });
+    const c = await local.run(useCases.createConnection, admin, input);
+    await expect(
+      local.run(useCases.updateConnection, admin, {
+        id: c.id,
+        baseVersion: c.version,
+        changes: { destination: 'https://internal.example.org/hook' },
+      })
+    ).rejects.toMatchObject({ code: 'invalid_input' });
+  });
 });
 
 // The intent engine reuses the inventory and registry boundaries, with a fake external system.
@@ -157,10 +190,11 @@ import { FakeClock, MemoryIdentityStore, MemoryTenants } from '../testing/memory
 import { FakeConnectionTransport } from '../testing/fake-connection-transport.js';
 import { connectionIntentGuard, planConnectionIntent } from './intents.js';
 import { runConnectionIntent, CONNECTION_LEASE_MS, type ConnectionSource } from './dispatch.js';
+import { CONNECTION_MAX_ATTEMPTS, ConnectionFailure } from './intents.js';
 
 async function engine() {
   const clock = new FakeClock();
-  const uow = new MemoryUnitOfWork({ clock });
+  const uow = new MemoryUnitOfWork({ clock, dns: publicDns() });
   const invoker = new Invoker(buildRegistry(), uow);
   const principal = systemPrincipal(A, 'test');
   const identity = new MemoryIdentityStore(uow.store, new MemoryTenants());
@@ -193,19 +227,32 @@ async function engine() {
     scope: 'newsletter:main',
   };
   const transport = new FakeConnectionTransport();
-  const policy = { suppressed: false, mapping: 'v1' };
+  const policy = { mapping: 'v1' };
   const source: ConnectionSource = {
     async prepare(_ctx, row) {
       if (row.mappingVersion !== policy.mapping) return { ready: false, failure: 'version' };
-      if (policy.suppressed) return { ready: false, failure: 'suppression' };
       return { ready: true, payload: { synthetic: true } };
     },
   };
   const deps = { uow, identity, clock, transport, sources: { fixture: source } };
   const plan = () => uow.run(principal, (ctx) => planConnectionIntent(ctx, request));
   const read = (id: string) => uow.run(principal, (ctx) => ctx.connectionIntents.get(id));
-  return { clock, uow, invoker, principal, c, request, transport, policy, deps, plan, read };
+  return {
+    clock,
+    uow,
+    invoker,
+    principal,
+    c,
+    request,
+    transport,
+    policy,
+    deps: deps as typeof deps & { sources: Record<string, ConnectionSource> },
+    plan,
+    read,
+    repeat: 1,
+  };
 }
+type Engine = Awaited<ReturnType<typeof engine>>;
 
 describe('durable connection effects', () => {
   it('deduplicates business intents and concurrent dispatch, and hides A from B', async () => {
@@ -236,7 +283,11 @@ describe('durable connection effects', () => {
     const row = await e.plan();
     e.transport.result = 'unknown';
     await runConnectionIntent(e.deps, A, row.id);
-    await e.invoker.run(useCases.replayConnectionIntent, e.principal, { id: row.id });
+    // A webhook cannot reconcile, so an operator cannot ask for a replay of an unknown intent;
+    // the worker below reconciles only because this fake transport offers that proof.
+    await expect(
+      e.invoker.run(useCases.replayConnectionIntent, e.principal, { id: row.id })
+    ).rejects.toMatchObject({ code: 'conflict', message: expect.stringContaining('manual') });
     e.clock.advance(120_000);
     await runConnectionIntent(e.deps, A, row.id);
     expect(e.transport.dispatched).toHaveLength(1);
@@ -251,6 +302,63 @@ describe('durable connection effects', () => {
     await runConnectionIntent(e.deps, A, row.id);
     expect(e.transport.dispatched).toHaveLength(2);
     expect(e.transport.dispatched[0]?.key).toBe(e.transport.dispatched[1]?.key);
+  });
+
+  it('leaves an unknown intent for an operator when the transport cannot reconcile', async () => {
+    const e = await engine();
+    const row = await e.plan();
+    e.transport.result = 'unknown';
+    // The webhook's shape: dispatch only, no reconcile proof.
+    e.deps.transport = { dispatch: (input) => e.transport.dispatch(input) };
+    expect(await runConnectionIntent(e.deps, A, row.id)).toEqual({});
+    for (let i = 0; i < 3; i++) {
+      e.clock.advance(3_600_000);
+      expect(await runConnectionIntent(e.deps, A, row.id)).toEqual({});
+    }
+    expect(e.transport.dispatched).toHaveLength(1);
+    expect(await e.read(row.id)).toMatchObject({ state: 'unknown', attempts: 1 });
+    const status = await e.invoker.run(useCases.getConnectionIntent, e.principal, { id: row.id });
+    expect(status.operatorAction).toBe('resolve');
+  });
+
+  it('resolves an unknown webhook intent by hand, with an audit row, and never sends it again', async () => {
+    const e = await engine();
+    const row = await e.plan();
+    await expect(
+      e.invoker.run(useCases.resolveConnectionIntent, e.principal, { id: row.id })
+    ).rejects.toMatchObject({ code: 'conflict' });
+    e.transport.result = 'unknown';
+    let release!: () => void;
+    const dispatch = e.transport.dispatch.bind(e.transport);
+    e.transport.dispatch = async (input) => {
+      await new Promise<void>((resolve) => (release = resolve));
+      return dispatch(input);
+    };
+    const running = runConnectionIntent(e.deps, A, row.id);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Under a live lease the attempt may still report its result; resolving would race it.
+    await expect(
+      e.invoker.run(useCases.resolveConnectionIntent, e.principal, { id: row.id })
+    ).rejects.toMatchObject({ code: 'conflict', message: expect.stringContaining('attempted') });
+    release();
+    await running;
+    const resolved = await e.invoker.run(useCases.resolveConnectionIntent, e.principal, {
+      id: row.id,
+    });
+    expect(resolved).toMatchObject({ state: 'resolved', operatorAction: null });
+    expect(
+      e.uow.store
+        .for(A)
+        .audit.some((a) => a.operation === 'connections.intent.resolve' && a.subjectId === row.id)
+    ).toBe(true);
+    e.clock.advance(3_600_000);
+    await runConnectionIntent(e.deps, A, row.id);
+    expect(e.transport.dispatched).toHaveLength(1);
+    expect(e.transport.reconciled).toHaveLength(0);
+    for (const useCase of [useCases.replayConnectionIntent, useCases.resolveConnectionIntent])
+      await expect(e.invoker.run(useCase, e.principal, { id: row.id })).rejects.toMatchObject({
+        code: 'conflict',
+      });
   });
 
   it('reconciles a crash after committed claim even if transport never started', async () => {
@@ -273,33 +381,63 @@ describe('durable connection effects', () => {
     expect((await e.read(row.id))?.state).toBe('succeeded');
   });
 
-  it.each([
-    'paused',
-    'disconnected',
-    'consent',
-    'suppression',
-    'erasure',
-    'version',
-    'suspended',
-  ] as const)('blocks current %s before an effect', async (kind) => {
+  // Every failure class has a scenario that produces it, so a class cannot exist without code
+  // behind it (TODO #49). Adding a class to the enum fails the type check here until it has one.
+  const produce: Record<ConnectionFailure, (e: Engine, id: string) => Promise<void>> = {
+    paused: (e) =>
+      e.invoker
+        .run(useCases.pauseConnection, e.principal, { id: e.c.id, baseVersion: e.c.version })
+        .then(() => undefined),
+    disconnected: (e) =>
+      e.invoker
+        .run(useCases.disconnectConnection, e.principal, { id: e.c.id, baseVersion: e.c.version })
+        .then(() => undefined),
+    version: async (e) => void (e.policy.mapping = 'v2'),
+    credential: (e, id) =>
+      e.uow.run(e.principal, async (ctx) => {
+        const row = (await ctx.connectionIntents.get(id))!;
+        await ctx.connectionIntents.replace(
+          { ...row, credentialVersion: row.credentialVersion + 1 },
+          row.revision
+        );
+      }),
+    authorization: (e, id) =>
+      e.uow.run(e.principal, async (ctx) => {
+        const row = (await ctx.connectionIntents.get(id))!;
+        await ctx.connectionIntents.replace(
+          { ...row, actor: { kind: 'api-key', id: 'revoked-or-missing' } },
+          row.revision
+        );
+      }),
+    consent: async (e) => {
+      for (const p of e.uow.store.for(A).projections.values()) p.lists = [];
+    },
+    erasure: (e) =>
+      e.uow.run(e.principal, (ctx) =>
+        ctx.erasures.register(e.request.supporterId, 'reader@example.org')
+      ),
+    suspended: async (e) => e.uow.store.setAccess(A, { status: 'suspended' }),
+    source: async (e) => void (e.deps.sources = {}),
+    quota: (e) =>
+      e.uow.run(e.principal, async (ctx) => {
+        for (let i = 0; i < 60; i++)
+          await ctx.rateLimits.hit('connections:dispatch', { max: 60, windowSeconds: 60 });
+      }),
+    pre_send: async (e) => void (e.transport.result = 'pre_send'),
+    ambiguous: async (e) => void (e.transport.result = 'unknown'),
+    exhausted: async (e) => {
+      e.transport.result = 'pre_send';
+      e.repeat = CONNECTION_MAX_ATTEMPTS;
+    },
+  };
+  it.each(ConnectionFailure.options)('produces failure class %s', async (kind) => {
     const e = await engine();
     const row = await e.plan();
-    if (kind === 'paused' || kind === 'disconnected')
-      await e.invoker.run(
-        kind === 'paused' ? useCases.pauseConnection : useCases.disconnectConnection,
-        e.principal,
-        { id: e.c.id, baseVersion: e.c.version }
-      );
-    if (kind === 'consent') for (const p of e.uow.store.for(A).projections.values()) p.lists = [];
-    if (kind === 'suppression') e.policy.suppressed = true;
-    if (kind === 'version') e.policy.mapping = 'v2';
-    if (kind === 'suspended') e.uow.store.setAccess(A, { status: 'suspended' });
-    if (kind === 'erasure')
-      await e.uow.run(e.principal, (ctx) =>
-        ctx.erasures.register(e.request.supporterId, 'reader@example.org')
-      );
-    await runConnectionIntent(e.deps, A, row.id);
-    expect(e.transport.dispatched).toHaveLength(0);
+    await produce[kind](e, row.id);
+    for (let i = 0; i < e.repeat; i++) {
+      await runConnectionIntent(e.deps, A, row.id);
+      e.clock.advance(3_600_000);
+    }
     expect((await e.read(row.id))?.failure).toBe(kind);
   });
 

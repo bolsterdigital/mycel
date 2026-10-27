@@ -185,7 +185,6 @@ export interface UnitOfWorkDeps {
   inputHasher: InputHasher;
   /** A separate 32-byte key for encrypted connector credentials, hex encoded. */
   connectionCredentialKey?: string | undefined;
-  connectionDestinationValidator?: ((url: string) => Promise<void>) | undefined;
   assistProviderLabel?: string | null;
 }
 
@@ -226,7 +225,6 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
             trx,
             tenantId,
             connectionKey,
-            deps.connectionDestinationValidator,
             principal.actor.kind === 'system' && principal.actor.job === 'connections.run'
           ),
           connectionIntents: connectionIntentsRepository(trx, tenantId),

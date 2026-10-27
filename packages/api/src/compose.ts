@@ -20,7 +20,8 @@ import {
   supporterIngestSubscriber,
   type BlobStore,
   type Clock,
-  type ConnectionSource,
+  SYNTHETIC_SOURCE,
+  syntheticSource,
   type ErrorReporter,
   type IdentityStore,
   type Logger,
@@ -82,7 +83,7 @@ import { assessWorker, type WorkerReadiness } from './health.js';
 import type { PlatformDeps } from './platform.js';
 import { RECURRING_JOBS, jobHandlers } from './jobs.js';
 import { HmacInputHasher, HmacSigner } from './signer.js';
-import { checkedDestination, webhookTransport } from './webhook.js';
+import { webhookTransport } from './webhook.js';
 
 export { createAuthenticator, type Authenticator, type AuthenticatorDeps } from './auth.js';
 
@@ -496,20 +497,18 @@ export function createRuntime(
     config.ASSIST_PROVIDER === 'none'
       ? null
       : (config.ASSIST_PROVIDER_LABEL ?? assistModel?.describe().label ?? null);
+  const dns = createDnsResolver();
   const uow = createUnitOfWork(appDb, {
     clock,
     ids: uuidv7Ids,
     signer,
-    dns: createDnsResolver(),
+    dns,
     platform,
     media: { blobs, images: createSharpProcessor(), delivery: appDelivery },
     brandProcessor: createBrandProcessor(),
     log,
     inputHasher,
     connectionCredentialKey: config.CONNECTION_CREDENTIAL_KEY,
-    connectionDestinationValidator: async (url) => {
-      await checkedDestination(url);
-    },
     assistProviderLabel,
   });
   const tenants = createTenantDirectory(appDb);
@@ -683,18 +682,8 @@ export function createRuntime(
           log,
         },
         connections: {
-          transport: webhookTransport(),
-          sources: {
-            'synthetic.test': {
-              async prepare(_ctx, intent) {
-                return intent.source === 'synthetic.test' &&
-                  intent.supporterId === null &&
-                  intent.scope === 'synthetic:test'
-                  ? { ready: true, payload: { category: 'synthetic.test' } }
-                  : { ready: false, failure: 'source' };
-              },
-            } satisfies ConnectionSource,
-          },
+          transport: webhookTransport({ dns }),
+          sources: { [SYNTHETIC_SOURCE]: syntheticSource },
         },
       });
       const stopJobs = startJobWorker(operatorDb, inJobContext(handlers), {

@@ -106,7 +106,6 @@ export function connectionRepository(
   trx: Kysely<Database>,
   tenantId: string,
   key: Buffer | null,
-  validateDestination?: (url: string) => Promise<void>,
   allowCredentialRead = false
 ): ConnectionRepository {
   const query = () =>
@@ -142,8 +141,6 @@ export function connectionRepository(
       return (await query().orderBy('c.created_at', 'desc').execute()).map(asRecord);
     },
     async insert(record: NewConnection, at: Date) {
-      if (record.provider === 'webhook' && record.destination && validateDestination)
-        await validateDestination(record.destination);
       await trx
         .insertInto('connections')
         .values({
@@ -172,8 +169,6 @@ export function connectionRepository(
       return (await get(record.id))!;
     },
     async update(id, baseVersion, changes, at) {
-      if (changes.destination && validateDestination)
-        await validateDestination(changes.destination);
       const row = await trx
         .updateTable('connections')
         .set({ ...updates(changes), version: sql`version + 1`, updated_at: at })

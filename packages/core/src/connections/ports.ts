@@ -1,9 +1,23 @@
 // A connection is tenant-owned configuration. The adapter stores credentials separately and
 // encrypted, so neither a read nor an export can accidentally return their plaintext.
 
-export type ConnectionProvider = 'webhook' | 'mailchimp';
+// A value exists here only once a transport implements it (TODO #49): the first real provider
+// (#40 PR 2) adds itself together with its adapter and tests. Rejected: accepting `mailchimp`
+// and inbound directions in the schema ahead of any code that could serve them.
+export const CONNECTION_PROVIDERS = ['webhook'] as const;
+export type ConnectionProvider = (typeof CONNECTION_PROVIDERS)[number];
 export type ConnectionState = 'active' | 'paused' | 'disconnected';
-export type ConnectionDirection = 'outbound' | 'inbound' | 'bidirectional';
+export const CONNECTION_DIRECTIONS = ['outbound'] as const;
+export type ConnectionDirection = (typeof CONNECTION_DIRECTIONS)[number];
+
+/**
+ * Whether a provider's transport can prove, after an ambiguous attempt, that the effect did or did
+ * not happen. Only then may an operator ask for a replay of an `unknown` intent; otherwise the
+ * intent is resolved by hand. A webhook receiver gives no such proof.
+ */
+export const PROVIDER_RECONCILES: Readonly<Record<ConnectionProvider, boolean>> = {
+  webhook: false,
+};
 export type ConnectionAuthority = 'mycel' | 'external';
 
 export interface ConnectionRecord {

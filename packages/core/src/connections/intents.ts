@@ -6,6 +6,8 @@ import { UseCaseError } from '../errors.js';
 import { defineUseCase } from '../registry.js';
 import { can, grants } from '../principal.js';
 import { sha256Hex } from '../util/digest.js';
+import { PROVIDER_RECONCILES, type ConnectionProvider } from './ports.js';
+import { isSyntheticIntent, SYNTHETIC_SCOPE, SYNTHETIC_SOURCE } from './synthetic.js';
 
 export const ConnectionIntentState = z.enum([
   'pending',
@@ -13,6 +15,9 @@ export const ConnectionIntentState = z.enum([
   'succeeded',
   'blocked',
   'failed',
+  // An operator confirmed by hand what happened to an `unknown` intent the transport cannot
+  // reconcile. Terminal; the confirmation is the command's audit row.
+  'resolved',
 ]);
 export type ConnectionIntentState = z.infer<typeof ConnectionIntentState>;
 export const ConnectionFailure = z.enum([
@@ -22,7 +27,6 @@ export const ConnectionFailure = z.enum([
   'credential',
   'authorization',
   'consent',
-  'suppression',
   'erasure',
   'suspended',
   'source',
@@ -32,6 +36,7 @@ export const ConnectionFailure = z.enum([
   'exhausted',
 ]);
 export type ConnectionFailure = z.infer<typeof ConnectionFailure>;
+export const CONNECTION_MAX_ATTEMPTS = 5;
 export interface ConnectionIntent {
   id: string;
   connectionId: string;
@@ -100,7 +105,7 @@ const requestSchema = z
   })
   .strict();
 
-/** Current generic guards; installed sources additionally prove mapping and suppression. */
+/** Current generic guards; an installed source additionally proves its mapping. */
 export async function connectionIntentGuard(
   ctx: TransactionContext,
   row: ConnectionIntent
@@ -109,13 +114,8 @@ export async function connectionIntentGuard(
   const c = await ctx.connections.get(row.connectionId);
   if (!c || c.state === 'disconnected') return 'disconnected';
   if (c.state === 'paused') return 'paused';
-  const synthetic =
-    row.source === 'synthetic.test' && row.scope === 'synthetic:test' && row.supporterId === null;
-  if (
-    c.version !== row.connectionVersion ||
-    c.direction === 'inbound' ||
-    (!synthetic && !c.consentScopes.includes(row.scope))
-  )
+  const synthetic = isSyntheticIntent(row);
+  if (c.version !== row.connectionVersion || (!synthetic && !c.consentScopes.includes(row.scope)))
     return 'version';
   if (!c.hasCredential || c.credentialVersion !== row.credentialVersion) return 'credential';
   if (row.actor.kind === 'operator') {
@@ -204,8 +204,25 @@ const view = z.object({
   nextAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   externalCopyAction: z.enum(['requested', 'confirmed', 'failed', 'manual']).nullable(),
+  /** What an operator with `connections:replay` can do next; the fronts render only this. */
+  operatorAction: z.enum(['replay', 'resolve']).nullable(),
 });
-const asView = (r: ConnectionIntent) => ({
+
+/**
+ * Replay only where another attempt can be safe: a pending intent, or an unknown one whose
+ * transport can reconcile first. An unknown intent without that proof is resolved by hand,
+ * because re-sending it could repeat an effect the receiver already performed (ADR 019/024).
+ */
+function operatorAction(
+  r: ConnectionIntent,
+  provider: ConnectionProvider
+): 'replay' | 'resolve' | null {
+  const reconciles = PROVIDER_RECONCILES[provider];
+  if (r.state === 'unknown')
+    return reconciles && r.attempts < CONNECTION_MAX_ATTEMPTS ? 'replay' : 'resolve';
+  return r.state === 'pending' && r.attempts < CONNECTION_MAX_ATTEMPTS ? 'replay' : null;
+}
+const asView = (r: ConnectionIntent, provider: ConnectionProvider) => ({
   id: r.id,
   connectionId: r.connectionId,
   state: r.state,
@@ -213,16 +230,16 @@ const asView = (r: ConnectionIntent) => ({
   attempts: r.attempts,
   nextAt: r.nextAt.toISOString(),
   updatedAt: r.updatedAt.toISOString(),
-  externalCopyAction:
-    r.source === 'synthetic.test'
-      ? null
-      : ((r.state === 'succeeded'
-          ? 'confirmed'
-          : r.state === 'unknown'
-            ? 'manual'
-            : r.state === 'blocked' || r.state === 'failed'
-              ? 'failed'
-              : 'requested') as 'requested' | 'confirmed' | 'failed' | 'manual'),
+  externalCopyAction: isSyntheticIntent(r)
+    ? null
+    : ((r.state === 'succeeded'
+        ? 'confirmed'
+        : r.state === 'unknown' || r.state === 'resolved'
+          ? 'manual'
+          : r.state === 'blocked' || r.state === 'failed'
+            ? 'failed'
+            : 'requested') as 'requested' | 'confirmed' | 'failed' | 'manual'),
+  operatorAction: operatorAction(r, provider),
 });
 export const listConnectionIntents = defineUseCase({
   name: 'connections.intent.list',
@@ -234,9 +251,13 @@ export const listConnectionIntents = defineUseCase({
   output: z.object({ intents: z.array(view) }),
   examples: [{ input: { connectionId: example.id } }],
   async handler(ctx, { connectionId }) {
-    if (!(await ctx.connections.get(connectionId)))
-      throw new UseCaseError('not_found', 'connection not found');
-    return { intents: (await ctx.connectionIntents.list(connectionId, 30)).map(asView) };
+    const c = await ctx.connections.get(connectionId);
+    if (!c) throw new UseCaseError('not_found', 'connection not found');
+    return {
+      intents: (await ctx.connectionIntents.list(connectionId, 30)).map((r) =>
+        asView(r, c.provider)
+      ),
+    };
   },
 });
 
@@ -263,10 +284,10 @@ export const testConnection = defineUseCase({
       businessId,
       connectionVersion: c.version,
       credentialVersion: c.credentialVersion,
-      source: 'synthetic.test',
+      source: SYNTHETIC_SOURCE,
       mappingVersion: c.contractVersion,
       supporterId: null,
-      scope: 'synthetic:test',
+      scope: SYNTHETIC_SCOPE,
       actor:
         actor.kind === 'operator'
           ? { kind: 'operator', id: actor.operatorId }
@@ -288,9 +309,15 @@ export const testConnection = defineUseCase({
     if (failure) throw new UseCaseError('conflict', `connection test blocked: ${failure}`);
     await ctx.connectionIntents.insert(row);
     await enqueueConnectionIntent(ctx, row.id, at);
-    return asView(row);
+    return asView(row, c.provider);
   },
 });
+const intentWithProvider = async (ctx: TransactionContext, id: string) => {
+  const row = await ctx.connectionIntents.get(id);
+  const c = row && (await ctx.connections.get(row.connectionId));
+  if (!row || !c) throw new UseCaseError('not_found', 'connection intent not found');
+  return { row, provider: c.provider };
+};
 export const getConnectionIntent = defineUseCase({
   name: 'connections.intent.get',
   description: 'Read redacted delivery status for one connection intent.',
@@ -301,14 +328,14 @@ export const getConnectionIntent = defineUseCase({
   output: view,
   examples: [{ input: example }],
   async handler(ctx, { id }) {
-    const row = await ctx.connectionIntents.get(id);
-    if (!row) throw new UseCaseError('not_found', 'connection intent not found');
-    return asView(row);
+    const { row, provider } = await intentWithProvider(ctx, id);
+    return asView(row, provider);
   },
 });
 export const replayConnectionIntent = defineUseCase({
   name: 'connections.intent.replay',
-  description: 'Request a guarded retry or reconciliation without discarding uncertainty.',
+  description:
+    'Request a guarded retry of a pending intent, or reconciliation of an unknown one where the transport can prove the outcome.',
   kind: 'command',
   requires: 'connections:replay',
   authenticatedOnly: true,
@@ -316,18 +343,55 @@ export const replayConnectionIntent = defineUseCase({
   output: view,
   examples: [{ input: example }],
   async handler(ctx, { id }) {
-    const row = await ctx.connectionIntents.get(id);
-    if (!row) throw new UseCaseError('not_found', 'connection intent not found');
+    const { row, provider } = await intentWithProvider(ctx, id);
     const failure = await connectionIntentGuard(ctx, row);
     if (failure) throw new UseCaseError('conflict', `connection intent blocked: ${failure}`);
-    if (row.state === 'succeeded' || row.state === 'blocked' || row.attempts >= 5)
-      throw new UseCaseError('conflict', 'connection intent cannot be replayed');
+    if (operatorAction(row, provider) !== 'replay')
+      throw new UseCaseError(
+        'conflict',
+        row.state === 'unknown'
+          ? 'connection intent outcome is unknown and needs manual resolution'
+          : 'connection intent cannot be replayed'
+      );
     // Preserve lease, uncertainty and backoff. The worker rechecks the original authority too.
     await enqueueConnectionIntent(
       ctx,
       id,
       row.nextAt > ctx.clock.now() ? row.nextAt : ctx.clock.now()
     );
-    return asView(row);
+    return asView(row, provider);
+  },
+});
+export const resolveConnectionIntent = defineUseCase({
+  name: 'connections.intent.resolve',
+  description:
+    'Mark an unknown intent as handled after checking the receiver by hand; it is never sent again.',
+  kind: 'command',
+  requires: 'connections:replay',
+  authenticatedOnly: true,
+  input: id,
+  output: view,
+  examples: [{ input: example }],
+  async handler(ctx, { id }) {
+    const { row, provider } = await intentWithProvider(ctx, id);
+    const now = ctx.clock.now();
+    if (operatorAction(row, provider) !== 'resolve')
+      throw new UseCaseError(
+        'conflict',
+        'only an unknown intent without reconciliation is resolved'
+      );
+    // A running attempt may still report; resolving under its lease would race that result.
+    if (row.leaseUntil && row.leaseUntil > now)
+      throw new UseCaseError('conflict', 'connection intent is being attempted');
+    const next: ConnectionIntent = {
+      ...row,
+      state: 'resolved',
+      leaseToken: null,
+      leaseUntil: null,
+      updatedAt: now,
+    };
+    if (!(await ctx.connectionIntents.replace(next, row.revision)))
+      throw new UseCaseError('conflict', 'connection intent changed');
+    return asView({ ...next, revision: row.revision + 1 }, provider);
   },
 });

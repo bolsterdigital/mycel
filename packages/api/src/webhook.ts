@@ -1,94 +1,18 @@
-// Outbound webhook requests pin a freshly checked public DNS answer to the TLS connection.
-// Rejected: fetch(url), whose resolver and redirect handling can bypass an earlier IP check.
+// Outbound webhook requests pin a freshly checked public DNS answer to the TLS connection. The
+// address rule and the lookup are the core's (`checkDestination` over the DNS port), the same
+// check the use cases run at configuration. Rejected: fetch(url), whose resolver and redirect
+// handling can bypass an earlier IP check.
 import { createHmac } from 'node:crypto';
-import { resolve4, resolve6 } from 'node:dns/promises';
 import { request as httpsRequest } from 'node:https';
 import type { RequestOptions } from 'node:https';
-import { BlockList, isIP } from 'node:net';
-import { UseCaseError, type ConnectionTransport } from '@mycel/core';
-
-const BLOCKED_V4 = new BlockList();
-for (const [address, bits] of [
-  ['0.0.0.0', 8],
-  ['10.0.0.0', 8],
-  ['100.64.0.0', 10],
-  ['127.0.0.0', 8],
-  ['169.254.0.0', 16],
-  ['172.16.0.0', 12],
-  ['192.0.0.0', 24],
-  ['192.0.2.0', 24],
-  ['192.168.0.0', 16],
-  ['198.18.0.0', 15],
-  ['198.51.100.0', 24],
-  ['203.0.113.0', 24],
-  ['224.0.0.0', 4],
-  ['240.0.0.0', 4],
-] as const)
-  BLOCKED_V4.addSubnet(address, bits, 'ipv4');
-const GLOBAL_V6 = new BlockList();
-GLOBAL_V6.addSubnet('2000::', 3, 'ipv6');
-const BLOCKED_V6 = new BlockList();
-for (const [address, bits] of [
-  ['2001::', 32],
-  ['2001:db8::', 32],
-  ['2002::', 16],
-  ['3fff::', 20],
-] as const)
-  BLOCKED_V6.addSubnet(address, bits, 'ipv6');
-
-export function publicAddress(address: string): boolean {
-  const family = isIP(address);
-  if (family === 4) return !BLOCKED_V4.check(address, 'ipv4');
-  if (family === 6) return GLOBAL_V6.check(address, 'ipv6') && !BLOCKED_V6.check(address, 'ipv6');
-  return false;
-}
-
-export type AddressLookup = (hostname: string) => Promise<string[]>;
-export const dnsAddresses: AddressLookup = async (hostname) => {
-  const results = await Promise.allSettled([resolve4(hostname), resolve6(hostname)]);
-  const addresses = results.flatMap((result) =>
-    result.status === 'fulfilled' ? result.value : []
-  );
-  if (!addresses.length) throw new Error('webhook DNS did not return an address');
-  return addresses;
-};
-
-/** Validation runs at configuration and for every attempt. A mixed public/private answer fails. */
-export async function checkedDestination(
-  raw: string,
-  lookup: AddressLookup = dnsAddresses
-): Promise<{ url: URL; address: string }> {
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    throw new UseCaseError('invalid_input', 'invalid webhook destination');
-  }
-  const host = url.hostname.toLowerCase();
-  if (
-    url.protocol !== 'https:' ||
-    url.port !== '' ||
-    url.username ||
-    url.password ||
-    url.search ||
-    url.hash ||
-    isIP(host) ||
-    !host.includes('.') ||
-    host.endsWith('.local') ||
-    host.endsWith('.internal') ||
-    host.endsWith('.localhost')
-  )
-    throw new UseCaseError('invalid_input', 'webhook destination must be public HTTPS on port 443');
-  let addresses: string[];
-  try {
-    addresses = await lookup(host);
-  } catch {
-    throw new UseCaseError('invalid_input', 'webhook destination DNS unavailable');
-  }
-  if (!addresses.length || addresses.some((address) => !publicAddress(address)))
-    throw new UseCaseError('invalid_input', 'webhook destination DNS is not public');
-  return { url, address: addresses[0]! };
-}
+import { isIP } from 'node:net';
+import {
+  checkDestination,
+  isSyntheticIntent,
+  SYNTHETIC_SOURCE,
+  type ConnectionTransport,
+  type DnsResolver,
+} from '@mycel/core';
 
 export interface WebhookRequest {
   url: URL;
@@ -141,25 +65,28 @@ export const sendWebhook = (
     request.end(body);
   });
 
+/**
+ * No `reconcile`: a receiver gives no signed proof of what it did with an event, so an ambiguous
+ * delivery stays `unknown` until an operator resolves it (`PROVIDER_RECONCILES.webhook`).
+ */
 export function webhookTransport({
-  lookup = dnsAddresses,
+  dns,
   send = sendWebhook,
   now = () => new Date(),
 }: {
-  lookup?: AddressLookup;
+  dns: Pick<DnsResolver, 'addresses'>;
   send?: WebhookSender;
   now?: () => Date;
-} = {}): ConnectionTransport {
+}): ConnectionTransport {
   return {
     async dispatch({ intent, connection, credential, payload }) {
       if (connection.provider !== 'webhook' || !connection.destination) return 'pre_send';
       // Only the synthetic source may be sent. A real payload needs its own reviewed,
       // category-specific contract before this transport accepts it.
-      if (intent.source !== 'synthetic.test' || payload['category'] !== 'synthetic.test')
-        return 'pre_send';
-      let target: Awaited<ReturnType<typeof checkedDestination>>;
+      if (!isSyntheticIntent(intent) || payload['category'] !== SYNTHETIC_SOURCE) return 'pre_send';
+      let target: Awaited<ReturnType<typeof checkDestination>>;
       try {
-        target = await checkedDestination(connection.destination, lookup);
+        target = await checkDestination(dns, connection.destination);
       } catch {
         return 'pre_send';
       }
@@ -169,7 +96,7 @@ export function webhookTransport({
         eventId: intent.id,
         timestamp,
         idempotencyKey: intent.key,
-        category: 'synthetic.test',
+        category: SYNTHETIC_SOURCE,
         data: { synthetic: true },
       });
       const signature = createHmac('sha256', credential)
@@ -191,11 +118,6 @@ export function webhookTransport({
       } catch {
         return 'unknown';
       }
-    },
-    async reconcile() {
-      // A webhook receiver must deduplicate by eventId and may receive events out of order.
-      // Without a signed receiver status proof an ambiguous delivery remains manual.
-      return 'unknown';
     },
   };
 }

@@ -4,11 +4,15 @@ import type { Clock, TransactionContext, UnitOfWork } from '../ports.js';
 import type { IdentityStore } from '../operators/ports.js';
 import type { JobOutcome } from '../jobs/ports.js';
 import { systemPrincipal } from '../principal.js';
-import { connectionIntentGuard, type ConnectionIntent, type ConnectionFailure } from './intents.js';
+import {
+  CONNECTION_MAX_ATTEMPTS,
+  connectionIntentGuard,
+  type ConnectionIntent,
+  type ConnectionFailure,
+} from './intents.js';
 import type { ConnectionRecord } from './ports.js';
 
 export const CONNECTION_LEASE_MS = 60_000;
-export const CONNECTION_MAX_ATTEMPTS = 5;
 const backoff = (attempt: number) => Math.min(3_600_000, 60_000 * 2 ** Math.min(attempt, 6));
 /** Installed sources resolve a pinned mapping and current external suppression, in tenant context.
  * No source is installed by default. A source must not infer permission from a prior payload.
@@ -32,8 +36,12 @@ export interface ConnectionTransport {
     credential: string;
     payload: Readonly<Record<string, unknown>>;
   }): Promise<'succeeded' | 'pre_send' | 'unknown'>;
-  /** `absent` must prove no previous or still-running call can later perform the effect. */
-  reconcile(input: {
+  /**
+   * `absent` must prove no previous or still-running call can later perform the effect. A
+   * transport without this proof omits it: its unknown intents wait for manual resolution and
+   * are never attempted again (`PROVIDER_RECONCILES` says the same to the use cases).
+   */
+  reconcile?(input: {
     tenantId: string;
     intent: Readonly<ConnectionIntent>;
   }): Promise<'succeeded' | 'absent' | 'unknown'>;
@@ -59,12 +67,14 @@ export async function runConnectionIntent(
   const now = deps.clock.now();
   const claimed = await run(async (ctx) => {
     const row = await ctx.connectionIntents.get(id);
-    if (!row || row.state === 'succeeded' || row.state === 'blocked')
+    if (!row || row.state === 'succeeded' || row.state === 'blocked' || row.state === 'resolved')
       return { done: true } as const;
     if (row.leaseUntil && row.leaseUntil > now) return { next: row.leaseUntil } as const;
-    if (row.nextAt > now) return { next: row.nextAt } as const;
-    // An expired claim is still unknown. Only provider proof can move it back to pending.
+    // An expired claim is still unknown. Only provider proof can move it back to pending; a
+    // transport without that proof leaves it for an operator and spends no attempt on it.
     const reconcile = row.state === 'unknown';
+    if (reconcile && !deps.transport.reconcile) return { done: true } as const;
+    if (row.nextAt > now) return { next: row.nextAt } as const;
     const failure = await connectionIntentGuard(ctx, row);
     if (failure) {
       const wait = failure === 'paused' || failure === 'suspended';
@@ -167,7 +177,7 @@ export async function runConnectionIntent(
   } else {
     try {
       result = reconcile
-        ? await deps.transport.reconcile({ tenantId, intent: row })
+        ? await deps.transport.reconcile!({ tenantId, intent: row })
         : await deps.transport.dispatch({
             tenantId,
             intent: row,
@@ -225,7 +235,12 @@ export async function runConnectionIntent(
       outcome: result,
     });
   });
-  if (result === 'succeeded' || result === 'blocked' || row.attempts >= CONNECTION_MAX_ATTEMPTS)
+  if (
+    result === 'succeeded' ||
+    result === 'blocked' ||
+    row.attempts >= CONNECTION_MAX_ATTEMPTS ||
+    (result === 'unknown' && !deps.transport.reconcile)
+  )
     return {};
   return { next: row.nextAt };
 }
