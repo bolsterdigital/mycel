@@ -3,7 +3,7 @@
 - **Status**: accepted
 - **Date**: 2026-10-21
 - **Amends**: ADR 014 (one primary hostname per tenant), ADR 015 (removes `sites.max`)
-- **Prompted by**: second-opinion review of 2026-10-21 (`mycel-planning/reference/platformreview-2026-10-21.md`, finding 1)
+- **Prompted by**: second-opinion review of 2026-10-21 (finding 1; the review is kept in the private planning repository)
 
 ## Context
 
@@ -12,7 +12,7 @@ ADR 014 gives every tenant exactly one primary hostname, while ADR 015 lists `si
 ## Decision
 
 1. **A tenant is one site: one publication or one campaign organisation on one primary hostname.** Everything tenant-owned (content, authors, sections, supporters, lists, ledger, access tiers, theme, entitlements) belongs to that one site. There is no `site` entity below the tenant and no `sites.max` limit.
-2. **An organisation that runs several sites runs several tenants.** Grouping them is a hosting concern (billing, one invoice, one operator logging in to several tenants through memberships, ADR 002 and TODO #7), not a platform entity. The platform API may expose an `organisation` label on tenants for the hoster's convenience; it carries no behaviour.
+2. **An organisation that runs several sites runs several tenants.** Grouping them is a hosting concern (billing, one invoice, one operator logging in to several tenants through memberships, ADR 002 and PR #7), not a platform entity. The platform API may expose an `organisation` label on tenants for the hoster's convenience; it carries no behaviour.
 3. **Nothing is shared across tenants by default**: a reader of title A is a separate supporter in title B, with separate consent and separate subscriptions. This is the privacy-safe default and matches the RLS model (ADR 002).
 4. **Sharing across sites is a later, explicit feature, never an implicit join.** Candidates, each a future ADR with its own consent story: single reader sign-in across the tenants of one organisation, a shared author directory, a bundle subscription that grants access in several tenants. They would be built as cross-tenant read models and events (ADR 011 rule 1), not by weakening isolation.
 

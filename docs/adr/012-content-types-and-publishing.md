@@ -9,7 +9,7 @@
 
 ## Context
 
-Mycel serves campaigns and independent journalism from day one. Both publish a block tree, but a news article carries metadata a landing page does not (publication date, authors, section, corrections), has a lifecycle (draft, scheduled, published, updated) and is often also an e-mail: a newsletter issue is an article that was sent. Ghost and Substack model this as "posts" with an e-mail switch; Dreamkit had pages only and bolted news on with WordPress posts. These shapes leak into the schema, the URL space, the API and the e-mail renderer, so they are decided now, before the block set (TODO #8) is built.
+Mycel serves campaigns and independent journalism from day one. Both publish a block tree, but a news article carries metadata a landing page does not (publication date, authors, section, corrections), has a lifecycle (draft, scheduled, published, updated) and is often also an e-mail: a newsletter issue is an article that was sent. Ghost and Substack model this as "posts" with an e-mail switch; Dreamkit had pages only and bolted news on with WordPress posts. These shapes leak into the schema, the URL space, the API and the e-mail renderer, so they are decided now, before the block set is built.
 
 ## Decision
 
@@ -33,6 +33,6 @@ Mycel serves campaigns and independent journalism from day one. Both publish a b
 ## Consequences
 
 - Tables in fase 1: `content_items` (type, slug, status, published_revision_id, scheduled_for), `content_revisions`, `authors`, `sections`, `patterns`, `jobs`; all tenant-owned with RLS. `pages` from the probe migrates into `content_items` with `type = 'page'`.
-- Feeds (RSS/Atom per tenant, section and author), sitemap and `NewsArticle` structured data derive from the read route and are TODO #9.
+- Feeds (RSS/Atom per tenant, section and author), sitemap and `NewsArticle` structured data derive from the read route; they are not built yet.
 - The e-mail renderer (fase 4) is the first consumer of rule 5; until then `delivery.email` is stored but not acted upon.
 - Use-case names: `content.item.*` (create, update, publish, unpublish, schedule, revisions, diff), `content.author.*`, `content.section.*`, `content.pattern.*`.

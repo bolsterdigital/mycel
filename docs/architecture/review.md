@@ -2,6 +2,8 @@
 
 Every pull request already gets an independent review (the author never merges their own PR) and `npm run verify` as the gate ([testing.md](testing.md)). This document adds one thing: a way to decide, per PR, whether the gate already proves the behaviour that changed, and if not, which **one** extra counterproof is worth twenty to thirty minutes. A cheap, deterministic step proposes; the reviewer chooses; every piece of evidence hangs on a claim, a SHA and an owner.
 
+Independence means a separate agent session with fresh context, not a second human or GitHub account. Author, reviewer and merger agents may use the same owner's GitHub identity. In that case the reviewer publishes the verdict as a COMMENT with the exact reviewed SHA, and a separate merger session verifies that verdict and the unchanged head before merging. A COMMENT can carry the agent's approval; GitHub's APPROVED state is not required. The protection request keeps pull requests and required CI checks mandatory without imposing a second GitHub identity. GitHub enforces those checks; session separation and the review record enforce the agent workflow procedurally.
+
 Rejected: a fixed set of reviewer agents per PR (expensive, mostly duplicates of what the conformance suites already prove), a numeric risk score (false precision: a path list cannot see that a cache change breaks a form post), and periodic broad audits after every N merges (they mix progress, architecture, code and a moving CI state into one report nobody can repeat). The broad check of 2026-10-23 was useful for finding chains of defects; it was not a unit worth repeating.
 
 ## The record
@@ -75,7 +77,7 @@ The `test-surface` flag is the cheap form of a holdout: tests and fixtures are t
 
 ## The pilot
 
-The method starts as a bounded experiment in this repository, registered in the private planning sibling (`docs/plans/reference/review-pilot-2026-10.md`): shadow routing on ordinary reviews, three pilot lenses (`reliability`, `architecture`, `contract`), at most two extra targeted reviews in the whole window, and a written decision at the end. Measured: minutes and model used, confirmed new findings against duplicates and unusable ones, open stock, delayed repairs, escapes, flakiness. The numbers are working budgets, not proven thresholds or release conditions. If the evidence is thin, the automatic part stays off and nothing expands; that says nothing about the value of a lens invoked by hand. If it is convincing, one contrasting repository tries the same record and signals with its own small profile, so the method is tested for reuse without copying this project's assumptions.
+The method starts as a bounded experiment in this repository, with its register kept in the private planning repository, outside this one: shadow routing on ordinary reviews, three pilot lenses (`reliability`, `architecture`, `contract`), at most two extra targeted reviews in the whole window, and a written decision at the end. Measured: minutes and model used, confirmed new findings against duplicates and unusable ones, open stock, delayed repairs, escapes, flakiness. The numbers are working budgets, not proven thresholds or release conditions. If the evidence is thin, the automatic part stays off and nothing expands; that says nothing about the value of a lens invoked by hand. If it is convincing, one contrasting repository tries the same record and signals with its own small profile, so the method is tested for reuse without copying this project's assumptions.
 
 ## Changing the profile
 

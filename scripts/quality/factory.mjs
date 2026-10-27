@@ -38,10 +38,15 @@ export function environmentKey(run) {
         .update(
           JSON.stringify(
             Object.fromEntries(
-              ['node', 'lighthouse', 'playwright', 'chromium', 'caddy', 'runner'].map((k) => [
-                k,
-                run.tools[k],
-              ])
+              [
+                'node',
+                'lighthouse',
+                'playwright',
+                'chromium',
+                'caddy',
+                'runner',
+                ...(run.tools.kernel ? ['kernel'] : []),
+              ].map((k) => [k, run.tools[k]])
             )
           )
         )

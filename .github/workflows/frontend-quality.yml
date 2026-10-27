@@ -66,6 +66,8 @@ jobs:
           --health-cmd "pg_isready -U mycel -d mycel" --health-interval 2s --health-timeout 3s
           --health-retries 20
     env:
+      # One immutable browser userspace, independent of rolling GitHub host images.
+      QUALITY_RUNNER_IMAGE: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:d65108d1a8095d8b0c4a5e32bf1807a40a5ce90ff0c78473e1116b1c243235e8
       DATABASE_URL: postgres://mycel:mycel@localhost:5432/mycel
       APP_DATABASE_URL: postgres://mycel_app:mycel_app_ci@localhost:5432/mycel
       MYCEL_APP_PASSWORD: mycel_app_ci
@@ -93,14 +95,7 @@ jobs:
       - name: Install pinned browser and proxy
         timeout-minutes: 3
         run: |
-          # The image's Azure mirror stalled signed font/library downloads for ten minutes
-          # in the initial matrix. Keep apt signature checks; change only the ephemeral mirror.
-          printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
-          if [ -f /etc/apt/apt-mirrors-security.txt ]; then
-            printf '%s\n' 'https://security.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors-security.txt > /dev/null
-          fi
-          printf '%s\n' 'Acquire::http::Timeout "20";' 'Acquire::https::Timeout "20";' 'Acquire::Retries "2";' | sudo tee /etc/apt/apt.conf.d/99-mycel-quality-network > /dev/null
-          npx playwright install --with-deps chromium
+          docker pull "$QUALITY_RUNNER_IMAGE"
           curl --fail --location --connect-timeout 15 --max-time 60 --retry 2 -o /tmp/caddy.tar.gz https://github.com/caddyserver/caddy/releases/download/v2.10.2/caddy_2.10.2_linux_amd64.tar.gz
           echo '5c218bc34c9197369263da7e9317a83acdbd80ef45d94dca5eff76e727c67cdd  /tmp/caddy.tar.gz' | sha256sum --check
           tar -xzf /tmp/caddy.tar.gz -C /tmp caddy
@@ -114,7 +109,23 @@ jobs:
         id: measurement
         timeout-minutes: 6
         continue-on-error: true
-        run: npm run quality -- --scope=${{ matrix.scope }} --locale=${{ matrix.locale }} --profile=${{ matrix.profile }} --cache=${{ matrix.cache }} --out=.scratch/quality-report --baseline=.scratch/quality-baseline/summary.json
+        run: |
+          docker run --rm --init --network host --shm-size=1g \
+            --user "$(id -u):$(id -g)" --workdir "$PWD" \
+            --volume "$PWD:$PWD" \
+            --volume "$(dirname "$(dirname "$(command -v node)")"):/opt/quality-node:ro" \
+            --volume /usr/local/bin/caddy:/usr/local/bin/caddy:ro \
+            --env PATH=/opt/quality-node/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            --env HOME=/tmp --env GIT_CONFIG_COUNT=1 \
+            --env GIT_CONFIG_KEY_0=safe.directory --env "GIT_CONFIG_VALUE_0=$PWD" \
+            --env DATABASE_URL --env APP_DATABASE_URL --env MYCEL_APP_PASSWORD \
+            --env AUTH_DATABASE_URL --env MYCEL_AUTH_PASSWORD --env SIGNING_SECRET \
+            --env AUDIT_HASH_KEY --env CONNECTION_CREDENTIAL_KEY --env PUBLIC_BASE_URL \
+            --env PLATFORM_DOMAIN --env MAIL_FROM --env MAILER --env E2E_REQUIRED \
+            --env GITHUB_ACTIONS --env GITHUB_RUN_ID --env GITHUB_RUN_ATTEMPT \
+            --env QUALITY_RUNNER_IMAGE --env "QUALITY_HOST_IMAGE=$ImageVersion" \
+            "$QUALITY_RUNNER_IMAGE" \
+            npm run quality -- --scope=${{ matrix.scope }} --locale=${{ matrix.locale }} --profile=${{ matrix.profile }} --cache=${{ matrix.cache }} --out=.scratch/quality-report --baseline=.scratch/quality-baseline/summary.json
       # Preserve private originals encrypted to the operator's public certificate. Run again
       # after timeout/interruption too; the private key never enters GitHub or the repository.
       - name: Encrypt authenticated reports even after failure
@@ -158,3 +169,36 @@ jobs:
         env:
           MEASUREMENT_OUTCOME: ${{ steps.measurement.outcome }}
         run: node scripts/quality/status.mjs .scratch/quality-report/summary.json >> "$GITHUB_STEP_SUMMARY"
+
+  frontend-quality:
+    name: frontend-quality
+    if: always()
+    needs: [prepare, measure]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.22.0'
+      - name: Retrieve every sanitized shard
+        id: download
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: quality-summary-*
+          path: .scratch/quality-shards
+      - name: Validate expected matrix and enforce measured state
+        if: always()
+        env:
+          QUALITY_NEEDS: ${{ toJSON(needs) }}
+          QUALITY_DOWNLOAD_OUTCOME: ${{ steps.download.outcome }}
+        run: node scripts/quality/gate.mjs .scratch/quality-shards .scratch/quality-gate >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain gate evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: quality-gate-${{ github.run_attempt }}
+          path: .scratch/quality-gate
+          retention-days: 90
+          if-no-files-found: error

@@ -2,6 +2,7 @@
 // scheduled and manual runs. These are contract tests, not snapshots of the implementation.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { createHash } from 'node:crypto';
 import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,7 +11,7 @@ import { protectReports } from './protect.mjs';
 import { compareBaseline } from './baseline.mjs';
 import { IdentityGatherer, IdentityAudit } from './gatherer.mjs';
 import { matrix } from './matrix.mjs';
-import { status } from './status.mjs';
+import { status as qualityStatus } from './status.mjs';
 
 test('PR set covers both public profiles; scheduled/manual expand locale, cache and admin', () => {
   const pr = matrix('pull_request').include;
@@ -28,6 +29,9 @@ test('PR set covers both public profiles; scheduled/manual expand locale, cache 
   assert.ok(matrix('schedule').include.some((c) => c.cache === 'warm'));
 });
 test('calibration keeps raw fail visible, deadline blocks fail/inconclusive/missing', () => {
+  const dated = { deadline: '2026-11-09T00:00:00Z', earlyActivation: null };
+  const status = (report, outcome, now, policy = dated) =>
+    qualityStatus(report, outcome, now, policy);
   for (const state of ['fail', 'inconclusive', 'not-measured']) {
     const report = { state, cells: [{}] };
     assert.equal(status(report, 'failure', '2026-10-26').measured, state);
@@ -36,6 +40,9 @@ test('calibration keeps raw fail visible, deadline blocks fail/inconclusive/miss
   assert.equal(status(undefined, 'failure', '2026-11-09').blocks, true);
   assert.equal(status({ state: 'pass', cells: [{}] }, 'success', '2026-11-09').blocks, false);
   assert.equal(status({ state: 'pass', cells: [] }, 'success', '2026-11-09').blocks, true);
+  const suspended = { deadline: null, earlyActivation: null };
+  assert.equal(status(undefined, 'failure', '2030-01-01', suspended).blocks, false);
+  assert.equal(status(undefined, 'failure', '2030-01-01', suspended).measured, 'not-measured');
 });
 test('quality proxy preserves production compression and closed operational paths', () => {
   const production = readFileSync(new URL('../../docker/caddy/Caddyfile', import.meta.url), 'utf8');
@@ -249,7 +256,9 @@ function retained(event = 'workflow_dispatch') {
           ...contract.tools,
           chromium: '156.0.8078.4',
           caddy: `v${contract.tools.caddy} test`,
-          runner: 'github-ubuntu-24.04:20261023.334.3',
+          runner: `github-container:${contract.runnerImage}`,
+          hostImage: '20261023.334.3',
+          kernel: '6.11.0-1018-azure',
           mode: 'ci',
         },
         coverage: [
@@ -309,8 +318,8 @@ test('consumer counts the versioned full matrix and retains all red observation 
   bad.batches[1].state = 'pass';
   bad.batches[1].reasons = [];
   const result = consumeRun(run, load);
-  assert.equal(result.expected, 36);
-  assert.equal(result.samples, 185);
+  assert.equal(result.expected, 48);
+  assert.equal(result.samples, 245);
   assert.equal(result.state, 'fail');
   assert.equal(result.conclusion, 'success');
   assert.equal(result.cells[0].batches.length, 2);
@@ -560,7 +569,7 @@ test('GitHub adapter separates rerun artifacts by attempt and preserves corrupt 
     assert.equal(report.runs[0].createdAt, report.runs[1].createdAt);
     assert.notEqual(report.runs[0].startedAt, report.runs[1].startedAt);
     assert.equal(report.runs[1].state, 'not-measured');
-    assert.equal(report.runs[1].present, 2);
+    assert.equal(report.runs[1].present, 3);
     assert.ok(report.runs[1].issues.length);
     artifacts.length = 0;
     const missing = collectHistory({
@@ -572,7 +581,7 @@ test('GitHub adapter separates rerun artifacts by attempt and preserves corrupt 
       },
     });
     const absent = consume(missing, load, clock);
-    assert.equal(absent.runs[0].expected, 4);
+    assert.equal(absent.runs[0].expected, 6);
     assert.equal(absent.runs[0].present, 0);
     assert.equal(absent.runs[0].missingShards.length, 2);
     assert.equal(absent.runs[0].expectationSha, original.headSha);
@@ -916,4 +925,427 @@ test('factory rejects private notes, arbitrary evidence URLs, duplicate closures
   r.runnerMinutes = 3.5;
   const future = { ...r, id: 200, startedAt: '2027-01-01T00:00:00Z', runnerMinutes: 100 };
   assert.equal(factory(processReport([r, future])).cost.knownRunnerMinutes, 3.5);
+});
+
+// The required check consumes real report fixtures, not a matrix job's success colour.
+import { gate, enforcement } from './gate.mjs';
+// The committed policy may suspend the deadline (null); these fixtures exercise a dated policy.
+const policy = {
+  ...JSON.parse(source('scripts/quality/enforcement.json')),
+  deadline: '2026-11-09T00:00:00Z',
+};
+function gateFixture(event = 'pull_request') {
+  const run = retained(event);
+  for (const artifact of run.artifacts)
+    artifact.report.workflow = { runId: String(run.id), attempt: String(run.attempt) };
+  return {
+    run,
+    load,
+    policy,
+    downloadOutcome: 'success',
+    now: '2026-11-09T00:00:00Z',
+    needs: {
+      prepare: { result: 'success', outputs: { matrix: JSON.stringify(matrix(event)) } },
+      measure: { result: 'success' },
+    },
+  };
+}
+// Original sanitized summaries are kept byte-for-byte; run.json records API/source hashes.
+function historicalHostShards() {
+  const root = new URL('./fixtures/pr90-host-shards/', import.meta.url);
+  const run = JSON.parse(readFileSync(new URL('run.json', root), 'utf8'));
+  for (const artifact of run.artifacts) {
+    const bytes = readFileSync(new URL(`${artifact.id}.summary`, root));
+    assert.equal(createHash('sha256').update(bytes).digest('hex'), artifact.summaryHash);
+    artifact.report = JSON.parse(bytes);
+  }
+  return { ...gateFixture(), run, now: '2026-10-27T18:00:00Z' };
+}
+test('original PR90 independent-host shards retain all four cells and twenty samples', () => {
+  for (const reverse of [false, true]) {
+    const input = historicalHostShards();
+    if (reverse) input.run.artifacts.reverse();
+    const result = gate(input);
+    assert.deepEqual(result.issues, []);
+    assert.equal(result.report.fixtureVersion, '43a-v3');
+    assert.equal(result.report.expected, 4);
+    assert.equal(result.report.present, 4);
+    assert.equal(result.report.samples, 20);
+    assert.equal(result.measured, 'fail');
+    assert.equal(result.blocks, false);
+    assert.deepEqual(result.report.cells, consumeRun(input.run, load).cells);
+    for (const artifact of input.run.artifacts) {
+      const retained = result.report.profiles.find((p) => p.artifact === artifact.name);
+      for (const field of ['kernel', 'hostImage'])
+        assert.equal(retained.environment[field], artifact.report.environment[field]);
+      for (const cell of artifact.report.cells) {
+        const kept = result.report.cells.find((c) => c.id === cell.id);
+        assert.deepEqual(
+          kept.batches.map((b) => b.raw),
+          cell.batches.map((b) => b.raw)
+        );
+        assert.equal(kept.state, cell.state);
+      }
+    }
+    assert.equal(gate({ ...input, now: policy.deadline }).blocks, true);
+  }
+});
+test('historical v3 and current v4 shards reject provenance, tool and artifact corruption', () => {
+  const mutations = {
+    sha: (i) => {
+      i.run.artifacts[0].report.commit = 'b'.repeat(40);
+    },
+    corpus: (i) => {
+      i.run.artifacts[0].report.fixtureVersion = '43a-v99';
+    },
+    hash: (i) => {
+      i.run.artifacts[0].report.fixtureHash = 'b'.repeat(64);
+    },
+    run: (i) => {
+      i.run.artifacts[0].report.workflow.runId = '999';
+    },
+    attempt: (i) => {
+      i.run.artifacts[0].report.workflow.attempt = '0';
+    },
+    missing: (i) => {
+      i.run.artifacts.pop();
+    },
+    corrupt: (i) => {
+      i.load = () => {
+        throw new Error('corrupt JSON');
+      };
+    },
+    samples: (i) => {
+      i.run.artifacts[0].report.cells[0].batches[0].sampleIds.pop();
+    },
+  };
+  for (const field of ['runner', 'node', 'lighthouse', 'playwright', 'chromium', 'caddy'])
+    mutations[field] = (i) => {
+      i.run.artifacts[1].report.environment[field] += '-changed';
+    };
+  for (const fixture of [historicalHostShards, gateFixture]) {
+    for (const [name, mutate] of Object.entries(mutations)) {
+      const input = fixture();
+      mutate(input);
+      for (const now of ['2026-10-27T18:00:00Z', policy.deadline]) {
+        const result = gate({ ...input, now });
+        assert.equal(result.blocks, true, name);
+        assert.equal(result.measured, 'not-measured', name);
+      }
+    }
+    const input = fixture();
+    const forward = gate(input);
+    input.run.artifacts.reverse();
+    assert.deepEqual(gate(input).report.tools, forward.report.tools);
+    assert.equal(environmentKey(gate(input).report), environmentKey(forward.report));
+    // Host-image identity stays strict for legacy evidence in either shard order.
+    input.run.contract = { ...input.run.contract };
+    delete input.run.contract.runnerImage;
+    for (const [n, artifact] of input.run.artifacts.entries())
+      artifact.report.environment.runner = `github-ubuntu-24.04:2026102${n}.354.1`;
+    assert.equal(gate(input).blocks, true);
+    input.run.artifacts.reverse();
+    assert.equal(gate(input).blocks, true);
+  }
+});
+test('container shards bind immutable userspace and tools while retaining independent hosts', () => {
+  const input = gateFixture();
+  const digest = 'd65108d1a8095d8b0c4a5e32bf1807a40a5ce90ff0c78473e1116b1c243235e8';
+  input.run.contract = { ...input.run.contract, runnerImage: `sha256:${digest}` };
+  for (const [n, artifact] of input.run.artifacts.entries()) {
+    Object.assign(artifact.report.environment, {
+      runner: `github-container:sha256:${digest}`,
+      hostImage: ['20261026.354.1', '20261023.334.3'][n],
+      kernel: ['6.17.0-1022-azure', '7.0.0-1017-azure'][n],
+    });
+  }
+  const result = gate(input);
+  assert.equal(result.blocks, false);
+  assert.equal(result.report.present, 6);
+  assert.equal(result.report.samples, 30);
+  assert.deepEqual(
+    result.report.profiles.map((p) => p.environment.hostImage),
+    ['20261026.354.1', '20261023.334.3']
+  );
+  assert.equal('kernel' in result.report.tools, false);
+  assert.deepEqual(
+    result.report.profiles.map((p) => p.environment.kernel),
+    ['6.17.0-1022-azure', '7.0.0-1017-azure']
+  );
+  for (const field of ['runner', 'node', 'lighthouse', 'playwright', 'chromium', 'caddy']) {
+    const bad = { ...input, run: structuredClone(input.run) };
+    bad.run.artifacts[1].report.environment[field] += '-changed';
+    assert.equal(gate(bad).blocks, true, field);
+  }
+  for (const field of ['runner', 'kernel', 'hostImage']) {
+    const bad = { ...input, run: structuredClone(input.run) };
+    delete bad.run.artifacts[1].report.environment[field];
+    assert.equal(gate(bad).blocks, true, `missing ${field}`);
+  }
+  for (const [field, values] of Object.entries({
+    kernel: ['unknown', '6.17.0\n', '6.17.0\nforged', '6.17.0/' + 'a'.repeat(240)],
+    hostImage: ['unknown', '20261026.354.1\n', '20261026.354.1\nforged', '20261026'],
+  })) {
+    for (const value of values) {
+      const bad = { ...input, run: structuredClone(input.run) };
+      bad.run.artifacts[1].report.environment[field] = value;
+      assert.equal(gate(bad).blocks, true, `invalid ${field}: ${value}`);
+    }
+  }
+  // Historical host runs keep their original strict image comparison.
+  delete input.run.contract.runnerImage;
+  for (const a of input.run.artifacts)
+    a.report.environment.runner = `github-ubuntu-24.04:${a.report.environment.hostImage}`;
+  assert.equal(gate(input).blocks, true);
+});
+test('measurement installs no mutable host browser dependencies and pins its container to source', () => {
+  const workflow = source('.github/workflows/frontend-quality.yml');
+  assert.match(
+    workflow,
+    new RegExp(`playwright:v${contract.tools.playwright}-noble@${contract.runnerImage}`)
+  );
+  assert.match(workflow, /docker pull "\$QUALITY_RUNNER_IMAGE"/);
+  assert.match(workflow, /"\$QUALITY_RUNNER_IMAGE" \\\n\s+npm run quality/);
+  assert.match(workflow, /--env "QUALITY_HOST_IMAGE=\$ImageVersion"/);
+  assert.match(workflow, /--volume .*\/opt\/quality-node:ro/);
+  assert.match(workflow, /--volume \/usr\/local\/bin\/caddy:.*:ro/);
+  assert.doesNotMatch(workflow, /playwright install|apt-get|apt-mirrors/);
+  const inputs = {
+    corpus: source('apps/web/e2e/quality-corpus.json'),
+    seed: source('scripts/e2e.mjs'),
+    matrixSource: source('scripts/quality/matrix.mjs'),
+    workflow,
+    lock: source('package-lock.json'),
+  };
+  assert.throws(() =>
+    sourceContract({ ...inputs, workflow: workflow.replace(/@sha256:[a-f0-9]{64}/, '') })
+  );
+});
+test('required quality context validates complete default and full evidence at the UTC boundary', () => {
+  for (const event of ['pull_request', 'push', 'schedule', 'workflow_dispatch']) {
+    const input = gateFixture(event);
+    assert.equal(gate(input).blocks, false);
+    assert.equal(gate(input).measured, 'pass');
+    for (const state of ['fail', 'inconclusive', 'not-measured']) {
+      const changed = gateFixture(event);
+      const cell = changed.run.artifacts[0].report.cells[0];
+      cell.state = cell.batches[0].state = state;
+      changed.run.artifacts[0].report.state = state;
+      assert.equal(gate({ ...changed, now: '2026-11-08T23:59:59.999Z' }).blocks, false);
+      assert.equal(gate(changed).blocks, true);
+      assert.equal(gate(changed).measured, state);
+    }
+  }
+});
+test('green observation jobs cannot hide missing, stale, corrupt or contradictory matrix evidence', () => {
+  const mutations = [
+    (i) => {
+      i.downloadOutcome = 'failure';
+    },
+    (i) => {
+      i.run.artifacts = [];
+    },
+    (i) => {
+      i.run.artifacts.pop();
+    },
+    (i) => {
+      i.run.artifacts[0].report.cells.pop();
+    },
+    (i) => {
+      i.run.artifacts[0].report.cells = [];
+    },
+    (i) => {
+      i.run.artifacts.push(structuredClone(i.run.artifacts[0]));
+    },
+    (i) => {
+      i.run.artifacts[0].report.workflow.attempt = '0';
+    },
+    (i) => {
+      i.run.artifacts[0].report.workflow.runId = '999';
+    },
+    (i) => {
+      delete i.run.artifacts[0].report.workflow;
+    },
+    (i) => {
+      i.run.artifacts[0].report.commit = 'b'.repeat(40);
+    },
+    (i) => {
+      i.run.artifacts[0].report.fixtureHash = 'b'.repeat(64);
+    },
+    (i) => {
+      i.run.artifacts[0].report.environment.lighthouse = 'unknown';
+    },
+    (i) => {
+      i.run.artifacts[0].report.interrupted = true;
+    },
+    (i) => {
+      i.run.artifacts[0].report.cells[0].batches[0].sampleIds.pop();
+    },
+    (i) => {
+      i.run.artifacts[0].report.cells[0].batches[0].raw[0].accessibility = 0.99;
+    },
+    (i) => {
+      i.load = () => {
+        throw new Error('corrupt JSON');
+      };
+    },
+    (i) => {
+      i.needs.prepare.outputs.matrix = '{"include":[]}';
+    },
+    (i) => {
+      delete i.needs.prepare.outputs;
+    },
+    (i) => {
+      i.run.event = 'unknown';
+    },
+  ];
+  for (const job of ['prepare', 'measure'])
+    for (const result of ['failure', 'cancelled', 'skipped', undefined])
+      mutations.push((i) => {
+        i.needs[job].result = result;
+      });
+  for (const [n, mutate] of mutations.entries()) {
+    const input = gateFixture();
+    mutate(input);
+    for (const now of ['2026-10-27T12:00:00Z', '2026-11-09T00:00:00Z']) {
+      const result = gate({ ...input, now });
+      assert.equal(result.blocks, true, `mutation ${n}, ${now}`);
+      assert.equal(result.measured, 'not-measured');
+    }
+  }
+});
+test('early enforcement requires an explicit reviewed pair of independent run records', () => {
+  const early = {
+    at: '2026-11-02T12:00:00Z',
+    candidateSha: 'a'.repeat(40),
+    fixtureHash: 'b'.repeat(64),
+    runs: [1, 2].map((n) => `https://github.com/bolsterdigital/mycel/actions/runs/${n}`),
+    review: 'https://github.com/bolsterdigital/mycel/pull/90#pullrequestreview-123',
+  };
+  const activated = { ...policy, earlyActivation: early };
+  assert.equal(enforcement(activated, '2026-11-02T11:59:59.999Z'), false);
+  assert.equal(enforcement(activated, early.at), true);
+  const input = gateFixture();
+  input.run.artifacts[0].report.state = 'fail';
+  assert.equal(gate({ ...input, policy: activated, now: early.at }).blocks, true);
+  assert.throws(() => enforcement({ ...activated, deadline: '2026-11-01T00:00:00Z' }, early.at));
+  assert.throws(() => enforcement({ ...policy, deadline: 'soon' }, early.at));
+  assert.equal(enforcement({ ...policy, deadline: null }, '2030-01-01T00:00:00Z'), false);
+  assert.equal(enforcement({ ...activated, deadline: null }, early.at), true);
+  assert.throws(() => enforcement({ ...policy, earlyActivation: {} }, early.at));
+  assert.throws(() =>
+    enforcement(
+      { ...policy, earlyActivation: { ...early, runs: [early.runs[0], early.runs[0]] } },
+      early.at
+    )
+  );
+});
+
+test('required job always validates after both dependencies and cannot ignore its own failure', () => {
+  const workflow = source('.github/workflows/frontend-quality.yml');
+  const job = workflow.split('\n  frontend-quality:\n')[1];
+  assert.ok(job);
+  assert.match(job, /name: frontend-quality\n    if: always\(\)\n    needs: \[prepare, measure\]/);
+  assert.match(job, /pattern: quality-summary-\*/);
+  assert.match(job, /QUALITY_DOWNLOAD_OUTCOME: \$\{\{ steps.download.outcome \}\}/);
+  const validation = job
+    .split('name: Validate expected matrix')[1]
+    .split('name: Retain gate evidence')[0];
+  assert.match(validation, /if: always\(\)/);
+  assert.match(validation, /node scripts\/quality\/gate.mjs/);
+  assert.doesNotMatch(validation, /continue-on-error/);
+  const protection = JSON.parse(source('.github/main-protection.json'));
+  const expected = [
+    'verify',
+    'security',
+    'image',
+    'compose',
+    'prepare',
+    'frontend-quality',
+    ...matrix('pull_request').include.map(
+      (s) => `measure (${s.scope}, ${s.locale}, ${s.profile}, ${s.cache})`
+    ),
+  ];
+  assert.deepEqual(
+    protection.required_status_checks.checks.map((c) => c.context).sort(),
+    expected.sort()
+  );
+  assert.ok(protection.required_status_checks.checks.every((c) => c.app_id === 15368));
+  assert.equal(protection.required_status_checks.strict, true);
+  assert.equal(protection.enforce_admins, true);
+  // Independent agents share the owner's GitHub identity. Keep the PR requirement;
+  // freshness and exact-SHA approval are checked by the separate merger session.
+  assert.ok(protection.required_pull_request_reviews);
+  assert.equal(protection.required_pull_request_reviews.required_approving_review_count, 0);
+  assert.equal(protection.required_pull_request_reviews.require_last_push_approval, false);
+  assert.deepEqual(protection.required_pull_request_reviews.bypass_pull_request_allowances, {
+    users: [],
+    teams: [],
+    apps: [],
+  });
+});
+test('gate CLI retains full reports and fails for absent downloads instead of passing an empty set', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'mycel-quality-gate-'));
+  try {
+    const input = gateFixture();
+    const root = join(dir, 'shards');
+    for (const a of input.run.artifacts) {
+      mkdirSync(join(root, a.name), { recursive: true });
+      writeFileSync(join(root, a.name, 'summary.json'), JSON.stringify(a.report));
+    }
+    const env = {
+      ...process.env,
+      GITHUB_RUN_ID: String(input.run.id),
+      GITHUB_RUN_ATTEMPT: String(input.run.attempt),
+      GITHUB_SHA: input.run.measuredSha,
+      GITHUB_EVENT_NAME: input.run.event,
+      QUALITY_NEEDS: JSON.stringify(input.needs),
+      QUALITY_DOWNLOAD_OUTCOME: 'success',
+    };
+    const command = (path, out) =>
+      execFileSync(process.execPath, ['scripts/quality/gate.mjs', path, out], {
+        env,
+        stdio: 'pipe',
+      });
+    command(root, join(dir, 'good'));
+    const result = JSON.parse(readFileSync(join(dir, 'good', 'summary.json')));
+    assert.equal(result.measured, 'pass');
+    assert.equal(result.report.samples, 30);
+    assert.equal(result.report.cells[0].batches[0].sampleIds.length, 5);
+    assert.throws(() => command(join(dir, 'absent'), join(dir, 'bad')));
+    assert.equal(JSON.parse(readFileSync(join(dir, 'bad', 'summary.json'))).blocks, true);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('information expands both profiles/locales while historical v3 keeps its own coverage', () => {
+  assert.equal(contract.fixtureVersion, '43a-v4');
+  for (const locale of ['nl', 'en'])
+    for (const profile of ['mobile', 'desktop']) {
+      const shard = expectedShards(contract, 'local', {
+        scope: 'default',
+        locale,
+        profile,
+        cache: 'fresh',
+      })[0];
+      assert.ok(shard.ids.includes(`information-${locale}-${profile}-fresh`));
+    }
+  const old = JSON.parse(source('apps/web/e2e/quality-corpus.json'));
+  old.fixtureVersion = '43a-v3';
+  delete old.public.information;
+  const historical = sourceContract({
+    corpus: JSON.stringify(old),
+    seed: 'historical seed',
+    matrixSource: source('scripts/quality/matrix.mjs'),
+    workflow: source('.github/workflows/frontend-quality.yml'),
+    lock: source('package-lock.json'),
+  });
+  assert.equal(expectedShards(historical, 'workflow_dispatch').flatMap((s) => s.ids).length, 36);
+  assert.equal(expectedShards(contract, 'workflow_dispatch').flatMap((s) => s.ids).length, 48);
+  assert.notEqual(historical.fixtureHash, contract.fixtureHash);
+  const run = retained('pull_request');
+  for (const a of run.artifacts)
+    a.report.cells = a.report.cells.filter((cell) => !cell.id.startsWith('information-'));
+  assert.equal(consumeRun(run, load).state, 'not-measured');
 });

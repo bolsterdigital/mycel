@@ -30,9 +30,9 @@ ADR 012 pins `publishedRevision` at publish time but says nothing about which re
 
 ## Consequences
 
-- TODO #8(a): `content.item.update` gains `baseRevisionId` and typed `conflict`; `content.item.schedule` takes a revision id; `status` becomes per locale; `access.teaser` replaces `teaserBlocks`; a `paywall` boundary block exists (renders to nothing for readers with access).
-- TODO #15: the scheduled-publish job payload carries `revisionId`.
-- TODO #7: the capability set in rule 5 is the minimum vocabulary.
-- TODO #19 and #9: rules 7 and 8 are acceptance criteria; the block conformance suite asserts rule 7 for every renderer.
+- Content items (built in PR #14): `content.item.update` gains `baseRevisionId` and typed `conflict`; `content.item.schedule` takes a revision id; `status` becomes per locale; `access.teaser` replaces `teaserBlocks`; a `paywall` boundary block exists (renders to nothing for readers with access).
+- Jobs (built in PR #9): the scheduled-publish job payload carries `revisionId`.
+- Operator authentication (built in PR #7): the capability set in rule 5 is the minimum vocabulary.
+- Reader access and feeds: rules 7 and 8 are acceptance criteria; the block conformance suite asserts rule 7 for every renderer.
 - Fase 4 mailing: rule 4 is the acceptance criterion for `mailing.send`.
 - ADR 016 rule 3 and ADR 012 rules 4, 5 and 7 are read with this ADR.

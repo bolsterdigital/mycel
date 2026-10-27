@@ -22,16 +22,20 @@ const worst = (values) =>
 // A new corpus/matrix protocol requires an explicit consumer adapter, not guessing coverage.
 export function sourceContract({ corpus, seed, matrixSource, workflow, lock }) {
   const manifest = JSON.parse(corpus);
-  if (manifest.fixtureVersion !== '43a-v3' || manifest.schemaVersion !== 1)
+  if (!['43a-v3', '43a-v4'].includes(manifest.fixtureVersion) || manifest.schemaVersion !== 1)
     throw new Error('unsupported-corpus');
   if (matrixSource !== readFileSync(new URL('./matrix.mjs', import.meta.url), 'utf8'))
     throw new Error('unsupported-matrix');
   const packages = JSON.parse(lock).packages;
+  const runnerImage = /QUALITY_RUNNER_IMAGE: \S+@((?:sha256:)[a-f0-9]{64})\s/.exec(workflow)?.[1];
+  if (workflow.includes('QUALITY_RUNNER_IMAGE:') && !runnerImage)
+    throw new Error('unsupported-runner-image');
   return {
     schemaVersion: 1,
     fixtureVersion: manifest.fixtureVersion,
     fixtureHash: createHash('sha256').update(corpus).update(seed).digest('hex'),
     manifest,
+    ...(runnerImage ? { runnerImage } : {}),
     tools: {
       node: `v${/node-version: '([^']+)'/.exec(workflow)?.[1]}`,
       lighthouse: packages['node_modules/lighthouse'].version,
@@ -43,7 +47,7 @@ export function sourceContract({ corpus, seed, matrixSource, workflow, lock }) {
 export function expectedShards(contract, event, selection) {
   if (
     contract.schemaVersion !== 1 ||
-    contract.fixtureVersion !== '43a-v3' ||
+    !['43a-v3', '43a-v4'].includes(contract.fixtureVersion) ||
     !hash(contract.fixtureHash)
   )
     throw new Error('invalid-contract');
@@ -220,7 +224,17 @@ export function consumeRun(run, load) {
         !token(env.runner) ||
         !(run.event === 'local'
           ? env.runner.startsWith('local:')
-          : env.runner.startsWith('github-ubuntu-24.04:'))
+          : run.contract.runnerImage
+            ? env.runner === `github-container:${run.contract.runnerImage}` &&
+              typeof env.kernel === 'string' &&
+              env.kernel.length <= 200 &&
+              env.kernel.trim() === env.kernel &&
+              /^\d+\.\d+\.\d+(?:[-+.][a-zA-Z0-9_.+-]+)?$/.test(env.kernel) &&
+              typeof env.hostImage === 'string' &&
+              env.hostImage.length <= 200 &&
+              env.hostImage.trim() === env.hostImage &&
+              /^\d{8}\.\d+\.\d+$/.test(env.hostImage)
+            : env.runner.startsWith('github-ubuntu-24.04:'))
       )
         throw new Error('profile');
       const tools = Object.fromEntries(
@@ -234,7 +248,9 @@ export function consumeRun(run, load) {
           !tools.caddy.startsWith(`v${run.contract.tools.caddy} `))
       )
         throw new Error('tools');
-      // CPU model may vary by hosted shard, but image/browser/tool versions must agree.
+      // Independent container hosts may roll kernels/images separately: only the pinned
+      // userspace and actual tools form cross-shard identity. Retain validated host metadata
+      // per shard. Legacy host runs still bind their image through the runner identity.
       if (referenceTools && JSON.stringify(referenceTools) !== JSON.stringify(tools))
         throw new Error('tool-drift');
       referenceTools ??= tools;
@@ -243,7 +259,18 @@ export function consumeRun(run, load) {
         environment: {
           ...tools,
           ...Object.fromEntries(
-            ['scope', 'locale', 'profile', 'cache', 'theme', 'warmup', 'serverCache', 'cpu']
+            [
+              'scope',
+              'locale',
+              'profile',
+              'cache',
+              'theme',
+              'warmup',
+              'serverCache',
+              'cpu',
+              'hostImage',
+              'kernel',
+            ]
               .filter((f) => token(env[f]))
               .map((f) => [f, env[f]])
           ),

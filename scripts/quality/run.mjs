@@ -65,13 +65,19 @@ const result = {
   fixtureVersion: corpus.fixtureVersion,
   fixtureFiles: [corpusPath, 'scripts/e2e.mjs'],
   startedAt: new Date(started).toISOString(),
+  workflow: process.env.GITHUB_ACTIONS
+    ? { runId: process.env.GITHUB_RUN_ID, attempt: process.env.GITHUB_RUN_ATTEMPT }
+    : null,
   environment: {
     node: process.version,
     lighthouse: require('lighthouse/package.json').version,
     playwright: require('@playwright/test/package.json').version,
     runner: process.env.GITHUB_ACTIONS
-      ? `github-ubuntu-24.04:${process.env.ImageVersion}`
+      ? `github-container:${process.env.QUALITY_RUNNER_IMAGE?.split('@')[1]}`
       : `local:${platform()}:${release()}`,
+    ...(process.env.GITHUB_ACTIONS
+      ? { hostImage: process.env.QUALITY_HOST_IMAGE, kernel: release() }
+      : {}),
     mode: process.env.GITHUB_ACTIONS ? 'ci' : 'local',
     cpu: cpus()[0]?.model,
     cores: cpus().length,
@@ -102,7 +108,7 @@ const result = {
       route: 'demanding tenant theme',
       owner: 'mbp',
       address: '#38',
-      reason: '43a-v3 theme is simulated, not a persisted tenant fixture',
+      reason: `${corpus.fixtureVersion} theme is simulated, not a persisted tenant fixture`,
     },
     ...corpus.planned
       .filter((p) => p.route !== 'site-chrome')

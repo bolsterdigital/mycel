@@ -2,7 +2,7 @@
 
 - **Status**: accepted
 - **Date**: 2026-10-21
-- **Amended**: 2026-10-21 by ADR 019 (stable `supporter_id`, fold order, per-supporter lock, retention, erasure scope); 2026-10-21, consequence 1: `events` is range-partitioned by month only, sub-partitioning per tenant is deferred (review of PR #4, `mycel-planning` decisions 2026-10-21)
+- **Amended**: 2026-10-21 by ADR 019 (stable `supporter_id`, fold order, per-supporter lock, retention, erasure scope); 2026-10-21, consequence 1: `events` is range-partitioned by month only, sub-partitioning per tenant is deferred (review of PR #4, recorded in the private planning repository on 2026-10-21)
 - **Inherits**: the Dreamkit supporter event contract v1 (`wings.supporter-event.v1`, `dreamkit/docs/supporter-registry/event-contract.md`) and the "no state stealing" principle from the Dreamkit supporter-CRM brief.
 
 ## Context

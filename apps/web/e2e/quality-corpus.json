@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "fixtureVersion": "43a-v3",
+  "fixtureVersion": "43a-v4",
   "tenant": "probe",
   "themeProfiles": {
     "default": { "status": "active", "source": "DEFAULT_THEME" },
@@ -41,6 +41,32 @@
         "headings": [1, 2],
         "lists": ["ul", "ol"],
         "quote": true
+      }
+    },
+    "information": {
+      "slug": "grid-information-v1",
+      "routeClass": "page",
+      "indexable": true,
+      "state": "published",
+      "locales": {
+        "nl": {
+          "path": "/probe/grid-information-v1",
+          "title": "Samen zorgen voor de buurt"
+        },
+        "en": {
+          "path": "/probe/en/grid-information-v1",
+          "title": "Caring for the neighbourhood together"
+        }
+      },
+      "expected": {
+        "status": 200,
+        "form": false,
+        "hero": false,
+        "minProseBlocks": 2,
+        "closingProse": true,
+        "minImages": 1,
+        "font": "Inter",
+        "headings": [1]
       }
     }
   },

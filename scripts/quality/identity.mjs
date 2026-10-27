@@ -30,7 +30,11 @@ export function validateIdentity(expected, facts) {
     if (facts.images < expected.minImages || facts.brokenImages) reasons.push('images');
     if (!facts.fonts?.includes(expected.font)) reasons.push('font');
     if (!facts.themeStylesheet) reasons.push('theme');
-    if (expected.form && !facts.form) reasons.push('form');
+    if (typeof expected.form === 'boolean' && facts.form !== expected.form) reasons.push('form');
+    if (typeof expected.hero === 'boolean' && facts.hero !== expected.hero) reasons.push('hero');
+    if (expected.minProseBlocks && !(facts.proseBlocks >= expected.minProseBlocks))
+      reasons.push('prose-blocks');
+    if (expected.closingProse && !facts.closingProse) reasons.push('closing-prose');
     if (expected.article && (!facts.h2 || !facts.ul || !facts.ol || !facts.quote || !facts.link))
       reasons.push('article-structure');
   } else {

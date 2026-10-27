@@ -1,6 +1,6 @@
 # Content model
 
-How pages and articles are stored, revised, published per locale and scheduled (TODO #8a). The decisions are in [ADR 012](../adr/012-content-types-and-publishing.md), [ADR 018](../adr/018-precise-editorial-operations.md) and [ADR 020](../adr/020-editing-surface-and-block-operations.md); this page records the choices made while building them, so #8b, #8c and #9 build on them instead of choosing again. Code: `packages/core/src/content/`, migration `0011_content_items_and_revisions.sql`, repositories in `packages/db/src/content.ts`.
+How pages and articles are stored, revised, published per locale and scheduled (PR #14). The decisions are in [ADR 012](../adr/012-content-types-and-publishing.md), [ADR 018](../adr/018-precise-editorial-operations.md) and [ADR 020](../adr/020-editing-surface-and-block-operations.md); this page records the choices made while building them, so the block, rendering and feed work build on them instead of choosing again. Code: `packages/core/src/content/`, migration `0011_content_items_and_revisions.sql`, repositories in `packages/db/src/content.ts`.
 
 ## Item, revisions, locales
 

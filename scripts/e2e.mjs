@@ -593,6 +593,37 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
         });
     }
   }
+  // The #46A information composition reuses the published campaign's resolved blocks.
+  // Keep its existing identity: no hero/form, the same prose repeated as a distinct closing block.
+  const information = qualityCorpus.public.information;
+  if (
+    !(await invoker.run(useCases.listItems, admin, { type: 'page', slug: information.slug })).items
+      .length
+  ) {
+    const { items } = await invoker.run(useCases.listItems, admin, {
+      type: 'page',
+      slug: qualityCorpus.public.campaign.slug,
+    });
+    const source = await invoker.run(useCases.getItem, admin, { itemId: items[0].id });
+    const document = structuredClone(source.revision.document);
+    document.title = Object.fromEntries(
+      Object.entries(information.locales).map(([locale, entry]) => [locale, entry.title])
+    );
+    document.blocks = document.blocks.filter((block) => !['hero', 'form'].includes(block.type));
+    const prose = document.blocks.find((block) => block.type === 'rich-text');
+    if (!prose) throw new Error('information composition requires campaign prose');
+    document.blocks.push({ ...structuredClone(prose), id: 'information-closing' });
+    const created = await invoker.run(useCases.createItem, admin, {
+      slug: information.slug,
+      document,
+    });
+    for (const locale of Object.keys(information.locales))
+      await invoker.run(useCases.publishItem, admin, {
+        itemId: created.item.id,
+        revisionId: created.revision.id,
+        locale,
+      });
+  }
   // An author and a section beyond the first page of the admin's pickers (a hundred, newest
   // first), with 101 newer ones after them, for content-admin.spec.ts (review of PR #45). Seeded
   // once: every later author or section is newer still. Here and not in the spec, so a run does
