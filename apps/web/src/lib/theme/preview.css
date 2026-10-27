@@ -10,7 +10,7 @@
     overflow-wrap: anywhere;
   }
   .preview-banner > * {
-    max-width: var(--measure);
+    max-width: var(--content-width);
     margin-inline: auto;
   }
   .preview-selectable > :hover {

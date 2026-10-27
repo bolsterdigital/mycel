@@ -1,0 +1,16 @@
+{
+  "before": { "width": 1440, "ratio": 1 },
+  "after": {
+    "viewport": 720,
+    "overflow": false,
+    "font": "Inter, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+    "fontSize": "18px",
+    "measure": "733.535px",
+    "prose": { "x": 16, "width": 688, "bottom": 8111.2421875, "top": 814.265625 },
+    "wide": { "x": 16, "width": 688, "bottom": 8552.5546875, "top": 8135.2421875 },
+    "full": { "x": 0, "width": 720, "bottom": 9455.953125, "top": 9125.640625 },
+    "title": { "x": 16, "width": 688, "bottom": 178.734375, "top": 126 },
+    "floats": ["left", "right"]
+  },
+  "version": "156.0.8078.4"
+}
