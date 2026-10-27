@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // The erasure of the restore drill (TODO #18d, scripts/drill-run.sh): register one supporter of a
 // tenant in the erasure register, as mycel_app through the unit of work, the way the
-// `supporters.erase` use case will (mbp, phase 2). Applying is the worker's: `mycel erasures
+// `supporters.erase` use case will (phase 2). Applying is the worker's: `mycel erasures
 // apply` runs next, in the image, on the owner's connection.
 //
 //   node scripts/drill-erase.mjs drill-a supporter-drill-a@example.org
