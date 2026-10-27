@@ -597,6 +597,8 @@ if (process.cwd() === require('node:fs').realpathSync(${JSON.stringify(join(f.ro
   if (args[0] === 'rev-parse') console.log('${plan}');
   if (args[0] === 'ls-remote') console.log('${plan} refs/heads/main');
   if (args[0] === 'diff') console.log('handoff/mbp.md');
+  if (args[0] === 'rev-list') console.log('${plan}');
+  if (args[0] === 'show' && args.includes('--format=%P')) console.log('${'c'.repeat(40)}');
 } else {
   const r = spawnSync(${JSON.stringify(realGit)}, args, {stdio:'inherit'});
   process.exit(r.status ?? 1);
@@ -644,6 +646,7 @@ statusCheckRollup:['verify','security','image','compose'].map(name=>({name,concl
       id: 'scope-child',
       item: '#44',
       phase,
+      planningBase: 'c'.repeat(40),
       codeBase: repair ? main : base,
       model: 'Sol',
       startedAt: new Date().toISOString(),
@@ -680,6 +683,15 @@ statusCheckRollup:['verify','security','image','compose'].map(name=>({name,concl
       approval: { headSha: head, planningCommit: plan },
     });
   }
+  if (state.pending)
+    writeFileSync(
+      join(f.home, `${state.runId}-${state.pending.id}-planning.json`),
+      JSON.stringify({
+        sessionId: state.pending.id,
+        base: 'c'.repeat(40),
+        records: [{ kind: 'own', before: 'c'.repeat(40), after: plan }],
+      })
+    );
   function finish() {
     writeFileSync(join(f.home, 'state.json'), JSON.stringify(state));
     const ran = call(
@@ -691,7 +703,10 @@ statusCheckRollup:['verify','security','image','compose'].map(name=>({name,concl
     const after = JSON.parse(readFileSync(join(f.home, 'state.json')));
     const proofs = spawnSync('ls', [f.home], { encoding: 'utf8' })
       .stdout.split('\n')
-      .filter((name) => name.includes('-scope-') && name.endsWith('.json'))
+      .filter(
+        (name) =>
+          name.includes('-scope-') && name.endsWith('.json') && !name.endsWith('-planning.json')
+      )
       .map((name) => JSON.parse(readFileSync(join(f.home, name))));
     return { after, proofs };
   }
@@ -1183,7 +1198,7 @@ for (const kind of [
         path,
         readFileSync(path, 'utf8').replace(
           "console.log('handoff/mbp.md')",
-          "console.log('handoff/mbp.md\\nhandoff/dev.md')"
+          "process.stdout.write(['handoff/mbp.md', 'handoff/dev.md'].join(String.fromCharCode(0)))"
         )
       );
     }
@@ -1204,3 +1219,174 @@ for (const kind of [
     assert.throws(() => readFileSync(join(f.root, 'gh-called')));
   });
 }
+
+// Planning must be real Git too: remote publication and local session commits are
+// different observations even when they share the same author and OS account.
+function planningFixture(t, mode, { withPr = false, bad = null } = {}) {
+  const f = blockedFixture(t);
+  const directory = join(f.root, 'planning');
+  const realGit = spawnSync('which', ['git'], { encoding: 'utf8' }).stdout.trim();
+  function git(...args) {
+    const r = spawnSync(realGit, args, { cwd: directory, encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    return r.stdout.trim();
+  }
+  writeFileSync(join(f.root, 'bin/git'), `#!/bin/sh\nexec '${realGit}' "$@"\n`, { mode: 0o755 });
+  git('init', '-b', 'main');
+  git('config', 'user.name', 'Same Cooperative Agent');
+  git('config', 'user.email', 'same@probe.test');
+  git('config', 'commit.gpgsign', 'false');
+  git('config', 'core.hooksPath', '/dev/null');
+  git('init', '--bare', join(f.root, 'planning-origin.git'));
+  git('remote', 'add', 'origin', join(f.root, 'planning-origin.git'));
+  writeFileSync(join(directory, 'handoff/dev.md'), 'dev base\n');
+  git('add', '.');
+  git('commit', '-m', 'planning base');
+  const base = git('rev-parse', 'HEAD');
+  git('push', 'origin', 'main');
+  f.state.pending.planningBase = base;
+  f.state.config.baselinePlanningCommit = base;
+  const records = [];
+  rmSync(join(f.home, `${f.state.runId}-${f.state.pending.id}-planning.json`), { force: true });
+  writeFileSync(join(f.home, 'state.json'), JSON.stringify(f.state));
+  function checkpoint(record) {
+    records.push(record);
+    if (!bad) {
+      const registered = call(
+        { ...f.env, MYCEL_TEST_CLI: join(f.code, 'tools/handoff-pilot/cli.mjs') },
+        'planning-record',
+        f.state.pending.id,
+        record.kind,
+        record.before,
+        record.after,
+        ...(record.published ? [record.published] : [])
+      );
+      assert.equal(registered.status, 0, registered.stderr);
+    }
+  }
+  function own(dev = false) {
+    const before = git('rev-parse', 'HEAD');
+    writeFileSync(join(directory, 'handoff/mbp.md'), 'uitvoer\n# Blocked product dependency\n');
+    if (dev) writeFileSync(join(directory, 'handoff/dev.md'), 'own forbidden write\n');
+    git('add', '.');
+    git('commit', '--allow-empty', '-m', 'own planning checkpoint');
+    checkpoint({ kind: 'own', before, after: git('rev-parse', 'HEAD') });
+  }
+  if (mode !== 'ff') own(bad === 'before');
+  const before = git('rev-parse', 'HEAD');
+  git('switch', '-c', 'dev', base);
+  writeFileSync(join(directory, 'handoff/dev.md'), 'published dev result\n');
+  git('add', '.');
+  git('commit', '-m', 'parallel dev publication');
+  const published = git('rev-parse', 'HEAD');
+  git('push', 'origin', 'HEAD:main');
+  git('switch', 'main');
+  if (mode === 'rebase') git('rebase', 'dev');
+  else if (mode === 'ff') git('merge', '--ff-only', 'dev');
+  else if (bad === 'before') {
+    // Real conflict resolution must not erase the earlier registered violation.
+    spawnSync(realGit, ['merge', '--no-edit', 'dev'], { cwd: directory });
+    writeFileSync(join(directory, 'handoff/dev.md'), 'published dev result\n');
+    git('add', '.');
+    git('commit', '-m', 'resolve dev conflict');
+  } else git('merge', '--no-edit', 'dev');
+  if (bad === 'reverted') {
+    writeFileSync(join(directory, 'handoff/dev.md'), 'hidden own dev write\n');
+    git('add', '.');
+    git('commit', '-m', 'own write inside integration');
+    git('revert', '--no-edit', 'HEAD');
+  }
+  if (bad === 'resolution') {
+    writeFileSync(join(directory, 'handoff/dev.md'), 'own merge resolution\n');
+    git('add', '.');
+    git('commit', '--amend', '--no-edit');
+  }
+  checkpoint({
+    kind: 'integrate',
+    before,
+    after: git('rev-parse', 'HEAD'),
+    published,
+    observedRemote: published,
+  });
+  if (mode === 'ff' || bad === 'after') own(bad === 'after');
+  const head = git('rev-parse', 'HEAD');
+  if (bad !== 'unpublished') git('push', 'origin', 'main');
+  f.proof.planningCommit = head;
+  if (withPr) {
+    f.proof.pr = 60;
+    f.proof.headSha = f.head;
+    writeFileSync(
+      join(f.root, 'bin/gh'),
+      `#!${process.execPath}\nconsole.log(JSON.stringify({number:60,headRefOid:'${f.head}',mergedAt:null,statusCheckRollup:[]}));\n`,
+      { mode: 0o755 }
+    );
+  }
+  writeFileSync(f.state.pending.resultPath, JSON.stringify(f.proof));
+  const trace = { sessionId: f.state.pending.id, base, records };
+  if (bad && bad !== 'missing')
+    writeFileSync(
+      join(f.home, `${f.state.runId}-${f.state.pending.id}-planning.json`),
+      JSON.stringify(trace)
+    );
+  return { ...f, trace, directory, planGit: git };
+}
+for (const mode of ['merge', 'rebase', 'ff']) {
+  for (const withPr of [false, true]) {
+    test(`registered parallel planning ${mode}, blocked ${withPr ? 'with' : 'without'} PR`, (t) => {
+      const f = planningFixture(t, mode, { withPr });
+      const { after } = f.finish();
+      assert.equal(after.stopReason, f.proof.finding);
+      assert.equal(after.pending, null);
+      assert.equal(after.sessions[0].codexThreadId, 'scope-thread');
+    });
+  }
+}
+
+for (const bad of [
+  'before',
+  'after',
+  'resolution',
+  'missing',
+  'unpublished',
+  'discontinuous',
+  'unobserved',
+]) {
+  test(`planning session refuses ${bad} evidence without losing its reservation`, (t) => {
+    const f = planningFixture(t, 'merge', { bad });
+    if (bad === 'discontinuous') f.trace.records[1].before = f.trace.base;
+    if (bad === 'unobserved') delete f.trace.records[1].observedRemote;
+    if (['discontinuous', 'unobserved'].includes(bad))
+      writeFileSync(
+        join(f.home, `${f.state.runId}-${f.state.pending.id}-planning.json`),
+        JSON.stringify(f.trace)
+      );
+    const { after } = f.finish();
+    assert.match(after.stopReason, /invalid-handoff:/);
+    assert.equal(after.pending.id, f.state.pending.id);
+    assert.equal(after.deviations.length, 0);
+  });
+}
+test('Git history is not actor authentication and registration needs no issuer', (t) => {
+  const f = planningFixture(t, 'rebase');
+  // The same Git objects and same account are compatible with cooperative
+  // agents or fabricated claims. Only the declared cooperative trace is checked.
+  const history = f.planGit('log', '--format=%H:%an:%ae');
+  assert.match(history, /Same Cooperative Agent:same@probe.test/);
+  const original = JSON.stringify(f.trace);
+  f.trace.sessionId = 'another-session';
+  writeFileSync(
+    join(f.home, `${f.state.runId}-${f.state.pending.id}-planning.json`),
+    JSON.stringify(f.trace)
+  );
+  const { after } = f.finish();
+  assert.match(after.stopReason, /planning session registration/);
+  assert.equal(f.planGit('log', '--format=%H:%an:%ae'), history);
+  assert.ok(!original.includes('issuer'));
+});
+
+test('rebase integration cannot hide an own dev write behind a later revert', (t) => {
+  const f = planningFixture(t, 'rebase', { bad: 'reverted' });
+  const { after } = f.finish();
+  assert.match(after.stopReason, /mbp session changed the dev handoff/);
+  assert.equal(after.pending.id, f.state.pending.id);
+});

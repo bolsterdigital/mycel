@@ -73,7 +73,6 @@ A refusal uses the existing terminal blocked/notification route, naming run, ite
 
 This gate checks results and launch transitions. It is not an OS sandbox or tenant isolation and cannot detect temporary changes reverted during a child, ignored build artifacts, arbitrary writes outside the observed checkout, or hostile tampering with the supervisor's own process/state. A shared process and Git repository still require a trusted child, operator observation and the existing stop policy. An admitted net result is not evidence that every intermediate action stayed in scope. R8 requires its own later activation; this change starts no pilot.
 
-
 ## Planning session registration
 
 Every new reservation pins the clean, published planning HEAD as `planningBase`. The child records each planning transition immediately, before another transition or publication, using `node tools/handoff-pilot/cli.mjs planning-record SESSION own BEFORE AFTER` for its own linear commits and `planning-record SESSION integrate BEFORE AFTER PUBLISHED` for a merge, rebase or fast-forward of published main. Use full commit SHAs. The registration is an ordered, session-bound sidecar under `MYCEL_PILOT_HOME`; it does not enlarge the technical result schema. An integration records the actual remote main observed by the command. Register own commits before integrating, including commits subsequently rewritten by rebase. Register the integration before publishing the resulting main.
