@@ -1,0 +1,1164 @@
+{
+  "schemaVersion": 1,
+  "asOf": "2026-10-27T13:10:57Z",
+  "weekly": {
+    "from": "2026-10-20T13:10:57.000Z",
+    "through": "2026-10-27T13:10:57Z",
+    "firstPass": {
+      "numerator": 0,
+      "denominator": 14,
+      "noValidHeads": 9
+    },
+    "attempts": 38,
+    "reruns": 0,
+    "knownRunnerMinutes": 536.0666666666666,
+    "unknownCostAttempts": 1,
+    "suppliedClosures": 0
+  },
+  "inclusion": {
+    "observationStart": "2026-10-26T00:00:00Z",
+    "rule": "All retained pull_request workflow heads since observationStart; first observed batch per head, excluding inconclusive/missing from the valid denominator; PR identity from GitHub run metadata. Unknown PR identity stays outside ten-PR cohorts.",
+    "historyCompleteness": "limited-to-retained-C1-history"
+  },
+  "firstPass": {
+    "numerator": 0,
+    "denominator": 14,
+    "heads": [
+      {
+        "headSha": "600f808f985386e56c143c62843f2db84309a794",
+        "pullRequests": [],
+        "firstObservedAt": "2026-10-26T15:55:17Z",
+        "attempts": [
+          {
+            "id": 40354052992,
+            "attempt": 1,
+            "url": "https://github.com/bolsterdigital/mycel/actions/runs/40354052992/attempts/1",
+            "state": "not-measured"
+          }
+        ],
+        "firstValid": null,
+        "firstResult": {
+          "id": 40354052992,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40354052992/attempts/1",
+          "state": "not-measured"
+        }
+      },
+      {
+        "headSha": "cf823852de1251348e8dd8986be2a8b10f295be2",
+        "pullRequests": [],
+        "firstObservedAt": "2026-10-26T15:59:59Z",
+        "attempts": [
+          {
+            "id": 40354817356,
+            "attempt": 1,
+            "url": "https://github.com/bolsterdigital/mycel/actions/runs/40354817356/attempts/1",
+            "state": "not-measured"
+          }
+        ],
+        "firstValid": null,
+        "firstResult": {
+          "id": 40354817356,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40354817356/attempts/1",
+          "state": "not-measured"
+        }
+      },
+      {
+        "headSha": "1e8fdba27f6dda649585fda2644626265ceee787",
+        "pullRequests": [],
+        "firstObservedAt": "2026-10-26T16:03:52Z",
+        "attempts": [
+          {
+            "id": 40355457515,
+            "attempt": 1,
+            "url": "https://github.com/bolsterdigital/mycel/actions/runs/40355457515/attempts/1",
+            "state": "not-measured"
+          }
+        ],
+        "firstValid": null,
+        "firstResult": {
+          "id": 40355457515,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40355457515/attempts/1",
+          "state": "not-measured"
+        }
+      },
+      {
+        "headSha": "c22779a2bcb0fef91af00d2de1b99a9aace9f729",
+        "pullRequests": [],
+        "firstObservedAt": "2026-10-26T16:05:36Z",
+        "attempts": [
+          {
+            "id": 40355738873,
+            "attempt": 1,
+            "url": "https://github.com/bolsterdigital/mycel/actions/runs/40355738873/attempts/1",
+            "state": "not-measured"
+          }
+        ],
+        "firstValid": null,
+        "firstResult": {
+          "id": 40355738873,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40355738873/attempts/1",
+          "state": "not-measured"
+        }
+      },
+      {
+        "headSha": "28b61ee71a160ca359db3e0082714b006984aa6c",
+        "pullRequests": [],
+        "firstObservedAt": "2026-10-26T16:08:49Z",
+        "attempts": [
+          {
+            "id": 40356260574,
+            "attempt": 1,
+            "url": "https://github.com/bolsterdigital/mycel/actions/runs/40356260574/attempts/1",
+            "state": "not-measured"
+          }
+        ],
+        "firstValid": null,
+        "firstResult": {
+          "id": 40356260574,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40356260574/attempts/1",
+          "state": "not-measured"
+        }
+      },
+      {
+        "headSha": "f396aaa044781e6b8a9c9d22add78e115a4b900c",
+        "pullRequests": [],
+        "firstObservedAt": "2026-10-26T16:10:38Z",
+        "attempts": [
+          {
+            "id": 40356559653,
+            "attempt": 1,
+            "url": "https://github.com/bolsterdigital/mycel/actions/runs/40356559653/attempts/1",
+            "state": "not-measured"
+          }
+        ],
+        "firstValid": null,
+        "firstResult": {
+          "id": 40356559653,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40356559653/attempts/1",
+          "state": "not-measured"
+        }
+      },
+      {
+        "headSha": "f2735b61009ff7ee1bf7598fb793545ed91260c5",
+        "pullRequests": [],
+        "firstObservedAt": "2026-10-26T16:26:01Z",
+        "attempts": [
+          {
+            "id": 40359068129,
+            "attempt": 1,
+            "url": "https://github.com/bolsterdigital/mycel/actions/runs/40359068129/attempts/1",
+            "state": "not-measured"
+          }
+        ],
+        "firstValid": null,
+        "firstResult": {
+          "id": 40359068129,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40359068129/attempts/1",
+          "state": "not-measured"
+        }
+      },
+      {
+        "headSha": "ffe822ee9dc4f32cc3d2ee1ea0a4390521751b56",
+        "pullRequests": [],
+        "firstObservedAt": "2026-10-26T16:28:17Z",
+        "attempts": [
+          {
+            "id": 40359434880,
+            "attempt": 1,
+            "url": "https://github.com/bolsterdigital/mycel/actions/runs/40359434880/attempts/1",
+            "state": "fail"
+          }
+        ],
+        "firstValid": {
+          "id": 40359434880,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40359434880/attempts/1",
+          "state": "fail"
+        },
+        "firstResult": {
+          "id": 40359434880,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40359434880/attempts/1",
+          "state": "fail"
+        }
+      },
+      {
+        "headSha": "36a9c29dd2c6203e7f505653118f5695f4a3de3b",
+        "pullRequests": [79],
+        "firstObservedAt": "2026-10-26T17:12:47Z",
+        "attempts": [
+          {
+            "id": 40366480633,
+            "attempt": 1,
+            "url": "https://github.com/bolsterdigital/mycel/actions/runs/40366480633/attempts/1",
+            "state": "fail"
+          }
+        ],
+        "firstValid": {
+          "id": 40366480633,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40366480633/attempts/1",
+          "state": "fail"
+        },
+        "firstResult": {
+          "id": 40366480633,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40366480633/attempts/1",
+          "state": "fail"
+        }
+      },
+      {
+        "headSha": "7890dde070e6911eaf07afe75f20e7e1878c7f18",
+        "pullRequests": [81],
+        "firstObservedAt": "2026-10-26T18:04:16Z",
+        "attempts": [
+          {
+            "id": 40374447130,
+            "attempt": 1,
+            "url": "https://github.com/bolsterdigital/mycel/actions/runs/40374447130/attempts/1",
+            "state": "fail"
+          }
+        ],
+        "firstValid": {
+          "id": 40374447130,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40374447130/attempts/1",
+          "state": "fail"
+        },
+        "firstResult": {
+          "id": 40374447130,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40374447130/attempts/1",
+          "state": "fail"
+        }
+      },
+      {
+        "headSha": "76793ac4c130957fa692949537ce28a1885c8d5e",
+        "pullRequests": [],
+        "firstObservedAt": "2026-10-26T18:08:58Z",
+        "attempts": [
+          {
+            "id": 40375152093,
+            "attempt": 1,
+            "url": "https://github.com/bolsterdigital/mycel/actions/runs/40375152093/attempts/1",
+            "state": "fail"
+          }
+        ],
+        "firstValid": {
+          "id": 40375152093,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40375152093/attempts/1",
+          "state": "fail"
+        },
+        "firstResult": {
+          "id": 40375152093,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40375152093/attempts/1",
+          "state": "fail"
+        }
+      },
+      {
+        "headSha": "190fb503e88065bee28bb3d31bc0eaec7e360fbb",
+        "pullRequests": [],
+        "firstObservedAt": "2026-10-26T18:12:41Z",
+        "attempts": [
+          {
+            "id": 40375699398,
+            "attempt": 1,
+            "url": "https://github.com/bolsterdigital/mycel/actions/runs/40375699398/attempts/1",
+            "state": "not-measured"
+          }
+        ],
+        "firstValid": null,
+        "firstResult": {
+          "id": 40375699398,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40375699398/attempts/1",
+          "state": "not-measured"
+        }
+      },
+      {
+        "headSha": "4426966e485d434d7b3277280a104f2715127c77",
+        "pullRequests": [],
+        "firstObservedAt": "2026-10-26T18:14:44Z",
+        "attempts": [
+          {
+            "id": 40376003097,
+            "attempt": 1,
+            "url": "https://github.com/bolsterdigital/mycel/actions/runs/40376003097/attempts/1",
+            "state": "fail"
+          }
+        ],
+        "firstValid": {
+          "id": 40376003097,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40376003097/attempts/1",
+          "state": "fail"
+        },
+        "firstResult": {
+          "id": 40376003097,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40376003097/attempts/1",
+          "state": "fail"
+        }
+      },
+      {
+        "headSha": "0e696c50ca72a4d5e988b06240a239b595150c44",
+        "pullRequests": [],
+        "firstObservedAt": "2026-10-26T18:19:27Z",
+        "attempts": [
+          {
+            "id": 40376713299,
+            "attempt": 1,
+            "url": "https://github.com/bolsterdigital/mycel/actions/runs/40376713299/attempts/1",
+            "state": "not-measured"
+          }
+        ],
+        "firstValid": null,
+        "firstResult": {
+          "id": 40376713299,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40376713299/attempts/1",
+          "state": "not-measured"
+        }
+      },
+      {
+        "headSha": "dc0000f82550a529ca9e257a4efa0f6a1da412a1",
+        "pullRequests": [],
+        "firstObservedAt": "2026-10-26T18:20:24Z",
+        "attempts": [
+          {
+            "id": 40376854797,
+            "attempt": 1,
+            "url": "https://github.com/bolsterdigital/mycel/actions/runs/40376854797/attempts/1",
+            "state": "fail"
+          }
+        ],
+        "firstValid": {
+          "id": 40376854797,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40376854797/attempts/1",
+          "state": "fail"
+        },
+        "firstResult": {
+          "id": 40376854797,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40376854797/attempts/1",
+          "state": "fail"
+        }
+      },
+      {
+        "headSha": "61748294ec1373ab2fa1bff0666c440f87277f9b",
+        "pullRequests": [],
+        "firstObservedAt": "2026-10-26T18:35:12Z",
+        "attempts": [
+          {
+            "id": 40379036536,
+            "attempt": 1,
+            "url": "https://github.com/bolsterdigital/mycel/actions/runs/40379036536/attempts/1",
+            "state": "fail"
+          }
+        ],
+        "firstValid": {
+          "id": 40379036536,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40379036536/attempts/1",
+          "state": "fail"
+        },
+        "firstResult": {
+          "id": 40379036536,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40379036536/attempts/1",
+          "state": "fail"
+        }
+      },
+      {
+        "headSha": "5ebcddbfcbd4cc7978b64548fc8775ebc7c6a5cd",
+        "pullRequests": [83],
+        "firstObservedAt": "2026-10-26T18:35:22Z",
+        "attempts": [
+          {
+            "id": 40379062160,
+            "attempt": 1,
+            "url": "https://github.com/bolsterdigital/mycel/actions/runs/40379062160/attempts/1",
+            "state": "fail"
+          }
+        ],
+        "firstValid": {
+          "id": 40379062160,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40379062160/attempts/1",
+          "state": "fail"
+        },
+        "firstResult": {
+          "id": 40379062160,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40379062160/attempts/1",
+          "state": "fail"
+        }
+      },
+      {
+        "headSha": "b68882860e10c6570d41183144f2532262e4897a",
+        "pullRequests": [],
+        "firstObservedAt": "2026-10-26T19:26:38Z",
+        "attempts": [
+          {
+            "id": 40386782144,
+            "attempt": 1,
+            "url": "https://github.com/bolsterdigital/mycel/actions/runs/40386782144/attempts/1",
+            "state": "fail"
+          }
+        ],
+        "firstValid": {
+          "id": 40386782144,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40386782144/attempts/1",
+          "state": "fail"
+        },
+        "firstResult": {
+          "id": 40386782144,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40386782144/attempts/1",
+          "state": "fail"
+        }
+      },
+      {
+        "headSha": "3a4502512728d0f409dad3906b03cd34f16e9cb5",
+        "pullRequests": [],
+        "firstObservedAt": "2026-10-26T19:44:35Z",
+        "attempts": [
+          {
+            "id": 40389441201,
+            "attempt": 1,
+            "url": "https://github.com/bolsterdigital/mycel/actions/runs/40389441201/attempts/1",
+            "state": "fail"
+          }
+        ],
+        "firstValid": {
+          "id": 40389441201,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40389441201/attempts/1",
+          "state": "fail"
+        },
+        "firstResult": {
+          "id": 40389441201,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40389441201/attempts/1",
+          "state": "fail"
+        }
+      },
+      {
+        "headSha": "290d8bc60a84462742e8186f20b483872b6f8a98",
+        "pullRequests": [84],
+        "firstObservedAt": "2026-10-26T19:47:03Z",
+        "attempts": [
+          {
+            "id": 40389813571,
+            "attempt": 1,
+            "url": "https://github.com/bolsterdigital/mycel/actions/runs/40389813571/attempts/1",
+            "state": "fail"
+          }
+        ],
+        "firstValid": {
+          "id": 40389813571,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40389813571/attempts/1",
+          "state": "fail"
+        },
+        "firstResult": {
+          "id": 40389813571,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40389813571/attempts/1",
+          "state": "fail"
+        }
+      },
+      {
+        "headSha": "5002527a782ec0defa1d6b65ddf2bda18cc78f1c",
+        "pullRequests": [85],
+        "firstObservedAt": "2026-10-27T10:52:03Z",
+        "attempts": [
+          {
+            "id": 40491784167,
+            "attempt": 1,
+            "url": "https://github.com/bolsterdigital/mycel/actions/runs/40491784167/attempts/1",
+            "state": "fail"
+          }
+        ],
+        "firstValid": {
+          "id": 40491784167,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40491784167/attempts/1",
+          "state": "fail"
+        },
+        "firstResult": {
+          "id": 40491784167,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40491784167/attempts/1",
+          "state": "fail"
+        }
+      },
+      {
+        "headSha": "3581ef3583aa17c97af1f26d1ae0b9d3a97ec245",
+        "pullRequests": [82],
+        "firstObservedAt": "2026-10-27T11:58:41Z",
+        "attempts": [
+          {
+            "id": 40500176250,
+            "attempt": 1,
+            "url": "https://github.com/bolsterdigital/mycel/actions/runs/40500176250/attempts/1",
+            "state": "fail"
+          }
+        ],
+        "firstValid": {
+          "id": 40500176250,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40500176250/attempts/1",
+          "state": "fail"
+        },
+        "firstResult": {
+          "id": 40500176250,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40500176250/attempts/1",
+          "state": "fail"
+        }
+      },
+      {
+        "headSha": "d9cd4147fbdfedd98d2198a7513141c26c4df166",
+        "pullRequests": [86],
+        "firstObservedAt": "2026-10-27T12:26:23Z",
+        "attempts": [
+          {
+            "id": 40503752831,
+            "attempt": 1,
+            "url": "https://github.com/bolsterdigital/mycel/actions/runs/40503752831/attempts/1",
+            "state": "fail"
+          }
+        ],
+        "firstValid": {
+          "id": 40503752831,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40503752831/attempts/1",
+          "state": "fail"
+        },
+        "firstResult": {
+          "id": 40503752831,
+          "attempt": 1,
+          "url": "https://github.com/bolsterdigital/mycel/actions/runs/40503752831/attempts/1",
+          "state": "fail"
+        }
+      }
+    ],
+    "inconclusiveAttempts": 0,
+    "missingAttempts": 9,
+    "noValidHeads": 9
+  },
+  "baseline": {
+    "firstTen": {
+      "progress": 7,
+      "target": 10,
+      "pullRequests": [
+        {
+          "number": 79,
+          "firstObservedAt": "2026-10-26T17:12:47Z",
+          "heads": ["36a9c29dd2c6203e7f505653118f5695f4a3de3b"]
+        },
+        {
+          "number": 81,
+          "firstObservedAt": "2026-10-26T18:04:16Z",
+          "heads": ["7890dde070e6911eaf07afe75f20e7e1878c7f18"]
+        },
+        {
+          "number": 83,
+          "firstObservedAt": "2026-10-26T18:35:22Z",
+          "heads": ["5ebcddbfcbd4cc7978b64548fc8775ebc7c6a5cd"]
+        },
+        {
+          "number": 84,
+          "firstObservedAt": "2026-10-26T19:47:03Z",
+          "heads": ["290d8bc60a84462742e8186f20b483872b6f8a98"]
+        },
+        {
+          "number": 85,
+          "firstObservedAt": "2026-10-27T10:52:03Z",
+          "heads": ["5002527a782ec0defa1d6b65ddf2bda18cc78f1c"]
+        },
+        {
+          "number": 82,
+          "firstObservedAt": "2026-10-27T11:58:41Z",
+          "heads": ["3581ef3583aa17c97af1f26d1ae0b9d3a97ec245"]
+        },
+        {
+          "number": 86,
+          "firstObservedAt": "2026-10-27T12:26:23Z",
+          "heads": ["d9cd4147fbdfedd98d2198a7513141c26c4df166"]
+        }
+      ],
+      "numerator": 0,
+      "denominator": 7
+    },
+    "nextTen": {
+      "progress": 0,
+      "target": 10,
+      "pullRequests": [],
+      "numerator": 0,
+      "denominator": 0
+    },
+    "comparison": "pending-next-ten",
+    "improvement": "not-measured",
+    "unknownPrHeads": 16
+  },
+  "defects": {
+    "escapes": "not-measured",
+    "recurrenceProposals": "not-measured",
+    "completeness": "not-measured"
+  },
+  "closureInput": "explicit-sanitized-records",
+  "closures": [],
+  "causes": [],
+  "prevention": {
+    "numerator": 0,
+    "denominator": 0,
+    "state": "reported-records-only-not-a-complete-private-ledger"
+  },
+  "effort": {
+    "activeRepairMinutes": "not-measured",
+    "calendarMinutes": "not-measured"
+  },
+  "cost": {
+    "knownRunnerMinutes": 536.0666666666666,
+    "measuredAttempts": 37,
+    "missingAttempts": 1,
+    "kind": "sum-of-job-execution-time-not-billing",
+    "reruns": 0,
+    "attemptCount": 38,
+    "runCount": 38,
+    "diagnosticBatches": 0,
+    "falseAlarms": [],
+    "falseAlarmCompleteness": "not-measured"
+  },
+  "coverageDebt": {
+    "observations": [
+      {
+        "route": "dynamic POST/iframe preview",
+        "state": "not-measured",
+        "representation": null,
+        "owner": "dev",
+        "sourceAddress": "#43B",
+        "address": "#43C-preview",
+        "dependency": null
+      },
+      {
+        "route": "demanding tenant theme",
+        "state": "not-measured",
+        "representation": "simulated",
+        "owner": "mbp",
+        "sourceAddress": "#38",
+        "address": "#38",
+        "dependency": null
+      },
+      {
+        "route": "collections-and-search",
+        "state": "not-measured",
+        "representation": null,
+        "owner": "mbp",
+        "sourceAddress": null,
+        "address": "#21 / #42",
+        "dependency": "#21 / #42"
+      },
+      {
+        "route": "restricted-reader",
+        "state": "not-measured",
+        "representation": null,
+        "owner": "mbp",
+        "sourceAddress": null,
+        "address": "#19",
+        "dependency": "#19"
+      },
+      {
+        "route": "conditional-form",
+        "state": "not-measured",
+        "representation": null,
+        "owner": "mbp",
+        "sourceAddress": null,
+        "address": "#39",
+        "dependency": "#39"
+      },
+      {
+        "route": "managed-embeds-consent",
+        "state": "not-measured",
+        "representation": null,
+        "owner": "mbp",
+        "sourceAddress": null,
+        "address": "#41",
+        "dependency": "#41"
+      },
+      {
+        "route": "manual accessibility and field data",
+        "state": "not-measured",
+        "representation": null,
+        "owner": "mbp",
+        "sourceAddress": "#43C",
+        "address": "#43C",
+        "dependency": null
+      },
+      {
+        "route": "admin corpus",
+        "state": "not-measured",
+        "representation": null,
+        "owner": "dev",
+        "sourceAddress": "#43B",
+        "address": "#43C-report",
+        "dependency": null
+      },
+      {
+        "route": "dynamic POST/iframe preview",
+        "state": "not-measured",
+        "representation": null,
+        "owner": "dev",
+        "sourceAddress": "#43C-preview",
+        "address": "#43C-preview",
+        "dependency": null
+      },
+      {
+        "route": "admin corpus",
+        "state": "not-measured",
+        "representation": null,
+        "owner": "dev",
+        "sourceAddress": "#43C-report",
+        "address": "#43C-report",
+        "dependency": null
+      }
+    ],
+    "implementedRoutes": [
+      {
+        "route": "dynamic-preview",
+        "owner": "dev",
+        "address": "#43C-preview",
+        "source": "https://github.com/bolsterdigital/mycel/blob/e95c06f10a812de54311ef5ebdee6553cce98100/apps/web/e2e/content-admin.spec.ts",
+        "state": "not-measured",
+        "limitation": "explicit-implementation-inventory-does-not-certify-required-coverage"
+      },
+      {
+        "route": "grid-information-v1",
+        "owner": "dev",
+        "address": "#43C-report",
+        "source": "https://github.com/bolsterdigital/mycel/blob/e95c06f10a812de54311ef5ebdee6553cce98100/apps/web/e2e/grid-compositions.spec.ts",
+        "state": "not-measured",
+        "limitation": "explicit-implementation-inventory-does-not-certify-required-coverage"
+      }
+    ],
+    "inventoryCompleteness": "not-measured",
+    "expiredExceptions": [],
+    "exceptions": []
+  },
+  "schedule": {
+    "state": "pending",
+    "issues": [],
+    "windows": [
+      {
+        "dueAt": "2026-11-02T05:17:00.000Z",
+        "overdueAt": "2026-11-03T05:17:00.000Z",
+        "graceHours": 24,
+        "runIds": [],
+        "late": false,
+        "state": "pending",
+        "owner": "dev",
+        "address": "#43C-report"
+      }
+    ]
+  },
+  "monitoring": "not-measured",
+  "sources": [
+    {
+      "id": 40354052992,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40354052992/attempts/1",
+      "event": "pull_request",
+      "headSha": "600f808f985386e56c143c62843f2db84309a794",
+      "state": "not-measured",
+      "environment": null
+    },
+    {
+      "id": 40354817356,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40354817356/attempts/1",
+      "event": "pull_request",
+      "headSha": "cf823852de1251348e8dd8986be2a8b10f295be2",
+      "measuredSha": "6da2627f1851bdecd6a9f2e3850fcd39d792851f",
+      "state": "not-measured",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40355457515,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40355457515/attempts/1",
+      "event": "pull_request",
+      "headSha": "1e8fdba27f6dda649585fda2644626265ceee787",
+      "measuredSha": "a47183c5a173936db5eef624fc11c8c2d6bbe16d",
+      "state": "not-measured",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40355470426,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40355470426/attempts/1",
+      "event": "workflow_dispatch",
+      "headSha": "1e8fdba27f6dda649585fda2644626265ceee787",
+      "measuredSha": "1e8fdba27f6dda649585fda2644626265ceee787",
+      "state": "not-measured",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40355738873,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40355738873/attempts/1",
+      "event": "pull_request",
+      "headSha": "c22779a2bcb0fef91af00d2de1b99a9aace9f729",
+      "measuredSha": "507e070ca0ecae4037b88e3f57b2c2f628c1c4dc",
+      "state": "not-measured",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40355743166,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40355743166/attempts/1",
+      "event": "workflow_dispatch",
+      "headSha": "c22779a2bcb0fef91af00d2de1b99a9aace9f729",
+      "measuredSha": "c22779a2bcb0fef91af00d2de1b99a9aace9f729",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40356248806,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40356248806/attempts/1",
+      "event": "workflow_dispatch",
+      "headSha": "28b61ee71a160ca359db3e0082714b006984aa6c",
+      "state": "not-measured",
+      "environment": null
+    },
+    {
+      "id": 40356260574,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40356260574/attempts/1",
+      "event": "pull_request",
+      "headSha": "28b61ee71a160ca359db3e0082714b006984aa6c",
+      "measuredSha": "21880de76a84115ff9a6809a9cf1d1a8d9de6e30",
+      "state": "not-measured",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40356551978,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40356551978/attempts/1",
+      "event": "workflow_dispatch",
+      "headSha": "f396aaa044781e6b8a9c9d22add78e115a4b900c",
+      "measuredSha": "f396aaa044781e6b8a9c9d22add78e115a4b900c",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40356559653,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40356559653/attempts/1",
+      "event": "pull_request",
+      "headSha": "f396aaa044781e6b8a9c9d22add78e115a4b900c",
+      "measuredSha": "2581033423f47973498efc4bcfa313c0dcfb8c17",
+      "state": "not-measured",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40359058404,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40359058404/attempts/1",
+      "event": "workflow_dispatch",
+      "headSha": "f2735b61009ff7ee1bf7598fb793545ed91260c5",
+      "measuredSha": "f2735b61009ff7ee1bf7598fb793545ed91260c5",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40359068129,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40359068129/attempts/1",
+      "event": "pull_request",
+      "headSha": "f2735b61009ff7ee1bf7598fb793545ed91260c5",
+      "measuredSha": "b3562921bf5ecc2e07684d29bf579eeedfc255c0",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40359425118,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40359425118/attempts/1",
+      "event": "workflow_dispatch",
+      "headSha": "ffe822ee9dc4f32cc3d2ee1ea0a4390521751b56",
+      "measuredSha": "ffe822ee9dc4f32cc3d2ee1ea0a4390521751b56",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40359434880,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40359434880/attempts/1",
+      "event": "pull_request",
+      "headSha": "ffe822ee9dc4f32cc3d2ee1ea0a4390521751b56",
+      "measuredSha": "a6951cef6ea001cfb151f074bbad7a5eb4b14ed1",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40366473887,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40366473887/attempts/1",
+      "event": "workflow_dispatch",
+      "headSha": "36a9c29dd2c6203e7f505653118f5695f4a3de3b",
+      "measuredSha": "36a9c29dd2c6203e7f505653118f5695f4a3de3b",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40366480633,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40366480633/attempts/1",
+      "event": "pull_request",
+      "headSha": "36a9c29dd2c6203e7f505653118f5695f4a3de3b",
+      "measuredSha": "f71be45249a4c4eb414d9978730b4d8d95dd6598",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40369337318,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40369337318/attempts/1",
+      "event": "push",
+      "headSha": "5b2ef8f811ab93b511d43f21b3f6a2d80e3bf8e0",
+      "measuredSha": "5b2ef8f811ab93b511d43f21b3f6a2d80e3bf8e0",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40371620208,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40371620208/attempts/1",
+      "event": "push",
+      "headSha": "2586ef32e55b7caba51d2215d7e11dd20938196b",
+      "measuredSha": "2586ef32e55b7caba51d2215d7e11dd20938196b",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40374447130,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40374447130/attempts/1",
+      "event": "pull_request",
+      "headSha": "7890dde070e6911eaf07afe75f20e7e1878c7f18",
+      "measuredSha": "5eed5ecd177c7af10c3a0315b7d573934f112b1e",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40375152093,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40375152093/attempts/1",
+      "event": "pull_request",
+      "headSha": "76793ac4c130957fa692949537ce28a1885c8d5e",
+      "measuredSha": "b7c6a53ad140694fb154c6bcef269cbfb7d58faa",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40375699398,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40375699398/attempts/1",
+      "event": "pull_request",
+      "headSha": "190fb503e88065bee28bb3d31bc0eaec7e360fbb",
+      "measuredSha": "bd3496c1a25323155ca59dac50ffd073e8bd5ed4",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40376003097,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40376003097/attempts/1",
+      "event": "pull_request",
+      "headSha": "4426966e485d434d7b3277280a104f2715127c77",
+      "measuredSha": "7082a99ff89033f54f58cb614b756f1981b8a8d9",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40376713299,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40376713299/attempts/1",
+      "event": "pull_request",
+      "headSha": "0e696c50ca72a4d5e988b06240a239b595150c44",
+      "state": "not-measured",
+      "environment": null
+    },
+    {
+      "id": 40376854797,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40376854797/attempts/1",
+      "event": "pull_request",
+      "headSha": "dc0000f82550a529ca9e257a4efa0f6a1da412a1",
+      "measuredSha": "1b23a04b4ad429f03eb0f9af8cb3374b5960a363",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40378216244,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40378216244/attempts/1",
+      "event": "push",
+      "headSha": "cef623918b1722144ba21b616d42bafeab7a6193",
+      "measuredSha": "cef623918b1722144ba21b616d42bafeab7a6193",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40379036536,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40379036536/attempts/1",
+      "event": "pull_request",
+      "headSha": "61748294ec1373ab2fa1bff0666c440f87277f9b",
+      "measuredSha": "94444388e4f3294530133b1625da97495c38ff6b",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40379062160,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40379062160/attempts/1",
+      "event": "pull_request",
+      "headSha": "5ebcddbfcbd4cc7978b64548fc8775ebc7c6a5cd",
+      "measuredSha": "7131bd7c804ebc7cc3e28ed2ad7b420fb59f1ea9",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40381763678,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40381763678/attempts/1",
+      "event": "push",
+      "headSha": "8c1127dbf16f616387e67a731e234fe84faac9e1",
+      "measuredSha": "8c1127dbf16f616387e67a731e234fe84faac9e1",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40386782144,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40386782144/attempts/1",
+      "event": "pull_request",
+      "headSha": "b68882860e10c6570d41183144f2532262e4897a",
+      "measuredSha": "118503aa223cc46b2d0fd45d26af15e7b69642d4",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40389441201,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40389441201/attempts/1",
+      "event": "pull_request",
+      "headSha": "3a4502512728d0f409dad3906b03cd34f16e9cb5",
+      "measuredSha": "99cf86733ced75cbd5d6b3b7c5621c7b017728f9",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40389813571,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40389813571/attempts/1",
+      "event": "pull_request",
+      "headSha": "290d8bc60a84462742e8186f20b483872b6f8a98",
+      "measuredSha": "73463da732a4676c75b097e992627bf16b12b9d6",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40478248190,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40478248190/attempts/1",
+      "event": "push",
+      "headSha": "9a677ca907850f218ceee0a117584235e688820d",
+      "measuredSha": "9a677ca907850f218ceee0a117584235e688820d",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40491784167,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40491784167/attempts/1",
+      "event": "pull_request",
+      "headSha": "5002527a782ec0defa1d6b65ddf2bda18cc78f1c",
+      "measuredSha": "215409007882fefb2d041f8a36cfa82579033ee8",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40493782816,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40493782816/attempts/1",
+      "event": "push",
+      "headSha": "e95c06f10a812de54311ef5ebdee6553cce98100",
+      "measuredSha": "e95c06f10a812de54311ef5ebdee6553cce98100",
+      "state": "not-measured",
+      "environment": "11bdf4fe1bfeeff129605e460734e61e26b7f7cc6fd07307872f806cde271aaa"
+    },
+    {
+      "id": 40500176250,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40500176250/attempts/1",
+      "event": "pull_request",
+      "headSha": "3581ef3583aa17c97af1f26d1ae0b9d3a97ec245",
+      "measuredSha": "55859cd9e0d14f64aeb52ee2a0948d3a908615a9",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40502611261,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40502611261/attempts/1",
+      "event": "push",
+      "headSha": "2bac162ed0884607f432db5cd4e58839d33ab048",
+      "measuredSha": "2bac162ed0884607f432db5cd4e58839d33ab048",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40503752831,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40503752831/attempts/1",
+      "event": "pull_request",
+      "headSha": "d9cd4147fbdfedd98d2198a7513141c26c4df166",
+      "measuredSha": "9d6b65a7134fa7ac6001ad05310db75cd2ea16ab",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    },
+    {
+      "id": 40506918229,
+      "attempt": 1,
+      "url": "https://github.com/bolsterdigital/mycel/actions/runs/40506918229/attempts/1",
+      "event": "push",
+      "headSha": "ecf732174092fd8b5e98e873df464fcf993e64ea",
+      "measuredSha": "ecf732174092fd8b5e98e873df464fcf993e64ea",
+      "state": "fail",
+      "environment": "5b2aee4af86784b20ea2436a2b1fd1ef3d3dc0e09f4cd786a456927da78d3e62"
+    }
+  ],
+  "limitations": [
+    "Human closure, escape and false-alarm input is optional and never an exhaustive private-ledger claim.",
+    "Closure prevention links are human assertions; sourceVerified checks the failing SHA/cause/environment only, not the linked green gate.",
+    "Recurrence is a proposal on the existing cause/address; later runs can measure older code.",
+    "Retained history can be incomplete; missing artifacts, unknown PR identity and unknown time are not zero.",
+    "Available green cells do not certify preview, themes, manual tasks or release coverage."
+  ]
+}

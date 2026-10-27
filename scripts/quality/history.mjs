@@ -6,6 +6,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sourceContract } from './consume.mjs';
 
+const observationStart = '2026-10-26T00:00:00Z';
 const activation = '2026-10-26T17:30:57Z';
 export function collectHistory({ repo, out, runIds = [], api, download }) {
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error('Invalid repository');
@@ -41,6 +42,7 @@ export function collectHistory({ repo, out, runIds = [], api, download }) {
     history.errors.push('workflow-api-unavailable');
   }
   const sources = new Map();
+  const pullRequests = new Map();
   const source = (commit, path) => {
     const id = `${commit}:${path}`;
     if (!sources.has(id)) {
@@ -62,7 +64,7 @@ export function collectHistory({ repo, out, runIds = [], api, download }) {
     // Paginate all runs from rollout, including failed/cancelled runs, not only green artifacts.
     for (let page = 1; ; page++) {
       const batch = api(
-        `${base}/actions/workflows/frontend-quality.yml/runs?per_page=100&page=${page}&created=%3E%3D${activation}`
+        `${base}/actions/workflows/frontend-quality.yml/runs?per_page=100&page=${page}&created=%3E%3D${observationStart}`
       ).workflow_runs;
       runs.push(...batch);
       if (batch.length < 100) break;
@@ -90,8 +92,48 @@ export function collectHistory({ repo, out, runIds = [], api, download }) {
           conclusion: run.conclusion,
           createdAt: run.created_at,
           startedAt: run.run_started_at,
+          pullRequests: (run.pull_requests ?? []).map((p) => p.number),
           url: `${run.html_url}/attempts/${attempt}`,
         });
+        // GitHub often removes pull_requests from completed run metadata after merge.
+        // Resolve only an exact head association; never guess from branch names or PR titles.
+        if (record.event === 'pull_request' && !record.pullRequests.length) {
+          try {
+            if (!pullRequests.has(record.headSha))
+              pullRequests.set(
+                record.headSha,
+                api(`${base}/commits/${record.headSha}/pulls?per_page=100`)
+                  .filter((p) => p.head?.sha === record.headSha)
+                  .map((p) => p.number)
+              );
+            record.pullRequests = pullRequests.get(record.headSha);
+          } catch {
+            record.pullRequests = [];
+          }
+        }
+        // Job execution time is runner usage, not billing or wall time across parallel shards.
+        // Failure to read it leaves cost unknown without discarding measurement evidence.
+        try {
+          const jobs = [];
+          for (let page = 1; ; page++) {
+            const batch = api(
+              `${base}/actions/runs/${latest.id}/attempts/${attempt}/jobs?per_page=100&page=${page}`
+            ).jobs;
+            jobs.push(...batch);
+            if (batch.length < 100) break;
+          }
+          const durations = jobs.map((job) =>
+            job.status === 'completed' && job.started_at && job.completed_at
+              ? (Date.parse(job.completed_at) - Date.parse(job.started_at)) / 60000
+              : NaN
+          );
+          record.runnerMinutes =
+            durations.length && durations.every((n) => Number.isFinite(n) && n >= 0)
+              ? durations.reduce((a, b) => a + b, 0)
+              : null;
+        } catch {
+          record.runnerMinutes = null;
+        }
         if (!/^[a-f0-9]{40}$/.test(record.headSha)) throw new Error('invalid-head-sha');
         record.contract = contractFor(record.headSha);
         record.expectationSha = record.headSha;

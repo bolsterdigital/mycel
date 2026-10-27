@@ -483,7 +483,7 @@ test('GitHub adapter separates rerun artifacts by attempt and preserves corrupt 
     path: '.github/workflows/frontend-quality.yml',
     run_attempt: 2,
     created_at: '2026-10-26T18:00:00Z',
-    event: 'push',
+    event: 'pull_request',
     head_sha: original.headSha,
     html_url: original.url,
     status: 'completed',
@@ -508,8 +508,28 @@ test('GitHub adapter separates rerun artifacts by attempt and preserves corrupt 
       return {
         content: Buffer.from(files[path.split('/contents/')[1].split('?')[0]]).toString('base64'),
       };
+    if (path.includes('/pulls?'))
+      return [
+        { number: 90, head: { sha: original.headSha } },
+        { number: 91, head: { sha: 'b'.repeat(40) } },
+      ];
     if (path.includes('/commits/')) return { parents: [] };
     if (path.includes('/artifacts?')) return { artifacts };
+    if (path.includes('/jobs?'))
+      return {
+        jobs: [
+          {
+            status: 'completed',
+            started_at: '2026-10-26T18:00:00Z',
+            completed_at: '2026-10-26T18:02:30Z',
+          },
+          {
+            status: 'completed',
+            started_at: '2026-10-26T18:00:00Z',
+            completed_at: '2026-10-26T18:01:00Z',
+          },
+        ],
+      };
     if (path.includes('/attempts/')) {
       const attempt = Number(path.split('/').at(-1));
       return { ...run, run_started_at: `2026-10-26T${attempt === 1 ? '18' : '19'}:00:00Z` };
@@ -535,6 +555,8 @@ test('GitHub adapter separates rerun artifacts by attempt and preserves corrupt 
       [1, 2]
     );
     assert.equal(report.runs[0].state, 'pass');
+    assert.equal(report.runs[0].runnerMinutes, 3.5);
+    assert.deepEqual(report.runs[0].pullRequests, [90]);
     assert.equal(report.runs[0].createdAt, report.runs[1].createdAt);
     assert.notEqual(report.runs[0].startedAt, report.runs[1].startedAt);
     assert.equal(report.runs[1].state, 'not-measured');
@@ -714,4 +736,184 @@ test('routing retains artifact-scoped claims and exact cells in both shard order
       assert.match(markdown(result), new RegExp(sources[0].artifact));
     }
   }
+});
+
+import { factory, factoryMarkdown, closureInput, environmentKey } from './factory.mjs';
+const humanInput = () => ({
+  schemaVersion: 1,
+  closures: [],
+  exceptions: [],
+  falseAlarms: [],
+  implementedRoutes: [],
+});
+function processRun({
+  id = 123,
+  head = 'a',
+  pr = 90,
+  attempt = 1,
+  state = 'pass',
+  at = '2026-10-26T18:00:00Z',
+} = {}) {
+  const run = retained('pull_request');
+  Object.assign(run, {
+    id,
+    attempt,
+    headSha: head.repeat(40),
+    measuredSha: head.repeat(40),
+    pullRequests: [pr],
+    startedAt: at,
+    createdAt: at,
+  });
+  for (const a of run.artifacts) {
+    a.report.commit = run.measuredSha;
+    a.report.state = state;
+    for (const c of a.report.cells) {
+      c.state = c.batches[0].state = state;
+      if (state === 'fail') {
+        c.batches[0].reasons = ['page-identity:wrong-item'];
+        c.batches[0].identityIssues = ['wrong-item'];
+      }
+    }
+  }
+  return consumeRun(run, load);
+}
+const processReport = (runs) => ({
+  schemaVersion: 1,
+  asOf: clock,
+  state: 'not-measured',
+  schedule: { state: 'pending', windows: [] },
+  runs,
+});
+test('factory keeps first-pass denominator per PR head, not routes/reruns or job colour', () => {
+  const red = processRun({ state: 'fail' });
+  const green = processRun({ attempt: 2, at: '2026-10-26T19:00:00Z' });
+  const diagnostic = structuredClone(red.cells[0].batches[0]);
+  diagnostic.state = 'pass';
+  red.cells[0].batches.push(diagnostic);
+  const missing = processRun({ id: 124, head: 'b', pr: 91 });
+  missing.present = 0;
+  const later = processRun({ id: 124, attempt: 2, head: 'b', pr: 91, at: '2026-10-26T20:00:00Z' });
+  const unknown = processRun({ id: 125, head: 'c', pr: 92, state: 'inconclusive' });
+  const passing = processRun({ id: 126, head: 'd', pr: 93 });
+  const r = factory(processReport([green, unknown, red, missing, later, passing]));
+  assert.equal(r.firstPass.numerator, 1);
+  assert.equal(r.firstPass.denominator, 2);
+  assert.equal(r.firstPass.noValidHeads, 2);
+  assert.equal(r.firstPass.missingAttempts, 1);
+  assert.equal(r.firstPass.inconclusiveAttempts, 1);
+  assert.equal(r.firstPass.heads.find((h) => h.headSha === red.headSha).firstValid.state, 'fail');
+  assert.equal(r.baseline.firstTen.progress, 4);
+  assert.equal(r.cost.reruns, 2);
+  assert.equal(r.cost.diagnosticBatches, 1);
+  assert.equal(r.cost.knownRunnerMinutes, 'not-measured');
+  assert.equal(r.effort.activeRepairMinutes, 'not-measured');
+  assert.equal(r.closureInput, 'not-measured');
+  assert.equal(r.defects.escapes, 'not-measured');
+  assert.equal(r.cost.falseAlarms, 'not-measured');
+  assert.equal(r.weekly.firstPass.denominator, 2);
+  assert.equal(r.weekly.attempts, 6);
+  assert.doesNotMatch(factoryMarkdown(r), /PRIVATE|secret@/);
+});
+test('factory cohorts count ten distinct PRs, retain heads and never invent an improvement', () => {
+  const runs = Array.from({ length: 20 }, (_, i) =>
+    processRun({ id: i + 1, head: (i + 1).toString(16).padStart(40, '0').slice(0, 1) })
+  );
+  // Use distinct real-length hex heads; multiple heads of one PR still count one PR.
+  runs.forEach((r, i) => {
+    r.headSha = (i + 1).toString(16).padStart(40, '0');
+    r.pullRequests = [i + 1];
+  });
+  runs.push({ ...runs[0], id: 30, headSha: 'f'.repeat(40) });
+  const partial = factory(processReport(runs.slice(0, 9)));
+  assert.equal(partial.baseline.firstTen.progress, 9);
+  assert.equal(partial.baseline.comparison, 'pending-next-ten');
+  const full = factory(processReport(runs));
+  assert.equal(full.baseline.firstTen.progress, 10);
+  assert.equal(full.baseline.nextTen.progress, 10);
+  assert.equal(full.baseline.firstTen.denominator, 11);
+  assert.equal(full.baseline.comparison, 'ready-for-human-bottleneck-analysis');
+  assert.equal(full.baseline.improvement, 'not-measured');
+  runs.push({ ...runs[0], id: 31, headSha: 'e'.repeat(40), pullRequests: [] });
+  assert.equal(factory(processReport(runs)).baseline.comparison, 'pending-next-ten');
+});
+test('factory deduplicates recurrence by cause after closure, checks environment and expires exceptions', () => {
+  const red = processRun({ state: 'fail' });
+  const again = processRun({ id: 124, head: 'b', state: 'fail', at: '2026-10-27T10:00:00Z' });
+  const otherEnvironment = processRun({
+    id: 125,
+    head: 'c',
+    state: 'fail',
+    at: '2026-10-27T11:00:00Z',
+  });
+  otherEnvironment.tools.chromium = 'other';
+  const input = humanInput();
+  const key = red.proposals[0].key;
+  input.closures.push({
+    key,
+    address: '#11-writer-targets',
+    owner: 'mbp',
+    defectSha: red.measuredSha,
+    repairedSha: 'd'.repeat(40),
+    environment: environmentKey(red),
+    detectedAt: red.startedAt,
+    repairedAt: '2026-10-27T09:00:00Z',
+    detectedAfterMerge: true,
+    activeRepairMinutes: null,
+    prevention: {
+      kind: 'gate',
+      gate: 'identity-suite',
+      red: 'https://github.com/bolsterdigital/mycel/actions/runs/123',
+      green: 'https://github.com/bolsterdigital/mycel/actions/runs/124',
+      missedGate: 'wrong-item',
+      durableRule: 'identity-target',
+    },
+  });
+  input.exceptions.push({
+    id: 'exception-1',
+    cell: 'article-nl-mobile-fresh',
+    criterion: 'seo',
+    owner: 'mbp',
+    address: '#11',
+    expiresAt: '2026-10-27T00:00:00Z',
+    decision: 'https://github.com/bolsterdigital/mycel/pull/90',
+  });
+  input.falseAlarms.push({
+    runId: 125,
+    attempt: 1,
+    evidence: 'https://github.com/bolsterdigital/mycel/pull/90',
+  });
+  const r = factory(processReport([red, again, otherEnvironment]), input);
+  assert.equal(r.closures[0].sourceVerified, true);
+  assert.equal(r.closures[0].calendarMinutes, 900);
+  assert.equal(r.closures[0].activeRepairMinutes, 'not-measured');
+  assert.equal(r.causes.length, 1);
+  assert.equal(r.causes[0].escapes, 1);
+  assert.equal(r.causes[0].recurrence.length, 1);
+  assert.equal(r.causes[0].address, '#11-writer-targets');
+  assert.equal(r.prevention.numerator, 1);
+  assert.equal(r.coverageDebt.expiredExceptions.length, 1);
+  assert.equal(r.cost.falseAlarms.length, 1);
+  const duplicate = structuredClone(input);
+  duplicate.closures.push(structuredClone(duplicate.closures[0]));
+  assert.throws(() => closureInput(duplicate));
+  input.closures[0].prevention = null;
+  assert.equal(factory(processReport([red]), input).prevention.numerator, 0);
+  input.closures[0].environment = '0'.repeat(64);
+  assert.equal(factory(processReport([red]), input).closures[0].sourceVerified, false);
+});
+test('factory rejects private notes, arbitrary evidence URLs, duplicate closures and invalid clocks', () => {
+  const input = humanInput();
+  assert.throws(() => closureInput({ ...input, notes: 'PRIVATE person@example.org' }));
+  input.implementedRoutes.push({
+    route: 'preview',
+    owner: 'mbp',
+    address: '#43C-preview',
+    source: 'https://private.invalid/notes',
+  });
+  assert.throws(() => closureInput(input));
+  assert.throws(() => factory({ schemaVersion: 1, asOf: 'yesterday', runs: [] }));
+  const r = processRun();
+  r.runnerMinutes = 3.5;
+  const future = { ...r, id: 200, startedAt: '2027-01-01T00:00:00Z', runnerMinutes: 100 };
+  assert.equal(factory(processReport([r, future])).cost.knownRunnerMinutes, 3.5);
 });
