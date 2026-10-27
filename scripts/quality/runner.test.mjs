@@ -206,17 +206,9 @@ test('measured writer DOM passes the same identity path; wrong article and empty
   }
 });
 
-// The consumer grows this existing suite: score fixtures remain the evaluator's contract;
-// these cases cover the history/provenance boundary that a green observation job cannot prove.
-import {
-  consume,
-  consumeRun,
-  sourceContract,
-  expectedShards,
-  scheduleStatus,
-  markdown,
-} from './consume.mjs';
-import { collectHistory } from './history.mjs';
+// The validator grows this existing suite: score fixtures remain the evaluator's contract;
+// these cases cover the evidence boundary that a green observation job cannot prove.
+import { consumeRun, sourceContract, expectedShards } from './evidence.mjs';
 const clock = '2026-10-27T12:00:00Z';
 const source = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
 const contract = sourceContract({
@@ -265,7 +257,6 @@ function retained(event = 'workflow_dispatch') {
           {
             route: 'dynamic POST/iframe preview',
             state: 'not-measured',
-            owner: 'dev',
             address: '#43B',
             reason: 'PRIVATE secret@invalid.test',
           },
@@ -323,10 +314,11 @@ test('consumer counts the versioned full matrix and retains all red observation 
   assert.equal(result.state, 'fail');
   assert.equal(result.conclusion, 'success');
   assert.equal(result.cells[0].batches.length, 2);
-  assert.equal(result.proposals[0].address, '#43C-report');
-  assert.deepEqual(result.proposals[0].aliases, ['#43B']);
+  assert.equal(result.proposals[0].key, 'page-identity:wrong-item');
+  assert.equal(result.proposals[0].category, 'measurement');
+  assert.deepEqual(result.proposals[0].claims, []);
   assert.equal(result.coverage[0].sourceAddress, '#43B');
-  assert.equal(result.coverage[0].address, '#43C-preview');
+  assert.equal('address' in result.coverage[0], false);
   assert.doesNotMatch(JSON.stringify(result), /PRIVATE|secret@/);
 });
 test('missing, duplicate, corrupt, interrupted and mismatched evidence can never pass', () => {
@@ -379,95 +371,7 @@ test('missing, duplicate, corrupt, interrupted and mismatched evidence can never
     assert.ok(result.issues.length);
   }
 });
-test('weekly due/overdue clock never borrows manual or main measurements', () => {
-  const workflow = { activatedAt: '2026-10-26T17:30:57Z', state: 'active', cron: '17 5 * * 1' };
-  const runs = [{ event: 'workflow_dispatch', createdAt: '2026-11-02T05:18:00Z', state: 'pass' }];
-  assert.equal(scheduleStatus(workflow, runs, clock).state, 'pending');
-  assert.equal(scheduleStatus(workflow, runs, '2026-11-03T05:16:59Z').state, 'pending');
-  assert.equal(scheduleStatus(workflow, runs, '2026-11-03T05:17:00Z').state, 'not-measured');
-  runs.push({ id: 3, event: 'schedule', createdAt: '2026-11-02T05:19:00Z', state: 'fail' });
-  assert.equal(scheduleStatus(workflow, runs, '2026-11-03T06:00:00Z').state, 'fail');
-  assert.equal(scheduleStatus(workflow, runs, clock).state, 'pending');
-  const late = scheduleStatus(
-    workflow,
-    [{ id: 4, event: 'schedule', createdAt: '2026-11-03T07:00:00Z', state: 'pass' }],
-    '2026-11-03T07:01:00Z'
-  );
-  assert.equal(late.state, 'pass');
-  assert.equal(late.windows[0].late, true);
-  assert.equal(
-    scheduleStatus({ ...workflow, state: 'disabled_manually' }, [], clock).state,
-    'not-measured'
-  );
-  assert.equal(scheduleStatus({ ...workflow, state: 'unknown' }, [], clock).state, 'not-measured');
-});
-test('consumer retains attempts and separates head/merge/local provenance; unknown API/watchdog is not healthy', () => {
-  const first = retained('pull_request');
-  first.measuredSha = 'b'.repeat(40);
-  first.mergeParents = [first.headSha];
-  for (const a of first.artifacts) a.report.commit = first.measuredSha;
-  const second = structuredClone(first);
-  second.attempt = 2;
-  const history = {
-    schemaVersion: 1,
-    workflow: { state: 'active', cron: '17 5 * * 1', activatedAt: '2026-10-26T17:30:57Z' },
-    runs: [first, second],
-    errors: ['unavailable'],
-  };
-  const result = consume(history, load, clock);
-  assert.equal(result.runs.length, 2);
-  assert.equal(result.runs[0].evidenceKind, 'pr-merge');
-  assert.notEqual(result.runs[0].headSha, result.runs[0].measuredSha);
-  assert.equal(result.state, 'not-measured');
-  assert.match(markdown(result), /not-measured/);
-  assert.throws(() => consume({ ...history, runs: [first, first] }, load, clock), /Duplicate/);
-  history.errors = [];
-  history.watchdog = {
-    state: 'active',
-    lastCompletedAt: '2026-10-24T00:00:00Z',
-    conclusion: 'success',
-  };
-  assert.equal(consume(history, load, clock).state, 'not-measured');
-  history.watchdog.lastCompletedAt = clock;
-  assert.equal(consume(history, load, clock).state, 'pending');
-  history.watchdog.lastScheduledAt = '2026-10-24T00:00:00Z';
-  assert.equal(consume(history, load, clock).state, 'not-measured');
-});
-test('artifact adapter records API outage and independent watchdog has only read permissions', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'quality-history-'));
-  try {
-    const h = collectHistory({
-      repo: 'owner/repo',
-      out: join(dir, 'history'),
-      api: () => {
-        throw new Error('PRIVATE token');
-      },
-      download: () => {
-        throw new Error('unused');
-      },
-    });
-    assert.equal(h.errors.length, 2);
-    assert.equal(consume(h, load, clock).state, 'not-measured');
-    assert.doesNotMatch(readFileSync(join(dir, 'history/history.json'), 'utf8'), /PRIVATE/);
-    const workflow = source('.github/workflows/frontend-quality-watchdog.yml');
-    assert.match(workflow, /cron: '31 6 \* \* \*'/);
-    assert.match(workflow, /actions: read/);
-    assert.match(workflow, /contents: read/);
-    assert.doesNotMatch(workflow, /: write|workflow_run:|issues:|pull-requests:/);
-    assert.match(workflow, /retention-days: 90/);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test('an inconclusive scheduled batch stays inconclusive, and cancelled attempts cannot pass', () => {
-  const workflow = { activatedAt: '2026-10-26T17:30:57Z', state: 'active', cron: '17 5 * * 1' };
-  const result = scheduleStatus(
-    workflow,
-    [{ id: 3, event: 'schedule', createdAt: '2026-11-02T05:19:00Z', state: 'inconclusive' }],
-    '2026-11-03T06:00:00Z'
-  );
-  assert.equal(result.state, 'inconclusive');
+test('cancelled attempts cannot pass, and local evidence keeps its own kind', () => {
   const run = retained();
   run.conclusion = 'cancelled';
   assert.notEqual(consumeRun(run, load).state, 'pass');
@@ -484,447 +388,12 @@ test('an inconclusive scheduled batch stays inconclusive, and cancelled attempts
   assert.equal(output.evidenceKind, 'local');
 });
 
-test('GitHub adapter separates rerun artifacts by attempt and preserves corrupt originals as missing evidence', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'quality-attempts-'));
-  const original = retained('push');
-  const run = {
-    id: 123,
-    path: '.github/workflows/frontend-quality.yml',
-    run_attempt: 2,
-    created_at: '2026-10-26T18:00:00Z',
-    event: 'pull_request',
-    head_sha: original.headSha,
-    html_url: original.url,
-    status: 'completed',
-    conclusion: 'success',
-  };
-  const files = {
-    'apps/web/e2e/quality-corpus.json': source('apps/web/e2e/quality-corpus.json'),
-    'scripts/e2e.mjs': source('scripts/e2e.mjs'),
-    'scripts/quality/matrix.mjs': source('scripts/quality/matrix.mjs'),
-    '.github/workflows/frontend-quality.yml': source('.github/workflows/frontend-quality.yml'),
-    'package-lock.json': source('package-lock.json'),
-  };
-  const artifacts = [1, 2].flatMap((attempt) =>
-    original.artifacts.map((a) => ({
-      id: a.id + attempt * 10,
-      name: a.name,
-      created_at: `2026-10-26T${attempt === 1 ? '18' : '19'}:05:00Z`,
-    }))
-  );
-  const api = (path) => {
-    if (path.includes('/contents/'))
-      return {
-        content: Buffer.from(files[path.split('/contents/')[1].split('?')[0]]).toString('base64'),
-      };
-    if (path.includes('/pulls?'))
-      return [
-        { number: 90, head: { sha: original.headSha } },
-        { number: 91, head: { sha: 'b'.repeat(40) } },
-      ];
-    if (path.includes('/commits/')) return { parents: [] };
-    if (path.includes('/artifacts?')) return { artifacts };
-    if (path.includes('/jobs?'))
-      return {
-        jobs: [
-          {
-            status: 'completed',
-            started_at: '2026-10-26T18:00:00Z',
-            completed_at: '2026-10-26T18:02:30Z',
-          },
-          {
-            status: 'completed',
-            started_at: '2026-10-26T18:00:00Z',
-            completed_at: '2026-10-26T18:01:00Z',
-          },
-        ],
-      };
-    if (path.includes('/attempts/')) {
-      const attempt = Number(path.split('/').at(-1));
-      return { ...run, run_started_at: `2026-10-26T${attempt === 1 ? '18' : '19'}:00:00Z` };
-    }
-    if (path.includes('frontend-quality-watchdog.yml/runs')) return { workflow_runs: [] };
-    if (path.includes('/runs?')) return { workflow_runs: [run] };
-    if (path.includes('/workflows/')) return { state: 'active' };
-    throw new Error(`Unexpected fixture request: ${path}`);
-  };
-  try {
-    const h = collectHistory({
-      repo: 'owner/repo',
-      out: join(dir, 'history'),
-      api,
-      download: (id) =>
-        id === 21
-          ? '{corrupt'
-          : JSON.stringify(original.artifacts.find((a) => a.id === id % 10).report),
-    });
-    const report = consume(h, (a) => JSON.parse(readFileSync(join(dir, 'history', a.path))), clock);
-    assert.deepEqual(
-      report.runs.map((r) => r.attempt),
-      [1, 2]
-    );
-    assert.equal(report.runs[0].state, 'pass');
-    assert.equal(report.runs[0].runnerMinutes, 3.5);
-    assert.deepEqual(report.runs[0].pullRequests, [90]);
-    assert.equal(report.runs[0].createdAt, report.runs[1].createdAt);
-    assert.notEqual(report.runs[0].startedAt, report.runs[1].startedAt);
-    assert.equal(report.runs[1].state, 'not-measured');
-    assert.equal(report.runs[1].present, 3);
-    assert.ok(report.runs[1].issues.length);
-    artifacts.length = 0;
-    const missing = collectHistory({
-      repo: 'owner/repo',
-      out: join(dir, 'missing'),
-      api,
-      download: () => {
-        throw new Error('no artifacts');
-      },
-    });
-    const absent = consume(missing, load, clock);
-    assert.equal(absent.runs[0].expected, 6);
-    assert.equal(absent.runs[0].present, 0);
-    assert.equal(absent.runs[0].missingShards.length, 2);
-    assert.equal(absent.runs[0].expectationSha, original.headSha);
-    assert.notEqual(absent.runs[0].state, 'pass');
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
 test('a non-pass shard summary cannot be upgraded by its passing available cells', () => {
   for (const state of ['fail', 'inconclusive', 'not-measured']) {
     const run = retained();
     run.artifacts[0].report.state = state;
     assert.equal(consumeRun(run, load).state, state);
   }
-});
-
-test('historically routed product causes retain their address, owner and security tier', () => {
-  const run = retained();
-  const report = run.artifacts[0].report;
-  const cell = report.cells[0];
-  cell.state = cell.batches[0].state = 'fail';
-  cell.batches[0].reasons = ['accessibility'];
-  cell.batches[0].raw[0].accessibility = 0.98;
-  report.repairs = [
-    { key: 'accessibility:', address: '#39', owner: 'mbp', tier: 'flagship-review' },
-  ];
-  const result = consumeRun(run, load);
-  assert.equal(result.proposals[0].sourceAddress, '#39');
-  assert.equal(result.proposals[0].address, '#39');
-  assert.equal(result.proposals[0].owner, 'mbp');
-  assert.equal(result.proposals[0].tier, 'flagship-review');
-});
-
-test('aggregate routing preserves established claims and highest tier in both run orders', () => {
-  const makeRun = (id, routing) => {
-    const run = retained();
-    run.id = id;
-    run.attempt = id === 102 ? 2 : 1;
-    const report = run.artifacts[0].report;
-    const cell = report.cells[0];
-    cell.state = cell.batches[0].state = 'fail';
-    cell.batches[0].reasons = ['accessibility'];
-    cell.batches[0].raw[0].accessibility = 0.98;
-    if (routing) report.repairs = [{ key: 'accessibility:', ...routing }];
-    return run;
-  };
-  const generic = makeRun(100);
-  const product = makeRun(101, { address: '#39', owner: 'mbp', tier: 'flagship-review' });
-  const conflict = makeRun(102, { address: '#40', owner: 'dev', tier: 'flagship-only' });
-  const history = { schemaVersion: 1, runs: [], workflow: {} };
-  for (const runs of [
-    [generic, product],
-    [product, generic],
-  ]) {
-    const result = consume({ ...history, runs }, load, clock);
-    const proposal = result.proposals[0];
-    assert.equal(proposal.address, '#39');
-    assert.equal(proposal.owner, 'mbp');
-    assert.equal(proposal.tier, 'flagship-review');
-    assert.equal(proposal.routingState, 'resolved');
-    assert.equal(proposal.routingClaims.length, 2);
-    assert.deepEqual(new Set(proposal.sourceAddresses), new Set(['#43C', '#39']));
-    assert.deepEqual(
-      proposal.runs,
-      result.runs.map((r) => ({
-        id: r.id,
-        attempt: r.attempt,
-        artifact: r.proposals[0].artifact,
-        cells: r.proposals[0].cells,
-      }))
-    );
-    assert.deepEqual(proposal.routingClaims.map((c) => c.runs).flat(), proposal.runs);
-  }
-  const sameAddress = makeRun(103, { address: '#39', owner: 'mbp', tier: 'flagship-only' });
-  const ownerConflict = makeRun(104, { address: '#39', owner: 'dev', tier: 'workhorse' });
-  for (const runs of [
-    [product, sameAddress],
-    [sameAddress, product],
-  ]) {
-    const proposal = consume({ ...history, runs }, load, clock).proposals[0];
-    assert.equal(proposal.address, '#39');
-    assert.equal(proposal.routingState, 'resolved');
-    assert.equal(proposal.tier, 'flagship-only');
-  }
-  for (const runs of [
-    [product, ownerConflict],
-    [ownerConflict, product],
-  ]) {
-    const proposal = consume({ ...history, runs }, load, clock).proposals[0];
-    assert.equal(proposal.routingState, 'conflict');
-    assert.equal(proposal.owner, null);
-    assert.equal(proposal.tier, 'flagship-review');
-  }
-  for (const runs of [
-    [generic, product, conflict],
-    [conflict, product, generic],
-  ]) {
-    const result = consume({ ...history, runs }, load, clock);
-    const proposal = result.proposals[0];
-    assert.equal(proposal.routingState, 'conflict');
-    assert.equal(proposal.address, null);
-    assert.equal(proposal.owner, null);
-    assert.equal(proposal.tier, 'flagship-only');
-    assert.equal(proposal.routingClaims.length, 3);
-    assert.deepEqual(
-      new Set(proposal.routingClaims.map((c) => c.address)),
-      new Set(['#43C', '#39', '#40'])
-    );
-    assert.equal(proposal.runs.find((r) => r.id === 102).attempt, 2);
-    assert.match(markdown(result), /Routing conflict/);
-  }
-});
-
-test('routing retains artifact-scoped claims and exact cells in both shard orders', () => {
-  const product = { address: '#39', owner: 'mbp', tier: 'flagship-review' };
-  for (const other of [
-    { address: '#43C', owner: 'mbp', tier: 'workhorse' },
-    { address: '#40', owner: 'dev', tier: 'flagship-only' },
-    { address: '#39', owner: 'dev', tier: 'workhorse' },
-    { address: '#39', owner: 'mbp', tier: 'flagship-only' },
-  ]) {
-    const run = retained();
-    const sources = [product, other].map((routing, index) => {
-      const artifact = run.artifacts[index];
-      const report = artifact.report;
-      const cell = report.cells[0];
-      cell.state = cell.batches[0].state = report.state = 'fail';
-      cell.batches[0].reasons = ['accessibility'];
-      cell.batches[0].raw[0].accessibility = 0.98;
-      report.repairs = [{ key: 'accessibility:', ...routing }];
-      return { ...routing, artifact: artifact.name, cells: [cell.id] };
-    });
-    for (const artifacts of [run.artifacts, [...run.artifacts].reverse()]) {
-      const result = consume(
-        { schemaVersion: 1, workflow: {}, runs: [{ ...run, artifacts }] },
-        load,
-        clock
-      );
-      assert.deepEqual(result.runs[0].issues, []);
-      const proposal = result.proposals[0];
-      const conflict =
-        other.address !== '#43C' && (other.address !== '#39' || other.owner !== 'mbp');
-      assert.equal(proposal.address, conflict ? null : '#39');
-      assert.equal(proposal.owner, conflict ? null : 'mbp');
-      assert.equal(proposal.routingState, conflict ? 'conflict' : 'resolved');
-      assert.equal(
-        proposal.tier,
-        other.tier === 'flagship-only' ? 'flagship-only' : 'flagship-review'
-      );
-      assert.equal(proposal.routingClaims.length, 2);
-      for (const source of sources) {
-        const claim = proposal.routingClaims.find(
-          (c) => c.address === source.address && c.owner === source.owner && c.tier === source.tier
-        );
-        assert.deepEqual(claim.runs, [
-          { id: run.id, attempt: run.attempt, artifact: source.artifact, cells: source.cells },
-        ]);
-      }
-      assert.equal(proposal.runs.length, 2);
-      assert.match(markdown(result), new RegExp(sources[0].artifact));
-    }
-  }
-});
-
-import { factory, factoryMarkdown, closureInput, environmentKey } from './factory.mjs';
-const humanInput = () => ({
-  schemaVersion: 1,
-  closures: [],
-  exceptions: [],
-  falseAlarms: [],
-  implementedRoutes: [],
-});
-function processRun({
-  id = 123,
-  head = 'a',
-  pr = 90,
-  attempt = 1,
-  state = 'pass',
-  at = '2026-10-26T18:00:00Z',
-} = {}) {
-  const run = retained('pull_request');
-  Object.assign(run, {
-    id,
-    attempt,
-    headSha: head.repeat(40),
-    measuredSha: head.repeat(40),
-    pullRequests: [pr],
-    startedAt: at,
-    createdAt: at,
-  });
-  for (const a of run.artifacts) {
-    a.report.commit = run.measuredSha;
-    a.report.state = state;
-    for (const c of a.report.cells) {
-      c.state = c.batches[0].state = state;
-      if (state === 'fail') {
-        c.batches[0].reasons = ['page-identity:wrong-item'];
-        c.batches[0].identityIssues = ['wrong-item'];
-      }
-    }
-  }
-  return consumeRun(run, load);
-}
-const processReport = (runs) => ({
-  schemaVersion: 1,
-  asOf: clock,
-  state: 'not-measured',
-  schedule: { state: 'pending', windows: [] },
-  runs,
-});
-test('factory keeps first-pass denominator per PR head, not routes/reruns or job colour', () => {
-  const red = processRun({ state: 'fail' });
-  const green = processRun({ attempt: 2, at: '2026-10-26T19:00:00Z' });
-  const diagnostic = structuredClone(red.cells[0].batches[0]);
-  diagnostic.state = 'pass';
-  red.cells[0].batches.push(diagnostic);
-  const missing = processRun({ id: 124, head: 'b', pr: 91 });
-  missing.present = 0;
-  const later = processRun({ id: 124, attempt: 2, head: 'b', pr: 91, at: '2026-10-26T20:00:00Z' });
-  const unknown = processRun({ id: 125, head: 'c', pr: 92, state: 'inconclusive' });
-  const passing = processRun({ id: 126, head: 'd', pr: 93 });
-  const r = factory(processReport([green, unknown, red, missing, later, passing]));
-  assert.equal(r.firstPass.numerator, 1);
-  assert.equal(r.firstPass.denominator, 2);
-  assert.equal(r.firstPass.noValidHeads, 2);
-  assert.equal(r.firstPass.missingAttempts, 1);
-  assert.equal(r.firstPass.inconclusiveAttempts, 1);
-  assert.equal(r.firstPass.heads.find((h) => h.headSha === red.headSha).firstValid.state, 'fail');
-  assert.equal(r.baseline.firstTen.progress, 4);
-  assert.equal(r.cost.reruns, 2);
-  assert.equal(r.cost.diagnosticBatches, 1);
-  assert.equal(r.cost.knownRunnerMinutes, 'not-measured');
-  assert.equal(r.effort.activeRepairMinutes, 'not-measured');
-  assert.equal(r.closureInput, 'not-measured');
-  assert.equal(r.defects.escapes, 'not-measured');
-  assert.equal(r.cost.falseAlarms, 'not-measured');
-  assert.equal(r.weekly.firstPass.denominator, 2);
-  assert.equal(r.weekly.attempts, 6);
-  assert.doesNotMatch(factoryMarkdown(r), /PRIVATE|secret@/);
-});
-test('factory cohorts count ten distinct PRs, retain heads and never invent an improvement', () => {
-  const runs = Array.from({ length: 20 }, (_, i) =>
-    processRun({ id: i + 1, head: (i + 1).toString(16).padStart(40, '0').slice(0, 1) })
-  );
-  // Use distinct real-length hex heads; multiple heads of one PR still count one PR.
-  runs.forEach((r, i) => {
-    r.headSha = (i + 1).toString(16).padStart(40, '0');
-    r.pullRequests = [i + 1];
-  });
-  runs.push({ ...runs[0], id: 30, headSha: 'f'.repeat(40) });
-  const partial = factory(processReport(runs.slice(0, 9)));
-  assert.equal(partial.baseline.firstTen.progress, 9);
-  assert.equal(partial.baseline.comparison, 'pending-next-ten');
-  const full = factory(processReport(runs));
-  assert.equal(full.baseline.firstTen.progress, 10);
-  assert.equal(full.baseline.nextTen.progress, 10);
-  assert.equal(full.baseline.firstTen.denominator, 11);
-  assert.equal(full.baseline.comparison, 'ready-for-human-bottleneck-analysis');
-  assert.equal(full.baseline.improvement, 'not-measured');
-  runs.push({ ...runs[0], id: 31, headSha: 'e'.repeat(40), pullRequests: [] });
-  assert.equal(factory(processReport(runs)).baseline.comparison, 'pending-next-ten');
-});
-test('factory deduplicates recurrence by cause after closure, checks environment and expires exceptions', () => {
-  const red = processRun({ state: 'fail' });
-  const again = processRun({ id: 124, head: 'b', state: 'fail', at: '2026-10-27T10:00:00Z' });
-  const otherEnvironment = processRun({
-    id: 125,
-    head: 'c',
-    state: 'fail',
-    at: '2026-10-27T11:00:00Z',
-  });
-  otherEnvironment.tools.chromium = 'other';
-  const input = humanInput();
-  const key = red.proposals[0].key;
-  input.closures.push({
-    key,
-    address: '#11-writer-targets',
-    owner: 'mbp',
-    defectSha: red.measuredSha,
-    repairedSha: 'd'.repeat(40),
-    environment: environmentKey(red),
-    detectedAt: red.startedAt,
-    repairedAt: '2026-10-27T09:00:00Z',
-    detectedAfterMerge: true,
-    activeRepairMinutes: null,
-    prevention: {
-      kind: 'gate',
-      gate: 'identity-suite',
-      red: 'https://github.com/bolsterdigital/mycel/actions/runs/123',
-      green: 'https://github.com/bolsterdigital/mycel/actions/runs/124',
-      missedGate: 'wrong-item',
-      durableRule: 'identity-target',
-    },
-  });
-  input.exceptions.push({
-    id: 'exception-1',
-    cell: 'article-nl-mobile-fresh',
-    criterion: 'seo',
-    owner: 'mbp',
-    address: '#11',
-    expiresAt: '2026-10-27T00:00:00Z',
-    decision: 'https://github.com/bolsterdigital/mycel/pull/90',
-  });
-  input.falseAlarms.push({
-    runId: 125,
-    attempt: 1,
-    evidence: 'https://github.com/bolsterdigital/mycel/pull/90',
-  });
-  const r = factory(processReport([red, again, otherEnvironment]), input);
-  assert.equal(r.closures[0].sourceVerified, true);
-  assert.equal(r.closures[0].calendarMinutes, 900);
-  assert.equal(r.closures[0].activeRepairMinutes, 'not-measured');
-  assert.equal(r.causes.length, 1);
-  assert.equal(r.causes[0].escapes, 1);
-  assert.equal(r.causes[0].recurrence.length, 1);
-  assert.equal(r.causes[0].address, '#11-writer-targets');
-  assert.equal(r.prevention.numerator, 1);
-  assert.equal(r.coverageDebt.expiredExceptions.length, 1);
-  assert.equal(r.cost.falseAlarms.length, 1);
-  const duplicate = structuredClone(input);
-  duplicate.closures.push(structuredClone(duplicate.closures[0]));
-  assert.throws(() => closureInput(duplicate));
-  input.closures[0].prevention = null;
-  assert.equal(factory(processReport([red]), input).prevention.numerator, 0);
-  input.closures[0].environment = '0'.repeat(64);
-  assert.equal(factory(processReport([red]), input).closures[0].sourceVerified, false);
-});
-test('factory rejects private notes, arbitrary evidence URLs, duplicate closures and invalid clocks', () => {
-  const input = humanInput();
-  assert.throws(() => closureInput({ ...input, notes: 'PRIVATE person@example.org' }));
-  input.implementedRoutes.push({
-    route: 'preview',
-    owner: 'mbp',
-    address: '#43C-preview',
-    source: 'https://private.invalid/notes',
-  });
-  assert.throws(() => closureInput(input));
-  assert.throws(() => factory({ schemaVersion: 1, asOf: 'yesterday', runs: [] }));
-  const r = processRun();
-  r.runnerMinutes = 3.5;
-  const future = { ...r, id: 200, startedAt: '2027-01-01T00:00:00Z', runnerMinutes: 100 };
-  assert.equal(factory(processReport([r, future])).cost.knownRunnerMinutes, 3.5);
 });
 
 // The required check consumes real report fixtures, not a matrix job's success colour.
@@ -1037,7 +506,6 @@ test('historical v3 and current v4 shards reject provenance, tool and artifact c
     const forward = gate(input);
     input.run.artifacts.reverse();
     assert.deepEqual(gate(input).report.tools, forward.report.tools);
-    assert.equal(environmentKey(gate(input).report), environmentKey(forward.report));
     // Host-image identity stays strict for legacy evidence in either shard order.
     input.run.contract = { ...input.run.contract };
     delete input.run.contract.runnerImage;
@@ -1215,26 +683,31 @@ test('green observation jobs cannot hide missing, stale, corrupt or contradictor
   }
 });
 test('early enforcement requires an explicit reviewed pair of independent run records', () => {
+  const repo = 'example/repo';
+  const enforced = (p, at) => enforcement(p, at, repo);
   const early = {
     at: '2026-11-02T12:00:00Z',
     candidateSha: 'a'.repeat(40),
     fixtureHash: 'b'.repeat(64),
-    runs: [1, 2].map((n) => `https://github.com/bolsterdigital/mycel/actions/runs/${n}`),
-    review: 'https://github.com/bolsterdigital/mycel/pull/90#pullrequestreview-123',
+    runs: [1, 2].map((n) => `https://github.com/${repo}/actions/runs/${n}`),
+    review: `https://github.com/${repo}/pull/90#pullrequestreview-123`,
   };
   const activated = { ...policy, earlyActivation: early };
-  assert.equal(enforcement(activated, '2026-11-02T11:59:59.999Z'), false);
-  assert.equal(enforcement(activated, early.at), true);
+  // The record is bound to the repository the gate runs in: another slug, or none, refuses it.
+  assert.throws(() => enforcement(activated, early.at, 'other/repo'));
+  assert.throws(() => enforcement(activated, early.at, undefined));
+  assert.equal(enforced(activated, '2026-11-02T11:59:59.999Z'), false);
+  assert.equal(enforced(activated, early.at), true);
   const input = gateFixture();
   input.run.artifacts[0].report.state = 'fail';
-  assert.equal(gate({ ...input, policy: activated, now: early.at }).blocks, true);
-  assert.throws(() => enforcement({ ...activated, deadline: '2026-11-01T00:00:00Z' }, early.at));
-  assert.throws(() => enforcement({ ...policy, deadline: 'soon' }, early.at));
-  assert.equal(enforcement({ ...policy, deadline: null }, '2030-01-01T00:00:00Z'), false);
-  assert.equal(enforcement({ ...activated, deadline: null }, early.at), true);
-  assert.throws(() => enforcement({ ...policy, earlyActivation: {} }, early.at));
+  assert.equal(gate({ ...input, policy: activated, now: early.at, repository: repo }).blocks, true);
+  assert.throws(() => enforced({ ...activated, deadline: '2026-11-01T00:00:00Z' }, early.at));
+  assert.throws(() => enforced({ ...policy, deadline: 'soon' }, early.at));
+  assert.equal(enforced({ ...policy, deadline: null }, '2030-01-01T00:00:00Z'), false);
+  assert.equal(enforced({ ...activated, deadline: null }, early.at), true);
+  assert.throws(() => enforced({ ...policy, earlyActivation: {} }, early.at));
   assert.throws(() =>
-    enforcement(
+    enforced(
       { ...policy, earlyActivation: { ...early, runs: [early.runs[0], early.runs[0]] } },
       early.at
     )

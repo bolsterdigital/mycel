@@ -10,9 +10,10 @@ export function status(
   report,
   outcome,
   now = new Date().toISOString(),
-  policy = committedPolicy()
+  policy = committedPolicy(),
+  repository = process.env.GITHUB_REPOSITORY
 ) {
-  const due = enforcement(policy, now);
+  const due = enforcement(policy, now, repository);
   const valid =
     report &&
     report.cells?.length &&
@@ -43,7 +44,7 @@ if (process.argv[1]?.endsWith('/status.mjs')) {
     );
   else
     console.log(
-      'Missing measurement: dev owns #43C-report (historical alias #43B). Inspect the measurement step and missing artifact.'
+      'Missing measurement. Inspect the measurement step and the missing artifact; the retained history routes it.'
     );
   if (result.blocks || !report) process.exitCode = 1;
 }

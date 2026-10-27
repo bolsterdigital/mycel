@@ -3,7 +3,7 @@
 import { readFileSync, readdirSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { consumeRun, sourceContract } from './consume.mjs';
+import { consumeRun, sourceContract } from './evidence.mjs';
 import { matrix } from './matrix.mjs';
 
 // enforcement.json is the only source of the deadline. A `null` deadline means "not enforced
@@ -11,7 +11,10 @@ import { matrix } from './matrix.mjs';
 // matrix has been fully green once, after which a new date is proposed in a reviewed change.
 // Rejected: pinning the date here as well, because two copies drift and the suspension would
 // need a code change instead of a policy change. Broken evidence still blocks while suspended.
-export function enforcement(policy, now) {
+// An early-activation record names runs and a review of the repository the gate runs in
+// (GITHUB_REPOSITORY in Actions); a hard-coded slug was rejected because a fork would then
+// accept records that point at someone else's runs.
+export function enforcement(policy, now, repository = process.env.GITHUB_REPOSITORY) {
   const deadline = policy?.deadline;
   if (
     (deadline !== null &&
@@ -21,6 +24,8 @@ export function enforcement(policy, now) {
     throw new Error('invalid-enforcement-policy-or-clock');
   const early = policy.earlyActivation;
   if (early !== null) {
+    if (!/^[\w.-]+\/[\w.-]+$/.test(repository ?? '')) throw new Error('unknown-repository');
+    const origin = `https://github.com/${repository.replace(/\./g, '\\.')}`;
     if (
       !early ||
       !Number.isFinite(Date.parse(early.at)) ||
@@ -30,12 +35,8 @@ export function enforcement(policy, now) {
       !Array.isArray(early.runs) ||
       early.runs.length !== 2 ||
       new Set(early.runs).size !== 2 ||
-      !early.runs.every((url) =>
-        /^https:\/\/github.com\/bolsterdigital\/mycel\/actions\/runs\/\d+$/.test(url)
-      ) ||
-      !/^https:\/\/github.com\/bolsterdigital\/mycel\/pull\/\d+#pullrequestreview-\d+$/.test(
-        early.review
-      )
+      !early.runs.every((url) => new RegExp(`^${origin}/actions/runs/\\d+$`).test(url)) ||
+      !new RegExp(`^${origin}/pull/\\d+#pullrequestreview-\\d+$`).test(early.review)
     )
       throw new Error('invalid-early-activation-record');
   }
@@ -43,8 +44,8 @@ export function enforcement(policy, now) {
   return from !== null && Date.parse(now) >= Date.parse(from);
 }
 
-export function gate({ run, load, needs, downloadOutcome, policy, now }) {
-  const enforced = enforcement(policy, now);
+export function gate({ run, load, needs, downloadOutcome, policy, now, repository }) {
+  const enforced = enforcement(policy, now, repository);
   const issues = [];
   if (downloadOutcome !== 'success') issues.push('artifact-download-non-success');
   if (!['push', 'pull_request', 'schedule', 'workflow_dispatch'].includes(run.event))
@@ -117,6 +118,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     downloadOutcome: process.env.QUALITY_DOWNLOAD_OUTCOME,
     policy: JSON.parse(readFileSync(new URL('./enforcement.json', import.meta.url), 'utf8')),
     now: new Date().toISOString(),
+    repository: process.env.GITHUB_REPOSITORY,
   });
   mkdirSync(out, { recursive: true });
   writeFileSync(join(out, 'summary.json'), JSON.stringify(result, null, 2));
