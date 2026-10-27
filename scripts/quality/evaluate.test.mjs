@@ -90,7 +90,7 @@ test('admin SEO is inapplicable, private noindex remains required; hidden integr
   hidden[0].identity.functionalFailures = ['missing-enabled-integration'];
   assert.equal(evaluateBatch(contract, hidden).state, 'fail');
 });
-test('one cause on many routes gives one proposal, with recurrence and expired exceptions', () => {
+test('one cause on many routes gives one proposal with its category', () => {
   const result = evaluateCell(contract, [samples([0.99, 0.99, 0.99, 0.99, 0.99])]);
   const cells = [
     { ...result, id: 'campaign' },
@@ -99,13 +99,8 @@ test('one cause on many routes gives one proposal, with recurrence and expired e
   const first = repairProposals(cells);
   assert.equal(first.length, 1);
   assert.equal(first[0].cells.length, 2);
-  const next = repairProposals(cells, [
-    { ...first[0], address: '#43-R1', status: 'closed', expires: '2020-01-01' },
-  ]);
-  assert.equal(next.length, 1);
-  assert.equal(next[0].address, '#43-R1');
-  assert.equal(next[0].recurrence, true);
-  assert.equal(next[0].expiredException, true);
+  assert.equal(first[0].category, 'performance');
+  assert.equal(first[0].security, false);
 });
 
 test('a weighted audit error cannot hide behind a category score of 100', () => {
@@ -115,7 +110,7 @@ test('a weighted audit error cannot hide behind a category score of 100', () => 
   assert.equal(evaluateBatch(contract, batch).state, 'inconclusive');
 });
 
-test('cache failure retains every independent identity cause and its measurement owner', () => {
+test('cache failure retains every independent identity cause and marks only the security class', () => {
   const batch = samples();
   batch[0].identity = {
     valid: false,
@@ -137,10 +132,10 @@ test('cache failure retains every independent identity cause and its measurement
     ])
   );
   for (const proposal of proposals.filter((p) => p.key.startsWith('page-identity:'))) {
-    assert.equal(proposal.owner, 'dev');
-    assert.equal(proposal.address, '#43C-report');
+    assert.equal(proposal.category, 'measurement');
+    assert.equal(proposal.security, false);
   }
   const privacy = proposals.find((p) => p.key === 'admin-private-cache');
-  assert.equal(privacy.owner, 'mbp');
-  assert.equal(privacy.address, '#11');
+  assert.equal(privacy.security, true);
+  assert.equal(privacy.category, 'measurement');
 });

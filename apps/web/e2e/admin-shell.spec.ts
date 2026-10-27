@@ -14,6 +14,35 @@ import { expect, test, type Page } from '@playwright/test';
 
 const email = 'shell-admin@probe.test';
 const other = 'shell-other';
+// A live API key whose name has no break opportunity: its revoke button repeats the name. While
+// admin.spec.ts holds such a key (`e2e-a11y-<timestamp>`), the overview ran past 320 CSS px at
+// 200% text on CI's wider Linux fallback font, intermittently (TODO #27). This name is long
+// enough to overflow with any font, so the check holds on every run and platform.
+const unbroken = 'newsletter_sync_production_e2e_a11y_1761600000000';
+
+/** Runs one use case as the system on tenant probe, outside the browser. */
+async function onProbe<T>(run: (invoker: Invoker, tenantId: string) => Promise<T>): Promise<T> {
+  const owner = createDb(process.env['DATABASE_URL']!);
+  const app = createDb(process.env['APP_DATABASE_URL']!);
+  try {
+    const probe = await createTenantDirectory(owner).findBySlug('probe');
+    if (!probe) throw new Error('probe tenant missing');
+    return await run(new Invoker(buildRegistry(), unitOfWork(app)), probe.id);
+  } finally {
+    await app.destroy();
+    await owner.destroy();
+  }
+}
+
+const unitOfWork = (app: ReturnType<typeof createDb>) =>
+  createUnitOfWork(app, {
+    clock: { now: () => new Date() },
+    ids: uuidv7Ids,
+    signer: new FakeSigner(),
+    inputHasher: new FakeInputHasher(process.env['AUDIT_HASH_KEY']),
+    dns: new FakeDns(),
+    platform: memoryPlatform,
+  });
 
 test.beforeAll(async () => {
   const owner = createDb(process.env['DATABASE_URL']!);
@@ -31,14 +60,7 @@ test.beforeAll(async () => {
     { platformDomain: process.env['PLATFORM_DOMAIN']! }
   );
   const app = createDb(process.env['APP_DATABASE_URL']!);
-  const uow = createUnitOfWork(app, {
-    clock: { now: () => new Date() },
-    ids: uuidv7Ids,
-    signer: new FakeSigner(),
-    inputHasher: new FakeInputHasher(process.env['AUDIT_HASH_KEY']),
-    dns: new FakeDns(),
-    platform: memoryPlatform,
-  });
+  const uow = unitOfWork(app);
   try {
     const invoker = new Invoker(buildRegistry(), uow);
     for (const site of [probe, tenant]) {
@@ -67,6 +89,42 @@ async function login(page: Page) {
   await page.getByLabel('E-mail').fill(email);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page).toHaveURL(/\/admin\/probe$/);
+}
+
+/**
+ * Empty when the page does not scroll sideways; otherwise the elements that reach furthest past
+ * the viewport, so a failure names its cause instead of only "horizontal overflow".
+ */
+async function overflow(page: Page) {
+  return page.evaluate(() => {
+    const width = document.documentElement.clientWidth;
+    if (document.documentElement.scrollWidth <= width) return [];
+    const path = (node: Element) => {
+      const parts: string[] = [];
+      for (let el: Element | null = node; el && el !== document.body; el = el.parentElement)
+        parts.unshift(
+          el.tagName.toLowerCase() + [...el.classList].map((name) => `.${name}`).join('')
+        );
+      return parts.join(' > ');
+    };
+    // Text that overflows its own box (a label without a break) is no element of its own:
+    // count each element's content reach, not only its box.
+    const past = [...document.body.querySelectorAll('*')]
+      .map((node) => {
+        const box = node.getBoundingClientRect();
+        return { node, right: Math.max(box.right, box.left + node.scrollWidth) };
+      })
+      .filter(({ right }) => right > width + 1);
+    // An ancestor reaches as far as the child that overflows it; report the innermost only.
+    return past
+      .filter(({ node }) => !past.some((other) => other.node !== node && node.contains(other.node)))
+      .sort((a, b) => b.right - a.right)
+      .slice(0, 5)
+      .map(
+        ({ node, right }) =>
+          `horizontal overflow: ${path(node)} right=${Math.round(right)} scrollWidth=${node.scrollWidth} viewport=${width} text=${JSON.stringify((node.textContent ?? '').trim().slice(0, 80))}`
+      );
+  });
 }
 
 async function checkShell(page: Page, name: string, current: string) {
@@ -138,52 +196,65 @@ test('site navigation persists through content, editor, media, settings and a se
 test.describe('narrow navigation and action labels', () => {
   test.use({ viewport: { width: 320, height: 900 } });
   test('works with keyboard and at 200% text', async ({ page }) => {
-    await login(page);
-    await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
-    const menu = page.getByText('Menu', { exact: true });
-    await menu.focus();
-    await page.keyboard.press('Enter');
-    await expect(page.locator('.admin-menu')).not.toHaveAttribute('open');
-    await page.keyboard.press('Enter');
-    await expect(page.locator('.admin-menu')).toHaveAttribute('open');
-    const problems = await page.evaluate(() => {
-      const width = document.documentElement.clientWidth;
-      const errors: string[] = [];
-      if (document.documentElement.scrollWidth > width) errors.push('horizontal overflow');
-      for (const node of document.querySelectorAll(
-        '.admin-sidebar a, .admin-sidebar button, .admin-menu summary'
-      )) {
-        const box = node.getBoundingClientRect();
-        if (box.width < 44 || box.height < 44) errors.push(`small target: ${node.textContent}`);
-        if (node.scrollWidth > node.clientWidth + 1)
-          errors.push(`clipped label: ${node.textContent}`);
-      }
-      return errors;
-    });
-    expect(problems).toEqual([]);
-    await page.screenshot({ path: test.info().outputPath('overview-narrow.png'), fullPage: true });
-    await page
-      .getByRole('navigation', { name: 'Site navigation' })
-      .getByRole('link', { name: 'Pages and articles' })
-      .click();
-    await page.locator('.content-list li a').first().click();
-    await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
-      320
+    const { id } = await onProbe((invoker, tenantId) =>
+      invoker.run(useCases.createKey, systemPrincipal(tenantId, 'e2e'), {
+        name: `${unbroken}_${test.info().project.name}`,
+        capabilities: ['content:read'],
+      })
     );
-    expect(
-      await page.evaluate(() =>
-        [...document.querySelectorAll('.actions button, .actions a.button')]
-          .filter((node) => {
-            const box = node.getBoundingClientRect();
-            return box.width < 44 || box.height < 44 || node.scrollWidth > node.clientWidth + 1;
-          })
-          .map((node) => node.textContent?.trim())
-      )
-    ).toEqual([]);
-    await page.screenshot({ path: test.info().outputPath('editor-narrow.png'), fullPage: true });
+    try {
+      await narrowOverview(page);
+    } finally {
+      await onProbe((invoker, tenantId) =>
+        invoker.run(useCases.revokeKey, systemPrincipal(tenantId, 'e2e'), { id })
+      );
+    }
   });
 });
+
+/** The overview and an editor at 320 CSS px and 200% text: reflow, targets and whole labels. */
+async function narrowOverview(page: Page) {
+  await login(page);
+  await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
+  const menu = page.getByText('Menu', { exact: true });
+  await menu.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.admin-menu')).not.toHaveAttribute('open');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.admin-menu')).toHaveAttribute('open');
+  const problems = await page.evaluate(() => {
+    const errors: string[] = [];
+    for (const node of document.querySelectorAll(
+      '.admin-sidebar a, .admin-sidebar button, .admin-menu summary'
+    )) {
+      const box = node.getBoundingClientRect();
+      if (box.width < 44 || box.height < 44) errors.push(`small target: ${node.textContent}`);
+      if (node.scrollWidth > node.clientWidth + 1)
+        errors.push(`clipped label: ${node.textContent}`);
+    }
+    return errors;
+  });
+  expect([...(await overflow(page)), ...problems]).toEqual([]);
+  await page.screenshot({ path: test.info().outputPath('overview-narrow.png'), fullPage: true });
+  await page
+    .getByRole('navigation', { name: 'Site navigation' })
+    .getByRole('link', { name: 'Pages and articles' })
+    .click();
+  await page.locator('.content-list li a').first().click();
+  await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
+  expect(await overflow(page)).toEqual([]);
+  expect(
+    await page.evaluate(() =>
+      [...document.querySelectorAll('.actions button, .actions a.button')]
+        .filter((node) => {
+          const box = node.getBoundingClientRect();
+          return box.width < 44 || box.height < 44 || node.scrollWidth > node.clientWidth + 1;
+        })
+        .map((node) => node.textContent?.trim())
+    )
+  ).toEqual([]);
+  await page.screenshot({ path: test.info().outputPath('editor-narrow.png'), fullPage: true });
+}
 
 test.describe('Dutch shell copy', () => {
   test.use({ locale: 'nl-NL', viewport: { width: 320, height: 900 } });
@@ -191,9 +262,7 @@ test.describe('Dutch shell copy', () => {
     await login(page);
     await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
     await checkShell(page, 'Probe', 'Overzicht');
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
-      320
-    );
+    expect(await overflow(page)).toEqual([]);
     await page
       .getByRole('navigation', { name: 'Sitenavigatie' })
       .getByRole('link', { name: 'Pagina’s en artikelen' })
