@@ -34,6 +34,7 @@ const excluded = new Map([
   ['.gitignore', 'ignores the docs/plans symlink and says what it points at'],
   ['docs/README.md', 'tells a contributor how to recreate the docs/plans symlink'],
   ['scripts/check-owner-strings.mjs', 'the gate names the strings it rejects'],
+  ['scripts/check-owner-strings.test.mjs', 'the fixture names name the rules they break'],
   ['scripts/owner-strings.allowlist.json', 'the burndown list names the violating paths'],
 ]);
 const excludedDirs = ['scripts/fixtures/owner-strings/', 'docs/plans/', 'node_modules/'];
