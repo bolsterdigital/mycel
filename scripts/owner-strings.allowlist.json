@@ -1,17 +1,11 @@
 {
-  "comment": "Burndown for scripts/check-owner-strings.mjs: tracked files that still carry the owner's private process. This list may only shrink; the gate fails when an entry no longer violates. Step 2 of #48 (moving the handoff pilot and the quality process analysis to the private sibling, and taking lane owners out of the quality runner) empties it.",
+  "comment": "Burndown for scripts/check-owner-strings.mjs: tracked files that still carry the owner's private process. This list may only shrink; the gate fails when an entry no longer violates. The handoff pilot left for the private sibling in step 2 of #48; moving the quality process analysis there and taking lane owners out of the quality runner (step 2b) empties it.",
   "paths": [
     "scripts/quality/consume.mjs",
     "scripts/quality/evaluate.mjs",
     "scripts/quality/evaluate.test.mjs",
     "scripts/quality/factory.mjs",
     "scripts/quality/run.mjs",
-    "scripts/quality/runner.test.mjs",
-    "tools/handoff-pilot/child-probe.mjs",
-    "tools/handoff-pilot/cli.mjs",
-    "tools/handoff-pilot/cli.test.mjs",
-    "tools/handoff-pilot/pilot.example.json",
-    "tools/handoff-pilot/state.mjs",
-    "tools/handoff-pilot/state.test.mjs"
+    "scripts/quality/runner.test.mjs"
   ]
 }
