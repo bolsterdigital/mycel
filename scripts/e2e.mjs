@@ -26,6 +26,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { blockExamples } from './e2e-block-examples.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const qualityCorpus = JSON.parse(
@@ -426,11 +427,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
     const signup = await invoker.run(useCases.getItem, admin, { itemId: signupItem.id });
     const formId = signup.revision.document.blocks.find((b) => b.type === 'signup-form').props
       .formId;
-    const examples = Object.fromEntries(
-      Object.entries(BLOCK_DEFINITIONS).flatMap(([type, d]) =>
-        d.examples.map((e) => [e.name, { type, version: 1, props: e.props }])
-      )
-    );
+    const examples = blockExamples(BLOCK_DEFINITIONS);
     // Rich text with section headings, a footnote and an item link: the article's body.
     examples['article-text'] = {
       type: 'rich-text',

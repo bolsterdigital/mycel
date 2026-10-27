@@ -7,8 +7,24 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { blockExamples } from './e2e-block-examples.mjs';
 
 const dir = fileURLToPath(new URL('../.github/workflows/', import.meta.url));
+
+test('browser seed examples preserve each registry definition version, name, type and props', () => {
+  const v1 = { title: { nl: 'Bestaand', en: 'Existing' } };
+  const v2 = { width: 'wide', title: { nl: 'Nieuw', en: 'New' } };
+  const examples = blockExamples({
+    heading: { version: 1, examples: [{ name: 'heading-default', props: v1 }] },
+    faq: { version: 2, examples: [{ name: 'faq-wide-probe', props: v2 }] },
+  });
+  assert.deepEqual(examples, {
+    'heading-default': { type: 'heading', version: 1, props: v1 },
+    'faq-wide-probe': { type: 'faq', version: 2, props: v2 },
+  });
+  assert.strictEqual(examples['heading-default'].props, v1);
+  assert.strictEqual(examples['faq-wide-probe'].props, v2);
+});
 
 test('every `uses:` is pinned to a commit sha with a version comment', () => {
   const unpinned = [];
