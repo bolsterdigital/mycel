@@ -28,14 +28,21 @@ jobs:
       - name: Consume retained evidence with explicit clock
         if: always()
         run: node scripts/quality/consume.mjs --input=.scratch/quality-history --as-of="$(date -u +%FT%TZ)" --out=.scratch/quality-consumed
+      - name: Summarize factory evidence from the same history
+        if: always()
+        run: node scripts/quality/factory.mjs --input=.scratch/quality-consumed/summary.json --out=.scratch/quality-factory
       - name: Publish observed state
         if: always()
-        run: cat .scratch/quality-consumed/summary.md >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          cat .scratch/quality-consumed/summary.md >> "$GITHUB_STEP_SUMMARY"
+          cat .scratch/quality-factory/factory.md >> "$GITHUB_STEP_SUMMARY"
       - name: Retain sanitized observation
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: quality-watchdog-summary
-          path: .scratch/quality-consumed/summary.*
+          path: |
+            .scratch/quality-consumed/summary.*
+            .scratch/quality-factory/factory.*
           retention-days: 90
           if-no-files-found: error

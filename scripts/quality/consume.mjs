@@ -387,6 +387,9 @@ export function consumeRun(run, load) {
     measuredSha: run.measuredSha,
     expectationSha: run.expectationSha ?? run.measuredSha,
     url: run.url,
+    pullRequests: (run.pullRequests ?? []).filter((n) => Number.isSafeInteger(n) && n > 0),
+    runnerMinutes:
+      Number.isFinite(run.runnerMinutes) && run.runnerMinutes >= 0 ? run.runnerMinutes : null,
     createdAt: run.createdAt,
     startedAt: run.startedAt ?? run.createdAt,
     status: run.status,
