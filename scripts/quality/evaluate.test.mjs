@@ -138,7 +138,7 @@ test('cache failure retains every independent identity cause and its measurement
   );
   for (const proposal of proposals.filter((p) => p.key.startsWith('page-identity:'))) {
     assert.equal(proposal.owner, 'dev');
-    assert.equal(proposal.address, '#43B');
+    assert.equal(proposal.address, '#43C-report');
   }
   const privacy = proposals.find((p) => p.key === 'admin-private-cache');
   assert.equal(privacy.owner, 'mbp');

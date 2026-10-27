@@ -93,7 +93,8 @@ const result = {
       state: 'not-measured',
       route: 'dynamic POST/iframe preview',
       owner: 'dev',
-      address: '#43B',
+      address: '#43C-preview',
+      aliases: ['#43B'],
       reason: 'requires a versioned dynamic-state measurement contract; GET is an empty shell',
     },
     {
@@ -288,7 +289,8 @@ try {
       state: 'not-measured',
       route: 'admin corpus',
       owner: 'dev',
-      address: '#43B',
+      address: '#43C-report',
+      aliases: ['#43B'],
       reason: 'default set is public; use --scope=full locally',
     });
   await context.close();

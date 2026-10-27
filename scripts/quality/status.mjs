@@ -31,7 +31,7 @@ if (process.argv[1]?.endsWith('/status.mjs')) {
     );
   else
     console.log(
-      'Missing measurement: dev owns #43B. Inspect the measurement step and missing artifact.'
+      'Missing measurement: dev owns #43C-report (historical alias #43B). Inspect the measurement step and missing artifact.'
     );
   if (result.blocks || !report) process.exitCode = 1;
 }
