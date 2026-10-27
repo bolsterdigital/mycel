@@ -65,6 +65,9 @@ const result = {
   fixtureVersion: corpus.fixtureVersion,
   fixtureFiles: [corpusPath, 'scripts/e2e.mjs'],
   startedAt: new Date(started).toISOString(),
+  workflow: process.env.GITHUB_ACTIONS
+    ? { runId: process.env.GITHUB_RUN_ID, attempt: process.env.GITHUB_RUN_ATTEMPT }
+    : null,
   environment: {
     node: process.version,
     lighthouse: require('lighthouse/package.json').version,

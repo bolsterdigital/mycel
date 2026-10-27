@@ -158,3 +158,36 @@ jobs:
         env:
           MEASUREMENT_OUTCOME: ${{ steps.measurement.outcome }}
         run: node scripts/quality/status.mjs .scratch/quality-report/summary.json >> "$GITHUB_STEP_SUMMARY"
+
+  frontend-quality:
+    name: frontend-quality
+    if: always()
+    needs: [prepare, measure]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.22.0'
+      - name: Retrieve every sanitized shard
+        id: download
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: quality-summary-*
+          path: .scratch/quality-shards
+      - name: Validate expected matrix and enforce measured state
+        if: always()
+        env:
+          QUALITY_NEEDS: ${{ toJSON(needs) }}
+          QUALITY_DOWNLOAD_OUTCOME: ${{ steps.download.outcome }}
+        run: node scripts/quality/gate.mjs .scratch/quality-shards .scratch/quality-gate >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain gate evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: quality-gate-${{ github.run_attempt }}
+          path: .scratch/quality-gate
+          retention-days: 90
+          if-no-files-found: error

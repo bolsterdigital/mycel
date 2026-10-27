@@ -40,6 +40,8 @@ Keep the operator key in controlled storage. Replace the public recipient in a r
 
 ## Calibration and enforcement
 
+The [stable check and protection runbook](frontend-quality-enforcement.md) defines matrix validation, the fixed UTC boundary, reviewed early activation, the proposed protection request and the independent activation/negative-proof procedure. Configuration in git is not evidence that protection has been applied.
+
 The first CI result was on 2026-10-26. The ten-working-day observation window ends on 2026-11-06; the workflow begins blocking non-pass measurements on 2026-11-09 at 00:00 UTC. Dev owns enforcement under frontend-quality step C. Enable blocking earlier once two independent complete batches on one candidate SHA meet the contract and the negative evaluator fixtures pass. Existing verify, security and accessibility gates remain blocking throughout. Reports always retain their real `pass`, `fail`, `inconclusive` or `not-measured` state during observation.
 
 Branch protection is a separate delivery criterion. On 2026-10-26 the GitHub branch-protection endpoint returned “Branch not protected” for main; no required-status enforcement is claimed. Step C must require the measurement statuses and check the configuration, including keeping the admin/weekly evidence in the release decision. A successful observation job is not proof that the measured cells pass. Missing summaries fail the status step even during calibration; disabled/missed schedules are inspected by the read-only history consumer below. The first scheduled event after merge remains unobserved until it actually occurs; manual dispatch exercises the same matrix but cannot prove a scheduler fired.
