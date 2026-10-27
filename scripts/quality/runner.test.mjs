@@ -249,7 +249,9 @@ function retained(event = 'workflow_dispatch') {
           ...contract.tools,
           chromium: '156.0.8078.4',
           caddy: `v${contract.tools.caddy} test`,
-          runner: 'github-ubuntu-24.04:20261023.334.3',
+          runner: `github-container:${contract.runnerImage}`,
+          hostImage: '20261023.334.3',
+          kernel: '6.11.0-1018-azure',
           mode: 'ci',
         },
         coverage: [
@@ -937,6 +939,76 @@ function gateFixture(event = 'pull_request') {
     },
   };
 }
+test('container shards bind the immutable userspace and kernel while retaining host images', () => {
+  const input = gateFixture();
+  const digest = 'd65108d1a8095d8b0c4a5e32bf1807a40a5ce90ff0c78473e1116b1c243235e8';
+  input.run.contract = { ...input.run.contract, runnerImage: `sha256:${digest}` };
+  for (const [n, artifact] of input.run.artifacts.entries()) {
+    Object.assign(artifact.report.environment, {
+      runner: `github-container:sha256:${digest}`,
+      hostImage: ['20261026.354.1', '20261023.334.3'][n],
+      kernel: '6.11.0-1018-azure',
+    });
+  }
+  const result = gate(input);
+  assert.equal(result.blocks, false);
+  assert.equal(result.report.present, 4);
+  assert.equal(result.report.samples, 20);
+  assert.deepEqual(
+    result.report.profiles.map((p) => p.environment.hostImage),
+    ['20261026.354.1', '20261023.334.3']
+  );
+  assert.notEqual(
+    environmentKey(result.report),
+    environmentKey({ ...result.report, tools: { ...result.report.tools, kernel: 'other' } })
+  );
+  for (const field of [
+    'runner',
+    'kernel',
+    'node',
+    'lighthouse',
+    'playwright',
+    'chromium',
+    'caddy',
+  ]) {
+    const bad = { ...input, run: structuredClone(input.run) };
+    bad.run.artifacts[1].report.environment[field] += '-changed';
+    assert.equal(gate(bad).blocks, true, field);
+  }
+  for (const field of ['runner', 'kernel', 'hostImage']) {
+    const bad = { ...input, run: structuredClone(input.run) };
+    delete bad.run.artifacts[1].report.environment[field];
+    assert.equal(gate(bad).blocks, true, `missing ${field}`);
+  }
+  // Historical host runs keep their original strict image comparison.
+  delete input.run.contract.runnerImage;
+  for (const a of input.run.artifacts)
+    a.report.environment.runner = `github-ubuntu-24.04:${a.report.environment.hostImage}`;
+  assert.equal(gate(input).blocks, true);
+});
+test('measurement installs no mutable host browser dependencies and pins its container to source', () => {
+  const workflow = source('.github/workflows/frontend-quality.yml');
+  assert.match(
+    workflow,
+    new RegExp(`playwright:v${contract.tools.playwright}-noble@${contract.runnerImage}`)
+  );
+  assert.match(workflow, /docker pull "\$QUALITY_RUNNER_IMAGE"/);
+  assert.match(workflow, /"\$QUALITY_RUNNER_IMAGE" \\\n\s+npm run quality/);
+  assert.match(workflow, /--env "QUALITY_HOST_IMAGE=\$ImageVersion"/);
+  assert.match(workflow, /--volume .*\/opt\/quality-node:ro/);
+  assert.match(workflow, /--volume \/usr\/local\/bin\/caddy:.*:ro/);
+  assert.doesNotMatch(workflow, /playwright install|apt-get|apt-mirrors/);
+  const inputs = {
+    corpus: source('apps/web/e2e/quality-corpus.json'),
+    seed: source('scripts/e2e.mjs'),
+    matrixSource: source('scripts/quality/matrix.mjs'),
+    workflow,
+    lock: source('package-lock.json'),
+  };
+  assert.throws(() =>
+    sourceContract({ ...inputs, workflow: workflow.replace(/@sha256:[a-f0-9]{64}/, '') })
+  );
+});
 test('required quality context validates complete default and full evidence at the UTC boundary', () => {
   for (const event of ['pull_request', 'push', 'schedule', 'workflow_dispatch']) {
     const input = gateFixture(event);
