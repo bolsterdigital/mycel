@@ -331,6 +331,9 @@ test('the enhanced article writer keeps a native FAQ card through autosave and l
   const preview = await page.getByRole('link', { name: 'Voorbeeld (en)' }).getAttribute('href');
   await page.goto(preview!);
   await expect(page.locator('main .faq.width-full')).toContainText('Does this survive?');
+  await page.goto(edit);
+  await page.getByRole('button', { name: 'Publiceren (en)' }).click();
+  await expect(page.getByRole('status')).toContainText('Gepubliceerd in en.');
 });
 
 test('a block save on an outdated revision is a conflict that keeps what was typed', async ({
