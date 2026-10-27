@@ -66,6 +66,8 @@ const NOT_IN_EXAMPLE: Record<string, string> = {
   QUALITY_NEEDS: 'GitHub Actions upstream results and matrix, set by the quality gate step',
   QUALITY_DOWNLOAD_OUTCOME:
     'GitHub Actions artifact download outcome, set by the quality gate step',
+  QUALITY_RUNNER_IMAGE: 'digest-pinned quality measurement container, set by its workflow',
+  QUALITY_HOST_IMAGE: 'actual GitHub host image forwarded to the measurement container',
   GITHUB_ACTIONS: 'GitHub Actions runner detection for quality provenance',
   ImageVersion: 'GitHub hosted runner image build, quality provenance',
   EVENT: 'quality workflow matrix event, set by its Matrix step',
