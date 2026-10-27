@@ -1,6 +1,6 @@
 # Platform API
 
-How a hoster creates tenants and sets what each may use (ADR 015 rule 4, TODO #16). The hosted service's billing system (for Bureau Bolster: the client portal) calls it; a self-hoster uses the same functions through the `mycel` CLI and never needs the API. Prices, tier names and presets are the hoster's business and never appear in this repository.
+How a hoster creates tenants and sets what each may use (ADR 015 rule 4, PR #12). The hosted service's billing system (for Bureau Bolster: the client portal) calls it; a self-hoster uses the same functions through the `mycel` CLI and never needs the API. Prices, tier names and presets are the hoster's business and never appear in this repository.
 
 These routes are **not** use cases: they run under no tenant (ADR 002 rule 4), so they are not in the registry, not MCP tools and not in `/openapi.json`. They run as the `mycel_platform` role, entered from the authentication login; the API never holds the schema owner's credentials (ADR 011 rule 1). That role may read and insert tenants, update their entitlements and status, and read and insert platform hostnames, and nothing else. The functions behind them are `packages/db/src/platform.ts`; the `mycel` CLI enters the same role from the operator connection.
 
@@ -49,7 +49,7 @@ Every mutation writes one row to the tenant's audit log in the same transaction 
 
 ## Stuck work
 
-Since TODO #17c (migration 0016) the hoster sees what is stuck on every site: jobs that used up their attempts, outbox events that failed ten passes without reaching every subscriber, and mail intents whose outcome is unknown or that were given up (`docs/reference/mail.md`). These routes run as `mycel_ops`, a role of its own entered from the same authentication login, whose grants are on columns: a job's `payload` and an event's `props` and `actor` cannot be read by it, whatever the query. It may change a stuck row only, and only into a retry or a close (its update policies); reading is every row's metadata, because Postgres checks the new row of an update against the select policies too and a recovered row is no longer stuck (migration 0016 says why that is the smaller risk). The functions are `packages/db/src/recovery.ts`.
+Since PR #20 (migration 0016) the hoster sees what is stuck on every site: jobs that used up their attempts, outbox events that failed ten passes without reaching every subscriber, and mail intents whose outcome is unknown or that were given up (`docs/reference/mail.md`). These routes run as `mycel_ops`, a role of its own entered from the same authentication login, whose grants are on columns: a job's `payload` and an event's `props` and `actor` cannot be read by it, whatever the query. It may change a stuck row only, and only into a retry or a close (its update policies); reading is every row's metadata, because Postgres checks the new row of an update against the select policies too and a recovered row is no longer stuck (migration 0016 says why that is the smaller risk). The functions are `packages/db/src/recovery.ts`.
 
 | Method and path                       | Query                            | Answer                                                                                                                  |
 | ------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
@@ -73,14 +73,14 @@ Flat keys, the names of ADR 015 rule 2. Missing keys get the default; an empty d
 
 | Key                       | Kind              | Default       | Enforced in                                                |
 | ------------------------- | ----------------- | ------------- | ---------------------------------------------------------- |
-| `mailing.enabled`         | switch            | `true`        | (no consumer yet; TODO #22B)                               |
+| `mailing.enabled`         | switch            | `true`        | (no consumer yet)                                          |
 | `donations.enabled`       | switch            | `true`        | (no consumer yet; fase 4)                                  |
 | `custom_domain`           | switch            | `true`        | `tenant.hostnames.add`                                     |
 | `api_keys`                | switch            | `true`        | `tenant.keys.create`                                       |
 | `remove_branding`         | switch            | `false`       | the public layout: `false` shows the credit                |
-| `blocks`                  | `{ type: false }` | `{}` (all on) | (TODO #8b, per block type when a tree is saved)            |
+| `blocks`                  | `{ type: false }` | `{}` (all on) | (per block type when a tree is saved)                      |
 | `supporters.max`          | limit             | 100 000       | `forms.submit`, for a new address only                     |
-| `mail.monthly_max`        | limit             | 1 000 000     | (no consumer yet; TODO #22B)                               |
+| `mail.monthly_max`        | limit             | 1 000 000     | (no consumer yet)                                          |
 | `media.storage_max_bytes` | limit             | 50 GiB        | `media.upload` (original plus every variant)               |
 | `operators.max`           | limit             | 50            | `tenant.members.invite` (members plus pending invitations) |
 | `custom_domains.max`      | limit             | 20            | `tenant.hostnames.add`                                     |

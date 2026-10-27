@@ -3,7 +3,7 @@
 - **Status**: accepted
 - **Date**: 2026-10-21
 - **Builds on**: ADR 006 (open core boundary is the repository boundary)
-- **Amended**: 2026-10-21 by ADR 017 (`sites.max` removed) and rule 7 below (over-limit, suspension and leaving); 2026-10-22 by TODO #16 (`custom_domains.max` added to rule 2); 2026-10-22 by TODO #16 (rule 4: the platform role)
+- **Amended**: 2026-10-21 by ADR 017 (`sites.max` removed) and rule 7 below (over-limit, suspension and leaving); 2026-10-22 by PR #12 (`custom_domains.max` added to rule 2); 2026-10-22 by PR #12 (rule 4: the platform role)
 
 ## Context
 
@@ -31,4 +31,4 @@ Adoption of an open-source platform comes from people being able to run it and f
 - `Principal` gains `entitlements`; the composition root loads them with the tenant and caches per request.
 - Each use case that creates something countable declares which limit it consumes; the registry conformance test asserts a limit check exists for those.
 - The hosted free tier and paid tiers are a decision for the hoster (for Bureau Bolster: the private planning sibling and the client portal), not for this repository.
-- `ROADMAP` item: entitlements and usage read model land in fase 1 (TODO #16) because the first hosted tenants need the caps and the branding switch.
+- Entitlements and the usage read model were built early (PR #12) because the first hosted tenants need the caps and the branding switch.

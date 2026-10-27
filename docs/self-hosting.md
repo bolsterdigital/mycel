@@ -71,7 +71,7 @@ The image's `mcp` entrypoint is the MCP server over stdio, acting with one API k
 docker compose run --rm -T worker mcp
 ```
 
-Stdio is the transport this release ships; the agent sees exactly the tools and capabilities of that key. Remote MCP over HTTP with its own authorization is planned (TODO #25).
+Stdio is the transport this release ships; the agent sees exactly the tools and capabilities of that key. Remote MCP over HTTP with its own authorization is planned.
 
 ## Upgrading
 

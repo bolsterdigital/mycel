@@ -1,0 +1,157 @@
+{
+  "id": 40545789572,
+  "attempt": 1,
+  "event": "pull_request",
+  "headSha": "e09d043ba7321e1bedca2671722d4edd4206c412",
+  "measuredSha": "e4c0880856cc06f04c20a83bfc752f310e9b6989",
+  "mergeParents": [
+    "85fe68ec289d6351a679812d87e35c42054b5f9e",
+    "e09d043ba7321e1bedca2671722d4edd4206c412"
+  ],
+  "status": "completed",
+  "conclusion": "failure",
+  "url": "https://github.com/bolsterdigital/mycel/actions/runs/40545789572",
+  "contract": {
+    "schemaVersion": 1,
+    "fixtureVersion": "43a-v3",
+    "fixtureHash": "6995f2d5a43c5b006d46e1508b64acc27a763010b4d2d6c61f99509957c7da97",
+    "manifest": {
+      "schemaVersion": 1,
+      "fixtureVersion": "43a-v3",
+      "tenant": "probe",
+      "themeProfiles": {
+        "default": {
+          "status": "active",
+          "source": "DEFAULT_THEME"
+        },
+        "demanding": {
+          "status": "simulated",
+          "source": "validated editorial preset via CSS response in browser; tenant selection waits on #11 E / #38"
+        }
+      },
+      "public": {
+        "campaign": {
+          "slug": "campagne",
+          "routeClass": "page",
+          "indexable": true,
+          "state": "published",
+          "locales": {
+            "nl": {
+              "path": "/probe/campagne",
+              "title": "Schone lucht, nu"
+            },
+            "en": {
+              "path": "/probe/en/campagne",
+              "title": "Clean air, now"
+            }
+          },
+          "expected": {
+            "status": 200,
+            "form": true,
+            "minImages": 1,
+            "font": "Inter",
+            "headings": [1]
+          }
+        },
+        "article": {
+          "slug": "quality-article-v3",
+          "routeClass": "article",
+          "indexable": true,
+          "state": "published",
+          "locales": {
+            "nl": {
+              "path": "/probe/articles/quality-article-v3",
+              "title": "De straat die ruimte maakt"
+            },
+            "en": {
+              "path": "/probe/en/articles/quality-article-v3",
+              "title": "A street making room"
+            }
+          },
+          "expected": {
+            "status": 200,
+            "minWords": 2000,
+            "minImages": 4,
+            "font": "Inter",
+            "headings": [1, 2],
+            "lists": ["ul", "ol"],
+            "quote": true
+          }
+        }
+      },
+      "admin": {
+        "auth": "synthetic mock IdP operator",
+        "routes": [
+          {
+            "name": "populated-list",
+            "path": "/admin/probe/content",
+            "state": "populated",
+            "indexable": false
+          },
+          {
+            "name": "native-editor",
+            "path": "/admin/probe/content/{quality-article-id}",
+            "state": "editing",
+            "indexable": false
+          },
+          {
+            "name": "enhanced-writer",
+            "path": "/admin/probe/content/{quality-article-id}/write",
+            "state": "editing",
+            "indexable": false
+          }
+        ]
+      },
+      "planned": [
+        {
+          "route": "site-chrome",
+          "dependency": "#11 E"
+        },
+        {
+          "route": "collections-and-search",
+          "dependency": "#21 / #42"
+        },
+        {
+          "route": "restricted-reader",
+          "dependency": "#19"
+        },
+        {
+          "route": "conditional-form",
+          "dependency": "#39"
+        },
+        {
+          "route": "managed-embeds-consent",
+          "dependency": "#41"
+        }
+      ]
+    },
+    "runnerImage": "sha256:d65108d1a8095d8b0c4a5e32bf1807a40a5ce90ff0c78473e1116b1c243235e8",
+    "tools": {
+      "node": "v22.22.0",
+      "lighthouse": "13.5.0",
+      "playwright": "1.64.1",
+      "caddy": "2.10.2"
+    }
+  },
+  "artifacts": [
+    {
+      "id": 12752094847,
+      "name": "quality-summary-default-nl-desktop-fresh",
+      "archiveDigest": "sha256:f24f25d0eed9f759983fad7899052c88f072b1bb90ede1ed113e5d481105a579",
+      "summaryHash": "c716ccc136a45b498aa47d83b3edbb11ebad3eb04012fc238abf4ef6adb2b9a0"
+    },
+    {
+      "id": 12752907292,
+      "name": "quality-summary-default-nl-mobile-fresh",
+      "archiveDigest": "sha256:4983da5280646b41f2f67b2c7d91766444bb21a40ae464f1aae843a93444eff6",
+      "summaryHash": "56a1b27a9192c5a0ac6bc353a2dc8fa0506cf3ad6a7f74f8e386d80b8769341b"
+    }
+  ],
+  "sourceHashes": {
+    "apps/web/e2e/quality-corpus.json": "046a9b7c70f3a1c30c5e7cdc6936e2b7a1d36887e8eb4df7e8ada8572c885219",
+    "scripts/e2e.mjs": "b47c9cc88c266b0604abbec51d3f8dc9f24104a6c3f8d0a3794b8816df496836",
+    "scripts/quality/matrix.mjs": "b69d01477006b84a82c0cf47af489dee4405dfe9b289de13078eb4ff558bc878",
+    ".github/workflows/frontend-quality.yml": "d0eddf217f13d509ee1ef5b8f7cf6a613c9fc2967dadcb07ae6694a0337db18e",
+    "package-lock.json": "d76ef0c49c0c6f25afcccb2b87be0d2d657e4972b6fc350072937c1444331fc7"
+  }
+}

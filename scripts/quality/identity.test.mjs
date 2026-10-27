@@ -126,3 +126,49 @@ test('writer uses seeded block identity and body, without requiring the document
   );
   assert.ok(validateIdentity({ ...admin, writer: false }, facts).reasons.includes('wrong-item'));
 });
+
+// The information composition must not silently measure its campaign source instead.
+test('information identity rejects a campaign, missing closing prose and absent structure', () => {
+  const information = {
+    ...expected,
+    url: 'https://localhost/probe/grid-information-v1',
+    title: 'Samen zorgen voor de buurt',
+    canonicalSuffix: '/grid-information-v1',
+    article: false,
+    minWords: 1,
+    minImages: 1,
+    form: false,
+    hero: false,
+    minProseBlocks: 2,
+    closingProse: true,
+  };
+  const facts = {
+    ...good,
+    url: information.url,
+    title: information.title,
+    canonical: information.url,
+    form: false,
+    hero: false,
+    proseBlocks: 2,
+    closingProse: true,
+  };
+  assert.equal(validateIdentity(information, facts).valid, true);
+  for (const changed of [
+    { url: expected.url },
+    { title: 'Schone lucht, nu' },
+    { locale: 'en' },
+    { form: true },
+    { form: undefined },
+    { hero: true },
+    { hero: undefined },
+    { proseBlocks: 1 },
+    { proseBlocks: undefined },
+    { closingProse: false },
+    { closingProse: undefined },
+  ])
+    assert.equal(
+      validateIdentity(information, { ...facts, ...changed }).valid,
+      false,
+      JSON.stringify(changed)
+    );
+});

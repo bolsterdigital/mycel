@@ -2,6 +2,7 @@
 // scheduled and manual runs. These are contract tests, not snapshots of the implementation.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { createHash } from 'node:crypto';
 import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,7 +11,7 @@ import { protectReports } from './protect.mjs';
 import { compareBaseline } from './baseline.mjs';
 import { IdentityGatherer, IdentityAudit } from './gatherer.mjs';
 import { matrix } from './matrix.mjs';
-import { status } from './status.mjs';
+import { status as qualityStatus } from './status.mjs';
 
 test('PR set covers both public profiles; scheduled/manual expand locale, cache and admin', () => {
   const pr = matrix('pull_request').include;
@@ -28,6 +29,9 @@ test('PR set covers both public profiles; scheduled/manual expand locale, cache 
   assert.ok(matrix('schedule').include.some((c) => c.cache === 'warm'));
 });
 test('calibration keeps raw fail visible, deadline blocks fail/inconclusive/missing', () => {
+  const dated = { deadline: '2026-11-09T00:00:00Z', earlyActivation: null };
+  const status = (report, outcome, now, policy = dated) =>
+    qualityStatus(report, outcome, now, policy);
   for (const state of ['fail', 'inconclusive', 'not-measured']) {
     const report = { state, cells: [{}] };
     assert.equal(status(report, 'failure', '2026-10-26').measured, state);
@@ -36,6 +40,9 @@ test('calibration keeps raw fail visible, deadline blocks fail/inconclusive/miss
   assert.equal(status(undefined, 'failure', '2026-11-09').blocks, true);
   assert.equal(status({ state: 'pass', cells: [{}] }, 'success', '2026-11-09').blocks, false);
   assert.equal(status({ state: 'pass', cells: [] }, 'success', '2026-11-09').blocks, true);
+  const suspended = { deadline: null, earlyActivation: null };
+  assert.equal(status(undefined, 'failure', '2030-01-01', suspended).blocks, false);
+  assert.equal(status(undefined, 'failure', '2030-01-01', suspended).measured, 'not-measured');
 });
 test('quality proxy preserves production compression and closed operational paths', () => {
   const production = readFileSync(new URL('../../docker/caddy/Caddyfile', import.meta.url), 'utf8');
@@ -311,8 +318,8 @@ test('consumer counts the versioned full matrix and retains all red observation 
   bad.batches[1].state = 'pass';
   bad.batches[1].reasons = [];
   const result = consumeRun(run, load);
-  assert.equal(result.expected, 36);
-  assert.equal(result.samples, 185);
+  assert.equal(result.expected, 48);
+  assert.equal(result.samples, 245);
   assert.equal(result.state, 'fail');
   assert.equal(result.conclusion, 'success');
   assert.equal(result.cells[0].batches.length, 2);
@@ -562,7 +569,7 @@ test('GitHub adapter separates rerun artifacts by attempt and preserves corrupt 
     assert.equal(report.runs[0].createdAt, report.runs[1].createdAt);
     assert.notEqual(report.runs[0].startedAt, report.runs[1].startedAt);
     assert.equal(report.runs[1].state, 'not-measured');
-    assert.equal(report.runs[1].present, 2);
+    assert.equal(report.runs[1].present, 3);
     assert.ok(report.runs[1].issues.length);
     artifacts.length = 0;
     const missing = collectHistory({
@@ -574,7 +581,7 @@ test('GitHub adapter separates rerun artifacts by attempt and preserves corrupt 
       },
     });
     const absent = consume(missing, load, clock);
-    assert.equal(absent.runs[0].expected, 4);
+    assert.equal(absent.runs[0].expected, 6);
     assert.equal(absent.runs[0].present, 0);
     assert.equal(absent.runs[0].missingShards.length, 2);
     assert.equal(absent.runs[0].expectationSha, original.headSha);
@@ -922,7 +929,11 @@ test('factory rejects private notes, arbitrary evidence URLs, duplicate closures
 
 // The required check consumes real report fixtures, not a matrix job's success colour.
 import { gate, enforcement } from './gate.mjs';
-const policy = JSON.parse(source('scripts/quality/enforcement.json'));
+// The committed policy may suspend the deadline (null); these fixtures exercise a dated policy.
+const policy = {
+  ...JSON.parse(source('scripts/quality/enforcement.json')),
+  deadline: '2026-11-09T00:00:00Z',
+};
 function gateFixture(event = 'pull_request') {
   const run = retained(event);
   for (const artifact of run.artifacts)
@@ -939,7 +950,105 @@ function gateFixture(event = 'pull_request') {
     },
   };
 }
-test('container shards bind the immutable userspace and kernel while retaining host images', () => {
+// Original sanitized summaries are kept byte-for-byte; run.json records API/source hashes.
+function historicalHostShards() {
+  const root = new URL('./fixtures/pr90-host-shards/', import.meta.url);
+  const run = JSON.parse(readFileSync(new URL('run.json', root), 'utf8'));
+  for (const artifact of run.artifacts) {
+    const bytes = readFileSync(new URL(`${artifact.id}.summary`, root));
+    assert.equal(createHash('sha256').update(bytes).digest('hex'), artifact.summaryHash);
+    artifact.report = JSON.parse(bytes);
+  }
+  return { ...gateFixture(), run, now: '2026-10-27T18:00:00Z' };
+}
+test('original PR90 independent-host shards retain all four cells and twenty samples', () => {
+  for (const reverse of [false, true]) {
+    const input = historicalHostShards();
+    if (reverse) input.run.artifacts.reverse();
+    const result = gate(input);
+    assert.deepEqual(result.issues, []);
+    assert.equal(result.report.fixtureVersion, '43a-v3');
+    assert.equal(result.report.expected, 4);
+    assert.equal(result.report.present, 4);
+    assert.equal(result.report.samples, 20);
+    assert.equal(result.measured, 'fail');
+    assert.equal(result.blocks, false);
+    assert.deepEqual(result.report.cells, consumeRun(input.run, load).cells);
+    for (const artifact of input.run.artifacts) {
+      const retained = result.report.profiles.find((p) => p.artifact === artifact.name);
+      for (const field of ['kernel', 'hostImage'])
+        assert.equal(retained.environment[field], artifact.report.environment[field]);
+      for (const cell of artifact.report.cells) {
+        const kept = result.report.cells.find((c) => c.id === cell.id);
+        assert.deepEqual(
+          kept.batches.map((b) => b.raw),
+          cell.batches.map((b) => b.raw)
+        );
+        assert.equal(kept.state, cell.state);
+      }
+    }
+    assert.equal(gate({ ...input, now: policy.deadline }).blocks, true);
+  }
+});
+test('historical v3 and current v4 shards reject provenance, tool and artifact corruption', () => {
+  const mutations = {
+    sha: (i) => {
+      i.run.artifacts[0].report.commit = 'b'.repeat(40);
+    },
+    corpus: (i) => {
+      i.run.artifacts[0].report.fixtureVersion = '43a-v99';
+    },
+    hash: (i) => {
+      i.run.artifacts[0].report.fixtureHash = 'b'.repeat(64);
+    },
+    run: (i) => {
+      i.run.artifacts[0].report.workflow.runId = '999';
+    },
+    attempt: (i) => {
+      i.run.artifacts[0].report.workflow.attempt = '0';
+    },
+    missing: (i) => {
+      i.run.artifacts.pop();
+    },
+    corrupt: (i) => {
+      i.load = () => {
+        throw new Error('corrupt JSON');
+      };
+    },
+    samples: (i) => {
+      i.run.artifacts[0].report.cells[0].batches[0].sampleIds.pop();
+    },
+  };
+  for (const field of ['runner', 'node', 'lighthouse', 'playwright', 'chromium', 'caddy'])
+    mutations[field] = (i) => {
+      i.run.artifacts[1].report.environment[field] += '-changed';
+    };
+  for (const fixture of [historicalHostShards, gateFixture]) {
+    for (const [name, mutate] of Object.entries(mutations)) {
+      const input = fixture();
+      mutate(input);
+      for (const now of ['2026-10-27T18:00:00Z', policy.deadline]) {
+        const result = gate({ ...input, now });
+        assert.equal(result.blocks, true, name);
+        assert.equal(result.measured, 'not-measured', name);
+      }
+    }
+    const input = fixture();
+    const forward = gate(input);
+    input.run.artifacts.reverse();
+    assert.deepEqual(gate(input).report.tools, forward.report.tools);
+    assert.equal(environmentKey(gate(input).report), environmentKey(forward.report));
+    // Host-image identity stays strict for legacy evidence in either shard order.
+    input.run.contract = { ...input.run.contract };
+    delete input.run.contract.runnerImage;
+    for (const [n, artifact] of input.run.artifacts.entries())
+      artifact.report.environment.runner = `github-ubuntu-24.04:2026102${n}.354.1`;
+    assert.equal(gate(input).blocks, true);
+    input.run.artifacts.reverse();
+    assert.equal(gate(input).blocks, true);
+  }
+});
+test('container shards bind immutable userspace and tools while retaining independent hosts', () => {
   const input = gateFixture();
   const digest = 'd65108d1a8095d8b0c4a5e32bf1807a40a5ce90ff0c78473e1116b1c243235e8';
   input.run.contract = { ...input.run.contract, runnerImage: `sha256:${digest}` };
@@ -947,30 +1056,23 @@ test('container shards bind the immutable userspace and kernel while retaining h
     Object.assign(artifact.report.environment, {
       runner: `github-container:sha256:${digest}`,
       hostImage: ['20261026.354.1', '20261023.334.3'][n],
-      kernel: '6.11.0-1018-azure',
+      kernel: ['6.17.0-1022-azure', '7.0.0-1017-azure'][n],
     });
   }
   const result = gate(input);
   assert.equal(result.blocks, false);
-  assert.equal(result.report.present, 4);
-  assert.equal(result.report.samples, 20);
+  assert.equal(result.report.present, 6);
+  assert.equal(result.report.samples, 30);
   assert.deepEqual(
     result.report.profiles.map((p) => p.environment.hostImage),
     ['20261026.354.1', '20261023.334.3']
   );
-  assert.notEqual(
-    environmentKey(result.report),
-    environmentKey({ ...result.report, tools: { ...result.report.tools, kernel: 'other' } })
+  assert.equal('kernel' in result.report.tools, false);
+  assert.deepEqual(
+    result.report.profiles.map((p) => p.environment.kernel),
+    ['6.17.0-1022-azure', '7.0.0-1017-azure']
   );
-  for (const field of [
-    'runner',
-    'kernel',
-    'node',
-    'lighthouse',
-    'playwright',
-    'chromium',
-    'caddy',
-  ]) {
+  for (const field of ['runner', 'node', 'lighthouse', 'playwright', 'chromium', 'caddy']) {
     const bad = { ...input, run: structuredClone(input.run) };
     bad.run.artifacts[1].report.environment[field] += '-changed';
     assert.equal(gate(bad).blocks, true, field);
@@ -979,6 +1081,16 @@ test('container shards bind the immutable userspace and kernel while retaining h
     const bad = { ...input, run: structuredClone(input.run) };
     delete bad.run.artifacts[1].report.environment[field];
     assert.equal(gate(bad).blocks, true, `missing ${field}`);
+  }
+  for (const [field, values] of Object.entries({
+    kernel: ['unknown', '6.17.0\n', '6.17.0\nforged', '6.17.0/' + 'a'.repeat(240)],
+    hostImage: ['unknown', '20261026.354.1\n', '20261026.354.1\nforged', '20261026'],
+  })) {
+    for (const value of values) {
+      const bad = { ...input, run: structuredClone(input.run) };
+      bad.run.artifacts[1].report.environment[field] = value;
+      assert.equal(gate(bad).blocks, true, `invalid ${field}: ${value}`);
+    }
   }
   // Historical host runs keep their original strict image comparison.
   delete input.run.contract.runnerImage;
@@ -1116,7 +1228,10 @@ test('early enforcement requires an explicit reviewed pair of independent run re
   const input = gateFixture();
   input.run.artifacts[0].report.state = 'fail';
   assert.equal(gate({ ...input, policy: activated, now: early.at }).blocks, true);
-  assert.throws(() => enforcement({ ...activated, deadline: '2026-12-01' }, early.at));
+  assert.throws(() => enforcement({ ...activated, deadline: '2026-11-01T00:00:00Z' }, early.at));
+  assert.throws(() => enforcement({ ...policy, deadline: 'soon' }, early.at));
+  assert.equal(enforcement({ ...policy, deadline: null }, '2030-01-01T00:00:00Z'), false);
+  assert.equal(enforcement({ ...activated, deadline: null }, early.at), true);
   assert.throws(() => enforcement({ ...policy, earlyActivation: {} }, early.at));
   assert.throws(() =>
     enforcement(
@@ -1145,7 +1260,6 @@ test('required job always validates after both dependencies and cannot ignore it
     'security',
     'image',
     'compose',
-    'observe',
     'prepare',
     'frontend-quality',
     ...matrix('pull_request').include.map(
@@ -1196,11 +1310,42 @@ test('gate CLI retains full reports and fails for absent downloads instead of pa
     command(root, join(dir, 'good'));
     const result = JSON.parse(readFileSync(join(dir, 'good', 'summary.json')));
     assert.equal(result.measured, 'pass');
-    assert.equal(result.report.samples, 20);
+    assert.equal(result.report.samples, 30);
     assert.equal(result.report.cells[0].batches[0].sampleIds.length, 5);
     assert.throws(() => command(join(dir, 'absent'), join(dir, 'bad')));
     assert.equal(JSON.parse(readFileSync(join(dir, 'bad', 'summary.json'))).blocks, true);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('information expands both profiles/locales while historical v3 keeps its own coverage', () => {
+  assert.equal(contract.fixtureVersion, '43a-v4');
+  for (const locale of ['nl', 'en'])
+    for (const profile of ['mobile', 'desktop']) {
+      const shard = expectedShards(contract, 'local', {
+        scope: 'default',
+        locale,
+        profile,
+        cache: 'fresh',
+      })[0];
+      assert.ok(shard.ids.includes(`information-${locale}-${profile}-fresh`));
+    }
+  const old = JSON.parse(source('apps/web/e2e/quality-corpus.json'));
+  old.fixtureVersion = '43a-v3';
+  delete old.public.information;
+  const historical = sourceContract({
+    corpus: JSON.stringify(old),
+    seed: 'historical seed',
+    matrixSource: source('scripts/quality/matrix.mjs'),
+    workflow: source('.github/workflows/frontend-quality.yml'),
+    lock: source('package-lock.json'),
+  });
+  assert.equal(expectedShards(historical, 'workflow_dispatch').flatMap((s) => s.ids).length, 36);
+  assert.equal(expectedShards(contract, 'workflow_dispatch').flatMap((s) => s.ids).length, 48);
+  assert.notEqual(historical.fixtureHash, contract.fixtureHash);
+  const run = retained('pull_request');
+  for (const a of run.artifacts)
+    a.report.cells = a.report.cells.filter((cell) => !cell.id.startsWith('information-'));
+  assert.equal(consumeRun(run, load).state, 'not-measured');
 });

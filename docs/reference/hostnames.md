@@ -60,4 +60,4 @@ Caddy issues certificates on demand and asks the application first: `GET /intern
 
 ## The API over HTTP and MCP
 
-The same four use cases are available to an API key or an agent with `tenant:admin` (which a key never has, so in practice: the admin UI): `tenant.hostnames.list`, `tenant.hostnames.add`, `tenant.hostnames.verify`, `tenant.hostnames.set_primary`, `tenant.hostnames.remove`. The number of custom domains becomes an entitlement in TODO #16 (ADR 015).
+The same four use cases are available to an API key or an agent with `tenant:admin` (which a key never has, so in practice: the admin UI): `tenant.hostnames.list`, `tenant.hostnames.add`, `tenant.hostnames.verify`, `tenant.hostnames.set_primary`, `tenant.hostnames.remove`. The number of custom domains is an entitlement, `custom_domains.max` (ADR 015 rule 2).

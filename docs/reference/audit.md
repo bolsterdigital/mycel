@@ -1,6 +1,6 @@
 # Audit log
 
-Who did what on a site, and how it ended (TODO #17b). Every command, over HTTP, MCP or the web app, leaves exactly one row in `audit_log`; every mutation of the platform API and `npm run platform` leaves one too. The log names its actors by id and its inputs by a keyed hash: it is an account of actions, not a copy of the data (ADR 019 rule 8). Logs, error reports and metrics are in [observability.md](observability.md).
+Who did what on a site, and how it ended (PR #19). Every command, over HTTP, MCP or the web app, leaves exactly one row in `audit_log`; every mutation of the platform API and `npm run platform` leaves one too. The log names its actors by id and its inputs by a keyed hash: it is an account of actions, not a copy of the data (ADR 019 rule 8). Logs, error reports and metrics are in [observability.md](observability.md).
 
 ## What a row holds
 

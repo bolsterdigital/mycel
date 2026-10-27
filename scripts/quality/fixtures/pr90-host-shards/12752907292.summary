@@ -1,0 +1,359 @@
+{
+  "schemaVersion": 1,
+  "commit": "e4c0880856cc06f04c20a83bfc752f310e9b6989",
+  "fixtureHash": "6995f2d5a43c5b006d46e1508b64acc27a763010b4d2d6c61f99509957c7da97",
+  "fixtureVersion": "43a-v3",
+  "fixtureFiles": [
+    "apps/web/e2e/quality-corpus.json",
+    "scripts/e2e.mjs"
+  ],
+  "startedAt": "2026-10-27T16:58:23.827Z",
+  "workflow": {
+    "runId": "40545789572",
+    "attempt": "1"
+  },
+  "environment": {
+    "node": "v22.22.0",
+    "lighthouse": "13.5.0",
+    "playwright": "1.64.1",
+    "runner": "github-container:sha256:d65108d1a8095d8b0c4a5e32bf1807a40a5ce90ff0c78473e1116b1c243235e8",
+    "hostImage": "20261026.354.1",
+    "kernel": "7.0.0-1017-azure",
+    "mode": "ci",
+    "cpu": "AMD EPYC 9V74 80-Core Processor",
+    "cores": 4,
+    "caddy": "v2.10.2 h1:g/gTYjGMD0dec+UgMw8SnfmJ3I9+M2TdvoRL/Ovu6U8=",
+    "profile": "mobile",
+    "locale": "nl",
+    "cache": "fresh",
+    "scope": "default",
+    "theme": "seeded-default",
+    "warmup": "none",
+    "serverCache": "shared web process",
+    "chromium": "156.0.8078.4"
+  },
+  "cells": [
+    {
+      "id": "campaign-nl-mobile-fresh",
+      "route": "https://localhost:4443/probe/campagne",
+      "locale": "nl",
+      "state": "fail",
+      "profile": "mobile",
+      "cache": "fresh",
+      "indexable": true,
+      "batches": [
+        {
+          "state": "fail",
+          "reasons": [
+            "performance"
+          ],
+          "sampleIds": [
+            "campaign-nl-mobile-fresh-b1-1",
+            "campaign-nl-mobile-fresh-b1-2",
+            "campaign-nl-mobile-fresh-b1-3",
+            "campaign-nl-mobile-fresh-b1-4",
+            "campaign-nl-mobile-fresh-b1-5"
+          ],
+          "raw": [
+            {
+              "performance": 0.83,
+              "accessibility": 1,
+              "best-practices": 1,
+              "seo": 1
+            },
+            {
+              "performance": 0.94,
+              "accessibility": 1,
+              "best-practices": 1,
+              "seo": 1
+            },
+            {
+              "performance": 1,
+              "accessibility": 1,
+              "best-practices": 1,
+              "seo": 1
+            },
+            {
+              "performance": 0.88,
+              "accessibility": 1,
+              "best-practices": 1,
+              "seo": 1
+            },
+            {
+              "performance": 0.74,
+              "accessibility": 1,
+              "best-practices": 1,
+              "seo": 1
+            }
+          ],
+          "performance": {
+            "median": 0.88,
+            "min": 0.74,
+            "max": 1
+          },
+          "failedAuditIdsByCategory": {
+            "performance": [
+              "total-blocking-time"
+            ],
+            "accessibility": [],
+            "best-practices": [],
+            "seo": []
+          },
+          "identityIssues": [],
+          "failedAuditIds": [
+            "total-blocking-time",
+            "max-potential-fid",
+            "interactive",
+            "mainthread-work-breakdown",
+            "bootup-time",
+            "cache-insight",
+            "lcp-discovery-insight",
+            "network-dependency-tree-insight",
+            "render-blocking-insight"
+          ],
+          "metrics": [
+            {
+              "first-contentful-paint": 833.1761,
+              "largest-contentful-paint": 1418.1761000000001,
+              "total-blocking-time": 706.0000000000005,
+              "cumulative-layout-shift": 0,
+              "speed-index": 833.1761,
+              "total-byte-weight": 116707,
+              "mainthread-work-breakdown": 3523.931999995514
+            },
+            {
+              "first-contentful-paint": 822.6493,
+              "largest-contentful-paint": 1409.6493,
+              "total-blocking-time": 281.5,
+              "cumulative-layout-shift": 0,
+              "speed-index": 822.6493,
+              "total-byte-weight": 116708,
+              "mainthread-work-breakdown": 2022.563999999571
+            },
+            {
+              "first-contentful-paint": 825.4819,
+              "largest-contentful-paint": 1412.4819,
+              "total-blocking-time": 55.499999999999886,
+              "cumulative-layout-shift": 0,
+              "speed-index": 825.4819,
+              "total-byte-weight": 116708,
+              "mainthread-work-breakdown": 1090.2120000003624
+            },
+            {
+              "first-contentful-paint": 786.146,
+              "largest-contentful-paint": 1360.146,
+              "total-blocking-time": 475.4999999999998,
+              "cumulative-layout-shift": 0,
+              "speed-index": 786.146,
+              "total-byte-weight": 116707,
+              "mainthread-work-breakdown": 3076.807999997311
+            },
+            {
+              "first-contentful-paint": 821.2582,
+              "largest-contentful-paint": 1407.2582,
+              "total-blocking-time": 1552.0000000000002,
+              "cumulative-layout-shift": 0,
+              "speed-index": 821.2582,
+              "total-byte-weight": 116706,
+              "mainthread-work-breakdown": 7103.815999982507
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "article-nl-mobile-fresh",
+      "route": "https://localhost:4443/probe/articles/quality-article-v3",
+      "locale": "nl",
+      "state": "pass",
+      "profile": "mobile",
+      "cache": "fresh",
+      "indexable": true,
+      "batches": [
+        {
+          "state": "pass",
+          "reasons": [],
+          "sampleIds": [
+            "article-nl-mobile-fresh-b1-1",
+            "article-nl-mobile-fresh-b1-2",
+            "article-nl-mobile-fresh-b1-3",
+            "article-nl-mobile-fresh-b1-4",
+            "article-nl-mobile-fresh-b1-5"
+          ],
+          "raw": [
+            {
+              "performance": 1,
+              "accessibility": 1,
+              "best-practices": 1,
+              "seo": 1
+            },
+            {
+              "performance": 1,
+              "accessibility": 1,
+              "best-practices": 1,
+              "seo": 1
+            },
+            {
+              "performance": 1,
+              "accessibility": 1,
+              "best-practices": 1,
+              "seo": 1
+            },
+            {
+              "performance": 1,
+              "accessibility": 1,
+              "best-practices": 1,
+              "seo": 1
+            },
+            {
+              "performance": 1,
+              "accessibility": 1,
+              "best-practices": 1,
+              "seo": 1
+            }
+          ],
+          "performance": {
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "failedAuditIdsByCategory": {
+            "performance": [],
+            "accessibility": [],
+            "best-practices": [],
+            "seo": []
+          },
+          "identityIssues": [],
+          "failedAuditIds": [
+            "cache-insight",
+            "lcp-discovery-insight",
+            "network-dependency-tree-insight",
+            "render-blocking-insight"
+          ],
+          "metrics": [
+            {
+              "first-contentful-paint": 797.7558,
+              "largest-contentful-paint": 1363.7558,
+              "total-blocking-time": 0,
+              "cumulative-layout-shift": 0,
+              "speed-index": 797.7558,
+              "total-byte-weight": 115503,
+              "mainthread-work-breakdown": 163.11200000000005
+            },
+            {
+              "first-contentful-paint": 803.3245,
+              "largest-contentful-paint": 1361.3245,
+              "total-blocking-time": 0,
+              "cumulative-layout-shift": 0,
+              "speed-index": 803.3245,
+              "total-byte-weight": 115503,
+              "mainthread-work-breakdown": 164.07200000000006
+            },
+            {
+              "first-contentful-paint": 792.0109,
+              "largest-contentful-paint": 1361.0109,
+              "total-blocking-time": 0,
+              "cumulative-layout-shift": 0,
+              "speed-index": 792.0109,
+              "total-byte-weight": 115503,
+              "mainthread-work-breakdown": 154.10799999999998
+            },
+            {
+              "first-contentful-paint": 805.1235,
+              "largest-contentful-paint": 1358.1235000000001,
+              "total-blocking-time": 0,
+              "cumulative-layout-shift": 0,
+              "speed-index": 805.1235,
+              "total-byte-weight": 115494,
+              "mainthread-work-breakdown": 153.37599999999998
+            },
+            {
+              "first-contentful-paint": 794.8593,
+              "largest-contentful-paint": 1357.8593,
+              "total-blocking-time": 0,
+              "cumulative-layout-shift": 0,
+              "speed-index": 794.8593,
+              "total-byte-weight": 115501,
+              "mainthread-work-breakdown": 161.63200000000006
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "coverage": [
+    {
+      "state": "not-measured",
+      "route": "dynamic POST/iframe preview",
+      "owner": "dev",
+      "address": "#43C-preview",
+      "aliases": [
+        "#43B"
+      ],
+      "reason": "requires a versioned dynamic-state measurement contract; GET is an empty shell"
+    },
+    {
+      "state": "not-measured",
+      "route": "demanding tenant theme",
+      "owner": "mbp",
+      "address": "#38",
+      "reason": "43a-v3 theme is simulated, not a persisted tenant fixture"
+    },
+    {
+      "route": "collections-and-search",
+      "dependency": "#21 / #42",
+      "state": "not-measured"
+    },
+    {
+      "route": "restricted-reader",
+      "dependency": "#19",
+      "state": "not-measured"
+    },
+    {
+      "route": "conditional-form",
+      "dependency": "#39",
+      "state": "not-measured"
+    },
+    {
+      "route": "managed-embeds-consent",
+      "dependency": "#41",
+      "state": "not-measured"
+    },
+    {
+      "state": "not-measured",
+      "route": "manual accessibility and field data",
+      "owner": "mbp",
+      "address": "#43C",
+      "reason": "see release scenarios in frontend-quality.md; no real-user data or screen reader available"
+    },
+    {
+      "state": "not-measured",
+      "route": "admin corpus",
+      "owner": "dev",
+      "address": "#43C-report",
+      "aliases": [
+        "#43B"
+      ],
+      "reason": "default set is public; use --scope=full locally"
+    }
+  ],
+  "durationMinutes": 1.3168833333333334,
+  "repairs": [
+    {
+      "key": "performance:total-blocking-time",
+      "owner": "mbp",
+      "tier": "workhorse",
+      "address": "#43C",
+      "recurrence": false,
+      "expiredException": false,
+      "cells": [
+        "campaign-nl-mobile-fresh"
+      ]
+    }
+  ],
+  "state": "fail",
+  "baselineComparison": {
+    "state": "no baseline",
+    "reason": "no successful predecessor"
+  }
+}

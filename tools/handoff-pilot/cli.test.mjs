@@ -34,7 +34,7 @@ test('review proof accepts a published relative path and rejects an absolute pat
   const schema = JSON.parse(readFileSync(resolve('tools/handoff-pilot/result.schema.json')));
   const pattern = new RegExp(schema.properties.reviewRecord.pattern);
   assert.ok(pattern.test('reference/review-pr62-2026-10-25.md'));
-  assert.ok(!pattern.test('/Users/jstronks/mycel-planning/reference/review-pr62-2026-10-25.md'));
+  assert.ok(!pattern.test('/home/someone/planning/reference/review-pr62-2026-10-25.md'));
   assert.ok(!pattern.test('../reference/review-pr62-2026-10-25.md'));
 });
 
