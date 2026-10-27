@@ -108,7 +108,7 @@ const result = {
       route: 'demanding tenant theme',
       owner: 'mbp',
       address: '#38',
-      reason: '43a-v3 theme is simulated, not a persisted tenant fixture',
+      reason: `${corpus.fixtureVersion} theme is simulated, not a persisted tenant fixture`,
     },
     ...corpus.planned
       .filter((p) => p.route !== 'site-chrome')

@@ -311,8 +311,8 @@ test('consumer counts the versioned full matrix and retains all red observation 
   bad.batches[1].state = 'pass';
   bad.batches[1].reasons = [];
   const result = consumeRun(run, load);
-  assert.equal(result.expected, 36);
-  assert.equal(result.samples, 185);
+  assert.equal(result.expected, 48);
+  assert.equal(result.samples, 245);
   assert.equal(result.state, 'fail');
   assert.equal(result.conclusion, 'success');
   assert.equal(result.cells[0].batches.length, 2);
@@ -562,7 +562,7 @@ test('GitHub adapter separates rerun artifacts by attempt and preserves corrupt 
     assert.equal(report.runs[0].createdAt, report.runs[1].createdAt);
     assert.notEqual(report.runs[0].startedAt, report.runs[1].startedAt);
     assert.equal(report.runs[1].state, 'not-measured');
-    assert.equal(report.runs[1].present, 2);
+    assert.equal(report.runs[1].present, 3);
     assert.ok(report.runs[1].issues.length);
     artifacts.length = 0;
     const missing = collectHistory({
@@ -574,7 +574,7 @@ test('GitHub adapter separates rerun artifacts by attempt and preserves corrupt 
       },
     });
     const absent = consume(missing, load, clock);
-    assert.equal(absent.runs[0].expected, 4);
+    assert.equal(absent.runs[0].expected, 6);
     assert.equal(absent.runs[0].present, 0);
     assert.equal(absent.runs[0].missingShards.length, 2);
     assert.equal(absent.runs[0].expectationSha, original.headSha);
@@ -952,8 +952,8 @@ test('container shards bind the immutable userspace and kernel while retaining h
   }
   const result = gate(input);
   assert.equal(result.blocks, false);
-  assert.equal(result.report.present, 4);
-  assert.equal(result.report.samples, 20);
+  assert.equal(result.report.present, 6);
+  assert.equal(result.report.samples, 30);
   assert.deepEqual(
     result.report.profiles.map((p) => p.environment.hostImage),
     ['20261026.354.1', '20261023.334.3']
@@ -1196,11 +1196,42 @@ test('gate CLI retains full reports and fails for absent downloads instead of pa
     command(root, join(dir, 'good'));
     const result = JSON.parse(readFileSync(join(dir, 'good', 'summary.json')));
     assert.equal(result.measured, 'pass');
-    assert.equal(result.report.samples, 20);
+    assert.equal(result.report.samples, 30);
     assert.equal(result.report.cells[0].batches[0].sampleIds.length, 5);
     assert.throws(() => command(join(dir, 'absent'), join(dir, 'bad')));
     assert.equal(JSON.parse(readFileSync(join(dir, 'bad', 'summary.json'))).blocks, true);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('information expands both profiles/locales while historical v3 keeps its own coverage', () => {
+  assert.equal(contract.fixtureVersion, '43a-v4');
+  for (const locale of ['nl', 'en'])
+    for (const profile of ['mobile', 'desktop']) {
+      const shard = expectedShards(contract, 'local', {
+        scope: 'default',
+        locale,
+        profile,
+        cache: 'fresh',
+      })[0];
+      assert.ok(shard.ids.includes(`information-${locale}-${profile}-fresh`));
+    }
+  const old = JSON.parse(source('apps/web/e2e/quality-corpus.json'));
+  old.fixtureVersion = '43a-v3';
+  delete old.public.information;
+  const historical = sourceContract({
+    corpus: JSON.stringify(old),
+    seed: 'historical seed',
+    matrixSource: source('scripts/quality/matrix.mjs'),
+    workflow: source('.github/workflows/frontend-quality.yml'),
+    lock: source('package-lock.json'),
+  });
+  assert.equal(expectedShards(historical, 'workflow_dispatch').flatMap((s) => s.ids).length, 36);
+  assert.equal(expectedShards(contract, 'workflow_dispatch').flatMap((s) => s.ids).length, 48);
+  assert.notEqual(historical.fixtureHash, contract.fixtureHash);
+  const run = retained('pull_request');
+  for (const a of run.artifacts)
+    a.report.cells = a.report.cells.filter((cell) => !cell.id.startsWith('information-'));
+  assert.equal(consumeRun(run, load).state, 'not-measured');
 });
