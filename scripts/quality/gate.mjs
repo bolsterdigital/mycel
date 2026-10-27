@@ -6,15 +6,25 @@ import { fileURLToPath } from 'node:url';
 import { consumeRun, sourceContract } from './consume.mjs';
 import { matrix } from './matrix.mjs';
 
+// enforcement.json is the only source of the deadline. A `null` deadline means "not enforced
+// until a date is set": on 2026-10-27 the 2026-11-09 deadline was suspended until the product
+// matrix has been fully green once, after which a new date is proposed in a reviewed change.
+// Rejected: pinning the date here as well, because two copies drift and the suspension would
+// need a code change instead of a policy change. Broken evidence still blocks while suspended.
 export function enforcement(policy, now) {
-  if (policy.deadline !== '2026-11-09T00:00:00Z' || !Number.isFinite(Date.parse(now)))
+  const deadline = policy?.deadline;
+  if (
+    (deadline !== null &&
+      (typeof deadline !== 'string' || !Number.isFinite(Date.parse(deadline)))) ||
+    !Number.isFinite(Date.parse(now))
+  )
     throw new Error('invalid-enforcement-policy-or-clock');
   const early = policy.earlyActivation;
   if (early !== null) {
     if (
       !early ||
       !Number.isFinite(Date.parse(early.at)) ||
-      Date.parse(early.at) >= Date.parse(policy.deadline) ||
+      (deadline !== null && Date.parse(early.at) >= Date.parse(deadline)) ||
       !/^[a-f0-9]{40}$/.test(early.candidateSha) ||
       !/^[a-f0-9]{64}$/.test(early.fixtureHash) ||
       !Array.isArray(early.runs) ||
@@ -29,7 +39,8 @@ export function enforcement(policy, now) {
     )
       throw new Error('invalid-early-activation-record');
   }
-  return Date.parse(now) >= Date.parse(early?.at ?? policy.deadline);
+  const from = early?.at ?? deadline;
+  return from !== null && Date.parse(now) >= Date.parse(from);
 }
 
 export function gate({ run, load, needs, downloadOutcome, policy, now }) {
@@ -66,7 +77,8 @@ export function gate({ run, load, needs, downloadOutcome, policy, now }) {
     enforced,
     measured,
     // Broken evidence fails even during calibration. Actual measured non-pass stays visible
-    // during calibration and blocks at the fixed deadline or registered early activation.
+    // during calibration and blocks once the policy deadline or a registered early activation
+    // applies; with a suspended (null) deadline it is reported but does not block.
     blocks: issues.length > 0 || (enforced && measured !== 'pass'),
     issues: [...new Set(issues)],
     report,

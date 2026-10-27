@@ -1,8 +1,18 @@
-// Observation never rewrites a failed score to pass. At the fixed deadline the job blocks,
-// even if calibration has unresolved defects; branch protection is separately verified.
+// Observation never rewrites a failed score to pass. Once enforcement.json applies the job
+// blocks, even if calibration has unresolved defects; branch protection is separately verified.
+// The deadline is read from the policy (see gate.mjs); a hardcoded copy was rejected because it
+// drifted from the policy the required gate uses.
 import { readFileSync } from 'node:fs';
-export function status(report, outcome, today = new Date().toISOString().slice(0, 10)) {
-  const deadline = '2026-11-09';
+import { enforcement } from './gate.mjs';
+const committedPolicy = () =>
+  JSON.parse(readFileSync(new URL('./enforcement.json', import.meta.url), 'utf8'));
+export function status(
+  report,
+  outcome,
+  now = new Date().toISOString(),
+  policy = committedPolicy()
+) {
+  const due = enforcement(policy, now);
   const valid =
     report &&
     report.cells?.length &&
@@ -11,9 +21,9 @@ export function status(report, outcome, today = new Date().toISOString().slice(0
     report.state === 'pass';
   return {
     measured: report?.state ?? 'not-measured',
-    enforcementDue: today >= deadline,
-    blocks: !valid && today >= deadline,
-    deadline,
+    enforcementDue: due,
+    blocks: !valid && due,
+    deadline: policy.deadline,
   };
 }
 if (process.argv[1]?.endsWith('/status.mjs')) {
@@ -24,7 +34,9 @@ if (process.argv[1]?.endsWith('/status.mjs')) {
     /* Missing report remains missing. */
   }
   const result = status(report, process.env.MEASUREMENT_OUTCOME);
-  console.log(`Lighthouse: **${result.measured}**. Calibration deadline: ${result.deadline}.`);
+  console.log(
+    `Lighthouse: **${result.measured}**. Enforcement deadline: ${result.deadline ?? 'suspended (not set)'}.`
+  );
   if (report)
     console.log(
       `SHA: ${report.commit}. Cells: ${report.cells.length}. Runner minutes: ${report.durationMinutes?.toFixed(2)}. Repair proposals are in summary.json.`

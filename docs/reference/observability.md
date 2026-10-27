@@ -1,6 +1,6 @@
 # Observability
 
-Logs, error reports, health and metrics of every Mycel process (TODO #17a). The hoster reads stdout; nothing here ships logs anywhere. The reasoning is in ADR 008 (our own code before a dependency), 011 (who may read the queues) and 019 rule 8 (erasure covers every copy, and a log line is a copy). The audit log is [audit.md](audit.md) (#17b); the per-tenant status page and the hoster's view of stuck work (#17c) are in [platform-api.md](platform-api.md) § Stuck work.
+Logs, error reports, health and metrics of every Mycel process (PR #18). The hoster reads stdout; nothing here ships logs anywhere. The reasoning is in ADR 008 (our own code before a dependency), 011 (who may read the queues) and 019 rule 8 (erasure covers every copy, and a log line is a copy). The audit log is [audit.md](audit.md) (PR #19); the per-tenant status page and the hoster's view of stuck work (PR #20) are in [platform-api.md](platform-api.md) § Stuck work.
 
 ## Log lines
 

@@ -153,7 +153,8 @@ export function webhookTransport({
   return {
     async dispatch({ intent, connection, credential, payload }) {
       if (connection.provider !== 'webhook' || !connection.destination) return 'pre_send';
-      // PR 1C has only a synthetic source. PR 2 adds reviewed, category-specific real payloads.
+      // Only the synthetic source may be sent. A real payload needs its own reviewed,
+      // category-specific contract before this transport accepts it.
       if (intent.source !== 'synthetic.test' || payload['category'] !== 'synthetic.test')
         return 'pre_send';
       let target: Awaited<ReturnType<typeof checkedDestination>>;

@@ -18,7 +18,7 @@ ADR 003 makes the supporter a projection over an append-only log and calls inges
 5. **Consent and access are checked at the moment of use.** The sender checks current consent per recipient when a send is claimed, not when a campaign is composed; the read route checks access on every request.
 6. **External effects have a recovery contract.** Every call to a provider (mail, payment) is preceded by an intent row (`mail_sends`, `payment_attempts`) with a deterministic key, and the provider receives that key as its idempotency key where it supports one. A timeout leaves the intent in `unknown`; a reconciliation job queries the provider by key before any retry. Retries without reconciliation are forbidden for calls with side effects.
 7. **Reader activity is retained as little as the feature needs.** `reader.signed_in` is kept as an event for `readers.activity_retention_days` (tenant setting, default 90) and then compacted into the projection's `lastSeenAt`; content views are never logged per reader. A tenant may set retention to 0 (projection only). This mirrors the privacy-light mode of the Dreamkit supporter registry.
-8. **Erasure covers every copy.** `supporter.erase` tombstones the events (ADR 003 rule 5) and also purges form submissions, outbox payloads, queued mail and `mail_sends` rows that carry the address, and records the erased id in an `erasures` table so a restore from backup re-applies it. Backups expire within a documented window (`docs/self-hosting.md`, TODO #18).
+8. **Erasure covers every copy.** `supporter.erase` tombstones the events (ADR 003 rule 5) and also purges form submissions, outbox payloads, queued mail and `mail_sends` rows that carry the address, and records the erased id in an `erasures` table so a restore from backup re-applies it. Backups expire within a documented window (`docs/self-hosting.md`).
 
 ## Rejected alternatives
 
@@ -29,8 +29,8 @@ ADR 003 makes the supporter a projection over an append-only log and calls inges
 
 ## Consequences
 
-- TODO #13 grows: `supporter_id` and `supporter.email_changed`; fold-from-log with `appliedThrough`; per-supporter lock; `mail_sends` with `unknown` state and a reconciliation step; the database conformance suite gets a concurrency test (two events for one supporter in parallel transactions, projection equals the serial fold).
+- The supporter work (PRs #5 and #6) grows: `supporter_id` and `supporter.email_changed`; fold-from-log with `appliedThrough`; per-supporter lock; `mail_sends` with `unknown` state and a reconciliation step; the database conformance suite gets a concurrency test (two events for one supporter in parallel transactions, projection equals the serial fold).
 - ADR 011 rule 4's "record a send key before the first attempt" is read with rule 6 here.
-- 2026-10-22 (TODO #22C, migration 0013): the reconciliation job of rule 6 is `mail.reconcile` on the jobs table, planned in the transaction that claims the attempt. TEM has no idempotency key, so "queries the provider by key" is a count over the provider's listing; `docs/reference/mail.md` has the contract and the residual risk.
+- 2026-10-22 (PR #17, migration 0013): the reconciliation job of rule 6 is `mail.reconcile` on the jobs table, planned in the transaction that claims the attempt. TEM has no idempotency key, so "queries the provider by key" is a count over the provider's listing; `docs/reference/mail.md` has the contract and the residual risk.
 - ADR 016 rule 1: the session is bound to `supporter_id`, and sign-in events follow rule 7.
 - The event contract v1 stays: `supporter_id` is an envelope addition, not a redefinition.

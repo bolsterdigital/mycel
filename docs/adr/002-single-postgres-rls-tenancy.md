@@ -2,7 +2,7 @@
 
 - **Status**: accepted
 - **Date**: 2026-10-21
-- **Amended**: 2026-10-21 for TODO #7 (rule 3: operator sessions; rule 4: identity tables)
+- **Amended**: 2026-10-21 for PR #7 (rule 3: operator sessions; rule 4: identity tables)
 - **Rule 6 scope refined**: 2026-10-24 by [ADR 024](024-managed-integrations-and-external-ownership.md). Mycel's own storage remains in the EU; an explicitly tenant-authorized connector may export to a named external destination.
 
 ## Context

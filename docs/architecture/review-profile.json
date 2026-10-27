@@ -337,7 +337,6 @@
   ],
   "informational": [
     "**/*.md",
-    "docs/reports/**",
     "CHANGELOG.md",
     ".editorconfig",
     ".prettierrc",
