@@ -167,8 +167,8 @@ test('site navigation persists through content, editor, media, settings and a se
     .getByRole('link', { name: 'Pages and articles' })
     .click();
   await checkShell(page, 'Probe', 'Pages and articles');
-  await expect(page.locator('.content-list li').first()).toBeVisible();
-  await page.locator('.content-list li a').first().click();
+  await expect(page.locator('#content-table tbody tr').first()).toBeVisible();
+  await page.locator('#content-table tbody th a').first().click();
   await checkShell(page, 'Probe', 'Pages and articles');
   await page.screenshot({ path: test.info().outputPath('editor-wide.png'), fullPage: true });
   await page
@@ -188,7 +188,7 @@ test('site navigation persists through content, editor, media, settings and a se
     .getByRole('navigation', { name: 'Site navigation' })
     .getByRole('link', { name: 'Pages and articles' })
     .click();
-  await expect(page.locator('.content-list li')).toHaveCount(0);
+  await expect(page.locator('#content-table tbody tr')).toHaveCount(0);
   await checkShell(page, 'Second editorial site', 'Pages and articles');
   await expect(page.locator('body')).not.toContainText('Probe');
 });
@@ -240,12 +240,12 @@ async function narrowOverview(page: Page) {
     .getByRole('navigation', { name: 'Site navigation' })
     .getByRole('link', { name: 'Pages and articles' })
     .click();
-  await page.locator('.content-list li a').first().click();
+  await page.locator('#content-table tbody th a').first().click();
   await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
   expect(await overflow(page)).toEqual([]);
   expect(
     await page.evaluate(() =>
-      [...document.querySelectorAll('.actions button, .actions a.button')]
+      [...document.querySelectorAll('.actions button, .actions a.button, .ui-actions .ui-button')]
         .filter((node) => {
           const box = node.getBoundingClientRect();
           return box.width < 44 || box.height < 44 || node.scrollWidth > node.clientWidth + 1;

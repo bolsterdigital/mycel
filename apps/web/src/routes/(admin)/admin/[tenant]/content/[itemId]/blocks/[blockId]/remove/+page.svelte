@@ -1,6 +1,8 @@
 <!-- Confirm removing one block (TODO #11 B): what goes, and two actions, remove or go back. A
-     stale revision is not removed from: the page says who saved in between and links back. -->
+     stale revision is not removed from: the page says who saved in between and links back. On
+     the shared page header and action group (brief #56 § C2); removing is the danger action. -->
 <script lang="ts">
+  import { Actions, Button, Notice, PageHeader } from '#lib/admin/ui/index.js';
   import { fill, ui, type UiKey } from '../../../../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -21,26 +23,34 @@
 </svelte:head>
 
 <main class="page admin">
-  <h1>{t('admin.block.remove.title')}</h1>
+  <PageHeader
+    title={t('admin.block.remove.title')}
+    locale={data.locale}
+    breadcrumb={[
+      { label: data.tenant.name, href: `/admin/${data.tenant.slug}` },
+      { label: t('admin.content.title'), href: `/admin/${data.tenant.slug}/content` },
+      { label: data.item.title, href: back },
+      { label: t('admin.block.remove.title') },
+    ]}
+  />
   {#if form}
-    <div class="error-summary" role="alert">
-      <h2>{t('error.summary.title')}</h2>
+    <Notice tone="error" title={t('error.summary.title')}>
       <p>
         {form.conflict
           ? fill(t('admin.block.remove.conflict'), form.conflict)
           : t(form.error as UiKey)}
       </p>
       <p><a href={back}>{t('admin.content.revisions.back')}</a></p>
-    </div>
+    </Notice>
   {/if}
-  <form method="post" class="card">
+  <form method="post" class="ui-section">
     <p>{fill(t('admin.block.remove.body'), { what, title: data.item.title })}</p>
     <input type="hidden" name="revision" value={data.revision} />
-    <div class="actions">
-      <button type="submit">{t('admin.block.remove.confirm')}</button>
-      <a class="button secondary" href="{back}?block={data.block.id}#block-{data.block.id}"
-        >{t('admin.block.remove.cancel')}</a
+    <Actions>
+      <Button variant="danger">{t('admin.block.remove.confirm')}</Button>
+      <Button variant="secondary" href="{back}?block={data.block.id}#block-{data.block.id}"
+        >{t('admin.block.remove.cancel')}</Button
       >
-    </div>
+    </Actions>
   </form>
 </main>

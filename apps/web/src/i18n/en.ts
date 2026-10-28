@@ -79,6 +79,7 @@ export const en = {
   'admin.loginFailed.body':
     'The login could not be completed, or took longer than ten minutes. Try again.',
   'admin.sites.title': 'Your sites',
+  'admin.sites.empty': 'You are not a member of a site yet',
   'admin.sites.none': 'No sites yet. Ask an administrator of a site to invite {email}.',
   'admin.forbidden.title': 'No access to this site',
   'admin.forbidden.body':
@@ -326,6 +327,7 @@ export const en = {
   'admin.content.new': 'New page or article',
   'admin.content.empty': 'Nothing here yet.',
   'admin.content.more': 'Next page',
+  'admin.content.column.updated': 'Last saved',
   'admin.content.untitled': '(no title)',
   'admin.content.updated': 'last saved',
   'admin.content.status.draft': 'draft',
@@ -374,8 +376,9 @@ export const en = {
   'admin.content.edit.correctionText': 'New correction',
   'admin.content.edit.seo': 'Search and sharing',
   'admin.content.edit.access': 'Access',
-  'admin.content.edit.blocks':
-    'Blocks in this item: {n}. Editing blocks comes in a later version of the admin.',
+  'admin.content.edit.heading': 'Title and lead',
+  'admin.content.edit.byline': 'Authors and section',
+  'admin.content.edit.side': 'Status and publication',
   'admin.content.edit.save': 'Save',
   'admin.editor.title': 'Write article',
   'admin.editor.native': 'Edit fields and cards without JavaScript',
@@ -826,8 +829,14 @@ export const en = {
   'admin.ui.catalogue.form.article': 'Article',
   'admin.ui.catalogue.form.access': 'Who can see this',
   'admin.ui.catalogue.form.channels': 'Also send as',
+  'admin.ui.catalogue.form.noindexHint': 'Also keeps the page out of the site’s own search.',
   'admin.ui.catalogue.form.newsletter': 'Newsletter to all subscribers',
   'admin.ui.catalogue.form.feed': 'Item in the RSS feed',
+  'admin.ui.catalogue.panel': 'Foldable panel',
+  'admin.ui.catalogue.panel.summary':
+    '3. Questions and answers: Why are we campaigning in the neighbourhood?',
+  'admin.ui.catalogue.panel.body':
+    'The block’s own fields and actions; open when it was the last one edited.',
   'admin.ui.catalogue.table': 'Table and pagination',
   'admin.ui.catalogue.table.caption': 'Recently changed files',
   'admin.ui.catalogue.table.name': 'Name',
@@ -866,8 +875,10 @@ export const en = {
   'admin.ui.catalogue.patterns': 'Page patterns',
   'admin.ui.catalogue.patterns.intro':
     'Each pattern on a page of its own, with the copy of a real screen.',
+  'admin.ui.cancel': 'Cancel',
   'admin.ui.pattern.overview': 'Overview',
   'admin.ui.pattern.detail': 'Detail',
+  'admin.ui.pattern.edit': 'Edit page',
   'admin.ui.pattern.settings': 'Settings',
   'admin.ui.pattern.form': 'Form page',
   'admin.ui.pattern.states': 'System states',

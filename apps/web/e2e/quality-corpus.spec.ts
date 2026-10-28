@@ -145,7 +145,7 @@ async function layoutProblems(page: Page): Promise<string[]> {
     const width = document.documentElement.clientWidth;
     if (document.documentElement.scrollWidth > width + 1) errors.push('viewport overflow');
     for (const element of document.querySelectorAll(
-      '.actions a, .actions button, main form button'
+      '.actions a, .actions button, .ui-actions .ui-button, main form button'
     )) {
       const box = element.getBoundingClientRect();
       if (box.width < 44 || box.height < 44)
@@ -248,7 +248,7 @@ test('admin corpus uses the populated shell, native editor and enhanced writer',
   await page.getByLabel('E-mail').fill(qualityAdmin);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page).toHaveURL(/\/admin\/probe\/content$/);
-  await expect(page.locator('.content-list li')).not.toHaveCount(0);
+  await expect(page.locator('#content-table tbody tr')).not.toHaveCount(0);
   await expect(page.locator('.admin-site-name')).toHaveText('Probe');
   await page.goto(`/admin/probe/content/${id}`);
   await expect(page.getByRole('main')).toContainText('De straat die ruimte maakt');

@@ -191,6 +191,10 @@
   .ui-choice label {
     overflow-wrap: break-word;
   }
+  .ui-choice-hint {
+    grid-column: 2;
+    margin: 0;
+  }
 
   .ui-notice {
     margin-block: var(--space-2);
@@ -240,6 +244,15 @@
     border-radius: 999px;
     overflow-wrap: anywhere;
   }
+  /* Several badges about one thing (a status per language, capabilities) as a list that wraps. */
+  .ui-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-0);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
   .ui-badge.neutral {
     color: var(--status-neutral-fg);
     background: var(--status-neutral-bg);
@@ -284,6 +297,11 @@
   .ui-table th {
     white-space: nowrap;
     vertical-align: bottom;
+  }
+  /* A row's own heading (a title, a file name) wraps; only column headings stay on one line. */
+  .ui-table tbody th {
+    white-space: normal;
+    vertical-align: top;
   }
   .ui-table .numeric {
     text-align: end;
@@ -620,6 +638,60 @@
     display: grid;
     gap: var(--space-2);
   }
+  .ui-edit-host {
+    container-type: inline-size;
+  }
+  .ui-edit {
+    display: grid;
+    gap: var(--space-3);
+  }
+  @container (min-width: 60rem) {
+    .ui-edit {
+      grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+      align-items: start;
+    }
+  }
+  .ui-edit-main,
+  .ui-edit-side {
+    display: grid;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+  .ui-edit-main > form,
+  .ui-edit-main > section,
+  .ui-edit-side > section {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .ui-panel {
+    container-type: inline-size;
+    min-width: 0;
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-lg);
+  }
+  .ui-panel > summary {
+    display: flex;
+    align-items: center;
+    min-height: var(--tap);
+    padding: var(--space-0) var(--space-2);
+    font-weight: 600;
+    color: var(--color-link);
+    overflow-wrap: anywhere;
+    cursor: pointer;
+  }
+  .ui-panel-body {
+    display: grid;
+    gap: var(--space-2);
+    padding: 0 var(--space-2) var(--space-2);
+  }
+  .ui-panel-body > form {
+    display: grid;
+    gap: var(--space-2);
+  }
+
   .ui-detail-footer {
     margin-block-start: var(--space-3);
     border-block-start: var(--border-width) solid var(--color-border);
@@ -629,13 +701,15 @@
     display: grid;
     gap: var(--space-3);
   }
-  .ui-settings-section {
+  .ui-settings-section,
+  .ui-section {
     padding: var(--space-2);
     background: var(--color-surface-bg);
     border: var(--border-width) solid var(--color-border);
     border-radius: var(--radius-lg);
   }
-  .ui-settings-section > h2 {
+  .ui-settings-section > h2,
+  .ui-section > h2 {
     margin-block: 0 var(--space-1);
     font-size: var(--step-1);
   }
