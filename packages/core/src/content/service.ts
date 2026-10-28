@@ -9,7 +9,7 @@
 // because drafts must never reach a public visitor (the public projection is `public.ts`).
 
 import { z } from 'zod';
-import { requireActive, requireEntitled } from '../entitlements/check.js';
+import { requireActive, requireEntitled } from '../entitlements/guards.js';
 import { UseCaseError, type Issue } from '../errors.js';
 import { zodIssues } from '../invoke.js';
 import { Locale } from '../i18n/locale.js';

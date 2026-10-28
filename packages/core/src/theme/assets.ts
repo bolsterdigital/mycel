@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { defineUseCase } from '../registry.js';
 import { UseCaseError } from '../errors.js';
 import { base64ToBytes } from '../util/bytes.js';
+import './ports.js';
 
 export const LOGO_LIMIT = 2 * 1024 * 1024;
 export const FONT_LIMIT = 1024 * 1024;
@@ -15,20 +16,6 @@ export interface BrandAsset {
   width: number | null;
   height: number | null;
   licence: string | null;
-}
-export interface BrandProcessor {
-  logo(bytes: Uint8Array, contentType: string): Promise<BrandAsset>;
-  font(bytes: Uint8Array): Promise<void>;
-}
-export interface BrandAssetsRepository {
-  get(kind: BrandKind): Promise<{ version: number; asset: BrandAsset | null }>;
-  replace(kind: BrandKind, baseVersion: number, asset: BrandAsset | null): Promise<number | null>;
-}
-declare module '../ports.js' {
-  interface TransactionContext {
-    brandAssets: BrandAssetsRepository;
-    brandProcessor: BrandProcessor;
-  }
 }
 const fail = (message: string) => new UseCaseError('invalid_input', message);
 const Version = z.number().int().nonnegative();

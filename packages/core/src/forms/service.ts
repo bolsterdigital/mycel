@@ -3,7 +3,7 @@
 
 import { z } from 'zod';
 import { UseCaseError } from '../errors.js';
-import { withinLimit } from '../entitlements/check.js';
+import { withinLimit } from '../entitlements/guards.js';
 import { defineUseCase } from '../registry.js';
 import { sha256Hex } from '../util/digest.js';
 import type { NewsletterSubscribedProps } from './events.js';

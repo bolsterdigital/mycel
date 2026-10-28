@@ -1,6 +1,6 @@
 # Transactional mail delivery
 
-How Mycel sends one transactional message per intent (the double opt-in confirmation today, every transactional mail later), what it does when the provider's answer is lost, and what it promises. Decisions: ADR 019 rule 6, ADR 011, brief #22C. Code: `packages/core/src/mailing/delivery.ts` (`sendOnce`, `settleIntent`, `reconcileMail`), `packages/db/src/repositories.ts` (`mailSendsRepository`), `packages/mail-tem/src/tem.ts`.
+How Mycel sends one transactional message per intent (the double opt-in confirmation today, every transactional mail later), what it does when the provider's answer is lost, and what it promises. Decisions: ADR 019 rule 6, ADR 011, brief #22C. Code: `packages/core/src/mailing/send-attempts.ts` (`sendOnce`, `settleIntent`, `reconcileMail`), `packages/db/src/repositories.ts` (`mailSendsRepository`), `packages/mail-tem/src/tem.ts`.
 
 **What it promises:** a message is never resent blind, and an intent is never closed on the strength of someone else's message. **What it does not promise:** exactly-once delivery. See [Residual risk](#residual-risk).
 

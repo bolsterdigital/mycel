@@ -14,7 +14,7 @@
 import { z } from 'zod';
 import { UseCaseError } from '../errors.js';
 import type { TransactionContext } from '../ports.js';
-import { requireEntitled, withinLimit } from '../entitlements/check.js';
+import { requireEntitled, withinLimit } from '../entitlements/guards.js';
 import { defineUseCase } from '../registry.js';
 import { jobKey } from '../jobs/types.js';
 import { randomToken } from '../util/token.js';

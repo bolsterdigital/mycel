@@ -42,7 +42,7 @@ CI runs `verify` plus a DCO check (`.github/workflows/verify.yml`). Commits are 
 
 ```
 packages/core/src/<module>/   model.ts · service.ts · ports.ts · events.ts · *.test.ts
-packages/core/src/use-cases.ts every use case; fronts call buildRegistry() (registry.ts)
+packages/core/src/use-cases.ts every use case and buildRegistry(), which fronts call
 packages/db/migrations/       plain forward-only SQL; RLS policy next to each table
 packages/api/src/             Hono app, auth middleware, route + OpenAPI generation
 packages/mcp/src/             MCP server over the registry

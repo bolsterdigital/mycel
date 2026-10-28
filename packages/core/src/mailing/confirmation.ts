@@ -8,7 +8,7 @@ import type { Clock, Signer, Subscriber, UnitOfWork } from '../ports.js';
 import { systemPrincipal } from '../principal.js';
 import type { PlatformConfig, TenantDirectory } from '../tenants/ports.js';
 import { siteUrl } from '../tenants/url.js';
-import { sendOnce, type DeliveryDeps, type MailSource } from './delivery.js';
+import { sendOnce, type DeliveryDeps, type MailSource } from './send-attempts.js';
 import type { MailAddress, MailMessage, Mailer } from './ports.js';
 
 const CONFIRM_TTL_MS = 14 * 24 * 60 * 60 * 1000;

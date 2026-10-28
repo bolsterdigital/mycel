@@ -15,7 +15,7 @@ import {
   claimAttempt,
   reconcileMail,
   sendOnce,
-} from './delivery.js';
+} from './send-attempts.js';
 import type { MailMessage, MailWindow, Mailer } from './ports.js';
 
 const TENANT = '01900000-0000-7000-8000-00000000aaaa';
