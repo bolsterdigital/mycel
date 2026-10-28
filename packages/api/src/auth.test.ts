@@ -57,7 +57,7 @@ describe('API keys from the table', () => {
   it('refuses unknown and revoked keys, over HTTP and for the agent, without a restart', async () => {
     const { app, auth, key, invoker, admin } = await setup();
     const get = (token: string) =>
-      app.request('/v1/tenant.keys.list', { headers: { authorization: `Bearer ${token}` } });
+      app.request('/v1/tenant.key.list', { headers: { authorization: `Bearer ${token}` } });
     expect((await get('mycel_nope')).status).toBe(401);
     // The key's own capabilities: content:read is not tenant:admin.
     expect((await get(key.token)).status).toBe(403);

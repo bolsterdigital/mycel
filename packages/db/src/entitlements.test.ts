@@ -214,7 +214,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
     expect(await asPlatform(`update tenants set name = 'x' where id = $1`, [a.id])).toBe('42501');
     expect(await asPlatform(`update tenants set slug = 'x' where id = $1`, [a.id])).toBe('42501');
     expect(await asPlatform(`delete from tenants where id = $1`, [a.id])).toBe('42501');
-    // A custom hostname is the tenant's own business (`tenant.hostnames.add`): RLS with check,
+    // A custom hostname is the tenant's own business (`tenant.hostname.add`): RLS with check,
     // also under that tenant's context (`tenant_isolation` is mycel_app's alone since 0010).
     const custom = `insert into tenant_hostnames (hostname, tenant_id, kind, verification_token)
          values ($1, $2, 'custom', 't')`;
@@ -372,13 +372,13 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
   });
 
   // Review round 1, audit point 3: the supporter cap holds before the worker has ingested
-  // anything, because `forms.submit` reserves a seat in its own transaction (`ctx.admissions`).
+  // anything, because `form.submit` reserves a seat in its own transaction (`ctx.admissions`).
   describe('supporter admissions', () => {
     const capped = (tenantId: string, max: number): Principal => ({
       ...systemPrincipal(tenantId, 'admissions'),
       entitlements: { ...DEFAULT_ENTITLEMENTS, 'supporters.max': max },
     });
-    /** What forms.submit does for a new address, without the rate limits around it. */
+    /** What form.submit does for a new address, without the rate limits around it. */
     const admit = (p: Principal, email: string, pause = 0) =>
       uow.run(p, async (ctx) => {
         await ctx.admissions.lock();

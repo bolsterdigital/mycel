@@ -700,9 +700,9 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
         expect.arrayContaining([
           'content.item.create',
           'content.item.publish',
-          'forms.submit',
-          'tenant.members.invite',
-          'tenant.keys.create',
+          'form.submit',
+          'tenant.member.invite',
+          'tenant.key.create',
           'media.upload',
         ])
       );

@@ -122,9 +122,9 @@ export const actions: Actions = {
     } catch (e) {
       const failure = failureFor(e, locale, currentContext().requestId ?? '-');
       if (failure.report === 'error') {
-        rt.errors.capture(e, { tags: { operation: 'forms.submit' } });
-        rt.log.error('forms.submit failed', { formId });
-      } else if (failure.report === 'info') rt.log.info('forms.submit malformed', { formId });
+        rt.errors.capture(e, { tags: { operation: 'form.submit' } });
+        rt.log.error('form.submit failed', { formId });
+      } else if (failure.report === 'info') rt.log.info('form.submit malformed', { formId });
       return fail(failure.status, {
         formId,
         errors: [],

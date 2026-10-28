@@ -14,7 +14,7 @@ Both tables have forced tenant RLS. A suspended tenant may read its inventory bu
 
 ## Durable intents
 
-What runs today: `connections.test` (capability `connections:configure`) writes one synthetic intent and its `connections.run` job in the same transaction. The production composition (`packages/api/src/compose.ts`) installs the webhook transport and one source, `syntheticSource` from `packages/core/src/connections/synthetic.ts`, which also holds the only definition of what counts as synthetic. Any other source fails closed. `planConnectionIntent` is the transaction boundary a future real-data source will call (with a UUID business id, connection version, source, mapping version, supporter id and consent scope); nothing in production calls it yet. An identical business id on one connection returns the existing intent, a changed contract conflicts, and the provider key is a deterministic SHA-256 of tenant, connection and business id.
+What runs today: `connection.test` (capability `connections:configure`) writes one synthetic intent and its `connections.run` job in the same transaction. The production composition (`packages/api/src/compose.ts`) installs the webhook transport and one source, `syntheticSource` from `packages/core/src/connections/synthetic.ts`, which also holds the only definition of what counts as synthetic. Any other source fails closed. `planConnectionIntent` is the transaction boundary a future real-data source will call (with a UUID business id, connection version, source, mapping version, supporter id and consent scope); nothing in production calls it yet. An identical business id on one connection returns the existing intent, a changed contract conflicts, and the provider key is a deterministic SHA-256 of tenant, connection and business id.
 
 The worker commits an `unknown` intent and a unique lease token before calling transport. Another worker cannot claim it during its 60-second lease. Only the transport's proof of final business success closes the intent; an HTTP 2xx qualifies only where the receiver contract defines it as durable acceptance, as `mycel.webhook.v1` does. A proven `pre_send` failure can retry. There is no exactly-once promise.
 
@@ -26,10 +26,10 @@ The engine permits at most 60 claim attempts per tenant per minute. Dispatch and
 
 ## Operator actions
 
-`connections.intent.list` and `connections.intent.get` expose ids, state, a closed failure class, attempt count, timestamps and `operatorAction`, the one action the admin page, API and MCP may offer next:
+`connection.intent.list` and `connection.intent.get` expose ids, state, a closed failure class, attempt count, timestamps and `operatorAction`, the one action the admin page, API and MCP may offer next:
 
-- `replay` for a pending intent within its budget, or for an unknown one whose transport can reconcile. `connections.intent.replay` rechecks the generic guards and queues work without clearing uncertainty, leases or backoff. Replay of an unknown intent without reconciliation is refused with `conflict`.
-- `resolve` for an unknown intent that cannot be reconciled (today: every unknown webhook). `connections.intent.resolve` marks it `resolved` after the operator has checked the receiver by hand. It is refused while an attempt holds the lease, it is never sent again, and the command's audit row records who closed it.
+- `replay` for a pending intent within its budget, or for an unknown one whose transport can reconcile. `connection.intent.replay` rechecks the generic guards and queues work without clearing uncertainty, leases or backoff. Replay of an unknown intent without reconciliation is refused with `conflict`.
+- `resolve` for an unknown intent that cannot be reconciled (today: every unknown webhook). `connection.intent.resolve` marks it `resolved` after the operator has checked the receiver by hand. It is refused while an attempt holds the lease, it is never sent again, and the command's audit row records who closed it.
 
 Both require `connections:replay`. Completed, blocked, failed and resolved intents offer no action.
 

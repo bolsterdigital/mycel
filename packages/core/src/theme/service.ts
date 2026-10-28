@@ -1,4 +1,4 @@
-// `theme.check` (ADR 013 consequences): the contrast report an editor shows live and an agent
+// `site.theme.check` (ADR 013 consequences): the contrast report an editor shows live and an agent
 // calls before proposing colours. A query without storage: there is no theme write, table or
 // capability yet (#11 adds them and parses with `Theme`, the same check). A shape error (a colour
 // that is not `#RRGGBB`, a size out of range) is `invalid_input`; a well-formed theme whose
@@ -11,7 +11,7 @@ import { ThemeInput } from './model.js';
 import { DEFAULT_THEME } from './presets.js';
 
 export const checkThemeUseCase = defineUseCase({
-  name: 'theme.check',
+  name: 'site.theme.check',
   kind: 'query',
   description:
     'Check the contrast of a theme in light and dark mode; reports every colour pair and which ones fail, without storing anything.',

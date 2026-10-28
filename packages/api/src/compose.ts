@@ -223,7 +223,7 @@ const Config = z
      */
     AUDIT_RETENTION_DAYS: z.coerce.number().int().min(30).max(3650).default(400),
     /**
-     * How many days an archive a tenant administrator asked for (`tenant.export`, TODO #28) can be
+     * How many days an archive a tenant administrator asked for (`tenant.export.create`, TODO #28) can be
      * downloaded; the daily `tenant.export.expire` deletes it after that. Short on purpose: the
      * archive holds every supporter of the site.
      */

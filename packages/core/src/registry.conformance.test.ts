@@ -97,11 +97,11 @@ describe('a use case that consumes a limit checks it (ADR 015)', () => {
   it('has consumers to check', () => {
     expect(consumers.map((u) => u.name).sort()).toEqual([
       'assist.alt.suggest',
-      'assist.translate.suggest',
-      'forms.submit',
+      'assist.translation.suggest',
+      'form.submit',
       'media.upload',
-      'tenant.hostnames.add',
-      'tenant.members.invite',
+      'tenant.hostname.add',
+      'tenant.member.invite',
     ]);
   });
 
@@ -204,7 +204,12 @@ describe('registry rules catch violations', () => {
       { name: 'content.item.create' },
       /must declare consumes/,
     ],
-    ['forms.submit without consumes', { name: 'forms.submit' }, /must declare consumes/],
+    ['form.submit without consumes', { name: 'form.submit' }, /must declare consumes/],
+    ['a plural module', { name: 'connections.get' }, /module "connections" is not in MODULES/],
+    ['a plural entity', { name: 'tenant.members.list' }, /entity "members" is plural/],
+    ['a verb outside the list', { name: 'site.brand.put' }, /verb "put" is not in VERBS/],
+    ['a noun as the verb', { name: 'content.item.revisions' }, /verb "revisions"/],
+    ['four segments', { name: 'content.item.translation.approve' }, /more than three segments/],
     [
       'an editorial use case open to anonymous principals',
       { authenticatedOnly: false },
@@ -324,7 +329,7 @@ describe('every command leaves exactly one audit row (TODO #17b)', () => {
 
   it('proves the ok row for the commands whose example runs on the probe fixture', () => {
     expect(succeeded).toEqual(
-      expect.arrayContaining(['content.item.create', 'forms.submit', 'tenant.keys.create'])
+      expect.arrayContaining(['content.item.create', 'form.submit', 'tenant.key.create'])
     );
   });
 });

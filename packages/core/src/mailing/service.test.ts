@@ -1,4 +1,4 @@
-// `mailing.confirm` (ADR 010 rule 5) and the confirmation subscriber in memory. The send-once
+// `mailing.opt_in.confirm` (ADR 010 rule 5) and the confirmation subscriber in memory. The send-once
 // contract (ADR 019 rule 6) has its own suite, delivery.test.ts.
 
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -25,7 +25,7 @@ const OTHER = '01900000-0000-7000-8000-00000000bbbb';
 const FORM = '01900000-0000-7000-8000-00000000f000';
 const DAY = 24 * 60 * 60 * 1000;
 
-describe('mailing.confirm', () => {
+describe('mailing.opt_in.confirm', () => {
   let clock: FakeClock;
   let uow: MemoryUnitOfWork;
   let invoker: Invoker;

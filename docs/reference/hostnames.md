@@ -9,7 +9,7 @@ A tenant has one or more hostnames in `tenant_hostnames` (migration 0008):
 | kind       | made by                                     | verified        | removable           |
 | ---------- | ------------------------------------------- | --------------- | ------------------- |
 | `platform` | tenant creation: `<slug>.<PLATFORM_DOMAIN>` | from the start  | never               |
-| `custom`   | the tenant's admin (`tenant.hostnames.add`) | by a TXT record | yes, unless primary |
+| `custom`   | the tenant's admin (`tenant.hostname.add`)  | by a TXT record | yes, unless primary |
 
 Exactly one hostname per tenant is **primary**. The web app decides per request, in `apps/web/src/hooks.server.ts`:
 
@@ -60,4 +60,4 @@ Caddy issues certificates on demand and asks the application first: `GET /intern
 
 ## The API over HTTP and MCP
 
-The same four use cases are available to an API key or an agent with `tenant:admin` (which a key never has, so in practice: the admin UI): `tenant.hostnames.list`, `tenant.hostnames.add`, `tenant.hostnames.verify`, `tenant.hostnames.set_primary`, `tenant.hostnames.remove`. The number of custom domains is an entitlement, `custom_domains.max` (ADR 015 rule 2).
+The same four use cases are available to an API key or an agent with `tenant:admin` (which a key never has, so in practice: the admin UI): `tenant.hostname.list`, `tenant.hostname.add`, `tenant.hostname.verify`, `tenant.hostname.set_primary`, `tenant.hostname.remove`. The number of custom domains is an entitlement, `custom_domains.max` (ADR 015 rule 2).

@@ -9,7 +9,7 @@
 // base had, and only the locales of the document are rendered. Rich text that is unchanged in
 // the textarea keeps its stored JSON exactly, so opening and saving a form never rewrites a
 // document into its canonical form. Validation stays core's: this builds the props as typed and
-// the block schema decides (`content.item.set_props`, `content.item.insert`). Rejected: a Zod
+// the block schema decides (`content.block.update`, `content.block.insert`). Rejected: a Zod
 // walk that derives the form from the schema (unions and refinements make it guesswork, see
 // block-types.ts) and per-type Svelte forms (a new type would need a form before it is editable).
 

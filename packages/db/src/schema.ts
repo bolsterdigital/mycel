@@ -101,7 +101,7 @@ export interface Database {
     default_locale: string;
     locales: string[];
   };
-  /** Seats reserved by `forms.submit` until ingest writes the projection (0010). */
+  /** Seats reserved by `form.submit` until ingest writes the projection (0010). */
   supporter_admissions: {
     tenant_id: string;
     email_hash: string;

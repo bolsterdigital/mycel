@@ -125,7 +125,7 @@ describe('use cases that consume', () => {
       locale: 'nl',
     });
 
-  it('forms.submit refuses a new address at the supporter cap and still takes a known one', async () => {
+  it('form.submit refuses a new address at the supporter cap and still takes a known one', async () => {
     const one = limited({ 'supporters.max': 1 });
     expect((await submit('a@example.org', one)).status).toBe('accepted');
     await uow.drain([supporterIngestSubscriber(uow)]);
@@ -135,7 +135,7 @@ describe('use cases that consume', () => {
     expect((await submit('A@example.org', one)).status).toBe('accepted');
   });
 
-  it('forms.submit checks the cap only after the spam gate', async () => {
+  it('form.submit checks the cap only after the spam gate', async () => {
     const visitor = limited(
       { 'supporters.max': 0 },
       anonymousPrincipal(TENANT, ['forms:write'], 'ip')
@@ -157,7 +157,7 @@ describe('use cases that consume', () => {
       supporters: await ctx.usage.supporters(),
     }));
 
-  it('forms.submit admits at most one new address per free seat while the worker stands still', async () => {
+  it('form.submit admits at most one new address per free seat while the worker stands still', async () => {
     const { supporters } = await seats();
     const capped = limited({ 'supporters.max': supporters + 1 });
     expect((await submit('a@example.org', capped)).status).toBe('accepted');
@@ -174,7 +174,7 @@ describe('use cases that consume', () => {
     expect(await uow.run(admin, (ctx) => ctx.admissions.pending('a@example.org'))).toBe(false);
   });
 
-  it('forms.submit takes a known address at the cap without reserving a seat', async () => {
+  it('form.submit takes a known address at the cap without reserving a seat', async () => {
     await submit('known@example.org', admin);
     await uow.drain([supporterIngestSubscriber(uow)]);
     const { supporters } = await seats();
@@ -185,7 +185,7 @@ describe('use cases that consume', () => {
     expect(await seats()).toEqual({ admissions: supporters, supporters });
   });
 
-  it('tenant.members.invite counts members and pending invitations against operators.max', async () => {
+  it('tenant.member.invite counts members and pending invitations against operators.max', async () => {
     const two = limited({ 'operators.max': 2 });
     const invite = (email: string) =>
       invoker.run(useCases.inviteMember, two, { email, capabilities: ['content:read'] });
@@ -194,7 +194,7 @@ describe('use cases that consume', () => {
     await expectCode(invite('c@example.org'), 'limit_exceeded');
   });
 
-  it('tenant.keys.create needs the api_keys switch', async () => {
+  it('tenant.key.create needs the api_keys switch', async () => {
     const input = { name: 'Sync', capabilities: ['content:read' as const] };
     await expectCode(
       invoker.run(useCases.createKey, limited({ api_keys: false }), input),
@@ -203,7 +203,7 @@ describe('use cases that consume', () => {
     await expect(invoker.run(useCases.createKey, admin, input)).resolves.toHaveProperty('token');
   });
 
-  it('tenant.hostnames.add needs custom_domain and stays within custom_domains.max', async () => {
+  it('tenant.hostname.add needs custom_domain and stays within custom_domains.max', async () => {
     const add = (hostname: string, p: Principal) =>
       invoker.run(useCases.addHostname, p, { hostname });
     await expectCode(add('www.example.org', limited({ custom_domain: false })), 'limit_exceeded');
@@ -212,7 +212,7 @@ describe('use cases that consume', () => {
     await expectCode(add('example.org', one), 'limit_exceeded');
   });
 
-  it('tenant.hostnames.add refuses the host of the platform origin', async () => {
+  it('tenant.hostname.add refuses the host of the platform origin', async () => {
     await expectCode(
       invoker.run(useCases.addHostname, admin, { hostname: 'Admin.Example.org' }),
       'invalid_input'
@@ -284,7 +284,7 @@ describe('a suspended tenant', () => {
   });
 });
 
-describe('tenant.usage and tenant.entitlements.get', () => {
+describe('tenant.usage.get and tenant.entitlements.get', () => {
   it('count this tenant only and show the effective limits', async () => {
     const clock = new FakeClock(new Date('2026-10-21T12:00:00.000Z'));
     const uow = new MemoryUnitOfWork({ clock, platform });

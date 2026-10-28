@@ -102,10 +102,10 @@ describe('vertical probe in memory', () => {
     });
   }
 
-  /** The reasons of the `forms.submit.rejected` lines so far, and that no line names more. */
+  /** The reasons of the `form.submit.rejected` lines so far, and that no line names more. */
   const rejections = () =>
     log.lines
-      .filter((l) => l.message === 'forms.submit.rejected')
+      .filter((l) => l.message === 'form.submit.rejected')
       .map((l) => {
         expect(Object.keys(l.fields).sort()).toEqual(['formId', 'reason']);
         return l.fields['reason'];
@@ -369,7 +369,7 @@ describe('vertical probe in memory', () => {
       locale: 'nl',
     });
     expect(result.status).toBe('accepted');
-    expect(log.lines.map((l) => l.message)).not.toContain('forms.submit.unproven');
+    expect(log.lines.map((l) => l.message)).not.toContain('form.submit.unproven');
   });
 
   // Brief form-intake § D2.4: ALTCHA, with a stricter route instead of a wall without JavaScript.
@@ -428,7 +428,7 @@ describe('vertical probe in memory', () => {
       });
       // The same address with a proof is on the ordinary bucket.
       expect((await submit(email(4), { ip: 'nojs' })).status).toBe('accepted');
-      expect(log.lines.filter((l) => l.message === 'forms.submit.unproven')).toHaveLength(4);
+      expect(log.lines.filter((l) => l.message === 'form.submit.unproven')).toHaveLength(4);
       expect(rejections()).toEqual(['ip-limited']);
       // An hour later the bucket is open again.
       clock.advance(60 * 60 * 1000);

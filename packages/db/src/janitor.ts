@@ -2,7 +2,7 @@
 // (and since TODO #20b the platform's login-limit windows).
 // Runs as `mycel_janitor` (migration 0006) for the duration of one transaction, like the outbox
 // drain runs as `mycel_worker`. It is the handler of the hourly `rate_limits.sweep` job (TODO #15,
-// packages/api/src/jobs.ts). Rejected: deleting from inside `forms.submit` as mycel_app, which
+// packages/api/src/jobs.ts). Rejected: deleting from inside `form.submit` as mycel_app, which
 // would need a delete grant on tenant data for the public form path, and a cron outside the
 // process, which a self-hoster has to remember.
 

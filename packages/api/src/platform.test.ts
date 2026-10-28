@@ -129,7 +129,7 @@ describe.skipIf(!ready)('platform API', () => {
       capabilities: ['forms:write', 'content:read'],
     });
     const submit = () =>
-      app.request('/v1/forms.submit', {
+      app.request('/v1/form.submit', {
         method: 'POST',
         headers: { authorization: `Bearer ${key.token}`, 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -172,14 +172,14 @@ describe.skipIf(!ready)('platform API', () => {
     expect(items.map((r) => [r.operation, r.actorKind, r.result].join(' ')).sort()).toEqual(
       [
         ['platform.tenant.create', 'platform', 'ok'],
-        ['tenant.keys.create', 'system', 'ok'],
+        ['tenant.key.create', 'system', 'ok'],
         ['platform.set_entitlements', 'platform', 'ok'],
-        ['forms.submit', 'api-key', 'limit_exceeded'],
+        ['form.submit', 'api-key', 'limit_exceeded'],
         ['platform.set_entitlements', 'platform', 'ok'],
         ['platform.set_status', 'platform', 'ok'],
-        ['forms.submit', 'api-key', 'suspended'],
+        ['form.submit', 'api-key', 'suspended'],
         ['platform.set_status', 'platform', 'ok'],
-        ['forms.submit', 'api-key', 'ok'],
+        ['form.submit', 'api-key', 'ok'],
       ]
         .map((r) => r.join(' '))
         .sort()

@@ -449,7 +449,7 @@ export const listItems = defineUseCase({
 });
 
 export const listRevisions = defineUseCase({
-  name: 'content.item.revisions',
+  name: 'content.revision.list',
   kind: 'query',
   description: 'List the revisions of an item newest first, with who saved each and when.',
   requires: 'content:read',
@@ -465,7 +465,7 @@ export const listRevisions = defineUseCase({
 });
 
 export const diffRevisions = defineUseCase({
-  name: 'content.item.diff',
+  name: 'content.revision.diff',
   kind: 'query',
   description:
     'Compare two revisions of one item as a list of changed paths with the value before and after.',

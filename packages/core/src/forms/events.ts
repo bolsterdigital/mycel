@@ -13,7 +13,7 @@ export interface NewsletterSubscribedProps {
   confirmed: boolean;
 }
 
-/** Published by `mailing.confirm` for the first click on a confirmation link, never for a second. */
+/** Published by `mailing.opt_in.confirm` for the first click on a confirmation link, never for a second. */
 export interface ConsentGivenProps {
   email: string;
   list: string;

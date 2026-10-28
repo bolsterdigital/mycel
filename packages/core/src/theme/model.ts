@@ -1,6 +1,6 @@
 // A tenant's theme as validated values (ADR 013 rule 1): colours per role pair, a closed font
 // catalogue and bounded numbers, never CSS. Two schemas share one check: `ThemeInput` is the
-// structure (shape, ranges, closed sets) that `theme.check` accepts so an editor can explain a
+// structure (shape, ranges, closed sets) that `site.theme.check` accepts so an editor can explain a
 // contrast failure, and `Theme` is what every later write parses, which also refuses a theme
 // whose contrast fails. The mapping to CSS custom properties belongs to the renderer (#8c,
 // `apps/web/src/lib/theme`); nothing here knows CSS.
