@@ -44,6 +44,7 @@ import {
 import { uuidv7 } from './ids.js';
 import { createTenantIn, getTenant, getTenantBySlug, type PlatformActor } from './platform.js';
 import type { Database } from './schema.js';
+import { setRole } from './roles.js';
 
 type Trx = Kysely<Database>;
 
@@ -522,7 +523,7 @@ async function importDirectory(dir: string, options: ImportOptions): Promise<Imp
         await sql`select ensure_event_partitions(${range.from}::date, ${range.to}::date)`.execute(
           trx
         );
-      await sql`set local role mycel_platform`.execute(trx);
+      await setRole(trx, 'mycel_platform');
       const tenant = await createTenantIn(
         trx,
         {

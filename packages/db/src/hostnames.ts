@@ -3,7 +3,7 @@
 // * `hostnameRepository` runs in a use case's tenant transaction as mycel_app under RLS: one
 //   tenant's hostnames, and nothing else.
 // * `createSiteDirectory` answers "which site is this request for" before a tenant context
-//   exists. Each lookup is one transaction that enters `mycel_auth` with `set local role`, the
+//   exists. Each lookup is one transaction that enters `mycel_auth` through `asRole`, the
 //   pattern of `createIdentityStore`. Its answers are cached in this process for thirty seconds
 //   per hostname (at most ten thousand entries, oldest out), so a busy site does not hit the
 //   database on every request; a change in the admin is live within that window. The answer
@@ -22,6 +22,7 @@ import {
   type TenantInfo,
 } from '@mycel/core';
 import type { Database } from './schema.js';
+import { asRole } from './roles.js';
 
 type Trx = Kysely<Database>;
 
@@ -143,8 +144,7 @@ export function createSiteDirectory(
   const cache = new Map<string, { until: number; site: ResolvedSite | null }>();
 
   async function lookup(hostname: string): Promise<ResolvedSite | null> {
-    const r = await authDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_auth`.execute(trx);
+    const r = await asRole(authDb, 'mycel_auth', async (trx) => {
       return trx
         .selectFrom('tenant_hostnames as h')
         .innerJoin('tenants as t', 't.id', 'h.tenant_id')

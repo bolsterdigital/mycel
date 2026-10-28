@@ -17,6 +17,7 @@ import {
   type SupporterRepository,
 } from '@mycel/core';
 import type { Database } from './schema.js';
+import { advisoryLock } from './roles.js';
 
 type Trx = Kysely<Database>;
 
@@ -212,9 +213,7 @@ export function rateLimiter(trx: Trx, tenantId: string, clock: Clock): RateLimit
       // Same table, its own key and a sliding window: the latest row says when the last success
       // was. The advisory lock serialises two attempts on one key, so exactly one sees no row;
       // rejected: the fixed window of `hit` with max 1 (two mails at 23:59 and 00:01 UTC).
-      await sql`select pg_advisory_xact_lock(hashtextextended(${`rate:${tenantId}:${key}`}, 0))`.execute(
-        trx
-      );
+      await advisoryLock(trx, 'rate', tenantId, key);
       const now = clock.now();
       const recent = await trx
         .selectFrom('rate_limits')
@@ -254,9 +253,7 @@ export function supporterRepository(trx: Trx, tenantId: string, ids: Ids): Suppo
   });
   return {
     async lock(email) {
-      await sql`select pg_advisory_xact_lock(hashtextextended(${`${tenantId}:${email}`}, 0))`.execute(
-        trx
-      );
+      await advisoryLock(trx, 'supporter', tenantId, email);
     },
     async resolve(email) {
       const row = await trx

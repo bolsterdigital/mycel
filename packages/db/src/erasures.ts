@@ -25,6 +25,7 @@ import {
 } from '@mycel/core';
 import { withTenant } from './index.js';
 import type { Database } from './schema.js';
+import { setRole } from './roles.js';
 
 type Trx = Kysely<Database>;
 
@@ -58,7 +59,7 @@ export function erasureRepository(
 
     async apply() {
       try {
-        await sql`set local role mycel_erasure`.execute(trx);
+        await setRole(trx, 'mycel_erasure');
       } catch (e) {
         throw new Error(
           'erasures can only be applied on the operator connection (the worker or `mycel erasures apply`), ' +
@@ -66,7 +67,7 @@ export function erasureRepository(
         );
       }
       const changed = await applyAsEraser(trx);
-      await sql`set local role mycel_app`.execute(trx);
+      await setRole(trx, 'mycel_app');
       return changed;
     },
 
@@ -101,6 +102,10 @@ async function applyAsEraser(trx: Trx): Promise<number> {
   return changed + Number(r.numAffectedRows ?? 0n);
 }
 
+/** The jsonb columns that can carry an address in free form: outbox props, submissions, job payloads. */
+const CARRIER_COLUMNS = ['props', '"values"', 'payload'] as const;
+type CarrierColumn = (typeof CARRIER_COLUMNS)[number];
+
 async function eraseRows(trx: Trx): Promise<number> {
   const registered = await trx.selectFrom('erasures').select('supporter_id').execute();
   if (!registered.length) return 0;
@@ -128,8 +133,11 @@ async function eraseRows(trx: Trx): Promise<number> {
       trx
     )
   ).rows.map((r) => r.a);
-  const carries = (column: string) =>
-    sql`exists (select from unnest(${addresses}::text[]) a where strpos(lower(${sql.raw(column)}::text), a) > 0)`;
+  const carries = (column: CarrierColumn) => {
+    // `sql.raw` splices the name into the statement, so only a column from the list gets there.
+    if (!CARRIER_COLUMNS.includes(column)) throw new Error(`not a carrier column: ${column}`);
+    return sql`exists (select from unnest(${addresses}::text[]) a where strpos(lower(${sql.raw(column)}::text), a) > 0)`;
+  };
 
   let changed = Number(intentChanges.numAffectedRows ?? 0n);
   const count = (r: { numAffectedRows?: bigint }) => (changed += Number(r.numAffectedRows ?? 0n));

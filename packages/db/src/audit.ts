@@ -6,6 +6,7 @@
 import { sql, type Kysely } from 'kysely';
 import { AuditActorKind, type AuditEntry, type AuditLog } from '@mycel/core';
 import type { Database } from './schema.js';
+import { asRole } from './roles.js';
 
 type Row = Database['audit_log'];
 
@@ -65,7 +66,7 @@ export function auditRepository(trx: Kysely<Database>, tenantId: string): AuditL
   };
 }
 
-/** One platform row, inside a transaction that has entered mycel_platform (`asPlatform`). */
+/** One platform row, inside a transaction that has entered mycel_platform (`asRole`). */
 export async function recordPlatformAudit(trx: Kysely<Database>, entry: AuditEntry): Promise<void> {
   if (entry.actorKind !== 'platform')
     throw new Error('a platform audit row has actor_kind platform');
@@ -83,8 +84,7 @@ export async function deleteExpiredAudit(
 ): Promise<number> {
   let total = 0;
   for (;;) {
-    const n = await operatorDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_audit_janitor`.execute(trx);
+    const n = await asRole(operatorDb, 'mycel_audit_janitor', async (trx) => {
       const { rows } = await sql<{ n: string }>`
         with gone as (
           delete from audit_log where id in (

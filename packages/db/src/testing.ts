@@ -11,6 +11,7 @@
 
 import { sql, type Kysely } from 'kysely';
 import type { Database } from './schema.js';
+import { asRole } from './roles.js';
 
 /**
  * Marks the open outbox rows and open jobs of `tenantIds` as handled, as `mycel_worker` (the
@@ -26,8 +27,7 @@ export async function closeTenantWork(
   const ids = tenantIds.filter((id) => id !== '');
   if (ids.length === 0) return;
   const types = options.jobTypes ? [...options.jobTypes] : null;
-  await operatorDb.transaction().execute(async (trx) => {
-    await sql`set local role mycel_worker`.execute(trx);
+  await asRole(operatorDb, 'mycel_worker', async (trx) => {
     if (!types)
       await sql`update outbox set processed_at = now()
                 where processed_at is null and tenant_id = any(${ids}::uuid[])`.execute(trx);

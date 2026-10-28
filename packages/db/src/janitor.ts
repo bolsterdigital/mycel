@@ -8,6 +8,7 @@
 
 import { sql, type Kysely } from 'kysely';
 import type { Database } from './schema.js';
+import { asRole } from './roles.js';
 
 /** Windows are at most an hour long (RATE_LIMITS); a day of slack keeps the counters honest. */
 const KEEP = '1 day';
@@ -18,8 +19,7 @@ const KEEP = '1 day';
  * many rows went.
  */
 export async function sweepRateLimits(operatorDb: Kysely<Database>): Promise<number> {
-  return operatorDb.transaction().execute(async (trx) => {
-    await sql`set local role mycel_janitor`.execute(trx);
+  return asRole(operatorDb, 'mycel_janitor', async (trx) => {
     const { rows } = await sql<{ n: string }>`
       with gone as (
         delete from rate_limits where window_start < now() - ${KEEP}::interval returning 1
