@@ -153,7 +153,7 @@ test.describe('UI gate: the status action groups at 320 CSS px and 200% text', (
             const width = document.documentElement.clientWidth;
             if (document.documentElement.scrollWidth > width)
               out.push(`page scrolls sideways: ${document.documentElement.scrollWidth} > ${width}`);
-            for (const b of document.querySelectorAll('main button, main a.button')) {
+            for (const b of document.querySelectorAll('main button, main a.ui-button')) {
               const r = b.getBoundingClientRect();
               const label = b.textContent?.trim() ?? '';
               if (b.scrollWidth > b.clientWidth + 1) out.push(`clipped: ${label}`);

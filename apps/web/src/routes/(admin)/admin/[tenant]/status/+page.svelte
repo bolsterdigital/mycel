@@ -1,15 +1,28 @@
-<!-- The status page of a site (TODO #17c): stuck tasks with "try again" and "close", mail with an
-     uncertain outcome, the latest actions and the diagnosis to share, every action a native form
-     post. Each task's action group wraps whole buttons onto a new line when they do not fit
-     (skill ui-action-layout); e2e/status.spec.ts checks 320 CSS px and 200% text. The diagnosis
-     stands on the page as text and in a read-only field to copy from; nothing sends it. An erasure
-     no backup holds after an hour (TODO #29B) is a notice above everything else. -->
+<!-- The status page of a site (TODO #17c) on the shared admin components (brief #56): stuck tasks
+     with "try again" and "close", mail with an uncertain outcome, the latest actions and the
+     diagnosis to share, every action a native form post. Each task is a card with its facts as a
+     MetaList and its action group in the card footer; the group wraps whole buttons (skill
+     ui-action-layout), e2e/status.spec.ts checks 320 CSS px and 200% text. The diagnosis stands
+     on the page as text and in a read-only field to copy from; nothing sends it. An erasure no
+     backup holds after an hour (TODO #29B) is a warning above everything else. -->
 <script lang="ts">
+  import {
+    Actions,
+    Button,
+    Card,
+    CardGrid,
+    EmptyState,
+    Field,
+    MetaList,
+    Notice,
+    PageHeader,
+  } from '#lib/admin/ui/index.js';
   import { fill, ui, type UiKey } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
   const t = $derived(ui(data.locale));
+  const base = $derived(`/admin/${data.tenant.slug}`);
   const status = $derived(data.status);
 
   const failed = $derived(form && 'error' in form ? form : null);
@@ -19,6 +32,35 @@
     new Intl.DateTimeFormat(data.locale, { dateStyle: 'medium', timeStyle: 'short' })
   );
   const at = (iso: string) => when.format(new Date(iso));
+  type Job = (typeof status.jobs)[number];
+  type Mail = (typeof status.mails)[number];
+  const jobFacts = (job: Job) => [
+    { term: t('admin.status.job.key'), value: job.key },
+    {
+      term: t('admin.status.job.attempts'),
+      value: fill(t('admin.status.job.attemptsValue'), {
+        attempts: job.attempts,
+        max: job.maxAttempts,
+      }),
+    },
+    {
+      term: t('admin.status.job.lastError'),
+      value: job.lastError ?? t('admin.status.job.noError'),
+    },
+    { term: t('admin.status.job.created'), value: at(job.createdAt) },
+  ];
+  const mailFacts = (mail: Mail) => [
+    { term: t('admin.status.mail.subscriber'), value: mail.subscriber },
+    { term: t('admin.status.job.attempts'), value: String(mail.attempts) },
+    { term: t('admin.status.mail.attempted'), value: at(mail.attemptedAt) },
+    ...(mail.abandonedAt
+      ? [{ term: t('admin.status.mail.abandonedAt'), value: at(mail.abandonedAt) }]
+      : []),
+    {
+      term: t('admin.status.job.lastError'),
+      value: mail.lastError ?? t('admin.status.job.noError'),
+    },
+  ];
 </script>
 
 <svelte:head>
@@ -28,120 +70,96 @@
 </svelte:head>
 
 <main class="page admin">
-  <h1>{t('admin.status.title')}</h1>
-  <p>
-    <a href="/admin/{data.tenant.slug}"
-      >{fill(t('admin.status.back'), { name: data.tenant.name })}</a
-    >
-  </p>
+  <PageHeader
+    title={t('admin.status.title')}
+    locale={data.locale}
+    breadcrumb={[{ label: data.tenant.name, href: base }, { label: t('admin.status.title') }]}
+  />
 
   {#if failed}
-    <div class="error-summary" role="alert">
-      <h2>{t('error.summary.title')}</h2>
-      <p>{t(failed.error as UiKey)}</p>
-    </div>
+    <Notice tone="error" title={t('error.summary.title')}><p>{t(failed.error as UiKey)}</p></Notice>
   {/if}
   {#if done}
-    <div class="notice" role="status">
-      <p>{t(done.done as UiKey)}</p>
-    </div>
+    <Notice tone="success"><p>{t(done.done as UiKey)}</p></Notice>
   {/if}
   {#if confirming}
-    <form method="post" action="?/close" class="notice" aria-labelledby="close-title">
-      <h2 id="close-title">{fill(t('admin.status.close.title'), { type: confirming.type })}</h2>
-      <p>{t('admin.status.close.body')}</p>
-      <input type="hidden" name="id" value={confirming.id} />
-      <input type="hidden" name="confirm" value="yes" />
-      <div class="actions">
-        <button type="submit">{t('admin.status.close.confirm')}</button>
-        <a class="button secondary" href="/admin/{data.tenant.slug}/status">
-          {t('admin.status.close.cancel')}
-        </a>
-      </div>
-    </form>
+    <Notice tone="warning">
+      <form method="post" action="?/close" aria-labelledby="close-title">
+        <h2 id="close-title">{fill(t('admin.status.close.title'), { type: confirming.type })}</h2>
+        <p>{t('admin.status.close.body')}</p>
+        <input type="hidden" name="id" value={confirming.id} />
+        <input type="hidden" name="confirm" value="yes" />
+        <Actions>
+          <Button variant="danger">{t('admin.status.close.confirm')}</Button>
+          <Button variant="secondary" href="{base}/status">{t('admin.status.close.cancel')}</Button>
+        </Actions>
+      </form>
+    </Notice>
   {/if}
 
   {#if status.erasures.late && status.erasures.oldestUnsecuredAt}
-    <section class="notice" aria-labelledby="erasures">
-      <h2 id="erasures">{t('admin.status.erasures.title')}</h2>
+    <Notice tone="warning" title={t('admin.status.erasures.title')}>
       <p>
         {fill(t('admin.status.erasures.body'), {
           count: String(status.erasures.unsecured),
           time: at(status.erasures.oldestUnsecuredAt),
         })}
       </p>
-    </section>
+    </Notice>
   {/if}
 
   {#if status.jobs.length === 0 && status.mails.length === 0 && !status.erasures.late}
-    <p>{t('admin.status.nothing')}</p>
+    <EmptyState title={t('admin.status.nothing')} />
   {/if}
 
   <section aria-labelledby="jobs">
     <h2 id="jobs">{t('admin.status.jobs.title')}</h2>
-    <p class="muted">{t('admin.status.jobs.intro')}</p>
+    <p class="ui-hint">{t('admin.status.jobs.intro')}</p>
     {#if status.jobs.length === 0}
       <p>{t('admin.status.jobs.none')}</p>
+    {:else}
+      <CardGrid items={status.jobs} key={(job) => job.id}>
+        {#snippet card(job)}
+          <Card title={job.type}>
+            <MetaList items={jobFacts(job)} />
+            {#snippet footer()}
+              <form method="post">
+                <input type="hidden" name="id" value={job.id} />
+                <input type="hidden" name="type" value={job.type} />
+                <Actions>
+                  <Button formaction="?/retry">{t('admin.status.job.retry')}</Button>
+                  <Button variant="secondary" formaction="?/close"
+                    >{t('admin.status.job.close')}</Button
+                  >
+                </Actions>
+              </form>
+            {/snippet}
+          </Card>
+        {/snippet}
+      </CardGrid>
     {/if}
-    {#each status.jobs as job (job.id)}
-      <article class="card" aria-labelledby="job-{job.id}">
-        <h3 id="job-{job.id}">{job.type}</h3>
-        <dl>
-          <dt>{t('admin.status.job.key')}</dt>
-          <dd><code>{job.key}</code></dd>
-          <dt>{t('admin.status.job.attempts')}</dt>
-          <dd>
-            {fill(t('admin.status.job.attemptsValue'), {
-              attempts: job.attempts,
-              max: job.maxAttempts,
-            })}
-          </dd>
-          <dt>{t('admin.status.job.lastError')}</dt>
-          <dd>{job.lastError ?? t('admin.status.job.noError')}</dd>
-          <dt>{t('admin.status.job.created')}</dt>
-          <dd><time datetime={job.createdAt}>{at(job.createdAt)}</time></dd>
-        </dl>
-        <form method="post" class="actions">
-          <input type="hidden" name="id" value={job.id} />
-          <input type="hidden" name="type" value={job.type} />
-          <button type="submit" formaction="?/retry">{t('admin.status.job.retry')}</button>
-          <button type="submit" formaction="?/close" class="secondary">
-            {t('admin.status.job.close')}
-          </button>
-        </form>
-      </article>
-    {/each}
   </section>
 
   <section aria-labelledby="mail">
     <h2 id="mail">{t('admin.status.mail.title')}</h2>
-    <p class="muted">{t('admin.status.mail.intro')}</p>
+    <p class="ui-hint">{t('admin.status.mail.intro')}</p>
     {#if status.mails.length === 0}
       <p>{t('admin.status.mail.none')}</p>
+    {:else}
+      <CardGrid items={status.mails.map((mail, i) => ({ mail, i }))} key={({ i }) => String(i)}>
+        {#snippet card({ mail })}
+          <Card
+            title={t(
+              mail.state === 'abandoned'
+                ? 'admin.status.mail.abandoned'
+                : 'admin.status.mail.unknown'
+            )}
+          >
+            <MetaList items={mailFacts(mail)} />
+          </Card>
+        {/snippet}
+      </CardGrid>
     {/if}
-    {#each status.mails as mail, i (i)}
-      <article class="card" aria-labelledby="mail-{i}">
-        <h3 id="mail-{i}">
-          {t(
-            mail.state === 'abandoned' ? 'admin.status.mail.abandoned' : 'admin.status.mail.unknown'
-          )}
-        </h3>
-        <dl>
-          <dt>{t('admin.status.mail.subscriber')}</dt>
-          <dd><code>{mail.subscriber}</code></dd>
-          <dt>{t('admin.status.job.attempts')}</dt>
-          <dd>{mail.attempts}</dd>
-          <dt>{t('admin.status.mail.attempted')}</dt>
-          <dd><time datetime={mail.attemptedAt}>{at(mail.attemptedAt)}</time></dd>
-          {#if mail.abandonedAt}
-            <dt>{t('admin.status.mail.abandonedAt')}</dt>
-            <dd><time datetime={mail.abandonedAt}>{at(mail.abandonedAt)}</time></dd>
-          {/if}
-          <dt>{t('admin.status.job.lastError')}</dt>
-          <dd>{mail.lastError ?? t('admin.status.job.noError')}</dd>
-        </dl>
-      </article>
-    {/each}
   </section>
 
   <section aria-labelledby="audit">
@@ -166,11 +184,12 @@
 
   <section aria-labelledby="diagnosis">
     <h2 id="diagnosis">{t('admin.status.diagnosis.title')}</h2>
-    <p class="muted">{t('admin.status.diagnosis.intro')}</p>
+    <p class="ui-hint">{t('admin.status.diagnosis.intro')}</p>
     <pre class="diagnosis">{status.diagnosis}</pre>
-    <div class="field">
-      <label for="diagnosis-copy">{t('admin.status.diagnosis.copy')}</label>
-      <textarea id="diagnosis-copy" readonly rows="8">{status.diagnosis}</textarea>
-    </div>
+    <Field id="diagnosis-copy" label={t('admin.status.diagnosis.copy')} locale={data.locale}>
+      {#snippet control(attributes)}
+        <textarea {...attributes} readonly rows="8">{status.diagnosis}</textarea>
+      {/snippet}
+    </Field>
   </section>
 </main>

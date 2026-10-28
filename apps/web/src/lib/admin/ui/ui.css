@@ -127,16 +127,24 @@
   .ui-field.invalid textarea {
     border-color: var(--status-error-fg);
   }
+  /* The drop zone may wrap: at 320 CSS px and 200% text the browser's button and its "no file
+     chosen" line cannot share one row, and a clipped button label fails the UI gate. */
   .ui-field input.ui-filedrop {
-    padding: var(--space-3) var(--space-2);
+    inline-size: 100%;
+    min-inline-size: 0;
+    white-space: normal;
+    padding: var(--space-3) var(--space-1);
     border-style: dashed;
     background: var(--color-body-bg);
     cursor: pointer;
   }
   .ui-filedrop::file-selector-button {
+    max-inline-size: 100%;
+    white-space: normal;
+    overflow-wrap: normal;
     min-height: var(--tap);
     margin-inline-end: var(--space-1);
-    padding: 0.5rem 0.875rem;
+    padding: 0.5rem;
     font: inherit;
     font-weight: 600;
     color: var(--color-link);

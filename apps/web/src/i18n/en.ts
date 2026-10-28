@@ -883,6 +883,10 @@ export const en = {
   'admin.ui.pattern.filter': 'Search by file name',
   'admin.ui.pattern.filter.submit': 'Search',
   'admin.ui.pattern.contact.email': 'E-mail address for replies',
+  'admin.site.lead': 'The colours, logo and links that every page of the public site shares.',
+  'admin.site.sections': 'Settings subjects',
+  'admin.site.group.type': 'Typography and spacing',
+  'admin.connections.edit': 'Edit details',
 } as const;
 
 export type UiKey = keyof typeof en;
