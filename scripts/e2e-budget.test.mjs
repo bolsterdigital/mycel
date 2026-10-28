@@ -2,7 +2,7 @@
 // consent or access changes hands, target ten. The suite had grown to nineteen specs with eleven
 // copies of the login, ten of the axe check and fifteen of the layout gate, in five variants, so a
 // check added to one copy never reached the others (TODO #50). Each shared check now lives once in
-// apps/web/e2e/lib/ and this test keeps it there; the spec count is a ratchet that only goes down.
+// apps/web/e2e/lib/ and this test keeps it there; the suite holds ten specs, each naming its flow.
 // Run by `npm run lint:infra`, offline.
 // Rejected: a lint rule per pattern (the e2e folder is outside the typechecked and linted
 // workspace sources) and a review checklist (the copies arrived through reviewed PRs).
@@ -15,8 +15,11 @@ import assert from 'node:assert/strict';
 
 const dir = fileURLToPath(new URL('../apps/web/e2e/', import.meta.url));
 
-/** Specs today. Lower it with every spec that goes; testing.md's target is ten. */
-export const MAX_SPECS = 19;
+/** testing.md's budget. A new flow replaces a spec or makes the case to raise this in review. */
+export const MAX_SPECS = 10;
+
+/** The first line of a spec names its flow; the generic gate names none. */
+export const FLOW = /^\/\/ flow: (money|consent|access|publish|none, the generic gate)\b/;
 
 /** What only apps/web/e2e/lib/ may hold, with the specs that still may and why. */
 export const RULES = [
@@ -34,14 +37,14 @@ export const RULES = [
 /**
  * Deliberate exceptions, `<spec>: <rule name>` with the reason. The logout and the second-login
  * test meet the IdP on purpose; the quality corpus keeps axe's `incomplete` results as evidence;
- * site settings resets the text size before it measures CSS zoom on its own; the grid compositions
- * record overflow with the rails they attach as evidence.
+ * on the public site, site settings resets the text size before it measures CSS zoom on its own
+ * and the grid compositions record overflow with the rails they attach as evidence.
  */
 export const ALLOWED = new Set([
   'admin.spec.ts: a login helper',
   'quality-corpus.spec.ts: an axe helper',
-  'site-settings.spec.ts: a text-size setter',
-  'grid-compositions.spec.ts: a layout gate',
+  'public-site.spec.ts: a text-size setter',
+  'public-site.spec.ts: a layout gate',
 ]);
 
 /** Violations in `files`, a map of spec name to source. */
@@ -61,9 +64,16 @@ const specs = () =>
       .map((name) => [name, readFileSync(join(dir, name), 'utf8')])
   );
 
-test('the spec count stays within its ratchet', () => {
+test('the spec count stays within its budget', () => {
   const count = Object.keys(specs()).length;
-  assert.ok(count <= MAX_SPECS, `${count} specs, budget ${MAX_SPECS} (testing.md: target ten)`);
+  assert.ok(count <= MAX_SPECS, `${count} specs, budget ${MAX_SPECS} (testing.md)`);
+});
+
+test('every spec names its flow on its first line', () => {
+  const untagged = Object.entries(specs())
+    .filter(([, source]) => !FLOW.test(source))
+    .map(([name]) => name);
+  assert.deepEqual(untagged, []);
 });
 
 test('every shared check lives once, in apps/web/e2e/lib/', () => {

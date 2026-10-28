@@ -154,7 +154,8 @@
       "adrs": ["009", "013", "020"],
       "gates": [
         "apps/web/src/lib/blocks/blocks.conformance.test.ts",
-        "apps/web/e2e/blocks.spec.ts",
+        "apps/web/e2e/ui-gate.spec.ts",
+        "apps/web/e2e/public-site.spec.ts",
         "apps/web/e2e/admin.spec.ts"
       ],
       "counterproof": "The task once with JavaScript off and once with the keyboard only; a screenshot at 320 px and at 200 % zoom in the PR (the UI gate)."
@@ -174,7 +175,7 @@
       ],
       "adrs": ["007", "012", "018"],
       "gates": [
-        "apps/web/e2e/content-routes.spec.ts",
+        "apps/web/e2e/public-site.spec.ts",
         "apps/web/src/lib/server/http-cache.test.ts",
         "packages/api/src/content-read.test.ts"
       ],

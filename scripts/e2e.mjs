@@ -255,7 +255,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
     });
   }
 
-  // An article with an author and a section, published in nl and en, for content-routes.spec.ts
+  // An article with an author and a section, published in nl and en, for public-site.spec.ts
   // (TODO #8c2): `/articles/<slug>`, its `/en/` twin, and the public metadata of the read route.
   const story = { type: 'article', slug: 'bomen-in-de-straat' };
   if (!(await invoker.run(useCases.listItems, admin, story)).items.length) {
@@ -317,7 +317,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
       });
   }
 
-  // Two composed pages for blocks.spec.ts (TODO #8c1): a campaign and an article, in nl and en,
+  // Two composed pages for public-site.spec.ts (TODO #8c1): a campaign and an article, in nl and en,
   // built from the registry's own examples with the example ids swapped for real data: two
   // uploaded images, the signup page as the linked item and its form. `artikel` stays a page:
   // the block suite is about blocks, the article route has its own fixture above.
@@ -362,7 +362,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
       ],
     },
   };
-  // And one page per registry example for blocks-registry.spec.ts (TODO #30B): slug
+  // And one page per registry example for ui-gate.spec.ts (TODO #30B): slug
   // `blok-<example name>`, the example alone, in nl and en. Walked from the registry, so a new
   // example is seeded and checked without a list here or in the spec. A paywall is only valid
   // with the marker teaser (ADR 016); the page stays public, so the boundary renders nothing.
@@ -375,7 +375,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
         ...(type === 'paywall' && { access: { level: 'public', teaser: 'marker' } }),
       };
   // And one page per Playwright project with the first example of every type, for
-  // content-blocks.spec.ts (TODO #11 B): each block edited once without JavaScript. One per
+  // content-admin.spec.ts (TODO #11 B): each block edited once without JavaScript. One per
   // project, because both projects run that spec at the same time and would conflict on one page.
   for (const project of ['no-js', 'a11y'])
     pages[`e2e-blokken-${project}`] = {
@@ -627,7 +627,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
   // An author and a section beyond the first page of the admin's pickers (a hundred, newest
   // first), with 101 newer ones after them, for content-admin.spec.ts (review of PR #45). Seeded
   // once: every later author or section is newer still. Here and not in the spec, so a run does
-  // not flood the audit log that status.spec.ts reads.
+  // not flood the audit log that the status part of admin.spec.ts reads.
   if (!(await uow.run(admin, (ctx) => ctx.authors.findBySlug('e2e-ver-auteur')))) {
     await invoker.run(useCases.createAuthor, admin, { slug: 'e2e-ver-auteur', name: 'Ver Weg' });
     await invoker.run(useCases.createSection, admin, {

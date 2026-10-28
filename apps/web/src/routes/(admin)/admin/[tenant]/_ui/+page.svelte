@@ -1,5 +1,5 @@
 <!-- The component catalogue (brief #56 PR 1): each component once, with the longest real labels of
-     the admin, so the UI gate in e2e/admin-ui.spec.ts measures what screens will show. Copy comes
+     the admin, so the UI gate in e2e/ui-gate.spec.ts measures what screens will show. Copy comes
      from the catalogs; the file names are sample data. -->
 <script lang="ts">
   import {

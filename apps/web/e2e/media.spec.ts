@@ -1,3 +1,4 @@
+// flow: publish
 // Media admin (TODO #10b, brief #56 § C1): an operator uploads an image through the admin's
 // multipart form, sees its thumbnail in the library grid and the list, opens its own page with a
 // preview and a lightbox, edits its credit, downloads the original, and the site serves a variant

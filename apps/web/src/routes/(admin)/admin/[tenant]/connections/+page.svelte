@@ -2,7 +2,7 @@
      with its facts as a MetaList, the details form folded away (it rarely changes, skill
      cms-inrichting), the signing secret, one action group and the latest delivery attempts.
      Every action is a native form post; no credential, payload or error body is rendered after
-     submission. Action groups wrap whole buttons; e2e/connections.spec.ts checks 320 CSS px and
+     submission. Action groups wrap whole buttons; e2e/admin.spec.ts checks 320 CSS px and
      200% text. -->
 <script lang="ts">
   import {
