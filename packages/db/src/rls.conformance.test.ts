@@ -850,7 +850,8 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
   // the image's superuser, so a database without it (the Mac) passes on the first assertion
   // alone; the drill, the compose stack and recordBackup above (as superuser) have it. This is the
   // one place for RLS bypass: the runtime logins' superuser and ownership flags are in
-  // operators.test.ts, mycel_platform's in entitlements.test.ts.
+  // operators.test.ts, mycel_platform's in entitlements.test.ts. Insert and update are read per
+  // column too: has_table_privilege alone misses a `grant update (col)`.
   it('lets no role but mycel_backup bypass RLS, and that one only read and record backups', async () => {
     const { rows: bypassing } = await sql<{ name: string }>`
       select rolname as name from pg_roles
@@ -867,10 +868,10 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
                    where c.relowner = r.oid and c.relnamespace = 'public'::regnamespace) as owns,
              array(select distinct c.relname::text from pg_class c
                    where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')
-                     and has_table_privilege(r.oid, c.oid, 'insert')) as inserts,
+                     and has_any_column_privilege(r.oid, c.oid, 'insert')) as inserts,
              array(select distinct c.relname::text from pg_class c
                    where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')
-                     and (has_table_privilege(r.oid, c.oid, 'update')
+                     and (has_any_column_privilege(r.oid, c.oid, 'update')
                        or has_table_privilege(r.oid, c.oid, 'delete')
                        or has_table_privilege(r.oid, c.oid, 'truncate'))) as changes
       from pg_roles r where r.rolname = 'mycel_backup'`.execute(operatorDb);
