@@ -333,7 +333,9 @@
     align-content: start;
     gap: var(--space-0);
     min-width: 0;
-    padding: var(--space-1) var(--space-2);
+    /* Inline padding capped by the viewport, as on .ui-button: at 320 CSS px and 200% text a
+       rem-based gutter alone left a button narrower than its longest word in DejaVu Sans (CI). */
+    padding: var(--space-1) min(var(--space-2), 4vw);
     overflow-wrap: anywhere;
   }
   .ui-card-body > * {
