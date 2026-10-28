@@ -1,9 +1,10 @@
 // Block operations and discovery in memory (ADR 020 rules 4, 6 and 7): id preservation, the
 // created/retired/merged report, lossless normalisation, split-and-insert, typed refusals, block
-// switches, and `content.item.find` with draft/live separation. A seeded random sequence of
+// switches, and `content.item.find` with draft/live separation. A fast-check sequence of
 // operations checks the tree invariants after every step. The database conformance repeats the
 // lock, the refs table and RLS against Postgres.
 
+import fc from 'fast-check';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_ENTITLEMENTS } from '../entitlements/model.js';
 import { Invoker } from '../invoke.js';
@@ -451,21 +452,11 @@ describe('block operations', () => {
   });
 });
 
-/** mulberry32, as in lifecycle.test.ts: a failing seed replays the exact sequence. */
-function random(seed: number): () => number {
-  let a = seed;
-  return () => {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
 describe('block operations, random sequences', () => {
-  async function runSequence(seed: number, steps: number): Promise<void> {
-    const rnd = random(seed);
-    const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rnd() * xs.length)]!;
+  // fast-check draws each choice as the sequence runs (as in lifecycle.test.ts); a failure is
+  // shrunk and printed with the seed and path that replay it.
+  async function runSequence(g: fc.GeneratorValue, steps: number): Promise<void> {
+    const pick = <T>(xs: readonly T[]): T => g(fc.constantFrom, ...xs);
     const uow = new MemoryUnitOfWork();
     const invoker = new Invoker(buildRegistry(), uow);
     const admin = systemPrincipal(TENANT, 'property');
@@ -536,8 +527,8 @@ describe('block operations, random sequences', () => {
           ...base,
           blockId: t.id,
           at: {
-            nl: 1 + Math.floor(rnd() * Math.max(1, len('nl') - 1)),
-            en: 1 + Math.floor(rnd() * Math.max(1, len('en') - 1)),
+            nl: g(fc.integer, { min: 1, max: Math.max(1, len('nl') - 1) }),
+            en: g(fc.integer, { min: 1, max: Math.max(1, len('en') - 1) }),
           },
           block: card(),
         });
@@ -565,12 +556,11 @@ describe('block operations, random sequences', () => {
     }
   }
 
-  it.each(Array.from({ length: 25 }, (_, i) => i + 1))('seed %i', async (seed) => {
-    try {
-      await runSequence(seed, 40);
-    } catch (e) {
-      throw new Error(`seed ${seed}: ${(e as Error).message}`);
-    }
+  it('keeps the tree invariants for 40 random steps', async () => {
+    await fc.assert(
+      fc.asyncProperty(fc.gen(), (g) => runSequence(g, 40)),
+      { numRuns: 25 }
+    );
   });
 });
 
