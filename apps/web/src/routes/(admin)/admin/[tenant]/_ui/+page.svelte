@@ -23,6 +23,7 @@
     Table,
   } from '#lib/admin/ui/index.js';
   import { fill, ui } from '../../../../../i18n/index.js';
+  import { PATTERNS } from './patterns.js';
   import type { PageProps } from './$types';
 
   let { data }: PageProps = $props();
@@ -61,6 +62,16 @@
       <Button href="{base}/media">{t('admin.media.upload.title')}</Button>
     {/snippet}
   </PageHeader>
+
+  <section aria-labelledby="ui-patterns">
+    <h2 id="ui-patterns">{t('admin.ui.catalogue.patterns')}</h2>
+    <p>{t('admin.ui.catalogue.patterns.intro')}</p>
+    <ul class="ui-meta-links">
+      {#each PATTERNS as pattern (pattern)}
+        <li><a href="{here}/{pattern}">{t(`admin.ui.pattern.${pattern}`)}</a></li>
+      {/each}
+    </ul>
+  </section>
 
   <section aria-labelledby="ui-buttons">
     <h2 id="ui-buttons">{t('admin.ui.catalogue.buttons')}</h2>

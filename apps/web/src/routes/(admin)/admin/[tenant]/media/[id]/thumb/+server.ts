@@ -11,6 +11,6 @@ export const GET: RequestHandler = async ({ params, locals, url }) =>
     runtime(),
     await adminMediaPrincipal(locals, params.tenant),
     params.id,
-    'thumb',
+    'thumb.webp',
     url
   );

@@ -170,7 +170,7 @@ async function ready(page: Page) {
 async function imagePage(page: Page, project: string) {
   await page.goto(`${base(page)}/media`);
   const example = useCases.uploadMedia.examples[0]!.input;
-  await page.getByLabel(/^(Bestand|File)$/, { exact: true }).setInputFiles({
+  await page.getByLabel(/^(Bestand \(verplicht\)|File \(required\))$/).setInputFiles({
     name: 'assist.png',
     mimeType: 'image/png',
     buffer: Buffer.from(example.bytes, 'base64'),

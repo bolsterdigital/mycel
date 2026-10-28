@@ -112,7 +112,8 @@ export async function serveMedia(
   });
 }
 
-// The admin's own files (TODO #10b): the original for download and the thumbnail for the list.
+// The admin's own files (TODO #10b): the original for download, the thumbnail for the list and
+// (brief #56) any other variant for the detail page's preview and lightbox.
 // The admin runs on the platform origin, never on a tenant hostname (ADR 014 rule 4), so it
 // cannot use the site's `/media/...` route; and that route never serves an original. Both answer
 // only to an operator of the tenant (RLS reads the row under the operator's principal, so another
@@ -124,7 +125,7 @@ export async function serveMedia(
 //   original without a valid signature                          -> 403
 //   unknown id, another site's id, deleted, no such file        -> 404
 //   original with one                                           -> 200, attachment, no-store
-//   thumbnail                                                   -> 200, private, max-age=300
+//   thumbnail or another variant                                -> 200, private, max-age=300
 
 /** How long a download link for an original works (brief #10 decision 10). */
 export const ORIGINAL_TTL_MS = 10 * 60 * 1000;
@@ -156,16 +157,18 @@ export async function serveAdminMedia(
   /** The operator's principal for this tenant, or null without a session or membership. */
   principal: Principal | null,
   id: string,
-  which: 'original' | 'thumb',
+  /** `original`, or a variant's file name (`thumb.webp`, `w960.webp`). */
+  which: 'original' | (string & {}),
   url: URL
 ): Promise<Response> {
   if (!principal || !can(principal, 'media:read')) return status(403, 'private, no-store');
   if (!UUID.test(id)) return status(404);
+  const original = which === 'original';
+  if (!original && !FILE.test(which)) return status(404);
   const media = await deps.uow.run(principal, (ctx) => ctx.media.get(id));
   if (!media || media.deletedAt || media.state !== 'ready') return status(404);
 
-  const original = which === 'original';
-  const file = original ? downloadFile(media) : 'thumb.webp';
+  const file = original ? downloadFile(media) : which;
   if (
     original &&
     !(await verifyMediaSignature(

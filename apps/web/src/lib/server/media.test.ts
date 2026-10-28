@@ -49,7 +49,8 @@ async function setup() {
   const admin = (
     principal: Principal | null,
     id: string,
-    which: 'original' | 'thumb',
+    /** `original` or a variant's file name. */
+    which: string,
     query = ''
   ) =>
     serveAdminMedia(
@@ -211,7 +212,7 @@ describe('admin media files', () => {
     expect(res.headers.get('content-type')).toBe('application/pdf');
     expect(res.headers.get('content-disposition')).toBe('attachment; filename="verslag.pdf"');
     // A PDF has no thumbnail.
-    expect((await admin(operator(), m.id, 'thumb')).status).toBe(404);
+    expect((await admin(operator(), m.id, 'thumb.webp')).status).toBe(404);
   });
 
   it('answers 404 for another site’s asset, even with a valid signature', async () => {
@@ -219,19 +220,34 @@ describe('admin media files', () => {
     const m = await upload();
     const query = await signed(signer, clock, m);
     expect((await admin(operator(OTHER), m.id, 'original', query)).status).toBe(404);
-    expect((await admin(operator(OTHER), m.id, 'thumb')).status).toBe(404);
+    expect((await admin(operator(OTHER), m.id, 'thumb.webp')).status).toBe(404);
     expect((await admin(operator(), 'not-a-uuid', 'original', query)).status).toBe(404);
   });
 
   it('serves the thumbnail to an operator, privately, and nothing once deleted', async () => {
     const { upload, admin, remove } = await setup();
     const m = await upload({ access: 'restricted' });
-    expect((await admin(null, m.id, 'thumb')).status).toBe(403);
-    const res = await admin(operator(), m.id, 'thumb');
+    expect((await admin(null, m.id, 'thumb.webp')).status).toBe(403);
+    const res = await admin(operator(), m.id, 'thumb.webp');
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('image/webp');
     expect(res.headers.get('cache-control')).toBe('private, max-age=300');
     await remove(m.id);
-    expect((await admin(operator(), m.id, 'thumb')).status).toBe(404);
+    expect((await admin(operator(), m.id, 'thumb.webp')).status).toBe(404);
+  });
+
+  it('serves another variant for the preview, never the original under a variant name', async () => {
+    const { upload, admin } = await setup();
+    const m = await upload({ access: 'restricted' });
+    const variant = m.variants.find((v) => v.name.startsWith('w') && v.format === 'webp');
+    expect(variant).toBeTruthy();
+    const file = `${variant!.name}.webp`;
+    expect((await admin(null, m.id, file)).status).toBe(403);
+    const res = await admin(operator(), m.id, file);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('image/webp');
+    expect(res.headers.get('cache-control')).toBe('private, max-age=300');
+    for (const other of ['original.png', 'w99999.webp', '..%2Fthumb.webp', 'thumb.png'])
+      expect((await admin(operator(), m.id, other)).status, other).toBe(404);
   });
 });
