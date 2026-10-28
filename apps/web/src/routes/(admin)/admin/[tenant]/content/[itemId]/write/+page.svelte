@@ -12,7 +12,7 @@
   import { ui } from '../../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
-  let isSafeHref: (typeof import('@mycel/core'))['isSafeHref'] = () => false;
+  let isSafeHref: typeof import('@mycel/core').isSafeHref = () => false;
 
   let { data }: PageProps = $props();
   const t = $derived(ui(data.locale));
