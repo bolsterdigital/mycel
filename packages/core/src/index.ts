@@ -3,6 +3,7 @@
 export * from './ports.js';
 export * from './connections/ports.js';
 export * from './connections/service.js';
+export * from './connections/rules.js';
 export * from './assist/ports.js';
 export * from './assist/model.js';
 export * from './assist/service.js';

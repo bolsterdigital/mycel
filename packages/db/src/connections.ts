@@ -4,11 +4,14 @@
 
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { sql, type Kysely, type Selectable, type Updateable } from 'kysely';
-import type {
-  ConnectionRecord,
-  ConnectionRepository,
-  ConnectionChanges,
-  NewConnection,
+import {
+  credentialServes,
+  dropsCredential,
+  FROZEN_CONNECTION_STATE,
+  type ConnectionRecord,
+  type ConnectionRepository,
+  type ConnectionChanges,
+  type NewConnection,
 } from '@mycel/core';
 import type { Database } from './schema.js';
 
@@ -128,14 +131,15 @@ export function connectionRepository(
       const row = await trx
         .selectFrom('connection_credentials as k')
         .innerJoin('connections as c', 'c.id', 'k.connection_id')
-        .select(['k.ciphertext', 'c.credential_version'])
+        .select(['k.ciphertext', 'c.credential_version', 'c.state'])
         .where('k.tenant_id', '=', tenantId)
         .where('c.tenant_id', '=', tenantId)
         .where('c.id', '=', id)
-        .where('c.credential_version', '=', version)
-        .where('c.state', '=', 'active')
         .executeTakeFirst();
-      return row ? decryptCredential(row.ciphertext, key, tenantId, id, version) : null;
+      return row &&
+        credentialServes({ state: row.state, credentialVersion: row.credential_version }, version)
+        ? decryptCredential(row.ciphertext, key, tenantId, id, version)
+        : null;
     },
     async list() {
       return (await query().orderBy('c.created_at', 'desc').execute()).map(asRecord);
@@ -175,7 +179,7 @@ export function connectionRepository(
         .where('tenant_id', '=', tenantId)
         .where('id', '=', id)
         .where('version', '=', baseVersion)
-        .where('state', '!=', 'disconnected')
+        .where('state', '!=', FROZEN_CONNECTION_STATE)
         .returning('id')
         .executeTakeFirst();
       return row ? get(id) : null;
@@ -187,11 +191,11 @@ export function connectionRepository(
         .where('tenant_id', '=', tenantId)
         .where('id', '=', id)
         .where('version', '=', baseVersion)
-        .where('state', '!=', 'disconnected')
+        .where('state', '!=', FROZEN_CONNECTION_STATE)
         .returning('id')
         .executeTakeFirst();
       if (!row) return null;
-      if (state === 'disconnected')
+      if (dropsCredential(state))
         await trx
           .deleteFrom('connection_credentials')
           .where('tenant_id', '=', tenantId)
@@ -211,7 +215,7 @@ export function connectionRepository(
         .where('tenant_id', '=', tenantId)
         .where('id', '=', id)
         .where('version', '=', baseVersion)
-        .where('state', '!=', 'disconnected')
+        .where('state', '!=', FROZEN_CONNECTION_STATE)
         .returning(['id', 'credential_version'])
         .executeTakeFirst();
       if (!row) return null;

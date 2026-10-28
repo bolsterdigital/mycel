@@ -44,7 +44,7 @@ import {
 import { uuidv7 } from './ids.js';
 import { createTenantIn, getTenant, getTenantBySlug, type PlatformActor } from './platform.js';
 import type { Database } from './schema.js';
-import { setRole } from './roles.js';
+import { enterTenant, setRole } from './roles.js';
 
 type Trx = Kysely<Database>;
 
@@ -195,10 +195,10 @@ async function readTenant(
     .transaction()
     .setIsolationLevel('repeatable read')
     .execute(async (trx) => {
-      // The first statement takes the snapshot; `now()` is its start, on the database's clock.
-      const { rows } = await sql<{ t0: Date }>`
-        select now() as t0, set_config('role', 'mycel_app', true),
-               set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
+      // The first statement takes the snapshot; `now()` is the transaction's start, on the
+      // database's clock, whichever statement reads it.
+      await enterTenant(trx, tenantId);
+      const { rows } = await sql<{ t0: Date }>`select now() as t0`.execute(trx);
       for (const table of EXPORT_ORDER) {
         await sql`declare export_rows no scroll cursor for ${rowQuery(table)}`.execute(trx);
         for (;;) {
@@ -540,8 +540,7 @@ async function importDirectory(dir: string, options: ImportOptions): Promise<Imp
         'tenant.import'
       );
       lines.push(`tenant ${tenant.slug} (${tenant.id}) on ${tenant.primaryHostname ?? '-'}`);
-      await sql`select set_config('role', 'mycel_app', true),
-                       set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
+      await enterTenant(trx, tenantId);
 
       for (const table of EXPORT_ORDER) {
         const entry = manifest.tables[table];
