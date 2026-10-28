@@ -1,7 +1,7 @@
 // The `mycel` command line without a database: the argument parser, and `setup` against the
 // memory ports (invite and hostnames go through the real use cases; only tenant creation, a
 // platform function on the operator connection, is a stand-in). The same run against Postgres
-// is setup.conformance.test.ts.
+// is setup.test.ts.
 
 import { describe, expect, it } from 'vitest';
 import {

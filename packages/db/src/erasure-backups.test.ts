@@ -162,21 +162,8 @@ describe.skipIf(!operatorUrl || !appUrl)('erasure backups conformance', () => {
     await expect(record(tenants.a, uuidv7())).rejects.toThrow(/foreign key/);
   });
 
-  it('gives the backup login no other write: not the register, not a record, not tenant data', async (ctx) => {
-    if (!superuser) ctx.skip();
-    const refused = [
-      sql`insert into erasures (tenant_id, supporter_id, email_hash, actor)
-          values (${tenants.a}, ${uuidv7()}, ${'0'.repeat(64)}, '{}')`,
-      sql`update erasure_backups set snapshot_id = ${'cd'.repeat(32)}`,
-      sql`delete from erasure_backups`,
-      sql`delete from erasures`,
-      sql`update supporters set lists = '{}'`,
-      sql`insert into audit_log (id, tenant_id, actor_kind, operation, input_hash, result)
-          values (${uuidv7()}, ${tenants.a}, 'system', 'x', 'x', 'ok')`,
-    ];
-    for (const statement of refused)
-      await expect(asBackup((trx) => statement.execute(trx))).rejects.toThrow(/permission denied/);
-  });
+  // That the backup login writes nothing else (not the register, not tenant data) is read from
+  // its grants on every table in rls.conformance.test.ts, the one place for RLS bypass.
 
   it('lets mycel_app read its own records and write none', async (ctx) => {
     if (!superuser) ctx.skip();

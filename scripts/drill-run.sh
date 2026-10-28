@@ -275,7 +275,7 @@ done
 
 step 'conformance'
 host npx vitest run --project packages packages/db/src/rls.conformance.test.ts \
-  packages/db/src/hostnames.conformance.test.ts
+  packages/db/src/hostnames.test.ts
 
 step 'worker'
 worker_started=$(now)
