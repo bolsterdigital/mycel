@@ -5,23 +5,16 @@
 // processes with SITE_URL_MODE=hostnames, so the confirmation mail links to probe.localhost; the
 // development path form stays covered by signup.spec.ts.
 
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { expectNoAxeViolations } from './lib/axe';
+import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
+import { login } from './lib/login';
 
-const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 const SITE = 'http://probe.localhost:4173';
-
-async function expectNoAxeViolations(page: Page) {
-  if (test.info().project.name !== 'a11y') return;
-  const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
-  expect(
-    violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)
-  ).toEqual([]);
-}
 
 test.use({
   locale: 'nl-NL',
@@ -30,14 +23,6 @@ test.use({
     'x-forwarded-for': `198.51.100.${Math.floor(Math.random() * 250) + 1}`,
   },
 });
-
-async function login(page: Page, email: string, path: string) {
-  await page.goto(path);
-  await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
-  await page.getByLabel('E-mail').fill(email);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL(new RegExp(`${path.replace(/\//g, '\\/')}$`));
-}
 
 const formWith = (page: Page, heading: string) =>
   page.locator('form', { has: page.getByRole('heading', { level: 3, name: heading }) });
@@ -187,7 +172,7 @@ test('an admin adds a domain, sees the records, checks (not found), and cannot r
   page,
   request,
 }) => {
-  await login(page, 'e2e-admin@probe.test', '/admin/probe');
+  await login(page, '/admin/probe');
   const domain = `e2e-${test.info().project.name}-${Date.now()}.example`;
   const add = formWith(page, 'Domein toevoegen');
   await add.getByLabel('Hostnaam').fill(domain.toUpperCase());
@@ -235,44 +220,19 @@ test('an admin adds a domain, sees the records, checks (not found), and cannot r
 });
 
 test.describe('UI gate: the domain action group at 320 CSS px and 200% text', () => {
-  test.use({ viewport: { width: 320, height: 900 } });
+  test.use({ viewport: NARROW });
 
-  for (const text of ['100%', '200%']) {
+  for (const text of TEXT_SIZES) {
     test(`every button whole and no horizontal scroll, text ${text}`, async ({ page }) => {
       test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
-      await login(page, 'e2e-admin@probe.test', '/admin/probe');
+      await login(page, '/admin/probe');
       const domain = `gate-${text.replace('%', '')}-${Date.now()}.example`;
       const add = formWith(page, 'Domein toevoegen');
       await add.getByLabel('Hostnaam').fill(domain);
       await add.getByRole('button', { name: 'Domein toevoegen' }).click();
       await expect(formWith(page, domain)).toBeVisible();
-      if (text !== '100%')
-        await page.evaluate((size) => (document.documentElement.style.fontSize = size), text);
-      const problems = await page.evaluate(() => {
-        const out: string[] = [];
-        const width = document.documentElement.clientWidth;
-        if (document.documentElement.scrollWidth > width) {
-          out.push(`page scrolls sideways: ${document.documentElement.scrollWidth} > ${width}`);
-          // Name the culprits, so a failure says what to fix.
-          for (const el of document.querySelectorAll('body *'))
-            if (el.getBoundingClientRect().right > width + 1 && el.children.length === 0)
-              out.push(
-                `past the edge: <${el.tagName.toLowerCase()}> ${el.textContent?.trim().slice(0, 40)}`
-              );
-        }
-        for (const b of document.querySelectorAll('button')) {
-          const r = b.getBoundingClientRect();
-          const label = b.textContent?.trim() ?? '';
-          if (b.scrollWidth > b.clientWidth + 1) out.push(`clipped: ${label}`);
-          if (r.right > width + 1 || r.left < -1) out.push(`outside the viewport: ${label}`);
-          if (r.height < 44 || r.width < 44) out.push(`tap target under 44px: ${label}`);
-        }
-        return out;
-      });
-      await formWith(page, domain).screenshot({
-        path: test.info().outputPath(`domains-320-${text.replace('%', '')}.png`),
-      });
-      expect(problems).toEqual([]);
+      await setTextSize(page, text);
+      await layoutGate(page, 'domain actions');
       await formWith(page, domain).getByRole('button', { name: 'Verwijderen' }).click();
       await expect(formWith(page, domain)).toHaveCount(0);
     });

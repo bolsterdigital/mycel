@@ -8,40 +8,27 @@
 // rls.conformance); here the preview routes prove that a session without a membership of the
 // site gets nothing, not even the theme.
 
-import AxeBuilder from '@axe-core/playwright';
 import { createApp } from '@mycel/api';
-import { Invoker, UseCaseError, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
-import { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } from '@mycel/core/testing';
-import { createDb, createTenantDirectory, createUnitOfWork, uuidv7Ids } from '@mycel/db';
+import { UseCaseError, systemPrincipal, useCases } from '@mycel/core';
 import { expect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test';
+import { expectNoAxeViolations } from './lib/axe';
+import { tenantId, withInvoker } from './lib/invoker';
+import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
+import { ADMIN, login } from './lib/login';
 
-const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 const SITE = 'http://probe.localhost:4173';
-const ADMIN = 'e2e-admin@probe.test';
 const LIVE_ADMIN = 'live-preview-admin@probe.test';
 const LIVE_READER = 'live-preview-reader@probe.test';
 
 async function ensureLiveAdmin() {
-  const owner = createDb(process.env['DATABASE_URL']!);
-  const probe = await createTenantDirectory(owner).findBySlug('probe');
-  if (!probe) throw new Error('probe tenant missing');
-  const app = createDb(process.env['APP_DATABASE_URL']!);
-  const uow = createUnitOfWork(app, {
-    clock: { now: () => new Date() },
-    ids: uuidv7Ids,
-    signer: new FakeSigner(),
-    inputHasher: new FakeInputHasher(process.env['AUDIT_HASH_KEY']),
-    dns: new FakeDns(),
-    platform: memoryPlatform,
-  });
-  try {
-    const invoker = new Invoker(buildRegistry(), uow);
+  const probe = await tenantId();
+  await withInvoker(async (invoker) => {
     for (const [email, capability] of [
       [LIVE_ADMIN, 'tenant:admin'],
       [LIVE_READER, 'content:read'],
     ] as const) {
       try {
-        await invoker.run(useCases.inviteMember, systemPrincipal(probe.id, 'e2e'), {
+        await invoker.run(useCases.inviteMember, systemPrincipal(probe, 'e2e'), {
           email,
           capabilities: [capability],
         });
@@ -49,18 +36,7 @@ async function ensureLiveAdmin() {
         if (!(e instanceof UseCaseError && e.code === 'conflict')) throw e;
       }
     }
-  } finally {
-    await app.destroy();
-    await owner.destroy();
-  }
-}
-
-async function expectNoAxeViolations(page: Page) {
-  if (test.info().project.name !== 'a11y') return;
-  const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
-  expect(
-    violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)
-  ).toEqual([]);
+  });
 }
 
 test.use({
@@ -72,19 +48,6 @@ test.use({
 });
 
 const address = () => `198.51.100.${Math.floor(Math.random() * 250) + 1}`;
-
-async function login(page: Page, email: string, path: string) {
-  // A fresh address per login: the admin allows twenty logins per address in ten minutes, and
-  // this file logs in more often than that per worker. IPv6 documentation space, so these never
-  // count against the IPv4 addresses the other specs draw.
-  const ip = `2001:db8::${Math.floor(Math.random() * 0xffffffff).toString(16)}`;
-  await page.context().setExtraHTTPHeaders({ 'x-forwarded-proto': 'http', 'x-forwarded-for': ip });
-  await page.goto(path);
-  await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
-  await page.getByLabel('E-mail').fill(email);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL(new RegExp(`${path.replace(/[/?]/g, '\\$&')}$`));
-}
 
 /** Another browser, as the test's own: same origin, headers and JavaScript setting. */
 const freshContext = (
@@ -115,7 +78,7 @@ async function newPage(page: Page, slug: string, title: string): Promise<string>
 }
 
 test('an operator makes a page, edits it, and compares its revisions', async ({ page }) => {
-  await login(page, ADMIN, '/admin/probe');
+  await login(page, '/admin/probe');
   await page.getByRole('link', { name: 'Pagina’s' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Pagina’s' })).toBeVisible();
   expect(await page.locator('script').count()).toBe(0);
@@ -157,7 +120,7 @@ test('an operator makes a page, edits it, and compares its revisions', async ({ 
 });
 
 test('the preview shows a draft that the site does not serve', async ({ page, request }) => {
-  await login(page, ADMIN, '/admin/probe');
+  await login(page, '/admin/probe');
   const slug = slugFor('preview');
   await newPage(page, slug, 'Nog geheim');
 
@@ -199,7 +162,7 @@ test('live preview shows unsaved fields, isolates tenants and opens a clicked bl
 }) => {
   test.skip(test.info().project.name !== 'a11y', 'live preview is a JavaScript enhancement');
   await ensureLiveAdmin();
-  await login(page, LIVE_ADMIN, '/admin/probe');
+  await login(page, '/admin/probe', LIVE_ADMIN);
   const edit = await newPage(page, slugFor('live'), 'Saved title');
 
   // Give the preview a block to select. Its native details remains the keyboard route.
@@ -232,8 +195,8 @@ test('live preview shows unsaved fields, isolates tenants and opens a clicked bl
   await details.locator('summary').press('Enter');
   await expect(details).not.toHaveAttribute('open');
   await expectNoAxeViolations(page);
-  await page.setViewportSize({ width: 320, height: 900 });
-  await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
+  await page.setViewportSize(NARROW);
+  await setTextSize(page, '200%');
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= document.documentElement.clientWidth
@@ -257,7 +220,7 @@ test('live preview shows unsaved fields, isolates tenants and opens a clicked bl
   const readerContext = await freshContext(browser);
   try {
     const reader = await readerContext.newPage();
-    await login(reader, LIVE_READER, '/admin/probe');
+    await login(reader, '/admin/probe', LIVE_READER);
     const denied = await reader.request.post('/admin/probe/preview/draft', {
       headers: { origin: 'http://127.0.0.1:4173' },
       form: { itemId, baseRevisionId: revisionId, previewLocale: 'nl' },
@@ -275,7 +238,7 @@ test('live preview shows unsaved fields, isolates tenants and opens a clicked bl
 async function stranger(browser: Browser, fn: (page: Page) => Promise<void>) {
   const context = await freshContext(browser);
   const page = await context.newPage();
-  await login(page, 'nobody@probe.test', '/admin');
+  await login(page, '/admin', 'nobody@probe.test');
   await fn(page);
   await context.close();
 }
@@ -284,13 +247,13 @@ test('a save on an outdated revision is a conflict that keeps what was typed', a
   page,
   browser,
 }) => {
-  await login(page, ADMIN, '/admin/probe');
+  await login(page, '/admin/probe');
   const edit = await newPage(page, slugFor('conflict'), 'Eerste versie');
 
   // A second editor opens the same revision and saves first.
   const context = await freshContext(browser);
   const other = await context.newPage();
-  await login(other, ADMIN, edit);
+  await login(other, edit);
   await page.getByLabel('Titel (nl)').fill('Mijn versie');
   await other.getByLabel('Titel (nl)').fill('Hun versie');
   await other.getByRole('button', { name: 'Opslaan' }).click();
@@ -394,7 +357,7 @@ test('title-only and conflicting saves keep authors, their order and the off-pag
     ).revision.document;
 
   const fresh = await author(`Nieuw ${run}`);
-  await login(page, ADMIN, `/admin/probe/content/${item.id}`);
+  await login(page, `/admin/probe/content/${item.id}`);
   await expect(page.getByLabel('Ver Weg')).toBeChecked();
   await expect(page.getByLabel('Rubriek')).toHaveValue(oldSection.id);
   await page.getByLabel('Titel (nl)').fill('Alleen de titel');
@@ -458,7 +421,7 @@ test('title-only and conflicting saves keep authors, their order and the off-pag
 });
 
 test('a reserved slug comes back as a message with what was typed', async ({ page }) => {
-  await login(page, ADMIN, '/admin/probe/content/new');
+  await login(page, '/admin/probe/content/new');
   await page.getByLabel('Slug').fill('admin');
   await page.getByLabel('Titel (nl)').fill('Mag niet');
   await page.getByRole('button', { name: 'Concept maken' }).click();
@@ -478,7 +441,7 @@ test('publishing puts a locale live; a later edit stays unpublished until publis
   page,
   request,
 }) => {
-  await login(page, ADMIN, '/admin/probe');
+  await login(page, '/admin/probe');
   const slug = slugFor('publish');
   const edit = await newPage(page, slug, 'Buurtfeest');
   await expect(card(page, 'nl')).toContainText('Klaar om te publiceren.');
@@ -521,7 +484,7 @@ test('a locale without its translation is refused by its label; publish saves wh
 }) => {
   // No slug typed: core derives it from the title (proef 4).
   const title = `Alleen NL ${slugFor('nl')}`;
-  await login(page, ADMIN, '/admin/probe/content/new?type=page');
+  await login(page, '/admin/probe/content/new?type=page');
   await page.getByLabel('Titel (nl)').fill(title);
   await page.getByRole('button', { name: 'Concept maken' }).click();
   await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
@@ -545,7 +508,7 @@ test('a locale without its translation is refused by its label; publish saves wh
 });
 
 test('a schedule pins a revision; a newer one can take its place', async ({ page }) => {
-  await login(page, ADMIN, '/admin/probe');
+  await login(page, '/admin/probe');
   const edit = await newPage(page, slugFor('schedule'), 'Op vrijdag');
   const nl = card(page, 'nl');
   await nl.getByLabel('Publiceren op').fill('2030-01-04T09:00');
@@ -584,29 +547,12 @@ test('a schedule pins a revision; a newer one can take its place', async ({ page
 test('repinning an HTTP schedule preserves the second autumn hour and seconds', async ({
   page,
 }) => {
-  const { createDb, createTenantDirectory, createUnitOfWork, uuidv7Ids } =
-    await import('@mycel/db');
-  const { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } =
-    await import('@mycel/core/testing');
-  const operatorDb = createDb(process.env['DATABASE_URL']!);
-  const appDb = createDb(process.env['APP_DATABASE_URL']!);
-  try {
-    const probe = await createTenantDirectory(operatorDb).findBySlug('probe');
-    const invoker = new Invoker(
-      buildRegistry(),
-      createUnitOfWork(appDb, {
-        clock: { now: () => new Date() },
-        ids: uuidv7Ids,
-        signer: new FakeSigner(),
-        inputHasher: new FakeInputHasher(),
-        dns: new FakeDns(),
-        platform: memoryPlatform,
-      })
-    );
+  const probe = await tenantId();
+  await withInvoker(async (invoker) => {
     const api = createApp({
       invoker,
       authenticate: async (authorization) =>
-        authorization === 'Bearer e2e' ? systemPrincipal(probe!.id, 'e2e') : null,
+        authorization === 'Bearer e2e' ? systemPrincipal(probe, 'e2e') : null,
     });
     const call = async (name: string, input: Record<string, string>) => {
       const response = await api.request(`/v1/${name}`, {
@@ -617,7 +563,7 @@ test('repinning an HTTP schedule preserves the second autumn hour and seconds', 
       expect(response.status, response.status === 200 ? '' : await response.text()).toBe(200);
       return response.json();
     };
-    await login(page, ADMIN, '/admin/probe');
+    await login(page, '/admin/probe');
     for (const [label, at] of [
       ['autumn', '2030-10-27T01:30:00.000Z'],
       ['seconds', '2030-01-04T08:00:45.123Z'],
@@ -655,13 +601,11 @@ test('repinning an HTTP schedule preserves the second autumn hour and seconds', 
         scheduledFor: at,
       });
     }
-  } finally {
-    await Promise.all([operatorDb.destroy(), appDb.destroy()]);
-  }
+  });
 });
 
 test('a restricted item says what visitors get before any publish button', async ({ page }) => {
-  await login(page, ADMIN, '/admin/probe');
+  await login(page, '/admin/probe');
   await newPage(page, slugFor('restricted'), 'Voor leden');
   await page.getByLabel('Wie het mag lezen').selectOption({ label: 'Lezers met een account' });
   await page.getByRole('button', { name: 'Opslaan' }).click();
@@ -682,7 +626,7 @@ test('a writer without content:publish sees the state, no buttons, and gets a 40
   context,
 }) => {
   const email = `writer-${test.info().project.name}-${Date.now()}@probe.test`;
-  await login(page, ADMIN, '/admin/probe');
+  await login(page, '/admin/probe');
   const edit = await newPage(page, slugFor('writer'), 'Schrijverswerk');
   await page.goto('/admin/probe');
   const invite = page.locator('form[action="?/invite"]');
@@ -693,7 +637,7 @@ test('a writer without content:publish sees the state, no buttons, and gets a 40
   await expect(page.getByRole('status')).toContainText(email);
   try {
     await context.clearCookies();
-    await login(page, email, edit);
+    await login(page, edit, email);
     await expect(card(page, 'nl').getByRole('heading')).toContainText('concept');
     await expect(page.getByText('vragen de bevoegdheid content:publish')).toBeVisible();
     await expect(page.locator('.publication button')).toHaveCount(0);
@@ -713,7 +657,7 @@ test('a writer without content:publish sees the state, no buttons, and gets a 40
     expect(repin.status()).toBe(403);
   } finally {
     await context.clearCookies();
-    await login(page, ADMIN, '/admin/probe');
+    await login(page, '/admin/probe');
     const member = page.locator('form', { has: page.getByRole('heading', { name: email }) });
     await member.locator('button[formaction="?/remove"]').click();
     await expect(page.getByRole('status')).toContainText('Lid verwijderd');
@@ -721,17 +665,17 @@ test('a writer without content:publish sees the state, no buttons, and gets a 40
 });
 
 test.describe('UI gate: the content admin at 320 CSS px and 200% text', () => {
-  test.use({ viewport: { width: 320, height: 900 } });
+  test.use({ viewport: NARROW });
 
   for (const locale of ['nl-NL', 'en-GB'])
-    for (const text of ['100%', '200%'])
+    for (const text of TEXT_SIZES)
       test(`every control whole and no horizontal scroll, ${locale}, text ${text}`, async ({
         browser,
       }) => {
         test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
-        const context = await freshContext(browser, locale, { width: 320, height: 900 });
+        const context = await freshContext(browser, locale, NARROW);
         const page = await context.newPage();
-        await login(page, ADMIN, '/admin/probe');
+        await login(page, '/admin/probe');
         const edit = await newPageIn(
           page,
           locale,
@@ -745,26 +689,8 @@ test.describe('UI gate: the content admin at 320 CSS px and 200% text', () => {
           '/admin/probe/content/new',
         ]) {
           await page.goto(path);
-          if (text !== '100%')
-            await page.evaluate((size) => (document.documentElement.style.fontSize = size), text);
-          const problems = await page.evaluate(layoutProblems);
-          if (path === edit) {
-            await page.locator('form.item-fields > .ui-actions-host').screenshot({
-              path: test
-                .info()
-                .outputPath(`content-edit-320-${locale}-${text.replace('%', '')}.png`),
-            });
-            await page
-              .locator('.publication')
-              .first()
-              .screenshot({
-                path: test
-                  .info()
-                  .outputPath(`content-publication-320-${locale}-${text.replace('%', '')}.png`),
-              });
-            await expect(page.locator('.publication').first().locator('button')).toHaveCount(5);
-          }
-          expect(problems, path).toEqual([]);
+          await setTextSize(page, text);
+          await layoutGate(page, path);
         }
         await context.close();
       });
@@ -791,35 +717,4 @@ async function newPageIn(page: Page, locale: string, slug: string): Promise<stri
   await page.getByRole('button', { name: nl ? 'Concept maken' : 'Create draft' }).click();
   await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
   return new URL(page.url()).pathname;
-}
-
-/** The checks of the media gate (media.spec.ts), over every action on the page. */
-function layoutProblems(): string[] {
-  const out: string[] = [];
-  const width = document.documentElement.clientWidth;
-  if (document.documentElement.scrollWidth > width) {
-    out.push(`page scrolls sideways: ${document.documentElement.scrollWidth} > ${width}`);
-    for (const el of document.querySelectorAll('body *'))
-      if (el.getBoundingClientRect().right > width + 1 && el.children.length === 0)
-        out.push(
-          `past the edge: <${el.tagName.toLowerCase()}> ${el.textContent?.trim().slice(0, 40)}`
-        );
-  }
-  for (const b of document.querySelectorAll('button, a.button, a.ui-button')) {
-    const r = b.getBoundingClientRect();
-    const label = b.textContent?.trim() ?? '';
-    if (b.scrollWidth > b.clientWidth + 1) out.push(`clipped: ${label}`);
-    if (r.right > width + 1 || r.left < -1) out.push(`outside the viewport: ${label}`);
-    if (r.height < 44 || r.width < 44) out.push(`tap target under 44px: ${label}`);
-  }
-  for (const l of document.querySelectorAll(
-    ':is(.card, .ui-card, .ui-panel, .ui-fieldset) :is(label, legend)'
-  )) {
-    const card = l.closest('.card, .ui-card, .ui-panel, .ui-fieldset')!.getBoundingClientRect();
-    const range = document.createRange();
-    range.selectNodeContents(l);
-    if (range.getBoundingClientRect().right > card.right + 1)
-      out.push(`past its card: ${l.textContent?.trim()}`);
-  }
-  return out;
 }

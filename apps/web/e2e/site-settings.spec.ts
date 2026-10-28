@@ -1,38 +1,24 @@
 // A complete bilingual site: tenant chrome and theme through real use cases and the public
 // renderer, including the no-JavaScript/320 px/200% task gate (#11 E, ADR 009/013).
-import AxeBuilder from '@axe-core/playwright';
 import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
 import { readFile } from 'node:fs/promises';
-import { Invoker, THEME_PRESETS, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
-import { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } from '@mycel/core/testing';
-import { createDb, createUnitOfWork, upsertTenant, uuidv7, uuidv7Ids } from '@mycel/db';
+import { THEME_PRESETS, systemPrincipal, useCases } from '@mycel/core';
+import { upsertTenant, uuidv7 } from '@mycel/db';
 import { expect, test, type Page } from '@playwright/test';
+import { expectNoAxeViolations } from './lib/axe';
+import { asOwner, withInvoker } from './lib/invoker';
+import { layoutGate } from './lib/layout';
+import { login } from './lib/login';
 
 const slug = `chrome-${Math.random().toString(36).slice(2, 8)}`;
 const singleSlug = `chrome-single-${Math.random().toString(36).slice(2, 8)}`;
 let tenantId = '';
 let singleTenantId = '';
 let homeItemId = '';
-const chromeState = async (id: string) => {
-  const app = createDb(process.env['APP_DATABASE_URL']!);
-  try {
-    const invoker = new Invoker(
-      buildRegistry(),
-      createUnitOfWork(app, {
-        clock: { now: () => new Date() },
-        ids: uuidv7Ids,
-        signer: new FakeSigner(),
-        inputHasher: new FakeInputHasher(),
-        dns: new FakeDns(),
-        platform: memoryPlatform,
-      })
-    );
-    return await invoker.run(useCases.getSiteChrome, systemPrincipal(id, 'e2e'), {});
-  } finally {
-    await app.destroy();
-  }
-};
+const chromeState = (id: string) =>
+  withInvoker((invoker) => invoker.run(useCases.getSiteChrome, systemPrincipal(id, 'e2e'), {}));
+
 test.use({
   extraHTTPHeaders: {
     'x-forwarded-proto': 'http',
@@ -41,10 +27,8 @@ test.use({
   viewport: { width: 320, height: 720 },
 });
 test.beforeAll(async () => {
-  const owner = createDb(process.env['DATABASE_URL']!);
-  const app = createDb(process.env['APP_DATABASE_URL']!);
-  try {
-    const tenant = await upsertTenant(
+  const [tenant, singleTenant] = await asOwner(async (owner) => [
+    await upsertTenant(
       owner,
       {
         id: uuidv7(),
@@ -54,9 +38,8 @@ test.beforeAll(async () => {
         locales: ['nl', 'en', 'de'],
       },
       { platformDomain: process.env['PLATFORM_DOMAIN']! }
-    );
-    tenantId = tenant.id;
-    const singleTenant = await upsertTenant(
+    ),
+    await upsertTenant(
       owner,
       {
         id: uuidv7(),
@@ -66,19 +49,11 @@ test.beforeAll(async () => {
         locales: ['nl'],
       },
       { platformDomain: process.env['PLATFORM_DOMAIN']! }
-    );
-    singleTenantId = singleTenant.id;
-    const invoker = new Invoker(
-      buildRegistry(),
-      createUnitOfWork(app, {
-        clock: { now: () => new Date() },
-        ids: uuidv7Ids,
-        signer: new FakeSigner(),
-        inputHasher: new FakeInputHasher(process.env['AUDIT_HASH_KEY']),
-        dns: new FakeDns(),
-        platform: memoryPlatform,
-      })
-    );
+    ),
+  ]);
+  tenantId = tenant.id;
+  singleTenantId = singleTenant.id;
+  await withInvoker(async (invoker) => {
     const principal = systemPrincipal(tenant.id, 'e2e');
     await invoker.run(useCases.inviteMember, principal, {
       email: `site-editor-${slug}@probe.test`,
@@ -144,10 +119,7 @@ test.beforeAll(async () => {
         help: null,
       },
     });
-  } finally {
-    await app.destroy();
-    await owner.destroy();
-  }
+  });
 });
 for (const locale of ['nl', 'en'])
   test(`${locale} navigation, footer and theme at narrow/large text`, async ({ page }) => {
@@ -185,12 +157,7 @@ for (const locale of ['nl', 'en'])
       );
     });
     expect(zoomed).toBe(true);
-    if (test.info().project.name === 'a11y') {
-      const { violations } = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
-        .analyze();
-      expect(violations.map((violation) => violation.id)).toEqual([]);
-    }
+    await expectNoAxeViolations(page);
   });
 
 test('native site forms preserve locales and reject stale changes', async ({
@@ -200,11 +167,7 @@ test('native site forms preserve locales and reject stale changes', async ({
 }) => {
   await page.goto(`/${slug}/home`);
   const oldCss = await page.locator('link[rel=stylesheet][href*="/_theme/"]').getAttribute('href');
-  await page.goto(`/admin/${slug}/site`);
-  await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
-  await page.getByLabel('E-mail').fill(`site-editor-${slug}@probe.test`);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL(new RegExp(`/admin/${slug}/site$`));
+  await login(page, `/admin/${slug}/site`, `site-editor-${slug}@probe.test`);
   await page.locator('select[name="fontPair"]').selectOption('inter');
   await page.locator('form[action$="&/theme"]').getByRole('button').click();
   await expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
@@ -248,19 +211,15 @@ test('native site forms preserve locales and reject stale changes', async ({
   expect(stale.headers()['location']).toBe(newCss);
   expect(stale.headers()['cache-control']).toBe('no-store');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  if (test.info().project.name === 'a11y') {
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
-      .analyze();
-    expect(violations.map((violation) => violation.id)).toEqual([]);
-  }
+  await expectNoAxeViolations(page);
 });
 
 test('single-locale site saves without another translation', async ({ page }) => {
-  await page.goto(`/admin/${singleSlug}/site?section=chrome`);
-  await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
-  await page.getByLabel('E-mail').fill(`site-editor-${singleSlug}@probe.test`);
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await login(
+    page,
+    `/admin/${singleSlug}/site?section=chrome`,
+    `site-editor-${singleSlug}@probe.test`
+  );
   await expect(page.locator('input[name="footer.nl"]')).toHaveValue('Een taal');
   await expect(page.locator('input[name="footer.en"]')).toHaveCount(0);
   await page.locator('input[name="footer.nl"]').fill('Nieuwe tekst');
@@ -305,10 +264,7 @@ test('native brand upload, public derivative and removal stay tenant scoped', as
   page,
   request,
 }) => {
-  await page.goto(`/admin/${slug}/site`);
-  await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
-  await page.getByLabel('E-mail').fill(`site-editor-${slug}@probe.test`);
-  await page.getByRole('button', { name: 'Sign in' }).click();
+  await login(page, `/admin/${slug}/site`, `site-editor-${slug}@probe.test`);
   const largeLogo = await sharp(randomBytes(512 * 512 * 3), {
     raw: { width: 512, height: 512, channels: 3 },
   })
@@ -367,12 +323,7 @@ test('native brand upload, public derivative and removal stay tenant scoped', as
   expect(fontResponse.status()).toBe(200);
   expect(fontResponse.headers()['content-type']).toBe('font/woff2');
   const activeEtag = (await request.get(`/${slug}/home`)).headers()['etag'];
-  if (test.info().project.name === 'a11y') {
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
-      .analyze();
-    expect(violations.map((violation) => violation.id)).toEqual([]);
-  }
+  await expectNoAxeViolations(page);
   await page.goto(`/admin/${slug}/site?section=brand`);
   await page
     .locator('form[action$="&/brand"]')
@@ -402,11 +353,7 @@ for (const [locale, language, title, actions] of [
     test.use({ locale: language });
 
     test('keeps the real admin form accessible at 320 px and enlarged text', async ({ page }) => {
-      await page.goto(`/admin/${slug}/site`);
-      await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
-      await page.getByLabel('E-mail').fill(`site-editor-${slug}@probe.test`);
-      await page.getByRole('button', { name: 'Sign in' }).click();
-      await expect(page).toHaveURL(new RegExp(`/admin/${slug}/site$`));
+      await login(page, `/admin/${slug}/site`, `site-editor-${slug}@probe.test`);
       await expect(page.getByRole('heading', { name: title, level: 1 })).toBeVisible();
       await expect(page.locator('html')).toHaveAttribute('lang', locale);
       await expect(page.locator('form[action$="&/theme"]')).toBeVisible();
@@ -430,68 +377,7 @@ for (const [locale, language, title, actions] of [
         });
         expect(fontSize).toBeGreaterThanOrEqual(32);
 
-        const layout = await page.evaluate(() => {
-          const controls = [
-            ...document.querySelectorAll<HTMLElement>(
-              'main input:not([type="hidden"]), main select, main textarea, main button, main a.ui-button'
-            ),
-          ];
-          const labels = [...document.querySelectorAll<HTMLElement>('main label')];
-          return {
-            viewport: innerWidth,
-            document: document.documentElement.scrollWidth,
-            controls: controls.map((node) => ({
-              // Clipping is measured on what carries a label (buttons, links, selects, the file
-              // input's button). A text field scrolls a long value by design; its box, position
-              // and target size still count.
-              labelled: !(
-                node instanceof HTMLTextAreaElement ||
-                (node instanceof HTMLInputElement && node.type !== 'file')
-              ),
-              name: node.getAttribute('name') ?? node.textContent?.trim() ?? '',
-              width: node.getBoundingClientRect().width,
-              height: node.getBoundingClientRect().height,
-              right: node.getBoundingClientRect().right,
-              scrollWidth: node.scrollWidth,
-              clientWidth: node.clientWidth,
-            })),
-            labels: labels.map((node) => ({
-              text: node.textContent?.trim() ?? '',
-              right: node.getBoundingClientRect().right,
-              scrollWidth: node.scrollWidth,
-              clientWidth: node.clientWidth,
-            })),
-            overflowing: [...document.querySelectorAll<HTMLElement>('main *')]
-              .filter((node) => node.getBoundingClientRect().right > innerWidth)
-              .map((node) => ({
-                tag: node.tagName,
-                className: node.className,
-                text: node.textContent?.trim().slice(0, 80),
-                right: node.getBoundingClientRect().right,
-              }))
-              .slice(0, 10),
-          };
-        });
-        expect(layout.document, JSON.stringify(layout.overflowing)).toBeLessThanOrEqual(
-          layout.viewport
-        );
-        for (const control of layout.controls) {
-          expect(control.width, `${section}: ${control.name}`).toBeGreaterThanOrEqual(44);
-          expect(control.height, `${section}: ${control.name}`).toBeGreaterThanOrEqual(44);
-          expect(control.right, `${section}: ${control.name}`).toBeLessThanOrEqual(layout.viewport);
-          if (control.labelled)
-            expect(control.scrollWidth, `${section}: ${control.name}`).toBeLessThanOrEqual(
-              control.clientWidth
-            );
-        }
-        for (const label of layout.labels) {
-          expect(label.right, label.text).toBeLessThanOrEqual(layout.viewport);
-          expect(label.scrollWidth, label.text).toBeLessThanOrEqual(label.clientWidth);
-        }
-        await page.screenshot({
-          path: test.info().outputPath(`site-settings-${section}-${locale}-320-text-200.png`),
-          fullPage: true,
-        });
+        await layoutGate(page, section, 'main');
         await page.setViewportSize({ width: 640, height: 720 });
         const zoomedActions = await page.evaluate(() => {
           document.documentElement.style.fontSize = '';
@@ -510,12 +396,7 @@ for (const [locale, language, title, actions] of [
         });
         expect(zoomedActions.ok, section).toBe(true);
         expect(zoomedActions.overflow, section).toBe(false);
-        if (test.info().project.name === 'a11y') {
-          const { violations } = await new AxeBuilder({ page })
-            .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
-            .analyze();
-          expect(violations.map((violation) => violation.id)).toEqual([]);
-        }
+        await expectNoAxeViolations(page);
       }
     });
   });

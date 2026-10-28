@@ -5,18 +5,10 @@
 // ui-action-layout) checks the members, domains and keys at 320 CSS px and at 200% text, in both
 // locales: whole buttons, no broken word, 44 px targets, nothing past its card, and axe.
 
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-
-const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
-
-async function expectNoAxeViolations(page: Page) {
-  if (test.info().project.name !== 'a11y') return;
-  const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
-  expect(
-    violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)
-  ).toEqual([]);
-}
+import { expectNoAxeViolations } from './lib/axe';
+import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
+import { ADMIN, login } from './lib/login';
 
 test.use({
   locale: 'nl-NL',
@@ -25,15 +17,6 @@ test.use({
     'x-forwarded-for': `198.51.100.${Math.floor(Math.random() * 250) + 1}`,
   },
 });
-
-/** Go to `path`, get sent through the mock IdP's sign-in form, and land back on `path`. */
-async function login(page: Page, email: string, path: string) {
-  await page.goto(path);
-  await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
-  await page.getByLabel('E-mail').fill(email);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL(new RegExp(`${path.replace(/\//g, '\\/')}$`));
-}
 
 const api = (path: string, token: string) =>
   fetch(`${process.env['E2E_API_URL']}${path}`, { headers: { authorization: `Bearer ${token}` } });
@@ -45,7 +28,7 @@ test('an admin logs in, makes an API key that works over HTTP, and revokes it', 
   page,
   context,
 }) => {
-  await login(page, 'e2e-admin@probe.test', '/admin/probe');
+  await login(page, '/admin/probe');
   await expect(page.getByRole('heading', { level: 1, name: 'Probe' })).toBeVisible();
   await expect(
     page.locator('.admin-sidebar-bottom').getByText('e2e-admin@probe.test')
@@ -96,7 +79,7 @@ test('an admin logs in, makes an API key that works over HTTP, and revokes it', 
 });
 
 test('an operator without a membership sees no sites and gets 403 on one', async ({ page }) => {
-  await login(page, 'nobody@probe.test', '/admin');
+  await login(page, '/admin', 'nobody@probe.test');
   await expect(page.getByRole('heading', { level: 1, name: 'Jouw sites' })).toBeVisible();
   await expect(page.getByText('Nog geen sites.')).toBeVisible();
   await expectNoAxeViolations(page);
@@ -124,7 +107,7 @@ test('the admin sends its own headers and may not be framed at all', async ({ pa
   expect(start.headers()['referrer-policy']).toBe('same-origin');
   expect(start.headers()['permissions-policy']).toContain('camera=()');
 
-  await login(page, 'e2e-admin@probe.test', '/admin/probe');
+  await login(page, '/admin/probe');
   const response = await page.goto('/admin/probe');
   const csp = response!.headers()['content-security-policy']!;
   expect(csp).toContain("frame-ancestors 'none'");
@@ -152,13 +135,13 @@ test('every login issues a new session cookie and clears the attempt cookie', as
 }) => {
   const session = async () =>
     (await context.cookies()).find((c) => c.name === 'mycel_session')?.value;
-  await login(page, 'e2e-admin@probe.test', '/admin');
+  await login(page, '/admin');
   const first = await session();
   expect(first).toBeTruthy();
   // A second login on the same browser, with the first session still present.
   await page.goto('/admin/login?return=/admin');
   await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
-  await page.getByLabel('E-mail').fill('e2e-admin@probe.test');
+  await page.getByLabel('E-mail').fill(ADMIN);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page).toHaveURL(/\/admin$/);
   const second = await session();
@@ -171,53 +154,14 @@ test('every login issues a new session cookie and clears the attempt cookie', as
 
 for (const locale of ['nl-NL', 'en-US']) {
   test.describe(`UI gate ${locale}: members, domains and keys at 320 CSS px and 200% text`, () => {
-    test.use({ viewport: { width: 320, height: 900 }, locale });
+    test.use({ viewport: NARROW, locale });
 
-    for (const text of ['100%', '200%']) {
+    for (const text of TEXT_SIZES) {
       test(`every control whole and no horizontal scroll, text ${text}`, async ({ page }) => {
         test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
-        await login(page, 'e2e-admin@probe.test', '/admin/probe');
-        if (text !== '100%')
-          await page.evaluate((size) => (document.documentElement.style.fontSize = size), text);
-        const problems = await page.evaluate(() => {
-          const out: string[] = [];
-          const width = document.documentElement.clientWidth;
-          if (document.documentElement.scrollWidth > width)
-            out.push(`page scrolls sideways: ${document.documentElement.scrollWidth} > ${width}`);
-          for (const b of document.querySelectorAll('main button, main a.ui-button')) {
-            const r = b.getBoundingClientRect();
-            const label = b.textContent?.trim() ?? '';
-            if (b.scrollWidth > b.clientWidth + 1) out.push(`clipped: ${label}`);
-            if (r.right > width + 1 || r.left < -1) out.push(`outside the viewport: ${label}`);
-            if (r.height < 44 || r.width < 44) out.push(`tap target under 44px: ${label}`);
-            const walker = document.createTreeWalker(b, NodeFilter.SHOW_TEXT);
-            for (let node = walker.nextNode(); node; node = walker.nextNode())
-              for (const match of (node.textContent ?? '').matchAll(/\S+/g)) {
-                const range = document.createRange();
-                range.setStart(node, match.index);
-                range.setEnd(node, match.index + match[0].length);
-                if (range.getClientRects().length > 1)
-                  out.push(`word broken: ${match[0]} in ${label}`);
-              }
-          }
-          // A capability checkbox row is the target (its label is part of it); a label or legend
-          // that runs past its card is clipped by the card even when the page does not scroll.
-          for (const row of document.querySelectorAll('main .ui-choice'))
-            if (row.getBoundingClientRect().height < 44)
-              out.push(`tap target under 44px: ${row.textContent?.trim()}`);
-          for (const node of document.querySelectorAll('main label, main legend, main dd')) {
-            const card = node.closest('.ui-card-body');
-            if (!card) continue;
-            if (node.getBoundingClientRect().right > card.getBoundingClientRect().right + 1)
-              out.push(`past its card: ${node.textContent?.trim()}`);
-          }
-          return out;
-        });
-        await page.screenshot({
-          path: test.info().outputPath(`admin-320-${text.replace('%', '')}-${locale}.png`),
-          fullPage: true,
-        });
-        expect(problems).toEqual([]);
+        await login(page, '/admin/probe');
+        await setTextSize(page, text);
+        await layoutGate(page, 'members, domains and keys', 'main');
         await expectNoAxeViolations(page);
       });
     }

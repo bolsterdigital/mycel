@@ -3,104 +3,36 @@
 // text in both admin locales (skill ui-action-layout), axe in the light and the dark scheme, and
 // the dialog opened and closed without JavaScript. Only `tenant:admin` sees it. A screen built from these components inherits the measurements; its own
 // spec still checks its own content.
-import AxeBuilder from '@axe-core/playwright';
-import { Invoker, UseCaseError, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
-import { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } from '@mycel/core/testing';
-import { createDb, createTenantDirectory, createUnitOfWork, uuidv7Ids } from '@mycel/db';
+import { UseCaseError, systemPrincipal, useCases } from '@mycel/core';
 import { expect, test, type Page } from '@playwright/test';
+import { expectNoAxeViolations } from './lib/axe';
+import { tenantId, withInvoker } from './lib/invoker';
+import { NARROW, layoutGate, setTextSize } from './lib/layout';
+import { login } from './lib/login';
 
 const email = 'ui-catalogue@probe.test';
 const editor = 'ui-catalogue-editor@probe.test';
 const PATTERNS = ['overview', 'detail', 'edit', 'settings', 'form', 'states'] as const;
 
 test.beforeAll(async () => {
-  const owner = createDb(process.env['DATABASE_URL']!);
-  const app = createDb(process.env['APP_DATABASE_URL']!);
-  try {
-    const probe = await createTenantDirectory(owner).findBySlug('probe');
-    if (!probe) throw new Error('probe tenant missing');
-    const invoker = new Invoker(
-      buildRegistry(),
-      createUnitOfWork(app, {
-        clock: { now: () => new Date() },
-        ids: uuidv7Ids,
-        signer: new FakeSigner(),
-        inputHasher: new FakeInputHasher(process.env['AUDIT_HASH_KEY']),
-        dns: new FakeDns(),
-        platform: memoryPlatform,
-      })
-    );
+  const probe = await tenantId();
+  await withInvoker(async (invoker) => {
     for (const [who, capabilities] of [
       [email, ['tenant:admin']],
       [editor, ['media:read']],
     ] as const)
       try {
-        await invoker.run(useCases.inviteMember, systemPrincipal(probe.id, 'e2e'), {
+        await invoker.run(useCases.inviteMember, systemPrincipal(probe, 'e2e'), {
           email: who,
           capabilities: [...capabilities],
         });
       } catch (e) {
         if (!(e instanceof UseCaseError && e.code === 'conflict')) throw e;
       }
-  } finally {
-    await app.destroy();
-    await owner.destroy();
-  }
+  });
 });
 
-async function open(page: Page, path = '/admin/probe/_ui', as = email) {
-  await page.context().setExtraHTTPHeaders({
-    'x-forwarded-proto': 'http',
-    'x-forwarded-for': `2001:db8:56::${Math.floor(Math.random() * 0xffffffff).toString(16)}`,
-  });
-  await page.goto(path);
-  await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
-  await page.getByLabel('E-mail').fill(as);
-  const [landed] = await Promise.all([
-    page.waitForResponse((r) => new URL(r.url()).pathname === path),
-    page.getByRole('button', { name: 'Sign in' }).click(),
-  ]);
-  return landed;
-}
-
-/** Elements that reach past the viewport, innermost first; empty when nothing scrolls sideways. */
-async function overflow(page: Page) {
-  return page.evaluate(() => {
-    const width = document.documentElement.clientWidth;
-    if (document.documentElement.scrollWidth <= width) return [];
-    const past = [...document.body.querySelectorAll('*')]
-      .filter((node) => !node.closest('.ui-table-scroll'))
-      .map((node) => {
-        const box = node.getBoundingClientRect();
-        return { node, right: Math.max(box.right, box.left + node.scrollWidth) };
-      })
-      .filter(({ right }) => right > width + 1);
-    return past
-      .filter(({ node }) => !past.some((other) => other.node !== node && node.contains(other.node)))
-      .slice(0, 5)
-      .map(
-        ({ node, right }) =>
-          `overflow: ${node.tagName.toLowerCase()}.${[...node.classList].join('.')} right=${Math.round(right)} text=${JSON.stringify((node.textContent ?? '').trim().slice(0, 60))}`
-      );
-  });
-}
-
-/** Targets under 44 CSS px and labels that do not fit their own control. */
-async function targets(page: Page) {
-  return page.evaluate(() =>
-    [
-      ...document.querySelectorAll(
-        '.ui-button, .ui-subnav a, .ui-view-switch a, .ui-breadcrumb a, .ui-table th a, .ui-fold > summary, .ui-choice'
-      ),
-    ]
-      .filter((node) => {
-        const box = node.getBoundingClientRect();
-        if (box.width === 0 && box.height === 0) return false; // inside a closed dialog
-        return box.width < 44 || box.height < 44 || node.scrollWidth > node.clientWidth + 1;
-      })
-      .map((node) => `small or clipped: ${(node.textContent ?? '').trim()}`)
-  );
-}
+const open = (page: Page, path = '/admin/probe/_ui', as = email) => login(page, path, as);
 
 test('renders every component once', async ({ page }) => {
   await open(page);
@@ -133,17 +65,7 @@ test('renders every component once', async ({ page }) => {
     await expect(page.locator('script')).toHaveCount(0);
     return;
   }
-  for (const colorScheme of ['light', 'dark'] as const) {
-    await page.emulateMedia({ colorScheme });
-    await page.screenshot({
-      path: test.info().outputPath(`catalogue-${colorScheme}.png`),
-      fullPage: true,
-    });
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
-      .analyze();
-    expect(violations.map((v) => `${colorScheme}: ${v.id} ${v.nodes[0]?.target}`)).toEqual([]);
-  }
+  await expectNoAxeViolations(page, { dark: true });
 });
 
 test('sorts the table through links', async ({ page }) => {
@@ -180,12 +102,12 @@ test('opens and closes the dialog without a script', async ({ page }) => {
 
 for (const locale of ['en-GB', 'nl-NL']) {
   test.describe(`at 320 CSS px and 200% text, ${locale}`, () => {
-    test.use({ locale, viewport: { width: 320, height: 900 } });
+    test.use({ locale, viewport: NARROW });
     test('keeps every label whole and nothing scrolls sideways', async ({ page }) => {
       await open(page);
-      await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
+      await setTextSize(page, '200%');
       await page.locator('.ui-fold > summary').click();
-      expect([...(await overflow(page)), ...(await targets(page))]).toEqual([]);
+      await layoutGate(page, 'catalogue');
       // Each stacking group stands in one column: every button as wide as its group.
       const widths = await page
         .locator('.ui-actions.stack')
@@ -201,20 +123,16 @@ for (const locale of ['en-GB', 'nl-NL']) {
         );
       expect(widths.length).toBeGreaterThan(1);
       expect(widths.every((n) => n === 1)).toBe(true);
-      await page.screenshot({
-        path: test.info().outputPath(`catalogue-320-200-${locale}.png`),
-        fullPage: true,
-      });
       const trigger = page.locator('[command="show-modal"]');
       await trigger.click();
-      expect(await overflow(page)).toEqual([]);
+      await layoutGate(page, 'catalogue with the dialog open');
     });
   });
 }
 
 test('is refused to a member without tenant:admin, patterns included', async ({ page }) => {
-  const landed = await open(page, '/admin/probe/_ui', editor);
-  expect(landed.status()).toBe(403);
+  await open(page, '/admin/probe/_ui', editor);
+  expect((await page.reload())!.status()).toBe(403);
   expect((await page.goto('/admin/probe/_ui/overview'))!.status()).toBe(403);
 });
 
@@ -234,17 +152,7 @@ for (const pattern of PATTERNS)
     await expect(page.locator('main')).toHaveCount(1);
     await expect(page.locator('script')).toHaveCount(0);
     if (test.info().project.name !== 'a11y') return;
-    for (const colorScheme of ['light', 'dark'] as const) {
-      await page.emulateMedia({ colorScheme });
-      await page.screenshot({
-        path: test.info().outputPath(`pattern-${pattern}-${colorScheme}.png`),
-        fullPage: true,
-      });
-      const { violations } = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
-        .analyze();
-      expect(violations.map((v) => `${colorScheme}: ${v.id} ${v.nodes[0]?.target}`)).toEqual([]);
-    }
+    await expectNoAxeViolations(page, { dark: true });
   });
 
 test('a settings section confirms its own save, without a script', async ({ page }) => {
@@ -262,20 +170,16 @@ test('a settings section confirms its own save, without a script', async ({ page
 
 for (const locale of ['en-GB', 'nl-NL']) {
   test.describe(`page patterns at 320 CSS px and 200% text, ${locale}`, () => {
-    test.use({ locale, viewport: { width: 320, height: 900 } });
+    test.use({ locale, viewport: NARROW });
     test('keep every label whole and nothing scrolls sideways', async ({ page }) => {
       await open(page, `/admin/probe/_ui/${PATTERNS[0]}`);
       for (const pattern of PATTERNS) {
         for (const query of pattern === 'overview' ? ['', '?view=list'] : ['']) {
           await page.goto(`/admin/probe/_ui/${pattern}${query}`);
-          await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
+          await setTextSize(page, '200%');
           const folds = page.locator('.ui-fold > summary');
           for (let i = 0; i < (await folds.count()); i++) await folds.nth(i).click();
-          expect([...(await overflow(page)), ...(await targets(page))], pattern).toEqual([]);
-          await page.screenshot({
-            path: test.info().outputPath(`pattern-${pattern}${query ? '-list' : ''}-320-200.png`),
-            fullPage: true,
-          });
+          await layoutGate(page, `${pattern}${query}`);
         }
       }
     });
