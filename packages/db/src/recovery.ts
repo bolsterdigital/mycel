@@ -32,6 +32,7 @@ import { JOB_LEASE_SECONDS } from './jobs.js';
 import { MAX_ATTEMPTS } from './outbox.js';
 import type { PlatformActor } from './platform.js';
 import type { Database } from './schema.js';
+import { asRole, setRole } from './roles.js';
 
 type Trx = Kysely<Database>;
 
@@ -126,10 +127,7 @@ export function jobRecoveryRepository(trx: Trx, tenantId: string): JobRecovery {
 
 /** One transaction on `db` (the authentication login or the operator) as mycel_ops. */
 function asOps<T>(db: Kysely<Database>, fn: (trx: Trx) => Promise<T>): Promise<T> {
-  return db.transaction().execute(async (trx) => {
-    await sql`set local role mycel_ops`.execute(trx);
-    return fn(trx);
-  });
+  return asRole(db, 'mycel_ops', fn);
 }
 
 export interface OpsPage {
@@ -377,7 +375,7 @@ async function recover(
   return asOps(db, async (trx) => {
     const changed = await change(trx);
     if (!changed) return (await seen(trx)) ? 'not_exhausted' : 'not_found';
-    await sql`set local role mycel_platform`.execute(trx);
+    await setRole(trx, 'mycel_platform');
     await recordPlatformAudit(trx, {
       id: uuidv7(),
       tenantId: changed.tenant_id,

@@ -4,6 +4,7 @@
 import { sql, type Kysely, type Selectable } from 'kysely';
 import type { AssistRepository, AssistSettings, AssistSuggestion } from '@mycel/core';
 import type { Database } from './schema.js';
+import { advisoryLock } from './roles.js';
 
 const empty: AssistSettings = {
   enabled: false,
@@ -71,7 +72,7 @@ export function assistRepository(trx: Kysely<Database>, tenantId: string): Assis
         .execute();
     },
     async lockQuota() {
-      await sql`select pg_advisory_xact_lock(hashtextextended(${tenantId}::text, 24))`.execute(trx);
+      await advisoryLock(trx, 'assist', tenantId);
     },
     async countSince(since) {
       const month = since.toISOString().slice(0, 7) + '-01';

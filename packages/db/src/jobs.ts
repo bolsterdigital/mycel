@@ -26,6 +26,7 @@ import {
   type Scheduler,
 } from '@mycel/core';
 import { uuidv7 } from './ids.js';
+import { asRole } from './roles.js';
 import type { Database } from './schema.js';
 
 /** A claim older than this is free again: the worker that held it is presumed dead. */
@@ -89,10 +90,7 @@ export function jobScheduler(trx: Kysely<Database>, tenantId: string): Scheduler
 
 /** Run `fn` in one transaction as mycel_worker (0003, 0009). */
 const asWorker = <T>(operatorDb: Kysely<Database>, fn: (trx: Kysely<Database>) => Promise<T>) =>
-  operatorDb.transaction().execute(async (trx) => {
-    await sql`set local role mycel_worker`.execute(trx);
-    return fn(trx);
-  });
+  asRole(operatorDb, 'mycel_worker', fn);
 
 /**
  * Claim up to `batchSize` due jobs: open, due, not exhausted, and unclaimed or with an expired

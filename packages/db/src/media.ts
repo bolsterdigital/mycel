@@ -15,6 +15,7 @@ import {
   type MediaRepository,
 } from '@mycel/core';
 import type { Database } from './schema.js';
+import { advisoryLock } from './roles.js';
 
 type Trx = Kysely<Database>;
 type Row = Selectable<Database['media']> & { usage_count: string | number };
@@ -56,9 +57,7 @@ export function mediaRepository(trx: Trx, tenantId: string): MediaRepository {
       );
   return {
     async lock() {
-      await sql`select pg_advisory_xact_lock(hashtextextended(${`media:${tenantId}`}, 0))`.execute(
-        trx
-      );
+      await advisoryLock(trx, 'media', tenantId);
     },
     async get(id) {
       const row = await select().where('media.id', '=', id).executeTakeFirst();

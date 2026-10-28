@@ -5,8 +5,8 @@
 // the `mycel` CLI (packages/api/src/cli.ts, for a self-hoster), so both refuse and accept exactly
 // the same things.
 //
-// Every function is one transaction that first enters `mycel_platform` (migration 0010) with
-// `set local role`. The connection `db` is the authentication login (the API) or the operator
+// Every function is one transaction that first enters `mycel_platform` (migration 0010) through
+// `asRole`. The connection `db` is the authentication login (the API) or the operator
 // (the CLI, the seed); both are members of mycel_platform, and what a function can do is what
 // that role can do, not what the connection can: read and insert tenants, update their
 // entitlements and status, read and insert platform hostnames (policy `platform_hostnames`), and
@@ -36,6 +36,7 @@ import {
 import { recordPlatformAudit } from './audit.js';
 import { uuidv7 } from './ids.js';
 import type { Database } from './schema.js';
+import { asRole } from './roles.js';
 
 type Trx = Kysely<Database>;
 
@@ -99,7 +100,7 @@ async function audit(
 /**
  * The platform hostname `<slug>.<platform domain>` of a new tenant: verified from the start,
  * primary unless the tenant already has a primary, never removed (ADR 014 rule 2). Runs as
- * mycel_platform (`asPlatform`), whose `platform_hostnames` policy reads every row and inserts
+ * mycel_platform (`asRole`), whose `platform_hostnames` policy reads every row and inserts
  * platform rows only; no tenant context is set, and `tenant_isolation` is mycel_app's alone
  * (0010), so this role can never write a custom hostname (review round 1 of TODO #16).
  */
@@ -127,17 +128,6 @@ export async function insertPlatformHostname(
     .execute();
 }
 
-/**
- * One transaction on `db` as mycel_platform. No `reset role`: `set local` ends with the
- * transaction, and a failed statement rolls back role and all.
- */
-export function asPlatform<T>(db: Kysely<Database>, fn: (trx: Trx) => Promise<T>): Promise<T> {
-  return db.transaction().execute(async (trx) => {
-    await sql`set local role mycel_platform`.execute(trx);
-    return fn(trx);
-  });
-}
-
 const SLUG = /^[a-z0-9][a-z0-9-]{1,62}$/;
 
 function validDocument(document: unknown): EntitlementsDocument {
@@ -163,7 +153,7 @@ export async function createTenant(
   platform: Platform,
   by: PlatformActor
 ): Promise<PlatformTenant> {
-  return asPlatform(db, (trx) => createTenantIn(trx, tenant, platform, by));
+  return asRole(db, 'mycel_platform', (trx) => createTenantIn(trx, tenant, platform, by));
 }
 
 /**
@@ -277,20 +267,20 @@ async function readTenant(trx: Trx, id: string): Promise<PlatformTenant | null> 
 }
 
 export async function listTenants(db: Kysely<Database>): Promise<PlatformTenant[]> {
-  return asPlatform(db, async (trx) =>
+  return asRole(db, 'mycel_platform', async (trx) =>
     (await tenantQuery(trx).orderBy('t.slug').execute()).map(toTenant)
   );
 }
 
 export async function getTenant(db: Kysely<Database>, id: string): Promise<PlatformTenant | null> {
-  return asPlatform(db, (trx) => readTenant(trx, id));
+  return asRole(db, 'mycel_platform', (trx) => readTenant(trx, id));
 }
 
 export async function getTenantBySlug(
   db: Kysely<Database>,
   slug: string
 ): Promise<PlatformTenant | null> {
-  return asPlatform(db, async (trx) => {
+  return asRole(db, 'mycel_platform', async (trx) => {
     const r = await tenantQuery(trx).where('t.slug', '=', slug).executeTakeFirst();
     return r ? toTenant(r) : null;
   });
@@ -307,7 +297,7 @@ export async function setEntitlements(
   by: PlatformActor
 ): Promise<PlatformTenant | null> {
   const valid = validDocument(document);
-  return asPlatform(db, async (trx) => {
+  return asRole(db, 'mycel_platform', async (trx) => {
     const r = await trx
       .updateTable('tenants')
       .set({ entitlements: JSON.stringify(valid) })
@@ -329,7 +319,7 @@ export async function setStatus(
     throw new UseCaseError('invalid_input', 'status must be active or suspended', [
       { path: 'status', message: 'invalid' },
     ]);
-  return asPlatform(db, async (trx) => {
+  return asRole(db, 'mycel_platform', async (trx) => {
     const r = await trx
       .updateTable('tenants')
       .set({ status })

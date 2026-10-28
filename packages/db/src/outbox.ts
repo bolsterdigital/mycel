@@ -16,6 +16,7 @@ import {
 } from '@mycel/core';
 import { reportOrLog, type WorkerHooks } from './jobs.js';
 import type { Database } from './schema.js';
+import { asRole } from './roles.js';
 
 export function outboxEventBus(trx: Kysely<Database>): EventBus {
   return {
@@ -81,8 +82,7 @@ export async function drainOutbox(
     onError?: (e: unknown, eventId: string, subscriber: string, tenantId: string) => void;
   } = {}
 ): Promise<DrainResult> {
-  return operatorDb.transaction().execute(async (trx) => {
-    await sql`set local role mycel_worker`.execute(trx);
+  return asRole(operatorDb, 'mycel_worker', async (trx) => {
     const { rows } = await sql<OutboxRow>`
       select id, tenant_id, type, occurred_at, actor, props, attempts, delivered_to
       from outbox
@@ -137,8 +137,7 @@ export async function readOutboxEvent(
   operatorDb: Kysely<Database>,
   id: string
 ): Promise<DomainEvent | null> {
-  return operatorDb.transaction().execute(async (trx) => {
-    await sql`set local role mycel_worker`.execute(trx);
+  return asRole(operatorDb, 'mycel_worker', async (trx) => {
     const { rows } = await sql<OutboxRow>`
       select id, tenant_id, type, occurred_at, actor, props, attempts, delivered_to
       from outbox where id = ${id}`.execute(trx);

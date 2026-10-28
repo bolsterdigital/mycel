@@ -43,7 +43,8 @@ import {
 import { erasureRepository } from './erasures.js';
 import { tenantExportRepository } from './exports.js';
 import { hostnameRepository } from './hostnames.js';
-import { asPlatform, insertPlatformHostname } from './platform.js';
+import { insertPlatformHostname } from './platform.js';
+import { asRole } from './roles.js';
 import { jobScheduler } from './jobs.js';
 import { jobRecoveryRepository } from './recovery.js';
 import { mediaRepository } from './media.js';
@@ -307,7 +308,7 @@ export async function upsertTenant(
 ): Promise<TenantInfo> {
   // As mycel_platform, like every platform write (0010): the owner is a member, and the role's
   // grants, not the connection's, decide what this can do. An existing slug keeps its row.
-  return asPlatform(operatorDb, async (trx) => {
+  return asRole(operatorDb, 'mycel_platform', async (trx) => {
     const row =
       (await trx
         .insertInto('tenants')
