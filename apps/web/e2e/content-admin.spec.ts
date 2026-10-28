@@ -674,7 +674,7 @@ test('a writer without content:publish sees the state, no buttons, and gets a 40
   const edit = await newPage(page, slugFor('writer'), 'Schrijverswerk');
   await page.goto('/admin/probe');
   const invite = page.locator('form[action="?/invite"]');
-  await invite.getByLabel('E-mailadres', { exact: true }).fill(email);
+  await invite.getByLabel('E-mailadres (verplicht)', { exact: true }).fill(email);
   await invite.getByLabel('content:read', { exact: true }).check();
   await invite.getByLabel('content:write', { exact: true }).check();
   await invite.getByRole('button', { name: 'Uitnodigen' }).click();

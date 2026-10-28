@@ -3,11 +3,22 @@
      Every action is a native form post. Action groups wrap whole buttons onto a new line when
      they do not fit, and a long label wraps inside its own button at word boundaries (skill
      ui-action-layout); the e2e specs check 320 CSS px and 200% text.
-     The page shell is on the shared basis (brief #56 § C3): page header, notices, usage as a
-     definition list and capabilities as badges. The members, domains and keys sections are the
-     dev lane's and move over in their own PR (lanes.md). -->
+     The whole page is on the shared basis (brief #56 § C3, dev PR B): page header, notices, usage
+     as a definition list, capabilities as badges, and every member, domain and key a form around
+     a card with its checkboxes as `Choices` and its buttons as one `Actions` group. The form wraps
+     the card, not the other way round, so a card's buttons share one form via `formaction`. -->
 <script lang="ts">
-  import { Badge, MetaList, Notice, PageHeader } from '#lib/admin/ui/index.js';
+  import {
+    Actions,
+    Badge,
+    Button,
+    Card,
+    Choices,
+    Field,
+    MetaList,
+    Notice,
+    PageHeader,
+  } from '#lib/admin/ui/index.js';
   import { fill, ui, type UiKey } from '../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -33,6 +44,7 @@
       unit: n >= 1024 ** 3 ? 'gigabyte' : 'megabyte',
       maximumFractionDigits: 1,
     }).format(n / (n >= 1024 ** 3 ? 1024 ** 3 : 1024 ** 2));
+  const options = (list: readonly string[]) => list.map((c) => ({ value: c, label: c }));
   const vars = (f: Record<string, unknown>) => ({
     email: typeof f.email === 'string' ? f.email : '',
     hostname: typeof f.hostname === 'string' ? f.hostname : '',
@@ -44,23 +56,7 @@
 </svelte:head>
 
 {#snippet capability(name: string)}{parts(name)[0]}:<wbr />{parts(name)[1]}{/snippet}
-
-{#snippet checkboxes(id: string, options: readonly string[], checked: readonly string[])}
-  <ul class="capabilities">
-    {#each options as option (option)}
-      <li>
-        <input
-          type="checkbox"
-          id="{id}-{option}"
-          name="capabilities"
-          value={option}
-          checked={checked.includes(option)}
-        />
-        <label for="{id}-{option}">{@render capability(option)}</label>
-      </li>
-    {/each}
-  </ul>
-{/snippet}
+{#snippet choice(option: { value: string })}{@render capability(option.value)}{/snippet}
 
 <main class="page admin">
   <PageHeader title={data.tenant.name} locale={data.locale} />
@@ -113,11 +109,10 @@
     </Notice>
   {/if}
   {#if token}
-    <section class="notice token" aria-labelledby="token-title">
-      <h2 id="token-title">{t('admin.keys.token.title')}: {token.keyName}</h2>
+    <Notice tone="success" title="{t('admin.keys.token.title')}: {token.keyName}">
       <p>{t('admin.keys.token.body')}</p>
       <p><code class="token-value">{token.token}</code></p>
-    </section>
+    </Notice>
   {/if}
 
   {#if data.usage.status === 'suspended'}
@@ -168,47 +163,58 @@
     <h2 id="members">{t('admin.members.title')}</h2>
     <p>{t('admin.members.note')}</p>
     {#each data.members as member (member.operatorId)}
-      <form method="post" action="?/update" class="card">
-        <h3>
-          {member.email}{#if member.name}
-            ({member.name}){/if}
-        </h3>
-        {#if member.pending}<p class="muted">{t('admin.members.pending')}</p>{/if}
-        <input type="hidden" name="operatorId" value={member.operatorId} />
-        <fieldset>
-          <legend>{fill(t('admin.members.capabilities'), { email: member.email })}</legend>
-          {@render checkboxes(`m-${member.operatorId}`, data.allCapabilities, member.capabilities)}
-        </fieldset>
-        <div class="actions">
-          <button type="submit">{t('admin.members.save')}</button>
-          <button type="submit" formaction="?/remove" class="secondary">
-            {t('admin.members.remove')}
-          </button>
-        </div>
+      <form method="post" action="?/update" class="ui-card-form">
+        <Card title={member.name ? `${member.email} (${member.name})` : member.email}>
+          {#if member.pending}
+            <ul class="ui-badges">
+              <li><Badge tone="warning">{t('admin.members.pending')}</Badge></li>
+            </ul>
+          {/if}
+          <input type="hidden" name="operatorId" value={member.operatorId} />
+          <Choices
+            id="m-{member.operatorId}"
+            name="capabilities"
+            type="checkbox"
+            legend={fill(t('admin.members.capabilities'), { email: member.email })}
+            locale={data.locale}
+            options={options(data.allCapabilities)}
+            selected={member.capabilities}
+            optionLabel={choice}
+          />
+          <Actions>
+            <Button>{t('admin.members.save')}</Button>
+            <Button variant="secondary" formaction="?/remove">{t('admin.members.remove')}</Button>
+          </Actions>
+        </Card>
       </form>
     {/each}
 
-    <form method="post" action="?/invite" class="card">
-      <h3>{t('admin.invite.title')}</h3>
-      <div class="field">
-        <label for="invite-email">{t('admin.invite.email')}</label>
-        <input
+    <form method="post" action="?/invite" class="ui-card-form">
+      <Card title={t('admin.invite.title')}>
+        <Field
           id="invite-email"
           name="email"
           type="email"
           autocomplete="off"
           required
+          label={t('admin.invite.email')}
+          locale={data.locale}
           value={failed?.action === 'invite' ? (failed.email ?? '') : ''}
         />
-      </div>
-      <fieldset>
-        <legend>{t('admin.invite.capabilities')}</legend>
-        {@render checkboxes('invite', data.allCapabilities, [])}
-      </fieldset>
-      <p class="muted">{fill(t('admin.invite.hint'), { url: data.loginUrl })}</p>
-      <div class="actions">
-        <button type="submit">{t('admin.invite.submit')}</button>
-      </div>
+        <Choices
+          id="invite"
+          name="capabilities"
+          type="checkbox"
+          legend={t('admin.invite.capabilities')}
+          locale={data.locale}
+          options={options(data.allCapabilities)}
+          optionLabel={choice}
+        />
+        <p class="ui-hint">{fill(t('admin.invite.hint'), { url: data.loginUrl })}</p>
+        <Actions>
+          <Button>{t('admin.invite.submit')}</Button>
+        </Actions>
+      </Card>
     </form>
   </section>
 
@@ -219,72 +225,89 @@
       <form
         method="post"
         action={h.kind === 'custom' ? '?/verifyHostname' : '?/setPrimaryHostname'}
-        class="card"
+        class="ui-card-form"
       >
-        <h3>
-          {h.display}{#if h.display !== h.hostname}
-            <span class="muted">({h.hostname})</span>{/if}
-        </h3>
-        <ul class="tags">
-          <li>
-            {t(h.kind === 'platform' ? 'admin.domains.kind.platform' : 'admin.domains.kind.custom')}
-          </li>
-          {#if h.primary}<li>{t('admin.domains.primary')}</li>{/if}
-          <li>{t(h.verifiedAt ? 'admin.domains.verified' : 'admin.domains.unverified')}</li>
-        </ul>
-        {#if h.kind === 'custom'}
-          <p class="muted">
-            {h.lastCheckedAt === null
-              ? t('admin.domains.checks.none')
-              : fill(
-                  t(
-                    h.checkFailures > 0 ? 'admin.domains.checks.failing' : 'admin.domains.checks.ok'
-                  ),
-                  { when: when(h.lastCheckedAt) ?? '', n: h.checkFailures }
-                )}
-          </p>
-        {/if}
-        {#if h.dns}
-          <h4>{t('admin.domains.dns.title')}</h4>
-          <dl>
-            <dt>{t('admin.domains.dns.txt')}: {t('admin.domains.dns.name')}</dt>
-            <dd><code>{h.dns.txt.name}</code></dd>
-            <dt>{t('admin.domains.dns.txt')}: {t('admin.domains.dns.value')}</dt>
-            <dd><code class="dns-value">{h.dns.txt.value}</code></dd>
-            <dt>{t('admin.domains.dns.cname')}: {t('admin.domains.dns.name')}</dt>
-            <dd><code>{h.dns.cname.name}</code></dd>
-            <dt>{t('admin.domains.dns.cname')}: {t('admin.domains.dns.target')}</dt>
-            <dd><code>{h.dns.cname.target}</code></dd>
-          </dl>
-          <p class="muted">{t('admin.domains.dns.apex')}</p>
-        {/if}
-        <input type="hidden" name="hostname" value={h.hostname} />
-        {#if h.kind === 'custom' || !h.primary}
-          <div class="actions">
-            {#if h.kind === 'custom'}
-              <button type="submit" formaction="?/verifyHostname">{t('admin.domains.check')}</button
+        <Card title={h.display !== h.hostname ? `${h.display} (${h.hostname})` : h.display}>
+          <ul class="ui-badges">
+            <li>
+              <Badge
+                >{t(
+                  h.kind === 'platform'
+                    ? 'admin.domains.kind.platform'
+                    : 'admin.domains.kind.custom'
+                )}</Badge
               >
-            {/if}
-            {#if h.verifiedAt && !h.primary}
-              <button type="submit" formaction="?/setPrimaryHostname" class="secondary">
-                {t('admin.domains.makePrimary')}
-              </button>
-            {/if}
-            {#if h.kind === 'custom' && !h.primary}
-              <button type="submit" formaction="?/removeHostname" class="secondary">
-                {t('admin.domains.remove')}
-              </button>
-            {/if}
-          </div>
-        {/if}
+            </li>
+            {#if h.primary}<li><Badge tone="info">{t('admin.domains.primary')}</Badge></li>{/if}
+            <li>
+              <Badge tone={h.verifiedAt ? 'success' : 'warning'}
+                >{t(h.verifiedAt ? 'admin.domains.verified' : 'admin.domains.unverified')}</Badge
+              >
+            </li>
+          </ul>
+          {#if h.kind === 'custom'}
+            <p class="ui-hint">
+              {h.lastCheckedAt === null
+                ? t('admin.domains.checks.none')
+                : fill(
+                    t(
+                      h.checkFailures > 0
+                        ? 'admin.domains.checks.failing'
+                        : 'admin.domains.checks.ok'
+                    ),
+                    { when: when(h.lastCheckedAt) ?? '', n: h.checkFailures }
+                  )}
+            </p>
+          {/if}
+          {#if h.dns}
+            <h4>{t('admin.domains.dns.title')}</h4>
+            <div class="ui-meta-host">
+              <dl class="ui-meta">
+                <div>
+                  <dt>{t('admin.domains.dns.txt')}: {t('admin.domains.dns.name')}</dt>
+                  <dd><code>{h.dns.txt.name}</code></dd>
+                </div>
+                <div>
+                  <dt>{t('admin.domains.dns.txt')}: {t('admin.domains.dns.value')}</dt>
+                  <dd><code class="dns-value">{h.dns.txt.value}</code></dd>
+                </div>
+                <div>
+                  <dt>{t('admin.domains.dns.cname')}: {t('admin.domains.dns.name')}</dt>
+                  <dd><code>{h.dns.cname.name}</code></dd>
+                </div>
+                <div>
+                  <dt>{t('admin.domains.dns.cname')}: {t('admin.domains.dns.target')}</dt>
+                  <dd><code>{h.dns.cname.target}</code></dd>
+                </div>
+              </dl>
+            </div>
+            <p class="ui-hint">{t('admin.domains.dns.apex')}</p>
+          {/if}
+          <input type="hidden" name="hostname" value={h.hostname} />
+          {#if h.kind === 'custom' || !h.primary}
+            <Actions>
+              {#if h.kind === 'custom'}
+                <Button formaction="?/verifyHostname">{t('admin.domains.check')}</Button>
+              {/if}
+              {#if h.verifiedAt && !h.primary}
+                <Button variant="secondary" formaction="?/setPrimaryHostname"
+                  >{t('admin.domains.makePrimary')}</Button
+                >
+              {/if}
+              {#if h.kind === 'custom' && !h.primary}
+                <Button variant="secondary" formaction="?/removeHostname"
+                  >{t('admin.domains.remove')}</Button
+                >
+              {/if}
+            </Actions>
+          {/if}
+        </Card>
       </form>
     {/each}
 
-    <form method="post" action="?/addHostname" class="card">
-      <h3>{t('admin.domains.add.title')}</h3>
-      <div class="field">
-        <label for="add-hostname">{t('admin.domains.add.hostname')}</label>
-        <input
+    <form method="post" action="?/addHostname" class="ui-card-form">
+      <Card title={t('admin.domains.add.title')}>
+        <Field
           id="add-hostname"
           name="hostname"
           type="text"
@@ -292,14 +315,16 @@
           autocapitalize="off"
           spellcheck="false"
           required
-          maxlength="300"
+          maxlength={300}
+          label={t('admin.domains.add.hostname')}
+          hint={t('admin.domains.add.hint')}
+          locale={data.locale}
           value={failed?.action === 'addHostname' ? (failed.hostname ?? '') : ''}
         />
-      </div>
-      <p class="muted">{t('admin.domains.add.hint')}</p>
-      <div class="actions">
-        <button type="submit">{t('admin.domains.add.submit')}</button>
-      </div>
+        <Actions>
+          <Button>{t('admin.domains.add.submit')}</Button>
+        </Actions>
+      </Card>
     </form>
   </section>
 
@@ -309,51 +334,76 @@
       <p>{t('admin.keys.none')}</p>
     {/if}
     {#each data.keys as key (key.id)}
-      <form method="post" action="?/revokeKey" class="card">
-        <h3>{key.name}</h3>
-        <dl>
-          <dt>{t('admin.keys.prefix')}</dt>
-          <dd><code>{key.prefix}</code></dd>
-          <dt>{t('admin.keys.capabilities')}</dt>
-          <dd>
-            <ul class="tags">
-              {#each key.capabilities as c (c)}<li>{@render capability(c)}</li>{/each}
-            </ul>
-          </dd>
-          <dt>{t('admin.keys.created')}</dt>
-          <dd>{when(key.createdAt)}</dd>
-          <dt>{t('admin.keys.lastUsed')}</dt>
-          <dd>{when(key.lastUsedAt) ?? t('admin.keys.never')}</dd>
-          {#if key.revokedAt}
-            <dt>{t('admin.keys.revoked')}</dt>
-            <dd>{when(key.revokedAt)}</dd>
-          {/if}
-        </dl>
-        {#if !key.revokedAt}
-          <input type="hidden" name="id" value={key.id} />
-          <div class="actions">
-            <button type="submit" class="secondary">
-              {fill(t('admin.keys.revoke'), { name: key.name })}
-            </button>
+      <form method="post" action="?/revokeKey" class="ui-card-form">
+        <Card title={key.name}>
+          <div class="ui-meta-host">
+            <dl class="ui-meta">
+              <div>
+                <dt>{t('admin.keys.prefix')}</dt>
+                <dd><code>{key.prefix}</code></dd>
+              </div>
+              <div>
+                <dt>{t('admin.keys.capabilities')}</dt>
+                <dd>
+                  <ul class="ui-badges">
+                    {#each key.capabilities as c (c)}<li>
+                        <Badge>{@render capability(c)}</Badge>
+                      </li>{/each}
+                  </ul>
+                </dd>
+              </div>
+              <div>
+                <dt>{t('admin.keys.created')}</dt>
+                <dd>{when(key.createdAt)}</dd>
+              </div>
+              <div>
+                <dt>{t('admin.keys.lastUsed')}</dt>
+                <dd>{when(key.lastUsedAt) ?? t('admin.keys.never')}</dd>
+              </div>
+              {#if key.revokedAt}
+                <div>
+                  <dt>{t('admin.keys.revoked')}</dt>
+                  <dd>{when(key.revokedAt)}</dd>
+                </div>
+              {/if}
+            </dl>
           </div>
-        {/if}
+          {#if !key.revokedAt}
+            <input type="hidden" name="id" value={key.id} />
+            <Actions>
+              <Button variant="secondary">{fill(t('admin.keys.revoke'), { name: key.name })}</Button
+              >
+            </Actions>
+          {/if}
+        </Card>
       </form>
     {/each}
 
-    <form method="post" action="?/createKey" class="card">
-      <h3>{t('admin.keys.create.title')}</h3>
-      <div class="field">
-        <label for="key-name">{t('admin.keys.create.name')}</label>
-        <input id="key-name" name="name" type="text" required maxlength="100" />
-      </div>
-      <fieldset>
-        <legend>{t('admin.keys.create.capabilities')}</legend>
-        {@render checkboxes('key', data.keyCapabilities, [])}
-      </fieldset>
-      <p class="muted">{t('admin.keys.create.hint')}</p>
-      <div class="actions">
-        <button type="submit">{t('admin.keys.create.submit')}</button>
-      </div>
+    <form method="post" action="?/createKey" class="ui-card-form">
+      <Card title={t('admin.keys.create.title')}>
+        <Field
+          id="key-name"
+          name="name"
+          type="text"
+          required
+          maxlength={100}
+          label={t('admin.keys.create.name')}
+          locale={data.locale}
+        />
+        <Choices
+          id="key"
+          name="capabilities"
+          type="checkbox"
+          legend={t('admin.keys.create.capabilities')}
+          locale={data.locale}
+          options={options(data.keyCapabilities)}
+          optionLabel={choice}
+        />
+        <p class="ui-hint">{t('admin.keys.create.hint')}</p>
+        <Actions>
+          <Button>{t('admin.keys.create.submit')}</Button>
+        </Actions>
+      </Card>
     </form>
   </section>
 </main>
