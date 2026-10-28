@@ -118,7 +118,7 @@ Examples: `callout-info`, `callout-note`, `callout-warning`.
 
 ## `faq` (Questions and answers)
 
-Version 1.
+Version 2.
 
 | Prop                 | Label    | Kind                                                    | Presence |
 | -------------------- | -------- | ------------------------------------------------------- | -------- |
@@ -127,8 +127,9 @@ Version 1.
 | `entries`            | Question | list of 1–30                                            | required |
 | `entries[].question` | Question | localised text                                          | required |
 | `entries[].answer`   | Answer   | localised rich text (Markdown subset in the no-JS form) | required |
+| `width`              | Width    | one of `content`, `wide`, `full`                        | required |
 
-Examples: `faq-list`, `faq-accordion`.
+Examples: `faq-list`, `faq-accordion`, `faq-list-wide`, `faq-list-full`, `faq-accordion-wide`, `faq-accordion-full`.
 
 ## `quote` (Quote)
 

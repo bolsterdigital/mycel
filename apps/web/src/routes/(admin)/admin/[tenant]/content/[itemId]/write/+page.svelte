@@ -381,7 +381,7 @@
           bind:this={insertLink}
           class="button secondary"
           data-sveltekit-reload
-          href="{base}/blocks/new?revision={revisionId}">{t('admin.editor.insert')}</a
+          href="{base}#insert-document">{t('admin.editor.insert')}</a
         >
       </div>
       <p class="muted">{t('admin.editor.shortcuts')}</p>

@@ -97,6 +97,7 @@ export type RenderBlock = { id: string } & (
   | {
       type: 'faq';
       variant: 'list' | 'accordion';
+      width: Width;
       title: string | null;
       entries: { question: string; answer: RichTextDoc }[];
     }

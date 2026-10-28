@@ -114,7 +114,12 @@ const examples = BLOCK_TYPES.flatMap((type) =>
   BLOCK_DEFINITIONS[type].examples.map((e) => ({
     type,
     name: e.name,
-    block: Block.parse({ id: e.name, type, version: 1, props: e.props }),
+    block: Block.parse({
+      id: e.name,
+      type,
+      version: BLOCK_DEFINITIONS[type].version,
+      props: e.props,
+    }),
   }))
 );
 
@@ -237,7 +242,7 @@ describe('heading levels come from context', () => {
     const faq = Block.parse({
       id: 'f',
       type: 'faq',
-      version: 1,
+      version: 2,
       props: {
         title: { nl: 'Vragen' },
         entries: [{ question: { nl: 'Waarom?' }, answer: { nl: doc } }],

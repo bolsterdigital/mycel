@@ -13,10 +13,8 @@ const examples = BLOCK_TYPES.flatMap((type) =>
     type,
     name: e.name,
     fields: BLOCK_DEFINITIONS[type].fields,
-    props: Block.parse({ id: 'x', type, version: 1, props: e.props }).props as Record<
-      string,
-      unknown
-    >,
+    props: Block.parse({ id: 'x', type, version: BLOCK_DEFINITIONS[type].version, props: e.props })
+      .props as Record<string, unknown>,
   }))
 );
 

@@ -523,7 +523,12 @@
 </main>
 
 {#snippet insert(anchor: string | null, i: number)}
-  <form method="get" action="{base}/content/{data.item.id}/blocks/new" class="insert">
+  <form
+    id={anchor ? undefined : 'insert-document'}
+    method="get"
+    action="{base}/content/{data.item.id}/blocks/new"
+    class="insert"
+  >
     <input type="hidden" name="revision" value={data.revision.id} />
     {#if anchor}<input type="hidden" name="anchor" value={anchor} />{/if}
     <fieldset>
