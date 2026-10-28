@@ -36,6 +36,8 @@ One method, eight questions. The catalogue is a menu, not a checklist: a review 
 
 Statuses: **mandatory** is checked in every review and is never the optional extra; **pilot** lenses are the ones the signals may propose during the current pilot; **manual** lenses exist and are invoked on request; **inactive** marks a surface that is not built yet (the editor, once ADR 020 ships, starts there). Public values are testable behaviour here, not a sentiment: a tenant can export its data, consent is checked at the moment of use, an agent gets no more capability than the UI, accessible HTML and open formats are product properties (ADR 002, 009, 018).
 
+**Admin screens (frontend lens, since brief #56).** A new or changed admin screen is built from the shared components in `apps/web/src/lib/admin/ui/` and the tokens in `apps/web/src/lib/theme/admin.css`: page header, buttons and action groups, fields, notices, tables, cards, dialogs. A screen-local button style, colour value or one-off layout for something a component already does is a finding, not a style preference; a component that is missing is added to `lib/admin/ui` with a test and a place in the catalogue at `/admin/<tenant>/_ui` (outside production), not built inside the screen.
+
 The lens questions, the paths each one watches, the ADRs and gates that already cover it, and its smallest counterproof live in [`review-profile.json`](review-profile.json). That file is the **project profile**: data, so another project can carry its own without forking this method, and so a test can keep it honest.
 
 ## Signals
