@@ -2,10 +2,12 @@
 // tests). Random sequences of saves, publications, plans and job runs over two locales, checked
 // after every step against invariants that no sequence may break.
 //
-// A seeded generator instead of fast-check: thirty lines cover what this test needs, and a
-// failing seed is printed so the sequence replays exactly (ADR 008 policy 1). Rejected:
-// adding fast-check for one test file.
+// fast-check with `fc.gen()`: the sequence draws its choices step by step, so the test reads as
+// the scenario it drives, and a failure is shrunk and printed with the seed and path that replay
+// it (`fc.assert(..., { seed, path })`). Rejected: a hand-rolled seeded PRNG (the previous
+// version), which replayed but never shrank and was copied into two more test files.
 
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { Invoker } from '../invoke.js';
 import { parseJobPayload } from '../jobs/types.js';
@@ -17,20 +19,8 @@ import { publishScheduled } from './service.js';
 const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const LOCALES = ['nl', 'en'] as const;
 
-/** mulberry32: small, fast, and good enough to drive a test. */
-function random(seed: number): () => number {
-  let a = seed;
-  return () => {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-async function runSequence(seed: number, steps: number): Promise<void> {
-  const rnd = random(seed);
-  const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rnd() * xs.length)]!;
+async function runSequence(g: fc.GeneratorValue, steps: number): Promise<void> {
+  const pick = <T>(xs: readonly T[]): T => g(fc.constantFrom, ...xs);
   const clock = new FakeClock();
   const uow = new MemoryUnitOfWork({ clock });
   const invoker = new Invoker(buildRegistry(), uow);
@@ -75,7 +65,7 @@ async function runSequence(seed: number, steps: number): Promise<void> {
       expected.set(locale, null);
       plans.set(locale, null);
     } else if (op === 'schedule') {
-      const at = clock.now().getTime() + Math.floor(rnd() * 3 + 1) * 60_000;
+      const at = clock.now().getTime() + g(fc.integer, { min: 1, max: 3 }) * 60_000;
       await invoker.run(useCases.scheduleItem, admin, {
         itemId,
         revisionId,
@@ -89,10 +79,14 @@ async function runSequence(seed: number, steps: number): Promise<void> {
     } else {
       // Time passes and every open job runs once, in a random order, some of them twice.
       clock.advance(60_000);
-      const open = uow.store.jobs.filter((j) => j.doneAt === null).sort(() => rnd() - 0.5);
+      const pending = uow.store.jobs.filter((j) => j.doneAt === null);
+      const open = g(fc.shuffledSubarray, pending, {
+        minLength: pending.length,
+        maxLength: pending.length,
+      });
       for (const job of open) {
         const payload = parseJobPayload('content.publish', job.payload);
-        const times = rnd() < 0.2 ? 2 : 1;
+        const times = g(fc.integer, { min: 1, max: 5 }) === 1 ? 2 : 1;
         for (let i = 0; i < times; i++) {
           const outcome = await uow.run(systemPrincipal(TENANT, 'jobs'), (ctx) =>
             publishScheduled(ctx, payload)
@@ -115,7 +109,7 @@ async function runSequence(seed: number, steps: number): Promise<void> {
 
     const { item } = await invoker.run(useCases.getItem, admin, { itemId });
     for (const s of item.publication) {
-      const context = `seed ${seed}, step ${step} (${op} ${locale}), locale ${s.locale}`;
+      const context = `step ${step} (${op} ${locale}), locale ${s.locale}`;
       // The live revision is exactly what the operations put there; nothing else moves it.
       expect(s.publishedRevisionId, context).toBe(expected.get(s.locale));
       expect(s.scheduledRevisionId, context).toBe(plans.get(s.locale)?.revisionId ?? null);
@@ -131,8 +125,10 @@ async function runSequence(seed: number, steps: number): Promise<void> {
 }
 
 describe('publication lifecycle properties', () => {
-  it.each(Array.from({ length: 25 }, (_, i) => 1000 + i))(
-    'seed %i keeps the invariants for 60 random steps',
-    async (seed) => runSequence(seed, 60)
-  );
+  it('keeps the invariants for 60 random steps', async () => {
+    await fc.assert(
+      fc.asyncProperty(fc.gen(), (g) => runSequence(g, 60)),
+      { numRuns: 25 }
+    );
+  });
 });

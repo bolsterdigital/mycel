@@ -1,8 +1,10 @@
 // The Markdown subset round-trips losslessly (brief content-editor § B, ADR 020 rule 5): every
-// rich text in the registry examples, hand-picked edge cases, and a fixed fuzz set of generated
-// documents. Fixed, not a property-test library: a seeded generator gives the same thousand
-// documents on every run and needs no dependency admission (ADR 008).
+// rich text in the registry examples, hand-picked edge cases, and a thousand generated documents.
+// The generator draws its numbers from fast-check, so a failing document is shrunk and printed
+// with the seed and path that replay it. Rejected: a fixed seeded PRNG (the previous version),
+// which gave the same thousand documents every run and never shrank a failure.
 
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { BLOCK_DEFINITIONS } from './blocks.js';
 import { RichTextDoc, type Mark } from './rich-text.js';
@@ -154,15 +156,8 @@ describe('rich text as Markdown', () => {
 
 // --- the fuzz set -------------------------------------------------------------------------------
 
-function rng(seed: number) {
-  let a = seed;
-  return () => {
-    a = (a + 0x6d2b79f5) | 0;
-    let x = Math.imul(a ^ (a >>> 15), 1 | a);
-    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
-    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
-  };
-}
+/** A number in [0, 1) drawn by fast-check; shrinking moves it towards 0. */
+const unit = (g: fc.GeneratorValue) => () => g(fc.integer, { min: 0, max: 0xffff }) / 0x10000;
 
 const ALPHABET = [
   'a',
@@ -253,14 +248,17 @@ function generate(random: () => number) {
 
 describe('rich text as Markdown, fuzzed', () => {
   it('round-trips a thousand generated documents', () => {
-    const random = rng(20261023);
     let checked = 0;
-    for (let n = 0; n < 1000; n++) {
-      const parsed = RichTextDoc.safeParse(generate(random));
-      if (!parsed.success) continue;
-      roundTrip(parsed.data);
-      checked++;
-    }
+    fc.assert(
+      fc.property(fc.gen(), (g) => {
+        const parsed = RichTextDoc.safeParse(generate(unit(g)));
+        if (!parsed.success) return;
+        roundTrip(parsed.data);
+        checked++;
+      }),
+      { numRuns: 1000 }
+    );
+    // The generator stays useful: almost every document it makes is valid.
     expect(checked).toBeGreaterThan(950);
   });
 });
