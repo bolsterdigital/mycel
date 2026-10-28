@@ -746,7 +746,24 @@ test('required job always validates after both dependencies and cannot ignore it
     expected.sort()
   );
   assert.ok(protection.required_status_checks.checks.every((c) => c.app_id === 15368));
-  assert.equal(protection.required_status_checks.strict, true);
+  // The merge queue tests each PR on the current main, so the classic `strict` flag stays off;
+  // the ruleset carries the queue with the same checks and no bypass.
+  assert.equal(protection.required_status_checks.strict, false);
+  const ruleset = JSON.parse(source('.github/main-ruleset.json'));
+  const rule = (type) => ruleset.rules.find((r) => r.type === type);
+  assert.equal(ruleset.enforcement, 'active');
+  assert.deepEqual(ruleset.bypass_actors, []);
+  assert.equal(rule('merge_queue').parameters.merge_method, 'SQUASH');
+  assert.equal(rule('merge_queue').parameters.max_entries_to_merge, 1);
+  assert.deepEqual(
+    rule('required_status_checks').parameters.required_status_checks,
+    protection.required_status_checks.checks.map((c) => ({
+      context: c.context,
+      integration_id: c.app_id,
+    }))
+  );
+  assert.equal(rule('pull_request').parameters.required_approving_review_count, 0);
+  assert.ok(rule('required_linear_history'));
   assert.equal(protection.enforce_admins, true);
   // Independent agents share the owner's GitHub identity. Keep the PR requirement;
   // freshness and exact-SHA approval are checked by the separate merger session.
