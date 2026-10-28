@@ -1,0 +1,53 @@
+{
+  "total_count": 2,
+  "emails": [
+    {
+      "id": "9a8b7c6d-5e4f-4a3b-9c2d-1e0f9a8b7c6d",
+      "message_id": "9a8b7c6d-5e4f-4a3b-9c2d-1e0f9a8b7c6d@scw-tem.cloud",
+      "project_id": "proj",
+      "mail_from": "noreply@x.test",
+      "rcpt_to": "ada@example.org",
+      "mail_rcpt": "ada@example.org",
+      "rcpt_type": "to",
+      "subject": "Bevestig je inschrijving bij Probe",
+      "created_at": "2026-10-21T12:00:40.000000Z",
+      "updated_at": "2026-10-21T12:00:43.000000Z",
+      "status": "sent",
+      "status_details": null,
+      "try_count": 1,
+      "last_tries": [
+        {
+          "rank": 1,
+          "tried_at": "2026-10-21T12:00:42.000000Z",
+          "code": 250,
+          "message": "2.0.0 Ok: queued"
+        }
+      ],
+      "flags": []
+    },
+    {
+      "id": "7c6d5e4f-3a2b-4c1d-8e0f-9a8b7c6d5e4f",
+      "message_id": "7c6d5e4f-3a2b-4c1d-8e0f-9a8b7c6d5e4f@scw-tem.cloud",
+      "project_id": "proj",
+      "mail_from": "noreply@x.test",
+      "rcpt_to": "ada@example.org",
+      "mail_rcpt": "ada@example.org",
+      "rcpt_type": "to",
+      "subject": "Bevestig je inschrijving bij Probe",
+      "created_at": "2026-10-21T11:59:10.000000Z",
+      "updated_at": "2026-10-21T11:59:31.000000Z",
+      "status": "failed",
+      "status_details": "mailbox unavailable",
+      "try_count": 1,
+      "last_tries": [
+        {
+          "rank": 1,
+          "tried_at": "2026-10-21T11:59:30.000000Z",
+          "code": 550,
+          "message": "5.1.1 mailbox unavailable"
+        }
+      ],
+      "flags": ["hard_bounce"]
+    }
+  ]
+}

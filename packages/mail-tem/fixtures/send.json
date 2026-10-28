@@ -1,0 +1,21 @@
+{
+  "emails": [
+    {
+      "id": "6f1e0c2a-3b4d-4e5f-8a9b-0c1d2e3f4a5b",
+      "message_id": "6f1e0c2a-3b4d-4e5f-8a9b-0c1d2e3f4a5b@scw-tem.cloud",
+      "project_id": "proj",
+      "mail_from": "noreply@x.test",
+      "rcpt_to": "ada@example.org",
+      "mail_rcpt": "ada@example.org",
+      "rcpt_type": "to",
+      "subject": "Bevestig je inschrijving bij Probe",
+      "created_at": "2026-10-21T12:00:00.000000Z",
+      "updated_at": "2026-10-21T12:00:00.000000Z",
+      "status": "new",
+      "status_details": null,
+      "try_count": 0,
+      "last_tries": [],
+      "flags": []
+    }
+  ]
+}

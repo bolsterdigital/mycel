@@ -196,6 +196,7 @@
         "packages/api/src/jobs.ts",
         "packages/api/src/health*",
         "packages/mail-tem/**",
+        "packages/assist-openai/**",
         "packages/blob/**",
         "packages/media-sharp/**",
         "docker/**",

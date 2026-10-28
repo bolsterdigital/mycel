@@ -1,9 +1,17 @@
+// Provider answers come from files in ../fixtures, the Scaleway TEM v1alpha1 `Email`,
+// `CreateEmailResponse` and `ListEmailsResponse` shapes with every field the API documents and
+// placeholder values. Rejected: a live recording, which needs the production key and sends a real
+// mail; replace a file with a scrubbed recording when one is taken, the tests read only the file.
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { renderConfirmationMail } from '@mycel/core';
 import { ConsoleMailer, TemMailer } from './index.js';
+
+const fixture = (name: string) =>
+  readFileSync(new URL(`../fixtures/${name}.json`, import.meta.url), 'utf8');
+const list = JSON.parse(fixture('list'));
 
 const message = {
   ...renderConfirmationMail({
@@ -25,11 +33,11 @@ describe('TemMailer', () => {
       region: 'fr-par',
       fetch: async (url, init) => {
         calls.push({ url: String(url), init: init! });
-        return new Response(JSON.stringify({ emails: [{ id: 'tem-1' }] }), { status: 200 });
+        return new Response(fixture('send'), { status: 200 });
       },
     });
     expect(await mailer.send(message, 'mailing.confirmation:evt-1')).toEqual({
-      providerId: 'tem-1',
+      providerId: JSON.parse(fixture('send')).emails[0].id,
     });
     expect(calls[0]?.url).toBe(
       'https://api.scaleway.com/transactional-email/v1alpha1/regions/fr-par/emails'
@@ -50,10 +58,7 @@ describe('TemMailer', () => {
 
   it('lists by mail_rcpt, subject and window without a status filter, and says null on doubt', async () => {
     const urls: string[] = [];
-    let reply: () => Response = () =>
-      new Response(JSON.stringify({ emails: [{ id: 'tem-9' }, { id: 'tem-7' }], total_count: 2 }), {
-        status: 200,
-      });
+    let reply: () => Response = () => new Response(fixture('list'), { status: 200 });
     const mailer = new TemMailer({
       secretKey: 's',
       projectId: 'proj',
@@ -67,7 +72,10 @@ describe('TemMailer', () => {
       since: new Date('2026-10-21T11:59:00.000Z'),
       until: new Date('2026-10-21T12:01:30.000Z'),
     };
-    expect(await mailer.lookup(message, window)).toEqual({ providerIds: ['tem-9', 'tem-7'] });
+    // A failed send still counts: TEM accepted it (every status, no `statuses` filter).
+    expect(await mailer.lookup(message, window)).toEqual({
+      providerIds: list.emails.map((e: { id: string }) => e.id),
+    });
     const q = new URL(urls[0]!).searchParams;
     expect(Object.fromEntries(q)).toEqual({
       project_id: 'proj',
@@ -80,7 +88,7 @@ describe('TemMailer', () => {
     expect(q.has('statuses')).toBe(false);
     expect(q.has('mail_to')).toBe(false);
 
-    reply = () => new Response(JSON.stringify({ emails: [], total_count: 0 }), { status: 200 });
+    reply = () => new Response(fixture('list-empty'), { status: 200 });
     expect(await mailer.lookup(message, window)).toEqual({ providerIds: [] });
     // Everything the core cannot count completely is null.
     reply = () => new Response('down', { status: 503 });
@@ -91,10 +99,7 @@ describe('TemMailer', () => {
     expect(await mailer.lookup(message, window)).toBeNull();
     reply = () => new Response(JSON.stringify({ emails: [] }), { status: 200 });
     expect(await mailer.lookup(message, window)).toBeNull();
-    reply = () =>
-      new Response(JSON.stringify({ emails: [{ id: 'tem-1' }], total_count: 101 }), {
-        status: 200,
-      });
+    reply = () => Response.json({ ...list, total_count: 101 });
     expect(await mailer.lookup(message, window)).toBeNull();
     reply = () => new Response('not json', { status: 200 });
     expect(await mailer.lookup(message, window)).toBeNull();
@@ -119,9 +124,11 @@ describe('TemMailer', () => {
       secretKey: 's',
       projectId: 'p',
       region: 'fr-par',
-      fetch: async () => new Response('quota exceeded', { status: 429 }),
+      fetch: async () => new Response(fixture('error-quota'), { status: 429 }),
     });
-    await expect(mailer.send(message, 'k')).rejects.toThrow('TEM API 429: quota exceeded');
+    await expect(mailer.send(message, 'k')).rejects.toThrow(
+      `TEM API 429: ${fixture('error-quota').trim()}`
+    );
   });
 });
 
