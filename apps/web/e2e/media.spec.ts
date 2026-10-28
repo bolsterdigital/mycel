@@ -8,41 +8,22 @@
 // No content uses media yet (#8b1 writes the usages), so the "in use" fixture goes in through the
 // repository as a block tree's save will, as mycel_app under the tenant's RLS.
 
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { crc32, deflateSync } from 'node:zlib';
 import { request as httpRequest } from 'node:http';
+import { ContentDocumentInput, systemPrincipal, useCases } from '@mycel/core';
+import { expectNoAxeViolations } from './lib/axe';
+import { tenantId, withInvoker } from './lib/invoker';
+import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
+import { forwarded, login } from './lib/login';
 
-const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 const SITE = 'http://probe.localhost:4173';
-
-async function expectNoAxeViolations(page: Page) {
-  if (test.info().project.name !== 'a11y') return;
-  for (const colorScheme of ['light', 'dark'] as const) {
-    await page.emulateMedia({ colorScheme });
-    const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
-    expect(
-      violations.map(
-        (v) => `${colorScheme}: ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`
-      )
-    ).toEqual([]);
-  }
-  await page.emulateMedia({ colorScheme: 'light' });
-}
 
 const FORWARDED = {
   'x-forwarded-proto': 'http',
   'x-forwarded-for': `198.51.100.${Math.floor(Math.random() * 250) + 1}`,
 };
 test.use({ locale: 'nl-NL', extraHTTPHeaders: FORWARDED });
-
-async function login(page: Page, email: string, path: string) {
-  await page.goto(path);
-  await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
-  await page.getByLabel('E-mail').fill(email);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL(new RegExp(`${path.replace(/\//g, '\\/')}$`));
-}
 
 /**
  * A `width` x `height` RGB PNG with a gradient, so the processor has real pixels to render; with
@@ -114,40 +95,23 @@ async function upload(page: Page, filename: string, buffer = png(400, 300)) {
 
 /** Mark or clear a usage of `mediaId` the way #8b1's save transaction will. */
 async function setUsage(mediaId: string, inUse: boolean) {
-  const { createDb, createTenantDirectory, createUnitOfWork, uuidv7Ids } =
-    await import('@mycel/db');
-  const { systemPrincipal } = await import('@mycel/core');
-  const { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } =
-    await import('@mycel/core/testing');
-  const operatorDb = createDb(process.env['DATABASE_URL']!);
-  const appDb = createDb(process.env['APP_DATABASE_URL']!);
-  try {
-    const probe = await createTenantDirectory(operatorDb).findBySlug('probe');
-    const uow = createUnitOfWork(appDb, {
-      clock: { now: () => new Date() },
-      ids: uuidv7Ids,
-      signer: new FakeSigner(),
-      inputHasher: new FakeInputHasher(),
-      dns: new FakeDns(),
-      platform: memoryPlatform,
-    });
-    await uow.run(systemPrincipal(probe!.id, 'e2e'), (ctx) =>
+  const probe = await tenantId();
+  await withInvoker((_, uow) =>
+    uow.run(systemPrincipal(probe, 'e2e'), (ctx) =>
       ctx.media.replaceUsages(`e2e:${mediaId}`, inUse ? [{ mediaId, blockId: 'b1' }] : [])
-    );
-  } finally {
-    await Promise.all([operatorDb.destroy(), appDb.destroy()]);
-  }
+    )
+  );
 }
 
 test('an operator uploads, sees, edits, downloads and deletes an image', async ({
   page,
   request,
 }) => {
-  await login(page, 'e2e-admin@probe.test', '/admin/probe');
+  await login(page, '/admin/probe');
   await page.getByRole('link', { name: 'Media beheren' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Media' })).toBeVisible();
   expect(await page.locator('script').count()).toBe(0);
-  await expectNoAxeViolations(page);
+  await expectNoAxeViolations(page, { dark: true });
 
   const filename = `e2e-${test.info().project.name}-${Date.now()}.png`;
   const { card, id } = await upload(page, filename);
@@ -156,14 +120,14 @@ test('an operator uploads, sees, edits, downloads and deletes an image', async (
   const thumb = await page.request.get(`/admin/probe/media/${id}/thumb`);
   expect(thumb.status()).toBe(200);
   expect(thumb.headers()['content-type']).toBe('image/webp');
-  await expectNoAxeViolations(page);
+  await expectNoAxeViolations(page, { dark: true });
 
   // The same library as a table, the view kept in the URL.
   await page.getByRole('link', { name: 'Lijst' }).click();
   await expect(page).toHaveURL(/view=list/);
   const row = page.getByRole('row', { name: new RegExp(filename) });
   await expect(row.getByRole('cell', { name: '400 × 300 px' })).toBeVisible();
-  await expectNoAxeViolations(page);
+  await expectNoAxeViolations(page, { dark: true });
   await page.getByRole('link', { name: 'Raster' }).click();
 
   // The site serves a variant on its own hostname, immutable; never the original.
@@ -185,7 +149,7 @@ test('an operator uploads, sees, edits, downloads and deletes an image', async (
   await page.keyboard.press('Escape');
   await expect(lightbox).toBeHidden();
   await expect(page.getByText('400 × 300 px')).toBeVisible();
-  await expectNoAxeViolations(page);
+  await expectNoAxeViolations(page, { dark: true });
 
   // Edit: two credits, a licence and the focal point (folded away), in groups.
   await page.getByLabel('Bijschrift (nl)').fill('Demonstratie op het plein');
@@ -201,7 +165,7 @@ test('an operator uploads, sees, edits, downloads and deletes an image', async (
   await expect(page.getByLabel('Maker van het werk')).toHaveValue('Buurtcomité');
   await page.locator('summary', { hasText: 'Focuspunt' }).click();
   await expect(page.getByText('Nu 25% van links')).toBeVisible();
-  await expectNoAxeViolations(page);
+  await expectNoAxeViolations(page, { dark: true });
 
   // Download original: a signed admin link, with the session; without the signature a 403.
   const href = await page.getByRole('link', { name: 'Origineel downloaden' }).getAttribute('href');
@@ -221,7 +185,7 @@ test('an operator uploads, sees, edits, downloads and deletes an image', async (
   await page.getByRole('button', { name: 'Verwijderen' }).click();
   await expect(page.getByRole('alert')).toContainText(`${filename} is in gebruik op 1 plek`);
   await expect(page.getByRole('heading', { level: 1, name: filename })).toBeVisible();
-  await expectNoAxeViolations(page);
+  await expectNoAxeViolations(page, { dark: true });
 
   await setUsage(id, false);
   await remove(page, id, filename);
@@ -230,28 +194,9 @@ test('an operator uploads, sees, edits, downloads and deletes an image', async (
 
 /** A page whose latest version shows `mediaId` in an image block, saved as an editor would. */
 async function pageUsing(mediaId: string, title: string) {
-  const { createDb, createTenantDirectory, createUnitOfWork, uuidv7Ids } =
-    await import('@mycel/db');
-  const { ContentDocumentInput, Invoker, buildRegistry, systemPrincipal, useCases } =
-    await import('@mycel/core');
-  const { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } =
-    await import('@mycel/core/testing');
-  const operatorDb = createDb(process.env['DATABASE_URL']!);
-  const appDb = createDb(process.env['APP_DATABASE_URL']!);
-  try {
-    const probe = await createTenantDirectory(operatorDb).findBySlug('probe');
-    const invoker = new Invoker(
-      buildRegistry(),
-      createUnitOfWork(appDb, {
-        clock: { now: () => new Date() },
-        ids: uuidv7Ids,
-        signer: new FakeSigner(),
-        inputHasher: new FakeInputHasher(process.env['AUDIT_HASH_KEY']),
-        dns: new FakeDns(),
-        platform: memoryPlatform,
-      })
-    );
-    const created = await invoker.run(useCases.createItem, systemPrincipal(probe!.id, 'e2e'), {
+  const probe = await tenantId();
+  return withInvoker(async (invoker) => {
+    const created = await invoker.run(useCases.createItem, systemPrincipal(probe, 'e2e'), {
       slug: `media-usage-${Date.now()}`,
       document: ContentDocumentInput.parse({
         type: 'page',
@@ -269,13 +214,11 @@ async function pageUsing(mediaId: string, title: string) {
       }),
     });
     return created.item.id;
-  } finally {
-    await Promise.all([operatorDb.destroy(), appDb.destroy()]);
-  }
+  });
 }
 
 test('the asset page links the pages whose latest version uses it', async ({ page }) => {
-  await login(page, 'e2e-admin@probe.test', '/admin/probe/media');
+  await login(page, '/admin/probe/media');
   const filename = `used-${test.info().project.name}-${Date.now()}.png`;
   const { id } = await upload(page, filename);
   const title = `Pagina met ${filename}`;
@@ -286,14 +229,14 @@ test('the asset page links the pages whose latest version uses it', async ({ pag
     'href',
     `/admin/probe/content/${itemId}`
   );
-  await expectNoAxeViolations(page);
+  await expectNoAxeViolations(page, { dark: true });
 });
 
 test('the lightbox shows a large landscape photo whole, on a laptop and a phone', async ({
   page,
 }) => {
   test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
-  await login(page, 'e2e-admin@probe.test', '/admin/probe/media');
+  await login(page, '/admin/probe/media');
   const filename = `large-${Date.now()}.png`;
   const { id } = await upload(page, filename, png(2400, 1600));
   for (const viewport of [
@@ -319,7 +262,7 @@ test('the lightbox shows a large landscape photo whole, on a laptop and a phone'
 });
 
 test('an upload that is not what it says is refused with a reason', async ({ page }) => {
-  await login(page, 'e2e-admin@probe.test', '/admin/probe/media');
+  await login(page, '/admin/probe/media');
   await page.getByLabel('Bestand (verplicht)', { exact: true }).setInputFiles({
     name: 'logo.svg',
     mimeType: 'image/svg+xml',
@@ -335,7 +278,7 @@ test('an upload that is not what it says is refused with a reason', async ({ pag
   });
   await page.getByRole('button', { name: 'Uploaden' }).click();
   await expect(page.getByRole('alert')).toContainText('niet wat de naam of het type zegt');
-  await expectNoAxeViolations(page);
+  await expectNoAxeViolations(page, { dark: true });
 });
 
 test('a media editor can use the library without tenant administration rights', async ({
@@ -343,7 +286,7 @@ test('a media editor can use the library without tenant administration rights', 
   context,
 }) => {
   const email = `media-editor-${test.info().project.name}-${Date.now()}@probe.test`;
-  await login(page, 'e2e-admin@probe.test', '/admin/probe');
+  await login(page, '/admin/probe');
   const invite = page.locator('form[action="?/invite"]');
   await invite.getByLabel('E-mailadres (verplicht)', { exact: true }).fill(email);
   await invite.getByLabel('media:read', { exact: true }).check();
@@ -352,18 +295,18 @@ test('a media editor can use the library without tenant administration rights', 
   await expect(page.getByRole('status')).toContainText(email);
   try {
     await context.clearCookies();
-    await login(page, email, '/admin/probe/media');
+    await login(page, '/admin/probe/media', email);
     await expect(page.getByRole('heading', { level: 1, name: 'Media' })).toBeVisible();
     const filename = `editor-${Date.now()}.png`;
     const { id } = await upload(page, filename);
-    await expectNoAxeViolations(page);
+    await expectNoAxeViolations(page, { dark: true });
     // Without content:read the page shows the count, never which pages.
     await openDetail(page, filename);
     await expect(page.getByText('In de laatste versie van')).toHaveCount(0);
     await remove(page, id, filename);
   } finally {
     await context.clearCookies();
-    await login(page, 'e2e-admin@probe.test', '/admin/probe');
+    await login(page, '/admin/probe');
     const member = page.locator('form', { has: page.getByRole('heading', { name: email }) });
     await member.locator('button[formaction="?/remove"]').click();
     await expect(page.getByRole('status')).toContainText('Lid verwijderd');
@@ -411,7 +354,7 @@ test('a body above 512K is refused, except for the media upload', async ({ page,
   });
   expect(update.status()).toBe(413);
 
-  await login(page, 'e2e-admin@probe.test', '/admin/probe/media');
+  await login(page, '/admin/probe/media');
   const buffer = png(600, 600, true);
   expect(buffer.length).toBeGreaterThan(1024 * 1024);
   const filename = `big-${test.info().project.name}-${Date.now()}.png`;
@@ -419,84 +362,31 @@ test('a body above 512K is refused, except for the media upload', async ({ page,
   await remove(page, id, filename);
 });
 
-/** Sideways scroll, clipped or small targets and labels past their group, on the current page. */
-async function layoutProblems(page: Page) {
-  return page.evaluate(() => {
-    const out: string[] = [];
-    const width = document.documentElement.clientWidth;
-    if (document.documentElement.scrollWidth > width) {
-      out.push(`page scrolls sideways: ${document.documentElement.scrollWidth} > ${width}`);
-      for (const el of document.querySelectorAll('body *'))
-        if (
-          !el.closest('.ui-table-scroll') &&
-          el.getBoundingClientRect().right > width + 1 &&
-          el.children.length === 0
-        )
-          out.push(
-            `past the edge: <${el.tagName.toLowerCase()}> ${el.textContent?.trim().slice(0, 40)}`
-          );
-    }
-    for (const b of document.querySelectorAll(
-      '.ui-button, .ui-view-switch a, .ui-breadcrumb a, .ui-fold > summary, .ui-choice'
-    )) {
-      const r = b.getBoundingClientRect();
-      if (r.width === 0 && r.height === 0) continue; // inside a closed dialog
-      const label = b.textContent?.trim() ?? '';
-      if (b.scrollWidth > b.clientWidth + 1) out.push(`clipped: ${label}`);
-      if (r.right > width + 1 || r.left < -1) out.push(`outside the viewport: ${label}`);
-      if (r.height < 44 || r.width < 44) out.push(`tap target under 44px: ${label}`);
-    }
-    // A label or legend that runs past its group is clipped too, even when the page does not
-    // scroll (a radio's label at 200% text did).
-    for (const l of document.querySelectorAll('.ui-fieldset label, .ui-fieldset legend')) {
-      const group = l.closest('.ui-fieldset')!.getBoundingClientRect();
-      const range = document.createRange();
-      range.selectNodeContents(l);
-      if (range.getBoundingClientRect().right > group.right + 1)
-        out.push(`past its group: ${l.textContent?.trim()}`);
-    }
-    return out;
-  });
-}
-
 test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
-  test.use({ viewport: { width: 320, height: 900 } });
+  test.use({ viewport: NARROW });
 
   for (const locale of ['nl-NL', 'en-GB'])
-    for (const text of ['100%', '200%']) {
+    for (const text of TEXT_SIZES) {
       test(`every control whole and no horizontal scroll, ${locale}, text ${text}`, async ({
         page,
       }) => {
         test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
-        // An address of its own: four logins from one address hit the login limit.
-        const headers = {
-          ...FORWARDED,
-          'x-forwarded-for': `2001:db8:10b::${Math.floor(Math.random() * 0xffffffff).toString(16)}`,
-        };
-        await page.context().setExtraHTTPHeaders(headers);
-        await login(page, 'e2e-admin@probe.test', '/admin/probe/media');
+        await login(page, '/admin/probe/media');
         const filename = `gate-${locale}-${text.replace('%', '')}-${Date.now()}.png`;
         const { id } = await upload(page, filename);
+        const headers = forwarded();
         await page.context().setExtraHTTPHeaders({ ...headers, 'accept-language': locale });
-        const zoom = async () => {
-          if (text !== '100%')
-            await page.evaluate((size) => (document.documentElement.style.fontSize = size), text);
-        };
         for (const path of ['/admin/probe/media', '/admin/probe/media?view=list']) {
           await page.goto(path);
-          await zoom();
-          expect(await layoutProblems(page), path).toEqual([]);
+          await setTextSize(page, text);
+          await layoutGate(page, path);
         }
         await page.goto(`/admin/probe/media/${id}`);
-        await zoom();
+        await setTextSize(page, text);
         await page.locator('.ui-fold > summary').click();
-        expect(await layoutProblems(page), 'detail').toEqual([]);
-        // The delete and download group: a row while both fit, each button whole otherwise.
-        await page.locator('.ui-detail-footer').screenshot({
-          path: test.info().outputPath(`media-actions-320-${locale}-${text.replace('%', '')}.png`),
-        });
+        await layoutGate(page, 'detail');
         await page.locator('[command="show-modal"]').click();
-        expect(await layoutProblems(page), 'lightbox').toEqual([]);
+        await layoutGate(page, 'lightbox');
         await page.keyboard.press('Escape');
         await page.context().setExtraHTTPHeaders({ ...headers, 'accept-language': 'nl-NL' });
         await remove(page, id, filename);

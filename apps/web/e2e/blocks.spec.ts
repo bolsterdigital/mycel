@@ -7,23 +7,16 @@
 // the hero and cta action groups at 320 CSS px and 200% text, and one run each with reduced
 // motion and the dark palette.
 
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { expectNoAxeViolations } from './lib/axe';
+import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 
-const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 const PAGES = {
   campagne: { nl: 'Schone lucht, nu', en: 'Clean air, now' },
   artikel: { nl: 'Een straat vol bomen', en: 'A street full of trees' },
 } as const;
 
 test.use({ extraHTTPHeaders: { 'x-forwarded-proto': 'http' } });
-
-async function expectNoAxeViolations(page: Page) {
-  const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
-  expect(
-    violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)
-  ).toEqual([]);
-}
 
 /** Opens a page and records requests to other origins and CSP reports in the console. */
 async function open(page: Page, path: string) {
@@ -153,51 +146,17 @@ test.describe('without JavaScript', () => {
 });
 
 test.describe('UI gate: hero and cta action groups at 320 CSS px and 200% text', () => {
-  test.use({ viewport: { width: 320, height: 900 }, locale: 'nl-NL' });
+  test.use({ viewport: NARROW, locale: 'nl-NL' });
 
   for (const slug of ['campagne', 'artikel'])
-    for (const text of ['100%', '200%'])
+    for (const text of TEXT_SIZES)
       test(`${slug}: every action whole, stacked when needed, no horizontal scroll, text ${text}`, async ({
         page,
       }) => {
         test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
         await open(page, `/probe/${slug}`);
-        if (text !== '100%')
-          await page.evaluate((size) => (document.documentElement.style.fontSize = size), text);
-        const problems = await page.evaluate(() => {
-          const out: string[] = [];
-          const width = document.documentElement.clientWidth;
-          if (document.documentElement.scrollWidth > width)
-            out.push(`page scrolls sideways: ${document.documentElement.scrollWidth} > ${width}`);
-          for (const group of document.querySelectorAll('.actions')) {
-            const links = [...group.querySelectorAll('a')];
-            let previous: DOMRect | null = null;
-            for (const a of links) {
-              const r = a.getBoundingClientRect();
-              const label = a.textContent?.trim() ?? '';
-              if (a.scrollWidth > a.clientWidth + 1 || a.scrollHeight > a.clientHeight + 1)
-                out.push(`clipped: ${label}`);
-              if (getComputedStyle(a).textOverflow === 'ellipsis') out.push(`ellipsis: ${label}`);
-              if (r.right > width + 1 || r.left < -1) out.push(`outside the viewport: ${label}`);
-              if (r.height < 44 || r.width < 44) out.push(`tap target under 44px: ${label}`);
-              // Reading and focus order follow the DOM: a later action is never above or
-              // to the left on the same line of an earlier one.
-              if (
-                previous &&
-                (r.top < previous.top - 1 ||
-                  (Math.abs(r.top - previous.top) < 1 && r.left < previous.left))
-              )
-                out.push(`visual order differs from DOM order: ${label}`);
-              previous = r;
-            }
-          }
-          return out;
-        });
-        await page.screenshot({
-          path: test.info().outputPath(`blocks-${slug}-320-${text.replace('%', '')}.png`),
-          fullPage: true,
-        });
-        expect(problems).toEqual([]);
+        await setTextSize(page, text);
+        await layoutGate(page, slug);
       });
 });
 

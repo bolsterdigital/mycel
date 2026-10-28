@@ -7,19 +7,12 @@
 import { execFile } from 'node:child_process';
 import { writeFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { expectNoAxeViolations } from './lib/axe';
+import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
+import { login } from './lib/login';
 
-const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 const run = promisify(execFile);
-
-async function expectNoAxeViolations(page: Page) {
-  if (test.info().project.name !== 'a11y') return;
-  const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
-  expect(
-    violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)
-  ).toEqual([]);
-}
 
 test.use({
   locale: 'nl-NL',
@@ -28,14 +21,6 @@ test.use({
     'x-forwarded-for': `198.51.100.${Math.floor(Math.random() * 250) + 1}`,
   },
 });
-
-async function login(page: Page, email: string, path: string) {
-  await page.goto(path);
-  await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
-  await page.getByLabel('E-mail').fill(email);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL(new RegExp(`${path.replace(/\//g, '\\/')}$`));
-}
 
 /** Ask for an archive (or get the one being built) and reload until one can be downloaded. */
 async function readyArchive(page: Page) {
@@ -56,7 +41,7 @@ test('an administrator asks for an archive and downloads it without JavaScript',
   page,
 }) => {
   test.setTimeout(120_000);
-  await login(page, 'e2e-admin@probe.test', '/admin/probe');
+  await login(page, '/admin/probe');
   await page.getByRole('link', { name: 'Deze site exporteren' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Export' })).toBeVisible();
   await expect(page.locator('main')).toContainText('7 dagen te downloaden');
@@ -91,34 +76,16 @@ test('an administrator asks for an archive and downloads it without JavaScript',
 });
 
 test.describe('UI gate: the export actions at 320 CSS px and 200% text', () => {
-  test.use({ viewport: { width: 320, height: 900 } });
+  test.use({ viewport: NARROW });
 
-  for (const text of ['100%', '200%']) {
+  for (const text of TEXT_SIZES) {
     test(`every control whole and no horizontal scroll, text ${text}`, async ({ page }) => {
       test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
       test.setTimeout(120_000);
-      await login(page, 'e2e-admin@probe.test', '/admin/probe/export');
+      await login(page, '/admin/probe/export');
       await readyArchive(page);
-      if (text !== '100%')
-        await page.evaluate((size) => (document.documentElement.style.fontSize = size), text);
-      const problems = await page.evaluate(() => {
-        const out: string[] = [];
-        const width = document.documentElement.clientWidth;
-        if (document.documentElement.scrollWidth > width)
-          out.push(`page scrolls sideways: ${document.documentElement.scrollWidth} > ${width}`);
-        for (const b of document.querySelectorAll('main button, main a.ui-button')) {
-          const r = b.getBoundingClientRect();
-          const label = b.textContent?.trim() ?? '';
-          if (b.scrollWidth > b.clientWidth + 1) out.push(`clipped: ${label}`);
-          if (r.right > width + 1 || r.left < -1) out.push(`outside the viewport: ${label}`);
-          if (r.height < 44 || r.width < 44) out.push(`tap target under 44px: ${label}`);
-        }
-        return out;
-      });
-      await page.locator('main').screenshot({
-        path: test.info().outputPath(`export-320-${text.replace('%', '')}.png`),
-      });
-      expect(problems).toEqual([]);
+      await setTextSize(page, text);
+      await layoutGate(page, 'export actions', 'main');
     });
   }
 });

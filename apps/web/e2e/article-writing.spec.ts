@@ -1,10 +1,11 @@
 // The enhanced article view and native block forms save the same core document. The browser
 // proof covers autosave, axe and the action layout at 320 CSS px with 200% text; the no-JS
 // project proves the adjacent form can write the same prose without hydrating the editor.
-import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import { expect, test, type APIRequestContext } from '@playwright/test';
+import { expectNoAxeViolations } from './lib/axe';
+import { NARROW, layoutGate, setTextSize } from './lib/layout';
+import { login } from './lib/login';
 
-const ADMIN = 'e2e-admin@probe.test';
 const api = () => `${process.env['E2E_API_URL']}/v1`;
 const headers = () => ({ authorization: `Bearer ${process.env['MYCEL_API_KEY']}` });
 
@@ -45,30 +46,6 @@ async function article(request: APIRequestContext) {
   return `/admin/probe/content/${item.id}`;
 }
 
-async function login(page: Page, path: string) {
-  const ip = `2001:db8::c:${Math.floor(Math.random() * 0xffff).toString(16)}`;
-  await page.context().setExtraHTTPHeaders({ 'x-forwarded-proto': 'http', 'x-forwarded-for': ip });
-  await page.goto(path);
-  await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
-  await page.getByLabel('E-mail').fill(ADMIN);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL(new RegExp(`${path.replace(/[/?]/g, '\\$&')}$`));
-}
-
-async function assertWriterActions(page: Page) {
-  for (const control of await page.locator('.writer-actions > button, .writer-actions > a').all()) {
-    const box = await control.boundingBox();
-    expect(box).not.toBeNull();
-    expect(box!.x).toBeGreaterThanOrEqual(0);
-    expect(box!.x + box!.width).toBeLessThanOrEqual(320);
-    expect(box!.height).toBeGreaterThanOrEqual(44);
-    expect(await control.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
-      true
-    );
-  }
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-}
-
 test('article prose saves through the native form or the enhanced editor', async ({
   page,
   request,
@@ -107,10 +84,7 @@ test('article prose saves through the native form or the enhanced editor', async
       )
     ).toEqual([]);
     expect(consoleErrors).toEqual([]);
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-      .analyze();
-    expect(violations.map((v) => v.id)).toEqual([]);
+    await expectNoAxeViolations(page);
   }
   await page.goto(edit);
   const prose = page.locator('details.block').first();
@@ -126,13 +100,9 @@ test('writer toolbar wraps whole actions at 320 CSS px and 200% text', async ({
   test.skip(test.info().project.name !== 'a11y' || !process.env['E2E_API_URL']);
   const edit = await article(request);
   await login(page, `${edit}/write`);
-  await page.setViewportSize({ width: 320, height: 760 });
-  await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
-  await assertWriterActions(page);
-  await page.screenshot({
-    path: test.info().outputPath('article-writer-320-200.png'),
-    fullPage: true,
-  });
+  await page.setViewportSize(NARROW);
+  await setTextSize(page, '200%');
+  await layoutGate(page, 'writer actions', '.writer-actions');
 });
 
 test('pasted blockquote becomes a structured quote card after attribution', async ({
@@ -194,9 +164,9 @@ test('autosave reports a newer revision and preserves its unrelated fields on re
   await expect(
     page.getByRole('heading', { name: 'Iemand anders heeft dit item intussen opgeslagen' })
   ).toBeVisible();
-  await page.setViewportSize({ width: 320, height: 760 });
-  await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
-  await assertWriterActions(page);
+  await page.setViewportSize(NARROW);
+  await setTextSize(page, '200%');
+  await layoutGate(page, 'writer actions', '.writer-actions');
   await expect(page.getByText('Mijn nieuwe tekst').first()).toBeVisible();
   await page.getByRole('button', { name: 'Mijn tekst behouden' }).click();
   await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');
@@ -242,9 +212,9 @@ test('pasted image waits for media and alternative text before saving', async ({
     );
   });
   await expect(page.getByRole('heading', { name: 'Geplakte afbeelding' })).toBeVisible();
-  await page.setViewportSize({ width: 320, height: 760 });
-  await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
-  await assertWriterActions(page);
+  await page.setViewportSize(NARROW);
+  await setTextSize(page, '200%');
+  await layoutGate(page, 'writer actions', '.writer-actions');
   await expect(page.getByRole('status')).toContainText('Niet-opgeslagen wijzigingen');
   await page.getByLabel('ID van geüpload bestand').fill(mediaId!);
   await expect(page.getByLabel('Alternatieve tekst')).toHaveValue('Een boom');
