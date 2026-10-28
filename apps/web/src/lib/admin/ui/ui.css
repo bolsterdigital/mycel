@@ -162,6 +162,8 @@
     border-radius: var(--radius-lg);
   }
   .ui-fieldset > legend {
+    /* A legend sizes to its longest word (an e-mail address); capped, it wraps inside the set. */
+    max-inline-size: 100%;
     padding-inline: var(--space-0);
   }
   .ui-fields {
@@ -325,6 +327,11 @@
     color: var(--color-muted-fg);
   }
 
+  /* A form around one card, when the card's buttons post (members, domains, keys): spaced as a
+     card in a list. The form wraps the card so that every button in it shares one form. */
+  .ui-card-form {
+    margin-block: var(--space-2);
+  }
   .ui-card {
     position: relative;
     display: grid;
@@ -348,6 +355,9 @@
   }
   .ui-card-body {
     display: grid;
+    /* One column no wider than the card: an implicit auto track grew to a form control's
+       intrinsic width and pushed every field past the card at 200% text. */
+    grid-template-columns: minmax(0, 1fr);
     align-content: start;
     gap: var(--space-0);
     min-width: 0;

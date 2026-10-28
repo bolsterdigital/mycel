@@ -1,7 +1,10 @@
 <!-- A checkbox or radio group as a fieldset: the legend asks the question, each option is a
      native input with its own label, and the hint and error describe the whole group. -->
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import { ui } from '../../../i18n/index.js';
+
+  type Option = { value: string; label: string };
 
   let {
     id,
@@ -14,17 +17,20 @@
     hint,
     error,
     required = false,
+    optionLabel,
   }: {
     id: string;
     name: string;
     legend: string;
     locale: string;
     type?: 'radio' | 'checkbox';
-    options: readonly { value: string; label: string }[];
+    options: readonly Option[];
     selected?: readonly string[];
     hint?: string | undefined;
     error?: string | undefined;
     required?: boolean;
+    /** Renders a label's content instead of its plain text, e.g. an identifier with break points. */
+    optionLabel?: Snippet<[Option]>;
   } = $props();
 
   const t = $derived(ui(locale));
@@ -50,7 +56,9 @@
         checked={selected.includes(option.value)}
         required={required && type === 'radio'}
       />
-      <label for="{id}-{option.value}">{option.label}</label>
+      <label for="{id}-{option.value}"
+        >{#if optionLabel}{@render optionLabel(option)}{:else}{option.label}{/if}</label
+      >
     </div>
   {/each}
 </fieldset>

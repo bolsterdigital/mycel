@@ -204,6 +204,21 @@ describe('Choices', () => {
     expect(out).toContain('(required)');
     expect(out).toMatch(/<input[^>]*required/);
   });
+  it('renders a label through its own snippet, keeping the plain label as data', () => {
+    const out = html(Choices, {
+      id: 'cap',
+      name: 'capabilities',
+      legend: 'Capabilities',
+      locale: 'en',
+      type: 'checkbox',
+      options: [{ value: 'content:write', label: 'content:write' }],
+      optionLabel: createRawSnippet((option: () => { value: string; label: string }) => ({
+        render: () => `<span>${option().label.replace(':', ':<wbr>')}</span>`,
+      })),
+    });
+    expect(out).toMatch(/type="checkbox" id="cap-content:write" name="capabilities"/);
+    expect(out).toContain('<label for="cap-content:write"><span>content:<wbr>write</span></label>');
+  });
 });
 
 describe('FileDrop', () => {

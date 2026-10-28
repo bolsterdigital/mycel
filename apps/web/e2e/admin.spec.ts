@@ -2,8 +2,8 @@
 // IdP as e2e-admin@probe.test (scripts/e2e.mjs seeds that admin and starts the IdP), access by
 // membership, and an API key made in the admin that works over HTTP until it is revoked there.
 // Runs without JavaScript and under axe like the signup spec. The UI gate (skill
-// ui-action-layout) checks the action groups at 320 CSS px and at 200% text, in Dutch, the longer
-// of the two locales.
+// ui-action-layout) checks the members, domains and keys at 320 CSS px and at 200% text, in both
+// locales: whole buttons, no broken word, 44 px targets, nothing past its card, and axe.
 
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
@@ -169,34 +169,57 @@ test('every login issues a new session cookie and clears the attempt cookie', as
   expect(cookie).toMatchObject({ httpOnly: true, sameSite: 'Lax', path: '/admin' });
 });
 
-test.describe('UI gate: action groups at 320 CSS px and 200% text', () => {
-  test.use({ viewport: { width: 320, height: 900 } });
+for (const locale of ['nl-NL', 'en-US']) {
+  test.describe(`UI gate ${locale}: members, domains and keys at 320 CSS px and 200% text`, () => {
+    test.use({ viewport: { width: 320, height: 900 }, locale });
 
-  for (const text of ['100%', '200%']) {
-    test(`every button whole and no horizontal scroll, text ${text}`, async ({ page }) => {
-      test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
-      await login(page, 'e2e-admin@probe.test', '/admin/probe');
-      if (text !== '100%')
-        await page.evaluate((size) => (document.documentElement.style.fontSize = size), text);
-      const problems = await page.evaluate(() => {
-        const out: string[] = [];
-        const width = document.documentElement.clientWidth;
-        if (document.documentElement.scrollWidth > width)
-          out.push(`page scrolls sideways: ${document.documentElement.scrollWidth} > ${width}`);
-        for (const b of document.querySelectorAll('button')) {
-          const r = b.getBoundingClientRect();
-          const label = b.textContent?.trim() ?? '';
-          if (b.scrollWidth > b.clientWidth + 1) out.push(`clipped: ${label}`);
-          if (r.right > width + 1 || r.left < -1) out.push(`outside the viewport: ${label}`);
-          if (r.height < 44 || r.width < 44) out.push(`tap target under 44px: ${label}`);
-        }
-        return out;
+    for (const text of ['100%', '200%']) {
+      test(`every control whole and no horizontal scroll, text ${text}`, async ({ page }) => {
+        test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
+        await login(page, 'e2e-admin@probe.test', '/admin/probe');
+        if (text !== '100%')
+          await page.evaluate((size) => (document.documentElement.style.fontSize = size), text);
+        const problems = await page.evaluate(() => {
+          const out: string[] = [];
+          const width = document.documentElement.clientWidth;
+          if (document.documentElement.scrollWidth > width)
+            out.push(`page scrolls sideways: ${document.documentElement.scrollWidth} > ${width}`);
+          for (const b of document.querySelectorAll('main button, main a.ui-button')) {
+            const r = b.getBoundingClientRect();
+            const label = b.textContent?.trim() ?? '';
+            if (b.scrollWidth > b.clientWidth + 1) out.push(`clipped: ${label}`);
+            if (r.right > width + 1 || r.left < -1) out.push(`outside the viewport: ${label}`);
+            if (r.height < 44 || r.width < 44) out.push(`tap target under 44px: ${label}`);
+            const walker = document.createTreeWalker(b, NodeFilter.SHOW_TEXT);
+            for (let node = walker.nextNode(); node; node = walker.nextNode())
+              for (const match of (node.textContent ?? '').matchAll(/\S+/g)) {
+                const range = document.createRange();
+                range.setStart(node, match.index);
+                range.setEnd(node, match.index + match[0].length);
+                if (range.getClientRects().length > 1)
+                  out.push(`word broken: ${match[0]} in ${label}`);
+              }
+          }
+          // A capability checkbox row is the target (its label is part of it); a label or legend
+          // that runs past its card is clipped by the card even when the page does not scroll.
+          for (const row of document.querySelectorAll('main .ui-choice'))
+            if (row.getBoundingClientRect().height < 44)
+              out.push(`tap target under 44px: ${row.textContent?.trim()}`);
+          for (const node of document.querySelectorAll('main label, main legend, main dd')) {
+            const card = node.closest('.ui-card-body');
+            if (!card) continue;
+            if (node.getBoundingClientRect().right > card.getBoundingClientRect().right + 1)
+              out.push(`past its card: ${node.textContent?.trim()}`);
+          }
+          return out;
+        });
+        await page.screenshot({
+          path: test.info().outputPath(`admin-320-${text.replace('%', '')}-${locale}.png`),
+          fullPage: true,
+        });
+        expect(problems).toEqual([]);
+        await expectNoAxeViolations(page);
       });
-      await page.screenshot({
-        path: test.info().outputPath(`admin-320-${text.replace('%', '')}.png`),
-        fullPage: true,
-      });
-      expect(problems).toEqual([]);
-    });
-  }
-});
+    }
+  });
+}

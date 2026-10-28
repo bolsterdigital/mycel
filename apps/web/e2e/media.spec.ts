@@ -345,7 +345,7 @@ test('a media editor can use the library without tenant administration rights', 
   const email = `media-editor-${test.info().project.name}-${Date.now()}@probe.test`;
   await login(page, 'e2e-admin@probe.test', '/admin/probe');
   const invite = page.locator('form[action="?/invite"]');
-  await invite.getByLabel('E-mailadres', { exact: true }).fill(email);
+  await invite.getByLabel('E-mailadres (verplicht)', { exact: true }).fill(email);
   await invite.getByLabel('media:read', { exact: true }).check();
   await invite.getByLabel('media:write', { exact: true }).check();
   await invite.getByRole('button', { name: 'Uitnodigen' }).click();
