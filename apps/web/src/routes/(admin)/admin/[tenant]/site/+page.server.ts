@@ -15,8 +15,13 @@ const report = (e: unknown) => {
   if (!(e instanceof UseCaseError)) throw e;
   return e.code === 'conflict' ? 'conflict' : 'invalid';
 };
-export const load: PageServerLoad = async ({ parent, locals }) => {
+/** The settings subjects, each its own URL (brief #56 § B); the first is the default. */
+const SECTIONS = ['theme', 'brand', 'chrome'] as const;
+type SiteSection = (typeof SECTIONS)[number];
+export const load: PageServerLoad = async ({ parent, locals, url }) => {
   await parent();
+  const asked = url.searchParams.get('section');
+  const section: SiteSection = SECTIONS.find((s) => s === asked) ?? 'theme';
   const principal = locals.principal!;
   if (!can(principal, 'content:write')) error(403, 'content:write');
   const [theme, chrome, logo, font] = await Promise.all([
@@ -25,7 +30,7 @@ export const load: PageServerLoad = async ({ parent, locals }) => {
     runtime().invoker.run(useCases.getBrandAsset, principal, { kind: 'logo' }),
     runtime().invoker.run(useCases.getBrandAsset, principal, { kind: 'font' }),
   ]);
-  return { theme, chrome, logo, font };
+  return { section, sections: SECTIONS, theme, chrome, logo, font };
 };
 const localized = (
   data: FormData,
@@ -88,7 +93,7 @@ export const actions: Actions = {
           ...(kind === 'font' ? { licence: text(data, 'licence') } : {}),
         });
       }
-      return { saved: 'brand' };
+      return { saved: 'brand', kind };
     } catch (e) {
       return fail(e instanceof UseCaseError && e.code === 'conflict' ? 409 : 400, {
         action: 'brand',

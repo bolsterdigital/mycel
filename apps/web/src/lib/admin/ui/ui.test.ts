@@ -445,6 +445,20 @@ describe('page patterns', () => {
         children: text('F'),
       })
     ).not.toContain('role="status"');
+    const upload = html(SettingsSection, {
+      id: 'logo',
+      title: 'Logo',
+      action: '?/brand',
+      enctype: 'multipart/form-data',
+      submit: 'unused',
+      actions: text('OWN ACTIONS'),
+      children: text('F'),
+    });
+    expect(upload).toMatch(
+      /<form method="post" action="\?\/brand" enctype="multipart\/form-data">/
+    );
+    expect(upload).toContain('OWN ACTIONS');
+    expect(upload).not.toContain('unused');
   });
 
   it('FormPage: save first, cancel as a link, both after the fields', () => {

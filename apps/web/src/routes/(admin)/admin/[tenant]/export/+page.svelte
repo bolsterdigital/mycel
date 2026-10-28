@@ -1,15 +1,25 @@
-<!-- The export page of a site (TODO #28): what an archive holds and how long it stays, one button to
-     ask for one (a native form post), and the earlier archives with a download link for a ready
-     one. Each archive is a card with its facts as a term list (term above value, so 200% text
-     never squeezes a column) and its one action in an `.actions` group that wraps whole; the
-     ask button stands alone. e2e/export.spec.ts checks 320 CSS px and 200% text (skill
+<!-- The export page of a site (TODO #28) on the shared admin components (brief #56): what an
+     archive holds and how long it stays, one button to ask for one (a native form post), and the
+     earlier archives as cards with a status badge, the facts as a MetaList and the download under
+     them. e2e/export.spec.ts checks 320 CSS px and 200% text (skill
      ui-action-layout). -->
 <script lang="ts">
+  import {
+    Actions,
+    Badge,
+    Button,
+    Card,
+    CardGrid,
+    MetaList,
+    Notice,
+    PageHeader,
+  } from '#lib/admin/ui/index.js';
   import { fill, ui, type UiKey } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
   const t = $derived(ui(data.locale));
+  const base = $derived(`/admin/${data.tenant.slug}`);
 
   const failed = $derived(form && 'error' in form ? form : null);
   const done = $derived(form && 'done' in form ? form : null);
@@ -24,6 +34,25 @@
       : n >= 1024 ** 2
         ? `${size.format(n / 1024 ** 2)} MB`
         : `${size.format(Math.max(n / 1024, 0.1))} kB`;
+  type Item = (typeof data.exports)[number];
+  const TONE: Record<string, 'neutral' | 'info' | 'success' | 'error'> = {
+    queued: 'neutral',
+    running: 'info',
+    ready: 'success',
+    failed: 'error',
+    expired: 'neutral',
+  };
+  const facts = (item: Item) => [
+    { term: t('admin.export.field.by'), value: item.requestedBy },
+    ...(item.sizeBytes !== null
+      ? [{ term: t('admin.export.field.size'), value: bytes(item.sizeBytes) }]
+      : []),
+    ...(item.status === 'ready' && item.expiresAt
+      ? [{ term: t('admin.export.field.expires'), value: at(item.expiresAt) }]
+      : []),
+    ...(item.sha256 ? [{ term: t('admin.export.field.sha256'), value: item.sha256 }] : []),
+    ...(item.error ? [{ term: t('admin.export.field.error'), value: item.error }] : []),
+  ];
   const STATUS: Record<string, UiKey> = {
     queued: 'admin.export.status.queued',
     running: 'admin.export.status.running',
@@ -40,23 +69,17 @@
 </svelte:head>
 
 <main class="page admin">
-  <h1>{t('admin.export.title')}</h1>
-  <p>
-    <a href="/admin/{data.tenant.slug}"
-      >{fill(t('admin.status.back'), { name: data.tenant.name })}</a
-    >
-  </p>
+  <PageHeader
+    title={t('admin.export.title')}
+    locale={data.locale}
+    breadcrumb={[{ label: data.tenant.name, href: base }, { label: t('admin.export.title') }]}
+  />
 
   {#if failed}
-    <div class="error-summary" role="alert">
-      <h2>{t('error.summary.title')}</h2>
-      <p>{t(failed.error as UiKey)}</p>
-    </div>
+    <Notice tone="error" title={t('error.summary.title')}><p>{t(failed.error as UiKey)}</p></Notice>
   {/if}
   {#if done}
-    <div class="notice" role="status">
-      <p>{t(done.done as UiKey)}</p>
-    </div>
+    <Notice tone="success"><p>{t(done.done as UiKey)}</p></Notice>
   {/if}
 
   <section aria-labelledby="request">
@@ -64,7 +87,7 @@
     <p>{t('admin.export.intro.contents')}</p>
     <p>{fill(t('admin.export.intro.lifetime'), { days: data.retentionDays })}</p>
     <form method="post" action="?/request">
-      <button type="submit">{t('admin.export.request.button')}</button>
+      <Actions><Button>{t('admin.export.request.button')}</Button></Actions>
     </form>
   </section>
 
@@ -73,43 +96,28 @@
     {#if data.exports.length === 0}
       <p>{t('admin.export.list.none')}</p>
     {:else}
-      <p class="muted">{t('admin.export.list.reload')}</p>
+      <p class="ui-hint">{t('admin.export.list.reload')}</p>
+      <CardGrid items={data.exports} key={(item) => item.id}>
+        {#snippet card(item)}
+          <Card title={fill(t('admin.export.item'), { time: at(item.requestedAt) })}>
+            <p>
+              <Badge tone={TONE[item.status] ?? 'neutral'}
+                >{t(STATUS[item.status] ?? 'admin.export.status.queued')}</Badge
+              >
+            </p>
+            <MetaList items={facts(item)} />
+            {#if item.href}
+              <Actions>
+                <Button variant="secondary" href={item.href} download
+                  >{t('admin.export.download')}</Button
+                >
+              </Actions>
+            {:else if item.status === 'expired'}
+              <p>{t('admin.export.expired')}</p>
+            {/if}
+          </Card>
+        {/snippet}
+      </CardGrid>
     {/if}
-    {#each data.exports as item (item.id)}
-      <article class="card" aria-labelledby="export-{item.id}">
-        <h3 id="export-{item.id}">
-          {fill(t('admin.export.item'), { time: at(item.requestedAt) })}
-        </h3>
-        <dl>
-          <dt>{t('admin.export.field.status')}</dt>
-          <dd>{t(STATUS[item.status] ?? 'admin.export.status.queued')}</dd>
-          <dt>{t('admin.export.field.by')}</dt>
-          <dd><code>{item.requestedBy}</code></dd>
-          {#if item.sizeBytes !== null}
-            <dt>{t('admin.export.field.size')}</dt>
-            <dd>{bytes(item.sizeBytes)}</dd>
-          {/if}
-          {#if item.status === 'ready' && item.expiresAt}
-            <dt>{t('admin.export.field.expires')}</dt>
-            <dd><time datetime={item.expiresAt}>{at(item.expiresAt)}</time></dd>
-          {/if}
-          {#if item.sha256}
-            <dt>{t('admin.export.field.sha256')}</dt>
-            <dd><code>{item.sha256}</code></dd>
-          {/if}
-          {#if item.error}
-            <dt>{t('admin.export.field.error')}</dt>
-            <dd>{item.error}</dd>
-          {/if}
-        </dl>
-        {#if item.href}
-          <div class="actions">
-            <a class="button" href={item.href} download>{t('admin.export.download')}</a>
-          </div>
-        {:else if item.status === 'expired'}
-          <p>{t('admin.export.expired')}</p>
-        {/if}
-      </article>
-    {/each}
   </section>
 </main>

@@ -130,7 +130,7 @@ for (const locale of ['nl-NL', 'en-US']) {
             const errors: string[] = [];
             if (document.documentElement.scrollWidth > width)
               errors.push(`horizontal scroll ${document.documentElement.scrollWidth} > ${width}`);
-            for (const button of document.querySelectorAll('main button, main a.button')) {
+            for (const button of document.querySelectorAll('main button, main a.ui-button')) {
               const bounds = button.getBoundingClientRect();
               if (button.scrollWidth > button.clientWidth + 1)
                 errors.push(`clipped: ${button.textContent}`);

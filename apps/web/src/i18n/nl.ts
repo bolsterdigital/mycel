@@ -906,4 +906,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.ui.pattern.filter': 'Zoeken op bestandsnaam',
   'admin.ui.pattern.filter.submit': 'Zoeken',
   'admin.ui.pattern.contact.email': 'E-mailadres voor antwoorden',
+  'admin.site.lead': 'De kleuren, het logo en de links die elke pagina van de publieke site deelt.',
+  'admin.site.sections': 'Onderwerpen',
+  'admin.site.group.type': 'Typografie en ruimte',
+  'admin.connections.edit': 'Gegevens bewerken',
 };

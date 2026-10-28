@@ -1,9 +1,28 @@
+<!-- Site settings (#11 E) on the settings pattern (brief #56 § B): one subject per URL
+     (`?section=`), so the sub-navigation works without JavaScript, and a form with its own save
+     per section. The form actions carry the subject (`?section=theme&/theme`), so the page that
+     answers a post shows the section that was saved. The contrast of each colour pair is
+     recomputed as you pick; core checks it again on save. -->
 <script lang="ts">
   import { FONT_PAIRS, THEME_MODES, THEME_ROLES } from '@mycel/core';
-  import { fill, ui } from '../../../../../i18n/index.js';
+  import {
+    Actions,
+    Button,
+    Field,
+    Fieldset,
+    FileDrop,
+    Notice,
+    Select,
+    SettingsPage,
+    SettingsSection,
+  } from '#lib/admin/ui/index.js';
+  import { fill, ui, type UiKey } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
+
   let { data, form }: PageProps = $props();
   const t = $derived(ui(data.locale));
+  const base = $derived(`/admin/${data.tenant.slug}`);
+  const here = $derived(`${base}/site`);
   const extraRoles = ['link', 'focus'] as const;
   const numericFields = [
     'baseSize',
@@ -13,6 +32,12 @@
     'density',
     'headingWeight',
   ] as const;
+  const SUBJECT: Record<(typeof data.sections)[number], UiKey> = {
+    theme: 'admin.site.theme',
+    brand: 'admin.site.brand',
+    chrome: 'admin.site.chrome',
+  };
+  const action = (name: string) => `?section=${data.section}&/${name}`;
   const value = (name: string, fallback: string) => String(form?.values?.[name] ?? fallback);
   const row = (links: { href: string; label: Record<string, string> }[]) =>
     links
@@ -33,59 +58,52 @@
     const b = luminance(colour(`${mode}.${role}.background`, pair.background));
     return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
   };
+  const saved = (what: string) =>
+    form && 'saved' in form && form.saved === what ? t('admin.site.saved') : undefined;
+  const brandSaved = (kind: 'logo' | 'font') =>
+    form && 'saved' in form && form.saved === 'brand' && 'kind' in form && form.kind === kind
+      ? t('admin.site.saved')
+      : undefined;
 </script>
 
-<svelte:head><title>{t('admin.site.title')}</title></svelte:head>
-<div class="admin-page">
-  <h1>{t('admin.site.title')}</h1>
-  {#if form?.problem}<p role="alert">
-      {form.problem === 'conflict' ? t('admin.site.conflict') : t('admin.site.invalid')}
-    </p>{/if}
-  {#if form?.saved}<p role="status">{t('admin.site.saved')}</p>{/if}
-  <section>
-    <h2>{t('admin.site.brand')}</h2>
-    {#each ['logo', 'font'] as kind (kind)}
-      {@const state = kind === 'logo' ? data.logo : data.font}
-      <form method="post" action="?/brand" enctype="multipart/form-data">
-        <h3>{t(kind === 'logo' ? 'admin.site.logo' : 'admin.site.wordmarkFont')}</h3>
-        <input type="hidden" name="kind" value={kind} />
-        <input type="hidden" name="baseVersion" value={state.version} />
-        {#if state.active}
-          <p>{t('admin.site.active')}</p>
-          {#if kind === 'logo'}<img
-              src="/admin/{data.tenant.slug}/preview/_brand/logo/{state.version}.webp"
-              width={state.width ?? 1}
-              height={state.height ?? 1}
-              alt={data.tenant.name}
-            />{/if}
-          {#if kind === 'font'}<p>{t('admin.site.licence')}: {state.licence}</p>{/if}
-        {/if}
-        <label
-          >{t('admin.site.file')}<input
-            type="file"
-            name="file"
-            accept={kind === 'logo'
-              ? 'image/svg+xml,image/png,image/jpeg,image/webp,image/avif,image/gif'
-              : '.woff2,font/woff2'}
-          /></label
-        >
-        {#if kind === 'font'}<label
-            >{t('admin.site.licence')}<input name="licence" maxlength="500" required /></label
-          >{/if}
-        <div class="actions brand-actions">
-          <button type="submit" name="intent" value="upload"
-            >{t(state.active ? 'admin.site.replace' : 'admin.site.upload')}</button
-          >
-          {#if state.active}<button type="submit" name="intent" value="remove" formnovalidate
-              >{t('admin.site.remove')}</button
-            >{/if}
-        </div>
-      </form>
-    {/each}
-  </section>
-  <section>
-    <h2>{t('admin.site.theme')}</h2>
-    <form method="post" action="?/theme">
+<svelte:head>
+  <title
+    >{form?.problem ? `${t('error.prefix')} ` : ''}{t(SUBJECT[data.section])} · {t(
+      'admin.site.title'
+    )} · {data.tenant.name}</title
+  >
+</svelte:head>
+
+<SettingsPage
+  title={t('admin.site.title')}
+  locale={data.locale}
+  breadcrumb={[{ label: data.tenant.name, href: base }, { label: t('admin.site.title') }]}
+  description={t('admin.site.lead')}
+  nav={{
+    label: t('admin.site.sections'),
+    items: data.sections.map((section) => ({
+      href: section === 'theme' ? here : `${here}?section=${section}`,
+      label: t(SUBJECT[section]),
+      current: section === data.section,
+    })),
+  }}
+>
+  {#snippet notices()}
+    {#if form?.problem}
+      <Notice tone="error" title={t('error.summary.title')}>
+        <p>{form.problem === 'conflict' ? t('admin.site.conflict') : t('admin.site.invalid')}</p>
+      </Notice>
+    {/if}
+  {/snippet}
+
+  {#if data.section === 'theme'}
+    <SettingsSection
+      id="site-theme"
+      title={t('admin.site.theme')}
+      action={action('theme')}
+      submit={t('admin.site.saveTheme')}
+      saved={saved('theme')}
+    >
       <input
         type="hidden"
         name="baseVersion"
@@ -93,86 +111,144 @@
           ? value('baseVersion', String(data.theme.version))
           : data.theme.version}
       />
-      {#each THEME_MODES as mode}
-        <fieldset>
-          <legend>{t(`admin.site.mode.${mode}`)}</legend>
-          {#each THEME_ROLES as role}
-            <div class="site-color-pair">
-              <strong>{t(`admin.site.role.${role}`)}</strong>
-              <label
-                >{t('admin.site.foreground')}<input
+      {#each THEME_MODES as mode (mode)}
+        <Fieldset legend={t(`admin.site.mode.${mode}`)}>
+          {#each THEME_ROLES as role (role)}
+            <Fieldset legend={t(`admin.site.role.${role}`)}>
+              {#each ['foreground', 'background'] as side (side)}
+                {@const name = `${mode}.${role}.${side}`}
+                <Field
+                  id="site-{mode}-{role}-{side}"
+                  {name}
                   type="color"
-                  name="{mode}.{role}.foreground"
+                  label={t(
+                    side === 'foreground' ? 'admin.site.foreground' : 'admin.site.background'
+                  )}
+                  locale={data.locale}
                   value={value(
-                    `${mode}.${role}.foreground`,
-                    data.theme.value.palettes[mode][role].foreground
+                    name,
+                    data.theme.value.palettes[mode][role][side as 'foreground' | 'background']
                   )}
                   oninput={(event) => {
-                    changed[`${mode}.${role}.foreground`] = event.currentTarget.value;
+                    changed[name] = event.currentTarget.value;
                   }}
-                /></label
-              >
-              <label
-                >{t('admin.site.background')}<input
-                  type="color"
-                  name="{mode}.{role}.background"
-                  value={value(
-                    `${mode}.${role}.background`,
-                    data.theme.value.palettes[mode][role].background
-                  )}
-                  oninput={(event) => {
-                    changed[`${mode}.${role}.background`] = event.currentTarget.value;
-                  }}
-                /></label
-              >
-              <output aria-live="polite"
-                >{t('admin.site.contrast')}: {ratio(mode, role).toFixed(1)}:1 ({ratio(mode, role) >=
-                4.5
-                  ? t('admin.site.pass')
-                  : t('admin.site.fail')})</output
-              >
-            </div>
+                />
+              {/each}
+              <p class="ui-hint">
+                <output aria-live="polite"
+                  >{t('admin.site.contrast')}: {ratio(mode, role).toFixed(1)}:1 ({ratio(
+                    mode,
+                    role
+                  ) >= 4.5
+                    ? t('admin.site.pass')
+                    : t('admin.site.fail')})</output
+                >
+              </p>
+            </Fieldset>
           {/each}
-          {#each extraRoles as key}
-            <label
-              >{t(`admin.site.role.${key}`)}<input
-                type="color"
-                name="{mode}.{key}"
-                value={value(
-                  `${mode}.${key}`,
-                  data.theme.value.palettes[mode][key as 'link' | 'focus']
-                )}
-              /></label
-            >
+          {#each extraRoles as key (key)}
+            <Field
+              id="site-{mode}-{key}"
+              name="{mode}.{key}"
+              type="color"
+              label={t(`admin.site.role.${key}`)}
+              locale={data.locale}
+              value={value(`${mode}.${key}`, data.theme.value.palettes[mode][key])}
+            />
           {/each}
-        </fieldset>
+        </Fieldset>
       {/each}
-      <label
-        >{t('admin.site.font')}<select name="fontPair"
-          >{#each FONT_PAIRS as font}<option
-              value={font}
-              selected={value('fontPair', data.theme.value.fontPair) === font}>{font}</option
-            >{/each}</select
-        ></label
-      >
-      {#each numericFields as key}
-        <label
-          >{t(`admin.site.field.${key}`)}<input
-            type="number"
+      <Fieldset legend={t('admin.site.group.type')}>
+        <Select
+          id="site-font"
+          name="fontPair"
+          label={t('admin.site.font')}
+          locale={data.locale}
+          options={FONT_PAIRS.map((font) => ({ value: font, label: font }))}
+          value={value('fontPair', data.theme.value.fontPair)}
+        />
+        {#each numericFields as key (key)}
+          <Field
+            id="site-{key}"
             name={key}
+            type="number"
             step="any"
-            value={value(key, String(data.theme.value[key as 'baseSize']))}
             required
-          /></label
-        >
-      {/each}
-      <button type="submit">{t('admin.site.saveTheme')}</button>
-    </form>
-  </section>
-  <section>
-    <h2>{t('admin.site.chrome')}</h2>
-    <p>{fill(t('admin.site.linkHint'), { locales: data.tenant.locales.join('|') })}</p>
-    <form method="post" action="?/chrome">
+            label={t(`admin.site.field.${key}`)}
+            locale={data.locale}
+            value={value(key, String(data.theme.value[key]))}
+          />
+        {/each}
+      </Fieldset>
+    </SettingsSection>
+  {:else if data.section === 'brand'}
+    {#each ['logo', 'font'] as const as kind (kind)}
+      {@const state = kind === 'logo' ? data.logo : data.font}
+      <SettingsSection
+        id="site-{kind}"
+        title={t(kind === 'logo' ? 'admin.site.logo' : 'admin.site.wordmarkFont')}
+        description={state.active ? t('admin.site.active') : undefined}
+        action={action('brand')}
+        enctype="multipart/form-data"
+        submit={t('admin.site.upload')}
+        saved={brandSaved(kind)}
+      >
+        <input type="hidden" name="kind" value={kind} />
+        <input type="hidden" name="baseVersion" value={state.version} />
+        {#if state.active && kind === 'logo'}
+          <img
+            class="site-logo"
+            src="{base}/preview/_brand/logo/{state.version}.webp"
+            width={state.width ?? 1}
+            height={state.height ?? 1}
+            alt={data.tenant.name}
+          />
+        {/if}
+        <FileDrop
+          id="site-{kind}-file"
+          name="file"
+          label={t('admin.site.file')}
+          locale={data.locale}
+          accept={kind === 'logo'
+            ? 'image/svg+xml,image/png,image/jpeg,image/webp,image/avif,image/gif'
+            : '.woff2,font/woff2'}
+        />
+        {#if kind === 'font'}
+          <Field
+            id="site-font-licence"
+            name="licence"
+            label={t('admin.site.licence')}
+            locale={data.locale}
+            hint={state.active && state.licence
+              ? `${t('admin.site.active')}: ${state.licence}`
+              : undefined}
+            maxlength={500}
+            required
+          />
+        {/if}
+        {#snippet actions()}
+          <Actions>
+            <Button name="intent" value="upload"
+              >{t(state.active ? 'admin.site.replace' : 'admin.site.upload')}</Button
+            >
+            {#if state.active}
+              <Button variant="danger" name="intent" value="remove" formnovalidate
+                >{t('admin.site.remove')}</Button
+              >
+            {/if}
+          </Actions>
+        {/snippet}
+      </SettingsSection>
+    {/each}
+  {:else}
+    <SettingsSection
+      id="site-chrome"
+      title={t('admin.site.chrome')}
+      description={fill(t('admin.site.linkHint'), { locales: data.tenant.locales.join('|') })}
+      action={action('chrome')}
+      submit={t('admin.site.saveChrome')}
+      saved={saved('chrome')}
+    >
       <input
         type="hidden"
         name="baseVersion"
@@ -180,113 +256,63 @@
           ? value('baseVersion', String(data.chrome.version))
           : data.chrome.version}
       />
-      <label
-        >{t('admin.site.navigation')}<textarea name="navigation" rows="5"
-          >{value('navigation', row(data.chrome.value.navigation))}</textarea
-        ></label
-      >
-      {#each data.tenant.locales as locale (locale)}
-        <label
-          >{t('admin.site.footer')} ({locale})<input
-            name="footer.{locale}"
-            value={value(`footer.${locale}`, data.chrome.value.footer[locale] ?? '')}
-          /></label
-        >
-      {/each}
-      <label
-        >{t('admin.site.legal')}<textarea name="legal" rows="3"
-          >{value('legal', row(data.chrome.value.legal))}</textarea
-        ></label
-      >
-      {#each ['support', 'help'] as kind (kind)}
-        <fieldset>
-          <legend>{kind === 'support' ? t('admin.site.support') : t('admin.site.help')}</legend>
-          <label
-            >{t('admin.site.url')}<input
-              name="{kind}.href"
-              value={value(
-                `${kind}.href`,
-                data.chrome.value[kind as 'support' | 'help']?.href ?? ''
-              )}
-            /></label
+      <Field id="site-navigation" label={t('admin.site.navigation')} locale={data.locale}>
+        {#snippet control(attributes)}
+          <textarea name="navigation" rows="5" {...attributes}
+            >{value('navigation', row(data.chrome.value.navigation))}</textarea
           >
+        {/snippet}
+      </Field>
+      <Fieldset legend={t('admin.site.footer')}>
+        {#each data.tenant.locales as locale (locale)}
+          <Field
+            id="site-footer-{locale}"
+            name="footer.{locale}"
+            label={locale}
+            lang={locale}
+            locale={data.locale}
+            value={value(`footer.${locale}`, data.chrome.value.footer[locale] ?? '')}
+          />
+        {/each}
+      </Fieldset>
+      <Field id="site-legal" label={t('admin.site.legal')} locale={data.locale}>
+        {#snippet control(attributes)}
+          <textarea name="legal" rows="3" {...attributes}
+            >{value('legal', row(data.chrome.value.legal))}</textarea
+          >
+        {/snippet}
+      </Field>
+      {#each ['support', 'help'] as const as kind (kind)}
+        <Fieldset legend={t(kind === 'support' ? 'admin.site.support' : 'admin.site.help')}>
+          <Field
+            id="site-{kind}-href"
+            name="{kind}.href"
+            label={t('admin.site.url')}
+            locale={data.locale}
+            value={value(`${kind}.href`, data.chrome.value[kind]?.href ?? '')}
+          />
           {#each data.tenant.locales as locale (locale)}
-            <label
-              >{locale}<input
-                name="{kind}.{locale}"
-                value={value(
-                  `${kind}.${locale}`,
-                  data.chrome.value[kind as 'support' | 'help']?.label[locale] ?? ''
-                )}
-              /></label
-            >
+            <Field
+              id="site-{kind}-{locale}"
+              name="{kind}.{locale}"
+              label={locale}
+              lang={locale}
+              locale={data.locale}
+              value={value(`${kind}.${locale}`, data.chrome.value[kind]?.label[locale] ?? '')}
+            />
           {/each}
-        </fieldset>
+        </Fieldset>
       {/each}
-      <button type="submit">{t('admin.site.saveChrome')}</button>
-    </form>
-  </section>
-</div>
+    </SettingsSection>
+  {/if}
+</SettingsPage>
 
 <style>
-  .admin-page {
-    max-width: 54rem;
-    padding: 1rem;
-    min-width: 0;
-    overflow-wrap: break-word;
-  }
-  section {
-    min-width: 0;
-  }
-  form {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 1rem;
-    min-width: 0;
-  }
-  label {
-    display: grid;
-    gap: 0.3rem;
-    min-width: 0;
-  }
-  input,
-  select,
-  textarea {
-    max-width: 100%;
-    min-height: 2.75rem;
-  }
-  input[type='file'] {
-    width: 100%;
-    min-width: 0;
-  }
-  textarea {
-    width: 100%;
-  }
-  fieldset {
-    display: grid;
-    gap: 0.75rem;
-    min-width: 0;
-  }
-  .site-color-pair {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem 1rem;
-    align-items: center;
-  }
-  .site-color-pair strong {
-    min-width: 5rem;
-  }
-  button {
-    min-height: 2.75rem;
-    justify-self: start;
-  }
-  .brand-actions button {
-    min-width: 0;
-  }
-  section img {
-    max-width: 12rem;
-    max-height: 4rem;
-    width: auto;
-    height: auto;
+  /* The active logo as a small sample beside its file field, never at its full intrinsic size. */
+  .site-logo {
+    inline-size: auto;
+    block-size: auto;
+    max-inline-size: 12rem;
+    max-block-size: 4rem;
   }
 </style>
