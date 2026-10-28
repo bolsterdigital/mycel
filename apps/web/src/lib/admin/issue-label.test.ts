@@ -1,0 +1,22 @@
+import { describe, expect, it } from 'vitest';
+import { issueLabel } from './issue-label.js';
+
+describe('issueLabel', () => {
+  it('names an issue by the label of its field, its locale and its block', () => {
+    const locales = ['nl', 'en'];
+    expect(issueLabel('title.en', locales)).toEqual({
+      key: 'admin.content.field.title',
+      locale: 'en',
+      block: null,
+    });
+    expect(issueLabel('seo.description.nl', locales)?.key).toBe(
+      'admin.content.field.seoDescription'
+    );
+    expect(issueLabel('blocks.2.props.text.en', locales)).toEqual({
+      key: 'admin.block.field.text',
+      locale: 'en',
+      block: 3,
+    });
+    expect(issueLabel('somethingElse', locales)).toBeNull();
+  });
+});

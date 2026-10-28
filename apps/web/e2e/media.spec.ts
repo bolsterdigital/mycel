@@ -146,7 +146,8 @@ test('an operator uploads, sees, edits, downloads and deletes an image', async (
   await login(page, 'e2e-admin@probe.test', '/admin/probe');
   await page.getByRole('link', { name: 'Media beheren' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Media' })).toBeVisible();
-  expect(await page.locator('script').count()).toBe(0);
+  // Only the thumbnail enhancement of the file field; the upload works without it.
+  expect(await page.locator('script:not([src="/_admin/file-preview.js"])').count()).toBe(0);
   await expectNoAxeViolations(page);
 
   const filename = `e2e-${test.info().project.name}-${Date.now()}.png`;
@@ -316,6 +317,20 @@ test('the lightbox shows a large landscape photo whole, on a laptop and a phone'
   }
   await page.setViewportSize({ width: 1280, height: 720 });
   await remove(page, id, filename);
+});
+
+test('a chosen image shows as a thumbnail before it is uploaded', async ({ page }) => {
+  test.skip(test.info().project.name !== 'a11y', 'the preview is a JavaScript enhancement');
+  await login(page, 'e2e-admin@probe.test', '/admin/probe/media');
+  const filename = `preview-${Date.now()}.png`;
+  await page.getByLabel('Bestand (verplicht)', { exact: true }).setInputFiles({
+    name: filename,
+    mimeType: 'image/png',
+    buffer: png(400, 300),
+  });
+  const preview = page.getByRole('list', { name: 'Voorvertoning van wat je uploadt' });
+  await expect(preview.getByRole('img', { name: filename })).toBeVisible();
+  await expectNoAxeViolations(page);
 });
 
 test('an upload that is not what it says is refused with a reason', async ({ page }) => {

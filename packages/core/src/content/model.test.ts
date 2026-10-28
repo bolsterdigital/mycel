@@ -9,6 +9,7 @@ import {
   canonicalTag,
   isReservedPageSlug,
   readinessIssues,
+  slugFromTitle,
 } from './model.js';
 
 const heading = (id: string | undefined, text: Record<string, string>) => ({
@@ -163,11 +164,8 @@ describe('readiness per locale (ADR 018 rule 9)', () => {
     ]);
   });
 
-  it('needs an author, a lead in every locale once given, and the lead for a lead teaser', () => {
-    expect(readinessIssues(doc({ authorIds: [] }), 'nl')).toContainEqual({
-      path: 'authorIds',
-      message: 'content.publish.author-required',
-    });
+  it('needs no author, a lead in every locale once given, and the lead for a lead teaser', () => {
+    expect(readinessIssues(doc({ authorIds: [] }), 'nl')).toEqual([]);
     expect(readinessIssues(doc({ lead: { nl: 'Intro' } }), 'en').map((i) => i.path)).toContain(
       'lead'
     );
@@ -197,6 +195,14 @@ describe('readiness per locale (ADR 018 rule 9)', () => {
 });
 
 describe('routes and tags (brief #8a § 2)', () => {
+  it('turns a title into a valid slug, or nothing', () => {
+    expect(slugFromTitle('  Wat we doen in 2026 ')).toBe('wat-we-doen-in-2026');
+    expect(slugFromTitle('Ærø – Straße')).toBe('aero-strasse');
+    expect(slugFromTitle('—')).toBe('');
+    const long = slugFromTitle('a'.repeat(62) + ' b');
+    expect(long).toBe('a'.repeat(62));
+  });
+
   it.each([
     'admin',
     'api',

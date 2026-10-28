@@ -78,6 +78,18 @@ describe('content items', () => {
     await expect(create(article as never)).resolves.toBeDefined();
   });
 
+  it('derives a free slug from the default-locale title when none is given', async () => {
+    const titled = (nl: string, type: 'page' | 'article' = 'page') =>
+      ({ ...pageDoc(), type, title: { nl } }) as never;
+    const slugOf = async (doc: never) =>
+      (await invoker.run(useCases.createItem, admin, { document: doc })).item.slug;
+    expect(await slugOf(titled('Café & Crème: één!'))).toBe('cafe-creme-een');
+    expect(await slugOf(titled('Café & Crème: één!'))).toBe('cafe-creme-een-2');
+    expect(await slugOf(titled('Café & Crème: één!', 'article'))).toBe('cafe-creme-een');
+    expect(await slugOf(titled('Admin'))).toBe('admin-2');
+    expect(await slugOf(titled('!!!'))).toBe('page');
+  });
+
   it('saves on the latest revision only: a stale base is a typed conflict with no write', async () => {
     const { item, revision } = await create();
     const first = await invoker.run(useCases.updateItem, admin, {
@@ -443,15 +455,15 @@ describe('content items', () => {
       expect(JSON.stringify(sectionError.issues)).not.toContain('Elders');
     });
 
-    it('lets an article without an author be a draft, but not be published', async () => {
+    it('publishes an article without an author (ADR 012 rule 2, amended 2026-10-28)', async () => {
       const { item, revision } = await create({ ...pageDoc(), type: 'article' } as never, 'story');
-      await expect(
-        invoker.run(useCases.publishItem, admin, {
-          itemId: item.id,
-          revisionId: revision.id,
-          locale: 'nl',
-        })
-      ).rejects.toMatchObject({ code: 'invalid_input' });
+      await invoker.run(useCases.publishItem, admin, {
+        itemId: item.id,
+        revisionId: revision.id,
+        locale: 'nl',
+      });
+      const after = await invoker.run(useCases.getItem, admin, { itemId: item.id });
+      expect(after.item.publication.find((s) => s.locale === 'nl')?.status).toBe('published');
     });
   });
 

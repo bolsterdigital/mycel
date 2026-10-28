@@ -146,12 +146,16 @@ async function checkShell(page: Page, name: string, current: string) {
       .evaluateAll((nodes) =>
         nodes.map((node) => ({ src: node.getAttribute('src'), type: node.getAttribute('type') }))
       );
-    // The content editor's optional module is inert in this project; the native edit flow
-    // remains the no-JS contract. Other shell routes still emit no script.
+    // The content editor's live preview and the media upload's thumbnails are optional modules,
+    // inert in this project; the native flows remain the no-JS contract. Other shell routes
+    // still emit no script.
+    const path = new URL(page.url()).pathname;
     expect(scripts).toEqual(
-      /\/content\/[^/]+$/.test(new URL(page.url()).pathname)
+      /\/content\/[^/]+$/.test(path)
         ? [{ src: '/_admin/live-preview-parent.js', type: 'module' }]
-        : []
+        : /\/media$/.test(path)
+          ? [{ src: '/_admin/file-preview.js', type: 'module' }]
+          : []
     );
   }
 }
@@ -164,12 +168,12 @@ test('site navigation persists through content, editor, media, settings and a se
   await page.screenshot({ path: test.info().outputPath('overview-wide.png'), fullPage: true });
   await page
     .getByRole('navigation', { name: 'Site navigation' })
-    .getByRole('link', { name: 'Pages and articles' })
+    .getByRole('link', { name: 'Pages' })
     .click();
-  await checkShell(page, 'Probe', 'Pages and articles');
+  await checkShell(page, 'Probe', 'Pages');
   await expect(page.locator('#content-table tbody tr').first()).toBeVisible();
   await page.locator('#content-table tbody th a').first().click();
-  await checkShell(page, 'Probe', 'Pages and articles');
+  await checkShell(page, 'Probe', 'Pages');
   await page.screenshot({ path: test.info().outputPath('editor-wide.png'), fullPage: true });
   await page
     .getByRole('navigation', { name: 'Site navigation' })
@@ -186,10 +190,10 @@ test('site navigation persists through content, editor, media, settings and a se
   await checkShell(page, 'Second editorial site', 'Overview');
   await page
     .getByRole('navigation', { name: 'Site navigation' })
-    .getByRole('link', { name: 'Pages and articles' })
+    .getByRole('link', { name: 'Pages' })
     .click();
   await expect(page.locator('#content-table tbody tr')).toHaveCount(0);
-  await checkShell(page, 'Second editorial site', 'Pages and articles');
+  await checkShell(page, 'Second editorial site', 'Pages');
   await expect(page.locator('body')).not.toContainText('Probe');
 });
 
@@ -238,7 +242,7 @@ async function narrowOverview(page: Page) {
   await page.screenshot({ path: test.info().outputPath('overview-narrow.png'), fullPage: true });
   await page
     .getByRole('navigation', { name: 'Site navigation' })
-    .getByRole('link', { name: 'Pages and articles' })
+    .getByRole('link', { name: 'Pages' })
     .click();
   await page.locator('#content-table tbody th a').first().click();
   await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
@@ -265,8 +269,8 @@ test.describe('Dutch shell copy', () => {
     expect(await overflow(page)).toEqual([]);
     await page
       .getByRole('navigation', { name: 'Sitenavigatie' })
-      .getByRole('link', { name: 'Pagina’s en artikelen' })
+      .getByRole('link', { name: 'Pagina’s' })
       .click();
-    await checkShell(page, 'Probe', 'Pagina’s en artikelen');
+    await checkShell(page, 'Probe', 'Pagina’s');
   });
 });
