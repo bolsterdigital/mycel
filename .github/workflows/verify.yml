@@ -6,9 +6,14 @@ name: Verify
 # `npm run verify`, which has to work offline. Runs on
 # PRs and pushes to main. Deployment is a separate workflow so a red check here never
 # blocks an already-merged fix, but a red check on the PR is the signal to fix it first.
+# `merge_group` runs the same jobs on the merge queue's commit (the PR on the current main), so
+# the required checks report there too; each queue ref is unique, so the concurrency group
+# never cancels another group's run. Rejected: `strict` branch protection without a queue,
+# which leaves every PR behind as soon as the other lane merges.
 
 on:
   pull_request:
+  merge_group:
   push:
     branches: [main]
   workflow_dispatch:
@@ -74,6 +79,9 @@ jobs:
 
       - run: npm ci
 
+      # Both checks below need `github.base_ref` and run on the PR. In a merge queue they are
+      # skipped (same step, same job result): the queue commit holds exactly the commits the PR
+      # run already checked, plus main, which passed them on its own PRs.
       - name: Signed-off-by on every commit (DCO)
         if: github.event_name == 'pull_request'
         run: |

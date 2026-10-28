@@ -3,8 +3,10 @@ name: Frontend quality
 # Separate observation job: Lighthouse is development-only and never extends verify's budget.
 # Every executable PR gets the default set; weekly/manual runs expand locale/cache/admin scope.
 # Pinning Node, Lighthouse, Playwright's Chromium and Caddy prevents silent tool upgrades.
+# `merge_group` measures the queue commit with the PR set, so the required checks report there.
 on:
   pull_request:
+  merge_group:
   push:
     branches: [main]
   schedule:

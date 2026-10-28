@@ -18,6 +18,8 @@ test('PR set covers both public profiles; scheduled/manual expand locale, cache 
   assert.equal(pr.length, 2);
   assert.deepEqual(new Set(pr.map((cell) => cell.profile)), new Set(['mobile', 'desktop']));
   assert.deepEqual(matrix('schedule'), matrix('workflow_dispatch'));
+  // The merge queue measures what the PR measured, never less and never the full set.
+  assert.deepEqual(matrix('merge_group'), matrix('pull_request'));
   for (const scope of ['default', 'admin'])
     for (const locale of ['nl', 'en'])
       for (const profile of ['mobile', 'desktop'])
@@ -590,7 +592,7 @@ test('measurement installs no mutable host browser dependencies and pins its con
   );
 });
 test('required quality context validates complete default and full evidence at the UTC boundary', () => {
-  for (const event of ['pull_request', 'push', 'schedule', 'workflow_dispatch']) {
+  for (const event of ['pull_request', 'merge_group', 'push', 'schedule', 'workflow_dispatch']) {
     const input = gateFixture(event);
     assert.equal(gate(input).blocks, false);
     assert.equal(gate(input).measured, 'pass');
