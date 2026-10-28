@@ -11,10 +11,10 @@ type Json<T> = ColumnType<T, string, string>;
 export interface Database {
   site_settings: {
     tenant_id: string;
-    theme: Json<unknown>;
-    theme_version: number;
-    chrome: Json<unknown>;
-    chrome_version: number;
+    theme: Json<unknown> | null;
+    theme_version: Generated<number>;
+    chrome: Json<unknown> | null;
+    chrome_version: Generated<number>;
     logo_bytes: Generated<Buffer | null>;
     logo_width: Generated<number | null>;
     logo_height: Generated<number | null>;

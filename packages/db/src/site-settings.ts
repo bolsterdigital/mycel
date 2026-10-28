@@ -1,6 +1,9 @@
-// The row stays tenant scoped under forced RLS. A single conditional upsert makes the first
-// write and later compare-and-swap atomic; rejected: read, then unconditional update.
-import type { Kysely } from 'kysely';
+// The row stays tenant scoped under forced RLS. Every setting on it (theme, chrome, logo, font)
+// is a value with its own version, written through one compare-and-set (`writeVersioned`). A
+// column that was never written is null and reads as the current default, so the first write of
+// one setting does not freeze the defaults of the others (TODO #53). Rejected: read, then
+// unconditional update; and one upsert per setting, which drifted into three copies.
+import type { Kysely, Updateable } from 'kysely';
 import {
   DEFAULT_CHROME,
   DEFAULT_THEME,
@@ -12,6 +15,46 @@ import {
   type BrandAsset,
 } from '@mycel/core';
 import type { Database } from './schema.js';
+
+type Row = Database['site_settings'];
+type VersionColumn = 'theme_version' | 'chrome_version' | 'logo_version' | 'font_version';
+
+/**
+ * Writes `changes` and moves `version` from `baseVersion` to the next, or returns null when the
+ * stored version is another. At version 0 the row may not exist yet: the insert makes it, with
+ * every other column at its default, and a competing first write meets the conflict clause.
+ */
+async function writeVersioned(
+  db: Kysely<Database>,
+  tenantId: string,
+  version: VersionColumn,
+  baseVersion: number,
+  changes: Updateable<Row>
+): Promise<number | null> {
+  const set = { ...changes, [version]: baseVersion + 1 };
+  const row =
+    baseVersion > 0
+      ? await db
+          .updateTable('site_settings')
+          .set(set)
+          .where('tenant_id', '=', tenantId)
+          .where(version, '=', baseVersion)
+          .returning(version)
+          .executeTakeFirst()
+      : await db
+          .insertInto('site_settings')
+          .values({ ...set, tenant_id: tenantId })
+          .onConflict((oc) =>
+            oc
+              .column('tenant_id')
+              .doUpdateSet(set)
+              .where(`site_settings.${version}`, '=', baseVersion)
+          )
+          .returning(version)
+          .executeTakeFirst();
+  return row?.[version] ?? null;
+}
+
 export function siteSettingsRepository(
   db: Kysely<Database>,
   tenantId: string
@@ -23,9 +66,10 @@ export function siteSettingsRepository(
         .select(['theme', 'theme_version'])
         .where('tenant_id', '=', tenantId)
         .executeTakeFirst();
-      return row
-        ? { version: row.theme_version, value: Theme.parse(row.theme) }
-        : { version: 0, value: DEFAULT_THEME };
+      return {
+        version: row?.theme_version ?? 0,
+        value: row?.theme == null ? DEFAULT_THEME : Theme.parse(row.theme),
+      };
     },
     async chrome() {
       const row = await db
@@ -33,70 +77,17 @@ export function siteSettingsRepository(
         .select(['chrome', 'chrome_version'])
         .where('tenant_id', '=', tenantId)
         .executeTakeFirst();
-      return row
-        ? { version: row.chrome_version, value: SiteChrome.parse(row.chrome) }
-        : { version: 0, value: DEFAULT_CHROME };
+      return {
+        version: row?.chrome_version ?? 0,
+        value: row?.chrome == null ? DEFAULT_CHROME : SiteChrome.parse(row.chrome),
+      };
     },
-    async updateTheme(baseVersion, value) {
-      if (baseVersion > 0) {
-        const changed = await db
-          .updateTable('site_settings')
-          .set({ theme: JSON.stringify(value), theme_version: baseVersion + 1 })
-          .where('tenant_id', '=', tenantId)
-          .where('theme_version', '=', baseVersion)
-          .returning('theme_version')
-          .executeTakeFirst();
-        return changed?.theme_version ?? null;
-      }
-      const row = await db
-        .insertInto('site_settings')
-        .values({
-          tenant_id: tenantId,
-          theme: JSON.stringify(value),
-          theme_version: 1,
-          chrome: JSON.stringify(DEFAULT_CHROME),
-          chrome_version: 0,
-        })
-        .onConflict((oc) =>
-          oc
-            .column('tenant_id')
-            .doUpdateSet({ theme: JSON.stringify(value), theme_version: baseVersion + 1 })
-            .where('site_settings.theme_version', '=', baseVersion)
-        )
-        .returning('theme_version')
-        .executeTakeFirst();
-      return baseVersion === 0 && row?.theme_version !== 1 ? null : (row?.theme_version ?? null);
-    },
-    async updateChrome(baseVersion, value) {
-      if (baseVersion > 0) {
-        const changed = await db
-          .updateTable('site_settings')
-          .set({ chrome: JSON.stringify(value), chrome_version: baseVersion + 1 })
-          .where('tenant_id', '=', tenantId)
-          .where('chrome_version', '=', baseVersion)
-          .returning('chrome_version')
-          .executeTakeFirst();
-        return changed?.chrome_version ?? null;
-      }
-      const row = await db
-        .insertInto('site_settings')
-        .values({
-          tenant_id: tenantId,
-          theme: JSON.stringify(DEFAULT_THEME),
-          theme_version: 0,
-          chrome: JSON.stringify(value),
-          chrome_version: 1,
-        })
-        .onConflict((oc) =>
-          oc
-            .column('tenant_id')
-            .doUpdateSet({ chrome: JSON.stringify(value), chrome_version: baseVersion + 1 })
-            .where('site_settings.chrome_version', '=', baseVersion)
-        )
-        .returning('chrome_version')
-        .executeTakeFirst();
-      return baseVersion === 0 && row?.chrome_version !== 1 ? null : (row?.chrome_version ?? null);
-    },
+    updateTheme: (baseVersion, value) =>
+      writeVersioned(db, tenantId, 'theme_version', baseVersion, { theme: JSON.stringify(value) }),
+    updateChrome: (baseVersion, value) =>
+      writeVersioned(db, tenantId, 'chrome_version', baseVersion, {
+        chrome: JSON.stringify(value),
+      }),
   };
 }
 
@@ -104,74 +95,52 @@ export function brandAssetsRepository(
   db: Kysely<Database>,
   tenantId: string
 ): BrandAssetsRepository {
-  const fields = (kind: BrandKind) =>
-    kind === 'logo'
-      ? { bytes: 'logo_bytes' as const, version: 'logo_version' as const }
-      : { bytes: 'font_bytes' as const, version: 'font_version' as const };
   return {
-    async get(kind) {
-      const row = await db
-        .selectFrom('site_settings')
-        .selectAll()
-        .where('tenant_id', '=', tenantId)
-        .executeTakeFirst();
-      const { bytes, version } = fields(kind);
-      const data = row?.[bytes] ?? null;
-      const asset: BrandAsset | null = data
-        ? {
-            bytes: data,
-            contentType: kind === 'logo' ? 'image/webp' : 'font/woff2',
-            width: kind === 'logo' ? (row?.logo_width ?? null) : null,
-            height: kind === 'logo' ? (row?.logo_height ?? null) : null,
-            licence: kind === 'font' ? (row?.font_licence ?? null) : null,
-          }
-        : null;
-      return { version: row?.[version] ?? 0, asset };
-    },
-    async replace(kind, baseVersion, asset) {
-      const changes =
-        kind === 'logo'
-          ? {
-              logo_bytes: asset ? Buffer.from(asset.bytes) : null,
-              logo_width: asset?.width ?? null,
-              logo_height: asset?.height ?? null,
-              logo_version: baseVersion + 1,
-            }
-          : {
-              font_bytes: asset ? Buffer.from(asset.bytes) : null,
-              font_licence: asset?.licence ?? null,
-              font_version: baseVersion + 1,
-            };
-      const version = fields(kind).version;
-      if (baseVersion > 0) {
-        const changed = await db
-          .updateTable('site_settings')
-          .set(changes)
+    async get(kind: BrandKind) {
+      // One kind's columns only: the other kind's bytea never leaves the database for this read.
+      if (kind === 'logo') {
+        const row = await db
+          .selectFrom('site_settings')
+          .select(['logo_bytes', 'logo_width', 'logo_height', 'logo_version'])
           .where('tenant_id', '=', tenantId)
-          .where(version, '=', baseVersion)
-          .returning(version)
           .executeTakeFirst();
-        return changed?.[version] ?? null;
+        const asset: BrandAsset | null = row?.logo_bytes
+          ? {
+              bytes: row.logo_bytes,
+              contentType: 'image/webp',
+              width: row.logo_width,
+              height: row.logo_height,
+              licence: null,
+            }
+          : null;
+        return { version: row?.logo_version ?? 0, asset };
       }
       const row = await db
-        .insertInto('site_settings')
-        .values({
-          tenant_id: tenantId,
-          theme: JSON.stringify(DEFAULT_THEME),
-          theme_version: 0,
-          chrome: JSON.stringify(DEFAULT_CHROME),
-          chrome_version: 0,
-          ...changes,
-        })
-        .onConflict((oc) =>
-          oc
-            .column('tenant_id')
-            .doUpdateSet(changes)
-            .where(`site_settings.${version}`, '=', baseVersion)
-        )
-        .returning(version)
+        .selectFrom('site_settings')
+        .select(['font_bytes', 'font_licence', 'font_version'])
+        .where('tenant_id', '=', tenantId)
         .executeTakeFirst();
-      return row?.[version] ?? null;
+      const asset: BrandAsset | null = row?.font_bytes
+        ? {
+            bytes: row.font_bytes,
+            contentType: 'font/woff2',
+            width: null,
+            height: null,
+            licence: row.font_licence,
+          }
+        : null;
+      return { version: row?.font_version ?? 0, asset };
     },
+    replace: (kind, baseVersion, asset) =>
+      kind === 'logo'
+        ? writeVersioned(db, tenantId, 'logo_version', baseVersion, {
+            logo_bytes: asset ? Buffer.from(asset.bytes) : null,
+            logo_width: asset?.width ?? null,
+            logo_height: asset?.height ?? null,
+          })
+        : writeVersioned(db, tenantId, 'font_version', baseVersion, {
+            font_bytes: asset ? Buffer.from(asset.bytes) : null,
+            font_licence: asset?.licence ?? null,
+          }),
   };
 }

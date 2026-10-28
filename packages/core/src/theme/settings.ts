@@ -88,10 +88,9 @@ export const updateSiteTheme = defineUseCase({
   output: ThemeState,
   examples: [{ input: { baseVersion: 0, theme: DEFAULT_THEME } }],
   handler: async (ctx, { baseVersion, theme }) => {
-    const value = theme;
-    const next = await ctx.siteSettings.updateTheme(baseVersion, value);
+    const next = await ctx.siteSettings.updateTheme(baseVersion, theme);
     if (next === null) return conflict();
-    return { version: next, value };
+    return { version: next, value: theme };
   },
 });
 export const getSiteChrome = defineUseCase({

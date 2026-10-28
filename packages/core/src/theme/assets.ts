@@ -6,10 +6,13 @@ import { UseCaseError } from '../errors.js';
 import { base64ToBytes } from '../util/bytes.js';
 import './ports.js';
 
-export const LOGO_LIMIT = 2 * 1024 * 1024;
-export const FONT_LIMIT = 1024 * 1024;
 export const BrandKind = z.enum(['logo', 'font']);
 export type BrandKind = z.infer<typeof BrandKind>;
+/** The largest upload per kind, in bytes; the processor and the admin form read the same values. */
+export const BRAND_LIMITS: Readonly<Record<BrandKind, number>> = Object.freeze({
+  logo: 2 * 1024 * 1024,
+  font: 1024 * 1024,
+});
 export interface BrandAsset {
   bytes: Uint8Array;
   contentType: 'image/webp' | 'font/woff2';
@@ -63,7 +66,7 @@ export const putBrandAsset = defineUseCase({
       bytes: z
         .string()
         .min(1)
-        .max(Math.ceil(LOGO_LIMIT / 3) * 4)
+        .max(Math.ceil(BRAND_LIMITS.logo / 3) * 4)
         .regex(/^[A-Za-z0-9+/]*={0,2}$/),
       licence: z.string().trim().min(1).max(500).optional(),
     })
@@ -82,7 +85,7 @@ export const putBrandAsset = defineUseCase({
   ],
   handler: async (ctx, input) => {
     const bytes = base64ToBytes(input.bytes);
-    const limit = input.kind === 'logo' ? LOGO_LIMIT : FONT_LIMIT;
+    const limit = BRAND_LIMITS[input.kind];
     if (bytes.length > limit) throw fail('site.brand.size');
     let asset: BrandAsset;
     if (input.kind === 'logo') {
