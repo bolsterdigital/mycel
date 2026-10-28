@@ -93,10 +93,6 @@ function safeSvg(bytes: Uint8Array): Uint8Array {
   return bytes;
 }
 
-const KNOWN_TAGS =
-  'cmap head hhea hmtx maxp name OS/2 post glyf loca CFF  VORG hdmx kern LTSH PCLT VDMX vhea vmtx BASE GDEF GPOS GSUB EBSC JSTF MATH CBDT CBLC COLR CPAL SVG  sbix acnt avar bdat bloc bsln cvar cdaT cvt  fpgm fvar gasp gvar hsty just lcar mort morx opbd prep prop trak Zapf Silf Glat Gloc Feat Sill'.match(
-    /.{4}/g
-  ) ?? [];
 function readBase128(data: Uint8Array, pos: number): [number, number] {
   let value = 0;
   for (let n = 0; n < 5; n++) {
@@ -128,9 +124,16 @@ export function validateWoff2(data: Uint8Array): void {
   for (let i = 0; i < u16(12); i++) {
     const flags = data[pos++];
     if (flags === undefined) return bad('font.directory');
+    // Indices 0-62 name the known tables of the WOFF2 spec, so every one of them is valid; 63
+    // means an arbitrary tag follows, which must be four characters in the OpenType tag range.
     const tag = flags & 63;
-    if (tag === 63) pos += 4;
-    else if (!KNOWN_TAGS[tag]) bad('font.directory');
+    if (tag === 63) {
+      for (let k = 0; k < 4; k++) {
+        const c = data[pos + k];
+        if (c === undefined || c < 0x20 || c > 0x7e) bad('font.directory');
+      }
+      pos += 4;
+    }
     let length: number;
     [length, pos] = readBase128(data, pos);
     let transformed = length;

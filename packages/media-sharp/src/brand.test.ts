@@ -50,4 +50,30 @@ describe('brand decoder', () => {
     bad.fill(0, 60, 90);
     expect(() => validateWoff2(bad)).toThrow();
   });
+  it('accepts a printable arbitrary table tag and refuses any other', () => {
+    // One directory entry with flags 63 (arbitrary tag), the tag, then a length of 1. A
+    // printable tag gets past the directory and fails later on the missing data.
+    const font = (tag: number[]) => {
+      const bytes = new Uint8Array(48 + 1 + 4 + 1);
+      const view = new DataView(bytes.buffer);
+      view.setUint32(0, 0x774f4632);
+      view.setUint32(8, bytes.length);
+      view.setUint16(12, 1);
+      view.setUint32(20, 1);
+      bytes.set([63, ...tag, 1], 48);
+      return bytes;
+    };
+    expect(() => validateWoff2(font([0x61, 0x62, 0x63, 0x64]))).toThrow(
+      'site.brand.font.compressed'
+    );
+    expect(() => validateWoff2(font([0x61, 0x62, 0x63, 0x20]))).toThrow(
+      'site.brand.font.compressed'
+    );
+    expect(() => validateWoff2(font([0x61, 0x00, 0x63, 0x64]))).toThrow(
+      'site.brand.font.directory'
+    );
+    expect(() => validateWoff2(font([0x61, 0x62, 0x63, 0x7f]))).toThrow(
+      'site.brand.font.directory'
+    );
+  });
 });
