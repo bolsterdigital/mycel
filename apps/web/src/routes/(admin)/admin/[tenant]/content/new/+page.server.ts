@@ -1,5 +1,5 @@
-// A new page or article (TODO #11, brief content-editor § A1): type, slug, a title per locale of
-// the site and which of them the item has, optionally from one of the site's patterns. The item
+// A new page or article (TODO #11, brief content-editor § A1): type, a title per locale of the
+// site, an optional slug (derived from the title when empty) and which locales the item has, optionally from one of the site's patterns. The item
 // starts as a draft with its first revision; the answer is a 303 to its edit page. A refusal
 // re-renders the form with what was typed.
 import { fail, redirect } from '@sveltejs/kit';
@@ -48,8 +48,10 @@ export const actions: Actions = {
     } as unknown as ContentDocumentInput;
     let id: string;
     try {
+      // An empty slug is derived from the title by core (proef 4).
+      const slug = one('slug').trim();
       const r = await runtime().invoker.run(useCases.createItem, principal, {
-        slug: one('slug').trim(),
+        ...(slug ? { slug } : {}),
         document,
         ...(one('patternId') ? { patternId: one('patternId') } : {}),
       });

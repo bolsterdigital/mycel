@@ -64,6 +64,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
     position: index + 1,
     item: {
       id: item.id,
+      type: item.type,
       title: item.title[item.defaultLocale] ?? Object.values(item.title)[0] ?? '',
     },
     values: formValues(BLOCK_DEFINITIONS[req.type].fields, undefined, doc.locales),

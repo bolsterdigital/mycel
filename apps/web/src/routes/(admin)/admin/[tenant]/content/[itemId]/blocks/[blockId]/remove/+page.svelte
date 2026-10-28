@@ -28,7 +28,12 @@
     locale={data.locale}
     breadcrumb={[
       { label: data.tenant.name, href: `/admin/${data.tenant.slug}` },
-      { label: t('admin.content.title'), href: `/admin/${data.tenant.slug}/content` },
+      {
+        label: t(
+          data.item.type === 'page' ? 'admin.content.filter.page' : 'admin.content.filter.article'
+        ),
+        href: `/admin/${data.tenant.slug}/content?type=${data.item.type}`,
+      },
       { label: data.item.title, href: back },
       { label: t('admin.block.remove.title') },
     ]}

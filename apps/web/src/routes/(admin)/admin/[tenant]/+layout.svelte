@@ -26,6 +26,12 @@
                   ? 'export'
                   : 'overview'
   );
+  /** Pages and articles are separate menu items (proef 4); a content screen says which it shows. */
+  const contentType = $derived.by(() => {
+    const shown = page.data as { type?: unknown; item?: { type?: unknown } };
+    const type = page.url.searchParams.get('type') ?? shown.item?.type ?? shown.type;
+    return type === 'article' ? 'article' : 'page';
+  });
   const has = (capability: (typeof data.capabilities)[number]) =>
     data.capabilities.includes(capability) || data.capabilities.includes('tenant:admin');
 </script>
@@ -44,9 +50,15 @@
           >{t('admin.shell.overview')}</a
         >
         {#if has('content:read')}
-          <a href="{base}/content" aria-current={section === 'content' ? 'page' : undefined}
-            >{t('admin.content.link')}</a
-          >
+          {#each ['page', 'article'] as const as type (type)}
+            <a
+              href="{base}/content?type={type}"
+              aria-current={section === 'content' && contentType === type ? 'page' : undefined}
+              >{t(
+                type === 'page' ? 'admin.content.filter.page' : 'admin.content.filter.article'
+              )}</a
+            >
+          {/each}
         {/if}
         {#if has('media:read')}
           <a href="{base}/media" aria-current={section === 'media' ? 'page' : undefined}

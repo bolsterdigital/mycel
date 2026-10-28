@@ -79,14 +79,12 @@ async function newPage(page: Page, slug: string, title: string): Promise<string>
 
 test('an operator makes a page, edits it, and compares its revisions', async ({ page }) => {
   await login(page, '/admin/probe');
-  await page.getByRole('link', { name: 'Pagina’s en artikelen' }).click();
-  await expect(
-    page.getByRole('heading', { level: 1, name: 'Pagina’s en artikelen' })
-  ).toBeVisible();
+  await page.getByRole('link', { name: 'Pagina’s' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Pagina’s' })).toBeVisible();
   expect(await page.locator('script').count()).toBe(0);
   await expectNoAxeViolations(page);
 
-  await page.getByRole('link', { name: 'Nieuwe pagina of artikel' }).click();
+  await page.getByRole('link', { name: 'Nieuwe pagina' }).click();
   await expectNoAxeViolations(page);
   const slug = slugFor('edit');
   const edit = await newPage(page, slug, 'Over de buurt');
@@ -480,21 +478,33 @@ test('publishing puts a locale live; a later edit stays unpublished until publis
   expect((await request.get(`${SITE}/${slug}`)).status()).toBe(404);
 });
 
-test('a locale without its translation is refused with the path', async ({ page }) => {
+test('a locale without its translation is refused by its label; publish saves what was typed', async ({
+  page,
+  request,
+}) => {
+  // No slug typed: core derives it from the title (proef 4).
+  const title = `Alleen NL ${slugFor('nl')}`;
   await login(page, '/admin/probe/content/new?type=page');
-  await page.getByLabel('Slug').fill(slugFor('untranslated'));
-  await page.getByLabel('Titel (nl)').fill('Alleen Nederlands');
+  await page.getByLabel('Titel (nl)').fill(title);
   await page.getByRole('button', { name: 'Concept maken' }).click();
   await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
+  const edit = new URL(page.url()).pathname;
   const en = card(page, 'en');
-  await expect(en).toContainText('title.en: de vertaling ontbreekt');
-  await expect(en.getByRole('link', { name: 'title.en' })).toHaveAttribute('href', '#title.en');
+  await expect(en).toContainText('Titel (en): de vertaling ontbreekt');
+  await expect(en.getByRole('link', { name: 'Titel (en)' })).toHaveAttribute('href', '#title.en');
 
   await en.getByRole('button', { name: 'Publiceren (en)' }).click();
   const alert = page.getByRole('alert');
   await expect(alert).toContainText('Dit kan in en nog niet:');
-  await expect(alert).toContainText('title.en: de vertaling ontbreekt');
+  await expect(alert).toContainText('Titel (en): de vertaling ontbreekt');
   await expectNoAxeViolations(page);
+
+  // Typed but not saved: the publish button saves it first.
+  await page.getByLabel('Titel (en)').fill('Only Dutch, now English');
+  await card(page, 'en').getByRole('button', { name: 'Publiceren (en)' }).click();
+  await expect(page).toHaveURL(`${edit}?done=publish&locale=en`);
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  expect((await request.get(`${SITE}/en/${slug}`)).status()).toBe(200);
 });
 
 test('a schedule pins a revision; a newer one can take its place', async ({ page }) => {
@@ -524,7 +534,9 @@ test('a schedule pins a revision; a newer one can take its place', async ({ page
   // A time in the past is core's refusal, worded in the panel's terms.
   await nl.getByLabel('Publiceren op').fill('2020-01-01T09:00');
   await nl.getByRole('button', { name: 'Inplannen (nl)' }).click();
-  await expect(page.getByRole('alert')).toContainText('at: de tijd ligt niet in de toekomst');
+  await expect(page.getByRole('alert')).toContainText(
+    'Publiceren op: de tijd ligt niet in de toekomst'
+  );
 
   await page.goto(edit);
   await nl.getByRole('button', { name: 'Planning intrekken (nl)' }).click();

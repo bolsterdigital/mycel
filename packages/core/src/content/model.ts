@@ -60,6 +60,25 @@ export function isReservedPageSlug(slug: string): boolean {
   );
 }
 
+/** Letters that NFKD does not split into a base letter plus accent. */
+const LETTERS: Record<string, string> = { ß: 'ss', æ: 'ae', ø: 'o', œ: 'oe', ł: 'l', đ: 'd' };
+
+/**
+ * A slug from a title (proef 4: editors start at the title, the slug follows): accents dropped,
+ * lowercase ASCII, every other run of characters one hyphen, at most 63 characters. Empty when
+ * nothing of the title survives; the caller then picks a fallback.
+ */
+export function slugFromTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[ßæøœłđ]/g, (c) => LETTERS[c] ?? c)
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .slice(0, 63)
+    .replace(/^-+|-+$/g, '');
+}
+
 /** Tags are strings (ADR 012 rule 3); this is their identity: NFC, trimmed, lowercase, single spaces. */
 export function canonicalTag(tag: string): string {
   return tag.normalize('NFC').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -261,8 +280,8 @@ function accessIssues(doc: DocumentShape): { path: (string | number)[]; message:
 
 /**
  * What stops `locale` of this document from being published (ADR 018 rule 9): the locale must be
- * one of the document's, every required visible field must have a value in it (no fallback), an
- * article needs an author, and a restricted article with the default teaser needs its lead. Tier
+ * one of the document's, every required visible field must have a value in it (no fallback), and a
+ * restricted article with the default teaser needs its lead; authors are optional (ADR 012). Tier
  * access fails closed until #19 can verify tier ids. References are checked separately, against
  * the tenant's data.
  */
@@ -277,8 +296,6 @@ export function readinessIssues(
     if (field.required && field.value[locale] === undefined)
       issues.push({ path: field.path.join('.'), message: 'content.publish.missing-translation' });
   if (doc.type === 'article') {
-    if (doc.authorIds.length === 0)
-      issues.push({ path: 'authorIds', message: 'content.publish.author-required' });
     if (doc.access.level !== 'public' && doc.access.teaser === 'lead' && !doc.lead)
       issues.push({ path: 'lead', message: 'content.publish.teaser-lead-required' });
   }
