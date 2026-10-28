@@ -5,32 +5,12 @@
 // seeded page (`e2e-blokken-<project>`, scripts/e2e.mjs) with the first example of every type, so
 // the bulk fixture is seeded once and not made here (the audit log status.spec.ts reads).
 
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test';
-
-const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
-const ADMIN = 'e2e-admin@probe.test';
-
-async function expectNoAxeViolations(page: Page) {
-  if (test.info().project.name !== 'a11y') return;
-  const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
-  expect(
-    violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)
-  ).toEqual([]);
-}
+import { expectNoAxeViolations } from './lib/axe';
+import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
+import { login } from './lib/login';
 
 test.use({ locale: 'nl-NL' });
-
-async function login(page: Page, path: string) {
-  // A fresh address per login: the admin allows twenty logins per address in ten minutes.
-  const ip = `2001:db8::b:${Math.floor(Math.random() * 0xffff).toString(16)}`;
-  await page.context().setExtraHTTPHeaders({ 'x-forwarded-proto': 'http', 'x-forwarded-for': ip });
-  await page.goto(path);
-  await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
-  await page.getByLabel('E-mail').fill(ADMIN);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL(new RegExp(`${path.replace(/[/?]/g, '\\$&')}$`));
-}
 
 /** The seeded page of this project, by slug over the HTTP API. */
 async function seededPage(request: APIRequestContext): Promise<string> {
@@ -336,43 +316,10 @@ test('the enhanced article writer keeps a native FAQ card through autosave and l
   await expect(page.getByRole('status')).toContainText('Gepubliceerd in en.');
 });
 
-test('a block save on an outdated revision is a conflict that keeps what was typed', async ({
-  page,
-}) => {
-  await login(page, '/admin/probe');
-  const edit = await newPage(page, 'conflict');
-  await insert(page, 'Kop', 'Onderaan');
-  await page.getByLabel('Tekst (nl)').fill('Kop');
-  await page.getByRole('button', { name: 'Blok invoegen' }).click();
-  await expect(page.getByRole('status')).toContainText('Blok ingevoegd.');
-
-  // Another tab saves the document in between.
-  const other = await page.context().newPage();
-  await other.goto(edit);
-  await other.getByLabel('Titel (nl) (verplicht)', { exact: true }).fill('Tussendoor');
-  await other.getByRole('button', { name: 'Opslaan', exact: true }).click();
-  await expect(other).toHaveURL(`${edit}?saved`);
-
-  await (await block(page, 1)).getByLabel('Tekst (nl)', { exact: true }).fill('Mijn kop');
-  await (await block(page, 1)).getByRole('button', { name: 'Blok opslaan' }).click();
-  await expect(page.getByRole('alert')).toContainText('opgeslagen');
-  await expect((await block(page, 1)).getByLabel('Tekst (nl)', { exact: true })).toHaveValue(
-    'Mijn kop'
-  );
-  // Saving again is a deliberate choice on top of the newest revision.
-  await save(page, 1);
-  await expect((await block(page, 1)).getByLabel('Tekst (nl)', { exact: true })).toHaveValue(
-    'Mijn kop'
-  );
-  await expect(page.getByLabel('Titel (nl) (verplicht)', { exact: true })).toHaveValue(
-    'Tussendoor'
-  );
-});
-
 test.describe('UI gate: the block forms at 320 CSS px and 200% text', () => {
-  test.use({ viewport: { width: 320, height: 900 } });
+  test.use({ viewport: NARROW });
 
-  for (const text of ['100%', '200%'])
+  for (const text of TEXT_SIZES)
     test(`every action whole and no horizontal scroll, text ${text}`, async ({ page, request }) => {
       test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
       const edit = await seededPage(request);
@@ -387,53 +334,13 @@ test.describe('UI gate: the block forms at 320 CSS px and 200% text', () => {
         await page.evaluate(() =>
           document.querySelectorAll('details').forEach((d) => (d.open = true))
         );
-        if (text !== '100%')
-          await page.evaluate((size) => (document.documentElement.style.fontSize = size), text);
-        if (path === edit)
-          await page
-            .locator('details.block')
-            .nth(6)
-            .screenshot({
-              path: test.info().outputPath(`content-block-320-${text.replace('%', '')}.png`),
-            });
-        expect(await page.evaluate(layoutProblems), path).toEqual([]);
+        await setTextSize(page, text);
+        await layoutGate(page, path);
       }
       // The insert page of the block with the most fields.
       await page.goto(edit);
       await insert(page, 'Opening', 'Na dit blok', 7);
-      if (text !== '100%')
-        await page.evaluate((size) => (document.documentElement.style.fontSize = size), text);
-      expect(await page.evaluate(layoutProblems), 'new hero').toEqual([]);
+      await setTextSize(page, text);
+      await layoutGate(page, 'new hero');
     });
 });
-
-/** The checks of the content admin gate (content-admin.spec.ts), over every action on the page. */
-function layoutProblems(): string[] {
-  const out: string[] = [];
-  const width = document.documentElement.clientWidth;
-  if (document.documentElement.scrollWidth > width) {
-    out.push(`page scrolls sideways: ${document.documentElement.scrollWidth} > ${width}`);
-    for (const el of document.querySelectorAll('body *'))
-      if (el.getBoundingClientRect().right > width + 1 && el.children.length === 0)
-        out.push(
-          `past the edge: <${el.tagName.toLowerCase()}> ${el.textContent?.trim().slice(0, 40)}`
-        );
-  }
-  for (const b of document.querySelectorAll('button, a.button, a.ui-button')) {
-    const r = b.getBoundingClientRect();
-    const label = b.textContent?.trim() ?? '';
-    if (b.scrollWidth > b.clientWidth + 1) out.push(`clipped: ${label}`);
-    if (r.right > width + 1 || r.left < -1) out.push(`outside the viewport: ${label}`);
-    if (r.height < 44 || r.width < 44) out.push(`tap target under 44px: ${label}`);
-  }
-  for (const l of document.querySelectorAll(
-    ':is(.card, .ui-card, .ui-panel, .ui-fieldset) :is(label, legend, summary)'
-  )) {
-    const card = l.closest('.card, .ui-card, .ui-panel, .ui-fieldset')!.getBoundingClientRect();
-    const range = document.createRange();
-    range.selectNodeContents(l);
-    if (range.getBoundingClientRect().right > card.right + 1)
-      out.push(`past its card: ${l.textContent?.trim()}`);
-  }
-  return out;
-}

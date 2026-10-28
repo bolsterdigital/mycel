@@ -1,25 +1,13 @@
 // Native consent and translation workflow against the built server and deterministic fake model.
 // Rejected: mocking action responses, which would miss tenant and revision checks in the registry.
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import {
-  ContentDocumentInput,
-  Invoker,
-  buildRegistry,
-  systemPrincipal,
-  useCases,
-  type Principal,
-} from '@mycel/core';
-import { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } from '@mycel/core/testing';
-import {
-  createDb,
-  createTenantDirectory,
-  createUnitOfWork,
-  upsertTenant,
-  uuidv7Ids,
-} from '@mycel/db';
-
+import { ContentDocumentInput, systemPrincipal, useCases, type Principal } from '@mycel/core';
+import { upsertTenant } from '@mycel/db';
 import { closeTenantWork } from '@mycel/db/testing';
+import { expectNoAxeViolations } from './lib/axe';
+import { asOwner, tenantId, withInvoker } from './lib/invoker';
+import { NARROW, layoutGate, setTextSize } from './lib/layout';
+import { login } from './lib/login';
 
 test.use({
   locale: 'nl-NL',
@@ -27,25 +15,17 @@ test.use({
 });
 
 const fixtureTenants = new Set<string>();
-test.afterAll(async () => {
-  const owner = createDb(process.env['DATABASE_URL']!);
-  try {
-    await closeTenantWork(owner, [...fixtureTenants]);
-  } finally {
-    await owner.destroy();
-  }
-});
+test.afterAll(() => asOwner((owner) => closeTenantWork(owner, [...fixtureTenants])));
 
 const sites = new WeakMap<Page, { id: string; slug: string; email: string }>();
 const base = (page: Page) => `/admin/${sites.get(page)!.slug}`;
 
-async function login(page: Page) {
+/** A fresh site with one `tenant:admin`, signed in on its assistance settings. */
+async function signInToFreshSite(page: Page) {
   const slug = `assist-${crypto.randomUUID().slice(0, 18)}`;
   const email = `${slug}@probe.test`;
-  const owner = createDb(process.env['DATABASE_URL']!);
-  const app = createDb(process.env['APP_DATABASE_URL']!);
-  try {
-    const tenant = await upsertTenant(
+  const tenant = await asOwner((owner) =>
+    upsertTenant(
       owner,
       {
         id: crypto.randomUUID(),
@@ -55,63 +35,33 @@ async function login(page: Page) {
         locales: ['nl', 'en'],
       },
       { platformDomain: process.env['PLATFORM_DOMAIN']! }
-    );
-    sites.set(page, { ...tenant, email });
-    fixtureTenants.add(tenant.id);
-    const uow = createUnitOfWork(app, {
-      clock: { now: () => new Date() },
-      ids: uuidv7Ids,
-      signer: new FakeSigner(),
-      inputHasher: new FakeInputHasher(process.env['AUDIT_HASH_KEY']),
-      dns: new FakeDns(),
-      platform: memoryPlatform,
-    });
-    await new Invoker(buildRegistry(), uow).run(
-      useCases.inviteMember,
-      systemPrincipal(tenant.id, 'e2e-assist-login'),
-      { email, capabilities: ['tenant:admin'] }
-    );
-  } finally {
-    await app.destroy();
-    await owner.destroy();
-  }
-  await page.context().setExtraHTTPHeaders({
-    'x-forwarded-proto': 'http',
-    'x-forwarded-for': `2001:db8:24a::${Math.floor(Math.random() * 0xffffffff).toString(16)}`,
-  });
-  await page.goto(`${base(page)}/assist`);
-  await expect(
-    page.getByRole('heading', { name: 'Mock IdP' }),
-    `login route: ${page.url()}`
-  ).toBeVisible();
-  await page.getByLabel('E-mail').fill(email);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL(`${base(page)}/assist`);
+    )
+  );
+  sites.set(page, { ...tenant, email });
+  fixtureTenants.add(tenant.id);
+  await withInvoker((invoker) =>
+    invoker.run(useCases.inviteMember, systemPrincipal(tenant.id, 'e2e-assist-login'), {
+      email,
+      capabilities: ['tenant:admin'],
+    })
+  );
+  await login(page, `${base(page)}/assist`, email);
   await expect(page.getByText(email, { exact: true })).toBeVisible();
 }
 
+const FAKE_MODEL = { assistProviderLabel: 'Fake model' };
+
 async function inSite<T>(
   page: Page,
-  action: (invoker: Invoker, principal: Principal) => Promise<T>
+  action: (
+    invoker: Parameters<Parameters<typeof withInvoker>[0]>[0],
+    principal: Principal
+  ) => Promise<T>
 ) {
-  const app = createDb(process.env['APP_DATABASE_URL']!);
-  try {
-    const uow = createUnitOfWork(app, {
-      clock: { now: () => new Date() },
-      ids: uuidv7Ids,
-      signer: new FakeSigner(),
-      inputHasher: new FakeInputHasher(process.env['AUDIT_HASH_KEY']),
-      dns: new FakeDns(),
-      platform: memoryPlatform,
-      assistProviderLabel: 'Fake model',
-    });
-    return await action(
-      new Invoker(buildRegistry(), uow),
-      systemPrincipal(sites.get(page)!.id, 'e2e-assist-state')
-    );
-  } finally {
-    await app.destroy();
-  }
+  return withInvoker(
+    (invoker) => action(invoker, systemPrincipal(sites.get(page)!.id, 'e2e-assist-state')),
+    FAKE_MODEL
+  );
 }
 
 async function permissions(page: Page, capabilities: Principal['capabilities']) {
@@ -130,17 +80,9 @@ async function permissions(page: Page, capabilities: Principal['capabilities']) 
   });
 }
 
-async function axe(page: Page) {
-  if (test.info().project.name !== 'a11y') return;
-  const { violations } = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-    .analyze();
-  expect(violations).toEqual([]);
-}
-
 async function acceptWithKeyboard(page: Page) {
   const edit = new URL(page.url()).pathname.replace(/\/assist$/, '');
-  await axe(page);
+  await expectNoAxeViolations(page);
   await page.locator('#assist-value').focus();
   await page.keyboard.press('Tab');
   await expect(
@@ -179,24 +121,11 @@ async function imagePage(page: Page, project: string) {
   const src = await page.locator('article img').first().getAttribute('src');
   const mediaId = /media\/([0-9a-f-]{36})\/thumb/.exec(src ?? '')?.[1];
   expect(mediaId).toBeTruthy();
-  const owner = createDb(process.env['DATABASE_URL']!);
-  const app = createDb(process.env['APP_DATABASE_URL']!);
-  try {
-    const tenant = await createTenantDirectory(owner).findBySlug(sites.get(page)!.slug);
-    if (!tenant) throw new Error('probe tenant missing');
-    const uow = createUnitOfWork(app, {
-      clock: { now: () => new Date() },
-      ids: uuidv7Ids,
-      signer: new FakeSigner(),
-      inputHasher: new FakeInputHasher(process.env['AUDIT_HASH_KEY']),
-      dns: new FakeDns(),
-      platform: memoryPlatform,
-      assistProviderLabel: 'Fake model',
-    });
-    const invoker = new Invoker(buildRegistry(), uow);
-    const principal = systemPrincipal(tenant.id, 'e2e-assist-image');
-    const probe = await createTenantDirectory(owner).findBySlug('probe');
-    const sourcePrincipal = systemPrincipal(probe!.id, 'e2e-assist-source');
+  const site = sites.get(page)!.id;
+  const probe = await tenantId();
+  return withInvoker(async (invoker) => {
+    const principal = systemPrincipal(site, 'e2e-assist-image');
+    const sourcePrincipal = systemPrincipal(probe, 'e2e-assist-source');
     const { items } = await invoker.run(useCases.listItems, sourcePrincipal, {
       type: 'page',
       slug: `e2e-blokken-${project}`,
@@ -224,10 +153,7 @@ async function imagePage(page: Page, project: string) {
       edit: `${base(page)}/content/${created.item.id}`,
       blockId: created.revision.document.blocks[0]!.id,
     };
-  } finally {
-    await app.destroy();
-    await owner.destroy();
-  }
+  }, FAKE_MODEL);
 }
 
 for (const locale of ['nl-NL', 'en-GB']) {
@@ -236,7 +162,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
     test('missing and stale provider context requires fresh consent; disabling stays available', async ({
       page,
     }) => {
-      await login(page);
+      await signInToFreshSite(page);
       const provider = page.locator('input[name="provider"]');
       await expect(provider).toHaveValue('Fake model');
       const before = await inSite(page, (invoker, principal) =>
@@ -293,13 +219,13 @@ for (const locale of ['nl-NL', 'en-GB']) {
         )
       ).toMatchObject({ enabled: false, consentedProvider: null });
       await page.goto(`${base(page)}/assist`);
-      await axe(page);
+      await expectNoAxeViolations(page);
     });
 
     test('consent, pending translation, edited acceptance and human publication approval', async ({
       page,
     }) => {
-      await login(page);
+      await signInToFreshSite(page);
       await expect(page.getByText(/De hoster staat hulp|The host permits/)).toBeVisible();
       await page
         .getByLabel(/AI-hulp voor deze site aanzetten|Enable assistance for this site/)
@@ -310,7 +236,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
       await expect(page.getByRole('alert')).toContainText(
         /Expliciete toestemming|Explicit consent/
       );
-      await axe(page);
+      await expectNoAxeViolations(page);
       await page.getByLabel(/Ik stem in met het versturen|I consent to sending/).check();
       await page
         .getByRole('button', { name: /AI-instellingen opslaan|Save assistance settings/ })
@@ -378,18 +304,13 @@ for (const locale of ['nl-NL', 'en-GB']) {
         .getByRole('button', { name: /Vertaling in en goedkeuren|Approve translation in en/ })
         .click();
       await expect(publication).not.toContainText(/Machinevertaling|Machine translation/);
-      if (test.info().project.name === 'a11y') {
-        const { violations } = await new AxeBuilder({ page })
-          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-          .analyze();
-        expect(violations).toEqual([]);
-      }
+      await expectNoAxeViolations(page);
     });
 
     test('disabled, forbidden and stale/conflicting requests preserve the current revision', async ({
       page,
     }) => {
-      await login(page);
+      await signInToFreshSite(page);
       const created = await inSite(page, (invoker, principal) =>
         invoker.run(useCases.createItem, principal, {
           slug: 'state-fixture',
@@ -495,7 +416,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
     });
 
     test('locale approval survives removal of the translated block', async ({ page }) => {
-      await login(page);
+      await signInToFreshSite(page);
       await enable(page);
       const created = await inSite(page, (invoker, principal) =>
         invoker.run(useCases.createItem, principal, {
@@ -542,20 +463,10 @@ for (const locale of ['nl-NL', 'en-GB']) {
         ['combined', 320, '200%'],
       ] as const) {
         await page.setViewportSize({ width, height: 900 });
-        await page.evaluate((size) => (document.documentElement.style.fontSize = size), size);
-        const button = publication.locator('.translation-approval button');
-        const rect = await button.boundingBox();
-        expect(rect!.width).toBeGreaterThanOrEqual(44);
-        expect(rect!.height).toBeGreaterThanOrEqual(44);
-        expect(await button.evaluate((b) => b.scrollWidth > b.clientWidth)).toBe(false);
-        expect(
-          await page.evaluate(
-            () => document.documentElement.scrollWidth > document.documentElement.clientWidth
-          )
-        ).toBe(false);
-        await button.screenshot({ path: test.info().outputPath(`approval-${locale}-${name}.png`) });
+        await setTextSize(page, size);
+        await layoutGate(page, `approval ${locale} ${name}`, '.translation-approval');
       }
-      await axe(page);
+      await expectNoAxeViolations(page);
       const approve = publication.getByRole('button', {
         name: /Vertaling in en goedkeuren|Approve translation in en/,
       });
@@ -567,7 +478,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
     test('alt proposal can be dismissed, requested again and accepted without JavaScript', async ({
       page,
     }) => {
-      await login(page);
+      await signInToFreshSite(page);
       await page
         .getByLabel(/AI-hulp voor deze site aanzetten|Enable assistance for this site/)
         .check();
@@ -603,7 +514,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
   test(`suggestion actions fit at 320 px and 200% in ${locale}`, async ({ browser }) => {
     const context = await browser.newContext({
       locale,
-      viewport: { width: 320, height: 900 },
+      viewport: NARROW,
       javaScriptEnabled: test.info().project.name === 'a11y',
       baseURL: 'http://127.0.0.1:4173',
       extraHTTPHeaders: {
@@ -613,7 +524,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
     });
     try {
       const page = await context.newPage();
-      await login(page);
+      await signInToFreshSite(page);
       await page
         .getByLabel(
           locale.startsWith('nl')
@@ -653,39 +564,13 @@ for (const locale of ['nl-NL', 'en-GB']) {
       expect(suggestionId).toBeTruthy();
       await ready(page);
       for (const [name, width, zoom] of [
-        ['narrow', 320, '1'],
-        ['large-text', 640, '2'],
-        ['combined', 320, '2'],
+        ['narrow', 320, '100%'],
+        ['large-text', 640, '200%'],
+        ['combined', 320, '200%'],
       ] as const) {
         await page.setViewportSize({ width, height: 900 });
-        await page.evaluate((value) => {
-          document.documentElement.style.fontSize = `${Number(value) * 100}%`;
-        }, zoom);
-        const issues = await page.evaluate(() => {
-          const buttons = [
-            ...document.querySelectorAll<HTMLButtonElement>('.assist-actions button'),
-          ];
-          return {
-            overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
-            controls: buttons.map((button) => ({
-              label: button.textContent?.trim(),
-              clipped: button.scrollWidth > button.clientWidth,
-              width: button.getBoundingClientRect().width,
-              height: button.getBoundingClientRect().height,
-            })),
-          };
-        });
-        expect(issues.overflow, `${locale} ${name}`).toBe(false);
-        expect(issues.controls).toHaveLength(3);
-        for (const control of issues.controls) {
-          expect(control.label).toBeTruthy();
-          expect(control.clipped, `${locale} ${name}: ${control.label}`).toBe(false);
-          expect(control.width).toBeGreaterThanOrEqual(44);
-          expect(control.height, `${locale} ${name}: ${control.label}`).toBeGreaterThanOrEqual(44);
-        }
-        await page
-          .locator('.assist-actions')
-          .screenshot({ path: test.info().outputPath(`assist-actions-${locale}-${name}.png`) });
+        await setTextSize(page, zoom);
+        await layoutGate(page, `${locale} ${name}`, '.assist-actions');
       }
     } finally {
       await context.close();

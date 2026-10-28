@@ -6,20 +6,12 @@
 // The stuck tasks go in as the worker leaves them (mycel_worker on the operator connection), with
 // a type no handler knows and a run time a day ahead, so the e2e worker never takes them first.
 
-import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import type { Kysely } from 'kysely';
 import type { Database } from '@mycel/db';
-
-const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
-
-async function expectNoAxeViolations(page: Page) {
-  if (test.info().project.name !== 'a11y') return;
-  const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
-  expect(
-    violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)
-  ).toEqual([]);
-}
+import { expectNoAxeViolations } from './lib/axe';
+import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
+import { login } from './lib/login';
 
 test.use({
   locale: 'nl-NL',
@@ -28,14 +20,6 @@ test.use({
     'x-forwarded-for': `198.51.100.${Math.floor(Math.random() * 250) + 1}`,
   },
 });
-
-async function login(page: Page, email: string, path: string) {
-  await page.goto(path);
-  await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
-  await page.getByLabel('E-mail').fill(email);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL(new RegExp(`${path.replace(/\//g, '\\/')}$`));
-}
 
 /** As mycel_worker, the queue's own role: insert stuck jobs for tenant probe, or finish jobs. */
 async function asWorker(fn: (trx: Kysely<Database>, probeId: string) => Promise<void>) {
@@ -96,7 +80,7 @@ test('an administrator retries and closes a stuck task without JavaScript', asyn
   const closed = `e2e.status.${run}.close`;
   const ids = [await stuckJob(retried), await stuckJob(closed)];
   try {
-    await login(page, 'e2e-admin@probe.test', '/admin/probe');
+    await login(page, '/admin/probe');
     await page.getByRole('link', { name: 'Status en vastgelopen werk' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Status' })).toBeVisible();
     await expect(card(page, retried)).toContainText('10 van 10');
@@ -136,40 +120,22 @@ test('an administrator retries and closes a stuck task without JavaScript', asyn
 });
 
 test.describe('UI gate: the status action groups at 320 CSS px and 200% text', () => {
-  test.use({ viewport: { width: 320, height: 900 } });
+  test.use({ viewport: NARROW });
 
-  for (const text of ['100%', '200%']) {
+  for (const text of TEXT_SIZES) {
     test(`every control whole and no horizontal scroll, text ${text}`, async ({ page }) => {
       test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
       const type = `e2e.status.gate.${text.replace('%', '')}.${Date.now()}`;
       const id = await stuckJob(type);
       try {
-        await login(page, 'e2e-admin@probe.test', '/admin/probe/status');
-        const measure = async (name: string, shot: Locator) => {
-          if (text !== '100%')
-            await page.evaluate((size) => (document.documentElement.style.fontSize = size), text);
-          const problems = await page.evaluate(() => {
-            const out: string[] = [];
-            const width = document.documentElement.clientWidth;
-            if (document.documentElement.scrollWidth > width)
-              out.push(`page scrolls sideways: ${document.documentElement.scrollWidth} > ${width}`);
-            for (const b of document.querySelectorAll('main button, main a.ui-button')) {
-              const r = b.getBoundingClientRect();
-              const label = b.textContent?.trim() ?? '';
-              if (b.scrollWidth > b.clientWidth + 1) out.push(`clipped: ${label}`);
-              if (r.right > width + 1 || r.left < -1) out.push(`outside the viewport: ${label}`);
-              if (r.height < 44 || r.width < 44) out.push(`tap target under 44px: ${label}`);
-            }
-            return out;
-          });
-          await shot.screenshot({
-            path: test.info().outputPath(`status-${name}-320-${text.replace('%', '')}.png`),
-          });
-          expect(problems).toEqual([]);
+        await login(page, '/admin/probe/status');
+        const measure = async (name: string) => {
+          await setTextSize(page, text);
+          await layoutGate(page, name, 'main');
         };
-        await measure('job', card(page, type));
+        await measure('job');
         await card(page, type).getByRole('button', { name: 'Afsluiten' }).click();
-        await measure('confirm', page.locator('form[action="?/close"]'));
+        await measure('confirm');
         await page.getByRole('link', { name: 'Laten staan' }).click();
         await expect(card(page, type)).toBeVisible();
       } finally {

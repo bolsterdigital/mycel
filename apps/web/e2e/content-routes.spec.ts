@@ -5,23 +5,14 @@
 // 304, no cookie is set, and misses are `no-store`. Then the JSON read route of the API process
 // on the same seeded article.
 
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { expectNoAxeViolations } from './lib/axe';
 
-const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 /** The canonical address form: the seed gives tenant probe this primary hostname. */
 const SITE = 'http://probe.localhost:4173';
 const ARTICLE = 'bomen-in-de-straat';
 
 test.use({ locale: 'nl-NL', extraHTTPHeaders: { 'x-forwarded-proto': 'http' } });
-
-async function expectNoAxeViolations(page: Page) {
-  if (test.info().project.name !== 'a11y') return;
-  const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
-  expect(
-    violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)
-  ).toEqual([]);
-}
 
 const head = (page: Page) =>
   page.evaluate(() => ({

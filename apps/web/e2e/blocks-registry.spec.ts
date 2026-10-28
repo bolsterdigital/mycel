@@ -16,13 +16,12 @@
 // element ids, and one failing block would hide the rest), and a hand-picked fixture list (the
 // drift this replaces).
 
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { BLOCK_DEFINITIONS, BLOCK_TYPES } from '@mycel/core';
-
-const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
+import { expectNoAxeViolations } from './lib/axe';
+import { setTextSize } from './lib/layout';
 
 /** Examples that render nothing for an anonymous visitor, with the reason. */
 const INVISIBLE: Record<string, string> = {
@@ -49,11 +48,7 @@ for (const name of examples)
       const rendered = await page.locator('main > :not(h1)').count();
       if (name in INVISIBLE) expect(rendered, INVISIBLE[name]).toBe(0);
       else expect(rendered, `${name} rendered nothing`).toBeGreaterThan(0);
-      if (test.info().project.name !== 'a11y') return;
-      const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
-      expect(
-        violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)
-      ).toEqual([]);
+      await expectNoAxeViolations(page);
     });
 
 for (const variant of ['list', 'accordion'] as const)
@@ -67,8 +62,7 @@ for (const variant of ['list', 'accordion'] as const)
         for (const viewport of [320, 768, 1440]) {
           await page.setViewportSize({ width: viewport, height: 900 });
           expect((await page.goto(path))?.status()).toBe(200);
-          if (viewport === 320)
-            await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
+          if (viewport === 320) await setTextSize(page, '200%');
           const section = page.locator(`main > .faq.width-${width}`);
           await expect(section).toBeVisible();
           const dimensions = await page.evaluate(() => {

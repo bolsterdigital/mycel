@@ -4,15 +4,9 @@ import { mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium, expect, test, type APIRequestContext, type Page } from '@playwright/test';
-import {
-  Invoker,
-  buildRegistry,
-  systemPrincipal,
-  useCases,
-  type ContentDocument,
-} from '@mycel/core';
-import { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } from '@mycel/core/testing';
-import { createDb, createTenantDirectory, createUnitOfWork, uuidv7Ids } from '@mycel/db';
+import { systemPrincipal, useCases, type ContentDocument } from '@mycel/core';
+import { tenantId, withInvoker } from './lib/invoker';
+import { NARROW, layoutGate, setTextSize } from './lib/layout';
 
 const compositions = [
   { slug: 'grid-information-v1', type: 'page', title: 'Samen zorgen voor de buurt' },
@@ -61,32 +55,15 @@ test.beforeAll(async ({ request }) => {
         slug: compositions[0]!.slug,
         document: doc,
       });
-  const owner = createDb(process.env['DATABASE_URL']!);
-  const app = createDb(process.env['APP_DATABASE_URL']!);
-  try {
-    const probe = await createTenantDirectory(owner).findBySlug('probe');
-    if (!probe) throw new Error('probe tenant missing');
-    const invoker = new Invoker(
-      buildRegistry(),
-      createUnitOfWork(app, {
-        clock: { now: () => new Date() },
-        ids: uuidv7Ids,
-        signer: new FakeSigner(),
-        inputHasher: new FakeInputHasher(process.env['AUDIT_HASH_KEY']),
-        dns: new FakeDns(),
-        platform: memoryPlatform,
-      })
-    );
+  const probe = await tenantId();
+  await withInvoker(async (invoker) => {
     for (const locale of ['nl', 'en'])
-      await invoker.run(useCases.publishItem, systemPrincipal(probe.id, 'e2e'), {
+      await invoker.run(useCases.publishItem, systemPrincipal(probe, 'e2e'), {
         itemId: created.item.id,
         revisionId: created.revision.id,
         locale,
       });
-  } finally {
-    await app.destroy();
-    await owner.destroy();
-  }
+  });
 });
 
 async function metrics(page: Page) {
@@ -129,7 +106,6 @@ for (const entry of compositions)
       await test
         .info()
         .attach('rails.json', { body: JSON.stringify(measured), contentType: 'application/json' });
-      console.log(entry.slug, width, JSON.stringify(measured));
       expect(measured.overflow).toBe(false);
       if (measured.full) expect(measured.full.width).toBe(width);
       if (width === 1440 && measured.wide) expect(measured.wide.width).toBe(1088);
@@ -138,10 +114,6 @@ for (const entry of compositions)
         expect(measured.prose!.width).toBeGreaterThanOrEqual(680);
         expect(measured.prose!.width).toBeLessThanOrEqual(740);
       }
-      await page.screenshot({
-        path: test.info().outputPath(`${entry.slug}-${width}.png`),
-        fullPage: true,
-      });
     });
 
 for (const entry of compositions)
@@ -216,10 +188,6 @@ for (const entry of compositions)
     await test.info().attach('preview-rails.json', {
       body: JSON.stringify({ saved: savedMetrics, live }),
       contentType: 'application/json',
-    });
-    await page.screenshot({
-      path: test.info().outputPath(`${entry.slug}-live.png`),
-      fullPage: true,
     });
     await page.setViewportSize({ width: live.width, height: 900 });
     await page.goto(`/probe/${entry.type === 'article' ? 'articles/' : ''}${entry.slug}`);
@@ -358,35 +326,21 @@ for (const entry of compositions)
       page,
     }) => {
       test.skip(test.info().project.name !== 'a11y', 'DOM measurements');
-      await page.setViewportSize({ width: 320, height: 900 });
+      await page.setViewportSize(NARROW);
       await page.goto(
         `/probe/${locale === 'en' ? 'en/' : ''}${entry.type === 'article' ? 'articles/' : ''}${entry.slug}`
       );
       for (const spacing of [false, true]) {
-        await page.evaluate((spacing) => {
-          document.documentElement.style.fontSize = '200%';
-          if (spacing) {
+        await setTextSize(page, '200%');
+        if (spacing)
+          await page.evaluate(() => {
+            // Constructable user stylesheet leaves the page's strict CSP untouched.
             const sheet = new CSSStyleSheet();
             sheet.replaceSync(
               '* { line-height: 1.5 !important; letter-spacing: .12em !important; word-spacing: .16em !important; } p { margin-bottom: 2em !important; }'
             );
             document.adoptedStyleSheets.push(sheet);
-          }
-        }, spacing);
-        expect((await metrics(page)).overflow).toBe(false);
-        const clipped = await page.locator('.actions a').evaluateAll((actions) =>
-          actions
-            .filter((action) => {
-              const box = action.getBoundingClientRect();
-              return (
-                box.width < 44 ||
-                box.height < 44 ||
-                action.scrollWidth > action.clientWidth + 1 ||
-                getComputedStyle(action).textOverflow === 'ellipsis'
-              );
-            })
-            .map((action) => action.textContent)
-        );
-        expect(clipped).toEqual([]);
+          });
+        await layoutGate(page, spacing ? 'with WCAG text spacing' : '200% text');
       }
     });
