@@ -154,6 +154,23 @@
     cursor: pointer;
   }
 
+  .ui-filedrop-previews {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    margin: var(--space-1) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ui-filedrop-previews img {
+    display: block;
+    block-size: 6rem;
+    inline-size: auto;
+    max-inline-size: 100%;
+    object-fit: cover;
+    border-radius: var(--radius);
+  }
+
   .ui-fieldset {
     min-width: 0;
     margin: 0;

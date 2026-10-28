@@ -44,6 +44,7 @@ import {
   RevisionSummary,
   Slug,
   isReservedPageSlug,
+  slugFromTitle,
   readinessIssues,
 } from './model.js';
 import type { ItemRecord } from './ports.js';
@@ -302,16 +303,33 @@ const pageExample = {
   },
 };
 
+/**
+ * The slug of a new item that gave none: its title in the default locale as a slug, with `-2`,
+ * `-3` and so on when that is taken or reserved. A title with nothing usable falls back to the
+ * type name.
+ */
+async function freeSlug(ctx: TransactionContext, document: ContentDocumentInput): Promise<string> {
+  const title = document.title[document.defaultLocale] ?? Object.values(document.title)[0] ?? '';
+  const stem = slugFromTitle(title) || document.type;
+  for (let n = 1; n <= 100; n++) {
+    const suffix = n === 1 ? '' : `-${n}`;
+    const slug = `${stem.slice(0, 63 - suffix.length).replace(/-+$/, '')}${suffix}`;
+    if (document.type === 'page' && isReservedPageSlug(slug)) continue;
+    if (!(await ctx.content.findBySlug(document.type, slug))) return slug;
+  }
+  throw new UseCaseError('conflict', `no free slug for "${stem}"`);
+}
+
 export const createItem = defineUseCase({
   name: 'content.item.create',
   kind: 'command',
   description:
-    'Create a page or article as a draft with its first revision; blocks without an id get one, and patternId copies a pattern into the new document.',
+    'Create a page or article as a draft with its first revision; without a slug one is derived from the title in the default locale and made unique; blocks without an id get one, and patternId copies a pattern into the new document.',
   requires: 'content:write',
   authenticatedOnly: true,
   consumes: null,
   input: z.object({
-    slug: Slug,
+    slug: Slug.optional(),
     document: ContentDocumentInput,
     patternId: z.string().guid().optional(),
   }),
@@ -319,7 +337,8 @@ export const createItem = defineUseCase({
   examples: [
     { input: pageExample, note: 'Draft in two locales; the English body is not written yet.' },
   ],
-  async handler(ctx, { slug, document, patternId }) {
+  async handler(ctx, { slug: given, document, patternId }) {
+    const slug = given ?? (await freeSlug(ctx, document));
     if (document.type === 'page' && isReservedPageSlug(slug))
       throw new UseCaseError('invalid_input', `"${slug}" is reserved`, [
         { path: 'slug', message: 'content.slug.reserved' },

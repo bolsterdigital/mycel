@@ -16,6 +16,7 @@
 // take offline, schedule (a time in the site zone, `content-admin-publication.ts`) and cancel a
 // schedule; pinning the newest revision is a schedule of it at the pinned time. Buttons show only
 // for `content:publish`; the registry refuses the rest regardless.
+import { isDeepStrictEqual } from 'node:util';
 import { error, fail, redirect } from '@sveltejs/kit';
 import {
   BLOCK_DEFINITIONS,
@@ -27,6 +28,7 @@ import {
   type ContentDocument,
   type Principal,
   type Section,
+  type TenantInfo,
 } from '@mycel/core';
 import { formValues, posted, propsFromForm } from '#lib/editor/block-form.js';
 import { failureOf, text } from '#lib/server/admin-actions.js';
@@ -36,6 +38,7 @@ import {
   diffRows,
   documentFrom,
   valuesFromForm,
+  type FormValues,
   withAssigned,
   valuesOf,
   when,
@@ -259,7 +262,6 @@ const ISSUE_COPY: Record<string, UiKey> = {
   'content.publish.locale-not-in-item': 'admin.content.issue.localeNotInDocument',
   'content.publish.missing-translation': 'admin.content.issue.missingTranslation',
   'content.publish.machine-translation-unreviewed': 'admin.assist.unreviewed',
-  'content.publish.author-required': 'admin.content.issue.authorRequired',
   'content.publish.teaser-lead-required': 'admin.content.issue.teaserLeadRequired',
   'content.publish.tier-unverifiable': 'admin.content.issue.tierUnverifiable',
   'content.reference.author-unknown': 'admin.content.issue.referenceUnknown',
@@ -285,14 +287,15 @@ async function publication(
   run: (
     principal: Principal,
     input: { itemId: string; locale: string; revisionId: string; at: string }
-  ) => Promise<unknown>
+  ) => Promise<unknown>,
+  posted?: FormData
 ) {
   const { tenant, principal } = await requireTenantPrincipal(
     event.locals,
     event.url,
     event.params.tenant!
   );
-  const data = await event.request.formData();
+  const data = posted ?? (await event.request.formData());
   const field = (name: string) => {
     const v = data.get(name);
     return typeof v === 'string' ? v : '';
@@ -438,6 +441,74 @@ async function conflictOf(principal: Principal, itemId: string, from: string) {
   };
 }
 
+/**
+ * Saves the edit form as a new revision (brief content-editor § A1). `onlyIfChanged` is the
+ * publish button of the same form (proef 4): it saves first so a publish never skips what was
+ * typed, but an untouched form adds no empty revision. A refusal is the page's own failure.
+ */
+async function saveFields(
+  tenant: TenantInfo,
+  principal: Principal,
+  itemId: string,
+  values: FormValues,
+  onlyIfChanged: boolean
+) {
+  const baseRevisionId = typeof values.baseRevisionId === 'string' ? values.baseRevisionId : '';
+  const rt = runtime();
+  let base: ContentDocument;
+  try {
+    const got = await rt.invoker.run(useCases.getItem, principal, {
+      itemId,
+      revisionId: baseRevisionId,
+    });
+    base = got.revision.document;
+    const today = rt.clock.now().toISOString().slice(0, 10);
+    const document = documentFrom(base, values, today);
+    if (onlyIfChanged && isDeepStrictEqual(document, documentFrom(base, valuesOf(base), today)))
+      return { revisionId: baseRevisionId };
+    const saved = await rt.invoker.run(useCases.updateItem, principal, {
+      itemId,
+      baseRevisionId,
+      document,
+    });
+    return { revisionId: saved.revision.id };
+  } catch (e) {
+    if (!(e instanceof UseCaseError)) throw e;
+    const { status, body } = failureOf(e, 'save', {
+      conflict: 'admin.content.conflict.title',
+      invalid: 'admin.content.error.invalid',
+      issues: ISSUES,
+    });
+    const { item, revision } = await latest(principal, itemId);
+    const choices = await relationshipChoices(
+      principal,
+      tenant.defaultLocale,
+      revision.document.type === 'article',
+      Array.isArray(values.authorIds) ? [...new Set(values.authorIds)] : [],
+      typeof values.sectionId === 'string' ? values.sectionId : ''
+    );
+    if (e.code !== 'conflict')
+      return { failure: fail(status, { ...body, ...choices, values, conflict: null }) };
+    const { changes } = await rt.invoker.run(useCases.diffRevisions, principal, {
+      itemId: item.id,
+      fromRevisionId: baseRevisionId,
+      toRevisionId: revision.id,
+    });
+    return {
+      failure: fail(status, {
+        ...body,
+        ...choices,
+        values: { ...values, baseRevisionId: revision.id },
+        conflict: {
+          who: actorLabel(revision.actor),
+          when: when(revision.createdAt),
+          changes: diffRows(changes),
+        },
+      }),
+    };
+  }
+}
+
 export const actions: Actions = {
   setProps: (event) =>
     blockAction(event, 'blockSaved', async ({ principal, data, blocks, index, target }) => {
@@ -466,10 +537,32 @@ export const actions: Actions = {
         place: up ? { before: neighbour.id } : { after: neighbour.id },
       });
     }),
-  publish: (event) =>
-    publication(event, 'publish', (principal, { itemId, locale, revisionId }) =>
-      runtime().invoker.run(useCases.publishItem, principal, { itemId, locale, revisionId })
-    ),
+  publish: async (event) => {
+    const posted = await event.request.formData();
+    // The publish button of the edit form carries its fields: save them first (proef 4).
+    if (posted.has('baseRevisionId')) {
+      const { locals, url, params } = event;
+      const { tenant, principal } = await requireTenantPrincipal(locals, url, params.tenant);
+      // Without the right to publish, nothing is saved on the way to a refusal.
+      if (!can(principal, 'content:publish')) error(403, 'Forbidden');
+      const saved = await saveFields(
+        tenant,
+        principal,
+        params.itemId,
+        valuesFromForm(posted),
+        true
+      );
+      if ('failure' in saved) return saved.failure;
+      posted.set('revisionId', saved.revisionId);
+    }
+    return publication(
+      event,
+      'publish',
+      (principal, { itemId, locale, revisionId }) =>
+        runtime().invoker.run(useCases.publishItem, principal, { itemId, locale, revisionId }),
+      posted
+    );
+  },
   unpublish: (event) =>
     publication(event, 'unpublish', (principal, { itemId, locale }) =>
       runtime().invoker.run(useCases.unpublishItem, principal, { itemId, locale })
@@ -533,53 +626,8 @@ export const actions: Actions = {
   save: async ({ locals, url, params, request }) => {
     const { tenant, principal } = await requireTenantPrincipal(locals, url, params.tenant);
     const values = valuesFromForm(await request.formData());
-    const baseRevisionId = typeof values.baseRevisionId === 'string' ? values.baseRevisionId : '';
-    const rt = runtime();
-    let base: ContentDocument;
-    try {
-      const got = await rt.invoker.run(useCases.getItem, principal, {
-        itemId: params.itemId,
-        revisionId: baseRevisionId,
-      });
-      base = got.revision.document;
-      await rt.invoker.run(useCases.updateItem, principal, {
-        itemId: params.itemId,
-        baseRevisionId,
-        document: documentFrom(base, values, rt.clock.now().toISOString().slice(0, 10)),
-      });
-    } catch (e) {
-      if (!(e instanceof UseCaseError)) throw e;
-      const { status, body } = failureOf(e, 'save', {
-        conflict: 'admin.content.conflict.title',
-        invalid: 'admin.content.error.invalid',
-        issues: ISSUES,
-      });
-      const { item, revision } = await latest(principal, params.itemId);
-      const choices = await relationshipChoices(
-        principal,
-        tenant.defaultLocale,
-        revision.document.type === 'article',
-        Array.isArray(values.authorIds) ? [...new Set(values.authorIds)] : [],
-        typeof values.sectionId === 'string' ? values.sectionId : ''
-      );
-      if (e.code !== 'conflict')
-        return fail(status, { ...body, ...choices, values, conflict: null });
-      const { changes } = await rt.invoker.run(useCases.diffRevisions, principal, {
-        itemId: item.id,
-        fromRevisionId: baseRevisionId,
-        toRevisionId: revision.id,
-      });
-      return fail(status, {
-        ...body,
-        ...choices,
-        values: { ...values, baseRevisionId: revision.id },
-        conflict: {
-          who: actorLabel(revision.actor),
-          when: when(revision.createdAt),
-          changes: diffRows(changes),
-        },
-      });
-    }
+    const saved = await saveFields(tenant, principal, params.itemId, values, false);
+    if ('failure' in saved) return saved.failure;
     redirect(303, `/admin/${tenant.slug}/content/${params.itemId}?saved`);
   },
 };

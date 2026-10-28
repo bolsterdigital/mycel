@@ -14,6 +14,7 @@
 <script lang="ts">
   import BlockFields from '#lib/admin/BlockFields.svelte';
   import Diff from '#lib/admin/Diff.svelte';
+  import { issueLabel } from '#lib/admin/issue-label.js';
   import {
     Actions,
     Button,
@@ -64,6 +65,15 @@
     const key = [...parts].reverse().find((p) => !/^\d+$/.test(p) && p !== 'mode');
     const label = key ? t(`admin.block.field.${key}` as UiKey) : t('admin.block.title');
     return locale ? `${label} (${locale})` : label;
+  };
+  /** An issue path in words: "Titel (en)", "Blok 3: Tekst (nl)", else the path itself. */
+  const issueName = (path: string): string => {
+    const l = issueLabel(path, data.docLocales);
+    if (!l) return path;
+    const label = t(l.key as UiKey);
+    const named =
+      l.block === null ? label : fill(t('admin.content.issue.block'), { n: l.block, field: label });
+    return l.locale ? `${named} (${l.locale})` : named;
   };
   const fieldId = (blockId: string, name: string) => `b-${blockId}-${name.replaceAll('.', '-')}`;
   const preview = (l: string) =>
@@ -124,20 +134,29 @@
   <ul>
     {#each issues as i (i.path + i.copy)}
       <li>
-        {#if i.field}<a href="#{i.field}">{i.path}</a>{:else}{i.path}{/if}: {t(i.copy as UiKey)}
+        {#if i.field}<a href="#{i.field}">{issueName(i.path)}</a>{:else}{issueName(i.path)}{/if}: {t(
+          i.copy as UiKey
+        )}
       </li>
     {/each}
   </ul>
 {/snippet}
 
 {#snippet act(action: string, locale: string, label: string)}
-  <form method="post" action="?/{action}">
-    <input type="hidden" name="locale" value={locale} />
-    <input type="hidden" name="revisionId" value={data.revision.id} />
-    <Button variant={action === 'unpublish' ? 'secondary' : 'primary'}
+  {#if action === 'publish' && data.canWrite}
+    <!-- Part of the edit form: publishing saves what was typed first (proef 4). -->
+    <Button form="item-edit" formaction="?/publish" name="locale" value={locale}
       >{fill(label, { locale })}</Button
     >
-  </form>
+  {:else}
+    <form method="post" action="?/{action}">
+      <input type="hidden" name="locale" value={locale} />
+      <input type="hidden" name="revisionId" value={data.revision.id} />
+      <Button variant={action === 'unpublish' ? 'secondary' : 'primary'}
+        >{fill(label, { locale })}</Button
+      >
+    </form>
+  {/if}
 {/snippet}
 
 {#snippet insert(anchor: string | null, i: number)}
@@ -184,7 +203,12 @@
   locale={data.locale}
   breadcrumb={[
     { label: data.tenant.name, href: base },
-    { label: t('admin.content.title'), href: `${base}/content?type=${data.item.type}` },
+    {
+      label: t(
+        data.item.type === 'page' ? 'admin.content.filter.page' : 'admin.content.filter.article'
+      ),
+      href: `${base}/content?type=${data.item.type}`,
+    },
     { label: title },
   ]}
   description={fill(t('admin.content.edit.revision'), data.revision)}
@@ -243,6 +267,7 @@
   {/snippet}
 
   <form
+    id="item-edit"
     method="post"
     action="?/save"
     aria-labelledby="fields"

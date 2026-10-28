@@ -1,7 +1,7 @@
 <!-- The media library of a site (TODO #10b, brief #56 § C1) on the overview pattern: upload at
      the top, the library as a grid of thumbnails or as a table, each asset a link to its own
      page with preview, details, edit and delete. Every action is a native form post or a link,
-     so nothing needs JavaScript; e2e/media.spec.ts checks 320 CSS px and 200% text. -->
+     so nothing needs JavaScript (the upload's thumbnail is an optional script); e2e/media.spec.ts checks 320 CSS px and 200% text. -->
 <script lang="ts">
   import {
     Actions,
@@ -110,6 +110,7 @@
           accept="image/jpeg,image/png,image/webp,image/avif,image/gif,application/pdf"
           hint={fill(t('admin.media.upload.hint'), { max: size(data.maxUploadBytes) })}
           required
+          preview
         />
         <Choices
           id="upload"
