@@ -7,6 +7,7 @@
 // runs inside a use case's tenant transaction and sees one tenant's hostnames only.
 
 import type { TenantAccess } from '../entitlements/model.js';
+import type { TenantExportRecord } from './exports.js';
 import type { HostnameKind } from './model.js';
 
 export interface TenantInfo {
@@ -110,5 +111,26 @@ declare module '../ports.js' {
     hostnames: HostnameRepository;
     dns: DnsResolver;
     platform: PlatformConfig;
+  }
+}
+
+export interface TenantExportRepository {
+  /**
+   * A new `queued` row, unless this tenant has one queued or running: then that one, untouched.
+   * Atomic against a concurrent request (the partial unique index of 0022).
+   */
+  request(row: {
+    id: string;
+    requestedBy: string;
+    requestedAt: Date;
+  }): Promise<{ record: TenantExportRecord; created: boolean }>;
+  get(id: string): Promise<TenantExportRecord | null>;
+  /** Newest first. */
+  list(limit: number): Promise<TenantExportRecord[]>;
+}
+
+declare module '../ports.js' {
+  interface TransactionContext {
+    exports: TenantExportRepository;
   }
 }

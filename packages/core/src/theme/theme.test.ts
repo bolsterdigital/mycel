@@ -8,7 +8,7 @@ import { Invoker } from '../invoke.js';
 import { anonymousPrincipal, systemPrincipal } from '../principal.js';
 import { MemoryUnitOfWork } from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
-import { Theme, checkTheme, contrastRatio, resolveTheme } from './check.js';
+import { Theme, checkTheme, contrastRatio, resolveTheme } from './contrast.js';
 import { THEME_RANGES, ThemeInput, type Palette } from './model.js';
 import { DEFAULT_THEME, THEME_PRESETS } from './presets.js';
 

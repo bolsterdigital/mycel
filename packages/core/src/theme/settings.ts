@@ -4,7 +4,8 @@
 import { z } from 'zod';
 import { defineUseCase } from '../registry.js';
 import { UseCaseError } from '../errors.js';
-import { Theme } from './check.js';
+import { Theme } from './contrast.js';
+import './ports.js';
 import { Palette, FONT_PAIRS, HEADING_WEIGHTS, THEME_VERSION } from './model.js';
 import { DEFAULT_THEME } from './presets.js';
 
@@ -40,17 +41,6 @@ export const DEFAULT_CHROME: SiteChrome = {
   support: null,
   help: null,
 };
-export interface SiteSettingsRepository {
-  theme(): Promise<{ version: number; value: z.output<typeof Theme> }>;
-  chrome(): Promise<{ version: number; value: SiteChrome }>;
-  updateTheme(baseVersion: number, value: z.output<typeof Theme>): Promise<number | null>;
-  updateChrome(baseVersion: number, value: SiteChrome): Promise<number | null>;
-}
-declare module '../ports.js' {
-  interface TransactionContext {
-    siteSettings: SiteSettingsRepository;
-  }
-}
 const version = z.number().int().nonnegative();
 const ResolvedTheme = z
   .object({

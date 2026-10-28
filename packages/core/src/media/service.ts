@@ -8,7 +8,7 @@
 // HTTP, MCP and the admin's server action).
 
 import { z } from 'zod';
-import { withinLimit } from '../entitlements/check.js';
+import { withinLimit } from '../entitlements/guards.js';
 import { UseCaseError } from '../errors.js';
 import { jobKey } from '../jobs/types.js';
 import '../jobs/ports.js';

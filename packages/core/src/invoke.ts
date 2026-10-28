@@ -23,7 +23,7 @@ import {
   type AuditEntry,
 } from './audit/model.js';
 import './audit/ports.js';
-import { requireActive } from './entitlements/check.js';
+import { requireActive } from './entitlements/guards.js';
 import { UseCaseError, type Issue } from './errors.js';
 import type { ErrorReporter, Logger, TransactionContext, UnitOfWork } from './ports.js';
 import type { Principal } from './principal.js';

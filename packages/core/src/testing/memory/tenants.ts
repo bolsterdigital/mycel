@@ -3,9 +3,10 @@
 
 import type { UsageReader } from '../../entitlements/ports.js';
 import type { Clock } from '../../ports.js';
-import type { TenantExportRecord, TenantExportRepository } from '../../tenants/exports.js';
+import type { TenantExportRecord } from '../../tenants/exports.js';
 import type {
   HostnameRepository,
+  TenantExportRepository,
   ResolvedSite,
   SiteDirectory,
   TenantDirectory,
