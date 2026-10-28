@@ -6,7 +6,7 @@
 
 import { z } from 'zod';
 import { defineUseCase } from '../registry.js';
-import { ThemeReport, checkTheme } from './check.js';
+import { ThemeReport, checkTheme } from './contrast.js';
 import { ThemeInput } from './model.js';
 import { DEFAULT_THEME } from './presets.js';
 

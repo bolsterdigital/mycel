@@ -20,6 +20,7 @@ import { hashInput, auditActor } from '../audit/model.js';
 import '../audit/ports.js';
 import { jobKey } from '../jobs/types.js';
 import '../jobs/ports.js';
+import './ports.js';
 import type { Signer, TransactionContext } from '../ports.js';
 import { can } from '../principal.js';
 import { defineUseCase } from '../registry.js';
@@ -44,27 +45,6 @@ export interface TenantExportRecord {
   /** Scrubbed when written. */
   error: string | null;
   expiresAt: Date | null;
-}
-
-export interface TenantExportRepository {
-  /**
-   * A new `queued` row, unless this tenant has one queued or running: then that one, untouched.
-   * Atomic against a concurrent request (the partial unique index of 0022).
-   */
-  request(row: {
-    id: string;
-    requestedBy: string;
-    requestedAt: Date;
-  }): Promise<{ record: TenantExportRecord; created: boolean }>;
-  get(id: string): Promise<TenantExportRecord | null>;
-  /** Newest first. */
-  list(limit: number): Promise<TenantExportRecord[]>;
-}
-
-declare module '../ports.js' {
-  interface TransactionContext {
-    exports: TenantExportRepository;
-  }
 }
 
 /** Where the job writes the archive: outside `tenants/<id>/`, which export and orphan sweep read. */

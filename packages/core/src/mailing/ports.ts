@@ -4,7 +4,7 @@
 // Every send is preceded by an intent row (`MailSend`, ADR 019 rule 6) whose key the adapter
 // receives. A provider without an idempotency key (TEM) cannot be asked "did this key arrive";
 // it can only list what it accepted, so `lookup` returns provider ids and the core decides, by
-// counting, whether one of them belongs to this intent (`settleIntent` in delivery.ts). Rejected:
+// counting, whether one of them belongs to this intent (`settleIntent` in send-attempts.ts). Rejected:
 // a status enum on the intent row, which has to be kept in step with three transactions; the
 // state is derived from which timestamps are set (docs/reference/mail.md).
 

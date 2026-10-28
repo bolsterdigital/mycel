@@ -3,7 +3,7 @@
 // that every module edited, TODO #53).
 
 import type { InputHasher } from '../../audit/ports.js';
-import { appDelivery } from '../../media/delivery.js';
+import { appDelivery } from '../../media/signed-paths.js';
 import type { BlobStore, ImageProcessor, MediaDelivery } from '../../media/ports.js';
 import type { Principal } from '../../principal.js';
 import type {

@@ -68,23 +68,6 @@ export interface ConnectionAttempt {
   kind: 'dispatch' | 'reconcile';
   outcome: 'started' | 'succeeded' | 'absent' | 'unknown' | 'pre_send' | 'blocked';
 }
-export interface ConnectionIntents {
-  get(id: string): Promise<ConnectionIntent | null>;
-  list(connectionId: string, limit: number): Promise<ConnectionIntent[]>;
-  byBusiness(connectionId: string, businessId: string): Promise<ConnectionIntent | null>;
-  insert(row: ConnectionIntent): Promise<boolean>;
-  /** Atomically replace only the revision read; every successful replacement increments it. */
-  replace(row: ConnectionIntent, expectedRevision: number): Promise<boolean>;
-  record(attempt: ConnectionAttempt): Promise<void>;
-  attempts(id: string): Promise<ConnectionAttempt[]>;
-  /** Register, not just the asynchronously scrubbed projection. */
-  erased(supporterId: string): Promise<boolean>;
-}
-declare module '../ports.js' {
-  interface TransactionContext {
-    connectionIntents: ConnectionIntents;
-  }
-}
 export type ConnectionIntentRequest = Pick<
   ConnectionIntent,
   | 'connectionId'

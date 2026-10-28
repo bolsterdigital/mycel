@@ -1,8 +1,11 @@
 // Managed connections and their intents in memory. The write and credential rules are core's
 // (connections/rules.ts), called here exactly as packages/db calls them.
 
-import type { ConnectionIntents } from '../../connections/intents.js';
-import type { ConnectionRecord, ConnectionRepository } from '../../connections/ports.js';
+import type {
+  ConnectionIntents,
+  ConnectionRecord,
+  ConnectionRepository,
+} from '../../connections/ports.js';
 import {
   acceptsWrite,
   credentialServes,

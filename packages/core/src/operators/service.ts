@@ -19,7 +19,7 @@
 // `serializable` transactions, which make every front handle retries.
 
 import { z } from 'zod';
-import { requireEntitled, withinLimit } from '../entitlements/check.js';
+import { requireEntitled, withinLimit } from '../entitlements/guards.js';
 import { UseCaseError } from '../errors.js';
 import type { TransactionContext } from '../ports.js';
 import type { Capability } from '../principal.js';
