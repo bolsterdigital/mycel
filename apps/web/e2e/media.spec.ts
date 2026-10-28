@@ -289,6 +289,35 @@ test('the asset page links the pages whose latest version uses it', async ({ pag
   await expectNoAxeViolations(page);
 });
 
+test('the lightbox shows a large landscape photo whole, on a laptop and a phone', async ({
+  page,
+}) => {
+  test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
+  await login(page, 'e2e-admin@probe.test', '/admin/probe/media');
+  const filename = `large-${Date.now()}.png`;
+  const { id } = await upload(page, filename, png(2400, 1600));
+  for (const viewport of [
+    { width: 1280, height: 720 },
+    { width: 320, height: 700 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`/admin/probe/media/${id}`);
+    await page.locator('[command="show-modal"]').click();
+    const fit = await page.getByRole('dialog', { name: filename }).evaluate((dialog) => {
+      const img = dialog.querySelector('img')!.getBoundingClientRect();
+      const box = dialog.getBoundingClientRect();
+      return {
+        scrolls: dialog.scrollHeight > dialog.clientHeight + 1,
+        inside: img.top >= box.top - 1 && img.bottom <= box.bottom + 1,
+      };
+    });
+    expect(fit, `${viewport.width} px`).toEqual({ scrolls: false, inside: true });
+    await page.keyboard.press('Escape');
+  }
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await remove(page, id, filename);
+});
+
 test('an upload that is not what it says is refused with a reason', async ({ page }) => {
   await login(page, 'e2e-admin@probe.test', '/admin/probe/media');
   await page.getByLabel('Bestand (verplicht)', { exact: true }).setInputFiles({

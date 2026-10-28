@@ -465,10 +465,16 @@
     padding: var(--space-2);
     overflow-wrap: break-word;
   }
+  /* A lightbox shows the whole image: as wide as the body allows and no taller than the
+     viewport minus the dialog's own head and padding (8rem grows with the text size), so a
+     landscape photo is never cut off at the bottom. Rejected: letting the dialog scroll, which
+     shows a cropped image first. */
   .ui-dialog-body img {
     display: block;
+    width: auto;
     max-width: 100%;
     height: auto;
+    max-height: calc(100dvh - 2 * var(--gutter) - 8rem);
     margin-inline: auto;
   }
 
