@@ -24,7 +24,7 @@ Every table of the schema has its place in `TABLES` in `export.ts`: `export`, `o
 
 Two tables change on the way:
 
-- **Memberships** travel as the operator's address instead of this installation's operator id. Import invites that address as a pending operator, as `mycel setup` does; the person logs in again on the new installation.
+- **Memberships** travel as the operator's address instead of this installation's operator id. Import invites that address as a pending operator, as `mycel setup` does; the person logs in again on the new installation. Only the capabilities this version knows travel: a membership from a newer installation loses the ones this one cannot grant, and a membership left with none (or with an address that is not one) is skipped and counted in the report. These rules, the manifest checks and the hostname rule below are in `packages/core/src/tenants/portability.ts`.
 - **Hostnames**: the platform hostname is the installation's own (`<slug>.<PLATFORM_DOMAIN>`), so the importing side makes a new one and skips the exported one. A custom hostname arrives unverified and not primary: DNS may point elsewhere, and the daily check or Check DNS in the admin verifies it once it answers here.
 
 ## What does not travel

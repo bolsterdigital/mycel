@@ -3,7 +3,8 @@
 // here is in the registry, reachable over MCP or callable as mycel_app. Two callers share these
 // functions: the platform API (`/platform/*` in packages/api, for the hoster's portal) and
 // the `mycel` CLI (packages/api/src/cli.ts, for a self-hoster), so both refuse and accept exactly
-// the same things.
+// the same things. What a tenant may be is core's (`tenants/platform.ts`: slug, locales,
+// entitlements, status); what stays here is what only storage knows, a slug or hostname taken.
 //
 // Every function is one transaction that first enters `mycel_platform` (migration 0010) through
 // `asRole`. The connection `db` is the authentication login (the API) or the operator
@@ -27,8 +28,10 @@ import {
   UseCaseError,
   effectiveEntitlements,
   hashInput,
+  parseEntitlementsDocument,
+  parseTenantStatus,
+  planTenant,
   platformHostname,
-  platformOriginHost,
   type Entitlements,
   type InputHasher,
   type PlatformConfig,
@@ -128,24 +131,10 @@ export async function insertPlatformHostname(
     .execute();
 }
 
-const SLUG = /^[a-z0-9][a-z0-9-]{1,62}$/;
-
-function validDocument(document: unknown): EntitlementsDocument {
-  const parsed = EntitlementsDocument.safeParse(document);
-  if (!parsed.success)
-    throw new UseCaseError(
-      'invalid_input',
-      'entitlements do not match the schema',
-      parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message }))
-    );
-  return parsed.data;
-}
-
 /**
  * Create a tenant with its platform hostname and, optionally, its entitlements, in one
- * transaction. Refuses an existing slug, a slug whose platform hostname is the host of the
- * platform origin or a development host (the admin lives there; review of PR #8, point (c)), and
- * a slug whose platform hostname is already some tenant's hostname.
+ * transaction. Refuses what core `planTenant` refuses, an existing slug, and a slug whose
+ * platform hostname is already some tenant's hostname.
  */
 export async function createTenant(
   db: Kysely<Database>,
@@ -168,27 +157,7 @@ export async function createTenantIn(
   by: PlatformActor,
   action: 'tenant.create' | 'tenant.import' = 'tenant.create'
 ): Promise<PlatformTenant> {
-  if (!SLUG.test(tenant.slug))
-    throw new UseCaseError('invalid_input', 'slug must match ^[a-z0-9][a-z0-9-]{1,62}$', [
-      { path: 'slug', message: 'invalid' },
-    ]);
-  const entitlements = validDocument(tenant.entitlements ?? {});
-  const hostname = platformHostname(tenant.slug, platform.domain);
-  if (
-    hostname === platformOriginHost(platform.platformOrigin) ||
-    platform.devHosts.includes(hostname)
-  )
-    throw new UseCaseError(
-      'conflict',
-      `the slug "${tenant.slug}" collides with the platform address`
-    );
-  const locales = tenant.locales.length ? tenant.locales : ['nl'];
-  const defaultLocale = tenant.defaultLocale ?? locales[0]!;
-  if (!locales.includes(defaultLocale))
-    throw new UseCaseError('invalid_input', 'defaultLocale must be one of locales', [
-      { path: 'defaultLocale', message: 'invalid' },
-    ]);
-
+  const { hostname, locales, defaultLocale, entitlements } = planTenant(tenant, platform);
   const taken = await trx
     .selectFrom('tenant_hostnames')
     .select('hostname')
@@ -204,7 +173,7 @@ export async function createTenantIn(
       default_locale: defaultLocale,
       locales,
       entitlements: JSON.stringify(entitlements),
-      ...(tenant.status ? { status: TenantStatus.parse(tenant.status) } : {}),
+      ...(tenant.status ? { status: parseTenantStatus(tenant.status) } : {}),
     })
     .onConflict((oc) => oc.column('slug').doNothing())
     .returning(['id', 'slug'])
@@ -296,7 +265,7 @@ export async function setEntitlements(
   document: unknown,
   by: PlatformActor
 ): Promise<PlatformTenant | null> {
-  const valid = validDocument(document);
+  const valid = parseEntitlementsDocument(document);
   return asRole(db, 'mycel_platform', async (trx) => {
     const r = await trx
       .updateTable('tenants')
@@ -315,10 +284,7 @@ export async function setStatus(
   status: TenantStatus,
   by: PlatformActor
 ): Promise<PlatformTenant | null> {
-  if (!TenantStatus.safeParse(status).success)
-    throw new UseCaseError('invalid_input', 'status must be active or suspended', [
-      { path: 'status', message: 'invalid' },
-    ]);
+  parseTenantStatus(status);
   return asRole(db, 'mycel_platform', async (trx) => {
     const r = await trx
       .updateTable('tenants')

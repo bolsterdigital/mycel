@@ -13,11 +13,13 @@
 //
 // What does not travel: the operational queues (outbox, jobs, mail_sends, rate_limits,
 // login_attempts) and the record of which backups hold an erasure (erasure_backups) are this
-// installation's work in progress, not the tenant's data; operator accounts are people who log in
-// here, so a membership travels as the address and becomes a pending invitation; the platform hostname is this installation's, and custom hostnames arrive
-// unverified (DNS may point elsewhere). Every table of `Database` has its place in `TABLES`, so a
-// new table fails to compile until someone decides, and export.conformance.test.ts holds the
-// live catalog to the same list.
+// installation's work in progress, not the tenant's data; operator accounts are people who log
+// in here, so a membership travels as the address and becomes a pending invitation; the platform
+// hostname is this installation's, and custom hostnames arrive unverified (DNS may point
+// elsewhere). Those rules, the manifest checks and the purge window are core's
+// (`tenants/portability.ts`); this file is the plumbing. Every table of `Database` has its place
+// in `TABLES`, so a new table fails to compile until someone decides, and
+// export.conformance.test.ts holds the live catalog to the same list.
 // Rejected: pg_dump per tenant (no RLS boundary, owner rights, not a documented format), JSON
 // built from Kysely rows (Date loses microseconds, bigint becomes a string), and a tar library
 // (one more dependency for what the system `tar` does).
@@ -25,21 +27,26 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { mkdir, mkdtemp, open, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, open, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { promisify } from 'node:util';
 import { sql, type Kysely, type RawBuilder } from 'kysely';
 import {
-  MEDIA_PURGE_DELAY_MS,
+  EXPORT_FILE_WINDOW_MS,
+  EXPORT_FORMAT,
+  IMPORTED_HOSTNAME,
   UseCaseError,
+  checkImportSchema,
+  hostnameTravels,
+  invitationFromExport,
   mediaKeys,
+  verifyExportManifest,
   type BlobStore,
-  type EntitlementsDocument,
+  type ExportManifest,
   type MediaRecord,
   type PlatformConfig,
-  type TenantStatus,
 } from '@mycel/core';
 import { uuidv7 } from './ids.js';
 import { createTenantIn, getTenant, getTenantBySlug, type PlatformActor } from './platform.js';
@@ -48,7 +55,7 @@ import { enterTenant, setRole } from './roles.js';
 
 type Trx = Kysely<Database>;
 
-export const EXPORT_FORMAT = 'mycel-tenant-export/1';
+export { EXPORT_FORMAT, type ExportManifest };
 
 /**
  * Every table and view of the schema, by what an export does with it. `export`: the tenant's
@@ -132,26 +139,6 @@ export const EXPORT_ORDER: readonly ExportTable[] = [
   'audit_log',
   'erasures',
 ];
-
-export interface ExportManifest {
-  format: typeof EXPORT_FORMAT;
-  /** The last migration applied to the exporting database. */
-  schemaVersion: string;
-  mycelVersion: string;
-  exportedAt: string;
-  tenant: {
-    id: string;
-    slug: string;
-    name: string;
-    locales: string[];
-    defaultLocale: string;
-    /** The stored document, as the hoster wrote it. */
-    entitlements: EntitlementsDocument;
-    status: TenantStatus;
-  };
-  tables: Record<string, { file: string; rows: number; sha256: string; columns: string[] }>;
-  media: Record<string, { file: string; bytes: number; sha256: string; contentType: string }>;
-}
 
 const sha256 = (data: string | Uint8Array) => createHash('sha256').update(data).digest('hex');
 
@@ -365,8 +352,8 @@ export async function exportTenant(options: ExportOptions): Promise<ExportManife
       select extract(epoch from now() - ${t0}::timestamptz) * 1000 as lag`.execute(
       options.operatorDb
     );
-    const limitHours = MEDIA_PURGE_DELAY_MS / 2 / 3_600_000;
-    if (Number(rows[0]?.lag) > MEDIA_PURGE_DELAY_MS / 2)
+    const limitHours = EXPORT_FILE_WINDOW_MS / 3_600_000;
+    if (Number(rows[0]?.lag) > EXPORT_FILE_WINDOW_MS)
       throw new Error(
         `export of ${tenant.slug} read its files more than ${limitHours} hours after its ` +
           'tables, past half the purge delay; nothing written'
@@ -403,46 +390,16 @@ async function fileSha256(path: string): Promise<{ sha256: string; lines: number
   return { sha256: hash.digest('hex'), lines };
 }
 
-/**
- * The manifest of an export directory, checked against every file it names. A file name is the
- * one the format prescribes (`tables/<table>.ndjson`, `media/<key>`), never one the manifest
- * chooses: a crafted archive could otherwise name any readable path on this box as media.
- */
-async function verifiedManifest(dir: string): Promise<ExportManifest> {
-  let manifest: ExportManifest;
-  try {
-    manifest = JSON.parse(await readFile(join(dir, 'manifest.json'), 'utf8')) as ExportManifest;
-  } catch (e) {
-    throw new UseCaseError('invalid_input', `no readable manifest.json: ${(e as Error).message}`);
-  }
-  if (manifest.format !== EXPORT_FORMAT)
-    throw new UseCaseError(
-      'invalid_input',
-      `format ${String(manifest.format)} is not ${EXPORT_FORMAT}`
-    );
-  for (const [table, entry] of Object.entries(manifest.tables)) {
-    if (!(EXPORT_ORDER as readonly string[]).includes(table))
-      throw new UseCaseError(
-        'invalid_input',
-        `the export has a table this version does not know: ${table}`
-      );
-    if (entry.file !== `tables/${table}.ndjson`)
-      throw new UseCaseError('invalid_input', `${table} names a file outside the format`);
-    const found = await fileSha256(join(dir, entry.file));
-    if (found.sha256 !== entry.sha256 || found.lines !== entry.rows)
-      throw new UseCaseError('invalid_input', `${entry.file} does not match the manifest`);
-  }
-  for (const [key, entry] of Object.entries(manifest.media)) {
-    if (!key.startsWith(`tenants/${manifest.tenant.id}/`))
-      throw new UseCaseError('invalid_input', `media key ${key} is not under the tenant`);
-    if (entry.file !== `media/${key}` || key.split('/').some((s) => s === '' || s === '..'))
-      throw new UseCaseError('invalid_input', `media key ${key} names a file outside the format`);
-    const bytes = await readFile(join(dir, entry.file));
-    if (sha256(bytes) !== entry.sha256)
-      throw new UseCaseError('invalid_input', `${entry.file} does not match the manifest`);
-  }
-  return manifest;
-}
+/** The manifest of an unpacked export, held to core's rules against the files in `dir`. */
+const verifiedManifest = (dir: string): Promise<ExportManifest> =>
+  verifyExportManifest(
+    {
+      manifest: () => readFile(join(dir, 'manifest.json'), 'utf8'),
+      table: (file) => fileSha256(join(dir, file)),
+      media: async (file) => sha256(await readFile(join(dir, file))),
+    },
+    EXPORT_ORDER
+  );
 
 /** The `occurred_at` range of the exported events, for their partitions. */
 async function eventRange(dir: string, manifest: ExportManifest) {
@@ -486,9 +443,9 @@ export async function importTenant(options: ImportOptions): Promise<ImportReport
   const source = resolve(options.path);
   const dir = isTar(source) ? await mkdtemp(join(tmpdir(), 'mycel-import-')) : source;
   try {
+    // A path that is neither a directory nor a .tar has no readable manifest.json, which the
+    // verification refuses with the path in its message.
     if (isTar(source)) await run('tar', ['-xf', source, '-C', dir]);
-    else if (!(await stat(dir)).isDirectory())
-      throw new UseCaseError('invalid_input', `${source} is neither a directory nor a .tar`);
     return await importDirectory(dir, options);
   } finally {
     if (isTar(source)) await rm(dir, { recursive: true, force: true });
@@ -498,18 +455,17 @@ export async function importTenant(options: ImportOptions): Promise<ImportReport
 async function importDirectory(dir: string, options: ImportOptions): Promise<ImportReport> {
   const { operatorDb } = options;
   const manifest = await verifiedManifest(dir);
-  const current = await schemaVersion(operatorDb);
-  if (manifest.schemaVersion > current)
+  checkImportSchema(manifest.schemaVersion, await schemaVersion(operatorDb));
+  const slug = options.slug ?? manifest.tenant.slug;
+  // Before anything is written, so the refusal names the tenant rather than its hostname.
+  const byId = await getTenant(operatorDb, manifest.tenant.id);
+  if (byId || (await getTenantBySlug(operatorDb, slug)))
     throw new UseCaseError(
       'conflict',
-      `the export is from schema ${manifest.schemaVersion}, newer than this database (${current}); ` +
-        'upgrade this installation first'
+      byId
+        ? `tenant ${manifest.tenant.id} exists in this database`
+        : `a tenant with slug "${slug}" exists`
     );
-  const slug = options.slug ?? manifest.tenant.slug;
-  if (await getTenant(operatorDb, manifest.tenant.id))
-    throw new UseCaseError('conflict', `tenant ${manifest.tenant.id} exists in this database`);
-  if (await getTenantBySlug(operatorDb, slug))
-    throw new UseCaseError('conflict', `a tenant with slug "${slug}" exists`);
   const range = await eventRange(dir, manifest);
   const tenantId = manifest.tenant.id;
   const lines: string[] = [];
@@ -607,20 +563,23 @@ async function importTable(
     // A pending operator per address, as `inviteMember` makes one; they log in again here.
     for await (const line of linesOf(path)) {
       const m = JSON.parse(line) as {
-        operator_email: string;
-        capabilities: string[];
+        operator_email: unknown;
+        capabilities: unknown;
         created_at: string;
         tenant_id: string;
       };
-      const { rows } = await sql<{ id: string | null }>`
-        select operator_for_invite(${m.operator_email}, ${uuidv7()}::uuid) as id`.execute(trx);
+      const invitation = invitationFromExport(m);
+      const { rows } = invitation
+        ? await sql<{ id: string | null }>`
+            select operator_for_invite(${invitation.email}, ${uuidv7()}::uuid) as id`.execute(trx)
+        : { rows: [] };
       const operatorId = rows[0]?.id;
-      if (!operatorId) {
+      if (!invitation || !operatorId) {
         skipped++;
         continue;
       }
       await sql`insert into tenant_memberships (tenant_id, operator_id, capabilities, created_at)
-                values (${m.tenant_id}, ${operatorId}, ${m.capabilities}, ${m.created_at})`.execute(
+                values (${m.tenant_id}, ${operatorId}, ${invitation.capabilities}, ${m.created_at})`.execute(
         trx
       );
       imported++;
@@ -653,15 +612,15 @@ async function importTable(
     if (table === 'tenant_hostnames') {
       // This installation's platform hostname came with the tenant; a custom one is unverified
       // until its DNS answers here (the daily check, or Check DNS in the admin).
-      if (row['kind'] !== 'custom') {
+      if (!hostnameTravels(String(row['kind']))) {
         skipped++;
         continue;
       }
       Object.assign(row, {
-        verified_at: null,
-        is_primary: false,
-        check_failures: 0,
-        last_checked_at: null,
+        verified_at: IMPORTED_HOSTNAME.verifiedAt,
+        is_primary: IMPORTED_HOSTNAME.primary,
+        check_failures: IMPORTED_HOSTNAME.checkFailures,
+        last_checked_at: IMPORTED_HOSTNAME.lastCheckedAt,
       });
     }
     batch.push(row);

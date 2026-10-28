@@ -22,6 +22,8 @@ export * from './tenants/model.js';
 export * from './tenants/url.js';
 export * from './tenants/service.js';
 export * from './tenants/exports.js';
+export * from './tenants/platform.js';
+export * from './tenants/portability.js';
 export * from './jobs/types.js';
 export * from './jobs/ports.js';
 export * from './jobs/handlers.js';
