@@ -48,7 +48,7 @@ export function gate({ run, load, needs, downloadOutcome, policy, now, repositor
   const enforced = enforcement(policy, now, repository);
   const issues = [];
   if (downloadOutcome !== 'success') issues.push('artifact-download-non-success');
-  if (!['push', 'pull_request', 'schedule', 'workflow_dispatch'].includes(run.event))
+  if (!['push', 'pull_request', 'merge_group', 'schedule', 'workflow_dispatch'].includes(run.event))
     issues.push('unsupported-event');
   if (needs.prepare?.result !== 'success' || needs.measure?.result !== 'success')
     issues.push('prepare-or-measure-non-success');

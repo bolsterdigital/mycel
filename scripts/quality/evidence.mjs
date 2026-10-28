@@ -175,7 +175,9 @@ export function consumeRun(run, load) {
   if (
     !sha(run.headSha) ||
     !sha(run.measuredSha) ||
-    !['local', 'push', 'pull_request', 'schedule', 'workflow_dispatch'].includes(run.event)
+    !['local', 'push', 'pull_request', 'merge_group', 'schedule', 'workflow_dispatch'].includes(
+      run.event
+    )
   )
     issues.push(issue('invalid-run-provenance'));
   if (
