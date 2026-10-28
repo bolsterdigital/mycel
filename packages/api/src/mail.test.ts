@@ -3,7 +3,7 @@
 // response without any outbox redelivery, leaves a suspended tenant alone for a day, and runs
 // in the real worker loop where one uncertain message holds up no other job and an exhausted
 // job stays findable with its error. The claim-plans-the-job transaction is proven in
-// packages/db/src/jobs.conformance.test.ts; the counting in packages/core/src/mailing.
+// packages/db/src/jobs.test.ts; the counting in packages/core/src/mailing.
 //
 // Every job here has a type of this run, and claims are narrowed to those types, so the suite
 // never takes real work. Skips without the three database URLs; with E2E_REQUIRED=1 (CI) that

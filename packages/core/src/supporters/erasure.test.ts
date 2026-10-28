@@ -143,7 +143,7 @@ describe('ctx.erasures in memory', () => {
   });
 });
 
-// `status` against packages/db/src/erasure-backups.conformance.test.ts (TODO #29B): a
+// `status` against packages/db/src/erasure-backups.test.ts (TODO #29B): a
 // registration is unsecured from the moment it is made until a backup records it, per tenant.
 describe('ctx.erasures.status in memory', () => {
   const A = '01900000-0000-7000-8000-0000000e0001';

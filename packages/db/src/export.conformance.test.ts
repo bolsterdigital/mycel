@@ -282,7 +282,7 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
     );
     canCreateDb = rows[0]?.ok === true;
     // Import and rollback need a second database; in CI their absence is a failure, not a skip
-    // (TODO #29B), as in consent-snapshot-migration.conformance.test.ts.
+    // (TODO #29B), as in consent-snapshot-migration.test.ts.
     if (!canCreateDb && process.env['E2E_REQUIRED'] === '1')
       throw new Error('E2E_REQUIRED=1 but the login has neither CREATEDB nor superuser');
     if (canCreateDb) {

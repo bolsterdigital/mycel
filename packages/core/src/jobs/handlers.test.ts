@@ -1,5 +1,5 @@
 // The re-verification policy of brief #15 decision 8, and how use cases plan it: in-memory ports
-// only. Claiming, leases and the role split are Postgres properties (jobs.conformance.test.ts).
+// only. Claiming, leases and the role split are Postgres properties (jobs.test.ts).
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import {

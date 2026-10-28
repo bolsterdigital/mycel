@@ -4,7 +4,7 @@
 -- original `original.<extension>` unless a variant is named `file`, and `<name>.<extension>` per
 -- variant, the extensions from FORMAT_OF and EXTENSION_OF. An unknown content type or format
 -- gives a name no file has, so the backup fails rather than skip it. The `media keys` test in
--- packages/db/src/media.conformance.test.ts runs this file and holds it to `mediaKeys`.
+-- packages/db/src/media.test.ts runs this file and holds it to `mediaKeys`.
 -- Rejected: a count of files per asset (an unexpected file in the folder hid a missing original,
 -- review of PR #38) and a node step in the backup image (Alpine without node, on purpose).
 select 't0' as id, extract(epoch from now())::bigint::text as key

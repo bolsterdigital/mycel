@@ -34,6 +34,7 @@ import {
   createUnitOfWork,
   deleteExpiredAudit,
   migrate,
+  TABLES,
   upsertTenant,
   uuidv7,
   uuidv7Ids,
@@ -95,7 +96,7 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
   /**
    * A backup record (TODO #29B, 0021), which only the backup login writes: as that login when the
    * drill hands its URL over, else as a superuser entering it (CI, the dev stack), made the way
-   * init-backup-role.sh makes it when missing (as erasure-backups.conformance does). An ordinary
+   * init-backup-role.sh makes it when missing (as erasure-backups.test does). An ordinary
    * owner without that URL (the Mac) cannot, and the vacuity check below leaves the table out.
    */
   async function recordBackup(supporterId: string): Promise<boolean> {
@@ -377,32 +378,18 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     await appDb.destroy();
   });
 
-  it('finds the tenant tables the migrations create', () => {
-    expect(tables.map((t) => t.name)).toEqual(
-      expect.arrayContaining([
-        'audit_log',
-        'events',
-        'api_keys',
-        'form_submissions',
-        'forms',
-        'mail_sends',
-        'media',
-        'media_usages',
-        'outbox',
-        'content_items',
-        'content_revisions',
-        'content_block_refs',
-        'content_item_locales',
-        'authors',
-        'sections',
-        'patterns',
-        'rate_limits',
-        'supporter_admissions',
-        'supporters',
-        'tenant_hostnames',
-        'tenant_memberships',
-      ])
-    );
+  // The registration point is `TABLES` in export.ts (every table of the schema, by kind): every
+  // table that is not the platform's carries a tenant_id, so a new tenant table cannot hide from
+  // this suite, and a vacuous catalog query cannot pass. Rejected: a hand-kept list here, which
+  // fell behind (21 names at 33 tables).
+  it('finds every non-platform table of TABLES as a tenant table, and no other', () => {
+    /** Operational, but keyed before any tenant is known: the login window (0018). */
+    const withoutTenant = ['login_attempts'];
+    const expected = Object.entries(TABLES)
+      .filter(([name, kind]) => kind !== 'platform' && !withoutTenant.includes(name))
+      .map(([name]) => name)
+      .sort();
+    expect(tables.map((t) => t.name).sort()).toEqual(expected);
   });
 
   it('enables and forces RLS on every table with a tenant_id', () => {
@@ -858,19 +845,12 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     });
   });
 
-  it('keeps the application role unable to bypass RLS', async () => {
-    const { rows } = await sql<{ super: boolean; bypass: boolean; owns: string[] }>`
-      select r.rolsuper as super, r.rolbypassrls as bypass,
-             array(select c.relname::text from pg_class c
-                   where c.relowner = r.oid and c.relnamespace = 'public'::regnamespace) as owns
-      from pg_roles r where r.rolname = ${APP_ROLE}`.execute(operatorDb);
-    expect(rows[0]).toEqual({ super: false, bypass: false, owns: [] });
-  });
-
   // ADR 011 consequences (TODO #18c, #29B): the backup login is the one role that bypasses RLS,
   // and it can only read, plus insert which registrations its snapshot holds (0021). Created by
   // the image's superuser, so a database without it (the Mac) passes on the first assertion
-  // alone; the drill, the compose stack and erasure-backups.conformance (as superuser) have it.
+  // alone; the drill, the compose stack and recordBackup above (as superuser) have it. This is the
+  // one place for RLS bypass: the runtime logins' superuser and ownership flags are in
+  // operators.test.ts, mycel_platform's in entitlements.test.ts.
   it('lets no role but mycel_backup bypass RLS, and that one only read and record backups', async () => {
     const { rows: bypassing } = await sql<{ name: string }>`
       select rolname as name from pg_roles
