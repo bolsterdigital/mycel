@@ -18,7 +18,7 @@ The existing density-scaled spacing tokens remain the source of rhythm: page pad
 
 ## Evidence and scope
 
-`apps/web/e2e/grid-compositions.spec.ts` composes an information page from existing registry-backed synthetic content, reuses the campaign with its real form and the 2,000-word article with four local images, and checks 320/768/1440px, title/prose alignment, container reflow and saved/live preview parity. Screenshots and rail metrics are Playwright artifacts. Existing block registry, no-JavaScript, text-spacing, demanding-theme and action-layout suites remain applicable.
+`apps/web/e2e/public-site.spec.ts` composes an information page from existing registry-backed synthetic content, reuses the campaign with its real form and the 2,000-word article with four local images, and checks 320/768/1440px, title/prose alignment, container reflow and saved/live preview parity. Screenshots and rail metrics are Playwright artifacts. Existing block registry, no-JavaScript, text-spacing, demanding-theme and action-layout suites remain applicable.
 
 The information fixture is `grid-information-v1`; the campaign and long article retain the quality corpus's existing fixture identities. Its Lighthouse manifest/seed integration needs the separately owned quality runner wiring. Missing Lighthouse cells, manual Safari/Firefox zoom and release assistive-technology checks are not established by these layout tests. FAQ v2 adds content/wide/full section rails to both variants. The heading, each question and each answer retain the content measure inside the actual section container, including narrow previews. Campaign entities, named slots, reader access and provider embeds retain their own delivery contracts.
 

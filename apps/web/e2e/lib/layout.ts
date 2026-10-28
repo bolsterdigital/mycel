@@ -26,6 +26,8 @@ export async function setTextSize(page: Page, size: TextSize | string) {
 export function layoutProblems(page: Page, within = 'body'): Promise<string[]> {
   return page.evaluate((scope) => {
     const out: string[] = [];
+    // A scope that matches nothing would measure no action at all, and pass.
+    if (!document.querySelector(scope)) out.push(`nothing to measure: ${scope}`);
     const width = document.documentElement.clientWidth;
     if (document.documentElement.scrollWidth > width) {
       out.push(`page scrolls sideways: ${document.documentElement.scrollWidth} > ${width}`);

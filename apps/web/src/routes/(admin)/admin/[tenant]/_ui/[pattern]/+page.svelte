@@ -1,5 +1,5 @@
 <!-- A page pattern of the catalogue (brief #56 § B) filled with the copy of a real screen, so the
-     UI gate in e2e/admin-ui.spec.ts measures each pattern as screens will use it. -->
+     UI gate in e2e/ui-gate.spec.ts measures each pattern as screens will use it. -->
 <script lang="ts">
   import {
     Actions,

@@ -1,3 +1,4 @@
+// flow: consent
 // Native consent and translation workflow against the built server and deterministic fake model.
 // Rejected: mocking action responses, which would miss tenant and revision checks in the registry.
 import { expect, test, type Page } from '@playwright/test';

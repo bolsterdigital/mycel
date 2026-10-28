@@ -1,3 +1,4 @@
+// flow: consent
 import { expect, test, type APIRequestContext, type Page, type Response } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
