@@ -52,7 +52,20 @@ import type {
 } from '../ports.js';
 import { noopLogger } from '../util/log.js';
 import { scrubText } from '../util/scrub.js';
-import { erasureEmailHash, isTombstone, tombstoneEmail } from '../supporters/erasure.js';
+import {
+  ERASURE_EXPORT_ERROR,
+  erasedIntentState,
+  erasureEmailHash,
+  expiresOnErasure,
+  isTombstone,
+  tombstoneEmail,
+} from '../supporters/erasure.js';
+import {
+  acceptsWrite,
+  credentialServes,
+  dropsCredential,
+  mayReadCredential,
+} from '../connections/rules.js';
 import type { Capability, Principal } from '../principal.js';
 import { normalizeEmail } from '../util/email.js';
 import type { ApiKeySummary, Member, Operator } from '../operators/model.js';
@@ -629,7 +642,7 @@ function memoryErasures(store: MemoryStore, principal: Principal, clock: Clock):
         if (row.supporterId && s.erasures.has(row.supporterId)) {
           changed++;
           row.supporterId = null;
-          if (row.state !== 'unknown' && row.state !== 'succeeded') row.state = 'blocked';
+          row.state = erasedIntentState(row.state);
           row.failure = 'erasure';
           row.revision += 1;
           row.leaseToken = null;
@@ -702,15 +715,14 @@ function memoryErasures(store: MemoryStore, principal: Principal, clock: Clock):
         }
       }
       // Archives that may hold a registered person (TODO #28), as packages/db/src/erasures.ts.
-      const newest = Math.max(...[...s.erasures.values()].map((e) => e.erasedAt.getTime()));
+      const newest = new Date(
+        Math.max(...[...s.erasures.values()].map((e) => e.erasedAt.getTime()))
+      );
       for (const x of s.exports.values())
-        if (
-          (x.status === 'ready' || x.status === 'running') &&
-          (changed > 0 || x.requestedAt.getTime() < newest)
-        ) {
+        if (expiresOnErasure(x, changed > 0, newest)) {
           Object.assign(x, {
             status: 'expired',
-            error: 'deleted after an erasure',
+            error: ERASURE_EXPORT_ERROR,
             expiresAt: clock.now(),
           });
           changed++;
@@ -980,10 +992,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
       get: async (id) => structuredClone(s.connections.get(id) ?? null),
       credential: async (id, version) => {
         const row = s.connections.get(id);
-        return principal.actor.kind === 'system' &&
-          principal.actor.job === 'connections.run' &&
-          row?.state === 'active' &&
-          row.credentialVersion === version
+        return mayReadCredential(principal) && row && credentialServes(row, version)
           ? (s.connectionSecrets.get(id) ?? null)
           : null;
       },
@@ -1003,7 +1012,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
       },
       async update(id, baseVersion, changes, at) {
         const row = s.connections.get(id);
-        if (!row || row.version !== baseVersion || row.state === 'disconnected') return null;
+        if (!row || !acceptsWrite(row, baseVersion)) return null;
         const defined = Object.fromEntries(
           Object.entries(changes).filter(([, value]) => value !== undefined)
         );
@@ -1018,21 +1027,21 @@ export class MemoryUnitOfWork implements UnitOfWork {
       },
       async state(id, baseVersion, state, at) {
         const row = s.connections.get(id);
-        if (!row || row.version !== baseVersion || row.state === 'disconnected') return null;
+        if (!row || !acceptsWrite(row, baseVersion)) return null;
         const next = {
           ...row,
           state,
-          hasCredential: state === 'disconnected' ? false : row.hasCredential,
+          hasCredential: dropsCredential(state) ? false : row.hasCredential,
           version: row.version + 1,
           updatedAt: at,
         };
         s.connections.set(id, next);
-        if (state === 'disconnected') s.connectionSecrets.delete(id);
+        if (dropsCredential(state)) s.connectionSecrets.delete(id);
         return structuredClone(next);
       },
       async replaceCredential(id, baseVersion, secret, at) {
         const row = s.connections.get(id);
-        if (!row || row.version !== baseVersion || row.state === 'disconnected') return null;
+        if (!row || !acceptsWrite(row, baseVersion)) return null;
         const next = {
           ...row,
           hasCredential: true,

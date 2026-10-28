@@ -16,6 +16,9 @@
 import { sql, type Kysely } from 'kysely';
 import {
   ERASED_DOMAIN,
+  ERASURE_EXPIRES_EXPORTS,
+  ERASURE_EXPORT_ERROR,
+  ERASURE_KEEPS_INTENT_STATES,
   erasureEmailHash,
   scrubText,
   systemPrincipal,
@@ -90,14 +93,12 @@ export function erasureRepository(
 
 async function applyAsEraser(trx: Trx): Promise<number> {
   const changed = await eraseRows(trx);
-  // ADR 019 rule 8: an archive is a copy too (TODO #28). Expire every archive that may hold a
-  // registered person: any built or building while this apply found something to erase, and any
-  // asked for before the newest registration. The file goes after commit (`expireExports`, run
+  // Core `expiresOnErasure` as one statement. The file goes after commit (`expireExports`, run
   // by `mycel erasures apply` and daily by the worker); the row keeps no trace of who.
   const r = await sql`
     update tenant_exports
-    set status = 'expired', error = 'deleted after an erasure', expires_at = now()
-    where status in ('running', 'ready')
+    set status = 'expired', error = ${ERASURE_EXPORT_ERROR}, expires_at = now()
+    where status = any(${[...ERASURE_EXPIRES_EXPORTS]}::text[])
       and (${changed > 0} or requested_at < (select max(erased_at) from erasures))`.execute(trx);
   return changed + Number(r.numAffectedRows ?? 0n);
 }
@@ -112,8 +113,10 @@ async function eraseRows(trx: Trx): Promise<number> {
   const ids = registered.map((r) => r.supporter_id);
   // No address or provider payload is stored. Detach the pseudonymous supporter reference while
   // retaining honest external uncertainty; an erasure never claims the provider deleted a copy.
+  // Core `erasedIntentState` as one statement.
   const intentChanges = await sql`update connection_intents set supporter_id = null,
-    state = case when state in ('unknown','succeeded','resolved') then state else 'blocked' end,
+    state = case when state = any(${[...ERASURE_KEEPS_INTENT_STATES]}::text[]) then state
+                 else 'blocked' end,
     failure = 'erasure', lease_token = null, lease_until = null, revision = revision + 1
     where supporter_id = any(${ids}::uuid[])`.execute(trx);
   const addresses = (

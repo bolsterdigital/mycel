@@ -11,6 +11,7 @@
 import { Kysely, PostgresDialect, sql } from 'kysely';
 import pg from 'pg';
 import {
+  mayReadCredential,
   appDelivery,
   noopLogger,
   platformHostname,
@@ -44,7 +45,7 @@ import { erasureRepository } from './erasures.js';
 import { tenantExportRepository } from './exports.js';
 import { hostnameRepository } from './hostnames.js';
 import { insertPlatformHostname } from './platform.js';
-import { asRole } from './roles.js';
+import { asRole, enterTenant } from './roles.js';
 import { jobScheduler } from './jobs.js';
 import { jobRecoveryRepository } from './recovery.js';
 import { mediaRepository } from './media.js';
@@ -160,10 +161,7 @@ export async function withTenant<T>(
   fn: (trx: Kysely<Database>) => Promise<T>
 ): Promise<T> {
   return db.transaction().execute(async (trx) => {
-    // `true` = transaction-local: role and setting disappear at commit/rollback, so a pooled
-    // connection can never carry one tenant's context into another's request.
-    await sql`select set_config('role', 'mycel_app', true),
-                     set_config('app.tenant_id', ${principal.tenantId}, true)`.execute(trx);
+    await enterTenant(trx, principal.tenantId);
     return fn(trx);
   });
 }
@@ -226,7 +224,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
             trx,
             tenantId,
             connectionKey,
-            principal.actor.kind === 'system' && principal.actor.job === 'connections.run'
+            mayReadCredential(principal)
           ),
           connectionIntents: connectionIntentsRepository(trx, tenantId),
           assistProviderLabel: deps.assistProviderLabel ?? null,
