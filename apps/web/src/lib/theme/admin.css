@@ -288,40 +288,6 @@
     font-weight: 600;
     overflow-wrap: anywhere;
   }
-  .capabilities,
-  .tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1) var(--space-2);
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .capabilities li {
-    display: flex;
-    align-items: center;
-    gap: 0.375rem;
-    min-height: 44px;
-    max-width: 100%;
-  }
-  /* Capability names break after the colon (<wbr>), and anywhere only when one half still does
-     not fit; they are checkbox labels, not action buttons. */
-  .capabilities label,
-  .tags li {
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-  .capabilities input {
-    width: 1.25rem;
-    height: 1.25rem;
-    flex: none;
-  }
-  .tags li {
-    padding: 0.125rem 0.5rem;
-    border: var(--border-width) solid var(--color-border-strong);
-    border-radius: var(--radius);
-    max-width: 100%;
-  }
   .admin .field input {
     width: 100%;
     min-width: 0;

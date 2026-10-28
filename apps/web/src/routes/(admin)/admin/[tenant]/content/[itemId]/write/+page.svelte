@@ -9,6 +9,7 @@
   import { DOMParser as PMDOMParser } from '@tiptap/pm/model';
   import { articleExtensions } from '#lib/editor/article-extensions.js';
   import Diff from '#lib/admin/Diff.svelte';
+  import { MediaPicker } from '#lib/admin/ui/index.js';
   import { ui } from '../../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -436,18 +437,17 @@
             </div>
           {:else}
             <p>{t('admin.editor.imageSource')}: {card.source}</p>
-            <p>
-              <a href="/admin/{data.tenant.slug}/media" target="_blank"
-                >{t('admin.editor.uploadMedia')}</a
-              >
-            </p>
-            <div class="field">
-              <label for="media-{card.id}">{t('admin.editor.mediaId')}</label><input
-                id="media-{card.id}"
-                bind:value={card.mediaId}
-                required
-              />
-            </div>
+            <MediaPicker
+              id="media-{card.id}"
+              name="media-{card.id}"
+              label={t('admin.block.field.mediaId')}
+              locale={data.locale}
+              value={card.mediaId}
+              options={data.media}
+              base="/admin/{data.tenant.slug}"
+              upload={data.upload}
+              onchange={(id: string) => (card.mediaId = id)}
+            />
             <div class="check">
               <input
                 type="checkbox"

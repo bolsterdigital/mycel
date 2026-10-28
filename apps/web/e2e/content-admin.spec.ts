@@ -655,6 +655,29 @@ test('a writer without content:publish sees the state, no buttons, and gets a 40
       form: { locale: 'nl', revisionId },
     });
     expect(repin.status()).toBe(403);
+
+    // Publishing saves the edit form first (#65); a writer's own form, changed and posted to
+    // the publish action, is refused before anything is saved (TODO #67).
+    const posted = await page.locator('form#item-edit').evaluate((form) => {
+      const data = new FormData(form as HTMLFormElement);
+      data.set('title.nl', 'Door een schrijver gepubliceerd');
+      data.set('locale', 'nl');
+      return new URLSearchParams(
+        [...data.entries()].map(([k, v]) => [k, String(v)] as [string, string])
+      ).toString();
+    });
+    expect(posted).toContain('baseRevisionId=');
+    const viaForm = await page.request.post(`${edit}?/publish`, {
+      headers: {
+        origin: 'http://127.0.0.1:4173',
+        'content-type': 'application/x-www-form-urlencoded',
+      },
+      data: posted,
+    });
+    expect(viaForm.status()).toBe(403);
+    await page.reload();
+    await expect(page.locator('input[name="baseRevisionId"]')).toHaveValue(revisionId);
+    await expect(page.locator('input[name="title.nl"]')).toHaveValue('Schrijverswerk');
   } finally {
     await context.clearCookies();
     await login(page, '/admin/probe');

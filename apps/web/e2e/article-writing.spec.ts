@@ -216,7 +216,12 @@ test('pasted image waits for media and alternative text before saving', async ({
   await setTextSize(page, '200%');
   await layoutGate(page, 'writer actions', '.writer-actions');
   await expect(page.getByRole('status')).toContainText('Niet-opgeslagen wijzigingen');
-  await page.getByLabel('ID van geüpload bestand').fill(mediaId!);
+  // The card's image comes from the shared media picker, not a typed id (brief media-picker).
+  await page.getByRole('button', { name: 'Beeld kiezen' }).click();
+  const picker = page.getByRole('dialog', { name: 'Afbeelding' });
+  await picker.locator(`input[type="radio"][value="${mediaId}"]`).check();
+  await picker.getByRole('button', { name: 'Klaar' }).click();
+  await expect(page.getByRole('button', { name: 'Ander beeld kiezen' })).toBeVisible();
   await expect(page.getByLabel('Alternatieve tekst')).toHaveValue('Een boom');
   await page.getByRole('button', { name: 'Kaart toevoegen' }).click();
   await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');
