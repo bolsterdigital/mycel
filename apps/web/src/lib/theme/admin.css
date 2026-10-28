@@ -2,7 +2,22 @@
    no site, so it supplies fixed values for the same properties here (the probe's palette),
    plus the short names this file uses. Action groups wrap whole buttons; a label too long for
    the line wraps inside its own button at word boundaries, never clipped (skill
-   ui-action-layout). */
+   ui-action-layout).
+
+   These tokens are the one source of the admin's look (brief #56 decision 3): the components in
+   lib/admin/ui/ read only these names, never a colour of their own. Status colours come in
+   foreground/background pairs, each measured at 7:1 or more in both schemes; borders that
+   identify a control (inputs, the file drop zone) use --color-control-border at 3:1 or more
+   (WCAG 1.4.11). The dark scheme follows the operator's system setting. Rejected: a toggle in
+   the admin (a stored preference and a script for what the browser already says). */
+
+/* The layer order, stated here as well as in base.css: the admin layout's own stylesheet reaches
+   the page before base.css, and the first file to name a layer fixes the order. Without this line
+   the order was tokens, components, base, so every base rule (link colour, paragraph and heading
+   margins) beat the admin's components (found by #56; it had silently cancelled rules such as
+   `.admin h3 { margin: 0 }`). */
+@layer tokens, base, components;
+
 @layer tokens {
   :root {
     --color-body-fg: #1c1917;
@@ -36,6 +51,69 @@
     --color-surface: var(--color-surface-bg);
     --color-muted: var(--color-muted-fg);
     --color-accent: var(--color-primary-bg);
+    color-scheme: light dark;
+    --color-border: #d6d3d1;
+    --color-border-strong: #a8a29e;
+    --color-control-border: #78716c;
+    --color-selected-fg: #1c1917;
+    --color-selected-bg: #dcfce7;
+    --color-danger-fg: #ffffff;
+    --color-danger-bg: #b91c1c;
+    --status-neutral-fg: #44403c;
+    --status-neutral-bg: #f5f5f4;
+    --status-info-fg: #1e3a8a;
+    --status-info-bg: #eff6ff;
+    --status-success-fg: #14532d;
+    --status-success-bg: #f0fdf4;
+    --status-warning-fg: #713f12;
+    --status-warning-bg: #fefce8;
+    --status-error-fg: #7f1d1d;
+    --status-error-bg: #fef2f2;
+    --space-0: 0.25rem;
+    --space-5: calc(4rem * var(--density));
+    --radius-sm: 0.25rem;
+    --radius-lg: 0.75rem;
+    --border-width: 1px;
+    --control-border-width: 2px;
+    --shadow-1: 0 1px 2px rgb(28 25 23 / 0.08);
+    --shadow-2: 0 0.5rem 1.5rem rgb(28 25 23 / 0.2);
+    --admin-width: 72rem;
+    --form-width: 40rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-body-fg: #e7e5e4;
+      --color-body-bg: #1c1917;
+      --color-surface-fg: #e7e5e4;
+      --color-surface-bg: #292524;
+      --color-primary-fg: #052e16;
+      --color-primary-bg: #86efac;
+      --color-muted-fg: #d6d3d1;
+      --color-muted-bg: #1c1917;
+      --color-warning-fg: #fecaca;
+      --color-warning-bg: #450a0a;
+      --color-link: #86efac;
+      --color-focus: #93c5fd;
+      --color-border: #44403c;
+      --color-border-strong: #57534e;
+      --color-control-border: #a8a29e;
+      --color-selected-fg: #f0fdf4;
+      --color-selected-bg: #14532d;
+      --color-danger-fg: #450a0a;
+      --color-danger-bg: #fca5a5;
+      --status-neutral-fg: #e7e5e4;
+      --status-neutral-bg: #44403c;
+      --status-info-fg: #bfdbfe;
+      --status-info-bg: #172554;
+      --status-success-fg: #bbf7d0;
+      --status-success-bg: #052e16;
+      --status-warning-fg: #fde68a;
+      --status-warning-bg: #422006;
+      --status-error-fg: #fecaca;
+      --status-error-bg: #450a0a;
+      --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+      --shadow-2: 0 0.5rem 1.5rem rgb(0 0 0 / 0.6);
+    }
   }
 }
 
@@ -61,7 +139,7 @@
     min-width: 0;
     padding: var(--space-2);
     background: var(--color-surface);
-    border-block-end: 1px solid #d6d3d1;
+    border-block-end: var(--border-width) solid var(--color-border);
   }
   .admin-sidebar-top p,
   .admin-sidebar-bottom p {
@@ -101,13 +179,14 @@
     border-radius: var(--radius);
   }
   .admin-menu nav a[aria-current='page'] {
-    background: #dcfce7;
+    color: var(--color-selected-fg);
+    background: var(--color-selected-bg);
     font-weight: 700;
   }
   .admin-sidebar-bottom {
     display: grid;
     gap: 0.25rem;
-    border-block-start: 1px solid #d6d3d1;
+    border-block-start: var(--border-width) solid var(--color-border);
     padding-block-start: var(--space-1);
   }
   .admin-sidebar-bottom button {
@@ -137,7 +216,7 @@
       position: sticky;
       inset-block-start: 0;
       height: 100vh;
-      border-inline-end: 1px solid #d6d3d1;
+      border-inline-end: var(--border-width) solid var(--color-border);
       border-block-end: 0;
     }
     .admin-menu {
@@ -163,7 +242,7 @@
     justify-content: space-between;
     gap: var(--space-1) var(--space-2);
     padding: var(--space-1) var(--space-2);
-    border-bottom: 1px solid #d6d3d1;
+    border-bottom: var(--border-width) solid var(--color-border);
     background: var(--color-surface);
   }
   .admin-header p {
@@ -195,13 +274,13 @@
     margin-block: var(--space-2);
     padding: var(--space-1);
     background: var(--color-surface);
-    border: 1px solid #d6d3d1;
+    border: var(--border-width) solid var(--color-border);
     border-radius: var(--radius);
   }
   .admin fieldset {
     margin: 0;
     padding: 0.25rem 0.5rem;
-    border: 1px solid #a8a29e;
+    border: var(--border-width) solid var(--color-border-strong);
     border-radius: var(--radius);
     min-width: 0;
   }
@@ -239,7 +318,7 @@
   }
   .tags li {
     padding: 0.125rem 0.5rem;
-    border: 1px solid #a8a29e;
+    border: var(--border-width) solid var(--color-border-strong);
     border-radius: var(--radius);
     max-width: 100%;
   }
@@ -325,7 +404,7 @@
     padding: var(--space-1);
     overflow-wrap: anywhere;
     background: var(--color-bg);
-    border: 1px solid #a8a29e;
+    border: var(--border-width) solid var(--color-border-strong);
     border-radius: var(--radius);
   }
   /* Term above value: two columns leave no room for the value at 200% text. */
@@ -356,7 +435,7 @@
   .media-head img {
     max-width: 100%;
     height: auto;
-    border: 1px solid #d6d3d1;
+    border: var(--border-width) solid var(--color-border);
     border-radius: var(--radius);
     background: var(--color-bg);
   }
@@ -410,7 +489,7 @@
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     background: var(--color-bg);
-    border: 1px solid #a8a29e;
+    border: var(--border-width) solid var(--color-border-strong);
     border-radius: var(--radius);
   }
   .admin textarea {

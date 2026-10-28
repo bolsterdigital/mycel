@@ -1,0 +1,257 @@
+<!-- The component catalogue (brief #56 PR 1): each component once, with the longest real labels of
+     the admin, so the UI gate in e2e/admin-ui.spec.ts measures what screens will show. Copy comes
+     from the catalogs; the file names are sample data. -->
+<script lang="ts">
+  import {
+    Actions,
+    Badge,
+    Button,
+    Card,
+    CardGrid,
+    Choices,
+    Dialog,
+    EmptyState,
+    Field,
+    Fieldset,
+    FileDrop,
+    MetaList,
+    Notice,
+    PageHeader,
+    Pagination,
+    Select,
+    SubNav,
+    Table,
+  } from '#lib/admin/ui/index.js';
+  import { fill, ui } from '../../../../../i18n/index.js';
+  import type { PageProps } from './$types';
+
+  let { data }: PageProps = $props();
+  const t = $derived(ui(data.locale));
+  const base = $derived(`/admin/${data.tenant.slug}`);
+  const here = $derived(`${base}/_ui`);
+  const sample = '/_admin/ui-sample.svg';
+  const size = (n: number) =>
+    new Intl.NumberFormat(data.locale, {
+      style: 'unit',
+      unit: 'megabyte',
+      maximumFractionDigits: 1,
+    }).format(n / 1024 ** 2);
+  const date = (iso: string) =>
+    new Intl.DateTimeFormat(data.locale, { dateStyle: 'medium', timeZone: 'UTC' }).format(
+      new Date(iso)
+    );
+</script>
+
+<svelte:head>
+  <title>{t('admin.ui.catalogue.title')} · {data.tenant.name}</title>
+</svelte:head>
+
+<main class="page admin ui-catalogue">
+  <PageHeader
+    title={t('admin.ui.catalogue.title')}
+    locale={data.locale}
+    breadcrumb={[
+      { label: t('admin.back'), href: '/admin' },
+      { label: data.tenant.name, href: base },
+      { label: t('admin.ui.catalogue.title') },
+    ]}
+    description={t('admin.ui.catalogue.intro')}
+  >
+    {#snippet actions()}
+      <Button href="{base}/media">{t('admin.media.upload.title')}</Button>
+    {/snippet}
+  </PageHeader>
+
+  <section aria-labelledby="ui-buttons">
+    <h2 id="ui-buttons">{t('admin.ui.catalogue.buttons')}</h2>
+    <Actions>
+      <Button>{t('admin.media.save')}</Button>
+      <Button variant="secondary" href={sample}>{t('admin.media.download.original')}</Button>
+      <Button variant="danger">{t('admin.media.delete')}</Button>
+      <Button variant="link" href={base}>{t('admin.connections.cancel')}</Button>
+    </Actions>
+    <Actions stack>
+      <Button>{fill(t('admin.content.publication.unschedule'), { locale: 'nl' })}</Button>
+      <Button variant="secondary">{t('admin.status.close.cancel')}</Button>
+    </Actions>
+  </section>
+
+  <section aria-labelledby="ui-notices">
+    <h2 id="ui-notices">{t('admin.ui.catalogue.notices')}</h2>
+    <Notice tone="success"><p>{t('admin.ui.catalogue.notice.success')}</p></Notice>
+    <Notice tone="info"><p>{t('admin.ui.catalogue.notice.info')}</p></Notice>
+    <Notice tone="warning"><p>{t('admin.ui.catalogue.notice.warning')}</p></Notice>
+    <Notice tone="error" title={t('error.summary.title')}>
+      <p>{t('admin.ui.catalogue.notice.error')}</p>
+    </Notice>
+  </section>
+
+  <section aria-labelledby="ui-badges">
+    <h2 id="ui-badges">{t('admin.ui.catalogue.badges')}</h2>
+    <p>
+      <Badge>{t('admin.content.status.draft')}</Badge>
+      <Badge tone="info">{t('admin.content.status.scheduled')}</Badge>
+      <Badge tone="success">{t('admin.content.status.published')}</Badge>
+      <Badge tone="warning">{t('admin.media.access.restricted')}</Badge>
+    </p>
+  </section>
+
+  <section aria-labelledby="ui-form">
+    <h2 id="ui-form">{t('admin.ui.catalogue.form')}</h2>
+    <form method="get" action={here}>
+      <Fieldset legend={t('admin.ui.catalogue.form.group')}>
+        <Field
+          id="ui-title"
+          name="title"
+          label={t('admin.ui.catalogue.form.title')}
+          locale={data.locale}
+          hint={t('admin.ui.catalogue.form.titleHint')}
+          error={t('admin.ui.catalogue.form.titleError')}
+          required
+        />
+        <Select
+          id="ui-kind"
+          name="kind"
+          label={t('admin.ui.catalogue.form.kind')}
+          locale={data.locale}
+          value="article"
+          options={[
+            { value: 'page', label: t('admin.ui.catalogue.form.page') },
+            { value: 'article', label: t('admin.ui.catalogue.form.article') },
+          ]}
+        />
+        <Choices
+          id="ui-access"
+          name="access"
+          legend={t('admin.ui.catalogue.form.access')}
+          locale={data.locale}
+          selected={['public']}
+          hint={t('admin.media.access.hint')}
+          options={[
+            { value: 'public', label: t('admin.media.access.public') },
+            { value: 'restricted', label: t('admin.media.upload.restricted') },
+          ]}
+        />
+        <FileDrop
+          id="ui-file"
+          name="file"
+          label={t('admin.media.upload.file')}
+          locale={data.locale}
+        />
+      </Fieldset>
+      <Fieldset legend={t('admin.ui.catalogue.form.channels')} collapsed>
+        <Choices
+          id="ui-channels"
+          name="channels"
+          type="checkbox"
+          legend={t('admin.ui.catalogue.form.channels')}
+          locale={data.locale}
+          options={[
+            { value: 'newsletter', label: t('admin.ui.catalogue.form.newsletter') },
+            { value: 'feed', label: t('admin.ui.catalogue.form.feed') },
+          ]}
+        />
+      </Fieldset>
+      <Actions>
+        <Button>{t('admin.media.save')}</Button>
+        <Button variant="link" href={here}>{t('admin.connections.cancel')}</Button>
+      </Actions>
+    </form>
+  </section>
+
+  <section aria-labelledby="ui-table">
+    <h2 id="ui-table">{t('admin.ui.catalogue.table')}</h2>
+    <Table
+      id="ui-files"
+      caption={t('admin.ui.catalogue.table.caption')}
+      columns={[
+        { key: 'name', label: t('admin.ui.catalogue.table.name'), sortable: true },
+        { key: 'changed', label: t('admin.ui.catalogue.table.changed'), sortable: true },
+        { key: 'size', label: t('admin.media.size'), numeric: true },
+      ]}
+      sort={data.sort}
+      sortHref={(key, dir) => `${here}?sort=${key}&dir=${dir}#ui-table`}
+    >
+      {#snippet rows()}
+        {#each data.rows as row (row.name)}
+          <tr>
+            <td>{row.name}</td>
+            <td>{date(row.changed)}</td>
+            <td class="numeric">{size(row.size)}</td>
+          </tr>
+        {/each}
+      {/snippet}
+    </Table>
+    <Pagination
+      locale={data.locale}
+      previous="{here}?page=1#ui-table"
+      next="{here}?page=3#ui-table"
+      position={fill(t('admin.usage.of'), { used: 2, max: 5 })}
+    />
+  </section>
+
+  <section aria-labelledby="ui-cards">
+    <h2 id="ui-cards">{t('admin.ui.catalogue.cards')}</h2>
+    <CardGrid items={data.rows} key={(row) => row.name}>
+      {#snippet card(row)}
+        <Card title={row.name} href="#ui-cards">
+          {#snippet media()}<img src={sample} alt="" width="1200" height="900" />{/snippet}
+          <p class="muted">{size(row.size)} · {date(row.changed)}</p>
+          {#snippet footer()}<Badge tone="success">{t('admin.media.access.public')}</Badge
+            >{/snippet}
+        </Card>
+      {/snippet}
+    </CardGrid>
+    <EmptyState title={t('admin.ui.catalogue.empty.title')} level={3}>
+      <p>{t('admin.ui.catalogue.empty.body')}</p>
+      {#snippet action()}
+        <Button href="{base}/content/new">{t('admin.ui.catalogue.empty.action')}</Button>
+      {/snippet}
+    </EmptyState>
+  </section>
+
+  <section aria-labelledby="ui-meta">
+    <h2 id="ui-meta">{t('admin.ui.catalogue.meta')}</h2>
+    <MetaList
+      items={[
+        { term: t('admin.ui.catalogue.table.name'), value: data.rows[0]?.name ?? '' },
+        { term: t('admin.media.size'), value: size(data.rows[0]?.size ?? 0) },
+        { term: t('admin.media.access'), value: t('admin.media.access.public') },
+        {
+          term: t('admin.media.usage'),
+          value: t('admin.media.usage.one'),
+          href: `${base}/content`,
+        },
+      ]}
+    />
+  </section>
+
+  <section aria-labelledby="ui-subnav">
+    <h2 id="ui-subnav">{t('admin.ui.catalogue.subnav')}</h2>
+    <SubNav
+      label={t('admin.ui.catalogue.subnav')}
+      items={[
+        { href: `${here}#ui-subnav`, label: t('admin.ui.catalogue.subnav.general'), current: true },
+        { href: `${here}?section=theme#ui-subnav`, label: t('admin.ui.catalogue.subnav.theme') },
+        {
+          href: `${here}?section=domains#ui-subnav`,
+          label: t('admin.ui.catalogue.subnav.domains'),
+        },
+      ]}
+    />
+  </section>
+
+  <section aria-labelledby="ui-dialog">
+    <h2 id="ui-dialog">{t('admin.ui.catalogue.dialog')}</h2>
+    <Dialog
+      id="ui-lightbox"
+      title={data.rows[0]?.name ?? ''}
+      trigger={t('admin.ui.catalogue.dialog.open')}
+      locale={data.locale}
+      wide
+    >
+      <img src={sample} alt="" width="1200" height="900" />
+      <p>{t('admin.ui.catalogue.dialog.body')}</p>
+    </Dialog>
+  </section>
+</main>

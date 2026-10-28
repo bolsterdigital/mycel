@@ -1,6 +1,7 @@
 <script lang="ts">
   import '#lib/theme/base.css';
   import '#lib/theme/admin.css';
+  import '#lib/admin/ui/ui.css';
   import type { LayoutProps } from './$types';
 
   let { children }: LayoutProps = $props();
