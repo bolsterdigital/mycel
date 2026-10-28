@@ -19,34 +19,78 @@ import { UseCaseError } from '../errors.js';
 import type { TransactionContext } from '../ports.js';
 import { defineUseCase } from '../registry.js';
 import { jobKey } from '../jobs/types.js';
-import { AltResult, SettingsView, SuggestionView } from './model.js';
+import { AltResult, PENDING_TIMEOUT_MS, SettingsView, SuggestionView } from './model.js';
 import type { AssistSettings, AssistSuggestion } from './ports.js';
 import './ports.js';
 
 const uuid = z.string().guid();
 const exampleId = '01900000-0000-7000-8000-000000000001';
+const OPERATOR_WINDOW_MS = 3_600_000;
 const iso = (date: Date | null) => date?.toISOString() ?? null;
 const settingsView = (settings: AssistSettings, provider: string | null) => ({
   ...settings,
   consentedAt: iso(settings.consentedAt),
   provider,
 });
+const timedOut = (s: AssistSuggestion, now: Date) =>
+  s.status === 'pending' && now.getTime() - s.createdAt.getTime() > PENDING_TIMEOUT_MS;
 const suggestionView = (s: AssistSuggestion, now: Date) => ({
   ...s,
-  status:
-    s.status === 'pending' && now.getTime() - s.createdAt.getTime() > 600_000
-      ? ('failed' as const)
-      : s.status,
-  failure:
-    s.status === 'pending' && now.getTime() - s.createdAt.getTime() > 600_000
-      ? ('timeout' as const)
-      : s.failure,
+  status: timedOut(s, now) ? ('failed' as const) : s.status,
+  failure: timedOut(s, now) ? ('timeout' as const) : s.failure,
   createdAt: s.createdAt.toISOString(),
   updatedAt: s.updatedAt.toISOString(),
 });
 const refuse = (code: 'invalid_input' | 'limit_exceeded' | 'conflict', issue: string): never => {
   throw new UseCaseError(code, issue, [{ path: '', message: `assist.error.${issue}` }]);
 };
+/**
+ * The one gate every `ai:assist` command passes first (ADR 015, TODO #53): the entitlement, the
+ * monthly quota and both throttles under the quota lock, then the item at its base revision, the
+ * processor and the site's consent. The throttles are entitlements (`ai.pending_max`,
+ * `ai.operator_hourly_max`), so a hoster sees and sets them like any other limit. The registry
+ * conformance runs every `ai:assist` command with the entitlement off and with no pending room,
+ * so a command that skips this gate fails `verify`. Rejected: the checks inline per command,
+ * which drifted (the alt command throttled only after loading the item).
+ */
+async function assistGate(
+  ctx: TransactionContext,
+  target: { itemId: string; baseRevisionId: string }
+) {
+  const e = ctx.principal.entitlements;
+  if (!e['ai.assist']) refuse('limit_exceeded', 'ai-not-entitled');
+  await ctx.assist.lockQuota();
+  const now = ctx.clock.now();
+  const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  if ((await ctx.assist.countSince(month)) >= e['ai.monthly_max'])
+    refuse('limit_exceeded', 'limit-reached');
+  if (
+    (await ctx.assist.pendingCount(new Date(now.getTime() - PENDING_TIMEOUT_MS))) >=
+    e['ai.pending_max']
+  )
+    refuse('limit_exceeded', 'limit-reached');
+  const { actor } = ctx.principal;
+  if (
+    actor.kind === 'operator' &&
+    (await ctx.assist.countByOperatorSince(
+      actor.operatorId,
+      new Date(now.getTime() - OPERATOR_WINDOW_MS)
+    )) >= e['ai.operator_hourly_max']
+  )
+    refuse('limit_exceeded', 'limit-reached');
+  const item = await ctx.content.get(target.itemId);
+  if (!item) throw new UseCaseError('not_found', 'item not found');
+  assertBase(item, target.baseRevisionId);
+  const revision = await ctx.content.revision(item.id, item.latestRevisionId);
+  if (!revision) throw new UseCaseError('not_found', 'revision not found');
+  const provider = ctx.assistProviderLabel;
+  if (!provider) return refuse('invalid_input', 'unavailable');
+  const settings = await ctx.assist.settings();
+  if (!settings.enabled) refuse('invalid_input', 'ai-disabled');
+  if (settings.consentedProvider !== provider) refuse('invalid_input', 'consent-required');
+  return { now, item, revision, provider, settings };
+}
+
 const findSuggestion = async (ctx: TransactionContext, id: string): Promise<AssistSuggestion> => {
   const row = await ctx.assist.get(id);
   if (!row) throw new UseCaseError('not_found', 'suggestion not found');
@@ -133,22 +177,7 @@ export const suggestAlt = defineUseCase({
     },
   ],
   async handler(ctx, input) {
-    if (!ctx.principal.entitlements['ai.assist']) refuse('limit_exceeded', 'ai-not-entitled');
-    await ctx.assist.lockQuota();
-    const now = ctx.clock.now();
-    const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    if ((await ctx.assist.countSince(month)) >= ctx.principal.entitlements['ai.monthly_max'])
-      refuse('limit_exceeded', 'limit-reached');
-    const item = await ctx.content.get(input.itemId);
-    if (!item) throw new UseCaseError('not_found', 'item not found');
-    assertBase(item, input.baseRevisionId);
-    const revision = await ctx.content.revision(item.id, item.latestRevisionId);
-    if (!revision) throw new UseCaseError('not_found', 'revision not found');
-    const provider = ctx.assistProviderLabel;
-    if (!provider) refuse('invalid_input', 'unavailable');
-    const settings = await ctx.assist.settings();
-    if (!settings.enabled) refuse('invalid_input', 'ai-disabled');
-    if (settings.consentedProvider !== provider) refuse('invalid_input', 'consent-required');
+    const { now, item, revision, provider, settings } = await assistGate(ctx, input);
     if (!revision.document.locales.includes(input.locale)) refuse('invalid_input', 'locale');
     if (revision.document.access.level !== 'public' && !settings.allowRestricted)
       refuse('invalid_input', 'restricted-content');
@@ -158,16 +187,6 @@ export const suggestAlt = defineUseCase({
     if (block.props.decorative) refuse('invalid_input', 'image');
     const media = await ctx.media.get(block.props.mediaId);
     if (!media || media.deletedAt || media.kind !== 'image') refuse('invalid_input', 'image');
-    if ((await ctx.assist.pendingCount(new Date(now.getTime() - 600_000))) >= 3)
-      refuse('limit_exceeded', 'limit-reached');
-    if (
-      ctx.principal.actor.kind === 'operator' &&
-      (await ctx.assist.countByOperatorSince(
-        ctx.principal.actor.operatorId,
-        new Date(now.getTime() - 3_600_000)
-      )) >= 30
-    )
-      refuse('limit_exceeded', 'limit-reached');
     const id = ctx.ids.next();
     await ctx.assist.insert({
       id,
@@ -178,7 +197,7 @@ export const suggestAlt = defineUseCase({
       status: 'pending',
       value: null,
       failure: null,
-      provider: provider!,
+      provider,
       requestedBy: ctx.principal.actor.kind === 'operator' ? ctx.principal.actor.operatorId : null,
       model: null,
       createdAt: now,
@@ -236,11 +255,7 @@ export const dismissSuggestion = defineUseCase({
   examples: [{ input: { suggestionId: exampleId } }],
   async handler(ctx, { suggestionId }) {
     const row = await findSuggestion(ctx, suggestionId);
-    if (
-      row.status !== 'ready' &&
-      row.status !== 'failed' &&
-      !(row.status === 'pending' && ctx.clock.now().getTime() - row.createdAt.getTime() > 600_000)
-    )
+    if (row.status !== 'ready' && row.status !== 'failed' && !timedOut(row, ctx.clock.now()))
       refuse('conflict', 'not-ready');
     if (!(await ctx.assist.decide(row.id, 'dismissed', ctx.clock.now())))
       refuse('conflict', 'not-ready');
@@ -376,32 +391,7 @@ export const suggestTranslation = defineUseCase({
     },
   ],
   async handler(ctx, input) {
-    if (!ctx.principal.entitlements['ai.assist']) refuse('limit_exceeded', 'ai-not-entitled');
-    await ctx.assist.lockQuota();
-    const now = ctx.clock.now();
-    const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    if ((await ctx.assist.countSince(month)) >= ctx.principal.entitlements['ai.monthly_max'])
-      refuse('limit_exceeded', 'limit-reached');
-    if ((await ctx.assist.pendingCount(new Date(now.getTime() - 600_000))) >= 3)
-      refuse('limit_exceeded', 'limit-reached');
-    if (
-      ctx.principal.actor.kind === 'operator' &&
-      (await ctx.assist.countByOperatorSince(
-        ctx.principal.actor.operatorId,
-        new Date(now.getTime() - 3_600_000)
-      )) >= 30
-    )
-      refuse('limit_exceeded', 'limit-reached');
-    const item = await ctx.content.get(input.itemId);
-    if (!item) throw new UseCaseError('not_found', 'item not found');
-    assertBase(item, input.baseRevisionId);
-    const revision = await ctx.content.revision(item.id, item.latestRevisionId);
-    if (!revision) throw new UseCaseError('not_found', 'revision not found');
-    const provider = ctx.assistProviderLabel;
-    if (!provider) refuse('invalid_input', 'unavailable');
-    const settings = await ctx.assist.settings();
-    if (!settings.enabled) refuse('invalid_input', 'ai-disabled');
-    if (settings.consentedProvider !== provider) refuse('invalid_input', 'consent-required');
+    const { now, item, revision, provider, settings } = await assistGate(ctx, input);
     const doc = revision.document;
     if (
       input.from === input.to ||
@@ -426,7 +416,7 @@ export const suggestTranslation = defineUseCase({
       status: 'pending',
       value: null,
       failure: null,
-      provider: provider!,
+      provider,
       requestedBy: ctx.principal.actor.kind === 'operator' ? ctx.principal.actor.operatorId : null,
       model: null,
       createdAt: now,

@@ -34,6 +34,8 @@ export const LIMITS = [
   'operators.max',
   'custom_domains.max',
   'ai.monthly_max',
+  'ai.pending_max',
+  'ai.operator_hourly_max',
 ] as const;
 export const LimitName = z.enum(LIMITS);
 export type LimitName = z.infer<typeof LimitName>;
@@ -56,6 +58,8 @@ export const Entitlements = z
     'operators.max': Limit,
     'custom_domains.max': Limit,
     'ai.monthly_max': Limit,
+    'ai.pending_max': Limit,
+    'ai.operator_hourly_max': Limit,
   })
   .strict();
 export type Entitlements = z.infer<typeof Entitlements>;
@@ -82,6 +86,10 @@ export const DEFAULT_ENTITLEMENTS: Entitlements = Object.freeze({
   'operators.max': 50,
   'custom_domains.max': 20,
   'ai.monthly_max': 2_000,
+  // The assistance throttles (TODO #53): proposals pending in the last ten minutes, and proposals
+  // one operator requested in the last hour. The values the code held before they became data.
+  'ai.pending_max': 3,
+  'ai.operator_hourly_max': 30,
 });
 
 /**

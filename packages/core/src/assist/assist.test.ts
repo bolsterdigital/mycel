@@ -942,6 +942,29 @@ describe('assistance proposal boundary', () => {
     });
   });
 
+  it('reads both throttles from the entitlements (TODO #53)', async () => {
+    const { invoker, created, suggest } = await setup();
+    const input = {
+      itemId: created.item.id,
+      baseRevisionId: created.revision.id,
+      blockId: 'photo',
+      locale: 'nl',
+    };
+    const limited = (key: 'ai.pending_max' | 'ai.operator_hourly_max', max: number) => ({
+      ...operator,
+      entitlements: { ...operator.entitlements, [key]: max },
+    });
+    await suggest();
+    for (const key of ['ai.pending_max', 'ai.operator_hourly_max'] as const)
+      await expect(invoker.run(useCases.suggestAlt, limited(key, 1), input)).rejects.toMatchObject({
+        code: 'limit_exceeded',
+        issues: [{ path: '', message: 'assist.error.limit-reached' }],
+      });
+    await expect(
+      invoker.run(useCases.suggestAlt, limited('ai.pending_max', 2), input)
+    ).resolves.toMatchObject({ status: 'pending' });
+  });
+
   it('shows a stale pending job as failed before a worker reaches it', async () => {
     const { uow, invoker, suggest, run } = await setup();
     const { suggestionId } = await suggest();

@@ -115,6 +115,59 @@ describe('a use case that consumes a limit checks it (ADR 015)', () => {
   );
 });
 
+// ADR 015, TODO #53: every `ai:assist` command passes the one assistance gate before it reads
+// anything. Run with the entitlement off and with no pending room, `examples[0]` must be refused
+// with the gate's own issue, on ids that do not exist; a command that checks later, or not at all,
+// answers `not_found` or succeeds instead. The second case shows the check is not vacuous.
+describe('every ai:assist command passes the assistance gate (ADR 015)', () => {
+  const TENANT = '01900000-0000-7000-8000-00000000aaaa';
+  const registry = buildRegistry();
+  const assisted = registry.list().filter((u) => u.requires === 'ai:assist');
+
+  async function refusal(useCase: UseCase, entitlements: Principal['entitlements']) {
+    const uow = new MemoryUnitOfWork();
+    uow.store.addPlatformHostname(probeTenant(TENANT), uow.platform.domain);
+    const principal = { ...systemPrincipal(TENANT, 'conformance'), entitlements };
+    const reg = buildRegistry();
+    if (!reg.get(useCase.name)) reg.register(useCase);
+    try {
+      await new Invoker(reg, uow).run(useCase, principal, useCase.examples[0].input);
+      return null;
+    } catch (e) {
+      return e instanceof UseCaseError ? `${e.code} ${e.issues[0]?.message ?? ''}` : String(e);
+    }
+  }
+  const ungated = async (useCase: UseCase) =>
+    (await refusal(useCase, { ...DEFAULT_ENTITLEMENTS, 'ai.assist': false })) !==
+      'limit_exceeded assist.error.ai-not-entitled' ||
+    (await refusal(useCase, { ...DEFAULT_ENTITLEMENTS, 'ai.pending_max': 0 })) !==
+      'limit_exceeded assist.error.limit-reached';
+
+  it('has assisted commands to check', () => {
+    expect(assisted.map((u) => u.name).sort()).toEqual([
+      'assist.alt.suggest',
+      'assist.translation.suggest',
+    ]);
+  });
+
+  it.each(assisted.map((u) => [u.name, u] as const))('%s is gated', async (_n, useCase) => {
+    expect(await ungated(useCase)).toBe(false);
+  });
+
+  it('flags an ai:assist command that skips the gate', async () => {
+    const [first] = assisted;
+    const skips: UseCase = {
+      ...first!,
+      name: 'assist.ungated.suggest',
+      handler: async () => ({
+        suggestionId: '01900000-0000-7000-8000-000000000001',
+        status: 'pending',
+      }),
+    };
+    expect(await ungated(skips)).toBe(true);
+  });
+});
+
 // Drafts, revisions and author e-mail never reach a public visitor, even one handed every
 // capability: `authenticatedOnly` is checked before capabilities, in the one Invoker every
 // front uses.
