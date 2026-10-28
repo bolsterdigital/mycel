@@ -14,18 +14,25 @@ import {
   Card,
   CardGrid,
   Choices,
+  DetailPage,
   Dialog,
   EmptyState,
   Field,
   Fieldset,
   FileDrop,
+  FormPage,
   MetaList,
   Notice,
+  OverviewPage,
   PageHeader,
   Pagination,
   Select,
+  SettingsPage,
+  SettingsSection,
   SubNav,
+  SystemState,
   Table,
+  ViewSwitch,
 } from './index.js';
 
 const text = (html: string) => createRawSnippet(() => ({ render: () => `<span>${html}</span>` }));
@@ -246,6 +253,157 @@ describe('MetaList', () => {
     });
     expect(out).toMatch(/<dt>Size<\/dt>\s*<dd>2 MB<\/dd>/);
     expect(out).toContain('<dd><a href="/content">in 1 place</a></dd>');
+  });
+  it('lists several targets of one fact as links', () => {
+    const out = html(MetaList, {
+      items: [
+        {
+          term: 'Used in',
+          value: '',
+          links: [
+            { label: 'Home', href: '/c/1' },
+            { label: 'About', href: '/c/2' },
+          ],
+        },
+      ],
+    });
+    expect(out).toMatch(
+      /<ul class="ui-meta-links"><li><a href="\/c\/1">Home<\/a><\/li><li><a href="\/c\/2">About<\/a><\/li><\/ul>/
+    );
+  });
+});
+
+describe('page patterns', () => {
+  const crumbs = [{ label: 'Probe', href: '/admin/probe' }, { label: 'Media' }];
+
+  it('ViewSwitch marks the current view in a labelled nav of links', () => {
+    const out = html(ViewSwitch, {
+      label: 'View',
+      items: [
+        { href: '?', label: 'Grid', current: true },
+        { href: '?view=list', label: 'List' },
+      ],
+    });
+    expect(out).toMatch(/^<nav class="ui-view-switch" aria-label="View">/);
+    expect(out).toContain('<a href="?" aria-current="page">Grid</a>');
+    expect(out).toContain('<a href="?view=list">List</a>');
+  });
+
+  it('OverviewPage: one main and h1, the list under an h2, the empty state instead of the list', () => {
+    const full = html(OverviewPage, {
+      title: 'Media',
+      locale: 'en',
+      breadcrumb: crumbs,
+      listTitle: 'Library',
+      views: { label: 'View', items: [{ href: '?', label: 'Grid', current: true }] },
+      paging: { next: '?cursor=x' },
+      actions: text('Upload'),
+      children: text('the grid'),
+    });
+    expect(full.match(/<main/g)).toHaveLength(1);
+    expect(full.match(/<h1/g)).toHaveLength(1);
+    expect(full).toMatch(/<section class="ui-overview-list" aria-labelledby="ui-overview-title">/);
+    expect(full).toContain('<h2 id="ui-overview-title">Library</h2>');
+    expect(full).toContain('the grid');
+    expect(full).toContain('rel="next"');
+    // The header's action comes before the list in the reading order.
+    expect(full.indexOf('Upload')).toBeLessThan(full.indexOf('the grid'));
+
+    const empty = html(OverviewPage, {
+      title: 'Media',
+      locale: 'en',
+      listTitle: 'Library',
+      empty: { title: 'No media yet.', body: 'Upload a file.' },
+      children: text('the grid'),
+    });
+    expect(empty).toContain('No media yet.');
+    expect(empty).not.toContain('the grid');
+  });
+
+  it('DetailPage: a named preview region before the facts, the actions at the end', () => {
+    const out = html(DetailPage, {
+      title: 'poster.jpg',
+      locale: 'en',
+      previewLabel: 'Preview',
+      preview: text('IMG'),
+      meta: text('FACTS'),
+      children: text('FORM'),
+      footer: text('DELETE'),
+    });
+    expect(out).toContain('<section class="ui-detail-preview" aria-label="Preview">');
+    const order = ['IMG', 'FACTS', 'FORM', 'DELETE'].map((s) => out.indexOf(s));
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(out).toMatch(/<div class="ui-detail-footer">/);
+  });
+
+  it('SettingsPage and SettingsSection: sub-navigation, a form and a confirmation per section', () => {
+    const page = html(SettingsPage, {
+      title: 'Settings',
+      locale: 'en',
+      nav: { label: 'Sections', items: [{ href: '?', label: 'General', current: true }] },
+      children: text('SECTIONS'),
+    });
+    expect(page).toContain('<nav class="ui-subnav" aria-label="Sections">');
+    expect(page.indexOf('ui-subnav')).toBeLessThan(page.indexOf('SECTIONS'));
+
+    const section = html(SettingsSection, {
+      id: 'general',
+      title: 'Name and languages',
+      action: '?/general',
+      submit: 'Save',
+      saved: 'Saved.',
+      children: text('FIELDS'),
+    });
+    expect(section).toMatch(
+      /^<section class="ui-settings-section" aria-labelledby="general-title">/
+    );
+    expect(section).toContain('<h2 id="general-title">Name and languages</h2>');
+    expect(section).toMatch(/role="status">\s*<p>Saved\.<\/p>/);
+    expect(section).toMatch(/<form method="post" action="\?\/general">/);
+    expect(section).toMatch(/<button class="ui-button primary" type="submit">Save<\/button>/);
+    expect(
+      html(SettingsSection, {
+        id: 'g',
+        title: 'T',
+        action: '?/g',
+        submit: 'Save',
+        children: text('F'),
+      })
+    ).not.toContain('role="status"');
+  });
+
+  it('FormPage: save first, cancel as a link, both after the fields', () => {
+    const out = html(FormPage, {
+      title: 'New page',
+      locale: 'en',
+      action: '?/create',
+      submit: 'Create',
+      cancel: { href: '/admin/probe/content', label: 'Cancel' },
+      children: text('FIELDS'),
+    });
+    expect(out).toMatch(/<form method="post" action="\?\/create">/);
+    const [fields, save, cancel] = ['FIELDS', '>Create<', '>Cancel<'].map((s) => out.indexOf(s));
+    expect(fields).toBeLessThan(save!);
+    expect(save).toBeLessThan(cancel!);
+    expect(out).toContain('<a class="ui-button link" href="/admin/probe/content">Cancel</a>');
+  });
+
+  it('SystemState: a page of its own with the h1, or a region with an h2; loading is a status', () => {
+    const page = html(SystemState, {
+      kind: 'forbidden',
+      title: 'No access',
+      page: true,
+      children: text('ask an admin'),
+    });
+    expect(page).toMatch(
+      /^<main class="page admin ui-state-page"><div class="ui-state forbidden">/
+    );
+    expect(page).toContain('<h1 class="ui-state-title">No access</h1>');
+    expect(page).not.toContain('role=');
+
+    const loading = html(SystemState, { kind: 'loading', title: 'Loading' });
+    expect(loading).toMatch(/^<div class="ui-state loading" role="status">/);
+    expect(loading).toContain('<h2 class="ui-state-title">Loading</h2>');
   });
 });
 

@@ -1,8 +1,9 @@
-// Media admin (TODO #10b): an operator uploads an image through the admin's multipart form, sees
-// its thumbnail in the library, edits its credit, downloads the original, and the site serves a
-// variant with immutable caching. Deleting is refused while content uses the image and works
-// once it no longer does. Runs without JavaScript and under axe like the other admin specs; the
-// UI gate (skill ui-action-layout) checks the asset's action group at 320 CSS px and 200% text.
+// Media admin (TODO #10b, brief #56 § C1): an operator uploads an image through the admin's
+// multipart form, sees its thumbnail in the library grid and the list, opens its own page with a
+// preview and a lightbox, edits its credit, downloads the original, and the site serves a variant
+// with immutable caching. Deleting is refused while content uses the image and works once it no
+// longer does. Runs without JavaScript and under axe (light and dark) like the other admin specs;
+// the UI gate (skill ui-action-layout) checks both pages at 320 CSS px and 200% text.
 //
 // No content uses media yet (#8b1 writes the usages), so the "in use" fixture goes in through the
 // repository as a block tree's save will, as mycel_app under the tenant's RLS.
@@ -17,19 +18,23 @@ const SITE = 'http://probe.localhost:4173';
 
 async function expectNoAxeViolations(page: Page) {
   if (test.info().project.name !== 'a11y') return;
-  const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
-  expect(
-    violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)
-  ).toEqual([]);
+  for (const colorScheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme });
+    const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
+    expect(
+      violations.map(
+        (v) => `${colorScheme}: ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`
+      )
+    ).toEqual([]);
+  }
+  await page.emulateMedia({ colorScheme: 'light' });
 }
 
-test.use({
-  locale: 'nl-NL',
-  extraHTTPHeaders: {
-    'x-forwarded-proto': 'http',
-    'x-forwarded-for': `198.51.100.${Math.floor(Math.random() * 250) + 1}`,
-  },
-});
+const FORWARDED = {
+  'x-forwarded-proto': 'http',
+  'x-forwarded-for': `198.51.100.${Math.floor(Math.random() * 250) + 1}`,
+};
+test.use({ locale: 'nl-NL', extraHTTPHeaders: FORWARDED });
 
 async function login(page: Page, email: string, path: string) {
   await page.goto(path);
@@ -75,8 +80,23 @@ function png(width: number, height: number, noise = false): Buffer {
 const item = (page: Page, filename: string) =>
   page.locator('article', { has: page.getByRole('heading', { level: 3, name: filename }) });
 
+/** Open the asset's own page from its card in the library. */
+async function openDetail(page: Page, filename: string) {
+  await item(page, filename).getByRole('link', { name: filename }).click();
+  await expect(page.getByRole('heading', { level: 1, name: filename })).toBeVisible();
+}
+
+/** Delete from the asset's own page; back on the library, it is gone. */
+async function remove(page: Page, id: string, filename: string) {
+  await page.goto(`/admin/probe/media/${id}`);
+  await page.getByRole('button', { name: 'Verwijderen' }).click();
+  await expect(page).toHaveURL(/\/admin\/probe\/media\?done=deleted$/);
+  await expect(page.getByRole('status')).toContainText('Het bestand is verwijderd');
+  await expect(item(page, filename)).toHaveCount(0);
+}
+
 async function upload(page: Page, filename: string, buffer = png(400, 300)) {
-  await page.getByLabel('Bestand', { exact: true }).setInputFiles({
+  await page.getByLabel('Bestand (verplicht)', { exact: true }).setInputFiles({
     name: filename,
     mimeType: 'image/png',
     buffer,
@@ -85,6 +105,7 @@ async function upload(page: Page, filename: string, buffer = png(400, 300)) {
   await expect(page.getByRole('status')).toContainText(`${filename} geüpload`);
   const card = item(page, filename);
   await expect(card).toBeVisible();
+  await expect(page.getByRole('link', { name: `Gegevens van ${filename} invullen` })).toBeVisible();
   const src = await card.locator('img').getAttribute('src');
   const id = /\/media\/([0-9a-f-]{36})\/thumb$/.exec(src ?? '')?.[1];
   expect(id, `thumbnail src ${src}`).toBeTruthy();
@@ -137,32 +158,53 @@ test('an operator uploads, sees, edits, downloads and deletes an image', async (
   expect(thumb.headers()['content-type']).toBe('image/webp');
   await expectNoAxeViolations(page);
 
+  // The same library as a table, the view kept in the URL.
+  await page.getByRole('link', { name: 'Lijst' }).click();
+  await expect(page).toHaveURL(/view=list/);
+  const row = page.getByRole('row', { name: new RegExp(filename) });
+  await expect(row.getByRole('cell', { name: '400 × 300 px' })).toBeVisible();
+  await expectNoAxeViolations(page);
+  await page.getByRole('link', { name: 'Raster' }).click();
+
   // The site serves a variant on its own hostname, immutable; never the original.
   const variant = await request.get(`${SITE}/media/${id}/w320.webp`);
   expect(variant.status()).toBe(200);
   expect(variant.headers()['cache-control']).toBe('public, max-age=31536000, immutable');
   expect((await request.get(`${SITE}/media/${id}/original.png`)).status()).toBe(404);
 
-  // Edit: two credits, a licence and the focal point, through the native <details> form.
-  await card.getByText('Gegevens bewerken').click();
-  await card.getByLabel('Bijschrift (nl)').fill('Demonstratie op het plein');
-  await card.getByLabel('Titel van het werk').fill('Spandoek');
-  await card.getByLabel('Maker van het werk').fill('Buurtcomité');
-  await card.getByLabel('Fotograaf').fill('A. Fotograaf');
-  await card.getByLabel('Licentie').fill('CC BY 4.0');
-  await card.getByLabel('Horizontaal').fill('0.25');
-  await card.getByRole('button', { name: 'Gegevens opslaan' }).click();
+  // Its own page: a preview from the admin's variant route and a lightbox without a script.
+  await openDetail(page, filename);
+  expect(await page.locator('script').count()).toBe(0);
+  const preview = page.getByRole('region', { name: 'Voorbeeld' });
+  const src = await preview.locator('img').first().getAttribute('src');
+  expect(src).toMatch(new RegExp(`^/admin/probe/media/${id}/variant/w\\d+\\.webp$`));
+  expect((await page.request.get(src!)).headers()['cache-control']).toBe('private, max-age=300');
+  await preview.getByRole('button', { name: 'Volledig bekijken' }).click();
+  const lightbox = page.getByRole('dialog', { name: filename });
+  await expect(lightbox).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(lightbox).toBeHidden();
+  await expect(page.getByText('400 × 300 px')).toBeVisible();
+  await expectNoAxeViolations(page);
+
+  // Edit: two credits, a licence and the focal point (folded away), in groups.
+  await page.getByLabel('Bijschrift (nl)').fill('Demonstratie op het plein');
+  await page.getByLabel('Titel van het werk').fill('Spandoek');
+  await page.getByLabel('Maker van het werk').fill('Buurtcomité');
+  await page.getByLabel('Fotograaf').fill('A. Fotograaf');
+  await page.getByLabel('Licentie').fill('CC BY 4.0');
+  await page.locator('summary', { hasText: 'Focuspunt' }).click();
+  await page.getByLabel('Horizontaal').fill('0.25');
+  await page.getByRole('button', { name: 'Gegevens opslaan' }).click();
   await expect(page.getByRole('status')).toContainText(`Gegevens van ${filename} opgeslagen`);
-  await item(page, filename).getByText('Gegevens bewerken').click();
-  await expect(item(page, filename).getByLabel('Fotograaf')).toHaveValue('A. Fotograaf');
-  await expect(item(page, filename).getByLabel('Maker van het werk')).toHaveValue('Buurtcomité');
-  await expect(item(page, filename).getByText('Nu 25% van links')).toBeVisible();
+  await expect(page.getByLabel('Fotograaf')).toHaveValue('A. Fotograaf');
+  await expect(page.getByLabel('Maker van het werk')).toHaveValue('Buurtcomité');
+  await page.locator('summary', { hasText: 'Focuspunt' }).click();
+  await expect(page.getByText('Nu 25% van links')).toBeVisible();
   await expectNoAxeViolations(page);
 
   // Download original: a signed admin link, with the session; without the signature a 403.
-  const href = await item(page, filename)
-    .getByRole('link', { name: 'Origineel downloaden' })
-    .getAttribute('href');
+  const href = await page.getByRole('link', { name: 'Origineel downloaden' }).getAttribute('href');
   expect(href).toMatch(new RegExp(`^/admin/probe/media/${id}/original\\?exp=\\d+&sig=`));
   const original = await page.request.get(href!);
   expect(original.status()).toBe(200);
@@ -175,22 +217,81 @@ test('an operator uploads, sees, edits, downloads and deletes an image', async (
   await setUsage(id, true);
   await page.goto('/admin/probe/media');
   await expect(item(page, filename).getByText('op 1 plek', { exact: true })).toBeVisible();
-  await item(page, filename).getByRole('button', { name: 'Verwijderen' }).click();
+  await page.goto(`/admin/probe/media/${id}`);
+  await page.getByRole('button', { name: 'Verwijderen' }).click();
   await expect(page.getByRole('alert')).toContainText(`${filename} is in gebruik op 1 plek`);
-  await expect(item(page, filename)).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: filename })).toBeVisible();
   await expectNoAxeViolations(page);
 
   await setUsage(id, false);
-  await page.goto('/admin/probe/media');
-  await item(page, filename).getByRole('button', { name: 'Verwijderen' }).click();
-  await expect(page.getByRole('status')).toContainText(`${filename} verwijderd`);
-  await expect(item(page, filename)).toHaveCount(0);
+  await remove(page, id, filename);
   expect((await request.get(`${SITE}/media/${id}/w320.webp`)).status()).toBe(404);
+});
+
+/** A page whose latest version shows `mediaId` in an image block, saved as an editor would. */
+async function pageUsing(mediaId: string, title: string) {
+  const { createDb, createTenantDirectory, createUnitOfWork, uuidv7Ids } =
+    await import('@mycel/db');
+  const { ContentDocumentInput, Invoker, buildRegistry, systemPrincipal, useCases } =
+    await import('@mycel/core');
+  const { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } =
+    await import('@mycel/core/testing');
+  const operatorDb = createDb(process.env['DATABASE_URL']!);
+  const appDb = createDb(process.env['APP_DATABASE_URL']!);
+  try {
+    const probe = await createTenantDirectory(operatorDb).findBySlug('probe');
+    const invoker = new Invoker(
+      buildRegistry(),
+      createUnitOfWork(appDb, {
+        clock: { now: () => new Date() },
+        ids: uuidv7Ids,
+        signer: new FakeSigner(),
+        inputHasher: new FakeInputHasher(process.env['AUDIT_HASH_KEY']),
+        dns: new FakeDns(),
+        platform: memoryPlatform,
+      })
+    );
+    const created = await invoker.run(useCases.createItem, systemPrincipal(probe!.id, 'e2e'), {
+      slug: `media-usage-${Date.now()}`,
+      document: ContentDocumentInput.parse({
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: title },
+        blocks: [
+          {
+            type: 'image',
+            version: 1,
+            props: { mediaId, decorative: false, alt: { nl: 'Een foto' } },
+          },
+        ],
+        access: { level: 'public' },
+      }),
+    });
+    return created.item.id;
+  } finally {
+    await Promise.all([operatorDb.destroy(), appDb.destroy()]);
+  }
+}
+
+test('the asset page links the pages whose latest version uses it', async ({ page }) => {
+  await login(page, 'e2e-admin@probe.test', '/admin/probe/media');
+  const filename = `used-${test.info().project.name}-${Date.now()}.png`;
+  const { id } = await upload(page, filename);
+  const title = `Pagina met ${filename}`;
+  const itemId = await pageUsing(id, title);
+  await page.goto(`/admin/probe/media/${id}`);
+  const usedIn = page.locator('.ui-meta > div', { hasText: 'In de laatste versie van' });
+  await expect(usedIn.getByRole('link', { name: title })).toHaveAttribute(
+    'href',
+    `/admin/probe/content/${itemId}`
+  );
+  await expectNoAxeViolations(page);
 });
 
 test('an upload that is not what it says is refused with a reason', async ({ page }) => {
   await login(page, 'e2e-admin@probe.test', '/admin/probe/media');
-  await page.getByLabel('Bestand', { exact: true }).setInputFiles({
+  await page.getByLabel('Bestand (verplicht)', { exact: true }).setInputFiles({
     name: 'logo.svg',
     mimeType: 'image/svg+xml',
     buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>1</script></svg>'),
@@ -198,7 +299,7 @@ test('an upload that is not what it says is refused with a reason', async ({ pag
   await page.getByRole('button', { name: 'Uploaden' }).click();
   await expect(page.getByRole('alert')).toContainText('SVG-bestanden worden niet geaccepteerd');
 
-  await page.getByLabel('Bestand', { exact: true }).setInputFiles({
+  await page.getByLabel('Bestand (verplicht)', { exact: true }).setInputFiles({
     name: 'photo.jpg',
     mimeType: 'image/jpeg',
     buffer: png(10, 10),
@@ -225,10 +326,12 @@ test('a media editor can use the library without tenant administration rights', 
     await login(page, email, '/admin/probe/media');
     await expect(page.getByRole('heading', { level: 1, name: 'Media' })).toBeVisible();
     const filename = `editor-${Date.now()}.png`;
-    const { card } = await upload(page, filename);
+    const { id } = await upload(page, filename);
     await expectNoAxeViolations(page);
-    await card.getByRole('button', { name: 'Verwijderen' }).click();
-    await expect(item(page, filename)).toHaveCount(0);
+    // Without content:read the page shows the count, never which pages.
+    await openDetail(page, filename);
+    await expect(page.getByText('In de laatste versie van')).toHaveCount(0);
+    await remove(page, id, filename);
   } finally {
     await context.clearCookies();
     await login(page, 'e2e-admin@probe.test', '/admin/probe');
@@ -270,7 +373,7 @@ test('a body above 512K is refused, except for the media upload', async ({ page,
   });
   expect(chunkedStatus).toBe(413);
 
-  const update = await request.post('/admin/probe/media?/update', {
+  const update = await request.post(`/admin/probe/media/${crypto.randomUUID()}?/update`, {
     headers: {
       'content-type': 'application/x-www-form-urlencoded',
       origin: 'http://127.0.0.1:4173',
@@ -283,58 +386,91 @@ test('a body above 512K is refused, except for the media upload', async ({ page,
   const buffer = png(600, 600, true);
   expect(buffer.length).toBeGreaterThan(1024 * 1024);
   const filename = `big-${test.info().project.name}-${Date.now()}.png`;
-  const { card } = await upload(page, filename, buffer);
-  await card.getByRole('button', { name: 'Verwijderen' }).click();
-  await expect(item(page, filename)).toHaveCount(0);
+  const { id } = await upload(page, filename, buffer);
+  await remove(page, id, filename);
 });
 
-test.describe('UI gate: the media action group at 320 CSS px and 200% text', () => {
+/** Sideways scroll, clipped or small targets and labels past their group, on the current page. */
+async function layoutProblems(page: Page) {
+  return page.evaluate(() => {
+    const out: string[] = [];
+    const width = document.documentElement.clientWidth;
+    if (document.documentElement.scrollWidth > width) {
+      out.push(`page scrolls sideways: ${document.documentElement.scrollWidth} > ${width}`);
+      for (const el of document.querySelectorAll('body *'))
+        if (
+          !el.closest('.ui-table-scroll') &&
+          el.getBoundingClientRect().right > width + 1 &&
+          el.children.length === 0
+        )
+          out.push(
+            `past the edge: <${el.tagName.toLowerCase()}> ${el.textContent?.trim().slice(0, 40)}`
+          );
+    }
+    for (const b of document.querySelectorAll(
+      '.ui-button, .ui-view-switch a, .ui-breadcrumb a, .ui-fold > summary, .ui-choice'
+    )) {
+      const r = b.getBoundingClientRect();
+      if (r.width === 0 && r.height === 0) continue; // inside a closed dialog
+      const label = b.textContent?.trim() ?? '';
+      if (b.scrollWidth > b.clientWidth + 1) out.push(`clipped: ${label}`);
+      if (r.right > width + 1 || r.left < -1) out.push(`outside the viewport: ${label}`);
+      if (r.height < 44 || r.width < 44) out.push(`tap target under 44px: ${label}`);
+    }
+    // A label or legend that runs past its group is clipped too, even when the page does not
+    // scroll (a radio's label at 200% text did).
+    for (const l of document.querySelectorAll('.ui-fieldset label, .ui-fieldset legend')) {
+      const group = l.closest('.ui-fieldset')!.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(l);
+      if (range.getBoundingClientRect().right > group.right + 1)
+        out.push(`past its group: ${l.textContent?.trim()}`);
+    }
+    return out;
+  });
+}
+
+test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
   test.use({ viewport: { width: 320, height: 900 } });
 
-  for (const text of ['100%', '200%']) {
-    test(`every control whole and no horizontal scroll, text ${text}`, async ({ page }) => {
-      test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
-      await login(page, 'e2e-admin@probe.test', '/admin/probe/media');
-      const filename = `gate-${text.replace('%', '')}-${Date.now()}.png`;
-      const { card } = await upload(page, filename);
-      await card.getByText('Gegevens bewerken').click();
-      if (text !== '100%')
-        await page.evaluate((size) => (document.documentElement.style.fontSize = size), text);
-      const problems = await page.evaluate(() => {
-        const out: string[] = [];
-        const width = document.documentElement.clientWidth;
-        if (document.documentElement.scrollWidth > width) {
-          out.push(`page scrolls sideways: ${document.documentElement.scrollWidth} > ${width}`);
-          for (const el of document.querySelectorAll('body *'))
-            if (el.getBoundingClientRect().right > width + 1 && el.children.length === 0)
-              out.push(
-                `past the edge: <${el.tagName.toLowerCase()}> ${el.textContent?.trim().slice(0, 40)}`
-              );
+  for (const locale of ['nl-NL', 'en-GB'])
+    for (const text of ['100%', '200%']) {
+      test(`every control whole and no horizontal scroll, ${locale}, text ${text}`, async ({
+        page,
+      }) => {
+        test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
+        // An address of its own: four logins from one address hit the login limit.
+        const headers = {
+          ...FORWARDED,
+          'x-forwarded-for': `2001:db8:10b::${Math.floor(Math.random() * 0xffffffff).toString(16)}`,
+        };
+        await page.context().setExtraHTTPHeaders(headers);
+        await login(page, 'e2e-admin@probe.test', '/admin/probe/media');
+        const filename = `gate-${locale}-${text.replace('%', '')}-${Date.now()}.png`;
+        const { id } = await upload(page, filename);
+        await page.context().setExtraHTTPHeaders({ ...headers, 'accept-language': locale });
+        const zoom = async () => {
+          if (text !== '100%')
+            await page.evaluate((size) => (document.documentElement.style.fontSize = size), text);
+        };
+        for (const path of ['/admin/probe/media', '/admin/probe/media?view=list']) {
+          await page.goto(path);
+          await zoom();
+          expect(await layoutProblems(page), path).toEqual([]);
         }
-        for (const b of document.querySelectorAll('button, a.button, summary')) {
-          const r = b.getBoundingClientRect();
-          const label = b.textContent?.trim() ?? '';
-          if (b.scrollWidth > b.clientWidth + 1) out.push(`clipped: ${label}`);
-          if (r.right > width + 1 || r.left < -1) out.push(`outside the viewport: ${label}`);
-          if (r.height < 44 || r.width < 44) out.push(`tap target under 44px: ${label}`);
-        }
-        // A label or legend that runs past its card is clipped too, even when the page does not
-        // scroll (a radio's label at 200% text did).
-        for (const l of document.querySelectorAll('.card label, .card legend, .card summary')) {
-          const card = l.closest('.card')!.getBoundingClientRect();
-          const range = document.createRange();
-          range.selectNodeContents(l);
-          if (range.getBoundingClientRect().right > card.right + 1)
-            out.push(`past its card: ${l.textContent?.trim()}`);
-        }
-        return out;
+        await page.goto(`/admin/probe/media/${id}`);
+        await zoom();
+        await page.locator('.ui-fold > summary').click();
+        expect(await layoutProblems(page), 'detail').toEqual([]);
+        // The delete and download group: a row while both fit, each button whole otherwise.
+        await page.locator('.ui-detail-footer').screenshot({
+          path: test.info().outputPath(`media-actions-320-${locale}-${text.replace('%', '')}.png`),
+        });
+        await page.locator('[command="show-modal"]').click();
+        expect(await layoutProblems(page), 'lightbox').toEqual([]);
+        await page.keyboard.press('Escape');
+        await page.context().setExtraHTTPHeaders({ ...headers, 'accept-language': 'nl-NL' });
+        await remove(page, id, filename);
       });
-      await card.screenshot({
-        path: test.info().outputPath(`media-320-${text.replace('%', '')}.png`),
-      });
-      expect(problems).toEqual([]);
-      await card.getByRole('button', { name: 'Verwijderen' }).click();
-      await expect(item(page, filename)).toHaveCount(0);
-    });
-  }
+    }
 });
