@@ -1,6 +1,6 @@
 // Double opt-in, step two (ADR 010 rule 5, TODO #22B). Opening the link from the confirmation
-// mail only reads: `mailing.confirm.preview` says whether the token is pending, and a pending one
-// gets a page with one native form and one button. Only that form's POST runs `mailing.confirm`,
+// mail only reads: `mailing.opt_in.get` says whether the token is pending, and a pending one
+// gets a page with one native form and one button. Only that form's POST runs `mailing.opt_in.confirm`,
 // then answers with a 303 to a tokenless outcome page (`confirm/[outcome]`), so a refresh repeats
 // nothing and the address bar no longer holds the token. A link scanner or a preview fetch thus
 // confirms nothing. Rejected: confirming in `load` on the GET (the probe did, and a scanner then

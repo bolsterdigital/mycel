@@ -23,7 +23,7 @@ export const TenantUsage = z.object({
 export type TenantUsage = z.infer<typeof TenantUsage>;
 
 export const getUsage = defineUseCase({
-  name: 'tenant.usage',
+  name: 'tenant.usage.get',
   kind: 'query',
   description:
     'Show how much of each limit this site uses: supporters, mail this month, storage, operators and custom domains.',

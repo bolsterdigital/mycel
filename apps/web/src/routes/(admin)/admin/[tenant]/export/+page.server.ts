@@ -1,7 +1,7 @@
 // The export page of a site (TODO #28, brief tenant-self-export § 6): ask for an archive of the
 // whole site, see earlier ones, and download a ready one through a link signed for five minutes
 // (`/admin/<site>/export/<id>`, lib/server/export-download.ts). Asking is a native form post to the
-// same `tenant.export` command HTTP and MCP expose; it works while the site is suspended, and a
+// same `tenant.export.create` command HTTP and MCP expose; it works while the site is suspended, and a
 // second ask while one is being built gets that one back. A reload shows the progress; nothing
 // polls. Rejected: links signed for longer than a page view, which would outlive the session.
 import { EXPORT_LINK_TTL_MS, can, signExportDownload, useCases } from '@mycel/core';

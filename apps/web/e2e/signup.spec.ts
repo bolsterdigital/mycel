@@ -89,12 +89,12 @@ async function waitForMail(to: string): Promise<{ text: string }> {
   return JSON.parse(readFileSync(join(dir, file), 'utf8'));
 }
 
-/** `supporters.get` over the HTTP API (scripts/e2e.mjs starts it with a key for tenant probe). */
+/** `supporter.get` over the HTTP API (scripts/e2e.mjs starts it with a key for tenant probe). */
 async function supporter(
   request: APIRequestContext,
   email: string
 ): Promise<{ lists: string[]; pendingLists: string[] } | null> {
-  const res = await request.post(`${process.env['E2E_API_URL']}/v1/supporters.get`, {
+  const res = await request.post(`${process.env['E2E_API_URL']}/v1/supporter.get`, {
     headers: { authorization: `Bearer ${process.env['MYCEL_API_KEY']}` },
     data: { email },
   });

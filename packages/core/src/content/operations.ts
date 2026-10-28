@@ -139,7 +139,7 @@ const exampleHeading = {
 };
 
 export const insertBlock = defineUseCase({
-  name: 'content.item.insert',
+  name: 'content.block.insert',
   kind: 'command',
   description:
     'Insert one block before or after a block id, or at the start or end, as a new revision; the block keeps a free id it was sent with, otherwise it gets one.',
@@ -159,7 +159,7 @@ export const insertBlock = defineUseCase({
 });
 
 export const moveBlock = defineUseCase({
-  name: 'content.item.move',
+  name: 'content.block.move',
   kind: 'command',
   description:
     'Move one block before or after another block id, or to the start or end, as a new revision; text blocks that end up next to each other merge into the first.',
@@ -180,7 +180,7 @@ export const moveBlock = defineUseCase({
 });
 
 export const removeBlock = defineUseCase({
-  name: 'content.item.remove',
+  name: 'content.block.remove',
   kind: 'command',
   description:
     'Remove one block by id as a new revision; text blocks that end up next to each other merge into the first.',
@@ -201,7 +201,7 @@ export const removeBlock = defineUseCase({
 });
 
 export const setBlockProps = defineUseCase({
-  name: 'content.item.set_props',
+  name: 'content.block.update',
   kind: 'command',
   description:
     'Replace the props of one block as a new revision; its id and type stay. Send the complete props: a locale left out of a localised field is removed from it.',
@@ -229,7 +229,7 @@ export const setBlockProps = defineUseCase({
 });
 
 export const splitInsertBlock = defineUseCase({
-  name: 'content.item.split_insert',
+  name: 'content.block.split_insert',
   kind: 'command',
   description:
     'Split a text block at a paragraph boundary in every locale it has and put one block in between, as a new revision; the first part keeps the id, the second gets a new one.',

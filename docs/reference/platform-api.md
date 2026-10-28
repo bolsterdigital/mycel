@@ -65,25 +65,25 @@ The summary lists only tenants with something stuck, plus one row with `tenantId
 
 The three recoveries follow the rules of the tenant's own (`ops.job.retry`, `ops.job.close`): only a job that used up its attempts and whose lease is free, only an event that failed every pass. Anything else is `409 conflict` (attempts left, running right now, already done) and an unknown id `404`. Each recovery writes one audit row in the same transaction, in the row's tenant's log (`tenant_id` null for a platform job): actor kind `platform`, operation `platform.ops.job.retry`, `platform.ops.job.close` or `platform.ops.outbox.retry`, subject the row's id. A refused recovery writes nothing. There is no route by which support acts as a tenant's administrator: the hoster recovers as the platform and is logged as such. Mail intents have no recovery route (an intent is never closed by hand; its `mail.reconcile` job is retried).
 
-A site's own administrators see their stuck jobs and mail on `/admin/<slug>/status` and recover a job there (use cases `ops.status`, `ops.job.retry`, `ops.job.close`, capability `tenant:admin`, audited like every command); dead outbox events are the hoster's only.
+A site's own administrators see their stuck jobs and mail on `/admin/<slug>/status` and recover a job there (use cases `ops.status.get`, `ops.job.retry`, `ops.job.close`, capability `tenant:admin`, audited like every command); dead outbox events are the hoster's only.
 
 ## The entitlements document
 
 Flat keys, the names of ADR 015 rule 2. Missing keys get the default; an empty document means everything with these limits.
 
-| Key                       | Kind              | Default       | Enforced in                                                |
-| ------------------------- | ----------------- | ------------- | ---------------------------------------------------------- |
-| `mailing.enabled`         | switch            | `true`        | (no consumer yet)                                          |
-| `donations.enabled`       | switch            | `true`        | (no consumer yet; fase 4)                                  |
-| `custom_domain`           | switch            | `true`        | `tenant.hostnames.add`                                     |
-| `api_keys`                | switch            | `true`        | `tenant.keys.create`                                       |
-| `remove_branding`         | switch            | `false`       | the public layout: `false` shows the credit                |
-| `blocks`                  | `{ type: false }` | `{}` (all on) | (per block type when a tree is saved)                      |
-| `supporters.max`          | limit             | 100 000       | `forms.submit`, for a new address only                     |
-| `mail.monthly_max`        | limit             | 1 000 000     | (no consumer yet)                                          |
-| `media.storage_max_bytes` | limit             | 50 GiB        | `media.upload` (original plus every variant)               |
-| `operators.max`           | limit             | 50            | `tenant.members.invite` (members plus pending invitations) |
-| `custom_domains.max`      | limit             | 20            | `tenant.hostnames.add`                                     |
+| Key                       | Kind              | Default       | Enforced in                                               |
+| ------------------------- | ----------------- | ------------- | --------------------------------------------------------- |
+| `mailing.enabled`         | switch            | `true`        | (no consumer yet)                                         |
+| `donations.enabled`       | switch            | `true`        | (no consumer yet; fase 4)                                 |
+| `custom_domain`           | switch            | `true`        | `tenant.hostname.add`                                     |
+| `api_keys`                | switch            | `true`        | `tenant.key.create`                                       |
+| `remove_branding`         | switch            | `false`       | the public layout: `false` shows the credit               |
+| `blocks`                  | `{ type: false }` | `{}` (all on) | (per block type when a tree is saved)                     |
+| `supporters.max`          | limit             | 100 000       | `form.submit`, for a new address only                     |
+| `mail.monthly_max`        | limit             | 1 000 000     | (no consumer yet)                                         |
+| `media.storage_max_bytes` | limit             | 50 GiB        | `media.upload` (original plus every variant)              |
+| `operators.max`           | limit             | 50            | `tenant.member.invite` (members plus pending invitations) |
+| `custom_domains.max`      | limit             | 20            | `tenant.hostname.add`                                     |
 
 A refused action is `403` with `urn:mycel:problem:limit_exceeded` and an issue naming the key (`entitlements.limit.supporters.max`, `entitlements.feature_off`); the admin and the public pages turn that into "ask your host", never a price. Only growth is blocked: what a tenant already has stays published (ADR 015 rule 7).
 

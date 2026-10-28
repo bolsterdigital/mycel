@@ -349,7 +349,7 @@ describe('durable connection effects', () => {
     expect(
       e.uow.store
         .for(A)
-        .audit.some((a) => a.operation === 'connections.intent.resolve' && a.subjectId === row.id)
+        .audit.some((a) => a.operation === 'connection.intent.resolve' && a.subjectId === row.id)
     ).toBe(true);
     e.clock.advance(3_600_000);
     await runConnectionIntent(e.deps, A, row.id);
@@ -490,7 +490,7 @@ describe('durable connection effects', () => {
     await runConnectionIntent(e.deps, A, row.id);
     expect(e.transport.dispatched).toHaveLength(0);
     expect((await e.read(row.id))?.failure).toBe('authorization');
-    expect(e.uow.store.for(A).audit.some((a) => a.operation === 'connections.intent.replay')).toBe(
+    expect(e.uow.store.for(A).audit.some((a) => a.operation === 'connection.intent.replay')).toBe(
       true
     );
   });

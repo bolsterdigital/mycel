@@ -1,5 +1,5 @@
 // Self-service export (TODO #28, brief tenant-self-export; ADR 002 rule 5, ADR 015 rule 7, ADR 019
-// rule 8). A tenant administrator asks for an archive with `tenant.export`, a command with effect
+// rule 8). A tenant administrator asks for an archive with `tenant.export.create`, a command with effect
 // `export` that requires `tenant:admin`, so a suspended tenant can still leave (`guardSuspended`). The command only plans: it
 // writes a `queued` row and a `tenant.export` job in one transaction, and the job builds the same
 // archive `mycel export` builds (packages/api/src/jobs.ts). One export at a time per tenant: a
@@ -144,7 +144,7 @@ export const toExportView = (r: TenantExportRecord, now: Date): ExportView => ({
 });
 
 export const requestExport = defineUseCase({
-  name: 'tenant.export',
+  name: 'tenant.export.create',
   kind: 'command',
   description:
     'Ask for a complete archive of this site (content, media, supporters, members, audit log) in the format `mycel import` reads; it is built in the background and can be downloaded from the admin for a limited time. Works while the site is suspended. A request while one is being built returns that one.',

@@ -20,6 +20,9 @@ const EFFECT_VERBS = ['publish', 'unpublish', 'schedule', 'unschedule', 'send', 
  */
 const EDITORIAL_PREFIXES = [
   'content.item.',
+  'content.block.',
+  'content.revision.',
+  'content.translation.',
   'content.author.',
   'content.section.',
   'content.pattern.',
@@ -27,6 +30,60 @@ const EDITORIAL_PREFIXES = [
 
 /** Last name segments that make something new, and so must say which limit they consume. */
 const GROWTH_VERBS = ['create', 'invite', 'add', 'submit', 'upload'];
+
+/**
+ * The naming rule (overview.md § Use-case names, TODO #54): `<module>.<entity>.<verb>`, or
+ * `<module>.<verb>` when the module is the entity. A name is an HTTP path, an MCP tool and an
+ * OpenAPI operation at once, so one word per concept, singular. `site` is the only prefix for site
+ * settings, `tenant` the one for members, keys, hostnames, exports and limits. Rejected: a regex
+ * alone, which cannot tell `connections` from `connection` or `put` from `update`.
+ */
+const MODULES = [
+  'assist',
+  'audit',
+  'connection',
+  'content',
+  'form',
+  'mailing',
+  'media',
+  'ops',
+  'site',
+  'supporter',
+  'tenant',
+];
+
+/** Entities that end in an s and are still singular: one document per tenant. */
+const SINGULAR_DOCUMENTS = ['settings', 'entitlements', 'status'];
+
+/**
+ * The verbs a name may end in. Beyond the five plain ones each verb is a domain operation the
+ * plain ones would misname: `remove` undoes `add`, `invite` or `insert` (the thing outlives its
+ * place), `delete` undoes `create` or `upload` (the thing stops existing).
+ */
+const VERBS = [
+  ...['create', 'get', 'list', 'update', 'delete'],
+  // Placement in a collection: a tenant's hostnames and members, a document's blocks (ADR 020).
+  ...['add', 'remove', 'invite', 'insert', 'move', 'split_insert', 'set_primary'],
+  // ADR 018 effects and the editorial queries beside them.
+  ...EFFECT_VERBS,
+  ...['find', 'diff', 'approve'],
+  // Suggestions (ADR 021), connections and intents (ADR 024), jobs (ops).
+  ...['suggest', 'accept', 'dismiss', 'test', 'pause', 'resume', 'disconnect', 'replay', 'resolve'],
+  ...['retry', 'close'],
+  // A key, a hostname, a visitor's entry points, a theme report.
+  ...['revoke', 'verify', 'upload', 'submit', 'confirm', 'check'],
+];
+
+function checkVocabulary(name: string, fail: (rule: string) => void): void {
+  const segments = name.split('.');
+  const [module = '', entity = ''] = segments;
+  const verb = segments.at(-1) ?? '';
+  if (segments.length > 3) fail('name has more than three segments');
+  if (!MODULES.includes(module)) fail(`module "${module}" is not in MODULES`);
+  if (!VERBS.includes(verb)) fail(`verb "${verb}" is not in VERBS`);
+  if (segments.length === 3 && entity.endsWith('s') && !SINGULAR_DOCUMENTS.includes(entity))
+    fail(`entity "${entity}" is plural`);
+}
 
 /** Returns every violation as one line naming the use case; an empty list means conformant. */
 export function checkRegistry(registry: Pick<UseCaseRegistry, 'list'>): string[] {
@@ -45,11 +102,12 @@ function checkUseCase(useCase: UseCase, fail: (rule: string) => void): void {
   const { name, kind, description, requires, effect, consumes, examples } = useCase;
 
   if (!NAME.test(name)) fail(`name does not match ${NAME}`);
+  else checkVocabulary(name, fail);
   if (!description.trim()) fail('description is empty');
   else if (!description.trim().endsWith('.')) fail('description does not end with a full stop');
 
   // ADR 018 rule 5: publishing, sending, exporting and refunding need their own capability. Or
-  // `tenant:admin`, which holds every capability and is never weaker: `tenant.export` (TODO #28)
+  // `tenant:admin`, which holds every capability and is never weaker: `tenant.export.create` (TODO #28)
   // hands over members, key hashes and the audit log, more than `supporters:export` covers.
   if (effect) {
     if (kind === 'query') fail(`a query cannot have effect "${effect}"`);

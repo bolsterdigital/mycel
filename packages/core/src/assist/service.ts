@@ -348,7 +348,7 @@ export const acceptSuggestion = defineUseCase({
 });
 
 export const suggestTranslation = defineUseCase({
-  name: 'assist.translate.suggest',
+  name: 'assist.translation.suggest',
   kind: 'command',
   description: 'Queue a proposal for selected fields in one source and target locale.',
   requires: 'ai:assist',
@@ -443,7 +443,7 @@ export const suggestTranslation = defineUseCase({
 });
 
 export const approveTranslation = defineUseCase({
-  name: 'content.item.translation.approve',
+  name: 'content.translation.approve',
   kind: 'command',
   description: 'Approve the machine-translated fields of one locale as a human publisher.',
   requires: 'content:publish',

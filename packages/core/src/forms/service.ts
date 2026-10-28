@@ -1,4 +1,4 @@
-// Forms use cases. `forms.submit` is the public entry point: anonymous principals carry only
+// Forms use cases. `form.submit` is the public entry point: anonymous principals carry only
 // `forms:write`, so this handler must never reveal anything beyond the outcome of the attempt.
 
 import { z } from 'zod';
@@ -18,7 +18,7 @@ import {
 import './ports.js';
 
 export const getForm = defineUseCase({
-  name: 'forms.form.get',
+  name: 'form.get',
   kind: 'query',
   description:
     'Get a form definition by id, plus a fresh signed timing token and proof-of-work challenge for rendering it publicly.',
@@ -74,7 +74,7 @@ export function validateValues(
 }
 
 export const submitForm = defineUseCase({
-  name: 'forms.submit',
+  name: 'form.submit',
   kind: 'command',
   description:
     'Submit a signup form. Stores the submission and publishes newsletter.subscribed; returns accepted, invalid (field errors as i18n keys) or rejected (spam defence).',
@@ -110,7 +110,7 @@ export const submitForm = defineUseCase({
         | 'ip-limited'
         | 'recipient-limited'
     ): SubmitResult => {
-      ctx.log.info('forms.submit.rejected', { formId: form.id, reason: why });
+      ctx.log.info('form.submit.rejected', { formId: form.id, reason: why });
       const reason =
         why === 'honeypot' || why === 'token-invalid' || why === 'proof-invalid'
           ? 'spam'
@@ -156,13 +156,13 @@ export const submitForm = defineUseCase({
     }
 
     const ipHash = principal.actor.kind === 'anonymous' ? principal.actor.ipHash : undefined;
-    if (ipHash && !(await ctx.rateLimits.hit(`forms.submit:ip:${ipHash}`, RATE_LIMITS.perIp)))
+    if (ipHash && !(await ctx.rateLimits.hit(`form.submit:ip:${ipHash}`, RATE_LIMITS.perIp)))
       return reject('ip-limited');
     if (unproven) {
-      ctx.log.info('forms.submit.unproven', { formId: form.id });
+      ctx.log.info('form.submit.unproven', { formId: form.id });
       if (
         ipHash &&
-        !(await ctx.rateLimits.hit(`forms.submit:unproven:${ipHash}`, RATE_LIMITS.perIpUnproven))
+        !(await ctx.rateLimits.hit(`form.submit:unproven:${ipHash}`, RATE_LIMITS.perIpUnproven))
       )
         return reject('ip-limited');
     }

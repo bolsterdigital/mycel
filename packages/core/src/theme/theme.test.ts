@@ -1,5 +1,5 @@
 // Theme invariants (ADR 013 rule 1, TODO #8b2): the WCAG arithmetic against known values and the
-// 4.5:1 boundary, light and dark checked apart, one check behind `theme.check` and `Theme`, every
+// 4.5:1 boundary, light and dark checked apart, one check behind `site.theme.check` and `Theme`, every
 // preset valid, defaults explicit, and no shape that could smuggle CSS or a URL in.
 
 import { describe, expect, it } from 'vitest';
@@ -164,7 +164,7 @@ describe('Theme and ThemeInput', () => {
   });
 });
 
-describe('theme.check', () => {
+describe('site.theme.check', () => {
   const invoker = new Invoker(buildRegistry(), new MemoryUnitOfWork());
 
   it('returns the report for an editor; a shape error is invalid_input', async () => {

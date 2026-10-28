@@ -112,7 +112,7 @@ describe('job recovery (TODO #17c)', () => {
     expect(status.jobs.map((s) => s.id)).toEqual([j.id]);
   });
 
-  describe('ops.status', () => {
+  describe('ops.status.get', () => {
     it('shows only this tenant’s exhausted jobs, without a payload', async () => {
       const stuck = job();
       job({ attempts: 2 });

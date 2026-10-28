@@ -1,4 +1,4 @@
-// What a public form post answers when `forms.submit` throws (brief form-intake § 4). Three
+// What a public form post answers when `form.submit` throws (brief form-intake § 4). Three
 // classes, because a visitor has to act differently on each: the site is closed (403, nothing to
 // do), the post itself is broken (400, reload the page), or we failed (503, try later, with the
 // request id so a support question can find the log line). Pure, so the mapping is tested without

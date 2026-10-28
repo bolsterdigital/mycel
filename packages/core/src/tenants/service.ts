@@ -150,7 +150,7 @@ export async function verifyHostname(
 }
 
 export const listHostnames = defineUseCase({
-  name: 'tenant.hostnames.list',
+  name: 'tenant.hostname.list',
   kind: 'query',
   description:
     'List the hostnames of this site: the platform hostname and custom domains, with the DNS records a custom domain needs.',
@@ -166,7 +166,7 @@ export const listHostnames = defineUseCase({
 });
 
 export const addHostname = defineUseCase({
-  name: 'tenant.hostnames.add',
+  name: 'tenant.hostname.add',
   kind: 'command',
   description:
     'Add a custom domain to this site; it serves nothing until its TXT record is verified.',
@@ -196,7 +196,7 @@ export const addHostname = defineUseCase({
 });
 
 export const verifyHostnameUseCase = defineUseCase({
-  name: 'tenant.hostnames.verify',
+  name: 'tenant.hostname.verify',
   kind: 'command',
   description:
     'Look up the TXT record of a custom domain and mark it verified when the token is there; reports what DNS answered otherwise.',
@@ -212,7 +212,7 @@ export const verifyHostnameUseCase = defineUseCase({
 });
 
 export const setPrimaryHostname = defineUseCase({
-  name: 'tenant.hostnames.set_primary',
+  name: 'tenant.hostname.set_primary',
   kind: 'command',
   description:
     'Make a verified hostname the primary one; every other hostname of the site redirects to it.',
@@ -233,7 +233,7 @@ export const setPrimaryHostname = defineUseCase({
 });
 
 export const removeHostname = defineUseCase({
-  name: 'tenant.hostnames.remove',
+  name: 'tenant.hostname.remove',
   kind: 'command',
   description:
     'Remove a custom domain from this site; the platform hostname and the primary hostname cannot be removed.',

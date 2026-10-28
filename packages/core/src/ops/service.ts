@@ -32,7 +32,7 @@ async function siteSlug(ctx: TransactionContext): Promise<string> {
 }
 
 export const getOpsStatus = defineUseCase({
-  name: 'ops.status',
+  name: 'ops.status.get',
   kind: 'query',
   description:
     'Show the work of this site that is stuck: jobs that used up their attempts, mail whose delivery is unknown or was given up, erasures no backup holds yet, the latest actions, and a redacted diagnosis to share with support.',

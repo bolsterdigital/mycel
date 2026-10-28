@@ -137,7 +137,7 @@ describe('supporter fold', () => {
   });
 });
 
-describe('supporters.email.change', () => {
+describe('supporter.email.update', () => {
   let uow: MemoryUnitOfWork;
   let invoker: Invoker;
   let id: string;

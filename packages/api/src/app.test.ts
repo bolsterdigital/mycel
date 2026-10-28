@@ -54,7 +54,7 @@ describe('HTTP front', () => {
     expect(await page.json()).toMatchObject({ slug: 'signup', locale: 'nl' });
     expect((await post('content.item.create', probePage(FORM))).status).toBe(409);
 
-    const submit = await post('forms.submit', {
+    const submit = await post('form.submit', {
       formId: FORM,
       values: { email: 'a@example.org', consent: true },
       locale: 'nl',

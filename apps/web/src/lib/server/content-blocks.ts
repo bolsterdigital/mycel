@@ -2,7 +2,7 @@
 // the field descriptions (the images and items a field can point at), one line per block for its
 // summary, and core's refusals mapped onto the form's field names. The forms themselves come
 // from `lib/editor/block-form.ts`; the actions call the block operations of the registry
-// (`content.item.set_props`, `move`, `remove`, `insert`) with `baseRevisionId`, so a no-JS edit
+// (`content.block.update`, `move`, `remove`, `insert`) with `baseRevisionId`, so a no-JS edit
 // is the same command an agent sends.
 //
 // The pickers list a bounded page (a hundred, newest first) plus whatever the block already

@@ -79,7 +79,7 @@ describe.skipIf(!ready)('API keys through the composition root', () => {
       actor: { kind: 'agent', keyId: key.id },
       capabilities: ['content:read'],
     });
-    const noAdmin = await app.request('/v1/tenant.keys.list', {
+    const noAdmin = await app.request('/v1/tenant.key.list', {
       headers: { authorization: `Bearer ${key.token}` },
     });
     expect(noAdmin.status).toBe(403);

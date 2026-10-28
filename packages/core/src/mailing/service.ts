@@ -1,6 +1,6 @@
 // Mailing use cases. Double opt-in is two steps on the public site (ADR 010 rule 5): the link
-// from the confirmation mail opens a page that only reads (`mailing.confirm.preview`), and the
-// button on that page posts `mailing.confirm`, which turns consent into a logged fact. A link
+// from the confirmation mail opens a page that only reads (`mailing.opt_in.get`), and the
+// button on that page posts `mailing.opt_in.confirm`, which turns consent into a logged fact. A link
 // scanner or a mail client's preview fetch therefore records nothing. Rejected: confirming on the
 // GET of the link (the probe did; a scanner then consents for the person) and a JavaScript-only
 // confirmation (ADR 009: the page works without it).
@@ -56,7 +56,7 @@ async function resolveToken(ctx: TransactionContext, token: string, now: Date) {
 }
 
 export const previewConfirmation = defineUseCase({
-  name: 'mailing.confirm.preview',
+  name: 'mailing.opt_in.get',
   kind: 'query',
   description:
     'Read what a double opt-in link would confirm, without confirming it: pending, already confirmed or invalid, with the locale of the signup.',
@@ -81,7 +81,7 @@ export const previewConfirmation = defineUseCase({
 });
 
 export const confirmSubscription = defineUseCase({
-  name: 'mailing.confirm',
+  name: 'mailing.opt_in.confirm',
   kind: 'command',
   description:
     'Confirm a double opt-in: records consent for the list of the submission once and publishes consent.given; a second confirmation or an invalid token is an outcome, not an error.',

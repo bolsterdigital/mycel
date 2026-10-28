@@ -23,7 +23,7 @@ export const ADMISSION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * Seats for addresses whose projection does not exist yet (ADR 015 rule 3 with ADR 019 rule 3):
- * the projection only grows after the outbox ingest, so `forms.submit` reserves the seat in its
+ * the projection only grows after the outbox ingest, so `form.submit` reserves the seat in its
  * own transaction and ingest releases it once the projection row exists. Serialised per tenant
  * by `lock`. A reservation older than ADMISSION_WINDOW_MS (7 days) no longer counts and is
  * swept by the next `reserve` of that tenant: a signup whose event never arrived must not hold a

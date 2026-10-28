@@ -1,6 +1,6 @@
 // Insert a block (brief content-editor § B): the edit page's GET form chose a type and a place
 // next to a block (or at the start or end) on the revision it showed; this page shows the new
-// block's fields, empty, and its POST runs `content.item.insert` with that revision as
+// block's fields, empty, and its POST runs `content.block.insert` with that revision as
 // `baseRevisionId`. Core validates the new block like any save, so a refusal comes back with
 // what was typed. A page of its own instead of a field set per type on the edit page, because a
 // block that is not valid yet cannot be inserted first and filled in later (ADR 004: no invalid

@@ -101,7 +101,7 @@ export interface Submission {
   createdAt: Date;
   /**
    * The consent evidence as the visitor saw it, copied from the form when they submitted: the
-   * list they asked to join and the version of the consent text. `mailing.confirm` reads these,
+   * list they asked to join and the version of the consent text. `mailing.opt_in.confirm` reads these,
    * never the form's current definition, so a later edit of the form (#11) cannot change what a
    * click confirms (ADR 003, ADR 010 rule 5).
    */

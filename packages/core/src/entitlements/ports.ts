@@ -1,5 +1,5 @@
 // Usage, measured on demand inside the tenant's transaction (ADR 015 rule 6): the limit checks
-// and `tenant.usage` read the same numbers. Rejected: a materialized view, which buys nothing at
+// and `tenant.usage.get` read the same numbers. Rejected: a materialized view, which buys nothing at
 // these counts and adds a refresh to reason about.
 
 export interface UsageReader {

@@ -88,7 +88,7 @@ async function revokeKeysBeyond(
 }
 
 export const listMembers = defineUseCase({
-  name: 'tenant.members.list',
+  name: 'tenant.member.list',
   kind: 'query',
   description: 'List the operators who are members of this site, with their capabilities.',
   requires: 'tenant:admin',
@@ -102,7 +102,7 @@ export const listMembers = defineUseCase({
 });
 
 export const inviteMember = defineUseCase({
-  name: 'tenant.members.invite',
+  name: 'tenant.member.invite',
   kind: 'command',
   description:
     'Give an e-mail address capabilities on this site; the person gets access by logging in with that verified address.',
@@ -131,7 +131,7 @@ export const inviteMember = defineUseCase({
 });
 
 export const updateMember = defineUseCase({
-  name: 'tenant.members.update',
+  name: 'tenant.member.update',
   kind: 'command',
   description:
     'Replace the capabilities of a member; their API keys that exceed the new capabilities are revoked.',
@@ -158,7 +158,7 @@ export const updateMember = defineUseCase({
 });
 
 export const removeMember = defineUseCase({
-  name: 'tenant.members.remove',
+  name: 'tenant.member.remove',
   kind: 'command',
   description: 'Remove a member from this site and revoke the API keys they created.',
   requires: 'tenant:admin',
@@ -175,7 +175,7 @@ export const removeMember = defineUseCase({
 });
 
 export const listKeys = defineUseCase({
-  name: 'tenant.keys.list',
+  name: 'tenant.key.list',
   kind: 'query',
   description: 'List the API keys of this site, revoked ones included; never the token itself.',
   requires: 'tenant:admin',
@@ -189,7 +189,7 @@ export const listKeys = defineUseCase({
 });
 
 export const createKey = defineUseCase({
-  name: 'tenant.keys.create',
+  name: 'tenant.key.create',
   kind: 'command',
   description:
     'Create an API key with a subset of your capabilities (never tenant:admin); the token is returned once and never again.',
@@ -222,7 +222,7 @@ export const createKey = defineUseCase({
 });
 
 export const revokeKey = defineUseCase({
-  name: 'tenant.keys.revoke',
+  name: 'tenant.key.revoke',
   kind: 'command',
   description: 'Revoke an API key; it stops working on its next request and stays listed.',
   requires: 'tenant:admin',
