@@ -78,7 +78,7 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
   let formId = '';
 
   // Drains only this suite's tenants (TODO #26). `drainOutbox` claims every tenant's events, and
-  // the db suites share one database: a drain here once ingested entitlements.conformance's
+  // the db suites share one database: a drain here once ingested entitlements.test's
   // signups and released their admission seats mid-assertion. Same row bookkeeping as the
   // worker, read as mycel_worker like it. Rejected: a tenant filter on `drainOutbox` (production
   // code for a test) and running the db suites serially (slower, and it hides the coupling).

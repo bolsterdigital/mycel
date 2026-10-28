@@ -18,29 +18,13 @@ if (env['E2E_REQUIRED'] === '1' && !ready)
   throw new Error('E2E_REQUIRED=1 but a database URL is not set');
 
 describe.skipIf(!ready)('mycel setup against Postgres', () => {
-  const config = loadConfig({
-    ...env,
-    SIGNING_SECRET: env['SIGNING_SECRET'] ?? 'conformance-signing-secret',
-    PUBLIC_BASE_URL: 'https://admin.setup.test',
-    MAIL_FROM: env['MAIL_FROM'] ?? 'noreply@example.org',
-    MAILER: 'console',
-    MAIL_SPOOL_DIR: undefined,
-    PLATFORM_DOMAIN: 'setup.test',
-  });
-  const runtime = createRuntime(config, { service: 'cli', writeLog: () => {} });
-  const db = createDb(env['DATABASE_URL']!);
+  // Built in beforeAll, not in the describe body: Vitest runs the body while collecting even
+  // when the suite is skipped, and loadConfig throws without the database URLs.
+  let runtime: ReturnType<typeof createRuntime>;
+  let db: ReturnType<typeof createDb>;
+  let deps: SetupDeps;
   const run = Math.random().toString(36).slice(2, 8);
   const slug = `setup-${run}`;
-  const deps: SetupDeps = {
-    tenantBySlug: (s) => getTenantBySlug(db, s),
-    createTenant: (input) =>
-      createTenant(db, { id: uuidv7(), ...input }, runtime.platform, {
-        actorId: 'cli',
-        hasher: inputHasherOf(config),
-      }),
-    invoker: runtime.invoker,
-    platformOrigin: runtime.platform.platformOrigin,
-  };
   const input = {
     slug,
     name: 'Setup',
@@ -50,6 +34,27 @@ describe.skipIf(!ready)('mycel setup against Postgres', () => {
   };
 
   beforeAll(async () => {
+    const config = loadConfig({
+      ...env,
+      SIGNING_SECRET: env['SIGNING_SECRET'] ?? 'conformance-signing-secret',
+      PUBLIC_BASE_URL: 'https://admin.setup.test',
+      MAIL_FROM: env['MAIL_FROM'] ?? 'noreply@example.org',
+      MAILER: 'console',
+      MAIL_SPOOL_DIR: undefined,
+      PLATFORM_DOMAIN: 'setup.test',
+    });
+    runtime = createRuntime(config, { service: 'cli', writeLog: () => {} });
+    db = createDb(env['DATABASE_URL']!);
+    deps = {
+      tenantBySlug: (s) => getTenantBySlug(db, s),
+      createTenant: (input) =>
+        createTenant(db, { id: uuidv7(), ...input }, runtime.platform, {
+          actorId: 'cli',
+          hasher: inputHasherOf(config),
+        }),
+      invoker: runtime.invoker,
+      platformOrigin: runtime.platform.platformOrigin,
+    };
     await migrate(env['DATABASE_URL']!, {
       log: () => {},
     });

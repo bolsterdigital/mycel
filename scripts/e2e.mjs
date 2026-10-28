@@ -731,7 +731,7 @@ if (quality) {
 stop();
 // The worker planned a `mail.reconcile` per confirmation it sent, RECONCILE_LAG_MS ahead, and is
 // gone before they fall due. Close probe's so they neither wait for the next run's worker nor
-// crowd recovery.conformance's claim (TODO #32); its other jobs, hostname checks, stay.
+// crowd recovery.test's claim (TODO #32); its other jobs, hostname checks, stay.
 {
   const { createDb, createTenantDirectory } = await import('@mycel/db');
   const { closeTenantWork } = await import('@mycel/db/testing');

@@ -24,7 +24,7 @@ Versions follow semver. Before 1.0 a minor release may contain breaking changes;
 
 ## How this repository keeps it
 
-- `packages/db/src/migrate.ts` stores the checksum in `schema_migrations.checksum` and refuses a changed applied file (`packages/db/src/migrate.conformance.test.ts`). Rows applied before the checksum existed get the file's current checksum on the next run.
+- `packages/db/src/migrate.ts` stores the checksum in `schema_migrations.checksum` and refuses a changed applied file (`packages/db/src/migrate.test.ts`). Rows applied before the checksum existed get the file's current checksum on the next run.
 - The `verify` workflow fails a pull request that modifies, renames or deletes a file in `packages/db/migrations` that is already on `main`; only new files pass.
 - Promise 3 is a review rule: a pull request that drops or renames a column or table says in its description which earlier release stopped writing it.
 - The release workflow (`.github/workflows/release.yml`) only publishes a tag that is a commit on `main` and whose version equals the one in `package.json`.

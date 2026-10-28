@@ -16,6 +16,9 @@
 import { sql, type Kysely } from 'kysely';
 import {
   ERASED_DOMAIN,
+  ERASURE_EXPIRES_EXPORTS,
+  ERASURE_EXPORT_ERROR,
+  ERASURE_KEEPS_INTENT_STATES,
   erasureEmailHash,
   scrubText,
   systemPrincipal,
@@ -25,6 +28,7 @@ import {
 } from '@mycel/core';
 import { withTenant } from './index.js';
 import type { Database } from './schema.js';
+import { setRole } from './roles.js';
 
 type Trx = Kysely<Database>;
 
@@ -58,7 +62,7 @@ export function erasureRepository(
 
     async apply() {
       try {
-        await sql`set local role mycel_erasure`.execute(trx);
+        await setRole(trx, 'mycel_erasure');
       } catch (e) {
         throw new Error(
           'erasures can only be applied on the operator connection (the worker or `mycel erasures apply`), ' +
@@ -66,7 +70,7 @@ export function erasureRepository(
         );
       }
       const changed = await applyAsEraser(trx);
-      await sql`set local role mycel_app`.execute(trx);
+      await setRole(trx, 'mycel_app');
       return changed;
     },
 
@@ -89,17 +93,19 @@ export function erasureRepository(
 
 async function applyAsEraser(trx: Trx): Promise<number> {
   const changed = await eraseRows(trx);
-  // ADR 019 rule 8: an archive is a copy too (TODO #28). Expire every archive that may hold a
-  // registered person: any built or building while this apply found something to erase, and any
-  // asked for before the newest registration. The file goes after commit (`expireExports`, run
+  // Core `expiresOnErasure` as one statement. The file goes after commit (`expireExports`, run
   // by `mycel erasures apply` and daily by the worker); the row keeps no trace of who.
   const r = await sql`
     update tenant_exports
-    set status = 'expired', error = 'deleted after an erasure', expires_at = now()
-    where status in ('running', 'ready')
+    set status = 'expired', error = ${ERASURE_EXPORT_ERROR}, expires_at = now()
+    where status = any(${[...ERASURE_EXPIRES_EXPORTS]}::text[])
       and (${changed > 0} or requested_at < (select max(erased_at) from erasures))`.execute(trx);
   return changed + Number(r.numAffectedRows ?? 0n);
 }
+
+/** The jsonb columns that can carry an address in free form: outbox props, submissions, job payloads. */
+const CARRIER_COLUMNS = ['props', '"values"', 'payload'] as const;
+type CarrierColumn = (typeof CARRIER_COLUMNS)[number];
 
 async function eraseRows(trx: Trx): Promise<number> {
   const registered = await trx.selectFrom('erasures').select('supporter_id').execute();
@@ -107,8 +113,10 @@ async function eraseRows(trx: Trx): Promise<number> {
   const ids = registered.map((r) => r.supporter_id);
   // No address or provider payload is stored. Detach the pseudonymous supporter reference while
   // retaining honest external uncertainty; an erasure never claims the provider deleted a copy.
+  // Core `erasedIntentState` as one statement.
   const intentChanges = await sql`update connection_intents set supporter_id = null,
-    state = case when state in ('unknown','succeeded','resolved') then state else 'blocked' end,
+    state = case when state = any(${[...ERASURE_KEEPS_INTENT_STATES]}::text[]) then state
+                 else 'blocked' end,
     failure = 'erasure', lease_token = null, lease_until = null, revision = revision + 1
     where supporter_id = any(${ids}::uuid[])`.execute(trx);
   const addresses = (
@@ -128,8 +136,11 @@ async function eraseRows(trx: Trx): Promise<number> {
       trx
     )
   ).rows.map((r) => r.a);
-  const carries = (column: string) =>
-    sql`exists (select from unnest(${addresses}::text[]) a where strpos(lower(${sql.raw(column)}::text), a) > 0)`;
+  const carries = (column: CarrierColumn) => {
+    // `sql.raw` splices the name into the statement, so only a column from the list gets there.
+    if (!CARRIER_COLUMNS.includes(column)) throw new Error(`not a carrier column: ${column}`);
+    return sql`exists (select from unnest(${addresses}::text[]) a where strpos(lower(${sql.raw(column)}::text), a) > 0)`;
+  };
 
   let changed = Number(intentChanges.numAffectedRows ?? 0n);
   const count = (r: { numAffectedRows?: bigint }) => (changed += Number(r.numAffectedRows ?? 0n));

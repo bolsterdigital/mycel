@@ -1,7 +1,7 @@
 // The send-once contract (ADR 019 rule 6, brief #22C) in memory. The provider stub is the outside
 // world (testing.md rule 4): it keeps the list of messages it accepted, can accept a message and
 // lose the response, can refuse one, can be slow to list what it accepted, and can be down. The
-// claim race against Postgres is in packages/db/src/mailing.conformance.test.ts.
+// claim race against Postgres is in packages/db/src/mailing.test.ts.
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { FakeClock, MemoryUnitOfWork } from '../testing/index.js';

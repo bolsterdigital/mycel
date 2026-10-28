@@ -15,6 +15,7 @@ import {
   type SupporterAdmissions,
 } from '@mycel/core';
 import type { Database } from './schema.js';
+import { advisoryLock } from './roles.js';
 
 type Trx = Kysely<Database>;
 
@@ -27,9 +28,7 @@ export function supporterAdmissions(trx: Trx, tenantId: string, clock: Clock): S
   const cutoff = () => new Date(clock.now().getTime() - ADMISSION_WINDOW_MS);
   return {
     async lock() {
-      await sql`select pg_advisory_xact_lock(hashtextextended(${`admissions:${tenantId}`}, 0))`.execute(
-        trx
-      );
+      await advisoryLock(trx, 'admissions', tenantId);
     },
     async count() {
       const { rows } = await sql<{ n: string }>`

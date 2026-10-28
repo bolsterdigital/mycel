@@ -1,0 +1,15 @@
+{
+  "id": "chatcmpl-482",
+  "object": "chat.completion",
+  "created": 1761220800,
+  "model": "llava",
+  "system_fingerprint": "fp_ollama",
+  "choices": [
+    {
+      "index": 0,
+      "message": { "role": "assistant", "content": "{\"alt\":\"A red bicycle\"}" },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": { "prompt_tokens": 42, "completion_tokens": 7, "total_tokens": 49 }
+}

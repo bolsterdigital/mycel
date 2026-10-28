@@ -13,7 +13,7 @@
 // Rejected: `hono/secure-headers`, a dependency for five lines whose defaults differ from the
 // web app's (apps/web/src/lib/server/security-headers.ts).
 
-import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { routePath } from 'hono/route';
@@ -36,6 +36,7 @@ import {
 import { createContentReadApp, type ContentReadDeps } from './content-read.js';
 import { coerceQuery, flatQueryFields, methodsOf } from './http-shape.js';
 import { openApiDocument } from './openapi.js';
+import { bearerMatches } from './bearer.js';
 import { createPlatformApp, type PlatformDeps } from './platform.js';
 import { problem } from './problem.js';
 
@@ -82,7 +83,6 @@ const silent: HttpObservability = {
   metricsToken: undefined,
 };
 
-const digest = (value: string) => createHash('sha256').update(value).digest();
 const statusClass = (status: number) => `${Math.floor(status / 100)}xx`;
 
 /**
@@ -160,13 +160,7 @@ export function createApp({
     (await obs.ready()) ? c.json({ db: 'ok' }) : c.json({ db: 'down' }, 503)
   );
   app.get('/metrics', (c) => {
-    const presented = /^Bearer\s+(\S+)\s*$/i.exec(c.req.header('authorization') ?? '')?.[1];
-    if (
-      !obs.metricsToken ||
-      !presented ||
-      !timingSafeEqual(digest(presented), digest(obs.metricsToken))
-    )
-      return c.notFound();
+    if (!bearerMatches(c.req.header('authorization'), obs.metricsToken)) return c.notFound();
     return c.body(obs.metrics.render(), 200, { 'content-type': METRICS_CONTENT_TYPE });
   });
   app.get('/openapi.json', (c) => c.json(openapi));

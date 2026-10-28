@@ -1,7 +1,7 @@
 // The `mycel` command line without a database: the argument parser, and `setup` against the
 // memory ports (invite and hostnames go through the real use cases; only tenant creation, a
 // platform function on the operator connection, is a stand-in). The same run against Postgres
-// is setup.conformance.test.ts.
+// is setup.test.ts.
 
 import { describe, expect, it } from 'vitest';
 import {
@@ -210,6 +210,16 @@ describe('runSetup', () => {
     // The DNS instruction is printed again, with the same token.
     const txt = (r: typeof first) => r.lines.find((l) => l.includes('TXT'));
     expect(txt(second)).toBe(txt(first));
+  });
+
+  it('finds its own internationalised hostname on a second run', async () => {
+    // The use case stores punycode; the rerun must compare against the same normalisation.
+    const { deps } = harness();
+    const idn = { ...input, hostname: 'Bücher.Example.org' };
+    await runSetup(deps, idn);
+    const second = await runSetup(deps, idn);
+    expect(second.changed).toBe(false);
+    expect(second.lines.join('\n')).toContain('xn--bcher-kva.example.org exists');
   });
 
   it('leaves an existing tenant as it is and notes a different name', async () => {

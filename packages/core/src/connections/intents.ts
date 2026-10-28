@@ -5,6 +5,7 @@ import type { TransactionContext } from '../ports.js';
 import { UseCaseError } from '../errors.js';
 import { defineUseCase } from '../registry.js';
 import { can, grants } from '../principal.js';
+import { isTombstone } from '../supporters/erasure.js';
 import { sha256Hex } from '../util/digest.js';
 import { PROVIDER_RECONCILES, type ConnectionProvider } from './ports.js';
 import { isSyntheticIntent, SYNTHETIC_SCOPE, SYNTHETIC_SOURCE } from './synthetic.js';
@@ -129,7 +130,7 @@ export async function connectionIntentGuard(
   if (synthetic) return null;
   if (!row.supporterId || (await ctx.connectionIntents.erased(row.supporterId))) return 'erasure';
   const supporter = await ctx.supporters.getProjectionById(row.supporterId);
-  if (!supporter || supporter.email.endsWith('@erased.invalid')) return 'erasure';
+  if (!supporter || isTombstone(supporter.email)) return 'erasure';
   if (!supporter.lists.includes(row.scope)) return 'consent';
   return null;
 }

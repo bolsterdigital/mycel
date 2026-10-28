@@ -1,7 +1,7 @@
 // The handler registry over in-memory ports: a tenant job runs in its tenant's unit of work as a
 // system principal with the tenant's current status, a platform job never runs with a tenant,
 // and every job type has a handler.
-// The platform handlers' SQL is proven in packages/db/src/jobs.conformance.test.ts.
+// The platform handlers' SQL is proven in packages/db/src/jobs.test.ts.
 
 import { describe, expect, it } from 'vitest';
 import {

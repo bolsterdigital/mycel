@@ -4,7 +4,7 @@
 //   repositories.ts: memberships and keys under RLS, operators only through the `member_read`
 //   policy and the `operator_for_invite` function.
 // * `createIdentityStore` answers authentication before a tenant context exists. Each call is one
-//   transaction that switches to `mycel_auth` with `set local role`, the pattern of
+//   transaction that switches to `mycel_auth` through `asRole`, the pattern of
 //   `drainOutbox` (mycel_worker) and `sweepRateLimits` (mycel_janitor). Its connection is the
 //   `mycel_authenticator` login, which can do nothing but enter that role.
 
@@ -28,6 +28,7 @@ import {
   type OperatorRepository,
 } from '@mycel/core';
 import type { Database } from './schema.js';
+import { advisoryLock, asRole } from './roles.js';
 
 type Trx = Kysely<Database>;
 const iso = (d: Date | string | null) => (d === null ? null : new Date(d).toISOString());
@@ -65,9 +66,7 @@ export function membershipRepository(trx: Trx, tenantId: string): MembershipRepo
   });
   return {
     async lock() {
-      await sql`select pg_advisory_xact_lock(hashtextextended(${`members:${tenantId}`}, 0))`.execute(
-        trx
-      );
+      await advisoryLock(trx, 'members', tenantId);
     },
     async list() {
       return (await members().orderBy('o.email').orderBy('m.operator_id').execute()).map(toMember);
@@ -218,11 +217,7 @@ export function createIdentityStore(
   ids: Ids,
   clock: Clock = { now: () => new Date() }
 ): IdentityStore {
-  const asAuth = <T>(fn: (trx: Trx) => Promise<T>): Promise<T> =>
-    authDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_auth`.execute(trx);
-      return fn(trx);
-    });
+  const asAuth = <T>(fn: (trx: Trx) => Promise<T>): Promise<T> => asRole(authDb, 'mycel_auth', fn);
   const returning = ['id', 'email', 'name', 'email_verified_at', 'last_login_at'] as const;
 
   return {

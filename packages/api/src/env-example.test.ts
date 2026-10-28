@@ -58,6 +58,8 @@ const NOT_IN_EXAMPLE: Record<string, string> = {
   E2E_OIDC_PORT: 'test harness',
   E2E_WORKER_PORT: 'test harness',
   CI: 'set by the CI runner',
+  PATH: 'operating system, passed through by scripts/test-collect.mjs',
+  HOME: 'operating system, passed through by scripts/test-collect.mjs',
   GITHUB_REPOSITORY: 'GitHub Actions repository identity, quality baseline lookup',
   GITHUB_RUN_ID: 'GitHub Actions run identity, excludes itself from baseline lookup',
   GITHUB_RUN_ATTEMPT: 'GitHub Actions attempt identity, required quality artifact provenance',

@@ -7,13 +7,12 @@
 // Their shape is in docs/reference/platform-api.md; the functions behind them are
 // packages/db/src/platform.ts, which `npm run platform` calls too.
 //
-// One bearer token, PLATFORM_API_TOKEN, compared in constant time over SHA-256 digests (equal
-// length whatever the caller sends). Without the variable the routes do not exist: a self-hoster
-// manages tenants with the CLI. Every mutation writes its audit row in its own transaction
+// One bearer token, PLATFORM_API_TOKEN, compared by `bearerMatches` (constant time over SHA-256
+// digests). Without the variable the routes do not exist: a self-hoster manages tenants with the
+// CLI. Every mutation writes its audit row in its own transaction
 // (packages/db/src/platform.ts, TODO #17b); the server log keeps one operational line. Rejected:
 // a `platform:admin` capability on an API key (keys are tenant data under forced RLS).
 
-import { createHash, timingSafeEqual } from 'node:crypto';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {
@@ -26,6 +25,7 @@ import {
   type ErrorReporter,
   type Logger,
 } from '@mycel/core';
+import { bearerMatches } from './bearer.js';
 import { problem } from './problem.js';
 
 /** A tenant as the platform API answers it: the stored document and the effective one. */
@@ -93,8 +93,6 @@ export interface PlatformDeps {
   errors?: ErrorReporter | undefined;
 }
 
-const digest = (value: string) => createHash('sha256').update(value).digest();
-
 const CreateTenant = z
   .object({
     slug: z.string(),
@@ -141,12 +139,10 @@ const found = <T>(value: T | null): T => {
 };
 
 export function createPlatformApp({ token, store, log = noopLogger, errors }: PlatformDeps): Hono {
-  const expected = digest(token);
   const app = new Hono();
 
   app.use('*', async (c, next) => {
-    const presented = /^Bearer\s+(\S+)\s*$/i.exec(c.req.header('authorization') ?? '')?.[1];
-    if (!presented || !timingSafeEqual(digest(presented), expected))
+    if (!bearerMatches(c.req.header('authorization'), token))
       return problem('unauthorized', 'send Authorization: Bearer <platform token>', [], {
         'www-authenticate': 'Bearer',
       });

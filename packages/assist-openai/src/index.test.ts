@@ -1,4 +1,6 @@
-// Recorded response shapes exercise the provider boundary without a network or tenant data.
+// Provider answers come from files in ../fixtures: the OpenAI chat-completion object as Ollama's
+// compatible endpoint returns it (the live test below runs against that endpoint), with every
+// field and placeholder content, so the boundary is exercised without a network or tenant data.
 import { readFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { describe, expect, it, vi } from 'vitest';
@@ -7,7 +9,7 @@ import { TextModelError } from '@mycel/core';
 import { OpenAITextModel } from './index.js';
 
 const fixture = (name: string) =>
-  JSON.parse(readFileSync(new URL(`fixtures/${name}.json`, import.meta.url), 'utf8'));
+  JSON.parse(readFileSync(new URL(`../fixtures/${name}.json`, import.meta.url), 'utf8'));
 const output = z.object({ alt: z.string().min(1) }).strict();
 const request = {
   task: 'alt' as const,
@@ -51,7 +53,7 @@ it('sends a schema-bound image request without an identifying user field', async
   const model = new OpenAITextModel({ ...options, fetch: fetcher as typeof fetch });
   expect(await model.complete(request)).toEqual({
     json: { alt: 'A red bicycle' },
-    model: 'vision-fixture',
+    model: 'llava',
     usage: { inputTokens: 42, outputTokens: 7 },
   });
   expect(fetcher).toHaveBeenCalledOnce();
@@ -133,7 +135,9 @@ describe('failure classification', () => {
     [429, 'unavailable'],
     [503, 'unavailable'],
   ] as const)('maps HTTP %i to %s without disclosing response text', async (status, failure) => {
-    const fetcher = vi.fn(async () => new Response('secret from provider', { status }));
+    const fetcher = vi.fn(
+      async () => new Response(JSON.stringify(fixture('error-rate-limit')), { status })
+    );
     const model = new OpenAITextModel({ ...options, fetch: fetcher as typeof fetch });
     await expect(model.complete(request)).rejects.toEqual(new TextModelError(failure));
     expect(fetcher).toHaveBeenCalledOnce();

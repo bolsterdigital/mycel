@@ -8,6 +8,7 @@ import { sql, type Kysely } from 'kysely';
 import { JOB_LEASE_SECONDS } from './jobs.js';
 import { MAX_ATTEMPTS } from './outbox.js';
 import type { Database } from './schema.js';
+import { asRole } from './roles.js';
 
 export interface QueueLag {
   /** Age of the oldest event still owed to a subscriber and not dead; 0 when there is none. */
@@ -22,8 +23,7 @@ export interface QueueLag {
 
 /** The four queue numbers, in one transaction as mycel_worker. */
 export async function queueLag(operatorDb: Kysely<Database>): Promise<QueueLag> {
-  return operatorDb.transaction().execute(async (trx) => {
-    await sql`set local role mycel_worker`.execute(trx);
+  return asRole(operatorDb, 'mycel_worker', async (trx) => {
     // Both scans stay inside the partial indexes `outbox_pending` and `jobs_due`.
     const { rows } = await sql<{
       outbox_lag: string;
@@ -64,8 +64,7 @@ export async function deleteFinishedJobs(
 ): Promise<number> {
   let total = 0;
   for (;;) {
-    const n = await operatorDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_worker`.execute(trx);
+    const n = await asRole(operatorDb, 'mycel_worker', async (trx) => {
       const { rows } = await sql<{ n: string }>`
         with gone as (
           delete from jobs where id in (

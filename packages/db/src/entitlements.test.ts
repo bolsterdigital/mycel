@@ -174,13 +174,12 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
       return state;
     });
 
-  it('gives mycel_platform no login, no superuser and no RLS bypass', async () => {
+  // RLS bypass for every role is held in one place, rls.conformance.test.ts.
+  it('gives mycel_platform no login and no superuser', async () => {
     const { rows } = await as(operatorUrl!, (c) =>
-      c.query(
-        `select rolcanlogin, rolsuper, rolbypassrls from pg_roles where rolname = 'mycel_platform'`
-      )
+      c.query(`select rolcanlogin, rolsuper from pg_roles where rolname = 'mycel_platform'`)
     );
-    expect(rows).toEqual([{ rolcanlogin: false, rolsuper: false, rolbypassrls: false }]);
+    expect(rows).toEqual([{ rolcanlogin: false, rolsuper: false }]);
   });
 
   it('lets mycel_platform touch tenants and platform hostnames only, as the grants say', async () => {

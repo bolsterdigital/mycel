@@ -1,7 +1,7 @@
 // Media over HTTP (TODO #10): the base64 JSON body is the contract an integration and an agent
 // share, so an upload, a read, the capability check and the size limits are proven here once.
-// The registry conformance already covers the generic shapes (400, 403, OpenAPI) of every
-// operation; this file keeps what is specific to a file in a JSON body.
+// The registry conformance already covers the generic shapes (400, 403 without the capability,
+// OpenAPI) of every operation; this file keeps what is specific to a file in a JSON body.
 
 import { describe, expect, it } from 'vitest';
 import {
@@ -63,17 +63,6 @@ describe('media over HTTP', () => {
     });
     expect(listed.status).toBe(200);
     expect(await listed.json()).toMatchObject({ items: [{ id: media.id }], nextCursor: null });
-  });
-
-  it('refuses without media:read, and an upload without media:write', async () => {
-    const { post } = setup();
-    expect((await post('media.list', {}, 'content')).status).toBe(403);
-    const upload = await post(
-      'media.upload',
-      { filename: 'p.png', contentType: 'image/png', bytes: EXAMPLE_PNG },
-      'reader'
-    );
-    expect(upload.status).toBe(403);
   });
 
   it('refuses SVG and a lie about the type as invalid input', async () => {

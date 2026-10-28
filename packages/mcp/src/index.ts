@@ -91,10 +91,24 @@ export function createMcpServer(
         const input = Object.fromEntries(
           Object.entries(variables).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v])
         );
-        const result = await invoker.call(await principal(), useCase.name, input);
-        return {
-          contents: [{ uri: uri.href, mimeType: 'application/json', text: asText(result) }],
-        };
+        try {
+          const result = await invoker.call(await principal(), useCase.name, input);
+          return {
+            contents: [{ uri: uri.href, mimeType: 'application/json', text: asText(result) }],
+          };
+        } catch (e) {
+          // A resource read has no `isError` result, so a refusal is a protocol error carrying the
+          // same `{ code, message, issues }` as a tool; anything else would reach the client with
+          // its own message, which is why it is reported and replaced as the tools do.
+          if (e instanceof UseCaseError)
+            throw new McpError(ErrorCode.InvalidParams, e.message, {
+              code: e.code,
+              message: e.message,
+              issues: e.issues,
+            });
+          errors?.capture(e, { tags: { resource: useCase.name } });
+          throw new McpError(ErrorCode.InternalError, 'internal error');
+        }
       }
     );
   }

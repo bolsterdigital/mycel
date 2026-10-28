@@ -11,6 +11,7 @@
       "paths": [
         "packages/db/migrations/**",
         "packages/db/src/rls*",
+        "packages/db/src/roles*",
         "packages/db/src/platform*",
         "packages/db/src/operators*",
         "packages/db/src/connections*",
@@ -29,6 +30,7 @@
         "packages/core/src/audit/**",
         "packages/core/src/util/scrub*",
         "packages/api/src/auth*",
+        "packages/api/src/bearer*",
         "packages/api/src/signer.ts",
         "packages/api/src/platform*",
         "apps/web/src/hooks.server.ts",
@@ -67,12 +69,14 @@
       "adrs": ["002", "009", "011", "014", "016", "019", "024"],
       "gates": [
         "packages/db/src/rls.conformance.test.ts",
-        "packages/db/src/connections.conformance.test.ts",
-        "packages/api/src/auth.conformance.test.ts",
+        "packages/db/src/connections.test.ts",
+        "packages/api/src/auth-runtime.test.ts",
         "packages/api/src/redaction.conformance.test.ts",
         "packages/db/src/erasures.conformance.test.ts",
-        "packages/db/src/erasure-backups.conformance.test.ts",
-        "packages/db/src/login-limit.conformance.test.ts",
+        "packages/db/src/erasure-backups.test.ts",
+        "packages/db/src/adapter-rules.test.ts",
+        "scripts/db-roles.test.mjs",
+        "packages/db/src/login-limit.test.ts",
         "apps/web/src/lib/server/security-headers.test.ts",
         "scripts/gitleaks.test.mjs",
         ".github/workflows/verify.yml"
@@ -94,8 +98,8 @@
       "adrs": ["004", "012", "017", "020"],
       "gates": [
         "packages/core/src/content/blocks.conformance.test.ts",
-        "packages/db/src/content.conformance.test.ts",
-        "packages/db/src/content-operations.conformance.test.ts",
+        "packages/db/src/content.test.ts",
+        "packages/db/src/content-operations.test.ts",
         "apps/web/src/lib/server/content-route.test.ts"
       ],
       "counterproof": "One editorial task written in plain words (find, place, publish, correct) walked through the real routes."
@@ -120,8 +124,8 @@
         "packages/core/src/registry.conformance.test.ts",
         "packages/api/src/registry.conformance.test.ts",
         "packages/mcp/src/registry.conformance.test.ts",
-        "packages/api/src/platform.conformance.test.ts",
-        "packages/api/src/content-read.conformance.test.ts"
+        "packages/api/src/platform.test.ts",
+        "packages/api/src/content-read.test.ts"
       ],
       "counterproof": "The same call through HTTP and through the MCP tool, with the capability missing and with the old payload shape."
     },
@@ -172,7 +176,7 @@
       "gates": [
         "apps/web/e2e/content-routes.spec.ts",
         "apps/web/src/lib/server/http-cache.test.ts",
-        "packages/api/src/content-read.conformance.test.ts"
+        "packages/api/src/content-read.test.ts"
       ],
       "counterproof": "The same item in both locales through HTML and JSON, with a conditional GET after the cache lifetime has passed."
     },
@@ -192,10 +196,12 @@
         "packages/db/src/recovery*",
         "packages/db/src/export*",
         "packages/db/src/media*",
+        "packages/db/src/assist*",
         "packages/api/src/worker*",
         "packages/api/src/jobs.ts",
         "packages/api/src/health*",
         "packages/mail-tem/**",
+        "packages/assist-openai/**",
         "packages/blob/**",
         "packages/media-sharp/**",
         "docker/**",
@@ -213,12 +219,12 @@
       ],
       "adrs": ["005", "011", "019"],
       "gates": [
-        "packages/db/src/jobs.conformance.test.ts",
-        "packages/db/src/recovery.conformance.test.ts",
-        "packages/db/src/mailing.conformance.test.ts",
-        "packages/db/src/migrate.conformance.test.ts",
+        "packages/db/src/jobs.test.ts",
+        "packages/db/src/recovery.test.ts",
+        "packages/db/src/mailing.test.ts",
+        "packages/db/src/migrate.test.ts",
         "packages/db/src/export.conformance.test.ts",
-        "packages/api/src/mail.conformance.test.ts",
+        "packages/api/src/mail.test.ts",
         "packages/blob/src/blob.conformance.test.ts",
         ".github/workflows/restore-drill.yml",
         "scripts/compose-proof.sh"

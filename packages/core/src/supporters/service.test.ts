@@ -1,5 +1,5 @@
 // Fold and identity in memory (ADR 019 rules 1 and 2). The lock is a Postgres property; its test
-// is the concurrency case in packages/db/src/supporters.conformance.test.ts.
+// is the concurrency case in packages/db/src/supporters.test.ts.
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { Invoker } from '../invoke.js';
