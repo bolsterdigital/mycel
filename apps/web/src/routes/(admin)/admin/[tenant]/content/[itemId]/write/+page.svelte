@@ -7,11 +7,12 @@
   import { Editor, type JSONContent } from '@tiptap/core';
   import MarkdownIt from 'markdown-it';
   import { DOMParser as PMDOMParser } from '@tiptap/pm/model';
-  import { isSafeHref } from '@mycel/core';
   import { articleExtensions } from '#lib/editor/article-extensions.js';
   import Diff from '#lib/admin/Diff.svelte';
   import { ui } from '../../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
+
+  let isSafeHref: (typeof import('@mycel/core'))['isSafeHref'] = () => false;
 
   let { data }: PageProps = $props();
   const t = $derived(ui(data.locale));
@@ -254,6 +255,8 @@
   }
 
   onMount(() => {
+    let disposed = false;
+    let instance: Editor | undefined;
     revisionId = data.revisionId;
     const beforeUnload = (event: BeforeUnloadEvent) => {
       if (saveStatus !== 'saved' || pending.length) {
@@ -262,51 +265,59 @@
       }
     };
     window.addEventListener('beforeunload', beforeUnload);
-    const instance = new Editor({
-      element,
-      extensions: articleExtensions,
-      content: data.editor as JSONContent,
-      editorProps: {
-        attributes: { 'aria-label': t('admin.editor.surface') },
-        handlePaste: (_view, event) => paste(event),
-        handleKeyDown: (_view, event) => {
-          if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
-            event.preventDefault();
-            void save();
-            return true;
-          }
-          if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-            event.preventDefault();
-            setLink();
-            return true;
-          }
-          if (event.key === '/' && !event.metaKey && !event.ctrlKey && !event.altKey) {
-            event.preventDefault();
-            insertLink?.focus();
-            return true;
-          }
-          if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
-            const index = instance.state.doc.resolve(instance.state.selection.from).index(0);
-            const target = index + (event.key === 'ArrowUp' ? -1 : 1);
-            if (target >= 0 && target < instance.state.doc.childCount) {
-              const json = instance.getJSON();
-              const nodes = [...(json.content ?? [])];
-              [nodes[index], nodes[target]] = [nodes[target]!, nodes[index]!];
-              instance.commands.setContent({ type: 'doc', content: nodes });
+    // Load the core schemas after articleExtensions has disabled Zod's CSP-hostile JIT probe.
+    void import('@mycel/core').then(({ isSafeHref: safeHref }) => {
+      if (disposed) return;
+      isSafeHref = safeHref;
+      const mounted = new Editor({
+        element,
+        injectCSS: false,
+        extensions: articleExtensions,
+        content: data.editor as JSONContent,
+        editorProps: {
+          attributes: { 'aria-label': t('admin.editor.surface') },
+          handlePaste: (_view, event) => paste(event),
+          handleKeyDown: (_view, event) => {
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
               event.preventDefault();
+              void save();
               return true;
             }
-          }
-          return false;
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+              event.preventDefault();
+              setLink();
+              return true;
+            }
+            if (event.key === '/' && !event.metaKey && !event.ctrlKey && !event.altKey) {
+              event.preventDefault();
+              insertLink?.focus();
+              return true;
+            }
+            if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+              const index = mounted.state.doc.resolve(mounted.state.selection.from).index(0);
+              const target = index + (event.key === 'ArrowUp' ? -1 : 1);
+              if (target >= 0 && target < mounted.state.doc.childCount) {
+                const json = mounted.getJSON();
+                const nodes = [...(json.content ?? [])];
+                [nodes[index], nodes[target]] = [nodes[target]!, nodes[index]!];
+                mounted.commands.setContent({ type: 'doc', content: nodes });
+                event.preventDefault();
+                return true;
+              }
+            }
+            return false;
+          },
         },
-      },
-      onUpdate: schedule,
+        onUpdate: schedule,
+      });
+      instance = mounted;
+      editor = mounted;
     });
-    editor = instance;
     return () => {
+      disposed = true;
       if (timer) clearTimeout(timer);
       window.removeEventListener('beforeunload', beforeUnload);
-      instance.destroy();
+      instance?.destroy();
     };
   });
 </script>
@@ -528,6 +539,9 @@
     overflow-wrap: anywhere;
   }
   .writing-surface :global(.ProseMirror) {
+    position: relative;
+    white-space: break-spaces;
+    font-variant-ligatures: none;
     min-height: 18rem;
     outline-offset: 0.25rem;
   }

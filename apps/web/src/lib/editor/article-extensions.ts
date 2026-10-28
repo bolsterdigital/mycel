@@ -3,6 +3,11 @@
 // schema. Rejected: StarterKit defaults, which would silently admit blockquotes and code blocks.
 import { Extension, Mark, Node } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
+import { z } from 'zod';
+
+// This module loads before the writer's core schemas. Zod's JIT probe uses Function(), which
+// strict CSP reports even when Zod catches the error.
+z.config({ jitless: true });
 
 const ArticleDocument = Node.create({
   name: 'doc',

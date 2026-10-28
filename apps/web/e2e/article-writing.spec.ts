@@ -84,11 +84,29 @@ test('article prose saves through the native form or the enhanced editor', async
     await expect(page).toHaveURL(/\?done=blockSaved/);
     await expect(page.locator(`a[href="${edit}/write"]`)).toBeVisible();
   } else {
+    const consoleErrors: string[] = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleErrors.push(message.text());
+    });
+    await page.addInitScript(() => {
+      (window as Window & { writerCspViolations: string[] }).writerCspViolations = [];
+      window.addEventListener('securitypolicyviolation', (event) => {
+        (window as Window & { writerCspViolations: string[] }).writerCspViolations.push(
+          `${event.violatedDirective}: ${event.blockedURI}`
+        );
+      });
+    });
     await page.locator(`a[href="${edit}/write"]`).click();
     const writing = page.locator('.writing-surface .ProseMirror');
     await expect(writing).toBeVisible();
     await writing.locator('p').first().fill('Nieuwe tekst');
     await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');
+    expect(
+      await page.evaluate(
+        () => (window as Window & { writerCspViolations: string[] }).writerCspViolations
+      )
+    ).toEqual([]);
+    expect(consoleErrors).toEqual([]);
     const { violations } = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
       .analyze();

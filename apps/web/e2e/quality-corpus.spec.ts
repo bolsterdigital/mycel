@@ -253,6 +253,18 @@ test('admin corpus uses the populated shell, native editor and enhanced writer',
   await page.goto(`/admin/probe/content/${id}`);
   await expect(page.getByRole('main')).toContainText('De straat die ruimte maakt');
   await expect(page.locator('.admin-site-name')).toHaveText('Probe');
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
+  await page.addInitScript(() => {
+    (window as Window & { writerCspViolations: string[] }).writerCspViolations = [];
+    window.addEventListener('securitypolicyviolation', (event) => {
+      (window as Window & { writerCspViolations: string[] }).writerCspViolations.push(
+        `${event.violatedDirective}: ${event.blockedURI} (${event.sourceFile}:${event.lineNumber})`
+      );
+    });
+  });
   await page.goto(`/admin/probe/content/${id}/write`);
   await expect(page.locator('.admin-site-name')).toHaveText('Probe');
   if (test.info().project.name === 'a11y')
@@ -261,5 +273,20 @@ test('admin corpus uses the populated shell, native editor and enhanced writer',
     await expect(
       page.getByRole('link', { name: /without JavaScript|zonder JavaScript/i })
     ).toHaveAttribute('href', `/admin/probe/content/${id}`);
+  if (test.info().project.name === 'a11y') {
+    const writing = page.locator('.writing-surface .ProseMirror');
+    expect((await writing.innerText()).trim().split(/\s+/u).length).toBeGreaterThanOrEqual(
+      corpus.public.article.expected.minWords
+    );
+    await expect(writing).toHaveAttribute('contenteditable', 'true');
+    await writing.locator('p').first().click();
+    await writing.press('ArrowRight');
+    expect(
+      await page.evaluate(
+        () => (window as Window & { writerCspViolations: string[] }).writerCspViolations
+      )
+    ).toEqual([]);
+    expect(consoleErrors).toEqual([]);
+  }
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);
 });
