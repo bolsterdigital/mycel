@@ -250,6 +250,7 @@
         "apps/web/src/lib/server/runtime.ts",
         "packages/observability/**",
         "scripts/check-dependency-rules*",
+        "scripts/dead-exports*",
         "docs/architecture/overview.md",
         "packages/*/src/index.ts",
         "packages/db/src/ids.ts",
@@ -261,7 +262,11 @@
         "packages/core/src/util/bytes*"
       ],
       "adrs": ["001", "006", "008", "013"],
-      "gates": ["scripts/check-dependency-rules.mjs", "scripts/check-dependency-rules.test.mjs"],
+      "gates": [
+        "scripts/check-dependency-rules.mjs",
+        "scripts/check-dependency-rules.test.mjs",
+        "scripts/dead-exports.test.mjs"
+      ],
       "counterproof": "Count the call sites the abstraction replaces, or the duplicated lines it removes; a new dependency names what it replaces and its licence."
     },
     {
