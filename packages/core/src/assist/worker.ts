@@ -6,7 +6,7 @@ import type { UnitOfWork } from '../ports.js';
 import { systemPrincipal } from '../principal.js';
 import type { TenantAccess } from '../entitlements/model.js';
 import { mediaKey, variantFile } from '../media/model.js';
-import { AltResult } from './model.js';
+import { AltResult, PENDING_TIMEOUT_MS } from './model.js';
 import {
   TranslationResult,
   decodeTranslation,
@@ -33,7 +33,7 @@ export async function runAssistSuggestion(options: RunOptions): Promise<{ next?:
   const source = await uow.run(principal, async (ctx) => {
     const row = await ctx.assist.get(suggestionId);
     if (!row || row.status !== 'pending') return null;
-    if (now().getTime() - row.createdAt.getTime() > 600_000)
+    if (now().getTime() - row.createdAt.getTime() > PENDING_TIMEOUT_MS)
       return { row, failure: 'timeout' as const };
     const settings = await ctx.assist.settings();
     if (

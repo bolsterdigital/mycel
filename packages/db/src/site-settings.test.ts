@@ -1,10 +1,13 @@
 // #11 E: real Postgres checks the RLS boundary and atomic baseVersion writes that the memory
 // port cannot prove. The generic RLS/export suites also discover site_settings by catalog.
+import { Kysely, PostgresDialect } from 'kysely';
+import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Invoker, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
 import { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } from '@mycel/core/testing';
 import { createDb, createUnitOfWork, migrate, upsertTenant, uuidv7, uuidv7Ids } from './index.js';
 import { DEFAULT_THEME, DEFAULT_CHROME } from '@mycel/core';
+import type { Database } from './schema.js';
 
 const operatorUrl = process.env['DATABASE_URL'];
 const appUrl = process.env['APP_DATABASE_URL'];
@@ -13,7 +16,14 @@ if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
 
 describe.skipIf(!operatorUrl || !appUrl)('site settings conformance', () => {
   const owner = createDb(operatorUrl ?? '');
-  const app = createDb(appUrl ?? '');
+  const queries: string[] = [];
+  // The app connection with a query log, so a test can assert what a read selects.
+  const app = new Kysely<Database>({
+    dialect: new PostgresDialect({ pool: new pg.Pool({ connectionString: appUrl, max: 10 }) }),
+    log: (event) => {
+      if (event.level === 'query') queries.push(event.query.sql);
+    },
+  });
   const invoker = new Invoker(
     buildRegistry(),
     createUnitOfWork(app, {
@@ -132,5 +142,41 @@ describe.skipIf(!operatorUrl || !appUrl)('site settings conformance', () => {
       version: 0,
       active: false,
     });
+  });
+
+  it('stores only what was written, so the other settings follow the defaults', async () => {
+    const principal = systemPrincipal(b, 'test');
+    const chrome = { ...DEFAULT_CHROME, footer: { nl: 'Alleen voet', en: 'Footer only' } };
+    await invoker.run(useCases.updateSiteChrome, principal, { baseVersion: 0, chrome });
+    const row = await owner
+      .selectFrom('site_settings')
+      .select(['theme', 'theme_version', 'chrome_version'])
+      .where('tenant_id', '=', b)
+      .executeTakeFirstOrThrow();
+    expect(row).toEqual({ theme: null, theme_version: 0, chrome_version: 1 });
+    expect(await invoker.run(useCases.getSiteTheme, principal, {})).toEqual({
+      version: 0,
+      value: DEFAULT_THEME,
+    });
+    await expect(
+      invoker.run(useCases.updateSiteTheme, principal, { baseVersion: 1, theme: DEFAULT_THEME })
+    ).rejects.toMatchObject({ code: 'conflict' });
+    expect(
+      await invoker.run(useCases.updateSiteTheme, principal, {
+        baseVersion: 0,
+        theme: { ...DEFAULT_THEME, baseSize: 18 },
+      })
+    ).toMatchObject({ version: 1 });
+  });
+
+  it('reads one brand kind without the other kind’s bytes', async () => {
+    const principal = systemPrincipal(a, 'test');
+    queries.length = 0;
+    await invoker.run(useCases.getBrandAsset, principal, { kind: 'logo' });
+    const read = queries.filter((q) => q.includes('from "site_settings"'));
+    expect(read).toHaveLength(1);
+    expect(read[0]).toContain('"logo_bytes"');
+    expect(read[0]).not.toContain('"font_bytes"');
+    expect(read[0]).not.toContain('*');
   });
 });

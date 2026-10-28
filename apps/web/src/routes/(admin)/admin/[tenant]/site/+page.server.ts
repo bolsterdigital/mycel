@@ -1,6 +1,6 @@
 // Native site settings forms (ADR 009, #11 E): posts are checked in core, including contrast
 // and baseVersion. Rejected: client-only validation or a free CSS editor.
-import { can, Theme, SiteChrome, useCases, UseCaseError } from '@mycel/core';
+import { BRAND_LIMITS, can, Theme, SiteChrome, useCases, UseCaseError } from '@mycel/core';
 import { error, fail } from '@sveltejs/kit';
 import { runtime } from '#lib/server/runtime.js';
 import { requireTenantPrincipal } from '#lib/server/admin.js';
@@ -79,11 +79,7 @@ export const actions: Actions = {
         });
       } else {
         const file = data.get('file');
-        if (
-          !(file instanceof File) ||
-          file.size === 0 ||
-          file.size > (kind === 'logo' ? 2 * 1024 * 1024 : 1024 * 1024)
-        )
+        if (!(file instanceof File) || file.size === 0 || file.size > BRAND_LIMITS[kind])
           return fail(400, { action: 'brand', problem: 'invalid' });
         await runtime().invoker.run(useCases.putBrandAsset, principal, {
           kind,

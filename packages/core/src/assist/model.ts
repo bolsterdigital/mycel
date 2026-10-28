@@ -3,6 +3,9 @@
 
 import { z } from 'zod';
 
+/** A pending proposal older than this has timed out; it also bounds the pending throttle. */
+export const PENDING_TIMEOUT_MS = 600_000;
+
 export const AltResult = z
   .object({
     alt: z

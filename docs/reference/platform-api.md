@@ -84,6 +84,10 @@ Flat keys, the names of ADR 015 rule 2. Missing keys get the default; an empty d
 | `media.storage_max_bytes` | limit             | 50 GiB        | `media.upload` (original plus every variant)              |
 | `operators.max`           | limit             | 50            | `tenant.member.invite` (members plus pending invitations) |
 | `custom_domains.max`      | limit             | 20            | `tenant.hostname.add`                                     |
+| `ai.assist`               | switch            | `true`        | `assist.alt.suggest`, `assist.translation.suggest`        |
+| `ai.monthly_max`          | limit             | 2 000         | the same two, proposals this calendar month               |
+| `ai.pending_max`          | limit             | 3             | the same two, proposals pending in the last ten minutes   |
+| `ai.operator_hourly_max`  | limit             | 30            | the same two, one operator's proposals in the last hour   |
 
 A refused action is `403` with `urn:mycel:problem:limit_exceeded` and an issue naming the key (`entitlements.limit.supporters.max`, `entitlements.feature_off`); the admin and the public pages turn that into "ask your host", never a price. Only growth is blocked: what a tenant already has stays published (ADR 015 rule 7).
 

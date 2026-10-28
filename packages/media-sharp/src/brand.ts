@@ -3,7 +3,7 @@
 // Rejected: passing arbitrary SVG to librsvg or trusting the four WOFF2 magic bytes.
 import { brotliDecompressSync } from 'node:zlib';
 import sharp from 'sharp';
-import type { BrandProcessor } from '@mycel/core';
+import { BRAND_LIMITS, type BrandProcessor } from '@mycel/core';
 
 const bad = (reason: string): never => {
   throw new Error(`site.brand.${reason}`);
@@ -105,7 +105,7 @@ function readBase128(data: Uint8Array, pos: number): [number, number] {
   return bad('font.directory');
 }
 export function validateWoff2(data: Uint8Array): void {
-  if (data.length < 48 || data.length > 1024 * 1024) bad('font.size');
+  if (data.length < 48 || data.length > BRAND_LIMITS.font) bad('font.size');
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   const u16 = (at: number) => view.getUint16(at);
   const u32 = (at: number) => view.getUint32(at);
@@ -171,7 +171,7 @@ export function validateWoff2(data: Uint8Array): void {
 export function createBrandProcessor(): BrandProcessor {
   return {
     async logo(bytes, contentType) {
-      if (bytes.length > 2 * 1024 * 1024) bad('logo.size');
+      if (bytes.length > BRAND_LIMITS.logo) bad('logo.size');
       const svg = contentType === 'image/svg+xml';
       if (
         !svg &&
