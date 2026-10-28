@@ -7,22 +7,25 @@
     Button,
     Card,
     CardGrid,
+    Checkbox,
     Choices,
     DetailPage,
     Dialog,
+    EditPage,
     Field,
     Fieldset,
     FormPage,
     MetaList,
     Notice,
     OverviewPage,
+    Panel,
     PageHeader,
     SettingsPage,
     SettingsSection,
     SystemState,
     Table,
   } from '#lib/admin/ui/index.js';
-  import { ui } from '../../../../../../i18n/index.js';
+  import { fill, ui } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -180,6 +183,94 @@
       </Actions>
     {/snippet}
   </DetailPage>
+{:else if data.pattern === 'edit'}
+  <EditPage
+    {title}
+    locale={data.locale}
+    {breadcrumb}
+    description={t('admin.ui.catalogue.form.titleHint')}
+    asideLabel={t('admin.content.edit.side')}
+  >
+    {#snippet actions()}
+      <Button variant="secondary" href={catalogue}>{t('admin.content.revisions')}</Button>
+      <Button variant="secondary" href={catalogue} target="_blank"
+        >{t('admin.content.revisions.preview')}</Button
+      >
+    {/snippet}
+    {#snippet notices()}
+      {#if saved === 'edit'}
+        <Notice tone="success"><p>{t('admin.content.done.saved')}</p></Notice>
+      {/if}
+    {/snippet}
+    <form method="post" action="?/save" aria-labelledby="ui-edit-fields">
+      <h2 id="ui-edit-fields">{t('admin.content.edit.fields')}</h2>
+      <input type="hidden" name="section" value="edit" />
+      <Fieldset legend={t('admin.content.edit.heading')}>
+        <Field
+          id="ui-edit-title"
+          name="title"
+          label="{t('admin.content.field.title')} (nl)"
+          locale={data.locale}
+          required
+        />
+        <Field
+          id="ui-edit-lead"
+          name="lead"
+          label="{t('admin.content.field.lead')} (nl)"
+          locale={data.locale}
+        />
+      </Fieldset>
+      <Fieldset legend={t('admin.content.edit.seo')} collapsed>
+        <Field
+          id="ui-edit-seo"
+          name="seoTitle"
+          label="{t('admin.content.field.seoTitle')} (nl)"
+          locale={data.locale}
+        />
+        <Checkbox id="ui-edit-noindex" name="noindex" label={t('admin.content.field.noindex')} />
+      </Fieldset>
+      <Actions><Button>{t('admin.content.edit.save')}</Button></Actions>
+    </form>
+    <section aria-labelledby="ui-edit-blocks">
+      <h2 id="ui-edit-blocks">{t('admin.block.title')}</h2>
+      <Panel summary={t('admin.ui.catalogue.panel.summary')} open>
+        <p>{t('admin.ui.catalogue.panel.body')}</p>
+        <Actions stack>
+          <Button variant="secondary" href={here}>{t('admin.block.move.down')}</Button>
+          <Button variant="secondary" href={here}>{t('admin.block.remove')}</Button>
+        </Actions>
+      </Panel>
+    </section>
+    {#snippet aside()}
+      <section aria-labelledby="ui-edit-state">
+        <h2 id="ui-edit-state">{t('admin.content.state')}</h2>
+        <MetaList
+          items={[
+            { term: t('admin.content.type.legend'), value: t('admin.content.type.article') },
+            { term: t('admin.content.slug'), value: '/campaign-poster-final-version-2026' },
+          ]}
+        />
+      </section>
+      <section aria-labelledby="ui-edit-publication">
+        <h2 id="ui-edit-publication">{t('admin.content.publication.title')}</h2>
+        <Card
+          title="{fill(t('admin.content.publication.locale'), { locale: 'nl' })}: {t(
+            'admin.content.status.published'
+          )}, {t('admin.content.status.changes')}"
+        >
+          <p>{t('admin.content.publication.ready')}</p>
+          <Actions stack>
+            <Button href={here}
+              >{fill(t('admin.content.publication.publish'), { locale: 'nl' })}</Button
+            >
+            <Button variant="secondary" href={here}
+              >{fill(t('admin.content.publication.repin'), { locale: 'nl' })}</Button
+            >
+          </Actions>
+        </Card>
+      </section>
+    {/snippet}
+  </EditPage>
 {:else if data.pattern === 'settings'}
   <SettingsPage
     {title}

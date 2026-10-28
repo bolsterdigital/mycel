@@ -21,6 +21,7 @@
     hint,
     error,
     required = false,
+    invalid = false,
     control,
     ...input
   }: {
@@ -30,6 +31,8 @@
     hint?: string | undefined;
     error?: string | undefined;
     required?: boolean;
+    /** Marks the control invalid when its message stands elsewhere (an error summary). */
+    invalid?: boolean;
     control?: Snippet<[ControlAttributes]>;
   } & Omit<HTMLInputAttributes, 'id' | 'required'> = $props();
 
@@ -38,12 +41,12 @@
     id,
     'aria-describedby':
       [hint && `${id}-hint`, error && `${id}-error`].filter(Boolean).join(' ') || undefined,
-    'aria-invalid': error ? 'true' : undefined,
+    'aria-invalid': error || invalid ? 'true' : undefined,
     required,
   });
 </script>
 
-<div class={['ui-field', error && 'invalid']}>
+<div class={['ui-field', (error || invalid) && 'invalid']}>
   <label for={id}
     >{label}{#if required}<span class="ui-required">{` (${t('admin.ui.required')})`}</span
       >{/if}</label

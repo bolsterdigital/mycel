@@ -13,9 +13,11 @@ import {
   Button,
   Card,
   CardGrid,
+  Checkbox,
   Choices,
   DetailPage,
   Dialog,
+  EditPage,
   EmptyState,
   Field,
   Fieldset,
@@ -26,6 +28,7 @@ import {
   OverviewPage,
   PageHeader,
   Pagination,
+  Panel,
   Select,
   SettingsPage,
   SettingsSection,
@@ -101,6 +104,52 @@ describe('Field', () => {
     expect(out).not.toContain('aria-describedby');
     expect(out).not.toContain('aria-invalid');
     expect(out).not.toContain('ui-required');
+  });
+  it('marks a control invalid whose message stands in the summary', () => {
+    const out = html(Field, {
+      id: 'b-1-p-text-nl',
+      label: 'Text (nl)',
+      locale: 'en',
+      invalid: true,
+    });
+    expect(out).toMatch(/^<div class="ui-field invalid">/);
+    expect(out).toMatch(/<input[^>]*aria-invalid="true"/);
+    expect(out).not.toContain('aria-describedby');
+  });
+});
+
+describe('Checkbox', () => {
+  it('is one native checkbox with its label and an optional hint', () => {
+    const out = html(Checkbox, {
+      id: 'noindex',
+      name: 'noindex',
+      label: 'Hide from search engines',
+      checked: true,
+      hint: 'Also from the site search.',
+    });
+    expect(out).toMatch(/<input type="checkbox" id="noindex" name="noindex" checked/);
+    expect(out).toContain('<label for="noindex">Hide from search engines</label>');
+    expect(out).toMatch(/aria-describedby="noindex-hint"/);
+    expect(out).toContain('id="noindex-hint"');
+    expect(html(Checkbox, { id: 'x', name: 'x', label: 'X' })).not.toMatch(
+      /checked|aria-describedby/
+    );
+  });
+});
+
+describe('Panel', () => {
+  it('is a native details named by its summary, open on request, with a hook class', () => {
+    const out = html(Panel, {
+      id: 'block-1',
+      summary: '1. Text: Welcome',
+      open: true,
+      class: 'block',
+      children: text('FORM'),
+    });
+    expect(out).toMatch(/^<details class="ui-panel block" id="block-1" open/);
+    expect(out).toContain('<summary>1. Text: Welcome</summary>');
+    expect(out).toContain('<div class="ui-panel-body"><span>FORM</span></div>');
+    expect(html(Panel, { summary: 'S', children: text('x') })).not.toMatch(/ open/);
   });
 });
 
@@ -188,6 +237,11 @@ describe('Notice and Badge', () => {
     expect(html(Notice, { tone: 'error', children: text('x') })).toContain('role="alert"');
     expect(html(Notice, { tone: 'success', children: text('x') })).toContain('role="status"');
   });
+  it('is no live region as a standing note of a panel', () => {
+    expect(html(Notice, { tone: 'warning', live: false, children: text('x') })).not.toContain(
+      'role='
+    );
+  });
   it('carries its tone as a class around the word', () => {
     expect(html(Badge, { tone: 'warning', children: text('Restricted') })).toBe(
       '<span class="ui-badge warning"><span>Restricted</span></span>'
@@ -233,6 +287,11 @@ describe('Card and CardGrid', () => {
     expect(out).toMatch(/^<article class="ui-card linked">/);
     expect(out).toContain('<h3 class="ui-card-title"><a href="/m/1">poster.jpg</a></h3>');
     expect(out.match(/<a /g)).toHaveLength(1);
+  });
+  it('gives its heading an id for a region that points at it', () => {
+    expect(html(Card, { title: 'Language nl', id: 'publication-nl' })).toContain(
+      '<h3 class="ui-card-title" id="publication-nl">Language nl</h3>'
+    );
   });
   it('renders one list item per card', () => {
     const card = createRawSnippet((item: () => string) => ({
@@ -334,6 +393,22 @@ describe('page patterns', () => {
     const order = ['IMG', 'FACTS', 'FORM', 'DELETE'].map((s) => out.indexOf(s));
     expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(out).toMatch(/<div class="ui-detail-footer">/);
+  });
+
+  it('EditPage: one main and h1, the fields before a named side column', () => {
+    const out = html(EditPage, {
+      title: 'About us',
+      locale: 'en',
+      asideLabel: 'Status and publication',
+      children: text('FIELDS'),
+      aside: text('PUBLISH'),
+      notices: text('SAVED'),
+    });
+    expect(out).toMatch(/^<main class="page admin ui-edit-page">/);
+    expect(out.match(/<h1/g)).toHaveLength(1);
+    expect(out).toContain('<aside class="ui-edit-side" aria-label="Status and publication">');
+    const order = ['SAVED', 'FIELDS', 'PUBLISH'].map((s) => out.indexOf(s));
+    expect(order).toEqual([...order].sort((a, b) => a - b));
   });
 
   it('SettingsPage and SettingsSection: sub-navigation, a form and a confirmation per section', () => {

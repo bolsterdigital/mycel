@@ -11,7 +11,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 const email = 'ui-catalogue@probe.test';
 const editor = 'ui-catalogue-editor@probe.test';
-const PATTERNS = ['overview', 'detail', 'settings', 'form', 'states'] as const;
+const PATTERNS = ['overview', 'detail', 'edit', 'settings', 'form', 'states'] as const;
 
 test.beforeAll(async () => {
   const owner = createDb(process.env['DATABASE_URL']!);
@@ -186,13 +186,21 @@ for (const locale of ['en-GB', 'nl-NL']) {
       await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
       await page.locator('.ui-fold > summary').click();
       expect([...(await overflow(page)), ...(await targets(page))]).toEqual([]);
-      // The stacking group stands in one column: every button as wide as the group.
+      // Each stacking group stands in one column: every button as wide as its group.
       const widths = await page
-        .locator('.ui-actions.stack .ui-button')
-        .evaluateAll((nodes) =>
-          nodes.map((node) => Math.round(node.getBoundingClientRect().width))
+        .locator('.ui-actions.stack')
+        .evaluateAll((groups) =>
+          groups.map(
+            (group) =>
+              new Set(
+                [...group.querySelectorAll('.ui-button')].map((node) =>
+                  Math.round(node.getBoundingClientRect().width)
+                )
+              ).size
+          )
         );
-      expect(new Set(widths).size).toBe(1);
+      expect(widths.length).toBeGreaterThan(1);
+      expect(widths.every((n) => n === 1)).toBe(true);
       await page.screenshot({
         path: test.info().outputPath(`catalogue-320-200-${locale}.png`),
         fullPage: true,

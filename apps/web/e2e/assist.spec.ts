@@ -319,7 +319,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
 
       await page.goto(`${base(page)}/content/new?type=page`);
       await page.getByLabel('Slug').fill(`assist-${test.info().project.name}-${Date.now()}`);
-      await page.getByLabel(/^(Titel|Title) \(nl\)$/).fill('Bronkop');
+      await page.getByLabel(/^(Titel|Title) \(nl\) \((verplicht|required)\)$/).fill('Bronkop');
       await page.getByLabel(/^(Titel|Title) \(en\)$/).fill('English heading');
       await page.getByRole('button', { name: /Concept maken|Create draft/ }).click();
       const edit = new URL(page.url()).pathname;
@@ -353,7 +353,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
         .fill('Edited English heading');
       await acceptWithKeyboard(page);
       await expect(page).toHaveURL(`${edit}?saved=1`);
-      const publication = page.locator('section.publication', {
+      const publication = page.locator('.publication', {
         has: page.locator('#publication-en'),
       });
       await expect(page.locator('details.block')).toHaveCount(0);
@@ -374,7 +374,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
       await permissions(page, ['tenant:admin']);
       await page.reload();
       await page
-        .locator('section.publication', { has: page.locator('#publication-en') })
+        .locator('.publication', { has: page.locator('#publication-en') })
         .getByRole('button', { name: /Vertaling in en goedkeuren|Approve translation in en/ })
         .click();
       await expect(publication).not.toContainText(/Machinevertaling|Machine translation/);
@@ -530,7 +530,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
       });
       await page.reload();
       await expect(page.locator('details.block')).toHaveCount(0);
-      const publication = page.locator('section.publication', {
+      const publication = page.locator('.publication', {
         has: page.locator('#publication-en'),
       });
       await expect(publication).toContainText(/Machinevertaling|Machine translation/);

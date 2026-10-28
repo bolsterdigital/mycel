@@ -8,6 +8,7 @@
     Button,
     Card,
     CardGrid,
+    Checkbox,
     Choices,
     Dialog,
     EmptyState,
@@ -18,6 +19,7 @@
     Notice,
     PageHeader,
     Pagination,
+    Panel,
     Select,
     SubNav,
     Table,
@@ -162,12 +164,30 @@
             { value: 'feed', label: t('admin.ui.catalogue.form.feed') },
           ]}
         />
+        <Checkbox
+          id="ui-noindex"
+          name="noindex"
+          label={t('admin.content.field.noindex')}
+          hint={t('admin.ui.catalogue.form.noindexHint')}
+        />
       </Fieldset>
       <Actions>
         <Button>{t('admin.media.save')}</Button>
         <Button variant="link" href={here}>{t('admin.connections.cancel')}</Button>
       </Actions>
     </form>
+  </section>
+
+  <section aria-labelledby="ui-panel">
+    <h2 id="ui-panel">{t('admin.ui.catalogue.panel')}</h2>
+    <Panel id="ui-panel-open" summary={t('admin.ui.catalogue.panel.summary')} open>
+      <p>{t('admin.ui.catalogue.panel.body')}</p>
+      <Actions stack>
+        <Button variant="secondary">{t('admin.block.move.up')}</Button>
+        <Button variant="secondary">{t('admin.block.move.down')}</Button>
+        <Button variant="secondary" href={here}>{t('admin.block.remove')}</Button>
+      </Actions>
+    </Panel>
   </section>
 
   <section aria-labelledby="ui-table">

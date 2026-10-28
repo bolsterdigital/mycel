@@ -7,6 +7,7 @@
 
   let {
     title,
+    id,
     href,
     level = 3,
     media,
@@ -14,6 +15,8 @@
     footer,
   }: {
     title: string;
+    /** The heading's id, for a region or a link that points at this card. */
+    id?: string | undefined;
     href?: string | undefined;
     level?: 2 | 3 | 4;
     media?: Snippet;
@@ -25,7 +28,7 @@
 <article class={['ui-card', href && 'linked']}>
   {#if media}<div class="ui-card-media">{@render media()}</div>{/if}
   <div class="ui-card-body">
-    <svelte:element this={`h${level}`} class="ui-card-title">
+    <svelte:element this={`h${level}`} class="ui-card-title" {id}>
       {#if href}<a {href}>{title}</a>{:else}{title}{/if}
     </svelte:element>
     {#if children}{@render children()}{/if}

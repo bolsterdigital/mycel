@@ -1,9 +1,13 @@
 <!-- The tenant's admin page: members and API keys (TODO #7), the site's hostnames (TODO #14) and
-     its usage against the limits (TODO #16), with a link to the media library (TODO #10b);
-     its pages and articles have their own pages since TODO #11. Every action is a native form post. Action groups wrap whole
-     buttons onto a new line when they do not fit, and a long label wraps inside its own button
-     at word boundaries (skill ui-action-layout); the e2e specs check 320 CSS px and 200% text. -->
+     its usage against the limits (TODO #16); pages, articles and media have their own screens.
+     Every action is a native form post. Action groups wrap whole buttons onto a new line when
+     they do not fit, and a long label wraps inside its own button at word boundaries (skill
+     ui-action-layout); the e2e specs check 320 CSS px and 200% text.
+     The page shell is on the shared basis (brief #56 § C3): page header, notices, usage as a
+     definition list and capabilities as badges. The members, domains and keys sections are the
+     dev lane's and move over in their own PR (lanes.md). -->
 <script lang="ts">
+  import { Badge, MetaList, Notice, PageHeader } from '#lib/admin/ui/index.js';
   import { fill, ui, type UiKey } from '../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -59,32 +63,31 @@
 {/snippet}
 
 <main class="page admin">
-  <h1>{data.tenant.name}</h1>
+  <PageHeader title={data.tenant.name} locale={data.locale} />
 
   {#if failed}
-    <div class="error-summary" role="alert">
-      <h2>{t('error.summary.title')}</h2>
+    <Notice tone="error" title={t('error.summary.title')}>
       <p>
         {'what' in failed && failed.what
           ? fill(t(failed.error as UiKey), { what: t(failed.what as UiKey) })
           : t(failed.error as UiKey)}
       </p>
-    </div>
+    </Notice>
   {/if}
   {#if done}
-    <div class="notice" role="status">
+    <Notice tone="success">
       <p>{fill(t(done.done as UiKey), vars(done))}</p>
       {#if 'revokedKeys' in done && Number(done.revokedKeys) > 0}
         <p>{fill(t('admin.done.revokedKeys'), { n: Number(done.revokedKeys) })}</p>
       {/if}
-    </div>
+    </Notice>
   {/if}
   {#if verify && !verify.checked}
-    <div class="notice" role="status">
+    <Notice tone="warning">
       <p>{fill(t('admin.domains.done.unavailable'), { hostname: verify.hostname })}</p>
-    </div>
+    </Notice>
   {:else if verify}
-    <div class="notice" role="status">
+    <Notice tone={verify.verified ? 'success' : 'warning'}>
       <p>
         {fill(
           t(verify.verified ? 'admin.domains.done.verified' : 'admin.domains.done.notVerified'),
@@ -107,7 +110,7 @@
             ? fill(t('admin.domains.found.cname'), { target: verify.found.cname })
             : t('admin.domains.found.noCname')}
       </p>
-    </div>
+    </Notice>
   {/if}
   {#if token}
     <section class="notice token" aria-labelledby="token-title">
@@ -118,34 +121,46 @@
   {/if}
 
   {#if data.usage.status === 'suspended'}
-    <div class="notice" role="status">
+    <Notice tone="warning">
       <p>{t('admin.suspended')}</p>
       {#if data.capabilities.includes('tenant:admin')}
         <p><a href="/admin/{data.tenant.slug}/export">{t('admin.suspended.export')}</a></p>
       {/if}
-    </div>
+    </Notice>
   {/if}
 
   <section aria-labelledby="usage">
     <h2 id="usage">{t('admin.usage.title')}</h2>
-    <dl>
-      <dt>{t('admin.usage.supporters')}</dt>
-      <dd>{of(data.usage.supporters.used, data.usage.supporters.max)}</dd>
-      <dt>{t('admin.usage.mail')}</dt>
-      <dd>{of(data.usage.mail.usedThisMonth, data.usage.mail.max)}</dd>
-      <dt>{t('admin.usage.storage')}</dt>
-      <dd>{of(bytes(data.usage.storage.usedBytes), bytes(data.usage.storage.maxBytes))}</dd>
-      <dt>{t('admin.usage.operators')}</dt>
-      <dd>{of(data.usage.operators.used, data.usage.operators.max)}</dd>
-      <dt>{t('admin.usage.customDomains')}</dt>
-      <dd>{of(data.usage.customDomains.used, data.usage.customDomains.max)}</dd>
-    </dl>
+    <MetaList
+      items={[
+        {
+          term: t('admin.usage.supporters'),
+          value: of(data.usage.supporters.used, data.usage.supporters.max),
+        },
+        {
+          term: t('admin.usage.mail'),
+          value: of(data.usage.mail.usedThisMonth, data.usage.mail.max),
+        },
+        {
+          term: t('admin.usage.storage'),
+          value: of(bytes(data.usage.storage.usedBytes), bytes(data.usage.storage.maxBytes)),
+        },
+        {
+          term: t('admin.usage.operators'),
+          value: of(data.usage.operators.used, data.usage.operators.max),
+        },
+        {
+          term: t('admin.usage.customDomains'),
+          value: of(data.usage.customDomains.used, data.usage.customDomains.max),
+        },
+      ]}
+    />
   </section>
 
   <section aria-labelledby="mine">
     <h2 id="mine">{t('admin.yourCapabilities')}</h2>
-    <ul class="tags">
-      {#each data.capabilities as c (c)}<li>{@render capability(c)}</li>{/each}
+    <ul class="ui-badges">
+      {#each data.capabilities as c (c)}<li><Badge>{@render capability(c)}</Badge></li>{/each}
     </ul>
   </section>
 

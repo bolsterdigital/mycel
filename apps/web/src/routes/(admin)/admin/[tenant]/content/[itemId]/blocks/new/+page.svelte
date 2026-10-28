@@ -1,8 +1,9 @@
 <!-- Insert a block (TODO #11 B): the new block's fields, empty, as one native form; the type, the
      place and the revision travel as hidden fields. A refusal re-renders what was typed with the
-     issues linked to their fields. -->
+     issues linked to their fields. On the form pattern (brief #56 § C2). -->
 <script lang="ts">
   import BlockFields from '#lib/admin/BlockFields.svelte';
+  import { FormPage, Notice } from '#lib/admin/ui/index.js';
   import { BLOCK_DEFINITIONS } from '@mycel/core';
   import { fill, ui, type UiKey } from '../../../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
@@ -32,47 +33,51 @@
   <title>{form ? `${t('error.prefix')} ` : ''}{heading} · {t('admin.title')}</title>
 </svelte:head>
 
-<main class="page admin">
-  <h1>{heading}</h1>
-  <p>{fill(t('admin.block.new.where'), { title: data.item.title, where })}</p>
-  <p><a href="{base}/content/{data.item.id}">{t('admin.content.revisions.back')}</a></p>
+<FormPage
+  title={heading}
+  locale={data.locale}
+  breadcrumb={[
+    { label: data.tenant.name, href: base },
+    { label: t('admin.content.title'), href: `${base}/content` },
+    { label: data.item.title, href: `${base}/content/${data.item.id}` },
+    { label: heading },
+  ]}
+  description={fill(t('admin.block.new.where'), { title: data.item.title, where })}
+  submit={t('admin.block.new.submit')}
+  cancel={{ href: `${base}/content/${data.item.id}`, label: t('admin.content.revisions.back') }}
+>
+  {#snippet notices()}
+    {#if form}
+      <Notice tone="error" title={t('error.summary.title')}>
+        {#if form.conflict}
+          <p>{fill(t('admin.block.new.conflict'), form.conflict)}</p>
+        {:else}
+          <p>{t(form.error as UiKey)}</p>
+        {/if}
+        <ul>
+          {#each form.fieldIssues ?? [] as i (i.name + i.copy)}
+            <li>
+              {#if i.name}<a href="#{fieldId(i.name)}">{fieldLabel(i.name)}</a>:
+              {/if}{t(i.copy as UiKey)}
+            </li>
+          {/each}
+        </ul>
+      </Notice>
+    {/if}
+  {/snippet}
 
-  {#if form}
-    <div class="error-summary" role="alert">
-      <h2>{t('error.summary.title')}</h2>
-      {#if form.conflict}
-        <p>{fill(t('admin.block.new.conflict'), form.conflict)}</p>
-      {:else}
-        <p>{t(form.error as UiKey)}</p>
-      {/if}
-      <ul>
-        {#each form.fieldIssues ?? [] as i (i.name + i.copy)}
-          <li>
-            {#if i.name}<a href="#{fieldId(i.name)}">{fieldLabel(i.name)}</a>:
-            {/if}{t(i.copy as UiKey)}
-          </li>
-        {/each}
-      </ul>
-    </div>
-  {/if}
-
-  <form method="post" class="card">
-    <input type="hidden" name="type" value={data.request.type} />
-    <input type="hidden" name="place" value={data.request.place} />
-    <input type="hidden" name="anchor" value={data.request.anchor} />
-    <input type="hidden" name="revision" value={values.revision ?? data.request.revision} />
-    <BlockFields
-      fields={BLOCK_DEFINITIONS[data.request.type].fields}
-      {values}
-      locales={data.docLocales}
-      idPrefix="new"
-      media={data.media}
-      items={data.items}
-      invalid={(form?.fieldIssues ?? []).map((x) => x.name)}
-      locale={data.locale}
-    />
-    <div class="actions">
-      <button type="submit">{t('admin.block.new.submit')}</button>
-    </div>
-  </form>
-</main>
+  <input type="hidden" name="type" value={data.request.type} />
+  <input type="hidden" name="place" value={data.request.place} />
+  <input type="hidden" name="anchor" value={data.request.anchor} />
+  <input type="hidden" name="revision" value={values.revision ?? data.request.revision} />
+  <BlockFields
+    fields={BLOCK_DEFINITIONS[data.request.type].fields}
+    {values}
+    locales={data.docLocales}
+    idPrefix="new"
+    media={data.media}
+    items={data.items}
+    invalid={(form?.fieldIssues ?? []).map((x) => x.name)}
+    locale={data.locale}
+  />
+</FormPage>
