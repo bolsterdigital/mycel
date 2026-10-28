@@ -1,5 +1,5 @@
 // Supporter admissions over Postgres (0010; ADR 015 rule 3 with ADR 019 rule 3, TODO #16): the
-// seats `forms.submit` reserves for addresses whose projection the outbox ingest has not written
+// seats `form.submit` reserves for addresses whose projection the outbox ingest has not written
 // yet. Runs in the use case's own transaction as mycel_app, so a refused submission rolls its
 // reservation back with everything else. `lock` is a transaction-scoped advisory lock per tenant,
 // the pattern of `members.lock()`; `count` is one statement, so supporters and reservations come
@@ -20,7 +20,7 @@ import { advisoryLock } from './roles.js';
 type Trx = Kysely<Database>;
 
 export function supporterAdmissions(trx: Trx, tenantId: string, clock: Clock): SupporterAdmissions {
-  // Like the rate-limit key in forms.submit: the table never holds the address itself.
+  // Like the rate-limit key in form.submit: the table never holds the address itself.
   const hash = (email: string) =>
     createHash('sha256')
       .update(`${tenantId}:${normalizeEmail(email)}`)

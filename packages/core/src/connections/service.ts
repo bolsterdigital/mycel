@@ -90,7 +90,7 @@ const changed = (record: ConnectionRecord | null) => {
 };
 
 export const listConnections = defineUseCase({
-  name: 'connections.list',
+  name: 'connection.list',
   kind: 'query',
   description: 'List this site’s managed external connections without credentials.',
   requires: 'connections:read',
@@ -104,7 +104,7 @@ export const listConnections = defineUseCase({
 });
 
 export const getConnection = defineUseCase({
-  name: 'connections.get',
+  name: 'connection.get',
   kind: 'query',
   description: 'Read one managed connection of this site without its credential.',
   requires: 'connections:read',
@@ -118,7 +118,7 @@ export const getConnection = defineUseCase({
 });
 
 export const createConnection = defineUseCase({
-  name: 'connections.create',
+  name: 'connection.create',
   kind: 'command',
   description: 'Register an external connection with an explicit owner and data authority.',
   requires: 'connections:configure',
@@ -136,7 +136,7 @@ export const createConnection = defineUseCase({
 });
 
 export const updateConnection = defineUseCase({
-  name: 'connections.update',
+  name: 'connection.update',
   kind: 'command',
   description: 'Change a managed connection using its current version.',
   requires: 'connections:configure',
@@ -187,23 +187,23 @@ function stateChange(
 }
 
 export const pauseConnection = stateChange(
-  'connections.pause',
+  'connection.pause',
   'paused',
   'Stop new and pending work for this connection.'
 );
 export const resumeConnection = stateChange(
-  'connections.resume',
+  'connection.resume',
   'active',
   'Allow this credentialed connection to be used again.'
 );
 export const disconnectConnection = stateChange(
-  'connections.disconnect',
+  'connection.disconnect',
   'disconnected',
   'Permanently disconnect this connection and stop its work.'
 );
 
 export const replaceConnectionCredential = defineUseCase({
-  name: 'connections.credential.replace',
+  name: 'connection.credential.update',
   kind: 'command',
   description: 'Replace a connection credential without exposing it in any read result.',
   requires: 'connections:credentials',

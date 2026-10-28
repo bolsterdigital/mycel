@@ -16,7 +16,7 @@ export function isSyntheticIntent(
   );
 }
 
-/** The worker's source for `connections.test`: a fixed payload, never supporter data. */
+/** The worker's source for `connection.test`: a fixed payload, never supporter data. */
 export const syntheticSource: ConnectionSource = {
   async prepare(_ctx, intent) {
     return isSyntheticIntent(intent)

@@ -37,7 +37,7 @@ Ratios are WCAG 2.2 relative luminance, compared unrounded; the report rounds to
 - `ThemeInput` is the structure: shape, ranges, closed sets. A colour that is not `#RRGGBB`, a number out of range (also `NaN`, `Infinity` or a string) or an unknown font pair is refused with a catalogue key (`theme.color.invalid`, `theme.value.out-of-range`, `theme.value.not-allowed`). Absent values take the defaults.
 - `Theme` is what every later write parses: `ThemeInput`, then `checkTheme`, refusing on any contrast issue, then `resolveTheme` so every default is explicit. A given value is never replaced by a fallback.
 
-`theme.check({ theme: ThemeInput })` is a query (`content:read`, `authenticatedOnly`) that returns `{ valid, pairs, issues }`. A shape error is `invalid_input`; a well-formed theme with poor contrast is a report with `valid: false`, so the editor can show which pair fails while the theme cannot be saved. Messages are catalogue keys with Dutch and English text in `packages/core/src/i18n/`.
+`site.theme.check({ theme: ThemeInput })` is a query (`content:read`, `authenticatedOnly`) that returns `{ valid, pairs, issues }`. A shape error is `invalid_input`; a well-formed theme with poor contrast is a report with `valid: false`, so the editor can show which pair fails while the theme cannot be saved. Messages are catalogue keys with Dutch and English text in `packages/core/src/i18n/`.
 
 ## Presets
 

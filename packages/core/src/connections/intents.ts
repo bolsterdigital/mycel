@@ -244,7 +244,7 @@ const asView = (r: ConnectionIntent, provider: ConnectionProvider) => ({
   operatorAction: operatorAction(r, provider),
 });
 export const listConnectionIntents = defineUseCase({
-  name: 'connections.intent.list',
+  name: 'connection.intent.list',
   description: 'List redacted recent delivery status for one managed connection.',
   kind: 'query',
   requires: 'connections:read',
@@ -264,7 +264,7 @@ export const listConnectionIntents = defineUseCase({
 });
 
 export const testConnection = defineUseCase({
-  name: 'connections.test',
+  name: 'connection.test',
   description: 'Queue a signed webhook containing synthetic data only.',
   kind: 'command',
   requires: 'connections:configure',
@@ -321,7 +321,7 @@ const intentWithProvider = async (ctx: TransactionContext, id: string) => {
   return { row, provider: c.provider };
 };
 export const getConnectionIntent = defineUseCase({
-  name: 'connections.intent.get',
+  name: 'connection.intent.get',
   description: 'Read redacted delivery status for one connection intent.',
   kind: 'query',
   requires: 'connections:read',
@@ -335,7 +335,7 @@ export const getConnectionIntent = defineUseCase({
   },
 });
 export const replayConnectionIntent = defineUseCase({
-  name: 'connections.intent.replay',
+  name: 'connection.intent.replay',
   description:
     'Request a guarded retry of a pending intent, or reconciliation of an unknown one where the transport can prove the outcome.',
   kind: 'command',
@@ -365,7 +365,7 @@ export const replayConnectionIntent = defineUseCase({
   },
 });
 export const resolveConnectionIntent = defineUseCase({
-  name: 'connections.intent.resolve',
+  name: 'connection.intent.resolve',
   description:
     'Mark an unknown intent as handled after checking the receiver by hand; it is never sent again.',
   kind: 'command',

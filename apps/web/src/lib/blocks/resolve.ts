@@ -6,7 +6,7 @@
 // What a reference turns into is decided here, and it fails closed:
 //   - media: `media.get`; a restricted, deleted, failed or non-image asset is null, and the block
 //     renders nothing (no figure, no alt, no path). Signed paths for readers are #19.
-//   - forms: `forms.form.get` with a fresh `startedToken`, as the probe did; unknown is null.
+//   - forms: `form.get` with a fresh `startedToken`, as the probe did; unknown is null.
 //   - items: a public path only if the item is published in this locale and its published
 //     revision is `access.level: public`, the rules of `content.published.get`; otherwise null,
 //     so an action without a target is dropped and a text link becomes text. The path follows

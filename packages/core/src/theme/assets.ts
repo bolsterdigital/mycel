@@ -62,7 +62,7 @@ export const getBrandAsset = defineUseCase({
   },
 });
 export const putBrandAsset = defineUseCase({
-  name: 'site.brand.put',
+  name: 'site.brand.update',
   kind: 'command',
   description: 'Replace a site logo or wordmark font at a known settings version.',
   requires: 'content:write',
@@ -129,7 +129,7 @@ export const putBrandAsset = defineUseCase({
   },
 });
 export const removeBrandAsset = defineUseCase({
-  name: 'site.brand.remove',
+  name: 'site.brand.delete',
   kind: 'command',
   description: 'Remove the active site logo or wordmark font at a known version.',
   requires: 'content:write',

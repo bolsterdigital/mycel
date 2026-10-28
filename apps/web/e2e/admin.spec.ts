@@ -73,7 +73,7 @@ test('an admin logs in, makes an API key that works over HTTP, and revokes it', 
 
   expect((await api('/v1/content.published.get?type=page&slug=signup', token)).status).toBe(200);
   // The key's own capabilities: reading content is not managing keys.
-  expect((await api('/v1/tenant.keys.list', token)).status).toBe(403);
+  expect((await api('/v1/tenant.key.list', token)).status).toBe(403);
 
   // Shown once: the next visit lists the key by its prefix only.
   await page.goto('/admin/probe');

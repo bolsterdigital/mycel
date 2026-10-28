@@ -1,6 +1,6 @@
 // Remove a block (brief content-editor § B): a confirmation page of its own, so it works without
 // JavaScript and nothing is removed by one stray click. It names the block and the revision the
-// edit page showed; the POST runs `content.item.remove` with that revision as `baseRevisionId`,
+// edit page showed; the POST runs `content.block.remove` with that revision as `baseRevisionId`,
 // which also merges two text blocks that end up next to each other (ADR 020 rule 4). Rejected: a
 // `confirm()` dialog (needs a script) and removing straight from the edit page.
 import { error, fail, redirect } from '@sveltejs/kit';

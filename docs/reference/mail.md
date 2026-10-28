@@ -26,7 +26,7 @@ Every message has a row in `mail_sends` (migrations 0006, 0013) keyed by `<subsc
 | sent      | `sent_at is not null`                                                                                                         |
 | abandoned | `sent_at is null and abandoned_at is not null`                                                                                |
 
-`correlation` is `sha256(tenant_id || '\n' || lower(recipient) || '\n' || subject)` in hex (a check constraint allows nothing else). Intents that a provider listing cannot tell apart share it; reconciliation counts them. `MailSendsRepository.unresolved(now)` returns the unknown and abandoned rows of a tenant, which is what the site status page shows (`ops.status`). The platform-wide view runs as its own role, `mycel_ops`, under ADR 011 rule 2 ([platform-api.md](platform-api.md)).
+`correlation` is `sha256(tenant_id || '\n' || lower(recipient) || '\n' || subject)` in hex (a check constraint allows nothing else). Intents that a provider listing cannot tell apart share it; reconciliation counts them. `MailSendsRepository.unresolved(now)` returns the unknown and abandoned rows of a tenant, which is what the site status page shows (`ops.status.get`). The platform-wide view runs as its own role, `mycel_ops`, under ADR 011 rule 2 ([platform-api.md](platform-api.md)).
 
 ## Sending: one claim, three transactions
 

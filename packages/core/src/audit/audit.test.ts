@@ -235,10 +235,7 @@ describe('audit.list', () => {
 
   it('pages newest first, without the input hash', async () => {
     const first = await invoker.run(useCases.listAudit, admin(), { limit: 2 });
-    expect(first.items.map((r) => r.operation)).toEqual([
-      'tenant.keys.create',
-      'tenant.keys.create',
-    ]);
+    expect(first.items.map((r) => r.operation)).toEqual(['tenant.key.create', 'tenant.key.create']);
     expect(first.items[0]).not.toHaveProperty('inputHash');
     expect(first.nextCursor).toBe(first.items[1]!.id);
     const rest = await invoker.run(useCases.listAudit, admin(), {

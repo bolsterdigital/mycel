@@ -77,7 +77,7 @@ export async function ingest(ctx: TransactionContext, event: SupporterEvent): Pr
   await ctx.supporters.lock(event.email);
   const { id } = await ctx.supporters.resolve(event.email);
   const appended = await appendAndFold(ctx, { ...event, supporter_id: id });
-  // The projection exists now (or did already): the seat `forms.submit` reserved is taken by it,
+  // The projection exists now (or did already): the seat `form.submit` reserved is taken by it,
   // in this same transaction, so the address is never counted twice (TODO #16). Under the
   // admission lock, after the address lock (always in that order, so no deadlock): a submit
   // that is between its projection check and its reservation finishes first, and the release
@@ -117,7 +117,7 @@ export function supporterIngestSubscriber(uow: UnitOfWork): Subscriber {
 }
 
 export const getSupporter = defineUseCase({
-  name: 'supporters.get',
+  name: 'supporter.get',
   kind: 'query',
   description:
     'Get the supporter projection (id, first seen, last activity, confirmed and pending lists) by e-mail address.',
@@ -134,7 +134,7 @@ export const getSupporter = defineUseCase({
 });
 
 export const changeSupporterEmail = defineUseCase({
-  name: 'supporters.email.change',
+  name: 'supporter.email.update',
   kind: 'command',
   description:
     'Change the e-mail address of a supporter; the change is a logged event, never an overwrite.',

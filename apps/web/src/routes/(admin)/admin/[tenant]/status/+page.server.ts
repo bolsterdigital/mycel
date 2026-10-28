@@ -1,6 +1,6 @@
 // The status page of a site (TODO #17c, brief observability-c-recovery decisions 4 to 6): its
 // stuck jobs, its mail with an uncertain outcome, the latest actions and the diagnosis to share,
-// all from `ops.status`; per job "try again" and "close", native form posts through the same use
+// all from `ops.status.get`; per job "try again" and "close", native form posts through the same use
 // cases HTTP and MCP expose. Closing asks first: without JavaScript there is no `confirm()`, so the
 // first post answers with a confirmation and only a second post with `confirm=yes` closes.
 // Rejected: a `confirm()` on the button (needs JavaScript, and a no-JS post would close at once)

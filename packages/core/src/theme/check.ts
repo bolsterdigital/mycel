@@ -1,4 +1,4 @@
-// The one contrast check of a theme (ADR 013 rule 1, WCAG 2.2): `theme.check` reports it and
+// The one contrast check of a theme (ADR 013 rule 1, WCAG 2.2): `site.theme.check` reports it and
 // `Theme` refuses on it, so the editor's explanation and the write can never disagree. Every
 // text pair needs 4.5:1; body text at 7:1 is reported as AAA, not required. Links need 4.5:1 on
 // body and surface, the focus indicator 3:1 on every role background it can appear on. Ratios are
