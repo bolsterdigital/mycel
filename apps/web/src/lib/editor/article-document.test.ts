@@ -12,7 +12,12 @@ const throughEditorSchema = (document: ContentDocument, locale: string) =>
 
 const blocks = BLOCK_TYPES.flatMap((type) =>
   BLOCK_DEFINITIONS[type].examples.map((example, i) =>
-    Block.parse({ id: `${type}-${i}`, type, version: 1, props: example.props })
+    Block.parse({
+      id: `${type}-${i}`,
+      type,
+      version: BLOCK_DEFINITIONS[type].version,
+      props: example.props,
+    })
   )
 );
 const base = (block: (typeof blocks)[number]) =>

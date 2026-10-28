@@ -64,8 +64,8 @@ export type BlockField =
   | { key: string; kind: 'group'; optional?: 'omit' | 'null'; fields: readonly BlockField[] }
   | { key: string; kind: 'list'; min: number; max: number; fields: readonly BlockField[] };
 
-export interface BlockDefinition<S extends z.ZodTypeAny> {
-  version: 1;
+export interface BlockDefinition<S extends z.ZodTypeAny, V extends number = number> {
+  version: V;
   props: S;
   /** One per prop, in the order the form shows them. */
   fields: readonly BlockField[];
@@ -77,7 +77,7 @@ export interface BlockDefinition<S extends z.ZodTypeAny> {
   examples: readonly BlockExample<z.input<S>>[];
 }
 
-const define = <S extends z.ZodTypeAny>(d: BlockDefinition<S>): BlockDefinition<S> => d;
+const define = <S extends z.ZodTypeAny, V extends number>(d: BlockDefinition<S, V>) => d;
 
 // Text bounds shared by the cards (brief #8b2 § 1).
 const ShortText = z.string().min(1).max(200);
@@ -541,10 +541,11 @@ export const BLOCK_DEFINITIONS = {
   }),
 
   faq: define({
-    version: 1,
+    version: 2,
     props: z
       .object({
         variant: z.enum(FAQ_VARIANTS).default('list'),
+        width: Width.default('content'),
         title: localized(ShortText).optional(),
         // Entries are props, not blocks: no ids, no block operations on them.
         entries: z
@@ -565,8 +566,9 @@ export const BLOCK_DEFINITIONS = {
         max: 30,
         fields: [textField('question', { localized: true }), { key: 'answer', kind: 'rich-text' }],
       },
+      choice('width', WIDTHS),
     ],
-    variants: { variant: FAQ_VARIANTS },
+    variants: { variant: FAQ_VARIANTS, width: WIDTHS },
     localized: (p) => [
       ...present(['title'], p.title),
       ...p.entries.flatMap((e, i) => [
@@ -607,6 +609,34 @@ export const BLOCK_DEFINITIONS = {
           ],
         },
       },
+      ...(['list', 'accordion'] as const).flatMap((variant) =>
+        (['wide', 'full'] as const).map((width) => ({
+          name: `faq-${variant}-${width}`,
+          props: {
+            variant,
+            width,
+            title: { nl: 'Veelgestelde vragen', en: 'Frequently asked questions' },
+            entries: [
+              {
+                question: {
+                  nl:
+                    width === 'full'
+                      ? 'Wat gebeurt er met mijn gegevens als ik aan deze lange campagne meedoe en later mijn keuze wil aanpassen?'
+                      : 'Wat gebeurt er met mijn gegevens?',
+                  en:
+                    width === 'full'
+                      ? 'What happens to my information when I join this long campaign and later decide to change my choice?'
+                      : 'What happens to my data?',
+                },
+                answer: {
+                  nl: linkedDoc('Dat lees je in ', 'onze privacyverklaring', EXAMPLE_IDS.item),
+                  en: linkedDoc('See ', 'our privacy statement', EXAMPLE_IDS.item),
+                },
+              },
+            ],
+          },
+        }))
+      ),
     ],
   }),
 

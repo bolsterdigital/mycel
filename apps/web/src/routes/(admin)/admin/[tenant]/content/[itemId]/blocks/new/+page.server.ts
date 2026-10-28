@@ -102,7 +102,11 @@ export const actions: Actions = {
       const result = await runtime().invoker.run(useCases.insertBlock, principal, {
         itemId: params.itemId,
         baseRevisionId: req.revision,
-        block: { type: req.type, version: 1, props } as BlockInput,
+        block: {
+          type: req.type,
+          version: BLOCK_DEFINITIONS[req.type].version,
+          props,
+        } as BlockInput,
         place:
           req.place === 'before'
             ? { before: req.anchor }

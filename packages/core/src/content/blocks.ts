@@ -31,16 +31,36 @@ export type BlockProps<K extends BlockType> = z.infer<Definitions[K]['props']>;
 export type BlockPropsInput<K extends BlockType> = z.input<Definitions[K]['props']>;
 
 export type StoredBlock = {
-  [K in BlockType]: { id: string; type: K; version: 1; props: BlockProps<K> };
+  [K in BlockType]: {
+    id: string;
+    type: K;
+    version: Definitions[K]['version'];
+    props: BlockProps<K>;
+  };
 }[BlockType];
 export type StoredBlockIn = {
-  [K in BlockType]: { id: string; type: K; version: 1; props: BlockPropsInput<K> };
+  [K in BlockType]: {
+    id: string;
+    type: K;
+    version: Definitions[K]['version'];
+    props: BlockPropsInput<K>;
+  };
 }[BlockType];
 export type NewBlock = {
-  [K in BlockType]: { id?: string | undefined; type: K; version: 1; props: BlockProps<K> };
+  [K in BlockType]: {
+    id?: string | undefined;
+    type: K;
+    version: Definitions[K]['version'];
+    props: BlockProps<K>;
+  };
 }[BlockType];
 export type NewBlockIn = {
-  [K in BlockType]: { id?: string | undefined; type: K; version: 1; props: BlockPropsInput<K> };
+  [K in BlockType]: {
+    id?: string | undefined;
+    type: K;
+    version: Definitions[K]['version'];
+    props: BlockPropsInput<K>;
+  };
 }[BlockType];
 
 /** The definition of a type, untyped, for the generic helpers below. */
@@ -60,6 +80,35 @@ function blockSchema(id: z.ZodTypeAny): z.ZodTypeAny {
       .strict()
   );
   return z.discriminatedUnion('type', options as unknown as [z.ZodObject, ...z.ZodObject[]]);
+}
+
+// Only this historical shape is accepted for forward conversion. Keep the current public
+// schema exact for OpenAPI/MCP and new writes; repository reads apply this pure conversion
+// before validating a revision. Rejected: a permissive version number or schema transform,
+// which would hide future versions or make JSON Schema generation unrepresentable.
+const FaqV1 = z
+  .object({
+    id: BlockId,
+    type: z.literal('faq'),
+    version: z.literal(1),
+    props: BLOCK_DEFINITIONS.faq.props.omit({ width: true }),
+  })
+  .strict();
+
+export function upgradeFaqV1InDocument(document: unknown): unknown {
+  if (!document || typeof document !== 'object' || !('blocks' in document)) return document;
+  const input = document as { blocks: unknown };
+  if (!Array.isArray(input.blocks)) return document;
+  return {
+    ...document,
+    blocks: input.blocks.map((block: unknown) => {
+      if (!block || typeof block !== 'object') return block;
+      const value = block as { type?: unknown; version?: unknown };
+      if (value.type !== 'faq' || value.version !== 1) return block;
+      const old = FaqV1.parse(block);
+      return { ...old, version: 2, props: { ...old.props, width: 'content' } };
+    }),
+  };
 }
 
 /** A stored block: the id is required. */
