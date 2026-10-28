@@ -7,6 +7,7 @@ import { checkDestination } from './destination.js';
 import { defineUseCase } from '../registry.js';
 import type { TransactionContext } from '../ports.js';
 import { CONNECTION_DIRECTIONS, CONNECTION_PROVIDERS, type ConnectionRecord } from './ports.js';
+import { isFrozen } from './rules.js';
 
 const uuid = z.string().guid();
 const exampleId = '01900000-0000-7000-8000-000000000001';
@@ -79,6 +80,10 @@ const find = async (ctx: TransactionContext, id: string) => {
   if (!record) throw new UseCaseError('not_found', 'connection not found');
   return record;
 };
+/** No use case changes a disconnected connection; the adapters refuse the write as well. */
+const refuseFrozen = (prior: ConnectionRecord) => {
+  if (isFrozen(prior)) throw new UseCaseError('conflict', 'connection disconnected');
+};
 const changed = (record: ConnectionRecord | null) => {
   if (!record) throw new UseCaseError('conflict', 'connection changed or not found');
   return asView(record);
@@ -147,8 +152,7 @@ export const updateConnection = defineUseCase({
   examples: [{ input: { id: exampleId, baseVersion: 1, changes: { purpose: 'Updated purpose' } } }],
   async handler(ctx, { id, baseVersion, changes }) {
     const prior = await find(ctx, id);
-    if (prior.state === 'disconnected')
-      throw new UseCaseError('conflict', 'connection disconnected');
+    refuseFrozen(prior);
     const nextDestination =
       changes.destination === undefined ? prior.destination : changes.destination;
     if (prior.provider === 'webhook' && nextDestination === null)
@@ -174,8 +178,7 @@ function stateChange(
     examples: [{ input: { id: exampleId, baseVersion: 1 } }],
     async handler(ctx, { id, baseVersion }) {
       const prior = await find(ctx, id);
-      if (prior.state === 'disconnected')
-        throw new UseCaseError('conflict', 'connection disconnected');
+      refuseFrozen(prior);
       if (next === 'active' && !prior.hasCredential)
         throw new UseCaseError('conflict', 'connection needs a credential');
       return changed(await ctx.connections.state(id, baseVersion, next, ctx.clock.now()));
@@ -216,8 +219,7 @@ export const replaceConnectionCredential = defineUseCase({
   examples: [{ input: { id: exampleId, baseVersion: 1, secret: 'example-only' } }],
   async handler(ctx, { id, baseVersion, secret }) {
     const prior = await find(ctx, id);
-    if (prior.state === 'disconnected')
-      throw new UseCaseError('conflict', 'connection disconnected');
+    refuseFrozen(prior);
     return changed(
       await ctx.connections.replaceCredential(id, baseVersion, secret, ctx.clock.now())
     );

@@ -22,11 +22,14 @@ export const credentialServes = (
 /** A disconnected connection is frozen: no config, state or credential write lands any more. */
 export const FROZEN_CONNECTION_STATE = 'disconnected' satisfies ConnectionState;
 
+export const isFrozen = (row: Pick<ConnectionRecord, 'state'>): boolean =>
+  row.state === FROZEN_CONNECTION_STATE;
+
 /** Whether a compare-and-swap write against `baseVersion` may change `row`. */
 export const acceptsWrite = (
   row: Pick<ConnectionRecord, 'state' | 'version'>,
   baseVersion: number
-): boolean => row.version === baseVersion && row.state !== FROZEN_CONNECTION_STATE;
+): boolean => row.version === baseVersion && !isFrozen(row);
 
 /** Moving to `state` deletes the stored credential when it freezes the connection. */
 export const dropsCredential = (state: ConnectionState): boolean =>
