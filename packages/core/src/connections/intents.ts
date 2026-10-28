@@ -8,6 +8,7 @@ import { can, grants } from '../principal.js';
 import { isTombstone } from '../supporters/erasure.js';
 import { sha256Hex } from '../util/digest.js';
 import { PROVIDER_RECONCILES, type ConnectionProvider } from './ports.js';
+import { isFrozen } from './rules.js';
 import { isSyntheticIntent, SYNTHETIC_SCOPE, SYNTHETIC_SOURCE } from './synthetic.js';
 
 export const ConnectionIntentState = z.enum([
@@ -113,7 +114,7 @@ export async function connectionIntentGuard(
 ): Promise<ConnectionFailure | null> {
   if (ctx.principal.tenantStatus !== 'active') return 'suspended';
   const c = await ctx.connections.get(row.connectionId);
-  if (!c || c.state === 'disconnected') return 'disconnected';
+  if (!c || isFrozen(c)) return 'disconnected';
   if (c.state === 'paused') return 'paused';
   const synthetic = isSyntheticIntent(row);
   if (c.version !== row.connectionVersion || (!synthetic && !c.consentScopes.includes(row.scope)))
