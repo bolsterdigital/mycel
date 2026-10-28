@@ -15,6 +15,7 @@ import {
   ERASURE_UNSECURED_WARN_MS,
   Invoker,
   UseCaseError,
+  normalizeHostname,
   systemPrincipal,
   useCases,
   type Entitlements,
@@ -288,7 +289,9 @@ export async function runSetup(deps: SetupDeps, input: SetupInput): Promise<Setu
     } catch (e) {
       if (!isConflict(e)) throw e;
       const { hostnames } = await deps.invoker.run(useCases.listHostnames, admin, {});
-      const own = hostnames.find((h) => h.kind === 'custom' && h.hostname === normalized(hostname));
+      const own = hostnames.find(
+        (h) => h.kind === 'custom' && h.hostname === normalizeHostname(hostname)
+      );
       // Taken by another tenant: the conflict stands and names no owner (ADR 014).
       if (!own) throw e;
       lines.push(
@@ -302,9 +305,6 @@ export async function runSetup(deps: SetupDeps, input: SetupInput): Promise<Setu
   if (!changed) lines.push('nothing changed');
   return { tenant, changed, lines };
 }
-
-/** Lower case, no trailing dot: enough to find a hostname the use case already normalised. */
-const normalized = (h: string) => h.trim().toLowerCase().replace(/\.$/, '');
 
 /** The version of this build: MYCEL_VERSION from the release image, else the root package.json. */
 export const version = (): string => buildVersion();
