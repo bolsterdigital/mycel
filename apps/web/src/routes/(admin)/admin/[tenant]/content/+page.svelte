@@ -1,67 +1,90 @@
-<!-- The content list (TODO #11 A1): a filter between pages and articles, one card per item with
-     its status per locale, and links to edit it or start a new one. Links only, no actions to
-     post, so it works without JavaScript; the filter is a list of links that wraps. -->
+<!-- The content list (TODO #11 A1, brief #56 § C2) on the overview pattern: pages or articles as
+     a sub-navigation, one table row per item with its status per locale as badges, and the new
+     item as the screen's primary action. Links only, no actions to post, so it works without
+     JavaScript; the table scrolls inside its own region on a narrow screen, never the page. -->
 <script lang="ts">
-  import { fill, ui, type UiKey } from '../../../../../i18n/index.js';
+  import { Badge, Button, OverviewPage, SubNav, Table } from '#lib/admin/ui/index.js';
+  import { ui, type UiKey } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data }: PageProps = $props();
   const t = $derived(ui(data.locale));
   const base = $derived(`/admin/${data.tenant.slug}/content`);
   const status = (s: string) => t(`admin.content.status.${s}` as UiKey);
+  const TONE = {
+    draft: 'neutral',
+    scheduled: 'info',
+    published: 'success',
+    unpublished: 'warning',
+  } as const;
+  const tone = (s: string) => TONE[s as keyof typeof TONE] ?? 'neutral';
+  const kind = $derived(
+    t(data.type === 'page' ? 'admin.content.filter.page' : 'admin.content.filter.article')
+  );
 </script>
 
 <svelte:head>
   <title>{t('admin.content.title')} · {data.tenant.name} · {t('admin.title')}</title>
 </svelte:head>
 
-<main class="page admin">
-  <h1>{t('admin.content.title')}</h1>
-  <p>
-    <a href="/admin/{data.tenant.slug}"
-      >{fill(t('admin.content.back'), { site: data.tenant.name })}</a
-    >
-  </p>
+<OverviewPage
+  title={t('admin.content.title')}
+  locale={data.locale}
+  breadcrumb={[
+    { label: data.tenant.name, href: `/admin/${data.tenant.slug}` },
+    { label: t('admin.content.title') },
+  ]}
+  listTitle={kind}
+  empty={data.items.length === 0 ? { title: t('admin.content.empty') } : undefined}
+  paging={data.next ? { next: `${base}?type=${data.type}&after=${data.next}` } : undefined}
+>
+  {#snippet actions()}
+    <Button href="{base}/new?type={data.type}">{t('admin.content.new')}</Button>
+  {/snippet}
+  {#snippet filters()}
+    <SubNav
+      label={t('admin.content.filter.label')}
+      items={(['page', 'article'] as const).map((type) => ({
+        href: `${base}?type=${type}`,
+        label: t(type === 'page' ? 'admin.content.filter.page' : 'admin.content.filter.article'),
+        current: data.type === type,
+      }))}
+    />
+  {/snippet}
 
-  <nav aria-label={t('admin.content.filter.label')}>
-    <ul class="actions filter">
-      {#each ['page', 'article'] as const as type (type)}
-        <li>
-          <a
-            class="button"
-            class:secondary={data.type !== type}
-            href="{base}?type={type}"
-            aria-current={data.type === type ? 'page' : undefined}
-            >{t(type === 'page' ? 'admin.content.filter.page' : 'admin.content.filter.article')}</a
+  <Table
+    id="content-table"
+    caption={kind}
+    columns={[
+      { key: 'title', label: t('admin.content.field.title') },
+      { key: 'status', label: t('admin.content.state') },
+      { key: 'slug', label: t('admin.content.slug') },
+      { key: 'updated', label: t('admin.content.column.updated') },
+    ]}
+  >
+    {#snippet rows()}
+      {#each data.items as item (item.id)}
+        <tr>
+          <th scope="row"
+            ><a href="{base}/{item.id}">{item.title || t('admin.content.untitled')}</a></th
           >
-        </li>
+          <td>
+            <ul class="ui-badges">
+              {#each item.publication as p (p.locale)}
+                <li>
+                  <Badge tone={p.changes ? 'warning' : tone(p.status)}
+                    >{p.locale}: {status(p.status)}{#if p.changes}, {t(
+                        'admin.content.status.changes'
+                      )}{/if}</Badge
+                  >
+                </li>
+              {/each}
+            </ul>
+          </td>
+          <td>/{item.slug}</td>
+          <td>{item.updated}</td>
+        </tr>
       {/each}
-    </ul>
-  </nav>
-
-  <p><a class="button" href="{base}/new?type={data.type}">{t('admin.content.new')}</a></p>
-
-  {#if data.items.length === 0}
-    <p>{t('admin.content.empty')}</p>
-  {/if}
-  <ul class="content-list">
-    {#each data.items as item (item.id)}
-      <li class="card">
-        <h2><a href="{base}/{item.id}">{item.title || t('admin.content.untitled')}</a></h2>
-        <p class="muted">/{item.slug} · {t('admin.content.updated')} {item.updated}</p>
-        <ul class="tags">
-          {#each item.publication as p (p.locale)}
-            <li>
-              {p.locale}: {status(p.status)}{#if p.changes}, {t(
-                  'admin.content.status.changes'
-                )}{/if}
-            </li>
-          {/each}
-        </ul>
-      </li>
-    {/each}
-  </ul>
-  {#if data.next}
-    <p><a href="{base}?type={data.type}&after={data.next}">{t('admin.content.more')}</a></p>
-  {/if}
-</main>
+    {/snippet}
+  </Table>
+</OverviewPage>

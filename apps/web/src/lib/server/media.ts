@@ -125,7 +125,11 @@ export async function serveMedia(
 //   original without a valid signature                          -> 403
 //   unknown id, another site's id, deleted, no such file        -> 404
 //   original with one                                           -> 200, attachment, no-store
-//   thumbnail or another variant                                -> 200, private, max-age=300
+//   thumbnail or another image variant                          -> 200, private, max-age=300
+//   `file.pdf` without a signature                              -> 404
+//
+// A PDF's `file.pdf` is its download (brief #10 decision 10), so it goes out only through the
+// signed original route; the unsigned route serves image variants alone (`PREVIEW`).
 
 /** How long a download link for an original works (brief #10 decision 10). */
 export const ORIGINAL_TTL_MS = 10 * 60 * 1000;
@@ -152,6 +156,9 @@ export async function signedOriginalPath(
   return `/admin/${tenantSlug}/media/${m.id}/original${signed.slice(signed.indexOf('?'))}`;
 }
 
+/** What the unsigned admin route serves: an image variant, never a PDF's downloadable file. */
+const PREVIEW = /^(?:(?:w\d{1,5}|thumb)\.(?:avif|webp|gif)|file\.gif)$/;
+
 export async function serveAdminMedia(
   deps: MediaDeliveryDeps,
   /** The operator's principal for this tenant, or null without a session or membership. */
@@ -164,7 +171,7 @@ export async function serveAdminMedia(
   if (!principal || !can(principal, 'media:read')) return status(403, 'private, no-store');
   if (!UUID.test(id)) return status(404);
   const original = which === 'original';
-  if (!original && !FILE.test(which)) return status(404);
+  if (!original && !PREVIEW.test(which)) return status(404);
   const media = await deps.uow.run(principal, (ctx) => ctx.media.get(id));
   if (!media || media.deletedAt || media.state !== 'ready') return status(404);
 

@@ -349,7 +349,7 @@ test('a block save on an outdated revision is a conflict that keeps what was typ
   // Another tab saves the document in between.
   const other = await page.context().newPage();
   await other.goto(edit);
-  await other.getByLabel('Titel (nl)', { exact: true }).fill('Tussendoor');
+  await other.getByLabel('Titel (nl) (verplicht)', { exact: true }).fill('Tussendoor');
   await other.getByRole('button', { name: 'Opslaan', exact: true }).click();
   await expect(other).toHaveURL(`${edit}?saved`);
 
@@ -364,7 +364,9 @@ test('a block save on an outdated revision is a conflict that keeps what was typ
   await expect((await block(page, 1)).getByLabel('Tekst (nl)', { exact: true })).toHaveValue(
     'Mijn kop'
   );
-  await expect(page.getByLabel('Titel (nl)', { exact: true })).toHaveValue('Tussendoor');
+  await expect(page.getByLabel('Titel (nl) (verplicht)', { exact: true })).toHaveValue(
+    'Tussendoor'
+  );
 });
 
 test.describe('UI gate: the block forms at 320 CSS px and 200% text', () => {
@@ -417,15 +419,17 @@ function layoutProblems(): string[] {
           `past the edge: <${el.tagName.toLowerCase()}> ${el.textContent?.trim().slice(0, 40)}`
         );
   }
-  for (const b of document.querySelectorAll('button, a.button')) {
+  for (const b of document.querySelectorAll('button, a.button, a.ui-button')) {
     const r = b.getBoundingClientRect();
     const label = b.textContent?.trim() ?? '';
     if (b.scrollWidth > b.clientWidth + 1) out.push(`clipped: ${label}`);
     if (r.right > width + 1 || r.left < -1) out.push(`outside the viewport: ${label}`);
     if (r.height < 44 || r.width < 44) out.push(`tap target under 44px: ${label}`);
   }
-  for (const l of document.querySelectorAll('.card label, .card legend, .card summary')) {
-    const card = l.closest('.card')!.getBoundingClientRect();
+  for (const l of document.querySelectorAll(
+    ':is(.card, .ui-card, .ui-panel, .ui-fieldset) :is(label, legend, summary)'
+  )) {
+    const card = l.closest('.card, .ui-card, .ui-panel, .ui-fieldset')!.getBoundingClientRect();
     const range = document.createRange();
     range.selectNodeContents(l);
     if (range.getBoundingClientRect().right > card.right + 1)

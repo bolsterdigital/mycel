@@ -132,6 +132,8 @@ test('an operator makes a page, edits it, and compares its revisions', async ({ 
   await expectNoAxeViolations(page);
 
   await page.getByLabel('Titel (nl)').fill('Over onze buurt');
+  // Search settings are folded away until asked for (skill cms-inrichting).
+  await page.locator('summary', { hasText: 'Zoeken en delen' }).click();
   await page.getByLabel('Titel in zoekresultaten (nl)').fill('De buurt');
   await page.getByRole('button', { name: 'Opslaan' }).click();
   await expect(page).toHaveURL(`${edit}?saved`);
@@ -151,7 +153,7 @@ test('an operator makes a page, edits it, and compares its revisions', async ({ 
 
   // In the list: the new page, as a draft in both locales.
   await page.goto('/admin/probe/content?type=page');
-  const card = page.locator('.content-list > li', { hasText: `/${slug}` });
+  const card = page.locator('#content-table tbody tr', { hasText: `/${slug}` });
   await expect(card).toContainText('nl: concept');
   await expect(card).toContainText('en: concept');
 });
@@ -470,7 +472,7 @@ test('a reserved slug comes back as a message with what was typed', async ({ pag
 // Publication per locale (brief content-editor § A2): core decides, the panel shows what it
 // decided. One card per locale; every action is its own native form.
 const card = (page: Page, locale: string) =>
-  page.locator('section.publication', {
+  page.locator('.publication', {
     has: page.getByRole('heading', { name: new RegExp(`^Taal ${locale}:`) }),
   });
 
@@ -503,7 +505,7 @@ test('publishing puts a locale live; a later edit stays unpublished until publis
   expect(live).toContain('Buurtfeest');
   expect(live).not.toContain('Buurtfeest verplaatst');
   await page.goto('/admin/probe/content?type=page');
-  await expect(page.locator('.content-list > li', { hasText: `/${slug}` })).toContainText(
+  await expect(page.locator('#content-table tbody tr', { hasText: `/${slug}` })).toContainText(
     'nl: gepubliceerd, ongepubliceerde wijzigingen'
   );
 
@@ -656,7 +658,7 @@ test('a restricted item says what visitors get before any publish button', async
   await expect(notice).toBeVisible();
   // Before the first button in document order, and no button closes it.
   const before = await notice.evaluate((el) => {
-    const button = document.querySelector('section.publication button')!;
+    const button = document.querySelector('.publication button')!;
     return !!(el.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING);
   });
   expect(before).toBe(true);
@@ -682,7 +684,7 @@ test('a writer without content:publish sees the state, no buttons, and gets a 40
     await login(page, email, edit);
     await expect(card(page, 'nl').getByRole('heading')).toContainText('concept');
     await expect(page.getByText('vragen de bevoegdheid content:publish')).toBeVisible();
-    await expect(page.locator('section.publication button')).toHaveCount(0);
+    await expect(page.locator('.publication button')).toHaveCount(0);
     await expectNoAxeViolations(page);
 
     // The registry refuses, whatever the page showed.
@@ -735,22 +737,20 @@ test.describe('UI gate: the content admin at 320 CSS px and 200% text', () => {
             await page.evaluate((size) => (document.documentElement.style.fontSize = size), text);
           const problems = await page.evaluate(layoutProblems);
           if (path === edit) {
-            await page.locator('form.card > .actions').screenshot({
+            await page.locator('form.item-fields > .ui-actions-host').screenshot({
               path: test
                 .info()
                 .outputPath(`content-edit-320-${locale}-${text.replace('%', '')}.png`),
             });
             await page
-              .locator('section.publication')
+              .locator('.publication')
               .first()
               .screenshot({
                 path: test
                   .info()
                   .outputPath(`content-publication-320-${locale}-${text.replace('%', '')}.png`),
               });
-            await expect(page.locator('section.publication').first().locator('button')).toHaveCount(
-              5
-            );
+            await expect(page.locator('.publication').first().locator('button')).toHaveCount(5);
           }
           expect(problems, path).toEqual([]);
         }
@@ -761,7 +761,7 @@ test.describe('UI gate: the content admin at 320 CSS px and 200% text', () => {
 /** Live, pinned to an older revision: all four actions of the nl card, plus the schedule. */
 async function fourActions(page: Page, locale: string) {
   const nl = locale.startsWith('nl');
-  const card = page.locator('section.publication').first();
+  const card = page.locator('.publication').first();
   await card.getByRole('button', { name: nl ? 'Publiceren (nl)' : 'Publish (nl)' }).click();
   await card.locator('input[type="datetime-local"]').fill('2030-01-04T09:00');
   await card.getByRole('button', { name: nl ? 'Inplannen (nl)' : 'Schedule (nl)' }).click();
@@ -793,15 +793,17 @@ function layoutProblems(): string[] {
           `past the edge: <${el.tagName.toLowerCase()}> ${el.textContent?.trim().slice(0, 40)}`
         );
   }
-  for (const b of document.querySelectorAll('button, a.button')) {
+  for (const b of document.querySelectorAll('button, a.button, a.ui-button')) {
     const r = b.getBoundingClientRect();
     const label = b.textContent?.trim() ?? '';
     if (b.scrollWidth > b.clientWidth + 1) out.push(`clipped: ${label}`);
     if (r.right > width + 1 || r.left < -1) out.push(`outside the viewport: ${label}`);
     if (r.height < 44 || r.width < 44) out.push(`tap target under 44px: ${label}`);
   }
-  for (const l of document.querySelectorAll('.card label, .card legend')) {
-    const card = l.closest('.card')!.getBoundingClientRect();
+  for (const l of document.querySelectorAll(
+    ':is(.card, .ui-card, .ui-panel, .ui-fieldset) :is(label, legend)'
+  )) {
+    const card = l.closest('.card, .ui-card, .ui-panel, .ui-fieldset')!.getBoundingClientRect();
     const range = document.createRange();
     range.selectNodeContents(l);
     if (range.getBoundingClientRect().right > card.right + 1)

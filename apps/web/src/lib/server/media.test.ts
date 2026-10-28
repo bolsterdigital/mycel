@@ -211,8 +211,9 @@ describe('admin media files', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('application/pdf');
     expect(res.headers.get('content-disposition')).toBe('attachment; filename="verslag.pdf"');
-    // A PDF has no thumbnail.
+    // A PDF has no thumbnail, and its file is the download: never without a signature.
     expect((await admin(operator(), m.id, 'thumb.webp')).status).toBe(404);
+    expect((await admin(operator(), m.id, 'file.pdf')).status).toBe(404);
   });
 
   it('answers 404 for another site’s asset, even with a valid signature', async () => {

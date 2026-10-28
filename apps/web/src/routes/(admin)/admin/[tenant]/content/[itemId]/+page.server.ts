@@ -229,7 +229,6 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
     done: DONE[url.searchParams.get('done') ?? ''] ?? null,
     doneLocale: url.searchParams.get('locale') ?? '',
     revision: { id: revision.id, when: when(revision.createdAt), who: actorLabel(revision.actor) },
-    blockCount: doc.blocks.length,
     corrections: doc.type === 'article' ? doc.corrections : [],
     values: valuesOf(doc),
     // The site's locales first, then any the document has that the site no longer does.

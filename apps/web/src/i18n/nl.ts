@@ -78,6 +78,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.loginFailed.body':
     'Het inloggen kon niet worden afgerond, of duurde langer dan tien minuten. Probeer het opnieuw.',
   'admin.sites.title': 'Jouw sites',
+  'admin.sites.empty': 'Je bent nog geen lid van een site',
   'admin.sites.none': 'Nog geen sites. Vraag een beheerder van een site om {email} uit te nodigen.',
   'admin.forbidden.title': 'Geen toegang tot deze site',
   'admin.forbidden.body':
@@ -330,6 +331,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.new': 'Nieuwe pagina of artikel',
   'admin.content.empty': 'Hier staat nog niets.',
   'admin.content.more': 'Volgende pagina',
+  'admin.content.column.updated': 'Laatst opgeslagen',
   'admin.content.untitled': '(geen titel)',
   'admin.content.updated': 'laatst opgeslagen',
   'admin.content.status.draft': 'concept',
@@ -378,8 +380,9 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.edit.correctionText': 'Nieuwe correctie',
   'admin.content.edit.seo': 'Zoeken en delen',
   'admin.content.edit.access': 'Toegang',
-  'admin.content.edit.blocks':
-    'Blokken in dit item: {n}. Blokken bewerken komt in een volgende versie van het beheer.',
+  'admin.content.edit.heading': 'Titel en inleiding',
+  'admin.content.edit.byline': 'Auteurs en rubriek',
+  'admin.content.edit.side': 'Status en publicatie',
   'admin.content.edit.save': 'Opslaan',
   'admin.editor.title': 'Artikel schrijven',
   'admin.editor.native': 'Velden en kaarten zonder JavaScript bewerken',
@@ -836,8 +839,14 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.ui.catalogue.form.article': 'Artikel',
   'admin.ui.catalogue.form.access': 'Wie dit kan zien',
   'admin.ui.catalogue.form.channels': 'Ook versturen als',
+  'admin.ui.catalogue.form.noindexHint': 'Houdt de pagina ook buiten de zoekfunctie van de site.',
   'admin.ui.catalogue.form.newsletter': 'Nieuwsbrief aan alle abonnees',
   'admin.ui.catalogue.form.feed': 'Bericht in de RSS-feed',
+  'admin.ui.catalogue.panel': 'Inklapbaar paneel',
+  'admin.ui.catalogue.panel.summary':
+    '3. Vragen en antwoorden: Waarom voeren we campagne in de buurt?',
+  'admin.ui.catalogue.panel.body':
+    'De eigen velden en acties van het blok; open als het als laatste is bewerkt.',
   'admin.ui.catalogue.table': 'Tabel en paginering',
   'admin.ui.catalogue.table.caption': 'Onlangs gewijzigde bestanden',
   'admin.ui.catalogue.table.name': 'Naam',
@@ -878,8 +887,10 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.ui.catalogue.patterns': 'Paginapatronen',
   'admin.ui.catalogue.patterns.intro':
     'Elk patroon op een eigen pagina, met de teksten van een echt scherm.',
+  'admin.ui.cancel': 'Annuleren',
   'admin.ui.pattern.overview': 'Overzicht',
   'admin.ui.pattern.detail': 'Detail',
+  'admin.ui.pattern.edit': 'Bewerkpagina',
   'admin.ui.pattern.settings': 'Instellingen',
   'admin.ui.pattern.form': 'Formulierpagina',
   'admin.ui.pattern.states': 'Systeemstaten',
