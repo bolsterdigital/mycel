@@ -13,6 +13,10 @@
     "./compose": {
       "types": "./dist/compose.d.ts",
       "default": "./dist/compose.js"
+    },
+    "./conditional": {
+      "types": "./dist/conditional.d.ts",
+      "default": "./dist/conditional.js"
     }
   },
   "scripts": {

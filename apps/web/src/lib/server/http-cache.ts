@@ -16,18 +16,14 @@
 // adds the RFC 9110 list form and `*`, and is the one place for the 404 policy, so the e2e suite
 // proves the behaviour against this module rather than against a framework default. Rejected:
 // computing the 304 inside `load` by throwing (SvelteKit has no way to end a page load with an
-// empty 304).
+// empty 304). The If-None-Match rule itself is the API's (`@mycel/api/conditional`), so the site
+// and the JSON read route of the same content cannot disagree on it.
+
+import { ifNoneMatch } from '@mycel/api/conditional';
 
 /** Content items: one minute fresh, ten more minutes served stale while revalidating. */
 export const PUBLIC_CACHE = 'public, max-age=60, stale-while-revalidate=600';
 export const NO_STORE = 'no-store';
-
-/** RFC 9110 § 13.1.2: weak comparison for If-None-Match; `*` matches any current representation. */
-export function noneMatch(header: string | null, etag: string): boolean {
-  if (!header) return false;
-  const opaque = (tag: string) => tag.trim().replace(/^W\//, '');
-  return header.split(',').some((tag) => tag.trim() === '*' || opaque(tag) === opaque(etag));
-}
 
 export function conditional(request: Request, response: Response): Response {
   if (response.status === 404 && !response.headers.has('cache-control')) {
@@ -44,7 +40,7 @@ export function conditional(request: Request, response: Response): Response {
     (request.method !== 'GET' && request.method !== 'HEAD') ||
     !etag ||
     etag.startsWith('W/') ||
-    !noneMatch(request.headers.get('if-none-match'), etag)
+    !ifNoneMatch(request.headers.get('if-none-match'), etag)
   )
     return response;
   const headers = new Headers(response.headers);

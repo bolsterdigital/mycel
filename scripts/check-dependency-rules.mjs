@@ -14,8 +14,10 @@
 // Rules:
 //   1. packages/core imports no other workspace and none of the I/O libraries listed below.
 //   2. Adapters and fronts may import packages/core; they may not import each other.
-//      (apps/web and packages/mcp may import packages/api only for its composition root,
-//      `@mycel/api/compose`, which wires adapters into the core; see ALLOWED.) The fronts may
+//      (apps/web and packages/mcp may import packages/api only through API_ENTRIES: its
+//      composition root `@mycel/api/compose`, which wires adapters into the core, and the
+//      If-None-Match rule `@mycel/api/conditional`, which every front answering a 304 shares; see
+//      ALLOWED.) The fronts may
 //      import packages/observability (logs, context, metrics), which imports only the core.
 //      A relative import never leaves its own workspace (`../../core/src/x` is a violation:
 //      cross-workspace imports go through the package name).
@@ -64,6 +66,9 @@ const IO_LIBS = [
   'sharp',
   '@aws-sdk/',
 ];
+/** The only entries of packages/api that apps/web and packages/mcp may import (rule 2). */
+const API_ENTRIES = ['@mycel/api/compose', '@mycel/api/conditional'];
+
 const ALLOWED = {
   'apps/web': ['packages/core', 'packages/api', 'packages/observability'],
   'packages/api': [
@@ -196,9 +201,9 @@ for (const ws of workspaces) {
       if (
         (ws === 'apps/web' || ws === 'packages/mcp') &&
         spec.startsWith('@mycel/api') &&
-        spec !== '@mycel/api/compose'
+        !API_ENTRIES.includes(spec)
       ) {
-        errors.push(`${rel}: imports ${spec}; only @mycel/api/compose is allowed from ${ws}`);
+        errors.push(`${rel}: imports ${spec}; only ${API_ENTRIES.join(', ')} from ${ws}`);
       }
       if (ws === CORE && IO_LIBS.some((lib) => spec === lib || spec.startsWith(lib))) {
         errors.push(`${rel}: core imports I/O library ${spec} (ADR 001)`);
