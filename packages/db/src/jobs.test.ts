@@ -49,6 +49,7 @@ import {
   withTenant,
 } from './index.js';
 import { toJobRecord } from './jobs.js';
+import { asRole } from './roles.js';
 import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
@@ -91,10 +92,7 @@ describe.skipIf(skip)('jobs conformance', () => {
     });
   /** Run `fn` as mycel_worker, the queue's own role (an owner without superuser sees nothing). */
   const asWorker = <T>(fn: (trx: typeof operatorDb) => Promise<T>) =>
-    operatorDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_worker`.execute(trx);
-      return fn(trx);
-    });
+    asRole(operatorDb, 'mycel_worker', fn);
   /**
    * Move a job's clock as the worker (TODO #17a restpunt): on the owner connection an owner
    * without superuser touches no row under forced RLS, and the test would pass proving nothing.

@@ -217,14 +217,13 @@ export function createIdentityStore(
   ids: Ids,
   clock: Clock = { now: () => new Date() }
 ): IdentityStore {
-  const asAuth = <T>(fn: (trx: Trx) => Promise<T>): Promise<T> => asRole(authDb, 'mycel_auth', fn);
   const returning = ['id', 'email', 'name', 'email_verified_at', 'last_login_at'] as const;
 
   return {
     login(claims) {
       const email = normalizeEmail(claims.email);
       const name = claims.name ?? null;
-      return asAuth(async (trx) => {
+      return asRole(authDb, 'mycel_auth', async (trx) => {
         const known = await trx
           .selectFrom('operators')
           .select(['id', 'email', 'email_verified_at'])
@@ -301,7 +300,7 @@ export function createIdentityStore(
     },
 
     membershipsOf(operatorId) {
-      return asAuth(async (trx) =>
+      return asRole(authDb, 'mycel_auth', async (trx) =>
         (
           await trx
             .selectFrom('tenant_memberships as m')
@@ -320,7 +319,7 @@ export function createIdentityStore(
     },
 
     apiKeyByHash(hash) {
-      return asAuth(async (trx) => {
+      return asRole(authDb, 'mycel_auth', async (trx) => {
         const r = await trx
           .selectFrom('api_keys')
           .select(['id', 'tenant_id', 'capabilities', 'revoked_at'])
@@ -338,7 +337,7 @@ export function createIdentityStore(
     },
 
     tenantAccess(tenantId) {
-      return asAuth(async (trx) => {
+      return asRole(authDb, 'mycel_auth', async (trx) => {
         const r = await trx
           .selectFrom('tenants')
           .select(['entitlements', 'status'])
@@ -358,7 +357,7 @@ export function createIdentityStore(
     loginAttempt(key, { max, windowSeconds }) {
       const windowMs = windowSeconds * 1000;
       const windowStart = new Date(Math.floor(clock.now().getTime() / windowMs) * windowMs);
-      return asAuth(async (trx) => {
+      return asRole(authDb, 'mycel_auth', async (trx) => {
         const row = await trx
           .insertInto('login_attempts')
           .values({ key, window_start: windowStart, hits: 1 })
