@@ -12,15 +12,15 @@ import {
   systemPrincipal,
   type Principal,
 } from '@mycel/core';
-import { MemoryUnitOfWork, TENANT } from '@mycel/core/testing';
+import { MemoryUnitOfWork, TENANT, principal } from '@mycel/core/testing';
 import { MAX_BODY_BYTES, createApp } from './app.js';
 
 function setup() {
   const uow = new MemoryUnitOfWork();
   const keys: Record<string, Principal> = {
     admin: systemPrincipal(TENANT, 'api'),
-    reader: { ...systemPrincipal(TENANT, 'api'), capabilities: ['media:read'] },
-    content: { ...systemPrincipal(TENANT, 'api'), capabilities: ['content:read'] },
+    reader: principal({ capabilities: ['media:read'] }),
+    content: principal({ capabilities: ['content:read'] }),
   };
   const app = createApp({
     invoker: new Invoker(buildRegistry(), uow),

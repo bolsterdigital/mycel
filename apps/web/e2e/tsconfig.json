@@ -3,19 +3,20 @@
   // a type error here used to reach CI as a runtime failure or not at all (TODO #64). This config
   // is checked by `npm run typecheck`. Bundler resolution because the specs import without file
   // extensions, as Playwright allows; DOM because `page.evaluate` bodies run in the browser.
+  // It extends the shared contract and overrides only what a spec that is not built needs.
   // Rejected: adding `e2e` to the app's tsconfig, which would give specs `$app` types and the
   // SvelteKit ambient declarations they never run with.
+  "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["node"],
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
     "noUnusedLocals": true,
     "resolveJsonModule": true,
-    "skipLibCheck": true,
+    "composite": false,
+    "declaration": false,
+    "sourceMap": false,
     "noEmit": true
   },
   "include": ["**/*.ts", "../playwright.config.ts"]

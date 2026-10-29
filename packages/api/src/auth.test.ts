@@ -1,17 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_ACCESS, Invoker, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
+import { Invoker, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
 import {
   FakeClock,
   MemoryIdentityStore,
   MemoryTenants,
   MemoryUnitOfWork,
-  probeTenant,
   TENANT,
+  principal,
+  probeTenant,
 } from '@mycel/core/testing';
 import { createApp } from './app.js';
 import { createAuthenticator } from './auth.js';
-
-const defaults = { entitlements: DEFAULT_ACCESS.entitlements, tenantStatus: DEFAULT_ACCESS.status };
 
 async function setup() {
   const clock = new FakeClock();
@@ -39,18 +38,15 @@ async function setup() {
 describe('API keys from the table', () => {
   it('builds the principal from the row: its tenant, its id, its capabilities', async () => {
     const { auth, key } = await setup();
-    expect(await auth.authenticateApiKey(`Bearer ${key.token}`)).toEqual({
-      tenantId: TENANT,
-      actor: { kind: 'api-key', keyId: key.id },
-      capabilities: ['content:read'],
-      ...defaults,
-    });
-    expect(await auth.agentPrincipal()).toEqual({
-      tenantId: TENANT,
-      actor: { kind: 'agent', sessionId: 'session-1', keyId: key.id },
-      capabilities: ['content:read'],
-      ...defaults,
-    });
+    expect(await auth.authenticateApiKey(`Bearer ${key.token}`)).toEqual(
+      principal({ actor: { kind: 'api-key', keyId: key.id }, capabilities: ['content:read'] })
+    );
+    expect(await auth.agentPrincipal()).toEqual(
+      principal({
+        actor: { kind: 'agent', sessionId: 'session-1', keyId: key.id },
+        capabilities: ['content:read'],
+      })
+    );
   });
 
   it('refuses unknown and revoked keys, over HTTP and for the agent, without a restart', async () => {

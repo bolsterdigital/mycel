@@ -1,7 +1,8 @@
 // Shared fixtures: the probe tenant, its signup form and page, as data, plus the two steps every
 // front's test takes to make that page public: create it, then publish each locale explicitly.
 // Also the builders every suite needs (testing.md rule 4): the fixed tenant id of in-memory
-// suites, the system principal that administers a tenant, a run suffix for names in a shared
+// suites, the system principal that administers a tenant, a principal that differs from it only
+// in what a case changes, a run suffix for names in a shared
 // database, and the check for a typed refusal. Database suites build on these in
 // `@mycel/db/testing`.
 
@@ -12,6 +13,7 @@ import type { ProofChallenge } from '../forms/proof.js';
 import type { Invoker } from '../invoke.js';
 import type { MediaRepository } from '../media/ports.js';
 import type { UnitOfWork } from '../ports.js';
+import type { Entitlements } from '../entitlements/model.js';
 import type { Principal } from '../principal.js';
 import type { TenantInfo } from '../tenants/ports.js';
 import { UseCaseError } from '../errors.js';
@@ -24,6 +26,21 @@ export const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 
 /** The system principal that administers `tenantId`, as tests act on a tenant. */
 export const adminOf = (tenantId: string = TENANT): Principal => systemPrincipal(tenantId, 'test');
+
+/** What a test changes about `adminOf(tenantId)`; `entitlements` are merged over the defaults. */
+export type PrincipalChange = Partial<Omit<Principal, 'entitlements'>> & {
+  entitlements?: Partial<Entitlements>;
+};
+
+/**
+ * A principal for one test case: the administrator of `tenantId` (default `TENANT`) with only what
+ * the case is about, an actor, capabilities, a limit or a status, so a suite never spells out a
+ * whole principal or spreads one by hand.
+ */
+export function principal({ entitlements, ...change }: PrincipalChange = {}): Principal {
+  const base = adminOf(change.tenantId);
+  return { ...base, ...change, entitlements: { ...base.entitlements, ...entitlements } };
+}
 
 /**
  * Six random characters for names a suite creates in a database shared by runs and branches

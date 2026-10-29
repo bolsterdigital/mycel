@@ -6,11 +6,9 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_ACCESS,
   Invoker,
   UseCaseError,
   buildRegistry,
-  type Principal,
   type UnitOfWork,
   type UseCaseErrorCode,
 } from '@mycel/core';
@@ -20,18 +18,12 @@ import {
   createLogger,
   sentryErrorReporter,
 } from '@mycel/observability';
-import { TENANT } from '@mycel/core/testing';
+import { principal } from '@mycel/core/testing';
 import { createApp } from './app.js';
 
 const ADDRESS = 'jan.jansen@example.org';
 
-const operator: Principal = {
-  tenantId: TENANT,
-  actor: { kind: 'operator', operatorId: 'op-1', email: ADDRESS },
-  capabilities: ['tenant:admin'],
-  entitlements: DEFAULT_ACCESS.entitlements,
-  tenantStatus: DEFAULT_ACCESS.status,
-};
+const operator = principal({ actor: { kind: 'operator', operatorId: 'op-1', email: ADDRESS } });
 
 /** A unit of work whose every transaction fails, quoting an address like a driver error might. */
 const failing: UnitOfWork = {

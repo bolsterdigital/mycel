@@ -16,6 +16,8 @@ import { expectNoAxeViolations } from './lib/axe';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { NARROW, layoutGate, setTextSize } from './lib/layout';
 import { login } from './lib/login';
+import { isA11y, onlyA11y } from './lib/project';
+import { callApi, requireApi } from './lib/api';
 
 // The block renderer on two composed pages (TODO #8c1, brief #8c § 5), seeded by scripts/e2e.mjs
 // from the registry's own examples: `campagne` (hero cover, rich text, cta card, wide image, FAQ
@@ -74,7 +76,7 @@ test.describe('blocks', () => {
           }
           await expect(page.locator('link[rel="stylesheet"][href*="/_theme/"]')).toHaveCount(1);
           await expect(page.locator('link[rel="preload"][as="font"]')).toHaveCount(1);
-          if (test.info().project.name === 'a11y') {
+          if (isA11y()) {
             // Images actually load (the media route serves the seeded variants), fonts are ours.
             await page.evaluate(() => document.fonts.ready);
             for (const img of await page.locator('main img').all()) {
@@ -167,7 +169,7 @@ test.describe('blocks', () => {
     test.use({ locale: 'nl-NL' });
 
     test('reduced motion turns every transition off', async ({ page }) => {
-      test.skip(test.info().project.name !== 'a11y', 'reads computed styles with a script');
+      onlyA11y('reads computed styles with a script');
       await page.emulateMedia({ reducedMotion: 'reduce' });
       await open(page, '/probe/campagne');
       const moving = await page.evaluate(() =>
@@ -185,7 +187,7 @@ test.describe('blocks', () => {
     });
 
     test('the dark palette passes axe on both pages', async ({ page }) => {
-      test.skip(test.info().project.name !== 'a11y', 'axe runs as a script');
+      onlyA11y('axe runs as a script');
       await page.emulateMedia({ colorScheme: 'dark' });
       for (const slug of Object.keys(PAGES)) {
         await open(page, `/probe/${slug}`);
@@ -331,8 +333,7 @@ test.describe('content-routes', () => {
   });
 
   test('the JSON read route serves the same article without a key', async ({ request }) => {
-    const api = process.env['E2E_API_URL'];
-    test.skip(!api, 'run through scripts/e2e.mjs');
+    const api = requireApi();
     const url = `${api}/v1/sites/probe/content/article/${ARTICLE}`;
     const res = await request.get(`${url}?locale=en`);
     expect(res.status()).toBe(200);
@@ -364,31 +365,22 @@ test.describe('grid-compositions', () => {
     { slug: 'quality-article-v3', type: 'article', title: 'De straat die ruimte maakt' },
   ];
 
-  async function call(request: APIRequestContext, name: string, data: unknown) {
-    const response = await request.post(`${process.env['E2E_API_URL']}/v1/${name}`, {
-      headers: { authorization: `Bearer ${process.env['MYCEL_API_KEY']}` },
-      data,
-    });
-    expect(response.ok(), await response.text()).toBe(true);
-    return response.json();
-  }
-
   async function item(request: APIRequestContext, entry: (typeof compositions)[number]) {
-    const { items } = await call(request, 'content.item.list', {
+    const { items } = await callApi(request, 'content.item.list', {
       type: entry.type,
       slug: entry.slug,
     });
     expect(items).toHaveLength(1);
-    return call(request, 'content.item.get', { itemId: items[0].id });
+    return callApi(request, 'content.item.get', { itemId: items[0].id });
   }
 
   test.use({ locale: 'nl-NL', extraHTTPHeaders: { 'x-forwarded-proto': 'http' } });
 
   test.beforeAll(async ({ request }) => {
-    test.skip(test.info().project.name !== 'a11y', 'composition measurements run in a11y');
+    onlyA11y('composition measurements run in a11y');
     // The third composition adds ordinary information prose around existing, resolved media.
     // Reuse synthetic assets and references, never upload or contact an external provider.
-    const { items } = await call(request, 'content.item.list', {
+    const { items } = await callApi(request, 'content.item.list', {
       type: 'page',
       slug: compositions[0]!.slug,
     });
@@ -401,7 +393,7 @@ test.describe('grid-compositions', () => {
     doc.blocks.push({ ...structuredClone(prose), id: 'information-closing' });
     const created = items.length
       ? await item(request, compositions[0]!)
-      : await call(request, 'content.item.create', {
+      : await callApi(request, 'content.item.create', {
           slug: compositions[0]!.slug,
           document: doc,
         });
@@ -447,7 +439,7 @@ test.describe('grid-compositions', () => {
   for (const entry of compositions)
     for (const width of [320, 768, 1440])
       test(`${entry.slug}: composition at ${width}px`, async ({ page }) => {
-        test.skip(test.info().project.name !== 'a11y', 'DOM measurements');
+        onlyA11y('DOM measurements');
         await page.setViewportSize({ width, height: 900 });
         const path = `/probe/${entry.type === 'article' ? 'articles/' : ''}${entry.slug}`;
         expect((await page.goto(path))?.status()).toBe(200);
@@ -472,7 +464,7 @@ test.describe('grid-compositions', () => {
       page,
       request,
     }) => {
-      test.skip(test.info().project.name !== 'a11y', 'live preview is an enhancement');
+      onlyA11y('live preview is an enhancement');
       await page.setViewportSize({ width: 1440, height: 1000 });
       const saved = await item(request, entry);
       await page.context().setExtraHTTPHeaders({
@@ -548,7 +540,7 @@ test.describe('grid-compositions', () => {
   test('a narrow composition on a wide monitor contains floats and full media', async ({
     page,
   }) => {
-    test.skip(test.info().project.name !== 'a11y', 'DOM measurements');
+    onlyA11y('DOM measurements');
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/probe/articles/quality-article-v3');
     await page.evaluate(() => {
@@ -567,7 +559,7 @@ test.describe('grid-compositions', () => {
   // Chrome's tabs API changes actual desktop browser zoom. Pinch/pageScaleFactor and a larger
   // root font cannot prove this: assert the halved CSS viewport and doubled pixel ratio too.
   test('real Chromium 200% browser zoom reflows the composition', async () => {
-    test.skip(test.info().project.name !== 'a11y', 'browser zoom measurement');
+    onlyA11y('browser zoom measurement');
     const directory = await mkdtemp(join(tmpdir(), 'mycel-zoom-'));
     let context;
     try {
@@ -670,7 +662,7 @@ test.describe('grid-compositions', () => {
       test(`${entry.slug} ${locale}: separate text enlargement and spacing stress`, async ({
         page,
       }) => {
-        test.skip(test.info().project.name !== 'a11y', 'DOM measurements');
+        onlyA11y('DOM measurements');
         await page.setViewportSize(NARROW);
         await page.goto(
           `/probe/${locale === 'en' ? 'en/' : ''}${entry.type === 'article' ? 'articles/' : ''}${entry.slug}`

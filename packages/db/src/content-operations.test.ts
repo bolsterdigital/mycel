@@ -11,7 +11,6 @@ import {
   Invoker,
   buildRegistry,
   documentReferences,
-  systemPrincipal,
   useCases,
   type Principal,
   type Revision,
@@ -21,10 +20,11 @@ import {
   FakeDns,
   FakeInputHasher,
   FakeSigner,
+  adminOf,
   memoryPlatform,
+  principal,
   probeForm,
   runSuffix,
-  adminOf,
 } from '@mycel/core/testing';
 import { createDb, createUnitOfWork, uuidv7, uuidv7Ids, withTenant } from './index.js';
 import { requireDatabase, testTenant, migrateSchema } from './testing.js';
@@ -138,10 +138,10 @@ describe.skipIf(skip)('content operations conformance', () => {
       },
     });
     const target = { itemId: created.item.id };
-    const human = {
-      ...adminOf(tenantA),
-      actor: { kind: 'operator' as const, operatorId: uuidv7(), email: 'reviewer@probe.test' },
-    };
+    const human = principal({
+      tenantId: tenantA,
+      actor: { kind: 'operator', operatorId: uuidv7(), email: 'reviewer@probe.test' },
+    });
     const split = await invoker.run(useCases.splitInsertBlock, adminOf(tenantA), {
       ...target,
       baseRevisionId: created.revision.id,

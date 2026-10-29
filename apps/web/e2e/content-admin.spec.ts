@@ -17,6 +17,8 @@ import { expectNoAxeViolations } from './lib/axe';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { ADMIN, login } from './lib/login';
+import { isA11y, onlyA11y } from './lib/project';
+import { callApi, requireApi } from './lib/api';
 
 // Content admin (TODO #11, brief content-editor § A1): an operator makes a page in two locales,
 // edits it, reads its revisions and their diff, and opens a preview that the public site never
@@ -70,7 +72,7 @@ test.describe('content-admin', () => {
     browser.newContext({
       locale,
       ...(viewport ? { viewport } : {}),
-      javaScriptEnabled: test.info().project.name === 'a11y',
+      javaScriptEnabled: isA11y(),
       baseURL: 'http://127.0.0.1:4173',
       extraHTTPHeaders: { 'x-forwarded-proto': 'http', 'x-forwarded-for': address() },
     });
@@ -172,7 +174,7 @@ test.describe('content-admin', () => {
     page,
     browser,
   }) => {
-    test.skip(test.info().project.name !== 'a11y', 'live preview is a JavaScript enhancement');
+    onlyA11y('live preview is a JavaScript enhancement');
     await ensureLiveAdmin();
     await login(page, '/admin/probe', LIVE_ADMIN);
     const edit = await newPage(page, slugFor('live'), 'Saved title');
@@ -286,16 +288,6 @@ test.describe('content-admin', () => {
     await expect(page.getByLabel('Titel (nl)')).toHaveValue('Mijn versie');
   });
 
-  /** A use case over the HTTP API with the seed key of tenant probe (scripts/e2e.mjs). */
-  async function call<T>(request: APIRequestContext, name: string, data: unknown): Promise<T> {
-    const res = await request.post(`${process.env['E2E_API_URL']}/v1/${name}`, {
-      headers: { authorization: `Bearer ${process.env['MYCEL_API_KEY']}` },
-      data,
-    });
-    expect(res.ok(), await res.text()).toBe(true);
-    return res.json();
-  }
-
   /** One entry of a paged directory by its slug, over the HTTP API. */
   async function bySlug<T>(
     request: APIRequestContext,
@@ -305,7 +297,7 @@ test.describe('content-admin', () => {
   ): Promise<T> {
     let after: string | null = null;
     do {
-      const page: Record<string, unknown> & { next: string | null } = await call(request, name, {
+      const page: Record<string, unknown> & { next: string | null } = await callApi(request, name, {
         limit: 100,
         ...(after ? { after } : {}),
       });
@@ -323,10 +315,10 @@ test.describe('content-admin', () => {
     page,
     request,
   }) => {
-    test.skip(!process.env['E2E_API_URL'], 'run through scripts/e2e.mjs');
+    requireApi();
     const run = slugFor('rel');
     const author = (name: string) =>
-      call<{ id: string }>(request, 'content.author.create', {
+      callApi<{ id: string }>(request, 'content.author.create', {
         slug: name.toLowerCase().replace(/\W+/g, '-'),
         name,
       });
@@ -347,7 +339,7 @@ test.describe('content-admin', () => {
     const second = await author(`Tweede ${run}`);
     // The directory lists `second` before `first`; the document has them the other way round.
     const authorIds = [first.id, second.id, old.id];
-    const { item } = await call<{ item: { id: string } }>(request, 'content.item.create', {
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
       slug: run,
       document: {
         type: 'article',
@@ -361,11 +353,9 @@ test.describe('content-admin', () => {
     });
     const saved = async () =>
       (
-        await call<{ revision: { document: { authorIds: string[]; sectionId: string | null } } }>(
-          request,
-          'content.item.get',
-          { itemId: item.id }
-        )
+        await callApi<{
+          revision: { document: { authorIds: string[]; sectionId: string | null } };
+        }>(request, 'content.item.get', { itemId: item.id })
       ).revision.document;
 
     const fresh = await author(`Nieuw ${run}`);
@@ -379,11 +369,11 @@ test.describe('content-admin', () => {
 
     // Another editor removes every relation after this form was opened. Its latest document
     // and the directory page no longer contain the off-page choices in this editor's post.
-    const { revision } = await call<{
+    const { revision } = await callApi<{
       revision: { id: string; document: Record<string, unknown> };
     }>(request, 'content.item.get', { itemId: item.id });
     await page.getByLabel('Titel (nl)').fill('Mijn artikel bij conflict');
-    await call(request, 'content.item.update', {
+    await callApi(request, 'content.item.update', {
       itemId: item.id,
       baseRevisionId: revision.id,
       document: { ...revision.document, authorIds: [], sectionId: null },
@@ -705,7 +695,7 @@ test.describe('content-admin', () => {
         test(`every control whole and no horizontal scroll, ${locale}, text ${text}`, async ({
           browser,
         }) => {
-          test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
+          onlyA11y('measures the layout with a script');
           const context = await freshContext(browser, locale, NARROW);
           const page = await context.newPage();
           await login(page, '/admin/probe');
@@ -760,12 +750,10 @@ test.describe('content-blocks', () => {
   /** The seeded page of this project, by slug over the HTTP API. */
   async function seededPage(request: APIRequestContext): Promise<string> {
     const slug = `e2e-blokken-${test.info().project.name}`;
-    const res = await request.post(`${process.env['E2E_API_URL']}/v1/content.item.list`, {
-      headers: { authorization: `Bearer ${process.env['MYCEL_API_KEY']}` },
-      data: { type: 'page', slug },
+    const { items } = await callApi<{ items: { id: string }[] }>(request, 'content.item.list', {
+      type: 'page',
+      slug,
     });
-    expect(res.ok(), await res.text()).toBe(true);
-    const { items } = (await res.json()) as { items: { id: string }[] };
     expect(items, `${slug} is seeded by scripts/e2e.mjs`).toHaveLength(1);
     return `/admin/probe/content/${items[0]!.id}`;
   }
@@ -789,7 +777,7 @@ test.describe('content-blocks', () => {
     page,
     request,
   }) => {
-    test.skip(!process.env['E2E_API_URL'], 'run through scripts/e2e.mjs');
+    requireApi();
     const edit = await seededPage(request);
     await login(page, edit);
     const stamp = String(Date.now());
@@ -864,7 +852,7 @@ test.describe('content-blocks', () => {
     await expect(page.getByRole('link', { name: 'een link' })).toHaveAttribute('href', /\/over$/);
     await expect(page.locator('main .faq.width-wide')).toContainText(`Wat? ${stamp}`);
     await page.goto(edit);
-    if (test.info().project.name === 'a11y')
+    if (isA11y())
       await expect(
         page.frameLocator('iframe[data-live-preview-frame]').locator('.faq.width-wide')
       ).toBeVisible();
@@ -990,19 +978,14 @@ test.describe('content-blocks', () => {
     page,
     request,
   }) => {
-    test.skip(test.info().project.name !== 'a11y', 'the enhanced writer requires JavaScript');
-    test.skip(!process.env['E2E_API_URL'], 'run through scripts/e2e.mjs');
-    const api = async (name: string, data: unknown) => {
-      const response = await request.post(`${process.env['E2E_API_URL']}/v1/${name}`, {
-        headers: { authorization: `Bearer ${process.env['MYCEL_API_KEY']}` },
-        data,
-      });
-      expect(response.ok(), await response.text()).toBe(true);
-      return response.json();
-    };
-    const source = await api('content.item.list', { type: 'article', slug: 'quality-article-v3' });
+    onlyA11y('the enhanced writer requires JavaScript');
+    requireApi();
+    const source = await callApi(request, 'content.item.list', {
+      type: 'article',
+      slug: 'quality-article-v3',
+    });
     expect(source.items).toHaveLength(1);
-    const fetched = await api('content.item.get', { itemId: source.items[0].id });
+    const fetched = await callApi(request, 'content.item.get', { itemId: source.items[0].id });
     const prose = fetched.revision.document.blocks.find(
       (entry: { type: string }) => entry.type === 'rich-text'
     );
@@ -1012,7 +995,7 @@ test.describe('content-blocks', () => {
       title: { nl: 'Schrijfproef', en: 'Writer proof' },
       blocks: [prose],
     };
-    const created = await api('content.item.create', {
+    const created = await callApi(request, 'content.item.create', {
       slug: `faq-writer-${Date.now()}`,
       document,
     });
@@ -1074,7 +1057,7 @@ test.describe('content-blocks', () => {
         page,
         request,
       }) => {
-        test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
+        onlyA11y('measures the layout with a script');
         const edit = await seededPage(request);
         await login(page, edit);
         const remove = await page
@@ -1103,45 +1086,35 @@ test.describe('content-blocks', () => {
 // proof covers autosave, axe and the action layout at 320 CSS px with 200% text; the no-JS
 // project proves the adjacent form can write the same prose without hydrating the editor.
 test.describe('article-writing', () => {
-  const api = () => `${process.env['E2E_API_URL']}/v1`;
-  const headers = () => ({ authorization: `Bearer ${process.env['MYCEL_API_KEY']}` });
-
   async function article(request: APIRequestContext) {
     const slug = `writer-${test.info().project.name}-${Date.now()}`;
-    const response = await request.post(`${api()}/content.item.create`, {
-      headers: headers(),
-      data: {
-        slug,
-        document: {
-          type: 'article',
-          defaultLocale: 'nl',
-          locales: ['nl', 'en'],
-          title: { nl: 'Een artikel', en: 'An article' },
-          blocks: [
-            {
-              type: 'rich-text',
-              version: 1,
-              props: {
-                content: {
-                  nl: {
-                    type: 'doc',
-                    content: [
-                      { type: 'paragraph', content: [{ type: 'text', text: 'Oude tekst' }] },
-                    ],
-                  },
-                  en: {
-                    type: 'doc',
-                    content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Old text' }] }],
-                  },
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug,
+      document: {
+        type: 'article',
+        defaultLocale: 'nl',
+        locales: ['nl', 'en'],
+        title: { nl: 'Een artikel', en: 'An article' },
+        blocks: [
+          {
+            type: 'rich-text',
+            version: 1,
+            props: {
+              content: {
+                nl: {
+                  type: 'doc',
+                  content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Oude tekst' }] }],
+                },
+                en: {
+                  type: 'doc',
+                  content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Old text' }] }],
                 },
               },
             },
-          ],
-        },
+          },
+        ],
       },
     });
-    expect(response.ok(), await response.text()).toBe(true);
-    const { item } = (await response.json()) as { item: { id: string } };
     return `/admin/probe/content/${item.id}`;
   }
 
@@ -1149,10 +1122,10 @@ test.describe('article-writing', () => {
     page,
     request,
   }) => {
-    test.skip(!process.env['E2E_API_URL'], 'run through scripts/e2e.mjs');
+    requireApi();
     const edit = await article(request);
     await login(page, edit);
-    if (test.info().project.name === 'no-js') {
+    if (!isA11y()) {
       const prose = page.locator('details.block').first();
       await prose.locator(':scope > summary').click();
       await prose.getByLabel(/^(Text|Tekst) \(nl\)$/).fill('Nieuwe tekst');
@@ -1190,7 +1163,8 @@ test.describe('article-writing', () => {
     page,
     request,
   }) => {
-    test.skip(test.info().project.name !== 'a11y' || !process.env['E2E_API_URL']);
+    onlyA11y();
+    requireApi();
     const edit = await article(request);
     await login(page, `${edit}/write`);
     await page.setViewportSize(NARROW);
@@ -1202,7 +1176,8 @@ test.describe('article-writing', () => {
     page,
     request,
   }) => {
-    test.skip(test.info().project.name !== 'a11y' || !process.env['E2E_API_URL']);
+    onlyA11y();
+    requireApi();
     const edit = await article(request);
     await login(page, `${edit}/write`);
     const writing = page.locator('.writing-surface .ProseMirror');
@@ -1229,30 +1204,22 @@ test.describe('article-writing', () => {
     page,
     request,
   }) => {
-    test.skip(test.info().project.name !== 'a11y' || !process.env['E2E_API_URL']);
+    onlyA11y();
+    requireApi();
     const edit = await article(request);
     const itemId = edit.split('/').at(-1)!;
     await login(page, `${edit}/write`);
-    const original = await request.post(`${api()}/content.item.get`, {
-      headers: headers(),
-      data: { itemId },
-    });
-    expect(original.ok(), await original.text()).toBe(true);
-    const { revision } = (await original.json()) as {
+    const { revision } = await callApi<{
       revision: { id: string; document: Record<string, unknown> };
-    };
-    const newer = await request.post(`${api()}/content.item.update`, {
-      headers: headers(),
-      data: {
-        itemId,
-        baseRevisionId: revision.id,
-        document: {
-          ...revision.document,
-          title: { nl: 'Nieuwe kop van collega', en: 'An article' },
-        },
+    }>(request, 'content.item.get', { itemId });
+    await callApi(request, 'content.item.update', {
+      itemId,
+      baseRevisionId: revision.id,
+      document: {
+        ...revision.document,
+        title: { nl: 'Nieuwe kop van collega', en: 'An article' },
       },
     });
-    expect(newer.ok(), await newer.text()).toBe(true);
     await page.locator('.writing-surface .ProseMirror p').first().fill('Mijn nieuwe tekst');
     await expect(
       page.getByRole('heading', { name: 'Iemand anders heeft dit item intussen opgeslagen' })
@@ -1274,20 +1241,15 @@ test.describe('article-writing', () => {
     page,
     request,
   }) => {
-    test.skip(test.info().project.name !== 'a11y' || !process.env['E2E_API_URL']);
-    const listed = await request.post(`${api()}/content.item.list`, {
-      headers: headers(),
-      data: { type: 'page', slug: 'e2e-blokken-a11y' },
+    onlyA11y();
+    requireApi();
+    const { items } = await callApi<{ items: { id: string }[] }>(request, 'content.item.list', {
+      type: 'page',
+      slug: 'e2e-blokken-a11y',
     });
-    expect(listed.ok(), await listed.text()).toBe(true);
-    const { items } = (await listed.json()) as { items: { id: string }[] };
-    const source = await request.post(`${api()}/content.item.get`, {
-      headers: headers(),
-      data: { itemId: items[0]!.id },
-    });
-    const { revision } = (await source.json()) as {
+    const { revision } = await callApi<{
       revision: { document: { blocks: { type: string; props: { mediaId?: string } }[] } };
-    };
+    }>(request, 'content.item.get', { itemId: items[0]!.id });
     const mediaId = revision.document.blocks.find((block) => block.type === 'image')?.props.mediaId;
     expect(mediaId).toBeTruthy();
     const edit = await article(request);
@@ -1311,11 +1273,7 @@ test.describe('article-writing', () => {
     await expect(page.getByRole('status')).toContainText('Niet-opgeslagen wijzigingen');
     // The card's image comes from the shared media picker, not a typed id (brief media-picker).
     // The grid holds the newest hundred; this spec's other tests upload more, so search by name.
-    const media = await request.post(`${api()}/media.get`, {
-      headers: headers(),
-      data: { id: mediaId },
-    });
-    const { filename } = (await media.json()) as { filename: string };
+    const { filename } = await callApi<{ filename: string }>(request, 'media.get', { id: mediaId });
     await page.getByRole('button', { name: 'Beeld kiezen' }).click();
     const picker = page.getByRole('dialog', { name: 'Afbeelding' });
     await picker.getByLabel('Zoeken op naam of bijschrift').fill(filename);
@@ -1339,14 +1297,15 @@ test.describe('article-writing', () => {
     page,
     request,
   }) => {
-    test.skip(test.info().project.name !== 'a11y' || !process.env['E2E_API_URL']);
+    onlyA11y();
+    requireApi();
     const edit = await article(request);
     const itemId = edit.split('/').at(-1)!;
-    const original = await request.post(`${api()}/content.item.get`, {
-      headers: headers(),
-      data: { itemId },
-    });
-    const { revision } = (await original.json()) as { revision: { id: string; document: any } };
+    const { revision } = await callApi<{ revision: { id: string; document: any } }>(
+      request,
+      'content.item.get',
+      { itemId }
+    );
     const rich = {
       type: 'doc',
       content: [
@@ -1414,31 +1373,27 @@ test.describe('article-writing', () => {
         },
       ],
     };
-    const updated = await request.post(`${api()}/content.item.update`, {
-      headers: headers(),
-      data: {
-        itemId,
-        baseRevisionId: revision.id,
-        document: {
-          ...revision.document,
-          blocks: [
-            {
-              ...revision.document.blocks[0],
-              props: { content: { nl: rich, en: revision.document.blocks[0].props.content.en } },
-            },
-          ],
-        },
+    await callApi(request, 'content.item.update', {
+      itemId,
+      baseRevisionId: revision.id,
+      document: {
+        ...revision.document,
+        blocks: [
+          {
+            ...revision.document.blocks[0],
+            props: { content: { nl: rich, en: revision.document.blocks[0].props.content.en } },
+          },
+        ],
       },
     });
-    expect(updated.ok(), await updated.text()).toBe(true);
     await login(page, `${edit}/write`);
     await page.getByRole('button', { name: 'Nu opslaan' }).click();
     await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');
-    const saved = await request.post(`${api()}/content.item.get`, {
-      headers: headers(),
-      data: { itemId },
-    });
-    const { revision: latest } = (await saved.json()) as { revision: { document: any } };
+    const { revision: latest } = await callApi<{ revision: { document: any } }>(
+      request,
+      'content.item.get',
+      { itemId }
+    );
     expect(latest.document.blocks[0].id).toBe(revision.document.blocks[0].id);
     expect(latest.document.blocks[0].props.content.nl).toEqual(rich);
     expect(latest.document.blocks[0].props.content.en).toEqual(
@@ -1451,23 +1406,22 @@ test.describe('article-writing', () => {
     await expect(listItem).toContainText('Eerste punt aangevuld');
     await expect
       .poll(async () => {
-        const response = await request.post(`${api()}/content.item.get`, {
-          headers: headers(),
-          data: { itemId },
-        });
-        const { revision: current } = (await response.json()) as { revision: { document: any } };
+        const { revision: current } = await callApi<{ revision: { document: any } }>(
+          request,
+          'content.item.get',
+          { itemId }
+        );
         return current.document.blocks[0].props.content.nl.content[4].content[0].content[0].content
           .map((part: { text: string }) => part.text)
           .join('');
       })
       .toBe('Eerste punt aangevuld');
     await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');
-    const edited = await request.post(`${api()}/content.item.get`, {
-      headers: headers(),
-      data: { itemId },
-    });
-    expect(edited.ok(), await edited.text()).toBe(true);
-    const { revision: afterEdit } = (await edited.json()) as { revision: { document: any } };
+    const { revision: afterEdit } = await callApi<{ revision: { document: any } }>(
+      request,
+      'content.item.get',
+      { itemId }
+    );
     expect(afterEdit.document.blocks[0].id).toBe(revision.document.blocks[0].id);
     expect(afterEdit.document.blocks[0].props.content.nl).toEqual({
       ...rich,

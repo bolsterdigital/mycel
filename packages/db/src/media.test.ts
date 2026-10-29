@@ -12,7 +12,6 @@ import { readFile } from 'node:fs/promises';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
 import {
-  DEFAULT_ENTITLEMENTS,
   EXAMPLE_PNG,
   Invoker,
   MEDIA_PURGE_DELAY_MS,
@@ -38,6 +37,7 @@ import {
   MemoryBlobStore,
   memoryImageProcessor,
   memoryPlatform,
+  principal,
   runSuffix,
 } from '@mycel/core/testing';
 import { createDb, createUnitOfWork, runJobs, uuidv7, uuidv7Ids } from './index.js';
@@ -138,10 +138,10 @@ describe.skipIf(skip)('media conformance', () => {
   it('lets exactly one of two concurrent uploads past the cap (the lock)', async () => {
     const probe = await upload(systemPrincipal(b, 'probe'));
     const t = await testTenant(operatorDb, `media-cap-${run}`, { name: 'cap' });
-    const capped: Principal = {
-      ...systemPrincipal(t.id, 'test'),
-      entitlements: { ...DEFAULT_ENTITLEMENTS, 'media.storage_max_bytes': probe.totalBytes * 1.5 },
-    };
+    const capped = principal({
+      tenantId: t.id,
+      entitlements: { 'media.storage_max_bytes': probe.totalBytes * 1.5 },
+    });
     const results = await Promise.allSettled([upload(capped), upload(capped)]);
     expect(results.map((r) => r.status).sort()).toEqual(['fulfilled', 'rejected']);
     const refused = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;

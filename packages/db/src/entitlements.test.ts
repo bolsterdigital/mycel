@@ -14,7 +14,6 @@ import {
   Invoker,
   buildRegistry,
   ingest,
-  systemPrincipal,
   toSupporterEvent,
   useCases,
   withinLimit,
@@ -25,12 +24,13 @@ import {
   FakeDns,
   FakeInputHasher,
   FakeSigner,
-  memoryPlatform,
-  probeForm,
-  testPlatformActor,
-  runSuffix,
-  expectCode,
   adminOf,
+  expectCode,
+  memoryPlatform,
+  principal,
+  probeForm,
+  runSuffix,
+  testPlatformActor,
 } from '@mycel/core/testing';
 import {
   createDb,
@@ -364,10 +364,8 @@ describe.skipIf(skip)('entitlements conformance', () => {
   // Review round 1, audit point 3: the supporter cap holds before the worker has ingested
   // anything, because `form.submit` reserves a seat in its own transaction (`ctx.admissions`).
   describe('supporter admissions', () => {
-    const capped = (tenantId: string, max: number): Principal => ({
-      ...systemPrincipal(tenantId, 'admissions'),
-      entitlements: { ...DEFAULT_ENTITLEMENTS, 'supporters.max': max },
-    });
+    const capped = (tenantId: string, max: number): Principal =>
+      principal({ tenantId, entitlements: { 'supporters.max': max } });
     /** What form.submit does for a new address, without the rate limits around it. */
     const admit = (p: Principal, email: string, pause = 0) =>
       uow.run(p, async (ctx) => {

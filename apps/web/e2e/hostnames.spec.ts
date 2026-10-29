@@ -14,6 +14,8 @@ import { once } from 'node:events';
 import { expectNoAxeViolations } from './lib/axe';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { login } from './lib/login';
+import { isA11y, onlyA11y } from './lib/project';
+import { pastMinimumFillTime } from './lib/form';
 
 const SITE = 'http://probe.localhost:4173';
 
@@ -48,7 +50,7 @@ test('the site is served from Host on its platform hostname, and the mail links 
   await expectNoAxeViolations(page);
 
   const email = `e2e-host-${Date.now()}@example.org`;
-  await page.waitForTimeout(3200);
+  await pastMinimumFillTime(page);
   await page.getByLabel('E-mailadres').fill(email);
   await page.getByLabel(/nieuwsbrief ontvangen/).check();
   await page.getByRole('button', { name: 'Aanmelden' }).click();
@@ -118,7 +120,7 @@ test('X-Forwarded-Host does not choose the site or open the admin', async ({ req
 // The main e2e server deliberately trusts X-Forwarded-Proto to model HTTP behind Caddy.
 // A second adapter-node process proves the untrusted boundary instead of relying on that fixture.
 test('without proxy configuration, forwarded protocol and host cannot change the admin origin', async () => {
-  const port = test.info().project.name === 'a11y' ? 4174 : 4175;
+  const port = isA11y() ? 4174 : 4175;
   const origin = `http://127.0.0.1:${port}`;
   const env = { ...process.env };
   for (const key of [
@@ -225,7 +227,7 @@ test.describe('UI gate: the domain action group at 320 CSS px and 200% text', ()
 
   for (const text of TEXT_SIZES) {
     test(`every button whole and no horizontal scroll, text ${text}`, async ({ page }) => {
-      test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
+      onlyA11y('measures the layout with a script');
       await login(page, '/admin/probe');
       const domain = `gate-${text.replace('%', '')}-${Date.now()}.example`;
       const add = formWith(page, 'Domein toevoegen');

@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { UseCaseError } from '../errors.js';
 import { Invoker } from '../invoke.js';
 import type { UnitOfWork } from '../ports.js';
-import { systemPrincipal, type Principal } from '../principal.js';
 import { UseCaseRegistry, defineUseCase } from '../registry.js';
 import {
   FakeClock,
@@ -13,6 +12,7 @@ import {
   MemoryUnitOfWork,
   TENANT,
   adminOf,
+  principal,
 } from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { canonicalJson } from '../util/canonical-json.js';
@@ -117,7 +117,7 @@ describe('the Invoker writes one audit row per command (TODO #17b)', () => {
   });
 
   it('records a refusal for want of a capability and rethrows it unchanged', async () => {
-    const visitor: Principal = { ...adminOf(), capabilities: ['forms:read'] };
+    const visitor = principal({ capabilities: ['forms:read'] });
     const error = await invoker.run(echo, visitor, { id: 'x' }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(UseCaseError);
     expect((error as UseCaseError).code).toBe('forbidden');
@@ -125,7 +125,7 @@ describe('the Invoker writes one audit row per command (TODO #17b)', () => {
   });
 
   it('records a suspended tenant as suspended', async () => {
-    const suspended: Principal = { ...adminOf(), tenantStatus: 'suspended' };
+    const suspended = principal({ tenantStatus: 'suspended' });
     await expect(invoker.run(echo, suspended, { id: 'x' })).rejects.toMatchObject({
       code: 'suspended',
     });
@@ -161,10 +161,9 @@ describe('the Invoker writes one audit row per command (TODO #17b)', () => {
   });
 
   it('names an operator by id, never by address', async () => {
-    const operator: Principal = {
-      ...adminOf(),
+    const operator = principal({
       actor: { kind: 'operator', operatorId: 'op-1', email: 'editor@example.org' },
-    };
+    });
     await invoker.run(echo, operator, { id: 'x' });
     expect(rows()[0]).toMatchObject({ actorKind: 'operator', actorId: 'op-1' });
     expect(JSON.stringify(rows())).not.toContain('@');
@@ -264,7 +263,7 @@ describe('audit.list', () => {
       (await invoker.run(useCases.listAudit, adminOf(), { from: middle })).items.map((r) => r.id)
     ).toEqual(all.items.slice(0, 2).map((r) => r.id));
     await expect(
-      invoker.run(useCases.listAudit, { ...adminOf(), capabilities: ['content:write'] }, {})
+      invoker.run(useCases.listAudit, principal({ capabilities: ['content:write'] }), {})
     ).rejects.toMatchObject({ code: 'forbidden' });
   });
 });

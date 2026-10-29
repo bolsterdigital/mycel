@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { Invoker } from '../invoke.js';
 import type { JobRecord } from '../jobs/ports.js';
-import { systemPrincipal, type Principal } from '../principal.js';
 import {
   FakeClock,
   MemoryUnitOfWork,
-  probeTenant,
-  secureErasures,
   TENANT,
   adminOf,
+  principal,
+  probeTenant,
+  secureErasures,
 } from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { buildDiagnosis, keyPrefix } from './model.js';
@@ -96,7 +96,7 @@ describe('job recovery (TODO #17c)', () => {
 
   it('audits both recoveries, and needs tenant:admin', async () => {
     const j = job();
-    const editor: Principal = { ...adminOf(), capabilities: ['content:write'] };
+    const editor = principal({ capabilities: ['content:write'] });
     await expect(invoker.run(useCases.retryJob, editor, { id: j.id })).rejects.toMatchObject({
       code: 'forbidden',
     });
