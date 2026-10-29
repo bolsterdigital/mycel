@@ -1,5 +1,5 @@
 // `mycel`: the command line of a self-hoster (TODO #18a, ADR 015 rule 4). Platform operations run
-// the same functions as the platform API (packages/db/src/platform.ts) on the operator
+// the same `platformOperations` as the platform API (compose.ts, TODO #74) on the operator
 // connection, without a token, because whoever holds DATABASE_URL already holds everything; the
 // functions enter `mycel_platform` and `mycel_ops` themselves (0010, 0016), so the CLI and the API
 // run under the same grants. `setup` adds the first tenant, its first operator and a custom
@@ -27,21 +27,8 @@ import {
   expireExports,
   createDb,
   erasureStatus,
-  createTenant,
   exportTenant,
   importTenant,
-  getTenantBySlug,
-  listTenants,
-  opsCloseJob,
-  opsDeadEvents,
-  opsJobs,
-  opsRetryEvent,
-  opsRetryJob,
-  opsSummary,
-  opsUnresolvedMail,
-  setEntitlements,
-  setStatus,
-  uuidv7,
   type PlatformTenant,
 } from '@mycel/db';
 import { ensureS3Bucket } from '@mycel/blob';
@@ -52,8 +39,10 @@ import {
   inputHasherOf,
   loadConfig,
   platformOf,
+  platformOperations,
   s3ConfigOf,
 } from './compose.js';
+import { OPS_REFUSALS } from './platform.js';
 
 export const USAGE = `usage:
   mycel setup --tenant <slug> --name <name> --operator <e-mail> [--locales nl,en] [--hostname <domain>]
@@ -309,10 +298,6 @@ export async function runSetup(deps: SetupDeps, input: SetupInput): Promise<Setu
 /** The version of this build: MYCEL_VERSION from the release image, else the root package.json. */
 export const version = (): string => buildVersion();
 
-const OPS_REFUSALS = {
-  not_found: 'no stuck row with that id',
-  not_exhausted: 'not stuck: it has attempts left, is running right now, or is already done',
-};
 const iso = (d: Date | string | null | undefined) => (d ? new Date(d).toISOString() : '-');
 
 const show = (t: PlatformTenant) =>
@@ -341,15 +326,15 @@ async function main(argv: string[]): Promise<number> {
   // Every mutation writes an audit row as `platform`, actor `cli` (TODO #17b).
   const by = { actorId: 'cli', hasher: inputHasherOf(config) };
   const platform = platformOf(config);
+  const store = platformOperations(db, platform, () => by);
   const found = (t: PlatformTenant | null, slug: string) => {
     if (!t) throw new Error(`no tenant with slug "${slug}"`);
     return t;
   };
-  const bySlug = async (slug: string) => {
-    const tenant = await getTenantBySlug(db, slug);
-    if (!tenant) throw new Error(`no tenant with slug "${slug}"`);
-    return tenant;
-  };
+  const bySlug = async (slug: string) => found(await store.bySlug(slug), slug);
+  /** The one tenant `--slug` names, or every tenant. */
+  const tenantsOf = async (slug: string | undefined) =>
+    slug ? [await bySlug(slug)] : await store.list();
   // Log lines to stderr, so stdout stays the command's output.
   const runtime =
     command.kind === 'setup'
@@ -364,8 +349,8 @@ async function main(argv: string[]): Promise<number> {
       case 'setup': {
         const report = await runSetup(
           {
-            tenantBySlug: (slug) => getTenantBySlug(db, slug),
-            createTenant: (input) => createTenant(db, { id: uuidv7(), ...input }, platform, by),
+            tenantBySlug: store.bySlug,
+            createTenant: store.create,
             invoker: runtime!.invoker,
             platformOrigin: platform.platformOrigin,
           },
@@ -382,7 +367,7 @@ async function main(argv: string[]): Promise<number> {
         break;
       }
       case 'tenants.list':
-        for (const t of await listTenants(db)) console.log(show(t));
+        for (const t of await store.list()) console.log(show(t));
         break;
       case 'export': {
         // ADR 015 rule 7: never gated, a suspended tenant exports like any other.
@@ -419,7 +404,7 @@ async function main(argv: string[]): Promise<number> {
       case 'erasures.apply': {
         // After a restore (docs/self-hosting.md § Restore): the register of the newer backup
         // erases again what the older one brought back. Each tenant in its own transaction.
-        const tenants = command.slug ? [await bySlug(command.slug)] : await listTenants(db);
+        const tenants = await tenantsOf(command.slug);
         let total = 0;
         for (const t of tenants) {
           const changed = await applyErasures(db, t.id);
@@ -434,7 +419,7 @@ async function main(argv: string[]): Promise<number> {
       case 'erasures.status': {
         // TODO #29B: a registration is a completed erasure only once a backup holds it. Exit 1
         // when one has waited longer than ERASURE_UNSECURED_WARN_MS, so a timer can alarm on it.
-        const tenants = command.slug ? [await bySlug(command.slug)] : await listTenants(db);
+        const tenants = await tenantsOf(command.slug);
         const now = Date.now();
         let late = 0;
         for (const t of tenants) {
@@ -457,14 +442,14 @@ async function main(argv: string[]): Promise<number> {
       }
       case 'tenants.create': {
         const { slug, name, locales } = command;
-        const t = await createTenant(db, { id: uuidv7(), slug, name, locales }, platform, by);
+        const t = await store.create({ slug, name, locales });
         console.log(`platform: created tenant ${t.id} (${t.slug})`);
         console.log(show(t));
         break;
       }
       case 'entitlements.set': {
         const t = await bySlug(command.slug);
-        const updated = found(await setEntitlements(db, t.id, command.document, by), t.slug);
+        const updated = found(await store.setEntitlements(t.id, command.document), t.slug);
         console.log(
           `platform: tenant ${t.id} entitlements set to ${JSON.stringify(updated.storedEntitlements)}`
         );
@@ -473,13 +458,13 @@ async function main(argv: string[]): Promise<number> {
       }
       case 'status.set': {
         const t = await bySlug(command.slug);
-        const updated = found(await setStatus(db, t.id, command.status, by), t.slug);
+        const updated = found(await store.setStatus(t.id, command.status), t.slug);
         console.log(`platform: tenant ${t.id} status set to ${updated.status}`);
         console.log(show(updated));
         break;
       }
       case 'ops.summary':
-        for (const s of await opsSummary(db))
+        for (const s of await store.ops.summary())
           console.log(
             `${s.slug ?? 'platform'}\tjobs ${s.exhaustedJobs}\toutbox ${s.deadEvents}\tmail unknown ${s.unknownMail}\tabandoned ${s.abandonedMail}`
           );
@@ -491,7 +476,7 @@ async function main(argv: string[]): Promise<number> {
           const q = { tenantId, cursor, limit: 200 };
           let page: { items: string[]; nextCursor: string | null };
           if (command.list === 'jobs') {
-            const r = await opsJobs(db, q);
+            const r = await store.ops.jobs(q);
             page = {
               nextCursor: r.nextCursor,
               items: r.items.map(
@@ -500,7 +485,7 @@ async function main(argv: string[]): Promise<number> {
               ),
             };
           } else if (command.list === 'outbox') {
-            const r = await opsDeadEvents(db, q);
+            const r = await store.ops.outbox(q);
             page = {
               nextCursor: r.nextCursor,
               items: r.items.map(
@@ -509,7 +494,7 @@ async function main(argv: string[]): Promise<number> {
               ),
             };
           } else {
-            const r = await opsUnresolvedMail(db, q);
+            const r = await store.ops.mail(q);
             page = {
               nextCursor: r.nextCursor,
               items: r.items.map(
@@ -526,8 +511,12 @@ async function main(argv: string[]): Promise<number> {
       case 'ops.recover': {
         const { action, queue, id } = command;
         const recover =
-          action === 'close' ? opsCloseJob : queue === 'jobs' ? opsRetryJob : opsRetryEvent;
-        const result = await recover(db, id, by);
+          action === 'close'
+            ? store.ops.closeJob
+            : queue === 'jobs'
+              ? store.ops.retryJob
+              : store.ops.retryEvent;
+        const result = await recover(id);
         if (result === 'ok') console.log(`platform: ${queue} ${id} ${action}: ok`);
         else {
           console.error(`platform: ${queue} ${id}: ${OPS_REFUSALS[result]}`);

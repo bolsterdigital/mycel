@@ -32,6 +32,7 @@ import {
   type SiteDirectory,
   type Subscriber,
   type TenantDirectory,
+  type TenantStatus,
   type UnitOfWork,
 } from '@mycel/core';
 import {
@@ -53,6 +54,7 @@ import {
   createTenant,
   createUnitOfWork,
   getTenant,
+  getTenantBySlug,
   listTenants,
   opsCloseJob,
   opsDeadEvents,
@@ -70,6 +72,9 @@ import {
   uuidv7,
   uuidv7Ids,
   type JobHandlers,
+  type NewTenant,
+  type OpsPage,
+  type PlatformActor,
 } from '@mycel/db';
 import { createFsBlobStore, createS3BlobStore, type S3BlobStoreConfig } from '@mycel/blob';
 import { ConsoleMailer, TemMailer } from '@mycel/mail-tem';
@@ -406,6 +411,39 @@ function workerMetrics(metrics: Metrics) {
   };
 }
 
+/**
+ * The platform's tenant and ops operations on one login, each mutation audited as `by()`: the
+ * platform API binds them to the authentication login and a token fingerprint, `mycel` to the
+ * operator login and `cli` (TODO #74). Each function enters mycel_platform or mycel_ops itself
+ * (0010, 0016). Rejected: each front wiring the db functions itself, which is how the two lists
+ * drifted apart.
+ */
+export function platformOperations(
+  db: ReturnType<typeof createDb>,
+  platform: PlatformConfig,
+  by: () => PlatformActor
+) {
+  return {
+    create: (input: Omit<NewTenant, 'id'>) =>
+      createTenant(db, { id: uuidv7(), ...input }, platform, by()),
+    list: () => listTenants(db),
+    get: (id: string) => getTenant(db, id),
+    bySlug: (slug: string) => getTenantBySlug(db, slug),
+    setEntitlements: (id: string, document: unknown) => setEntitlements(db, id, document, by()),
+    setStatus: (id: string, status: TenantStatus) => setStatus(db, id, status, by()),
+    // Stuck rows without payloads.
+    ops: {
+      summary: () => opsSummary(db),
+      jobs: (q: OpsPage) => opsJobs(db, q),
+      outbox: (q: OpsPage) => opsDeadEvents(db, q),
+      mail: (q: OpsPage) => opsUnresolvedMail(db, q),
+      retryJob: (id: string) => opsRetryJob(db, id, by()),
+      closeJob: (id: string) => opsCloseJob(db, id, by()),
+      retryEvent: (id: string) => opsRetryEvent(db, id, by()),
+    },
+  };
+}
+
 /** The audit `actor_id` of a platform token: two tokens differ, the token is not kept. */
 export const tokenFingerprint = (token: string): string =>
   createHash('sha256').update(token).digest('hex').slice(0, 8);
@@ -560,26 +598,7 @@ export function createRuntime(
     requestId: currentContext().requestId,
   });
   const platformApi: PlatformDeps | undefined = platformToken
-    ? {
-        token: platformToken,
-        store: {
-          create: (input) => createTenant(authDb, { id: uuidv7(), ...input }, platform, by()),
-          list: () => listTenants(authDb),
-          get: (id) => getTenant(authDb, id),
-          setEntitlements: (id, document) => setEntitlements(authDb, id, document, by()),
-          setStatus: (id, status) => setStatus(authDb, id, status, by()),
-          // As mycel_ops from the same login (0016): stuck rows without payloads.
-          ops: {
-            summary: () => opsSummary(authDb),
-            jobs: (q) => opsJobs(authDb, q),
-            outbox: (q) => opsDeadEvents(authDb, q),
-            mail: (q) => opsUnresolvedMail(authDb, q),
-            retryJob: (id) => opsRetryJob(authDb, id, by()),
-            closeJob: (id) => opsCloseJob(authDb, id, by()),
-            retryEvent: (id) => opsRetryEvent(authDb, id, by()),
-          },
-        },
-      }
+    ? { token: platformToken, store: platformOperations(authDb, platform, by) }
     : undefined;
 
   const ready = () => ping(appDb);

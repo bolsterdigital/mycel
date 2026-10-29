@@ -13,11 +13,10 @@ import {
   type UseCase,
   type UseCaseRegistry,
 } from '@mycel/core';
+import { buildVersion } from '@mycel/observability';
 import { CONTENT_READ_PATH } from './content-read.js';
 import { flatQueryFields } from './http-shape.js';
 import { PROBLEMS, problemType, type ProblemCode } from './problem.js';
-
-export const API_VERSION = '0.0.0';
 
 const problemRef = { $ref: '#/components/responses/Problem' };
 const ERROR_STATUSES = ['400', '401', '403', '404', '409', '500'];
@@ -118,7 +117,7 @@ export function openApiDocument(registry: UseCaseRegistry): Record<string, unkno
     openapi: '3.1.0',
     info: {
       title: 'Mycel API',
-      version: API_VERSION,
+      version: buildVersion(),
       description: 'Generated from the use-case registry; the MCP server exposes the same set.',
       license: { name: 'AGPL-3.0-only', identifier: 'AGPL-3.0-only' },
     },

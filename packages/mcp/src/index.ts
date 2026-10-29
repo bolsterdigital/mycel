@@ -24,6 +24,7 @@ import {
   type Principal,
   type UseCase,
 } from '@mycel/core';
+import { buildVersion } from '@mycel/observability';
 
 const asText = (value: unknown) => JSON.stringify(value, null, 2);
 
@@ -59,7 +60,7 @@ export function createMcpServer(
   /** Unexpected failures; the caller only sees "internal error". Tests leave it out. */
   errors?: ErrorReporter
 ): McpServer {
-  const server = new McpServer({ name: 'mycel', version: '0.0.0' });
+  const server = new McpServer({ name: 'mycel', version: buildVersion() });
   const useCases = invoker.registry.list();
   const tools = useCases.map(toolOf);
 
