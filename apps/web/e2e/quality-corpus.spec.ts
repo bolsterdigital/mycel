@@ -199,9 +199,9 @@ test('admin corpus uses the populated shell, native editor and enhanced writer',
     if (message.type() === 'error') consoleErrors.push(message.text());
   });
   await page.addInitScript(() => {
-    (window as Window & { writerCspViolations: string[] }).writerCspViolations = [];
+    window.writerCspViolations = [];
     window.addEventListener('securitypolicyviolation', (event) => {
-      (window as Window & { writerCspViolations: string[] }).writerCspViolations.push(
+      window.writerCspViolations.push(
         `${event.violatedDirective}: ${event.blockedURI} (${event.sourceFile}:${event.lineNumber})`
       );
     });
@@ -222,11 +222,7 @@ test('admin corpus uses the populated shell, native editor and enhanced writer',
     await expect(writing).toHaveAttribute('contenteditable', 'true');
     await writing.locator('p').first().click();
     await writing.press('ArrowRight');
-    expect(
-      await page.evaluate(
-        () => (window as Window & { writerCspViolations: string[] }).writerCspViolations
-      )
-    ).toEqual([]);
+    expect(await page.evaluate(() => window.writerCspViolations)).toEqual([]);
     expect(consoleErrors).toEqual([]);
   }
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);

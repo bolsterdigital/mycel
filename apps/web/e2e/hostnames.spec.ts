@@ -155,7 +155,7 @@ test('without proxy configuration, forwarded protocol and host cannot change the
       )
       .toBe(200);
     for (const headers of [
-      {},
+      {} as Record<string, string>,
       { 'x-forwarded-proto': 'http', 'x-forwarded-host': 'evil.example' },
     ]) {
       const response = await fetch(`${origin}/admin`, { headers, redirect: 'manual' });

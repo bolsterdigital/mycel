@@ -371,7 +371,14 @@
           {#if !key.revokedAt}
             <input type="hidden" name="id" value={key.id} />
             <Actions>
-              <Button variant="secondary">{fill(t('admin.keys.revoke'), { name: key.name })}</Button
+              <!-- A key name is an identifier without break opportunities: in the visible label it
+                   overflowed the button at 320 CSS px and 200% text, and a button keeps its words
+                   whole (TODO #63). The card title shows the name; the accessible name starts with
+                   the visible label and adds the name, so each button stays distinct (WCAG 2.5.3). -->
+              <Button
+                variant="secondary"
+                aria-label={fill(t('admin.keys.revokeName'), { name: key.name })}
+                >{t('admin.keys.revoke')}</Button
               >
             </Actions>
           {/if}

@@ -577,7 +577,7 @@ test.describe('content-admin', () => {
       for (const [label, at] of [
         ['autumn', '2030-10-27T01:30:00.000Z'],
         ['seconds', '2030-01-04T08:00:45.123Z'],
-      ]) {
+      ] as const) {
         const edit = await newPage(page, slugFor(`repin-${label}`), `Planned ${label}`);
         const itemId = edit.split('/').at(-1)!;
         const oldRevisionId = await page.locator('input[name="baseRevisionId"]').inputValue();
@@ -1165,11 +1165,9 @@ test.describe('article-writing', () => {
         if (message.type() === 'error') consoleErrors.push(message.text());
       });
       await page.addInitScript(() => {
-        (window as Window & { writerCspViolations: string[] }).writerCspViolations = [];
+        window.writerCspViolations = [];
         window.addEventListener('securitypolicyviolation', (event) => {
-          (window as Window & { writerCspViolations: string[] }).writerCspViolations.push(
-            `${event.violatedDirective}: ${event.blockedURI}`
-          );
+          window.writerCspViolations.push(`${event.violatedDirective}: ${event.blockedURI}`);
         });
       });
       await page.locator(`a[href="${edit}/write"]`).click();
@@ -1177,11 +1175,7 @@ test.describe('article-writing', () => {
       await expect(writing).toBeVisible();
       await writing.locator('p').first().fill('Nieuwe tekst');
       await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');
-      expect(
-        await page.evaluate(
-          () => (window as Window & { writerCspViolations: string[] }).writerCspViolations
-        )
-      ).toEqual([]);
+      expect(await page.evaluate(() => window.writerCspViolations)).toEqual([]);
       expect(consoleErrors).toEqual([]);
       await expectNoAxeViolations(page);
     }
