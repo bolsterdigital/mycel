@@ -197,8 +197,8 @@ export class MemoryStore {
   }
 
   /**
-   * What `upsertTenant` does on the operator connection: the platform hostname, verified, and
-   * primary unless the tenant already has a primary.
+   * What `insertPlatformHostname` (db platform.ts) does for a new tenant: the platform hostname,
+   * verified, and primary unless the tenant already has a primary.
    */
   addPlatformHostname(tenant: TenantInfo, platformDomain: string, at = new Date()): void {
     const s = this.for(tenant.id);

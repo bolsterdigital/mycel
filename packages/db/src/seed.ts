@@ -17,8 +17,8 @@ import {
 import {
   createDb,
   createUnitOfWork,
+  ensureTenant,
   setEntitlements,
-  upsertTenant,
   uuidv7,
   uuidv7Ids,
 } from './index.js';
@@ -49,10 +49,14 @@ const noSigner: Signer = {
 const inputHasher = new FakeInputHasher(process.env['AUDIT_HASH_KEY']);
 
 try {
-  const tenant = await upsertTenant(
+  // The platform path every tenant takes (platform.ts), so the probe tenant has its audit row.
+  const platform = { ...memoryPlatform, domain: platformDomain };
+  const seedActor = { actorId: 'seed', hasher: inputHasher };
+  const tenant = await ensureTenant(
     operatorDb,
     { id: uuidv7(), slug: 'probe', name: 'Probe', defaultLocale: 'nl', locales: ['nl', 'en'] },
-    { platformDomain }
+    platform,
+    seedActor
   );
   // A hosted free tier in miniature (ADR 015 rules 2 and 5), so dev and e2e show the footer
   // credit and run against a real cap. Prices and tier names stay out of this repository.
@@ -60,7 +64,7 @@ try {
     operatorDb,
     tenant.id,
     { remove_branding: false, 'supporters.max': 250 },
-    { actorId: 'seed', hasher: inputHasher }
+    seedActor
   );
 
   // The seed verifies no domains and builds no URLs: the in-memory DNS and platform defaults
@@ -71,7 +75,7 @@ try {
     signer: noSigner,
     inputHasher,
     dns: new FakeDns(),
-    platform: { ...memoryPlatform, domain: platformDomain },
+    platform,
   });
   const invoker = new Invoker(buildRegistry(), uow);
   const admin = systemPrincipal(tenant.id, 'seed');

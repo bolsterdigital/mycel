@@ -146,6 +146,20 @@ export async function createTenant(
 }
 
 /**
+ * The tenant with `tenant.slug`, created through `createTenant` (audit row included) when it does
+ * not exist yet: for a caller that runs again on the same database, the seed and an e2e fixture
+ * with a fixed slug. An existing tenant comes back as it is; nothing is updated or audited.
+ */
+export async function ensureTenant(
+  db: Kysely<Database>,
+  tenant: NewTenant,
+  platform: Platform,
+  by: PlatformActor
+): Promise<PlatformTenant> {
+  return (await getTenantBySlug(db, tenant.slug)) ?? createTenant(db, tenant, platform, by);
+}
+
+/**
  * `createTenant` inside a transaction that already runs as mycel_platform, for a caller that
  * writes more in the same transaction: the tenant import (export.ts), which must leave no tenant
  * behind when its data fails. `action` names the audit row; an import keeps the exported status.

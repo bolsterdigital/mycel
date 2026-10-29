@@ -44,8 +44,7 @@ import {
 import { erasureRepository } from './erasures.js';
 import { tenantExportRepository } from './exports.js';
 import { hostnameRepository } from './hostnames.js';
-import { insertPlatformHostname } from './platform.js';
-import { asRole, enterTenant } from './roles.js';
+import { enterTenant } from './roles.js';
 import { jobScheduler } from './jobs.js';
 import { jobRecoveryRepository } from './recovery.js';
 import { mediaRepository } from './media.js';
@@ -130,6 +129,7 @@ export { createSiteDirectory, SITE_CACHE_TTL_MS } from './hostnames.js';
 export { FIRST_EVENT_MONTH, ensureEventPartitions, migrate, migrationsAhead } from './migrate.js';
 export {
   createTenant,
+  ensureTenant,
   getTenant,
   getTenantBySlug,
   listTenants,
@@ -292,46 +292,4 @@ export function createTenantDirectory(db: Kysely<Database>): TenantDirectory {
       return r ? toInfo(r) : null;
     },
   };
-}
-
-/**
- * Platform operation (ADR 002 rule 4): create or update a tenant on the operator connection,
- * with its platform hostname `<slug>.<platform domain>` (ADR 014 rule 2): verified from the
- * start, primary unless the tenant already has a primary, never removed. Idempotent.
- */
-export async function upsertTenant(
-  operatorDb: Kysely<Database>,
-  tenant: Omit<TenantInfo, 'id'> & { id: string },
-  { platformDomain }: { platformDomain: string }
-): Promise<TenantInfo> {
-  // As mycel_platform, like every platform write (0010): the owner is a member, and the role's
-  // grants, not the connection's, decide what this can do. An existing slug keeps its row.
-  return asRole(operatorDb, 'mycel_platform', async (trx) => {
-    const row =
-      (await trx
-        .insertInto('tenants')
-        .values({
-          id: tenant.id,
-          slug: tenant.slug,
-          name: tenant.name,
-          default_locale: tenant.defaultLocale,
-          locales: tenant.locales,
-        })
-        .onConflict((oc) => oc.column('slug').doNothing())
-        .returningAll()
-        .executeTakeFirst()) ??
-      (await trx
-        .selectFrom('tenants')
-        .selectAll()
-        .where('slug', '=', tenant.slug)
-        .executeTakeFirstOrThrow());
-    await insertPlatformHostname(trx, row, platformDomain);
-    return {
-      id: row.id,
-      slug: row.slug,
-      name: row.name,
-      defaultLocale: row.default_locale,
-      locales: row.locales,
-    };
-  });
 }
