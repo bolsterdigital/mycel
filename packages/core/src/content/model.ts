@@ -108,7 +108,7 @@ const CanonicalUrl = z
 /**
  * Search and sharing metadata, stored with the revision. Absent fields are derived (title, lead)
  * by #9; a present field is an explicit override. `imageId` names a media asset (#10), never a
- * vendor URL.
+ * vendor URL; without it the share image is the document's `featuredImageId` (`shareImageId`).
  */
 export const Seo = z
   .object({
@@ -172,6 +172,8 @@ function documentSchemas<B extends typeof Block | typeof BlockInput>(block: B) {
     locales: LocaleList,
     blocks: z.array(block).max(1000),
     machineTranslation: z.record(Locale, z.array(z.string().min(1))).optional(),
+    /** The item's own image: cards that link to it, and the share image unless `seo.imageId`. */
+    featuredImageId: z.string().guid().optional(),
     // Zod 4 defaults return directly; prefault keeps parsing the nested defaults as Zod 3 did.
     seo: Seo.prefault({}),
     access: Access.prefault({ level: 'public' }),
@@ -306,6 +308,28 @@ export function readinessIssues(
   return issues;
 }
 
+/**
+ * The images the document itself names, outside its blocks: the featured image and the share
+ * image. `slot` is the usage's block id in `media_usages`; the colon keeps it apart from every
+ * block id (`BlockId`), so no block can take it. `path` is the issue path of a refusal.
+ */
+export type DocumentMediaSlot = 'doc:featured' | 'doc:seo';
+
+export function documentMedia(
+  doc: Pick<ContentDocument, 'featuredImageId' | 'seo'>
+): { slot: DocumentMediaSlot; path: string; mediaId: string }[] {
+  const out: { slot: DocumentMediaSlot; path: string; mediaId: string }[] = [];
+  if (doc.featuredImageId)
+    out.push({ slot: 'doc:featured', path: 'featuredImageId', mediaId: doc.featuredImageId });
+  if (doc.seo.imageId) out.push({ slot: 'doc:seo', path: 'seo.imageId', mediaId: doc.seo.imageId });
+  return out;
+}
+
+/** The image shown when the item is shared: the explicit share image, else the featured one. */
+export function shareImageId(doc: Pick<ContentDocument, 'featuredImageId' | 'seo'>): string | null {
+  return doc.seo.imageId ?? doc.featuredImageId ?? null;
+}
+
 /** One row of `content_block_refs`: `blockId` is null for a reference the document itself makes. */
 export interface DocumentReference {
   blockId: string | null;
@@ -320,6 +344,8 @@ export interface DocumentReference {
  */
 export function documentReferences(doc: ContentDocument): DocumentReference[] {
   const refs: DocumentReference[] = blockReferenceRows(doc.blocks);
+  for (const id of new Set(documentMedia(doc).map((m) => m.mediaId)))
+    refs.push({ blockId: null, type: 'media', refId: id });
   if (doc.type === 'article') {
     for (const id of doc.authorIds) refs.push({ blockId: null, type: 'author', refId: id });
     if (doc.sectionId) refs.push({ blockId: null, type: 'section', refId: doc.sectionId });

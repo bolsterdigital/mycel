@@ -23,7 +23,7 @@ import { UseCaseError } from '../errors.js';
 import { Locale } from '../i18n/locale.js';
 import { defineUseCase } from '../registry.js';
 import { Block, blockLocalized, projectBlock } from './blocks.js';
-import { ContentType, Slug, type ContentDocument } from './model.js';
+import { ContentType, Slug, shareImageId, type ContentDocument } from './model.js';
 import { statusOf } from './lifecycle.js';
 import './ports.js';
 
@@ -41,6 +41,17 @@ export const PublishedItem = z.object({
   publishedAt: z.string().datetime({ offset: true }),
   /** When the published revision was saved; a later draft does not move it. */
   updatedAt: z.string().datetime({ offset: true }),
+  /** The item's own image, for cards that link to it; null without one. */
+  featuredImageId: z.string().guid().nullable(),
+  /**
+   * Search and sharing in this locale: the explicit title and description (null: derive them
+   * from the title and lead) and the share image, which falls back to the featured image.
+   */
+  seo: z.object({
+    title: z.string().nullable(),
+    description: z.string().nullable(),
+    imageId: z.string().guid().nullable(),
+  }),
   /** Articles only, in this locale. */
   lead: z.string().nullable().optional(),
   corrections: z.array(z.object({ date: z.string().date(), text: z.string() })).optional(),
@@ -116,6 +127,12 @@ export const getPublished = defineUseCase({
       ...projectDocument(doc, chosen),
       publishedAt: state.publishedAt!.toISOString(),
       updatedAt: revision.createdAt,
+      featuredImageId: doc.featuredImageId ?? null,
+      seo: {
+        title: doc.seo.title?.[chosen] ?? null,
+        description: doc.seo.description?.[chosen] ?? null,
+        imageId: shareImageId(doc),
+      },
     };
     if (doc.type !== 'article') return base;
 

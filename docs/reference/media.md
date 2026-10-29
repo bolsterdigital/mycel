@@ -71,7 +71,7 @@ Without a session or membership both are `403`; another site's id is `404` (RLS 
 
 ## Usages and deleting
 
-`media_usages` (`tenant_id`, `media_id`, `ref`, `block_id`) records references. `ref` is opaque to the media module: `item:<id>:rev:<id>` for a revision's block tree, `pattern:<id>` for a pattern, `og:<...>` for a cached og-image. The writer replaces all rows of one ref in its own transaction:
+`media_usages` (`tenant_id`, `media_id`, `ref`, `block_id`) records references. `ref` is opaque to the media module: `item:<id>:rev:<id>` for a revision's block tree and its featured and share image (block ids `doc:featured`, `doc:seo`), `pattern:<id>` for a pattern, `og:<...>` for a cached og-image. The writer replaces all rows of one ref in its own transaction:
 
 ```ts
 await ctx.media.replaceUsages(`item:${itemId}:rev:${revisionId}`, [

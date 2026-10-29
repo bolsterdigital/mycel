@@ -358,6 +358,12 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.field.seoDescription': 'Beschrijving in zoekresultaten',
   'admin.content.field.noindex': 'Verbergen voor zoekmachines',
   'admin.content.field.canonical': 'Canoniek adres (optioneel, begint met https://)',
+  'admin.content.field.featuredImage': 'Uitgelicht beeld',
+  'admin.content.field.featuredImageHint':
+    'Het beeld dat bij dit item hoort. Het verschijnt ook als het item gedeeld wordt, tenzij je bij Zoeken en delen een ander deelbeeld kiest.',
+  'admin.content.field.shareImage': 'Deelbeeld',
+  'admin.content.field.shareImageHint':
+    'Het beeld op sociale media en in chat-apps. Leeg: het uitgelicht beeld.',
   'admin.content.field.level': 'Wie het mag lezen',
   'admin.content.field.teaser': 'Wat alle anderen zien',
   'admin.content.field.teaserBlocks':

@@ -354,6 +354,12 @@ export const en = {
   'admin.content.field.seoDescription': 'Description in search results',
   'admin.content.field.noindex': 'Hide from search engines',
   'admin.content.field.canonical': 'Canonical address (optional, starts with https://)',
+  'admin.content.field.featuredImage': 'Featured image',
+  'admin.content.field.featuredImageHint':
+    'The image that belongs to this item. It is also shown when the item is shared, unless you choose another share image under Search and sharing.',
+  'admin.content.field.shareImage': 'Share image',
+  'admin.content.field.shareImageHint':
+    'The image on social media and in chat apps. Leave empty to use the featured image.',
   'admin.content.field.level': 'Who may read it',
   'admin.content.field.teaser': 'What everyone else sees',
   'admin.content.field.teaserBlocks':

@@ -111,7 +111,8 @@ export function failureOf(
   const status = statusOf[e.code];
   if (e.code === 'limit_exceeded') return { status, body: { action, ...limitFailure(e, action) } };
   if (e.code === 'suspended') return { status, body: { action, error: 'admin.error.suspended' } };
-  const issue = copy.issues?.[e.issues[0]?.message ?? ''];
+  // Some messages carry the id they are about (`content.reference.media-unknown:<id>`).
+  const issue = copy.issues?.[(e.issues[0]?.message ?? '').split(':')[0] ?? ''];
   const error: UiKey =
     e.code === 'conflict'
       ? copy.conflict

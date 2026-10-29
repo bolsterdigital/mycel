@@ -35,6 +35,8 @@ describe('fieldOf', () => {
   it('links an issue to the field of the edit page that fixes it', () => {
     expect(fieldOf('title', 'en')).toBe('title.en');
     expect(fieldOf('lead', 'nl')).toBe('lead.nl');
+    expect(fieldOf('featuredImageId', 'nl')).toBe('featuredImageId');
+    expect(fieldOf('seo.imageId', 'nl')).toBe('shareImageId');
     expect(fieldOf('seo.title.en', 'en')).toBe('seoTitle.en');
     expect(fieldOf('authorIds', 'nl')).toBe('authors');
     expect(fieldOf('access.tierIds', 'nl')).toBe('level');

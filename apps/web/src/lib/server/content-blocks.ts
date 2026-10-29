@@ -37,13 +37,15 @@ export interface Option {
 export async function pickerOptions(
   principal: Principal,
   blocks: readonly Block[],
-  locale: string
+  locale: string,
+  /** Images chosen outside the blocks (the document's featured and share image). */
+  alsoChosen: readonly string[] = []
 ): Promise<{ media: MediaChoice[]; items: Option[]; upload: boolean }> {
   const { invoker } = runtime();
   const used = blockReferences(blocks);
   const orNull = <T>(p: Promise<T>) => p.catch(() => null);
   const [media, items] = await Promise.all([
-    mediaChoices(principal, used.media),
+    mediaChoices(principal, [...new Set([...used.media, ...alsoChosen])]),
     invoker.run(useCases.listItems, principal, { limit: 100 }).then(({ items }) => {
       const label = (i: { slug: string; title: Record<string, string | undefined> }) =>
         `${i.title[locale] ?? Object.values(i.title)[0] ?? i.slug} (/${i.slug})`;

@@ -9,6 +9,8 @@ const FIELD_LABELS: Record<string, string> = {
   lead: 'admin.content.field.lead',
   'seo.title': 'admin.content.field.seoTitle',
   'seo.description': 'admin.content.field.seoDescription',
+  'seo.imageId': 'admin.content.field.shareImage',
+  featuredImageId: 'admin.content.field.featuredImage',
   authorIds: 'admin.content.field.authors',
   sectionId: 'admin.content.field.section',
   access: 'admin.content.field.level',
