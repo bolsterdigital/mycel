@@ -42,6 +42,21 @@ export const readAll = (paths, root = ROOT) =>
   paths.map((path) => ({ path, text: readFileSync(join(root, path), 'utf8') }));
 
 /**
+ * `[{ path, text }]` for the JavaScript and TypeScript under the `src` of every package and app,
+ * tests included (a code rule leaves them out with `isTest`).
+ */
+export const workspaceSources = (root = ROOT) =>
+  readAll(
+    ['packages', 'apps'].flatMap((top) =>
+      walk(top, {
+        root,
+        match: (p) => /^[^/]+\/[^/]+\/src\//.test(p) && /\.[cm]?[jt]s$/.test(p),
+      })
+    ),
+    root
+  );
+
+/**
  * The tracked regular files of the checkout at `root`, or `null` when `root` is not the top of a
  * checkout (a fixture directory). Files deleted in the working tree are left out.
  */

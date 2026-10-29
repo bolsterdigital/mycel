@@ -32,11 +32,18 @@ import { setRole } from './roles.js';
 
 type Trx = Kysely<Database>;
 
+/** The expressions `hashOf` may hash: the address columns the erasure reads. */
+const HASHED = ['email', 'v.value'] as const;
+type Hashed = (typeof HASHED)[number];
+
 /** `erasureEmailHash` in SQL, over a column or value `x` of the current tenant's rows. */
-const hashOf = (x: string) =>
-  sql.raw(
+const hashOf = (x: Hashed) => {
+  // `sql.raw` splices `x` into the statement, so only an expression from the list gets there.
+  if (!HASHED.includes(x)) throw new Error(`not a hashed expression: ${x}`);
+  return sql.raw(
     `encode(sha256(convert_to(tenant_id::text || E'\\n' || lower(btrim(${x})), 'UTF8')), 'hex')`
   );
+};
 const TOMB = sql.raw(`'@${ERASED_DOMAIN}'`);
 
 export function erasureRepository(
