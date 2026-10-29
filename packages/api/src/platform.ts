@@ -25,7 +25,9 @@ import {
   type ErrorReporter,
   type Logger,
 } from '@mycel/core';
+import type { Metrics } from '@mycel/observability';
 import { bearerMatches } from './bearer.js';
+import { problemOnError, readJson, unauthorized } from './http-shape.js';
 import { problem } from './problem.js';
 
 /** A tenant as the platform API answers it: the stored document and the effective one. */
@@ -91,6 +93,7 @@ export interface PlatformDeps {
   /** Set by `createApp` from its observability; a bare platform app logs and reports nothing. */
   log?: Logger | undefined;
   errors?: ErrorReporter | undefined;
+  metrics?: Metrics | undefined;
 }
 
 const CreateTenant = z
@@ -112,16 +115,6 @@ const OpsQuery = z
   })
   .strict();
 
-async function json(req: { json(): Promise<unknown> }): Promise<unknown> {
-  try {
-    return await req.json();
-  } catch {
-    throw new UseCaseError('invalid_input', 'body must be JSON', [
-      { path: '', message: 'body must be JSON' },
-    ]);
-  }
-}
-
 function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   const parsed = schema.safeParse(value);
   if (!parsed.success)
@@ -138,19 +131,22 @@ const found = <T>(value: T | null): T => {
   return value;
 };
 
-export function createPlatformApp({ token, store, log = noopLogger, errors }: PlatformDeps): Hono {
+export function createPlatformApp({
+  token,
+  store,
+  log = noopLogger,
+  errors,
+  metrics,
+}: PlatformDeps): Hono {
   const app = new Hono();
 
   app.use('*', async (c, next) => {
-    if (!bearerMatches(c.req.header('authorization'), token))
-      return problem('unauthorized', 'send Authorization: Bearer <platform token>', [], {
-        'www-authenticate': 'Bearer',
-      });
+    if (!bearerMatches(c.req.header('authorization'), token)) return unauthorized('platform token');
     await next();
   });
 
   app.post('/tenants', async (c) => {
-    const input = parse(CreateTenant, await json(c.req));
+    const input = parse(CreateTenant, await readJson(c.req));
     const tenant = await store.create(input);
     log.info('platform: tenant created', {
       tenantId: tenant.id,
@@ -168,7 +164,7 @@ export function createPlatformApp({ token, store, log = noopLogger, errors }: Pl
 
   app.put('/tenants/:id/entitlements', async (c) => {
     const id = parse(Id, c.req.param('id'));
-    const tenant = found(await store.setEntitlements(id, await json(c.req)));
+    const tenant = found(await store.setEntitlements(id, await readJson(c.req)));
     log.info('platform: entitlements set', {
       tenantId: id,
       entitlements: JSON.stringify(tenant.storedEntitlements),
@@ -178,7 +174,7 @@ export function createPlatformApp({ token, store, log = noopLogger, errors }: Pl
 
   app.put('/tenants/:id/status', async (c) => {
     const id = parse(Id, c.req.param('id'));
-    const { status } = parse(SetStatus, await json(c.req));
+    const { status } = parse(SetStatus, await readJson(c.req));
     const tenant = found(await store.setStatus(id, status));
     log.info('platform: status set', { tenantId: id, status });
     return c.json(tenant);
@@ -214,10 +210,6 @@ export function createPlatformApp({ token, store, log = noopLogger, errors }: Pl
     });
 
   app.notFound(() => problem('not_found', 'no such platform route'));
-  app.onError((err) => {
-    if (err instanceof UseCaseError) return problem(err.code, err.message, err.issues);
-    errors?.capture(err);
-    return problem('internal');
-  });
+  app.onError(problemOnError({ metrics, errors }));
   return app;
 }

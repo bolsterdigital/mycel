@@ -5,9 +5,17 @@
 // logs never hold one), and the stable supporter id of ADR 019 is the lookup meant for GET.
 // Rejected: a per-use-case opt-out, which a builder can forget. Shared by the router and the
 // OpenAPI generator so the document can never list a GET the router does not serve.
+//
+// The HTTP edges every Hono app here shares live below as well (TODO #74 step 3): the ETag and
+// its If-None-Match rule, the JSON body read, the 401 and the error handler. `app.ts`,
+// `platform.ts` and `content-read.ts` each had their own copy, and the platform's handler did not
+// count refusals. Rejected: a Hono middleware per edge, which hides from a route what it answers.
 
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import type { UseCase } from '@mycel/core';
+import { UseCaseError, type ErrorReporter, type UseCase } from '@mycel/core';
+import type { Metrics } from '@mycel/observability';
+import { problem } from './problem.js';
 
 export type ScalarType = 'string' | 'number' | 'boolean';
 export type FlatFields = Record<string, { type: ScalarType; required: boolean }>;
@@ -66,4 +74,73 @@ export function coerceQuery(fields: FlatFields, query: Record<string, string[]>)
     else input[name] = raw;
   }
   return input;
+}
+
+/**
+ * An ETag over a serialised body. Without `key` it is weak (the hash covers the JSON
+ * serialisation, not a byte-exact representation); with one, strong and prefixed by it, for a
+ * representation that a key such as revision and locale already names.
+ */
+export function etag(body: string, key?: string): string {
+  const digest = createHash('sha256').update(body).digest('base64url');
+  return key === undefined ? `W/"${digest.slice(0, 27)}"` : `"${key}:${digest.slice(0, 16)}"`;
+}
+
+/** If-None-Match compares weakly (RFC 9110 § 13.1.2); `*` matches any current representation. */
+function ifNoneMatch(header: string | undefined, tag: string): boolean {
+  if (!header) return false;
+  const opaque = (t: string) => t.trim().replace(/^W\//, '');
+  return header.split(',').some((t) => t.trim() === '*' || opaque(t) === opaque(tag));
+}
+
+/** The JSON body with its `etag` and caching headers, or a 304 when the client already holds it. */
+export function conditionalJson(
+  header: string | undefined,
+  body: string,
+  headers: { etag: string; [name: string]: string }
+): Response {
+  if (ifNoneMatch(header, headers.etag)) return new Response(null, { status: 304, headers });
+  return new Response(body, { headers: { ...headers, 'content-type': 'application/json' } });
+}
+
+/** The request body as JSON; `invalid_input` when it is not. */
+export async function readJson(req: { json(): Promise<unknown> }): Promise<unknown> {
+  try {
+    return await req.json();
+  } catch {
+    throw new UseCaseError('invalid_input', 'body must be JSON', [
+      { path: '', message: 'body must be JSON' },
+    ]);
+  }
+}
+
+/** The 401 for a missing or wrong bearer; `credential` names what to send. */
+export const unauthorized = (credential: string): Response =>
+  problem('unauthorized', `send Authorization: Bearer <${credential}>`, [], {
+    'www-authenticate': 'Bearer',
+  });
+
+/**
+ * `app.onError`: a refusal is its Problem and counts in `mycel_use_case_errors_total`; anything
+ * else is reported and a bare `internal`, so no stack or message reaches the client.
+ */
+export function problemOnError({
+  metrics,
+  errors,
+}: {
+  metrics?: Metrics | undefined;
+  errors?: ErrorReporter | undefined;
+}): (err: Error) => Response {
+  const refusals = metrics?.counter(
+    'mycel_use_case_errors_total',
+    'Use case refusals by error code'
+  );
+  return (err) => {
+    if (err instanceof UseCaseError) {
+      refusals?.inc({ code: err.code });
+      return problem(err.code, err.message, err.issues);
+    }
+    errors?.capture(err);
+    return problem('internal');
+  };
 }
