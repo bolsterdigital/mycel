@@ -5,7 +5,7 @@
 // body, no headers, no cookies, no user, no IP; message and stack scrubbed like a log line.
 
 import { randomBytes } from 'node:crypto';
-import { scrubText, type ErrorReporter, type Logger } from '@mycel/core';
+import { errorFields, scrubText, type ErrorReporter, type Logger } from '@mycel/core';
 import { currentContext } from './context.js';
 
 type CaptureContext = Parameters<ErrorReporter['capture']>[1];
@@ -161,11 +161,7 @@ export function sentryErrorReporter(
         .then((res) => {
           if (!res.ok) options.log.warn('error report refused', { status: res.status });
         })
-        .catch((e: unknown) =>
-          options.log.warn('error report not sent', {
-            error: e instanceof Error ? e.message : String(e),
-          })
-        );
+        .catch((e: unknown) => options.log.warn('error report not sent', errorFields(e)));
     },
   };
 }

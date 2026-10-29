@@ -1,6 +1,11 @@
 // Forms, submissions and the rate limiter that guards them, in memory.
 
-import type { FormRepository, RateLimiter, SubmissionRepository } from '../../forms/ports.js';
+import {
+  checkCooldown,
+  type FormRepository,
+  type RateLimiter,
+  type SubmissionRepository,
+} from '../../forms/ports.js';
 import type { Clock } from '../../ports.js';
 import type { TenantStore } from './store.js';
 
@@ -35,6 +40,7 @@ export function memoryRateLimits(s: TenantStore, clock: Clock): RateLimiter {
       return hits <= max;
     },
     async cooldown(key, seconds) {
+      checkCooldown(seconds);
       const now = clock.now().getTime();
       const last = s.cooldowns.get(key);
       if (last !== undefined && now - last < seconds * 1000) return false;
