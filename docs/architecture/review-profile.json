@@ -283,6 +283,8 @@
         "scripts/release.mjs",
         "vitest.config.ts",
         "apps/web/playwright.config.ts",
+        "apps/web/e2e/lib/**",
+        "apps/web/e2e/tsconfig.json",
         "docs/architecture/testing.md",
         "docs/architecture/review*",
         "CONTRIBUTING.md",
@@ -315,6 +317,7 @@
         "**/*.spec.ts",
         "**/__snapshots__/**",
         "scripts/fixtures/**",
+        "apps/web/e2e/lib/**",
         "apps/web/playwright.config.ts",
         "**/vitest.config.ts"
       ],
