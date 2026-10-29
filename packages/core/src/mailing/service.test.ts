@@ -12,6 +12,7 @@ import {
   MemoryUnitOfWork,
   probeForm,
   probeTenant,
+  TENANT,
 } from '../testing/index.js';
 import { supporterIngestSubscriber } from '../supporters/service.js';
 import {
@@ -20,7 +21,6 @@ import {
   signConfirmToken,
 } from './confirmation.js';
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const OTHER = '01900000-0000-7000-8000-00000000bbbb';
 const FORM = '01900000-0000-7000-8000-00000000f000';
 const DAY = 24 * 60 * 60 * 1000;

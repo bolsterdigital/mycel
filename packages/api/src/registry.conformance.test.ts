@@ -12,13 +12,12 @@ import {
   type Principal,
   type UseCase,
 } from '@mycel/core';
-import { MemoryUnitOfWork } from '@mycel/core/testing';
+import { MemoryUnitOfWork, TENANT } from '@mycel/core/testing';
 import { createApp } from './app.js';
 import { flatQueryFields, methodsOf } from './http-shape.js';
 import { CONTENT_READ_PATH } from './content-read.js';
 import { openApiDocument } from './openapi.js';
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const registry = buildRegistry();
 const useCases = registry.list();
 

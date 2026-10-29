@@ -4,7 +4,7 @@
 // claim race against Postgres is in packages/db/src/mailing.test.ts.
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { FakeClock, MemoryUnitOfWork } from '../testing/index.js';
+import { FakeClock, MemoryUnitOfWork, TENANT } from '../testing/index.js';
 import { renderConfirmationMail } from './confirmation.js';
 import {
   CLAIM_LEASE_MS,
@@ -18,7 +18,6 @@ import {
 } from './send-attempts.js';
 import type { MailMessage, MailWindow, Mailer } from './ports.js';
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const MINUTE = 60 * 1000;
 const PAST_LAG = RECONCILE_LAG_MS + MINUTE;
 

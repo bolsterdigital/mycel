@@ -1,5 +1,9 @@
 // Shared fixtures: the probe tenant, its signup form and page, as data, plus the two steps every
 // front's test takes to make that page public: create it, then publish each locale explicitly.
+// Also the builders every suite needs (testing.md rule 4): the fixed tenant id of in-memory
+// suites, the system principal that administers a tenant, a run suffix for names in a shared
+// database, and the check for a typed refusal. Database suites build on these in
+// `@mycel/db/testing`.
 
 import type { z } from 'zod';
 import type { ContentItem } from '../content/model.js';
@@ -10,8 +14,47 @@ import type { MediaRepository } from '../media/ports.js';
 import type { UnitOfWork } from '../ports.js';
 import type { Principal } from '../principal.js';
 import type { TenantInfo } from '../tenants/ports.js';
+import { UseCaseError } from '../errors.js';
+import { systemPrincipal } from '../principal.js';
 import { useCases } from '../use-cases.js';
 import { sha256Hex } from '../util/digest.js';
+
+/** The tenant id of every in-memory suite; a database suite creates its own (`testTenant`). */
+export const TENANT = '01900000-0000-7000-8000-00000000aaaa';
+
+/** The system principal that administers `tenantId`, as tests act on a tenant. */
+export const adminOf = (tenantId: string = TENANT): Principal => systemPrincipal(tenantId, 'test');
+
+/**
+ * Six random characters for names a suite creates in a database shared by runs and branches
+ * (slugs, schemas, addresses), so a rerun never meets its own leftovers.
+ */
+export const runSuffix = (): string => Math.random().toString(36).slice(2, 8);
+
+/**
+ * Resolves with the `UseCaseError` `p` rejects with when its code is `code` and, with `message`,
+ * one issue message starts with it; throws otherwise. Framework-free, so it ships in this module.
+ */
+export async function expectCode(
+  p: Promise<unknown>,
+  code: string,
+  message?: string
+): Promise<UseCaseError> {
+  try {
+    await p;
+  } catch (e) {
+    if (
+      e instanceof UseCaseError &&
+      e.code === code &&
+      (!message || e.issues.some((i) => i.message.startsWith(message)))
+    )
+      return e;
+    throw new Error(
+      `expected a ${code} refusal${message ? ` (${message})` : ''}, got ${String(e)}`
+    );
+  }
+  throw new Error(`expected a ${code} refusal, got a result`);
+}
 
 export function probeForm(id: string): FormDefinition {
   return {

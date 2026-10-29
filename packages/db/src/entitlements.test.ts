@@ -3,7 +3,7 @@
 // lookups use), that a stored document reaches the Principal merged over the defaults through
 // both pre-context paths, that usage counts one tenant, and what the platform functions refuse.
 //
-// Skips without DATABASE_URL, APP_DATABASE_URL and AUTH_DATABASE_URL; with E2E_REQUIRED=1 (CI)
+// Skips without DATABASE_URL, APP_DATABASE_URL and AUTH_DATABASE_URL; in CI
 // that is a failure.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -12,7 +12,6 @@ import {
   ADMISSION_WINDOW_MS,
   DEFAULT_ENTITLEMENTS,
   Invoker,
-  UseCaseError,
   buildRegistry,
   ingest,
   systemPrincipal,
@@ -29,6 +28,9 @@ import {
   memoryPlatform,
   probeForm,
   testPlatformActor,
+  runSuffix,
+  expectCode,
+  adminOf,
 } from '@mycel/core/testing';
 import {
   createDb,
@@ -38,29 +40,22 @@ import {
   createUnitOfWork,
   getTenant,
   listTenants,
-  migrate,
   setEntitlements,
   setStatus,
   uuidv7,
   uuidv7Ids,
 } from './index.js';
-import { closeTenantWork } from './testing.js';
+import { closeTenantWork, requireDatabase, migrateSchema } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-const appUrl = process.env['APP_DATABASE_URL'];
-const authUrl = process.env['AUTH_DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl || !authUrl))
-  throw new Error(
-    'E2E_REQUIRED=1 but DATABASE_URL, APP_DATABASE_URL or AUTH_DATABASE_URL is unset'
-  );
+const { skip, operator: operatorUrl, app: appUrl, auth: authUrl } = requireDatabase('app', 'auth');
 
 const DOMAIN = 'entitlements.test';
 
-describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance', () => {
-  const operatorDb = createDb(operatorUrl ?? '');
-  const appDb = createDb(appUrl ?? '');
-  const authDb = createDb(authUrl ?? '');
-  const run = Math.random().toString(36).slice(2, 8);
+describe.skipIf(skip)('entitlements conformance', () => {
+  const operatorDb = createDb(operatorUrl);
+  const appDb = createDb(appUrl);
+  const authDb = createDb(authUrl);
+  const run = runSuffix();
   const platform = {
     domain: DOMAIN,
     devHosts: [`dev-${run}.${DOMAIN}`],
@@ -105,13 +100,9 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
       () => 'ok',
       (e: { code?: string }) => e.code
     );
-  const code = (p: Promise<unknown>, expected: string) =>
-    expect(p).rejects.toSatisfy((e) => e instanceof UseCaseError && e.code === expected);
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, {
-      log: () => {},
-    });
+    await migrateSchema(operatorUrl);
   });
 
   afterAll(async () => {
@@ -120,7 +111,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
   });
 
   it('never shows entitlements or status to mycel_app, through the table or the view', async () => {
-    const states = await as(appUrl!, async (c) => ({
+    const states = await as(appUrl, async (c) => ({
       entitlements: await sqlState(c.query('select entitlements from tenants')),
       status: await sqlState(c.query('select status from tenants')),
       viewEntitlements: await sqlState(c.query('select entitlements from tenant_directory')),
@@ -129,7 +120,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
   });
 
   it('lets mycel_auth read exactly the columns its lookups use, and write nothing', async () => {
-    const { rows } = await as(operatorUrl!, (c) =>
+    const { rows } = await as(operatorUrl, (c) =>
       c.query<{ column_name: string; privilege_type: string }>(
         `select column_name, privilege_type from information_schema.column_privileges
          where grantee = 'mycel_auth' and table_schema = 'public' and table_name = 'tenants'
@@ -142,7 +133,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
         privilege_type: 'SELECT',
       }))
     );
-    const tried = await as(authUrl!, async (c) => {
+    const tried = await as(authUrl, async (c) => {
       await c.query('begin');
       await c.query('set local role mycel_auth');
       const read = await sqlState(c.query('select id, entitlements, status from tenants limit 1'));
@@ -165,7 +156,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
    * `tenant`, under that tenant's context too, which must change nothing for this role.
    */
   const asPlatform = (statement: string, params: unknown[] = [], tenant?: string) =>
-    as(authUrl!, async (c) => {
+    as(authUrl, async (c) => {
       await c.query('begin');
       await c.query('set local role mycel_platform');
       if (tenant) await c.query(`select set_config('app.tenant_id', $1, true)`, [tenant]);
@@ -176,7 +167,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
 
   // RLS bypass for every role is held in one place, rls.conformance.test.ts.
   it('gives mycel_platform no login and no superuser', async () => {
-    const { rows } = await as(operatorUrl!, (c) =>
+    const { rows } = await as(operatorUrl, (c) =>
       c.query(`select rolcanlogin, rolsuper from pg_roles where rolname = 'mycel_platform'`)
     );
     expect(rows).toEqual([{ rolcanlogin: false, rolsuper: false }]);
@@ -186,7 +177,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
     const a = await create('ent-pa');
     await create('ent-pb');
     // What the role may do: read hostnames across tenants.
-    const { rows } = await as(authUrl!, async (c) => {
+    const { rows } = await as(authUrl, async (c) => {
       await c.query('begin');
       await c.query('set local role mycel_platform');
       const r = await c.query<{ n: string }>(
@@ -245,7 +236,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
     expect((await sites.resolve(`ent-part-${run}.${DOMAIN}`))?.access).toEqual(expected);
 
     // A key a newer build wrote is ignored, not an error.
-    await as(operatorUrl!, (c) =>
+    await as(operatorUrl, (c) =>
       c.query(`update tenants set entitlements = entitlements || '{"future.x": 1}' where id = $1`, [
         partial.id,
       ])
@@ -260,25 +251,24 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
   it('counts usage for its own tenant only', async () => {
     const a = await create('ent-ua');
     const b = await create('ent-ub');
-    const admin = (id: string) => systemPrincipal(id, 't');
     for (const [id, email] of [
       [a.id, 'one@example.org'],
       [a.id, 'two@example.org'],
       [b.id, 'three@example.org'],
     ] as const)
-      await invoker.run(useCases.inviteMember, admin(id), {
+      await invoker.run(useCases.inviteMember, adminOf(id), {
         email: `${run}-${email}`,
         capabilities: ['content:read'],
       });
-    await invoker.run(useCases.addHostname, admin(b.id), { hostname: `www-${run}.example.org` });
-    const usage = await invoker.run(useCases.getUsage, admin(a.id), {});
+    await invoker.run(useCases.addHostname, adminOf(b.id), { hostname: `www-${run}.example.org` });
+    const usage = await invoker.run(useCases.getUsage, adminOf(a.id), {});
     expect(usage).toMatchObject({
       supporters: { used: 0 },
       mail: { usedThisMonth: 0 },
       operators: { used: 2 },
       customDomains: { used: 0 },
     });
-    expect((await invoker.run(useCases.getUsage, admin(b.id), {})).customDomains.used).toBe(1);
+    expect((await invoker.run(useCases.getUsage, adminOf(b.id), {})).customDomains.used).toBe(1);
   });
 
   it('creates a tenant with its platform hostname under tenant context, and refuses collisions', async () => {
@@ -297,9 +287,9 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
     });
     expect((await listTenants(operatorDb)).map((x) => x.id)).toContain(t.id);
 
-    await code(create('ent-new'), 'conflict');
+    await expectCode(create('ent-new'), 'conflict');
     // The admin's own address and a development host are never a tenant's platform hostname.
-    await code(
+    await expectCode(
       createTenant(
         operatorDb,
         { id: uuidv7(), slug: `admin-${run}`, name: 'x', locales: ['nl'] },
@@ -308,7 +298,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
       ),
       'conflict'
     );
-    await code(
+    await expectCode(
       createTenant(
         operatorDb,
         { id: uuidv7(), slug: `dev-${run}`, name: 'x', locales: ['nl'] },
@@ -318,13 +308,13 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
       'conflict'
     );
     // A document with an unknown key is refused before anything is written.
-    await code(create('ent-bad', { 'sites.max': 3 }), 'invalid_input');
+    await expectCode(create('ent-bad', { 'sites.max': 3 }), 'invalid_input');
   });
 
   it('refuses a slug whose platform hostname some tenant already holds', async () => {
     const holder = await create('ent-holder');
     const slug = `ent-taken-${run}`;
-    await as(operatorUrl!, async (c) => {
+    await as(operatorUrl, async (c) => {
       await c.query('begin');
       await c.query(`select set_config('app.tenant_id', $1, true)`, [holder.id]);
       // As mycel_app: since 0010 the policy on tenant_hostnames is bound to that role, so an
@@ -337,7 +327,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
       );
       await c.query('commit');
     });
-    await code(
+    await expectCode(
       createTenant(
         operatorDb,
         { id: uuidv7(), slug, name: 'x', locales: ['nl'] },
@@ -358,11 +348,11 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
         'supporters.max': DEFAULT_ENTITLEMENTS['supporters.max'],
       },
     });
-    await code(
+    await expectCode(
       setEntitlements(operatorDb, t.id, { 'operators.max': -1 }, testPlatformActor),
       'invalid_input'
     );
-    await code(
+    await expectCode(
       setEntitlements(operatorDb, t.id, { 'sites.max': 1 }, testPlatformActor),
       'invalid_input'
     );
@@ -391,7 +381,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
       });
     /** Rows in the table for this tenant, expired ones included. */
     const rows = (tenantId: string) =>
-      as(appUrl!, async (c) => {
+      as(appUrl, async (c) => {
         await c.query('begin');
         await c.query(`select set_config('app.tenant_id', $1, true)`, [tenantId]);
         const { rows } = await c.query<{ n: string }>(
@@ -418,7 +408,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
     it('rolls a reservation back with the transaction that is refused', async () => {
       const t = await create('adm-roll');
       const p = capped(t.id, 0);
-      await code(
+      await expectCode(
         uow.run(p, async (ctx) => {
           await ctx.admissions.reserve('a@example.org');
           withinLimit(ctx, 'supporters.max', await ctx.admissions.count());
@@ -430,7 +420,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
       // And through the use case: a refused signup leaves no seat behind.
       const formId = uuidv7();
       await uow.run(p, (ctx) => ctx.forms.insert(probeForm(formId)));
-      await code(
+      await expectCode(
         invoker.run(useCases.submitForm, p, {
           formId,
           values: { email: 'b@example.org', consent: true },
@@ -470,7 +460,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('entitlements conformance',
           locale: 'nl',
         });
       expect((await submit('a@example.org')).status).toBe('accepted');
-      await code(submit('b@example.org'), 'limit_exceeded');
+      await expectCode(submit('b@example.org'), 'limit_exceeded');
       expect((await submit('a@example.org', other)).status).toBe('accepted');
       expect(await rows(t.id)).toBe(1);
 

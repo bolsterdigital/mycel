@@ -6,7 +6,7 @@
 // time, a long run keeps its lease and is not started twice while a crashed one is, a suspended
 // tenant can still export and download, the download check refuses the same way for every wrong
 // link and audits a granted one, and archives disappear after their retention and after an
-// erasure. Skips without DATABASE_URL and APP_DATABASE_URL; with E2E_REQUIRED=1 (CI) that is a
+// erasure. Skips without DATABASE_URL and APP_DATABASE_URL; in CI that is a
 // failure.
 
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -37,6 +37,8 @@ import {
   memoryPlatform,
   probeForm,
   publishProbePage,
+  requireInCi,
+  runSuffix,
 } from '@mycel/core/testing';
 import {
   JOB_LEASE_SECONDS,
@@ -46,7 +48,6 @@ import {
   createUnitOfWork,
   expireExports,
   importTenant,
-  migrate,
   runExportJob,
   setStatus,
   uuidv7,
@@ -56,17 +57,12 @@ import {
 } from './index.js';
 import { toJobRecord } from './jobs.js';
 import type { Database } from './schema.js';
+import { requireDatabase, migrateSchema } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-const appUrl = process.env['APP_DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
-  throw new Error('E2E_REQUIRED=1 but DATABASE_URL or APP_DATABASE_URL is not set');
+const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
 const run$ = promisify(execFile);
 const by = { actorId: 'tenant-exports-test', hasher: new FakeInputHasher() };
-const roles = {
-  log: () => {},
-};
 
 /** As in export.conformance.test.ts: drop only once the scratch pool's backends have exited. */
 async function dropDatabase(operatorDb: Kysely<Database>, name: string) {
@@ -79,10 +75,10 @@ async function dropDatabase(operatorDb: Kysely<Database>, name: string) {
   await sql`drop database if exists ${sql.id(name)} with (force)`.execute(operatorDb);
 }
 
-describe.skipIf(!operatorUrl || !appUrl)('self-service export', () => {
-  const operatorDb = createDb(operatorUrl ?? '');
-  const appDb = createDb(appUrl ?? '');
-  const run = Math.random().toString(36).slice(2, 8);
+describe.skipIf(skip)('self-service export', () => {
+  const operatorDb = createDb(operatorUrl);
+  const appDb = createDb(appUrl);
+  const run = runSuffix();
   const blobs = new MemoryBlobStore(
     { now: () => new Date() },
     async (path) => new Uint8Array(await readFile(path))
@@ -176,7 +172,7 @@ describe.skipIf(!operatorUrl || !appUrl)('self-service export', () => {
   }
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, roles);
+    await migrateSchema(operatorUrl);
     scratch.dir = await mkdtemp(join(tmpdir(), 'mycel-tenant-exports-'));
     for (const key of ['a', 'b'] as const) {
       const t = tenant[key];
@@ -244,20 +240,23 @@ describe.skipIf(!operatorUrl || !appUrl)('self-service export', () => {
       select rolsuper or rolcreatedb as ok from pg_roles where rolname = current_user`.execute(
       operatorDb
     );
-    if (!rows[0]?.ok) {
-      if (process.env['E2E_REQUIRED'] === '1')
-        throw new Error('E2E_REQUIRED=1 but the login has neither CREATEDB nor superuser');
+    if (
+      !requireInCi(
+        process.env,
+        rows[0]?.ok === true,
+        'the login has neither CREATEDB nor superuser'
+      )
+    )
       ctx.skip();
-    }
     const id = (await list(tenant.a)).exports.find((e) => e.status === 'ready')!.id;
     const file = await archiveOf(tenant.a, id);
     const name = `mycel_tex_${run}`;
     await sql`create database ${sql.id(name)}`.execute(operatorDb);
-    const url = new URL(operatorUrl!);
+    const url = new URL(operatorUrl);
     url.pathname = `/${name}`;
     const target = createDb(url.href);
     try {
-      await migrate(url.href, { log: () => {} });
+      await migrateSchema(url.href);
       const report = await importTenant({
         operatorDb: target,
         blobs: new MemoryBlobStore(),

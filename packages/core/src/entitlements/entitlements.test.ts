@@ -22,9 +22,15 @@ import {
   type Principal,
 } from '../index.js';
 import { CONFIRMATION_COOLDOWN_SECONDS } from '../forms/spam.js';
-import { FakeClock, MemoryUnitOfWork, probeForm, probeTenant } from '../testing/index.js';
+import {
+  FakeClock,
+  MemoryUnitOfWork,
+  probeForm,
+  probeTenant,
+  expectCode,
+  TENANT,
+} from '../testing/index.js';
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const FORM = '01900000-0000-7000-8000-00000000f000';
 const platform = {
   domain: 'mycel.site',
@@ -39,9 +45,6 @@ const limited = (overrides: Partial<Entitlements>, p: Principal = admin): Princi
   entitlements: { ...DEFAULT_ENTITLEMENTS, ...overrides },
 });
 const suspended = (p: Principal = admin): Principal => ({ ...p, tenantStatus: 'suspended' });
-
-const expectCode = async (p: Promise<unknown>, code: string) =>
-  expect(p).rejects.toSatisfy((e) => e instanceof UseCaseError && e.code === code);
 
 describe('the entitlements document', () => {
   it('is everything with generous limits when empty', () => {

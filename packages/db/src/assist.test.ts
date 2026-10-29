@@ -3,17 +3,21 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Invoker, buildRegistry, systemPrincipal, useCases, type Principal } from '@mycel/core';
-import { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } from '@mycel/core/testing';
-import { createDb, createUnitOfWork, migrate, upsertTenant, uuidv7, uuidv7Ids } from './index.js';
+import {
+  FakeDns,
+  FakeInputHasher,
+  FakeSigner,
+  memoryPlatform,
+  runSuffix,
+} from '@mycel/core/testing';
+import { createDb, createUnitOfWork, uuidv7, uuidv7Ids } from './index.js';
+import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-const appUrl = process.env['APP_DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
-  throw new Error('E2E_REQUIRED=1 but the database URLs are unset');
+const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
-describe.skipIf(!operatorUrl || !appUrl)('assistance tenant isolation', () => {
-  const operatorDb = createDb(operatorUrl ?? '');
-  const appDb = createDb(appUrl ?? '');
+describe.skipIf(skip)('assistance tenant isolation', () => {
+  const operatorDb = createDb(operatorUrl);
+  const appDb = createDb(appUrl);
   const uow = createUnitOfWork(appDb, {
     clock: { now: () => new Date() },
     ids: uuidv7Ids,
@@ -24,20 +28,13 @@ describe.skipIf(!operatorUrl || !appUrl)('assistance tenant isolation', () => {
     assistProviderLabel: 'Fake model',
   });
   const invoker = new Invoker(buildRegistry(), uow);
-  const run = Math.random().toString(36).slice(2, 8);
+  const run = runSuffix();
   let a = '';
   let b = '';
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, { log: () => {} });
-    const tenant = async (slug: string) =>
-      (
-        await upsertTenant(
-          operatorDb,
-          { id: uuidv7(), slug, name: slug, defaultLocale: 'nl', locales: ['nl'] },
-          { platformDomain: 'localhost' }
-        )
-      ).id;
+    await migrateSchema(operatorUrl);
+    const tenant = async (slug: string) => (await testTenant(operatorDb, slug)).id;
     a = await tenant(`assist-a-${run}`);
     b = await tenant(`assist-b-${run}`);
   });

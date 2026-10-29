@@ -3,7 +3,7 @@
 // revision through the item lock; after every save the refs table holds exactly the references
 // of that revision and nothing for another tenant; the rows are immutable for mycel_app; and
 // find and liveReferences follow the publication pointers in SQL. Skips without DATABASE_URL and
-// APP_DATABASE_URL; with E2E_REQUIRED=1 (CI) that is a failure.
+// APP_DATABASE_URL; in CI that is a failure.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
@@ -23,26 +23,18 @@ import {
   FakeSigner,
   memoryPlatform,
   probeForm,
+  runSuffix,
+  adminOf,
 } from '@mycel/core/testing';
-import {
-  createDb,
-  createUnitOfWork,
-  migrate,
-  upsertTenant,
-  uuidv7,
-  uuidv7Ids,
-  withTenant,
-} from './index.js';
+import { createDb, createUnitOfWork, uuidv7, uuidv7Ids, withTenant } from './index.js';
+import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-const appUrl = process.env['APP_DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
-  throw new Error('E2E_REQUIRED=1 but DATABASE_URL or APP_DATABASE_URL is not set');
+const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
-describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () => {
-  const operatorDb = createDb(operatorUrl ?? '');
-  const appDb = createDb(appUrl ?? '');
-  const run = Math.random().toString(36).slice(2, 8);
+describe.skipIf(skip)('content operations conformance', () => {
+  const operatorDb = createDb(operatorUrl);
+  const appDb = createDb(appUrl);
+  const run = runSuffix();
   const uow = createUnitOfWork(appDb, {
     clock: new FakeClock(),
     ids: uuidv7Ids,
@@ -56,8 +48,6 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
   let tenantB = '';
   const formA = uuidv7();
   const formB = uuidv7();
-  const a = (): Principal => systemPrincipal(tenantA, 'test');
-  const b = (): Principal => systemPrincipal(tenantB, 'test');
 
   const para = (text: string, itemId?: string) => ({
     type: 'paragraph' as const,
@@ -87,7 +77,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
     version: 1 as const,
     props: { text: { nl: id } },
   });
-  const page = (slug: string, blocks: object[], p = a()) =>
+  const page = (slug: string, blocks: object[], p = adminOf(tenantA)) =>
     invoker.run(useCases.createItem, p, {
       slug: `${slug}-${run}`,
       document: {
@@ -100,7 +90,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
     });
 
   /** The refs rows of one revision as mycel_app sees them under `p`'s tenant. */
-  const refsOf = (revisionId: string, p = a()) =>
+  const refsOf = (revisionId: string, p = adminOf(tenantA)) =>
     withTenant(appDb, p, (trx) =>
       trx
         .selectFrom('content_block_refs')
@@ -122,17 +112,12 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
     `${x.type}${x.ref_id}${x.block_id}`.localeCompare(`${y.type}${y.ref_id}${y.block_id}`);
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, { log: () => {} });
-    const tenant = (slug: string) =>
-      upsertTenant(
-        operatorDb,
-        { id: uuidv7(), slug, name: slug, defaultLocale: 'nl', locales: ['nl'] },
-        { platformDomain: 'localhost' }
-      );
+    await migrateSchema(operatorUrl);
+    const tenant = (slug: string) => testTenant(operatorDb, slug);
     tenantA = (await tenant(`op-a-${run}`)).id;
     tenantB = (await tenant(`op-b-${run}`)).id;
-    await uow.run(a(), (ctx) => ctx.forms.insert(probeForm(formA)));
-    await uow.run(b(), (ctx) => ctx.forms.insert(probeForm(formB)));
+    await uow.run(adminOf(tenantA), (ctx) => ctx.forms.insert(probeForm(formA)));
+    await uow.run(adminOf(tenantB), (ctx) => ctx.forms.insert(probeForm(formB)));
   });
 
   afterAll(async () => {
@@ -141,7 +126,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
   });
 
   it('preserves pending locales across transactional split/save/remove and refuses stale or cross-tenant approval', async () => {
-    const created = await invoker.run(useCases.createItem, a(), {
+    const created = await invoker.run(useCases.createItem, adminOf(tenantA), {
       slug: `pending-ops-${run}`,
       document: {
         type: 'page',
@@ -154,22 +139,22 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
     });
     const target = { itemId: created.item.id };
     const human = {
-      ...a(),
+      ...adminOf(tenantA),
       actor: { kind: 'operator' as const, operatorId: uuidv7(), email: 'reviewer@probe.test' },
     };
-    const split = await invoker.run(useCases.splitInsertBlock, a(), {
+    const split = await invoker.run(useCases.splitInsertBlock, adminOf(tenantA), {
       ...target,
       baseRevisionId: created.revision.id,
       blockId: 'body',
       at: { nl: 1 },
       block: heading('separator'),
     });
-    const saved = await invoker.run(useCases.updateItem, a(), {
+    const saved = await invoker.run(useCases.updateItem, adminOf(tenantA), {
       ...target,
       baseRevisionId: split.revision.id,
       document: { ...split.revision.document, machineTranslation: {} },
     });
-    const removed = await invoker.run(useCases.removeBlock, a(), {
+    const removed = await invoker.run(useCases.removeBlock, adminOf(tenantA), {
       ...target,
       baseRevisionId: saved.revision.id,
       blockId: 'body',
@@ -187,18 +172,21 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
       ).rejects.toMatchObject({ code: p.tenantId === tenantA ? 'conflict' : 'not_found' });
     }
     await expect(
-      invoker.run(useCases.getItem, b(), { ...target, revisionId: removed.revision.id })
+      invoker.run(useCases.getItem, adminOf(tenantB), {
+        ...target,
+        revisionId: removed.revision.id,
+      })
     ).rejects.toMatchObject({ code: 'not_found' });
     await expect(
-      invoker.run(useCases.updateItem, b(), {
+      invoker.run(useCases.updateItem, adminOf(tenantB), {
         ...target,
         baseRevisionId: removed.revision.id,
         document: removed.revision.document,
       })
     ).rejects.toMatchObject({ code: 'not_found' });
-    const revisions = await invoker.run(useCases.listRevisions, a(), target);
+    const revisions = await invoker.run(useCases.listRevisions, adminOf(tenantA), target);
     expect(revisions.revisions).toHaveLength(4);
-    expect(await invoker.run(useCases.getItem, a(), target)).toEqual({
+    expect(await invoker.run(useCases.getItem, adminOf(tenantA), target)).toEqual({
       item: removed.item,
       revision: removed.revision,
     });
@@ -208,7 +196,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
         baseRevisionId: removed.revision.id,
         locale: 'nl',
       }),
-      invoker.run(useCases.updateItem, a(), {
+      invoker.run(useCases.updateItem, adminOf(tenantA), {
         ...target,
         baseRevisionId: removed.revision.id,
         document: removed.revision.document,
@@ -218,8 +206,10 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
     expect(outcomes.find((r) => r.status === 'rejected')).toMatchObject({
       reason: { code: 'conflict' },
     });
-    expect((await invoker.run(useCases.listRevisions, a(), target)).revisions).toHaveLength(5);
-    const latest = await invoker.run(useCases.getItem, a(), target);
+    expect(
+      (await invoker.run(useCases.listRevisions, adminOf(tenantA), target)).revisions
+    ).toHaveLength(5);
+    const latest = await invoker.run(useCases.getItem, adminOf(tenantA), target);
     if (outcomes[0]!.status === 'fulfilled')
       expect(latest.revision.document.machineTranslation).toBeUndefined();
     else expect(latest.revision.document.machineTranslation).toEqual({ nl: ['locales'] });
@@ -235,23 +225,27 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
       ]);
       const base = { itemId: item.id, baseRevisionId: revision.id };
       const ops = [
-        () => invoker.run(useCases.removeBlock, a(), { ...base, blockId: 'h' }),
+        () => invoker.run(useCases.removeBlock, adminOf(tenantA), { ...base, blockId: 'h' }),
         () =>
-          invoker.run(useCases.moveBlock, a(), { ...base, blockId: 'h', place: { at: 'start' } }),
+          invoker.run(useCases.moveBlock, adminOf(tenantA), {
+            ...base,
+            blockId: 'h',
+            place: { at: 'start' },
+          }),
         () =>
-          invoker.run(useCases.insertBlock, a(), {
+          invoker.run(useCases.insertBlock, adminOf(tenantA), {
             ...base,
             block: heading('new'),
             place: { after: 'f' },
           }),
         () =>
-          invoker.run(useCases.setBlockProps, a(), {
+          invoker.run(useCases.setBlockProps, adminOf(tenantA), {
             ...base,
             blockId: 'h',
             props: { text: { nl: 'anders' } },
           }),
         () =>
-          invoker.run(useCases.splitInsertBlock, a(), {
+          invoker.run(useCases.splitInsertBlock, adminOf(tenantA), {
             ...base,
             blockId: 't',
             at: { nl: 1 },
@@ -267,10 +261,12 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
       const lost = results.filter((r) => r.status === 'rejected') as PromiseRejectedResult[];
       expect(won).toHaveLength(1);
       for (const l of lost) expect(l.reason).toMatchObject({ code: 'conflict' });
-      const { revisions } = await invoker.run(useCases.listRevisions, a(), { itemId: item.id });
+      const { revisions } = await invoker.run(useCases.listRevisions, adminOf(tenantA), {
+        itemId: item.id,
+      });
       expect(revisions.map((r) => r.id)).toEqual([won[0]!.value.revision.id, revision.id]);
       // The losers left no refs behind: only the two revisions have rows.
-      const rows = await withTenant(appDb, a(), (trx) =>
+      const rows = await withTenant(appDb, adminOf(tenantA), (trx) =>
         trx
           .selectFrom('content_block_refs')
           .select('revision_id')
@@ -286,15 +282,15 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
 
   it('holds exactly the references of each revision after every save, per tenant', async () => {
     const target = await page('ref-target', []);
-    const author = await invoker.run(useCases.createAuthor, a(), {
+    const author = await invoker.run(useCases.createAuthor, adminOf(tenantA), {
       slug: `ann-${run}`,
       name: 'Ann',
     });
-    const section = await invoker.run(useCases.createSection, a(), {
+    const section = await invoker.run(useCases.createSection, adminOf(tenantA), {
       slug: `bin-${run}`,
       title: { nl: 'Binnenland' },
     });
-    const created = await invoker.run(useCases.createItem, a(), {
+    const created = await invoker.run(useCases.createItem, adminOf(tenantA), {
       slug: `ref-story-${run}`,
       document: {
         type: 'article',
@@ -316,13 +312,13 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
 
     const steps = [
       (base: string) =>
-        invoker.run(useCases.removeBlock, a(), {
+        invoker.run(useCases.removeBlock, adminOf(tenantA), {
           itemId: created.item.id,
           baseRevisionId: base,
           blockId: 'f',
         }),
       (base: string) =>
-        invoker.run(useCases.splitInsertBlock, a(), {
+        invoker.run(useCases.splitInsertBlock, adminOf(tenantA), {
           itemId: created.item.id,
           baseRevisionId: base,
           blockId: 't',
@@ -330,7 +326,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
           block: signup('g', formA),
         }),
       (base: string) =>
-        invoker.run(useCases.setBlockProps, a(), {
+        invoker.run(useCases.setBlockProps, adminOf(tenantA), {
           itemId: created.item.id,
           baseRevisionId: base,
           blockId: 't',
@@ -346,16 +342,18 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
       (await refsOf(revision.id)).filter((r) => r.type === 'item').map((r) => r.block_id)
     ).toHaveLength(1);
     // Tenant B sees none of A's rows, and its own page gets rows under its own tenant only.
-    expect(await refsOf(revision.id, b())).toEqual([]);
-    const other = await page('ref-b', [signup('f', formB)], b());
-    expect(await refsOf(other.revision.id, b())).toEqual(expected(other.revision, tenantB));
+    expect(await refsOf(revision.id, adminOf(tenantB))).toEqual([]);
+    const other = await page('ref-b', [signup('f', formB)], adminOf(tenantB));
+    expect(await refsOf(other.revision.id, adminOf(tenantB))).toEqual(
+      expected(other.revision, tenantB)
+    );
     expect(await refsOf(other.revision.id)).toEqual([]);
   });
 
   it('keeps refs immutable for mycel_app', async () => {
     const { revision } = await page('ref-immutable', [signup('f', formA)]);
     const state = (q: Parameters<typeof withTenant>[2]) =>
-      withTenant(appDb, a(), q).then(
+      withTenant(appDb, adminOf(tenantA), q).then(
         () => 'ok',
         (e: { code?: string }) => e.code
       );
@@ -376,7 +374,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
   it.each(['heading', 'reference'] as const)(
     'returns block ids only from revisions matching both filters (%s only in other locale)',
     async (partial) => {
-      const first = await invoker.run(useCases.createItem, a(), {
+      const first = await invoker.run(useCases.createItem, adminOf(tenantA), {
         slug: `find-locales-${partial}-${run}`,
         document: {
           type: 'page',
@@ -389,12 +387,12 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
           ],
         },
       });
-      await invoker.run(useCases.publishItem, a(), {
+      await invoker.run(useCases.publishItem, adminOf(tenantA), {
         itemId: first.item.id,
         revisionId: first.revision.id,
         locale: 'nl',
       });
-      const second = await invoker.run(useCases.updateItem, a(), {
+      const second = await invoker.run(useCases.updateItem, adminOf(tenantA), {
         itemId: first.item.id,
         baseRevisionId: first.revision.id,
         document: {
@@ -405,12 +403,12 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
               : [signup('other-form', formA)],
         },
       });
-      await invoker.run(useCases.publishItem, a(), {
+      await invoker.run(useCases.publishItem, adminOf(tenantA), {
         itemId: first.item.id,
         revisionId: second.revision.id,
         locale: 'en',
       });
-      const found = await invoker.run(useCases.findItems, a(), {
+      const found = await invoker.run(useCases.findItems, adminOf(tenantA), {
         blockType: 'heading',
         ref: { type: 'form', id: formA },
         live: true,
@@ -425,12 +423,12 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
   it('finds draft and live use apart, and counts live references', async () => {
     // Live without the form, draft with it.
     const draftOnly = await page('find-draft', [heading('h')]);
-    await invoker.run(useCases.publishItem, a(), {
+    await invoker.run(useCases.publishItem, adminOf(tenantA), {
       itemId: draftOnly.item.id,
       revisionId: draftOnly.revision.id,
       locale: 'nl',
     });
-    await invoker.run(useCases.insertBlock, a(), {
+    await invoker.run(useCases.insertBlock, adminOf(tenantA), {
       itemId: draftOnly.item.id,
       baseRevisionId: draftOnly.revision.id,
       block: signup('f', formA),
@@ -438,19 +436,21 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
     });
     // Live with the form, draft without it.
     const liveOnly = await page('find-live', [signup('f', formA)]);
-    await invoker.run(useCases.publishItem, a(), {
+    await invoker.run(useCases.publishItem, adminOf(tenantA), {
       itemId: liveOnly.item.id,
       revisionId: liveOnly.revision.id,
       locale: 'nl',
     });
-    await invoker.run(useCases.removeBlock, a(), {
+    await invoker.run(useCases.removeBlock, adminOf(tenantA), {
       itemId: liveOnly.item.id,
       baseRevisionId: liveOnly.revision.id,
       blockId: 'f',
     });
     const mine = [draftOnly.item.id, liveOnly.item.id];
     const found = async (input: object) =>
-      (await invoker.run(useCases.findItems, a(), { limit: 100, ...input } as never)).matches
+      (
+        await invoker.run(useCases.findItems, adminOf(tenantA), { limit: 100, ...input } as never)
+      ).matches
         .filter((m) => mine.includes(m.itemId))
         .map((m) => [m.itemId, m.blockIds]);
     const ref = { type: 'form', id: formA };
@@ -463,15 +463,22 @@ describe.skipIf(!operatorUrl || !appUrl)('content operations conformance', () =>
     // Another tenant's form id finds nothing here, and B cannot find A's use of A's form.
     expect(await found({ ref: { type: 'form', id: formB } })).toEqual([]);
     expect(
-      (await invoker.run(useCases.findItems, b(), { ref: { type: 'form', id: formA } })).items
+      (
+        await invoker.run(useCases.findItems, adminOf(tenantB), {
+          ref: { type: 'form', id: formA },
+        })
+      ).items
     ).toEqual([]);
 
     const live = (p: Principal, id: string) =>
       uow.run(p, (ctx) => ctx.content.liveReferences({ type: 'form', id }));
-    const before = await live(a(), formA);
+    const before = await live(adminOf(tenantA), formA);
     expect(before).toBeGreaterThanOrEqual(1);
-    await invoker.run(useCases.unpublishItem, a(), { itemId: liveOnly.item.id, locale: 'nl' });
-    expect(await live(a(), formA)).toBe(before - 1);
-    expect(await live(b(), formA)).toBe(0);
+    await invoker.run(useCases.unpublishItem, adminOf(tenantA), {
+      itemId: liveOnly.item.id,
+      locale: 'nl',
+    });
+    expect(await live(adminOf(tenantA), formA)).toBe(before - 1);
+    expect(await live(adminOf(tenantB), formA)).toBe(0);
   });
 });

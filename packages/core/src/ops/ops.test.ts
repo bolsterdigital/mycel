@@ -2,11 +2,17 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { Invoker } from '../invoke.js';
 import type { JobRecord } from '../jobs/ports.js';
 import { systemPrincipal, type Principal } from '../principal.js';
-import { FakeClock, MemoryUnitOfWork, probeTenant, secureErasures } from '../testing/index.js';
+import {
+  FakeClock,
+  MemoryUnitOfWork,
+  probeTenant,
+  secureErasures,
+  TENANT,
+  adminOf,
+} from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { buildDiagnosis, keyPrefix } from './model.js';
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const OTHER = '01900000-0000-7000-8000-00000000bbbb';
 
 describe('job recovery (TODO #17c)', () => {
@@ -14,7 +20,6 @@ describe('job recovery (TODO #17c)', () => {
   let clock: FakeClock;
   let invoker: Invoker;
   let n = 0;
-  const admin = () => systemPrincipal(TENANT, 'test');
 
   /** A job straight into the store, as the worker would have left it. */
   function job(over: Partial<JobRecord> = {}): JobRecord {
@@ -47,7 +52,7 @@ describe('job recovery (TODO #17c)', () => {
   it('retries an exhausted job: attempts from zero, due now, unclaimed, last error kept', async () => {
     const j = job({ claimedAt: clock.now(), runAt: new Date(0) });
     clock.advance(60_000);
-    await expect(invoker.run(useCases.retryJob, admin(), { id: j.id })).resolves.toEqual({
+    await expect(invoker.run(useCases.retryJob, adminOf(), { id: j.id })).resolves.toEqual({
       id: j.id,
     });
     expect(j).toMatchObject({
@@ -61,7 +66,7 @@ describe('job recovery (TODO #17c)', () => {
 
   it('closes an exhausted job: done now, last error kept', async () => {
     const j = job();
-    await invoker.run(useCases.closeJob, admin(), { id: j.id });
+    await invoker.run(useCases.closeJob, adminOf(), { id: j.id });
     expect(j).toMatchObject({ doneAt: clock.now(), attempts: 10, lastError: 'no event for it' });
   });
 
@@ -73,7 +78,7 @@ describe('job recovery (TODO #17c)', () => {
   ] as const)('%s refuses a job %s with conflict and changes nothing', async (name, _w, over) => {
     const j = job(over);
     const before = { ...j };
-    await expect(invoker.run(useCases[name], admin(), { id: j.id })).rejects.toMatchObject({
+    await expect(invoker.run(useCases[name], adminOf(), { id: j.id })).rejects.toMatchObject({
       code: 'conflict',
     });
     expect(j).toEqual(before);
@@ -82,7 +87,7 @@ describe('job recovery (TODO #17c)', () => {
   it("does not find another tenant's job, nor a platform job", async () => {
     for (const tenantId of [OTHER, null]) {
       const j = job({ tenantId });
-      await expect(invoker.run(useCases.retryJob, admin(), { id: j.id })).rejects.toMatchObject({
+      await expect(invoker.run(useCases.retryJob, adminOf(), { id: j.id })).rejects.toMatchObject({
         code: 'not_found',
       });
       expect(j.attempts).toBe(10);
@@ -91,11 +96,11 @@ describe('job recovery (TODO #17c)', () => {
 
   it('audits both recoveries, and needs tenant:admin', async () => {
     const j = job();
-    const editor: Principal = { ...admin(), capabilities: ['content:write'] };
+    const editor: Principal = { ...adminOf(), capabilities: ['content:write'] };
     await expect(invoker.run(useCases.retryJob, editor, { id: j.id })).rejects.toMatchObject({
       code: 'forbidden',
     });
-    await invoker.run(useCases.retryJob, admin(), { id: j.id });
+    await invoker.run(useCases.retryJob, adminOf(), { id: j.id });
     const rows = uow.store.for(TENANT).audit;
     expect(rows.map((r) => [r.operation, r.result, r.subjectId])).toEqual([
       ['ops.job.retry', 'forbidden', null],
@@ -105,10 +110,10 @@ describe('job recovery (TODO #17c)', () => {
 
   it('a failed run after a retry exhausts the job again: no loop', async () => {
     const j = job({ maxAttempts: 2, attempts: 2 });
-    await invoker.run(useCases.retryJob, admin(), { id: j.id });
+    await invoker.run(useCases.retryJob, adminOf(), { id: j.id });
     // Two failed claims, as the worker counts them.
     j.attempts += 2;
-    const status = await invoker.run(useCases.getOpsStatus, admin(), {});
+    const status = await invoker.run(useCases.getOpsStatus, adminOf(), {});
     expect(status.jobs.map((s) => s.id)).toEqual([j.id]);
   });
 
@@ -119,7 +124,7 @@ describe('job recovery (TODO #17c)', () => {
       job({ doneAt: new Date(0) });
       job({ tenantId: OTHER });
       job({ tenantId: null });
-      const status = await invoker.run(useCases.getOpsStatus, admin(), {});
+      const status = await invoker.run(useCases.getOpsStatus, adminOf(), {});
       expect(status.jobs).toEqual([
         {
           id: stuck.id,
@@ -154,9 +159,9 @@ describe('job recovery (TODO #17c)', () => {
       store.mailSends.set('c', { ...intent, key: 'c', sentAt: clock.now() });
       const j = job();
       await invoker
-        .run(useCases.closeJob, admin(), { id: job({ attempts: 1 }).id })
+        .run(useCases.closeJob, adminOf(), { id: job({ attempts: 1 }).id })
         .catch(() => {});
-      const status = await invoker.run(useCases.getOpsStatus, admin(), {});
+      const status = await invoker.run(useCases.getOpsStatus, adminOf(), {});
       expect(status.mails.map((m) => m.state).sort()).toEqual(['abandoned', 'unknown']);
       expect(status.mails[0]).not.toHaveProperty('correlation');
       expect(status.audit.map((r) => [r.operation, r.result])).toEqual([
@@ -170,7 +175,7 @@ describe('job recovery (TODO #17c)', () => {
     });
 
     it('is empty when nothing is stuck', async () => {
-      const status = await invoker.run(useCases.getOpsStatus, admin(), {});
+      const status = await invoker.run(useCases.getOpsStatus, adminOf(), {});
       expect(status).toMatchObject({ jobs: [], mails: [], audit: [] });
       expect(status.erasures).toEqual({
         registered: 0,
@@ -184,11 +189,11 @@ describe('job recovery (TODO #17c)', () => {
 
     it('warns about an erasure no backup holds after an hour, and not before (TODO #29B)', async () => {
       const erased = clock.now();
-      await uow.run(admin(), (ctx) =>
+      await uow.run(adminOf(), (ctx) =>
         ctx.erasures.register('01900000-0000-7000-8000-0000000e0001', 'ada@example.org')
       );
       clock.advance(59 * 60_000);
-      let status = await invoker.run(useCases.getOpsStatus, admin(), {});
+      let status = await invoker.run(useCases.getOpsStatus, adminOf(), {});
       expect(status.erasures).toEqual({
         registered: 1,
         unsecured: 1,
@@ -196,7 +201,7 @@ describe('job recovery (TODO #17c)', () => {
         late: false,
       });
       clock.advance(2 * 60_000);
-      status = await invoker.run(useCases.getOpsStatus, admin(), {});
+      status = await invoker.run(useCases.getOpsStatus, adminOf(), {});
       expect(status.erasures.late).toBe(true);
       expect(status.diagnosis).toContain(
         `erasures not in a backup: 1 oldest since ${erased.toISOString()} (late)`
@@ -204,7 +209,7 @@ describe('job recovery (TODO #17c)', () => {
       expect(status.diagnosis).not.toContain('@');
 
       secureErasures(uow.store, TENANT, 'a'.repeat(64), clock.now());
-      status = await invoker.run(useCases.getOpsStatus, admin(), {});
+      status = await invoker.run(useCases.getOpsStatus, adminOf(), {});
       expect(status.erasures).toEqual({
         registered: 1,
         unsecured: 0,

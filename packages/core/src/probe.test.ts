@@ -34,10 +34,10 @@ import {
   probeTenant,
   publishProbePage,
   solveProof,
+  TENANT,
 } from './testing/index.js';
 import { issueProofChallenge } from './forms/proof.js';
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const FORM = '01900000-0000-7000-8000-00000000f000';
 
 describe('vertical probe in memory', () => {

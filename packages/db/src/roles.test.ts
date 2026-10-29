@@ -4,13 +4,12 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
 import { createDb } from './index.js';
 import { advisoryLock, asRole, setRole } from './roles.js';
+import { requireDatabase } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && !operatorUrl)
-  throw new Error('E2E_REQUIRED=1 but DATABASE_URL is not set');
+const { skip, operator: operatorUrl } = requireDatabase();
 
-describe.skipIf(!operatorUrl)('roles', () => {
-  const db = createDb(operatorUrl ?? '');
+describe.skipIf(skip)('roles', () => {
+  const db = createDb(operatorUrl);
   afterAll(() => db.destroy());
 
   const currentUser = async (trx: typeof db) =>

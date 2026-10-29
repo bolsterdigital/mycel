@@ -11,7 +11,7 @@
 // owner sees no tenant row and could not replay this at all: the migrator ran it as the owner
 // while the policies were still on `public`, which a clean chain still does (0011 before 0018).
 // Only the tenants and the recreated `pages` table are the owner's. Skips without DATABASE_URL;
-// with E2E_REQUIRED=1 (CI) that is a failure.
+// in CI that is a failure.
 
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
@@ -19,11 +19,11 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ContentDocument } from '@mycel/core';
-import { migrate, uuidv7 } from './index.js';
+import { runSuffix } from '@mycel/core/testing';
+import { uuidv7 } from './index.js';
+import { requireDatabase, migrateSchema } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && !operatorUrl)
-  throw new Error('E2E_REQUIRED=1 but DATABASE_URL is not set');
+const { skip, operator: operatorUrl } = requireDatabase();
 
 const MIGRATION = fileURLToPath(
   new URL('../migrations/0011_content_items_and_revisions.sql', import.meta.url)
@@ -48,13 +48,13 @@ const blockId = (pageId: string, position: number) => {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 };
 
-describe.skipIf(!operatorUrl)('migration 0011 backfill', () => {
+describe.skipIf(skip)('migration 0011 backfill', () => {
   const client = new pg.Client({ connectionString: operatorUrl });
   let backfill = '';
-  const run = Math.random().toString(36).slice(2, 8);
+  const run = runSuffix();
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, { log: () => {} });
+    await migrateSchema(operatorUrl);
     const text = await readFile(MIGRATION, 'utf8');
     backfill = text.slice(text.indexOf('-- backfill:begin'), text.indexOf('-- backfill:end'));
     expect(backfill).toContain('insert into content_items');

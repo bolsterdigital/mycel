@@ -7,7 +7,7 @@
 //
 // Jobs here have keys of their own (`run`); the one claim narrows to `mail.reconcile`, whose real
 // rows are planned RECONCILE_LAG_MS ahead and so are never due during a run. Skips without
-// DATABASE_URL and APP_DATABASE_URL; with E2E_REQUIRED=1 (CI) that is a failure.
+// DATABASE_URL and APP_DATABASE_URL; in CI that is a failure.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
@@ -20,14 +20,20 @@ import {
   useCases,
   type JobRecord,
 } from '@mycel/core';
-import { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } from '@mycel/core/testing';
+import {
+  FakeDns,
+  FakeInputHasher,
+  FakeSigner,
+  memoryPlatform,
+  runSuffix,
+  adminOf,
+} from '@mycel/core/testing';
 import {
   claimJobs,
   completeJob,
   createDb,
   createUnitOfWork,
   failJob,
-  migrate,
   opsCloseJob,
   opsDeadEvents,
   opsJobs,
@@ -35,23 +41,20 @@ import {
   opsRetryJob,
   opsSummary,
   opsUnresolvedMail,
-  upsertTenant,
   uuidv7,
   uuidv7Ids,
   withTenant,
 } from './index.js';
+import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-const appUrl = process.env['APP_DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
-  throw new Error('E2E_REQUIRED=1 but DATABASE_URL or APP_DATABASE_URL is not set');
+const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
 const PLATFORM = 'conformance.test';
 
-describe.skipIf(!operatorUrl || !appUrl)('stuck-work recovery conformance', () => {
-  const operatorDb = createDb(operatorUrl ?? '');
-  const appDb = createDb(appUrl ?? '');
-  const run = Math.random().toString(36).slice(2, 8);
+describe.skipIf(skip)('stuck-work recovery conformance', () => {
+  const operatorDb = createDb(operatorUrl);
+  const appDb = createDb(appUrl);
+  const run = runSuffix();
   const uow = createUnitOfWork(appDb, {
     clock: { now: () => new Date() },
     ids: uuidv7Ids,
@@ -63,7 +66,6 @@ describe.skipIf(!operatorUrl || !appUrl)('stuck-work recovery conformance', () =
   const invoker = new Invoker(buildRegistry(), uow);
   let tenantId = '';
   let otherId = '';
-  const admin = () => systemPrincipal(tenantId, 'test');
   const mine: string[] = [];
   const events: string[] = [];
 
@@ -110,20 +112,13 @@ describe.skipIf(!operatorUrl || !appUrl)('stuck-work recovery conformance', () =
   const read = (id: string) =>
     asWorker((trx) => trx.selectFrom('jobs').selectAll().where('id', '=', id).executeTakeFirst());
   const auditOf = (subject: string) =>
-    withTenant(appDb, admin(), (trx) =>
+    withTenant(appDb, adminOf(tenantId), (trx) =>
       trx.selectFrom('audit_log').selectAll().where('subject_id', '=', subject).execute()
     );
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, {
-      log: () => {},
-    });
-    const tenant = (slug: string) =>
-      upsertTenant(
-        operatorDb,
-        { id: uuidv7(), slug, name: slug, defaultLocale: 'nl', locales: ['nl'] },
-        { platformDomain: PLATFORM }
-      );
+    await migrateSchema(operatorUrl);
+    const tenant = (slug: string) => testTenant(operatorDb, slug, { platformDomain: PLATFORM });
     tenantId = (await tenant(`recovery-${run}`)).id;
     otherId = (await tenant(`recovery-other-${run}`)).id;
   });
@@ -150,7 +145,7 @@ describe.skipIf(!operatorUrl || !appUrl)('stuck-work recovery conformance', () =
       const open = await job({ attempts: 3 });
       const foreign = await job({ tenant: otherId });
       const platform = await job({ tenant: null });
-      const status = await invoker.run(useCases.getOpsStatus, admin(), {});
+      const status = await invoker.run(useCases.getOpsStatus, adminOf(tenantId), {});
       const ids = status.jobs.map((j) => j.id);
       expect(ids).toContain(stuck);
       expect(ids).not.toEqual(expect.arrayContaining([open]));
@@ -159,7 +154,7 @@ describe.skipIf(!operatorUrl || !appUrl)('stuck-work recovery conformance', () =
       expect(JSON.stringify(status)).not.toContain('someone@example.org');
       expect(status.diagnosis).toContain(`site: recovery-${run}`);
 
-      await invoker.run(useCases.retryJob, admin(), { id: stuck });
+      await invoker.run(useCases.retryJob, adminOf(tenantId), { id: stuck });
       expect(await read(stuck)).toMatchObject({
         attempts: 0,
         claimed_at: null,
@@ -174,12 +169,16 @@ describe.skipIf(!operatorUrl || !appUrl)('stuck-work recovery conformance', () =
 
     it('refuses an open job with conflict and a foreign or platform job as not found', async () => {
       const open = await job({ attempts: 3 });
-      await expect(invoker.run(useCases.closeJob, admin(), { id: open })).rejects.toMatchObject({
+      await expect(
+        invoker.run(useCases.closeJob, adminOf(tenantId), { id: open })
+      ).rejects.toMatchObject({
         code: 'conflict',
       });
       for (const tenant of [otherId, null]) {
         const id = await job({ tenant });
-        await expect(invoker.run(useCases.retryJob, admin(), { id })).rejects.toMatchObject({
+        await expect(
+          invoker.run(useCases.retryJob, adminOf(tenantId), { id })
+        ).rejects.toMatchObject({
           code: 'not_found',
         });
         expect((await read(id))!.attempts).toBe(10);
@@ -188,7 +187,9 @@ describe.skipIf(!operatorUrl || !appUrl)('stuck-work recovery conformance', () =
 
     it('leaves a job alone while its last attempt holds the lease', async () => {
       const running = await job({ claimedAt: new Date() });
-      await expect(invoker.run(useCases.retryJob, admin(), { id: running })).rejects.toMatchObject({
+      await expect(
+        invoker.run(useCases.retryJob, adminOf(tenantId), { id: running })
+      ).rejects.toMatchObject({
         code: 'conflict',
       });
       expect((await read(running))!.attempts).toBe(10);
@@ -197,7 +198,7 @@ describe.skipIf(!operatorUrl || !appUrl)('stuck-work recovery conformance', () =
     it('makes an exhausted mail.reconcile from the #22C claim visible, claimable and run again', async () => {
       // The claim plans `mail.reconcile:<key>` RECONCILE_LAG_MS ahead, in its own transaction.
       const key = `recovery-${run}:${uuidv7()}`;
-      await uow.run(admin(), (ctx) =>
+      await uow.run(adminOf(tenantId), (ctx) =>
         claimAttempt(
           ctx,
           { key, subscriber: `recovery-${run}`, eventId: uuidv7(), correlation: 'a'.repeat(64) },
@@ -220,13 +221,13 @@ describe.skipIf(!operatorUrl || !appUrl)('stuck-work recovery conformance', () =
           .where('id', '=', planned!.id)
           .execute()
       );
-      const status = await invoker.run(useCases.getOpsStatus, admin(), {});
+      const status = await invoker.run(useCases.getOpsStatus, adminOf(tenantId), {});
       expect(status.jobs.find((j) => j.id === planned!.id)).toMatchObject({
         type: 'mail.reconcile',
         lastError: 'no event for it',
       });
 
-      await invoker.run(useCases.retryJob, admin(), { id: planned!.id });
+      await invoker.run(useCases.retryJob, adminOf(tenantId), { id: planned!.id });
       const claimed = await claimJobs(operatorDb, { types: ['mail.reconcile'], batchSize: 50 });
       // Anything else that happened to be due goes back as the worker would leave it.
       for (const other of claimed.filter((j) => j.id !== planned!.id))
@@ -240,9 +241,9 @@ describe.skipIf(!operatorUrl || !appUrl)('stuck-work recovery conformance', () =
     it('frees the key of a closed hostnames.reverify', async () => {
       const key = `hostnames.reverify:${tenantId}:recovery-${run}.example`;
       const stuck = await job({ type: 'hostnames.reverify', key });
-      await invoker.run(useCases.closeJob, admin(), { id: stuck });
+      await invoker.run(useCases.closeJob, adminOf(tenantId), { id: stuck });
       expect((await read(stuck))!.done_at).not.toBeNull();
-      const planned = await uow.run(admin(), (ctx) =>
+      const planned = await uow.run(adminOf(tenantId), (ctx) =>
         ctx.jobs.enqueue({
           type: 'hostnames.reverify',
           key,
@@ -296,7 +297,7 @@ describe.skipIf(!operatorUrl || !appUrl)('stuck-work recovery conformance', () =
       const id = uuidv7();
       events.push(id);
       // Inserted dead as the application would never write it, so no drain picks it up.
-      await withTenant(appDb, admin(), (trx) =>
+      await withTenant(appDb, adminOf(tenantId), (trx) =>
         trx
           .insertInto('outbox')
           .values({
@@ -380,7 +381,7 @@ describe.skipIf(!operatorUrl || !appUrl)('stuck-work recovery conformance', () =
     it('gives a dead event new passes, keeping who already delivered', async () => {
       const id = uuidv7();
       events.push(id);
-      await withTenant(appDb, admin(), (trx) =>
+      await withTenant(appDb, adminOf(tenantId), (trx) =>
         trx
           .insertInto('outbox')
           .values({
@@ -415,7 +416,7 @@ describe.skipIf(!operatorUrl || !appUrl)('stuck-work recovery conformance', () =
 
     it('lists unknown and abandoned mail without the correlation', async () => {
       const at = new Date(Date.now() - 3600_000);
-      await withTenant(appDb, admin(), (trx) =>
+      await withTenant(appDb, adminOf(tenantId), (trx) =>
         trx
           .insertInto('mail_sends')
           .values(

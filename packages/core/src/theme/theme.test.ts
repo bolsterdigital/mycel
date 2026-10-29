@@ -6,13 +6,12 @@ import { describe, expect, it } from 'vitest';
 import { UseCaseError } from '../errors.js';
 import { Invoker } from '../invoke.js';
 import { anonymousPrincipal, systemPrincipal } from '../principal.js';
-import { MemoryUnitOfWork } from '../testing/index.js';
+import { MemoryUnitOfWork, TENANT } from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { Theme, checkTheme, contrastRatio, resolveTheme } from './contrast.js';
 import { THEME_RANGES, ThemeInput, type Palette } from './model.js';
 import { DEFAULT_THEME, THEME_PRESETS } from './presets.js';
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const light = DEFAULT_THEME.palettes.light;
 const dark = DEFAULT_THEME.palettes.dark;
 const withLight = (patch: Partial<Palette>) => ({

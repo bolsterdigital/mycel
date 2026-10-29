@@ -1,6 +1,6 @@
 // Integration tests against a real Postgres. They skip without DATABASE_URL (operator role) and
-// APP_DATABASE_URL (mycel_app login, subject to RLS); CI provides both via a service container
-// and sets E2E_REQUIRED=1, which turns a missing database into a failure. The RLS catalog checks
+// APP_DATABASE_URL (mycel_app login, subject to RLS); CI provides both via a service container,
+// where a missing database is a failure (`requireDatabase`). The RLS catalog checks
 // live in rls.conformance.test.ts.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -26,27 +26,23 @@ import {
   probeForm,
   publishProbePage,
   solveProof,
+  runSuffix,
 } from '@mycel/core/testing';
 import {
   createDb,
   createTenantDirectory,
   createUnitOfWork,
-  migrate,
   readOutboxEvent,
-  upsertTenant,
   uuidv7,
   uuidv7Ids,
 } from './index.js';
-import { closeTenantWork } from './testing.js';
+import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-const appUrl = process.env['APP_DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
-  throw new Error('E2E_REQUIRED=1 but DATABASE_URL or APP_DATABASE_URL is not set');
+const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
-describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
-  const operatorDb = createDb(operatorUrl ?? '');
-  const appDb = createDb(appUrl ?? '');
+describe.skipIf(skip)('postgres adapter', () => {
+  const operatorDb = createDb(operatorUrl);
+  const appDb = createDb(appUrl);
   const signer = new FakeSigner();
   const clock = { now: () => new Date() };
   const uow = createUnitOfWork(appDb, {
@@ -72,7 +68,7 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
       platform: memoryPlatform,
     }),
   ];
-  const run = Math.random().toString(36).slice(2, 8);
+  const run = runSuffix();
   let tenantA = '';
   let tenantB = '';
   let formId = '';
@@ -108,33 +104,9 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
   }
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, { log: () => {} });
-    tenantA = (
-      await upsertTenant(
-        operatorDb,
-        {
-          id: uuidv7(),
-          slug: `t-a-${run}`,
-          name: 'A',
-          defaultLocale: 'nl',
-          locales: ['nl', 'en'],
-        },
-        { platformDomain: 'localhost' }
-      )
-    ).id;
-    tenantB = (
-      await upsertTenant(
-        operatorDb,
-        {
-          id: uuidv7(),
-          slug: `t-b-${run}`,
-          name: 'B',
-          defaultLocale: 'nl',
-          locales: ['nl'],
-        },
-        { platformDomain: 'localhost' }
-      )
-    ).id;
+    await migrateSchema(operatorUrl);
+    tenantA = (await testTenant(operatorDb, `t-a-${run}`, { name: 'A', locales: ['nl', 'en'] })).id;
+    tenantB = (await testTenant(operatorDb, `t-b-${run}`, { name: 'B' })).id;
     formId = uuidv7();
     await uow.run(systemPrincipal(tenantA, 'test'), (ctx) => ctx.forms.insert(probeForm(formId)));
     await publishProbePage(invoker, systemPrincipal(tenantA, 'test'), formId);
@@ -224,13 +196,7 @@ describe.skipIf(!operatorUrl || !appUrl)('postgres adapter', () => {
   });
 
   it("leaves other suites' outbox events alone (TODO #26)", async () => {
-    const other = (
-      await upsertTenant(
-        operatorDb,
-        { id: uuidv7(), slug: `t-o-${run}`, name: 'O', defaultLocale: 'nl', locales: ['nl'] },
-        { platformDomain: 'localhost' }
-      )
-    ).id;
+    const other = (await testTenant(operatorDb, `t-o-${run}`, { name: 'O' })).id;
     const id = uuidv7();
     await uow.run(systemPrincipal(other, 'test'), (ctx) =>
       ctx.events.publish({

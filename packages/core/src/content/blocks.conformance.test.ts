@@ -24,7 +24,7 @@ import {
 import { DEFAULT_ENTITLEMENTS } from '../entitlements/model.js';
 import { Invoker } from '../invoke.js';
 import { systemPrincipal } from '../principal.js';
-import { MemoryUnitOfWork, probeForm } from '../testing/index.js';
+import { MemoryUnitOfWork, probeForm, TENANT } from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { ContentDocument, readinessIssues } from './model.js';
 
@@ -526,7 +526,6 @@ describe('stored #8a documents', () => {
 });
 
 describe('entitlements', () => {
-  const TENANT = '01900000-0000-7000-8000-00000000aaaa';
   const invoker = new Invoker(buildRegistry(), new MemoryUnitOfWork());
 
   it.each(BLOCK_TYPES)('%s is behind blocks.%s on item and pattern writes', async (type) => {

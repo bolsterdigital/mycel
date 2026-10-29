@@ -9,12 +9,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_ENTITLEMENTS } from '../entitlements/model.js';
 import { Invoker } from '../invoke.js';
 import { anonymousPrincipal, systemPrincipal, type Principal } from '../principal.js';
-import { MemoryUnitOfWork, probeForm } from '../testing/index.js';
+import { MemoryUnitOfWork, probeForm, TENANT } from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { blockTreeIssues, type Block } from './blocks.js';
 import { ContentDocument } from './model.js';
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const FORM = '01900000-0000-7000-8000-00000000f000';
 
 const para = (t: string, marks?: object[]) => ({

@@ -4,7 +4,7 @@
 // refused; patterns keep usages under `pattern:<id>`; historical revisions keep theirs; a usage
 // write that falls short rolls back the whole save (document, block operation and pattern); and
 // save and delete serialise on the media lock in both orders. Two tenants, the application role,
-// no migration. Skips without DATABASE_URL and APP_DATABASE_URL; with E2E_REQUIRED=1 (CI) that
+// no migration. Skips without DATABASE_URL and APP_DATABASE_URL; in CI that
 // is a failure.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -30,26 +30,18 @@ import {
   overrideMedia,
   pauseMedia,
   probeForm,
+  runSuffix,
+  adminOf,
 } from '@mycel/core/testing';
-import {
-  createDb,
-  createUnitOfWork,
-  migrate,
-  upsertTenant,
-  uuidv7,
-  uuidv7Ids,
-  withTenant,
-} from './index.js';
+import { createDb, createUnitOfWork, uuidv7, uuidv7Ids, withTenant } from './index.js';
+import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-const appUrl = process.env['APP_DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
-  throw new Error('E2E_REQUIRED=1 but DATABASE_URL or APP_DATABASE_URL is not set');
+const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
-describe.skipIf(!operatorUrl || !appUrl)('content blocks conformance', () => {
-  const operatorDb = createDb(operatorUrl ?? '');
-  const appDb = createDb(appUrl ?? '');
-  const run = Math.random().toString(36).slice(2, 8);
+describe.skipIf(skip)('content blocks conformance', () => {
+  const operatorDb = createDb(operatorUrl);
+  const appDb = createDb(appUrl);
+  const run = runSuffix();
   const clock = new FakeClock(new Date());
   const uow = createUnitOfWork(appDb, {
     clock,
@@ -65,8 +57,6 @@ describe.skipIf(!operatorUrl || !appUrl)('content blocks conformance', () => {
   let tenantA = '';
   let tenantB = '';
   const formA = uuidv7();
-  const a = (): Principal => systemPrincipal(tenantA, 'test');
-  const b = (): Principal => systemPrincipal(tenantB, 'test');
   let slugs = 0;
 
   const upload = async (p: Principal, pdf = false) =>
@@ -106,7 +96,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content blocks conformance', () => {
     version: 1 as const,
     props: { text: { nl: id } },
   });
-  const page = (blocks: object[], p = a(), inv = invoker) =>
+  const page = (blocks: object[], p = adminOf(tenantA), inv = invoker) =>
     inv.run(useCases.createItem, p, {
       slug: `blocks-${run}-${++slugs}`,
       document: {
@@ -117,7 +107,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content blocks conformance', () => {
         blocks: blocks as never,
       },
     });
-  const pattern = (blocks: object[], p = a(), inv = invoker) =>
+  const pattern = (blocks: object[], p = adminOf(tenantA), inv = invoker) =>
     inv.run(useCases.createPattern, p, {
       name: { nl: 'Patroon' },
       intendedType: 'page',
@@ -125,7 +115,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content blocks conformance', () => {
     });
 
   /** Usages of a media id as mycel_app sees them under `p`'s tenant, `ref block` sorted. */
-  const usagesOf = (mediaId: string, p = a()) =>
+  const usagesOf = (mediaId: string, p = adminOf(tenantA)) =>
     withTenant(appDb, p, (trx) =>
       trx
         .selectFrom('media_usages')
@@ -136,7 +126,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content blocks conformance', () => {
   const count = (
     table: 'content_items' | 'content_revisions' | 'content_block_refs' | 'patterns'
   ) =>
-    withTenant(appDb, a(), (trx) =>
+    withTenant(appDb, adminOf(tenantA), (trx) =>
       trx
         .selectFrom(table)
         .select((eb) => eb.fn.countAll<string>().as('n'))
@@ -151,17 +141,11 @@ describe.skipIf(!operatorUrl || !appUrl)('content blocks conformance', () => {
     );
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, {
-      log: () => {},
-    });
+    await migrateSchema(operatorUrl);
     const tenant = (slug: string) =>
-      upsertTenant(
-        operatorDb,
-        { id: uuidv7(), slug: `${slug}-${run}`, name: slug, defaultLocale: 'nl', locales: ['nl'] },
-        { platformDomain: 'localhost' }
-      ).then((t) => t.id);
+      testTenant(operatorDb, `${slug}-${run}`, { name: slug }).then((t) => t.id);
     [tenantA, tenantB] = [await tenant('blocks-a'), await tenant('blocks-b')];
-    await uow.run(a(), (ctx) => ctx.forms.insert(probeForm(formA)));
+    await uow.run(adminOf(tenantA), (ctx) => ctx.forms.insert(probeForm(formA)));
   });
 
   afterAll(async () => {
@@ -170,14 +154,14 @@ describe.skipIf(!operatorUrl || !appUrl)('content blocks conformance', () => {
   });
 
   it('writes refs and usages of image, hero and form blocks in the save', async () => {
-    const photo = await upload(a());
+    const photo = await upload(adminOf(tenantA));
     const target = (await page([heading('t')])).item.id;
     const { item, revision } = await page([
       image('img', photo),
       hero('hero', photo, target),
       form('f', formA),
     ]);
-    const rows = await withTenant(appDb, a(), (trx) =>
+    const rows = await withTenant(appDb, adminOf(tenantA), (trx) =>
       trx
         .selectFrom('content_block_refs')
         .select(['block_id', 'type', 'ref_id'])
@@ -199,9 +183,9 @@ describe.skipIf(!operatorUrl || !appUrl)('content blocks conformance', () => {
   });
 
   it("writes refs and usages of the document's featured and share image, and refuses foreign ones", async () => {
-    const photo = await upload(a());
-    const share = await upload(a());
-    const foreign = await upload(b());
+    const photo = await upload(adminOf(tenantA));
+    const share = await upload(adminOf(tenantA));
+    const foreign = await upload(adminOf(tenantB));
     const doc = (images: { featuredImageId?: string; imageId?: string }) => ({
       type: 'article' as const,
       defaultLocale: 'nl',
@@ -211,11 +195,11 @@ describe.skipIf(!operatorUrl || !appUrl)('content blocks conformance', () => {
       ...(images.featuredImageId ? { featuredImageId: images.featuredImageId } : {}),
       seo: images.imageId ? { imageId: images.imageId } : {},
     });
-    const { item, revision } = await invoker.run(useCases.createItem, a(), {
+    const { item, revision } = await invoker.run(useCases.createItem, adminOf(tenantA), {
       slug: `doc-images-${run}`,
       document: doc({ featuredImageId: photo, imageId: share }),
     });
-    const rows = await withTenant(appDb, a(), (trx) =>
+    const rows = await withTenant(appDb, adminOf(tenantA), (trx) =>
       trx
         .selectFrom('content_block_refs')
         .select(['block_id', 'type', 'ref_id'])
@@ -231,30 +215,32 @@ describe.skipIf(!operatorUrl || !appUrl)('content blocks conformance', () => {
     expect(await usagesOf(photo)).toEqual([`${ref} doc:featured`, `${ref} img`]);
     expect(await usagesOf(share)).toEqual([`${ref} doc:seo`]);
     // Where-used finds the item by its share image, with no block to point at.
-    const found = await invoker.run(useCases.findItems, a(), { ref: { type: 'media', id: share } });
+    const found = await invoker.run(useCases.findItems, adminOf(tenantA), {
+      ref: { type: 'media', id: share },
+    });
     expect(found.matches).toEqual([{ itemId: item.id, blockIds: [] }]);
     await refused(
-      invoker.run(useCases.updateItem, a(), {
+      invoker.run(useCases.updateItem, adminOf(tenantA), {
         itemId: item.id,
         baseRevisionId: revision.id,
         document: doc({ featuredImageId: foreign }),
       }),
       `content.reference.media-unknown:${foreign}`
     );
-    await expect(invoker.run(useCases.deleteMedia, a(), { id: share })).rejects.toSatisfy(
-      (e) => e instanceof UseCaseError && e.code === 'conflict'
-    );
+    await expect(
+      invoker.run(useCases.deleteMedia, adminOf(tenantA), { id: share })
+    ).rejects.toSatisfy((e) => e instanceof UseCaseError && e.code === 'conflict');
   });
 
   it('finds media in the latest revision or, with live, only in what a locale publishes', async () => {
-    const photo = await upload(a());
+    const photo = await upload(adminOf(tenantA));
     const { item, revision } = await page([heading('h')]);
-    await invoker.run(useCases.publishItem, a(), {
+    await invoker.run(useCases.publishItem, adminOf(tenantA), {
       itemId: item.id,
       revisionId: revision.id,
       locale: 'nl',
     });
-    const draft = await invoker.run(useCases.insertBlock, a(), {
+    const draft = await invoker.run(useCases.insertBlock, adminOf(tenantA), {
       itemId: item.id,
       baseRevisionId: revision.id,
       block: image('img', photo),
@@ -262,55 +248,62 @@ describe.skipIf(!operatorUrl || !appUrl)('content blocks conformance', () => {
     });
     const find = (live: boolean) =>
       invoker
-        .run(useCases.findItems, a(), { ref: { type: 'media', id: photo }, live })
+        .run(useCases.findItems, adminOf(tenantA), { ref: { type: 'media', id: photo }, live })
         .then((r) => r.matches);
     expect(await find(false)).toEqual([{ itemId: item.id, blockIds: ['img'] }]);
     expect(await find(true)).toEqual([]);
-    const typed = await invoker.run(useCases.findItems, a(), { blockType: 'image', live: true });
+    const typed = await invoker.run(useCases.findItems, adminOf(tenantA), {
+      blockType: 'image',
+      live: true,
+    });
     expect(typed.matches.map((m) => m.itemId)).not.toContain(item.id);
-    await invoker.run(useCases.publishItem, a(), {
+    await invoker.run(useCases.publishItem, adminOf(tenantA), {
       itemId: item.id,
       revisionId: draft.revision.id,
       locale: 'nl',
     });
     expect(await find(true)).toEqual([{ itemId: item.id, blockIds: ['img'] }]);
     // Tenant B sees none of it.
-    const other = await invoker.run(useCases.findItems, b(), { ref: { type: 'media', id: photo } });
+    const other = await invoker.run(useCases.findItems, adminOf(tenantB), {
+      ref: { type: 'media', id: photo },
+    });
     expect(other.matches).toEqual([]);
   });
 
   it("refuses another tenant's, a deleted and a PDF media id, writing nothing", async () => {
     const before = await count('content_revisions');
-    const foreign = await upload(b());
-    const pdf = await upload(a(), true);
-    const gone = await upload(a());
-    await invoker.run(useCases.deleteMedia, a(), { id: gone });
+    const foreign = await upload(adminOf(tenantB));
+    const pdf = await upload(adminOf(tenantA), true);
+    const gone = await upload(adminOf(tenantA));
+    await invoker.run(useCases.deleteMedia, adminOf(tenantA), { id: gone });
     await refused(page([image('i', foreign)]), `content.reference.media-unknown:${foreign}`);
     await refused(page([image('i', gone)]), `content.reference.media-unknown:${gone}`);
     await refused(page([image('i', pdf)]), `content.reference.media-not-image:${pdf}`);
     await refused(pattern([image('i', foreign)]), 'content.reference.media-unknown');
     expect(await count('content_revisions')).toBe(before);
-    expect(await usagesOf(foreign, b())).toEqual([]);
+    expect(await usagesOf(foreign, adminOf(tenantB))).toEqual([]);
   });
 
   it('keeps usages of older revisions and of patterns; delete refuses until none is left', async () => {
-    const photo = await upload(a());
+    const photo = await upload(adminOf(tenantA));
     const { item, revision } = await page([image('img', photo), heading('h')]);
-    await invoker.run(useCases.removeBlock, a(), {
+    await invoker.run(useCases.removeBlock, adminOf(tenantA), {
       itemId: item.id,
       baseRevisionId: revision.id,
       blockId: 'img',
     });
     expect(await usagesOf(photo)).toEqual([`item:${item.id}:rev:${revision.id} img`]);
-    await expect(invoker.run(useCases.deleteMedia, a(), { id: photo })).rejects.toMatchObject({
+    await expect(
+      invoker.run(useCases.deleteMedia, adminOf(tenantA), { id: photo })
+    ).rejects.toMatchObject({
       code: 'conflict',
     });
 
-    const other = await upload(a());
+    const other = await upload(adminOf(tenantA));
     const p1 = await pattern([image('one', other)]);
     const p2 = await pattern([image('two', other)]);
     expect(await usagesOf(other)).toEqual([`pattern:${p1.id} one`, `pattern:${p2.id} two`].sort());
-    const copy = await invoker.run(useCases.createItem, a(), {
+    const copy = await invoker.run(useCases.createItem, adminOf(tenantA), {
       slug: `from-pattern-${run}`,
       patternId: p1.id,
       document: {
@@ -324,7 +317,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content blocks conformance', () => {
     const copiedId = copy.revision.document.blocks[0]!.id;
     expect(copiedId).not.toBe('one');
     for (const patternId of [p1.id, p2.id])
-      await invoker.run(useCases.updatePattern, a(), {
+      await invoker.run(useCases.updatePattern, adminOf(tenantA), {
         patternId,
         name: { nl: 'Leeg' },
         intendedType: 'page',
@@ -337,7 +330,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content blocks conformance', () => {
   });
 
   it('rolls back a save, a block operation and a pattern update whose usage write falls short', async () => {
-    const photo = await upload(a());
+    const photo = await upload(adminOf(tenantA));
     const short = via(
       overrideMedia(uow, (media) => ({
         replaceUsages: async (ref, list) => {
@@ -355,14 +348,17 @@ describe.skipIf(!operatorUrl || !appUrl)('content blocks conformance', () => {
       ]);
 
     const before = await counts();
-    await refused(page([image('img', photo)], a(), short), 'content.reference.media-unrecorded');
+    await refused(
+      page([image('img', photo)], adminOf(tenantA), short),
+      'content.reference.media-unrecorded'
+    );
     expect(await counts()).toEqual(before);
     expect(await usagesOf(photo)).toEqual([]);
 
     const { item, revision } = await page([heading('h')]);
     const afterPage = await counts();
     await refused(
-      short.run(useCases.insertBlock, a(), {
+      short.run(useCases.insertBlock, adminOf(tenantA), {
         itemId: item.id,
         baseRevisionId: revision.id,
         block: image('img', photo),
@@ -371,13 +367,13 @@ describe.skipIf(!operatorUrl || !appUrl)('content blocks conformance', () => {
       'content.reference.media-unrecorded'
     );
     expect(await counts()).toEqual(afterPage);
-    expect((await invoker.run(useCases.getItem, a(), { itemId: item.id })).revision.id).toBe(
-      revision.id
-    );
+    expect(
+      (await invoker.run(useCases.getItem, adminOf(tenantA), { itemId: item.id })).revision.id
+    ).toBe(revision.id);
 
     const p = await pattern([heading('h')]);
     await refused(
-      short.run(useCases.updatePattern, a(), {
+      short.run(useCases.updatePattern, adminOf(tenantA), {
         patternId: p.id,
         name: { nl: 'Met foto' },
         intendedType: 'page',
@@ -385,17 +381,17 @@ describe.skipIf(!operatorUrl || !appUrl)('content blocks conformance', () => {
       }),
       'content.reference.media-unrecorded'
     );
-    const kept = await invoker.run(useCases.getPattern, a(), { patternId: p.id });
+    const kept = await invoker.run(useCases.getPattern, adminOf(tenantA), { patternId: p.id });
     expect(kept.name).toEqual({ nl: 'Patroon' });
     expect(await usagesOf(photo)).toEqual([]);
   });
 
   it('save first: a concurrent delete waits on the media lock and then refuses', async () => {
-    const photo = await upload(a());
+    const photo = await upload(adminOf(tenantA));
     const paused = pauseMedia(uow, 'replaceUsages');
-    const save = page([image('img', photo)], a(), via(paused.uow));
+    const save = page([image('img', photo)], adminOf(tenantA), via(paused.uow));
     await paused.reached;
-    const del = invoker.run(useCases.deleteMedia, a(), { id: photo });
+    const del = invoker.run(useCases.deleteMedia, adminOf(tenantA), { id: photo });
     // Give the delete time to reach the lock; it must still be waiting.
     let settled = false;
     void del.then(
@@ -411,10 +407,10 @@ describe.skipIf(!operatorUrl || !appUrl)('content blocks conformance', () => {
   });
 
   it('delete first: a concurrent save waits, then refuses with nothing written', async () => {
-    const photo = await upload(a());
+    const photo = await upload(adminOf(tenantA));
     const before = await count('content_revisions');
     const paused = pauseMedia(uow, 'softDelete');
-    const del = via(paused.uow).run(useCases.deleteMedia, a(), { id: photo });
+    const del = via(paused.uow).run(useCases.deleteMedia, adminOf(tenantA), { id: photo });
     await paused.reached;
     const save = page([image('img', photo)]);
     let settled = false;

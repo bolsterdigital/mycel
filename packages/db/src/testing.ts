@@ -1,3 +1,9 @@
+// The base of every Postgres suite (testing.md rules 3, 4 and 10): which database URLs it needs,
+// a migrated schema, tenants created the way the platform creates them, and closing the work a
+// suite leaves behind. A suite that needs something else here adds it here, not a local copy.
+// Rejected: `upsertTenant` for test tenants, a second platform write path without the audit row
+// every platform mutation writes (TODO #74).
+//
 // Test hygiene for suites that share one database (TODO #32). A suite that submits a form leaves
 // outbox rows a worker has not drained and jobs nobody runs; on a database that outlives the run
 // (a laptop, dev-server-1) the next worker on it, the e2e one included, picks them up: it sends
@@ -10,8 +16,61 @@
 // for.
 
 import { sql, type Kysely } from 'kysely';
+import { memoryPlatform, requireServices, testPlatformActor } from '@mycel/core/testing';
+import { migrate } from './migrate.js';
+import { createTenant, type NewTenant, type PlatformTenant } from './platform.js';
+import { uuidv7 } from './ids.js';
 import type { Database } from './schema.js';
 import { asRole } from './roles.js';
+
+const URL_KEYS = {
+  operator: 'DATABASE_URL',
+  app: 'APP_DATABASE_URL',
+  auth: 'AUTH_DATABASE_URL',
+} as const;
+type Login = Exclude<keyof typeof URL_KEYS, 'operator'>;
+
+/**
+ * The operator URL plus the URLs of `logins` (`mycel_app`, `mycel_authenticator`), read at
+ * module level: `skip` when one is missing, and in CI (`E2E_REQUIRED=1`) a throw instead
+ * (testing.md rule 3). The URLs are empty strings when `skip` is true.
+ */
+export function requireDatabase<L extends Login = never>(
+  ...logins: L[]
+): { skip: boolean } & Record<'operator' | L, string> {
+  const names = ['operator' as const, ...logins];
+  const found = requireServices(
+    process.env,
+    names.map((n) => URL_KEYS[n])
+  );
+  const urls = Object.fromEntries(names.map((n) => [n, found?.[URL_KEYS[n]] ?? '']));
+  return { skip: !found, ...urls } as { skip: boolean } & Record<'operator' | L, string>;
+}
+
+/**
+ * `migrate` as a suite runs it: quiet, and without passwords (testing.md rule 10). CI migrates
+ * and provisions the logins before `verify`; role passwords live in the cluster, and writing
+ * them again across databases raced with test role DDL (`tuple concurrently updated`).
+ */
+export const migrateSchema = (url: string): Promise<string[]> => migrate(url, { log: () => {} });
+
+/**
+ * A new tenant with its platform hostname on `<slug>.localhost` (or `platformDomain`), created
+ * as the platform creates one, audit row included. `slug` must be new: give it a `runSuffix()`.
+ */
+export function testTenant(
+  operatorDb: Kysely<Database>,
+  slug: string,
+  options: Partial<Omit<NewTenant, 'id' | 'slug'>> & { platformDomain?: string } = {}
+): Promise<PlatformTenant> {
+  const { platformDomain = memoryPlatform.domain, ...tenant } = options;
+  return createTenant(
+    operatorDb,
+    { id: uuidv7(), slug, name: slug, locales: ['nl'], ...tenant },
+    { ...memoryPlatform, domain: platformDomain },
+    testPlatformActor
+  );
+}
 
 /**
  * Marks the open outbox rows and open jobs of `tenantIds` as handled, as `mycel_worker` (the

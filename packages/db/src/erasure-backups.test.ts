@@ -6,28 +6,25 @@
 //
 // The backup login is made by the image's superuser (docker/postgres/init-backup-role.sh). As a
 // superuser (CI, the dev stack) this suite makes it the same way when it is missing and enters it
-// with `set local role`; an ordinary owner cannot, so on the Mac the suite skips, and with
-// E2E_REQUIRED=1 that is a failure. Skips without DATABASE_URL and APP_DATABASE_URL.
+// with `set local role`; an ordinary owner cannot, so on the Mac the suite skips, and in
+// CI that is a failure. Skips without DATABASE_URL and APP_DATABASE_URL.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql, type Kysely } from 'kysely';
 import { systemPrincipal } from '@mycel/core';
-import { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } from '@mycel/core/testing';
 import {
-  createDb,
-  createUnitOfWork,
-  erasureStatus,
-  migrate,
-  upsertTenant,
-  uuidv7,
-  uuidv7Ids,
-} from './index.js';
+  FakeDns,
+  FakeInputHasher,
+  FakeSigner,
+  memoryPlatform,
+  requireInCi,
+  runSuffix,
+} from '@mycel/core/testing';
+import { createDb, createUnitOfWork, erasureStatus, uuidv7, uuidv7Ids } from './index.js';
 import type { Database } from './schema.js';
+import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-const appUrl = process.env['APP_DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
-  throw new Error('E2E_REQUIRED=1 but DATABASE_URL or APP_DATABASE_URL is not set');
+const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
 const SNAPSHOT = 'ab'.repeat(32);
 
@@ -48,10 +45,10 @@ async function dropDatabase(operatorDb: Kysely<Database>, name: string) {
   await sql`drop database if exists ${sql.id(name)} with (force)`.execute(operatorDb);
 }
 
-describe.skipIf(!operatorUrl || !appUrl)('erasure backups conformance', () => {
-  const operatorDb = createDb(operatorUrl ?? '');
-  const appDb = createDb(appUrl ?? '');
-  const run = Math.random().toString(36).slice(2, 8);
+describe.skipIf(skip)('erasure backups conformance', () => {
+  const operatorDb = createDb(operatorUrl);
+  const appDb = createDb(appUrl);
+  const run = runSuffix();
   const uow = createUnitOfWork(appDb, {
     clock: { now: () => new Date() },
     ids: uuidv7Ids,
@@ -78,16 +75,13 @@ describe.skipIf(!operatorUrl || !appUrl)('erasure backups conformance', () => {
     );
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, {
-      log: () => {},
-    });
+    await migrateSchema(operatorUrl);
     const { rows } = await sql<{ superuser: boolean; createdb: boolean }>`
       select rolsuper as superuser, rolsuper or rolcreatedb as createdb
       from pg_roles where rolname = current_user`.execute(operatorDb);
     superuser = rows[0]?.superuser === true;
     second.canCreate = rows[0]?.createdb === true;
-    if (!superuser && process.env['E2E_REQUIRED'] === '1')
-      throw new Error('E2E_REQUIRED=1 but the login is no superuser, so it cannot be the backup');
+    requireInCi(process.env, superuser, 'the login is no superuser, so it cannot be the backup');
     if (superuser) {
       // What init-backup-role.sh does on a box whose backup login comes after migration 0021.
       await sql`
@@ -101,17 +95,7 @@ describe.skipIf(!operatorUrl || !appUrl)('erasure backups conformance', () => {
     }
     for (const key of ['a', 'b'] as const) {
       tenants[key] = (
-        await upsertTenant(
-          operatorDb,
-          {
-            id: uuidv7(),
-            slug: `erabak-${key}-${run}`,
-            name: `Erasure backups ${key}`,
-            defaultLocale: 'nl',
-            locales: ['nl'],
-          },
-          { platformDomain: 'localhost' }
-        )
+        await testTenant(operatorDb, `erabak-${key}-${run}`, { name: `Erasure backups ${key}` })
       ).id;
       await uow.run(systemPrincipal(tenants[key], 'erasure-backups-test'), (ctx) =>
         ctx.erasures.register(erased[key], `erabak-${key}-${run}@example.org`)
@@ -191,11 +175,11 @@ describe.skipIf(!operatorUrl || !appUrl)('erasure backups conformance', () => {
   it('grants the insert where the backup login exists when 0021 runs (replay)', async (ctx) => {
     if (!superuser || !second.canCreate) ctx.skip();
     await sql`create database ${sql.id(second.name)}`.execute(operatorDb);
-    const url = new URL(operatorUrl!);
+    const url = new URL(operatorUrl);
     url.pathname = `/${second.name}`;
     second.url = url.href;
     // Without passwords: the roles live in the cluster and already have theirs (TODO #27).
-    await migrate(second.url, { log: () => {} });
+    await migrateSchema(second.url);
     const db = createDb(second.url);
     try {
       const { rows } = await sql<{ insert: boolean; update: boolean; remove: boolean }>`

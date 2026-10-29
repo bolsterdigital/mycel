@@ -5,12 +5,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { Invoker } from '../invoke.js';
 import { systemPrincipal } from '../principal.js';
 import { buildRegistry, useCases } from '../use-cases.js';
-import { MemoryUnitOfWork } from '../testing/index.js';
+import { MemoryUnitOfWork, TENANT } from '../testing/index.js';
 import { SupporterEvent, type SupporterEventType } from './events.js';
 import { rebuildProjection } from './model.js';
 import { ingest } from './service.js';
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const admin = systemPrincipal(TENANT, 'test');
 
 const event = (

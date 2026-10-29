@@ -3,7 +3,7 @@
 // operators), the least privilege of the two runtime logins, the login rules on real rows, two
 // concurrent last-admin removals, and that no key outlives the membership that made it (#20a).
 //
-// Skips without DATABASE_URL, APP_DATABASE_URL and AUTH_DATABASE_URL; with E2E_REQUIRED=1 (CI)
+// Skips without DATABASE_URL, APP_DATABASE_URL and AUTH_DATABASE_URL; in CI
 // that is a failure.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -19,32 +19,25 @@ import {
   useCases,
   type Principal,
 } from '@mycel/core';
-import { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } from '@mycel/core/testing';
 import {
-  createDb,
-  createIdentityStore,
-  createUnitOfWork,
-  migrate,
-  upsertTenant,
-  uuidv7,
-  uuidv7Ids,
-} from './index.js';
+  FakeDns,
+  FakeInputHasher,
+  FakeSigner,
+  memoryPlatform,
+  runSuffix,
+} from '@mycel/core/testing';
+import { createDb, createIdentityStore, createUnitOfWork, uuidv7, uuidv7Ids } from './index.js';
+import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-const appUrl = process.env['APP_DATABASE_URL'];
-const authUrl = process.env['AUTH_DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl || !authUrl))
-  throw new Error(
-    'E2E_REQUIRED=1 but DATABASE_URL, APP_DATABASE_URL or AUTH_DATABASE_URL is unset'
-  );
+const { skip, operator: operatorUrl, app: appUrl, auth: authUrl } = requireDatabase('app', 'auth');
 
 const ISSUER = 'https://idp.conformance.test';
 
-describe.skipIf(!operatorUrl || !appUrl || !authUrl)('operator and key conformance', () => {
-  const operatorDb = createDb(operatorUrl ?? '');
-  const appDb = createDb(appUrl ?? '');
-  const authDb = createDb(authUrl ?? '');
-  const run = Math.random().toString(36).slice(2, 8);
+describe.skipIf(skip)('operator and key conformance', () => {
+  const operatorDb = createDb(operatorUrl);
+  const appDb = createDb(appUrl);
+  const authDb = createDb(authUrl);
+  const run = runSuffix();
   const uow = createUnitOfWork(appDb, {
     clock: { now: () => new Date() },
     ids: uuidv7Ids,
@@ -57,19 +50,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('operator and key conforman
   const identity = createIdentityStore(authDb, uuidv7Ids);
   const addr = (who: string) => `${who}-${run}@example.org`;
   const tenant = async (slug: string) =>
-    (
-      await upsertTenant(
-        operatorDb,
-        {
-          id: uuidv7(),
-          slug: `${slug}-${run}`,
-          name: slug,
-          defaultLocale: 'nl',
-          locales: ['nl'],
-        },
-        { platformDomain: 'localhost' }
-      )
-    ).id;
+    (await testTenant(operatorDb, `${slug}-${run}`, { name: slug })).id;
   let a = '';
   let b = '';
 
@@ -90,9 +71,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('operator and key conforman
     );
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, {
-      log: () => {},
-    });
+    await migrateSchema(operatorUrl);
     a = await tenant('opa');
     b = await tenant('opb');
   });
@@ -110,7 +89,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('operator and key conforman
       email: addr('only-b'),
       capabilities: ['content:read'],
     });
-    const visible = await as(appUrl!, async (c) => {
+    const visible = await as(appUrl, async (c) => {
       const without = await c.query('select email from operators');
       await c.query('begin');
       await c.query(`select set_config('app.tenant_id', $1, true)`, [a]);
@@ -124,7 +103,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('operator and key conforman
   });
 
   it('never lets mycel_app write operators or read their identity columns', async () => {
-    const states = await as(appUrl!, async (c) => {
+    const states = await as(appUrl, async (c) => {
       const inTenant = async (statement: string, params: unknown[] = []) => {
         await c.query('begin');
         await c.query(`select set_config('app.tenant_id', $1, true)`, [a]);
@@ -159,16 +138,16 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('operator and key conforman
 
   it('gives the two runtime logins least privilege', async () => {
     const appUser = await as(
-      appUrl!,
+      appUrl,
       async (c) => (await c.query('select current_user as u')).rows[0].u
     );
     const authUser = await as(
-      authUrl!,
+      authUrl,
       async (c) => (await c.query('select current_user as u')).rows[0].u
     );
     expect([appUser, authUser]).toEqual(['mycel_app', 'mycel_authenticator']);
 
-    const { rows } = await as(operatorUrl!, (c) =>
+    const { rows } = await as(operatorUrl, (c) =>
       c.query<{ role: string; flags: boolean[]; owns: number; table_rights: string[] }>(
         `select r.rolname as role,
                 array[r.rolsuper, r.rolbypassrls, r.rolcreaterole, r.rolcreatedb] as flags,
@@ -193,7 +172,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('operator and key conforman
     // The authentication login has no table rights of its own: only through `set role`.
     expect(rows.find((r) => r.role === authUser)?.table_rights).toEqual([]);
 
-    const roles = await as(operatorUrl!, (c) =>
+    const roles = await as(operatorUrl, (c) =>
       c.query<{ member: string; role: string; can_set: boolean; inherits: boolean }>(
         `select m.rolname as member, r.rolname as role,
                 pg_has_role(m.oid, r.oid, 'SET') as can_set,
@@ -215,7 +194,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('operator and key conforman
     expect(can(authUser)).toEqual(['mycel_auth']);
 
     // And in practice: nothing without the role switch, and no other role to switch to.
-    const tried = await as(authUrl!, async (c) => ({
+    const tried = await as(authUrl, async (c) => ({
       direct: await sqlState(c.query('select count(*) from api_keys')),
       worker: await sqlState(c.query('set role mycel_worker')),
     }));

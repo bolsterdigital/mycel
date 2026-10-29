@@ -5,11 +5,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { Invoker } from '../invoke.js';
 import { anonymousPrincipal, systemPrincipal, type Principal } from '../principal.js';
-import { FakeClock, MemoryUnitOfWork, probeForm } from '../testing/index.js';
+import { FakeClock, MemoryUnitOfWork, probeForm, TENANT } from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { contentPath } from './public.js';
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const OTHER = '01900000-0000-7000-8000-00000000bbbb';
 const FORM = '01900000-0000-7000-8000-00000000f000';
 const PAGE_ABOUT = { type: 'page' as const, slug: 'about' };

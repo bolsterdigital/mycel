@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   Invoker,
   isReservedPageSlug,
-  UseCaseError,
   appDelivery,
   buildRegistry,
   bytesToBase64,
@@ -16,11 +15,17 @@ import {
   type UnitOfWork,
 } from '../index.js';
 import { DEFAULT_ENTITLEMENTS } from '../entitlements/model.js';
-import { FakeClock, FakeSigner, MemoryBlobStore, MemoryUnitOfWork } from '../testing/index.js';
+import {
+  FakeClock,
+  FakeSigner,
+  MemoryBlobStore,
+  MemoryUnitOfWork,
+  expectCode,
+  TENANT,
+} from '../testing/index.js';
 import { MEDIA_PURGE_DELAY_MS } from './model.js';
 import { EXAMPLE_PNG, ORPHAN_AGE_MS } from './service.js';
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const OTHER = '01900000-0000-7000-8000-00000000bbbb';
 const system = systemPrincipal(TENANT, 'test');
 const prefix = `tenants/${TENANT}/media/`;
@@ -38,14 +43,6 @@ const JPEG = bytesToBase64(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0x10]));
 const GIF = bytesToBase64(
   new Uint8Array([...'GIF89a'].map((c) => c.charCodeAt(0)).concat([40, 0, 20, 0]))
 );
-
-const expectCode = async (p: Promise<unknown>, code: string, message?: string) =>
-  expect(p).rejects.toSatisfy(
-    (e) =>
-      e instanceof UseCaseError &&
-      e.code === code &&
-      (!message || e.issues.some((i) => i.message === message))
-  );
 
 describe('media', () => {
   let clock: FakeClock;

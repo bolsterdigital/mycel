@@ -12,10 +12,8 @@ import {
   systemPrincipal,
   type Principal,
 } from '@mycel/core';
-import { MemoryUnitOfWork } from '@mycel/core/testing';
+import { MemoryUnitOfWork, TENANT } from '@mycel/core/testing';
 import { MAX_BODY_BYTES, createApp } from './app.js';
-
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 
 function setup() {
   const uow = new MemoryUnitOfWork();

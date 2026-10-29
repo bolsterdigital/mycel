@@ -11,12 +11,13 @@ import {
   MemoryErrorReporter,
   MemoryLogger,
   MemoryUnitOfWork,
+  TENANT,
+  adminOf,
 } from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { canonicalJson } from '../util/canonical-json.js';
 import { hashInput } from './model.js';
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const HEX64 = /^[0-9a-f]{64}$/;
 
 const echo = defineUseCase({
@@ -90,7 +91,6 @@ describe('the Invoker writes one audit row per command (TODO #17b)', () => {
     .register(failing)
     .register(conflicting)
     .register(peek);
-  const admin = () => systemPrincipal(TENANT, 'test');
   const rows = () => uow.store.for(TENANT).audit;
 
   beforeEach(() => {
@@ -101,7 +101,7 @@ describe('the Invoker writes one audit row per command (TODO #17b)', () => {
   });
 
   it('records a success with actor, operation, hash, request id and subject', async () => {
-    await invoker.run(echo, admin(), { id: 'thing-1' });
+    await invoker.run(echo, adminOf(), { id: 'thing-1' });
     expect(rows()).toHaveLength(1);
     expect(rows()[0]).toMatchObject({
       tenantId: TENANT,
@@ -117,7 +117,7 @@ describe('the Invoker writes one audit row per command (TODO #17b)', () => {
   });
 
   it('records a refusal for want of a capability and rethrows it unchanged', async () => {
-    const visitor: Principal = { ...admin(), capabilities: ['forms:read'] };
+    const visitor: Principal = { ...adminOf(), capabilities: ['forms:read'] };
     const error = await invoker.run(echo, visitor, { id: 'x' }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(UseCaseError);
     expect((error as UseCaseError).code).toBe('forbidden');
@@ -125,7 +125,7 @@ describe('the Invoker writes one audit row per command (TODO #17b)', () => {
   });
 
   it('records a suspended tenant as suspended', async () => {
-    const suspended: Principal = { ...admin(), tenantStatus: 'suspended' };
+    const suspended: Principal = { ...adminOf(), tenantStatus: 'suspended' };
     await expect(invoker.run(echo, suspended, { id: 'x' })).rejects.toMatchObject({
       code: 'suspended',
     });
@@ -134,7 +134,7 @@ describe('the Invoker writes one audit row per command (TODO #17b)', () => {
 
   it('hashes the raw input when it does not parse', async () => {
     const raw = { id: 7, extra: true };
-    await expect(invoker.call(admin(), 'test.echo', raw)).rejects.toMatchObject({
+    await expect(invoker.call(adminOf(), 'test.echo', raw)).rejects.toMatchObject({
       code: 'invalid_input',
     });
     expect(rows()).toHaveLength(1);
@@ -145,10 +145,10 @@ describe('the Invoker writes one audit row per command (TODO #17b)', () => {
   });
 
   it('records a use-case error by its code and anything else as error, original error first', async () => {
-    await expect(invoker.run(conflicting, admin(), { id: 'x' })).rejects.toMatchObject({
+    await expect(invoker.run(conflicting, adminOf(), { id: 'x' })).rejects.toMatchObject({
       code: 'conflict',
     });
-    await expect(invoker.run(failing, admin(), { id: 'x' })).rejects.toThrow('handler broke');
+    await expect(invoker.run(failing, adminOf(), { id: 'x' })).rejects.toThrow('handler broke');
     expect(rows().map((r) => [r.operation, r.result])).toEqual([
       ['test.conflicting', 'conflict'],
       ['test.failing', 'error'],
@@ -156,13 +156,13 @@ describe('the Invoker writes one audit row per command (TODO #17b)', () => {
   });
 
   it('does not audit queries', async () => {
-    await invoker.run(peek, admin(), { id: 'x' });
+    await invoker.run(peek, adminOf(), { id: 'x' });
     expect(rows()).toEqual([]);
   });
 
   it('names an operator by id, never by address', async () => {
     const operator: Principal = {
-      ...admin(),
+      ...adminOf(),
       actor: { kind: 'operator', operatorId: 'op-1', email: 'editor@example.org' },
     };
     await invoker.run(echo, operator, { id: 'x' });
@@ -184,7 +184,9 @@ describe('the Invoker writes one audit row per command (TODO #17b)', () => {
         ),
     };
     const brokenInvoker = new Invoker(registry, broken, { log, errors });
-    await expect(brokenInvoker.run(failing, admin(), { id: 'x' })).rejects.toThrow('handler broke');
+    await expect(brokenInvoker.run(failing, adminOf(), { id: 'x' })).rejects.toThrow(
+      'handler broke'
+    );
     expect(log.lines).toContainEqual(
       expect.objectContaining({ level: 'error', message: 'audit: could not record a command' })
     );
@@ -208,7 +210,7 @@ describe('the Invoker writes one audit row per command (TODO #17b)', () => {
           })
         ),
     };
-    await expect(new Invoker(registry, flaky).run(echo, admin(), { id: 'x' })).rejects.toThrow(
+    await expect(new Invoker(registry, flaky).run(echo, adminOf(), { id: 'x' })).rejects.toThrow(
       'insert failed'
     );
     expect(rows().map((r) => r.result)).toEqual(['error']);
@@ -219,7 +221,6 @@ describe('audit.list', () => {
   let uow: MemoryUnitOfWork;
   let clock: FakeClock;
   let invoker: Invoker;
-  const admin = () => systemPrincipal(TENANT, 'test');
 
   beforeEach(async () => {
     clock = new FakeClock();
@@ -227,18 +228,18 @@ describe('audit.list', () => {
     invoker = new Invoker(buildRegistry(), uow);
     for (const name of ['a', 'b', 'c']) {
       await invoker
-        .run(useCases.createKey, admin(), { name, capabilities: ['content:read'] })
+        .run(useCases.createKey, adminOf(), { name, capabilities: ['content:read'] })
         .catch(() => undefined);
       clock.advance(1000);
     }
   });
 
   it('pages newest first, without the input hash', async () => {
-    const first = await invoker.run(useCases.listAudit, admin(), { limit: 2 });
+    const first = await invoker.run(useCases.listAudit, adminOf(), { limit: 2 });
     expect(first.items.map((r) => r.operation)).toEqual(['tenant.key.create', 'tenant.key.create']);
     expect(first.items[0]).not.toHaveProperty('inputHash');
     expect(first.nextCursor).toBe(first.items[1]!.id);
-    const rest = await invoker.run(useCases.listAudit, admin(), {
+    const rest = await invoker.run(useCases.listAudit, adminOf(), {
       limit: 2,
       cursor: first.nextCursor!,
     });
@@ -250,20 +251,20 @@ describe('audit.list', () => {
   });
 
   it('filters by operation, actor and period, and needs tenant:admin', async () => {
-    const all = await invoker.run(useCases.listAudit, admin(), {});
+    const all = await invoker.run(useCases.listAudit, adminOf(), {});
     const middle = all.items[1]!.occurredAt;
     expect(
-      (await invoker.run(useCases.listAudit, admin(), { operation: 'media.upload' })).items
+      (await invoker.run(useCases.listAudit, adminOf(), { operation: 'media.upload' })).items
     ).toEqual([]);
     expect(
-      (await invoker.run(useCases.listAudit, admin(), { actorKind: 'system', actorId: 'test' }))
+      (await invoker.run(useCases.listAudit, adminOf(), { actorKind: 'system', actorId: 'test' }))
         .items
     ).toHaveLength(3);
     expect(
-      (await invoker.run(useCases.listAudit, admin(), { from: middle })).items.map((r) => r.id)
+      (await invoker.run(useCases.listAudit, adminOf(), { from: middle })).items.map((r) => r.id)
     ).toEqual(all.items.slice(0, 2).map((r) => r.id));
     await expect(
-      invoker.run(useCases.listAudit, { ...admin(), capabilities: ['content:write'] }, {})
+      invoker.run(useCases.listAudit, { ...adminOf(), capabilities: ['content:write'] }, {})
     ).rejects.toMatchObject({ code: 'forbidden' });
   });
 });

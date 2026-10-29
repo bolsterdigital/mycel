@@ -4,26 +4,26 @@
 // operator stays pending until the first login, and the printed DNS instruction is the one the
 // admin shows. The CI compose job runs the same command in the image as a non-superuser owner.
 //
-// Skips without the three database URLs; with E2E_REQUIRED=1 (CI) that is a failure.
+// Skips without the three database URLs; in CI that is a failure.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { systemPrincipal, useCases } from '@mycel/core';
-import { createDb, createTenant, getTenantBySlug, migrate, uuidv7 } from '@mycel/db';
+import { createDb, createTenant, getTenantBySlug, uuidv7 } from '@mycel/db';
+import { requireDatabase, migrateSchema } from '@mycel/db/testing';
+import { runSuffix } from '@mycel/core/testing';
 import { runSetup, type SetupDeps } from './cli.js';
 import { createRuntime, inputHasherOf, loadConfig } from './compose.js';
 
 const env = process.env;
-const ready = !!(env['DATABASE_URL'] && env['APP_DATABASE_URL'] && env['AUTH_DATABASE_URL']);
-if (env['E2E_REQUIRED'] === '1' && !ready)
-  throw new Error('E2E_REQUIRED=1 but a database URL is not set');
+const { skip } = requireDatabase('app', 'auth');
 
-describe.skipIf(!ready)('mycel setup against Postgres', () => {
+describe.skipIf(skip)('mycel setup against Postgres', () => {
   // Built in beforeAll, not in the describe body: Vitest runs the body while collecting even
   // when the suite is skipped, and loadConfig throws without the database URLs.
   let runtime: ReturnType<typeof createRuntime>;
   let db: ReturnType<typeof createDb>;
   let deps: SetupDeps;
-  const run = Math.random().toString(36).slice(2, 8);
+  const run = runSuffix();
   const slug = `setup-${run}`;
   const input = {
     slug,
@@ -55,9 +55,7 @@ describe.skipIf(!ready)('mycel setup against Postgres', () => {
       invoker: runtime.invoker,
       platformOrigin: runtime.platform.platformOrigin,
     };
-    await migrate(env['DATABASE_URL']!, {
-      log: () => {},
-    });
+    await migrateSchema(env['DATABASE_URL']!);
   });
 
   afterAll(async () => {

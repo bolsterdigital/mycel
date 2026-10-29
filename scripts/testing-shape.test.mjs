@@ -1,7 +1,9 @@
 // The in-memory runtime stays one factory per port (TODO #53 PR 5): `testing/memory.ts` is a
 // list of exports under 300 lines and no function under packages/core/src/testing spans more
 // than 150 lines, so `MemoryUnitOfWork.run` cannot grow back into one function every module
-// edits. Run by `npm run lint:infra`, offline.
+// edits. And testing.md rule 3 stays in one place (TODO #75): only
+// `packages/core/src/testing/services.ts` compares `E2E_REQUIRED`; a suite asks
+// `requireServices` or `requireDatabase`. Run by `npm run lint:infra`, offline.
 // Rejected: a line budget per file (a module may grow with its port; one long function is the
 // shape that made the old file hard to change).
 
@@ -13,6 +15,7 @@ import assert from 'node:assert/strict';
 import ts from 'typescript';
 
 export const FUNCTION_LIMIT = 150;
+export const SKIP_RULE_HOME = 'packages/core/src/testing/services.ts';
 export const BARREL_LIMIT = 300;
 
 /** `[{ name, lines }]` for every function, method, accessor or arrow in `text`. */
@@ -40,6 +43,16 @@ export function overLong(files, limit = FUNCTION_LIMIT) {
   );
 }
 
+/** Files other than the rule's home that compare `E2E_REQUIRED` themselves. */
+export function ownSkipRules(files) {
+  const compare = /E2E_REQUIRED['"]?\]?\s*[!=]==/;
+  return files
+    .filter(({ path, text }) => path !== SKIP_RULE_HOME && compare.test(text))
+    .map(
+      ({ path }) => `${path} compares E2E_REQUIRED itself; use requireServices or requireDatabase`
+    );
+}
+
 const root = fileURLToPath(new URL('..', import.meta.url));
 const dir = 'packages/core/src/testing';
 
@@ -54,6 +67,35 @@ function sources() {
 
 test('no function under packages/core/src/testing spans more than the limit', () => {
   assert.deepEqual(overLong(sources()), []);
+});
+
+function typescript(dirs) {
+  return dirs.flatMap((top) =>
+    readdirSync(join(root, top), { recursive: true })
+      .filter(
+        (name) => name.endsWith('.ts') && !/(^|\/)(node_modules|dist|\.svelte-kit)\//.test(name)
+      )
+      .map((name) => {
+        const path = `${top}/${name}`;
+        return { path, text: readFileSync(join(root, path), 'utf8') };
+      })
+  );
+}
+
+test('only the testing helper compares E2E_REQUIRED', () => {
+  assert.deepEqual(ownSkipRules(typescript(['packages', 'apps'])), []);
+});
+
+test('the check sees a suite that compares E2E_REQUIRED itself', () => {
+  const text = "if (process.env['E2E_REQUIRED'] === '1' && !url) throw new Error('x');";
+  assert.deepEqual(ownSkipRules([{ path: 'packages/db/src/x.test.ts', text }]), [
+    'packages/db/src/x.test.ts compares E2E_REQUIRED itself; use requireServices or requireDatabase',
+  ]);
+  assert.deepEqual(ownSkipRules([{ path: SKIP_RULE_HOME, text }]), []);
+  assert.deepEqual(
+    ownSkipRules([{ path: 'a.ts', text: "E2E_REQUIRED: 'test harness (CI)'," }]),
+    []
+  );
 });
 
 test('testing/memory.ts stays a list of exports', () => {

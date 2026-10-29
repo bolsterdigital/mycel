@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { Invoker, buildRegistry, systemPrincipal } from '@mycel/core';
-import { FakeInputHasher, MemoryUnitOfWork, probeForm, probePage } from '@mycel/core/testing';
+import {
+  FakeInputHasher,
+  MemoryUnitOfWork,
+  probeForm,
+  probePage,
+  TENANT,
+} from '@mycel/core/testing';
 import { Metrics, createLogger } from '@mycel/observability';
 import { createApp } from './app.js';
 import { loadConfig } from './compose.js';
 import { HmacInputHasher, HmacSigner } from './signer.js';
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const FORM = '01900000-0000-7000-8000-00000000f000';
 
 async function setup() {

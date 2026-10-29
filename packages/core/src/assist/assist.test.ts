@@ -7,12 +7,17 @@ import { Invoker } from '../invoke.js';
 import { systemPrincipal, type Principal } from '../principal.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { EXAMPLE_PNG } from '../media/service.js';
-import { FakeClock, FakeTextModel, MemoryLogger, MemoryUnitOfWork } from '../testing/index.js';
+import {
+  FakeClock,
+  FakeTextModel,
+  MemoryLogger,
+  MemoryUnitOfWork,
+  TENANT,
+} from '../testing/index.js';
 import { runAssistSuggestion } from './worker.js';
 import { type ContentDocument, readinessIssues } from '../content/model.js';
 import { normalizeBlocks } from '../content/blocks.js';
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const system = systemPrincipal(TENANT, 'test');
 const operator: Principal = {
   ...system,
