@@ -25,6 +25,7 @@ import type { Signer, TransactionContext } from '../ports.js';
 import { can } from '../principal.js';
 import { defineUseCase } from '../registry.js';
 import { actorRef } from '../util/log.js';
+import { scrubText } from '../util/scrub.js';
 
 export const ExportStatus = z.enum(['queued', 'running', 'ready', 'failed', 'expired']);
 export type ExportStatus = z.infer<typeof ExportStatus>;
@@ -59,6 +60,129 @@ export const DEFAULT_EXPORT_RETENTION_DAYS = 7;
 
 /** At most this many earlier exports on the page and in `tenant.export.list`. */
 const LIST_LIMIT = 50;
+
+// The lifecycle of one export (TODO #74): which status may follow which, and what each step of
+// the `tenant.export` job and the daily expiry does to the record. packages/db reads the row for
+// update, asks these and writes what they return; it decides nothing itself, so the property
+// test can hold Postgres against this fold. Rejected: guards in the SQL (`where status =
+// 'running'`), a second statement of the same machine in another language that no test compared.
+
+/** Which status may follow which. `running → running` is a new run taking over a dead one. */
+export const EXPORT_TRANSITIONS = {
+  queued: ['running'],
+  running: ['running', 'ready', 'failed', 'expired'],
+  ready: ['expired'],
+  failed: [],
+  expired: [],
+} as const satisfies Record<ExportStatus, readonly ExportStatus[]>;
+
+export const canMoveExport = (from: ExportStatus, to: ExportStatus): boolean =>
+  (EXPORT_TRANSITIONS[from] as readonly ExportStatus[]).includes(to);
+
+/** At most one export per tenant has one of these (0022's partial unique index). */
+export const ACTIVE_EXPORT_STATUSES = ['queued', 'running'] as const satisfies ExportStatus[];
+export const isActiveExport = (status: ExportStatus): boolean =>
+  (ACTIVE_EXPORT_STATUSES as readonly ExportStatus[]).includes(status);
+
+/** Statuses whose archive file goes in the daily purge. */
+export const PURGED_EXPORT_STATUSES = ['expired', 'failed'] as const satisfies ExportStatus[];
+
+/** Rows older than this go in the daily expire, whatever their status, never an active one. */
+export const EXPORT_KEEP_ROWS_DAYS = 365;
+
+/** At most this much of a failure's (scrubbed) message is kept on the row. */
+export const EXPORT_ERROR_LENGTH = 1000;
+
+export const EXPORT_FILE_MISSING = 'the archive file is missing';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * What a run of the job does with the export it was given: `start` when it is queued, or running
+ * with a heartbeat older than a lease (its worker died); `busy`, to look again after a lease, when
+ * another run is alive; `gone` when there is nothing to do. A failed export is never started
+ * again: the administrator sees the failure and asks anew.
+ */
+export type ExportClaim =
+  { kind: 'start'; record: TenantExportRecord } | { kind: 'busy'; next: Date } | { kind: 'gone' };
+
+export function claimExport(
+  record: TenantExportRecord | null,
+  now: Date,
+  leaseMs: number
+): ExportClaim {
+  if (!record || !isActiveExport(record.status)) return { kind: 'gone' };
+  const alive =
+    record.heartbeatAt !== null && record.heartbeatAt.getTime() > now.getTime() - leaseMs;
+  if (record.status === 'running' && alive)
+    return { kind: 'busy', next: new Date(now.getTime() + leaseMs) };
+  return {
+    kind: 'start',
+    record: move(record, 'running', { startedAt: now, heartbeatAt: now, error: null }),
+  };
+}
+
+/** The steps after a start, and the daily expiry. */
+export type ExportStep =
+  | { kind: 'heartbeat' }
+  | {
+      kind: 'ready';
+      sizeBytes: number;
+      sha256: string;
+      schemaVersion: string;
+      retentionDays: number;
+    }
+  | { kind: 'fail'; error: string }
+  | { kind: 'expire'; hasFile: boolean };
+
+/**
+ * The record after `step` at `now`, or null when the step does not apply to it: a run that lost
+ * its export (an erasure expired it, a takeover finished it) changes nothing, and an expiry of a
+ * live archive with its file changes nothing.
+ */
+export function stepExport(
+  record: TenantExportRecord,
+  step: ExportStep,
+  now: Date
+): TenantExportRecord | null {
+  switch (step.kind) {
+    case 'heartbeat':
+      return record.status === 'running' ? { ...record, heartbeatAt: now } : null;
+    case 'ready':
+      if (record.status !== 'running') return null;
+      return move(record, 'ready', {
+        finishedAt: now,
+        heartbeatAt: now,
+        sizeBytes: step.sizeBytes,
+        sha256: step.sha256,
+        schemaVersion: step.schemaVersion,
+        expiresAt: new Date(now.getTime() + step.retentionDays * DAY_MS),
+      });
+    case 'fail':
+      if (record.status !== 'running') return null;
+      return move(record, 'failed', { finishedAt: now, error: step.error });
+    case 'expire':
+      if (record.status !== 'ready') return null;
+      if (record.expiresAt !== null && record.expiresAt <= now) return move(record, 'expired', {});
+      // A restore brings the row back but never the file (backups leave `exports/` out): it
+      // cannot be downloaded, so say so instead of offering a dead link.
+      return step.hasFile ? null : move(record, 'expired', { error: EXPORT_FILE_MISSING });
+  }
+}
+
+/** What a failure leaves on the row: its message, scrubbed and cut. */
+export const exportFailure = (e: unknown): string =>
+  scrubText(e instanceof Error ? e.message : String(e)).slice(0, EXPORT_ERROR_LENGTH);
+
+function move(
+  record: TenantExportRecord,
+  to: ExportStatus,
+  fields: Partial<TenantExportRecord>
+): TenantExportRecord {
+  if (!canMoveExport(record.status, to))
+    throw new Error(`tenant.export: ${record.status} cannot become ${to}`);
+  return { ...record, ...fields, status: to };
+}
 
 const payload = (tenantId: string, exportId: string, exp: number) =>
   `export:${tenantId}:${exportId}:${exp}`;

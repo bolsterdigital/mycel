@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import fc from 'fast-check';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql, type Kysely } from 'kysely';
 import {
@@ -33,6 +34,10 @@ import {
   FakeInputHasher,
   FakeSigner,
   MemoryBlobStore,
+  applyExportOp,
+  drawExportOp,
+  memoryExportLifecycle,
+  type ExportLifecycle,
   memoryImageProcessor,
   memoryPlatform,
   principal,
@@ -56,9 +61,10 @@ import {
   withTenant,
   type ExportManifest,
 } from './index.js';
+import { claimExportRow, stepExportRow, tenantExportRepository } from './exports.js';
 import { toJobRecord } from './jobs.js';
 import type { Database } from './schema.js';
-import { requireDatabase, migrateSchema } from './testing.js';
+import { requireDatabase, migrateSchema, testTenant } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
@@ -85,8 +91,9 @@ describe.skipIf(skip)('self-service export', () => {
     async (path) => new Uint8Array(await readFile(path))
   );
   const signer = new FakeSigner();
+  const clock = { now: () => new Date() };
   const uow = createUnitOfWork(appDb, {
-    clock: { now: () => new Date() },
+    clock,
     ids: uuidv7Ids,
     signer,
     inputHasher: new FakeInputHasher(),
@@ -103,7 +110,7 @@ describe.skipIf(skip)('self-service export', () => {
       tenantStatus: status,
     });
   const scratch = { dir: '' };
-  const deps = () => ({ operatorDb, blobs, mycelVersion: 'test', retentionDays: 7 });
+  const deps = () => ({ operatorDb, blobs, clock, mycelVersion: 'test', retentionDays: 7 });
 
   /** The open `tenant.export` job of an export, read and claimed as the worker would. */
   async function claimed(exportId: string): Promise<JobRecord> {
@@ -415,7 +422,7 @@ describe.skipIf(skip)('self-service export', () => {
     const expired = (await list(tenant.a)).exports.find((e) => e.status === 'ready')!.id;
     await setRow(tenant.a.id, expired, sql`expires_at = now() - interval '1 second'`);
     expect((await list(tenant.a)).exports.find((e) => e.id === expired)?.status).toBe('expired');
-    await expireExports(operatorDb, blobs, tenant.a.id);
+    await expireExports(operatorDb, blobs, tenant.a.id, new Date());
     expect(await blobs.head(exportArchiveKey(tenant.a.id, expired))).toBeNull();
     expect(await blobs.head(exportArchiveKey(tenant.b.id, kept))).not.toBeNull();
 
@@ -428,9 +435,77 @@ describe.skipIf(skip)('self-service export', () => {
     const row = (await list(tenant.a)).exports.find((e) => e.id === archived)!;
     expect(row.status).toBe('expired');
     expect(row.error).toBe('deleted after an erasure');
-    expect(await expireExports(operatorDb, blobs, tenant.a.id)).toBeGreaterThan(0);
+    expect(await expireExports(operatorDb, blobs, tenant.a.id, new Date())).toBeGreaterThan(0);
     expect(await blobs.head(exportArchiveKey(tenant.a.id, archived))).toBeNull();
     // B's archive is B's: A's erasure does not touch it.
     expect((await list(tenant.b)).exports.find((e) => e.id === kept)?.status).toBe('ready');
+  });
+
+  it('runs every sequence of requests, job steps, expiries and time like core (property)', async () => {
+    const leaseMs = JOB_LEASE_SECONDS * 1000;
+    await fc.assert(
+      fc.asyncProperty(fc.gen(), async (g) => {
+        const pick = <T>(xs: readonly T[]): T => g(fc.constantFrom, ...xs);
+        const { id: tenantId } = await testTenant(operatorDb, `tex-p-${runSuffix()}`);
+        const memory = memoryExportLifecycle(tenantId, leaseMs);
+        const stored = new MemoryBlobStore(clock, async () => new Uint8Array(1));
+        const ids: string[] = [];
+        const key = (id: string) => exportArchiveKey(tenantId, id);
+        const scoped = <T>(fn: (trx: Kysely<Database>) => Promise<T>) =>
+          withTenant(operatorDb, systemPrincipal(tenantId, 'tenant-exports-test'), fn);
+        const postgres: ExportLifecycle = {
+          request: (id, now) =>
+            scoped((trx) =>
+              tenantExportRepository(trx, tenantId).request({
+                id,
+                requestedBy: 'property',
+                requestedAt: now,
+              })
+            ),
+          claim: (id, now) => claimExportRow(operatorDb, tenantId, id, now),
+          // As runExportJob: the file first, gone again when the step did not apply.
+          async step(id, step, now) {
+            if (step.kind === 'ready')
+              await stored.put(key(id), new Uint8Array(1), { contentType: 'application/x-tar' });
+            const next = await stepExportRow(operatorDb, tenantId, id, step, now);
+            if (step.kind === 'ready' && !next) await stored.delete([key(id)]);
+            return next;
+          },
+          expire: (now) => expireExports(operatorDb, stored, tenantId, now),
+          rows: () =>
+            scoped(async (trx) =>
+              (await tenantExportRepository(trx, tenantId).list(1000)).sort((a, b) =>
+                a.id.localeCompare(b.id)
+              )
+            ),
+          async files() {
+            const present = await Promise.all(
+              ids.map(async (id) => [id, await stored.head(key(id))] as const)
+            );
+            return present
+              .filter(([, head]) => head)
+              .map(([id]) => key(id))
+              .sort();
+          },
+        };
+        let now = Math.floor(Date.now() / 1000) * 1000;
+        for (let i = 0; i < 15; i++) {
+          const op = drawExportOp(pick, ids, uuidv7(), leaseMs);
+          if (op.kind === 'advance') {
+            now += op.ms;
+            continue;
+          }
+          const at = new Date(now);
+          const label = JSON.stringify(op);
+          expect(await applyExportOp(postgres, op, at), label).toEqual(
+            await applyExportOp(memory, op, at)
+          );
+          if (op.kind === 'request' && !ids.includes(op.id)) ids.push(op.id);
+          expect(await postgres.rows(), label).toEqual(await memory.rows());
+          expect(await postgres.files(), label).toEqual(await memory.files());
+        }
+      }),
+      { numRuns: 15 }
+    );
   });
 });

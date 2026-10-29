@@ -4,6 +4,7 @@
 //
 // * a manifest names only files the format prescribes, and every file matches its digest;
 // * an export from a newer schema is refused, an older one is fine (`migrate` is past it);
+// * an export needs its tenant, and an import never overwrites one (by id or by slug);
 // * a membership arrives as a pending invitation of its address, with only the capabilities this
 //   version knows (operator accounts are people who log in here, not data);
 // * the platform hostname stays behind and a custom one arrives unverified (DNS may point
@@ -91,6 +92,25 @@ export async function verifyExportManifest(
       throw refuse(`${entry.file} does not match the manifest`);
   }
   return manifest;
+}
+
+/** The tenant an export reads, found by its slug; there is nothing to export without one. */
+export function exportSource<T>(tenant: T | null, slug: string): T {
+  if (!tenant) throw new UseCaseError('not_found', `no tenant with slug "${slug}"`);
+  return tenant;
+}
+
+/**
+ * An import never overwrites: refused when this database has the tenant's id or the slug it
+ * would get, before anything is written, so the refusal names the tenant rather than its hostname.
+ */
+export function checkImportTarget(
+  taken: { id: boolean; slug: boolean },
+  tenantId: string,
+  slug: string
+): void {
+  if (taken.id) throw new UseCaseError('conflict', `tenant ${tenantId} exists in this database`);
+  if (taken.slug) throw new UseCaseError('conflict', `a tenant with slug "${slug}" exists`);
 }
 
 /** Migration names sort by their number, so a later schema compares greater. */

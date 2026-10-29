@@ -39,6 +39,8 @@ import {
   IMPORTED_HOSTNAME,
   UseCaseError,
   checkImportSchema,
+  checkImportTarget,
+  exportSource,
   hostnameTravels,
   invitationFromExport,
   mediaKeys,
@@ -244,8 +246,10 @@ async function emptyOrAbsent(path: string): Promise<boolean> {
  * them; one that takes longer fails rather than trust it.
  */
 export async function exportTenant(options: ExportOptions): Promise<ExportManifest> {
-  const tenant = await getTenantBySlug(options.operatorDb, options.slug);
-  if (!tenant) throw new UseCaseError('not_found', `no tenant with slug "${options.slug}"`);
+  const tenant = exportSource(
+    await getTenantBySlug(options.operatorDb, options.slug),
+    options.slug
+  );
   const out = resolve(options.out);
   const existed = isTar(out) ? false : await emptyOrAbsent(out);
   const dir = isTar(out) ? await mkdtemp(join(dirname(out), '.mycel-export-')) : out;
@@ -457,15 +461,14 @@ async function importDirectory(dir: string, options: ImportOptions): Promise<Imp
   const manifest = await verifiedManifest(dir);
   checkImportSchema(manifest.schemaVersion, await schemaVersion(operatorDb));
   const slug = options.slug ?? manifest.tenant.slug;
-  // Before anything is written, so the refusal names the tenant rather than its hostname.
-  const byId = await getTenant(operatorDb, manifest.tenant.id);
-  if (byId || (await getTenantBySlug(operatorDb, slug)))
-    throw new UseCaseError(
-      'conflict',
-      byId
-        ? `tenant ${manifest.tenant.id} exists in this database`
-        : `a tenant with slug "${slug}" exists`
-    );
+  checkImportTarget(
+    {
+      id: (await getTenant(operatorDb, manifest.tenant.id)) !== null,
+      slug: (await getTenantBySlug(operatorDb, slug)) !== null,
+    },
+    manifest.tenant.id,
+    slug
+  );
   const range = await eventRange(dir, manifest);
   const tenantId = manifest.tenant.id;
   const lines: string[] = [];
