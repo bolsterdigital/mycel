@@ -12,7 +12,7 @@ import { expectNoAxeViolations } from './lib/axe';
 async function expectOnlyProofScript(page: Page) {
   const scripts = await page
     .locator('script')
-    .evaluateAll((all) =>
+    .evaluateAll((all: HTMLScriptElement[]) =>
       all.map((s) => ({ src: s.getAttribute('src'), type: s.getAttribute('type'), inline: s.text }))
     );
   expect(scripts).toEqual([{ src: '/_form/proof.js', type: 'module', inline: '' }]);
