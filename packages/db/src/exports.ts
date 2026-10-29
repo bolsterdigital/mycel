@@ -19,6 +19,10 @@
 //
 // Rejected: the archive in memory (one large tenant would take the worker down), a status on the
 // job row (jobs are deleted after JOBS_RETENTION_DAYS), and a longer lease for all job types.
+//
+// Every moment here (claim, heartbeat, expiry, the keep-a-year cutoff) comes from the caller's
+// clock, never from Postgres `now()`; workers whose clocks drift apart by more than a lease could
+// each judge the other's heartbeat stale, so the hosts keep NTP time.
 
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
@@ -28,11 +32,11 @@ import { join } from 'node:path';
 import { sql, type Kysely } from 'kysely';
 import {
   ACTIVE_EXPORT_STATUSES,
-  EXPORT_KEEP_ROWS_DAYS,
   PURGED_EXPORT_STATUSES,
   claimExport,
   exportArchiveKey,
   exportFailure,
+  exportRowCutoff,
   noopLogger,
   scrubText,
   stepExport,
@@ -57,7 +61,6 @@ type Trx = Kysely<Database>;
 
 /** How often a running export renews its lease and heartbeat. */
 const HEARTBEAT_MS = 60_000;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 interface ExportRow {
   id: string;
@@ -343,7 +346,7 @@ export async function expireExports(
     }
     await trx
       .deleteFrom('tenant_exports')
-      .where('requested_at', '<', new Date(now.getTime() - EXPORT_KEEP_ROWS_DAYS * DAY_MS))
+      .where('requested_at', '<', exportRowCutoff(now))
       .where('status', 'not in', ACTIVE_EXPORT_STATUSES)
       .execute();
     return ids.length;

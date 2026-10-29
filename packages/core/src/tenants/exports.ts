@@ -97,6 +97,10 @@ export const EXPORT_FILE_MISSING = 'the archive file is missing';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** Inactive rows requested before this moment go in the daily expire. */
+export const exportRowCutoff = (now: Date): Date =>
+  new Date(now.getTime() - EXPORT_KEEP_ROWS_DAYS * DAY_MS);
+
 /**
  * What a run of the job does with the export it was given: `start` when it is queued, or running
  * with a heartbeat older than a lease (its worker died); `busy`, to look again after a lease, when

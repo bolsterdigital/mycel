@@ -41,8 +41,9 @@ if (slug === 'absent') {
 const operatorDb = createDb(process.env.DATABASE_URL);
 const appDb = createDb(process.env.APP_DATABASE_URL);
 const blobs = blobStoreFor(loadConfig());
+const clock = { now: () => new Date() };
 const uow = createUnitOfWork(appDb, {
-  clock: { now: () => new Date() },
+  clock,
   ids: uuidv7Ids,
   signer: new FakeSigner(),
   inputHasher: new FakeInputHasher(),
@@ -65,7 +66,11 @@ try {
   await completeJob(
     operatorDb,
     job,
-    await runExportJob({ operatorDb, blobs, mycelVersion: 'drill', retentionDays: 7 }, job, id)
+    await runExportJob(
+      { operatorDb, blobs, clock, mycelVersion: 'drill', retentionDays: 7 },
+      job,
+      id
+    )
   );
   const archive = exportArchiveKey(tenant.id, id);
   if (!(await blobs.head(archive))) throw new Error(`the export job did not write ${archive}`);

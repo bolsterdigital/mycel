@@ -6,10 +6,10 @@
 // tenant-exports.test.ts; this is about the machine).
 
 import {
-  EXPORT_KEEP_ROWS_DAYS,
   PURGED_EXPORT_STATUSES,
   claimExport,
   exportArchiveKey,
+  exportRowCutoff,
   isActiveExport,
   stepExport,
   type ExportClaim,
@@ -18,8 +18,6 @@ import {
 } from '../../tenants/exports.js';
 import type { ExportLifecycle } from '../export-lifecycle.js';
 import { memoryExports } from './tenants.js';
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 class MemoryExportJobs {
   /** The archive files that exist, by `exportArchiveKey`. */
@@ -67,7 +65,7 @@ class MemoryExportJobs {
       this.files.delete(this.key(r.id));
       this.purged.add(r.id);
     }
-    const cutoff = now.getTime() - EXPORT_KEEP_ROWS_DAYS * DAY_MS;
+    const cutoff = exportRowCutoff(now).getTime();
     for (const r of [...this.rows.values()])
       if (r.requestedAt.getTime() < cutoff && !isActiveExport(r.status)) {
         this.rows.delete(r.id);
