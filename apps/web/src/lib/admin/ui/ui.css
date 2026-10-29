@@ -517,9 +517,16 @@
   /* A lightbox shows the whole image: as wide as the body allows and no taller than the body,
      which is what the dialog leaves after its head, so a landscape photo is never cut off at the
      bottom and the dialog never scrolls. Rejected: a fixed reserve for the head (8rem), which a
-     long name at 200% text outgrew (TODO #61). */
+     long name at 200% text outgrew (TODO #61). The head yields too: past 40% of the dialog it
+     scrolls on its own (its close button keeps the region reachable), because a long name at
+     200% text on a phone is otherwise most of the dialog and leaves the photo a sliver or pushes
+     it out. Rejected: clamping the name to a few lines, which hides text at large sizes. */
   .ui-dialog:has(> .ui-dialog-body > img:only-child) {
     height: calc(100% - 2 * var(--gutter));
+  }
+  .ui-dialog:has(> .ui-dialog-body > img:only-child) > .ui-dialog-head {
+    max-height: 40%;
+    overflow-y: auto;
   }
   .ui-dialog-body:has(> img:only-child) {
     display: flex;
