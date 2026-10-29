@@ -43,6 +43,9 @@ const appDb = createDb(process.env['APP_DATABASE_URL'] ?? operatorUrl);
 const noSigner: Signer = {
   sign: () => Promise.reject(new Error('seed has no signer')),
   verify: () => Promise.reject(new Error('seed has no signer')),
+  hashIp: () => {
+    throw new Error('seed has no signer');
+  },
 };
 
 // Dev only: the test hasher is the same HMAC-SHA256 as the API's adapter, under the same key.
