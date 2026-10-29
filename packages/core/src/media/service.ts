@@ -17,6 +17,7 @@ import type { TransactionContext } from '../ports.js';
 import { defineUseCase } from '../registry.js';
 import { base64ToBytes } from '../util/bytes.js';
 import { sha256HexOfBytes } from '../util/digest.js';
+import { errorFields } from '../util/log.js';
 import {
   CENTRE,
   CONTENT_TYPE_OF,
@@ -237,7 +238,7 @@ async function removeQuietly(ctx: TransactionContext, keys: string[]): Promise<v
   } catch (e) {
     ctx.log.warn('media: could not remove files of a failed upload', {
       files: keys.length,
-      error: e instanceof Error ? e.message : String(e),
+      ...errorFields(e),
     });
   }
 }

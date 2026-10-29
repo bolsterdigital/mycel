@@ -18,6 +18,8 @@
 
 import { sql, type Kysely } from 'kysely';
 import {
+  errorFields,
+  errorMessage,
   noopLogger,
   scrubText,
   type JobOutcome,
@@ -315,7 +317,7 @@ export async function runJobs(
         });
     } catch (e) {
       onError?.(e, job);
-      await failJob(operatorDb, job, e instanceof Error ? e.message : String(e));
+      await failJob(operatorDb, job, errorMessage(e));
       outcome = 'failed';
     }
     result[outcome] += 1;
@@ -343,8 +345,6 @@ export interface WorkerHooks {
   onRun?: ((job: JobRecord, outcome: JobRunOutcome) => void) | undefined;
 }
 
-const message = (e: unknown) => scrubText(e instanceof Error ? e.message : String(e));
-
 /** Report through `onError` when the caller gave one, else write one log line. */
 export function reportOrLog(
   { log = noopLogger, onError }: Pick<WorkerHooks, 'log' | 'onError'>,
@@ -358,7 +358,7 @@ export function reportOrLog(
       ...context.tags,
       ...(context.job ? { job: context.job } : {}),
       ...(context.tenantId ? { tenantId: context.tenantId } : {}),
-      error: message(e),
+      ...errorFields(e),
     });
 }
 

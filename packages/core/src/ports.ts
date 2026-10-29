@@ -57,8 +57,10 @@ export interface Signer {
   /** The original payload when the signature is valid, otherwise null. */
   verify(token: string): Promise<string | null>;
   /**
-   * A stable rate-limit key for a client address that is not the address itself, under a key of
-   * its own: rotating the signing key does not reset rate limits, and the reverse (TODO #74).
+   * A stable rate-limit key for a client address that is not the address itself. The adapter
+   * derives a key of its own for it from the signing secret, so no MAC over an address is ever
+   * made under the key that signs tokens (TODO #74). Derived, not independent: rotating the
+   * secret changes every key, and the rate-limit windows start over.
    */
   hashIp(ip: string): string;
 }

@@ -2,7 +2,7 @@
 // whatever happens), exchanges the code, records the login, and issues a fresh session cookie;
 // an earlier session on this browser is replaced, never extended.
 import { error, redirect } from '@sveltejs/kit';
-import { SESSION_TTL_MS, issueSession } from '@mycel/core';
+import { SESSION_TTL_MS, errorFields, issueSession } from '@mycel/core';
 import {
   SESSION_COOKIE,
   allowLoginAttempt,
@@ -25,7 +25,7 @@ export const load: PageServerLoad = async ({ url, cookies, getClientAddress }) =
   } catch (e) {
     if (e instanceof LoginNotConfigured) error(503, 'Operator login is not configured.');
     // Mostly a stale or forged callback, so a warning, not an error report.
-    rt.log.warn('operator login failed', { error: e instanceof Error ? e.message : String(e) });
+    rt.log.warn('operator login failed', errorFields(e));
     error(400, 'Login failed.');
   }
   if (!login) error(400, 'Login failed.');
