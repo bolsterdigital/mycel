@@ -125,11 +125,6 @@ export function jobRecoveryRepository(trx: Trx, tenantId: string): JobRecovery {
   };
 }
 
-/** One transaction on `db` (the authentication login or the operator) as mycel_ops. */
-function asOps<T>(db: Kysely<Database>, fn: (trx: Trx) => Promise<T>): Promise<T> {
-  return asRole(db, 'mycel_ops', fn);
-}
-
 export interface OpsPage {
   /** Only this tenant's rows. */
   tenantId?: string | undefined;
@@ -198,7 +193,7 @@ export interface OpsTenantSummary {
 /** Exhausted jobs of every tenant and of the platform, oldest first. */
 export function opsJobs(db: Kysely<Database>, page: OpsPage = {}): Promise<Paged<OpsJob>> {
   const limit = pageSize(page.limit);
-  return asOps(db, async (trx) => {
+  return asRole(db, 'mycel_ops', async (trx) => {
     let q = trx.selectFrom('jobs').select(JOB_COLUMNS).where(exhausted);
     if (page.tenantId) q = q.where('tenant_id', '=', page.tenantId);
     if (page.cursor) q = q.where('id', '>', page.cursor);
@@ -217,7 +212,7 @@ export function opsJobs(db: Kysely<Database>, page: OpsPage = {}): Promise<Paged
 /** Outbox events that failed MAX_ATTEMPTS passes without reaching every subscriber. */
 export function opsDeadEvents(db: Kysely<Database>, page: OpsPage = {}): Promise<Paged<OpsEvent>> {
   const limit = pageSize(page.limit);
-  return asOps(db, async (trx) => {
+  return asRole(db, 'mycel_ops', async (trx) => {
     let q = trx
       .selectFrom('outbox')
       .select([
@@ -261,7 +256,7 @@ export function opsUnresolvedMail(
   page: OpsPage = {}
 ): Promise<Paged<OpsMail>> {
   const limit = pageSize(page.limit);
-  return asOps(db, async (trx) => {
+  return asRole(db, 'mycel_ops', async (trx) => {
     let q = trx
       .selectFrom('mail_sends')
       .select([
@@ -312,7 +307,7 @@ export function opsUnresolvedMail(
  * lag figures stay on the worker's `/metrics` (#17a).
  */
 export function opsSummary(db: Kysely<Database>): Promise<OpsTenantSummary[]> {
-  return asOps(db, async (trx) => {
+  return asRole(db, 'mycel_ops', async (trx) => {
     const { rows } = await sql<{
       tenant_id: string | null;
       slug: string | null;
@@ -372,7 +367,7 @@ async function recover(
   change: (trx: Trx) => Promise<{ id: string; tenant_id: string | null } | undefined>,
   seen: (trx: Trx) => Promise<unknown>
 ): Promise<RecoveryResult> {
-  return asOps(db, async (trx) => {
+  return asRole(db, 'mycel_ops', async (trx) => {
     const changed = await change(trx);
     if (!changed) return (await seen(trx)) ? 'not_exhausted' : 'not_found';
     await setRole(trx, 'mycel_platform');

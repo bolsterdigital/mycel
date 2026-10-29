@@ -88,10 +88,6 @@ export function jobScheduler(trx: Kysely<Database>, tenantId: string): Scheduler
   };
 }
 
-/** Run `fn` in one transaction as mycel_worker (0003, 0009). */
-const asWorker = <T>(operatorDb: Kysely<Database>, fn: (trx: Kysely<Database>) => Promise<T>) =>
-  asRole(operatorDb, 'mycel_worker', fn);
-
 /**
  * Claim up to `batchSize` due jobs: open, due, not exhausted, and unclaimed or with an expired
  * lease. `types` narrows the claim (tests use their own type so they never take real work).
@@ -109,7 +105,7 @@ export async function claimJobs(
   } = {}
 ): Promise<JobRecord[]> {
   const only = types ? [...types] : null;
-  return asWorker(operatorDb, async (trx) => {
+  return asRole(operatorDb, 'mycel_worker', async (trx) => {
     const { rows } = await sql<JobRow>`
       update jobs set claimed_at = now(), attempts = attempts + 1
       where id in (
@@ -137,7 +133,7 @@ export async function completeJob(
   job: JobRecord,
   outcome: JobOutcome = {}
 ): Promise<boolean> {
-  return asWorker(operatorDb, async (trx) => {
+  return asRole(operatorDb, 'mycel_worker', async (trx) => {
     const r = await trx
       .updateTable('jobs')
       .set({ done_at: sql`now()`, last_error: null })
@@ -170,7 +166,7 @@ export async function completeJob(
  * job of a crashed worker waiting that long too.
  */
 export async function touchJob(operatorDb: Kysely<Database>, job: JobRecord): Promise<boolean> {
-  return asWorker(operatorDb, async (trx) => {
+  return asRole(operatorDb, 'mycel_worker', async (trx) => {
     const r = await trx
       .updateTable('jobs')
       .set({ claimed_at: sql`now()` })
@@ -191,7 +187,7 @@ export async function failJob(
   job: JobRecord,
   error: string
 ): Promise<boolean> {
-  return asWorker(operatorDb, async (trx) => {
+  return asRole(operatorDb, 'mycel_worker', async (trx) => {
     const r = await trx
       .updateTable('jobs')
       .set({
@@ -244,7 +240,7 @@ export async function ensureRecurring(
   now: Date = new Date()
 ): Promise<number> {
   if (jobs.length === 0) return 0;
-  return asWorker(operatorDb, async (trx) => {
+  return asRole(operatorDb, 'mycel_worker', async (trx) => {
     let inserted = 0;
     for (const job of jobs) {
       const { start, label } = nextPeriod(job.cadence, now);

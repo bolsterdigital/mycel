@@ -45,6 +45,7 @@ import {
   uuidv7Ids,
   withTenant,
 } from './index.js';
+import { asRole } from './roles.js';
 import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
@@ -70,10 +71,7 @@ describe.skipIf(skip)('stuck-work recovery conformance', () => {
   const events: string[] = [];
 
   const asWorker = <T>(fn: (trx: typeof operatorDb) => Promise<T>) =>
-    operatorDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_worker`.execute(trx);
-      return fn(trx);
-    });
+    asRole(operatorDb, 'mycel_worker', fn);
   /** A job as the worker left it: exhausted by default, with a payload nobody may read. */
   async function job(
     over: {
