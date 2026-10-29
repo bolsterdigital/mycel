@@ -559,6 +559,7 @@ export function createRuntime(
     clock,
     agentToken: config.MYCEL_API_KEY,
     sessionId: uuidv7(),
+    log,
   });
   const invoker = new Invoker(buildRegistry(), uow, {
     requestId: () => currentContext().requestId,
