@@ -127,13 +127,14 @@ export async function expireAllExports(
   operatorDb: ReturnType<typeof createDb>,
   blobs: BlobStore,
   tenantIds: () => Promise<string[]>,
+  now: Date,
   errors?: ErrorReporter
 ): Promise<number> {
   let purged = 0;
   const failed: string[] = [];
   for (const id of await tenantIds())
     try {
-      purged += await expireExports(operatorDb, blobs, id);
+      purged += await expireExports(operatorDb, blobs, id, now);
     } catch (e) {
       errors?.capture(e, { tenantId: id, job: 'tenant.export.expire' });
       failed.push(id);
@@ -300,6 +301,7 @@ export function jobHandlers({
         {
           operatorDb,
           blobs: config.blobs,
+          clock: mail.clock,
           mycelVersion: config.mycelVersion,
           retentionDays: config.retentionDays ?? DEFAULT_EXPORT_RETENTION_DAYS,
           log: config.log,
@@ -309,7 +311,7 @@ export function jobHandlers({
       );
     },
     'tenant.export.expire': platformJob('tenant.export.expire', () =>
-      expireAllExports(operatorDb, exportConfig().blobs, tenantIds, errors)
+      expireAllExports(operatorDb, exportConfig().blobs, tenantIds, mail.clock.now(), errors)
     ),
   } satisfies Record<JobType, JobHandler>;
 }

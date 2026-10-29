@@ -3,6 +3,8 @@ import { UseCaseError } from '../errors.js';
 import {
   EXPORT_FORMAT,
   checkImportSchema,
+  checkImportTarget,
+  exportSource,
   hostnameTravels,
   invitationFromExport,
   verifyExportManifest,
@@ -121,5 +123,22 @@ describe('import rules', () => {
   it('lets only a custom hostname travel', () => {
     expect(hostnameTravels('custom')).toBe(true);
     expect(hostnameTravels('platform')).toBe(false);
+  });
+});
+
+describe('export source and import target', () => {
+  it('exports only a tenant that exists, and imports only where id and slug are free', () => {
+    expect(exportSource({ id: tenantId }, 'site')).toEqual({ id: tenantId });
+    expect(() => exportSource(null, 'site')).toThrow(
+      new UseCaseError('not_found', 'no tenant with slug "site"')
+    );
+    expect(() => checkImportTarget({ id: false, slug: false }, tenantId, 'site')).not.toThrow();
+    // The id first: the same tenant again is the likelier mistake, and its message says so.
+    expect(() => checkImportTarget({ id: true, slug: true }, tenantId, 'site')).toThrow(
+      `tenant ${tenantId} exists in this database`
+    );
+    expect(() => checkImportTarget({ id: false, slug: true }, tenantId, 'site')).toThrow(
+      'a tenant with slug "site" exists'
+    );
   });
 });

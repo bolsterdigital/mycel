@@ -3,7 +3,7 @@
 
 import type { UsageReader } from '../../entitlements/ports.js';
 import type { Clock } from '../../ports.js';
-import type { TenantExportRecord } from '../../tenants/exports.js';
+import { isActiveExport, type TenantExportRecord } from '../../tenants/exports.js';
 import type {
   HostnameRepository,
   TenantExportRepository,
@@ -85,9 +85,7 @@ export function memoryExports(rows: Map<string, TenantExportRecord>): TenantExpo
   const copy = (r: TenantExportRecord) => structuredClone(r);
   return {
     async request({ id, requestedBy, requestedAt }) {
-      const active = [...rows.values()].find(
-        (r) => r.status === 'queued' || r.status === 'running'
-      );
+      const active = [...rows.values()].find((r) => isActiveExport(r.status));
       if (active) return { record: copy(active), created: false };
       const record: TenantExportRecord = {
         id,

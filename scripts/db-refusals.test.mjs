@@ -18,11 +18,9 @@ export const ALLOWED = {
   ],
   'packages/db/src/export.ts': [
     'the export target is not empty: a file-system fact, checked before anything is written',
-    'no tenant with that slug to export: a read',
-    'the imported tenant exists by id or slug: a read, before anything is written',
   ],
 };
-export const LIMIT = 5;
+export const LIMIT = 3;
 
 const PATTERN = /new\s+UseCaseError\s*\(/g;
 

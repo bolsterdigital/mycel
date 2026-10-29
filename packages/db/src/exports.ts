@@ -4,6 +4,8 @@
 // * `tenantExportRepository`: `ctx.exports` in the unit of work, as mycel_app under RLS. A request
 //   is one insert that the partial unique index turns into "the export that is already queued or
 //   running" for a second click.
+// * `claimExportRow` / `stepExportRow`: one row, locked, through core's `claimExport` and
+//   `stepExport` (TODO #74). The state machine is core's; this file reads, asks and writes.
 // * `runExportJob`: the `tenant.export` job. It builds the archive with `exportTenant`, the code
 //   behind `mycel export`, into a temporary directory of the worker, streams it to the blob store
 //   under `exports/<tenant>/<id>.tar` and marks the row ready. While it runs it renews its job
@@ -17,6 +19,10 @@
 //
 // Rejected: the archive in memory (one large tenant would take the worker down), a status on the
 // job row (jobs are deleted after JOBS_RETENTION_DAYS), and a longer lease for all job types.
+//
+// Every moment here (claim, heartbeat, expiry, the keep-a-year cutoff) comes from the caller's
+// clock, never from Postgres `now()`; workers whose clocks drift apart by more than a lease could
+// each judge the other's heartbeat stale, so the hosts keep NTP time.
 
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
@@ -25,11 +31,20 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sql, type Kysely } from 'kysely';
 import {
+  ACTIVE_EXPORT_STATUSES,
+  PURGED_EXPORT_STATUSES,
+  claimExport,
   exportArchiveKey,
+  exportFailure,
+  exportRowCutoff,
   noopLogger,
   scrubText,
+  stepExport,
   systemPrincipal,
   type BlobStore,
+  type Clock,
+  type ExportClaim,
+  type ExportStep,
   type JobOutcome,
   type JobRecord,
   type Logger,
@@ -44,8 +59,6 @@ import type { Database } from './schema.js';
 
 type Trx = Kysely<Database>;
 
-/** Rows older than this go in the daily expire, whatever their status (never a running one). */
-const KEEP_ROWS_DAYS = 365;
 /** How often a running export renews its lease and heartbeat. */
 const HEARTBEAT_MS = 60_000;
 
@@ -146,36 +159,64 @@ const asTenant = <T>(
   fn: (trx: Trx) => Promise<T>
 ) => withTenant(operatorDb, systemPrincipal(tenantId, 'jobs:tenant.export'), fn);
 
-/**
- * Take the export for this run: `start` when it is queued, or running with a heartbeat older than
- * a lease (its worker died); `busy` when another run is alive; `gone` when there is nothing to do.
- */
-async function claimExport(
+const lockRow = async (trx: Trx, exportId: string) => {
+  const r = await trx
+    .selectFrom('tenant_exports')
+    .select(COLUMNS)
+    .where('id', '=', exportId)
+    .forUpdate()
+    .executeTakeFirst();
+  return r ? toRecord(r as ExportRow) : null;
+};
+
+/** Write what core returned for a locked row; `purged` for a file core says is already gone. */
+const writeRow = (trx: Trx, r: TenantExportRecord, purgedAt: Date | null = null) =>
+  trx
+    .updateTable('tenant_exports')
+    .set({
+      status: r.status,
+      started_at: r.startedAt,
+      heartbeat_at: r.heartbeatAt,
+      finished_at: r.finishedAt,
+      size_bytes: r.sizeBytes,
+      sha256: r.sha256,
+      schema_version: r.schemaVersion,
+      error: r.error,
+      expires_at: r.expiresAt,
+      ...(purgedAt ? { purged_at: purgedAt } : {}),
+    })
+    .where('id', '=', r.id)
+    .execute();
+
+/** Core `claimExport` on the locked row: the run's decision, written when it starts. */
+export async function claimExportRow(
   operatorDb: Kysely<Database>,
   tenantId: string,
-  exportId: string
-): Promise<'start' | 'busy' | 'gone'> {
+  exportId: string,
+  now: Date
+): Promise<ExportClaim> {
   return asTenant(operatorDb, tenantId, async (trx) => {
-    const { rows } = await sql<{ status: string; fresh: boolean }>`
-      select status,
-             heartbeat_at > now() - make_interval(secs => ${JOB_LEASE_SECONDS}) as fresh
-      from tenant_exports where id = ${exportId} for update`.execute(trx);
-    const row = rows[0];
-    if (!row || (row.status !== 'queued' && row.status !== 'running')) return 'gone';
-    if (row.status === 'running' && row.fresh) return 'busy';
-    await sql`
-      update tenant_exports
-      set status = 'running', started_at = now(), heartbeat_at = now(), error = null
-      where id = ${exportId}`.execute(trx);
-    return 'start';
+    const claim = claimExport(await lockRow(trx, exportId), now, JOB_LEASE_SECONDS * 1000);
+    if (claim.kind === 'start') await writeRow(trx, claim.record);
+    return claim;
   });
 }
 
-const heartbeat = (operatorDb: Kysely<Database>, tenantId: string, exportId: string) =>
-  asTenant(operatorDb, tenantId, (trx) =>
-    sql`update tenant_exports set heartbeat_at = now()
-        where id = ${exportId} and status = 'running'`.execute(trx)
-  );
+/** Core `stepExport` on the locked row; the record it wrote, or null when the step did not apply. */
+export async function stepExportRow(
+  operatorDb: Kysely<Database>,
+  tenantId: string,
+  exportId: string,
+  step: ExportStep,
+  now: Date
+): Promise<TenantExportRecord | null> {
+  return asTenant(operatorDb, tenantId, async (trx) => {
+    const row = await lockRow(trx, exportId);
+    const next = row && stepExport(row, step, now);
+    if (next) await writeRow(trx, next);
+    return next;
+  });
+}
 
 async function fileDigest(path: string): Promise<{ size: number; sha256: string }> {
   const hash = createHash('sha256');
@@ -186,6 +227,7 @@ async function fileDigest(path: string): Promise<{ size: number; sha256: string 
 export interface ExportJobDeps {
   operatorDb: Kysely<Database>;
   blobs: BlobStore;
+  clock: Clock;
   mycelVersion: string;
   /** EXPORT_RETENTION_DAYS: how long a ready archive can be downloaded. */
   retentionDays: number;
@@ -201,13 +243,13 @@ export async function runExportJob(
   job: JobRecord,
   exportId: string
 ): Promise<JobOutcome> {
-  const { operatorDb, blobs, log = noopLogger } = deps;
+  const { operatorDb, blobs, clock, log = noopLogger } = deps;
   const tenantId = job.tenantId;
   if (tenantId === null) throw new Error('tenant.export is a tenant job but has no tenant');
-  const claim = await claimExport(operatorDb, tenantId, exportId);
-  if (claim === 'gone') return {};
-  // Another run is alive: look again after a lease, and take over if its heartbeat stopped.
-  if (claim === 'busy') return { next: new Date(Date.now() + JOB_LEASE_SECONDS * 1000) };
+  const step = (s: ExportStep) => stepExportRow(operatorDb, tenantId, exportId, s, clock.now());
+  const claim = await claimExportRow(operatorDb, tenantId, exportId, clock.now());
+  if (claim.kind === 'gone') return {};
+  if (claim.kind === 'busy') return { next: claim.next };
 
   const key = exportArchiveKey(tenantId, exportId);
   let beating = Promise.resolve();
@@ -215,7 +257,7 @@ export async function runExportJob(
     beating = beating
       .then(async () => {
         await touchJob(operatorDb, job);
-        await heartbeat(operatorDb, tenantId, exportId);
+        await step({ kind: 'heartbeat' });
       })
       .catch((e) =>
         log.warn('tenant.export: heartbeat failed', {
@@ -239,25 +281,20 @@ export async function runExportJob(
     });
     const { size, sha256 } = await fileDigest(file);
     await blobs.putFile(key, file, { contentType: 'application/x-tar' });
-    const version = await schemaVersion(operatorDb);
-    const ready = await asTenant(operatorDb, tenantId, (trx) =>
-      sql`update tenant_exports
-          set status = 'ready', finished_at = now(), heartbeat_at = now(), size_bytes = ${size},
-              sha256 = ${sha256}, schema_version = ${version},
-              expires_at = now() + (${deps.retentionDays} * interval '24 hours')
-          where id = ${exportId} and status = 'running'`.execute(trx)
-    );
+    const ready = await step({
+      kind: 'ready',
+      sizeBytes: size,
+      sha256,
+      schemaVersion: await schemaVersion(operatorDb),
+      retentionDays: deps.retentionDays,
+    });
     // An erasure expired it while it ran (its snapshot may hold the person): the file goes.
-    if (!ready.numAffectedRows) await blobs.delete([key]);
+    if (!ready) await blobs.delete([key]);
     return {};
   } catch (e) {
     await blobs.delete([key]).catch(() => {});
-    const error = scrubText(e instanceof Error ? e.message : String(e)).slice(0, 1000);
-    await asTenant(operatorDb, tenantId, (trx) =>
-      sql`update tenant_exports
-          set status = 'failed', finished_at = now(), error = ${error}
-          where id = ${exportId} and status = 'running'`.execute(trx)
-    );
+    const error = exportFailure(e);
+    await step({ kind: 'fail', error });
     log.error('tenant.export failed', { tenantId, exportId, error });
     return {};
   } finally {
@@ -268,41 +305,50 @@ export async function runExportJob(
 }
 
 /**
- * Expire and purge one tenant's archives: ready ones past `expires_at` or without their file (after
- * a restore) become expired; every
- * expired or failed one whose file may remain loses it; rows older than a year go. Returns the
- * number of files deleted. Runs as mycel_app under the tenant's context, never across tenants.
+ * Expire and purge one tenant's archives: core `stepExport` expires a ready one past `expires_at`
+ * or without its file (after a restore); every expired or failed one whose file may remain loses
+ * it; rows older than a year go. Returns the number of files deleted. Runs as mycel_app under the
+ * tenant's context, never across tenants.
  */
 export async function expireExports(
   operatorDb: Kysely<Database>,
   blobs: BlobStore,
-  tenantId: string
+  tenantId: string,
+  now: Date
 ): Promise<number> {
   return asTenant(operatorDb, tenantId, async (trx) => {
-    await sql`update tenant_exports set status = 'expired'
-              where status = 'ready' and expires_at <= now()`.execute(trx);
-    // A ready row whose file is gone: a restore brings the row back but never the file (backups
-    // leave `exports/` out). It cannot be downloaded; say so instead of offering a dead link.
-    const { rows: ready } = await sql<{ id: string }>`
-      select id from tenant_exports where status = 'ready'`.execute(trx);
-    for (const { id } of ready)
-      if (!(await blobs.head(exportArchiveKey(tenantId, id))))
-        await sql`update tenant_exports
-                  set status = 'expired', error = 'the archive file is missing', purged_at = now()
-                  where id = ${id}`.execute(trx);
-    const { rows } = await sql<{ id: string }>`
-      select id from tenant_exports
-      where status in ('expired', 'failed') and purged_at is null
-      for update`.execute(trx);
-    const ids = rows.map((r) => r.id);
+    const ready = await trx
+      .selectFrom('tenant_exports')
+      .select(COLUMNS)
+      .where('status', '=', 'ready')
+      .forUpdate()
+      .execute();
+    for (const row of ready) {
+      const hasFile = (await blobs.head(exportArchiveKey(tenantId, row.id))) !== null;
+      const next = stepExport(toRecord(row as ExportRow), { kind: 'expire', hasFile }, now);
+      if (next) await writeRow(trx, next, hasFile ? null : now);
+    }
+    const purge = await trx
+      .selectFrom('tenant_exports')
+      .select('id')
+      .where('status', 'in', PURGED_EXPORT_STATUSES)
+      .where('purged_at', 'is', null)
+      .forUpdate()
+      .execute();
+    const ids = purge.map((r) => r.id);
     if (ids.length) {
       await blobs.delete(ids.map((id) => exportArchiveKey(tenantId, id)));
-      await sql`update tenant_exports set purged_at = now()
-                where id = any(${ids}::uuid[])`.execute(trx);
+      await trx
+        .updateTable('tenant_exports')
+        .set({ purged_at: now })
+        .where('id', 'in', ids)
+        .execute();
     }
-    await sql`delete from tenant_exports
-              where requested_at < now() - make_interval(days => ${KEEP_ROWS_DAYS})
-                and status not in ('queued', 'running')`.execute(trx);
+    await trx
+      .deleteFrom('tenant_exports')
+      .where('requested_at', '<', exportRowCutoff(now))
+      .where('status', 'not in', ACTIVE_EXPORT_STATUSES)
+      .execute();
     return ids.length;
   });
 }
