@@ -12,6 +12,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { expectNoAxeViolations } from './lib/axe';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { login } from './lib/login';
+import { onlyA11y } from './lib/project';
 
 const run = promisify(execFile);
 
@@ -81,7 +82,7 @@ test.describe('UI gate: the export actions at 320 CSS px and 200% text', () => {
 
   for (const text of TEXT_SIZES) {
     test(`every control whole and no horizontal scroll, text ${text}`, async ({ page }) => {
-      test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
+      onlyA11y('measures the layout with a script');
       test.setTimeout(120_000);
       await login(page, '/admin/probe/export');
       await readyArchive(page);

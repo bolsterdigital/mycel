@@ -22,16 +22,16 @@ import {
   systemPrincipal,
   useCases,
   type JobRecord,
-  type Principal,
 } from '@mycel/core';
 import {
   FakeClock,
   FakeDns,
   FakeInputHasher,
   FakeSigner,
-  memoryPlatform,
-  runSuffix,
   adminOf,
+  memoryPlatform,
+  principal,
+  runSuffix,
 } from '@mycel/core/testing';
 import {
   createDb,
@@ -255,10 +255,10 @@ describe.skipIf(skip)('content conformance', () => {
         at: new Date(clock.now().getTime() + MINUTE).toISOString(),
       })
     ).rejects.toMatchObject({ code: 'invalid_input' });
-    const human = {
-      ...adminOf(tenantA),
-      actor: { kind: 'operator' as const, operatorId: uuidv7(), email: 'reviewer@probe.test' },
-    };
+    const human = principal({
+      tenantId: tenantA,
+      actor: { kind: 'operator', operatorId: uuidv7(), email: 'reviewer@probe.test' },
+    });
     const approved = await invoker.run(useCases.approveTranslation, human, {
       itemId: created.item.id,
       baseRevisionId: pending.revision.id,

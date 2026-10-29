@@ -13,21 +13,21 @@ import {
   MemoryLogger,
   MemoryUnitOfWork,
   TENANT,
+  principal,
 } from '../testing/index.js';
 import { runAssistSuggestion } from './worker.js';
 import { type ContentDocument, readinessIssues } from '../content/model.js';
 import { normalizeBlocks } from '../content/blocks.js';
 
 const system = systemPrincipal(TENANT, 'test');
-const operator: Principal = {
-  ...system,
+const operator = principal({
   actor: {
     kind: 'operator',
     operatorId: '01900000-0000-7000-8000-00000000a001',
     email: 'editor@probe.test',
   },
   capabilities: ['tenant:admin', 'content:read', 'content:write', 'content:publish', 'ai:assist'],
-};
+});
 
 async function setup() {
   const log = new MemoryLogger();
@@ -438,7 +438,7 @@ describe('translation boundary', () => {
       before.revision.document.blocks.filter((b) => b.id !== 'separator')
     );
     expect(normalized.merged).toEqual([{ from: 'second', into: 'first' }]);
-    const agent = { ...system, capabilities: ['content:write', 'content:publish'] as const };
+    const agent = principal({ capabilities: ['content:write', 'content:publish'] });
     const saved = await invoker.run(useCases.updateItem, agent, {
       itemId: created.item.id,
       baseRevisionId: accepted.revisionId,
@@ -509,7 +509,7 @@ describe('translation boundary', () => {
         suggestionId: suggested.suggestionId,
         baseRevisionId: prepared.revision.id,
       });
-      const agent = { ...system, capabilities: ['content:write', 'content:publish'] as const };
+      const agent = principal({ capabilities: ['content:write', 'content:publish'] });
       const target = { itemId: created.item.id, baseRevisionId: accepted.revisionId };
       const changed =
         operation === 'remove'

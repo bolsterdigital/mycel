@@ -14,14 +14,14 @@ import {
   type TransactionContext,
   type UnitOfWork,
 } from '../index.js';
-import { DEFAULT_ENTITLEMENTS } from '../entitlements/model.js';
 import {
   FakeClock,
   FakeSigner,
   MemoryBlobStore,
   MemoryUnitOfWork,
-  expectCode,
   TENANT,
+  expectCode,
+  principal,
 } from '../testing/index.js';
 import { MEDIA_PURGE_DELAY_MS } from './model.js';
 import { EXAMPLE_PNG, ORPHAN_AGE_MS } from './service.js';
@@ -202,10 +202,7 @@ describe('media', () => {
     it('stops at the storage cap: exactly at it is fine, one byte over is refused', async () => {
       const first = await upload();
       const total = first.totalBytes;
-      const at = {
-        ...system,
-        entitlements: { ...DEFAULT_ENTITLEMENTS, 'media.storage_max_bytes': 2 * total },
-      };
+      const at = principal({ entitlements: { 'media.storage_max_bytes': 2 * total } });
       await upload({}, at);
       await expectCode(
         upload({}, at),
@@ -321,11 +318,10 @@ describe('media', () => {
     });
 
     it('needs media:read to read and media:write to upload', async () => {
-      const reader = {
-        ...system,
-        actor: { kind: 'api-key' as const, keyId: 'k' },
-        capabilities: ['media:read' as const],
-      };
+      const reader = principal({
+        actor: { kind: 'api-key', keyId: 'k' },
+        capabilities: ['media:read'],
+      });
       await expectCode(upload({}, reader), 'forbidden');
       expect((await invoker.run(useCases.listMedia, reader, {})).items).toEqual([]);
     });

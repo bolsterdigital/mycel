@@ -3,6 +3,8 @@
 // copies of the login, ten of the axe check and fifteen of the layout gate, in five variants, so a
 // check added to one copy never reached the others (TODO #50). Each shared check now lives once in
 // apps/web/e2e/lib/ and this test keeps it there; the suite holds ten specs, each naming its flow.
+// Since TODO #75 that includes which project a test runs in, the API's address and key, and the
+// wait for a form's minimum fill time.
 // Run by `npm run lint:infra`, offline.
 // Rejected: a lint rule per pattern (the e2e folder is outside the typechecked and linted
 // workspace sources) and a review checklist (the copies arrived through reviewed PRs).
@@ -30,6 +32,9 @@ export const RULES = [
   { name: 'a text-size setter', pattern: /documentElement\.style\.fontSize = / },
   { name: 'a unit of work', pattern: /new Invoker\(|createUnitOfWork\(/ },
   { name: 'console output', pattern: /console\.log\(/ },
+  { name: 'a project check', pattern: /project\.name [!=]==? ['"](a11y|no-js)['"]/ },
+  { name: 'an API address or key', pattern: /process\.env\[['"](E2E_API_URL|MYCEL_API_KEY)['"]\]/ },
+  { name: 'a fixed wait', pattern: /waitForTimeout\(/ },
 ];
 
 /**
@@ -93,4 +98,21 @@ test('a copied helper is caught', () => {
     'x.spec.ts defines a login helper; use apps/web/e2e/lib/',
     'x.spec.ts defines console output; use apps/web/e2e/lib/',
   ]);
+});
+
+test('a project check, an API address and a fixed wait are caught', () => {
+  const source = [
+    "test.skip(test.info().project.name !== 'a11y', 'x');",
+    "await request.post(`${process.env['E2E_API_URL']}/v1/x`);",
+    'await page.waitForTimeout(3200);',
+  ].join('\n');
+  assert.deepEqual(violations({ 'x.spec.ts': source }), [
+    'x.spec.ts defines a project check; use apps/web/e2e/lib/',
+    'x.spec.ts defines an API address or key; use apps/web/e2e/lib/',
+    'x.spec.ts defines a fixed wait; use apps/web/e2e/lib/',
+  ]);
+  assert.deepEqual(
+    violations({ 'y.spec.ts': 'const slug = `x-${test.info().project.name}`;' }),
+    []
+  );
 });

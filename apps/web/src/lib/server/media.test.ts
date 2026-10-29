@@ -15,7 +15,7 @@ import {
   useCases,
   type Principal,
 } from '@mycel/core';
-import { FakeClock, FakeSigner, MemoryUnitOfWork } from '@mycel/core/testing';
+import { FakeClock, FakeSigner, MemoryUnitOfWork, principal } from '@mycel/core/testing';
 import { ORIGINAL_TTL_MS, serveAdminMedia, serveMedia, signedOriginalPath } from './media.js';
 
 const TENANT = '01900000-0000-7000-8000-00000000aaaa';
@@ -144,11 +144,12 @@ describe('media delivery route', () => {
 });
 
 describe('admin media files', () => {
-  const operator = (tenantId = TENANT): Principal => ({
-    ...systemPrincipal(tenantId, 'test'),
-    actor: { kind: 'operator', operatorId: 'op-1', email: 'admin@probe.test' },
-    capabilities: ['media:read', 'media:write'],
-  });
+  const operator = (tenantId = TENANT): Principal =>
+    principal({
+      tenantId,
+      actor: { kind: 'operator', operatorId: 'op-1', email: 'admin@probe.test' },
+      capabilities: ['media:read', 'media:write'],
+    });
   const signed = async (
     signer: FakeSigner,
     clock: FakeClock,

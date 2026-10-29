@@ -35,6 +35,7 @@ import {
   MemoryBlobStore,
   memoryImageProcessor,
   memoryPlatform,
+  principal,
   probeForm,
   publishProbePage,
   requireInCi,
@@ -95,10 +96,12 @@ describe.skipIf(skip)('self-service export', () => {
   });
   const invoker = new Invoker(buildRegistry(), uow);
   const tenant = { a: { id: '', slug: `tex-a-${run}` }, b: { id: '', slug: `tex-b-${run}` } };
-  const admin = (t: { id: string }, status: 'active' | 'suspended' = 'active'): Principal => ({
-    ...systemPrincipal(t.id, 'tenant-exports-test'),
-    tenantStatus: status,
-  });
+  const admin = (t: { id: string }, status: 'active' | 'suspended' = 'active'): Principal =>
+    principal({
+      tenantId: t.id,
+      actor: { kind: 'system', job: 'tenant-exports-test' },
+      tenantStatus: status,
+    });
   const scratch = { dir: '' };
   const deps = () => ({ operatorDb, blobs, mycelVersion: 'test', retentionDays: 7 });
 

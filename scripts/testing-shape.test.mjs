@@ -3,7 +3,9 @@
 // than 150 lines, so `MemoryUnitOfWork.run` cannot grow back into one function every module
 // edits. And testing.md rule 3 stays in one place (TODO #75): only
 // `packages/core/src/testing/services.ts` compares `E2E_REQUIRED`; a suite asks
-// `requireServices` or `requireDatabase`. Run by `npm run lint:infra`, offline.
+// `requireServices` or `requireDatabase`. A test principal comes from `principal({...})` in
+// `core/testing/fixtures.ts`, not from spreading `adminOf`/`systemPrincipal` or spelling out the
+// default access by hand. Run by `npm run lint:infra`, offline.
 // Rejected: a line budget per file (a module may grow with its port; one long function is the
 // shape that made the old file hard to change).
 
@@ -51,6 +53,17 @@ export function ownSkipRules(files) {
     );
 }
 
+/** Files that build a principal by hand instead of asking `principal({...})`. */
+export function handBuiltPrincipals(files) {
+  const byHand =
+    /\.\.\.(adminOf|systemPrincipal)\(|\.\.\.system\b|(entitlements|tenantStatus): DEFAULT_ACCESS\./;
+  return files
+    .filter(({ path, text }) => isTest(path) && byHand.test(text))
+    .map(
+      ({ path }) => `${path} builds a principal by hand; use principal({...}) from core/testing`
+    );
+}
+
 const dir = 'packages/core/src/testing';
 const sources = () => readAll(walk(dir, { match: (p) => p.endsWith('.ts') && !isTest(p) }));
 
@@ -76,6 +89,31 @@ test('the check sees a suite that compares E2E_REQUIRED itself', () => {
   assert.deepEqual(
     ownSkipRules([{ path: 'a.ts', text: "E2E_REQUIRED: 'test harness (CI)'," }]),
     []
+  );
+});
+
+test('every test principal comes from principal({...})', () => {
+  assert.deepEqual(
+    handBuiltPrincipals(
+      readAll(['packages', 'apps'].flatMap((top) => walk(top, { match: (p) => p.endsWith('.ts') })))
+    ),
+    []
+  );
+});
+
+test('the check sees a principal built by hand', () => {
+  const cases = [
+    "const p = { ...adminOf(), capabilities: ['content:read'] };",
+    "const p = { ...systemPrincipal(id, 'test'), tenantStatus: 'suspended' };",
+    'const p = { ...system, actor };',
+    'const p = { tenantId, actor, capabilities, entitlements: DEFAULT_ACCESS.entitlements };',
+  ];
+  for (const text of cases)
+    assert.equal(handBuiltPrincipals([{ path: 'packages/x/src/a.test.ts', text }]).length, 1, text);
+  assert.deepEqual(
+    handBuiltPrincipals([{ path: 'packages/x/src/a.ts', text: cases[0] }]),
+    [],
+    'source may spread'
   );
 });
 

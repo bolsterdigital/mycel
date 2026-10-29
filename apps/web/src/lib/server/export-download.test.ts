@@ -14,7 +14,7 @@ import {
   useCases,
   type Principal,
 } from '@mycel/core';
-import { FakeClock, FakeSigner, MemoryUnitOfWork } from '@mycel/core/testing';
+import { FakeClock, FakeSigner, MemoryUnitOfWork, principal } from '@mycel/core/testing';
 import { serveExportDownload } from './export-download.js';
 
 const TENANT = '01900000-0000-7000-8000-00000000aaaa';
@@ -25,14 +25,15 @@ async function setup() {
   const signer = new FakeSigner();
   const uow = new MemoryUnitOfWork({ clock, signer });
   const invoker = new Invoker(buildRegistry(), uow);
-  const admin = (tenant = TENANT): Principal => ({
-    ...systemPrincipal(tenant, 'test'),
-    actor: {
-      kind: 'operator',
-      email: 'admin@example.org',
-      operatorId: '01900000-0000-7000-8000-0000000000aa',
-    },
-  });
+  const admin = (tenantId = TENANT): Principal =>
+    principal({
+      tenantId,
+      actor: {
+        kind: 'operator',
+        email: 'admin@example.org',
+        operatorId: '01900000-0000-7000-8000-0000000000aa',
+      },
+    });
   const { id } = await invoker.run(useCases.requestExport, admin(), {});
   const bytes = new TextEncoder().encode('archive bytes '.repeat(10_000));
   const row = uow.store.for(TENANT).exports.get(id)!;

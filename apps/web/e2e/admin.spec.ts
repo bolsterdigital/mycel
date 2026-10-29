@@ -20,6 +20,8 @@ import { expectNoAxeViolations } from './lib/axe';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { ADMIN, login } from './lib/login';
+import { isA11y, onlyA11y } from './lib/project';
+import { requireApi } from './lib/api';
 
 // Operator admin (TODO #7), the seed of the "publish" flow in testing.md: login through the mock
 // IdP as e2e-admin@probe.test (scripts/e2e.mjs seeds that admin and starts the IdP), access by
@@ -36,7 +38,7 @@ test.describe('admin', () => {
   });
 
   const api = (path: string, token: string) =>
-    fetch(`${process.env['E2E_API_URL']}${path}`, {
+    fetch(`${requireApi()}${path}`, {
       headers: { authorization: `Bearer ${token}` },
     });
 
@@ -228,7 +230,7 @@ test.describe('admin-shell', () => {
         .getByRole('link', { name: current })
     ).toHaveAttribute('aria-current', 'page');
     await expect(page.getByRole('main')).toHaveCount(1);
-    if (test.info().project.name === 'a11y') await expectNoAxeViolations(page);
+    if (isA11y()) await expectNoAxeViolations(page);
     else {
       const all = await page
         .locator('script')
@@ -465,7 +467,7 @@ test.describe('status', () => {
 
     for (const text of TEXT_SIZES) {
       test(`every control whole and no horizontal scroll, text ${text}`, async ({ page }) => {
-        test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
+        onlyA11y('measures the layout with a script');
         const type = `e2e.status.gate.${text.replace('%', '')}.${Date.now()}`;
         const id = await stuckJob(type);
         try {
@@ -579,7 +581,7 @@ test.describe('connections', () => {
         await expect(card).toContainText(
           locale.startsWith('nl') ? 'Proef, geen persoon gekopieerd' : 'Test, no person copied'
         );
-        if (test.info().project.name === 'a11y') {
+        if (isA11y()) {
           await setTextSize(page, '200%');
           await layoutGate(page, 'connections', 'main');
           await expectNoAxeViolations(page);

@@ -16,6 +16,7 @@ import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { forwarded, login } from './lib/login';
 import { ADMIN_LOCALES, ADMIN_ROUTES, type GateRoute, PUBLIC_ROUTES } from './routes';
+import { isA11y, onlyA11y } from './lib/project';
 
 // The generic gate over routes.ts: every route at 320 CSS px in default and 200% text passes
 // lib/layout.ts, and axe in the a11y project. One login per locale and text size walks every
@@ -38,7 +39,7 @@ test.describe('ui-gate', () => {
       test.use({ locale });
       for (const text of TEXT_SIZES)
         test(`every admin route at ${text} text`, async ({ page }) => {
-          test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
+          onlyA11y('measures the layout with a script');
           await login(page, ADMIN_ROUTES[0]!.path, undefined, { 'accept-language': locale });
           for (const route of ADMIN_ROUTES) {
             expect((await page.goto(route.path))?.status(), route.path).toBe(200);
@@ -51,7 +52,7 @@ test.describe('ui-gate', () => {
     test.use({ locale: 'nl-NL', extraHTTPHeaders: forwarded() });
     for (const text of TEXT_SIZES)
       test(`every public route at ${text} text`, async ({ page }) => {
-        test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
+        onlyA11y('measures the layout with a script');
         for (const route of PUBLIC_ROUTES) {
           expect((await page.goto(route.path))?.status(), route.path).toBe(200);
           await measure(page, route, text);
@@ -118,7 +119,7 @@ test.describe('admin-ui', () => {
           .map((node) => node.textContent?.trim())
       )
     ).toEqual([]);
-    if (test.info().project.name !== 'a11y') {
+    if (!isA11y()) {
       // The catalogue holds what screens will hold: no script at all.
       await expect(page.locator('script')).toHaveCount(0);
       return;
@@ -209,7 +210,7 @@ test.describe('admin-ui', () => {
       await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
       await expect(page.locator('main')).toHaveCount(1);
       await expect(page.locator('script')).toHaveCount(0);
-      if (test.info().project.name !== 'a11y') return;
+      if (!isA11y()) return;
       await expectNoAxeViolations(page, { dark: true });
     });
 

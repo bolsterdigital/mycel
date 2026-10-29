@@ -36,16 +36,13 @@ function publicDns(): FakeDns {
 describe('managed connection inventory', () => {
   const uow = new MemoryUnitOfWork({ dns: publicDns() });
   const invoker = new Invoker(buildRegistry(), uow);
-  const principal = (tenantId: string, capabilities: Capability[]): Principal => ({
-    ...systemPrincipal(tenantId, 'connection-test'),
-    actor: { kind: 'api-key', keyId: 'test-key' },
-    capabilities,
-  });
+  const keyOf = (tenantId: string, capabilities: Capability[]): Principal =>
+    principal({ tenantId, actor: { kind: 'api-key', keyId: 'test-key' }, capabilities });
 
   it('separates read, configure and credential rights while tenant:admin retains oversight', async () => {
-    const configure = principal(A, ['connections:configure']);
-    const read = principal(A, ['connections:read']);
-    const credentials = principal(A, ['connections:credentials']);
+    const configure = keyOf(A, ['connections:configure']);
+    const read = keyOf(A, ['connections:read']);
+    const credentials = keyOf(A, ['connections:credentials']);
     const created = await invoker.run(useCases.createConnection, configure, input);
     expect(created.state).toBe('paused');
     expect(created.credentialStatus).toBe('reconnect-required');
@@ -139,7 +136,7 @@ describe('managed connection inventory', () => {
   });
 
   it('does not allow a suspended tenant to change a connection', async () => {
-    const suspended = { ...systemPrincipal(A, 'test'), tenantStatus: 'suspended' as const };
+    const suspended = principal({ tenantId: A, tenantStatus: 'suspended' });
     await expect(invoker.run(useCases.createConnection, suspended, input)).rejects.toMatchObject({
       code: 'suspended',
     });
@@ -164,7 +161,7 @@ describe('managed connection inventory', () => {
     dns.addressRecords.set('internal.example.org', ['8.8.8.8', '10.0.0.5']);
     dns.unavailable.add('flaky.example.org');
     const local = new Invoker(buildRegistry(), new MemoryUnitOfWork({ dns }));
-    const admin = principal(A, ['tenant:admin']);
+    const admin = keyOf(A, ['tenant:admin']);
     for (const [destination, message] of [
       ['https://internal.example.org/hook', 'not public'],
       ['https://unknown.example.org/hook', 'not public'],
@@ -191,6 +188,7 @@ import { FakeConnectionTransport } from '../testing/fake-connection-transport.js
 import { connectionIntentGuard, planConnectionIntent } from './intents.js';
 import { runConnectionIntent, CONNECTION_LEASE_MS, type ConnectionSource } from './dispatch.js';
 import { CONNECTION_MAX_ATTEMPTS, ConnectionFailure } from './intents.js';
+import { principal } from '../testing/index.js';
 
 async function engine() {
   const clock = new FakeClock();

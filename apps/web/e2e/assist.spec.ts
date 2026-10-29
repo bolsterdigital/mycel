@@ -9,6 +9,7 @@ import { expectNoAxeViolations } from './lib/axe';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { NARROW, layoutGate, setTextSize } from './lib/layout';
 import { login } from './lib/login';
+import { isA11y } from './lib/project';
 
 test.use({
   locale: 'nl-NL',
@@ -519,7 +520,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
     const context = await browser.newContext({
       locale,
       viewport: NARROW,
-      javaScriptEnabled: test.info().project.name === 'a11y',
+      javaScriptEnabled: isA11y(),
       baseURL: 'http://127.0.0.1:4173',
       extraHTTPHeaders: {
         'x-forwarded-proto': 'http',

@@ -8,7 +8,7 @@ import { toJsonSchema } from './json-schema.js';
 import { anonymousPrincipal, Capability, systemPrincipal, type Principal } from './principal.js';
 import { checkRegistry } from './registry-rules.js';
 import type { UseCase } from './registry.js';
-import { MemoryUnitOfWork, probeForm, probeTenant, TENANT } from './testing/index.js';
+import { MemoryUnitOfWork, TENANT, principal, probeForm, probeTenant } from './testing/index.js';
 import { buildRegistry, useCases } from './use-cases.js';
 
 describe('registry conformance', () => {
@@ -84,9 +84,9 @@ describe('a use case that consumes a limit checks it (ADR 015)', () => {
     await uow.run(systemPrincipal(TENANT, 'test'), (ctx) =>
       ctx.forms.insert(probeForm('01900000-0000-7000-8000-00000000f000'))
     );
-    const principal = { ...systemPrincipal(TENANT, 'conformance'), entitlements };
+    const caller = principal({ entitlements });
     try {
-      return await new Invoker(registry, uow).run(useCase, principal, useCase.examples[0].input);
+      return await new Invoker(registry, uow).run(useCase, caller, useCase.examples[0].input);
     } catch (e) {
       return e;
     }
@@ -125,11 +125,11 @@ describe('every ai:assist command passes the assistance gate (ADR 015)', () => {
   async function refusal(useCase: UseCase, entitlements: Principal['entitlements']) {
     const uow = new MemoryUnitOfWork();
     uow.store.addPlatformHostname(probeTenant(TENANT), uow.platform.domain);
-    const principal = { ...systemPrincipal(TENANT, 'conformance'), entitlements };
+    const caller = principal({ entitlements });
     const reg = buildRegistry();
     if (!reg.get(useCase.name)) reg.register(useCase);
     try {
-      await new Invoker(reg, uow).run(useCase, principal, useCase.examples[0].input);
+      await new Invoker(reg, uow).run(useCase, caller, useCase.examples[0].input);
       return null;
     } catch (e) {
       return e instanceof UseCaseError ? `${e.code} ${e.issues[0]?.message ?? ''}` : String(e);
@@ -324,11 +324,11 @@ describe('every command leaves exactly one audit row (TODO #17b)', () => {
     return { uow, invoker: new Invoker(registry, uow), rows: () => uow.store.for(TENANT).audit };
   }
   // An operator carries an address; the rows must not.
-  const operator = (capabilities: Principal['capabilities']): Principal => ({
-    ...systemPrincipal(TENANT, 'conformance'),
-    actor: { kind: 'operator', operatorId: 'op-conformance', email: 'operator@example.org' },
-    capabilities,
-  });
+  const operator = (capabilities: Principal['capabilities']): Principal =>
+    principal({
+      actor: { kind: 'operator', operatorId: 'op-conformance', email: 'operator@example.org' },
+      capabilities,
+    });
   const noAddress = (rows: unknown[]) =>
     expect(JSON.stringify(rows), 'an audit column holds an address').not.toContain('@');
 

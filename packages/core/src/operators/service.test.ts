@@ -12,18 +12,16 @@ import {
   type Principal,
   type UnitOfWork,
 } from '../index.js';
-import { DEFAULT_ACCESS } from '../entitlements/model.js';
 import {
   FakeClock,
   MemoryIdentityStore,
   MemoryTenants,
   MemoryUnitOfWork,
-  probeTenant,
-  expectCode,
   TENANT,
+  expectCode,
+  principal,
+  probeTenant,
 } from '../testing/index.js';
-
-const defaults = { entitlements: DEFAULT_ACCESS.entitlements, tenantStatus: DEFAULT_ACCESS.status };
 
 const OTHER = '01900000-0000-7000-8000-00000000bbbb';
 const ISSUER = 'https://idp.example';
@@ -302,12 +300,12 @@ describe('members and keys', () => {
         capabilities: ['content:read', 'forms:read'],
       });
       const auth = await apiKeyPrincipal(identity, `Bearer ${token}`);
-      expect(auth?.principal).toEqual({
-        tenantId: TENANT,
-        actor: { kind: 'api-key', keyId: id },
-        capabilities: ['content:read', 'forms:read'],
-        ...defaults,
-      });
+      expect(auth?.principal).toEqual(
+        principal({
+          actor: { kind: 'api-key', keyId: id },
+          capabilities: ['content:read', 'forms:read'],
+        })
+      );
       const agent = await agentPrincipalFor(identity, token, 'session-1');
       expect(agent?.principal.actor).toEqual({ kind: 'agent', sessionId: 'session-1', keyId: id });
 
@@ -405,10 +403,9 @@ describe('members and keys', () => {
         name: 'seed',
         capabilities: ['content:read'],
       });
-      const forged: Principal = {
-        ...system,
+      const forged = principal({
         actor: { kind: 'api-key', keyId: '01900000-0000-7000-8000-0000000000aa' },
-      };
+      });
       await expectCode(
         invoker.run(useCases.createKey, forged, { name: 'k', capabilities: ['content:read'] }),
         'forbidden'
@@ -468,12 +465,12 @@ describe('members and keys', () => {
     it('comes from the membership of the tenant in the URL and nothing else', async () => {
       const { op } = await loggedIn('a@example.org', ['content:write']);
       const who = { operatorId: op.id, email: op.email };
-      expect(await operatorPrincipal(identity, who, TENANT)).toEqual({
-        tenantId: TENANT,
-        actor: { kind: 'operator', operatorId: op.id, email: 'a@example.org' },
-        ...defaults,
-        capabilities: ['content:write'],
-      });
+      expect(await operatorPrincipal(identity, who, TENANT)).toEqual(
+        principal({
+          actor: { kind: 'operator', operatorId: op.id, email: 'a@example.org' },
+          capabilities: ['content:write'],
+        })
+      );
       expect(await operatorPrincipal(identity, who, OTHER)).toBeNull();
     });
 

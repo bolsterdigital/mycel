@@ -4,37 +4,23 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { describe, expect, it } from 'vitest';
-import {
-  DEFAULT_ACCESS,
-  Invoker,
-  buildRegistry,
-  toJsonSchema,
-  type Capability,
-  type Principal,
-  type UseCase,
-} from '@mycel/core';
-import { MemoryUnitOfWork, TENANT } from '@mycel/core/testing';
+import { Invoker, buildRegistry, toJsonSchema, type Capability, type UseCase } from '@mycel/core';
+import { MemoryUnitOfWork, principal } from '@mycel/core/testing';
 import { createMcpServer } from './index.js';
 
 const registry = buildRegistry();
 const useCases = registry.list();
 
 async function connect(capabilities: Capability[]) {
-  const principal: Principal = {
-    tenantId: TENANT,
+  const caller = principal({
     // An agent never carries tenant:admin, and the member and key use cases refuse one that
     // claims it (TODO #20a); background work is the actor that does hold it without a membership.
     actor: capabilities.includes('tenant:admin')
       ? { kind: 'system', job: 'conformance' }
       : { kind: 'agent', sessionId: 'conformance', keyId: 'conformance' },
     capabilities,
-    entitlements: DEFAULT_ACCESS.entitlements,
-    tenantStatus: DEFAULT_ACCESS.status,
-  };
-  const server = createMcpServer(
-    new Invoker(registry, new MemoryUnitOfWork()),
-    async () => principal
-  );
+  });
+  const server = createMcpServer(new Invoker(registry, new MemoryUnitOfWork()), async () => caller);
   const [a, b] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: 'conformance', version: '0' });
   await Promise.all([server.connect(a), client.connect(b)]);

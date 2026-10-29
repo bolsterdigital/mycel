@@ -4,6 +4,9 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expectNoAxeViolations } from './lib/axe';
+import { isA11y, onlyA11y } from './lib/project';
+import { postUseCase } from './lib/api';
+import { pastMinimumFillTime } from './lib/form';
 
 /**
  * A form page ships exactly one script, the proof-of-work module from its own origin (brief
@@ -85,10 +88,7 @@ async function supporter(
   request: APIRequestContext,
   email: string
 ): Promise<{ lists: string[]; pendingLists: string[] } | null> {
-  const res = await request.post(`${process.env['E2E_API_URL']}/v1/supporter.get`, {
-    headers: { authorization: `Bearer ${process.env['MYCEL_API_KEY']}` },
-    data: { email },
-  });
+  const res = await postUseCase(request, 'supporter.get', { email });
   if (res.status() === 404) return null;
   expect(res.ok()).toBe(true);
   return res.json();
@@ -119,7 +119,7 @@ test('signup with double opt-in: too-fast post, thank-you page, confirmation pag
   await expectNoAxeViolations(page);
 
   // The re-rendered form carries a fresh timing token; wait past the minimum fill time.
-  await page.waitForTimeout(3200);
+  await pastMinimumFillTime(page);
   await page.getByLabel(/nieuwsbrief ontvangen/).check();
   await page.getByRole('button', { name: 'Aanmelden' }).click();
 
@@ -196,7 +196,7 @@ test('an English signup is confirmed in English, with every script blocked', asy
   const email = `e2e-en-${Date.now()}@example.org`;
   await page.goto('/probe/en/signup');
   await expectNoAxeViolations(page);
-  await page.waitForTimeout(3200);
+  await pastMinimumFillTime(page);
   await page.getByLabel('E-mail address').fill(email);
   await page.getByLabel(/send me the newsletter/).check();
   // (D2 b) Without the proof script the post carries an empty `_proof` and still goes through,
@@ -291,7 +291,7 @@ test('a public page has the security headers and a strict CSP, and only its own 
   expect(csp).not.toMatch(/unsafe-inline|unsafe-eval/);
   await expectOnlyProofScript(page);
   // With JavaScript, the script ran under that policy (it fills the field) and reported nothing.
-  if (test.info().project.name === 'a11y')
+  if (isA11y())
     await expect(page.locator('input[name="_proof"]')).not.toHaveValue('', { timeout: 10_000 });
   expect(await page.locator('[style]').count()).toBe(0);
   expect(violations).toEqual([]);
@@ -445,7 +445,7 @@ test('the honeypot is out of reach of password managers, and a post without it i
 
   // (h) No `website` field at all: the same thank-you page, no submission, no mail.
   const { formId, started } = formFields(await page.content());
-  await page.waitForTimeout(3200);
+  await pastMinimumFillTime(started);
   const ip = freshIp();
   const bot = `e2e-nohp-${Date.now()}@example.org`;
   const refused = await postForm(
@@ -485,7 +485,7 @@ test('with JavaScript the post carries a solved proof, and the policy reports no
   page,
   request,
 }) => {
-  test.skip(test.info().project.name === 'no-js', 'the proof script needs JavaScript');
+  onlyA11y('the proof script needs JavaScript');
   // (a) The ordinary flow: the script solves while the visitor types.
   const violations: string[] = [];
   page.on('console', (msg) => {
@@ -493,7 +493,7 @@ test('with JavaScript the post carries a solved proof, and the policy reports no
   });
   const email = `e2e-proof-${Date.now()}@example.org`;
   await page.goto('/probe/signup');
-  await page.waitForTimeout(3200);
+  await pastMinimumFillTime(page);
   await page.getByLabel('E-mailadres').fill(email);
   await page.getByLabel(/nieuwsbrief ontvangen/).check();
   const posted = page.waitForRequest((r) => r.method() === 'POST');

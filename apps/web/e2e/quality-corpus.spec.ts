@@ -11,6 +11,8 @@ import { WCAG, expectNoAxeViolations } from './lib/axe';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, layoutGate, setTextSize } from './lib/layout';
 import { login } from './lib/login';
+import { isA11y, onlyA11y } from './lib/project';
+import { callApi, requireApi } from './lib/api';
 
 const entries = Object.values(corpus.public);
 const qualityAdmin = 'quality-admin@probe.test';
@@ -83,14 +85,14 @@ for (const entry of entries)
       for (const img of await page.locator('main img').all()) {
         await expect(img).toHaveAttribute('width', /\d+/);
         await expect(img).toHaveAttribute('height', /\d+/);
-        if (test.info().project.name === 'a11y') {
+        if (isA11y()) {
           await img.scrollIntoViewIfNeeded();
           await expect
             .poll(() => img.evaluate((node: HTMLImageElement) => node.naturalWidth))
             .toBeGreaterThan(0);
         }
       }
-      if (test.info().project.name === 'a11y') {
+      if (isA11y()) {
         await page.evaluate(() => document.fonts.ready);
         expect(
           await page.evaluate(() =>
@@ -123,7 +125,7 @@ test.describe('quality corpus reflow and text spacing', () => {
   for (const entry of entries)
     for (const [locale, identity] of Object.entries(entry.locales))
       test(`${entry.slug} ${locale}: 320 CSS px, 200% text and WCAG spacing`, async ({ page }) => {
-        test.skip(test.info().project.name !== 'a11y', 'requires DOM measurements');
+        onlyA11y('requires DOM measurements');
         await page.goto(identity.path);
         await page.evaluate(() => {
           // Constructable user stylesheet leaves the page's strict CSP untouched.
@@ -143,7 +145,7 @@ test.describe('validated demanding theme simulation', () => {
   for (const entry of entries)
     for (const [locale, identity] of Object.entries(entry.locales))
       test(`${entry.slug} ${locale}: editorial CSS keeps content and actions`, async ({ page }) => {
-        test.skip(test.info().project.name !== 'a11y', 'requires DOM measurements');
+        onlyA11y('requires DOM measurements');
         const editorial = Theme.parse(THEME_PRESETS.editorial);
         await page.route('**/_theme/*.css', async (route) => {
           const response = await route.fetch();
@@ -179,13 +181,11 @@ test('admin corpus uses the populated shell, native editor and enhanced writer',
   page,
   request,
 }) => {
-  test.skip(!process.env['E2E_API_URL'], 'run through scripts/e2e.mjs');
-  const listed = await request.post(`${process.env['E2E_API_URL']}/v1/content.item.list`, {
-    headers: { authorization: `Bearer ${process.env['MYCEL_API_KEY']}` },
-    data: { type: 'article', slug: corpus.public.article.slug },
+  requireApi();
+  const { items } = await callApi<{ items: { id: string }[] }>(request, 'content.item.list', {
+    type: 'article',
+    slug: corpus.public.article.slug,
   });
-  expect(listed.ok(), await listed.text()).toBe(true);
-  const { items } = (await listed.json()) as { items: { id: string }[] };
   expect(items).toHaveLength(1);
   const id = items[0]!.id;
   await login(page, '/admin/probe/content', qualityAdmin);
@@ -208,13 +208,12 @@ test('admin corpus uses the populated shell, native editor and enhanced writer',
   });
   await page.goto(`/admin/probe/content/${id}/write`);
   await expect(page.locator('.admin-site-name')).toHaveText('Probe');
-  if (test.info().project.name === 'a11y')
-    await expect(page.locator('.writing-surface .ProseMirror')).toBeVisible();
+  if (isA11y()) await expect(page.locator('.writing-surface .ProseMirror')).toBeVisible();
   else
     await expect(
       page.getByRole('link', { name: /without JavaScript|zonder JavaScript/i })
     ).toHaveAttribute('href', `/admin/probe/content/${id}`);
-  if (test.info().project.name === 'a11y') {
+  if (isA11y()) {
     const writing = page.locator('.writing-surface .ProseMirror');
     expect((await writing.innerText()).trim().split(/\s+/u).length).toBeGreaterThanOrEqual(
       corpus.public.article.expected.minWords

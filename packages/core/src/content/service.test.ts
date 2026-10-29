@@ -5,7 +5,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { Invoker } from '../invoke.js';
 import { anonymousPrincipal, systemPrincipal, type Principal } from '../principal.js';
-import { FakeClock, MemoryUnitOfWork, probeForm, TENANT } from '../testing/index.js';
+import { FakeClock, MemoryUnitOfWork, TENANT, principal, probeForm } from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { contentPath } from './public.js';
 
@@ -38,11 +38,11 @@ describe('content items', () => {
   let uow: MemoryUnitOfWork;
   let invoker: Invoker;
   let admin: Principal;
-  const writer = (): Principal => ({
-    ...systemPrincipal(TENANT, 'writer'),
-    actor: { kind: 'api-key', keyId: 'writer' },
-    capabilities: ['content:read', 'content:write'],
-  });
+  const writer = (): Principal =>
+    principal({
+      actor: { kind: 'api-key', keyId: 'writer' },
+      capabilities: ['content:read', 'content:write'],
+    });
   const visitor = () => anonymousPrincipal(TENANT, ['content:read', 'forms:read']);
 
   beforeEach(() => {

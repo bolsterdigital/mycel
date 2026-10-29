@@ -17,6 +17,7 @@ import { expectNoAxeViolations } from './lib/axe';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { forwarded, login } from './lib/login';
+import { onlyA11y } from './lib/project';
 
 const SITE = 'http://probe.localhost:4173';
 
@@ -237,7 +238,7 @@ test('the asset page links the pages whose latest version uses it', async ({ pag
 test('the lightbox shows a large landscape photo whole, on a laptop and a phone', async ({
   page,
 }) => {
-  test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
+  onlyA11y('measures the layout with a script');
   await login(page, '/admin/probe/media');
   // A long name wraps the dialog's head over several lines at 200% text (TODO #61).
   const filename = `large-landscape-photo-of-the-square-during-the-demonstration-${Date.now()}.png`;
@@ -268,7 +269,7 @@ test('the lightbox shows a large landscape photo whole, on a laptop and a phone'
 });
 
 test('a chosen image shows as a thumbnail before it is uploaded', async ({ page }) => {
-  test.skip(test.info().project.name !== 'a11y', 'the preview is a JavaScript enhancement');
+  onlyA11y('the preview is a JavaScript enhancement');
   await login(page, '/admin/probe/media');
   const filename = `preview-${Date.now()}.png`;
   await page.getByLabel('Bestanden (verplicht)', { exact: true }).setInputFiles({
@@ -515,7 +516,7 @@ test('a page gets its featured image from the picker, and shares it when publish
 });
 
 test('the picker searches, and uploads dropped files with progress', async ({ page }) => {
-  test.skip(test.info().project.name !== 'a11y', 'search and upload are a JavaScript enhancement');
+  onlyA11y('search and upload are a JavaScript enhancement');
   await login(page, '/admin/probe/media');
   const stamp = `${Date.now()}`;
   const first = `zoek-${stamp}.png`;
@@ -570,7 +571,7 @@ test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
       test(`every control whole and no horizontal scroll, ${locale}, text ${text}`, async ({
         page,
       }) => {
-        test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
+        onlyA11y('measures the layout with a script');
         await login(page, '/admin/probe/media');
         const filename = `gate-${locale}-${text.replace('%', '')}-${Date.now()}.png`;
         const { id } = await upload(page, filename);

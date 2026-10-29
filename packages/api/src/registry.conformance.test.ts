@@ -4,7 +4,6 @@
 import SwaggerParser from '@apidevtools/swagger-parser';
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_ACCESS,
   Invoker,
   buildRegistry,
   toJsonSchema,
@@ -12,7 +11,7 @@ import {
   type Principal,
   type UseCase,
 } from '@mycel/core';
-import { MemoryUnitOfWork, TENANT } from '@mycel/core/testing';
+import { MemoryUnitOfWork, principal } from '@mycel/core/testing';
 import { createApp } from './app.js';
 import { flatQueryFields, methodsOf } from './http-shape.js';
 import { CONTENT_READ_PATH } from './content-read.js';
@@ -23,24 +22,22 @@ const useCases = registry.list();
 
 // A key never carries tenant:admin, and the member and key use cases refuse one that claims it
 // (TODO #20a); background work is the actor that does hold it without a membership.
-const principal = (capabilities: Capability[], operator = false): Principal => ({
-  tenantId: TENANT,
-  actor: operator
-    ? { kind: 'operator', operatorId: 'conformance', email: 'operator@probe.test' }
-    : capabilities.includes('tenant:admin')
-      ? { kind: 'system', job: 'conformance' }
-      : { kind: 'api-key', keyId: 'conformance' },
-  capabilities,
-  entitlements: DEFAULT_ACCESS.entitlements,
-  tenantStatus: DEFAULT_ACCESS.status,
-});
+const caller = (capabilities: Capability[], operator = false): Principal =>
+  principal({
+    actor: operator
+      ? { kind: 'operator', operatorId: 'conformance', email: 'operator@probe.test' }
+      : capabilities.includes('tenant:admin')
+        ? { kind: 'system', job: 'conformance' }
+        : { kind: 'api-key', keyId: 'conformance' },
+    capabilities,
+  });
 
 // Bearer tokens name the capabilities, so each request picks its own principal.
 const app = createApp({
   invoker: new Invoker(registry, new MemoryUnitOfWork()),
   authenticate: async (header) => {
     const auth = header?.match(/^Bearer (operator-)?caps:(.*)$/);
-    return auth ? principal(auth[2] ? (auth[2].split(',') as Capability[]) : [], !!auth[1]) : null;
+    return auth ? caller(auth[2] ? (auth[2].split(',') as Capability[]) : [], !!auth[1]) : null;
   },
 });
 
