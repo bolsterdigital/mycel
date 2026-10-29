@@ -36,6 +36,7 @@ import {
   uuidv7,
   uuidv7Ids,
 } from './index.js';
+import { asRole } from './roles.js';
 import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
@@ -80,8 +81,7 @@ describe.skipIf(skip)('postgres adapter', () => {
   // code for a test) and running the db suites serially (slower, and it hides the coupling).
   // `drainOutbox` itself runs in the e2e signup flow, through the worker process.
   async function drainOwn(): Promise<void> {
-    const { rows } = await operatorDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_worker`.execute(trx);
+    const { rows } = await asRole(operatorDb, 'mycel_worker', async (trx) => {
       return sql<{ id: string }>`
         select id from outbox
         where tenant_id in (${tenantA}, ${tenantB}) and processed_at is null
@@ -92,8 +92,7 @@ describe.skipIf(skip)('postgres adapter', () => {
       if (!event) continue;
       const handled = subscribers.filter((s) => s.types.includes(event.type));
       for (const sub of handled) await sub.handle(event);
-      await operatorDb.transaction().execute(async (trx) => {
-        await sql`set local role mycel_worker`.execute(trx);
+      await asRole(operatorDb, 'mycel_worker', async (trx) => {
         await trx
           .updateTable('outbox')
           .set({ delivered_to: handled.map((s) => s.name), processed_at: new Date() })
@@ -159,8 +158,7 @@ describe.skipIf(skip)('postgres adapter', () => {
     ).searchParams.get('token')!;
     const visitor = anonymousPrincipal(tenantA, ['forms:write']);
     const consents = () =>
-      operatorDb.transaction().execute(async (trx) => {
-        await sql`set local role mycel_worker`.execute(trx);
+      asRole(operatorDb, 'mycel_worker', async (trx) => {
         const { rows } = await sql<{ props: Record<string, unknown> }>`
           select props from outbox where tenant_id = ${tenantA} and type = 'consent.given'
              and props->>'email' = ${email}`.execute(trx);
@@ -209,8 +207,7 @@ describe.skipIf(skip)('postgres adapter', () => {
       })
     );
     const state = () =>
-      operatorDb.transaction().execute(async (trx) => {
-        await sql`set local role mycel_worker`.execute(trx);
+      asRole(operatorDb, 'mycel_worker', async (trx) => {
         const { rows } = await sql<{ processed_at: Date | null; attempts: number }>`
           select processed_at, attempts from outbox where id = ${id}`.execute(trx);
         return rows[0];
@@ -218,8 +215,7 @@ describe.skipIf(skip)('postgres adapter', () => {
     await drainOwn();
     expect(await state()).toEqual({ processed_at: null, attempts: 0 });
     // Close it so it does not linger in the shared outbox.
-    await operatorDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_worker`.execute(trx);
+    await asRole(operatorDb, 'mycel_worker', async (trx) => {
       await trx
         .updateTable('outbox')
         .set({ processed_at: new Date() })

@@ -64,6 +64,7 @@ import {
 import { claimExportRow, stepExportRow, tenantExportRepository } from './exports.js';
 import { toJobRecord } from './jobs.js';
 import type { Database } from './schema.js';
+import { asRole } from './roles.js';
 import { requireDatabase, migrateSchema, testTenant } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
@@ -114,8 +115,7 @@ describe.skipIf(skip)('self-service export', () => {
 
   /** The open `tenant.export` job of an export, read and claimed as the worker would. */
   async function claimed(exportId: string): Promise<JobRecord> {
-    return operatorDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_worker`.execute(trx);
+    return asRole(operatorDb, 'mycel_worker', async (trx) => {
       const { rows } = await sql<Parameters<typeof toJobRecord>[0]>`
         update jobs set claimed_at = now(), attempts = attempts + 1
         where key = ${`tenant.export:${exportId}`} and done_at is null
@@ -127,8 +127,7 @@ describe.skipIf(skip)('self-service export', () => {
 
   /** Close the job like `completeJob`, so suites that drain jobs never see it. */
   async function close(job: JobRecord) {
-    await operatorDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_worker`.execute(trx);
+    await asRole(operatorDb, 'mycel_worker', async (trx) => {
       await sql`update jobs set done_at = now() where id = ${job.id}`.execute(trx);
     });
   }
@@ -200,8 +199,7 @@ describe.skipIf(skip)('self-service export', () => {
 
   afterAll(async () => {
     // Close whatever this suite left open, so a draining suite never runs it.
-    await operatorDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_worker`.execute(trx);
+    await asRole(operatorDb, 'mycel_worker', async (trx) => {
       await sql`update jobs set done_at = now()
                 where tenant_id = any(${[tenant.a.id, tenant.b.id]}::uuid[])
                   and done_at is null`.execute(trx);
@@ -302,8 +300,7 @@ describe.skipIf(skip)('self-service export', () => {
     const { id } = await request(tenant.a);
     const job = await claimed(id);
     const leaseFresh = async () => {
-      const r = await operatorDb.transaction().execute(async (trx) => {
-        await sql`set local role mycel_worker`.execute(trx);
+      const r = await asRole(operatorDb, 'mycel_worker', async (trx) => {
         return sql<{ fresh: boolean }>`
           select claimed_at > now() - make_interval(secs => ${JOB_LEASE_SECONDS}) as fresh
           from jobs where id = ${job.id}`.execute(trx);
@@ -326,8 +323,7 @@ describe.skipIf(skip)('self-service export', () => {
         // second worker comes for the same job.
         afterSnapshot: async () => {
           try {
-            const aged = await operatorDb.transaction().execute(async (trx) => {
-              await sql`set local role mycel_worker`.execute(trx);
+            const aged = await asRole(operatorDb, 'mycel_worker', async (trx) => {
               return sql<{ fresh: boolean }>`
                 update jobs set claimed_at = now() - interval '10 minutes' where id = ${job.id}
                 returning claimed_at > now() - make_interval(secs => ${JOB_LEASE_SECONDS})

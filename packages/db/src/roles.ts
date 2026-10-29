@@ -37,6 +37,17 @@ export async function enterTenant(trx: Trx, tenantId: string): Promise<void> {
                    set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
 }
 
+/**
+ * `setRole` on a raw `pg` client inside its own `begin`: for a suite that tests what a login may
+ * do without Kysely in between. `role` comes from the closed list, so it needs no quoting.
+ */
+export async function setClientRole(
+  client: { query(text: string): Promise<unknown> },
+  role: DbRole
+): Promise<void> {
+  await client.query(`set local role ${role}`);
+}
+
 /** One transaction on `db` as `role`. */
 export function asRole<T>(
   db: Kysely<Database>,

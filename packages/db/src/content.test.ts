@@ -42,6 +42,7 @@ import {
   withTenant,
   type JobHandlers,
 } from './index.js';
+import { asRole } from './roles.js';
 import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
@@ -104,8 +105,7 @@ describe.skipIf(skip)('content conformance', () => {
   };
   /** The jobs of one item, read as the worker would. */
   const jobsOf = (itemId: string) =>
-    operatorDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_worker`.execute(trx);
+    asRole(operatorDb, 'mycel_worker', async (trx) => {
       return trx
         .selectFrom('jobs')
         .selectAll()

@@ -6,9 +6,9 @@
 // Skips without DATABASE_URL and AUTH_DATABASE_URL; in CI that is a failure.
 
 import { afterAll, describe, expect, it } from 'vitest';
-import { sql } from 'kysely';
 import { FakeClock, runSuffix } from '@mycel/core/testing';
 import { createDb, createIdentityStore, sweepRateLimits, uuidv7Ids } from './index.js';
+import { asRole } from './roles.js';
 import { requireDatabase } from './testing.js';
 
 const { skip, operator: operatorUrl, auth: authUrl } = requireDatabase('auth');
@@ -27,8 +27,7 @@ describe.skipIf(skip)('shared login limit', () => {
 
   /** The windows of `k`, read as mycel_auth (the owner sees nothing under forced RLS). */
   const windows = (k: string) =>
-    operatorDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_auth`.execute(trx);
+    asRole(operatorDb, 'mycel_auth', async (trx) => {
       return trx
         .selectFrom('login_attempts')
         .select(['window_start', 'hits'])
@@ -75,8 +74,7 @@ describe.skipIf(skip)('shared login limit', () => {
     expect(await windows('old')).toEqual([]);
     expect(await windows('x')).toHaveLength(2);
     // Whatever its query asks, the janitor's policies reach no live window.
-    const deleted = await operatorDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_janitor`.execute(trx);
+    const deleted = await asRole(operatorDb, 'mycel_janitor', async (trx) => {
       return trx.deleteFrom('login_attempts').where('key', '=', key('x')).executeTakeFirst();
     });
     expect(deleted.numDeletedRows).toBe(0n);

@@ -3,9 +3,10 @@
 // closed list of roles and one key shape. This ratchet keeps every way to switch a role
 // (`set [local|session] role`, `set_config('role', …)`, `reset role`, `set session
 // authorization`) and every advisory lock (`pg_[try_]advisory[_xact]_lock`) out of every other
-// source file of the packages and apps. One file is named below with its reason. Tests may still
-// switch roles by hand (testing.md, `set local role mycel_app` before an owner write), and
-// comments may name the statement. The same holds for the other way to change the platform: a
+// source file of the packages and apps, tests and the e2e suite included: a test enters a role
+// with `asRole`, `setRole`, `enterTenant` or, on a raw `pg` client, `setClientRole` (testing.md
+// rule 3). The files named below may switch by hand, each with its reason: the suites that test
+// the switch itself, and what a helper cannot express. Comments may name the statement. The same holds for the other way to change the platform: a
 // tenant row is inserted only in `packages/db/src/platform.ts`, where every creation writes its
 // audit row (TODO #74 removed `upsertTenant`, a second path without one). Run by
 // `npm run lint:infra`, offline.
@@ -13,22 +14,49 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isTest, staleEntries, stripComments, workspaceSources } from './lib/repo.mjs';
+import {
+  isTest,
+  readAll,
+  staleEntries,
+  stripComments,
+  walk,
+  workspaceSources,
+} from './lib/repo.mjs';
 
 export const HELPER = 'packages/db/src/roles.ts';
-/**
- * Files that may take a lock by hand, each with its reason. `migrate.ts` holds a session-level
- * lock on a raw `pg` client across many transactions (one migrator at a time), which a
- * transaction-scoped helper on Kysely cannot express.
- */
-export const EXCEPTIONS = new Map([['packages/db/src/migrate.ts', /pg_advisory_(un)?lock\(/i]]);
 const PATTERN =
   /set\s+(local\s+|session\s+)?role\b|set_config\(\s*'role'|reset\s+role|set\s+session\s+authorization|pg_(try_)?advisory(_xact)?_(un)?lock/i;
+
+/**
+ * Files that may switch a role or take a lock by hand, each with what it may write and why. The
+ * list only shrinks (`unusedExceptions`).
+ */
+export const EXCEPTIONS = new Map([
+  // A session-level lock on a raw `pg` client across many transactions (one migrator at a time),
+  // which a transaction-scoped helper on Kysely cannot express.
+  ['packages/db/src/migrate.ts', /pg_advisory_(un)?lock\(/i],
+  // The suites that test the switch or the lock itself: every role against every policy, the
+  // migration suites on a bare client at a past schema, the helper's own lock.
+  ['packages/db/src/rls.conformance.test.ts', PATTERN],
+  ['packages/db/src/content-migration.test.ts', PATTERN],
+  ['packages/db/src/content-refs-migration.test.ts', PATTERN],
+  ['packages/db/src/consent-snapshot-migration.test.ts', PATTERN],
+  ['packages/db/src/roles.test.ts', /pg_try_advisory_xact_lock\(/i],
+  // Proves that the authenticator login cannot switch to another role: the refused switch is
+  // the assertion.
+  ['packages/db/src/operators.test.ts', /set role mycel_worker/i],
+  // Stands in for the backup login (backup.sh), which production never switches to, so it is
+  // not a `DbRole`.
+  ['packages/db/src/erasure-backups.test.ts', /set local role mycel_backup/i],
+  // Back to the owner inside one rolled-back transaction, after inserting as mycel_app; the owner
+  // is not a role to switch to.
+  ['packages/db/src/jobs.test.ts', /reset role/i],
+]);
 
 /** Lines of code (comments stripped) in `files` (`[{ path, text }]`) that bypass the helper. */
 export function bypasses(files) {
   return files.flatMap(({ path, text }) => {
-    if (path === HELPER || isTest(path)) return [];
+    if (path === HELPER) return [];
     const lines = text.split('\n');
     return stripComments(text)
       .split('\n')
@@ -66,8 +94,14 @@ export const unusedExceptions = (files) =>
     'db-roles EXCEPTIONS'
   );
 
+/** The packages and apps, plus the e2e suite, which lives outside `src`. */
+const sources = () => [
+  ...workspaceSources(),
+  ...readAll(walk('apps/web/e2e', { match: (p) => /\.[cm]?[jt]s$/.test(p) })),
+];
+
 test('role switches and advisory locks go through packages/db/src/roles.ts', () => {
-  const found = workspaceSources();
+  const found = sources();
   assert.ok(
     found.some((f) => f.path === HELPER),
     'the scan finds the helper'
@@ -115,7 +149,7 @@ test('the tenant rule flags a second insert in any form and leaves platform.ts, 
   );
 });
 
-test('the rule flags a hand-written switch or lock and leaves comments, tests and the helper', () => {
+test('the rule flags a hand-written switch or lock, in a test too, and leaves comments and the helper', () => {
   const file = (path, text) => ({ path, text });
   assert.deepEqual(
     bypasses([
@@ -123,13 +157,27 @@ test('the rule flags a hand-written switch or lock and leaves comments, tests an
       file('packages/db/src/media.ts', 'await sql`select pg_advisory_xact_lock(1)`.execute(trx);'),
       file('packages/db/src/ops.ts', '// enters mycel_worker with `set local role`\nconst x = 1;'),
       file('packages/db/src/hostnames.ts', '/**\n * `set local role` once\n */\nconst y = 2;'),
-      file('packages/db/src/jobs.test.ts', 'await sql`set local role mycel_app`.execute(trx);'),
+      file('packages/db/src/media.test.ts', 'await sql`set local role mycel_app`.execute(trx);'),
+      file('apps/web/e2e/admin.spec.ts', "await c.query('set local role mycel_worker');"),
       file(HELPER, 'await sql`set local role ${sql.id(role)}`.execute(trx);'),
     ]),
     [
       'packages/db/src/jobs.ts:1: await sql`set local role mycel_worker`.execute(trx);',
       'packages/db/src/media.ts:1: await sql`select pg_advisory_xact_lock(1)`.execute(trx);',
+      'packages/db/src/media.test.ts:1: await sql`set local role mycel_app`.execute(trx);',
+      "apps/web/e2e/admin.spec.ts:1: await c.query('set local role mycel_worker');",
     ]
+  );
+});
+
+test('a test exception covers what it names and nothing else', () => {
+  const jobs = 'packages/db/src/jobs.test.ts';
+  assert.deepEqual(
+    bypasses([
+      { path: jobs, text: "await client.query('reset role');" },
+      { path: jobs, text: "await client.query('set local role mycel_app');" },
+    ]),
+    [`${jobs}:1: await client.query('set local role mycel_app');`]
   );
 });
 

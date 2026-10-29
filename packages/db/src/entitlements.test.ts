@@ -47,6 +47,7 @@ import {
   uuidv7Ids,
   withTenant,
 } from './index.js';
+import { setClientRole } from './roles.js';
 import { closeTenantWork, requireDatabase, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl, auth: authUrl } = requireDatabase('app', 'auth');
@@ -137,15 +138,15 @@ describe.skipIf(skip)('entitlements conformance', () => {
     );
     const tried = await as(authUrl, async (c) => {
       await c.query('begin');
-      await c.query('set local role mycel_auth');
+      await setClientRole(c, 'mycel_auth');
       const read = await sqlState(c.query('select id, entitlements, status from tenants limit 1'));
       await c.query('rollback');
       await c.query('begin');
-      await c.query('set local role mycel_auth');
+      await setClientRole(c, 'mycel_auth');
       const createdAt = await sqlState(c.query('select created_at from tenants limit 1'));
       await c.query('rollback');
       await c.query('begin');
-      await c.query('set local role mycel_auth');
+      await setClientRole(c, 'mycel_auth');
       const write = await sqlState(c.query(`update tenants set status = 'suspended'`));
       await c.query('rollback');
       return { read, createdAt, write };
@@ -160,7 +161,7 @@ describe.skipIf(skip)('entitlements conformance', () => {
   const asPlatform = (statement: string, params: unknown[] = [], tenant?: string) =>
     as(authUrl, async (c) => {
       await c.query('begin');
-      await c.query('set local role mycel_platform');
+      await setClientRole(c, 'mycel_platform');
       if (tenant) await c.query(`select set_config('app.tenant_id', $1, true)`, [tenant]);
       const state = await sqlState(c.query(statement, params));
       await c.query('rollback');
@@ -181,7 +182,7 @@ describe.skipIf(skip)('entitlements conformance', () => {
     // What the role may do: read hostnames across tenants.
     const { rows } = await as(authUrl, async (c) => {
       await c.query('begin');
-      await c.query('set local role mycel_platform');
+      await setClientRole(c, 'mycel_platform');
       const r = await c.query<{ n: string }>(
         `select count(distinct tenant_id) as n from tenant_hostnames where hostname like $1`,
         [`ent-p_-${run}.${DOMAIN}`]
@@ -344,7 +345,7 @@ describe.skipIf(skip)('entitlements conformance', () => {
       await c.query(`select set_config('app.tenant_id', $1, true)`, [holder.id]);
       // As mycel_app: since 0010 the policy on tenant_hostnames is bound to that role, so an
       // owner without superuser (managed Postgres, the Mac) cannot insert as itself.
-      await c.query('set local role mycel_app');
+      await setClientRole(c, 'mycel_app');
       await c.query(
         `insert into tenant_hostnames (hostname, tenant_id, kind, verification_token)
          values ($1, $2, 'custom', 'legacy')`,
