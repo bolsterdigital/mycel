@@ -3,7 +3,7 @@
 // everything the handler wrote, its own rows and its outbox events alike. The memory adapter is
 // not transactional and cannot show this; only the database can.
 //
-// Skips without DATABASE_URL and APP_DATABASE_URL; with E2E_REQUIRED=1 (CI) that is a failure.
+// Skips without DATABASE_URL and APP_DATABASE_URL; in CI that is a failure.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
@@ -14,14 +14,13 @@ import {
   FakeSigner,
   memoryPlatform,
   probeForm,
+  runSuffix,
+  adminOf,
 } from '@mycel/core/testing';
-import { createDb, createUnitOfWork, migrate, upsertTenant, uuidv7, uuidv7Ids } from './index.js';
-import { closeTenantWork } from './testing.js';
+import { createDb, createUnitOfWork, uuidv7, uuidv7Ids } from './index.js';
+import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-const appUrl = process.env['APP_DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
-  throw new Error('E2E_REQUIRED=1 but DATABASE_URL or APP_DATABASE_URL is not set');
+const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
 /** Writes one tenant row and one outbox event, then returns output that is valid or not. */
 const writeThenAnswer = defineUseCase({
@@ -46,9 +45,9 @@ const writeThenAnswer = defineUseCase({
   examples: [{ input: { formId: 'f', eventId: 'e', validOutput: true } }],
 });
 
-describe.skipIf(!operatorUrl || !appUrl)('invoke conformance', () => {
-  const operatorDb = createDb(operatorUrl ?? '');
-  const appDb = createDb(appUrl ?? '');
+describe.skipIf(skip)('invoke conformance', () => {
+  const operatorDb = createDb(operatorUrl);
+  const appDb = createDb(appUrl);
   const uow = createUnitOfWork(appDb, {
     clock: { now: () => new Date() },
     ids: uuidv7Ids,
@@ -58,13 +57,12 @@ describe.skipIf(!operatorUrl || !appUrl)('invoke conformance', () => {
     platform: memoryPlatform,
   });
   const invoker = new Invoker(new UseCaseRegistry().register(writeThenAnswer), uow);
-  const run = Math.random().toString(36).slice(2, 8);
+  const run = runSuffix();
   let tenantId = '';
-  const admin = () => systemPrincipal(tenantId, 'test');
 
   /** What the transaction left behind: the form (read under RLS) and the outbox row. */
   const leftBehind = async (formId: string, eventId: string) => ({
-    form: await uow.run(admin(), (ctx) => ctx.forms.findById(formId)),
+    form: await uow.run(adminOf(tenantId), (ctx) => ctx.forms.findById(formId)),
     outbox: await operatorDb
       .selectFrom('outbox')
       .select('id')
@@ -73,14 +71,8 @@ describe.skipIf(!operatorUrl || !appUrl)('invoke conformance', () => {
   });
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, { log: () => {} });
-    tenantId = (
-      await upsertTenant(
-        operatorDb,
-        { id: uuidv7(), slug: `invoke-${run}`, name: 'I', defaultLocale: 'nl', locales: ['nl'] },
-        { platformDomain: 'localhost' }
-      )
-    ).id;
+    await migrateSchema(operatorUrl);
+    tenantId = (await testTenant(operatorDb, `invoke-${run}`, { name: 'I' })).id;
   });
 
   afterAll(async () => {
@@ -93,7 +85,7 @@ describe.skipIf(!operatorUrl || !appUrl)('invoke conformance', () => {
     const formId = uuidv7();
     const eventId = uuidv7();
     await expect(
-      invoker.run(writeThenAnswer, admin(), { formId, eventId, validOutput: false })
+      invoker.run(writeThenAnswer, adminOf(tenantId), { formId, eventId, validOutput: false })
     ).rejects.toBeInstanceOf(z.ZodError);
     expect(await leftBehind(formId, eventId)).toEqual({ form: null, outbox: undefined });
   });
@@ -102,7 +94,7 @@ describe.skipIf(!operatorUrl || !appUrl)('invoke conformance', () => {
     const formId = uuidv7();
     const eventId = uuidv7();
     expect(
-      await invoker.run(writeThenAnswer, admin(), { formId, eventId, validOutput: true })
+      await invoker.run(writeThenAnswer, adminOf(tenantId), { formId, eventId, validOutput: true })
     ).toEqual({ id: formId });
     const after = await leftBehind(formId, eventId);
     expect(after.form?.id).toBe(formId);
@@ -113,17 +105,23 @@ describe.skipIf(!operatorUrl || !appUrl)('invoke conformance', () => {
   // with everything else, and the refusal gets its own `error` row after the rollback.
   it('writes the ok row in the command transaction and the error row after its rollback', async () => {
     const audit = () =>
-      uow.run(admin(), (ctx) => ctx.audit.list({ operation: writeThenAnswer.name, limit: 100 }));
+      uow.run(adminOf(tenantId), (ctx) =>
+        ctx.audit.list({ operation: writeThenAnswer.name, limit: 100 })
+      );
     const before = (await audit()).length;
     const formId = uuidv7();
     await expect(
-      invoker.run(writeThenAnswer, admin(), { formId, eventId: uuidv7(), validOutput: false })
+      invoker.run(writeThenAnswer, adminOf(tenantId), {
+        formId,
+        eventId: uuidv7(),
+        validOutput: false,
+      })
     ).rejects.toBeInstanceOf(z.ZodError);
     const afterFailure = await audit();
     expect(afterFailure.length - before).toBe(1);
     expect(afterFailure[0]).toMatchObject({ result: 'error', subjectId: null });
 
-    await invoker.run(writeThenAnswer, admin(), {
+    await invoker.run(writeThenAnswer, adminOf(tenantId), {
       formId: uuidv7(),
       eventId: uuidv7(),
       validOutput: true,

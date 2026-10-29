@@ -3,40 +3,30 @@
 // injected into the registry. A key works over HTTP and for the agent, and stops working on the
 // next request once revoked, in the same running process.
 //
-// Skips without the three database URLs; with E2E_REQUIRED=1 (CI) that is a failure.
+// Skips without the three database URLs; in CI that is a failure.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { systemPrincipal, useCases } from '@mycel/core';
-import { createDb, migrate, upsertTenant, uuidv7 } from '@mycel/db';
+import { createDb } from '@mycel/db';
+import { requireDatabase, testTenant, migrateSchema } from '@mycel/db/testing';
+import { runSuffix } from '@mycel/core/testing';
 import { createApp } from './app.js';
 import { createRuntime, loadConfig, type Runtime } from './compose.js';
 
 const env = process.env;
-const ready = !!(env['DATABASE_URL'] && env['APP_DATABASE_URL'] && env['AUTH_DATABASE_URL']);
-if (env['E2E_REQUIRED'] === '1' && !ready)
-  throw new Error('E2E_REQUIRED=1 but a database URL is not set');
+const { skip } = requireDatabase('app', 'auth');
 
-describe.skipIf(!ready)('API keys through the composition root', () => {
+describe.skipIf(skip)('API keys through the composition root', () => {
   const operatorDb = createDb(env['DATABASE_URL'] ?? '');
   let runtime: Runtime | undefined;
   let tenantId = '';
 
   beforeAll(async () => {
-    await migrate(env['DATABASE_URL']!, {
-      log: () => {},
-    });
+    await migrateSchema(env['DATABASE_URL']!);
     tenantId = (
-      await upsertTenant(
-        operatorDb,
-        {
-          id: uuidv7(),
-          slug: `auth-${Math.random().toString(36).slice(2, 8)}`,
-          name: 'Auth',
-          defaultLocale: 'nl',
-          locales: ['nl'],
-        },
-        { platformDomain: 'localhost' }
-      )
+      await testTenant(operatorDb, `auth-${runSuffix()}`, {
+        name: 'Auth',
+      })
     ).id;
   });
 

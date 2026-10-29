@@ -8,7 +8,7 @@
 //
 // Every job here has a type or key of its own (`run`), and claims are narrowed to those types,
 // so the suite never takes real work and runs beside the other database suites. Skips without
-// DATABASE_URL and APP_DATABASE_URL; with E2E_REQUIRED=1 (CI) that is a failure.
+// DATABASE_URL and APP_DATABASE_URL; in CI that is a failure.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
@@ -22,7 +22,14 @@ import {
   useCases,
   type JobRecord,
 } from '@mycel/core';
-import { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } from '@mycel/core/testing';
+import {
+  FakeDns,
+  FakeInputHasher,
+  FakeSigner,
+  memoryPlatform,
+  runSuffix,
+  adminOf,
+} from '@mycel/core/testing';
 import {
   JOB_LEASE_SECONDS,
   OUTBOX_MAX_ATTEMPTS,
@@ -34,28 +41,24 @@ import {
   createUnitOfWork,
   ensureRecurring,
   failJob,
-  migrate,
   queueLag,
   runJobs,
   sweepRateLimits,
-  upsertTenant,
   uuidv7,
   uuidv7Ids,
   withTenant,
 } from './index.js';
 import { toJobRecord } from './jobs.js';
+import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-const appUrl = process.env['APP_DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
-  throw new Error('E2E_REQUIRED=1 but DATABASE_URL or APP_DATABASE_URL is not set');
+const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
 const PLATFORM = 'conformance.test';
 
-describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
-  const operatorDb = createDb(operatorUrl ?? '');
-  const appDb = createDb(appUrl ?? '');
-  const run = Math.random().toString(36).slice(2, 8);
+describe.skipIf(skip)('jobs conformance', () => {
+  const operatorDb = createDb(operatorUrl);
+  const appDb = createDb(appUrl);
+  const run = runSuffix();
   const uow = createUnitOfWork(appDb, {
     clock: { now: () => new Date() },
     ids: uuidv7Ids,
@@ -68,7 +71,6 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
   /** A job type no handler and no other suite knows. */
   const type = (name: string) => `conformance.${run}.${name}`;
   let tenantId = '';
-  const admin = () => systemPrincipal(tenantId, 'test');
 
   const sqlState = (p: Promise<unknown>) =>
     p.then(
@@ -123,15 +125,9 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
   }
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, {
-      log: () => {},
-    });
+    await migrateSchema(operatorUrl);
     tenantId = (
-      await upsertTenant(
-        operatorDb,
-        { id: uuidv7(), slug: `jobs-${run}`, name: 'Jobs', defaultLocale: 'nl', locales: ['nl'] },
-        { platformDomain: PLATFORM }
-      )
+      await testTenant(operatorDb, `jobs-${run}`, { name: 'Jobs', platformDomain: PLATFORM })
     ).id;
   });
 
@@ -153,8 +149,8 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
 
   it('plans a job in the use case transaction: committed once, rolled back never', async () => {
     const hostname = `www-${run}.example.org`;
-    await invoker.run(useCases.addHostname, admin(), { hostname });
-    await invoker.run(useCases.verifyHostname, admin(), { hostname });
+    await invoker.run(useCases.addHostname, adminOf(tenantId), { hostname });
+    await invoker.run(useCases.verifyHostname, adminOf(tenantId), { hostname });
     const planned = await byKey(`hostnames.reverify:${tenantId}:${hostname}`);
     expect(planned).toHaveLength(1);
     expect(planned[0]).toMatchObject({
@@ -168,7 +164,7 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
 
     const key = `${type('rollback')}:x`;
     await expect(
-      uow.run(admin(), async (ctx) => {
+      uow.run(adminOf(tenantId), async (ctx) => {
         await ctx.jobs.enqueue({
           type: 'hostnames.reverify',
           key,
@@ -190,7 +186,7 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
     });
     const at = new Date();
     const claim = (i: ReturnType<typeof intent>, fail: boolean) =>
-      uow.run(admin(), async (ctx) => {
+      uow.run(adminOf(tenantId), async (ctx) => {
         const row = await claimAttempt(ctx, i, { at, expected: null, lagMs: RECONCILE_LAG_MS });
         if (fail) throw new Error('commit failed');
         return row;
@@ -210,14 +206,14 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
     const lost = intent('lost');
     await expect(claim(lost, true)).rejects.toThrow('commit failed');
     expect(await byKey(`mail.reconcile:${lost.key}`)).toEqual([]);
-    expect(await uow.run(admin(), (ctx) => ctx.mailSends.get(lost.key))).toBeNull();
+    expect(await uow.run(adminOf(tenantId), (ctx) => ctx.mailSends.get(lost.key))).toBeNull();
   });
 
   it('keeps one open job per key, and a finished job does not block the next', async () => {
     const t = type('open');
     const key = `${t}:x`;
     const plan = () =>
-      uow.run(admin(), (ctx) =>
+      uow.run(adminOf(tenantId), (ctx) =>
         // A type of this suite's own, so the claim below never takes real work.
         ctx.jobs.enqueue({
           type: t as 'hostnames.reverify',
@@ -240,7 +236,7 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
   // recovery columns; the rules for which job (exhausted only) are the use cases' (recovery.ts).
   it('lets mycel_app insert and read under its own tenant, never the payload', async () => {
     const asApp = (q: (trx: Parameters<Parameters<typeof withTenant>[2]>[0]) => Promise<unknown>) =>
-      sqlState(withTenant(appDb, admin(), q));
+      sqlState(withTenant(appDb, adminOf(tenantId), q));
     const row = (tenant: string | null) => ({
       id: uuidv7(),
       tenant_id: tenant,
@@ -252,7 +248,7 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
     expect(await asApp((trx) => trx.insertInto('jobs').values(row(tenantId)).execute())).toBe('ok');
     // Its own rows without the payload; no payload, type or key to change; no platform job and
     // no job for another tenant.
-    const own = await withTenant(appDb, admin(), (trx) =>
+    const own = await withTenant(appDb, adminOf(tenantId), (trx) =>
       trx.selectFrom('jobs').select(['id', 'tenant_id']).execute()
     );
     expect(own.length).toBeGreaterThan(0);
@@ -478,7 +474,7 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
       dns: new FakeDns(),
       platform: memoryPlatform,
     });
-    await old.run(admin(), (ctx) =>
+    await old.run(adminOf(tenantId), (ctx) =>
       ctx.rateLimits.hit(`jobs-${run}`, { max: 5, windowSeconds: 60 })
     );
     const t = type('sweep');
@@ -531,7 +527,7 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
     );
     // Written as mycel_app under the tenant, as a use case would. The pending event waits out a
     // backoff, so the drain in db.test.ts, which runs beside this suite, does not take it.
-    await withTenant(appDb, admin(), (trx) =>
+    await withTenant(appDb, adminOf(tenantId), (trx) =>
       trx
         .insertInto('outbox')
         .values(
@@ -615,7 +611,7 @@ describe.skipIf(!operatorUrl || !appUrl)('jobs conformance', () => {
         .sort();
 
     await expect(
-      uow.run(admin(), () => sql`delete from jobs where type = ${t}`.execute(appDb))
+      uow.run(adminOf(tenantId), () => sql`delete from jobs where type = ${t}`.execute(appDb))
     ).rejects.toThrow(/permission denied/);
     // The restrictive policy of 0014: the worker cannot delete an open row, whatever it asks.
     const direct = await asWorker((trx) =>

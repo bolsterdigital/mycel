@@ -5,7 +5,7 @@
 // is how memory came to block a `resolved` intent while Postgres kept it.
 //
 // The memory half always runs; the Postgres half skips without DATABASE_URL and APP_DATABASE_URL,
-// and with E2E_REQUIRED=1 (CI) that is a failure.
+// and in CI that is a failure.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -22,22 +22,12 @@ import {
   FakeSigner,
   MemoryUnitOfWork,
   memoryPlatform,
+  runSuffix,
 } from '@mycel/core/testing';
-import {
-  applyErasures,
-  createDb,
-  createUnitOfWork,
-  migrate,
-  upsertTenant,
-  uuidv7,
-  uuidv7Ids,
-} from './index.js';
-import { closeTenantWork } from './testing.js';
+import { applyErasures, createDb, createUnitOfWork, migrate, uuidv7, uuidv7Ids } from './index.js';
+import { closeTenantWork, requireDatabase, testTenant } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-const appUrl = process.env['APP_DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
-  throw new Error('E2E_REQUIRED=1 but DATABASE_URL or APP_DATABASE_URL is not set');
+const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
 interface Adapter {
   uow: UnitOfWork;
@@ -197,9 +187,9 @@ describe('adapter rules, memory', () => {
   });
 });
 
-describe.skipIf(!operatorUrl || !appUrl)('adapter rules, postgres', () => {
-  const operatorDb = createDb(operatorUrl ?? '');
-  const appDb = createDb(appUrl ?? '');
+describe.skipIf(skip)('adapter rules, postgres', () => {
+  const operatorDb = createDb(operatorUrl);
+  const appDb = createDb(appUrl);
   const uow = createUnitOfWork(appDb, {
     clock: new FakeClock(new Date()),
     ids: uuidv7Ids,
@@ -209,10 +199,10 @@ describe.skipIf(!operatorUrl || !appUrl)('adapter rules, postgres', () => {
     platform: memoryPlatform,
     connectionCredentialKey: '20'.repeat(32),
   });
-  const run = Math.random().toString(36).slice(2, 8);
+  const run = runSuffix();
   const tenants: string[] = [];
 
-  beforeAll(() => migrate(operatorUrl!, { log: () => {} }));
+  beforeAll(() => migrate(operatorUrl, { log: () => {} }));
   afterAll(async () => {
     await closeTenantWork(operatorDb, tenants);
     await operatorDb.destroy();
@@ -223,17 +213,7 @@ describe.skipIf(!operatorUrl || !appUrl)('adapter rules, postgres', () => {
     const result = await observe({
       uow,
       async tenant() {
-        const { id } = await upsertTenant(
-          operatorDb,
-          {
-            id: uuidv7(),
-            slug: `rules-${run}`,
-            name: 'Rules',
-            defaultLocale: 'nl',
-            locales: ['nl'],
-          },
-          { platformDomain: 'localhost' }
-        );
+        const { id } = await testTenant(operatorDb, `rules-${run}`, { name: 'Rules' });
         tenants.push(id);
         return id;
       },

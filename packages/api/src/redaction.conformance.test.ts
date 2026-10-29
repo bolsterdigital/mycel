@@ -20,10 +20,10 @@ import {
   createLogger,
   sentryErrorReporter,
 } from '@mycel/observability';
+import { TENANT } from '@mycel/core/testing';
 import { createApp } from './app.js';
 
 const ADDRESS = 'jan.jansen@example.org';
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 
 const operator: Principal = {
   tenantId: TENANT,

@@ -8,7 +8,7 @@ import { toJsonSchema } from './json-schema.js';
 import { anonymousPrincipal, Capability, systemPrincipal, type Principal } from './principal.js';
 import { checkRegistry } from './registry-rules.js';
 import type { UseCase } from './registry.js';
-import { MemoryUnitOfWork, probeForm, probeTenant } from './testing/index.js';
+import { MemoryUnitOfWork, probeForm, probeTenant, TENANT } from './testing/index.js';
 import { buildRegistry, useCases } from './use-cases.js';
 
 describe('registry conformance', () => {
@@ -75,7 +75,6 @@ describe('validation boundary', () => {
 // probe tenant with that limit at zero and must be refused with `limit_exceeded`; with the
 // defaults the same call must not be (it may fail for other reasons, the example being generic).
 describe('a use case that consumes a limit checks it (ADR 015)', () => {
-  const TENANT = '01900000-0000-7000-8000-00000000aaaa';
   const registry = buildRegistry();
   const consumers = registry.list().filter((u) => u.consumes);
 
@@ -120,7 +119,6 @@ describe('a use case that consumes a limit checks it (ADR 015)', () => {
 // with the gate's own issue, on ids that do not exist; a command that checks later, or not at all,
 // answers `not_found` or succeeds instead. The second case shows the check is not vacuous.
 describe('every ai:assist command passes the assistance gate (ADR 015)', () => {
-  const TENANT = '01900000-0000-7000-8000-00000000aaaa';
   const registry = buildRegistry();
   const assisted = registry.list().filter((u) => u.requires === 'ai:assist');
 
@@ -299,7 +297,6 @@ describe('registry rules catch violations', () => {
 // and no address in any column. Runs every command of the registry, so a new command is covered
 // without a new test.
 describe('every command leaves exactly one audit row (TODO #17b)', () => {
-  const TENANT = '01900000-0000-7000-8000-00000000aaaa';
   const registry = buildRegistry();
   const commands = registry.list().filter((u) => u.kind === 'command');
   const HEX64 = /^[0-9a-f]{64}$/;

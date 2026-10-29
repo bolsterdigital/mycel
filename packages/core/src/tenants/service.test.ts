@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   Invoker,
-  UseCaseError,
   buildRegistry,
   systemPrincipal,
   useCases,
@@ -15,9 +14,10 @@ import {
   MemoryTenants,
   MemoryUnitOfWork,
   probeTenant,
+  expectCode,
+  TENANT,
 } from '../testing/index.js';
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const OTHER = '01900000-0000-7000-8000-00000000bbbb';
 const platform = {
   domain: 'mycel.site',
@@ -49,8 +49,6 @@ describe('custom domains', () => {
     invoker = new Invoker(buildRegistry(), uow);
   });
 
-  const expectCode = async (p: Promise<unknown>, code: string) =>
-    expect(p).rejects.toSatisfy((e) => e instanceof UseCaseError && e.code === code);
   const list = async (principal = admin) =>
     (await invoker.run(useCases.listHostnames, principal, {})).hostnames;
   const add = (hostname: string, principal = admin) =>

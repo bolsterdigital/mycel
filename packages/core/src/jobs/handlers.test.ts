@@ -17,9 +17,9 @@ import {
   MemoryScheduler,
   MemoryUnitOfWork,
   probeTenant,
+  TENANT,
 } from '../testing/index.js';
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const OTHER = '01900000-0000-7000-8000-00000000bbbb';
 const platform = {
   domain: 'mycel.site',

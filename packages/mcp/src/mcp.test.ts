@@ -2,10 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { Invoker, buildRegistry, systemPrincipal, type ErrorReporter } from '@mycel/core';
-import { MemoryUnitOfWork, probeForm, probePage } from '@mycel/core/testing';
+import { MemoryUnitOfWork, probeForm, probePage, TENANT } from '@mycel/core/testing';
 import { createMcpServer } from './index.js';
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const FORM = '01900000-0000-7000-8000-00000000f000';
 
 async function connect(

@@ -4,25 +4,23 @@
 // routes work at all proves the API needs no schema-owner credentials (ADR 011 rule 1; review
 // round 1, audit point 2).
 //
-// Skips without the three database URLs; with E2E_REQUIRED=1 (CI) that is a failure.
+// Skips without the three database URLs; in CI that is a failure.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DEFAULT_ENTITLEMENTS, systemPrincipal, useCases } from '@mycel/core';
-import { probeForm } from '@mycel/core/testing';
-import { createDb, migrate, uuidv7 } from '@mycel/db';
-import { closeTenantWork } from '@mycel/db/testing';
+import { probeForm, runSuffix } from '@mycel/core/testing';
+import { createDb, uuidv7 } from '@mycel/db';
+import { closeTenantWork, requireDatabase, migrateSchema } from '@mycel/db/testing';
 import { sql } from 'kysely';
 import { createApp } from './app.js';
 import { createRuntime, loadConfig, tokenFingerprint, type Runtime } from './compose.js';
 
 const env = process.env;
-const ready = !!(env['DATABASE_URL'] && env['APP_DATABASE_URL'] && env['AUTH_DATABASE_URL']);
-if (env['E2E_REQUIRED'] === '1' && !ready)
-  throw new Error('E2E_REQUIRED=1 but a database URL is not set');
+const { skip } = requireDatabase('app', 'auth');
 
 const TOKEN = 'platform-conformance-token-0123456789abcdef';
 
-describe.skipIf(!ready)('platform API', () => {
+describe.skipIf(skip)('platform API', () => {
   const runtimes: Runtime[] = [];
   const runtime = (token?: string) => {
     const rt = createRuntime(
@@ -47,12 +45,10 @@ describe.skipIf(!ready)('platform API', () => {
       authenticate: rt.authenticateApiKey,
       platform: rt.platformApi,
     });
-  const run = Math.random().toString(36).slice(2, 8);
+  const run = runSuffix();
 
   beforeAll(async () => {
-    await migrate(env['DATABASE_URL']!, {
-      log: () => {},
-    });
+    await migrateSchema(env['DATABASE_URL']!);
   });
 
   /** Tenants this suite created; their outbox and jobs are closed in afterAll. */

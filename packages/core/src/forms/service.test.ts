@@ -13,12 +13,12 @@ import {
   MemoryUnitOfWork,
   probeForm,
   solveProof,
+  TENANT,
 } from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { issueProofChallenge, type ProofChallenge } from './proof.js';
 import { validateValues } from './service.js';
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const FORM = '01900000-0000-7000-8000-00000000f000';
 const MISSING = '01900000-0000-7000-8000-00000000dead';
 

@@ -6,7 +6,7 @@
 // own contract is packages/blob's suite. The backup's list of required files
 // (docker/backup/media-expected.sql, TODO #29A) is held to `mediaKeys` here.
 //
-// Skips without DATABASE_URL and APP_DATABASE_URL; with E2E_REQUIRED=1 (CI) that is a failure.
+// Skips without DATABASE_URL and APP_DATABASE_URL; in CI that is a failure.
 
 import { readFile } from 'node:fs/promises';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -38,21 +38,12 @@ import {
   MemoryBlobStore,
   memoryImageProcessor,
   memoryPlatform,
+  runSuffix,
 } from '@mycel/core/testing';
-import {
-  createDb,
-  createUnitOfWork,
-  migrate,
-  runJobs,
-  upsertTenant,
-  uuidv7,
-  uuidv7Ids,
-} from './index.js';
+import { createDb, createUnitOfWork, runJobs, uuidv7, uuidv7Ids } from './index.js';
+import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-const appUrl = process.env['APP_DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
-  throw new Error('E2E_REQUIRED=1 but DATABASE_URL or APP_DATABASE_URL is not set');
+const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
 /** A store whose writes take a while, so two uploads really overlap. */
 class SlowBlobStore extends MemoryBlobStore {
@@ -62,10 +53,10 @@ class SlowBlobStore extends MemoryBlobStore {
   }
 }
 
-describe.skipIf(!operatorUrl || !appUrl)('media conformance', () => {
-  const operatorDb = createDb(operatorUrl ?? '');
-  const appDb = createDb(appUrl ?? '');
-  const run = Math.random().toString(36).slice(2, 8);
+describe.skipIf(skip)('media conformance', () => {
+  const operatorDb = createDb(operatorUrl);
+  const appDb = createDb(appUrl);
+  const run = runSuffix();
   const clock = new FakeClock(new Date());
   const blobs = new SlowBlobStore(clock);
   const uow = createUnitOfWork(appDb, {
@@ -93,15 +84,9 @@ describe.skipIf(!operatorUrl || !appUrl)('media conformance', () => {
   };
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, {
-      log: () => {},
-    });
+    await migrateSchema(operatorUrl);
     const tenant = (slug: string) =>
-      upsertTenant(
-        operatorDb,
-        { id: uuidv7(), slug: `${slug}-${run}`, name: slug, defaultLocale: 'nl', locales: ['nl'] },
-        { platformDomain: 'localhost' }
-      ).then((t) => t.id);
+      testTenant(operatorDb, `${slug}-${run}`, { name: slug }).then((t) => t.id);
     [a, b] = [await tenant('media-a'), await tenant('media-b')];
   });
 
@@ -152,11 +137,7 @@ describe.skipIf(!operatorUrl || !appUrl)('media conformance', () => {
 
   it('lets exactly one of two concurrent uploads past the cap (the lock)', async () => {
     const probe = await upload(systemPrincipal(b, 'probe'));
-    const t = await upsertTenant(
-      operatorDb,
-      { id: uuidv7(), slug: `media-cap-${run}`, name: 'cap', defaultLocale: 'nl', locales: ['nl'] },
-      { platformDomain: 'localhost' }
-    );
+    const t = await testTenant(operatorDb, `media-cap-${run}`, { name: 'cap' });
     const capped: Principal = {
       ...systemPrincipal(t.id, 'test'),
       entitlements: { ...DEFAULT_ENTITLEMENTS, 'media.storage_max_bytes': probe.totalBytes * 1.5 },
@@ -230,17 +211,7 @@ describe.skipIf(!operatorUrl || !appUrl)('media conformance', () => {
     expect(left.filter((k) => k.includes(kept.id))).toHaveLength(4);
   });
   it('lists every file of every live asset for the backup by its key, as mediaKeys does', async () => {
-    const c = await upsertTenant(
-      operatorDb,
-      {
-        id: uuidv7(),
-        slug: `media-keys-${run}`,
-        name: 'keys',
-        defaultLocale: 'nl',
-        locales: ['nl'],
-      },
-      { platformDomain: 'localhost' }
-    ).then((t) => t.id);
+    const c = await testTenant(operatorDb, `media-keys-${run}`, { name: 'keys' }).then((t) => t.id);
     const v = (name: string, format: StoredVariant['format']): StoredVariant => ({
       name,
       format,

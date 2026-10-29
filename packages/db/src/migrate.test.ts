@@ -2,22 +2,22 @@
 // applied file and refuses to start when one has changed, before it applies or records anything.
 // Runs `applyMigrations` over a temporary directory in a throwaway schema (`search_path`), so the
 // real `schema_migrations` of the shared database is never touched and suites in parallel do not
-// notice. Skips without DATABASE_URL; with E2E_REQUIRED=1 (CI) that is a failure.
+// notice. Skips without DATABASE_URL; in CI that is a failure.
 
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { runSuffix } from '@mycel/core/testing';
 import { applyMigrations, migrate, migrationsAhead } from './migrate.js';
+import { requireDatabase } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && !operatorUrl)
-  throw new Error('E2E_REQUIRED=1 but DATABASE_URL is not set');
+const { skip, operator: operatorUrl } = requireDatabase();
 
-describe.skipIf(!operatorUrl)('migrate: checksums of applied files', () => {
+describe.skipIf(skip)('migrate: checksums of applied files', () => {
   const client = new pg.Client({ connectionString: operatorUrl });
-  const schema = `migrate_test_${Math.random().toString(36).slice(2, 8)}`;
+  const schema = `migrate_test_${runSuffix()}`;
   let dir = '';
 
   const write = (file: string, text: string) => writeFile(join(dir, file), text);
@@ -107,7 +107,7 @@ describe.skipIf(!operatorUrl)('migrate: checksums of applied files', () => {
         contender.query(`alter role ${quotedRole} password 'another-test-value'`)
       ).rejects.toMatchObject({ code: '55P03' });
       // The schema-only test setup can still finish while that role transaction is open.
-      await expect(migrate(operatorUrl!, { log: () => {} })).resolves.toEqual([]);
+      await expect(migrate(operatorUrl, { log: () => {} })).resolves.toEqual([]);
     } finally {
       await holder.query('rollback').catch(() => {});
       await Promise.all([holder.end(), contender.end()]);

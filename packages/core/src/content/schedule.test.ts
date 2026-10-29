@@ -7,11 +7,10 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { Invoker } from '../invoke.js';
 import { parseJobPayload } from '../jobs/types.js';
 import { systemPrincipal, type Principal } from '../principal.js';
-import { FakeClock, MemoryUnitOfWork } from '../testing/index.js';
+import { FakeClock, MemoryUnitOfWork, TENANT } from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { publishScheduled } from './service.js';
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const HOUR = 3_600_000;
 
 const doc = (title: string) => ({

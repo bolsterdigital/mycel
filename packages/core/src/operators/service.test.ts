@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   Invoker,
   TOKEN_PATTERN,
-  UseCaseError,
   agentPrincipalFor,
   apiKeyPrincipal,
   buildRegistry,
@@ -20,11 +19,12 @@ import {
   MemoryTenants,
   MemoryUnitOfWork,
   probeTenant,
+  expectCode,
+  TENANT,
 } from '../testing/index.js';
 
 const defaults = { entitlements: DEFAULT_ACCESS.entitlements, tenantStatus: DEFAULT_ACCESS.status };
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const OTHER = '01900000-0000-7000-8000-00000000bbbb';
 const ISSUER = 'https://idp.example';
 
@@ -46,9 +46,6 @@ describe('members and keys', () => {
     );
     invoker = new Invoker(buildRegistry(), uow);
   });
-
-  const expectCode = async (p: Promise<unknown>, code: string) =>
-    expect(p).rejects.toSatisfy((e) => e instanceof UseCaseError && e.code === code);
 
   /** Invite, then log in with a verified address: the operator's admin principal. */
   async function loggedIn(email: string, caps: Principal['capabilities'] = ['tenant:admin']) {

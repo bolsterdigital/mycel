@@ -16,12 +16,13 @@ import {
   MemoryUnitOfWork,
   overrideMedia,
   pauseMedia,
+  expectCode,
+  TENANT,
 } from '../testing/index.js';
 import { bytesToBase64 } from '../util/bytes.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { longReadPattern, photoStoryPattern } from './patterns.js';
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const OTHER = '01900000-0000-7000-8000-00000000bbbb';
 const system = systemPrincipal(TENANT, 'test');
 const other = systemPrincipal(OTHER, 'test');
@@ -65,14 +66,6 @@ const quote = (id: string) => ({
   version: 1 as const,
   props: { text: { nl: 'Citaat', en: 'Quote' }, attribution: { name: 'Sam' } },
 });
-
-const expectCode = (p: Promise<unknown>, code: string, message?: string) =>
-  expect(p).rejects.toSatisfy(
-    (e) =>
-      e instanceof UseCaseError &&
-      e.code === code &&
-      (!message || e.issues.some((i) => i.message.startsWith(message)))
-  );
 
 /** Whether `p` is still pending after the event loop had a few turns to settle it. */
 async function pending(p: Promise<unknown>): Promise<boolean> {

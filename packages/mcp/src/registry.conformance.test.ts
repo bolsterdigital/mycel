@@ -13,10 +13,9 @@ import {
   type Principal,
   type UseCase,
 } from '@mycel/core';
-import { MemoryUnitOfWork } from '@mycel/core/testing';
+import { MemoryUnitOfWork, TENANT } from '@mycel/core/testing';
 import { createMcpServer } from './index.js';
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const registry = buildRegistry();
 const useCases = registry.list();
 

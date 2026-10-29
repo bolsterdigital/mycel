@@ -6,7 +6,7 @@
 // packages/db/src/jobs.test.ts; the counting in packages/core/src/mailing.
 //
 // Every job here has a type of this run, and claims are narrowed to those types, so the suite
-// never takes real work. Skips without the three database URLs; with E2E_REQUIRED=1 (CI) that
+// never takes real work. Skips without the three database URLs; in CI that
 // is a failure.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -27,26 +27,23 @@ import {
   FakeSigner,
   memoryPlatform,
   testPlatformActor,
+  runSuffix,
 } from '@mycel/core/testing';
 import {
   createDb,
   createIdentityStore,
   createUnitOfWork,
-  migrate,
   readOutboxEvent,
   runJobs,
   setStatus,
-  upsertTenant,
   uuidv7,
   uuidv7Ids,
 } from '@mycel/db';
-import { closeTenantWork } from '@mycel/db/testing';
+import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from '@mycel/db/testing';
 import { mailReconcileJob } from './jobs.js';
 
 const env = process.env;
-const ready = !!(env['DATABASE_URL'] && env['APP_DATABASE_URL'] && env['AUTH_DATABASE_URL']);
-if (env['E2E_REQUIRED'] === '1' && !ready)
-  throw new Error('E2E_REQUIRED=1 but a database URL is not set');
+const { skip } = requireDatabase('app', 'auth');
 
 /** Accepts every message and keeps the list; `lose` drops the response, `down` the listing. */
 class Provider implements Mailer {
@@ -63,7 +60,7 @@ class Provider implements Mailer {
   }
 }
 
-describe.skipIf(!ready)('mail.reconcile against Postgres', () => {
+describe.skipIf(skip)('mail.reconcile against Postgres', () => {
   const operatorDb = createDb(env['DATABASE_URL'] ?? '');
   const appDb = createDb(env['APP_DATABASE_URL'] ?? '');
   const authDb = createDb(env['AUTH_DATABASE_URL'] ?? '');
@@ -77,7 +74,7 @@ describe.skipIf(!ready)('mail.reconcile against Postgres', () => {
     platform: memoryPlatform,
   });
   const identity = createIdentityStore(authDb, uuidv7Ids);
-  const run = Math.random().toString(36).slice(2, 8);
+  const run = runSuffix();
   const sub = `test-${run}`;
   const message = renderConfirmationMail({
     locale: 'en',
@@ -143,17 +140,9 @@ describe.skipIf(!ready)('mail.reconcile against Postgres', () => {
     );
 
   beforeAll(async () => {
-    await migrate(env['DATABASE_URL']!, {
-      log: () => {},
-    });
+    await migrateSchema(env['DATABASE_URL']!);
     const tenant = async (name: string) =>
-      (
-        await upsertTenant(
-          operatorDb,
-          { id: uuidv7(), slug: `${name}-${run}`, name, defaultLocale: 'nl', locales: ['nl'] },
-          { platformDomain: 'localhost' }
-        )
-      ).id;
+      (await testTenant(operatorDb, `${name}-${run}`, { name: name })).id;
     tenantA = await tenant('mail-a');
     tenantB = await tenant('mail-b');
   });

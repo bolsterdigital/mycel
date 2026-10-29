@@ -3,7 +3,7 @@
 // partitioning, and nothing lands in the default partition. The memory adapter cannot prove any
 // of this; packages/core/src/supporters/service.test.ts covers the fold itself.
 //
-// Skips without DATABASE_URL and APP_DATABASE_URL; with E2E_REQUIRED=1 (CI) that is a failure.
+// Skips without DATABASE_URL and APP_DATABASE_URL; in CI that is a failure.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
@@ -17,17 +17,21 @@ import {
   useCases,
   type SupporterEventType,
 } from '@mycel/core';
-import { FakeInputHasher, FakeSigner, FakeDns, memoryPlatform } from '@mycel/core/testing';
-import { createDb, createUnitOfWork, migrate, upsertTenant, uuidv7, uuidv7Ids } from './index.js';
+import {
+  FakeInputHasher,
+  FakeSigner,
+  FakeDns,
+  memoryPlatform,
+  runSuffix,
+} from '@mycel/core/testing';
+import { createDb, createUnitOfWork, uuidv7Ids } from './index.js';
+import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-const appUrl = process.env['APP_DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
-  throw new Error('E2E_REQUIRED=1 but DATABASE_URL or APP_DATABASE_URL is not set');
+const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
-describe.skipIf(!operatorUrl || !appUrl)('supporter conformance', () => {
-  const operatorDb = createDb(operatorUrl ?? '');
-  const appDb = createDb(appUrl ?? '');
+describe.skipIf(skip)('supporter conformance', () => {
+  const operatorDb = createDb(operatorUrl);
+  const appDb = createDb(appUrl);
   const uow = createUnitOfWork(appDb, {
     clock: { now: () => new Date() },
     ids: uuidv7Ids,
@@ -35,7 +39,7 @@ describe.skipIf(!operatorUrl || !appUrl)('supporter conformance', () => {
     inputHasher: new FakeInputHasher(),
   });
   const invoker = new Invoker(buildRegistry(), uow);
-  const run = Math.random().toString(36).slice(2, 8);
+  const run = runSuffix();
   const base = Date.now() - 10 * 60_000;
   let admin = systemPrincipal('', 'test');
 
@@ -64,18 +68,8 @@ describe.skipIf(!operatorUrl || !appUrl)('supporter conformance', () => {
     uow.run(admin, (ctx) => ctx.supporters.eventsFor(supporterId));
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, { log: () => {} });
-    const tenant = await upsertTenant(
-      operatorDb,
-      {
-        id: uuidv7(),
-        slug: `sup-${run}`,
-        name: 'Supporters',
-        defaultLocale: 'nl',
-        locales: ['nl'],
-      },
-      { platformDomain: 'localhost' }
-    );
+    await migrateSchema(operatorUrl);
+    const tenant = await testTenant(operatorDb, `sup-${run}`, { name: 'Supporters' });
     admin = systemPrincipal(tenant.id, 'test');
   });
 

@@ -15,23 +15,23 @@ import {
   probeForm,
   probeTenant,
   secureErasures,
+  TENANT,
+  adminOf,
 } from '../testing/index.js';
 import { confirmationMailSubscriber } from '../mailing/confirmation.js';
 import { supporterIngestSubscriber } from './service.js';
 import { erasureEmailHash, tombstoneEmail } from './erasure.js';
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 const OTHER = '01900000-0000-7000-8000-00000000bbbb';
 const FORM = '01900000-0000-7000-8000-00000000f000';
 
 describe('ctx.erasures in memory', () => {
   let uow: MemoryUnitOfWork;
-  const admin = (tenant = TENANT) => systemPrincipal(tenant, 'test');
 
   async function signup(tenant: string, email: string) {
     const invoker = new Invoker(buildRegistry(), uow);
-    await uow.run(admin(tenant), (ctx) => ctx.forms.insert(probeForm(FORM)));
-    const result = await invoker.run(useCases.submitForm, admin(tenant), {
+    await uow.run(adminOf(tenant), (ctx) => ctx.forms.insert(probeForm(FORM)));
+    const result = await invoker.run(useCases.submitForm, adminOf(tenant), {
       formId: FORM,
       values: { email, consent: true },
       locale: 'nl',
@@ -73,10 +73,10 @@ describe('ctx.erasures in memory', () => {
   });
 
   it('registers the hash, never the address, once per supporter', async () => {
-    const id = (await uow.run(admin(), (ctx) => ctx.supporters.getProjection('ada@example.org')))!
+    const id = (await uow.run(adminOf(), (ctx) => ctx.supporters.getProjection('ada@example.org')))!
       .id;
-    await uow.run(admin(), (ctx) => ctx.erasures.register(id, 'Ada@Example.org'));
-    await uow.run(admin(), (ctx) => ctx.erasures.register(id, 'ada@example.org'));
+    await uow.run(adminOf(), (ctx) => ctx.erasures.register(id, 'Ada@Example.org'));
+    await uow.run(adminOf(), (ctx) => ctx.erasures.register(id, 'ada@example.org'));
     const register = uow.store.for(TENANT).erasures;
     expect(register.size).toBe(1);
     expect(register.get(id)?.emailHash).toBe(await erasureEmailHash(TENANT, 'ada@example.org'));
@@ -85,7 +85,7 @@ describe('ctx.erasures in memory', () => {
 
   it('applies to every copy in the tenant, keeps the event count and is idempotent', async () => {
     const s = uow.store.for(TENANT);
-    const id = (await uow.run(admin(), (ctx) => ctx.supporters.getProjection('ada@example.org')))!
+    const id = (await uow.run(adminOf(), (ctx) => ctx.supporters.getProjection('ada@example.org')))!
       .id;
     const events = s.events.size;
     expect(s.mailSends.size).toBe(1);
@@ -95,8 +95,8 @@ describe('ctx.erasures in memory', () => {
       submissions: 1,
     });
 
-    await uow.run(admin(), (ctx) => ctx.erasures.register(id, 'ada@example.org'));
-    expect(await uow.run(admin(), (ctx) => ctx.erasures.apply())).toBeGreaterThan(0);
+    await uow.run(adminOf(), (ctx) => ctx.erasures.register(id, 'ada@example.org'));
+    expect(await uow.run(adminOf(), (ctx) => ctx.erasures.apply())).toBeGreaterThan(0);
     expect(copies(TENANT, 'ada@example.org')).toEqual(none);
     expect(s.events.size).toBe(events);
     expect([...s.events.values()].every((e) => e.email === tombstoneEmail(id))).toBe(true);
@@ -104,14 +104,14 @@ describe('ctx.erasures in memory', () => {
     expect(s.mailSends.size).toBe(0);
     expect(uow.store.jobs.filter((j) => j.tenantId === TENANT)).toEqual([]);
 
-    expect(await uow.run(admin(), (ctx) => ctx.erasures.apply())).toBe(0);
+    expect(await uow.run(adminOf(), (ctx) => ctx.erasures.apply())).toBe(0);
     // The other tenant's supporter with the same address is untouched.
     expect(copies(OTHER, 'ada@example.org')).toMatchObject({ supporters: 1, submissions: 1 });
   });
 
   it("expires an export archive that may hold the person, and no other site's", async () => {
     const ready = async (tenant: string) => {
-      const { record } = await uow.run(admin(tenant), (ctx) =>
+      const { record } = await uow.run(adminOf(tenant), (ctx) =>
         ctx.exports.request({ id: uow.ids.next(), requestedBy: 'test', requestedAt: new Date(0) })
       );
       Object.assign(uow.store.for(tenant).exports.get(record.id)!, { status: 'ready' });
@@ -119,10 +119,10 @@ describe('ctx.erasures in memory', () => {
     };
     const mine = await ready(TENANT);
     const theirs = await ready(OTHER);
-    const id = (await uow.run(admin(), (ctx) => ctx.supporters.getProjection('ada@example.org')))!
+    const id = (await uow.run(adminOf(), (ctx) => ctx.supporters.getProjection('ada@example.org')))!
       .id;
-    await uow.run(admin(), (ctx) => ctx.erasures.register(id, 'ada@example.org'));
-    await uow.run(admin(), (ctx) => ctx.erasures.apply());
+    await uow.run(adminOf(), (ctx) => ctx.erasures.register(id, 'ada@example.org'));
+    await uow.run(adminOf(), (ctx) => ctx.erasures.apply());
     expect(uow.store.for(TENANT).exports.get(mine)).toMatchObject({
       status: 'expired',
       error: 'deleted after an erasure',
@@ -132,13 +132,13 @@ describe('ctx.erasures in memory', () => {
 
   it('finds a submission whose supporter was never ingested, by the registered hash', async () => {
     const s = uow.store.for(TENANT);
-    const id = (await uow.run(admin(), (ctx) => ctx.supporters.getProjection('ada@example.org')))!
+    const id = (await uow.run(adminOf(), (ctx) => ctx.supporters.getProjection('ada@example.org')))!
       .id;
     // As after a restore of a backup older than the ingest: the submission, no projection.
     s.projections.clear();
     s.events.clear();
-    await uow.run(admin(), (ctx) => ctx.erasures.register(id, 'ada@example.org'));
-    await uow.run(admin(), (ctx) => ctx.erasures.apply());
+    await uow.run(adminOf(), (ctx) => ctx.erasures.register(id, 'ada@example.org'));
+    await uow.run(adminOf(), (ctx) => ctx.erasures.apply());
     expect(copies(TENANT, 'ada@example.org')).toEqual(none);
   });
 });

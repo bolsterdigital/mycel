@@ -9,30 +9,30 @@
 // member that forced RLS binds, under each tenant's context. Since 0018 (TODO #20b) the owner sees no
 // tenant row; the migrator ran this block as the owner while the policy was still on `public`,
 // which a clean chain still does (0017 before 0018). Only the tenants are the owner's. Skips
-// without DATABASE_URL; with E2E_REQUIRED=1 (CI) that is a failure.
+// without DATABASE_URL; in CI that is a failure.
 
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ContentDocument, documentReferences } from '@mycel/core';
-import { migrate, uuidv7 } from './index.js';
+import { runSuffix } from '@mycel/core/testing';
+import { uuidv7 } from './index.js';
+import { requireDatabase, migrateSchema } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && !operatorUrl)
-  throw new Error('E2E_REQUIRED=1 but DATABASE_URL is not set');
+const { skip, operator: operatorUrl } = requireDatabase();
 
 const MIGRATION = fileURLToPath(
   new URL('../migrations/0017_content_block_refs.sql', import.meta.url)
 );
 
-describe.skipIf(!operatorUrl)('migration 0017 backfill', () => {
+describe.skipIf(skip)('migration 0017 backfill', () => {
   const client = new pg.Client({ connectionString: operatorUrl });
   let backfill = '';
-  const run = Math.random().toString(36).slice(2, 8);
+  const run = runSuffix();
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, { log: () => {} });
+    await migrateSchema(operatorUrl);
     const text = await readFile(MIGRATION, 'utf8');
     backfill = text.slice(text.indexOf('-- backfill:begin'), text.indexOf('-- backfill:end'));
     expect(backfill).toContain('insert into content_block_refs');

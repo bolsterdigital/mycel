@@ -3,8 +3,8 @@
 // having to remember to extend a list. Rejected: a hand-maintained table list, which is exactly
 // the kind of list a forgotten table never makes it onto.
 //
-// Skips without DATABASE_URL (operator) and APP_DATABASE_URL (mycel_app); with E2E_REQUIRED=1
-// (CI) a missing database is a failure, as in scripts/e2e.mjs.
+// Skips without DATABASE_URL (operator) and APP_DATABASE_URL (mycel_app); in CI
+// a missing database is a failure, as in scripts/e2e.mjs.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
@@ -27,24 +27,21 @@ import {
   memoryPlatform,
   probeForm,
   publishProbePage,
+  requireInCi,
+  runSuffix,
 } from '@mycel/core/testing';
 import {
   createDb,
   createTenantDirectory,
   createUnitOfWork,
   deleteExpiredAudit,
-  migrate,
   TABLES,
-  upsertTenant,
   uuidv7,
   uuidv7Ids,
 } from './index.js';
-import { closeTenantWork } from './testing.js';
+import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-const appUrl = process.env['APP_DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
-  throw new Error('E2E_REQUIRED=1 but DATABASE_URL or APP_DATABASE_URL is not set');
+const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
 const APP_ROLE = 'mycel_app';
 // ADR 011 rule 1: cross-tenant (`using (true)`) policies exist only on platform queues, logs and
@@ -82,10 +79,10 @@ interface Policy {
   with_check: string | null;
 }
 
-describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () => {
-  const operatorDb = createDb(operatorUrl ?? '');
-  const appDb = createDb(appUrl ?? '');
-  const run = Math.random().toString(36).slice(2, 8);
+describe.skipIf(skip)('row level security conformance', () => {
+  const operatorDb = createDb(operatorUrl);
+  const appDb = createDb(appUrl);
+  const run = runSuffix();
   let tenantId = '';
   let tables: TenantTable[] = [];
   let partitions: TenantTable[] = [];
@@ -131,9 +128,7 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
   }
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, {
-      log: () => {},
-    });
+    await migrateSchema(operatorUrl);
 
     // Every relation in `public` with a tenant_id column: plain and partitioned tables both.
     // Partitions are checked separately: their parent carries RLS and grants for them.
@@ -181,19 +176,7 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
     // instead of draining the outbox: `drainOutbox` claims every tenant's events, so a drain here
     // would take other suites' events with only some of their subscribers. db.test.ts drains only
     // its own tenants for the same reason (TODO #26).
-    tenantId = (
-      await upsertTenant(
-        operatorDb,
-        {
-          id: uuidv7(),
-          slug: `rls-${run}`,
-          name: 'RLS',
-          defaultLocale: 'nl',
-          locales: ['nl'],
-        },
-        { platformDomain: 'localhost' }
-      )
-    ).id;
+    tenantId = (await testTenant(operatorDb, `rls-${run}`, { name: 'RLS' })).id;
     const clock = { now: () => new Date() };
     const signer = new FakeSigner();
     const uow = createUnitOfWork(appDb, {
@@ -917,11 +900,11 @@ describe.skipIf(!operatorUrl || !appUrl)('row level security conformance', () =>
 
       for (const [name, c] of Object.entries(counts)) {
         if (c === 'no select') continue;
-        if (name === 'erasure_backups' && !backupRecorded) {
-          if (process.env['E2E_REQUIRED'] === '1')
-            throw new Error('E2E_REQUIRED=1 but no backup record could be written');
+        if (
+          name === 'erasure_backups' &&
+          !requireInCi(process.env, backupRecorded, 'no backup record could be written')
+        )
           continue;
-        }
         expect(c.without, `${name}: rows visible without a tenant context`).toBe(0);
         // Without seeded rows the zero above would prove nothing. A new tenant table needs a
         // row in this test's fixture (beforeAll) before it can pass.

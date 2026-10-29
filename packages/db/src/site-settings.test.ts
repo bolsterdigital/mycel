@@ -4,18 +4,22 @@ import { Kysely, PostgresDialect } from 'kysely';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Invoker, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
-import { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } from '@mycel/core/testing';
-import { createDb, createUnitOfWork, migrate, upsertTenant, uuidv7, uuidv7Ids } from './index.js';
+import {
+  FakeDns,
+  FakeInputHasher,
+  FakeSigner,
+  memoryPlatform,
+  runSuffix,
+} from '@mycel/core/testing';
 import { DEFAULT_THEME, DEFAULT_CHROME } from '@mycel/core';
+import { createDb, createUnitOfWork, uuidv7Ids } from './index.js';
 import type { Database } from './schema.js';
+import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-const appUrl = process.env['APP_DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
-  throw new Error('E2E_REQUIRED=1 but DATABASE_URL or APP_DATABASE_URL is not set');
+const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
-describe.skipIf(!operatorUrl || !appUrl)('site settings conformance', () => {
-  const owner = createDb(operatorUrl ?? '');
+describe.skipIf(skip)('site settings conformance', () => {
+  const owner = createDb(operatorUrl);
   const queries: string[] = [];
   // The app connection with a query log, so a test can assert what a read selects.
   const app = new Kysely<Database>({
@@ -48,34 +52,10 @@ describe.skipIf(!operatorUrl || !appUrl)('site settings conformance', () => {
   let a = '';
   let b = '';
   beforeAll(async () => {
-    await migrate(operatorUrl!, { log: () => {} });
-    const run = Math.random().toString(36).slice(2, 8);
-    a = (
-      await upsertTenant(
-        owner,
-        {
-          id: uuidv7(),
-          slug: `site-a-${run}`,
-          name: 'A',
-          defaultLocale: 'nl',
-          locales: ['nl', 'en'],
-        },
-        { platformDomain: 'localhost' }
-      )
-    ).id;
-    b = (
-      await upsertTenant(
-        owner,
-        {
-          id: uuidv7(),
-          slug: `site-b-${run}`,
-          name: 'B',
-          defaultLocale: 'nl',
-          locales: ['nl', 'en'],
-        },
-        { platformDomain: 'localhost' }
-      )
-    ).id;
+    await migrateSchema(operatorUrl);
+    const run = runSuffix();
+    a = (await testTenant(owner, `site-a-${run}`, { name: 'A', locales: ['nl', 'en'] })).id;
+    b = (await testTenant(owner, `site-b-${run}`, { name: 'B', locales: ['nl', 'en'] })).id;
   });
   afterAll(async () => {
     await app.destroy();

@@ -8,8 +8,8 @@
 // either lane fails here until it has its place in the export order.
 //
 // The second database needs CREATEDB (CI and dev-server-1 connect as a superuser); without it the
-// round trip is skipped and the rest runs. Skips without DATABASE_URL and APP_DATABASE_URL; with
-// E2E_REQUIRED=1 (CI) that is a failure.
+// round trip is skipped and the rest runs. Skips without DATABASE_URL and APP_DATABASE_URL; in
+// CI that is a failure.
 
 import { createHash } from 'node:crypto';
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
@@ -34,6 +34,8 @@ import {
   memoryPlatform,
   probeForm,
   publishProbePage,
+  requireInCi,
+  runSuffix,
 } from '@mycel/core/testing';
 import {
   EXPORT_ORDER,
@@ -50,18 +52,11 @@ import {
   type ExportManifest,
 } from './index.js';
 import type { Database } from './schema.js';
-import { closeTenantWork } from './testing.js';
+import { closeTenantWork, requireDatabase, migrateSchema } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-const appUrl = process.env['APP_DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
-  throw new Error('E2E_REQUIRED=1 but DATABASE_URL or APP_DATABASE_URL is not set');
+const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
 const by = { actorId: 'export-test', hasher: new FakeInputHasher() };
-// CI migrates and provisions logins before verify. Test migrations only need schema checks:
-// role passwords live in the cluster, and writing them again across databases raced with
-// test role DDL (`tuple concurrently updated`). Rejected: serialising all database suites.
-const schemaOnly = { log: () => {} };
 
 /**
  * Drop a scratch database once its pool has really gone. `db.destroy()` resolves when pg-pool has
@@ -80,10 +75,10 @@ async function dropDatabase(operatorDb: Kysely<Database>, name: string) {
   await sql`drop database if exists ${sql.id(name)} with (force)`.execute(operatorDb);
 }
 
-describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
-  const operatorDb = createDb(operatorUrl ?? '');
-  const appDb = createDb(appUrl ?? '');
-  const run = Math.random().toString(36).slice(2, 8);
+describe.skipIf(skip)('tenant export and import', () => {
+  const operatorDb = createDb(operatorUrl);
+  const appDb = createDb(appUrl);
+  const run = runSuffix();
   const blobs = new MemoryBlobStore();
   const uow = createUnitOfWork(appDb, {
     clock: { now: () => new Date() },
@@ -242,7 +237,7 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
     );
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, schemaOnly);
+    await migrateSchema(operatorUrl);
     scratch.dir = await mkdtemp(join(tmpdir(), 'mycel-export-test-'));
     for (const [key, n] of [
       ['a', 1],
@@ -283,14 +278,13 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
     canCreateDb = rows[0]?.ok === true;
     // Import and rollback need a second database; in CI their absence is a failure, not a skip
     // (TODO #29B), as in consent-snapshot-migration.test.ts.
-    if (!canCreateDb && process.env['E2E_REQUIRED'] === '1')
-      throw new Error('E2E_REQUIRED=1 but the login has neither CREATEDB nor superuser');
+    requireInCi(process.env, canCreateDb, 'the login has neither CREATEDB nor superuser');
     if (canCreateDb) {
       await sql`create database ${sql.id(target.name)}`.execute(operatorDb);
-      const url = new URL(operatorUrl!);
+      const url = new URL(operatorUrl);
       url.pathname = `/${target.name}`;
       target.url = url.href;
-      await migrate(target.url, schemaOnly);
+      await migrateSchema(target.url);
       target.db = createDb(target.url);
     }
   });
@@ -309,7 +303,7 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
     // Repeated cross-database migration checks: the old password-writing setup failed in 236
     // of 600 calls on dev-server-1. Both sides now leave cluster roles alone.
     for (let round = 0; round < 10; round++)
-      await Promise.all([migrate(target.url, schemaOnly), migrate(operatorUrl!, schemaOnly)]);
+      await Promise.all([migrateSchema(target.url), migrateSchema(operatorUrl)]);
   });
 
   it('places every table of the schema, and the catalog has no tenant table without a place', async () => {
@@ -641,11 +635,11 @@ describe.skipIf(!operatorUrl || !appUrl)('tenant export and import', () => {
         // A database of its own: B also travels into the shared target below.
         const name = `${target.name}_0019`;
         await sql`create database ${sql.id(name)}`.execute(operatorDb);
-        const url = new URL(operatorUrl!);
+        const url = new URL(operatorUrl);
         url.pathname = `/${name}`;
         const db = createDb(url.href);
         try {
-          await migrate(url.href, schemaOnly);
+          await migrateSchema(url.href);
           const report = await importTenant({
             operatorDb: db,
             blobs: new MemoryBlobStore(),

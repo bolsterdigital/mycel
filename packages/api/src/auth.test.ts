@@ -6,13 +6,12 @@ import {
   MemoryTenants,
   MemoryUnitOfWork,
   probeTenant,
+  TENANT,
 } from '@mycel/core/testing';
 import { createApp } from './app.js';
 import { createAuthenticator } from './auth.js';
 
 const defaults = { entitlements: DEFAULT_ACCESS.entitlements, tenantStatus: DEFAULT_ACCESS.status };
-
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 
 async function setup() {
   const clock = new FakeClock();

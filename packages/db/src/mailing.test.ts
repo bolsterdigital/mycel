@@ -6,7 +6,7 @@
 // the table holds no address, two simultaneous clicks on one link confirm once, and the janitor
 // deletes across tenants while the application role cannot.
 //
-// Skips without DATABASE_URL and APP_DATABASE_URL; with E2E_REQUIRED=1 (CI) that is a failure.
+// Skips without DATABASE_URL and APP_DATABASE_URL; in CI that is a failure.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
@@ -29,22 +29,13 @@ import {
   probeForm,
   FakeDns,
   memoryPlatform,
+  runSuffix,
+  adminOf,
 } from '@mycel/core/testing';
-import {
-  createDb,
-  createUnitOfWork,
-  migrate,
-  sweepRateLimits,
-  upsertTenant,
-  uuidv7,
-  uuidv7Ids,
-} from './index.js';
-import { closeTenantWork } from './testing.js';
+import { createDb, createUnitOfWork, sweepRateLimits, uuidv7, uuidv7Ids } from './index.js';
+import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-const appUrl = process.env['APP_DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
-  throw new Error('E2E_REQUIRED=1 but DATABASE_URL or APP_DATABASE_URL is not set');
+const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
 /**
  * The provider: accepts every message and keeps the list; `lose` drops the response after
@@ -66,11 +57,11 @@ class FlakyMailer implements Mailer {
   }
 }
 
-describe.skipIf(!operatorUrl || !appUrl)('mailing conformance', () => {
-  const operatorDb = createDb(operatorUrl ?? '');
-  const appDb = createDb(appUrl ?? '');
+describe.skipIf(skip)('mailing conformance', () => {
+  const operatorDb = createDb(operatorUrl);
+  const appDb = createDb(appUrl);
   // A second pool: two deliveries of one event on two connections, as two workers would.
-  const appDb2 = createDb(appUrl ?? '');
+  const appDb2 = createDb(appUrl);
   const signer = new FakeSigner();
   const clock = { now: () => new Date() };
   const uowOn = (db: typeof appDb) =>
@@ -85,14 +76,13 @@ describe.skipIf(!operatorUrl || !appUrl)('mailing conformance', () => {
   const uow = uowOn(appDb);
   const uow2 = uowOn(appDb2);
   const invoker = new Invoker(buildRegistry(), uow);
-  const run = Math.random().toString(36).slice(2, 8);
+  const run = runSuffix();
   /** This suite's subscriber; its reconcile jobs are closed in afterAll. */
   const sub = `test-${run}`;
   // No budget: the provider stub lists at once, and settling is what is under test.
   const deps = (mailer: Mailer, u = uow) => ({ mailer, clock, uow: u, reconcileLagMs: 0 });
   let tenantId = '';
   let formId = '';
-  const admin = () => systemPrincipal(tenantId, 'test');
   const message = renderConfirmationMail({
     locale: 'en',
     tenantName: 'M',
@@ -102,22 +92,10 @@ describe.skipIf(!operatorUrl || !appUrl)('mailing conformance', () => {
   });
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, { log: () => {} });
-    tenantId = (
-      await upsertTenant(
-        operatorDb,
-        {
-          id: uuidv7(),
-          slug: `mail-${run}`,
-          name: 'M',
-          defaultLocale: 'nl',
-          locales: ['nl'],
-        },
-        { platformDomain: 'localhost' }
-      )
-    ).id;
+    await migrateSchema(operatorUrl);
+    tenantId = (await testTenant(operatorDb, `mail-${run}`, { name: 'M' })).id;
     formId = uuidv7();
-    await uow.run(admin(), (ctx) => ctx.forms.insert(probeForm(formId)));
+    await uow.run(adminOf(tenantId), (ctx) => ctx.forms.insert(probeForm(formId)));
   });
 
   afterAll(async () => {
@@ -131,7 +109,7 @@ describe.skipIf(!operatorUrl || !appUrl)('mailing conformance', () => {
     const mailer = new FlakyMailer();
     const event = { id: uuidv7(), tenantId };
     const key = `${sub}:${event.id}`;
-    const intent = () => uow.run(admin(), (ctx) => ctx.mailSends.get(key));
+    const intent = () => uow.run(adminOf(tenantId), (ctx) => ctx.mailSends.get(key));
 
     mailer.lose = true;
     expect(await sendOnce(deps(mailer), event, sub, message)).toBe('unknown');
@@ -172,7 +150,7 @@ describe.skipIf(!operatorUrl || !appUrl)('mailing conformance', () => {
     ]);
     expect(results.sort()).toEqual(['deferred', 'sent']);
     expect(mailer.delivered).toEqual([`${sub}:${event.id}`]);
-    const row = await uow.run(admin(), (ctx) => ctx.mailSends.get(`${sub}:${event.id}`));
+    const row = await uow.run(adminOf(tenantId), (ctx) => ctx.mailSends.get(`${sub}:${event.id}`));
     expect(row).toMatchObject({ attempts: 1, providerId: 'p-1' });
   });
 
@@ -181,7 +159,7 @@ describe.skipIf(!operatorUrl || !appUrl)('mailing conformance', () => {
     const intent = { key, subscriber: sub, eventId: uuidv7(), correlation: 'a'.repeat(64) };
     const at = new Date();
     const claim = (u: typeof uow, expected: Date | null, when = at) =>
-      u.run(admin(), (ctx) =>
+      u.run(adminOf(tenantId), (ctx) =>
         ctx.mailSends.claim(intent, { at: when, until: new Date(when.getTime() + 1000), expected })
       );
     const fresh = await Promise.all([claim(uow, null), claim(uow2, null)]);
@@ -201,7 +179,7 @@ describe.skipIf(!operatorUrl || !appUrl)('mailing conformance', () => {
     const at = new Date();
     const correlation = 'b'.repeat(64);
     const put = (name: string, until: Date) =>
-      uow.run(admin(), (ctx) =>
+      uow.run(adminOf(tenantId), (ctx) =>
         ctx.mailSends.claim(
           { key: `${sub}:${name}`, subscriber: sub, eventId: uuidv7(), correlation },
           { at, until, expected: null }
@@ -211,17 +189,19 @@ describe.skipIf(!operatorUrl || !appUrl)('mailing conformance', () => {
     await put('abandoned', at);
     await put('flying', new Date(at.getTime() + 60_000));
     await put('sent', at);
-    await uow.run(admin(), async (ctx) => {
+    await uow.run(adminOf(tenantId), async (ctx) => {
       await ctx.mailSends.abandon(`${sub}:abandoned`, at);
       await ctx.mailSends.sent(`${sub}:sent`, at, 'p-x');
     });
-    const unresolved = await uow.run(admin(), (ctx) => ctx.mailSends.unresolved(new Date()));
+    const unresolved = await uow.run(adminOf(tenantId), (ctx) =>
+      ctx.mailSends.unresolved(new Date())
+    );
     const mine = unresolved.filter((m) => m.correlation === correlation);
     expect(mine.map((m) => [m.key, m.abandonedAt !== null]).sort()).toEqual([
       [`${sub}:abandoned`, true],
       [`${sub}:unknown`, false],
     ]);
-    const siblings = await uow.run(admin(), (ctx) =>
+    const siblings = await uow.run(adminOf(tenantId), (ctx) =>
       ctx.mailSends.siblings(correlation, {
         since: new Date(at.getTime() - 1),
         until: new Date(at.getTime() + 1),
@@ -231,7 +211,7 @@ describe.skipIf(!operatorUrl || !appUrl)('mailing conformance', () => {
   });
 
   it('confirms once when two clicks on one link race', async () => {
-    const submitted = await invoker.run(useCases.submitForm, admin(), {
+    const submitted = await invoker.run(useCases.submitForm, adminOf(tenantId), {
       formId,
       values: { email: `race-${run}@example.org`, consent: true },
       locale: 'nl',
@@ -267,12 +247,12 @@ describe.skipIf(!operatorUrl || !appUrl)('mailing conformance', () => {
 
     const event = { id: uuidv7(), tenantId };
     await sendOnce(deps(new FlakyMailer()), event, sub, message);
-    const row = await uow.run(admin(), (ctx) => ctx.mailSends.get(`${sub}:${event.id}`));
+    const row = await uow.run(adminOf(tenantId), (ctx) => ctx.mailSends.get(`${sub}:${event.id}`));
     expect(row?.correlation).toMatch(/^[0-9a-f]{64}$/);
     expect(JSON.stringify(row)).not.toContain('ada@example.org');
     // The column refuses anything but a hash.
     await expect(
-      uow.run(admin(), (ctx) =>
+      uow.run(adminOf(tenantId), (ctx) =>
         ctx.mailSends.claim(
           { key: `${sub}:raw`, subscriber: sub, eventId: uuidv7(), correlation: 'ada@example.org' },
           { at: new Date(), until: new Date(), expected: null }
@@ -290,10 +270,10 @@ describe.skipIf(!operatorUrl || !appUrl)('mailing conformance', () => {
       signer,
       inputHasher: new FakeInputHasher(),
     });
-    await old.run(admin(), (ctx) =>
+    await old.run(adminOf(tenantId), (ctx) =>
       ctx.rateLimits.hit(`janitor-${run}`, { max: 5, windowSeconds: 60 })
     );
-    await uow.run(admin(), (ctx) =>
+    await uow.run(adminOf(tenantId), (ctx) =>
       ctx.rateLimits.hit(`janitor-${run}`, { max: 5, windowSeconds: 60 })
     );
     // Order-independent (TODO #17a): the jobs suite sweeps in parallel and may already have
@@ -305,7 +285,7 @@ describe.skipIf(!operatorUrl || !appUrl)('mailing conformance', () => {
       ).rows.map((r) => new Date(r.window_start));
 
     await expect(
-      uow.run(admin(), () => sql`delete from rate_limits`.execute(appDb))
+      uow.run(adminOf(tenantId), () => sql`delete from rate_limits`.execute(appDb))
     ).rejects.toThrow(/permission denied/);
 
     expect(await sweepRateLimits(operatorDb)).toBeGreaterThanOrEqual(0);
@@ -320,7 +300,9 @@ describe.skipIf(!operatorUrl || !appUrl)('mailing conformance', () => {
     const day = 24 * 60 * 60;
     // Five transactions on separate connections at once; the advisory lock serialises them.
     const results = await Promise.all(
-      Array.from({ length: 5 }, () => uow.run(admin(), (ctx) => ctx.rateLimits.cooldown(key, day)))
+      Array.from({ length: 5 }, () =>
+        uow.run(adminOf(tenantId), (ctx) => ctx.rateLimits.cooldown(key, day))
+      )
     );
     expect(results.filter(Boolean)).toHaveLength(1);
     // A refusal recorded nothing: still one row.
@@ -340,24 +322,22 @@ describe.skipIf(!operatorUrl || !appUrl)('mailing conformance', () => {
       signer,
       inputHasher: new FakeInputHasher(),
     });
-    expect(await later.run(admin(), (ctx) => ctx.rateLimits.cooldown(key, day))).toBe(true);
-    expect(await later.run(admin(), (ctx) => ctx.rateLimits.cooldown(key, day))).toBe(false);
+    expect(await later.run(adminOf(tenantId), (ctx) => ctx.rateLimits.cooldown(key, day))).toBe(
+      true
+    );
+    expect(await later.run(adminOf(tenantId), (ctx) => ctx.rateLimits.cooldown(key, day))).toBe(
+      false
+    );
 
     // Another tenant with the same key has a window of its own (RLS on rate_limits).
-    const other = (
-      await upsertTenant(
-        operatorDb,
-        { id: uuidv7(), slug: `mail-b-${run}`, name: 'M2', defaultLocale: 'nl', locales: ['nl'] },
-        { platformDomain: 'localhost' }
-      )
-    ).id;
+    const other = (await testTenant(operatorDb, `mail-b-${run}`, { name: 'M2' })).id;
     expect(
       await uow.run(systemPrincipal(other, 'test'), (ctx) => ctx.rateLimits.cooldown(key, day))
     ).toBe(true);
     expect(await count(other)).toBe(1);
 
-    await expect(uow.run(admin(), (ctx) => ctx.rateLimits.cooldown(key, day + 1))).rejects.toThrow(
-      /outside/
-    );
+    await expect(
+      uow.run(adminOf(tenantId), (ctx) => ctx.rateLimits.cooldown(key, day + 1))
+    ).rejects.toThrow(/outside/);
   });
 });

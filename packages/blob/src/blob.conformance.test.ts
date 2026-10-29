@@ -1,7 +1,7 @@
 // The BlobStore contract (TODO #10), run over every implementation: the directory store always,
 // the S3 store against a real bucket when `BLOB_S3_*` is set (a local MinIO, `docker compose -f
 // compose.dev.yml --profile blob up -d`, or the MinIO service in CI). Like the database suites it
-// skips locally without the service and fails in CI (`E2E_REQUIRED=1`).
+// skips locally without the service and fails in CI (`requireServices`).
 
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
@@ -10,22 +10,21 @@ import { join } from 'node:path';
 import { CreateBucketCommand, S3Client } from '@aws-sdk/client-s3';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { BlobStore } from '@mycel/core';
-import { MemoryBlobStore } from '@mycel/core/testing';
+import { MemoryBlobStore, requireServices } from '@mycel/core/testing';
 import { createFsBlobStore, createS3BlobStore } from './index.js';
 
 const env = process.env;
-const s3Config = env['BLOB_S3_BUCKET']
+const s3 = requireServices(env, ['BLOB_S3_BUCKET']);
+const s3Config = s3
   ? {
       endpoint: env['BLOB_S3_ENDPOINT'],
       region: env['BLOB_S3_REGION'] ?? 'us-east-1',
-      bucket: env['BLOB_S3_BUCKET'],
+      bucket: s3.BLOB_S3_BUCKET,
       accessKeyId: env['BLOB_S3_ACCESS_KEY_ID'] ?? '',
       secretAccessKey: env['BLOB_S3_SECRET_ACCESS_KEY'] ?? '',
       forcePathStyle: env['BLOB_S3_FORCE_PATH_STYLE'] === '1',
     }
   : null;
-if (env['E2E_REQUIRED'] === '1' && !s3Config)
-  throw new Error('E2E_REQUIRED=1 but BLOB_S3_BUCKET is not set: the S3 contract cannot run');
 
 const bytes = (s: string) => new TextEncoder().encode(s);
 const text = (b: Uint8Array | null) => (b ? new TextDecoder().decode(b) : null);

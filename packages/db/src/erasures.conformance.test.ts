@@ -6,7 +6,7 @@
 // confirmation mail (intent row, reconcile job), with the subscribers fed the outbox's own events.
 // packages/core/src/supporters/erasure.test.ts holds the memory adapter to the same contract.
 //
-// Skips without DATABASE_URL and APP_DATABASE_URL; with E2E_REQUIRED=1 (CI) that is a failure.
+// Skips without DATABASE_URL and APP_DATABASE_URL; in CI that is a failure.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
@@ -26,29 +26,25 @@ import {
   MemoryMailer,
   memoryPlatform,
   probeForm,
+  runSuffix,
 } from '@mycel/core/testing';
 import {
   applyErasures,
   createDb,
   createTenantDirectory,
   createUnitOfWork,
-  migrate,
   readOutboxEvent,
-  upsertTenant,
   uuidv7,
   uuidv7Ids,
 } from './index.js';
-import { closeTenantWork } from './testing.js';
+import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-const appUrl = process.env['APP_DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
-  throw new Error('E2E_REQUIRED=1 but DATABASE_URL or APP_DATABASE_URL is not set');
+const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
-describe.skipIf(!operatorUrl || !appUrl)('erasure conformance', () => {
-  const operatorDb = createDb(operatorUrl ?? '');
-  const appDb = createDb(appUrl ?? '');
-  const run = Math.random().toString(36).slice(2, 8);
+describe.skipIf(skip)('erasure conformance', () => {
+  const operatorDb = createDb(operatorUrl);
+  const appDb = createDb(appUrl);
+  const run = runSuffix();
   const email = `erase-me-${run}@example.org`;
   const other = `keep-me-${run}@example.org`;
   const clock = { now: () => new Date() };
@@ -131,22 +127,10 @@ describe.skipIf(!operatorUrl || !appUrl)('erasure conformance', () => {
   }
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, {
-      log: () => {},
-    });
+    await migrateSchema(operatorUrl);
     for (const key of ['a', 'b'] as const)
       tenants[key] = (
-        await upsertTenant(
-          operatorDb,
-          {
-            id: uuidv7(),
-            slug: `erase-${key}-${run}`,
-            name: `Erase ${key}`,
-            defaultLocale: 'nl',
-            locales: ['nl'],
-          },
-          { platformDomain: 'localhost' }
-        )
+        await testTenant(operatorDb, `erase-${key}-${run}`, { name: `Erase ${key}` })
       ).id;
     await signup(tenants.a, email, uow);
     await signup(tenants.a, other, uow);

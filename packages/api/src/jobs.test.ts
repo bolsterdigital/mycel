@@ -31,11 +31,11 @@ import {
   MemoryTenants,
   MemoryUnitOfWork,
   probeTenant,
+  TENANT,
 } from '@mycel/core/testing';
 import type { createDb } from '@mycel/db';
 import { RECURRING_JOBS, jobHandlers, tenantJob } from './jobs.js';
 
-const TENANT = '01900000-0000-7000-8000-00000000aaaa';
 // The platform handlers are not called here; the registry only needs the connection's shape.
 const operatorDb = {} as ReturnType<typeof createDb>;
 

@@ -8,7 +8,7 @@
 // The app clock runs an hour behind the database clock, so a job planned "a minute from now"
 // for the app is already due for the worker's `run_at <= now()`; the handler still checks the
 // pinned time against the app clock, which a test moves on before running the worker. Skips
-// without DATABASE_URL and APP_DATABASE_URL; with E2E_REQUIRED=1 (CI) that is a failure.
+// without DATABASE_URL and APP_DATABASE_URL; in CI that is a failure.
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
@@ -30,30 +30,28 @@ import {
   FakeInputHasher,
   FakeSigner,
   memoryPlatform,
+  runSuffix,
+  adminOf,
 } from '@mycel/core/testing';
 import {
   createDb,
   createUnitOfWork,
-  migrate,
   runJobs,
-  upsertTenant,
   uuidv7,
   uuidv7Ids,
   withTenant,
   type JobHandlers,
 } from './index.js';
+import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-const appUrl = process.env['APP_DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
-  throw new Error('E2E_REQUIRED=1 but DATABASE_URL or APP_DATABASE_URL is not set');
+const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
 const MINUTE = 60_000;
 
-describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
-  const operatorDb = createDb(operatorUrl ?? '');
-  const appDb = createDb(appUrl ?? '');
-  const run = Math.random().toString(36).slice(2, 8);
+describe.skipIf(skip)('content conformance', () => {
+  const operatorDb = createDb(operatorUrl);
+  const appDb = createDb(appUrl);
+  const run = runSuffix();
   const clock = new FakeClock(new Date(Date.now() - 60 * MINUTE));
   const uow = createUnitOfWork(appDb, {
     clock,
@@ -73,7 +71,6 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
   const worker = () => runJobs(operatorDb, handlers, { types: ['content.publish'], batchSize: 50 });
   let tenantA = '';
   let tenantB = '';
-  const a = (): Principal => systemPrincipal(tenantA, 'test');
 
   const doc = (title: string) => ({
     type: 'page' as const,
@@ -82,23 +79,23 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
     title: { nl: title, en: title },
     blocks: [],
   });
-  const create = async (slug: string, p = a()) =>
+  const create = async (slug: string, p = adminOf(tenantA)) =>
     invoker.run(useCases.createItem, p, { slug: `${slug}-${run}`, document: doc(slug) });
   const state = async (itemId: string, locale: string) =>
-    (await invoker.run(useCases.getItem, a(), { itemId })).item.publication.find(
+    (await invoker.run(useCases.getItem, adminOf(tenantA), { itemId })).item.publication.find(
       (s) => s.locale === locale
     )!;
   const plan = (itemId: string, revisionId: string, locale: string, minutes = 1) =>
-    invoker.run(useCases.scheduleItem, a(), {
+    invoker.run(useCases.scheduleItem, adminOf(tenantA), {
       itemId,
       revisionId,
       locale,
       at: new Date(clock.now().getTime() + minutes * MINUTE).toISOString(),
     });
   const save = async (itemId: string, title: string) => {
-    const { item } = await invoker.run(useCases.getItem, a(), { itemId });
+    const { item } = await invoker.run(useCases.getItem, adminOf(tenantA), { itemId });
     return (
-      await invoker.run(useCases.updateItem, a(), {
+      await invoker.run(useCases.updateItem, adminOf(tenantA), {
         itemId,
         baseRevisionId: item.latestRevisionId,
         document: doc(title),
@@ -123,13 +120,8 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
     );
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, { log: () => {} });
-    const tenant = (slug: string) =>
-      upsertTenant(
-        operatorDb,
-        { id: uuidv7(), slug, name: slug, defaultLocale: 'nl', locales: ['nl', 'en'] },
-        { platformDomain: 'localhost' }
-      );
+    await migrateSchema(operatorUrl);
+    const tenant = (slug: string) => testTenant(operatorDb, slug, { locales: ['nl', 'en'] });
     tenantA = (await tenant(`c-a-${run}`)).id;
     tenantB = (await tenant(`c-b-${run}`)).id;
   });
@@ -171,7 +163,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
         ],
       },
     };
-    const created = await invoker.run(useCases.createItem, a(), {
+    const created = await invoker.run(useCases.createItem, adminOf(tenantA), {
       slug: `faq-v1-${run}`,
       document: { ...doc('FAQ'), blocks: [faq] },
     });
@@ -193,13 +185,13 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
           .executeTakeFirstOrThrow()
       ).bytes;
     const beforeBytes = await rawBytes();
-    const read = await invoker.run(useCases.getItem, a(), { itemId: created.item.id });
+    const read = await invoker.run(useCases.getItem, adminOf(tenantA), { itemId: created.item.id });
     expect(read.revision.document.blocks[0]).toMatchObject({
       id: 'legacy-faq',
       version: 2,
       props: { width: 'content' },
     });
-    await invoker.run(useCases.publishItem, a(), {
+    await invoker.run(useCases.publishItem, adminOf(tenantA), {
       itemId: created.item.id,
       revisionId: created.revision.id,
       locale: 'nl',
@@ -208,7 +200,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
     const pinned = await state(created.item.id, 'en');
     const live = await state(created.item.id, 'nl');
     expect(pinned.scheduledRevisionId).toBe(created.revision.id);
-    const saved = await invoker.run(useCases.setBlockProps, a(), {
+    const saved = await invoker.run(useCases.setBlockProps, adminOf(tenantA), {
       itemId: created.item.id,
       baseRevisionId: created.revision.id,
       blockId: faq.id,
@@ -246,23 +238,25 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
     const created = await create('pending-pin');
     await plan(created.item.id, created.revision.id, 'en');
     const pinned = await state(created.item.id, 'en');
-    const pending = await invoker.run(useCases.updateItem, a(), {
+    const pending = await invoker.run(useCases.updateItem, adminOf(tenantA), {
       itemId: created.item.id,
       baseRevisionId: created.revision.id,
       document: { ...created.revision.document, machineTranslation: { en: ['locales'] } },
     });
     const target = { itemId: created.item.id, revisionId: pending.revision.id, locale: 'en' };
-    await expect(invoker.run(useCases.publishItem, a(), target)).rejects.toMatchObject({
-      code: 'invalid_input',
-    });
+    await expect(invoker.run(useCases.publishItem, adminOf(tenantA), target)).rejects.toMatchObject(
+      {
+        code: 'invalid_input',
+      }
+    );
     await expect(
-      invoker.run(useCases.scheduleItem, a(), {
+      invoker.run(useCases.scheduleItem, adminOf(tenantA), {
         ...target,
         at: new Date(clock.now().getTime() + MINUTE).toISOString(),
       })
     ).rejects.toMatchObject({ code: 'invalid_input' });
     const human = {
-      ...a(),
+      ...adminOf(tenantA),
       actor: { kind: 'operator' as const, operatorId: uuidv7(), email: 'reviewer@probe.test' },
     };
     const approved = await invoker.run(useCases.approveTranslation, human, {
@@ -274,31 +268,33 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
       ...pinned,
       hasUnpublishedChanges: false,
     });
-    const latest = await invoker.run(useCases.getItem, a(), { itemId: created.item.id });
+    const latest = await invoker.run(useCases.getItem, adminOf(tenantA), {
+      itemId: created.item.id,
+    });
     expect(latest.revision.id).toBe(approved.revisionId);
     expect(latest.revision.document.machineTranslation).toBeUndefined();
     expect(latest.revision.document.blocks).toEqual(created.revision.document.blocks);
   });
 
   it('round-trips items, revisions, authors, sections and patterns, per tenant', async () => {
-    const author = await invoker.run(useCases.createAuthor, a(), {
+    const author = await invoker.run(useCases.createAuthor, adminOf(tenantA), {
       slug: `sam-${run}`,
       name: 'Sam',
       bio: { nl: 'Verslaggever' },
       links: [{ label: 'Site', url: 'https://example.org/' }],
       email: 'sam@example.org',
     });
-    const section = await invoker.run(useCases.createSection, a(), {
+    const section = await invoker.run(useCases.createSection, adminOf(tenantA), {
       slug: `politiek-${run}`,
       title: { nl: 'Politiek' },
       order: 2,
     });
-    const pattern = await invoker.run(useCases.createPattern, a(), {
+    const pattern = await invoker.run(useCases.createPattern, adminOf(tenantA), {
       name: { nl: 'Interview' },
       intendedType: 'article',
       blocks: [{ type: 'heading', version: 1, props: { text: { nl: 'Vraag' } } }],
     });
-    const created = await invoker.run(useCases.createItem, a(), {
+    const created = await invoker.run(useCases.createItem, adminOf(tenantA), {
       slug: `story-${run}`,
       patternId: pattern.id,
       document: {
@@ -313,10 +309,18 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
         seo: { title: { nl: 'Zoek' }, noindex: true, canonical: 'https://example.org/x' },
       },
     });
-    expect(await invoker.run(useCases.getItem, a(), { itemId: created.item.id })).toEqual(created);
-    expect(await invoker.run(useCases.getAuthor, a(), { authorId: author.id })).toEqual(author);
-    expect(await invoker.run(useCases.getSection, a(), { sectionId: section.id })).toEqual(section);
-    expect(await invoker.run(useCases.getPattern, a(), { patternId: pattern.id })).toEqual(pattern);
+    expect(
+      await invoker.run(useCases.getItem, adminOf(tenantA), { itemId: created.item.id })
+    ).toEqual(created);
+    expect(
+      await invoker.run(useCases.getAuthor, adminOf(tenantA), { authorId: author.id })
+    ).toEqual(author);
+    expect(
+      await invoker.run(useCases.getSection, adminOf(tenantA), { sectionId: section.id })
+    ).toEqual(section);
+    expect(
+      await invoker.run(useCases.getPattern, adminOf(tenantA), { patternId: pattern.id })
+    ).toEqual(pattern);
     expect(created.revision.document).toMatchObject({ tags: ['klimaat'] });
 
     // Tenant B sees none of it, and cannot reference A's author by its id.
@@ -340,7 +344,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
     const { item, revision } = await create('lock-hold');
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
-    const holder = uow.run(a(), async (ctx) => {
+    const holder = uow.run(adminOf(tenantA), async (ctx) => {
       await ctx.content.lock(item.id);
       await gate;
       await useCases.updateItem.handler(ctx, {
@@ -351,7 +355,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
     });
     let settled = false;
     const second = invoker
-      .run(useCases.updateItem, a(), {
+      .run(useCases.updateItem, adminOf(tenantA), {
         itemId: item.id,
         baseRevisionId: revision.id,
         document: doc('second'),
@@ -363,7 +367,9 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
     release();
     await holder;
     await expect(second).rejects.toMatchObject({ code: 'conflict' });
-    const { revisions } = await invoker.run(useCases.listRevisions, a(), { itemId: item.id });
+    const { revisions } = await invoker.run(useCases.listRevisions, adminOf(tenantA), {
+      itemId: item.id,
+    });
     expect(revisions).toHaveLength(2);
   });
 
@@ -374,7 +380,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
       const { item, revision } = await create(`race-save-${round}`);
       const results = await Promise.allSettled(
         Array.from({ length: 8 }, (_, i) =>
-          invoker.run(useCases.updateItem, a(), {
+          invoker.run(useCases.updateItem, adminOf(tenantA), {
             itemId: item.id,
             baseRevisionId: revision.id,
             document: doc(`save ${i}`),
@@ -387,7 +393,9 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
       const lost = results.filter((r) => r.status === 'rejected') as PromiseRejectedResult[];
       expect(won).toHaveLength(1);
       for (const l of lost) expect(l.reason).toMatchObject({ code: 'conflict' });
-      const { revisions } = await invoker.run(useCases.listRevisions, a(), { itemId: item.id });
+      const { revisions } = await invoker.run(useCases.listRevisions, adminOf(tenantA), {
+        itemId: item.id,
+      });
       expect(revisions.map((r) => r.id)).toEqual([won[0]!.value.revision.id, revision.id]);
     }
   });
@@ -396,7 +404,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
     const one = await create('pin-one');
     const two = await create('pin-two');
     const asApp = (q: (trx: typeof appDb) => Promise<unknown>) =>
-      sqlState(withTenant(appDb, a(), (trx) => q(trx)));
+      sqlState(withTenant(appDb, adminOf(tenantA), (trx) => q(trx)));
     expect(
       await asApp((trx) =>
         sql`update content_revisions set document = '{}' where id = ${one.revision.id}`.execute(trx)
@@ -426,7 +434,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
   });
 
   it('publishes nl and keeps the en draft out of the public projection', async () => {
-    const { item, revision } = await invoker.run(useCases.createItem, a(), {
+    const { item, revision } = await invoker.run(useCases.createItem, adminOf(tenantA), {
       slug: `bilingual-${run}`,
       document: {
         ...doc('Titel'),
@@ -435,7 +443,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
         ],
       },
     });
-    await invoker.run(useCases.publishItem, a(), {
+    await invoker.run(useCases.publishItem, adminOf(tenantA), {
       itemId: item.id,
       revisionId: revision.id,
       locale: 'nl',
@@ -454,7 +462,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
         locale: 'en',
       })
     ).rejects.toMatchObject({ code: 'not_found' });
-    const { rows } = await withTenant(appDb, a(), (trx) =>
+    const { rows } = await withTenant(appDb, adminOf(tenantA), (trx) =>
       sql<{ locale: string; status: string }>`select locale, status from content_item_locales
         where item_id = ${item.id} order by locale`.execute(trx)
     );
@@ -485,7 +493,8 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
         publishedRevisionId: revision.id,
       });
       expect(
-        (await invoker.run(useCases.getItem, a(), { itemId: item.id })).item.latestRevisionId
+        (await invoker.run(useCases.getItem, adminOf(tenantA), { itemId: item.id })).item
+          .latestRevisionId
       ).toBe(b);
       expect((await jobsOf(item.id)).every((j) => j.done_at !== null)).toBe(true);
     });
@@ -498,10 +507,13 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
       await worker();
       expect((await state(item.id, 'nl')).status).toBe('scheduled');
 
-      await invoker.run(useCases.unscheduleItem, a(), { itemId: item.id, locale: 'nl' });
+      await invoker.run(useCases.unscheduleItem, adminOf(tenantA), {
+        itemId: item.id,
+        locale: 'nl',
+      });
       const b = await save(item.id, 'B');
       await plan(item.id, b, 'en', 1);
-      await invoker.run(useCases.publishItem, a(), {
+      await invoker.run(useCases.publishItem, adminOf(tenantA), {
         itemId: item.id,
         revisionId: revision.id,
         locale: 'en',
@@ -520,7 +532,10 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
       await worker();
       const first = await state(item.id, 'nl');
       const [job] = await jobsOf(item.id);
-      await invoker.run(useCases.unpublishItem, a(), { itemId: item.id, locale: 'nl' });
+      await invoker.run(useCases.unpublishItem, adminOf(tenantA), {
+        itemId: item.id,
+        locale: 'nl',
+      });
       await handlers['content.publish']!({ tenantId: tenantA, payload: job!.payload } as JobRecord);
       expect((await state(item.id, 'nl')).status).toBe('unpublished');
       expect(first.status).toBe('published');
@@ -544,7 +559,7 @@ describe.skipIf(!operatorUrl || !appUrl)('content conformance', () => {
     it('a rolled-back schedule leaves neither a pin nor a job', async () => {
       const { item, revision } = await create('rollback');
       await expect(
-        uow.run(a(), async (ctx) => {
+        uow.run(adminOf(tenantA), async (ctx) => {
           await scheduleItem.handler(ctx, {
             itemId: item.id,
             revisionId: revision.id,

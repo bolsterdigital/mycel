@@ -3,23 +3,21 @@
 // web processes behind Caddy; they must count into one window, and the janitor must sweep old
 // windows and never a live one.
 //
-// Skips without DATABASE_URL and AUTH_DATABASE_URL; with E2E_REQUIRED=1 (CI) that is a failure.
+// Skips without DATABASE_URL and AUTH_DATABASE_URL; in CI that is a failure.
 
 import { afterAll, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
-import { FakeClock } from '@mycel/core/testing';
+import { FakeClock, runSuffix } from '@mycel/core/testing';
 import { createDb, createIdentityStore, sweepRateLimits, uuidv7Ids } from './index.js';
+import { requireDatabase } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-const authUrl = process.env['AUTH_DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !authUrl))
-  throw new Error('E2E_REQUIRED=1 but DATABASE_URL or AUTH_DATABASE_URL is unset');
+const { skip, operator: operatorUrl, auth: authUrl } = requireDatabase('auth');
 
-describe.skipIf(!operatorUrl || !authUrl)('shared login limit', () => {
-  const operatorDb = createDb(operatorUrl ?? '');
-  const poolA = createDb(authUrl ?? '');
-  const poolB = createDb(authUrl ?? '');
-  const run = Math.random().toString(36).slice(2, 8);
+describe.skipIf(skip)('shared login limit', () => {
+  const operatorDb = createDb(operatorUrl);
+  const poolA = createDb(authUrl);
+  const poolB = createDb(authUrl);
+  const run = runSuffix();
   const limit = { max: 20, windowSeconds: 600 };
   // A fixed window boundary, so the test cannot straddle two windows.
   const clock = new FakeClock(new Date(Math.floor(Date.now() / 600_000) * 600_000 + 1_000));

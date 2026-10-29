@@ -22,6 +22,7 @@ import {
   memoryPlatform,
   FakeClock,
   FakeConnectionTransport,
+  runSuffix,
 } from '@mycel/core/testing';
 import {
   createDb,
@@ -29,21 +30,16 @@ import {
   credentialKey,
   decryptCredential,
   encryptCredential,
-  migrate,
   TABLES,
-  upsertTenant,
   uuidv7,
   uuidv7Ids,
   applyErasures,
   withTenant,
 } from './index.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-const appUrl = process.env['APP_DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl))
-  throw new Error('E2E_REQUIRED=1 but database URLs are unset');
+const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
-import { closeTenantWork } from './testing.js';
+import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from './testing.js';
 
 const key = '10'.repeat(32);
 const input = {
@@ -78,9 +74,9 @@ it('authenticates credential ciphertext to tenant, connection and version', () =
   expect(TABLES.connection_credentials).toBe('operational');
 });
 
-describe.skipIf(!operatorUrl || !appUrl)('managed connection storage', () => {
-  const operatorDb = createDb(operatorUrl ?? '');
-  const appDb = createDb(appUrl ?? '');
+describe.skipIf(skip)('managed connection storage', () => {
+  const operatorDb = createDb(operatorUrl);
+  const appDb = createDb(appUrl);
   const clock = new FakeClock(new Date());
   const uow = createUnitOfWork(appDb, {
     clock,
@@ -92,26 +88,13 @@ describe.skipIf(!operatorUrl || !appUrl)('managed connection storage', () => {
     connectionCredentialKey: key,
   });
   const invoker = new Invoker(buildRegistry(), uow);
-  const suffix = Math.random().toString(36).slice(2, 8);
+  const suffix = runSuffix();
   let a = '';
   let b = '';
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, { log: () => {} });
-    const tenant = async (slug: string) =>
-      (
-        await upsertTenant(
-          operatorDb,
-          {
-            id: uuidv7(),
-            slug,
-            name: slug,
-            defaultLocale: 'nl',
-            locales: ['nl'],
-          },
-          { platformDomain: 'localhost' }
-        )
-      ).id;
+    await migrateSchema(operatorUrl);
+    const tenant = async (slug: string) => (await testTenant(operatorDb, slug)).id;
     a = await tenant(`connections-a-${suffix}`);
     b = await tenant(`connections-b-${suffix}`);
   });

@@ -2,41 +2,40 @@
 // `tenant_hostnames` under RLS, global uniqueness as a typed conflict, one primary per tenant,
 // resolution through mycel_auth for every hostname while mycel_app sees its own only, the
 // `tenant_directory` view as the only way mycel_app reads tenants, and the platform hostname
-// `upsertTenant` makes exactly once.
+// a new tenant gets exactly once.
 //
-// Skips without DATABASE_URL, APP_DATABASE_URL and AUTH_DATABASE_URL; with E2E_REQUIRED=1 (CI)
+// Skips without DATABASE_URL, APP_DATABASE_URL and AUTH_DATABASE_URL; in CI
 // that is a failure.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
-import { Invoker, UseCaseError, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
-import { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } from '@mycel/core/testing';
+import { Invoker, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
+import {
+  FakeDns,
+  FakeInputHasher,
+  FakeSigner,
+  memoryPlatform,
+  runSuffix,
+  expectCode,
+} from '@mycel/core/testing';
 import {
   createDb,
   createSiteDirectory,
   createTenantDirectory,
   createUnitOfWork,
-  migrate,
-  upsertTenant,
-  uuidv7,
   uuidv7Ids,
 } from './index.js';
+import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
-const operatorUrl = process.env['DATABASE_URL'];
-const appUrl = process.env['APP_DATABASE_URL'];
-const authUrl = process.env['AUTH_DATABASE_URL'];
-if (process.env['E2E_REQUIRED'] === '1' && (!operatorUrl || !appUrl || !authUrl))
-  throw new Error(
-    'E2E_REQUIRED=1 but DATABASE_URL, APP_DATABASE_URL or AUTH_DATABASE_URL is unset'
-  );
+const { skip, operator: operatorUrl, app: appUrl, auth: authUrl } = requireDatabase('app', 'auth');
 
 const PLATFORM = 'conformance.test';
 
-describe.skipIf(!operatorUrl || !appUrl || !authUrl)('hostname conformance', () => {
-  const operatorDb = createDb(operatorUrl ?? '');
-  const appDb = createDb(appUrl ?? '');
-  const authDb = createDb(authUrl ?? '');
-  const run = Math.random().toString(36).slice(2, 8);
+describe.skipIf(skip)('hostname conformance', () => {
+  const operatorDb = createDb(operatorUrl);
+  const appDb = createDb(appUrl);
+  const authDb = createDb(authUrl);
+  const run = runSuffix();
   const dns = new FakeDns();
   const uow = createUnitOfWork(appDb, {
     clock: { now: () => new Date() },
@@ -51,11 +50,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('hostname conformance', () 
   const sites = createSiteDirectory(authDb, { ttlMs: 0 });
   const host = (name: string) => `${name}-${run}.example.org`;
   const tenant = async (slug: string) =>
-    upsertTenant(
-      operatorDb,
-      { id: uuidv7(), slug: `${slug}-${run}`, name: slug, defaultLocale: 'nl', locales: ['nl'] },
-      { platformDomain: PLATFORM }
-    );
+    testTenant(operatorDb, `${slug}-${run}`, { name: slug, platformDomain: PLATFORM });
   let a = '';
   let b = '';
   let slugA = '';
@@ -74,13 +69,9 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('hostname conformance', () 
       () => 'ok',
       (e: { code?: string }) => e.code
     );
-  const code = (p: Promise<unknown>, expected: string) =>
-    expect(p).rejects.toSatisfy((e) => e instanceof UseCaseError && e.code === expected);
 
   beforeAll(async () => {
-    await migrate(operatorUrl!, {
-      log: () => {},
-    });
+    await migrateSchema(operatorUrl);
     const ta = await tenant('hna');
     a = ta.id;
     slugA = ta.slug;
@@ -105,8 +96,8 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('hostname conformance', () 
         checkFailures: 0,
       },
     ]);
-    // A rerun of the seed changes nothing.
-    await tenant('hna');
+    // Creating the slug again is refused and adds no hostname.
+    await expectCode(tenant('hna'), 'conflict');
     expect(await listed()).toEqual(first);
     expect(await sites.allowed(`${slugA}.${PLATFORM}`)).toBe(true);
   });
@@ -115,18 +106,18 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('hostname conformance', () 
     const admin = systemPrincipal(a, 't');
     const added = await invoker.run(useCases.addHostname, admin, { hostname: host('www') });
     expect(added.dns?.cname.target).toBe(`${slugA}.${PLATFORM}`);
-    await code(
+    await expectCode(
       invoker.run(useCases.addHostname, systemPrincipal(b, 't'), { hostname: host('WWW') }),
       'conflict'
     );
     const ofB = await invoker.run(useCases.listHostnames, systemPrincipal(b, 't'), {});
     expect(ofB.hostnames.map((h) => h.kind)).toEqual(['platform']);
-    await code(
+    await expectCode(
       invoker.run(useCases.verifyHostname, systemPrincipal(b, 't'), { hostname: host('www') }),
       'not_found'
     );
     // Straight SQL as mycel_app: nothing without a context, own rows with one.
-    const seen = await as(appUrl!, async (c) => {
+    const seen = await as(appUrl, async (c) => {
       const without = await c.query('select hostname from tenant_hostnames');
       await c.query('begin');
       await c.query(`select set_config('app.tenant_id', $1, true)`, [b]);
@@ -143,7 +134,10 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('hostname conformance', () 
     const name = host('primary');
     const added = await invoker.run(useCases.addHostname, admin, { hostname: name });
     dns.txtRecords.set(added.dns!.txt.name, [added.dns!.txt.value]);
-    await code(invoker.run(useCases.setPrimaryHostname, admin, { hostname: name }), 'conflict');
+    await expectCode(
+      invoker.run(useCases.setPrimaryHostname, admin, { hostname: name }),
+      'conflict'
+    );
     expect(await invoker.run(useCases.verifyHostname, admin, { hostname: name })).toMatchObject({
       verified: true,
     });
@@ -153,7 +147,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('hostname conformance', () 
     );
     expect(primaries.map((h) => h.hostname)).toEqual([name]);
     // The partial unique index refuses a second primary even outside the use case.
-    const state = await as(appUrl!, async (c) => {
+    const state = await as(appUrl, async (c) => {
       await c.query('begin');
       await c.query(`select set_config('app.tenant_id', $1, true)`, [a]);
       const s = await sqlState(
@@ -184,7 +178,7 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('hostname conformance', () 
     expect(await sites.resolve(`nope-${run}.example.org`)).toBeNull();
     // The authentication login reaches the table only through the role switch.
     expect(
-      await as(authUrl!, (c) => sqlState(c.query('select count(*) from tenant_hostnames')))
+      await as(authUrl, (c) => sqlState(c.query('select count(*) from tenant_hostnames')))
     ).toBe('42501');
   });
 
@@ -205,12 +199,12 @@ describe.skipIf(!operatorUrl || !appUrl || !authUrl)('hostname conformance', () 
   });
 
   it('lets mycel_app read tenants only through the five-column directory view', async () => {
-    const states = await as(appUrl!, async (c) => ({
+    const states = await as(appUrl, async (c) => ({
       table: await sqlState(c.query('select id from tenants')),
       view: await sqlState(c.query('select id from tenant_directory')),
     }));
     expect(states).toEqual({ table: '42501', view: 'ok' });
-    const { rows } = await as(operatorUrl!, (c) =>
+    const { rows } = await as(operatorUrl, (c) =>
       c.query<{ column_name: string }>(
         `select column_name from information_schema.columns
          where table_schema = 'public' and table_name = 'tenant_directory' order by ordinal_position`
