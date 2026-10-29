@@ -23,6 +23,9 @@ import { uuidv7 } from './ids.js';
 import type { Database } from './schema.js';
 import { asRole } from './roles.js';
 
+/** A role switch for suites in other packages, through the one helper (`db-roles` ratchet). */
+export { asRole } from './roles.js';
+
 const URL_KEYS = {
   operator: 'DATABASE_URL',
   app: 'APP_DATABASE_URL',

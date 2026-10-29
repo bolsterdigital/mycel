@@ -10,8 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DEFAULT_ENTITLEMENTS, systemPrincipal, useCases } from '@mycel/core';
 import { probeForm, runSuffix } from '@mycel/core/testing';
 import { createDb, uuidv7 } from '@mycel/db';
-import { closeTenantWork, requireDatabase, migrateSchema } from '@mycel/db/testing';
-import { sql } from 'kysely';
+import { asRole, closeTenantWork, requireDatabase, migrateSchema } from '@mycel/db/testing';
 import { createApp } from './app.js';
 import { createRuntime, loadConfig, tokenFingerprint, type Runtime } from './compose.js';
 
@@ -209,8 +208,7 @@ describe.skipIf(skip)('platform API', () => {
     const operatorDb = createDb(env['DATABASE_URL']!);
     const id = uuidv7();
     try {
-      await operatorDb.transaction().execute(async (trx) => {
-        await sql`set local role mycel_worker`.execute(trx);
+      await asRole(operatorDb, 'mycel_worker', async (trx) => {
         await trx
           .insertInto('jobs')
           .values({
@@ -275,8 +273,7 @@ describe.skipIf(skip)('platform API', () => {
         { actorKind: 'platform', actorId: tokenFingerprint(TOKEN), result: 'ok', subjectId: id },
       ]);
     } finally {
-      await operatorDb.transaction().execute(async (trx) => {
-        await sql`set local role mycel_worker`.execute(trx);
+      await asRole(operatorDb, 'mycel_worker', async (trx) => {
         await trx.updateTable('jobs').set({ done_at: new Date() }).where('id', '=', id).execute();
       });
       await operatorDb.destroy();

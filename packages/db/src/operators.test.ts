@@ -27,6 +27,7 @@ import {
   runSuffix,
 } from '@mycel/core/testing';
 import { createDb, createIdentityStore, createUnitOfWork, uuidv7, uuidv7Ids } from './index.js';
+import { setClientRole } from './roles.js';
 import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl, auth: authUrl } = requireDatabase('app', 'auth');
@@ -339,7 +340,7 @@ describe.skipIf(skip)('operator and key conformance', () => {
     await blocker.query('begin');
     // The operator login does not bypass forced RLS on the Mac. The tenant-row hold needs the
     // operator's UPDATE privilege, so only membership holds assume the application role.
-    if (what === 'memberships') await blocker.query('set local role mycel_app');
+    if (what === 'memberships') await setClientRole(blocker, 'mycel_app');
     await blocker.query(`select set_config('app.tenant_id', $1, true)`, [tenantId]);
     const { rowCount } = await blocker.query(
       what === 'memberships'
