@@ -149,7 +149,8 @@
         "apps/web/static/**",
         "apps/web/src/app.html",
         "apps/web/src/lib/assets/**",
-        "apps/web/e2e/quality-corpus.json"
+        "apps/web/e2e/quality-corpus.json",
+        "apps/web/e2e/routes.ts"
       ],
       "adrs": ["009", "013", "020"],
       "gates": [
@@ -318,6 +319,7 @@
         "**/__snapshots__/**",
         "scripts/fixtures/**",
         "apps/web/e2e/lib/**",
+        "apps/web/e2e/routes.ts",
         "apps/web/playwright.config.ts",
         "**/vitest.config.ts"
       ],
