@@ -1316,9 +1316,19 @@ test.describe('article-writing', () => {
     await layoutGate(page, 'writer actions', '.writer-actions');
     await expect(page.getByRole('status')).toContainText('Niet-opgeslagen wijzigingen');
     // The card's image comes from the shared media picker, not a typed id (brief media-picker).
+    // The grid holds the newest hundred; this spec's other tests upload more, so search by name.
+    const media = await request.post(`${api()}/media.get`, {
+      headers: headers(),
+      data: { id: mediaId },
+    });
+    const { filename } = (await media.json()) as { filename: string };
     await page.getByRole('button', { name: 'Beeld kiezen' }).click();
     const picker = page.getByRole('dialog', { name: 'Afbeelding' });
-    await picker.locator(`input[type="radio"][value="${mediaId}"]`).check();
+    await picker.getByLabel('Zoeken op naam of bijschrift').fill(filename);
+    // A click, not check(): the hydrated picker then renders the choice as its own radio of the
+    // same value, which unchecks the script's search result.
+    await picker.locator(`input[type="radio"][value="${mediaId}"]`).click();
+    await expect(page.locator('[data-picker-name]').first()).toHaveText(filename);
     await picker.getByRole('button', { name: 'Klaar' }).click();
     await expect(page.getByRole('button', { name: 'Ander beeld kiezen' })).toBeVisible();
     await expect(page.getByLabel('Alternatieve tekst')).toHaveValue('Een boom');
