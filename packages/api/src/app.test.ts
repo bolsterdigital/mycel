@@ -9,10 +9,12 @@ import {
 } from '@mycel/core/testing';
 import { Metrics, createLogger } from '@mycel/observability';
 import { createApp } from './app.js';
+import type { PlatformStore } from './platform.js';
 import { loadConfig } from './compose.js';
 import { HmacInputHasher, HmacSigner } from './signer.js';
 
 const FORM = '01900000-0000-7000-8000-00000000f000';
+const PLATFORM_TOKEN = 'p'.repeat(32);
 
 async function setup() {
   const uow = new MemoryUnitOfWork();
@@ -172,6 +174,8 @@ describe('HTTP observability', () => {
     const app = createApp({
       invoker: new Invoker(buildRegistry(), uow),
       authenticate: async (h) => (h === 'Bearer good' ? systemPrincipal(TENANT, 'api') : null),
+      // Only for the refusal it counts: an id that is no uuid never reaches the store.
+      platform: { token: PLATFORM_TOKEN, store: {} as PlatformStore },
       observability: {
         log,
         metrics: new Metrics(),
@@ -226,6 +230,15 @@ describe('HTTP observability', () => {
       headers: { authorization: 'Bearer good', 'content-type': 'application/json' },
       body: '{}',
     });
+    // A body that is no JSON and a refusal of the platform API count like any other refusal.
+    await app.request('/v1/nope', {
+      method: 'POST',
+      headers: { authorization: 'Bearer good', 'content-type': 'application/json' },
+      body: '{',
+    });
+    await app.request('/platform/tenants/not-an-id', {
+      headers: { authorization: `Bearer ${PLATFORM_TOKEN}` },
+    });
     expect((await app.request('/metrics')).status).toBe(404);
     expect(
       (await app.request('/metrics', { headers: { authorization: 'Bearer wrong' } })).status
@@ -236,9 +249,10 @@ describe('HTTP observability', () => {
     const text = await res.text();
     expect(text).toContain('# TYPE mycel_http_requests_total counter');
     expect(text).toMatch(
-      /mycel_http_requests_total\{method="POST",route="\/v1\/:name",status="4xx"\} 1/
+      /mycel_http_requests_total\{method="POST",route="\/v1\/:name",status="4xx"\} 2/
     );
     expect(text).toContain('mycel_use_case_errors_total{code="not_found"} 1');
+    expect(text).toContain('mycel_use_case_errors_total{code="invalid_input"} 2');
     expect(text).not.toContain(TENANT);
   });
 });
@@ -261,6 +275,7 @@ describe('security headers', () => {
     expect(ok.status).toBe(200);
     const missing = await app.request('/nowhere');
     expect(missing.status).toBe(404);
+    expect(await missing.json()).toMatchObject({ type: 'urn:mycel:problem:not_found' });
     const refused = await post('no.such.thing', {});
     expect(refused.headers.get('content-type')).toMatch(/problem\+json/);
     const unauthorized = await post('no.such.thing', {}, 'Bearer bad');

@@ -17,7 +17,6 @@
 // leaks), and the use-case route `GET /v1/content.published.get` with its `private` cache
 // (it answers per caller, this route per URL).
 
-import { createHash } from 'node:crypto';
 import { Hono } from 'hono';
 import {
   UseCaseError,
@@ -27,6 +26,7 @@ import {
   type TenantAccess,
   type TenantDirectory,
 } from '@mycel/core';
+import { conditionalJson, etag } from './http-shape.js';
 import { problem } from './problem.js';
 
 export interface ContentReadDeps {
@@ -39,12 +39,6 @@ export interface ContentReadDeps {
 export const CONTENT_READ_PATH = '/v1/sites/{tenant}/content/{type}/{slug}';
 const PUBLIC_CACHE = 'public, max-age=60, stale-while-revalidate=600';
 const NO_STORE = 'no-store';
-
-function noneMatch(header: string | undefined, etag: string): boolean {
-  if (!header) return false;
-  const opaque = (tag: string) => tag.trim().replace(/^W\//, '');
-  return header.split(',').some((tag) => tag.trim() === '*' || opaque(tag) === opaque(etag));
-}
 
 /** Mounted under `/v1/sites` by `createApp`. */
 export function createContentReadApp({ invoker, tenants, access }: ContentReadDeps): Hono {
@@ -79,11 +73,10 @@ export function createContentReadApp({ invoker, tenants, access }: ContentReadDe
         return problem(e.code, e.message, e.issues, { 'cache-control': NO_STORE });
       throw e;
     }
-    const digest = createHash('sha256').update(body).digest('base64url').slice(0, 16);
-    const headers = { etag: `"${key}:${digest}"`, 'cache-control': PUBLIC_CACHE };
-    if (noneMatch(c.req.header('if-none-match'), headers.etag))
-      return new Response(null, { status: 304, headers });
-    return new Response(body, { headers: { ...headers, 'content-type': 'application/json' } });
+    return conditionalJson(c.req.header('if-none-match'), body, {
+      etag: etag(body, key),
+      'cache-control': PUBLIC_CACHE,
+    });
   });
 
   return app;
