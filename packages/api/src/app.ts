@@ -1,6 +1,6 @@
 // HTTP front (ADR 001, ADR 009). Every registered use case is `POST /v1/<name>` with a JSON body
 // validated by the use case's own schema; a flat query is also `GET /v1/<name>?field=...` with a
-// weak ETag (see `http-shape.ts`). Errors are Problem Details (`problem.ts`) and the OpenAPI 3.1
+// weak ETag (`etag` in `http-shape.ts`). Errors are Problem Details (`problem.ts`) and the OpenAPI 3.1
 // document at `/openapi.json` is generated from the same registry (`openapi.ts`). Nothing here
 // names a use case. Hono over Express/Fastify: Web-standard Request/Response, tiny, portable.
 //
@@ -13,7 +13,7 @@
 // Rejected: `hono/secure-headers`, a dependency for five lines whose defaults differ from the
 // web app's (apps/web/src/lib/server/security-headers.ts).
 
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { routePath } from 'hono/route';
@@ -34,7 +34,16 @@ import {
   setContext,
 } from '@mycel/observability';
 import { createContentReadApp, type ContentReadDeps } from './content-read.js';
-import { coerceQuery, flatQueryFields, methodsOf } from './http-shape.js';
+import {
+  coerceQuery,
+  conditionalJson,
+  etag,
+  flatQueryFields,
+  methodsOf,
+  problemOnError,
+  readJson,
+  unauthorized,
+} from './http-shape.js';
 import { openApiDocument } from './openapi.js';
 import { bearerMatches } from './bearer.js';
 import { createPlatformApp, type PlatformDeps } from './platform.js';
@@ -92,21 +101,6 @@ const statusClass = (status: number) => `${Math.floor(status / 100)}xx`;
  */
 export const MAX_BODY_BYTES = Math.ceil(MAX_UPLOAD_BYTES / 3) * 4 + 1024 * 1024;
 
-const unauthorized = () =>
-  problem('unauthorized', 'send Authorization: Bearer <api key>', [], {
-    'www-authenticate': 'Bearer',
-  });
-
-/** Weak, because the hash covers the JSON serialisation, not a byte-exact representation. */
-const etagOf = (body: string) =>
-  `W/"${createHash('sha256').update(body).digest('base64url').slice(0, 27)}"`;
-
-function matches(ifNoneMatch: string | undefined, etag: string): boolean {
-  if (!ifNoneMatch) return false;
-  const opaque = (tag: string) => tag.trim().replace(/^W\//, '');
-  return ifNoneMatch.split(',').some((tag) => tag.trim() === '*' || opaque(tag) === opaque(etag));
-}
-
 export function createApp({
   invoker,
   authenticate,
@@ -122,10 +116,6 @@ export function createApp({
   const requests = obs.metrics.counter(
     'mycel_http_requests_total',
     'HTTP requests by method, route pattern and status class'
-  );
-  const useCaseErrors = obs.metrics.counter(
-    'mycel_use_case_errors_total',
-    'Use case refusals by error code'
   );
 
   app.use('*', async (c, next) => {
@@ -179,7 +169,10 @@ export function createApp({
   );
 
   if (platform)
-    app.route('/platform', createPlatformApp({ ...platform, log: obs.log, errors: obs.errors }));
+    app.route(
+      '/platform',
+      createPlatformApp({ ...platform, log: obs.log, errors: obs.errors, metrics: obs.metrics })
+    );
   if (contentRead) app.route('/v1/sites', createContentReadApp(contentRead));
 
   const principalOf = async (c: Context) => {
@@ -198,16 +191,8 @@ export function createApp({
   );
   app.post('/v1/:name', async (c) => {
     const principal = await principalOf(c);
-    if (!principal) return unauthorized();
-    let body: unknown;
-    try {
-      body = await c.req.json();
-    } catch {
-      return problem('invalid_input', 'body must be JSON', [
-        { path: '', message: 'body must be JSON' },
-      ]);
-    }
-    return c.json(await invoker.call(principal, c.req.param('name'), body));
+    if (!principal) return unauthorized('api key');
+    return c.json(await invoker.call(principal, c.req.param('name'), await readJson(c.req)));
   });
 
   app.get('/v1/:name', async (c) => {
@@ -216,29 +201,23 @@ export function createApp({
     if (useCase && !fields)
       return problem('method_not_allowed', `${useCase.name} is POST only`, [], { allow: 'POST' });
     const principal = await principalOf(c);
-    if (!principal) return unauthorized();
+    if (!principal) return unauthorized('api key');
     if (!useCase || !fields)
       throw new UseCaseError('not_found', `unknown operation "${c.req.param('name')}"`);
 
     const body = JSON.stringify(
       await invoker.run(useCase, principal, coerceQuery(fields, c.req.queries()))
     );
-    const etag = etagOf(body);
     // Responses depend on the caller, so only the caller's own cache may keep them.
-    const headers = { etag, 'cache-control': 'private, no-cache', vary: 'Authorization' };
-    if (matches(c.req.header('if-none-match'), etag))
-      return new Response(null, { status: 304, headers });
-    return new Response(body, { headers: { ...headers, 'content-type': 'application/json' } });
+    return conditionalJson(c.req.header('if-none-match'), body, {
+      etag: etag(body),
+      'cache-control': 'private, no-cache',
+      vary: 'Authorization',
+    });
   });
 
-  app.onError((err) => {
-    if (err instanceof UseCaseError) {
-      useCaseErrors.inc({ code: err.code });
-      return problem(err.code, err.message, err.issues);
-    }
-    obs.errors.capture(err);
-    return problem('internal');
-  });
+  app.notFound(() => problem('not_found', 'no such route'));
+  app.onError(problemOnError(obs));
 
   return app;
 }
