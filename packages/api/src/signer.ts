@@ -3,12 +3,20 @@
 // dreamkit-supporter-registry/src/consent/tokens.ts. Rejected: JWT, whose header negotiation and
 // algorithm zoo buy nothing for tokens only this application issues and reads.
 
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, hkdfSync, timingSafeEqual } from 'node:crypto';
 import type { InputHasher, Signer } from '@mycel/core';
 
 export class HmacSigner implements Signer {
+  /**
+   * The rate-limit key, derived as HKDF(SIGNING_SECRET, info 'ip') (TODO #74): an address hash is
+   * never a MAC under the token key. Rejected: a second secret in the config, one more value a
+   * self-hoster must generate for a key nobody reads.
+   */
+  readonly #ipKey: Buffer;
+
   constructor(private readonly secret: string) {
     if (secret.length < 16) throw new Error('SIGNING_SECRET must be at least 16 characters');
+    this.#ipKey = Buffer.from(hkdfSync('sha256', secret, '', 'ip', 32));
   }
 
   #mac(segment: string): Buffer {
@@ -30,9 +38,8 @@ export class HmacSigner implements Signer {
     return Buffer.from(segment, 'base64url').toString('utf8');
   }
 
-  /** Keyed hash of an IP address: a stable rate-limit key that is not the address itself. */
   hashIp(ip: string): string {
-    return createHmac('sha256', this.secret).update(`ip:${ip}`).digest('base64url').slice(0, 22);
+    return createHmac('sha256', this.#ipKey).update(ip).digest('base64url').slice(0, 22);
   }
 }
 

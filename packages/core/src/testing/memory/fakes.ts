@@ -42,6 +42,9 @@ export class FakeSigner implements Signer {
     const payload = token.slice(0, i);
     return [...payload].reverse().join('') === token.slice(i + 1) ? payload : null;
   }
+  hashIp(ip: string): string {
+    return `ip~${[...ip].reverse().join('')}`;
+  }
 }
 
 /**

@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { Invoker, buildRegistry, systemPrincipal } from '@mycel/core';
 import {
@@ -131,6 +132,18 @@ describe('HmacSigner', () => {
     expect(await s.verify(token.slice(0, -2) + 'xx')).toBeNull();
     expect(await new HmacSigner('fedcba9876543210').verify(token)).toBeNull();
     expect(s.hashIp('1.2.3.4')).not.toContain('1.2.3.4');
+  });
+
+  it('hashes addresses under a key derived for that purpose alone', () => {
+    const s = new HmacSigner('0123456789abcdef');
+    expect(s.hashIp('1.2.3.4')).toBe(s.hashIp('1.2.3.4'));
+    expect(s.hashIp('1.2.3.4')).not.toBe(s.hashIp('1.2.3.5'));
+    expect(new HmacSigner('fedcba9876543210').hashIp('1.2.3.4')).not.toBe(s.hashIp('1.2.3.4'));
+    // Not a MAC under the signing key, in either the old or the plain form.
+    for (const input of ['ip:1.2.3.4', '1.2.3.4'])
+      expect(s.hashIp('1.2.3.4')).not.toBe(
+        createHmac('sha256', '0123456789abcdef').update(input).digest('base64url').slice(0, 22)
+      );
   });
 });
 

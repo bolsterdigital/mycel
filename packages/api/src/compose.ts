@@ -29,6 +29,7 @@ import {
   type PlatformConfig,
   type Principal,
   type SiteAddress,
+  type Signer,
   type SiteDirectory,
   type Subscriber,
   type TenantDirectory,
@@ -473,7 +474,7 @@ export interface Runtime {
   /** The one builder of absolute site URLs (ADR 014 rule 6), bound to this platform. */
   siteUrl(site: SiteAddress, path?: string): string;
   clock: Clock;
-  signer: HmacSigner;
+  signer: Signer;
   mailer: Mailer;
   /** Media files (TODO #10); the web front's delivery route reads variants from here. */
   blobs: BlobStore;

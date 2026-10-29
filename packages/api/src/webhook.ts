@@ -22,6 +22,9 @@ export interface WebhookRequest {
 }
 export type WebhookSender = (request: WebhookRequest) => Promise<number>;
 
+/** Both the socket idle timeout and the overall deadline of one delivery. */
+const WEBHOOK_TIMEOUT_MS = 5000;
+
 /** The checked address is used for TCP; URL hostname remains Host and TLS SNI. No redirect loop. */
 export const sendWebhook = (
   { url, address, body, headers }: WebhookRequest,
@@ -41,7 +44,7 @@ export const sendWebhook = (
         method: 'POST',
         headers,
         ca,
-        timeout: 5000,
+        timeout: WEBHOOK_TIMEOUT_MS,
         lookup: (_hostname, options, callback) => {
           if (options.all) callback(null, [{ address, family }]);
           else callback(null, address, family);
@@ -59,7 +62,7 @@ export const sendWebhook = (
         response.resume();
       }
     );
-    const deadline = setTimeout(() => fail(new Error('webhook deadline')), 5000);
+    const deadline = setTimeout(() => fail(new Error('webhook deadline')), WEBHOOK_TIMEOUT_MS);
     request.on('timeout', () => fail(new Error('webhook timeout')));
     request.on('error', fail);
     request.end(body);

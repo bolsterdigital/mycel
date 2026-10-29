@@ -56,6 +56,11 @@ export interface Signer {
   sign(payload: string): Promise<string>;
   /** The original payload when the signature is valid, otherwise null. */
   verify(token: string): Promise<string | null>;
+  /**
+   * A stable rate-limit key for a client address that is not the address itself, under a key of
+   * its own: rotating the signing key does not reset rate limits, and the reverse (TODO #74).
+   */
+  hashIp(ip: string): string;
 }
 
 /** A domain event as published by a module and consumed by others (ADR 003). */
