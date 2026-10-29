@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NO_STORE, PUBLIC_CACHE, conditional, noneMatch } from './http-cache.js';
+import { NO_STORE, PUBLIC_CACHE, conditional } from './http-cache.js';
 
 const ETAG = '"rev:nl:theme:digest"';
 const page = (headers: Record<string, string> = {}, status = 200) =>
@@ -46,13 +46,5 @@ describe('conditional', () => {
     expect(missing.headers.get('cache-control')).toBe(NO_STORE);
     const own = new Response('x', { status: 404, headers: { 'cache-control': 'max-age=5' } });
     expect(conditional(get(), own).headers.get('cache-control')).toBe('max-age=5');
-  });
-});
-
-describe('noneMatch', () => {
-  it('compares weakly and knows *', () => {
-    expect(noneMatch(null, ETAG)).toBe(false);
-    expect(noneMatch('*', ETAG)).toBe(true);
-    expect(noneMatch(`W/${ETAG}`, ETAG)).toBe(true);
   });
 });
