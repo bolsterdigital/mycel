@@ -24,7 +24,9 @@ import {
 } from '@mycel/core';
 import { runtime } from './runtime.js';
 import { withAssigned } from './content-admin.js';
+import { mediaChoice } from './media-choices.js';
 import type { UiKey } from '../../i18n/index.js';
+import type { MediaChoice } from '../admin/media-choice.js';
 
 export interface Option {
   id: string;
@@ -36,27 +38,12 @@ export async function pickerOptions(
   principal: Principal,
   blocks: readonly Block[],
   locale: string
-): Promise<{ media: Option[]; items: Option[] }> {
+): Promise<{ media: MediaChoice[]; items: Option[]; upload: boolean }> {
   const { invoker } = runtime();
   const used = blockReferences(blocks);
   const orNull = <T>(p: Promise<T>) => p.catch(() => null);
   const [media, items] = await Promise.all([
-    // An editor without `media:read` sees the images the block has, by id, and keeps them.
-    can(principal, 'media:read')
-      ? invoker
-          .run(useCases.listMedia, principal, { kind: 'image', limit: 100 })
-          .then(({ items }) =>
-            withAssigned(
-              used.media,
-              items.map((m) => ({ id: m.id, label: m.filename })),
-              async (id) => {
-                const m = await orNull(invoker.run(useCases.getMedia, principal, { id }));
-                return m && { id: m.id, label: m.filename };
-              },
-              (id) => ({ id, label: id })
-            )
-          )
-      : used.media.map((id) => ({ id, label: id })),
+    mediaChoices(principal, used.media),
     invoker.run(useCases.listItems, principal, { limit: 100 }).then(({ items }) => {
       const label = (i: { slug: string; title: Record<string, string | undefined> }) =>
         `${i.title[locale] ?? Object.values(i.title)[0] ?? i.slug} (/${i.slug})`;
@@ -71,7 +58,30 @@ export async function pickerOptions(
       );
     }),
   ]);
-  return { media, items };
+  return { media, items, upload: can(principal, 'media:write') };
+}
+
+/**
+ * The images a media picker offers: a page of the newest plus the ones already chosen. An
+ * editor without `media:read` sees the chosen ones by id, and keeps them.
+ */
+export async function mediaChoices(
+  principal: Principal,
+  chosen: readonly string[]
+): Promise<MediaChoice[]> {
+  const { invoker } = runtime();
+  const missing = (id: string): MediaChoice => ({ id, label: id, thumb: false });
+  if (!can(principal, 'media:read')) return chosen.map(missing);
+  const { items } = await invoker.run(useCases.listMedia, principal, { kind: 'image', limit: 100 });
+  return withAssigned(
+    chosen,
+    items.map(mediaChoice),
+    async (id) => {
+      const m = await invoker.run(useCases.getMedia, principal, { id }).catch(() => null);
+      return m && mediaChoice(m);
+    },
+    missing
+  );
 }
 
 /** The text of a rich-text node and everything in it, in order. */

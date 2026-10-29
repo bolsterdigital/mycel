@@ -63,9 +63,17 @@ export function mediaRepository(trx: Trx, tenantId: string): MediaRepository {
       const row = await select().where('media.id', '=', id).executeTakeFirst();
       return row ? toRecord(row) : null;
     },
-    async list({ kind, cursor, limit }) {
+    async list({ kind, q: text, cursor, limit }) {
       let q = select().where('media.deleted_at', 'is', null);
       if (kind) q = q.where('media.kind', '=', kind);
+      if (text) {
+        // A sequential scan of one tenant's media; a trigram index waits for a measured need
+        // (ADR 008). The caption is matched on its values, never on the jsonb keys.
+        const like = `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+        q = q.where(
+          sql<boolean>`(media.filename ilike ${like} or exists (select 1 from jsonb_each_text(media.caption) c where c.value ilike ${like}))`
+        );
+      }
       if (cursor)
         q = q.where(
           sql<boolean>`(media.created_at, media.id) < (select c.created_at, c.id from media c where c.id = ${cursor})`

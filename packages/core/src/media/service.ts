@@ -352,11 +352,13 @@ export const getMedia = defineUseCase({
 export const listMedia = defineUseCase({
   name: 'media.list',
   kind: 'query',
-  description: 'List the media of this site, newest first, a page at a time.',
+  description:
+    'List the media of this site, newest first, a page at a time; `q` finds a filename or caption that contains it.',
   requires: 'media:read',
   input: z
     .object({
       kind: MediaKind.optional(),
+      q: z.string().trim().min(1).max(100).optional(),
       cursor: MediaId.optional(),
       /** Default 50. */
       limit: z.number().int().min(1).max(100).optional(),
@@ -364,8 +366,8 @@ export const listMedia = defineUseCase({
     .strict(),
   output: z.object({ items: z.array(MediaView), nextCursor: MediaId.nullable() }),
   examples: [{ input: {} }],
-  async handler(ctx, { kind, cursor, limit = 50 }) {
-    const rows = await ctx.media.list({ kind, cursor, limit: limit + 1 });
+  async handler(ctx, { kind, q, cursor, limit = 50 }) {
+    const rows = await ctx.media.list({ kind, q, cursor, limit: limit + 1 });
     const page = rows.slice(0, limit);
     return {
       items: page.map((m) => toMediaView(ctx, m)),

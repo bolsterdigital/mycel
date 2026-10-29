@@ -8,13 +8,13 @@ Content refers to a **media id**, never to a URL. Mycel owns the record (id, che
 
 ## Use cases
 
-| Use case       | Kind    | Capability    | Notes                                                                                                                                                  |
-| -------------- | ------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `media.upload` | command | `media:write` | base64 JSON, at most 25 MB decoded; consumes `media.storage_max_bytes` (original plus every variant)                                                   |
-| `media.get`    | query   | `media:read`  | also the MCP resource `mycel://media/{id}`                                                                                                             |
-| `media.list`   | query   | `media:read`  | newest first, `{ kind?, cursor?, limit ≤ 100 }`, `nextCursor`; also `GET /v1/media.list?limit=…`                                                       |
-| `media.update` | command | `media:write` | caption, credit, source, licence, focal point, access; the file never changes (upload again for a new file, a new id)                                  |
-| `media.delete` | command | `media:write` | `conflict` while usages exist (the count only, never where); otherwise soft-deletes and plans `media.purge` for 24 hours later in the same transaction |
+| Use case       | Kind    | Capability    | Notes                                                                                                                                                      |
+| -------------- | ------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `media.upload` | command | `media:write` | base64 JSON, at most 25 MB decoded; consumes `media.storage_max_bytes` (original plus every variant)                                                       |
+| `media.get`    | query   | `media:read`  | also the MCP resource `mycel://media/{id}`                                                                                                                 |
+| `media.list`   | query   | `media:read`  | newest first, `{ kind?, q?, cursor?, limit ≤ 100 }` (`q`: filename or caption contains, case-insensitive), `nextCursor`; also `GET /v1/media.list?limit=…` |
+| `media.update` | command | `media:write` | caption, credit, source, licence, focal point, access; the file never changes (upload again for a new file, a new id)                                      |
+| `media.delete` | command | `media:write` | `conflict` while usages exist (the count only, never where); otherwise soft-deletes and plans `media.purge` for 24 hours later in the same transaction     |
 
 Accepted: `image/jpeg`, `image/png`, `image/webp`, `image/avif`, `image/gif`, `application/pdf`. **SVG is refused** (`media.type.svg`): scripts in an SVG run on the site; a logo or wordmark comes through the theme (ADR 013), not through the library. The content type is checked against the bytes (`media.type.mismatch`, `media.type.unreadable`), and an image larger than **50 megapixels** is refused from its header before anything is decoded (`media.pixels.too_many`); for an animated GIF every frame counts, because the whole animation is decoded at once (500x500 pixels at 200 frames is the limit). Over HTTP a body larger than the base64 of 25 MB plus 1 MB is `413 urn:mycel:problem:payload_too_large`.
 
@@ -57,6 +57,8 @@ A variant never changes (a new file is a new id), which is why a public variant 
 ## The admin
 
 `/admin/<tenant>/media` (PR #16) uploads, lists, edits and deletes through the same use cases, with native form posts and no JavaScript. The upload is a multipart form; the action turns the file into base64 and calls `media.upload`, so there is one contract for the admin, HTTP and MCP. The web process accepts bodies up to 26M for that form only (`BODY_SIZE_LIMIT`, set in `docker/entrypoint.sh`); `hooks.server.ts` counts actual bytes and answers `413` above 512K for every other request, including chunked bodies and the media update/delete actions. The 26M exception applies only to multipart POSTs selecting the upload action. Storage statistics are shown only to tenant administrators; media editors need only their media capabilities to use the library.
+
+The upload form takes several files at once and reports per file; `?q=` searches the library. Wherever an editor chooses an image (an image block, the hero image, the article writer's image card), the shared `MediaPicker` shows a grid of thumbnails as radio buttons in a native `<dialog>`, which works without JavaScript. `static/_admin/media-picker.js` adds search through `GET /admin/<tenant>/media/choices?q=&cursor=` and uploading with progress through `POST /admin/<tenant>/media/upload` (multipart, one file, JSON back); both run the same use cases as the operator. That upload route has the same 26M ceiling as the upload action.
 
 The admin runs on the platform origin, so it serves its own files instead of the site's `/media/...` route:
 

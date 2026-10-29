@@ -107,9 +107,13 @@ export function memoryMedia(s: TenantStore, lock: () => Promise<void>): MediaRep
       const m = s.media.get(id);
       return m ? mediaRecord(m) : null;
     },
-    async list({ kind, cursor, limit }) {
+    async list({ kind, q, cursor, limit }) {
+      const needle = q?.toLowerCase();
+      const matches = (m: StoredMedia) =>
+        !needle ||
+        [m.filename, ...Object.values(m.caption)].some((t) => t.toLowerCase().includes(needle));
       const all = [...s.media.values()]
-        .filter((m) => !m.deletedAt && (!kind || m.kind === kind))
+        .filter((m) => !m.deletedAt && (!kind || m.kind === kind) && matches(m))
         .sort((a, b) => +b.createdAt - +a.createdAt || b.id.localeCompare(a.id));
       const from = cursor ? all.findIndex((m) => m.id === cursor) + 1 : 0;
       return all.slice(from, from + limit).map(mediaRecord);

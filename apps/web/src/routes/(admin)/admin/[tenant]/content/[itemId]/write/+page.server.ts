@@ -3,7 +3,7 @@
 // conflict as the native forms. Rejected: a separate draft endpoint or last-write-wins state.
 import { fail, error } from '@sveltejs/kit';
 import { ZodError } from 'zod';
-import { UseCaseError, useCases } from '@mycel/core';
+import { UseCaseError, can, useCases } from '@mycel/core';
 import {
   EditorInputError,
   fromArticleEditor,
@@ -11,6 +11,7 @@ import {
 } from '#lib/editor/article-document.js';
 import { actorLabel, diffRows, when } from '#lib/server/content-admin.js';
 import { requireTenantPrincipal } from '#lib/server/admin.js';
+import { mediaChoices } from '#lib/server/content-blocks.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -32,6 +33,9 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     cards: revision.document.blocks
       .filter((block) => block.type !== 'rich-text')
       .map((block) => ({ id: block.id, type: block.type })),
+    // A pasted image becomes a card that waits for an image from the library (brief media-picker).
+    media: await mediaChoices(principal, []),
+    upload: can(principal, 'media:write'),
     missingTranslations: revision.document.locales.filter((l) => !revision.document.title[l]),
     missingAlt: revision.document.blocks
       .filter(

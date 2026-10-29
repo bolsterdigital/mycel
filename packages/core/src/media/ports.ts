@@ -81,6 +81,8 @@ export interface MediaDelivery {
 
 export interface MediaListQuery {
   kind?: MediaKind | undefined;
+  /** Case-insensitive substring of the filename or of the caption in any locale. */
+  q?: string | undefined;
   /** The id of the last item of the previous page. */
   cursor?: string | undefined;
   limit: number;

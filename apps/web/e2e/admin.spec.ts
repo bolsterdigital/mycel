@@ -230,15 +230,21 @@ test.describe('admin-shell', () => {
     await expect(page.getByRole('main')).toHaveCount(1);
     if (test.info().project.name === 'a11y') await expectNoAxeViolations(page);
     else {
-      const scripts = await page
+      const all = await page
         .locator('script')
         .evaluateAll((nodes) =>
           nodes.map((node) => ({ src: node.getAttribute('src'), type: node.getAttribute('type') }))
         );
-      // The content editor's live preview and the media upload's thumbnails are optional modules,
-      // inert in this project; the native flows remain the no-JS contract. Other shell routes
-      // still emit no script.
+      // The content editor's live preview, the media pickers' search and upload and the media
+      // upload's thumbnails are optional modules, inert in this project; the native flows remain
+      // the no-JS contract. Other shell routes still emit no script.
       const path = new URL(page.url()).pathname;
+      const picker = (s: { src: string | null }) => s.src === '/_admin/media-picker.js';
+      const scripts = all.filter((s) => !picker(s));
+      if (all.some(picker)) {
+        expect(path).toMatch(/\/content\/[^/]+$/);
+        expect(all.filter(picker).every((s) => s.type === 'module')).toBe(true);
+      }
       expect(scripts).toEqual(
         /\/content\/[^/]+$/.test(path)
           ? [{ src: '/_admin/live-preview-parent.js', type: 'module' }]

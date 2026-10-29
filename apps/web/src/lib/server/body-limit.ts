@@ -13,6 +13,9 @@ export function bodyLimit(request: Request, url: URL): number {
   if (!multipartPost) return SMALL_BODY;
   if (/^\/admin\/[^/]+\/media\/?$/.test(url.pathname) && action === '/upload')
     return 26 * 1024 * 1024;
+  // The media picker's upload (brief media-picker): one file per request, the same ceiling.
+  if (/^\/admin\/[^/]+\/media\/upload\/?$/.test(url.pathname) && action === undefined)
+    return 26 * 1024 * 1024;
   // One brand file per native form: at most a 2 MiB logo (or 1 MiB font), plus 64 KiB
   // for multipart headers and fields. File-specific validation stays in the action/core.
   if (/^\/admin\/[^/]+\/site\/?$/.test(url.pathname) && action === '/brand')

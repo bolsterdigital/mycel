@@ -131,6 +131,15 @@ describe.skipIf(!operatorUrl || !appUrl)('media conformance', () => {
       )
     ).toBe(0);
     expect(await uow.run(B, (ctx) => ctx.media.idsOf())).toEqual([theirs.id]);
+    // A search matches like memory does: filename or caption, `%` and `_` taken literally.
+    await invoker.run(useCases.updateMedia, A, { id: mine.id, caption: { nl: 'Plein 100%' } });
+    const found = async (p: Principal, q: string) =>
+      (await invoker.run(useCases.listMedia, p, { q })).items.map((m) => m.id);
+    expect(await found(A, 'PIXEL')).toEqual([mine.id]);
+    expect(await found(A, '100%')).toEqual([mine.id]);
+    expect(await found(A, '1_0')).toEqual([]);
+    expect(await found(B, 'plein')).toEqual([]);
+
     expect((await invoker.run(useCases.getMedia, A, { id: mine.id })).usageCount).toBe(1);
 
     const used = (p: Principal) =>

@@ -18,6 +18,7 @@ export { default as Field } from './Field.svelte';
 export { default as Fieldset } from './Fieldset.svelte';
 export { default as FileDrop } from './FileDrop.svelte';
 export { default as FormPage } from './FormPage.svelte';
+export { default as MediaPicker } from './MediaPicker.svelte';
 export { default as MetaList } from './MetaList.svelte';
 export { default as Notice } from './Notice.svelte';
 export { default as OverviewPage } from './OverviewPage.svelte';

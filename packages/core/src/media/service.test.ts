@@ -306,6 +306,23 @@ describe('media', () => {
       );
     });
 
+    it('finds a filename or a caption in any locale, case-insensitive, with % taken literally', async () => {
+      const beach = await upload({ filename: 'Beach_2026.png' });
+      const crowd = await upload({ filename: 'crowd.png' });
+      await invoker.run(useCases.updateMedia, system, {
+        id: crowd.id,
+        caption: { en: 'Protest on the Dam', nl: 'Demonstratie 100% vol' },
+      });
+      await upload({ filename: 'other.png' });
+      const ids = async (q: string) =>
+        (await invoker.run(useCases.listMedia, system, { q })).items.map((m) => m.id);
+      expect(await ids('beach')).toEqual([beach.id]);
+      expect(await ids('DAM')).toEqual([crowd.id]);
+      expect(await ids('100%')).toEqual([crowd.id]);
+      expect(await ids('h_2')).toEqual([beach.id]);
+      expect(await ids('nothing')).toEqual([]);
+    });
+
     it('needs media:read to read and media:write to upload', async () => {
       const reader = {
         ...system,

@@ -81,6 +81,8 @@
     locales={data.docLocales}
     idPrefix="new"
     media={data.media}
+    {base}
+    upload={data.upload}
     items={data.items}
     invalid={(form?.fieldIssues ?? []).map((x) => x.name)}
     locale={data.locale}

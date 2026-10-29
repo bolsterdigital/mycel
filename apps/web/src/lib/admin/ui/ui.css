@@ -467,6 +467,12 @@
     border-block-end-color: var(--color-primary-bg);
   }
 
+  /* A flex column whose body scrolls and shrinks: the head keeps its real height at any text
+     size and a long name, so nothing reserves a guessed height for it (TODO #61). */
+  .ui-dialog[open] {
+    display: flex;
+    flex-direction: column;
+  }
   .ui-dialog {
     width: min(40rem, 100% - 2 * var(--gutter));
     max-height: calc(100% - 2 * var(--gutter));
@@ -498,21 +504,168 @@
     font-size: var(--step-1);
     overflow-wrap: anywhere;
   }
+  .ui-dialog-head {
+    flex: none;
+  }
   .ui-dialog-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
     padding: var(--space-2);
     overflow-wrap: break-word;
   }
-  /* A lightbox shows the whole image: as wide as the body allows and no taller than the
-     viewport minus the dialog's own head and padding (8rem grows with the text size), so a
-     landscape photo is never cut off at the bottom. Rejected: letting the dialog scroll, which
-     shows a cropped image first. */
-  .ui-dialog-body img {
+  /* A lightbox shows the whole image: as wide as the body allows and no taller than the body,
+     which is what the dialog leaves after its head, so a landscape photo is never cut off at the
+     bottom and the dialog never scrolls. Rejected: a fixed reserve for the head (8rem), which a
+     long name at 200% text outgrew (TODO #61). The head yields too: past 40% of the dialog it
+     scrolls on its own (its close button keeps the region reachable), because a long name at
+     200% text on a phone is otherwise most of the dialog and leaves the photo a sliver or pushes
+     it out. Rejected: clamping the name to a few lines, which hides text at large sizes. */
+  .ui-dialog:has(> .ui-dialog-body > img:only-child) {
+    height: calc(100% - 2 * var(--gutter));
+  }
+  .ui-dialog:has(> .ui-dialog-body > img:only-child) > .ui-dialog-head {
+    max-height: 40%;
+    overflow-y: auto;
+  }
+  .ui-dialog-body:has(> img:only-child) {
+    display: flex;
+    overflow: hidden;
+  }
+  .ui-dialog-body > img:only-child {
     display: block;
     width: auto;
     max-width: 100%;
     height: auto;
-    max-height: calc(100dvh - 2 * var(--gutter) - 8rem);
-    margin-inline: auto;
+    max-height: 100%;
+    min-height: 0;
+    margin: auto;
+    object-fit: contain;
+  }
+
+  /* The media picker (brief media-picker): the choice as a thumbnail with its name, and in its
+     dialog a grid of images whose radio sits on the card, so the whole card is the target and
+     the choice is visible as an outline. Two columns at 320 CSS px and 200% text. */
+  .ui-media-picker {
+    display: grid;
+    gap: var(--space-1);
+    min-width: 0;
+    max-width: var(--form-width);
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .ui-media-picker > legend {
+    max-inline-size: 100%;
+    padding: 0;
+    margin-block-end: var(--space-0);
+    font-weight: 600;
+    overflow-wrap: break-word;
+  }
+  .ui-media-picker-current {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+  .ui-media-picker-current img {
+    inline-size: 6rem;
+    block-size: 4.5rem;
+    object-fit: cover;
+    border-radius: var(--radius);
+    background: var(--color-body-bg);
+  }
+  .ui-media-picker-current img[hidden] {
+    display: none;
+  }
+  .ui-media-picker-current span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .ui-media-picker.invalid .ui-media-picker-current {
+    outline: var(--control-border-width) solid var(--status-error-fg);
+    outline-offset: var(--space-0);
+  }
+  .ui-media-picker-tools {
+    display: grid;
+    gap: var(--space-1);
+    margin-block-end: var(--space-2);
+  }
+  .ui-media-picker-tools:empty {
+    display: none;
+  }
+  .ui-media-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(9rem, 40%), 1fr));
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ui-media-grid[hidden] {
+    display: none;
+  }
+  .ui-media-option {
+    position: relative;
+    display: grid;
+    gap: var(--space-0);
+    min-width: 0;
+    padding: var(--space-0);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+  .ui-media-option:has(:checked) {
+    border-color: var(--color-primary-bg);
+    box-shadow: 0 0 0 2px var(--color-primary-bg);
+  }
+  .ui-media-option:has(:focus-visible) {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+  .ui-media-option input {
+    position: absolute;
+    inset-block-start: var(--space-1);
+    inset-inline-start: var(--space-1);
+    width: 1.25rem;
+    height: 1.25rem;
+    margin: 0;
+  }
+  .ui-media-option img,
+  .ui-media-option-blank {
+    display: block;
+    inline-size: 100%;
+    block-size: auto;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+    background: var(--color-body-bg);
+  }
+  .ui-media-option-name {
+    font-size: var(--step--1);
+    overflow-wrap: anywhere;
+  }
+  .ui-media-uploads {
+    display: grid;
+    gap: var(--space-0);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ui-media-uploads li {
+    display: grid;
+    gap: var(--space-0);
+    overflow-wrap: anywhere;
+  }
+  .ui-media-uploads progress {
+    inline-size: 100%;
+  }
+  .ui-media-picker-more {
+    margin-block-start: var(--space-1);
+  }
+  .ui-media-picker-more[hidden] {
+    display: none;
   }
 
   .ui-pagination {

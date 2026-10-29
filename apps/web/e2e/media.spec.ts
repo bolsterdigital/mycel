@@ -78,7 +78,7 @@ async function remove(page: Page, id: string, filename: string) {
 }
 
 async function upload(page: Page, filename: string, buffer = png(400, 300)) {
-  await page.getByLabel('Bestand (verplicht)', { exact: true }).setInputFiles({
+  await page.getByLabel('Bestanden (verplicht)', { exact: true }).setInputFiles({
     name: filename,
     mimeType: 'image/png',
     buffer,
@@ -239,14 +239,18 @@ test('the lightbox shows a large landscape photo whole, on a laptop and a phone'
 }) => {
   test.skip(test.info().project.name !== 'a11y', 'measures the layout with a script');
   await login(page, '/admin/probe/media');
-  const filename = `large-${Date.now()}.png`;
+  // A long name wraps the dialog's head over several lines at 200% text (TODO #61).
+  const filename = `large-landscape-photo-of-the-square-during-the-demonstration-${Date.now()}.png`;
   const { id } = await upload(page, filename, png(2400, 1600));
-  for (const viewport of [
-    { width: 1280, height: 720 },
-    { width: 320, height: 700 },
-  ]) {
+  for (const [viewport, text] of [
+    [{ width: 1280, height: 720 }, '100%'],
+    [{ width: 1280, height: 720 }, '200%'],
+    [{ width: 320, height: 700 }, '100%'],
+    [{ width: 320, height: 700 }, '200%'],
+  ] as const) {
     await page.setViewportSize(viewport);
     await page.goto(`/admin/probe/media/${id}`);
+    await setTextSize(page, text);
     await page.locator('[command="show-modal"]').click();
     const fit = await page.getByRole('dialog', { name: filename }).evaluate((dialog) => {
       const img = dialog.querySelector('img')!.getBoundingClientRect();
@@ -256,7 +260,7 @@ test('the lightbox shows a large landscape photo whole, on a laptop and a phone'
         inside: img.top >= box.top - 1 && img.bottom <= box.bottom + 1,
       };
     });
-    expect(fit, `${viewport.width} px`).toEqual({ scrolls: false, inside: true });
+    expect(fit, `${viewport.width} px, text ${text}`).toEqual({ scrolls: false, inside: true });
     await page.keyboard.press('Escape');
   }
   await page.setViewportSize({ width: 1280, height: 720 });
@@ -267,7 +271,7 @@ test('a chosen image shows as a thumbnail before it is uploaded', async ({ page 
   test.skip(test.info().project.name !== 'a11y', 'the preview is a JavaScript enhancement');
   await login(page, '/admin/probe/media');
   const filename = `preview-${Date.now()}.png`;
-  await page.getByLabel('Bestand (verplicht)', { exact: true }).setInputFiles({
+  await page.getByLabel('Bestanden (verplicht)', { exact: true }).setInputFiles({
     name: filename,
     mimeType: 'image/png',
     buffer: png(400, 300),
@@ -279,7 +283,7 @@ test('a chosen image shows as a thumbnail before it is uploaded', async ({ page 
 
 test('an upload that is not what it says is refused with a reason', async ({ page }) => {
   await login(page, '/admin/probe/media');
-  await page.getByLabel('Bestand (verplicht)', { exact: true }).setInputFiles({
+  await page.getByLabel('Bestanden (verplicht)', { exact: true }).setInputFiles({
     name: 'logo.svg',
     mimeType: 'image/svg+xml',
     buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>1</script></svg>'),
@@ -287,7 +291,7 @@ test('an upload that is not what it says is refused with a reason', async ({ pag
   await page.getByRole('button', { name: 'Uploaden' }).click();
   await expect(page.getByRole('alert')).toContainText('SVG-bestanden worden niet geaccepteerd');
 
-  await page.getByLabel('Bestand (verplicht)', { exact: true }).setInputFiles({
+  await page.getByLabel('Bestanden (verplicht)', { exact: true }).setInputFiles({
     name: 'photo.jpg',
     mimeType: 'image/jpeg',
     buffer: png(10, 10),
@@ -378,6 +382,133 @@ test('a body above 512K is refused, except for the media upload', async ({ page,
   await remove(page, id, filename);
 });
 
+/** Upload two or more files in one go on the media page; returns their ids by filename. */
+async function uploadMany(page: Page, filenames: string[]) {
+  await page
+    .getByLabel('Bestanden (verplicht)', { exact: true })
+    .setInputFiles(
+      filenames.map((name) => ({ name, mimeType: 'image/png', buffer: png(400, 300) }))
+    );
+  await page.getByRole('button', { name: 'Uploaden' }).click();
+  await expect(page.getByRole('status')).toContainText(`${filenames.length} bestanden geüpload`);
+  const ids: Record<string, string> = {};
+  for (const name of filenames) {
+    const src = await item(page, name).locator('img').getAttribute('src');
+    ids[name] = /\/media\/([0-9a-f-]{36})\/thumb$/.exec(src ?? '')![1]!;
+  }
+  return ids;
+}
+
+test('the library takes several files at once and finds one by name or caption', async ({
+  page,
+}) => {
+  await login(page, '/admin/probe/media');
+  const stamp = `${test.info().project.name}-${Date.now()}`;
+  const names = [`plein-${stamp}.png`, `optocht-${stamp}.png`];
+  const ids = await uploadMany(page, names);
+  await expectNoAxeViolations(page, { dark: true });
+
+  await page.getByLabel('Zoeken in media').fill(`plein-${stamp}`);
+  await page.getByRole('button', { name: 'Zoeken' }).click();
+  await expect(page).toHaveURL(new RegExp(`q=plein-${stamp}`));
+  await expect(item(page, names[0]!)).toBeVisible();
+  await expect(item(page, names[1]!)).toHaveCount(0);
+
+  // A caption is searched too, and the list view keeps the search.
+  await page.goto(`/admin/probe/media/${ids[names[1]!]}`);
+  await page.getByLabel('Bijschrift (nl)').fill(`Lange stoet ${stamp}`);
+  await page.getByRole('button', { name: 'Gegevens opslaan' }).click();
+  await page.goto(`/admin/probe/media?q=${encodeURIComponent(`stoet ${stamp}`)}`);
+  await expect(item(page, names[1]!)).toBeVisible();
+  await page.getByRole('link', { name: 'Lijst' }).click();
+  await expect(page).toHaveURL(/view=list/);
+  await expect(page.getByRole('row', { name: new RegExp(names[1]!) })).toBeVisible();
+  await page.goto(`/admin/probe/media?q=niets-${stamp}`);
+  await expect(page.getByText(`Niets gevonden voor “niets-${stamp}”.`)).toBeVisible();
+
+  for (const name of names) await remove(page, ids[name]!, name);
+});
+
+test('an image block chooses its image from a grid of thumbnails, without a script', async ({
+  page,
+}) => {
+  await login(page, '/admin/probe/media');
+  const stamp = `${test.info().project.name}-${Date.now()}`;
+  const names = [`eerst-${stamp}.png`, `daarna-${stamp}.png`];
+  const ids = await uploadMany(page, names);
+  const itemId = await pageUsing(ids[names[0]!]!, `Kiezer ${stamp}`);
+  await page.goto(`/admin/probe/content/${itemId}`);
+  const block = page.locator('details.block').first();
+  await block.locator(':scope > summary').click();
+  const picker = block.getByRole('group', { name: 'Afbeelding' });
+  await expect(picker.locator('[data-picker-name]')).toHaveText(names[0]!);
+
+  await picker.getByRole('button', { name: 'Ander beeld kiezen' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Afbeelding' });
+  await expect(dialog).toBeVisible();
+  // Thumbnails, each a radio named by its file; the current one is checked.
+  await expect(dialog.getByRole('radio', { name: names[0]! })).toBeChecked();
+  await expect(dialog.locator(`img[src$="/media/${ids[names[0]!]}/thumb"]`)).toBeVisible();
+  await expectNoAxeViolations(page, { dark: true });
+  await dialog.getByRole('radio', { name: names[1]! }).check();
+  await dialog.getByRole('button', { name: 'Klaar' }).click();
+  await expect(dialog).toBeHidden();
+
+  await block.getByRole('button', { name: 'Blok opslaan' }).click();
+  await expect(page.getByRole('status')).toContainText('Blok opgeslagen.');
+  await expect(
+    page.locator('details.block').first().getByRole('group', { name: 'Afbeelding' })
+  ).toContainText(names[1]!);
+});
+
+test('the picker searches, and uploads dropped files with progress', async ({ page }) => {
+  test.skip(test.info().project.name !== 'a11y', 'search and upload are a JavaScript enhancement');
+  await login(page, '/admin/probe/media');
+  const stamp = `${Date.now()}`;
+  const first = `zoek-${stamp}.png`;
+  const { id } = await upload(page, first);
+  const itemId = await pageUsing(id, `Zoeken ${stamp}`);
+  await page.goto(`/admin/probe/content/${itemId}`);
+  const block = page.locator('details.block').first();
+  await block.locator(':scope > summary').click();
+  await block.getByRole('button', { name: 'Ander beeld kiezen' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Afbeelding' });
+
+  // Search: only images whose name or caption matches, from the server.
+  await dialog.getByLabel('Zoeken op naam of bijschrift').fill(`zoek-${stamp}`);
+  await expect(dialog.getByRole('radio')).toHaveCount(1);
+  await expect(dialog.getByRole('radio', { name: first })).toBeChecked();
+  await dialog.getByLabel('Zoeken op naam of bijschrift').fill(`niets-${stamp}`);
+  await expect(dialog.getByText('Niets gevonden.')).toBeVisible();
+  await dialog.getByLabel('Zoeken op naam of bijschrift').fill('');
+
+  // Upload two at once, and a refused one: each gets its own line; the last good one is chosen.
+  const added = [`nieuw-a-${stamp}.png`, `nieuw-b-${stamp}.png`];
+  await dialog.getByLabel('Nieuwe beelden: sleep ze hierheen of kies bestanden').setInputFiles([
+    ...added.map((name) => ({ name, mimeType: 'image/png', buffer: png(400, 300) })),
+    {
+      name: `logo-${stamp}.svg`,
+      mimeType: 'image/svg+xml',
+      buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'),
+    },
+  ]);
+  for (const name of added)
+    await expect(dialog.getByText(`${name} geüpload en gekozen.`)).toBeVisible();
+  await expect(dialog.getByText(`logo-${stamp}.svg: SVG-bestanden`)).toBeVisible();
+  await expect(dialog.getByRole('radio', { name: added[1]! })).toBeChecked();
+  await expectNoAxeViolations(page);
+  await dialog.getByRole('button', { name: 'Klaar' }).click();
+  const picker = block.getByRole('group', { name: 'Afbeelding' });
+  await expect(picker.locator('[data-picker-name]')).toHaveText(added[1]!);
+  await expect(picker.locator('[data-picker-img]')).toBeVisible();
+
+  await block.getByRole('button', { name: 'Blok opslaan' }).click();
+  await expect(page.getByRole('status')).toContainText('Blok opgeslagen.');
+  await expect(
+    page.locator('details.block').first().getByRole('group', { name: 'Afbeelding' })
+  ).toContainText(added[1]!);
+});
+
 test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
   test.use({ viewport: NARROW });
 
@@ -403,6 +534,19 @@ test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
         await layoutGate(page, 'detail');
         await page.locator('[command="show-modal"]').click();
         await layoutGate(page, 'lightbox');
+        await page.keyboard.press('Escape');
+        // The picker on an edit page; its image stays, a page uses it.
+        await page.context().setExtraHTTPHeaders({ ...headers, 'accept-language': 'nl-NL' });
+        await page.goto('/admin/probe/media');
+        const used = await upload(page, `kiezer-${Date.now()}.png`);
+        await page.context().setExtraHTTPHeaders({ ...headers, 'accept-language': locale });
+        const itemId = await pageUsing(used.id, `Gate ${filename}`);
+        await page.goto(`/admin/probe/content/${itemId}`);
+        await setTextSize(page, text);
+        await page.locator('details.block > summary').first().click();
+        await layoutGate(page, 'media picker', 'details.block');
+        await page.locator('details.block [command="show-modal"]').first().click();
+        await layoutGate(page, 'media picker dialog', 'dialog[open]');
         await page.keyboard.press('Escape');
         await page.context().setExtraHTTPHeaders({ ...headers, 'accept-language': 'nl-NL' });
         await remove(page, id, filename);

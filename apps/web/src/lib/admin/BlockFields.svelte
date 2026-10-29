@@ -1,13 +1,15 @@
 <!-- The fields of one block form (brief content-editor § B), rendered from the registry's field
      descriptions with the names `lib/editor/block-form.ts` reads back. Native controls only, so
      the form works without JavaScript: a localised field is one input per document locale, rich
-     text a Markdown textarea, a caption a choice between the file's caption, none and its own, an
+     text a Markdown textarea, an image the shared MediaPicker (brief media-picker), a caption a
+     choice between the file's caption, none and its own, an
      optional group a "use" checkbox, a list its rows plus one empty row to add an entry. The
      controls are the shared Field, Fieldset and Checkbox (brief #56), so a block form looks like
      every other form of the admin; a refusal marks its control and is listed in the summary. -->
 <script lang="ts">
   import type { BlockField } from '@mycel/core';
-  import { Checkbox, Field, Fieldset } from './ui/index.js';
+  import { Checkbox, Field, Fieldset, MediaPicker } from './ui/index.js';
+  import type { MediaChoice } from './media-choice.js';
   import { fill, ui, type UiKey } from '../../i18n/index.js';
 
   interface Option {
@@ -20,13 +22,18 @@
     locales: readonly string[];
     /** Unique per form on the page; element ids are `<idPrefix>-<name>`. */
     idPrefix: string;
-    media: readonly Option[];
+    media: readonly MediaChoice[];
+    /** The tenant's admin root, for the media picker's thumbnails, search and upload. */
+    base: string;
+    /** The operator may upload (`media:write`): the picker offers it. */
+    upload: boolean;
     items: readonly Option[];
     /** Names with a refusal, marked `aria-invalid`. */
     invalid: readonly string[];
     locale: string;
   }
-  let { fields, values, locales, idPrefix, media, items, invalid, locale }: Props = $props();
+  let { fields, values, locales, idPrefix, media, base, upload, items, invalid, locale }: Props =
+    $props();
   const t = $derived(ui(locale));
   const label = (key: string) => t(`admin.block.field.${key}` as UiKey);
   const v = (name: string) => values[name] ?? '';
@@ -101,7 +108,17 @@
       </Field>
     {/each}
   {:else if f.kind === 'media'}
-    {@render select(name, label(f.key), media, t('admin.block.none'))}
+    <MediaPicker
+      id={id(name)}
+      {name}
+      label={label(f.key)}
+      {locale}
+      value={v(name)}
+      options={media}
+      {base}
+      {upload}
+      invalid={bad(name)}
+    />
   {:else if f.kind === 'reference' && f.to === 'item'}
     {@render select(name, label(f.key), items, t('admin.block.none'))}
   {:else if f.kind === 'reference'}

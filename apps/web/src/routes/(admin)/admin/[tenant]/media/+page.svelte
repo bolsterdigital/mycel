@@ -1,7 +1,8 @@
-<!-- The media library of a site (TODO #10b, brief #56 § C1) on the overview pattern: upload at
-     the top, the library as a grid of thumbnails or as a table, each asset a link to its own
-     page with preview, details, edit and delete. Every action is a native form post or a link,
-     so nothing needs JavaScript (the upload's thumbnail is an optional script); e2e/media.spec.ts checks 320 CSS px and 200% text. -->
+<!-- The media library of a site (TODO #10b, brief #56 § C1) on the overview pattern: upload of
+     one or more files at the top, a search, the library as a grid of thumbnails or as a table,
+     each asset a link to its own page with preview, details, edit and delete. Every action is a
+     native form post or a link, so nothing needs JavaScript (the upload's thumbnails are an
+     optional script); e2e/media.spec.ts checks 320 CSS px and 200% text. -->
 <script lang="ts">
   import {
     Actions,
@@ -10,6 +11,7 @@
     Card,
     CardGrid,
     Choices,
+    Field,
     FileDrop,
     Fieldset,
     Notice,
@@ -38,7 +40,25 @@
         })
       : ''
   );
-  const viewHref = (view: 'grid' | 'list') => (view === 'grid' ? '?' : '?view=list');
+  const refused = (f: Record<string, unknown>) =>
+    Array.isArray(f.refused)
+      ? (f.refused as { filename: string; error: string; what?: string }[])
+      : [];
+  const refusal = (r: { filename: string; error: string; what?: string }) =>
+    `${r.filename}: ${fill(t(r.error as UiKey), {
+      what: r.what ? t(r.what as UiKey) : '',
+      filename: r.filename,
+      max: size(data.maxUploadBytes),
+    })}`;
+  const query = (view: 'grid' | 'list', extra: Record<string, string> = {}) => {
+    const params = new URLSearchParams({
+      ...(data.q ? { q: data.q } : {}),
+      ...(view === 'list' ? { view } : {}),
+      ...extra,
+    });
+    return `?${params}`;
+  };
+  const viewHref = (view: 'grid' | 'list') => query(view);
   const usage = (n: number) =>
     fill(t(n === 1 ? 'admin.media.usage.one' : 'admin.media.usage.other'), { n });
   const access = (a: string) =>
@@ -71,21 +91,38 @@
     ],
   }}
   empty={data.items.length === 0
-    ? { title: t('admin.media.none'), body: t('admin.media.none.body') }
+    ? data.q
+      ? { title: fill(t('admin.media.search.none'), { q: data.q }) }
+      : { title: t('admin.media.none'), body: t('admin.media.none.body') }
     : undefined}
-  paging={data.nextCursor
-    ? {
-        next: `?cursor=${data.nextCursor}${data.view === 'list' ? '&view=list' : ''}`,
-      }
-    : undefined}
+  paging={data.nextCursor ? { next: query(data.view, { cursor: data.nextCursor }) } : undefined}
 >
   {#snippet notices()}
     {#if failed}
-      <Notice tone="error" title={t('error.summary.title')}><p>{failure}</p></Notice>
+      <Notice tone="error" title={t('error.summary.title')}>
+        <p>{failure}</p>
+        {#if refused(failed).length}
+          <ul>
+            {#each refused(failed) as r, i (i)}<li>{refusal(r)}</li>{/each}
+          </ul>
+        {/if}
+      </Notice>
+    {/if}
+    {#if done && refused(done).length}
+      <Notice tone="error" title={t('admin.media.refused')}>
+        <ul>
+          {#each refused(done) as r, i (i)}<li>{refusal(r)}</li>{/each}
+        </ul>
+      </Notice>
     {/if}
     {#if done}
       <Notice tone="success">
-        <p>{fill(t(done.done as UiKey), { filename: filenameOf(done) })}</p>
+        <p>
+          {fill(t(done.done as UiKey), {
+            filename: filenameOf(done),
+            n: 'n' in done ? String(done.n) : '',
+          })}
+        </p>
         {#if 'id' in done && done.id}
           <p>
             <a href="{base}/media/{done.id}"
@@ -105,7 +142,8 @@
         <FileDrop
           id="upload-file"
           name="file"
-          label={t('admin.media.upload.file')}
+          label={t('admin.media.upload.files')}
+          multiple
           locale={data.locale}
           accept="image/jpeg,image/png,image/webp,image/avif,image/gif,application/pdf"
           hint={fill(t('admin.media.upload.hint'), { max: size(data.maxUploadBytes) })}
@@ -122,6 +160,28 @@
         />
         <Actions><Button>{t('admin.media.upload.submit')}</Button></Actions>
       </Fieldset>
+    </form>
+  {/snippet}
+
+  {#snippet filters()}
+    <form method="get" role="search">
+      {#if data.view === 'list'}<input type="hidden" name="view" value="list" />{/if}
+      <Field
+        id="media-search"
+        name="q"
+        type="search"
+        value={data.q}
+        label={t('admin.media.search.label')}
+        locale={data.locale}
+      />
+      <Actions>
+        <Button variant="secondary">{t('admin.media.search.submit')}</Button>
+        {#if data.q}
+          <Button variant="link" href={data.view === 'list' ? '?view=list' : '?'}
+            >{t('admin.media.search.clear')}</Button
+          >
+        {/if}
+      </Actions>
     </form>
   {/snippet}
 

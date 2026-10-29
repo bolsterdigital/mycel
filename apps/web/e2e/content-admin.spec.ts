@@ -665,6 +665,29 @@ test.describe('content-admin', () => {
         form: { locale: 'nl', revisionId },
       });
       expect(repin.status()).toBe(403);
+
+      // Publishing saves the edit form first (#65); a writer's own form, changed and posted to
+      // the publish action, is refused before anything is saved (TODO #67).
+      const posted = await page.locator('form#item-edit').evaluate((form) => {
+        const data = new FormData(form as HTMLFormElement);
+        data.set('title.nl', 'Door een schrijver gepubliceerd');
+        data.set('locale', 'nl');
+        return new URLSearchParams(
+          [...data.entries()].map(([k, v]) => [k, String(v)] as [string, string])
+        ).toString();
+      });
+      expect(posted).toContain('baseRevisionId=');
+      const viaForm = await page.request.post(`${edit}?/publish`, {
+        headers: {
+          origin: 'http://127.0.0.1:4173',
+          'content-type': 'application/x-www-form-urlencoded',
+        },
+        data: posted,
+      });
+      expect(viaForm.status()).toBe(403);
+      await page.reload();
+      await expect(page.locator('input[name="baseRevisionId"]')).toHaveValue(revisionId);
+      await expect(page.locator('input[name="title.nl"]')).toHaveValue('Schrijverswerk');
     } finally {
       await context.clearCookies();
       await login(page, '/admin/probe');
@@ -1286,7 +1309,22 @@ test.describe('article-writing', () => {
     await setTextSize(page, '200%');
     await layoutGate(page, 'writer actions', '.writer-actions');
     await expect(page.getByRole('status')).toContainText('Niet-opgeslagen wijzigingen');
-    await page.getByLabel('ID van geüpload bestand').fill(mediaId!);
+    // The card's image comes from the shared media picker, not a typed id (brief media-picker).
+    // The grid holds the newest hundred; this spec's other tests upload more, so search by name.
+    const media = await request.post(`${api()}/media.get`, {
+      headers: headers(),
+      data: { id: mediaId },
+    });
+    const { filename } = (await media.json()) as { filename: string };
+    await page.getByRole('button', { name: 'Beeld kiezen' }).click();
+    const picker = page.getByRole('dialog', { name: 'Afbeelding' });
+    await picker.getByLabel('Zoeken op naam of bijschrift').fill(filename);
+    // A click, not check(): the hydrated picker then renders the choice as its own radio of the
+    // same value, which unchecks the script's search result.
+    await picker.locator(`input[type="radio"][value="${mediaId}"]`).click();
+    await expect(page.locator('[data-picker-name]').first()).toHaveText(filename);
+    await picker.getByRole('button', { name: 'Klaar' }).click();
+    await expect(page.getByRole('button', { name: 'Ander beeld kiezen' })).toBeVisible();
     await expect(page.getByLabel('Alternatieve tekst')).toHaveValue('Een boom');
     await page.getByRole('button', { name: 'Kaart toevoegen' }).click();
     await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');

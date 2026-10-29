@@ -55,6 +55,11 @@ it('only raises multipart POST limits for the selected upload action', () => {
     ['/admin/probe/media?/brand', 'POST', 'multipart/form-data', SMALL_BODY],
     ['/signup?/brand', 'POST', 'multipart/form-data', SMALL_BODY],
     ['/signup?/upload', 'POST', 'multipart/form-data', SMALL_BODY],
+    ['/admin/probe/media/upload', 'POST', 'multipart/form-data; boundary=a', 26 * 1024 * 1024],
+    ['/admin/probe/media/upload?/delete', 'POST', 'multipart/form-data', SMALL_BODY],
+    ['/admin/probe/media/upload', 'POST', 'application/x-www-form-urlencoded', SMALL_BODY],
+    ['/admin/probe/media/upload/x', 'POST', 'multipart/form-data', SMALL_BODY],
+    ['/signup/media/upload', 'POST', 'multipart/form-data', SMALL_BODY],
   ] as const) {
     const url = new URL(path, 'http://localhost');
     const request = new Request(url, { method, headers: { 'content-type': type } });
