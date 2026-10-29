@@ -64,7 +64,7 @@ export function isReservedPageSlug(slug: string): boolean {
 const LETTERS: Record<string, string> = { ß: 'ss', æ: 'ae', ø: 'o', œ: 'oe', ł: 'l', đ: 'd' };
 
 /**
- * A slug from a title (proef 4: editors start at the title, the slug follows): accents dropped,
+ * A slug from a title (editor trial 2026-10-28: editors start at the title, the slug follows): accents dropped,
  * lowercase ASCII, every other run of characters one hyphen, at most 63 characters. Empty when
  * nothing of the title survives; the caller then picks a fallback.
  */

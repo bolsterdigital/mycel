@@ -17,9 +17,9 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ROOT, readJson, workspaces } from './lib/repo.mjs';
 
 export const REPO_URL = 'https://github.com/bolsterdigital/mycel';
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 
 /** Changelog groups in display order; a type not listed lands in "Other". */
@@ -134,7 +134,6 @@ const git = (...args) =>
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   }).trim();
-const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'));
 const writeJson = (path, value) => writeFileSync(path, JSON.stringify(value, null, 2) + '\n');
 
 function previousTag() {
@@ -158,7 +157,7 @@ function bumpVersions(version) {
   lock.version = version;
   if (lock.packages?.['']) lock.packages[''].version = version;
   const files = ['package.json', 'package-lock.json'];
-  for (const dir of git('ls-files', 'packages/*/package.json', 'apps/*/package.json').split('\n')) {
+  for (const dir of workspaces().map((ws) => `${ws}/package.json`)) {
     const path = join(ROOT, dir);
     const pkg = readJson(path);
     pkg.version = version;

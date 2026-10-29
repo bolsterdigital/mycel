@@ -1,5 +1,5 @@
 <!-- The content list (TODO #11 A1, brief #56 § C2) on the overview pattern: pages and articles
-     are separate menu items (proef 4), one table row per item with its status per locale as badges, and the new
+     are separate menu items (editor trial 2026-10-28), one table row per item with its status per locale as badges, and the new
      item as the screen's primary action. Links only, no actions to post, so it works without
      JavaScript; the table scrolls inside its own region on a narrow screen, never the page. -->
 <script lang="ts">

@@ -1,4 +1,4 @@
-// The words for a refused field in the content editor's publication panel (proef 4, TODO #60):
+// The words for a refused field in the content editor's publication panel (editor trial 2026-10-28, TODO #60):
 // core reports a path (`title.en`, `blocks.2.props.text.nl`), the editor shows the label of the
 // field it links to. Pure and client-safe, unlike lib/server; rejected: mapping in the server
 // action, which would put copy keys for the same field in two places.
@@ -19,7 +19,7 @@ const FIELD_LABELS: Record<string, string> = {
 };
 
 /**
- * An issue path as the label of the field it is about (proef 4, TODO #60): the copy key of that
+ * An issue path as the label of the field it is about (editor trial 2026-10-28, TODO #60): the copy key of that
  * label, the locale it names and, inside a block, the block's position from 1. `null` for a path
  * the editor has no label for; the panel then shows the path itself.
  */

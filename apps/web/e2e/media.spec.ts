@@ -491,7 +491,7 @@ test('a page gets its featured image from the picker, and shares it when publish
   const dialog = page.getByRole('dialog', { name: 'Uitgelicht beeld' });
   await dialog.getByRole('radio', { name: filename }).check();
   await dialog.getByRole('button', { name: 'Klaar' }).click();
-  // Publishing from the same form saves the choice first (proef 4).
+  // Publishing from the same form saves the choice first (editor trial 2026-10-28).
   await page.getByRole('button', { name: 'Publiceren (nl)' }).click();
   await expect(page.getByRole('status')).toContainText('Gepubliceerd in nl.');
   await expect(page.getByRole('group', { name: 'Uitgelicht beeld' })).toContainText(filename);

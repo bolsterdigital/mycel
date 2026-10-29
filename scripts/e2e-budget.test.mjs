@@ -7,13 +7,11 @@
 // Rejected: a lint rule per pattern (the e2e folder is outside the typechecked and linted
 // workspace sources) and a review checklist (the copies arrived through reviewed PRs).
 
-import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readAll, staleEntries, walk } from './lib/repo.mjs';
 
-const dir = fileURLToPath(new URL('../apps/web/e2e/', import.meta.url));
+const dir = 'apps/web/e2e';
 
 /** testing.md's budget. A new flow replaces a spec or makes the case to raise this in review. */
 export const MAX_SPECS = 10;
@@ -59,9 +57,9 @@ export function violations(files) {
 
 const specs = () =>
   Object.fromEntries(
-    readdirSync(dir)
-      .filter((name) => name.endsWith('.spec.ts'))
-      .map((name) => [name, readFileSync(join(dir, name), 'utf8')])
+    readAll(walk(dir, { match: (p) => /^apps\/web\/e2e\/[^/]+\.spec\.ts$/.test(p) })).map(
+      ({ path, text }) => [path.slice(dir.length + 1), text]
+    )
   );
 
 test('the spec count stays within its budget', () => {
@@ -82,12 +80,12 @@ test('every shared check lives once, in apps/web/e2e/lib/', () => {
 
 test('every exception is still needed', () => {
   const files = specs();
-  const stale = [...ALLOWED].filter((entry) => {
+  const needed = (entry) => {
     const [name, rule] = entry.split(': ');
     const pattern = RULES.find((r) => r.name === rule)?.pattern;
-    return !pattern || !files[name] || !pattern.test(files[name]);
-  });
-  assert.deepEqual(stale, []);
+    return !!pattern && !!files[name] && pattern.test(files[name]);
+  };
+  assert.deepEqual(staleEntries(ALLOWED, needed, 'e2e-budget ALLOWED'), []);
 });
 
 test('a copied helper is caught', () => {

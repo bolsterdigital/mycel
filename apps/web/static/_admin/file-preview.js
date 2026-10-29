@@ -1,4 +1,4 @@
-// Progressive enhancement for the shared FileDrop (proef 4): a chosen image shows as a thumbnail
+// Progressive enhancement for the shared FileDrop (editor trial 2026-10-28): a chosen image shows as a thumbnail
 // before upload. The native file input stays the whole path without this script. Read as data:
 // URLs because the CSP allows `img-src 'self' data:`, not blob:.
 const MAX = 12;

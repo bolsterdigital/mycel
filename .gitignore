@@ -18,6 +18,10 @@ docs/plans
 .claude/settings.local.json
 .scratch/
 
+# Review evidence (screenshots, measurements) belongs in the PR or CI artifacts, not here;
+# scripts/repo-size.test.mjs fails on a tracked file in it.
+docs/reports/
+
 # Playwright output
 test-results
 playwright-report

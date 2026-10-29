@@ -1,5 +1,5 @@
 <!-- A new page or article (TODO #11 A1, brief #56 § C2) on the form pattern. The editor starts at
-     the title (proef 4): a title per language, then an optional slug that core derives from the
+     the title (editor trial 2026-10-28): a title per language, then an optional slug that core derives from the
      title when left empty, the languages and a pattern. The type comes from the menu item the
      editor came from. One native form; a failed post comes back with what was typed. -->
 <script lang="ts">

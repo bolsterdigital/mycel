@@ -48,7 +48,7 @@ export const actions: Actions = {
     } as unknown as ContentDocumentInput;
     let id: string;
     try {
-      // An empty slug is derived from the title by core (proef 4).
+      // An empty slug is derived from the title by core (editor trial 2026-10-28).
       const slug = one('slug').trim();
       const r = await runtime().invoker.run(useCases.createItem, principal, {
         ...(slug ? { slug } : {}),

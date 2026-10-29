@@ -8,16 +8,12 @@
 // every package, which would demand JSON fixtures from blob and media-sharp (their inputs are a
 // directory and images, already under their own fixtures).
 
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { isTest, readAll, staleEntries, walk, workspaces } from './lib/repo.mjs';
 
 /** Workspaces that use fetch without being a provider adapter (docs/architecture/overview.md). */
 export const NOT_ADAPTERS = new Set(['api', 'core', 'db', 'mcp', 'observability']);
-
-const isTest = (path) => /\.test\.[cm]?[jt]s$/.test(path);
 
 /**
  * The adapters that break the rule, given `{ name, files: [{ path, text }], fixtures: [path] }`
@@ -36,39 +32,34 @@ export function missingFixtures(packages) {
   });
 }
 
-const root = fileURLToPath(new URL('../packages', import.meta.url));
-
-function walk(dir, base = dir) {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) return walk(path, base);
-    return [path.slice(base.length + 1)];
-  });
-}
-
-function workspaces() {
-  return readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && existsSync(join(root, entry.name, 'src')))
-    .map(({ name }) => {
-      const src = join(root, name, 'src');
-      const fixturesDir = join(root, name, 'fixtures');
+/** `{ name, files, fixtures }` per package, paths relative to the package. */
+const packages = () =>
+  workspaces()
+    .filter((ws) => ws.startsWith('packages/'))
+    .map((ws) => {
+      const local = (path) => path.slice(ws.length + 1);
       return {
-        name,
-        files: walk(src)
-          .filter((path) => /\.[cm]?[jt]s$/.test(path))
-          .map((path) => ({ path, text: readFileSync(join(src, path), 'utf8') })),
-        fixtures: existsSync(fixturesDir) ? walk(fixturesDir) : [],
+        name: ws.slice('packages/'.length),
+        files: readAll(walk(`${ws}/src`, { match: (p) => /\.[cm]?[jt]s$/.test(p) })).map(
+          ({ path, text }) => ({ path: local(path).slice('src/'.length), text })
+        ),
+        fixtures: walk(`${ws}/fixtures`).map((p) => local(p).slice('fixtures/'.length)),
       };
-    });
-}
+    })
+    .filter(({ files }) => files.length > 0);
+
+/** Names in `NOT_ADAPTERS` that are no package any more. */
+const unusedNames = (found) =>
+  staleEntries(NOT_ADAPTERS, (name) => found.some((p) => p.name === name), 'NOT_ADAPTERS');
 
 test('every provider adapter tests against fixture files', () => {
-  const found = workspaces();
+  const found = packages();
   assert.ok(
     found.some((p) => p.name === 'mail-tem'),
     'the scan finds the TEM adapter'
   );
   assert.deepEqual(missingFixtures(found), []);
+  assert.deepEqual(unusedNames(found), []);
 });
 
 test('the rule flags an adapter with inline answers and one whose fixtures no test reads', () => {

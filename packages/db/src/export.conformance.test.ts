@@ -4,8 +4,8 @@
 // matter) and imported into a second, empty database; the import's own read-back equals the
 // manifest, the platform hostname and the verification excepted; B is never in A's export and
 // never touched. Import refuses a newer schema, a taken slug or tenant id, and a file that does
-// not match its manifest. The table list is held to the live catalog, so a new tenant table of
-// either lane fails here until it has its place in the export order.
+// not match its manifest. The table list is held to the live catalog, so a new tenant table
+// fails here until it has its place in the export order.
 //
 // The second database needs CREATEDB (CI and dev-server-1 connect as a superuser); without it the
 // round trip is skipped and the rest runs. Skips without DATABASE_URL and APP_DATABASE_URL; in

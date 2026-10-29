@@ -3,7 +3,7 @@
 // preserve. It stays in this repository because the required `frontend-quality` gate imports it;
 // everything that reads the Actions history, keeps the weekly clock or routes a cause to a
 // planning item is the owner's process and lives in the private planning sibling. Rejected:
-// keeping that routing here behind a flag, because every contributor would still read lane
+// keeping that routing here behind a flag, because every contributor would still read owner
 // names and item numbers that mean nothing outside the owner's planning.
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';

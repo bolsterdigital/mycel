@@ -4,7 +4,7 @@
      invokers and a choice is an ordinary form value; static/_admin/media-picker.js adds search,
      dropping files to upload with progress, and the live thumbnail. The preview's nodes always
      exist (no {#if}) so the script and a hydrated page set the same attributes instead of
-     fighting over a subtree. Rejected: a <select> of filenames (proef 4) and a separate picker
+     fighting over a subtree. Rejected: a <select> of filenames (editor trial 2026-10-28) and a separate picker
      page, which loses what was typed in the form. -->
 <script lang="ts">
   import { ui } from '../../../i18n/index.js';

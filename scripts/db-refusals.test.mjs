@@ -6,11 +6,9 @@
 // Run offline.
 // Rejected: a count without places (a rule could move in while another moves out unnoticed).
 
-import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { isTest, readAll, staleEntries, stripComments, walk } from './lib/repo.mjs';
 
 /** Per file, the refusals it may raise and why storage, not core, decides each. */
 export const ALLOWED = {
@@ -27,19 +25,13 @@ export const ALLOWED = {
 export const LIMIT = 5;
 
 const PATTERN = /new\s+UseCaseError\s*\(/g;
-const isTest = (name) => /\.test\.[cm]?[jt]s$/.test(name);
 
 /** `[{ path, count }]` for every source file of `dir` (relative paths) that raises one. */
 export function refusals(files) {
   return files
     .filter(({ path }) => !isTest(path))
     .map(({ path, text }) => {
-      const code = text
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .split('\n')
-        .map((line) => line.replace(/(^|[^:])\/\/.*$/, '$1'))
-        .join('\n');
-      return { path, count: code.match(PATTERN)?.length ?? 0 };
+      return { path, count: stripComments(text).match(PATTERN)?.length ?? 0 };
     })
     .filter(({ count }) => count > 0);
 }
@@ -53,19 +45,17 @@ export function overAllowance(found, allowed = ALLOWED) {
     );
 }
 
-const root = fileURLToPath(new URL('..', import.meta.url));
-const dir = 'packages/db/src';
-
-function sources() {
-  return readdirSync(join(root, dir), { withFileTypes: true, recursive: true })
-    .filter((e) => e.isFile() && /\.[cm]?ts$/.test(e.name))
-    .map((e) => {
-      const path = join(e.parentPath ?? e.path, e.name)
-        .slice(root.length)
-        .replace(/^\//, '');
-      return { path, text: readFileSync(join(root, path), 'utf8') };
-    });
+/** Files that may raise fewer refusals than they are allowed: none, the list only shrinks. */
+export function unusedAllowance(found, allowed = ALLOWED) {
+  const counts = new Map(found.map(({ path, count }) => [path, count]));
+  return staleEntries(
+    Object.keys(allowed),
+    (path) => (counts.get(path) ?? 0) >= allowed[path].length,
+    'db-refusals ALLOWED'
+  );
 }
+
+const sources = () => readAll(walk('packages/db/src', { match: (p) => /\.[cm]?ts$/.test(p) }));
 
 test(`packages/db raises at most ${LIMIT} refusals, each in its listed place`, () => {
   const found = refusals(sources());
@@ -74,6 +64,7 @@ test(`packages/db raises at most ${LIMIT} refusals, each in its listed place`, (
     'the scan finds packages/db'
   );
   assert.deepEqual(overAllowance(found), []);
+  assert.deepEqual(unusedAllowance(found), []);
   const total = found.reduce((n, f) => n + f.count, 0);
   assert.ok(total <= LIMIT, `${total} refusals in packages/db, limit ${LIMIT}`);
   assert.ok(
@@ -99,5 +90,8 @@ test('the rule counts code, not comments or tests, and names a file over its all
   assert.deepEqual(overAllowance(found), [
     'packages/db/src/media.ts: 1 refusal(s), 0 allowed',
     'packages/db/src/platform.ts: 3 refusal(s), 2 allowed',
+  ]);
+  assert.deepEqual(unusedAllowance(found), [
+    'db-refusals ALLOWED: packages/db/src/export.ts is no longer needed; remove the entry',
   ]);
 });

@@ -2,7 +2,7 @@
      dropped on a file input, so dragging works without JavaScript and the chosen name stays
      visible. Rejected: a hidden input under a styled box, which needs a script to show what was
      chosen and to accept a drop. With `preview` and JavaScript a chosen image also shows as a thumbnail
-     before upload (proef 4, static/_admin/file-preview.js; the admin itself ships no client bundle). -->
+     before upload (editor trial 2026-10-28, static/_admin/file-preview.js; the admin itself ships no client bundle). -->
 <script lang="ts">
   import { ui } from '../../../i18n/index.js';
   import Field from './Field.svelte';

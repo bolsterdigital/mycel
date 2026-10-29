@@ -4,18 +4,14 @@
 // docs/architecture/review.md cannot rot silently. Part of `npm run lint:infra`, offline.
 
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { ROOT as root, gitFiles } from './lib/repo.mjs';
 import { globToRegExp, loadProfile, render, route } from './review-signals.mjs';
 
-const root = fileURLToPath(new URL('..', import.meta.url));
 const profile = loadProfile();
-const tracked = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' })
-  .split('\n')
-  .filter(Boolean);
+const tracked = gitFiles();
 const STATUSES = ['mandatory', 'pilot', 'manual', 'inactive'];
 
 test('globs: ** crosses directories, * stays within one', () => {
