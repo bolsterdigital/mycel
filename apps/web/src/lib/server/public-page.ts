@@ -2,7 +2,7 @@
 // one published locale of the item (`content.published.get`, the locale from the path), the
 // resolver fetches every reference the blocks make once, up front, and this module adds what the
 // document head and the cache need: the canonical URL, one `hreflang` per published locale plus
-// `x-default`, a description, and a strong ETag. The public pages ship no client-side JavaScript
+// `x-default`, a description, the Open Graph title and share image (#66), and a strong ETag. The public pages ship no client-side JavaScript
 // at all, and nothing here reads a cookie or Accept-Language: the response is a function of the
 // URL, which is what makes it cacheable in a shared cache (ADR 018 rule 8).
 //
@@ -26,6 +26,7 @@ import {
   anonymousPrincipal,
   contentPath,
   useCases,
+  type Principal,
   type PublishedItem,
   type RichTextDoc,
   type TenantInfo,
@@ -42,6 +43,10 @@ export interface PublicHead {
   /** One per published locale, then `x-default`. */
   alternates: { hreflang: string; href: string }[];
   description: string | null;
+  /** Open Graph: the explicit share title or the document title, and the page kind. */
+  share: { title: string; type: 'website' | 'article' };
+  /** The share image as an absolute URL of one of its variants, or null. */
+  image: { src: string; width: number; height: number; type: string } | null;
 }
 
 export interface PublicItem {
@@ -90,7 +95,12 @@ export async function loadPublicItem(
       ...item.locales.map((l) => ({ hreflang: l, href: href(l) })),
       { hreflang: 'x-default', href: href(fallback) },
     ],
-    description: describe(item.lead ?? firstParagraph(model)),
+    description: describe(item.seo.description ?? item.lead ?? firstParagraph(model)),
+    share: {
+      title: item.seo.title ?? item.title,
+      type: item.type === 'article' ? 'article' : 'website',
+    },
+    image: item.seo.imageId ? await shareImage(item.seo.imageId, reader, url) : null,
   };
 
   if (hasForm(model)) return { tenant, item, locale, model, head, etag: null };
@@ -103,6 +113,37 @@ export async function loadPublicItem(
     .slice(0, 16);
   const etag = `"${item.revisionId}:${locale}:${theme.hash}:${digest}"`;
   return { tenant, item, locale, model, head, etag };
+}
+
+/** The widest webp variant up to this width: what the share previews ask for (1200 px). */
+const SHARE_WIDTH = 1280;
+
+/**
+ * The share image of an item through the site's own variant route, the route an image block's
+ * `src` uses. Only a public, ready image has one (ADR 018 rule 7: never a restricted file); the
+ * variant is webp, the format every variant is stored in. Rejected: the original (up to 25 MB,
+ * past the size the platforms fetch) and a JPEG made for sharing, which is the og-image
+ * generator's job (`og:<...>` usages, docs/reference/media.md).
+ */
+async function shareImage(
+  id: string,
+  reader: Principal,
+  url: (path: string) => string
+): Promise<PublicHead['image']> {
+  let asset;
+  try {
+    asset = await runtime().invoker.run(useCases.getMedia, reader, { id });
+  } catch (e) {
+    if (e instanceof UseCaseError && e.code === 'not_found') return null;
+    throw e;
+  }
+  if (asset.access !== 'public' || asset.kind !== 'image' || asset.state !== 'ready') return null;
+  const sized = asset.variants
+    .filter((v) => v.format === 'webp' && /^w\d+$/.test(v.name) && v.width && v.height && v.path)
+    .sort((a, b) => a.width! - b.width!);
+  const best = [...sized].reverse().find((v) => v.width! <= SHARE_WIDTH) ?? sized[0];
+  if (!best) return null;
+  return { src: url(best.path), width: best.width!, height: best.height!, type: 'image/webp' };
 }
 
 /**

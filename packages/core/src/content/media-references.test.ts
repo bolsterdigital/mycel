@@ -364,6 +364,127 @@ describe('media references of blocks', () => {
     });
   });
 
+  describe("the document's own images: featured and share image", () => {
+    const withImages = (images: { featuredImageId?: string; imageId?: string }, type = 'page') =>
+      invoker.run(useCases.createItem, system, {
+        slug: `doc-${++slug}`,
+        document: {
+          type,
+          defaultLocale: 'nl',
+          locales: ['nl'],
+          title: { nl: 'Titel' },
+          blocks: [],
+          ...(images.featuredImageId ? { featuredImageId: images.featuredImageId } : {}),
+          seo: images.imageId ? { imageId: images.imageId } : {},
+        } as never,
+      });
+
+    it('records both under the revision, in their own slots, next to a block using the same image', async () => {
+      const { item, revision } = await invoker.run(useCases.createItem, system, {
+        slug: 'both',
+        document: {
+          type: 'article',
+          defaultLocale: 'nl',
+          locales: ['nl'],
+          title: { nl: 'Titel' },
+          blocks: [
+            { ...image('a', photo), props: { ...image('a', photo).props, alt: { nl: 'x' } } },
+          ],
+          featuredImageId: photo,
+          seo: { imageId: photo2 },
+        },
+      });
+      const ref = `item:${item.id}:rev:${revision.id}`;
+      expect(usages(photo)).toEqual([`${ref} a`, `${ref} doc:featured`]);
+      expect(usages(photo2)).toEqual([`${ref} doc:seo`]);
+      await expectCode(remove(photo2), 'conflict', 'media.in_use');
+      // The read model has one document-level row per image, next to the block's.
+      const refs = uow.store.for(TENANT).blockRefs.get(revision.id) ?? [];
+      expect(refs.filter((r) => r.type === 'media').map((r) => `${r.blockId} ${r.refId}`)).toEqual([
+        `a ${photo}`,
+        `null ${photo}`,
+        `null ${photo2}`,
+      ]);
+    });
+
+    it('refuses an unknown, foreign, deleted or non-image id at its own path', async () => {
+      const refused = async (p: Promise<unknown>, path: string, message: string) =>
+        expect(p).rejects.toSatisfy(
+          (e) =>
+            e instanceof UseCaseError &&
+            e.issues.some((i) => i.path === path && i.message.startsWith(message))
+        );
+      await refused(
+        withImages({ featuredImageId: UNKNOWN }),
+        'featuredImageId',
+        'content.reference.media-unknown'
+      );
+      await refused(
+        withImages({ imageId: foreign }),
+        'seo.imageId',
+        `content.reference.media-unknown:${foreign}`
+      );
+      await refused(
+        withImages({ featuredImageId: pdf }),
+        'featuredImageId',
+        'content.reference.media-not-image'
+      );
+      await remove(photo2);
+      await refused(
+        withImages({ imageId: photo2 }, 'article'),
+        'seo.imageId',
+        'content.reference.media-unknown'
+      );
+      expect(uow.store.for(TENANT).items.size).toBe(0);
+    });
+
+    it('drops the usage from the next revision when the image is taken off, and keeps history', async () => {
+      const { item, revision } = await withImages({ featuredImageId: photo });
+      const next = await invoker.run(useCases.updateItem, system, {
+        itemId: item.id,
+        baseRevisionId: revision.id,
+        document: { ...revision.document, featuredImageId: undefined },
+      });
+      expect(next.revision.document.featuredImageId).toBeUndefined();
+      expect(usages(photo)).toEqual([`item:${item.id}:rev:${revision.id} doc:featured`]);
+    });
+
+    it('checks again at publish: a share image that vanished stops the publication', async () => {
+      const { item, revision } = await withImages({ imageId: photo });
+      uow.store.for(TENANT).media.get(photo)!.deletedAt = new Date();
+      await expectCode(
+        invoker.run(useCases.publishItem, system, {
+          itemId: item.id,
+          revisionId: revision.id,
+          locale: 'nl',
+        }),
+        'invalid_input',
+        'content.reference.media-unknown'
+      );
+    });
+
+    it('publishes the share image, falling back to the featured image', async () => {
+      const publish = async (images: { featuredImageId?: string; imageId?: string }) => {
+        const { item, revision } = await withImages(images);
+        await invoker.run(useCases.publishItem, system, {
+          itemId: item.id,
+          revisionId: revision.id,
+          locale: 'nl',
+        });
+        return invoker.run(useCases.getPublished, system, { type: 'page', slug: item.slug });
+      };
+      expect(await publish({ featuredImageId: photo })).toMatchObject({
+        featuredImageId: photo,
+        seo: { imageId: photo, title: null, description: null },
+      });
+      expect(await publish({ featuredImageId: photo, imageId: photo2 })).toMatchObject({
+        featuredImageId: photo,
+        seo: { imageId: photo2 },
+      });
+      expect(await publish({})).toMatchObject({ featuredImageId: null, seo: { imageId: null } });
+    });
+  });
+
   describe('save and delete on the media lock', () => {
     it('save first: the delete waits and then refuses', async () => {
       const paused = pauseMedia(uow, 'replaceUsages');

@@ -1,6 +1,6 @@
 <!-- The edit page of one item (TODO #11 A1, brief #56 § C2) on the edit pattern: the document
-     fields as one native form in groups in the order a visitor meets them (title and lead, then
-     byline, the rarely changed search and correction settings folded away, skill
+     fields as one native form in groups in the order a visitor meets them (title and lead, the
+     featured image, then byline, the rarely changed search and correction settings folded away, skill
      cms-inrichting), the blocks under it, and the item's state and publication in the side
      column. A failed save comes back with what was typed and every group open; a conflict also
      shows who saved in between and what changed (ADR 018 rule 2).
@@ -25,6 +25,7 @@
     EmptyState,
     Field,
     Fieldset,
+    MediaPicker,
     MetaList,
     Notice,
     Panel,
@@ -292,6 +293,18 @@
       {/if}
     </Fieldset>
 
+    <MediaPicker
+      id="featuredImageId"
+      name="featuredImageId"
+      label={t('admin.content.field.featuredImage')}
+      hint={t('admin.content.field.featuredImageHint')}
+      locale={data.locale}
+      value={v('featuredImageId')}
+      options={data.media}
+      {base}
+      upload={data.upload}
+    />
+
     {#if article}
       <Fieldset legend={t('admin.content.edit.byline')}>
         <div id="authors">
@@ -379,6 +392,17 @@
         checked={v('noindex') === 'on'}
       />
       {@render text('canonical', t('admin.content.field.canonical'), { max: 2048 })}
+      <MediaPicker
+        id="shareImageId"
+        name="shareImageId"
+        label={t('admin.content.field.shareImage')}
+        hint={t('admin.content.field.shareImageHint')}
+        locale={data.locale}
+        value={v('shareImageId')}
+        options={data.media}
+        {base}
+        upload={data.upload}
+      />
     </Fieldset>
 
     {#if article}

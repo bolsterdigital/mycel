@@ -29,7 +29,13 @@ const article = ContentDocument.parse({
   defaultLocale: 'nl',
   locales: ['nl', 'en'],
   blocks: [prose('b1', { nl: 'Tekst', en: 'Text' })],
-  seo: { title: { nl: 'Zoektitel' }, noindex: true, canonical: 'https://example.org/x' },
+  seo: {
+    title: { nl: 'Zoektitel' },
+    noindex: true,
+    canonical: 'https://example.org/x',
+    imageId: '01900000-0000-7000-8000-0000000000e2',
+  },
+  featuredImageId: '01900000-0000-7000-8000-0000000000e1',
   access: { level: 'members', teaser: { blocks: 1 } },
   lead: { nl: 'Kern' },
   authorIds: ['01900000-0000-7000-8000-000000000001'],
@@ -57,6 +63,28 @@ describe('documentFrom(valuesOf(doc))', () => {
     expect(out.title).toEqual({ nl: 'Verslag', en: 'New report' });
     expect(out.seo.title).toBeUndefined();
     expect(out.blocks).toEqual(article.blocks);
+  });
+
+  it('takes both images from their pickers: an id, none, or kept when the form has no picker', () => {
+    const photo = '01900000-0000-7000-8000-0000000000e3';
+    const chosen = documentFrom(
+      page,
+      { ...valuesOf(page), featuredImageId: photo, shareImageId: '' },
+      '2026-10-23'
+    );
+    expect(chosen.featuredImageId).toBe(photo);
+    expect(chosen.seo.imageId).toBeUndefined();
+    const cleared = documentFrom(
+      article,
+      { ...valuesOf(article), featuredImageId: '', shareImageId: '' },
+      '2026-10-23'
+    );
+    expect('featuredImageId' in cleared).toBe(false);
+    expect(cleared.seo.imageId).toBeUndefined();
+    const { featuredImageId: _f, shareImageId: _s, ...withoutPickers } = valuesOf(article);
+    const kept = documentFrom(article, withoutPickers, '2026-10-23');
+    expect(kept.featuredImageId).toBe(article.featuredImageId);
+    expect(kept.seo.imageId).toBe(article.seo.imageId);
   });
 
   it('adds a correction with today as its default date', () => {

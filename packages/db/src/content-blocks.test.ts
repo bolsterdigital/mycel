@@ -198,6 +198,54 @@ describe.skipIf(!operatorUrl || !appUrl)('content blocks conformance', () => {
     expect(await usagesOf(photo)).toEqual([`${ref} hero`, `${ref} img`]);
   });
 
+  it("writes refs and usages of the document's featured and share image, and refuses foreign ones", async () => {
+    const photo = await upload(a());
+    const share = await upload(a());
+    const foreign = await upload(b());
+    const doc = (images: { featuredImageId?: string; imageId?: string }) => ({
+      type: 'article' as const,
+      defaultLocale: 'nl',
+      locales: ['nl'],
+      title: { nl: 'Titel' },
+      blocks: [image('img', photo)],
+      ...(images.featuredImageId ? { featuredImageId: images.featuredImageId } : {}),
+      seo: images.imageId ? { imageId: images.imageId } : {},
+    });
+    const { item, revision } = await invoker.run(useCases.createItem, a(), {
+      slug: `doc-images-${run}`,
+      document: doc({ featuredImageId: photo, imageId: share }),
+    });
+    const rows = await withTenant(appDb, a(), (trx) =>
+      trx
+        .selectFrom('content_block_refs')
+        .select(['block_id', 'type', 'ref_id'])
+        .where('revision_id', '=', revision.id)
+        .execute()
+    );
+    const key = (r: { block_id: string | null; type: string; ref_id: string }) =>
+      `${r.block_id} ${r.type} ${r.ref_id}`;
+    expect(rows.map(key).sort()).toEqual(
+      [`img media ${photo}`, `null media ${photo}`, `null media ${share}`].sort()
+    );
+    const ref = `item:${item.id}:rev:${revision.id}`;
+    expect(await usagesOf(photo)).toEqual([`${ref} doc:featured`, `${ref} img`]);
+    expect(await usagesOf(share)).toEqual([`${ref} doc:seo`]);
+    // Where-used finds the item by its share image, with no block to point at.
+    const found = await invoker.run(useCases.findItems, a(), { ref: { type: 'media', id: share } });
+    expect(found.matches).toEqual([{ itemId: item.id, blockIds: [] }]);
+    await refused(
+      invoker.run(useCases.updateItem, a(), {
+        itemId: item.id,
+        baseRevisionId: revision.id,
+        document: doc({ featuredImageId: foreign }),
+      }),
+      `content.reference.media-unknown:${foreign}`
+    );
+    await expect(invoker.run(useCases.deleteMedia, a(), { id: share })).rejects.toSatisfy(
+      (e) => e instanceof UseCaseError && e.code === 'conflict'
+    );
+  });
+
   it('finds media in the latest revision or, with live, only in what a locale publishes', async () => {
     const photo = await upload(a());
     const { item, revision } = await page([heading('h')]);

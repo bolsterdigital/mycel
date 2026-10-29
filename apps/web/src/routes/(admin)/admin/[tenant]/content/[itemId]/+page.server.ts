@@ -23,6 +23,7 @@ import {
   BLOCK_TYPES,
   UseCaseError,
   can,
+  documentMedia,
   readinessIssues,
   useCases,
   type ContentDocument,
@@ -165,7 +166,12 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
     doc.type === 'article' ? doc.authorIds : [],
     doc.type === 'article' ? (doc.sectionId ?? '') : ''
   );
-  const options = await pickerOptions(principal, doc.blocks, item.defaultLocale);
+  const options = await pickerOptions(
+    principal,
+    doc.blocks,
+    item.defaultLocale,
+    documentMedia(doc).map((m) => m.mediaId)
+  );
   const assistSettings =
     can(principal, 'ai:assist') && can(principal, 'content:write')
       ? await invoker.run(useCases.getAssistSettings, principal, {})

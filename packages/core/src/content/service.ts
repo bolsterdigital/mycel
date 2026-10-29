@@ -41,6 +41,7 @@ import {
   ContentItem,
   ContentType,
   Revision,
+  documentMedia,
   RevisionSummary,
   Slug,
   isReservedPageSlug,
@@ -131,7 +132,8 @@ export function assertBase(item: ItemRecord, baseRevisionId: string): void {
 }
 
 /**
- * Records the media usages of a block tree under `ref` (`item:<id>:rev:<id>`, `pattern:<id>`), in
+ * Records the media usages of a block tree under `ref` (`item:<id>:rev:<id>`, `pattern:<id>`), plus
+ * a revision's own images (`document`, slots `doc:featured` and `doc:seo`), in
  * the caller's transaction and under the media lock its reference check took. The repository
  * skips an unknown or deleted id silently, so the count is compared with what was asked: a
  * shortfall throws and the whole save rolls back instead of leaving an image unprotected
@@ -140,12 +142,17 @@ export function assertBase(item: ItemRecord, baseRevisionId: string): void {
 export async function recordMediaUsages(
   ctx: TransactionContext,
   ref: string,
-  blocks: readonly Block[]
+  blocks: readonly Block[],
+  document: readonly { slot: string; mediaId: string }[] = []
 ): Promise<void> {
   const pairs = new Map<string, { mediaId: string; blockId: string }>();
   for (const b of allBlocks(blocks))
     for (const mediaId of blockReferences([b]).media)
       pairs.set(`${mediaId} ${b.id}`, { mediaId, blockId: b.id });
+  // The document's own images under their slot (`doc:featured`, `doc:seo`), which no block id
+  // can take, so a featured image that is also a block's image counts twice, as it should.
+  for (const { slot, mediaId } of document)
+    pairs.set(`${mediaId} ${slot}`, { mediaId, blockId: slot });
   const usages = [...pairs.values()];
   const recorded = await ctx.media.replaceUsages(ref, usages);
   if (recorded !== usages.length)
@@ -195,7 +202,7 @@ export async function writeRevision(
     ),
   };
   await ctx.content.insertRevision(revision);
-  await recordMediaUsages(ctx, revisionRef(revision), doc.blocks);
+  await recordMediaUsages(ctx, revisionRef(revision), doc.blocks, documentMedia(doc));
   await ctx.content.save(next);
   return { item: toContentItem(next), revision };
 }
@@ -235,12 +242,25 @@ export async function blockReferenceIssues(
   return issues;
 }
 
-/** Block references plus an article's authors and section: what every save and publish checks. */
+/**
+ * Block references, the document's own images (featured and share image, the same rule as an
+ * image block), plus an article's authors and section: what every save and publish checks.
+ */
 export async function referenceIssues(
   ctx: TransactionContext,
   doc: ContentDocument
 ): Promise<Issue[]> {
+  const images = documentMedia(doc);
+  // The same media lock as the blocks' check; taking it twice in one run is a no-op.
+  if (images.length) await ctx.media.lock();
   const issues = await blockReferenceIssues(ctx, doc.blocks);
+  for (const { path, mediaId } of images) {
+    const media = await ctx.media.get(mediaId);
+    if (!media || media.deletedAt)
+      issues.push({ path, message: `content.reference.media-unknown:${mediaId}` });
+    else if (media.kind !== 'image')
+      issues.push({ path, message: `content.reference.media-not-image:${mediaId}` });
+  }
   if (doc.type === 'article') {
     for (const id of doc.authorIds)
       if (!(await ctx.authors.get(id)))
@@ -380,7 +400,7 @@ export const createItem = defineUseCase({
       publication: doc.locales.map(draftLocale),
     };
     await ctx.content.insert(item, revision);
-    await recordMediaUsages(ctx, revisionRef(revision), doc.blocks);
+    await recordMediaUsages(ctx, revisionRef(revision), doc.blocks, documentMedia(doc));
     return { item: toContentItem(item), revision };
   },
 });

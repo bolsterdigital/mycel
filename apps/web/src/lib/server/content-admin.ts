@@ -62,6 +62,13 @@ function localized(v: FormValues, prefix: string, locales: readonly string[]) {
 }
 const optional = (m: Record<string, string>) => (Object.keys(m).length ? m : undefined);
 
+/**
+ * A media picker's value: the posted id, '' for "no image", and the document's own value when
+ * the form has no such field at all (a form that does not show the picker keeps the image).
+ */
+const image = (v: FormValues, key: string, kept: string | undefined): string | undefined =>
+  key in v ? one(v, key) || undefined : kept;
+
 /** The form values of a document's fields, for a fresh edit page. */
 export function valuesOf(doc: ContentDocument): FormValues {
   const v: FormValues = { locales: [...doc.locales] };
@@ -74,6 +81,8 @@ export function valuesOf(doc: ContentDocument): FormValues {
   put('seoDescription', doc.seo.description);
   if (doc.seo.noindex) v.noindex = 'on';
   v.canonical = doc.seo.canonical ?? '';
+  v.featuredImageId = doc.featuredImageId ?? '';
+  v.shareImageId = doc.seo.imageId ?? '';
   v.level = doc.access.level;
   const teaser = doc.access.teaser;
   v.teaser = typeof teaser === 'object' ? 'blocks' : teaser;
@@ -108,10 +117,14 @@ export function documentFrom(
   if (seoTitle) seo.title = seoTitle;
   if (seoDescription) seo.description = seoDescription;
   if (canonical) seo.canonical = canonical;
-  if (doc.seo.imageId) seo.imageId = doc.seo.imageId;
+  const shareImage = image(v, 'shareImageId', doc.seo.imageId);
+  if (shareImage) seo.imageId = shareImage;
+  const featuredImageId = image(v, 'featuredImageId', doc.featuredImageId);
   const tierIds = (level || doc.access.level) === 'tier' ? doc.access.tierIds : undefined;
+  const { featuredImageId: _featured, ...rest } = doc;
   const common = {
-    ...doc,
+    ...rest,
+    ...(featuredImageId ? { featuredImageId } : {}),
     locales,
     title: localized(v, 'title', locales),
     seo,

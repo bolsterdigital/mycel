@@ -461,6 +461,59 @@ test('an image block chooses its image from a grid of thumbnails, without a scri
   ).toContainText(names[1]!);
 });
 
+test('a page gets its featured image from the picker, and shares it when published', async ({
+  page,
+  request,
+}) => {
+  await login(page, '/admin/probe/media');
+  const stamp = `${test.info().project.name}-${Date.now()}`;
+  const filename = `uitgelicht-${stamp}.png`;
+  const { id } = await upload(page, filename);
+  const slug = `uitgelicht-${stamp}`.toLowerCase();
+  const probe = await tenantId();
+  const itemId = await withInvoker(async (invoker) => {
+    const created = await invoker.run(useCases.createItem, systemPrincipal(probe, 'e2e'), {
+      slug,
+      document: ContentDocumentInput.parse({
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: `Uitgelicht ${stamp}` },
+        blocks: [],
+      }),
+    });
+    return created.item.id;
+  });
+  await page.goto(`/admin/probe/content/${itemId}`);
+  const picker = page.getByRole('group', { name: 'Uitgelicht beeld' });
+  await expect(picker.locator('[data-picker-name]')).toHaveText('Nog geen beeld gekozen');
+  await picker.getByRole('button', { name: 'Beeld kiezen' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Uitgelicht beeld' });
+  await dialog.getByRole('radio', { name: filename }).check();
+  await dialog.getByRole('button', { name: 'Klaar' }).click();
+  // Publishing from the same form saves the choice first (proef 4).
+  await page.getByRole('button', { name: 'Publiceren (nl)' }).click();
+  await expect(page.getByRole('status')).toContainText('Gepubliceerd in nl.');
+  await expect(page.getByRole('group', { name: 'Uitgelicht beeld' })).toContainText(filename);
+  await expectNoAxeViolations(page);
+
+  // No share image of its own: the featured image is the one a share preview shows.
+  const html = await (await request.get(`${SITE}/${slug}`)).text();
+  const meta = (key: string) =>
+    new RegExp(`<meta (?:property|name)="${key}" content="([^"]*)"`).exec(html)?.[1];
+  expect(meta('og:image')).toBe(`${SITE}/media/${id}/w400.webp`);
+  expect([meta('og:image:width'), meta('og:image:height')]).toEqual(['400', '300']);
+  expect(meta('og:title')).toBe(`Uitgelicht ${stamp}`);
+  expect(meta('og:url')).toBe(`${SITE}/${slug}`);
+  expect(meta('twitter:card')).toBe('summary_large_image');
+  expect((await request.get(`${SITE}/media/${id}/w400.webp`)).status()).toBe(200);
+
+  // The published page uses the image: the library refuses to delete it.
+  await page.goto(`/admin/probe/media/${id}`);
+  await page.getByRole('button', { name: 'Verwijderen' }).click();
+  await expect(page.getByRole('alert')).toContainText(`${filename} is in gebruik`);
+});
+
 test('the picker searches, and uploads dropped files with progress', async ({ page }) => {
   test.skip(test.info().project.name !== 'a11y', 'search and upload are a JavaScript enhancement');
   await login(page, '/admin/probe/media');
@@ -543,6 +596,10 @@ test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
         const itemId = await pageUsing(used.id, `Gate ${filename}`);
         await page.goto(`/admin/probe/content/${itemId}`);
         await setTextSize(page, text);
+        await layoutGate(page, 'featured image picker', '#featuredImageId');
+        await page.locator('#featuredImageId [command="show-modal"]').click();
+        await layoutGate(page, 'featured image dialog', 'dialog[open]');
+        await page.keyboard.press('Escape');
         await page.locator('details.block > summary').first().click();
         await layoutGate(page, 'media picker', 'details.block');
         await page.locator('details.block [command="show-modal"]').first().click();

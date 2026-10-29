@@ -17,6 +17,8 @@ describe('issueLabel', () => {
       locale: 'en',
       block: 3,
     });
+    expect(issueLabel('featuredImageId', locales)?.key).toBe('admin.content.field.featuredImage');
+    expect(issueLabel('seo.imageId', locales)?.key).toBe('admin.content.field.shareImage');
     expect(issueLabel('somethingElse', locales)).toBeNull();
   });
 });

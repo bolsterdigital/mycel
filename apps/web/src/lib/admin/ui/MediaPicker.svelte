@@ -101,6 +101,7 @@
 {/snippet}
 
 <fieldset
+  {id}
   class={['ui-media-picker', invalid && 'invalid']}
   aria-describedby={hint ? `${id}-hint` : undefined}
   data-media-picker

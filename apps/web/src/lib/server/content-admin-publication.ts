@@ -64,6 +64,8 @@ export function fieldOf(path: string, locale: string): string | null {
   if (head === 'lead') return `lead.${rest[0] ?? locale}`;
   if (head === 'seo' && rest[0] === 'title') return `seoTitle.${rest[1] ?? locale}`;
   if (head === 'seo' && rest[0] === 'description') return `seoDescription.${rest[1] ?? locale}`;
+  if (head === 'seo' && rest[0] === 'imageId') return 'shareImageId';
+  if (head === 'featuredImageId') return 'featuredImageId';
   if (head === 'authorIds') return 'authors';
   if (head === 'sectionId') return 'sectionId';
   if (head === 'access') return 'level';
