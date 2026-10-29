@@ -628,7 +628,7 @@ test.describe('content-admin', () => {
     const email = `writer-${test.info().project.name}-${Date.now()}@probe.test`;
     await login(page, '/admin/probe');
     const edit = await newPage(page, slugFor('writer'), 'Schrijverswerk');
-    await page.goto('/admin/probe');
+    await page.goto('/admin/probe/leden');
     const invite = page.locator('form[action="?/invite"]');
     await invite.getByLabel('E-mailadres (verplicht)', { exact: true }).fill(email);
     await invite.getByLabel('content:read', { exact: true }).check();
@@ -680,7 +680,7 @@ test.describe('content-admin', () => {
       await expect(page.locator('input[name="title.nl"]')).toHaveValue('Schrijverswerk');
     } finally {
       await context.clearCookies();
-      await login(page, '/admin/probe');
+      await login(page, '/admin/probe/leden');
       const member = page.locator('form', { has: page.getByRole('heading', { name: email }) });
       await member.locator('button[formaction="?/remove"]').click();
       await expect(page.getByRole('status')).toContainText('Lid verwijderd');

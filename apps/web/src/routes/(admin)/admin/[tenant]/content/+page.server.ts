@@ -17,6 +17,7 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
   });
   return {
     type,
+    contentType: type,
     next,
     items: items.map((i) => ({
       id: i.id,

@@ -8,6 +8,7 @@
     Button,
     Card,
     CardGrid,
+    DashboardWidget,
     Checkbox,
     Choices,
     Dialog,
@@ -16,6 +17,7 @@
     Fieldset,
     FileDrop,
     MetaList,
+    NavGroup,
     Notice,
     PageHeader,
     Pagination,
@@ -23,6 +25,7 @@
     Select,
     SubNav,
     Table,
+    Tabs,
   } from '#lib/admin/ui/index.js';
   import { fill, ui } from '../../../../../i18n/index.js';
   import { PATTERNS } from './patterns.js';
@@ -284,5 +287,82 @@
       <img src={sample} alt="" width="1200" height="900" />
       <p>{t('admin.ui.catalogue.dialog.body')}</p>
     </Dialog>
+  </section>
+  <section aria-labelledby="ui-navigation">
+    <h2 id="ui-navigation">{t('admin.ui.catalogue.navigation')}</h2>
+    <nav aria-label={t('admin.ui.catalogue.navigation')}>
+      <NavGroup
+        id="ui-nav-content"
+        label={t('admin.nav.group.content')}
+        items={[
+          {
+            href: `${here}#ui-navigation`,
+            label: t('admin.content.filter.page'),
+            icon: 'file-text',
+            current: true,
+          },
+          {
+            href: `${base}/content?type=article`,
+            label: t('admin.content.filter.article'),
+            icon: 'newspaper',
+          },
+        ]}
+      />
+      <NavGroup
+        id="ui-nav-manage"
+        label={t('admin.nav.group.manage')}
+        items={[
+          { href: `${base}/connections`, label: t('admin.nav.connections'), icon: 'plug' },
+          { href: `${base}/assist`, label: t('admin.nav.assist'), icon: 'sparkles' },
+        ]}
+      />
+    </nav>
+  </section>
+
+  <section aria-labelledby="ui-tabs">
+    <h2 id="ui-tabs">{t('admin.ui.catalogue.tabs')}</h2>
+    <p>{t('admin.ui.catalogue.tabs.intro')}</p>
+    {#snippet tabContent()}<p>{t('admin.ui.catalogue.form.titleHint')}</p>{/snippet}
+    {#snippet tabFindability()}<p>{t('admin.ui.catalogue.form.noindexHint')}</p>{/snippet}
+    {#snippet tabSettings()}<p>{t('admin.ui.catalogue.panel.body')}</p>{/snippet}
+    <Tabs
+      id="ui-tabs-sample"
+      label={t('admin.ui.catalogue.tabs')}
+      level={3}
+      tabs={[
+        { id: 'content', label: t('admin.ui.catalogue.tabs.content'), content: tabContent },
+        {
+          id: 'findability',
+          label: t('admin.ui.catalogue.tabs.findability'),
+          content: tabFindability,
+        },
+        { id: 'settings', label: t('admin.ui.catalogue.tabs.settings'), content: tabSettings },
+      ]}
+    />
+  </section>
+
+  <section aria-labelledby="ui-widgets">
+    <h2 id="ui-widgets">{t('admin.ui.catalogue.widgets')}</h2>
+    <div class="ui-dashboard">
+      <DashboardWidget
+        id="ui-widget-waiting"
+        level={3}
+        title={t('admin.dashboard.waiting')}
+        locale={data.locale}
+      />
+      <DashboardWidget
+        id="ui-widget-usage"
+        level={3}
+        title={t('admin.dashboard.usage')}
+        locale={data.locale}
+      >
+        <MetaList
+          items={[
+            { term: t('admin.ui.catalogue.table.name'), value: 'campaign-poster.jpg' },
+            { term: t('admin.ui.catalogue.table.changed'), value: date('2026-10-28T09:00:00Z') },
+          ]}
+        />
+      </DashboardWidget>
+    </div>
   </section>
 </main>

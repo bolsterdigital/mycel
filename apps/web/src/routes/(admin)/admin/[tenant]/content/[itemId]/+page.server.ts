@@ -184,6 +184,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
     (doc.access.level === 'public' || assistSettings.allowRestricted)
   );
   return {
+    contentType: item.type,
     assistEnabled,
     machineTranslation: doc.machineTranslation ?? {},
     blocks: doc.blocks.map((b) => ({

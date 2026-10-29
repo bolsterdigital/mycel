@@ -25,6 +25,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
   if (!revision.document.locales.includes(locale)) error(404, 'Locale not found');
   return {
     tenant: { slug: tenant.slug, name: tenant.name },
+    contentType: item.type,
     itemId: item.id,
     locale,
     locales: revision.document.locales,

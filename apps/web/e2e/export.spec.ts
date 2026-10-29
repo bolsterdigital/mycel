@@ -44,7 +44,7 @@ test('an administrator asks for an archive and downloads it without JavaScript',
 }) => {
   test.setTimeout(120_000);
   await login(page, '/admin/probe');
-  await page.getByRole('link', { name: 'Deze site exporteren' }).click();
+  await page.getByRole('link', { name: 'Exporteren' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Export' })).toBeVisible();
   await expect(page.locator('main')).toContainText('7 dagen te downloaden');
   await expectNoAxeViolations(page);
