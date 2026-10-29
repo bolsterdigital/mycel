@@ -75,6 +75,12 @@ export interface OpsPage {
 /** `ok`, or why nothing changed: unknown id, or a row that is not stuck (`conflict`). */
 export type OpsRecovery = 'ok' | 'not_found' | 'not_exhausted';
 
+/** Why a recovery changed nothing, in the words of both the platform API and `mycel ops`. */
+export const OPS_REFUSALS: Record<Exclude<OpsRecovery, 'ok'>, string> = {
+  not_found: 'no stuck row with that id',
+  not_exhausted: 'not stuck: it has attempts left, is running right now, or is already done',
+};
+
 export interface PlatformOpsStore {
   summary(): Promise<unknown[]>;
   jobs(query: OpsQuery): Promise<OpsPage>;
@@ -199,12 +205,9 @@ export function createPlatformApp({
     app.post(`/ops/${path}`, async (c) => {
       const id = parse(Id, c.req.param('id'));
       const result = await recover(id);
-      if (result === 'not_found') throw new UseCaseError('not_found', 'no stuck row with that id');
+      if (result === 'not_found') throw new UseCaseError('not_found', OPS_REFUSALS.not_found);
       if (result === 'not_exhausted')
-        throw new UseCaseError(
-          'conflict',
-          'not stuck: it has attempts left, is running right now, or is already done'
-        );
+        throw new UseCaseError('conflict', OPS_REFUSALS.not_exhausted);
       log.info('platform: recovered', { path, id });
       return c.json({ id });
     });

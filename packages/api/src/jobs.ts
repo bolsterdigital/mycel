@@ -96,51 +96,61 @@ function platformJob(type: JobType, handler: () => Promise<unknown>): JobHandler
 }
 
 /**
- * `media.orphans` (TODO #10): the tenant list comes from the platform role, then each tenant is
- * swept in its own unit of work as mycel_app, so the sweep reads `media` under RLS and never
- * across tenants (ADR 011 rule 1: platform reports use per-tenant transactions). One tenant's
- * failure does not stop the others; the job fails afterwards so the worker retries it.
+ * Run `fn` for every tenant, each in its own unit of work (ADR 011 rule 1: platform jobs use
+ * per-tenant transactions), and add up what it returns. One tenant's failure does not stop the
+ * others; it is reported, and the job fails afterwards so the worker retries it (TODO #74).
  */
-export async function sweepAllMediaOrphans(
+async function forEachTenant(
+  job: string,
+  tenantIds: () => Promise<string[]>,
+  fn: (tenantId: string) => Promise<number>,
+  errors?: ErrorReporter
+): Promise<number> {
+  let total = 0;
+  const failed: string[] = [];
+  for (const id of await tenantIds())
+    try {
+      total += await fn(id);
+    } catch (e) {
+      errors?.capture(e, { tenantId: id, job });
+      failed.push(id);
+    }
+  if (failed.length) throw new Error(`${job} failed for ${failed.length} tenant(s)`);
+  return total;
+}
+
+/**
+ * `media.orphans` (TODO #10): the tenant list comes from the platform role, then each tenant is
+ * swept as mycel_app, so the sweep reads `media` under RLS and never across tenants.
+ */
+export function sweepAllMediaOrphans(
   uow: UnitOfWork,
   tenantIds: () => Promise<string[]>,
   errors?: ErrorReporter
 ): Promise<number> {
-  let swept = 0;
-  const failed: string[] = [];
-  for (const id of await tenantIds())
-    try {
-      swept += (await uow.run(systemPrincipal(id, 'jobs:media.orphans'), sweepMediaOrphans)).length;
-    } catch (e) {
-      errors?.capture(e, { tenantId: id, job: 'media.orphans' });
-      failed.push(id);
-    }
-  if (failed.length) throw new Error(`media.orphans failed for ${failed.length} tenant(s)`);
-  return swept;
+  return forEachTenant(
+    'media.orphans',
+    tenantIds,
+    async (id) =>
+      (await uow.run(systemPrincipal(id, 'jobs:media.orphans'), sweepMediaOrphans)).length,
+    errors
+  );
 }
 
-/**
- * `tenant.export.expire` (TODO #28): per tenant, like `media.orphans`, as mycel_app under that
- * tenant's context; one tenant's failure does not stop the others.
- */
-export async function expireAllExports(
+/** `tenant.export.expire` (TODO #28): per tenant, as mycel_app under that tenant's context. */
+export function expireAllExports(
   operatorDb: ReturnType<typeof createDb>,
   blobs: BlobStore,
   tenantIds: () => Promise<string[]>,
   now: Date,
   errors?: ErrorReporter
 ): Promise<number> {
-  let purged = 0;
-  const failed: string[] = [];
-  for (const id of await tenantIds())
-    try {
-      purged += await expireExports(operatorDb, blobs, id, now);
-    } catch (e) {
-      errors?.capture(e, { tenantId: id, job: 'tenant.export.expire' });
-      failed.push(id);
-    }
-  if (failed.length) throw new Error(`tenant.export.expire failed for ${failed.length} tenant(s)`);
-  return purged;
+  return forEachTenant(
+    'tenant.export.expire',
+    tenantIds,
+    (id) => expireExports(operatorDb, blobs, id, now),
+    errors
+  );
 }
 
 /** What the export jobs need: the store the archives go to and the version in the manifest. */
