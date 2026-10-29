@@ -13,7 +13,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isTest, readAll, staleEntries, stripComments, walk } from './lib/repo.mjs';
+import { isTest, staleEntries, stripComments, workspaceSources } from './lib/repo.mjs';
 
 export const HELPER = 'packages/db/src/roles.ts';
 /**
@@ -40,7 +40,10 @@ export function bypasses(files) {
 }
 
 export const PLATFORM = 'packages/db/src/platform.ts';
-const TENANT_INSERT = /insertInto\(\s*['"]tenants['"]\s*\)|insert\s+into\s+"?tenants"?\s*\(/i;
+// Any schema prefix, alias, column list or none, and `select`/`values` straight after the name;
+// `tenant_hostnames` and other names that start with `tenants` stay out.
+const TENANT_INSERT =
+  /insertInto\(\s*['"](public\.)?tenants(\s+as\s+\w+)?['"]\s*\)|insert\s+into\s+("?public"?\.)?"?tenants"?(?=\s*\(|\s*`|\s*$|\s+(as|select|values|default|overriding|with)\b)/i;
 
 /** Lines outside platform.ts (and tests) that insert a tenant row. */
 export function tenantInserts(files) {
@@ -63,17 +66,8 @@ export const unusedExceptions = (files) =>
     'db-roles EXCEPTIONS'
   );
 
-const sources = () =>
-  readAll(
-    ['packages', 'apps'].flatMap((top) =>
-      walk(top, {
-        match: (p) => /^[^/]+\/[^/]+\/src\//.test(p) && /\.[cm]?[jt]s$/.test(p),
-      })
-    )
-  );
-
 test('role switches and advisory locks go through packages/db/src/roles.ts', () => {
-  const found = sources();
+  const found = workspaceSources();
   assert.ok(
     found.some((f) => f.path === HELPER),
     'the scan finds the helper'
@@ -83,7 +77,7 @@ test('role switches and advisory locks go through packages/db/src/roles.ts', () 
 });
 
 test('a tenant row is inserted only in packages/db/src/platform.ts', () => {
-  const found = sources();
+  const found = workspaceSources();
   assert.ok(
     found.some((f) => f.path === PLATFORM && /insertInto\('tenants'\)/.test(f.text)),
     'the scan finds the platform insert'
@@ -91,12 +85,19 @@ test('a tenant row is inserted only in packages/db/src/platform.ts', () => {
   assert.deepEqual(tenantInserts(found), []);
 });
 
-test('the tenant rule flags a second insert and leaves platform.ts, tests and tenant_hostnames', () => {
+test('the tenant rule flags a second insert in any form and leaves platform.ts, tests and other tables', () => {
   const file = (path, text) => ({ path, text });
   assert.deepEqual(
     tenantInserts([
       file('packages/db/src/index.ts', "await trx.insertInto('tenants').values(row).execute();"),
       file('packages/db/src/seed.ts', 'await sql`insert into tenants (id, slug) values (1, 2)`;'),
+      file('packages/db/src/a.ts', 'await sql`insert into public.tenants (id) values (1)`;'),
+      file('packages/db/src/b.ts', 'await sql`insert into "public"."tenants" values (1)`;'),
+      file('packages/db/src/c.ts', 'await sql`insert into tenants select * from old`;'),
+      file('packages/db/src/d.ts', "await trx.insertInto('tenants as t').values(row).execute();"),
+      file('packages/db/src/e.ts', "await trx.insertInto('public.tenants').values(row).execute();"),
+      file('packages/db/src/f.ts', 'await sql`insert into tenants`;'),
+      file('packages/db/src/g.ts', 'await sql`insert into tenants_archive (id) values (1)`;'),
       file(PLATFORM, "await trx.insertInto('tenants').values(row).execute();"),
       file('packages/db/src/x.test.ts', "await trx.insertInto('tenants').values(row).execute();"),
       file('packages/db/src/hostnames.ts', "await trx.insertInto('tenant_hostnames').values(r);"),
@@ -104,6 +105,12 @@ test('the tenant rule flags a second insert and leaves platform.ts, tests and te
     [
       "packages/db/src/index.ts:1: await trx.insertInto('tenants').values(row).execute();",
       'packages/db/src/seed.ts:1: await sql`insert into tenants (id, slug) values (1, 2)`;',
+      'packages/db/src/a.ts:1: await sql`insert into public.tenants (id) values (1)`;',
+      'packages/db/src/b.ts:1: await sql`insert into "public"."tenants" values (1)`;',
+      'packages/db/src/c.ts:1: await sql`insert into tenants select * from old`;',
+      "packages/db/src/d.ts:1: await trx.insertInto('tenants as t').values(row).execute();",
+      "packages/db/src/e.ts:1: await trx.insertInto('public.tenants').values(row).execute();",
+      'packages/db/src/f.ts:1: await sql`insert into tenants`;',
     ]
   );
 });
