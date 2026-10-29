@@ -49,7 +49,7 @@ import {
   withTenant,
 } from './index.js';
 import { toJobRecord } from './jobs.js';
-import { asRole } from './roles.js';
+import { asRole, setClientRole } from './roles.js';
 import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
@@ -80,8 +80,7 @@ describe.skipIf(skip)('jobs conformance', () => {
     );
   /** Every row with this key, read as the worker would. */
   const byKey = async (key: string): Promise<JobRecord[]> =>
-    operatorDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_worker`.execute(trx);
+    asRole(operatorDb, 'mycel_worker', async (trx) => {
       const rows = await trx
         .selectFrom('jobs')
         .selectAll()
@@ -104,8 +103,7 @@ describe.skipIf(skip)('jobs conformance', () => {
   }
   /** Insert a due platform job as the worker. */
   async function due(t: string, key = `${t}:${uuidv7()}`, maxAttempts = 10): Promise<string> {
-    await operatorDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_worker`.execute(trx);
+    await asRole(operatorDb, 'mycel_worker', async (trx) => {
       await trx
         .insertInto('jobs')
         .values({
@@ -132,8 +130,7 @@ describe.skipIf(skip)('jobs conformance', () => {
   afterAll(async () => {
     // Close what this suite left open, so a worker on the same database (the e2e run) does not
     // pick it up as work without a handler.
-    await operatorDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_worker`.execute(trx);
+    await asRole(operatorDb, 'mycel_worker', async (trx) => {
       await sql`update jobs set done_at = now()
                 where done_at is null and type like ${`conformance.${run}.%`}`.execute(trx);
       await sql`update jobs set done_at = now()
@@ -329,8 +326,7 @@ describe.skipIf(skip)('jobs conformance', () => {
     );
     expect(await claimJobs(operatorDb, { types: [t] })).toEqual([]);
     // What TODO #17 will show and reset.
-    const exhausted = await operatorDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_worker`.execute(trx);
+    const exhausted = await asRole(operatorDb, 'mycel_worker', async (trx) => {
       return (
         await sql<{ key: string; last_error: string }>`
           select key, last_error from jobs
@@ -413,7 +409,7 @@ describe.skipIf(skip)('jobs conformance', () => {
           await client.query('begin');
           await client.query(`set local lock_timeout = '200ms'`);
           // The stray rows go in as mycel_app, like ingest would (0018); the recovery is the owner's.
-          await client.query('set local role mycel_app');
+          await setClientRole(client, 'mycel_app');
           await client.query(`select set_config('app.tenant_id', $1, true)`, [tenantId]);
           for (const day of ['10', '11'])
             await client.query(
@@ -486,8 +482,7 @@ describe.skipIf(skip)('jobs conformance', () => {
     );
     expect(result).toEqual({ claimed: 1, completed: 1, failed: 0, superseded: 0 });
     // Counted as the janitor: the owner without superuser would see no row and always count 0.
-    const { rows } = await operatorDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_janitor`.execute(trx);
+    const { rows } = await asRole(operatorDb, 'mycel_janitor', async (trx) => {
       return sql<{ n: number }>`
         select count(*)::int as n from rate_limits where key = ${`jobs-${run}`}`.execute(trx);
     });

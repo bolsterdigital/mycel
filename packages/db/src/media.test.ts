@@ -41,6 +41,7 @@ import {
   runSuffix,
 } from '@mycel/core/testing';
 import { createDb, createUnitOfWork, runJobs, uuidv7, uuidv7Ids } from './index.js';
+import { enterTenant } from './roles.js';
 import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
@@ -245,8 +246,7 @@ describe.skipIf(skip)('media conformance', () => {
       'utf8'
     );
     const listed = await operatorDb.transaction().execute(async (trx) => {
-      await sql`select set_config('role', 'mycel_app', true),
-        set_config('app.tenant_id', ${c}, true)`.execute(trx);
+      await enterTenant(trx, c);
       for (const r of rows) await insert(r.id, r, false).execute(trx);
       await insert(gone, fixtures[0]!, true).execute(trx);
       return (await sql<{ id: string; key: string }>`${sql.raw(query)}`.execute(trx)).rows;

@@ -8,6 +8,7 @@
 
 import { sql, type Kysely } from 'kysely';
 import {
+  errorMessage,
   noopLogger,
   scrubText,
   type DomainEvent,
@@ -103,7 +104,7 @@ export async function drainOutbox(
           delivered.add(sub.name);
         } catch (e) {
           // Scrubbed: the subscriber's error may quote an address, and #17c shows this column.
-          error = scrubText(`${sub.name}: ${e instanceof Error ? e.message : String(e)}`);
+          error = scrubText(`${sub.name}: ${errorMessage(e)}`);
           onError?.(e, row.id, sub.name, row.tenant_id);
         }
       }
