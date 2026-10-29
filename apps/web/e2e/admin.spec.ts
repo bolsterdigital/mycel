@@ -83,7 +83,7 @@ test.describe('admin', () => {
     await expect(page.getByText(token.slice(0, 12))).toBeVisible();
 
     await formWith(page, name)
-      .getByRole('button', { name: `Sleutel ${name} intrekken` })
+      .getByRole('button', { name: `Sleutel intrekken: ${name}` })
       .click();
     await expect(page.getByRole('status')).toContainText('API-sleutel ingetrokken.');
     expect((await api('/v1/content.published.get?type=page&slug=signup', token)).status).toBe(401);
@@ -180,11 +180,9 @@ test.describe('admin', () => {
 test.describe('admin-shell', () => {
   const email = 'shell-admin@probe.test';
   const other = 'shell-other';
-  // A live API key whose name has no break opportunity: its revoke button repeats the name. While
-  // admin.spec.ts holds such a key (`e2e-a11y-<timestamp>`), the overview ran past 320 CSS px at
-  // 200% text on CI's wider Linux fallback font, intermittently (TODO #27). This name is long
-  // enough to overflow with any font, so the check holds on every run and platform.
-  const SHELL = '.admin-sidebar, .admin-menu';
+  // A live API key whose name has no break opportunity, long enough to overflow with any font. Its
+  // revoke button once repeated the name and was clipped (TODO #63); the whole overview is now
+  // measured at 320 CSS px and 200% text on every run and platform, that button included.
   const unbroken = 'newsletter_sync_production_e2e_a11y_1761600000000';
 
   /** Runs one use case as the system on tenant probe, outside the browser. */
@@ -315,8 +313,8 @@ test.describe('admin-shell', () => {
     await expect(page.locator('.admin-menu')).not.toHaveAttribute('open');
     await page.keyboard.press('Enter');
     await expect(page.locator('.admin-menu')).toHaveAttribute('open');
-    // The shell's own controls; the overview's content has its gate in admin.spec.ts.
-    await layoutGate(page, 'overview with the menu open', SHELL);
+    // The whole overview, the long key's revoke button included (TODO #63).
+    await layoutGate(page, 'overview with the menu open');
     await page
       .getByRole('navigation', { name: 'Site navigation' })
       .getByRole('link', { name: 'Pages' })
@@ -332,7 +330,7 @@ test.describe('admin-shell', () => {
       await login(page, '/admin/probe', email);
       await setTextSize(page, '200%');
       await checkShell(page, 'Probe', 'Overzicht');
-      await layoutGate(page, 'overview', SHELL);
+      await layoutGate(page, 'overview');
       await page
         .getByRole('navigation', { name: 'Sitenavigatie' })
         .getByRole('link', { name: 'Pagina’s' })
