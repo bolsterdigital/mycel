@@ -3,11 +3,10 @@
 // checking TOML syntax alone would miss that regression. Inputs are synthetic and assembled so
 // no credential-shaped fixture needs a path exception in the history scan.
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { ROOT as root } from './lib/repo.mjs';
 
-const root = fileURLToPath(new URL('..', import.meta.url));
 const image = 'ghcr.io/gitleaks/gitleaks:v8.30.1';
 function scan(input) {
   return spawnSync(

@@ -1,16 +1,17 @@
 // No tracked file outside the fixture and static-asset directories exceeds 200 KB. Screenshots
 // and generated reports are evidence for one PR, not part of what builds, tests or runs Mycel;
 // committed, they made every clone of this public repository 13 MB heavier. Evidence belongs in
-// the PR conversation or the CI artifacts. Run by `npm run lint:infra`, offline.
+// the PR conversation or the CI artifacts, so `docs/reports/` is ignored and a tracked file there
+// fails at any size (it came back once after a cleanup, TODO #75). Run by `npm run lint:infra`,
+// offline.
 // Rejected: Git LFS (a second storage service for files nobody needs after review) and a total
 // repository budget (one large file hides behind many small ones and the failure names nothing).
 
 import { statSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { ROOT, gitFiles } from './lib/repo.mjs';
 
 export const LIMIT = 200 * 1024;
 
@@ -31,24 +32,25 @@ export function oversized(entries, limit = LIMIT) {
     .map(({ path, size }) => `${path} (${Math.round(size / 1024)} KB)`);
 }
 
-const root = fileURLToPath(new URL('..', import.meta.url));
+/** Directories whose files are review evidence whatever their size; ignored, never tracked. */
+export const EVIDENCE = ['docs/reports/'];
 
-function tracked() {
-  return execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' })
-    .split('\0')
-    .filter(Boolean)
-    .flatMap((path) => {
-      try {
-        const stat = statSync(join(root, path));
-        return stat.isFile() ? [{ path, size: stat.size }] : [];
-      } catch {
-        return []; // Deleted in the working tree but not yet staged.
-      }
-    });
-}
+/** The tracked paths inside an evidence directory. */
+export const trackedEvidence = (paths) =>
+  paths.filter((path) => EVIDENCE.some((dir) => path.startsWith(dir)));
+
+const tracked = () =>
+  (gitFiles() ?? []).map((path) => ({ path, size: statSync(join(ROOT, path)).size }));
 
 test('no tracked file outside fixtures and static assets exceeds 200 KB', () => {
   assert.deepEqual(oversized(tracked()), []);
+});
+
+test('no review evidence is tracked, small files included', () => {
+  assert.deepEqual(trackedEvidence(tracked().map(({ path }) => path)), []);
+  assert.deepEqual(trackedEvidence(['docs/reports/x/README.md', 'docs/reference/x.md']), [
+    'docs/reports/x/README.md',
+  ]);
 });
 
 test('the size rule flags a screenshot and exempts fixtures, static assets and the lockfile', () => {

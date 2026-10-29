@@ -1,5 +1,5 @@
 // Keep browser seed envelopes tied to registry metadata; a fixed version breaks future schemas.
-// This pure mapping is shared with the existing infrastructure regression suite.
+// A pure mapping, so `e2e-block-examples.test.mjs` proves it without a browser.
 export function blockExamples(definitions) {
   return Object.fromEntries(
     Object.entries(definitions).flatMap(([type, d]) =>

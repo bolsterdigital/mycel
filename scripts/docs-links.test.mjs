@@ -5,24 +5,20 @@
 // Rejected: an external link checker (a dependency, and network in the gate); external URLs are
 // not checked here at all.
 
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { ROOT as root, walk } from './lib/repo.mjs';
 
-const root = fileURLToPath(new URL('..', import.meta.url));
 const plans = join(root, 'docs/plans');
 
-function* markdown(dir, deep) {
-  for (const entry of readdirSync(dir)) {
-    const full = join(dir, entry);
-    if (full === plans || entry === 'node_modules' || entry.startsWith('.')) continue;
-    if (statSync(full).isDirectory()) {
-      if (deep) yield* markdown(full, deep);
-    } else if (entry.endsWith('.md')) yield full;
-  }
-}
+/** The Markdown of the root and of docs/, outside docs/plans and dot directories, absolute. */
+const markdown = () =>
+  walk('', {
+    match: (p) => p.endsWith('.md'),
+    skip: (p) => p === 'docs/plans' || /(^|\/)\./.test(p) || (!p.includes('/') && p !== 'docs'),
+  }).map((p) => join(root, p));
 
 /** The text outside fenced code blocks and inline code, where a link is a link. */
 const prose = (text) => text.replace(/^```[\s\S]*?^```/gm, '').replace(/`[^`\n]*`/g, '');
@@ -73,7 +69,7 @@ export function brokenLinks(file, text = readFileSync(file, 'utf8')) {
 }
 
 test('every relative link in the docs resolves', () => {
-  const files = [...markdown(root, false), ...markdown(join(root, 'docs'), true)];
+  const files = markdown();
   assert.ok(files.length > 10, 'found the Markdown files');
   assert.deepEqual(
     files.flatMap((f) => brokenLinks(f)),

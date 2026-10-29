@@ -145,7 +145,7 @@
 
 {#snippet act(action: string, locale: string, label: string)}
   {#if action === 'publish' && data.canWrite}
-    <!-- Part of the edit form: publishing saves what was typed first (proef 4). -->
+    <!-- Part of the edit form: publishing saves what was typed first (editor trial 2026-10-28). -->
     <Button form="item-edit" formaction="?/publish" name="locale" value={locale}
       >{fill(label, { locale })}</Button
     >

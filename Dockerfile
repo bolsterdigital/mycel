@@ -8,7 +8,7 @@
 #   docker build -t mycel .
 #   docker run --env-file .env -p 3000:3000 mycel web     # or: api | worker | migrate | mycel | mcp
 
-ARG NODE_VERSION=22
+ARG NODE_VERSION=22.22.0
 
 # --- build: full install, compile the workspaces and the SvelteKit app ----------------------------
 FROM node:${NODE_VERSION}-bookworm-slim AS build

@@ -61,7 +61,7 @@ x-after-migrate: &after-migrate
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.15-alpine
     restart: unless-stopped
     environment:
       # The image's superuser, used by nothing after the first start (docker/postgres/init-owner.sh).
@@ -132,7 +132,7 @@ services:
     depends_on: *after-migrate
 
   caddy:
-    image: caddy:2
+    image: caddy:2.10.2
     restart: unless-stopped
     ports:
       - '80:80'

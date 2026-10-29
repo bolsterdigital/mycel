@@ -8,11 +8,9 @@
 // comments may name the statement. Run by `npm run lint:infra`, offline.
 // Rejected: a grep in the workflow, which no test covers and which counts the comments too.
 
-import { readFileSync, readdirSync } from 'node:fs';
-import { join, relative } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { isTest, readAll, staleEntries, stripComments, walk } from './lib/repo.mjs';
 
 export const HELPER = 'packages/db/src/roles.ts';
 /**
@@ -23,48 +21,37 @@ export const HELPER = 'packages/db/src/roles.ts';
 export const EXCEPTIONS = new Map([['packages/db/src/migrate.ts', /pg_advisory_(un)?lock\(/i]]);
 const PATTERN =
   /set\s+(local\s+|session\s+)?role\b|set_config\(\s*'role'|reset\s+role|set\s+session\s+authorization|pg_(try_)?advisory(_xact)?_(un)?lock/i;
-const isTest = (path) => /\.test\.[cm]?[jt]s$/.test(path);
 
 /** Lines of code (comments stripped) in `files` (`[{ path, text }]`) that bypass the helper. */
 export function bypasses(files) {
   return files.flatMap(({ path, text }) => {
     if (path === HELPER || isTest(path)) return [];
-    const code = text.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '));
-    return code.split('\n').flatMap((line, i) => {
-      const bare = line.replace(/(^|[^:])\/\/.*$/, '$1');
-      if (!PATTERN.test(bare) || EXCEPTIONS.get(path)?.test(bare)) return [];
-      return [`${path}:${i + 1}: ${line.trim()}`];
-    });
+    const lines = text.split('\n');
+    return stripComments(text)
+      .split('\n')
+      .flatMap((bare, i) => {
+        if (!PATTERN.test(bare) || EXCEPTIONS.get(path)?.test(bare)) return [];
+        return [`${path}:${i + 1}: ${lines[i].trim()}`];
+      });
   });
 }
 
-const root = fileURLToPath(new URL('..', import.meta.url));
-
-function walk(dir) {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory())
-      return ['node_modules', 'dist', '.svelte-kit', 'build'].includes(entry.name)
-        ? []
-        : walk(path);
-    return /\.[cm]?[jt]s$/.test(entry.name) ? [path] : [];
-  });
-}
-
-function sources() {
-  return ['packages', 'apps'].flatMap((top) =>
-    readdirSync(join(root, top), { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .flatMap(({ name }) => {
-        try {
-          return walk(join(root, top, name, 'src'));
-        } catch {
-          return [];
-        }
-      })
-      .map((path) => ({ path: relative(root, path), text: readFileSync(path, 'utf8') }))
+/** Exceptions whose file no longer takes the lock they allow. */
+export const unusedExceptions = (files) =>
+  staleEntries(
+    EXCEPTIONS.keys(),
+    (path) => files.some((f) => f.path === path && EXCEPTIONS.get(path).test(f.text)),
+    'db-roles EXCEPTIONS'
   );
-}
+
+const sources = () =>
+  readAll(
+    ['packages', 'apps'].flatMap((top) =>
+      walk(top, {
+        match: (p) => /^[^/]+\/[^/]+\/src\//.test(p) && /\.[cm]?[jt]s$/.test(p),
+      })
+    )
+  );
 
 test('role switches and advisory locks go through packages/db/src/roles.ts', () => {
   const found = sources();
@@ -73,6 +60,7 @@ test('role switches and advisory locks go through packages/db/src/roles.ts', () 
     'the scan finds the helper'
   );
   assert.deepEqual(bypasses(found), []);
+  assert.deepEqual(unusedExceptions(found), []);
 });
 
 test('the rule flags a hand-written switch or lock and leaves comments, tests and the helper', () => {

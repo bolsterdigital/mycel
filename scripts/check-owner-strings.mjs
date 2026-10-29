@@ -1,36 +1,50 @@
 // Fails when a tracked file carries the owner's private process into this public repository: a
 // personal home path, the private planning sibling, the owner's agent tooling (`model-mode`,
-// `shared-task`) or a planning lane (`mbp`, `dev`) as a code identifier. Mycel has to build, test
-// and run for anyone who clones it; how the owner steers agents belongs in the private sibling.
+// `shared-task`), a planning lane (`mbp`, `dev`) as a code identifier, or the words of the
+// private planning (`mbp`, `lane`, `proef`) in prose, comments and workflows. Mycel has to build,
+// test and run for anyone who clones it; how the owner steers agents belongs in the private
+// sibling. The review method's `pilot` lens status is public vocabulary (review.md) and stays.
 // Paths that still violate today are listed in owner-strings.allowlist.json, which may only shrink:
 // an entry without a violation fails too, so a cleaned file leaves the list in the same change.
 // Run by `npm run lint:infra`; fixtures in scripts/fixtures/owner-strings/ prove each rule.
 // Rejected: a reviewer checklist item (it never caught the home path that reached a test) and a
 // gitleaks rule (gitleaks scans for secrets; these strings are not secret, only out of place).
 
-import { execFileSync } from 'node:child_process';
-import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ROOT, gitFiles, readJson, walk } from './lib/repo.mjs';
 
-/** Patterns that are wrong in any tracked text file. */
+/**
+ * Patterns that are wrong in any tracked text file. A home directory is personal unless it is a
+ * CI runner's or a container user's.
+ */
 const anywhere = [
-  { rule: 'personal home path', pattern: /\/Users\/|\/home\/jstronks\b/ },
+  {
+    rule: 'personal home path',
+    pattern: /\/Users\/[\w.-]|\/home\/(?!runner\b|node\b)[a-z][\w.-]*/,
+  },
   { rule: 'private planning sibling', pattern: /mycel-planning/ },
   { rule: 'owner agent tooling', pattern: /\bmodel-mode\b|\bshared-task\b/ },
 ];
 
-/** Lane names as identifiers in code. `'dev'` alone is also an npm script name, so only flag it
- * where it names an owner or a lane; `'mbp'` has no other meaning. */
-const code = /\.(m?[jt]s|svelte)$/;
-const inCode = [
-  { rule: 'planning lane literal', pattern: /(['"`])mbp\1/ },
-  { rule: 'planning lane literal', pattern: /\b(owner|lane)\b[^\n]{0,24}(['"`])dev\2/ },
+/** Prose, comments, code and workflows: everything a reader reads, but not data (JSON keeps
+ * `mbp` as a value a fixture or a test may hold). `mbp` has no other meaning. */
+const text = /\.(md|ya?ml|m?[jt]s|svelte)$/;
+const inText = [
+  { rule: 'planning lane word', pattern: /\bmbp\b|\blanes?\b/i },
+  { rule: 'private trial reference', pattern: /\bproef\s+\d/i },
 ];
 
-/** Files that may name the private sibling, with the reason. */
+/** `'dev'` alone is also an npm script name, so in code it is flagged only where it names an
+ * owner (a lane is already a planning word). */
+const code = /\.(m?[jt]s|svelte)$/;
+const inCode = [{ rule: 'planning lane literal', pattern: /\bowner\b[^\n]{0,24}(['"`])dev\1/ }];
+
+/** Files the rules do not apply to, with the reason. */
 const excluded = new Map([
   ['CLAUDE.md', 'agent instructions explain the docs/plans symlink to the private sibling'],
+  ['CHANGELOG.md', 'released entries are history; a squash title is not rewritten afterwards'],
   ['.gitignore', 'ignores the docs/plans symlink and says what it points at'],
   ['docs/README.md', 'tells a contributor how to recreate the docs/plans symlink'],
   ['scripts/check-owner-strings.mjs', 'the gate names the strings it rejects'],
@@ -41,48 +55,23 @@ const excludedDirs = ['scripts/fixtures/owner-strings/', 'docs/plans/', 'node_mo
 
 const ALLOWLIST = 'scripts/owner-strings.allowlist.json';
 
-function walk(root, dir = root) {
-  return readdirSync(dir).flatMap((entry) => {
-    const full = join(dir, entry);
-    const stat = lstatSync(full);
-    if (stat.isDirectory()) return walk(root, full);
-    return stat.isFile() ? [relative(root, full)] : [];
-  });
-}
-
 /** Tracked files for the repository itself; every file for a fixture directory, which is not a
  * repository of its own. Symlinks are skipped: their target is checked where it lives. */
-function files(root) {
-  let top = '';
-  try {
-    top = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: root, encoding: 'utf8' });
-  } catch {
-    // Not a checkout: walk the directory.
-  }
-  if (resolve(top.trim()) !== resolve(root)) return walk(root);
-  return execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' })
-    .split('\0')
-    .filter((path) => {
-      if (!path) return false;
-      try {
-        return lstatSync(join(root, path)).isFile();
-      } catch {
-        return false; // Deleted in the working tree but not yet staged.
-      }
-    });
-}
+const files = (root) => gitFiles(root) ?? walk('', { root });
 
 export function check(root) {
   const allowlistPath = join(root, ALLOWLIST);
-  const allowed = existsSync(allowlistPath)
-    ? JSON.parse(readFileSync(allowlistPath, 'utf8')).paths
-    : [];
+  const allowed = existsSync(allowlistPath) ? readJson(allowlistPath).paths : [];
   const violations = new Map();
   for (const path of files(root)) {
     if (excluded.has(path) || excludedDirs.some((dir) => path.startsWith(dir))) continue;
     const buffer = readFileSync(join(root, path));
     if (buffer.includes(0)) continue; // Binary.
-    const rules = code.test(path) ? [...anywhere, ...inCode] : anywhere;
+    const rules = [
+      ...anywhere,
+      ...(text.test(path) ? inText : []),
+      ...(code.test(path) ? inCode : []),
+    ];
     buffer
       .toString('utf8')
       .split('\n')
@@ -106,8 +95,7 @@ export function check(root) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const flag = process.argv.indexOf('--root');
-  const root =
-    flag > 0 ? resolve(process.argv[flag + 1]) : fileURLToPath(new URL('..', import.meta.url));
+  const root = flag > 0 ? resolve(process.argv[flag + 1]) : ROOT;
   const { errors, tolerated } = check(root);
   if (errors.length) {
     console.error(`owner strings: ${errors.length} problem(s)`);

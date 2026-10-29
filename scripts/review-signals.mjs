@@ -21,9 +21,9 @@
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const root = fileURLToPath(new URL('..', import.meta.url));
+const root = ROOT;
 export const PROFILE = new URL('../docs/architecture/review-profile.json', import.meta.url);
 
 /** A path pattern to a RegExp: `**` crosses directories, `*` and `?` stay within one. */

@@ -1,6 +1,7 @@
 // Negative fixtures for check-owner-strings.mjs: each directory under fixtures/owner-strings/
 // breaks one rule and must fail with its own message; `good` holds the look-alikes that must pass
-// (an npm `dev` script, a lane name in data rather than code, the excluded CLAUDE.md). The last
+// (an npm `dev` script, a lane name in data rather than code, a CI runner's home, the Dutch word
+// `proef` in copy, the excluded CLAUDE.md). The last
 // test runs the gate on this repository. Run by `npm run lint:infra` through `node --test`.
 
 import { spawnSync } from 'node:child_process';
@@ -21,10 +22,14 @@ test('look-alikes and excluded files pass', () => {
 const failing = {
   'home-path': 'docs/notes.md:3: personal home path',
   'linux-home': 'scripts/paths.mjs:1: personal home path',
+  'any-home': 'scripts/paths.mjs:1: personal home path',
+  'lane-markdown': 'docs/notes.md:3: planning lane word',
+  'lane-yaml': '.github/ci.yml:1: planning lane word',
+  trial: 'apps/web/src/save.ts:1: private trial reference',
   'planning-sibling': 'packages/core/src/plans.ts:1: private planning sibling',
   'model-mode': 'tools/run.mjs:1: owner agent tooling',
   'shared-task': '.github/claim.mjs:1: owner agent tooling',
-  'lane-mbp': 'apps/web/src/lane.ts:1: planning lane literal',
+  'lane-mbp': 'apps/web/src/lane.ts:1: planning lane word',
   'lane-owner-dev': 'scripts/route.mjs:1: planning lane literal',
   'stale-allowlist':
     'scripts/owner-strings.allowlist.json: tools/run.mjs has no violation any more; remove the entry',

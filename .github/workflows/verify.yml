@@ -9,7 +9,7 @@ name: Verify
 # `merge_group` runs the same jobs on the merge queue's commit (the PR on the current main), so
 # the required checks report there too; each queue ref is unique, so the concurrency group
 # never cancels another group's run. Rejected: `strict` branch protection without a queue,
-# which leaves every PR behind as soon as the other lane merges.
+# which leaves every PR behind as soon as another one merges.
 
 on:
   pull_request:
@@ -18,6 +18,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Read-only token for every job; none of them writes to the repository or a registry.
+permissions:
+  contents: read
+
 concurrency:
   group: verify-${{ github.ref }}
   cancel-in-progress: true
@@ -25,9 +29,10 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       postgres:
-        image: postgres:16-alpine
+        image: postgres:16.15-alpine
         env:
           POSTGRES_DB: mycel
           POSTGRES_USER: mycel
@@ -120,6 +125,7 @@ jobs:
   # organisation repositories; .gitleaks.toml excepts only the CI placeholders.
   security:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -145,6 +151,7 @@ jobs:
   # check next to `verify`. Publishing to a registry is release.yml's job, on a tag.
   image:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
@@ -201,6 +208,7 @@ jobs:
   compose:
     needs: image
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 

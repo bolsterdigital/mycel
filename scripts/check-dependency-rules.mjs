@@ -26,21 +26,22 @@
 // `--root <dir>` checks another tree; scripts/fixtures/dependency-rules/ holds one small repo
 // per rule that must fail, and check-dependency-rules.test.mjs runs them.
 
-import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
+import {
+  ROOT,
+  installedPackages,
+  readJson,
+  walk,
+  workspaces as listWorkspaces,
+} from './lib/repo.mjs';
 
 const rootArg = process.argv.indexOf('--root');
-const root =
-  rootArg > 0 ? resolve(process.argv[rootArg + 1]) : fileURLToPath(new URL('..', import.meta.url));
-const workspaces = ['packages', 'apps']
-  .flatMap((dir) =>
-    existsSync(join(root, dir)) ? readdirSync(join(root, dir)).map((n) => join(dir, n)) : []
-  )
-  .filter((p) => existsSync(join(root, p, 'package.json')));
+const root = rootArg > 0 ? resolve(process.argv[rootArg + 1]) : ROOT;
+const workspaces = listWorkspaces(root);
 
-const pkgName = (ws) => JSON.parse(readFileSync(join(root, ws, 'package.json'), 'utf8')).name;
+const pkgName = (ws) => readJson(`${ws}/package.json`, root).name;
 const names = Object.fromEntries(workspaces.map((ws) => [ws, pkgName(ws)]));
 
 const CORE = 'packages/core';
@@ -159,14 +160,10 @@ function licenceAllowed(expression, allowed = ALLOWED_LICENSES) {
 
 const errors = [];
 
-function* sourceFiles(dir) {
-  for (const entry of readdirSync(dir)) {
-    if (['node_modules', 'dist', 'build', '.svelte-kit'].includes(entry)) continue;
-    const full = join(dir, entry);
-    if (statSync(full).isDirectory()) yield* sourceFiles(full);
-    else if (/\.(ts|js|mjs|cjs|svelte)$/.test(entry)) yield full;
-  }
-}
+const sourceFiles = (dir) =>
+  walk(relative(root, dir), { root, match: (p) => /\.(ts|js|mjs|cjs|svelte)$/.test(p) }).map((p) =>
+    join(root, p)
+  );
 
 /** Every module specifier a file names: imports, re-exports, `import()` and `require()`. */
 function specifiers(file) {
@@ -211,7 +208,7 @@ for (const ws of workspaces) {
 }
 
 for (const ws of workspaces) {
-  const pkg = JSON.parse(readFileSync(join(root, ws, 'package.json'), 'utf8'));
+  const pkg = readJson(`${ws}/package.json`, root);
   if (pkg.license !== 'AGPL-3.0-only')
     errors.push(`${ws}/package.json: license must be AGPL-3.0-only (ADR 006)`);
 }
@@ -219,36 +216,23 @@ for (const ws of workspaces) {
 // Licence check over installed production dependencies (skipped when node_modules is absent).
 const nm = join(root, 'node_modules');
 if (existsSync(nm)) {
-  const seen = new Set();
-  const rootPkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+  const rootPkg = readJson('package.json', root);
   const devOnly = new Set(Object.keys(rootPkg.devDependencies ?? {}));
   for (const ws of workspaces) {
-    const pkg = JSON.parse(readFileSync(join(root, ws, 'package.json'), 'utf8'));
+    const pkg = readJson(`${ws}/package.json`, root);
     for (const d of Object.keys(pkg.devDependencies ?? {})) devOnly.add(d);
   }
-  const visit = (dir) => {
-    for (const entry of readdirSync(dir)) {
-      if (entry.startsWith('.')) continue;
-      const full = join(dir, entry);
-      if (entry.startsWith('@')) {
-        visit(full);
-        continue;
-      }
-      const pj = join(full, 'package.json');
-      if (!existsSync(pj) || seen.has(full)) continue;
-      seen.add(full);
-      const pkg = JSON.parse(readFileSync(pj, 'utf8'));
-      const lic =
-        typeof pkg.license === 'string'
-          ? pkg.license
-          : (pkg.license?.type ?? pkg.licenses?.[0]?.type ?? 'UNKNOWN');
-      if (!licenceAllowed(lic) && !devOnly.has(pkg.name))
-        errors.push(
-          `dependency ${pkg.name}@${pkg.version}: licence ${lic} not in allow-list (ADR 006)`
-        );
-    }
-  };
-  visit(nm);
+  for (const pj of installedPackages(root)) {
+    const pkg = readJson(pj, root);
+    const lic =
+      typeof pkg.license === 'string'
+        ? pkg.license
+        : (pkg.license?.type ?? pkg.licenses?.[0]?.type ?? 'UNKNOWN');
+    if (!licenceAllowed(lic) && !devOnly.has(pkg.name))
+      errors.push(
+        `dependency ${pkg.name}@${pkg.version}: licence ${lic} not in allow-list (ADR 006)`
+      );
+  }
 }
 
 if (errors.length) {

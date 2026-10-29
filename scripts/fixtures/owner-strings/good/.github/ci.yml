@@ -1,0 +1,2 @@
+steps:
+  - run: ls /home/runner/work

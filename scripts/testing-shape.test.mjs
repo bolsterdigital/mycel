@@ -7,12 +7,10 @@
 // Rejected: a line budget per file (a module may grow with its port; one long function is the
 // shape that made the old file hard to change).
 
-import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import ts from 'typescript';
+import { isTest, readAll, walk } from './lib/repo.mjs';
 
 export const FUNCTION_LIMIT = 150;
 export const SKIP_RULE_HOME = 'packages/core/src/testing/services.ts';
@@ -53,37 +51,20 @@ export function ownSkipRules(files) {
     );
 }
 
-const root = fileURLToPath(new URL('..', import.meta.url));
 const dir = 'packages/core/src/testing';
-
-function sources() {
-  return readdirSync(join(root, dir), { recursive: true })
-    .filter((name) => name.endsWith('.ts') && !/\.test\.ts$/.test(name))
-    .map((name) => {
-      const path = `${dir}/${name}`;
-      return { path, text: readFileSync(join(root, path), 'utf8') };
-    });
-}
+const sources = () => readAll(walk(dir, { match: (p) => p.endsWith('.ts') && !isTest(p) }));
 
 test('no function under packages/core/src/testing spans more than the limit', () => {
   assert.deepEqual(overLong(sources()), []);
 });
 
-function typescript(dirs) {
-  return dirs.flatMap((top) =>
-    readdirSync(join(root, top), { recursive: true })
-      .filter(
-        (name) => name.endsWith('.ts') && !/(^|\/)(node_modules|dist|\.svelte-kit)\//.test(name)
-      )
-      .map((name) => {
-        const path = `${top}/${name}`;
-        return { path, text: readFileSync(join(root, path), 'utf8') };
-      })
-  );
-}
-
 test('only the testing helper compares E2E_REQUIRED', () => {
-  assert.deepEqual(ownSkipRules(typescript(['packages', 'apps'])), []);
+  assert.deepEqual(
+    ownSkipRules(
+      readAll(['packages', 'apps'].flatMap((top) => walk(top, { match: (p) => p.endsWith('.ts') })))
+    ),
+    []
+  );
 });
 
 test('the check sees a suite that compares E2E_REQUIRED itself', () => {
@@ -99,7 +80,7 @@ test('the check sees a suite that compares E2E_REQUIRED itself', () => {
 });
 
 test('testing/memory.ts stays a list of exports', () => {
-  const lines = readFileSync(join(root, dir, 'memory.ts'), 'utf8').split('\n').length;
+  const lines = readAll([`${dir}/memory.ts`])[0].text.split('\n').length;
   assert.ok(lines < BARREL_LIMIT, `memory.ts has ${lines} lines, limit ${BARREL_LIMIT}`);
 });
 

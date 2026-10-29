@@ -449,7 +449,7 @@ async function conflictOf(principal: Principal, itemId: string, from: string) {
 
 /**
  * Saves the edit form as a new revision (brief content-editor § A1). `onlyIfChanged` is the
- * publish button of the same form (proef 4): it saves first so a publish never skips what was
+ * publish button of the same form (editor trial 2026-10-28): it saves first so a publish never skips what was
  * typed, but an untouched form adds no empty revision. A refusal is the page's own failure.
  */
 async function saveFields(
@@ -545,7 +545,7 @@ export const actions: Actions = {
     }),
   publish: async (event) => {
     const posted = await event.request.formData();
-    // The publish button of the edit form carries its fields: save them first (proef 4).
+    // The publish button of the edit form carries its fields: save them first (editor trial 2026-10-28).
     if (posted.has('baseRevisionId')) {
       const { locals, url, params } = event;
       const { tenant, principal } = await requireTenantPrincipal(locals, url, params.tenant);

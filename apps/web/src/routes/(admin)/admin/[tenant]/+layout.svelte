@@ -26,7 +26,7 @@
                   ? 'export'
                   : 'overview'
   );
-  /** Pages and articles are separate menu items (proef 4); a content screen says which it shows. */
+  /** Pages and articles are separate menu items (editor trial 2026-10-28); a content screen says which it shows. */
   const contentType = $derived.by(() => {
     const shown = page.data as { type?: unknown; item?: { type?: unknown } };
     const type = page.url.searchParams.get('type') ?? shown.item?.type ?? shown.type;

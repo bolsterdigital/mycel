@@ -26,56 +26,43 @@
 // one calls. Rejected: also reporting "exported but only used locally" (knip's default), which
 // would mostly ask for keyword churn.
 
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
+import { ROOT as root, isTest, readAll, readJson, walk, workspaces } from './lib/repo.mjs';
 
 export const BASELINE = 'scripts/dead-exports.baseline.json';
-
-const isTest = (path) => /\.(test|spec|conformance\.test)\.ts$/.test(path) || /\.d\.ts$/.test(path);
 
 /** Whether `path` is a file whose exports are checked. */
 export const checked = (path) =>
   path.endsWith('.ts') &&
   !isTest(path) &&
+  !path.endsWith('.d.ts') &&
   !path.includes('/fixtures/') &&
   (/^packages\/[^/]+\/src\//.test(path) || path.startsWith('apps/web/src/lib/'));
-
-function walk(root, dir, keep, out = []) {
-  if (!existsSync(join(root, dir))) return out;
-  for (const entry of readdirSync(join(root, dir), { withFileTypes: true })) {
-    if (entry.name === 'node_modules' || entry.name === 'dist') continue;
-    const path = posix.join(dir, entry.name);
-    if (entry.isDirectory()) walk(root, path, keep, out);
-    else if (keep(path)) out.push(path);
-  }
-  return out;
-}
 
 /** Every source file that can use or export something, as `{ path: text }`. */
 export function readSources(root) {
   const dirs = [
-    ...readdirSync(join(root, 'packages')).map((p) => `packages/${p}/src`),
+    ...workspaces(root)
+      .filter((ws) => ws.startsWith('packages/'))
+      .map((ws) => `${ws}/src`),
     'apps/web/src',
     'apps/web/e2e',
   ];
   const paths = [
-    ...dirs.flatMap((d) => walk(root, d, (p) => /\.(ts|svelte)$/.test(p))),
-    ...walk(root, 'scripts', (p) => p.endsWith('.mjs') && !p.includes('/fixtures/')),
+    ...dirs.flatMap((d) => walk(d, { root, match: (p) => /\.(ts|svelte)$/.test(p) })),
+    ...walk('scripts', { root, match: (p) => p.endsWith('.mjs') && !p.includes('/fixtures/') }),
   ];
-  return Object.fromEntries(paths.map((p) => [p, readFileSync(join(root, p), 'utf8')]));
+  return Object.fromEntries(readAll(paths, root).map(({ path, text }) => [path, text]));
 }
 
 /** `{ '@mycel/core/testing': 'packages/core/src/testing/index.ts', … }` from package.json. */
 export function readPackages(root) {
   const map = {};
-  for (const ws of ['packages', 'apps'].flatMap((d) =>
-    readdirSync(join(root, d)).map((n) => `${d}/${n}`)
-  )) {
-    const file = join(root, ws, 'package.json');
-    if (!existsSync(file)) continue;
-    const { name, exports, imports } = JSON.parse(readFileSync(file, 'utf8'));
+  for (const ws of workspaces(root)) {
+    const { name, exports, imports } = readJson(`${ws}/package.json`, root);
     for (const [sub, target] of Object.entries(exports ?? {})) {
       const types = typeof target === 'string' ? target : (target.types ?? target.default);
       const src = types.replace(/^\.\/dist\//, 'src/').replace(/\.d\.ts$|\.js$/, '.ts');
@@ -298,10 +285,8 @@ export function deadExports(files, packages = {}) {
   return dead.sort();
 }
 
-const root = fileURLToPath(new URL('..', import.meta.url));
-
 export const currentDead = () => deadExports(readSources(root), readPackages(root));
-export const readBaseline = () => JSON.parse(readFileSync(join(root, BASELINE), 'utf8'));
+export const readBaseline = () => readJson(BASELINE);
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const dead = currentDead();

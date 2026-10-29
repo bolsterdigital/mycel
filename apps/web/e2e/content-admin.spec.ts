@@ -492,7 +492,7 @@ test.describe('content-admin', () => {
     page,
     request,
   }) => {
-    // No slug typed: core derives it from the title (proef 4).
+    // No slug typed: core derives it from the title (editor trial 2026-10-28).
     const title = `Alleen NL ${slugFor('nl')}`;
     await login(page, '/admin/probe/content/new?type=page');
     await page.getByLabel('Titel (nl)').fill(title);
