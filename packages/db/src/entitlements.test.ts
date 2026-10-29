@@ -38,12 +38,14 @@ import {
   createSiteDirectory,
   createTenant,
   createUnitOfWork,
+  ensureTenant,
   getTenant,
   listTenants,
   setEntitlements,
   setStatus,
   uuidv7,
   uuidv7Ids,
+  withTenant,
 } from './index.js';
 import { closeTenantWork, requireDatabase, migrateSchema } from './testing.js';
 
@@ -309,6 +311,29 @@ describe.skipIf(skip)('entitlements conformance', () => {
     );
     // A document with an unknown key is refused before anything is written.
     await expectCode(create('ent-bad', { 'sites.max': 3 }), 'invalid_input');
+  });
+
+  it('ensures a tenant once, through createTenant and its audit row, and reuses it after', async () => {
+    const slug = `ent-ensure-${run}`;
+    const ensure = () =>
+      ensureTenant(
+        operatorDb,
+        { id: uuidv7(), slug, name: 'Ensured', locales: ['nl', 'en'] },
+        platform,
+        testPlatformActor
+      );
+    const first = await ensure();
+    created.push(first.id);
+    const second = await ensure();
+    expect(second).toEqual(first);
+    const audit = await withTenant(appDb, adminOf(first.id), (trx) =>
+      trx
+        .selectFrom('audit_log')
+        .select(['operation', 'actor_kind'])
+        .where('subject_id', '=', first.id)
+        .execute()
+    );
+    expect(audit).toEqual([{ operation: 'platform.tenant.create', actor_kind: 'platform' }]);
   });
 
   it('refuses a slug whose platform hostname some tenant already holds', async () => {

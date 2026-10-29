@@ -13,7 +13,8 @@ import {
   useCases,
 } from '@mycel/core';
 import { FakeDns } from '@mycel/core/testing';
-import { type Database, upsertTenant, uuidv7Ids } from '@mycel/db';
+import { type Database, uuidv7Ids } from '@mycel/db';
+import { testTenant } from '@mycel/db/testing';
 import { type Page, expect, test } from '@playwright/test';
 import type { Kysely } from 'kysely';
 import { expectNoAxeViolations } from './lib/axe';
@@ -196,17 +197,13 @@ test.describe('admin-shell', () => {
   test.beforeAll(async () => {
     const probe = await tenantId();
     const tenant = await asOwner((owner) =>
-      upsertTenant(
-        owner,
-        {
-          id: crypto.randomUUID(),
-          slug: other,
-          name: 'Second editorial site',
-          defaultLocale: 'en',
-          locales: ['en', 'nl'],
-        },
-        { platformDomain: process.env['PLATFORM_DOMAIN']! }
-      )
+      // Fixed slug, reused on a database that outlives the run: the test clicks it by name.
+      testTenant(owner, other, {
+        name: 'Second editorial site',
+        locales: ['en', 'nl'],
+        platformDomain: process.env['PLATFORM_DOMAIN']!,
+        reuse: true,
+      })
     );
     await withInvoker(async (invoker) => {
       for (const site of [probe, tenant.id]) {

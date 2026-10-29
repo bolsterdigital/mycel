@@ -9,7 +9,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type ContentDocument, THEME_PRESETS, systemPrincipal, useCases } from '@mycel/core';
-import { upsertTenant, uuidv7 } from '@mycel/db';
+import { testTenant } from '@mycel/db/testing';
 import { type APIRequestContext, type Page, chromium, expect, test } from '@playwright/test';
 import sharp from 'sharp';
 import { expectNoAxeViolations } from './lib/axe';
@@ -703,28 +703,15 @@ test.describe('site-settings', () => {
   });
   test.beforeAll(async () => {
     const [tenant, singleTenant] = await asOwner(async (owner) => [
-      await upsertTenant(
-        owner,
-        {
-          id: uuidv7(),
-          slug,
-          name: 'Chrome fixture',
-          defaultLocale: 'nl',
-          locales: ['nl', 'en', 'de'],
-        },
-        { platformDomain: process.env['PLATFORM_DOMAIN']! }
-      ),
-      await upsertTenant(
-        owner,
-        {
-          id: uuidv7(),
-          slug: singleSlug,
-          name: 'Single-locale fixture',
-          defaultLocale: 'nl',
-          locales: ['nl'],
-        },
-        { platformDomain: process.env['PLATFORM_DOMAIN']! }
-      ),
+      await testTenant(owner, slug, {
+        name: 'Chrome fixture',
+        locales: ['nl', 'en', 'de'],
+        platformDomain: process.env['PLATFORM_DOMAIN']!,
+      }),
+      await testTenant(owner, singleSlug, {
+        name: 'Single-locale fixture',
+        platformDomain: process.env['PLATFORM_DOMAIN']!,
+      }),
     ]);
     tenantId = tenant.id;
     singleTenantId = singleTenant.id;

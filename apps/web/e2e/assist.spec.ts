@@ -3,8 +3,7 @@
 // Rejected: mocking action responses, which would miss tenant and revision checks in the registry.
 import { expect, test, type Page } from '@playwright/test';
 import { ContentDocumentInput, systemPrincipal, useCases, type Principal } from '@mycel/core';
-import { upsertTenant } from '@mycel/db';
-import { closeTenantWork } from '@mycel/db/testing';
+import { closeTenantWork, testTenant } from '@mycel/db/testing';
 import { expectNoAxeViolations } from './lib/axe';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { NARROW, layoutGate, setTextSize } from './lib/layout';
@@ -27,17 +26,11 @@ async function signInToFreshSite(page: Page) {
   const slug = `assist-${crypto.randomUUID().slice(0, 18)}`;
   const email = `${slug}@probe.test`;
   const tenant = await asOwner((owner) =>
-    upsertTenant(
-      owner,
-      {
-        id: crypto.randomUUID(),
-        slug,
-        name: 'Assistance fixture',
-        defaultLocale: 'nl',
-        locales: ['nl', 'en'],
-      },
-      { platformDomain: process.env['PLATFORM_DOMAIN']! }
-    )
+    testTenant(owner, slug, {
+      name: 'Assistance fixture',
+      locales: ['nl', 'en'],
+      platformDomain: process.env['PLATFORM_DOMAIN']!,
+    })
   );
   sites.set(page, { ...tenant, email });
   fixtureTenants.add(tenant.id);

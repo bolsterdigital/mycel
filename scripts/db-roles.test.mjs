@@ -5,7 +5,10 @@
 // authorization`) and every advisory lock (`pg_[try_]advisory[_xact]_lock`) out of every other
 // source file of the packages and apps. One file is named below with its reason. Tests may still
 // switch roles by hand (testing.md, `set local role mycel_app` before an owner write), and
-// comments may name the statement. Run by `npm run lint:infra`, offline.
+// comments may name the statement. The same holds for the other way to change the platform: a
+// tenant row is inserted only in `packages/db/src/platform.ts`, where every creation writes its
+// audit row (TODO #74 removed `upsertTenant`, a second path without one). Run by
+// `npm run lint:infra`, offline.
 // Rejected: a grep in the workflow, which no test covers and which counts the comments too.
 
 import { test } from 'node:test';
@@ -36,6 +39,22 @@ export function bypasses(files) {
   });
 }
 
+export const PLATFORM = 'packages/db/src/platform.ts';
+const TENANT_INSERT = /insertInto\(\s*['"]tenants['"]\s*\)|insert\s+into\s+"?tenants"?\s*\(/i;
+
+/** Lines outside platform.ts (and tests) that insert a tenant row. */
+export function tenantInserts(files) {
+  return files.flatMap(({ path, text }) => {
+    if (path === PLATFORM || isTest(path)) return [];
+    const lines = text.split('\n');
+    return stripComments(text)
+      .split('\n')
+      .flatMap((bare, i) =>
+        TENANT_INSERT.test(bare) ? [`${path}:${i + 1}: ${lines[i].trim()}`] : []
+      );
+  });
+}
+
 /** Exceptions whose file no longer takes the lock they allow. */
 export const unusedExceptions = (files) =>
   staleEntries(
@@ -61,6 +80,32 @@ test('role switches and advisory locks go through packages/db/src/roles.ts', () 
   );
   assert.deepEqual(bypasses(found), []);
   assert.deepEqual(unusedExceptions(found), []);
+});
+
+test('a tenant row is inserted only in packages/db/src/platform.ts', () => {
+  const found = sources();
+  assert.ok(
+    found.some((f) => f.path === PLATFORM && /insertInto\('tenants'\)/.test(f.text)),
+    'the scan finds the platform insert'
+  );
+  assert.deepEqual(tenantInserts(found), []);
+});
+
+test('the tenant rule flags a second insert and leaves platform.ts, tests and tenant_hostnames', () => {
+  const file = (path, text) => ({ path, text });
+  assert.deepEqual(
+    tenantInserts([
+      file('packages/db/src/index.ts', "await trx.insertInto('tenants').values(row).execute();"),
+      file('packages/db/src/seed.ts', 'await sql`insert into tenants (id, slug) values (1, 2)`;'),
+      file(PLATFORM, "await trx.insertInto('tenants').values(row).execute();"),
+      file('packages/db/src/x.test.ts', "await trx.insertInto('tenants').values(row).execute();"),
+      file('packages/db/src/hostnames.ts', "await trx.insertInto('tenant_hostnames').values(r);"),
+    ]),
+    [
+      "packages/db/src/index.ts:1: await trx.insertInto('tenants').values(row).execute();",
+      'packages/db/src/seed.ts:1: await sql`insert into tenants (id, slug) values (1, 2)`;',
+    ]
+  );
 });
 
 test('the rule flags a hand-written switch or lock and leaves comments, tests and the helper', () => {

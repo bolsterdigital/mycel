@@ -1,7 +1,7 @@
 // The base of every Postgres suite (testing.md rules 3, 4 and 10): which database URLs it needs,
 // a migrated schema, tenants created the way the platform creates them, and closing the work a
 // suite leaves behind. A suite that needs something else here adds it here, not a local copy.
-// Rejected: `upsertTenant` for test tenants, a second platform write path without the audit row
+// Rejected: a second platform write path for test tenants without the audit row
 // every platform mutation writes (TODO #74).
 //
 // Test hygiene for suites that share one database (TODO #32). A suite that submits a form leaves
@@ -18,7 +18,7 @@
 import { sql, type Kysely } from 'kysely';
 import { memoryPlatform, requireServices, testPlatformActor } from '@mycel/core/testing';
 import { migrate } from './migrate.js';
-import { createTenant, type NewTenant, type PlatformTenant } from './platform.js';
+import { createTenant, ensureTenant, type NewTenant, type PlatformTenant } from './platform.js';
 import { uuidv7 } from './ids.js';
 import type { Database } from './schema.js';
 import { asRole } from './roles.js';
@@ -57,14 +57,19 @@ export const migrateSchema = (url: string): Promise<string[]> => migrate(url, { 
 /**
  * A new tenant with its platform hostname on `<slug>.localhost` (or `platformDomain`), created
  * as the platform creates one, audit row included. `slug` must be new: give it a `runSuffix()`.
+ * With `reuse`, an existing tenant with that slug comes back unchanged instead: for a fixture
+ * whose slug is fixed because a test finds it by name on a database that outlives the run.
  */
 export function testTenant(
   operatorDb: Kysely<Database>,
   slug: string,
-  options: Partial<Omit<NewTenant, 'id' | 'slug'>> & { platformDomain?: string } = {}
+  options: Partial<Omit<NewTenant, 'id' | 'slug'>> & {
+    platformDomain?: string;
+    reuse?: boolean;
+  } = {}
 ): Promise<PlatformTenant> {
-  const { platformDomain = memoryPlatform.domain, ...tenant } = options;
-  return createTenant(
+  const { platformDomain = memoryPlatform.domain, reuse = false, ...tenant } = options;
+  return (reuse ? ensureTenant : createTenant)(
     operatorDb,
     { id: uuidv7(), slug, name: slug, locales: ['nl'], ...tenant },
     { ...memoryPlatform, domain: platformDomain },
