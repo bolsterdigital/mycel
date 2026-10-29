@@ -306,6 +306,14 @@ test.describe('admin-shell', () => {
     await expect(page.locator('.admin-menu > summary')).toBeHidden();
     await expect(page.locator('.ui-dashboard > .ui-widget')).toHaveCount(6);
     await expect(page.locator('.ui-widget.empty')).toHaveCount(5);
+    // Two columns on a wide screen, never three (brief edit-screen § 4).
+    expect(
+      await page
+        .locator('.ui-dashboard > .ui-widget')
+        .evaluateAll(
+          (nodes) => new Set(nodes.map((n) => Math.round(n.getBoundingClientRect().left))).size
+        )
+    ).toBe(2);
     await expect(page.getByRole('region', { name: 'Usage and limits' })).toContainText(
       'Supporters'
     );
