@@ -1,3 +1,4 @@
+// flow: access
 // Hostnames (TODO #14, ADR 014): the site served from `Host` on its platform hostname
 // probe.localhost (Chromium resolves *.localhost to loopback), a verified non-primary hostname
 // redirecting to the primary, the admin never on a tenant hostname, Caddy's `allowed` question,

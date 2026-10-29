@@ -1,3 +1,4 @@
+// flow: access
 // Self-service export (TODO #28): a site administrator asks for an archive, the e2e worker builds
 // it, and the download is a tar in the format `mycel import` reads (its manifest first). Runs
 // without JavaScript and under axe like the other admin specs; the UI gate (skill

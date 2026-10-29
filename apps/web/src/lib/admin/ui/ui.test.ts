@@ -2,7 +2,7 @@
 // `svelte/server`, as the admin serves it (no client JavaScript), and checked for the semantics a
 // screen relies on: native elements, label and description wiring, landmarks and current-page
 // marks, and the localised copy the component brings itself. Layout at 320 CSS px and 200% text
-// and axe run in the browser, over the catalogue (e2e/admin-ui.spec.ts).
+// and axe run in the browser, over the catalogue (e2e/ui-gate.spec.ts).
 import { describe, expect, it } from 'vitest';
 import { createRawSnippet, type Component } from 'svelte';
 import { render } from 'svelte/server';

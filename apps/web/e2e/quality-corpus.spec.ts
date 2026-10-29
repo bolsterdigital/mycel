@@ -1,3 +1,4 @@
+// flow: publish
 // The versioned quality corpus is published by scripts/e2e.mjs through the same use cases as
 // ordinary content. The manifest is an identity contract for #43B, not a second page renderer.
 // Rejected: accepting a 200 from an empty shell, redirect or unrelated seeded page as a sample.

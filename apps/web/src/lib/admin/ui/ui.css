@@ -763,6 +763,8 @@
   .ui-view-switch a {
     display: flex;
     align-items: center;
+    justify-content: center;
+    min-width: var(--tap);
     min-height: var(--tap);
     padding: var(--space-0) var(--space-1);
     color: var(--color-link);

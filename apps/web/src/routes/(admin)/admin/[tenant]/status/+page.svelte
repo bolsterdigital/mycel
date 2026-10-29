@@ -2,7 +2,7 @@
      with "try again" and "close", mail with an uncertain outcome, the latest actions and the
      diagnosis to share, every action a native form post. Each task is a card with its facts as a
      MetaList and its action group in the card footer; the group wraps whole buttons (skill
-     ui-action-layout), e2e/status.spec.ts checks 320 CSS px and 200% text. The diagnosis stands
+     ui-action-layout), e2e/admin.spec.ts checks 320 CSS px and 200% text. The diagnosis stands
      on the page as text and in a read-only field to copy from; nothing sends it. An erasure no
      backup holds after an hour (TODO #29B) is a warning above everything else. -->
 <script lang="ts">
