@@ -143,7 +143,10 @@ describe('Checkbox', () => {
     expect(out).toMatch(/aria-describedby="noindex-hint"/);
     expect(out).toContain('id="noindex-hint"');
     expect(html(Checkbox, { id: 'x', name: 'x', label: 'X' })).not.toMatch(
-      /checked|aria-describedby/
+      /checked|disabled|aria-describedby/
+    );
+    expect(html(Checkbox, { id: 'x', name: 'x', label: 'X', disabled: true })).toMatch(
+      /<input type="checkbox" id="x" name="x" disabled/
     );
   });
 });
@@ -485,6 +488,33 @@ describe('page patterns', () => {
     );
     expect(upload).toContain('OWN ACTIONS');
     expect(upload).not.toContain('unused');
+  });
+
+  // #81 PR 3: a section of facts only, and the unsaved note as an enhancement.
+  it('SettingsSection: no form without an action, an unsaved note only on request', () => {
+    const facts = html(SettingsSection, { id: 'f', title: 'General', children: text('FACTS') });
+    expect(facts).toContain('<span>FACTS</span>');
+    expect(facts).not.toMatch(/<form|<button/);
+    const guarded = render(SettingsSection as Component<Record<string, unknown>>, {
+      props: {
+        id: 'g',
+        title: 'T',
+        action: '?/g',
+        submit: 'Save',
+        unsaved: 'Unsaved changes',
+        children: text('F'),
+      },
+    });
+    expect(guarded.body).toMatch(/<form method="post" action="\?\/g" data-unsaved="">/);
+    expect(guarded.body).toContain(
+      '<p class="ui-hint" hidden="" data-unsaved-note="">Unsaved changes</p>'
+    );
+    expect(guarded.head).toContain('<script type="module" src="/_admin/unsaved.js"></script>');
+    const plain = render(SettingsSection as Component<Record<string, unknown>>, {
+      props: { id: 'g', title: 'T', action: '?/g', submit: 'Save', children: text('F') },
+    });
+    expect(plain.body).not.toMatch(/data-unsaved/);
+    expect(plain.head).not.toContain('unsaved.js');
   });
 
   it('FormPage: save first, cancel as a link, both after the fields', () => {

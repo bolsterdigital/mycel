@@ -834,7 +834,7 @@ test.describe('site-settings', () => {
     const oldCss = await page
       .locator('link[rel=stylesheet][href*="/_theme/"]')
       .getAttribute('href');
-    await login(page, `/admin/${slug}/site`, `site-editor-${slug}@probe.test`);
+    await login(page, `/admin/${slug}/site?section=theme`, `site-editor-${slug}@probe.test`);
     await page.locator('select[name="fontPair"]').selectOption('inter');
     await page.locator('form[action$="&/theme"]').getByRole('button').click();
     await expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
@@ -1025,7 +1025,7 @@ test.describe('site-settings', () => {
       test.use({ locale: language });
 
       test('keeps the real admin form accessible at 320 px and enlarged text', async ({ page }) => {
-        await login(page, `/admin/${slug}/site`, `site-editor-${slug}@probe.test`);
+        await login(page, `/admin/${slug}/site?section=theme`, `site-editor-${slug}@probe.test`);
         await expect(page.getByRole('heading', { name: title, level: 1 })).toBeVisible();
         await expect(page.locator('html')).toHaveAttribute('lang', locale);
         await expect(page.locator('form[action$="&/theme"]')).toBeVisible();

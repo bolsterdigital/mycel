@@ -21,7 +21,7 @@ test.afterAll(() => asOwner((owner) => closeTenantWork(owner, [...fixtureTenants
 const sites = new WeakMap<Page, { id: string; slug: string; email: string }>();
 const base = (page: Page) => `/admin/${sites.get(page)!.slug}`;
 
-/** A fresh site with one `tenant:admin`, signed in on its assistance settings. */
+/** A fresh site with one `tenant:admin`, signed in on its assistance settings section. */
 async function signInToFreshSite(page: Page) {
   const slug = `assist-${crypto.randomUUID().slice(0, 18)}`;
   const email = `${slug}@probe.test`;
@@ -40,7 +40,7 @@ async function signInToFreshSite(page: Page) {
       capabilities: ['tenant:admin'],
     })
   );
-  await login(page, `${base(page)}/assist`, email);
+  await login(page, `${base(page)}/site?section=assist`, email);
   // Signed in as this member; at 320 CSS px the address sits in the closed ☰ menu (#66 PR 1).
   await expect(
     page.locator('.admin-sidebar-bottom').getByText(email, { exact: true })
@@ -91,7 +91,7 @@ async function acceptWithKeyboard(page: Page) {
 }
 
 async function enable(page: Page) {
-  await page.goto(`${base(page)}/assist`);
+  await page.goto(`${base(page)}/site?section=assist`);
   await page.getByLabel(/AI-hulp voor deze site aanzetten|Enable assistance for this site/).check();
   await page.getByLabel(/Ik stem in met het versturen|I consent to sending/).check();
   await page
@@ -167,7 +167,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
         invoker.run(useCases.getAssistSettings, principal, {})
       );
       for (const submitted of [undefined, '', 'Previously displayed processor']) {
-        const response = await page.request.post(`${base(page)}/assist?/save`, {
+        const response = await page.request.post(`${base(page)}/site?section=assist&/assist`, {
           form: {
             enabled: 'on',
             consent: 'on',
@@ -195,14 +195,14 @@ for (const locale of ['nl-NL', 'en-GB']) {
         ).toEqual(before);
       }
       await enable(page);
-      await expect(page).toHaveURL(`${base(page)}/assist?saved=1`);
+      await expect(page).toHaveURL(`${base(page)}/site?section=assist&saved=1`);
       expect(
         await inSite(page, (invoker, principal) =>
           invoker.run(useCases.getAssistSettings, principal, {})
         )
       ).toMatchObject({ enabled: true, consentedProvider: 'Fake model' });
       // Revocation never depends on a valid hidden label or a new consent checkbox.
-      const disabled = await page.request.post(`${base(page)}/assist?/save`, {
+      const disabled = await page.request.post(`${base(page)}/site?section=assist&/assist`, {
         form: { provider: 'Old processor' },
         headers: {
           origin: 'http://127.0.0.1:4173',
@@ -216,7 +216,9 @@ for (const locale of ['nl-NL', 'en-GB']) {
           invoker.run(useCases.getAssistSettings, principal, {})
         )
       ).toMatchObject({ enabled: false, consentedProvider: null });
+      // The former route is now a section of the settings (#81 PR 3); an old link lands there.
       await page.goto(`${base(page)}/assist`);
+      await expect(page).toHaveURL(`${base(page)}/site?section=assist`);
       await expectNoAxeViolations(page);
     });
 
@@ -225,9 +227,14 @@ for (const locale of ['nl-NL', 'en-GB']) {
     }) => {
       await signInToFreshSite(page);
       await expect(page.getByText(/De hoster staat hulp|The host permits/)).toBeVisible();
+      // With JavaScript a changed settings form says so; without, nothing is shown (#81 PR 3).
+      const unsaved = page.getByText(/^(Niet opgeslagen wijzigingen|Unsaved changes)$/);
+      await expect(unsaved).toBeHidden();
       await page
         .getByLabel(/AI-hulp voor deze site aanzetten|Enable assistance for this site/)
         .check();
+      if (isA11y()) await expect(unsaved).toBeVisible();
+      else await expect(unsaved).toBeHidden();
       await page
         .getByRole('button', { name: /AI-instellingen opslaan|Save assistance settings/ })
         .click();
@@ -239,7 +246,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
       await page
         .getByRole('button', { name: /AI-instellingen opslaan|Save assistance settings/ })
         .click();
-      await expect(page).toHaveURL(`${base(page)}/assist?saved=1`);
+      await expect(page).toHaveURL(`${base(page)}/site?section=assist&saved=1`);
 
       await page.goto(`${base(page)}/content/new?type=page`);
       await page.getByLabel('Slug').fill(`assist-${test.info().project.name}-${Date.now()}`);
@@ -285,6 +292,19 @@ for (const locale of ['nl-NL', 'en-GB']) {
       await expect(publication).toContainText(/Machinevertaling|Machine translation/);
       await expect(publication.locator('a[href="#publication-en"]')).toHaveCount(1);
       await permissions(page, ['content:read', 'content:write', 'ai:assist']);
+      // The assistance settings stay the administrator's as a section of the settings (#81 PR 3):
+      // an editor gets the other sections, not this one, neither to read nor to post.
+      const settings = `${base(page)}/site`;
+      expect((await page.request.get(`${settings}?section=assist`)).status()).toBe(403);
+      expect(
+        (
+          await page.request.post(`${settings}?section=assist&/assist`, {
+            form: { provider: '' },
+            headers: { origin: 'http://127.0.0.1:4173', accept: 'text/html' },
+          })
+        ).status()
+      ).toBe(403);
+      expect((await page.request.get(settings)).status()).toBe(200);
       await page.reload();
       await expect(publication).toContainText(/Machinevertaling|Machine translation/);
       await expect(publication.locator('.translation-approval')).toHaveCount(0);
@@ -358,7 +378,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
         ).status()
       ).toBe(404);
       // Revoking tenant consent after a proposal is ready also closes its direct URL.
-      await page.goto(`${base(page)}/assist`);
+      await page.goto(`${base(page)}/site?section=assist`);
       await page
         .getByLabel(/AI-hulp voor deze site aanzetten|Enable assistance for this site/)
         .uncheck();

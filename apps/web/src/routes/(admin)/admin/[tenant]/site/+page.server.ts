@@ -1,10 +1,25 @@
 // Native site settings forms (ADR 009, #11 E): posts are checked in core, including contrast
 // and baseVersion. Rejected: client-only validation or a free CSS editor.
-import { BRAND_LIMITS, can, Theme, SiteChrome, useCases, UseCaseError } from '@mycel/core';
-import { error, fail } from '@sveltejs/kit';
+// The settings of a site in one place (brief #81 PR 3): general, the look (theme, brand, chrome),
+// AI assistance and usage. Assistance and usage ask `tenant:admin`, the look `content:write`, so
+// a member sees only the subjects they may open. Rejected: a route per subject (the sub-navigation is
+// already one URL per subject) and loading only the current subject's data (the look's four
+// reads would become optional in every section of the page, for reads that are cheap).
+import {
+  BRAND_LIMITS,
+  can,
+  Theme,
+  SiteChrome,
+  useCases,
+  UseCaseError,
+  type Capability,
+} from '@mycel/core';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { runtime } from '#lib/server/runtime.js';
 import { requireTenantPrincipal } from '#lib/server/admin.js';
+import { saveAssistSettings } from '#lib/server/assist-settings.js';
 import type { Actions, PageServerLoad } from './$types';
+import { ui } from '../../../../../i18n/index.js';
 
 const text = (data: FormData, key: string) => String(data.get(key) ?? '').trim();
 const baseVersion = (data: FormData) => {
@@ -16,21 +31,55 @@ const report = (e: unknown) => {
   return e.code === 'conflict' ? 'conflict' : 'invalid';
 };
 /** The settings subjects, each its own URL (brief #56 § B); the first is the default. */
-const SECTIONS = ['theme', 'brand', 'chrome'] as const;
+const SECTIONS = ['general', 'theme', 'brand', 'chrome', 'assist', 'usage'] as const;
 type SiteSection = (typeof SECTIONS)[number];
+/** What a subject asks of the member; `tenant:admin` grants `content:write` as well. */
+const NEEDS: Record<SiteSection, Capability> = {
+  general: 'content:write',
+  theme: 'content:write',
+  brand: 'content:write',
+  chrome: 'content:write',
+  assist: 'tenant:admin',
+  usage: 'tenant:admin',
+};
 export const load: PageServerLoad = async ({ parent, locals, url }) => {
   await parent();
   const asked = url.searchParams.get('section');
-  const section: SiteSection = SECTIONS.find((s) => s === asked) ?? 'theme';
+  const section: SiteSection = SECTIONS.find((s) => s === asked) ?? 'general';
   const principal = locals.principal!;
-  if (!can(principal, 'content:write')) error(403, 'content:write');
+  if (!can(principal, NEEDS[section]))
+    error(
+      403,
+      NEEDS[section] === 'content:write'
+        ? 'content:write'
+        : ui(locals.lang ?? 'en')('admin.assist.error.forbidden')
+    );
   const [theme, chrome, logo, font] = await Promise.all([
     runtime().invoker.run(useCases.getSiteTheme, principal, {}),
     runtime().invoker.run(useCases.getSiteChrome, principal, {}),
     runtime().invoker.run(useCases.getBrandAsset, principal, { kind: 'logo' }),
     runtime().invoker.run(useCases.getBrandAsset, principal, { kind: 'font' }),
   ]);
-  return { section, sections: SECTIONS, theme, chrome, logo, font };
+  const assist =
+    section === 'assist'
+      ? await runtime().invoker.run(useCases.getAssistSettings, principal, {})
+      : null;
+  const usage =
+    section === 'usage' ? await runtime().invoker.run(useCases.getUsage, principal, {}) : null;
+  return {
+    section,
+    sections: SECTIONS.filter((s) => can(principal, NEEDS[s])),
+    theme,
+    chrome,
+    logo,
+    font,
+    assist: assist && {
+      settings: assist,
+      allowed: principal.entitlements['ai.assist'] && !!assist.provider,
+      saved: url.searchParams.has('saved'),
+    },
+    usage,
+  };
 };
 const localized = (
   data: FormData,
@@ -176,5 +225,17 @@ export const actions: Actions = {
         values: Object.fromEntries(data),
       });
     }
+  },
+  assist: async ({ request, locals, url, params }) => {
+    const { principal, tenant } = await requireTenantPrincipal(locals, url, params.tenant);
+    if (!can(principal, 'tenant:admin'))
+      error(403, ui(locals.lang ?? 'en')('admin.assist.error.forbidden'));
+    const data = await request.formData();
+    const failure = await saveAssistSettings(runtime().invoker, principal, data);
+    if (failure) {
+      const { status, ...values } = failure;
+      return fail(status, values);
+    }
+    redirect(303, `/admin/${tenant.slug}/site?section=assist&saved=1`);
   },
 };

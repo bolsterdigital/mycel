@@ -328,10 +328,8 @@ test.describe('admin-shell', () => {
     for (const [group, links] of [
       ['Content', ['Pages', 'Articles']],
       ['Library', ['Media']],
-      [
-        'Manage',
-        ['Settings', 'Members', 'Domains', 'Connections', 'AI assistance', 'Export', 'Status'],
-      ],
+      // AI assistance is a section of Settings (#81 PR 3), not a menu item.
+      ['Manage', ['Settings', 'Members', 'Domains', 'Connections', 'Export', 'Status']],
     ] as const)
       await expect(nav.getByRole('list', { name: group }).getByRole('link')).toHaveText([...links]);
     await expect(nav.getByRole('link', { name: 'Overview' })).toHaveCount(0);
