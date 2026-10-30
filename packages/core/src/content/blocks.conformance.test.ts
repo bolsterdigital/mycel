@@ -115,7 +115,7 @@ describe('block registry', () => {
 
   it('exports JSON Schema for every type through the Zod conversion', async () => {
     const { toJsonSchema } = await import('../json-schema.js');
-    const schema = JSON.stringify(toJsonSchema(BlockInput as unknown as z.ZodTypeAny));
+    const schema = JSON.stringify(toJsonSchema(BlockInput as unknown as z.ZodTypeAny, 'input'));
     for (const type of BLOCK_TYPES) expect(schema).toContain(`"${type}"`);
   });
 });
@@ -141,7 +141,9 @@ describe('FAQ v1 read conversion', () => {
       version: 2,
       props: { width: 'content' },
     });
-    expect(parsed.blocks[0]?.props.entries).toEqual(old().props.entries);
+    expect((parsed.blocks[0]?.props as { entries?: unknown } | undefined)?.entries).toEqual(
+      old().props.entries
+    );
     expect(blockReferenceRows(parsed.blocks)).toEqual([
       { blockId: 'faq-legacy', type: 'item', refId: EXAMPLE_IDS.item },
     ]);
@@ -170,8 +172,8 @@ function shapeOf(schema: z.ZodTypeAny): Record<string, z.ZodTypeAny> | null {
     schema instanceof z.ZodNullable ||
     schema instanceof z.ZodDefault
   )
-    return shapeOf(schema._def.innerType);
-  if (schema instanceof z.ZodArray) return shapeOf(schema.element);
+    return shapeOf(schema._def.innerType as z.ZodTypeAny);
+  if (schema instanceof z.ZodArray) return shapeOf(schema.element as z.ZodTypeAny);
   return null;
 }
 
@@ -406,7 +408,7 @@ describe('refusals', () => {
 describe('tree invariants with the new types', () => {
   it('counts every type against the 200-block limit and keeps ids unique', () => {
     const img = (i: number) => ({
-      ...(examples.find((e) => e.type === 'image')!.input as object),
+      ...(examples.find((e) => e.type === 'image')!.input as { type: string }),
       id: `i${i}`,
     });
     expect(blockTreeIssues(Array.from({ length: MAX_BLOCKS }, (_, i) => img(i)))).toEqual([]);

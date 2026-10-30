@@ -13,7 +13,7 @@
     "apps/*"
   ],
   "scripts": {
-    "typecheck": "tsc -b packages/api packages/mcp && npm run typecheck --workspace apps/web",
+    "typecheck": "tsc -b packages/api packages/mcp && tsc -p tsconfig.tests.json && npm run typecheck --workspace apps/web",
     "test": "vitest run",
     "test:collect": "node scripts/test-collect.mjs",
     "build": "tsc -b packages/api packages/mcp && npm run build --workspace apps/web",

@@ -186,7 +186,12 @@ describe('managed connection inventory', () => {
 import { FakeClock, MemoryIdentityStore, MemoryTenants } from '../testing/memory.js';
 import { FakeConnectionTransport } from '../testing/fake-connection-transport.js';
 import { connectionIntentGuard, planConnectionIntent } from './intents.js';
-import { runConnectionIntent, CONNECTION_LEASE_MS, type ConnectionSource } from './dispatch.js';
+import {
+  runConnectionIntent,
+  CONNECTION_LEASE_MS,
+  type ConnectionDispatchDeps,
+  type ConnectionSource,
+} from './dispatch.js';
 import { CONNECTION_MAX_ATTEMPTS, ConnectionFailure } from './intents.js';
 import { principal } from '../testing/index.js';
 
@@ -232,7 +237,13 @@ async function engine() {
       return { ready: true, payload: { synthetic: true } };
     },
   };
-  const deps = { uow, identity, clock, transport, sources: { fixture: source } };
+  const deps: ConnectionDispatchDeps = {
+    uow,
+    identity,
+    clock,
+    transport,
+    sources: { fixture: source },
+  };
   const plan = () => uow.run(principal, (ctx) => planConnectionIntent(ctx, request));
   const read = (id: string) => uow.run(principal, (ctx) => ctx.connectionIntents.get(id));
   return {
@@ -244,7 +255,8 @@ async function engine() {
     request,
     transport,
     policy,
-    deps: deps as typeof deps & { sources: Record<string, ConnectionSource> },
+    deps,
+    source,
     plan,
     read,
     repeat: 1,
@@ -362,13 +374,13 @@ describe('durable connection effects', () => {
   it('reconciles a crash after committed claim even if transport never started', async () => {
     const e = await engine();
     const row = await e.plan();
-    const prepare = e.deps.sources.fixture.prepare;
-    e.deps.sources.fixture.prepare = async () => {
+    const prepare = e.source.prepare;
+    e.source.prepare = async () => {
       throw new Error('simulated process death');
     };
     await expect(runConnectionIntent(e.deps, A, row.id)).rejects.toThrow('simulated');
     expect((await e.read(row.id))?.state).toBe('unknown');
-    e.deps.sources.fixture.prepare = prepare;
+    e.source.prepare = prepare;
     await runConnectionIntent(e.deps, A, row.id);
     expect(e.transport.reconciled).toHaveLength(0);
     e.clock.advance(CONNECTION_LEASE_MS * 3);
@@ -591,7 +603,7 @@ describe('durable connection effects', () => {
   it('checks pause again after asynchronous source preparation', async () => {
     const e = await engine();
     const row = await e.plan();
-    e.deps.sources.fixture.prepare = async () => {
+    e.source.prepare = async () => {
       await e.invoker.run(useCases.pauseConnection, e.principal, {
         id: e.c.id,
         baseVersion: e.c.version,
@@ -613,7 +625,7 @@ describe('durable connection effects', () => {
         await runConnectionIntent(e.deps, A, row.id);
         e.clock.advance(120_000);
       }
-      e.deps.sources.fixture.prepare = async () => {
+      e.source.prepare = async () => {
         e.uow.store.setAccess(A, { status: 'suspended' });
         return { ready: true, payload: { synthetic: true } };
       };

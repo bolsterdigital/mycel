@@ -117,7 +117,11 @@ describe('OpenAPI document', () => {
     expect(res.status).toBe(200);
     const served = await res.json();
     expect(served).toEqual(doc);
-    await expect(SwaggerParser.validate(structuredClone(served))).resolves.toBeTruthy();
+    await expect(
+      SwaggerParser.validate(
+        structuredClone(served) as Parameters<typeof SwaggerParser.validate>[0]
+      )
+    ).resolves.toBeTruthy();
   });
 
   it('has one operation per use case per method, the read route, and nothing else', () => {

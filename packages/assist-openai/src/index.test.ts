@@ -2,7 +2,7 @@
 // compatible endpoint returns it (the live test below runs against that endpoint), with every
 // field and placeholder content, so the boundary is exercised without a network or tenant data.
 import { readFileSync } from 'node:fs';
-import { createServer, type Server } from 'node:http';
+import { createServer, type RequestListener, type Server } from 'node:http';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { TextModelError } from '@mycel/core';
@@ -29,7 +29,7 @@ const options = {
   visionModel: 'vision',
 };
 
-async function serve(handler: Parameters<typeof createServer>[0]): Promise<Server> {
+async function serve(handler: RequestListener): Promise<Server> {
   const server = createServer(handler);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   return server;
@@ -49,8 +49,8 @@ async function close(server: Server): Promise<void> {
 }
 
 it('sends a schema-bound image request without an identifying user field', async () => {
-  const fetcher = vi.fn(async () => Response.json(fixture('structured')));
-  const model = new OpenAITextModel({ ...options, fetch: fetcher as typeof fetch });
+  const fetcher = vi.fn<typeof fetch>(async () => Response.json(fixture('structured')));
+  const model = new OpenAITextModel({ ...options, fetch: fetcher });
   expect(await model.complete(request)).toEqual({
     json: { alt: 'A red bicycle' },
     model: 'llava',
@@ -59,7 +59,7 @@ it('sends a schema-bound image request without an identifying user field', async
   expect(fetcher).toHaveBeenCalledOnce();
   const [url, init] = fetcher.mock.calls[0]!;
   expect(url).toBe('http://localhost:11434/v1/chat/completions');
-  const body = JSON.parse((init as RequestInit).body as string);
+  const body = JSON.parse(init!.body as string);
   expect(body.model).toBe('vision');
   expect(body.user).toBeUndefined();
   expect(body.response_format.type).toBe('json_schema');
@@ -80,10 +80,10 @@ it('falls back to json_object only for unsupported request shape', async () => {
 });
 
 it('uses the text model when no image is sent', async () => {
-  const fetcher = vi.fn(async () => Response.json(fixture('structured')));
-  const model = new OpenAITextModel({ ...options, fetch: fetcher as typeof fetch });
+  const fetcher = vi.fn<typeof fetch>(async () => Response.json(fixture('structured')));
+  const model = new OpenAITextModel({ ...options, fetch: fetcher });
   await model.complete({ ...request, parts: [{ kind: 'text', text: 'Bicycle' }] });
-  expect(JSON.parse(fetcher.mock.calls[0]![1].body as string).model).toBe('text');
+  expect(JSON.parse(fetcher.mock.calls[0]![1]!.body as string).model).toBe('text');
 });
 
 describe('failure classification', () => {
