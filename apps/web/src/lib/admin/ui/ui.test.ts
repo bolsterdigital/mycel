@@ -536,6 +536,21 @@ describe('page patterns', () => {
     expect(order).toEqual([...order].sort((a, b) => a - b));
   });
 
+  it('EditPage: a live preview is a grid child of its own, between the columns (#66 PR 3)', () => {
+    const out = html(EditPage, {
+      title: 'About us',
+      locale: 'en',
+      asideLabel: 'Status and publication',
+      form: { id: 'item-edit' },
+      children: text('FIELDS'),
+      preview: text('PREVIEW'),
+      aside: text('PUBLISH'),
+    });
+    expect(out).toContain(
+      '<div class="ui-edit-main"><span>FIELDS</span></div> <span>PREVIEW</span> <aside'
+    );
+  });
+
   it('SettingsPage and SettingsSection: sub-navigation, a form and a confirmation per section', () => {
     const page = html(SettingsPage, {
       title: 'Settings',

@@ -154,7 +154,9 @@ test.describe('content-admin', () => {
     const slug = slugFor('preview');
     await newPage(page, slug, 'Nog geheim');
 
-    const link = page.getByRole('link', { name: 'Voorbeeld (en)' });
+    // With JavaScript the bar's preview links give way to the toggle (#66 PR 3): the hook finds
+    // them either way.
+    const link = page.locator('a[data-preview-link="en"]');
     await expect(link).toHaveAttribute('target', '_blank');
     const href = (await link.getAttribute('href'))!;
     const response = await page.goto(href);
@@ -246,6 +248,40 @@ test.describe('content-admin', () => {
     await page.getByLabel('Tekst (en)').fill('Saved heading');
     await page.getByRole('button', { name: 'Toevoegen en opslaan' }).click();
     await expect(page).toHaveURL(/\?saved&block=/);
+
+    // Closed by default (#66 PR 3): the eye in the bar takes the place of the saved-preview links,
+    // which move into the preview itself.
+    const toggle = page.getByRole('button', { name: 'Voorbeeld', exact: true });
+    const panel = page.locator('[data-live-preview]');
+    const side = page.locator('.ui-edit-side');
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await expect(panel).toBeHidden();
+    await expect(page.locator('.ui-item-bar a[data-preview-link]')).toHaveCount(2);
+    await expect(page.locator('.ui-item-bar a[data-preview-link]').first()).toBeHidden();
+    await expect(side).toBeVisible();
+    // Open on a wide screen: a column beside the text, the side column steps aside.
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    await expect(panel).toBeVisible();
+    await expect(side).toBeHidden();
+    const main = (await page.locator('.ui-edit-main').boundingBox())!;
+    const beside = (await panel.boundingBox())!;
+    expect(beside.x).toBeGreaterThanOrEqual(main.x + main.width);
+    expect(beside.y).toBeLessThan(main.y + 200);
+    await expect(
+      panel.getByRole('link', { name: 'Opgeslagen versie in nieuw tabblad (nl)' })
+    ).toBeVisible();
+    await expectNoAxeViolations(page);
+    // The state in the bar points into the side column: following it closes the preview.
+    await page.locator('.ui-item-bar-state').click();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await expect(side).toBeVisible();
+    // The browser remembers the choice.
+    await toggle.click();
+    await page.reload();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    await page.setViewportSize({ width: 1280, height: 720 });
 
     const frame = page.frameLocator('[data-live-preview-frame]');
     await expect(frame.getByRole('heading', { level: 1, name: 'Saved title' })).toBeVisible();
@@ -950,16 +986,20 @@ test.describe('content-blocks', () => {
       /^More about our work is in \[the annual report\]\(item:[0-9a-f-]{36}\)$/
     );
     // And the edited locale was read back from Markdown: the preview renders the bold and the link.
-    const preview = await page.getByRole('link', { name: 'Voorbeeld (nl)' }).getAttribute('href');
+    const preview = await page.locator('a[data-preview-link="nl"]').getAttribute('href');
     await page.goto(preview!);
     await expect(page.locator('main strong', { hasText: 'tekst' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'een link' })).toHaveAttribute('href', /\/over$/);
     await expect(page.locator('main .faq.width-wide')).toContainText(`Wat? ${stamp}`);
     await page.goto(edit);
-    if (isA11y())
+    if (isA11y()) {
+      await page.getByRole('button', { name: 'Voorbeeld', exact: true }).click();
       await expect(
         page.frameLocator('iframe[data-live-preview-frame]').locator('.faq.width-wide')
       ).toBeVisible();
+      // Closed again, the side column with the publish button comes back.
+      await page.getByRole('button', { name: 'Voorbeeld', exact: true }).click();
+    }
     await page.getByRole('button', { name: 'Publiceren (nl)' }).click();
     await page.goto(`/probe/e2e-blokken-${test.info().project.name}`);
     await expect(page.locator('main .faq.width-wide')).toContainText(`Wat? ${stamp}`);
@@ -1127,9 +1167,7 @@ test.describe('content-blocks', () => {
       'Why does this matter?'
     );
     for (const locale of ['nl', 'en']) {
-      const preview = await page
-        .getByRole('link', { name: `Voorbeeld (${locale})` })
-        .getAttribute('href');
+      const preview = await page.locator(`a[data-preview-link="${locale}"]`).getAttribute('href');
       await page.goto(preview!);
       await expect(page.locator('main .faq-accordion.width-full')).toContainText(
         locale === 'nl' ? 'Waarom is dit belangrijk?' : 'Why does this matter?'
@@ -1207,7 +1245,7 @@ test.describe('content-blocks', () => {
     await expect((await block(page, 2)).getByLabel('Vraag (en)').first()).toHaveValue(
       'Does this survive?'
     );
-    const preview = await page.getByRole('link', { name: 'Voorbeeld (en)' }).getAttribute('href');
+    const preview = await page.locator('a[data-preview-link="en"]').getAttribute('href');
     await page.goto(preview!);
     await expect(page.locator('main .faq.width-full')).toContainText('Does this survive?');
     await page.goto(edit);

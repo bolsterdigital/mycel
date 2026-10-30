@@ -538,6 +538,7 @@ export const en = {
   'admin.content.preview.edit': 'Back to editing',
   'admin.content.preview.form': 'The form does not work in the preview.',
   'admin.content.preview.live': 'Live preview of unsaved changes',
+  'admin.content.preview.saved': 'Saved version in a new tab',
   'admin.content.preview.locale': 'Live preview language',
   'admin.content.preview.keyboard':
     'Use the block list below to edit every block with the keyboard.',

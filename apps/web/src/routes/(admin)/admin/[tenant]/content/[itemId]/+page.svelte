@@ -129,8 +129,10 @@
       l.block === null ? label : fill(t('admin.content.issue.block'), { n: l.block, field: label });
     return l.locale ? `${named} (${l.locale})` : named;
   };
-  const preview = (l: string) =>
+  const previewHref = (l: string) =>
     `${base}/preview/item/${data.item.id}?revision=${data.revision.id}&locale=${l}`;
+  /** The live preview of unsaved fields (#11 D): pages, for a member who can write. */
+  const livePreview = $derived(!article && data.canWrite);
   const assist = (params: Record<string, string>) =>
     `${base}/content/${data.item.id}/assist?${new URLSearchParams(params)}`;
   /** The values of a block's fields: what a refused post typed, else what is stored. */
@@ -659,9 +661,26 @@
       tone={state?.tone}
     >
       {#snippet actions()}
+        {#if livePreview}
+          <button
+            type="button"
+            class="ui-button secondary ui-preview-toggle"
+            data-preview-toggle
+            aria-pressed="false"
+            aria-controls="live-preview"
+            ><span class="ui-preview-toggle-off"><Icon name="eye" /></span><span
+              class="ui-preview-toggle-on"><Icon name="eye-off" /></span
+            >{t('admin.content.edit.previewShort')}</button
+          >
+        {/if}
         {#each data.docLocales as l (l)}
-          <Button variant="secondary" href={preview(l)} target="_blank" aria-describedby="new-tab"
-            >{t('admin.content.edit.previewShort')}{per(l)}</Button
+          <Button
+            variant="secondary"
+            class="ui-preview-link"
+            href={previewHref(l)}
+            target="_blank"
+            aria-describedby="new-tab"
+            data-preview-link={l}>{t('admin.content.edit.previewShort')}{per(l)}</Button
           >
         {/each}
         <Button form="item-edit" formaction="?/save">{t('admin.content.edit.save')}</Button>
@@ -722,36 +741,46 @@
   />
   <script type="module" src="/_admin/tabs.js"></script>
 
-  {#if !article && data.canWrite}
-    <section
-      class="ui-section live-preview"
-      data-live-preview
-      data-item-id={data.item.id}
-      data-preview-action="{base}/preview/draft"
-      hidden
-      aria-labelledby="live-preview-title"
-    >
-      <h2 id="live-preview-title">{t('admin.content.preview.live')}</h2>
-      <Field
-        id="live-preview-locale"
-        label={t('admin.content.preview.locale')}
-        locale={data.locale}
+  {#snippet preview()}
+    {#if livePreview}
+      <section
+        id="live-preview"
+        class="ui-section live-preview ui-edit-preview"
+        data-live-preview
+        data-item-id={data.item.id}
+        data-preview-action="{base}/preview/draft"
+        hidden
+        aria-labelledby="live-preview-title"
       >
-        {#snippet control(attributes)}
-          <select {...attributes} data-live-preview-locale>
-            {#each data.docLocales as l (l)}<option value={l}>{l}</option>{/each}
-          </select>
-        {/snippet}
-      </Field>
-      <iframe
-        name="mycel-live-preview"
-        title={t('admin.content.preview.live')}
-        data-live-preview-frame
-      ></iframe>
-      <p class="ui-hint">{t('admin.content.preview.keyboard')}</p>
-    </section>
-    <script type="module" src="/_admin/live-preview-parent.js"></script>
-  {/if}
+        <h2 id="live-preview-title">{t('admin.content.preview.live')}</h2>
+        <Field
+          id="live-preview-locale"
+          label={t('admin.content.preview.locale')}
+          locale={data.locale}
+        >
+          {#snippet control(attributes)}
+            <select {...attributes} data-live-preview-locale>
+              {#each data.docLocales as l (l)}<option value={l}>{l}</option>{/each}
+            </select>
+          {/snippet}
+        </Field>
+        <iframe
+          name="mycel-live-preview"
+          title={t('admin.content.preview.live')}
+          data-live-preview-frame
+        ></iframe>
+        <p class="ui-hint">{t('admin.content.preview.keyboard')}</p>
+        <p class="ui-hint">
+          {#each data.docLocales as l (l)}
+            <a href={previewHref(l)} target="_blank" aria-describedby="new-tab"
+              >{t('admin.content.preview.saved')}{per(l)}</a
+            >{' '}
+          {/each}
+        </p>
+      </section>
+      <script type="module" src="/_admin/live-preview-parent.js"></script>
+    {/if}
+  {/snippet}
 
   {#snippet aside()}
     {#if mainPublication}{@render statusCard(mainPublication, 2)}{/if}

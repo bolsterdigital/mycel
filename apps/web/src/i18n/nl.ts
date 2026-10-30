@@ -543,6 +543,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.preview.edit': 'Terug naar bewerken',
   'admin.content.preview.form': 'Het formulier werkt niet in het voorbeeld.',
   'admin.content.preview.live': 'Live voorbeeld van niet-opgeslagen wijzigingen',
+  'admin.content.preview.saved': 'Opgeslagen versie in nieuw tabblad',
   'admin.content.preview.locale': 'Taal van het live voorbeeld',
   'admin.content.preview.keyboard':
     'Met het toetsenbord kun je elk blok via de bloklijst hieronder bewerken.',

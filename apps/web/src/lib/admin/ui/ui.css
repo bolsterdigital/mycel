@@ -910,9 +910,11 @@
     gap: var(--space-3);
   }
   /* One reading column for everything an item says (title, intro, image, blocks: about the
-     public column's 720px), a side column of 18 to 20rem beside it, and from 75rem a third column
-     the preview takes when it is open (#87; #66 PR 3 fills it, `data-preview-open` on the grid).
-     Below 60rem everything stands under each other. */
+     public column's 720px) and a side column of 18 to 20rem beside it; below 60rem everything
+     stands under each other. An open live preview (#66 PR 3, `data-preview-open` on the grid) takes
+     the side column's place: beside the reading column from 75rem, under it below that. The side
+     column steps aside while it is open; the state in the ItemBar stays, and its link closes the
+     preview (live-preview-parent.js). */
   @container (min-width: 60rem) {
     .ui-edit {
       grid-template-columns: minmax(0, var(--read-width)) minmax(18rem, 20rem);
@@ -926,14 +928,53 @@
       grid-area: side;
     }
   }
-  @container (min-width: 75rem) {
+  .ui-edit[data-preview-open] > .ui-edit-side {
+    display: none;
+  }
+  /* An open preview needs the room the admin's page width (72rem) would cap: the screen takes
+     the whole workspace, so the 75rem column beside the text can appear on a wide screen. */
+  .admin-workspace .page.admin.ui-edit-page:has(.ui-edit[data-preview-open]) {
+    max-width: none;
+  }
+  @container (min-width: 60rem) {
     .ui-edit[data-preview-open] {
-      grid-template-columns: minmax(0, var(--read-width)) minmax(0, 1fr) minmax(18rem, 20rem);
-      grid-template-areas: 'main preview side';
+      grid-template-columns: minmax(0, var(--read-width));
+      grid-template-areas: 'main' 'preview';
     }
-    .ui-edit[data-preview-open] > .ui-edit-preview {
+    .ui-edit-preview {
       grid-area: preview;
     }
+  }
+  @container (min-width: 75rem) {
+    .ui-edit[data-preview-open] {
+      grid-template-columns: minmax(0, var(--read-width)) minmax(0, 1fr);
+      grid-template-areas: 'main preview';
+    }
+    /* Beside the text it previews, it stays in view while the column scrolls. */
+    .ui-edit[data-preview-open] > .ui-edit-preview {
+      position: sticky;
+      inset-block-start: var(--space-2);
+      max-block-size: calc(100vh - 2 * var(--space-2));
+      overflow: auto;
+    }
+    .ui-edit[data-preview-open] > .ui-edit-preview iframe {
+      min-block-size: 70vh;
+    }
+  }
+  /* The preview toggle exists once live-preview-parent.js has run; it then replaces the links to
+     the saved preview in the bar, which stay inside the preview itself. Its icon follows its
+     state: an eye to show, a crossed-out eye to hide. */
+  .ui-preview-toggle,
+  .ui-preview-toggle[aria-pressed='true'] .ui-preview-toggle-off,
+  .ui-preview-toggle[aria-pressed='false'] .ui-preview-toggle-on,
+  :root[data-live-preview-ready] .ui-item-bar .ui-preview-link {
+    display: none;
+  }
+  :root[data-live-preview-ready] .ui-preview-toggle {
+    display: inline-flex;
+  }
+  .ui-preview-toggle > span {
+    display: inline-flex;
   }
   .ui-edit-main,
   .ui-edit-side {
@@ -1512,6 +1553,12 @@
   }
   .ui-confirm[open] {
     flex-basis: 100%;
+  }
+  /* Closed, the question is out of layout too: Chromium lays out a closed <details>' content, and
+     in a row of light actions (a block card's head) the closed fold is only as wide as its
+     summary, so the hidden danger button would be laid out clipped. */
+  .ui-confirm:not([open]) > .ui-confirm-body {
+    display: none;
   }
   .ui-confirm-body {
     display: grid;
