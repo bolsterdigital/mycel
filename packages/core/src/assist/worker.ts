@@ -4,6 +4,7 @@
 
 import type { UnitOfWork } from '../ports.js';
 import { systemPrincipal } from '../principal.js';
+import { active, entitled } from '../entitlements/guards.js';
 import type { TenantAccess } from '../entitlements/model.js';
 import { mediaKey, variantFile } from '../media/model.js';
 import { AltResult, PENDING_TIMEOUT_MS } from './model.js';
@@ -40,8 +41,8 @@ export async function runAssistSuggestion(options: RunOptions): Promise<{ next?:
       !settings.enabled ||
       settings.consentedProvider !== row.provider ||
       ctx.assistProviderLabel !== row.provider ||
-      !ctx.principal.entitlements['ai.assist'] ||
-      ctx.principal.tenantStatus === 'suspended'
+      !entitled(ctx.principal, 'ai.assist') ||
+      !active(ctx.principal)
     )
       return { row, failure: 'rejected' as const };
     const item = await ctx.content.get(row.itemId);

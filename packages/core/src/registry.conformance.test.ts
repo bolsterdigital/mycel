@@ -115,17 +115,20 @@ describe('a use case that consumes a limit checks it (ADR 015)', () => {
 });
 
 // ADR 015, TODO #53: every `ai:assist` command passes the one assistance gate before it reads
-// anything. Run with the entitlement off and with no pending room, `examples[0]` must be refused
-// with the gate's own issue, on ids that do not exist; a command that checks later, or not at all,
-// answers `not_found` or succeeds instead. The second case shows the check is not vacuous.
+// anything. Run with the entitlement off and with each of its three limits at zero (month, pending,
+// operator per hour), `examples[0]` must be refused with the gate's own issue, on ids that do not
+// exist; a command that checks later, or not at all, answers `not_found` or succeeds instead.
+// The second case shows the check is not vacuous.
 describe('every ai:assist command passes the assistance gate (ADR 015)', () => {
   const registry = buildRegistry();
   const assisted = registry.list().filter((u) => u.requires === 'ai:assist');
 
+  // An operator, because the hourly throttle counts per operator and passes over system actors.
+  const operator = { kind: 'operator', operatorId: 'op-gate', email: 'gate@example.org' } as const;
   async function refusal(useCase: UseCase, entitlements: Principal['entitlements']) {
     const uow = new MemoryUnitOfWork();
     uow.store.addPlatformHostname(probeTenant(TENANT), uow.platform.domain);
-    const caller = principal({ entitlements });
+    const caller = principal({ entitlements, actor: operator });
     const reg = buildRegistry();
     if (!reg.get(useCase.name)) reg.register(useCase);
     try {
@@ -138,8 +141,13 @@ describe('every ai:assist command passes the assistance gate (ADR 015)', () => {
   const ungated = async (useCase: UseCase) =>
     (await refusal(useCase, { ...DEFAULT_ENTITLEMENTS, 'ai.assist': false })) !==
       'limit_exceeded assist.error.ai-not-entitled' ||
-    (await refusal(useCase, { ...DEFAULT_ENTITLEMENTS, 'ai.pending_max': 0 })) !==
-      'limit_exceeded assist.error.limit-reached';
+    (
+      await Promise.all(
+        (['ai.monthly_max', 'ai.pending_max', 'ai.operator_hourly_max'] as const).map((limit) =>
+          refusal(useCase, { ...DEFAULT_ENTITLEMENTS, [limit]: 0 })
+        )
+      )
+    ).some((r) => r !== 'limit_exceeded assist.error.limit-reached');
 
   it('has assisted commands to check', () => {
     expect(assisted.map((u) => u.name).sort()).toEqual([

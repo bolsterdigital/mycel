@@ -4,7 +4,7 @@
 // the event into the projection (ADR 019 rules 1 to 3).
 
 import { z } from 'zod';
-import { UseCaseError } from '../errors.js';
+import { notFound, UseCaseError } from '../errors.js';
 import type { ConsentGivenProps, NewsletterSubscribedProps } from '../forms/events.js';
 import { systemPrincipal } from '../principal.js';
 import type { DomainEvent, Subscriber, TransactionContext, UnitOfWork } from '../ports.js';
@@ -128,7 +128,7 @@ export const getSupporter = defineUseCase({
   examples: [{ input: { email: 'a@example.org' } }],
   async handler(ctx, { email }) {
     const projection = await ctx.supporters.getProjection(email);
-    if (!projection) throw new UseCaseError('not_found', 'no supporter with that e-mail address');
+    if (!projection) throw notFound('supporter', 'that e-mail address');
     return projection;
   },
 });
@@ -157,7 +157,7 @@ export const changeSupporterEmail = defineUseCase({
   ],
   async handler(ctx, { supporterId, newEmail, reason }) {
     const before = await ctx.supporters.getProjectionById(supporterId);
-    if (!before) throw new UseCaseError('not_found', 'no supporter with that id');
+    if (!before) throw notFound('supporter');
     if (before.email === newEmail) return before;
 
     // Both addresses, in a fixed order so two opposite changes cannot deadlock. The read above

@@ -17,7 +17,7 @@
 // tenant fields go through `planTenant` like any new tenant).
 
 import type { EntitlementsDocument, TenantStatus } from '../entitlements/model.js';
-import { UseCaseError } from '../errors.js';
+import { notFound, UseCaseError } from '../errors.js';
 import { MEDIA_PURGE_DELAY_MS } from '../media/model.js';
 import { Email } from '../operators/model.js';
 import { Capability } from '../principal.js';
@@ -96,7 +96,7 @@ export async function verifyExportManifest(
 
 /** The tenant an export reads, found by its slug; there is nothing to export without one. */
 export function exportSource<T>(tenant: T | null, slug: string): T {
-  if (!tenant) throw new UseCaseError('not_found', `no tenant with slug "${slug}"`);
+  if (!tenant) throw notFound('tenant', `slug "${slug}"`);
   return tenant;
 }
 

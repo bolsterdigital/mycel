@@ -1,5 +1,5 @@
 // Only a test adapter: production must install a reviewed transport explicitly, never this fake.
-import type { ConnectionTransport } from '../connections/dispatch.js';
+import type { ConnectionTransport } from '../connections/ports.js';
 import type { ConnectionIntent } from '../connections/intents.js';
 export class FakeConnectionTransport implements ConnectionTransport {
   readonly dispatched: ConnectionIntent[] = [];

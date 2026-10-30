@@ -10,42 +10,10 @@ import {
   type ConnectionIntent,
   type ConnectionFailure,
 } from './intents.js';
-import type { ConnectionRecord } from './ports.js';
+import type { ConnectionRecord, ConnectionSource, ConnectionTransport } from './ports.js';
 
 export const CONNECTION_LEASE_MS = 60_000;
 const backoff = (attempt: number) => Math.min(3_600_000, 60_000 * 2 ** Math.min(attempt, 6));
-/** Installed sources resolve a pinned mapping and current external suppression, in tenant context.
- * No source is installed by default. A source must not infer permission from a prior payload.
- * `ready` means this exact mapping, operation and consent scope are currently authorized.
- */
-export interface ConnectionSource {
-  prepare(
-    ctx: TransactionContext,
-    intent: Readonly<ConnectionIntent>
-  ): Promise<
-    | { ready: true; payload: Readonly<Record<string, unknown>> }
-    | { ready: false; failure: ConnectionFailure }
-  >;
-}
-export interface ConnectionTransport {
-  /** `succeeded` proves the business effect, not merely an HTTP 2xx. Throws mean unknown. */
-  dispatch(input: {
-    tenantId: string;
-    intent: Readonly<ConnectionIntent>;
-    connection: Readonly<ConnectionRecord>;
-    credential: string;
-    payload: Readonly<Record<string, unknown>>;
-  }): Promise<'succeeded' | 'pre_send' | 'unknown'>;
-  /**
-   * `absent` must prove no previous or still-running call can later perform the effect. A
-   * transport without this proof omits it: its unknown intents wait for manual resolution and
-   * are never attempted again (`PROVIDER_RECONCILES` says the same to the use cases).
-   */
-  reconcile?(input: {
-    tenantId: string;
-    intent: Readonly<ConnectionIntent>;
-  }): Promise<'succeeded' | 'absent' | 'unknown'>;
-}
 export interface ConnectionDispatchDeps {
   uow: UnitOfWork;
   identity: Pick<IdentityStore, 'tenantAccess'>;

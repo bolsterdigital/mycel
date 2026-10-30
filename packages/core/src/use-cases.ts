@@ -27,7 +27,6 @@ import {
   listSuggestions,
   suggestAlt,
   suggestTranslation,
-  approveTranslation,
   updateAssistSettings,
 } from './assist/service.js';
 import {
@@ -54,6 +53,7 @@ import {
 } from './content/operations.js';
 import { getPublished } from './content/public.js';
 import {
+  approveTranslation,
   createItem,
   diffRevisions,
   getItem,

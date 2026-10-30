@@ -9,7 +9,7 @@
 
 import { z } from 'zod';
 import { withinLimit } from '../entitlements/guards.js';
-import { UseCaseError } from '../errors.js';
+import { notFound, UseCaseError } from '../errors.js';
 import { jobKey } from '../jobs/types.js';
 import '../jobs/ports.js';
 import '../entitlements/ports.js';
@@ -117,7 +117,7 @@ export function toMediaView(ctx: Pick<TransactionContext, 'delivery'>, m: MediaR
 
 async function requireMedia(ctx: TransactionContext, id: string): Promise<MediaRecord> {
   const m = await ctx.media.get(id);
-  if (!m || m.deletedAt) throw new UseCaseError('not_found', 'no media with that id');
+  if (!m || m.deletedAt) throw notFound('media');
   return m;
 }
 

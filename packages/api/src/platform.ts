@@ -16,15 +16,16 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {
+  type Entitlements,
   EntitlementsDocument,
+  type ErrorReporter,
   Locale,
+  type Logger,
+  noopLogger,
+  notFound,
   TenantStatus,
   UseCaseError,
-  noopLogger,
   zodIssues,
-  type Entitlements,
-  type ErrorReporter,
-  type Logger,
 } from '@mycel/core';
 import type { Metrics } from '@mycel/observability';
 import { bearerMatches } from './bearer.js';
@@ -134,7 +135,7 @@ function parse<T>(schema: z.ZodType<T>, value: unknown): T {
 }
 
 const found = <T>(value: T | null): T => {
-  if (value === null) throw new UseCaseError('not_found', 'no tenant with that id');
+  if (value === null) throw notFound('tenant');
   return value;
 };
 
@@ -206,7 +207,7 @@ export function createPlatformApp({
     app.post(`/ops/${path}`, async (c) => {
       const id = parse(Id, c.req.param('id'));
       const result = await recover(id);
-      if (result === 'not_found') throw new UseCaseError('not_found', OPS_REFUSALS.not_found);
+      if (result === 'not_found') throw notFound('stuck row');
       if (result === 'not_exhausted')
         throw new UseCaseError('conflict', OPS_REFUSALS.not_exhausted);
       log.info('platform: recovered', { path, id });

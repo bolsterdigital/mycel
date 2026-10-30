@@ -20,7 +20,7 @@
 
 import { z } from 'zod';
 import { requireEntitled, withinLimit } from '../entitlements/guards.js';
-import { UseCaseError } from '../errors.js';
+import { notFound, UseCaseError } from '../errors.js';
 import type { TransactionContext } from '../ports.js';
 import type { Capability } from '../principal.js';
 import { defineUseCase } from '../registry.js';
@@ -42,7 +42,7 @@ const covers = (held: readonly Capability[], wanted: readonly Capability[]) =>
 
 async function requireMember(ctx: TransactionContext, operatorId: string): Promise<Member> {
   const member = await ctx.members.get(operatorId);
-  if (!member) throw new UseCaseError('not_found', 'no member with that operator id');
+  if (!member) throw notFound('member', 'that operator id');
   return member;
 }
 
@@ -230,8 +230,7 @@ export const revokeKey = defineUseCase({
   output: z.object({ id: z.string().guid() }),
   examples: [{ input: { id: '01900000-0000-7000-8000-000000000001' } }],
   async handler(ctx, { id }) {
-    if (!(await ctx.apiKeys.revoke(id, ctx.clock.now())))
-      throw new UseCaseError('not_found', 'no active API key with that id');
+    if (!(await ctx.apiKeys.revoke(id, ctx.clock.now()))) throw notFound('active API key');
     return { id };
   },
 });

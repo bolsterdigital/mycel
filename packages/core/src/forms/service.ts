@@ -2,7 +2,7 @@
 // `forms:write`, so this handler must never reveal anything beyond the outcome of the attempt.
 
 import { z } from 'zod';
-import { UseCaseError } from '../errors.js';
+import { notFound } from '../errors.js';
 import { withinLimit } from '../entitlements/guards.js';
 import { defineUseCase } from '../registry.js';
 import { sha256Hex } from '../util/digest.js';
@@ -29,7 +29,7 @@ export const getForm = defineUseCase({
   examples: [{ input: { id: '01900000-0000-7000-8000-00000000f000' } }],
   async handler(ctx, { id }) {
     const form = await ctx.forms.findById(id);
-    if (!form) throw new UseCaseError('not_found', `no form with id "${id}"`);
+    if (!form) throw notFound('form', `the id "${id}"`);
     const now = ctx.clock.now();
     return {
       form,
@@ -96,7 +96,7 @@ export const submitForm = defineUseCase({
     const { principal, clock } = ctx;
     const now = clock.now();
     const form = await ctx.forms.findById(input.formId);
-    if (!form) throw new UseCaseError('not_found', `no form with id "${input.formId}"`);
+    if (!form) throw notFound('form', `the id "${input.formId}"`);
 
     // One log line per refusal with a fixed reason, never the address, IP hash or token (house
     // rule 7: fail visibly for us, silently for the bot); tenant and request id come from the

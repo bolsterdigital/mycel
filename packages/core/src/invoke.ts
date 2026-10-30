@@ -24,7 +24,7 @@ import {
 } from './audit/model.js';
 import './audit/ports.js';
 import { requireActive } from './entitlements/guards.js';
-import { UseCaseError, type Issue } from './errors.js';
+import { type Issue, notFound, UseCaseError } from './errors.js';
 import type { ErrorReporter, Logger, TransactionContext, UnitOfWork } from './ports.js';
 import type { Principal } from './principal.js';
 import type { UseCase, UseCaseRegistry } from './registry.js';
@@ -52,7 +52,7 @@ export class Invoker {
   /** Untyped entry point for generic fronts (HTTP `POST /v1/<name>`, MCP tools). */
   async call(principal: Principal, name: string, input: unknown): Promise<unknown> {
     const useCase = this.registry.get(name);
-    if (!useCase) throw new UseCaseError('not_found', `unknown operation "${name}"`);
+    if (!useCase) throw notFound('operation', `the name "${name}"`);
     return this.run(useCase, principal, input);
   }
 
