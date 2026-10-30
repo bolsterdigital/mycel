@@ -106,9 +106,9 @@ const CanonicalUrl = z
   }, 'content.seo.canonical.invalid');
 
 /**
- * Search and sharing metadata, stored with the revision. Absent fields are derived (title, lead)
- * by #9; a present field is an explicit override. `imageId` names a media asset (#10), never a
- * vendor URL; without it the share image is the document's `featuredImageId` (`shareImageId`).
+ * Search and sharing metadata, stored with the revision. A present field is an explicit override;
+ * an absent one inherits along the chain in `effective.ts` (#86). `imageId` names a media asset
+ * (#10), never a vendor URL.
  */
 export const Seo = z
   .object({
@@ -117,6 +117,17 @@ export const Seo = z
     noindex: z.boolean().default(false),
     canonical: CanonicalUrl.optional(),
     imageId: z.string().guid().optional(),
+  })
+  .strict();
+
+/**
+ * How the item presents itself where it is featured elsewhere; the image stays
+ * `featuredImageId`. The title replaces the item's title only there, never in `<title>`.
+ */
+const Featured = z
+  .object({
+    title: localized(z.string().min(1).max(200)).optional(),
+    description: localized(z.string().min(1).max(500)).optional(),
   })
   .strict();
 
@@ -172,8 +183,16 @@ function documentSchemas<B extends typeof Block | typeof BlockInput>(block: B) {
     locales: LocaleList,
     blocks: z.array(block).max(1000),
     machineTranslation: z.record(Locale, z.array(z.string().min(1))).optional(),
-    /** The item's own image: cards that link to it, and the share image unless `seo.imageId`. */
+    /** The image on the item's own page, after title and lead (#86); nothing inherits into it. */
+    heroImageId: z.string().guid().optional(),
+    /**
+     * Where the item is featured elsewhere (cards, grids, collections): its own image, title and
+     * description. Each falls back along the chain in `effective.ts` when absent.
+     */
     featuredImageId: z.string().guid().optional(),
+    featured: Featured.optional(),
+    /** The introduction under the title, on pages and articles alike (#86). */
+    lead: localized(z.string().min(1).max(1000)).optional(),
     // Zod 4 defaults return directly; prefault keeps parsing the nested defaults as Zod 3 did.
     seo: Seo.prefault({}),
     access: Access.prefault({ level: 'public' }),
@@ -183,7 +202,6 @@ function documentSchemas<B extends typeof Block | typeof BlockInput>(block: B) {
     .object({
       type: z.literal('article'),
       ...base,
-      lead: localized(z.string().min(1).max(1000)).optional(),
       authorIds: z
         .array(z.string().guid())
         .max(20)
@@ -220,12 +238,20 @@ export function localizedFields(
   if (doc.seo.title) fields.push({ path: ['seo', 'title'], value: doc.seo.title, required: false });
   if (doc.seo.description)
     fields.push({ path: ['seo', 'description'], value: doc.seo.description, required: false });
+  if (doc.featured?.title)
+    fields.push({ path: ['featured', 'title'], value: doc.featured.title, required: false });
+  if (doc.featured?.description)
+    fields.push({
+      path: ['featured', 'description'],
+      value: doc.featured.description,
+      required: false,
+    });
+  // A lead given in one locale is part of the visible item in every published locale.
+  if (doc.lead) fields.push({ path: ['lead'], value: doc.lead, required: true });
   allBlocks(doc.blocks).forEach((b, i) => {
     for (const f of blockLocalized(b)) fields.push({ ...f, path: ['blocks', i, ...f.path] });
   });
   if (doc.type === 'article') {
-    // A lead given in one locale is part of the visible article in every published locale.
-    if (doc.lead) fields.push({ path: ['lead'], value: doc.lead, required: true });
     doc.corrections.forEach((c, i) =>
       fields.push({ path: ['corrections', i, 'text'], value: c.text, required: true })
     );
@@ -309,25 +335,22 @@ export function readinessIssues(
 }
 
 /**
- * The images the document itself names, outside its blocks: the featured image and the share
- * image. `slot` is the usage's block id in `media_usages`; the colon keeps it apart from every
+ * The images the document itself names, outside its blocks: the hero, the featured image and the
+ * share image. `slot` is the usage's block id in `media_usages`; the colon keeps it apart from every
  * block id (`BlockId`), so no block can take it. `path` is the issue path of a refusal.
  */
-export type DocumentMediaSlot = 'doc:featured' | 'doc:seo';
+export type DocumentMediaSlot = 'doc:hero' | 'doc:featured' | 'doc:seo';
 
 export function documentMedia(
-  doc: Pick<ContentDocument, 'featuredImageId' | 'seo'>
+  doc: Pick<ContentDocument, 'heroImageId' | 'featuredImageId' | 'seo'>
 ): { slot: DocumentMediaSlot; path: string; mediaId: string }[] {
   const out: { slot: DocumentMediaSlot; path: string; mediaId: string }[] = [];
+  if (doc.heroImageId)
+    out.push({ slot: 'doc:hero', path: 'heroImageId', mediaId: doc.heroImageId });
   if (doc.featuredImageId)
     out.push({ slot: 'doc:featured', path: 'featuredImageId', mediaId: doc.featuredImageId });
   if (doc.seo.imageId) out.push({ slot: 'doc:seo', path: 'seo.imageId', mediaId: doc.seo.imageId });
   return out;
-}
-
-/** The image shown when the item is shared: the explicit share image, else the featured one. */
-export function shareImageId(doc: Pick<ContentDocument, 'featuredImageId' | 'seo'>): string | null {
-  return doc.seo.imageId ?? doc.featuredImageId ?? null;
 }
 
 /** One row of `content_block_refs`: `blockId` is null for a reference the document itself makes. */

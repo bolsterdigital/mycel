@@ -332,6 +332,81 @@ test.describe('content-routes', () => {
     expect(thanks.headers()['cache-control']).toBe('no-store');
   });
 
+  test('an article shows its lead, hero and drop cap, whole at 320 px and 200% text (#86)', async ({
+    page,
+    request,
+  }) => {
+    // A copy of the quality article with a lead and its first block image as hero: synthetic
+    // assets that are already public and ready, never an upload.
+    // One item per project: two creates of one slug at once answer 500 instead of 409.
+    const slug = `e2e-intro-86-${isA11y() ? 'a11y' : 'no-js'}`;
+    const { items } = await callApi(request, 'content.item.list', { type: 'article', slug });
+    let target = items[0]
+      ? await callApi(request, 'content.item.get', { itemId: items[0].id })
+      : null;
+    if (!target) {
+      const [source] = (
+        await callApi(request, 'content.item.list', { type: 'article', slug: 'quality-article-v3' })
+      ).items;
+      const { revision } = await callApi(request, 'content.item.get', { itemId: source.id });
+      const doc: ContentDocument = structuredClone(revision.document);
+      const image = doc.blocks.find((b) => b.type === 'image');
+      expect(image, 'the quality article has an image block').toBeTruthy();
+      doc.lead = { nl: 'Een straat die ruimte maakt.', en: 'A street that makes room.' };
+      doc.heroImageId = (image!.props as { mediaId: string }).mediaId;
+      // The quality article's text opens with a heading, which by design gets no drop cap.
+      const paragraph = (text: string) => ({
+        type: 'doc' as const,
+        content: [{ type: 'paragraph' as const, content: [{ type: 'text' as const, text }] }],
+      });
+      doc.blocks.unshift({
+        id: 'opening',
+        type: 'rich-text',
+        version: 1,
+        props: { content: { nl: paragraph('Op de hoek.'), en: paragraph('On the corner.') } },
+      } as ContentDocument['blocks'][number]);
+      doc.locales = doc.locales.filter((l) => l === 'nl' || l === 'en');
+      target = await callApi(request, 'content.item.create', { slug, document: doc });
+    }
+    const probe = await tenantId();
+    await withInvoker(async (invoker) => {
+      for (const locale of ['nl', 'en'])
+        await invoker.run(useCases.publishItem, systemPrincipal(probe, 'e2e'), {
+          itemId: target.item.id,
+          revisionId: target.revision.id,
+          locale,
+        });
+    });
+
+    for (const [path, lead] of [
+      [`/probe/articles/${slug}`, 'Een straat die ruimte maakt.'],
+      [`/probe/en/articles/${slug}`, 'A street that makes room.'],
+    ] as const) {
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.goto(path);
+      await expect(page.locator('main > .lead')).toHaveText(lead);
+      const hero = page.locator('main > figure.page-hero img');
+      await expect(hero).toHaveAttribute('width', /\d+/);
+      await expect(hero).not.toHaveAttribute('loading', 'lazy');
+      // The drop cap is the theme's default for articles and only on the first text block.
+      expect(
+        await page.evaluate(() => {
+          const p = document.querySelector('main[data-drop-cap] > .rich-text > p:first-child');
+          const letter = p && getComputedStyle(p, '::first-letter');
+          return letter && parseFloat(letter.fontSize) > parseFloat(getComputedStyle(p).fontSize);
+        })
+      ).toBe(true);
+      if (isA11y()) await expectNoAxeViolations(page);
+
+      await page.setViewportSize(NARROW);
+      await page.goto(path);
+      for (const size of ['100%', '200%'] as const) {
+        await setTextSize(page, size);
+        await layoutGate(page, `${path} at ${size}`, 'main');
+      }
+    }
+  });
+
   test('the JSON read route serves the same article without a key', async ({ request }) => {
     const api = requireApi();
     const url = `${api}/v1/sites/probe/content/article/${ARTICLE}`;

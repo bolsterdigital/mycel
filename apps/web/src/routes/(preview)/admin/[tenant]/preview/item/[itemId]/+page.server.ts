@@ -6,10 +6,16 @@ import { error } from '@sveltejs/kit';
 import { UseCaseError, projectDocument, readinessIssues, useCases } from '@mycel/core';
 import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin.js';
 import { actorLabel, when } from '#lib/server/content-admin.js';
-import { PREVIEW_HEADERS, previewBase, previewSite, siteReader } from '#lib/server/preview.js';
+import {
+  PREVIEW_HEADERS,
+  previewBase,
+  previewSite,
+  siteReader,
+  introOf,
+} from '#lib/server/preview.js';
 import { runtime } from '#lib/server/runtime.js';
 import { siteBrand, siteTheme } from '#lib/server/theme.js';
-import { resolveDocument, runtimeSource } from '#lib/blocks/resolve.js';
+import { resolveDocument, resolveIntro, runtimeSource } from '#lib/blocks/resolve.js';
 import { ui } from '../../../../../../../i18n/index.js';
 import type { PageServerLoad } from './$types';
 
@@ -42,16 +48,18 @@ export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) 
 
   const site = await previewSite(tenant);
   const base = previewBase(tenant.slug);
+  const source = runtimeSource({
+    invoker: rt.invoker,
+    uow: rt.uow,
+    reader: siteReader(site),
+    defaultLocale: tenant.defaultLocale,
+  });
   const model = await resolveDocument(
-    runtimeSource({
-      invoker: rt.invoker,
-      uow: rt.uow,
-      reader: siteReader(site),
-      defaultLocale: tenant.defaultLocale,
-    }),
+    source,
     { locale, ...projectDocument(doc, locale) },
     { base, fallbackLocale: tenant.defaultLocale }
   );
+  const intro = await resolveIntro(source, introOf(doc, locale), locale);
   const theme = await siteTheme(site);
   const brand = await siteBrand(site);
   const admin = locals.lang ?? 'en';
@@ -59,6 +67,8 @@ export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) 
   return {
     admin,
     model,
+    intro,
+    dropCap: doc.type === 'article' && theme.dropCap === 'articles',
     theme: { href: `${base}/_theme/${theme.hash}.css`, preload: theme.preload },
     brand: {
       name: tenant.name,

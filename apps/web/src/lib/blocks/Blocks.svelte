@@ -20,16 +20,21 @@
     formState = null,
     preview = null,
     selectable = false,
+    eagerFirstImage = true,
   }: {
     model: RenderModel;
     formState?: FormState | null;
     preview?: string | null;
     selectable?: boolean;
+    /** False when the page shows a hero image above the blocks, which is then the eager one. */
+    eagerFirstImage?: boolean;
   } = $props();
 
   // The first image of the page loads eagerly: it is likely above the fold.
   const firstImage = $derived(
-    model.blocks.find((b) => (b.type === 'image' || b.type === 'hero') && b.image)?.id
+    eagerFirstImage
+      ? model.blocks.find((b) => (b.type === 'image' || b.type === 'hero') && b.image)?.id
+      : undefined
   );
 </script>
 

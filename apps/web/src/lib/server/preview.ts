@@ -11,7 +11,12 @@
 // linked from the preview would look public), and the tenant's hostname for preview assets (CSP
 // and a cross-origin load per image).
 
-import { anonymousPrincipal, type TenantInfo } from '@mycel/core';
+import {
+  anonymousPrincipal,
+  effectiveImages,
+  type ContentDocument,
+  type TenantInfo,
+} from '@mycel/core';
 import { runtime } from './runtime.js';
 import { siteTenant, type Site } from './site.js';
 
@@ -31,3 +36,9 @@ export async function previewSite(tenant: TenantInfo): Promise<Site> {
 /** The visitor a published page is read as (lib/server/public-page.ts). */
 export const siteReader = (site: Site) =>
   anonymousPrincipal(siteTenant(site), ['content:read', 'forms:read', 'media:read']);
+
+/** The lead and hero of a revision in one locale, as the public projection gives them (#86). */
+export const introOf = (doc: ContentDocument, locale: string) => ({
+  lead: doc.lead?.[locale] ?? null,
+  heroImageId: effectiveImages(doc).hero.mediaId,
+});

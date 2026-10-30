@@ -71,6 +71,38 @@ describe('HTTP front', () => {
     expect((await post('no.such.thing', {})).status).toBe(404);
   });
 
+  it('delivers the inherited images and texts as `effective` on both read routes (#86)', async () => {
+    const { app, post } = await setup();
+    const input = probePage(FORM);
+    Object.assign(input.document, {
+      lead: { nl: 'Kort gezegd.', en: 'In short.' },
+      featured: { title: { en: 'Featured' } },
+    });
+    const { item, revision } = (await (await post('content.item.create', input)).json()) as {
+      item: { id: string };
+      revision: { id: string };
+    };
+    const got = (await (await post('content.item.get', { itemId: item.id })).json()) as {
+      effective: unknown;
+    };
+    expect(got.effective).toMatchObject({
+      nl: { summary: { text: 'Kort gezegd.', source: 'lead' }, title: { source: 'title' } },
+      en: { title: { text: 'Featured', source: 'featured' } },
+    });
+    await post('content.item.publish', { itemId: item.id, revisionId: revision.id, locale: 'nl' });
+    const page = await post('content.published.get', { type: 'page', slug: 'signup' });
+    expect(await page.json()).toMatchObject({
+      lead: 'Kort gezegd.',
+      effective: {
+        images: { share: { mediaId: null, source: null } },
+        seoDescription: { text: 'Kort gezegd.', source: 'lead' },
+      },
+    });
+    // The OpenAPI document describes it, so a client generated from it sees the field.
+    const spec = JSON.stringify(await (await app.request('/openapi.json')).json());
+    expect(spec).toContain('"first-paragraph"');
+  });
+
   it('never returns an unpublished translation from the published snapshot', async () => {
     const { post } = await setup();
     const input = probePage(FORM);

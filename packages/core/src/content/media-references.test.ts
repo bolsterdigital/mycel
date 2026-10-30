@@ -358,7 +358,7 @@ describe('media references of blocks', () => {
     });
   });
 
-  describe("the document's own images: featured and share image", () => {
+  describe("the document's own images: hero, featured and share image", () => {
     const withImages = (images: { featuredImageId?: string; imageId?: string }, type = 'page') =>
       invoker.run(useCases.createItem, system, {
         slug: `doc-${++slug}`,
@@ -401,6 +401,28 @@ describe('media references of blocks', () => {
       ]);
     });
 
+    it('records the hero on a page in its own slot, so the image counts as used (#86)', async () => {
+      const { item, revision } = await invoker.run(useCases.createItem, system, {
+        slug: 'hero',
+        document: {
+          type: 'page',
+          defaultLocale: 'nl',
+          locales: ['nl'],
+          title: { nl: 'Titel' },
+          blocks: [],
+          heroImageId: photo,
+          lead: { nl: 'Inleiding' },
+        },
+      });
+      const ref = `item:${item.id}:rev:${revision.id}`;
+      expect(usages(photo)).toEqual([`${ref} doc:hero`]);
+      await expectCode(remove(photo), 'conflict', 'media.in-use');
+      const refs = uow.store.for(TENANT).blockRefs.get(revision.id) ?? [];
+      expect(refs.filter((r) => r.type === 'media').map((r) => `${r.blockId} ${r.refId}`)).toEqual([
+        `null ${photo}`,
+      ]);
+    });
+
     it('refuses an unknown, foreign, deleted or non-image id at its own path', async () => {
       const refused = async (
         p: Promise<unknown>,
@@ -428,6 +450,21 @@ describe('media references of blocks', () => {
         'seo.imageId',
         'content.reference.media-unknown',
         { id: foreign }
+      );
+      await refused(
+        invoker.run(useCases.createItem, system, {
+          slug: 'hero-unknown',
+          document: {
+            type: 'page',
+            defaultLocale: 'nl',
+            locales: ['nl'],
+            title: { nl: 'Titel' },
+            blocks: [],
+            heroImageId: UNKNOWN,
+          },
+        }),
+        'heroImageId',
+        'content.reference.media-unknown'
       );
       await refused(
         withImages({ featuredImageId: pdf }),

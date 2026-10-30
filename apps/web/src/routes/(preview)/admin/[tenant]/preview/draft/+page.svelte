@@ -2,6 +2,7 @@
      keyboard and no-JavaScript route. Block wrappers carry ids solely for click-to-edit. -->
 <script lang="ts">
   import Blocks from '#lib/blocks/Blocks.svelte';
+  import Intro from '#lib/blocks/Intro.svelte';
   import { ui } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -40,9 +41,15 @@
       <span class:site-wordmark={form.brand.wordmark}>{form.brand.name}</span>
     </span>
   </header>
-  <main class="page">
+  <main class="page" data-drop-cap={form.dropCap ? '' : undefined}>
     <h1>{form.model.title}</h1>
-    <Blocks model={form.model} preview={form.formNote} selectable />
+    <Intro intro={form.intro} model={form.model} />
+    <Blocks
+      model={form.model}
+      preview={form.formNote}
+      selectable
+      eagerFirstImage={!form.intro.hero}
+    />
   </main>
   <script type="module" src="/_admin/live-preview-child.js"></script>
 {:else}

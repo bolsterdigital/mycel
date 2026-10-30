@@ -18,7 +18,20 @@ Every pointer is a composite foreign key on `(tenant_id, item_id, revision_id)`,
 
 ## Documents and blocks
 
-A document is `{ type, title, defaultLocale, locales, blocks, featuredImageId?, seo, access }`; an article adds `lead`, ordered `authorIds`, `sectionId`, `tags`, `corrections` and `delivery`. Every localisable field is a `{ [locale]: value }` map on the same document (ADR 007), and a value for a locale the document does not list is refused. `featuredImageId` (ADR 012 rule 1, amended 2026-10-29) is the item's own image, on pages and articles alike; `seo.imageId` is the share image, and without one the featured image is shared (`shareImageId` in `model.ts`). Both name a media id and follow the image-block rules below; alt text belongs to a use and neither carries one, since only cards (#47A) and share previews show them.
+A document is `{ type, title, defaultLocale, locales, blocks, lead?, heroImageId?, featuredImageId?, featured?, seo, access }`; an article adds ordered `authorIds`, `sectionId`, `tags`, `corrections` and `delivery`. Every localisable field is a `{ [locale]: value }` map on the same document (ADR 007), and a value for a locale the document does not list is refused. `lead` is the introduction under the title, on pages and articles alike (#86). Three images name a media id and follow the image-block rules below: `heroImageId` is the image on the item's own page, `featuredImageId` (ADR 012 rule 1, amended 2026-10-29) the image where the item is featured elsewhere, `seo.imageId` the share image. `featured.title` and `featured.description` are the title and description where the item is featured; they never replace the title in `<title>` or the SEO title. Alt text belongs to a use and none of the three carries one: the hero renders as decorative with the asset's caption and credit, under the title and lead that carry its meaning.
+
+An empty field inherits along one chain, computed by the pure functions in `content/effective.ts` and returned as `effective` by `content.item.get` (per locale) and `content.published.get` (the asked locale), each value with the link it came from (`source`):
+
+| Value           | Chain                                                                                             |
+| --------------- | ------------------------------------------------------------------------------------------------- |
+| hero image      | `heroImageId`, else none                                                                          |
+| featured image  | `featuredImageId` → hero → the site's default image                                               |
+| share image     | `seo.imageId` → featured → hero → the site's default image                                        |
+| featured title  | `featured.title` → `title`                                                                        |
+| summary         | `featured.description` → first paragraph of `lead` → first paragraph of the first rich-text block |
+| SEO description | `seo.description` → summary                                                                       |
+
+A derived text has its whitespace folded and is cut at a word to at most 300 characters; an own value is returned as written. The site's default image is an argument of the chain, stored as a site setting (#86 PR 2). Nothing derived is stored on the revision.
 
 - **Block ids** (ADR 020 rule 1): a string of `A-Z a-z 0-9 _ -`, at most 64 characters, unique in the whole document. A caller may omit the id of a new block and the core assigns a UUIDv7; ids that are sent are kept. At most 200 blocks per document. Two `rich-text` blocks are never adjacent in one block list.
 - **Block set**: the four types of #8a (`heading`, `signup-form`, `rich-text`, `paywall`) plus the cards of #8b2 (`image`, `hero`, `cta`, `callout`, `faq`, `quote`, `video-embed`, `form`); see [Blocks](#blocks) below.
@@ -120,7 +133,7 @@ FAQ v1 had no width field. Reads validate the exact old FAQ shape, then add `wid
 
 ## Media references and the media lock
 
-Every save records the media usages of its block tree in the same transaction: one row per distinct `(mediaId, blockId)` under `item:<itemId>:rev:<revisionId>`, plus `doc:featured` and `doc:seo` for the document's featured and share image (the colon keeps those slots apart from every block id); a pattern under `pattern:<patternId>` with its own block ids. The repository silently skips an unknown or deleted id, so the save compares the count it recorded with what it asked for and throws `content.reference.media-unrecorded` on a shortfall, rolling back the revision, its `content_block_refs` and the usages together.
+Every save records the media usages of its block tree in the same transaction: one row per distinct `(mediaId, blockId)` under `item:<itemId>:rev:<revisionId>`, plus `doc:hero`, `doc:featured` and `doc:seo` for the document's hero, featured and share image (the colon keeps those slots apart from every block id); a pattern under `pattern:<patternId>` with its own block ids. The repository silently skips an unknown or deleted id, so the save compares the count it recorded with what it asked for and throws `content.reference.media-unrecorded` on a shortfall, rolling back the revision, its `content_block_refs` and the usages together.
 
 Retention is conservative: a new revision, an unpublish or a move does not remove the usages of older revisions, so `media.delete` refuses while any revision or pattern still uses the image and an old revision stays restorable. A pattern update replaces only that pattern's usages; applying a pattern copies its blocks with new ids and its own revision usages, so a later pattern change does not touch the item.
 

@@ -40,6 +40,12 @@ export interface RenderImage {
   focal: { x: number; y: number };
 }
 
+/** The lead and hero image between an item's title and its blocks (#86). */
+export interface RenderIntro {
+  lead: string | null;
+  hero: RenderImage | null;
+}
+
 export interface RenderAction {
   label: string;
   /** A site-root path (`/x`) or an external URL. */

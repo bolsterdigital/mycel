@@ -37,6 +37,7 @@ export const DEFAULT_THEME: ResolvedTheme = {
   radius: 4,
   density: 1,
   headingWeight: 700,
+  dropCap: 'articles',
 };
 
 export const THEME_PRESETS = {
@@ -72,6 +73,7 @@ export const THEME_PRESETS = {
     radius: 0,
     density: 1.1,
     headingWeight: 600,
+    dropCap: 'articles',
   },
   /** Bold green and yellow, larger steps and rounder corners: for campaign pages. */
   campaign: {
@@ -105,5 +107,6 @@ export const THEME_PRESETS = {
     radius: 12,
     density: 1,
     headingWeight: 800,
+    dropCap: 'articles',
   },
 } as const satisfies Record<string, ResolvedTheme>;

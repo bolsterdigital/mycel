@@ -2,7 +2,14 @@
 // A request may ask for the theme and chrome from both page and layout loads: keep one promise
 // per Site object so those loads cannot disagree or duplicate transactions. Rejected: process-
 // global caching of tenant values, which could outlive an edit without a reliable invalidation.
-import { anonymousPrincipal, useCases, type ResolvedTheme, type SiteChrome } from '@mycel/core';
+import {
+  anonymousPrincipal,
+  resolveTheme,
+  useCases,
+  type DropCap,
+  type ResolvedTheme,
+  type SiteChrome,
+} from '@mycel/core';
 import { preloadFonts, themeCss, themeHash } from '../theme/tokens.js';
 import { runtime } from './runtime.js';
 import { siteTenant, type Site } from './site.js';
@@ -11,6 +18,8 @@ export interface SiteTheme {
   css: string;
   hash: string;
   preload: string[];
+  /** Not in the CSS: the page sets `data-drop-cap`, so the ETag digest carries it (#86). */
+  dropCap: DropCap;
 }
 
 const bySite = new WeakMap<Site, Promise<SiteTheme>>();
@@ -59,7 +68,13 @@ async function loadSiteTheme(site: Site): Promise<SiteTheme> {
       (font.active
         ? `@font-face { font-family: 'Mycel Wordmark'; src: url('../_brand/font/${font.version}.woff2') format('woff2'); font-display: swap; }\n.site-wordmark { font-family: 'Mycel Wordmark', Inter, sans-serif; }\n`
         : '');
-    found = themeHash(css).then((hash) => ({ css, hash, preload: preloadFonts(theme.fontPair) }));
+    const { dropCap } = resolveTheme(theme);
+    found = themeHash(css).then((hash) => ({
+      css,
+      hash,
+      preload: preloadFonts(theme.fontPair),
+      dropCap,
+    }));
     // The cache is only an optimization for repeated themes; tenant data is read on each request.
     if (cssCache.size >= 128) cssCache.delete(cssCache.keys().next().value!);
     cssCache.set(key, found);

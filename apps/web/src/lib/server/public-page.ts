@@ -28,11 +28,10 @@ import {
   useCases,
   type Principal,
   type PublishedItem,
-  type RichTextDoc,
   type TenantInfo,
 } from '@mycel/core';
-import type { RenderModel } from '../blocks/model.js';
-import { resolveDocument, runtimeSource } from '../blocks/resolve.js';
+import type { RenderIntro, RenderModel } from '../blocks/model.js';
+import { resolveDocument, resolveIntro, runtimeSource } from '../blocks/resolve.js';
 import type { ContentRoute } from './content-route.js';
 import { runtime } from './runtime.js';
 import { sitePath, siteTenant, siteUrls, type Site } from './site.js';
@@ -54,13 +53,14 @@ export interface PublicItem {
   item: PublishedItem;
   locale: string;
   model: RenderModel;
+  /** What sits between the title and the blocks (#86): the lead and the hero image. */
+  intro: RenderIntro;
+  /** Whether the first letter of the body is a drop cap: an article on a site that wants one. */
+  dropCap: boolean;
   head: PublicHead;
   /** Strong, or null for an item with a form; see the comment at the top. */
   etag: string | null;
 }
-
-/** A meta description is a sentence or two; longer text is cut at a word. */
-const DESCRIPTION_MAX = 300;
 
 /** The site comes from the hooks (hostname or dev path, ADR 014), never from a route param. */
 export async function loadPublicItem(
@@ -78,11 +78,18 @@ export async function loadPublicItem(
     if (e instanceof UseCaseError && e.code === 'not_found') error(404, 'Not found');
     throw e;
   }
-  const model = await resolveDocument(
-    runtimeSource({ invoker, uow, reader, defaultLocale: tenant.defaultLocale }),
-    item,
-    { base: sitePath(site, ''), fallbackLocale: tenant.defaultLocale }
+  const source = runtimeSource({ invoker, uow, reader, defaultLocale: tenant.defaultLocale });
+  const model = await resolveDocument(source, item, {
+    base: sitePath(site, ''),
+    fallbackLocale: tenant.defaultLocale,
+  });
+  const intro = await resolveIntro(
+    source,
+    { lead: item.lead, heroImageId: item.effective.images.hero.mediaId },
+    locale
   );
+  const theme = await siteTheme(site);
+  const dropCap = item.type === 'article' && theme.dropCap === 'articles';
 
   const url = await siteUrls(site);
   const href = (l: string) => url(contentPath(item, l, tenant.defaultLocale));
@@ -95,24 +102,25 @@ export async function loadPublicItem(
       ...item.locales.map((l) => ({ hreflang: l, href: href(l) })),
       { hreflang: 'x-default', href: href(fallback) },
     ],
-    description: describe(item.seo.description ?? item.lead ?? firstParagraph(model)),
+    // The chain in core (effective.ts): own SEO description, featured description, lead, body.
+    description: item.effective.seoDescription.text,
     share: {
       title: item.seo.title ?? item.title,
       type: item.type === 'article' ? 'article' : 'website',
     },
-    image: item.seo.imageId ? await shareImage(item.seo.imageId, reader, url) : null,
+    image: await shareImage(item.effective.images.share.mediaId, reader, url),
   };
 
-  if (hasForm(model)) return { tenant, item, locale, model, head, etag: null };
-  const theme = await siteTheme(site);
+  const page = { tenant, item, locale, model, intro, dropCap, head };
+  if (hasForm(model)) return { ...page, etag: null };
   const chrome = await siteChrome(site);
   const brand = await siteBrand(site);
   const digest = createHash('sha256')
-    .update(JSON.stringify({ model, head, access: site.access, chrome, brand }))
+    .update(JSON.stringify({ model, intro, dropCap, head, access: site.access, chrome, brand }))
     .digest('base64url')
     .slice(0, 16);
   const etag = `"${item.revisionId}:${locale}:${theme.hash}:${digest}"`;
-  return { tenant, item, locale, model, head, etag };
+  return { ...page, etag };
 }
 
 /** The widest webp variant up to this width: what the share previews ask for (1200 px). */
@@ -126,10 +134,11 @@ const SHARE_WIDTH = 1280;
  * generator's job (`og:<...>` usages, docs/reference/media.md).
  */
 async function shareImage(
-  id: string,
+  id: string | null,
   reader: Principal,
   url: (path: string) => string
 ): Promise<PublicHead['image']> {
+  if (!id) return null;
   let asset;
   try {
     asset = await runtime().invoker.run(useCases.getMedia, reader, { id });
@@ -152,27 +161,4 @@ async function shareImage(
  */
 export function hasForm(model: RenderModel): boolean {
   return model.blocks.some((b) => b.type === 'form' && b.form !== null);
-}
-
-/** The text of the first paragraph of the first rich-text block, if any. */
-function firstParagraph(model: RenderModel): string | null {
-  type Node = { type: string; text?: string; content?: Node[] };
-  const text = (n: Node): string => n.text ?? (n.content ?? []).map(text).join('');
-  for (const b of model.blocks) {
-    if (b.type !== 'rich-text') continue;
-    const p = (b.doc as RichTextDoc & { content: Node[] }).content.find(
-      (n) => n.type === 'paragraph'
-    );
-    const found = p && text(p).trim();
-    if (found) return found;
-  }
-  return null;
-}
-
-function describe(text: string | null): string | null {
-  if (!text) return null;
-  const flat = text.replace(/\s+/g, ' ').trim();
-  if (flat.length <= DESCRIPTION_MAX) return flat;
-  const cut = flat.slice(0, DESCRIPTION_MAX - 1);
-  return `${cut.slice(0, cut.lastIndexOf(' ') > 0 ? cut.lastIndexOf(' ') : cut.length)}…`;
 }

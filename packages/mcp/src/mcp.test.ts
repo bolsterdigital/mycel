@@ -57,6 +57,18 @@ describe('MCP front', () => {
     expect(page).not.toContain('EN-DRAFT-MARKER');
   });
 
+  it('returns the inherited summary with an item, as structured content (#86)', async () => {
+    const client = await connect();
+    const input = probePage(FORM);
+    Object.assign(input.document, { lead: { nl: 'Kort gezegd.' } });
+    const created = await client.callTool({ name: 'content.item.create', arguments: input });
+    const { item } = text(created);
+    const got = await client.callTool({ name: 'content.item.get', arguments: { itemId: item.id } });
+    expect(got.structuredContent).toMatchObject({
+      effective: { nl: { summary: { text: 'Kort gezegd.', source: 'lead' } } },
+    });
+  });
+
   it('answers a refused resource read with the use case error, and hides anything else', async () => {
     const missing = '01900000-0000-7000-8000-00000000f999';
     const refused = await (

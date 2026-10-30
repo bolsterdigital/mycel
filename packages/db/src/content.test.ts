@@ -309,9 +309,12 @@ describe.skipIf(skip)('content conformance', () => {
         seo: { title: { nl: 'Zoek' }, noindex: true, canonical: 'https://example.org/x' },
       },
     });
-    expect(
-      await invoker.run(useCases.getItem, adminOf(tenantA), { itemId: created.item.id })
-    ).toEqual(created);
+    const { effective: _effective, ...read } = await invoker.run(
+      useCases.getItem,
+      adminOf(tenantA),
+      { itemId: created.item.id }
+    );
+    expect(read).toEqual(created);
     expect(
       await invoker.run(useCases.getAuthor, adminOf(tenantA), { authorId: author.id })
     ).toEqual(author);

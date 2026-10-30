@@ -6,7 +6,7 @@ import { defineUseCase } from '../registry.js';
 import { UseCaseError } from '../errors.js';
 import { Theme } from './contrast.js';
 import './ports.js';
-import { Palette, FONT_PAIRS, HEADING_WEIGHTS, THEME_VERSION } from './model.js';
+import { Palette, DROP_CAPS, FONT_PAIRS, HEADING_WEIGHTS, THEME_VERSION } from './model.js';
 import { DEFAULT_THEME } from './presets.js';
 import { DEFAULT_TIME_ZONE, IanaTimeZone } from '../util/time-zone.js';
 
@@ -70,6 +70,8 @@ const ResolvedTheme = z
         z.ZodLiteral<800>,
       ]
     ),
+    // Optional: a theme stored before #86 has none and renders as `resolveTheme` defaults it.
+    dropCap: z.enum(DROP_CAPS).optional(),
   })
   .strict();
 const ThemeState = z.object({ version, value: ResolvedTheme });

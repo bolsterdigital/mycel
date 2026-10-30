@@ -63,6 +63,8 @@ export const load: PageServerLoad = async ({ params, locals, request, setHeaders
   return {
     view: 'item' as const,
     model: view.model,
+    intro: view.intro,
+    dropCap: view.dropCap,
     head: view.head,
     errorPrefix: t('error.prefix'),
   };
