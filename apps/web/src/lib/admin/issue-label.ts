@@ -3,14 +3,17 @@
 // field it links to. Pure and client-safe, unlike lib/server; rejected: mapping in the server
 // action, which would put copy keys for the same field in two places.
 
-/** Item fields by the head of a core path; `seo` reads one segment further. */
+/** Item fields by the head of a core path; `seo` and `featured` read one segment further. */
 const FIELD_LABELS: Record<string, string> = {
   title: 'admin.content.field.title',
   lead: 'admin.content.field.lead',
   'seo.title': 'admin.content.field.seoTitle',
   'seo.description': 'admin.content.field.seoDescription',
   'seo.imageId': 'admin.content.field.shareImage',
+  heroImageId: 'admin.content.field.heroImage',
   featuredImageId: 'admin.content.field.featuredImage',
+  'featured.title': 'admin.content.field.featuredTitle',
+  'featured.description': 'admin.content.field.featuredDescription',
   authorIds: 'admin.content.field.authors',
   sectionId: 'admin.content.field.section',
   access: 'admin.content.field.level',
@@ -35,6 +38,7 @@ export function issueLabel(
       ? { key: `admin.block.field.${field}`, locale, block: Number(parts[1]) + 1 }
       : null;
   }
-  const key = FIELD_LABELS[parts[0] === 'seo' ? parts.slice(0, 2).join('.') : (parts[0] ?? '')];
+  const nested = parts[0] === 'seo' || parts[0] === 'featured';
+  const key = FIELD_LABELS[nested ? parts.slice(0, 2).join('.') : (parts[0] ?? '')];
   return key ? { key, locale, block: null } : null;
 }

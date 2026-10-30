@@ -1,8 +1,11 @@
 <!-- The edit screen of one item (TODO #66 PR 2, brief edit-screen § 4): one form for the whole
      document, under an ItemBar with the state in words, Preview and Save. The main column has
-     three sections a script may show as tabs (#66 PR 6): Content (the title large and first, the
-     lead, the featured image and the blocks in reading order), Search and sharing, and Settings
-     (access only on an item that has it, corrections, languages), the last two folded. Each block
+     four sections a script may show as tabs (#66 PR 6): Content (the title large and first, the
+     lead, the hero image and the blocks in reading order, as the page shows them), Featured (how
+     the item appears elsewhere: image, title, description; #86), Search and sharing, and Settings
+     (access only on an item that has it, corrections, languages), the last two folded. Under every
+     empty field that inherits, `Inherited` names what applies instead and where it comes from,
+     from core's chain (`effective`), never derived here. Each block
      is a BlockCard in the same form (#66 PR 3): its head holds move, duplicate and remove (a
      confirmation in place), its folded summary shows what the block says, and a "+" above each
      card inserts an empty block there (stored with the next save); every such button saves what
@@ -15,6 +18,7 @@
 <script lang="ts">
   import BlockFields from '#lib/admin/BlockFields.svelte';
   import Diff from '#lib/admin/Diff.svelte';
+  import Inherited from '#lib/admin/Inherited.svelte';
   import { issueLabel } from '#lib/admin/issue-label.js';
   import {
     Actions,
@@ -161,6 +165,12 @@
     );
     return typed.length ? Object.fromEntries(typed) : b.values;
   };
+  /** The chain of one locale (#86); images are the same in every locale. */
+  const chain = (l: string) => data.effective[l] ?? data.effective[defaultLocale]!;
+  /** Whether a field is empty both as typed and as stored, so what it inherits applies. */
+  const empty = (name: string) => !v(name).trim() && !data.values[name];
+  const thumbOf = (id: string | null) =>
+    id && data.media.some((m) => m.id === id && m.thumb) ? `${base}/media/${id}/thumb` : null;
   const blockTypeOptions = $derived(
     data.blockTypes.map((type) => ({
       value: type,
@@ -381,19 +391,17 @@
     {@render text(`title.${l}`, `${t('admin.content.field.title')} (${l})`)}
     {@render translateLinks('title', 'title', l, t('admin.content.field.title'))}
   {/each}
-  {#if article}
-    {#each docLocales as l (l)}
-      {@render area(`lead.${l}`, `${t('admin.content.field.lead')}${per(l)}`, 1000)}
-      {@render translateLinks('lead', 'lead', l, t('admin.content.field.lead'))}
-    {/each}
-  {/if}
+  {#each docLocales as l (l)}
+    {@render area(`lead.${l}`, `${t('admin.content.field.lead')}${per(l)}`, 1000)}
+    {@render translateLinks('lead', 'lead', l, t('admin.content.field.lead'))}
+  {/each}
   <MediaPicker
-    id="featuredImageId"
-    name="featuredImageId"
-    label={t('admin.content.field.featuredImage')}
-    hint={t('admin.content.field.featuredImageHint')}
+    id="heroImageId"
+    name="heroImageId"
+    label={t('admin.content.field.heroImage')}
+    hint={t('admin.content.field.heroImageHint')}
     locale={data.locale}
-    value={v('featuredImageId')}
+    value={v('heroImageId')}
     options={data.media}
     {base}
     upload={data.upload}
@@ -439,6 +447,67 @@
   </section>
 {/snippet}
 
+{#snippet inheritedImage(name: string, image: { mediaId: string | null; source: string | null })}
+  {#if empty(name)}
+    <Inherited
+      id="{name}-inherited"
+      locale={data.locale}
+      kind="image"
+      source={image.source}
+      thumb={thumbOf(image.mediaId)}
+    />
+  {/if}
+{/snippet}
+
+{#snippet inheritedText(name: string, value: { text: string | null; source: string | null })}
+  {#if empty(name)}
+    <Inherited
+      id="{name}-inherited"
+      locale={data.locale}
+      kind="text"
+      source={value.text ? value.source : null}
+      text={value.text}
+    />
+  {/if}
+{/snippet}
+
+{#snippet featuredTab()}
+  <MediaPicker
+    id="featuredImageId"
+    name="featuredImageId"
+    label={t('admin.content.field.featuredImage')}
+    hint={t('admin.content.field.featuredImageHint')}
+    locale={data.locale}
+    value={v('featuredImageId')}
+    options={data.media}
+    {base}
+    upload={data.upload}
+  />
+  {@render inheritedImage('featuredImageId', chain(defaultLocale).images.featured)}
+  {#each docLocales as l (l)}
+    {@render text(`featuredTitle.${l}`, `${t('admin.content.field.featuredTitle')}${per(l)}`)}
+    {@render inheritedText(`featuredTitle.${l}`, chain(l).title)}
+    {@render translateLinks(
+      'featuredTitle',
+      'featured.title',
+      l,
+      t('admin.content.field.featuredTitle')
+    )}
+    {@render area(
+      `featuredDescription.${l}`,
+      `${t('admin.content.field.featuredDescription')}${per(l)}`,
+      500
+    )}
+    {@render inheritedText(`featuredDescription.${l}`, chain(l).summary)}
+    {@render translateLinks(
+      'featuredDescription',
+      'featured.description',
+      l,
+      t('admin.content.field.featuredDescription')
+    )}
+  {/each}
+{/snippet}
+
 {#snippet findabilityTab()}
   <Fieldset legend={t('admin.content.edit.seo')} collapsed={folded}>
     {#each docLocales as l (l)}
@@ -449,6 +518,7 @@
         `${t('admin.content.field.seoDescription')}${per(l)}`,
         500
       )}
+      {@render inheritedText(`seoDescription.${l}`, chain(l).seoDescription)}
       {@render translateLinks(
         'seoDescription',
         'seo.description',
@@ -467,13 +537,13 @@
       id="shareImageId"
       name="shareImageId"
       label={t('admin.content.field.shareImage')}
-      hint={t('admin.content.field.shareImageHint')}
       locale={data.locale}
       value={v('shareImageId')}
       options={data.media}
       {base}
       upload={data.upload}
     />
+    {@render inheritedImage('shareImageId', chain(defaultLocale).images.share)}
   </Fieldset>
 {/snippet}
 
@@ -758,6 +828,7 @@
     label={t('admin.content.tab.label')}
     tabs={[
       { id: 'content', label: t('admin.content.tab.content'), content: contentTab },
+      { id: 'featured', label: t('admin.content.tab.featured'), content: featuredTab },
       { id: 'findability', label: t('admin.content.tab.findability'), content: findabilityTab },
       { id: 'settings', label: t('admin.content.tab.settings'), content: settingsTab },
     ]}

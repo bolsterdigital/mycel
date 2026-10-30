@@ -814,6 +814,30 @@
     padding-block: 0.375rem;
   }
 
+  /* What an empty field inherits (#86): one muted line under the field, the image as a small
+     thumbnail beside the words, the quoted text allowed to wrap. */
+  .ui-inherited {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    max-width: var(--form-width);
+    margin: calc(var(--space-1) * -0.5) 0 0;
+    font-size: var(--step--1);
+    color: var(--color-muted-fg);
+    overflow-wrap: anywhere;
+  }
+  .ui-inherited > img {
+    flex: none;
+    width: 3rem;
+    height: 3rem;
+    object-fit: cover;
+    border-radius: var(--radius);
+    background: var(--color-body-bg);
+  }
+  .ui-inherited q {
+    color: var(--color-surface-fg);
+  }
+
   .ui-table img.ui-thumb {
     display: block;
     width: 3rem;

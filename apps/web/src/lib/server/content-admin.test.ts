@@ -51,9 +51,19 @@ const page = ContentDocument.parse({
   blocks: [],
 });
 
+// #86: a page with everything the Content and Featured tabs set.
+const featuredPage = ContentDocument.parse({
+  ...page,
+  locales: ['nl', 'en'],
+  title: { nl: 'Over ons', en: 'About us' },
+  lead: { nl: 'Wie we zijn.' },
+  heroImageId: '01900000-0000-7000-8000-0000000000e4',
+  featured: { title: { en: 'Who we are' }, description: { nl: 'Kort over ons.' } },
+});
+
 describe('documentFrom(valuesOf(doc))', () => {
   it('gives the same document back, blocks included', () => {
-    for (const doc of [article, page])
+    for (const doc of [article, page, featuredPage])
       expect(ContentDocument.parse(documentFrom(doc, valuesOf(doc), '2026-10-23'))).toEqual(doc);
   });
 
@@ -85,6 +95,37 @@ describe('documentFrom(valuesOf(doc))', () => {
     const kept = documentFrom(article, withoutPickers, '2026-10-23');
     expect(kept.featuredImageId).toBe(article.featuredImageId);
     expect(kept.seo.imageId).toBe(article.seo.imageId);
+  });
+
+  it('takes the lead, hero and featured texts on a page, and drops an empty featured (#86)', () => {
+    const v = valuesOf(featuredPage);
+    expect(v).toMatchObject({
+      'lead.nl': 'Wie we zijn.',
+      heroImageId: featuredPage.heroImageId,
+      'featuredTitle.en': 'Who we are',
+      'featuredDescription.nl': 'Kort over ons.',
+    });
+    const cleared = documentFrom(
+      featuredPage,
+      {
+        ...v,
+        'lead.nl': '',
+        heroImageId: '',
+        'featuredTitle.en': '',
+        'featuredDescription.nl': ' ',
+      },
+      '2026-10-30'
+    );
+    expect('lead' in cleared || 'heroImageId' in cleared || 'featured' in cleared).toBe(false);
+    const changed = documentFrom(
+      featuredPage,
+      { ...v, 'featuredDescription.nl': '', 'featuredDescription.en': 'In short.' },
+      '2026-10-30'
+    );
+    expect(changed.featured).toEqual({
+      title: { en: 'Who we are' },
+      description: { en: 'In short.' },
+    });
   });
 
   it('keeps the access when the form has no access fields (a site without readers)', () => {
