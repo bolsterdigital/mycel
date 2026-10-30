@@ -598,9 +598,14 @@ export const en = {
   'admin.block.new.conflict':
     '{who} saved a newer revision at {when}. What you typed is still below; insert again to add the block to that revision.',
   'admin.block.new.submit': 'Insert block',
+  'admin.block.remove.short': 'Remove',
+  'admin.block.duplicate': 'Duplicate',
+  'admin.block.insert.here': 'Insert here',
+  'admin.block.emptySummary': 'Still empty',
   'admin.block.remove.confirm': 'Yes, remove this block',
   'admin.block.done.moved': 'Block moved.',
   'admin.block.done.removed': 'Block removed.',
+  'admin.block.done.duplicated': 'Block duplicated.',
   'admin.block.error.invalid': 'The block could not be saved:',
   'admin.block.none': '(none)',
   'admin.block.noFields': 'This block has no fields.',
@@ -892,6 +897,11 @@ export const en = {
   'admin.ui.catalogue.form.noindexHint': 'Also keeps the page out of the site’s own search.',
   'admin.ui.catalogue.form.newsletter': 'Newsletter to all subscribers',
   'admin.ui.catalogue.form.feed': 'Item in the RSS feed',
+  'admin.ui.catalogue.blockCard': 'Block card',
+  'admin.ui.catalogue.blockCard.text':
+    'Frequently asked questions about the neighbourhood campaign',
+  'admin.ui.catalogue.blockCard.q1': 'Why do we campaign in the neighbourhood?',
+  'admin.ui.catalogue.blockCard.q2': 'How can I take part if I have no time?',
   'admin.ui.catalogue.panel': 'Foldable panel',
   'admin.ui.catalogue.panel.summary':
     '3. Questions and answers: Why are we campaigning in the neighbourhood?',

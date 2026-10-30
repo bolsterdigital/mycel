@@ -981,6 +981,112 @@
     gap: var(--space-2);
   }
 
+  /* BlockCard (#66 PR 3): a thin head (number, type, actions as light whole buttons that wrap
+     under the title when the card is narrow) above a fold whose summary shows the block as the
+     page will: its thumbnail beside its text, an FAQ's questions one per line. */
+  .ui-block-card {
+    container-type: inline-size;
+    min-width: 0;
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-lg);
+  }
+  .ui-block-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0 var(--space-1);
+    padding: var(--space-0) var(--space-1) var(--space-0) var(--space-2);
+    border-block-end: var(--border-width) solid var(--color-border);
+  }
+  .ui-block-card-title {
+    display: flex;
+    align-items: center;
+    min-height: var(--tap);
+    margin: 0;
+    font-size: var(--step-0);
+    font-weight: 600;
+    color: var(--color-muted-fg);
+  }
+  .ui-block-card-head > .ui-actions-host {
+    flex: 1 1 auto;
+    min-width: min(100%, 14rem);
+    margin-block: 0;
+  }
+  .ui-block-card-head .ui-actions {
+    gap: 0 var(--space-1);
+  }
+  .ui-block-card-fold {
+    margin: 0;
+  }
+  .ui-block-card-fold > summary {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-1);
+    min-height: var(--tap);
+    padding: var(--space-1) var(--space-2);
+    overflow-wrap: anywhere;
+    cursor: pointer;
+  }
+  .ui-block-card-fold > summary > img {
+    flex: none;
+    width: 6rem;
+    height: auto;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-radius: var(--radius);
+  }
+  .ui-block-card-says {
+    display: grid;
+    gap: 0.125rem;
+    min-width: 0;
+  }
+  .ui-block-card-text {
+    font-weight: 600;
+  }
+  .ui-block-card-entry {
+    padding-inline-start: var(--space-1);
+    border-inline-start: 2px solid var(--color-border);
+  }
+  .ui-block-card-empty {
+    color: var(--color-muted-fg);
+  }
+  .ui-block-card-body {
+    display: grid;
+    gap: var(--space-2);
+    padding: 0 var(--space-2) var(--space-2);
+  }
+  /* The insert point between two cards: a light "+ Insert a block" that opens the type and the
+     button in place, at the card's left edge. */
+  .ui-block-insert > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: var(--tap);
+    color: var(--color-link);
+    list-style: none;
+    cursor: pointer;
+  }
+  .ui-block-insert > summary::-webkit-details-marker {
+    display: none;
+  }
+  .ui-block-insert[open] {
+    padding: var(--space-1) var(--space-2);
+    border: var(--border-width) dashed var(--color-border);
+    border-radius: var(--radius-lg);
+  }
+  .ui-block-insert-body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: var(--space-1);
+  }
+  .ui-block-insert-body > .ui-field {
+    flex: 1 1 12rem;
+  }
+
   .ui-detail-footer {
     margin-block-start: var(--space-3);
     border-block-start: var(--border-width) solid var(--color-border);

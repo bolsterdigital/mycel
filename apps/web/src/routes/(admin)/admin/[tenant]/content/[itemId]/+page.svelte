@@ -3,9 +3,10 @@
      three sections a script may show as tabs (#66 PR 6): Content (the title large and first, the
      lead, the featured image and the blocks in reading order), Search and sharing, and Settings
      (access only on an item that has it, corrections, languages), the last two folded. Each block
-     is a Panel in the same form, with move, remove (a confirmation inside the card) and insert
-     (an empty block at its place, stored with the next save); every such button saves what was
-     typed first. The side column has the status card of each locale (the state in words, the
+     is a BlockCard in the same form (#66 PR 3): its head holds move, duplicate and remove (a
+     confirmation in place), its folded summary shows what the block says, and a "+" above each
+     card inserts an empty block there (stored with the next save); every such button saves what
+     was typed first. The side column has the status card of each locale (the state in words, the
      main action by state, scheduling folded, view on the site) and "This item" (address, authors,
      section and tags as WordPress and Ghost have them, revisions). A failed save comes back with
      what was typed and every fold open; a conflict also shows who saved in between and what
@@ -17,18 +18,20 @@
   import { issueLabel } from '#lib/admin/issue-label.js';
   import {
     Actions,
+    BlockCard,
     Button,
     Checkbox,
     Choices,
+    ConfirmAction,
     EditPage,
     EmptyState,
     Field,
     Fieldset,
+    Icon,
     ItemBar,
     MediaPicker,
     MetaList,
     Notice,
-    Panel,
     Select,
     StatusCard,
     Tabs,
@@ -237,12 +240,47 @@
 {#snippet blockCard(b: (typeof data.blocks)[number], i: number)}
   {@const prefix = `b.${b.id}.`}
   {@const refused = issues.some((x) => x.name.startsWith(prefix))}
-  <Panel
+  {@const image = b.preview.mediaId
+    ? data.media.find((m) => m.id === b.preview.mediaId && m.thumb)
+    : undefined}
+  <BlockCard
     id="block-{b.id}"
     class="block"
+    title="{i + 1}. {t(`admin.block.type.${b.type}` as UiKey)}"
     open={refused || data.openBlocks.includes(b.id)}
-    summary="{i + 1}. {t(`admin.block.type.${b.type}` as UiKey)}{b.summary ? `: ${b.summary}` : ''}"
+    text={b.preview.text}
+    thumb={image ? `${base}/media/${image.id}/thumb` : null}
+    entries={b.preview.entries}
+    empty={t('admin.block.emptySummary')}
   >
+    {#snippet actions()}
+      {#if data.canWrite}
+        {#if i > 0}
+          <Button variant="link" formaction="?/move" name="move" value="{b.id}:up"
+            >{t('admin.block.move.up')}</Button
+          >
+        {/if}
+        {#if i < data.blocks.length - 1}
+          <Button variant="link" formaction="?/move" name="move" value="{b.id}:down"
+            >{t('admin.block.move.down')}</Button
+          >
+        {/if}
+        {#if b.duplicable}
+          <Button variant="link" formaction="?/duplicate" name="duplicate" value={b.id}
+            >{t('admin.block.duplicate')}</Button
+          >
+        {/if}
+        <ConfirmAction
+          variant="link"
+          label={t('admin.block.remove.short')}
+          question={fill(t('admin.block.remove.ask'), { n: i + 1 })}
+          confirm={t('admin.block.remove.confirm')}
+          name="{i + 1}. {t(`admin.block.type.${b.type}` as UiKey)}"
+          formaction="?/remove"
+          field={{ name: 'remove', value: b.id }}
+        />
+      {/if}
+    {/snippet}
     <BlockFields
       fields={BLOCK_DEFINITIONS[b.type].fields}
       values={blockValues(b)}
@@ -280,48 +318,25 @@
         {/each}
       </p>
     {/if}
-    {#if data.canWrite}
-      <Actions stack>
-        {#if i > 0}
-          <Button variant="secondary" formaction="?/move" name="move" value="{b.id}:up"
-            >{t('admin.block.move.up')}</Button
-          >
-        {/if}
-        {#if i < data.blocks.length - 1}
-          <Button variant="secondary" formaction="?/move" name="move" value="{b.id}:down"
-            >{t('admin.block.move.down')}</Button
-          >
-        {/if}
-      </Actions>
-      <details class="ui-fold">
-        <summary>{t('admin.block.insert.fold')}</summary>
-        <Select
-          id="insert-type-{b.id}"
-          name="insertType.{b.id}"
-          label={t('admin.block.insert.type')}
-          locale={data.locale}
-          options={blockTypeOptions}
-        />
-        <Actions stack>
-          <Button variant="secondary" formaction="?/insert" name="insert" value="before:{b.id}"
-            >{t('admin.block.insert.before')}</Button
-          >
-          <Button variant="secondary" formaction="?/insert" name="insert" value="after:{b.id}"
-            >{t('admin.block.insert.after')}</Button
-          >
-        </Actions>
-      </details>
-      <details class="ui-fold">
-        <summary>{t('admin.block.remove')}</summary>
-        <p>{fill(t('admin.block.remove.ask'), { n: i + 1 })}</p>
-        <Actions>
-          <Button variant="danger" formaction="?/remove" name="remove" value={b.id}
-            >{t('admin.block.remove.confirm')}</Button
-          >
-        </Actions>
-      </details>
-    {/if}
-  </Panel>
+  </BlockCard>
+{/snippet}
+
+{#snippet inserter(b: (typeof data.blocks)[number])}
+  <details class="ui-block-insert">
+    <summary><Icon name="plus" />{t('admin.block.insert.fold')}</summary>
+    <div class="ui-block-insert-body">
+      <Select
+        id="insert-type-{b.id}"
+        name="insertType.{b.id}"
+        label={t('admin.block.insert.type')}
+        locale={data.locale}
+        options={blockTypeOptions}
+      />
+      <Button variant="secondary" formaction="?/insert" name="insert" value="before:{b.id}"
+        >{t('admin.block.insert.here')}</Button
+      >
+    </div>
+  </details>
 {/snippet}
 
 {#snippet contentTab()}
@@ -377,6 +392,7 @@
       <EmptyState title={t('admin.block.empty')} level={3} />
     {/if}
     {#each data.blocks as b, i (b.id)}
+      {#if data.canWrite && !pending}{@render inserter(b)}{/if}
       {#if pending?.place === 'before' && pending.anchor === b.id}{@render pendingCard(
           pending
         )}{/if}

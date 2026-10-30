@@ -806,6 +806,9 @@ test.describe('content-blocks', () => {
     return `/admin/probe/content/${items[0]!.id}`;
   }
 
+  /** The card of block `n` (1-based): its head holds the block's actions (#66 PR 3). */
+  const card = (page: Page, n: number): Locator => page.locator('section.ui-block-card').nth(n - 1);
+
   /** Block `n` (1-based) of the edit page, opened. */
   async function block(page: Page, n: number): Promise<Locator> {
     const details = page.locator('details.block').nth(n - 1);
@@ -830,20 +833,19 @@ test.describe('content-blocks', () => {
     const edit = await seededPage(request);
     await login(page, edit);
     const stamp = String(Date.now());
-    const summaries = page.locator('details.block > summary');
-    await expect(summaries).toHaveText([
-      /^1\. Kop/,
-      /^2\. Inschrijfformulier \(oud\)/,
-      /^3\. Tekst/,
-      /^4\. Betaalmuur/,
-      /^5\. Afbeelding/,
-      /^6\. Opening/,
-      /^7\. Oproep/,
-      /^8\. Kader/,
-      /^9\. Vragen en antwoorden/,
-      /^10\. Citaat/,
-      /^11\. Video/,
-      /^12\. Formulier/,
+    await expect(page.locator('.ui-block-card-title')).toHaveText([
+      '1. Kop',
+      '2. Inschrijfformulier (oud)',
+      '3. Tekst',
+      '4. Betaalmuur',
+      '5. Afbeelding',
+      '6. Opening',
+      '7. Oproep',
+      '8. Kader',
+      '9. Vragen en antwoorden',
+      '10. Citaat',
+      '11. Video',
+      '12. Formulier',
     ]);
 
     /** Fill one field of block `n`, save, and see the value back in the reopened form. */
@@ -927,13 +929,14 @@ test.describe('content-blocks', () => {
    * place in the same form (#66 PR 2) and is stored with the next save. Returns that card.
    */
   async function insert(page: Page, type: string, place: 'end' | 'before' | 'after', n?: number) {
-    if (n) {
-      const fold = (await block(page, n)).locator('details', { hasText: 'Blok invoegen' });
+    // The "+" above each card (#66 PR 3); after the last card that is the one at the end.
+    const above = n && (place === 'before' ? n : n + 1);
+    const folds = page.locator('details.ui-block-insert');
+    if (above && above <= (await folds.count())) {
+      const fold = folds.nth(above - 1);
       await fold.locator('summary').click();
       await fold.getByLabel('Soort').selectOption({ label: type });
-      await fold
-        .getByRole('button', { name: place === 'before' ? 'Erboven invoegen' : 'Eronder invoegen' })
-        .click();
+      await fold.getByRole('button', { name: 'Hier invoegen' }).click();
     } else {
       await page.locator('#insert-type-end').selectOption({ label: type });
       await page.getByRole('button', { name: 'Toevoegen', exact: true }).click();
@@ -980,17 +983,18 @@ test.describe('content-blocks', () => {
     await fresh.getByLabel('Tekst (en)').fill('An _italic_ introduction.');
     await add(page);
     await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
-    const summaries = page.locator('details.block > summary');
-    await expect(summaries).toHaveText([
-      /^1\. Tekst: Een schuine inleiding\./,
-      /^2\. Kop: Eerste kop/,
+    const summaries = page.locator('.ui-block-card-title');
+    await expect(summaries).toHaveText(['1. Tekst', '2. Kop']);
+    await expect(page.locator('details.block > summary')).toHaveText([
+      'Een schuine inleiding.',
+      'Eerste kop',
     ]);
 
     // A block action saves what was typed elsewhere first (brief edit-screen § 1 point 4).
     await page.locator('#title\\.nl').fill('Blokkenproef bewaard');
-    await (await block(page, 2)).getByRole('button', { name: 'Omhoog' }).click();
+    await card(page, 2).getByRole('button', { name: 'Omhoog' }).click();
     await expect(page.getByRole('status')).toContainText('Blok verplaatst.');
-    await expect(summaries).toHaveText([/^1\. Kop/, /^2\. Tekst/]);
+    await expect(summaries).toHaveText(['1. Kop', '2. Tekst']);
     await expect(page.locator('#title\\.nl')).toHaveValue('Blokkenproef bewaard');
     await expectNoAxeViolations(page);
 
@@ -1002,14 +1006,45 @@ test.describe('content-blocks', () => {
     await expect(summaries).toHaveCount(2);
     await expect(page.locator('#title\\.nl')).toHaveValue('Blokkenproef zonder citaat');
 
-    const first = await block(page, 1);
-    await first.locator('details', { hasText: 'Blok verwijderen' }).locator('summary').click();
+    const first = card(page, 1);
+    await first.locator('details.ui-confirm > summary').click();
     await expect(first).toContainText('Blok 1 verdwijnt');
     await expectNoAxeViolations(page);
     await first.getByRole('button', { name: 'Ja, verwijder dit blok' }).click();
     await expect(page).toHaveURL(new RegExp(`${edit}\\?done=blockRemoved`));
     await expect(page.getByRole('status')).toContainText('Blok verwijderd.');
-    await expect(summaries).toHaveText([/^1\. Tekst/]);
+    await expect(summaries).toHaveText(['1. Tekst']);
+  });
+
+  test('a block is duplicated right after itself, with its fields and a new id', async ({
+    page,
+  }) => {
+    await login(page, '/admin/probe');
+    const edit = await newPage(page, 'dup');
+    const fresh = await insert(page, 'Kop', 'end');
+    await fresh.getByLabel('Tekst (nl)').fill('Twee keer');
+    await fresh.getByLabel('Tekst (en)').fill('Twice');
+    await add(page);
+    const original = await page.locator('details.block').first().getAttribute('id');
+    // What was typed elsewhere is saved first, as with every block action.
+    await page.locator('#title\\.nl').fill('Blokkenproef gedupliceerd');
+    await card(page, 1).getByRole('button', { name: 'Dupliceren' }).click();
+    await expect(page.getByRole('status')).toContainText('Blok gedupliceerd.');
+    await expect(page.locator('#title\\.nl')).toHaveValue('Blokkenproef gedupliceerd');
+    await expect(page.locator('.ui-block-card-title')).toHaveText(['1. Kop', '2. Kop']);
+    const copy = page.locator('details.block').nth(1);
+    await expect(copy).not.toHaveAttribute('id', original!);
+    // The screen lands on the copy, open, with the same fields in both locales.
+    await expect(page).toHaveURL(new RegExp(`${edit}\\?done=blockDuplicated&block=.+#block-`));
+    await expect(copy).toHaveAttribute('open', '');
+    await expect(copy.getByLabel('Tekst (en)')).toHaveValue('Twice');
+    // A text block cannot stand next to its copy: it offers no duplicate.
+    await insert(page, 'Tekst', 'end');
+    await page.locator('#block-new').getByLabel('Tekst (nl)').fill('Los');
+    await page.locator('#block-new').getByLabel('Tekst (en)').fill('Loose');
+    await add(page);
+    await expect(card(page, 3).getByRole('button', { name: 'Dupliceren' })).toHaveCount(0);
+    await expectNoAxeViolations(page);
   });
 
   test('FAQ v2 inserts, moves and publishes through native forms in both locales', async ({
@@ -1031,7 +1066,7 @@ test.describe('content-blocks', () => {
     await add(page);
     await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
     const id = await page.locator('details.block').nth(1).getAttribute('id');
-    await (await block(page, 2)).getByRole('button', { name: 'Omhoog' }).click();
+    await card(page, 2).getByRole('button', { name: 'Omhoog' }).click();
     await expect(page.locator('details.block').first()).toHaveAttribute('id', id!);
     await page.reload();
     await expect((await block(page, 1)).getByLabel('Breedte')).toHaveValue('full');
@@ -1092,9 +1127,9 @@ test.describe('content-blocks', () => {
     await fresh.getByLabel('Antwoord (en)').first().fill('Yes, in both languages.');
     await add(page);
     const faqId = await page.locator('details.block').nth(1).getAttribute('id');
-    await (await block(page, 2)).getByRole('button', { name: 'Omhoog' }).click();
+    await card(page, 2).getByRole('button', { name: 'Omhoog' }).click();
     await expect(page.locator('details.block').first()).toHaveAttribute('id', faqId!);
-    await (await block(page, 1)).getByRole('button', { name: 'Omlaag' }).click();
+    await card(page, 1).getByRole('button', { name: 'Omlaag' }).click();
     await page.goto(`${edit}/write`);
     await expect(
       page.locator(`.writing-surface .editor-card[data-block-id="${faqId?.replace('block-', '')}"]`)
@@ -1266,9 +1301,7 @@ test.describe('article-writing', () => {
     await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');
     await page.goto(edit);
     await expect(page.locator('details.block')).toHaveCount(2);
-    await expect(page.locator('details.block').nth(1).locator(':scope > summary')).toContainText(
-      /Quote|Citaat/
-    );
+    await expect(page.locator('.ui-block-card-title').nth(1)).toContainText(/Quote|Citaat/);
   });
 
   test('autosave reports a newer revision and preserves its unrelated fields on retry', async ({
@@ -1359,9 +1392,7 @@ test.describe('article-writing', () => {
     await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');
     await page.goto(edit);
     await expect(page.locator('details.block')).toHaveCount(2);
-    await expect(page.locator('details.block').nth(1).locator(':scope > summary')).toContainText(
-      /Image|Afbeelding/
-    );
+    await expect(page.locator('.ui-block-card-title').nth(1)).toContainText(/Image|Afbeelding/);
   });
 
   test('TipTap saves headings, lists, links and notes without changing stored structure', async ({

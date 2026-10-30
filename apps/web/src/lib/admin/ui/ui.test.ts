@@ -9,6 +9,7 @@ import { render } from 'svelte/server';
 import {
   Actions,
   Badge,
+  BlockCard,
   Breadcrumb,
   Button,
   Card,
@@ -192,6 +193,52 @@ describe('Panel', () => {
     expect(out).toContain('<summary>1. Text: Welcome</summary>');
     expect(out).toContain('<div class="ui-panel-body"><span>FORM</span></div>');
     expect(html(Panel, { summary: 'S', children: text('x') })).not.toMatch(/ open/);
+  });
+});
+
+describe('BlockCard', () => {
+  it('names the block in its head, keeps actions out of the summary and folds the fields', () => {
+    const out = html(BlockCard, {
+      id: 'block-1',
+      title: '2. Image',
+      class: 'block',
+      text: 'Over two thousand came',
+      thumb: '/admin/probe/media/m1/thumb',
+      empty: 'Still empty',
+      actions: text('ACTIONS'),
+      children: text('FIELDS'),
+    });
+    expect(out).toMatch(/^<section class="ui-block-card" aria-labelledby="block-1-title">/);
+    expect(out).toContain('<h4 class="ui-block-card-title" id="block-1-title">2. Image</h4>');
+    expect(out).toMatch(/<details class="ui-block-card-fold block" id="block-1">/);
+    const summary = out.slice(out.indexOf('<summary>'), out.indexOf('</summary>'));
+    expect(summary).toContain('<img src="/admin/probe/media/m1/thumb" alt=""');
+    expect(summary).toContain('Over two thousand came');
+    expect(summary).not.toContain('ACTIONS');
+    expect(out.indexOf('ACTIONS')).toBeLessThan(out.indexOf('<details'));
+    expect(out).toContain('<div class="ui-block-card-body"><span>FIELDS</span></div>');
+    expect(out).not.toContain('Still empty');
+  });
+  it('lists the entries of a list one per line, and says when the block is empty', () => {
+    const faq = html(BlockCard, {
+      id: 'block-2',
+      title: '3. FAQ',
+      text: '',
+      entries: ['When?', 'Where?'],
+      empty: 'Still empty',
+      open: true,
+      children: text('x'),
+    });
+    expect(faq.match(/class="ui-block-card-entry"/g)).toHaveLength(2);
+    expect(faq).toMatch(/<details[^>]* open/);
+    const empty = html(BlockCard, {
+      id: 'b',
+      title: '1. Text',
+      text: '',
+      empty: 'Still empty',
+      children: text('x'),
+    });
+    expect(empty).toContain('<span class="ui-block-card-empty">Still empty</span>');
   });
 });
 
@@ -692,6 +739,17 @@ describe('ConfirmAction', () => {
     );
     expect(out.match(/<button/g)).toHaveLength(1);
     expect(out).toContain('<p>This cannot be undone.</p>');
+  });
+  it('carries a name and value for the row it acts on, and a light summary on request', () => {
+    const out = html(ConfirmAction, {
+      label: 'Remove',
+      question: 'Sure?',
+      confirm: 'Yes',
+      variant: 'link',
+      field: { name: 'remove', value: 'b1' },
+    });
+    expect(out).toContain('<summary class="ui-button link">Remove</summary>');
+    expect(out).toContain('name="remove" value="b1"');
   });
   it("posts to the form's own action without formaction", () => {
     const out = html(ConfirmAction, { label: 'Remove', question: 'Sure?', confirm: 'Yes' });

@@ -92,35 +92,94 @@ function textOf(node: unknown): string {
   return (n?.text ?? '') + (n?.content ?? []).map(textOf).join('');
 }
 
+/** The first localised text of a block's fields in `locale`, lists and rich text included. */
+function firstText(
+  fields: readonly BlockField[],
+  props: Record<string, unknown>,
+  locale: string
+): string | null {
+  for (const f of fields) {
+    const v = props[f.key];
+    if (f.kind === 'text' && f.localized && v && typeof v === 'object') {
+      const map = v as Record<string, string>;
+      const text = map[locale] ?? Object.values(map)[0];
+      if (text) return text;
+    }
+    if (f.kind === 'list' && Array.isArray(v) && v[0]) {
+      const inner = firstText(f.fields, v[0] as Record<string, unknown>, locale);
+      if (inner) return inner;
+    }
+    if (f.kind === 'rich-text' && v && typeof v === 'object') {
+      const doc = ((v as Record<string, unknown>)[locale] ?? Object.values(v)[0]) as
+        { content?: unknown[] } | undefined;
+      const text = textOf(doc?.content?.[0]);
+      if (text) return text;
+    }
+  }
+  return null;
+}
+
 /** One line that says which block this is: its first localised text in `locale`. */
 export function summaryOf(block: Block, locale: string): string {
-  const find = (fields: readonly BlockField[], props: Record<string, unknown>): string | null => {
-    for (const f of fields) {
-      const v = props[f.key];
-      if (f.kind === 'text' && f.localized && v && typeof v === 'object') {
-        const map = v as Record<string, string>;
-        const text = map[locale] ?? Object.values(map)[0];
-        if (text) return text;
-      }
-      if (f.kind === 'list' && Array.isArray(v) && v[0]) {
-        const inner = find(f.fields, v[0] as Record<string, unknown>);
+  const text = firstText(
+    BLOCK_DEFINITIONS[block.type as BlockType].fields,
+    block.props as Record<string, unknown>,
+    locale
+  );
+  return clip(text ?? '');
+}
+
+/**
+ * What a block card shows while it is folded (#66 PR 3, brief edit-screen § 9a), read from the
+ * block register rather than per type: its first image (a picture says more than its alt text),
+ * the caption, else the first text outside a list, and the entries of its first list one line each (the
+ * questions of an FAQ). Rejected: a hand-written summary per block type, which a new type forgets.
+ */
+export interface BlockPreview {
+  text: string;
+  mediaId: string | null;
+  entries: string[];
+}
+
+export function previewOf(block: Block, locale: string): BlockPreview {
+  const fields = BLOCK_DEFINITIONS[block.type as BlockType].fields;
+  const props = block.props as Record<string, unknown>;
+  const local = (v: unknown): string => {
+    if (!v || typeof v !== 'object') return '';
+    const map = v as Record<string, string | null | undefined>;
+    return map[locale] || Object.values(map).find((x) => typeof x === 'string' && x) || '';
+  };
+  const media = (fs: readonly BlockField[], ps: Record<string, unknown>): string | null => {
+    for (const f of fs) {
+      const v = ps[f.key];
+      if (f.kind === 'media' && typeof v === 'string' && v) return v;
+      if (f.kind === 'group' && v && typeof v === 'object') {
+        const inner = media(f.fields, v as Record<string, unknown>);
         if (inner) return inner;
-      }
-      if (f.kind === 'rich-text' && v && typeof v === 'object') {
-        const doc = ((v as Record<string, unknown>)[locale] ?? Object.values(v)[0]) as
-          { content?: unknown[] } | undefined;
-        const text = textOf(doc?.content?.[0]);
-        if (text) return text;
       }
     }
     return null;
   };
-  const text = find(
-    BLOCK_DEFINITIONS[block.type as BlockType].fields,
-    block.props as Record<string, unknown>
-  );
-  return text && text.length > 80 ? `${text.slice(0, 79)}…` : (text ?? '');
+  const list = fields.find((f) => f.kind === 'list');
+  const entries =
+    list?.kind === 'list' && Array.isArray(props[list.key])
+      ? (props[list.key] as Block[]).map((entry) =>
+          clip(firstText(list.fields, entry as unknown as Record<string, unknown>, locale) ?? '')
+        )
+      : [];
+  const caption = fields.find((f) => f.kind === 'caption');
+  const text =
+    (caption && local(props[caption.key])) ||
+    firstText(
+      fields.filter((f) => f.kind !== 'list'),
+      props,
+      locale
+    ) ||
+    (list ? '' : summaryOf(block, locale));
+  return { text: clip(text), mediaId: media(fields, props), entries: entries.filter(Boolean) };
 }
+
+const clip = (text: string) => (text.length > 80 ? `${text.slice(0, 79)}…` : text);
 
 /** A refusal on one field of a block form: the field's name and catalog copy. */
 export interface FieldIssue {
