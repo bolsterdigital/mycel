@@ -37,6 +37,7 @@ import {
   uuidv7,
   uuidv7Ids,
 } from './index.js';
+import { asRole } from './roles.js';
 import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
@@ -75,9 +76,8 @@ describe.skipIf(skip)('erasure conformance', () => {
     for (const table of tables) {
       // The outbox and the jobs payload are the worker's to read; everything else mycel_app's.
       const role = table === 'outbox' || table === 'jobs' ? 'mycel_worker' : 'mycel_app';
-      out[table] = await operatorDb.transaction().execute(async (trx) => {
-        await sql`select set_config('role', ${role}, true),
-                         set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
+      out[table] = await asRole(operatorDb, role, async (trx) => {
+        await sql`select set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
         const { rows } = await sql<{ row: string }>`
           select t::text as row from ${sql.table(table)} t where t.tenant_id = ${tenantId}`.execute(
           trx
@@ -104,8 +104,7 @@ describe.skipIf(skip)('erasure conformance', () => {
       locale: 'nl',
     });
     if (submitted.status !== 'accepted') throw new Error(`signup ${submitted.status}`);
-    const ids = await operatorDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_worker`.execute(trx);
+    const ids = await asRole(operatorDb, 'mycel_worker', async (trx) => {
       return (
         await sql<{ id: string }>`select id from outbox where tenant_id = ${tenantId}`.execute(trx)
       ).rows;

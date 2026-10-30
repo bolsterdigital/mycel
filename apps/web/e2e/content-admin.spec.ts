@@ -308,7 +308,7 @@ test.describe('content-admin', () => {
     throw new Error(`${slug} is not seeded; run through scripts/e2e.mjs`);
   }
 
-  // Review of PR #45: the pickers list one page of the directory (newest first, a hundred), so an
+  // The pickers list one page of the directory (newest first, a hundred), so an
   // author or section beyond it, or authors in another order than the directory's, were lost or
   // reordered by a save that only changed the title.
   test('title-only and conflicting saves keep authors, their order and the off-page section', async ({

@@ -4,7 +4,7 @@
 // signer.ts), so a spec waits exactly until that moment instead of a fixed pause; the browser
 // and the server share the machine's clock.
 // Rejected: `expect.poll` (nothing in the page changes when the time has passed) and a fixed
-// `waitForTimeout`, five copies of 3200 ms that drift from the form's setting.
+// `waitForTimeout` of 3200 ms in each spec, which drifts from the form's setting.
 
 import type { Page } from '@playwright/test';
 import { probeForm } from '@mycel/core/testing';

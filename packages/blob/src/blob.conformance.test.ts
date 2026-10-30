@@ -1,6 +1,6 @@
 // The BlobStore contract (TODO #10), run over every implementation: the directory store always,
-// the S3 store against a real bucket when `BLOB_S3_*` is set (a local MinIO, `docker compose -f
-// compose.dev.yml --profile blob up -d`, or the MinIO service in CI). Like the database suites it
+// the S3 store against a real bucket when `BLOB_S3_*` is set (a local RustFS, `docker compose -f
+// compose.dev.yml --profile blob up -d`, or the RustFS service in CI). Like the database suites it
 // skips locally without the service and fails in CI (`requireServices`).
 
 import { createHash, randomBytes } from 'node:crypto';
@@ -187,7 +187,7 @@ describe.skipIf(!s3Config)('s3', () => {
       forcePathStyle: c.forcePathStyle,
       credentials: { accessKeyId: c.accessKeyId, secretAccessKey: c.secretAccessKey },
     });
-    // MinIO starts empty; an existing bucket (owned by us) is fine.
+    // The local or CI RustFS starts empty; an existing bucket (owned by us) is fine.
     await client.send(new CreateBucketCommand({ Bucket: c.bucket })).catch((e: Error) => {
       if (!/BucketAlready(OwnedByYou|Exists)/.test(e.name)) throw e;
     });

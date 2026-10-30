@@ -329,4 +329,13 @@ describe('form use cases', () => {
     ).rejects.toMatchObject({ code: 'not_found' });
     expect(rejections()).toEqual([]);
   });
+
+  // The same bound as Postgres (`mailing.test.ts`): a longer wait would outlive the sweep.
+  it('refuses a cooldown outside (0, one day] in memory too', async () => {
+    for (const seconds of [0, -1, 24 * 3600 + 1])
+      await expect(uow.run(admin, (ctx) => ctx.rateLimits.cooldown('k', seconds))).rejects.toThrow(
+        /outside/
+      );
+    expect(await uow.run(admin, (ctx) => ctx.rateLimits.cooldown('k', 24 * 3600))).toBe(true);
+  });
 });

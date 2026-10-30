@@ -10,9 +10,12 @@ import {
   UseCaseError,
   agentPrincipalFor,
   apiKeyPrincipal,
+  errorFields,
+  noopLogger,
   type ApiKeyRecord,
   type Clock,
   type IdentityStore,
+  type Logger,
   type Principal,
   type UnitOfWork,
 } from '@mycel/core';
@@ -25,7 +28,7 @@ export interface AuthenticatorDeps {
   agentToken?: string | undefined;
   /** One per process: every tool call of this MCP server is one agent session. */
   sessionId: string;
-  log?: Pick<Console, 'error'>;
+  log?: Logger;
 }
 
 export interface Authenticator {
@@ -41,12 +44,14 @@ export function createAuthenticator({
   clock,
   agentToken,
   sessionId,
-  log = console,
+  log = noopLogger,
 }: AuthenticatorDeps): Authenticator {
   const touch = (principal: Principal, key: ApiKeyRecord) => {
     void uow
       .run(principal, (ctx) => ctx.apiKeys.touch(key.id, clock.now()))
-      .catch((e) => log.error(`api key ${key.id}: last_used_at not updated:`, e));
+      .catch((e) =>
+        log.error('api key: last_used_at not updated', { key: key.id, ...errorFields(e) })
+      );
   };
   return {
     async authenticateApiKey(authorization) {

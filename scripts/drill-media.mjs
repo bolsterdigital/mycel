@@ -2,7 +2,7 @@
 // Media changes during a backup, for the restore drill (TODO #29A, scripts/drill-run.sh): upload
 // an unused image, delete it the way an editor does (the purge waits MEDIA_PURGE_DELAY_MS), or
 // purge it now, as a worker whose clock is past that delay would. `mask` is the partial loss a
-// count of files cannot see (review of PR #38): the original of a live image goes and an
+// count of files cannot see: the original of a live image goes and an
 // unexpected file takes its place in the same folder. Through the invoker and the unit of work
 // as mycel_app, like scripts/drill-fixture.mjs.
 //

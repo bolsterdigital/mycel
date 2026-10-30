@@ -14,7 +14,7 @@ import {
 } from '@mycel/core';
 import { FakeDns } from '@mycel/core/testing';
 import { type Database, uuidv7Ids } from '@mycel/db';
-import { testTenant } from '@mycel/db/testing';
+import { asRole, testTenant } from '@mycel/db/testing';
 import { type Page, expect, test } from '@playwright/test';
 import type { Kysely } from 'kysely';
 import { expectNoAxeViolations } from './lib/axe';
@@ -448,14 +448,10 @@ test.describe('status', () => {
   /** As mycel_worker, the queue's own role: insert stuck jobs for tenant probe, or finish jobs. */
   async function asWorker(fn: (trx: Kysely<Database>, probeId: string) => Promise<void>) {
     const { createDb, createTenantDirectory } = await import('@mycel/db');
-    const { sql } = await import('kysely');
     const db = createDb(process.env['DATABASE_URL']!);
     try {
       const probe = await createTenantDirectory(db).findBySlug('probe');
-      await db.transaction().execute(async (trx) => {
-        await sql`set local role mycel_worker`.execute(trx);
-        await fn(trx, probe!.id);
-      });
+      await asRole(db, 'mycel_worker', (trx) => fn(trx, probe!.id));
     } finally {
       await db.destroy();
     }

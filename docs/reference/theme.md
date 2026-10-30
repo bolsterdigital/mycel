@@ -61,3 +61,11 @@ Ratios are WCAG 2.2 relative luminance, compared unrounded; the report rounds to
 The light palette sits in `:root`, the dark one under `@media (prefers-color-scheme: dark)`; both are explicit. Colour is only used as a validated pair: a link is coloured only on body and surface (the two backgrounds the check measures it against) and inherits the pair's foreground elsewhere, always underlined.
 
 The stylesheet is a route, `/_theme/<hash>.css`, where the hash is the first 16 hex characters of the SHA-256 of the CSS: `Cache-Control: public, max-age=31536000, immutable`, a malformed hash is a 404, and a former valid hash gets a non-cacheable redirect to the current hash. This keeps HTML still in a shared cache from losing its stylesheet after a theme save without serving different CSS under an immutable URL. The public layout links it and preloads the roman font files of the pair. Not `<style nonce>`: the CSP (`style-src 'self'`, #20c) allows no inline style, components have no nonce, and a stylesheet is cached across pages. `_theme` can never be a page slug (`Slug` starts with `[a-z0-9]`). Focal points and layout choices are classes (`fx-0` to `fx-10`, `layout-wide`, `width-full`, ...), never a `style` attribute. Fonts: [fonts.md](fonts.md).
+
+## Constants
+
+| Constant             | Value          | Where                               | Why                                                                                    |
+| -------------------- | -------------- | ----------------------------------- | -------------------------------------------------------------------------------------- |
+| `BRAND_LIMITS.logo`  | 2 MiB          | `packages/core/src/theme/assets.ts` | the largest logo upload; the processor and the admin form read the same value          |
+| `BRAND_LIMITS.font`  | 1 MiB          | `packages/core/src/theme/assets.ts` | the largest wordmark font upload; the processor and the admin form read the same value |
+| brand licence length | 500 characters | `packages/core/src/theme/assets.ts` | bounds the required font licence text                                                  |

@@ -39,7 +39,13 @@ import {
   uuidv7,
   uuidv7Ids,
 } from '@mycel/db';
-import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from '@mycel/db/testing';
+import {
+  asRole,
+  closeTenantWork,
+  requireDatabase,
+  testTenant,
+  migrateSchema,
+} from '@mycel/db/testing';
 import { mailReconcileJob } from './jobs.js';
 
 const env = process.env;
@@ -130,8 +136,7 @@ describe.skipIf(skip)('mail.reconcile against Postgres', () => {
     createdAt: new Date(),
   });
   const asWorker = <T>(fn: (trx: typeof operatorDb) => Promise<T>) =>
-    operatorDb.transaction().execute(async (trx) => {
-      await sql`set local role mycel_worker`.execute(trx);
+    asRole(operatorDb, 'mycel_worker', async (trx) => {
       return fn(trx);
     });
   const byKey = (key: string) =>

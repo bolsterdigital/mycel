@@ -24,7 +24,7 @@ import './ports.js';
 import type { Signer, TransactionContext } from '../ports.js';
 import { can } from '../principal.js';
 import { defineUseCase } from '../registry.js';
-import { actorRef } from '../util/log.js';
+import { actorRef, errorMessage } from '../util/log.js';
 import { scrubText } from '../util/scrub.js';
 
 export const ExportStatus = z.enum(['queued', 'running', 'ready', 'failed', 'expired']);
@@ -176,7 +176,7 @@ export function stepExport(
 
 /** What a failure leaves on the row: its message, scrubbed and cut. */
 export const exportFailure = (e: unknown): string =>
-  scrubText(e instanceof Error ? e.message : String(e)).slice(0, EXPORT_ERROR_LENGTH);
+  scrubText(errorMessage(e)).slice(0, EXPORT_ERROR_LENGTH);
 
 function move(
   record: TenantExportRecord,

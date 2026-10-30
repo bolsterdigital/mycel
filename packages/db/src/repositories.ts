@@ -5,6 +5,7 @@
 import { sql, type Kysely, type Selectable } from 'kysely';
 import {
   FormDefinition,
+  checkCooldown,
   SupporterEvent,
   type Clock,
   type FormRepository,
@@ -208,8 +209,7 @@ export function rateLimiter(trx: Trx, tenantId: string, clock: Clock): RateLimit
     },
     async cooldown(key, seconds) {
       // The hourly sweep keeps a day of windows (janitor.ts); a longer wait would be forgotten.
-      if (!(seconds > 0 && seconds <= 24 * 60 * 60))
-        throw new Error(`cooldown: ${seconds}s is outside (0, one day]`);
+      checkCooldown(seconds);
       // Same table, its own key and a sliding window: the latest row says when the last success
       // was. The advisory lock serialises two attempts on one key, so exactly one sees no row;
       // rejected: the fixed window of `hit` with max 1 (two mails at 23:59 and 00:01 UTC).

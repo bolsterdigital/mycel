@@ -41,6 +41,16 @@ const inText = [
 const code = /\.(m?[jt]s|svelte)$/;
 const inCode = [{ rule: 'planning lane literal', pattern: /\bowner\b[^\n]{0,24}(['"`])dev\1/ }];
 
+/** Provenance in a comment is history git already holds; the comment says the constraint. ADR
+ * amendments name their review on purpose, so Markdown is left out. */
+const source = /\.(m?[jt]s|svelte|sh|sql)$/;
+const inSource = [
+  {
+    rule: 'provenance comment',
+    pattern: /\breview of PR\b|\bmoved here from\b|\btook over from\b/i,
+  },
+];
+
 /** Files the rules do not apply to, with the reason. */
 const excluded = new Map([
   ['CLAUDE.md', 'agent instructions explain the docs/plans symlink to the private sibling'],
@@ -71,6 +81,7 @@ export function check(root) {
       ...anywhere,
       ...(text.test(path) ? inText : []),
       ...(code.test(path) ? inCode : []),
+      ...(source.test(path) ? inSource : []),
     ];
     buffer
       .toString('utf8')

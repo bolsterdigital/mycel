@@ -65,8 +65,7 @@ export function parseTenantStatus(status: unknown): TenantStatus {
 /**
  * Check a new tenant and fill in its defaults. Refuses a slug that is no DNS label, entitlements
  * outside the schema, a default locale outside the list, and a slug whose platform hostname is
- * the host of the platform origin or a development host (the admin lives there; review of PR #8,
- * point (c)).
+ * the host of the platform origin or a development host (the admin lives there).
  */
 export function planTenant(
   draft: TenantDraft,

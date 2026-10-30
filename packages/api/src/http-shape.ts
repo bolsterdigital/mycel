@@ -15,6 +15,7 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { UseCaseError, type ErrorReporter, type UseCase } from '@mycel/core';
 import type { Metrics } from '@mycel/observability';
+import { ifNoneMatch } from './conditional.js';
 import { problem } from './problem.js';
 
 export type ScalarType = 'string' | 'number' | 'boolean';
@@ -84,13 +85,6 @@ export function coerceQuery(fields: FlatFields, query: Record<string, string[]>)
 export function etag(body: string, key?: string): string {
   const digest = createHash('sha256').update(body).digest('base64url');
   return key === undefined ? `W/"${digest.slice(0, 27)}"` : `"${key}:${digest.slice(0, 16)}"`;
-}
-
-/** If-None-Match compares weakly (RFC 9110 § 13.1.2); `*` matches any current representation. */
-function ifNoneMatch(header: string | undefined, tag: string): boolean {
-  if (!header) return false;
-  const opaque = (t: string) => t.trim().replace(/^W\//, '');
-  return header.split(',').some((t) => t.trim() === '*' || opaque(t) === opaque(tag));
 }
 
 /** The JSON body with its `etag` and caching headers, or a 304 when the client already holds it. */
