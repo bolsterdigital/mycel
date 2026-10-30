@@ -154,7 +154,7 @@ export interface OperatorRow {
   emailVerifiedAt: Date | null;
   name: string | null;
   lastLoginAt: Date | null;
-  /** Absent until the operator saves preferences (TODO #88). */
+  /** Absent until the operator saves preferences (#88). */
   preferences?: OperatorPreferences;
 }
 

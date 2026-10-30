@@ -58,7 +58,7 @@ export function loginLimiter(
 }
 
 /**
- * The admin's language for one request (ADR 007, TODO #88): the operator's chosen language,
+ * The admin's language for one request (ADR 007, #88): the operator's chosen language,
  * else the best match for the browser's `Accept-Language`, else English.
  */
 export const adminLanguage = (chosen: string | null | undefined, acceptLanguage: string | null) =>

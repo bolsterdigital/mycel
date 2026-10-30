@@ -74,7 +74,7 @@ export async function adminMediaPrincipal(
 const zones = new WeakMap<App.Locals, Promise<{ zone: string; site: string }>>();
 
 /**
- * The zone the admin shows and reads times in (TODO #88), decided here only: the operator's own
+ * The zone the admin shows and reads times in (#88), decided here only: the operator's own
  * (`locals.preferences`), else the site's general setting, else Europe/Amsterdam. Also sets
  * `locals.timeZone`. Once per request: layout, page and action share the answer. `site` is the
  * site's zone, so a page can name the zone only where the operator's differs from it.

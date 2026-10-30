@@ -1,4 +1,4 @@
-// The operator's own preferences (TODO #88): kept per operator, read back with the defaults,
+// The operator's own preferences (#88): kept per operator, read back with the defaults,
 // refused when a value is not one core knows. The operator id is the session's, so a form cannot
 // name another operator; an input that tries is refused rather than ignored.
 import { describe, expect, it } from 'vitest';

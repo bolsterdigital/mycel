@@ -1,4 +1,4 @@
-// The operator's own preferences (TODO #88): language of the admin, time zone and date display.
+// The operator's own preferences (#88): language of the admin, time zone and date display.
 // Outside any site, because they are the person's and hold on every site they work on. The
 // operator is the session's (`updateOperatorPreferences`), so the form names no one. A save
 // redirects, so the next response already speaks the chosen language (the hook reads it).

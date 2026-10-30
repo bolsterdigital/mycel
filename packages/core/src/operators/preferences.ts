@@ -1,4 +1,4 @@
-// An operator's own preferences for the admin (TODO #88): the language of its buttons and menus,
+// An operator's own preferences for the admin (#88): the language of its buttons and menus,
 // the time zone it reads and types times in, and whether lists show relative or full dates.
 // They belong to the person, not to a tenant, so they hold on every site they are a member of
 // and are never part of a tenant export.

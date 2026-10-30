@@ -1,4 +1,4 @@
--- TODO #88: an operator's own preferences for the admin and a site's general settings.
+-- #88: an operator's own preferences for the admin and a site's general settings.
 --
 -- `operators` gets the language of the admin, a time zone and a date display. Null for the first
 -- two means "follow the browser" and "follow the site". The table keeps its grants: mycel_auth

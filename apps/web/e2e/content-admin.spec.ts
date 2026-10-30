@@ -523,18 +523,18 @@ test.describe('content-admin', () => {
     await (await scheduleFold(page, 'nl')).getByLabel('Publiceren op').fill('2030-01-04T09:00');
     await nl.getByRole('button', { name: 'Inplannen (nl)' }).click();
     await expect(page).toHaveURL(`${edit}?done=schedule&locale=nl`);
-    await expect(nl).toContainText('Ingepland voor 2030-01-04 09:00 (Europe/Amsterdam)');
+    await expect(nl).toContainText('Ingepland voor 2030-01-04 09:00');
 
     // Edited after planning: the pin stays on the old revision until the editor moves it.
     await page.getByLabel('Titel (nl)').fill('Op vrijdagochtend');
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await expect(page).toHaveURL(`${edit}?saved`);
-    await expect(nl).toContainText('Ingepland voor 2030-01-04 09:00 (Europe/Amsterdam)');
+    await expect(nl).toContainText('Ingepland voor 2030-01-04 09:00');
     await expect(nl).toContainText('Je bewerkt een nieuwere revisie');
     await expectNoAxeViolations(page);
     await nl.getByRole('button', { name: 'Deze versie op dat moment publiceren (nl)' }).click();
     await expect(page).toHaveURL(`${edit}?done=repin&locale=nl`);
-    await expect(nl).toContainText('Ingepland voor 2030-01-04 09:00 (Europe/Amsterdam)');
+    await expect(nl).toContainText('Ingepland voor 2030-01-04 09:00');
     await expect(nl).not.toContainText('Je bewerkt een nieuwere revisie');
 
     // A time in the past is core's refusal, worded in the panel's terms.

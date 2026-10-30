@@ -56,7 +56,7 @@ export interface IdentityStore {
    * the Postgres store counts in `login_attempts` (0018, TODO #20b).
    */
   loginAttempt(key: string, limit: { max: number; windowSeconds: number }): Promise<boolean>;
-  /** The operator's admin preferences (TODO #88); the defaults for an unknown id. */
+  /** The operator's admin preferences (#88); the defaults for an unknown id. */
   preferencesOf(operatorId: string): Promise<OperatorPreferences>;
   /** Replace them; nothing happens for an unknown id. */
   setPreferences(operatorId: string, preferences: OperatorPreferences): Promise<void>;

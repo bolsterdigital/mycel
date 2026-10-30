@@ -4,7 +4,7 @@
 //      orchestrator speak to the process by its internal name).
 //   2. `/admin` and `/admin/*`: platform origin only (ADR 014 rule 4: operator cookies never
 //      travel to a tenant site); elsewhere 404. Reads the session cookie into `locals.session`,
-//      then that operator's preferences (TODO #88): a chosen admin language wins over the
+//      then that operator's preferences (#88): a chosen admin language wins over the
 //      browser's `Accept-Language`.
 //   3. Everything else is a site: resolved from the hostname (`SiteDirectory`), or, on a
 //      development host, from the first path segment. The decision table is `decideSite`

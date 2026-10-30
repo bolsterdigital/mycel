@@ -1,4 +1,4 @@
-// The time zones a picker offers (TODO #88): every zone the runtime knows, Europe first, each
+// The time zones a picker offers (#88): every zone the runtime knows, Europe first, each
 // named by its IANA name and, where `Intl` has one in the admin's language, its generic name
 // ("Europe/Amsterdam · Midden-Europese tijd"). `Intl.DisplayNames` has no time zone type, so the
 // generic name comes from `Intl.DateTimeFormat`; without one the IANA name stands alone.

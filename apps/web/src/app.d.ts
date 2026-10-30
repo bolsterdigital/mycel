@@ -15,7 +15,7 @@ declare global {
       session?: OperatorSession;
       /** The operator's principal for the tenant in an /admin/[tenant] URL, from the membership. */
       principal?: Principal;
-      /** The logged-in operator's own preferences (TODO #88), read once per admin request. */
+      /** The logged-in operator's own preferences (#88), read once per admin request. */
       preferences?: OperatorPreferences;
       /**
        * The zone the admin shows and reads times in: the operator's own, else the site's, else

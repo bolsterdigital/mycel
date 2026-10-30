@@ -1,4 +1,4 @@
-<!-- The operator's preferences (TODO #88) on the form pattern: three native selects, one save,
+<!-- The operator's preferences (#88) on the form pattern: three native selects, one save,
      "back" to where the operator came from. The language list names each language in itself, so
      someone who cannot read the current one still finds their own. -->
 <script lang="ts">

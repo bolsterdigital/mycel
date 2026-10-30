@@ -43,7 +43,7 @@ export const DEFAULT_CHROME: SiteChrome = {
   help: null,
 };
 /**
- * The general settings of a site (TODO #88): today its time zone, in which the admin plans and
+ * The general settings of a site (#88): today its time zone, in which the admin plans and
  * labels times unless an operator chose their own. A document like theme and chrome, so the next
  * general setting needs no new use case.
  */

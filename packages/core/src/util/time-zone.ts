@@ -1,4 +1,4 @@
-// One rule for a time zone a person or a site chooses (TODO #88): an IANA name the runtime knows,
+// One rule for a time zone a person or a site chooses (#88): an IANA name the runtime knows,
 // so every place that formats a time with it (`Intl.DateTimeFormat`) accepts it. Rejected: a
 // fixed offset (`+01:00`), which is wrong for half the year wherever summer time applies, and a
 // hand-kept list, which drifts from what the runtime can format.
