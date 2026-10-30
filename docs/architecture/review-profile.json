@@ -306,7 +306,8 @@
         "packages/core/src/testing/**",
         "packages/db/src/testing.ts",
         "scripts/**",
-        "packages/db/src/infra/seed*.ts"
+        "packages/db/src/infra/seed*.ts",
+        "packages/db/src/infra/sessions*"
       ],
       "adrs": ["000"],
       "gates": [
