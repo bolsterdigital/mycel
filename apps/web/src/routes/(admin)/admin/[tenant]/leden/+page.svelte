@@ -1,12 +1,17 @@
-<!-- Members, invitations, API keys and the operator's own capabilities (TODO #7), moved verbatim
-     from the tenant home when it became the dashboard (#66 PR 1); dev turns it into its own screen
-     in #81. Every action is a native form post. Action groups wrap whole buttons onto a new line
-     when they do not fit, and a long label wraps inside its own button at word boundaries (skill
-     ui-action-layout); the e2e specs check 320 CSS px and 200% text.
-     On the shared basis (brief #56 § C3): page header, notices, capabilities as badges, and every
-     member and key a form around a card with its checkboxes as `Choices` and its buttons as one
-     `Actions` group. The form wraps the card, not the other way round, so a card's buttons share
-     one form via `formaction`. -->
+<!-- Members and access (brief #81 PR 1, nail-brief admin-settings-screens): who works on this site
+     and which programs reach it with an API key, laid out per task of an administrator instead
+     of per function. The operator's own capabilities are one line on top; members are rows with
+     their capabilities as badges, changed in a disclosure in the row and removed with a
+     confirmation in the row; invitations not yet used are their own group; inviting and creating
+     a key happen in a dialog. A new key's token is shown once, in KeyReveal.
+     The server actions are those of the tenant home moved in #66 PR 1, unchanged: every control
+     is still a native form post to them, with or without JavaScript (the dialogs are invoker
+     buttons, the disclosures <details>). The form wraps the card, not the other way round, so a
+     card's buttons share one form via `formaction`. Action groups wrap whole buttons; a long
+     label wraps inside its own button at word boundaries (skill ui-action-layout); the UI gate
+     measures this page at 320 CSS px and 200% text with every disclosure open (e2e/routes.ts).
+     Rejected: a table of members (a row of checkboxes per member does not fit a table cell at
+     320 CSS px) and keys on a menu item of their own (nail-brief question 1, advice taken). -->
 <script lang="ts">
   import {
     Actions,
@@ -14,7 +19,10 @@
     Button,
     Card,
     Choices,
+    ConfirmAction,
+    Dialog,
     Field,
+    KeyReveal,
     Notice,
     PageHeader,
   } from '#lib/admin/ui/index.js';
@@ -34,6 +42,8 @@
   const vars = (f: Record<string, unknown>) => ({
     email: typeof f.email === 'string' ? f.email : '',
   });
+  const active = $derived(data.members.filter((m) => !m.pending));
+  const pending = $derived(data.members.filter((m) => m.pending));
 </script>
 
 <svelte:head>
@@ -44,6 +54,52 @@
 
 {#snippet capability(name: string)}{parts(name)[0]}:<wbr />{parts(name)[1]}{/snippet}
 {#snippet choice(option: { value: string })}{@render capability(option.value)}{/snippet}
+{#snippet badges(list: readonly string[])}
+  <ul class="ui-badges">
+    {#each list as c (c)}<li><Badge>{@render capability(c)}</Badge></li>{/each}
+  </ul>
+{/snippet}
+
+{#snippet member(m: (typeof data.members)[number])}
+  <form method="post" action="?/update" class="ui-card-form">
+    <Card title={m.name ? `${m.email} (${m.name})` : m.email}>
+      {#if m.pending}
+        <ul class="ui-badges">
+          <li><Badge tone="warning">{t('admin.members.pending')}</Badge></li>
+        </ul>
+      {/if}
+      {@render badges(m.capabilities)}
+      <input type="hidden" name="operatorId" value={m.operatorId} />
+      <details class="ui-fold">
+        <summary>{t('admin.members.edit')}</summary>
+        <Choices
+          id="m-{m.operatorId}"
+          name="capabilities"
+          type="checkbox"
+          legend={fill(t('admin.members.capabilities'), { email: m.email })}
+          locale={data.locale}
+          options={options(data.allCapabilities)}
+          selected={m.capabilities}
+          optionLabel={choice}
+        />
+        <Actions>
+          <Button>{t('admin.members.save')}</Button>
+        </Actions>
+      </details>
+      {#if m.email !== data.email}
+        <Actions>
+          <ConfirmAction
+            label={t('admin.members.remove')}
+            question={t('admin.members.removeQuestion')}
+            confirm={t('admin.members.removeConfirm')}
+            name={m.email}
+            formaction="?/remove"
+          />
+        </Actions>
+      {/if}
+    </Card>
+  </form>
+{/snippet}
 
 <main class="page admin">
   <PageHeader title={t('admin.members.title')} locale={data.locale} />
@@ -66,86 +122,115 @@
     </Notice>
   {/if}
   {#if token}
-    <Notice tone="success" title="{t('admin.keys.token.title')}: {token.keyName}">
+    <KeyReveal
+      id="new-key"
+      title="{t('admin.keys.token.title')}: {token.keyName}"
+      value={token.token ?? ''}
+      locale={data.locale}
+    >
       <p>{t('admin.keys.token.body')}</p>
-      <p><code class="token-value">{token.token}</code></p>
-    </Notice>
+    </KeyReveal>
   {/if}
 
   <section aria-labelledby="mine">
     <h2 id="mine">{t('admin.yourCapabilities')}</h2>
-    <ul class="ui-badges">
-      {#each data.capabilities as c (c)}<li><Badge>{@render capability(c)}</Badge></li>{/each}
-    </ul>
+    {@render badges(data.capabilities)}
   </section>
 
   <section aria-labelledby="members">
     <h2 id="members">{t('admin.members.title')}</h2>
     <p>{t('admin.members.note')}</p>
-    {#each data.members as member (member.operatorId)}
-      <form method="post" action="?/update" class="ui-card-form">
-        <Card title={member.name ? `${member.email} (${member.name})` : member.email}>
-          {#if member.pending}
-            <ul class="ui-badges">
-              <li><Badge tone="warning">{t('admin.members.pending')}</Badge></li>
-            </ul>
-          {/if}
-          <input type="hidden" name="operatorId" value={member.operatorId} />
+    <Actions>
+      <Dialog
+        id="invite"
+        title={t('admin.invite.title')}
+        trigger={t('admin.invite.title')}
+        variant="primary"
+        locale={data.locale}
+      >
+        <form method="post" action="?/invite" class="ui-fields">
+          <Field
+            id="invite-email"
+            name="email"
+            type="email"
+            autocomplete="off"
+            required
+            label={t('admin.invite.email')}
+            locale={data.locale}
+            value={failed?.action === 'invite' ? (failed.email ?? '') : ''}
+          />
           <Choices
-            id="m-{member.operatorId}"
+            id="invite-capabilities"
             name="capabilities"
             type="checkbox"
-            legend={fill(t('admin.members.capabilities'), { email: member.email })}
+            legend={t('admin.invite.capabilities')}
             locale={data.locale}
             options={options(data.allCapabilities)}
-            selected={member.capabilities}
             optionLabel={choice}
           />
+          <p class="ui-hint">{fill(t('admin.invite.hint'), { url: data.loginUrl })}</p>
           <Actions>
-            <Button>{t('admin.members.save')}</Button>
-            <Button variant="secondary" formaction="?/remove">{t('admin.members.remove')}</Button>
+            <Button>{t('admin.invite.submit')}</Button>
           </Actions>
-        </Card>
-      </form>
-    {/each}
+        </form>
+      </Dialog>
+    </Actions>
+    {#each active as m (m.operatorId)}{@render member(m)}{/each}
 
-    <form method="post" action="?/invite" class="ui-card-form">
-      <Card title={t('admin.invite.title')}>
-        <Field
-          id="invite-email"
-          name="email"
-          type="email"
-          autocomplete="off"
-          required
-          label={t('admin.invite.email')}
-          locale={data.locale}
-          value={failed?.action === 'invite' ? (failed.email ?? '') : ''}
-        />
-        <Choices
-          id="invite"
-          name="capabilities"
-          type="checkbox"
-          legend={t('admin.invite.capabilities')}
-          locale={data.locale}
-          options={options(data.allCapabilities)}
-          optionLabel={choice}
-        />
-        <p class="ui-hint">{fill(t('admin.invite.hint'), { url: data.loginUrl })}</p>
-        <Actions>
-          <Button>{t('admin.invite.submit')}</Button>
-        </Actions>
-      </Card>
-    </form>
+    {#if pending.length > 0}
+      <h3>{t('admin.members.pendingTitle')}</h3>
+      {#each pending as m (m.operatorId)}{@render member(m)}{/each}
+    {/if}
   </section>
 
-  <section aria-labelledby="keys">
-    <h2 id="keys">{t('admin.keys.title')}</h2>
+  <section aria-labelledby="access">
+    <h2 id="access">{t('admin.access.title')}</h2>
+    <p>{t('admin.access.intro')}</p>
+    <Actions>
+      <Dialog
+        id="create-key"
+        title={t('admin.keys.create.title')}
+        trigger={t('admin.keys.create.title')}
+        variant="primary"
+        locale={data.locale}
+      >
+        <form method="post" action="?/createKey" class="ui-fields">
+          <Field
+            id="key-name"
+            name="name"
+            type="text"
+            required
+            maxlength={100}
+            label={t('admin.keys.create.name')}
+            locale={data.locale}
+          />
+          <Choices
+            id="key"
+            name="capabilities"
+            type="checkbox"
+            legend={t('admin.keys.create.capabilities')}
+            locale={data.locale}
+            options={options(data.keyCapabilities)}
+            optionLabel={choice}
+          />
+          <p class="ui-hint">{t('admin.keys.create.hint')}</p>
+          <Actions>
+            <Button>{t('admin.keys.create.submit')}</Button>
+          </Actions>
+        </form>
+      </Dialog>
+    </Actions>
     {#if data.keys.length === 0}
       <p>{t('admin.keys.none')}</p>
     {/if}
     {#each data.keys as key (key.id)}
       <form method="post" action="?/revokeKey" class="ui-card-form">
         <Card title={key.name}>
+          {#if key.revokedAt}
+            <ul class="ui-badges">
+              <li><Badge tone="error">{t('admin.keys.revoked')}</Badge></li>
+            </ul>
+          {/if}
           <div class="ui-meta-host">
             <dl class="ui-meta">
               <div>
@@ -154,13 +239,7 @@
               </div>
               <div>
                 <dt>{t('admin.keys.capabilities')}</dt>
-                <dd>
-                  <ul class="ui-badges">
-                    {#each key.capabilities as c (c)}<li>
-                        <Badge>{@render capability(c)}</Badge>
-                      </li>{/each}
-                  </ul>
-                </dd>
+                <dd>{@render badges(key.capabilities)}</dd>
               </div>
               <div>
                 <dt>{t('admin.keys.created')}</dt>
@@ -180,47 +259,20 @@
           </div>
           {#if !key.revokedAt}
             <input type="hidden" name="id" value={key.id} />
+            <!-- The card title shows the name; the confirmation's accessible names repeat it, so
+                 each row's controls stay distinct without an unbreakable name in a visible label
+                 (a key name has no break opportunity; WCAG 2.5.3). -->
             <Actions>
-              <!-- A key name is an identifier without break opportunities: in the visible label it
-                   overflowed the button at 320 CSS px and 200% text, and a button keeps its words
-                   whole (TODO #63). The card title shows the name; the accessible name starts with
-                   the visible label and adds the name, so each button stays distinct (WCAG 2.5.3). -->
-              <Button
-                variant="secondary"
-                aria-label={fill(t('admin.keys.revokeName'), { name: key.name })}
-                >{t('admin.keys.revoke')}</Button
-              >
+              <ConfirmAction
+                label={t('admin.keys.revoke')}
+                question={t('admin.keys.revokeQuestion')}
+                confirm={t('admin.keys.revokeConfirm')}
+                name={key.name}
+              />
             </Actions>
           {/if}
         </Card>
       </form>
     {/each}
-
-    <form method="post" action="?/createKey" class="ui-card-form">
-      <Card title={t('admin.keys.create.title')}>
-        <Field
-          id="key-name"
-          name="name"
-          type="text"
-          required
-          maxlength={100}
-          label={t('admin.keys.create.name')}
-          locale={data.locale}
-        />
-        <Choices
-          id="key"
-          name="capabilities"
-          type="checkbox"
-          legend={t('admin.keys.create.capabilities')}
-          locale={data.locale}
-          options={options(data.keyCapabilities)}
-          optionLabel={choice}
-        />
-        <p class="ui-hint">{t('admin.keys.create.hint')}</p>
-        <Actions>
-          <Button>{t('admin.keys.create.submit')}</Button>
-        </Actions>
-      </Card>
-    </form>
   </section>
 </main>

@@ -69,11 +69,13 @@ test.describe('admin', () => {
     expect(hours).toBeLessThanOrEqual(12);
 
     const name = `e2e-${test.info().project.name}-${Date.now()}`;
-    const create = formWith(page, 'API-sleutel aanmaken');
+    // Creating a key happens in a dialog, opened by a native invoker button (no script).
+    await page.getByRole('button', { name: 'API-sleutel aanmaken' }).click();
+    const create = page.getByRole('dialog', { name: 'API-sleutel aanmaken' });
     await create.getByLabel('Naam').fill(name);
     await create.getByLabel('content:read', { exact: true }).check();
     await create.getByRole('button', { name: 'Sleutel aanmaken' }).click();
-    const token = (await page.locator('.token-value').textContent())?.trim() ?? '';
+    const token = (await page.locator('#new-key-value').textContent())?.trim() ?? '';
     expect(token).toMatch(/^mycel_[A-Za-z0-9_-]{43}$/);
     await expectNoAxeViolations(page);
 
@@ -83,12 +85,14 @@ test.describe('admin', () => {
 
     // Shown once: the next visit lists the key by its prefix only.
     await page.goto('/admin/probe/leden');
-    await expect(page.locator('.token-value')).toHaveCount(0);
+    await expect(page.locator('#new-key-value')).toHaveCount(0);
     await expect(page.getByText(token.slice(0, 12))).toBeVisible();
 
-    await formWith(page, name)
-      .getByRole('button', { name: `Sleutel intrekken: ${name}` })
-      .click();
+    // Revoking asks first, in the key's own row: the summary opens, the second button posts.
+    const row = formWith(page, name);
+    await expect(row.getByRole('button', { name: `Ja, intrekken: ${name}` })).toBeHidden();
+    await row.locator('summary', { hasText: 'Sleutel intrekken' }).click();
+    await row.getByRole('button', { name: `Ja, intrekken: ${name}` }).click();
     await expect(page.getByRole('status')).toContainText('API-sleutel ingetrokken.');
     expect((await api('/v1/content.published.get?type=page&slug=signup', token)).status).toBe(401);
     await expectNoAxeViolations(page);
