@@ -1,6 +1,6 @@
 // `site.theme.check` (ADR 013 consequences): the contrast report an editor shows live and an agent
-// calls before proposing colours. A query without storage: there is no theme write, table or
-// capability yet (#11 adds them and parses with `Theme`, the same check). A shape error (a colour
+// calls before proposing colours. A query without storage: it checks a draft before
+// `site.theme.update` stores it, and both parse with `Theme`, the same check. A shape error (a colour
 // that is not `#RRGGBB`, a size out of range) is `invalid_input`; a well-formed theme whose
 // contrast fails is a report with `valid: false`, so the editor can explain it.
 
