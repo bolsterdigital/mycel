@@ -63,6 +63,7 @@ import {
 import {
   NEW_BLOCK,
   blockIssues,
+  documentFieldIssues,
   blockPrefix,
   blocksFrom,
   pendingBlock,
@@ -478,14 +479,24 @@ async function commit(
       issues: ISSUES,
     });
     const onBlocks = e.code === 'invalid_input' ? blockIssues(e, blocks) : [];
+    // A document field (canonical, tags, access, locales) is named too: it may sit on a tab
+    // that is not shown, and the summary's link is the way to it.
+    const onFields = e.code === 'invalid_input' ? documentFieldIssues(e) : [];
     // A refused insert comes after a save that stood: the form now edits that revision.
     const saved = { ...values, baseRevisionId: revisionId };
     if (e.code !== 'conflict')
       return {
         failure: await refused(tenant, principal, itemId, saved, pending, {
           ...body,
-          ...(onBlocks.length ? { error: 'admin.block.error.invalid' as UiKey } : {}),
-          fieldIssues: onBlocks.map((i) => ({ name: i.name, copy: blockIssueCopy(i.message) })),
+          ...(onFields.length
+            ? { error: 'admin.content.error.invalid' as UiKey }
+            : onBlocks.length
+              ? { error: 'admin.block.error.invalid' as UiKey }
+              : {}),
+          fieldIssues: [
+            ...onFields.map((i) => ({ name: i.name, copy: ISSUES[i.message] ?? body.error })),
+            ...onBlocks.map((i) => ({ name: i.name, copy: blockIssueCopy(i.message) })),
+          ],
           status,
         }),
       };

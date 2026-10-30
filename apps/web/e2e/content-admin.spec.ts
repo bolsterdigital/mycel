@@ -230,6 +230,34 @@ test.describe('content-admin', () => {
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
     await expectNoAxeViolations(page);
+
+    // B: a required field on a hidden tab. The browser refuses the submit and focuses the field,
+    // so its panel shows first.
+    await page.locator('#title\\.nl').fill('');
+    await list.getByRole('tab', { name: 'Zoeken en delen' }).click();
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(page.getByRole('tabpanel', { name: 'Inhoud' })).toBeVisible();
+    await expect(page.locator('#title\\.nl')).toBeFocused();
+    await page.locator('#title\\.nl').fill('Tabbladen');
+
+    // A: the server refuses a field on another tab. The page comes back on that tab, and the
+    // summary's link shows it again from any tab and focuses the field.
+    await list.getByRole('tab', { name: 'Zoeken en delen' }).click();
+    await page.locator('[name="canonical"]').fill('geen url');
+    await list.getByRole('tab', { name: 'Inhoud' }).click();
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    const summary = page.getByRole('alert');
+    const link = summary.getByRole('link', {
+      name: 'Canoniek adres (optioneel, begint met https://)',
+    });
+    await expect(summary).toContainText('Het canonieke adres moet beginnen met https://');
+    await expect(page.getByRole('tabpanel', { name: 'Zoeken en delen' })).toBeVisible();
+    await expect(page.locator('#canonical')).toHaveAttribute('aria-invalid', 'true');
+    await list.getByRole('tab', { name: 'Inhoud' }).click();
+    await link.click();
+    await expect(page.getByRole('tabpanel', { name: 'Zoeken en delen' })).toBeVisible();
+    await expect(page.locator('#canonical')).toBeFocused();
+    await expectNoAxeViolations(page);
   });
 
   test('live preview shows unsaved fields, isolates tenants and opens a clicked block', async ({

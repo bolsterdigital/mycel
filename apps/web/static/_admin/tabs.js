@@ -6,8 +6,14 @@
 // nothing is stored. A hash that points into another panel (an issue link of a refused save, a
 // `#block-<id>` redirect) opens that panel first. The fields stay in the one form, so switching
 // loses nothing. A panel whose only content is one fold opens it: the tab already is the
-// disclosure. Rejected: localStorage per item (state a reader cannot see in the URL) and
-// manual activation (one more key press per tab for a panel that costs nothing to show).
+// disclosure. A field the browser refuses on submit (`invalid`, which does not bubble, so the
+// listener captures) gets its panel shown before the browser focuses it: a control in a `hidden`
+// panel cannot take focus and the submit would stop without a word. A refused save comes back
+// without a hash; then the panel with the first field marked `aria-invalid` opens, and the
+// summary's link to it shows its panel and focuses the field. Rejected: localStorage per item
+// (state a reader cannot see in the URL), manual activation (one more key press per tab for a
+// panel that costs nothing to show) and `novalidate` with our own check (it would drop the
+// browser's own message on a required field and duplicate what the server already refuses).
 for (const root of document.querySelectorAll('.ui-tabs')) {
   const list = root.querySelector(':scope > [role="tablist"]');
   const tabs = [...(list?.querySelectorAll('[role="tab"]') ?? [])];
@@ -47,10 +53,29 @@ for (const root of document.querySelectorAll('.ui-tabs')) {
     select(index, { remember: false });
     const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
     if (target !== panels[index]) target?.scrollIntoView({ block: 'start' });
+    if (target?.matches('input, select, textarea')) target.focus({ preventScroll: true });
     return true;
   };
   // A hash inside a panel (a field, a block) keeps its own target: the URL is not rewritten.
-  if (!follow()) select(0, { remember: false });
+  if (!follow()) {
+    const refused = panels.findIndex((panel) => panel.querySelector('[aria-invalid="true"]'));
+    select(Math.max(refused, 0), { remember: false });
+  }
+
+  // The first refused control of a submit decides; the browser focuses that one.
+  let refusing = false;
+  document.addEventListener(
+    'invalid',
+    (event) => {
+      if (refusing || !(event.target instanceof Element)) return;
+      const index = panels.findIndex((panel) => panel.contains(event.target));
+      if (index < 0) return;
+      refusing = true;
+      setTimeout(() => (refusing = false));
+      if (panels[index].hidden) select(index);
+    },
+    true
+  );
 
   list.addEventListener('click', (event) => {
     const tab = event.target instanceof Element && event.target.closest('[role="tab"]');

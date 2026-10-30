@@ -104,8 +104,21 @@
     return { text: t('admin.content.state.draft'), tone: 'neutral' };
   };
 
-  /** A field name of a block as words: the field's label, plus its locale. */
+  /** The document fields a refused save can name (`documentFieldIssues`), with their label. */
+  const DOC_FIELDS: Record<string, UiKey> = {
+    canonical: 'admin.content.field.canonical',
+    tags: 'admin.content.field.tags',
+    level: 'admin.content.field.level',
+    teaser: 'admin.content.field.teaser',
+    teaserBlocks: 'admin.content.field.teaserBlocks',
+    locales: 'admin.content.new.locales',
+    correctionDate: 'admin.content.edit.correctionDate',
+  };
+  /** Whether a refused save named this field. */
+  const flagged = (name: string) => issues.some((i) => i.name === name);
+  /** A field name as words: a document field's label, or a block field's plus its locale. */
   const fieldLabel = (name: string): string => {
+    if (name in DOC_FIELDS) return t(DOC_FIELDS[name]!);
     const parts = name
       .replace(/^(b\.[^.]+|new)\./, '')
       .split('.')
@@ -117,9 +130,13 @@
   };
   /** The element id of a block field: `b-<block id>-p-…`, `b-new-p-…` for the pending block. */
   const fieldId = (name: string) =>
-    name.startsWith('new.')
-      ? `b-new-${name.slice(4).replaceAll('.', '-')}`
-      : `b-${name.slice(2).replaceAll('.', '-')}`;
+    name === 'locales'
+      ? `locale-${defaultLocale}`
+      : name in DOC_FIELDS
+        ? name
+        : name.startsWith('new.')
+          ? `b-new-${name.slice(4).replaceAll('.', '-')}`
+          : `b-${name.slice(2).replaceAll('.', '-')}`;
   /** An issue path in words: "Titel (en)", "Blok 3: Tekst (nl)", else the path itself. */
   const issueName = (path: string): string => {
     const l = issueLabel(path, data.docLocales);
@@ -184,6 +201,7 @@
     locale={data.locale}
     maxlength={opts.max ?? 200}
     required={opts.required ?? false}
+    invalid={flagged(name)}
     value={v(name)}
   />
 {/snippet}
@@ -465,6 +483,7 @@
       <Select
         id="level"
         name="level"
+        invalid={flagged('level')}
         label={t('admin.content.field.level')}
         locale={data.locale}
         value={v('level')}
@@ -476,6 +495,7 @@
       <Select
         id="teaser"
         name="teaser"
+        invalid={flagged('teaser')}
         label={t('admin.content.field.teaser')}
         locale={data.locale}
         value={v('teaser')}
@@ -487,6 +507,7 @@
       <Field
         id="teaserBlocks"
         name="teaserBlocks"
+        invalid={flagged('teaserBlocks')}
         type="number"
         label={t('admin.content.field.teaserBlocks')}
         locale={data.locale}
@@ -504,6 +525,7 @@
       <Field
         id="correctionDate"
         name="correctionDate"
+        invalid={flagged('correctionDate')}
         type="date"
         label={t('admin.content.edit.correctionDate')}
         locale={data.locale}
@@ -527,6 +549,7 @@
       locale={data.locale}
       hint={t('admin.content.edit.localesHint')}
       selected={docLocales}
+      invalid={flagged('locales')}
       options={data.locales.map((l) => ({ value: l, label: l }))}
     />
   </Fieldset>

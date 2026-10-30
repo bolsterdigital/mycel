@@ -174,3 +174,29 @@ export function blockIssues(
     .map((i) => ({ name: blockIssueName(i.path, blocks), message: i.message }))
     .filter((i) => i.name);
 }
+
+/**
+ * The form field of a document-level issue on a save (`document.seo.canonical`, `document.tags.3`,
+ * `document.access.teaser`), so a refusal links to the field on whichever tab holds it; '' for a
+ * path the form has no field for. The access teaser's block count is its own field.
+ */
+const DOCUMENT_FIELDS: [RegExp, string][] = [
+  [/^document\.seo\.canonical$/, 'canonical'],
+  [/^document\.tags(\.\d+)?$/, 'tags'],
+  [/^document\.access\.tierIds$/, 'level'],
+  [/^document\.access\.teaser\.blocks$/, 'teaserBlocks'],
+  [/^document\.access\.teaser$/, 'teaser'],
+  [/^document\.defaultLocale$/, 'locales'],
+  // Only the newest correction comes from the form; the stored ones are read-only.
+  [/^document\.corrections\.\d+\.date$/, 'correctionDate'],
+];
+
+/** The issues of a refused save that name a document field, as `{ name, message }`. */
+export function documentFieldIssues(e: UseCaseError): { name: string; message: string }[] {
+  return e.issues
+    .map((i) => ({
+      name: DOCUMENT_FIELDS.find(([re]) => re.test(i.path))?.[1] ?? '',
+      message: i.message,
+    }))
+    .filter((i) => i.name);
+}

@@ -19,6 +19,7 @@
     selected = [],
     hint,
     error,
+    invalid = false,
     required = false,
     optionLabel,
   }: {
@@ -31,6 +32,8 @@
     selected?: readonly string[];
     hint?: string | undefined;
     error?: string | undefined;
+    /** Marks the options invalid when the message stands elsewhere (an error summary). */
+    invalid?: boolean;
     required?: boolean;
     /** Renders a label's content instead of its plain text, e.g. an identifier with break points. */
     optionLabel?: Snippet<[Option]>;
@@ -43,7 +46,7 @@
 </script>
 
 <fieldset
-  class={['ui-fieldset', 'ui-choices', error && 'invalid']}
+  class={['ui-fieldset', 'ui-choices', (error || invalid) && 'invalid']}
   aria-labelledby={hint ? `${id}-legend` : undefined}
   aria-describedby={describedby}
 >
@@ -64,6 +67,7 @@
         value={option.value}
         checked={selected.includes(option.value)}
         required={required && type === 'radio'}
+        aria-invalid={error || invalid ? 'true' : undefined}
       />
       <label for="{id}-{option.value}"
         >{#if optionLabel}{@render optionLabel(option)}{:else}{option.label}{/if}</label
