@@ -635,6 +635,8 @@ test.describe('status', () => {
           };
           await measure('job');
           await card(page, type).getByRole('button', { name: 'Afsluiten' }).click();
+          // The confirmation is a new page; measuring before it renders finds no `main`.
+          await expect(page.getByRole('heading', { name: `${type} afsluiten?` })).toBeVisible();
           await measure('confirm');
           await page.getByRole('link', { name: 'Laten staan' }).click();
           await expect(card(page, type)).toBeVisible();
