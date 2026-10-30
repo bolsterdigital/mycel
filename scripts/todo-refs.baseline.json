@@ -38,8 +38,6 @@
   "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.server.ts": 1,
   "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.svelte": 1,
   "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/assist/page.test.ts": 1,
-  "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/blocks/[blockId]/remove/+page.svelte": 1,
-  "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/blocks/new/+page.svelte": 1,
   "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/revisions/+page.server.ts": 1,
   "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/revisions/+page.svelte": 1,
   "apps/web/src/routes/(admin)/admin/[tenant]/content/new/+page.server.ts": 1,

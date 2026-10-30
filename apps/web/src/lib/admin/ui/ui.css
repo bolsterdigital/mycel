@@ -841,6 +841,7 @@
   }
   .ui-edit {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-3);
   }
   @container (min-width: 60rem) {
@@ -1004,6 +1005,7 @@
     color: var(--color-body-fg);
     text-decoration: none;
     overflow-wrap: break-word;
+    hyphens: manual;
     border-radius: var(--radius);
   }
   .ui-navgroup a:hover {
@@ -1041,6 +1043,15 @@
     font-weight: 700;
     color: var(--color-body-fg);
     border-block-end-color: var(--color-primary-bg);
+  }
+  /* A section's fields stand apart like those of a fieldset, and never widen the column. */
+  .ui-tabs,
+  .ui-tabs-panel {
+    min-width: 0;
+  }
+  .ui-tabs-panel {
+    display: grid;
+    gap: var(--space-2);
   }
   .ui-tabs-panel + .ui-tabs-panel {
     margin-block-start: var(--space-3);
@@ -1088,5 +1099,93 @@
   .ui-widget-later {
     margin: 0;
     color: var(--color-muted-fg);
+  }
+
+  /* ItemBar: the top of an item's edit screen. Where you are, the title and the state wrap as
+     whole parts; the actions are a group of whole buttons that wraps under them when the line is
+     too short (skill ui-action-layout). */
+  .ui-item-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-1) var(--space-2);
+    margin-block-end: var(--space-3);
+    padding-block-end: var(--space-1);
+    border-block-end: var(--border-width) solid var(--color-border);
+  }
+  .ui-item-bar-where {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-0) var(--space-1);
+    flex: 1 1 14rem;
+    min-width: 0;
+  }
+  .ui-item-bar-title {
+    margin: 0;
+    font-size: var(--step-1);
+  }
+  .ui-item-bar-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: var(--tap);
+    color: var(--color-link);
+  }
+  .ui-item-bar-state {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap);
+  }
+  /* The host is a size container without an intrinsic width: it takes the rest of the line, and a
+     line of its own once less than 16rem is left. */
+  .ui-item-bar > .ui-actions-host {
+    flex: 1 1 auto;
+    min-width: min(100%, 16rem);
+  }
+
+  /* StatusCard: one locale's state and actions in the side column. A size container, so a wide
+     control in it (the date and time of a schedule at 200% text) never widens the column. */
+  .ui-status-card {
+    container-type: inline-size;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+    min-width: 0;
+    padding: var(--space-2);
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-lg);
+  }
+  .ui-status-card > * {
+    margin: 0;
+  }
+  .ui-status-card-title {
+    font-size: var(--step-0);
+  }
+
+  /* The title of an item: the first thing you see and type, large and without a frame label. */
+  .ui-title-input {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    font-size: var(--step-2);
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  /* A label for assistive technology only, where the control's place already says what it is. */
+  .ui-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
   }
 }

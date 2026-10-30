@@ -87,6 +87,15 @@ describe('documentFrom(valuesOf(doc))', () => {
     expect(kept.seo.imageId).toBe(article.seo.imageId);
   });
 
+  it('keeps the access when the form has no access fields (a site without readers)', () => {
+    const v = valuesOf(article);
+    for (const key of ['level', 'teaser', 'teaserBlocks']) delete v[key];
+    v['title.nl'] = 'Nieuwe titel';
+    const doc = documentFrom(article, v, '2026-10-30');
+    expect(doc.access).toEqual(article.access);
+    expect(doc.title).toEqual({ nl: 'Nieuwe titel', en: 'Report' });
+  });
+
   it('adds a correction with today as its default date', () => {
     const v = { ...valuesOf(article), 'correctionText.nl': 'Naam hersteld' };
     const out = documentFrom(article, v, '2026-10-23');

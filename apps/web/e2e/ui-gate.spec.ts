@@ -166,7 +166,7 @@ test.describe('admin-ui', () => {
       test('keeps every label whole and nothing scrolls sideways', async ({ page }) => {
         await open(page);
         await setTextSize(page, '200%');
-        await page.locator('.ui-fold > summary').click();
+        for (const summary of await page.locator('.ui-fold > summary').all()) await summary.click();
         await layoutGate(page, 'catalogue');
         // Each stacking group stands in one column: every button as wide as its group.
         const widths = await page

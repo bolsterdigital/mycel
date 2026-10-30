@@ -84,14 +84,12 @@ export function layoutProblems(page: Page, within = 'body'): Promise<string[]> {
         // A button keeps its words whole; a link or checkbox row may wrap like running text. A
         // word is what lies between spaces and hyphens: a line may end after a hyphen
         // ("Site-|instellingen"), never inside a word. Empty boxes at a line end do not count.
-        // A site that hyphenates (`hyphens: auto`, base.css) breaks a word with a visible hyphen
-        // on purpose. A main navigation label is a word or two and keeps them whole too (#66 PR 1:
-        // "Dashboar|d" at 320 CSS px and 200% text).
-        if (
-          !b.matches('button, .ui-button, .ui-navgroup a') ||
-          getComputedStyle(b).hyphens === 'auto'
-        )
-          continue;
+        // A button on a site that hyphenates (`hyphens: auto`, base.css) breaks a word with a
+        // visible hyphen on purpose. A main navigation label is a word or two and keeps them whole
+        // without that exemption: it inherited `hyphens: auto`, so the rule never fired and
+        // "Dashboar|d" at 320 CSS px and 200% text passed (#66 PR 2).
+        if (!b.matches('button, .ui-button, .ui-navgroup a')) continue;
+        if (!b.matches('.ui-navgroup a') && getComputedStyle(b).hyphens === 'auto') continue;
         const walker = document.createTreeWalker(b, NodeFilter.SHOW_TEXT);
         for (let node = walker.nextNode(); node; node = walker.nextNode())
           for (const match of (node.textContent ?? '').matchAll(/[^\s-]+/g)) {

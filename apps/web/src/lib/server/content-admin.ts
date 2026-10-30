@@ -128,16 +128,21 @@ export function documentFrom(
     locales,
     title: localized(v, 'title', locales),
     seo,
-    access: {
-      level: level || doc.access.level,
-      ...(tierIds ? { tierIds } : {}),
-      teaser:
-        teaser === 'blocks'
-          ? { blocks: Number.parseInt(one(v, 'teaserBlocks'), 10) || 0 }
-          : teaser === 'marker'
-            ? ('marker' as const)
-            : ('lead' as const),
-    },
+    // The access fields show only on a site with readers (#66 PR 2); a form without them keeps
+    // the document's access as it is.
+    access:
+      'level' in v
+        ? {
+            level: level || doc.access.level,
+            ...(tierIds ? { tierIds } : {}),
+            teaser:
+              teaser === 'blocks'
+                ? { blocks: Number.parseInt(one(v, 'teaserBlocks'), 10) || 0 }
+                : teaser === 'marker'
+                  ? ('marker' as const)
+                  : ('lead' as const),
+          }
+        : doc.access,
   };
   if (doc.type !== 'article') return common as ContentDocumentInput;
 

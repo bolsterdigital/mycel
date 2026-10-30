@@ -5,6 +5,7 @@
 // and an external sprite file (`<use href="/x.svg#id">` is a request per page and breaks on a
 // cross-origin admin asset host).
 export const ICONS = {
+  'arrow-left': '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
   'layout-dashboard':
     '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>',
   'file-text':

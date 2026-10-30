@@ -27,6 +27,7 @@ import {
   ICONS,
   Icon,
   IconSprite,
+  ItemBar,
   MetaList,
   NavGroup,
   Notice,
@@ -37,6 +38,7 @@ import {
   Select,
   SettingsPage,
   SettingsSection,
+  StatusCard,
   SubNav,
   SystemState,
   Table,
@@ -668,5 +670,70 @@ describe('DashboardWidget', () => {
     expect(out).toContain('class="ui-widget empty"');
     expect(out).toContain('<h3 class="ui-widget-title" id="w">Bezoek</h3>');
     expect(out).toContain('<p class="ui-widget-later">Komt later.</p>');
+  });
+});
+
+describe('ItemBar', () => {
+  it('has the back link, the one <h1>, the state linked to its card, and the actions', () => {
+    const out = html(ItemBar, {
+      back: { href: '/admin/probe/content?type=page', label: 'Pages' },
+      title: 'Edit page',
+      state: 'Draft',
+      stateHref: '#publication-nl',
+      actions: text('<button>Save</button>'),
+    });
+    expect(out).toMatch(/^<header class="ui-item-bar">/);
+    expect(out).toContain('<a class="ui-item-bar-back" href="/admin/probe/content?type=page">');
+    expect(out).toContain('</svg>Pages</a>');
+    expect(out).toContain('<h1 class="ui-item-bar-title">Edit page</h1>');
+    expect(out).toContain(
+      '<a class="ui-item-bar-state" href="#publication-nl"><span class="ui-badge neutral">Draft</span></a>'
+    );
+    expect(out).toContain('<div class="ui-actions end"><span><button>Save</button></span></div>');
+  });
+  it('shows the state without a link, and no action group without actions', () => {
+    const out = html(ItemBar, {
+      back: { href: '/x', label: 'Articles' },
+      title: 'Edit article',
+      state: 'Published, changed since',
+      tone: 'warning',
+    });
+    expect(out).toContain('<span class="ui-badge warning">Published, changed since</span>');
+    expect(out).not.toContain('ui-item-bar-state');
+    expect(out).not.toContain('ui-actions');
+  });
+});
+
+describe('StatusCard', () => {
+  it('is a region named by its heading: the state, then notes, then the actions, then more', () => {
+    const out = html(StatusCard, {
+      id: 'publication-nl',
+      title: 'Status and publication',
+      state: 'Draft',
+      children: text('<p>Restricted</p>'),
+      actions: text('<button>Publish</button>'),
+      more: text('<details><summary>Schedule</summary></details>'),
+    });
+    expect(out).toMatch(
+      /^<section class="ui-status-card" id="publication-nl" aria-labelledby="publication-nl-title"><h2 id="publication-nl-title" class="ui-status-card-title">Status and publication<\/h2>/
+    );
+    const order = ['ui-badge neutral', 'Restricted', 'Publish', 'Schedule'].map((x) =>
+      out.indexOf(x)
+    );
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(order.every((i) => i > 0)).toBe(true);
+    expect(out).toContain('class="ui-actions stack"');
+  });
+  it('takes a heading level and a tone', () => {
+    const out = html(StatusCard, {
+      id: 'p-en',
+      title: 'Language en',
+      state: 'Published on 28 October 2026',
+      tone: 'success',
+      level: 3,
+    });
+    expect(out).toContain('<h3 id="p-en-title" class="ui-status-card-title">Language en</h3>');
+    expect(out).toContain('<span class="ui-badge success">Published on 28 October 2026</span>');
+    expect(out).not.toContain('ui-actions');
   });
 });

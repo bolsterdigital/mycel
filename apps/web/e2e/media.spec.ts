@@ -455,8 +455,8 @@ test('an image block chooses its image from a grid of thumbnails, without a scri
   await dialog.getByRole('button', { name: 'Klaar' }).click();
   await expect(dialog).toBeHidden();
 
-  await block.getByRole('button', { name: 'Blok opslaan' }).click();
-  await expect(page.getByRole('status')).toContainText('Blok opgeslagen.');
+  await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
   await expect(
     page.locator('details.block').first().getByRole('group', { name: 'Afbeelding' })
   ).toContainText(names[1]!);
@@ -493,7 +493,7 @@ test('a page gets its featured image from the picker, and shares it when publish
   await dialog.getByRole('radio', { name: filename }).check();
   await dialog.getByRole('button', { name: 'Klaar' }).click();
   // Publishing from the same form saves the choice first (editor trial 2026-10-28).
-  await page.getByRole('button', { name: 'Publiceren (nl)' }).click();
+  await page.getByRole('button', { name: 'Publiceren', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Gepubliceerd in nl.');
   await expect(page.getByRole('group', { name: 'Uitgelicht beeld' })).toContainText(filename);
   await expectNoAxeViolations(page);
@@ -556,8 +556,8 @@ test('the picker searches, and uploads dropped files with progress', async ({ pa
   await expect(picker.locator('[data-picker-name]')).toHaveText(added[1]!);
   await expect(picker.locator('[data-picker-img]')).toBeVisible();
 
-  await block.getByRole('button', { name: 'Blok opslaan' }).click();
-  await expect(page.getByRole('status')).toContainText('Blok opgeslagen.');
+  await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
   await expect(
     page.locator('details.block').first().getByRole('group', { name: 'Afbeelding' })
   ).toContainText(added[1]!);
