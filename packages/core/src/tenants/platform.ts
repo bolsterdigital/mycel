@@ -13,6 +13,7 @@
 
 import { EntitlementsDocument, TenantStatus } from '../entitlements/model.js';
 import { UseCaseError } from '../errors.js';
+import { Locale } from '../i18n/locale.js';
 import { platformHostname, platformOriginHost } from './model.js';
 import type { PlatformConfig } from './ports.js';
 
@@ -64,7 +65,8 @@ export function parseTenantStatus(status: unknown): TenantStatus {
 
 /**
  * Check a new tenant and fill in its defaults. Refuses a slug that is no DNS label, entitlements
- * outside the schema, a default locale outside the list, and a slug whose platform hostname is
+ * outside the schema, a locale that is no `Locale` (ADR 007; the API schema checks the same
+ * first, the CLI and the import rely on this), a default locale outside the list, and a slug whose platform hostname is
  * the host of the platform origin or a development host (the admin lives there).
  */
 export function planTenant(
@@ -86,6 +88,14 @@ export function planTenant(
       `the slug "${draft.slug}" collides with the platform address`
     );
   const locales = draft.locales.length ? [...draft.locales] : [...DEFAULT_TENANT_LOCALES];
+  const badLocales = locales.flatMap((locale, i) => {
+    const parsed = Locale.safeParse(locale);
+    return parsed.success
+      ? []
+      : [{ path: `locales.${i}`, message: parsed.error.issues[0]?.message ?? 'invalid' }];
+  });
+  if (badLocales.length)
+    throw new UseCaseError('invalid_input', 'locales must be BCP 47 tags', badLocales);
   const defaultLocale = draft.defaultLocale ?? locales[0]!;
   if (!locales.includes(defaultLocale))
     throw new UseCaseError('invalid_input', 'defaultLocale must be one of locales', [

@@ -52,6 +52,22 @@ describe('planTenant', () => {
     expect(e.issues).toEqual([{ path: 'defaultLocale', message: 'invalid' }]);
   });
 
+  it.each([
+    [{ locales: ['nl_NL'] }, 'locales.0'],
+    [{ locales: ['nl', 'EN'] }, 'locales.1'],
+    [{ locales: ['nl', 'nl_NL'], defaultLocale: 'nl_NL' }, 'locales.1'],
+  ])('refuses a locale that is no BCP 47 tag the platform knows: %j', (draft, path) => {
+    const e = refusal(() => planTenant({ slug: 'bij1', name: 'n', ...draft }, platform));
+    expect(e.code).toBe('invalid_input');
+    expect(e.issues).toEqual([{ path, message: 'i18n.locale.invalid' }]);
+  });
+
+  it('accepts a regional locale', () => {
+    expect(
+      planTenant({ slug: 'bij1', name: 'n', locales: ['nl-BE', 'fr-BE'] }, platform).locales
+    ).toEqual(['nl-BE', 'fr-BE']);
+  });
+
   it('refuses entitlements outside the schema', () => {
     const e = refusal(() =>
       planTenant({ slug: 'bij1', name: 'n', locales: ['nl'], entitlements: { nope: 1 } }, platform)
