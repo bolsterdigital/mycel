@@ -58,6 +58,7 @@ export * from './supporters/model.js';
 export * from './supporters/ports.js';
 export * from './supporters/service.js';
 export * from './supporters/erasure.js';
+export * from './supporters/email-key.js';
 export * from './mailing/ports.js';
 export * from './mailing/confirmation.js';
 export * from './mailing/send-attempts.js';

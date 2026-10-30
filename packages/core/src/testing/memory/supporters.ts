@@ -6,8 +6,7 @@ import {
   type SupporterAdmissions,
   type SupporterRepository,
 } from '../../supporters/ports.js';
-import { sha256Hex } from '../../util/digest.js';
-import { normalizeEmail } from '../../util/email.js';
+import { emailKey } from '../../supporters/email-key.js';
 import type { TenantStore } from './store.js';
 
 export function memorySupporters(s: TenantStore, ids: Ids): SupporterRepository {
@@ -38,7 +37,7 @@ export function memoryAdmissions(
   tenantId: string,
   clock: Clock
 ): SupporterAdmissions {
-  const admissionKey = (email: string) => sha256Hex(`${tenantId}:${normalizeEmail(email)}`);
+  const admissionKey = (email: string) => emailKey(tenantId, email, 'admission');
   const live = (at: Date) => clock.now().getTime() - at.getTime() < ADMISSION_WINDOW_MS;
   return {
     // No-op for the same reason as `supporters.lock`; the Postgres conformance proves the lock.

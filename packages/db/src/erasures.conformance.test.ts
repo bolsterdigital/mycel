@@ -14,6 +14,7 @@ import {
   Invoker,
   buildRegistry,
   confirmationMailSubscriber,
+  emailKey,
   supporterIngestSubscriber,
   systemPrincipal,
   useCases,
@@ -174,6 +175,10 @@ describe.skipIf(skip)('erasure conformance', () => {
     expect(changed).toBeGreaterThan(0);
     const after = await rowsOf(tenants.a);
     expect(holding(after, email)).toEqual([]);
+    // Nor its admission key. A rate-limit bucket keys on the same value and stays: a
+    // hash that lives a day at most is no copy (ADR 019 rule 8).
+    const seat = await emailKey(tenants.a, email, 'admission');
+    expect(holding(after, seat).filter((t) => t !== 'rate_limits')).toEqual([]);
     expect(after['events']!.length).toBe(before['events']!.length);
     expect(after['events']!.some((r) => r.includes(`${supporterId}@erased.invalid`))).toBe(true);
     // The intents and reconcile jobs of the erased signup went; the other supporter's stayed.
@@ -237,6 +242,7 @@ describe.skipIf(skip)('erasure conformance', () => {
       'jobs.erasure_apply',
       'mail_sends.erasure_apply',
       'outbox.erasure_apply',
+      'supporter_admissions.erasure_apply',
       'supporters.erasure_apply',
       'tenant_exports.erasure_apply',
     ]);

@@ -6,25 +6,16 @@
 // from one snapshot. The window comes from the injected clock, so a test can age a reservation.
 // Rejected: `select ... for update` on the reservations (a first admission has no row to lock).
 
-import { createHash } from 'node:crypto';
 import { sql, type Kysely } from 'kysely';
-import {
-  ADMISSION_WINDOW_MS,
-  normalizeEmail,
-  type Clock,
-  type SupporterAdmissions,
-} from '@mycel/core';
+import { ADMISSION_WINDOW_MS, emailKey, type Clock, type SupporterAdmissions } from '@mycel/core';
 import type { Database } from './schema.js';
 import { advisoryLock } from './roles.js';
 
 type Trx = Kysely<Database>;
 
 export function supporterAdmissions(trx: Trx, tenantId: string, clock: Clock): SupporterAdmissions {
-  // Like the rate-limit key in form.submit: the table never holds the address itself.
-  const hash = (email: string) =>
-    createHash('sha256')
-      .update(`${tenantId}:${normalizeEmail(email)}`)
-      .digest('hex');
+  // Core's admission key: the table never holds the address itself, and an erasure finds the row.
+  const hash = (email: string) => emailKey(tenantId, email, 'admission');
   const cutoff = () => new Date(clock.now().getTime() - ADMISSION_WINDOW_MS);
   return {
     async lock() {
@@ -42,7 +33,7 @@ export function supporterAdmissions(trx: Trx, tenantId: string, clock: Clock): S
         .selectFrom('supporter_admissions')
         .select('email_hash')
         .where('tenant_id', '=', tenantId)
-        .where('email_hash', '=', hash(email))
+        .where('email_hash', '=', await hash(email))
         .where('admitted_at', '>', cutoff())
         .executeTakeFirst();
       return row !== undefined;
@@ -55,7 +46,7 @@ export function supporterAdmissions(trx: Trx, tenantId: string, clock: Clock): S
         .execute();
       await trx
         .insertInto('supporter_admissions')
-        .values({ tenant_id: tenantId, email_hash: hash(email), admitted_at: clock.now() })
+        .values({ tenant_id: tenantId, email_hash: await hash(email), admitted_at: clock.now() })
         .onConflict((oc) => oc.columns(['tenant_id', 'email_hash']).doNothing())
         .execute();
     },
@@ -63,7 +54,7 @@ export function supporterAdmissions(trx: Trx, tenantId: string, clock: Clock): S
       await trx
         .deleteFrom('supporter_admissions')
         .where('tenant_id', '=', tenantId)
-        .where('email_hash', '=', hash(email))
+        .where('email_hash', '=', await hash(email))
         .execute();
     },
   };

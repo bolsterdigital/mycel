@@ -11,6 +11,7 @@ import type {
   TenantInfo,
 } from '../../tenants/ports.js';
 import { bytesToHex } from '../../util/bytes.js';
+import { normalizeEmail } from '../../util/email.js';
 import { exampleId } from '../../util/ids.js';
 import { DnsUnavailableError } from '../../tenants/ports.js';
 
@@ -86,11 +87,11 @@ export class MemoryMailer implements Mailer {
     this.sent.push(message);
     this.keys.add(key);
     const id = `mem-${this.sent.length}`;
-    this.#log.push({ id, to: message.to.email.toLowerCase(), subject: message.subject });
+    this.#log.push({ id, to: normalizeEmail(message.to.email), subject: message.subject });
     return { providerId: id };
   }
   async lookup(message: MailMessage): Promise<{ providerIds: string[] }> {
-    const to = message.to.email.toLowerCase();
+    const to = normalizeEmail(message.to.email);
     return {
       providerIds: this.#log
         .filter((m) => m.to === to && m.subject === message.subject)

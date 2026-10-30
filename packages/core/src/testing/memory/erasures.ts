@@ -4,14 +4,15 @@
 
 import type { Principal } from '../../principal.js';
 import type { Clock, Erasures } from '../../ports.js';
+import { emailKey } from '../../supporters/email-key.js';
 import {
   ERASURE_EXPORT_ERROR,
   erasedIntentState,
-  erasureEmailHash,
   expiresOnErasure,
   isTombstone,
   tombstoneEmail,
 } from '../../supporters/erasure.js';
+import { normalizeEmail } from '../../util/email.js';
 import { scrubText } from '../../util/scrub.js';
 import type { MemoryStore } from './store.js';
 
@@ -27,7 +28,7 @@ export function memoryErasures(store: MemoryStore, principal: Principal, clock: 
     async register(supporterId, email) {
       if (s.erasures.has(supporterId)) return;
       s.erasures.set(supporterId, {
-        emailHash: await erasureEmailHash(tenantId, email),
+        emailHash: await emailKey(tenantId, email, 'erasure'),
         erasedAt: clock.now(),
         actor: structuredClone(principal.actor),
       });
@@ -56,16 +57,16 @@ async function registeredAddresses(store: MemoryStore, tenantId: string): Promis
     if (
       value.includes('@') &&
       !isTombstone(value) &&
-      hashes.has(await erasureEmailHash(tenantId, value))
+      hashes.has(await emailKey(tenantId, value, 'erasure'))
     )
-      addresses.add(value.trim().toLowerCase());
+      addresses.add(normalizeEmail(value));
   };
   for (const p of s.projections.values())
-    if (ids.has(p.id) && !isTombstone(p.email)) addresses.add(p.email.toLowerCase());
+    if (ids.has(p.id) && !isTombstone(p.email)) addresses.add(normalizeEmail(p.email));
     else await consider(p.email);
   for (const e of s.events.values())
     if (e.supporter_id && ids.has(e.supporter_id) && !isTombstone(e.email))
-      addresses.add(e.email.toLowerCase());
+      addresses.add(normalizeEmail(e.email));
     else await consider(e.email);
   for (const sub of s.submissions.values())
     for (const v of Object.values(sub.values)) if (typeof v === 'string') await consider(v);
@@ -95,7 +96,7 @@ async function applyErasures(store: MemoryStore, tenantId: string, clock: Clock)
 
   for (const e of s.events.values()) {
     const owner = e.supporter_id ?? '';
-    if (!(ids.has(owner) || addresses.has(e.email.toLowerCase()))) continue;
+    if (!(ids.has(owner) || addresses.has(normalizeEmail(e.email)))) continue;
     const tomb = tombstoneEmail(owner || e.id);
     if (e.email === tomb && !Object.keys(e.props).length) continue;
     e.email = tomb;
@@ -103,7 +104,7 @@ async function applyErasures(store: MemoryStore, tenantId: string, clock: Clock)
     changed++;
   }
   for (const p of s.projections.values()) {
-    if (!(ids.has(p.id) || addresses.has(p.email.toLowerCase()))) continue;
+    if (!(ids.has(p.id) || addresses.has(normalizeEmail(p.email)))) continue;
     const tomb = tombstoneEmail(p.id);
     if (p.email === tomb && !p.lists.length && !p.pendingLists.length) continue;
     Object.assign(p, { email: tomb, lists: [], pendingLists: [] });
@@ -117,6 +118,9 @@ async function applyErasures(store: MemoryStore, tenantId: string, clock: Clock)
     if (eventIds.has(send.eventId) && s.mailSends.delete(key)) changed++;
   for (const [id, sub] of s.submissions)
     if (carries(sub.values) && s.submissions.delete(id)) changed++;
+  // A seat reserved for a signup that was never ingested.
+  for (const a of addresses)
+    if (s.admissions.delete(await emailKey(tenantId, a, 'admission'))) changed++;
   for (const e of tenantOutbox)
     if (carries(e.props)) {
       e.props = JSON.parse(scrubText(JSON.stringify(e.props))) as Record<string, unknown>;

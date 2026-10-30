@@ -19,6 +19,7 @@ import {
   rebuildProjection,
 } from './model.js';
 import './ports.js';
+import { EmailAddress } from '../util/email.js';
 import { exampleId } from '../util/ids.js';
 
 export const SOURCE = 'mycel';
@@ -123,7 +124,7 @@ export const getSupporter = defineUseCase({
   description:
     'Get the supporter projection (id, first seen, last activity, confirmed and pending lists) by e-mail address.',
   requires: 'supporters:read',
-  input: z.object({ email: z.string().trim().toLowerCase().email() }),
+  input: z.object({ email: EmailAddress }),
   output: SupporterProjection,
   resource: { uriTemplate: 'mycel://supporters/{email}' },
   examples: [{ input: { email: 'a@example.org' } }],
@@ -142,7 +143,7 @@ export const changeSupporterEmail = defineUseCase({
   requires: 'supporters:write',
   input: z.object({
     supporterId: z.string().guid(),
-    newEmail: z.string().trim().toLowerCase().email(),
+    newEmail: EmailAddress,
     /** Evidence for the change (ADR 019 rule 1): who asked, through which channel. */
     reason: z.string().trim().min(1).max(500),
   }),
