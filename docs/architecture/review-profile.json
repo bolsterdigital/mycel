@@ -59,6 +59,8 @@
         "apps/web/src/lib/server/preview.ts",
         "apps/web/src/routes/(preview)/**",
         "apps/web/src/lib/server/admin/export-download*",
+        "apps/web/src/lib/server/admin/assist-settings*",
+        "apps/web/src/lib/server/admin/media-choices*",
         "packages/core/src/entitlements/**",
         "packages/core/src/tenants/**",
         "packages/core/src/util/canonical-json*",
@@ -172,6 +174,7 @@
         "packages/core/src/i18n/**",
         "apps/web/src/lib/server/http/http-cache*",
         "apps/web/src/lib/server/public-page.ts",
+        "apps/web/src/lib/server/admin/time-zones*",
         "apps/web/src/params.ts",
         "packages/api/src/content-read.ts"
       ],
