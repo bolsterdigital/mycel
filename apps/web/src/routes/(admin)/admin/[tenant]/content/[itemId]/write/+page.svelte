@@ -65,7 +65,7 @@
     saveStatus = 'saving';
     const body = new FormData();
     body.set('baseRevisionId', revisionId);
-    body.set('locale', data.locale);
+    body.set('locale', data.contentLocale);
     body.set('editor', JSON.stringify(editor.getJSON()));
     try {
       const response = await fetch('?/save', {
@@ -233,7 +233,7 @@
             id: card.id,
             type: 'quote',
             version: 1,
-            props: { text: { [data.locale]: card.text }, attribution: { name: card.name } },
+            props: { text: { [data.contentLocale]: card.text }, attribution: { name: card.name } },
           }
         : {
             id: card.id,
@@ -242,7 +242,7 @@
             props: {
               mediaId: card.mediaId,
               decorative: card.decorative,
-              alt: card.decorative ? null : { [data.locale]: card.alt },
+              alt: card.decorative ? null : { [data.contentLocale]: card.alt },
             },
           };
     const json = editor.getJSON();
@@ -337,7 +337,7 @@
       }}
     >
       {#each data.locales as locale (locale)}
-        <option value={locale} selected={locale === data.locale}>{locale}</option>
+        <option value={locale} selected={locale === data.contentLocale}>{locale}</option>
       {/each}
     </select>
   </div>

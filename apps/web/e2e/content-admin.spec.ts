@@ -1273,6 +1273,8 @@ test.describe('content-blocks', () => {
     await (await block(page, 2)).getByLabel('Breedte').selectOption('full');
     await save(page, 2);
     await page.goto(`${edit}/write?locale=en`);
+    // Writing the English text leaves the admin in the operator's language.
+    await expect(page.getByRole('link', { name: 'Kaart invoegen' })).toBeVisible();
     await expect(
       page.locator(`.writing-surface .editor-card[data-block-id="${faqId?.replace('block-', '')}"]`)
     ).toBeVisible();
