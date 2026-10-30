@@ -3,12 +3,15 @@
 // so a fixed token in a local .env keeps the capabilities of its first seed: a capability added to
 // SEED_KEY_CAPABILITIES later never reaches it, and e2e then fails on a 403 that CI, with a fresh
 // token every run, never shows. The seed therefore refuses with what is missing and how to fix it.
+// The stored row is found on its hash, the lookup authentication uses: a name and prefix match
+// picks the newest of two tokens that share their first twelve characters.
 // Rejected: rewriting the stored capabilities in place, which widens a live key outside the
 // use case that changes keys, without its audit row; the seed is not where key rights change.
 
 import {
   PREFIX_LENGTH,
   hashApiKey,
+  type IdentityStore,
   type KeyCapability,
   type Principal,
   type UnitOfWork,
@@ -31,6 +34,7 @@ export const SEED_KEY_CAPABILITIES: readonly KeyCapability[] = [
  */
 export async function seedApiKey(
   uow: UnitOfWork,
+  identity: Pick<IdentityStore, 'apiKeyByHash'>,
   admin: Principal,
   token: string
 ): Promise<'created' | 'present'> {
@@ -55,13 +59,12 @@ export async function seedApiKey(
     });
   if (created) return 'created';
 
-  // The hash is unique across tenants; a key this tenant cannot list belongs to another one.
-  const stored = (await uow.run(admin, (ctx) => ctx.apiKeys.list())).find(
-    (k) => k.name === 'seed' && k.prefix === prefix
-  );
+  // The hash is unique across tenants, so this is the row the token authenticates as.
+  const stored = await identity.apiKeyByHash(keyHash);
   const fix =
-    'revoke key "seed" in the admin (or delete its row) and seed again, or set a new MYCEL_API_KEY';
-  if (!stored) throw new Error(`MYCEL_API_KEY is already a key of another tenant; ${fix}`);
+    'delete the row of key "seed" (revoking keeps it, and its hash) and seed again, or set a new MYCEL_API_KEY';
+  if (stored?.tenantId !== admin.tenantId)
+    throw new Error(`MYCEL_API_KEY is already a key of another tenant; ${fix}`);
   if (stored.revokedAt) throw new Error(`MYCEL_API_KEY is a revoked key; ${fix}`);
   const missing = SEED_KEY_CAPABILITIES.filter((c) => !stored.capabilities.includes(c));
   if (missing.length > 0)

@@ -14,6 +14,7 @@ import {
 } from '@mycel/core';
 import {
   createDb,
+  createIdentityStore,
   createUnitOfWork,
   ensureTenant,
   setEntitlements,
@@ -115,11 +116,13 @@ try {
   // without clicking one together first. A rerun changes nothing, and refuses a stale key.
   const token = process.env['MYCEL_API_KEY'];
   const outcome = token
-    ? await seedApiKey(uow, admin, token).catch((e: Error) => {
-        console.error(e.message);
-        process.exitCode = 1;
-        return 'refused';
-      })
+    ? await seedApiKey(uow, createIdentityStore(operatorDb, uuidv7Ids), admin, token).catch(
+        (e: Error) => {
+          console.error(e.message);
+          process.exitCode = 1;
+          return 'refused';
+        }
+      )
     : 'none';
   if (outcome === 'created')
     console.log(`seeded API key "seed" for ${tenant.slug} from MYCEL_API_KEY`);

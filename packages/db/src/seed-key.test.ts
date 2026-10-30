@@ -6,7 +6,13 @@
 // Skips without DATABASE_URL and APP_DATABASE_URL; in CI that is a failure.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { generateApiKey, systemPrincipal, type KeyCapability } from '@mycel/core';
+import {
+  generateApiKey,
+  hashApiKey,
+  systemPrincipal,
+  type KeyCapability,
+  type Principal,
+} from '@mycel/core';
 import {
   FakeDns,
   FakeInputHasher,
@@ -14,7 +20,7 @@ import {
   memoryPlatform,
   runSuffix,
 } from '@mycel/core/testing';
-import { createDb, createUnitOfWork, uuidv7, uuidv7Ids } from './index.js';
+import { createDb, createIdentityStore, createUnitOfWork, uuidv7, uuidv7Ids } from './index.js';
 import { SEED_KEY_CAPABILITIES, seedApiKey } from './seed-key.js';
 import { requireDatabase, testTenant } from './testing.js';
 
@@ -32,6 +38,8 @@ describe.skipIf(skip)('seed key', () => {
     dns: new FakeDns(),
     platform: memoryPlatform,
   });
+  const identity = createIdentityStore(operatorDb, uuidv7Ids);
+  const seed = (p: Principal, token: string) => seedApiKey(uow, identity, p, token);
   let admin = systemPrincipal(uuidv7(), 'seed');
   let other = admin;
 
@@ -48,14 +56,14 @@ describe.skipIf(skip)('seed key', () => {
     (await uow.run(admin, (ctx) => ctx.apiKeys.list())).filter((k) => k.name === 'seed');
 
   /** A "seed" row as an older seed left it, with its own capability list. */
-  const storeOld = async (capabilities: KeyCapability[]) => {
-    const { token, prefix, hash } = await generateApiKey();
-    await uow.run(admin, (ctx) =>
+  const storeOld = async (capabilities: KeyCapability[], token?: string) => {
+    token ??= (await generateApiKey()).token;
+    await uow.run(admin, async (ctx) =>
       ctx.apiKeys.insert({
         id: uuidv7(),
         name: 'seed',
-        prefix,
-        keyHash: hash,
+        prefix: token.slice(0, 12),
+        keyHash: await hashApiKey(token),
         capabilities,
         createdBy: admin.actor,
         createdAt: new Date(),
@@ -66,8 +74,8 @@ describe.skipIf(skip)('seed key', () => {
 
   it('creates the key once with every seed capability, and a rerun changes nothing', async () => {
     const { token } = await generateApiKey();
-    expect(await seedApiKey(uow, admin, token)).toBe('created');
-    expect(await seedApiKey(uow, admin, token)).toBe('present');
+    expect(await seed(admin, token)).toBe('created');
+    expect(await seed(admin, token)).toBe('present');
     const prefix = token.slice(0, 12);
     const rows = (await seedKeys()).filter((k) => k.prefix === prefix);
     expect(rows).toHaveLength(1);
@@ -76,9 +84,20 @@ describe.skipIf(skip)('seed key', () => {
 
   it('refuses a key seeded before with fewer capabilities, naming what is missing', async () => {
     const token = await storeOld(SEED_KEY_CAPABILITIES.filter((c) => c !== 'media:read'));
-    await expect(seedApiKey(uow, admin, token)).rejects.toThrow(
+    await expect(seed(admin, token)).rejects.toThrow(
       /fewer capabilities \(missing media:read\).*new MYCEL_API_KEY/
     );
+  });
+
+  it('judges the stored row of this token, not a newer one with the same prefix (#78 review)', async () => {
+    // `.env.example` style: tokens that share their first twelve characters.
+    const stale = `dev-api-key-${run}-stale`;
+    await storeOld(
+      SEED_KEY_CAPABILITIES.filter((c) => c !== 'media:read'),
+      stale
+    );
+    await storeOld([...SEED_KEY_CAPABILITIES], `dev-api-key-${run}-fresh`);
+    await expect(seed(admin, stale)).rejects.toThrow(/missing media:read/);
   });
 
   it('refuses a revoked key', async () => {
@@ -86,12 +105,12 @@ describe.skipIf(skip)('seed key', () => {
     const prefix = token.slice(0, 12);
     const row = (await seedKeys()).find((k) => k.prefix === prefix)!;
     await uow.run(admin, (ctx) => ctx.apiKeys.revoke(row.id, new Date()));
-    await expect(seedApiKey(uow, admin, token)).rejects.toThrow(/revoked/);
+    await expect(seed(admin, token)).rejects.toThrow(/revoked/);
   });
 
   it("refuses a token that is another tenant's key", async () => {
     const { token } = await generateApiKey();
-    expect(await seedApiKey(uow, other, token)).toBe('created');
-    await expect(seedApiKey(uow, admin, token)).rejects.toThrow(/another tenant/);
+    expect(await seed(other, token)).toBe('created');
+    await expect(seed(admin, token)).rejects.toThrow(/another tenant/);
   });
 });
