@@ -1,6 +1,7 @@
 // Native site settings forms (ADR 009, #11 E): posts are checked in core, including contrast
 // and baseVersion. Rejected: client-only validation or a free CSS editor.
-// The settings of a site in one place (brief #81 PR 3): general, the look (theme, brand, chrome),
+// The settings of a site in one place (brief #81 PR 3): general (its time zone, #88), the look
+// (theme, brand, chrome),
 // AI assistance and usage. Assistance and usage ask `tenant:admin`, the look `content:write`, so
 // a member sees only the subjects they may open. Rejected: a route per subject (the sub-navigation is
 // already one URL per subject) and loading only the current subject's data (the look's four
@@ -18,6 +19,7 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { runtime } from '#lib/server/runtime.js';
 import { requireTenantPrincipal } from '#lib/server/admin.js';
 import { saveAssistSettings } from '#lib/server/assist-settings.js';
+import { timeZoneOptions } from '#lib/server/time-zones.js';
 import type { Actions, PageServerLoad } from './$types';
 import { ui } from '../../../../../i18n/index.js';
 
@@ -54,7 +56,8 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
         ? 'content:write'
         : ui(locals.lang ?? 'en')('admin.assist.error.forbidden')
     );
-  const [theme, chrome, logo, font] = await Promise.all([
+  const [general, theme, chrome, logo, font] = await Promise.all([
+    runtime().invoker.run(useCases.getSiteGeneral, principal, {}),
     runtime().invoker.run(useCases.getSiteTheme, principal, {}),
     runtime().invoker.run(useCases.getSiteChrome, principal, {}),
     runtime().invoker.run(useCases.getBrandAsset, principal, { kind: 'logo' }),
@@ -69,6 +72,8 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
   return {
     section,
     sections: SECTIONS.filter((s) => can(principal, NEEDS[s])),
+    general,
+    zones: section === 'general' ? timeZoneOptions(locals.lang ?? 'en') : [],
     theme,
     chrome,
     logo,
@@ -112,6 +117,24 @@ const lines = (raw: string, locales: readonly string[], previous: SiteChrome['na
       return { href, label };
     });
 export const actions: Actions = {
+  general: async ({ request, locals, url, params }) => {
+    const data = await request.formData();
+    const { principal } = await requireTenantPrincipal(locals, url, params.tenant);
+    if (!can(principal, 'content:write')) error(403, 'content:write');
+    try {
+      const result = await runtime().invoker.run(useCases.updateSiteGeneral, principal, {
+        baseVersion: baseVersion(data),
+        general: { timeZone: text(data, 'timeZone') },
+      });
+      return { saved: 'general', version: result.version };
+    } catch (e) {
+      return fail(e instanceof UseCaseError && e.code === 'conflict' ? 409 : 400, {
+        action: 'general',
+        problem: report(e),
+        values: Object.fromEntries(data),
+      });
+    }
+  },
   brand: async ({ request, locals, url, params }) => {
     const data = await request.formData();
     const { principal } = await requireTenantPrincipal(locals, url, params.tenant);

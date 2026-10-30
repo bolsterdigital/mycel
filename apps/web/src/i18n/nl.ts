@@ -996,4 +996,23 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.site.sections': 'Onderwerpen',
   'admin.site.group.type': 'Typografie en ruimte',
   'admin.connections.edit': 'Gegevens bewerken',
+  'admin.preferences.title': 'Voorkeuren',
+  'admin.preferences.description':
+    'Hoe het beheer je aanspreekt en tijden toont. Ze gelden op elke site waar je aan werkt.',
+  'admin.preferences.language': 'Taal van het beheer',
+  'admin.preferences.language.browser': 'Volg mijn browser',
+  'admin.preferences.timeZone': 'Tijdzone',
+  'admin.preferences.timeZone.site': 'De tijdzone van de site',
+  'admin.preferences.timeZone.hint': 'Tijden worden in deze zone getoond en ingepland.',
+  'admin.preferences.dateFormat': 'Datums',
+  'admin.preferences.dateFormat.relative': 'Relatief waar het kan (gisteren, 3 uur geleden)',
+  'admin.preferences.dateFormat.absolute': 'Altijd de volledige datum',
+  'admin.preferences.save': 'Voorkeuren opslaan',
+  'admin.preferences.saved': 'Voorkeuren opgeslagen.',
+  'admin.preferences.invalid': 'Kies een van de mogelijkheden uit de lijst.',
+  'admin.preferences.back': 'Terug',
+  'admin.site.general.timeZone': 'Tijdzone',
+  'admin.site.general.timeZone.hint':
+    'Het beheer plant en toont tijden in deze zone, tenzij iemand onder Voorkeuren een eigen zone koos.',
+  'admin.site.general.save': 'Tijdzone opslaan',
 };

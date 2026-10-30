@@ -1,10 +1,12 @@
-// Shared plumbing of the operator admin: cookie flags, the login rate limit, and the admin's own
-// locale. The session itself is decided in core (`issueSession`, `readSession`); the tenant and
+// Shared plumbing of the operator admin: cookie flags, the login rate limit, and the admin's
+// time zone. The session itself is decided in core (`issueSession`, `readSession`); the tenant and
 // capabilities of a request come from the membership, never from the cookie.
 
 import {
-  negotiateLocale,
+  DEFAULT_TIME_ZONE,
+  can,
   operatorPrincipal,
+  useCases,
   type OperatorSession,
   type Principal,
   type TenantInfo,
@@ -26,12 +28,6 @@ export function clearCookie(cookies: Cookies, name: string): void {
 /** Login starts and callbacks per client address: 20 per 10 minutes, shared by every process. */
 export const allowLoginAttempt = (key: string): Promise<boolean> =>
   loginLimiter(runtime().identity)(key);
-
-export const ADMIN_LOCALES = ['nl', 'en'] as const;
-
-/** The admin speaks the operator's language when it has it (ADR 007), English otherwise. */
-export const adminLocale = (acceptLanguage: string | null): string =>
-  negotiateLocale(acceptLanguage, ADMIN_LOCALES, 'en');
 
 /** The logged-in operator, or a redirect to the login that returns here. */
 export function requireSession(locals: App.Locals, url: URL): OperatorSession {
@@ -73,4 +69,34 @@ export async function adminMediaPrincipal(
   const rt = runtime();
   const tenant = await rt.tenants.findBySlug(slug);
   return tenant ? operatorPrincipal(rt.identity, locals.session, tenant.id) : null;
+}
+
+const zones = new WeakMap<App.Locals, Promise<{ zone: string; site: string }>>();
+
+/**
+ * The zone the admin shows and reads times in (TODO #88), decided here only: the operator's own
+ * (`locals.preferences`), else the site's general setting, else Europe/Amsterdam. Also sets
+ * `locals.timeZone`. Once per request: layout, page and action share the answer. `site` is the
+ * site's zone, so a page can name the zone only where the operator's differs from it.
+ *
+ * Call after `requireTenantPrincipal`: without `locals.principal` there is no site to ask. A
+ * member who may not read content gets the default for the site's part; the time zone of a site
+ * is no secret, but `site.general.get` asks `content:read` like the theme does.
+ */
+export function adminTimeZone(locals: App.Locals): Promise<{ zone: string; site: string }> {
+  let found = zones.get(locals);
+  if (!found) {
+    found = (async () => {
+      const principal = locals.principal;
+      const site =
+        principal && can(principal, 'content:read')
+          ? (await runtime().invoker.run(useCases.getSiteGeneral, principal, {})).value.timeZone
+          : DEFAULT_TIME_ZONE;
+      const zone = locals.preferences?.timeZone ?? site;
+      locals.timeZone = zone;
+      return { zone, site };
+    })();
+    zones.set(locals, found);
+  }
+  return found;
 }

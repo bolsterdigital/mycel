@@ -4,7 +4,7 @@
      answers a post shows the section that was saved. The contrast of each colour pair is
      recomputed as you pick; core checks it again on save.
      Brief #81 PR 3: General (what the site is called and in which languages, read-only until
-     there is a use case to change it), the look, AI assistance (moved from its own route) and
+     there is a use case to change it; its time zone, #88, with its own save), the look, AI assistance (moved from its own route) and
      usage, each subject shown only to a member who may open it. With JavaScript, a changed form
      says it is not saved yet and leaving asks first (static/_admin/unsaved.js). -->
 <script lang="ts">
@@ -128,6 +128,31 @@
         ]}
       />
       <p class="ui-hint">{t('admin.site.general.fixed')}</p>
+    </SettingsSection>
+    <SettingsSection
+      id="site-time-zone"
+      title={t('admin.site.general.timeZone')}
+      action={action('general')}
+      submit={t('admin.site.general.save')}
+      saved={saved('general')}
+      unsaved={t('admin.site.unsaved')}
+    >
+      <input
+        type="hidden"
+        name="baseVersion"
+        value={form?.action === 'general'
+          ? value('baseVersion', String(data.general.version))
+          : String(data.general.version)}
+      />
+      <Select
+        id="site-timeZone"
+        name="timeZone"
+        label={t('admin.site.general.timeZone')}
+        locale={data.locale}
+        hint={t('admin.site.general.timeZone.hint')}
+        value={value('timeZone', data.general.value.timeZone)}
+        options={data.zones}
+      />
     </SettingsSection>
   {:else if data.section === 'assist' && data.assist}
     {@const assist = data.assist}

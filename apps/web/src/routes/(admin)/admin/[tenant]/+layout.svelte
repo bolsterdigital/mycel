@@ -95,6 +95,9 @@
       <div class="admin-sidebar-bottom">
         <a href="/admin"><Icon name="arrow-left-right" />{t('admin.back')}</a>
         <p>{data.email}</p>
+        <a href="/admin/voorkeuren?return={encodeURIComponent(base)}"
+          ><Icon name="sliders-horizontal" />{t('admin.preferences.title')}</a
+        >
         <form method="post" action="/admin/logout">
           <button type="submit" class="secondary"><Icon name="log-out" />{t('admin.logout')}</button
           >

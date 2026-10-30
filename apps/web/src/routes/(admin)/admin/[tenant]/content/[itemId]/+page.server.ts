@@ -36,7 +36,7 @@ import {
 } from '@mycel/core';
 import { formValues, posted } from '#lib/editor/block-form.js';
 import { failureOf, text } from '#lib/server/admin-actions.js';
-import { requireTenantPrincipal } from '#lib/server/admin.js';
+import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin.js';
 import {
   actorLabel,
   diffRows,
@@ -48,7 +48,6 @@ import {
   when,
 } from '#lib/server/content-admin.js';
 import {
-  SITE_TIME_ZONE,
   fieldOf,
   fromLocalInput,
   issueKey,
@@ -153,6 +152,7 @@ const prefixed = (values: Record<string, string>, prefix: string): Record<string
 export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
   const { tenant } = await parent();
   const principal = locals.principal!;
+  const { zone, site } = await adminTimeZone(locals);
   const { item, revision } = await latest(principal, params.itemId);
   const doc = revision.document;
   const { invoker } = runtime();
@@ -168,7 +168,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
               .run(useCases.getItem, principal, { itemId: item.id, revisionId: id })
               .then((r) => r.revision)
         ).then((r) => ({
-          when: when(r.createdAt),
+          when: when(r.createdAt, zone),
           who: actorLabel(r.actor),
           latest: r.id === revision.id,
         }))
@@ -250,8 +250,8 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
           pin:
             p.scheduledRevisionId && p.scheduledFor
               ? {
-                  at: localLabel(new Date(p.scheduledFor)),
-                  input: localInput(new Date(p.scheduledFor)),
+                  at: localLabel(new Date(p.scheduledFor), zone, zone !== site),
+                  input: localInput(new Date(p.scheduledFor), zone),
                   revision: await describe(p.scheduledRevisionId),
                 }
               : null,
@@ -272,10 +272,16 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
     restricted: doc.access.level !== 'public',
     // Readers (#19) do not exist yet: access shows only on an item that already has it.
     showAccess: doc.access.level !== 'public',
-    timeZone: SITE_TIME_ZONE,
+    timeZone: zone,
+    // Named next to the field only where the operator's own zone is not the site's (#88).
+    timeZoneNamed: zone !== site,
     done: DONE[url.searchParams.get('done') ?? ''] ?? null,
     doneLocale: url.searchParams.get('locale') ?? '',
-    revision: { id: revision.id, when: when(revision.createdAt), who: actorLabel(revision.actor) },
+    revision: {
+      id: revision.id,
+      when: when(revision.createdAt, zone),
+      who: actorLabel(revision.actor),
+    },
     corrections: doc.type === 'article' ? doc.corrections : [],
     values: valuesOf(doc),
     // The site's locales first, then any the document has that the site no longer does.
@@ -319,8 +325,8 @@ const issueCopy = (message: string): UiKey =>
   ISSUE_COPY[issueKey(message)] ?? 'admin.content.issue.other';
 
 /** The time of the schedule form, or a refusal core will word like its own. */
-function instant(at: string): string {
-  const parsed = fromLocalInput(at);
+function instant(at: string, zone: string): string {
+  const parsed = fromLocalInput(at, zone);
   if (!parsed)
     throw new UseCaseError('invalid_input', 'no time given', [
       { path: 'at', message: 'admin.content.publication.time-invalid' },
@@ -339,7 +345,7 @@ const ISSUES: Record<string, UiKey> = {
 };
 
 /** Who saved the newest revision, when, and what changed since `from`. */
-async function conflictOf(principal: Principal, itemId: string, from: string) {
+async function conflictOf(principal: Principal, itemId: string, from: string, zone: string) {
   const { item, revision } = await latest(principal, itemId);
   const { changes } = await runtime().invoker.run(useCases.diffRevisions, principal, {
     itemId: item.id,
@@ -349,7 +355,7 @@ async function conflictOf(principal: Principal, itemId: string, from: string) {
   return {
     newest: revision.id,
     who: actorLabel(revision.actor),
-    when: when(revision.createdAt),
+    when: when(revision.createdAt, zone),
     changes: diffRows(changes),
   };
 }
@@ -367,6 +373,8 @@ interface Committed {
   inserted: string | null;
   /** The blocks whose fields the save changed, so the screen comes back with them open. */
   changed: string[];
+  /** The admin's time zone for this request (`adminTimeZone`). */
+  zone: string;
 }
 
 /**
@@ -388,6 +396,7 @@ async function commit(
     event.params.tenant!
   );
   if (opts.publication && !can(principal, 'content:publish')) error(403, 'Forbidden');
+  const { zone } = await adminTimeZone(event.locals);
   const data = await event.request.formData();
   const itemId = event.params.itemId!;
   const baseRevisionId = text(data, 'baseRevisionId');
@@ -399,6 +408,7 @@ async function commit(
     revisionId,
     inserted,
     changed,
+    zone,
   });
   if (!opts.always && !can(principal, 'content:write')) return done(baseRevisionId);
   const values = valuesFromForm(data);
@@ -471,7 +481,7 @@ async function commit(
           status,
         }),
       };
-    const conflict = await conflictOf(principal, itemId, baseRevisionId);
+    const conflict = await conflictOf(principal, itemId, baseRevisionId, zone);
     return {
       failure: await refused(
         tenant,
@@ -589,7 +599,7 @@ async function blockStep(
   done: 'blockMoved' | 'blockRemoved',
   run: (blocks: ContentDocument['blocks'], index: number) => Promise<unknown>
 ) {
-  const { tenant, principal, revisionId } = saved;
+  const { tenant, principal, revisionId, zone } = saved;
   try {
     const { revision } = await runtime().invoker.run(useCases.getItem, principal, {
       itemId,
@@ -604,7 +614,8 @@ async function blockStep(
       conflict: 'admin.content.conflict.title',
       invalid: 'admin.block.error.invalid',
     });
-    const conflict = e.code === 'conflict' ? await conflictOf(principal, itemId, revisionId) : null;
+    const conflict =
+      e.code === 'conflict' ? await conflictOf(principal, itemId, revisionId, zone) : null;
     return fail(status, {
       ...body,
       fieldIssues: [],
@@ -691,7 +702,7 @@ export const actions: Actions = {
         itemId,
         locale,
         revisionId,
-        at: instant(at),
+        at: instant(at, (await adminTimeZone(event.locals)).zone),
       })
     ),
   repin: (event) =>
