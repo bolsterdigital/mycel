@@ -98,9 +98,12 @@ export function siteSettingsRepository(
         .select(['general', 'general_version'])
         .where('tenant_id', '=', tenantId)
         .executeTakeFirst();
+      // A zone the runtime stopped knowing (a tzdata update) falls back, as an operator's does
+      // (`preferencesOf`), rather than failing every admin page of the site.
+      const parsed = row?.general == null ? null : SiteGeneral.safeParse(row.general);
       return {
         version: row?.general_version ?? 0,
-        value: row?.general == null ? DEFAULT_GENERAL : SiteGeneral.parse(row.general),
+        value: parsed?.success ? parsed.data : DEFAULT_GENERAL,
       };
     },
     updateGeneral: (baseVersion, value) =>

@@ -6,7 +6,9 @@
      Brief #81 PR 3: General (what the site is called and in which languages, read-only until
      there is a use case to change it; its time zone, #88, with its own save), the look, AI assistance (moved from its own route) and
      usage, each subject shown only to a member who may open it. With JavaScript, a changed form
-     says it is not saved yet and leaving asks first (static/_admin/unsaved.js). -->
+     says it is not saved yet and leaving asks first (static/_admin/unsaved.js).
+     The subjects are the page's `subnav` (#81-rest): the shell shows them under "Settings" in the
+     sidebar, so this screen draws no sub-navigation of its own. -->
 <script lang="ts">
   import { FONT_PAIRS, THEME_MODES, THEME_ROLES } from '@mycel/core';
   import {
@@ -30,7 +32,6 @@
   let { data, form }: PageProps = $props();
   const t = $derived(ui(data.locale));
   const base = $derived(`/admin/${data.tenant.slug}`);
-  const here = $derived(`${base}/site`);
   const extraRoles = ['link', 'focus'] as const;
   const numericFields = [
     'baseSize',
@@ -40,14 +41,7 @@
     'density',
     'headingWeight',
   ] as const;
-  const SUBJECT: Record<(typeof data.sections)[number], UiKey> = {
-    general: 'admin.site.general',
-    theme: 'admin.site.theme',
-    brand: 'admin.site.brand',
-    chrome: 'admin.site.chrome',
-    assist: 'admin.assist.title',
-    usage: 'admin.dashboard.usage',
-  };
+  const subject = $derived(data.subnav.find((s) => s.current)?.label ?? '');
   const language = $derived(new Intl.DisplayNames([data.locale], { type: 'language' }));
   const named = (locale: string) => `${language.of(locale) ?? locale} (${locale})`;
   const action = (name: string) => `?section=${data.section}&/${name}`;
@@ -81,9 +75,8 @@
 
 <svelte:head>
   <title
-    >{form?.problem ? `${t('error.prefix')} ` : ''}{t(SUBJECT[data.section])} · {t(
-      'admin.site.title'
-    )} · {data.tenant.name}</title
+    >{form?.problem ? `${t('error.prefix')} ` : ''}{subject} · {t('admin.site.title')} · {data
+      .tenant.name}</title
   >
 </svelte:head>
 
@@ -92,14 +85,6 @@
   locale={data.locale}
   breadcrumb={[{ label: data.tenant.name, href: base }, { label: t('admin.site.title') }]}
   description={t('admin.site.lead')}
-  nav={{
-    label: t('admin.site.sections'),
-    items: data.sections.map((section) => ({
-      href: section === 'general' ? here : `${here}?section=${section}`,
-      label: t(SUBJECT[section]),
-      current: section === data.section,
-    })),
-  }}
 >
   {#snippet notices()}
     {#if form?.problem}

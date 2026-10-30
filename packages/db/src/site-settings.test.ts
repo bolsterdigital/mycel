@@ -14,6 +14,7 @@ import {
 import { DEFAULT_THEME, DEFAULT_CHROME, DEFAULT_GENERAL } from '@mycel/core';
 import { createDb, createUnitOfWork, uuidv7Ids } from './index.js';
 import type { Database } from './schema.js';
+import { enterTenant } from './roles.js';
 import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
@@ -111,6 +112,22 @@ describe.skipIf(skip)('site settings conformance', () => {
     });
     expect(await invoker.run(useCases.getSiteGeneral, systemPrincipal(b, 'test'), {})).toEqual({
       version: 0,
+      value: DEFAULT_GENERAL,
+    });
+  });
+  it('falls back to the default zone when the stored one is no longer known (#81-rest)', async () => {
+    const principal = systemPrincipal(a, 'test');
+    const before = await invoker.run(useCases.getSiteGeneral, principal, {});
+    await owner.transaction().execute(async (trx) => {
+      await enterTenant(trx, a);
+      await trx
+        .updateTable('site_settings')
+        .set({ general: JSON.stringify({ timeZone: 'Mars/Olympus_Mons' }) })
+        .where('tenant_id', '=', a)
+        .execute();
+    });
+    expect(await invoker.run(useCases.getSiteGeneral, principal, {})).toEqual({
+      version: before.version,
       value: DEFAULT_GENERAL,
     });
   });
