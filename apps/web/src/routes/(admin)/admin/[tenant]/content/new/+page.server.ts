@@ -16,8 +16,10 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
   const { patterns } = await runtime().invoker.run(useCases.listPatterns, locals.principal!, {
     limit: 100,
   });
+  const type = ContentType.safeParse(url.searchParams.get('type')).data ?? 'page';
   return {
-    type: ContentType.safeParse(url.searchParams.get('type')).data ?? 'page',
+    type,
+    contentType: type,
     patterns: patterns.map((p) => ({ id: p.id, type: p.intendedType, name: p.name })),
   };
 };

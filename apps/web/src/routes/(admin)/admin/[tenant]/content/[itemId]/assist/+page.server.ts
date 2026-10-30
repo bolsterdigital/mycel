@@ -152,6 +152,7 @@ export const load: PageServerLoad = async (event) => {
       : null;
   return {
     adminLocale: parent.locale,
+    contentType: c.item.type,
     task: c.task,
     source,
     suggestion,

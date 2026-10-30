@@ -175,7 +175,7 @@ test('an admin adds a domain, sees the records, checks (not found), and cannot r
   page,
   request,
 }) => {
-  await login(page, '/admin/probe');
+  await login(page, '/admin/probe/domeinen');
   const domain = `e2e-${test.info().project.name}-${Date.now()}.example`;
   const add = formWith(page, 'Domein toevoegen');
   await add.getByLabel('Hostnaam').fill(domain.toUpperCase());
@@ -228,7 +228,7 @@ test.describe('UI gate: the domain action group at 320 CSS px and 200% text', ()
   for (const text of TEXT_SIZES) {
     test(`every button whole and no horizontal scroll, text ${text}`, async ({ page }) => {
       onlyA11y('measures the layout with a script');
-      await login(page, '/admin/probe');
+      await login(page, '/admin/probe/domeinen');
       const domain = `gate-${text.replace('%', '')}-${Date.now()}.example`;
       const add = formWith(page, 'Domein toevoegen');
       await add.getByLabel('Hostnaam').fill(domain);

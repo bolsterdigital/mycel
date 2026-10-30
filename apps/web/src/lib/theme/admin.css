@@ -153,39 +153,59 @@
     font-weight: 700;
   }
   .admin-site-name {
-    font-size: var(--step-1);
-    font-weight: 700;
-  }
-  .admin-menu summary {
-    min-height: 44px;
     display: flex;
     align-items: center;
+    min-height: 44px;
+    margin: 0;
+    font-size: var(--step-1);
+    font-weight: 700;
+    color: var(--color-body-fg);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+  }
+  .admin-site-name:hover {
+    text-decoration: underline;
+  }
+  /* On a phone the navigation is one bar with ☰ (#66 PR 1), closed until opened. From 60rem the
+     list is always shown whatever `open` says and the bar is gone: ::details-content is the slot
+     a closed <details> hides. No script either way. */
+  .admin-menu > summary {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    min-height: 44px;
+    padding-inline: 0.75rem;
     cursor: pointer;
     font-weight: 700;
+    list-style: none;
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius);
+  }
+  .admin-menu > summary::-webkit-details-marker {
+    display: none;
+  }
+  .admin-menu[open] > summary {
+    margin-block-end: var(--space-1);
   }
   .admin-menu nav {
     display: grid;
-    gap: 0.25rem;
+    gap: var(--space-2);
   }
-  .admin-menu nav a,
   .admin-sidebar-bottom > a,
   .admin-sidebar-bottom button {
     display: flex;
     align-items: center;
+    gap: 0.625rem;
     min-height: 44px;
     min-width: 0;
     padding: 0.5rem 0.75rem;
     overflow-wrap: anywhere;
     border-radius: var(--radius);
   }
-  .admin-menu nav a[aria-current='page'] {
-    color: var(--color-selected-fg);
-    background: var(--color-selected-bg);
-    font-weight: 700;
-  }
   .admin-sidebar-bottom {
     display: grid;
     gap: 0.25rem;
+    margin-block-start: var(--space-2);
     border-block-start: var(--border-width) solid var(--color-border);
     padding-block-start: var(--space-1);
   }
@@ -216,11 +236,17 @@
       position: sticky;
       inset-block-start: 0;
       height: 100vh;
+      /* Four groups at 200% text are taller than a laptop screen. */
+      overflow-y: auto;
       border-inline-end: var(--border-width) solid var(--color-border);
       border-block-end: 0;
     }
-    .admin-menu {
-      flex: 1;
+    .admin-menu > summary {
+      display: none;
+    }
+    .admin-menu::details-content {
+      content-visibility: visible;
+      display: block;
     }
   }
   /* The public column rules of base.css do not apply: the admin page sets its own width. */

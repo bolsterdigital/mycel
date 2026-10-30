@@ -1,100 +1,107 @@
 <!-- One tenant shell keeps site context and navigation across server-rendered admin routes.
-     Native links and details keep the entire route map available without JavaScript. -->
+     Native links and details keep the entire route map available without JavaScript.
+     The navigation (#66 PR 1, brief edit-screen § 4): the dashboard first, then three groups with
+     short labels and Lucide icons, Content, Library and Manage; a member sees only the items their
+     capabilities open. On a phone it folds into one ☰ bar, closed by default; from 60rem admin.css
+     shows the list whatever `open` says. Rejected: a heading "Menu" over the list, and a
+     JavaScript drawer (the details element already opens, closes and is announced). -->
 <script lang="ts">
   import { page } from '$app/state';
-  import { ui } from '../../../../i18n/index.js';
+  import { Icon, IconSprite, NavGroup, type IconName } from '#lib/admin/ui/index.js';
+  import { ui, type UiKey } from '../../../../i18n/index.js';
   import type { LayoutProps } from './$types';
 
   let { data, children }: LayoutProps = $props();
   const t = $derived(ui(data.locale));
   const base = $derived(`/admin/${data.tenant.slug}`);
   const path = $derived(page.url.pathname);
-  const section = $derived(
-    path.startsWith(`${base}/content`)
-      ? 'content'
-      : path.startsWith(`${base}/media`)
-        ? 'media'
-        : path.startsWith(`${base}/assist`)
-          ? 'assist'
-          : path.startsWith(`${base}/connections`)
-            ? 'connections'
-            : path.startsWith(`${base}/site`)
-              ? 'site'
-              : path.startsWith(`${base}/status`)
-                ? 'status'
-                : path.startsWith(`${base}/export`)
-                  ? 'export'
-                  : 'overview'
+  const within = (segment: string) =>
+    path === `${base}/${segment}` || path.startsWith(`${base}/${segment}/`);
+  /** Pages and articles are separate menu items (editor trial 2026-10-28): every content route
+   * says which type it shows as `contentType` in its page data, the editor and writer included. */
+  const contentType = $derived(
+    (page.data as { contentType?: unknown }).contentType === 'article' ? 'article' : 'page'
   );
-  /** Pages and articles are separate menu items (editor trial 2026-10-28); a content screen says which it shows. */
-  const contentType = $derived.by(() => {
-    const shown = page.data as { type?: unknown; item?: { type?: unknown } };
-    const type = page.url.searchParams.get('type') ?? shown.item?.type ?? shown.type;
-    return type === 'article' ? 'article' : 'page';
-  });
   const has = (capability: (typeof data.capabilities)[number]) =>
     data.capabilities.includes(capability) || data.capabilities.includes('tenant:admin');
+
+  type Item = { href: string; label: string; icon: IconName; current: boolean };
+  const item = (segment: string, label: UiKey, icon: IconName): Item => ({
+    href: `${base}/${segment}`,
+    label: t(label),
+    icon,
+    current: within(segment),
+  });
+  const groups = $derived.by(() => {
+    const content: Item[] = has('content:read')
+      ? (['page', 'article'] as const).map((type) => ({
+          href: `${base}/content?type=${type}`,
+          label: t(type === 'page' ? 'admin.content.filter.page' : 'admin.content.filter.article'),
+          icon: type === 'page' ? 'file-text' : 'newspaper',
+          current: within('content') && contentType === type,
+        }))
+      : [];
+    const library: Item[] = has('media:read') ? [item('media', 'admin.nav.media', 'image')] : [];
+    const manage: Item[] = [
+      ...(has('content:write') ? [item('site', 'admin.nav.settings', 'settings')] : []),
+      ...(has('tenant:admin')
+        ? [
+            item('leden', 'admin.nav.members', 'users'),
+            item('domeinen', 'admin.nav.domains', 'globe'),
+          ]
+        : []),
+      ...(has('connections:read') ? [item('connections', 'admin.nav.connections', 'plug')] : []),
+      ...(has('tenant:admin')
+        ? [
+            item('assist', 'admin.nav.assist', 'sparkles'),
+            item('export', 'admin.nav.export', 'download'),
+            item('status', 'admin.nav.status', 'activity'),
+          ]
+        : []),
+    ];
+    return [
+      { id: 'nav-content', label: t('admin.nav.group.content'), items: content },
+      { id: 'nav-library', label: t('admin.nav.group.library'), items: library },
+      { id: 'nav-manage', label: t('admin.nav.group.manage'), items: manage },
+    ];
+  });
 </script>
 
+<IconSprite />
 <a class="admin-skip" href="#admin-main">{t('admin.shell.skip')}</a>
 <div class="admin-shell">
   <aside class="admin-sidebar" aria-label={t('admin.shell.navigation')}>
     <div class="admin-sidebar-top">
       <a class="admin-brand" href="/admin">{t('admin.title')}</a>
-      <p class="admin-site-name">{data.tenant.name}</p>
+      <a class="admin-site-name" href={base}>{data.tenant.name}</a>
     </div>
-    <details class="admin-menu" open>
-      <summary>{t('admin.shell.menu')}</summary>
+    <details class="admin-menu">
+      <summary><Icon name="menu" />{t('admin.shell.menu')}</summary>
       <nav aria-label={t('admin.shell.navigation')}>
-        <a href={base} aria-current={section === 'overview' ? 'page' : undefined}
-          >{t('admin.shell.overview')}</a
-        >
-        {#if has('content:read')}
-          {#each ['page', 'article'] as const as type (type)}
-            <a
-              href="{base}/content?type={type}"
-              aria-current={section === 'content' && contentType === type ? 'page' : undefined}
-              >{t(
-                type === 'page' ? 'admin.content.filter.page' : 'admin.content.filter.article'
-              )}</a
-            >
-          {/each}
-        {/if}
-        {#if has('media:read')}
-          <a href="{base}/media" aria-current={section === 'media' ? 'page' : undefined}
-            >{t('admin.media.link')}</a
-          >
-        {/if}
-        {#if has('connections:read')}
-          <a href="{base}/connections" aria-current={section === 'connections' ? 'page' : undefined}
-            >{t('admin.connections.link')}</a
-          >
-        {/if}
-        {#if has('content:write')}
-          <a href="{base}/site" aria-current={section === 'site' ? 'page' : undefined}
-            >{t('admin.shell.settings')}</a
-          >
-        {/if}
-        {#if has('tenant:admin')}
-          <a href="{base}/assist" aria-current={section === 'assist' ? 'page' : undefined}
-            >{t('admin.assist.title')}</a
-          >
-          <a href="{base}/status" aria-current={section === 'status' ? 'page' : undefined}
-            >{t('admin.status.link')}</a
-          >
-          <a href="{base}/export" aria-current={section === 'export' ? 'page' : undefined}
-            >{t('admin.export.link')}</a
-          >
-        {/if}
+        <NavGroup
+          id="nav-home"
+          items={[
+            {
+              href: base,
+              label: t('admin.nav.dashboard'),
+              icon: 'layout-dashboard',
+              current: path === base,
+            },
+          ]}
+        />
+        {#each groups as group (group.id)}
+          <NavGroup id={group.id} label={group.label} items={group.items} />
+        {/each}
       </nav>
+      <div class="admin-sidebar-bottom">
+        <a href="/admin"><Icon name="arrow-left-right" />{t('admin.back')}</a>
+        <p>{data.email}</p>
+        <form method="post" action="/admin/logout">
+          <button type="submit" class="secondary"><Icon name="log-out" />{t('admin.logout')}</button
+          >
+        </form>
+      </div>
     </details>
-    <div class="admin-sidebar-bottom">
-      <a href="/admin">{t('admin.back')}</a>
-      <p>{data.email}</p>
-      <form method="post" action="/admin/logout">
-        <button type="submit" class="secondary">{t('admin.logout')}</button>
-      </form>
-    </div>
   </aside>
   <div class="admin-workspace" id="admin-main" tabindex="-1">
     {@render children()}

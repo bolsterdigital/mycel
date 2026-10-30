@@ -15,6 +15,7 @@ import {
   CardGrid,
   Checkbox,
   Choices,
+  DashboardWidget,
   DetailPage,
   Dialog,
   EditPage,
@@ -23,7 +24,11 @@ import {
   Fieldset,
   FileDrop,
   FormPage,
+  ICONS,
+  Icon,
+  IconSprite,
   MetaList,
+  NavGroup,
   Notice,
   OverviewPage,
   PageHeader,
@@ -35,6 +40,7 @@ import {
   SubNav,
   SystemState,
   Table,
+  Tabs,
   ViewSwitch,
 } from './index.js';
 
@@ -579,5 +585,88 @@ describe('Dialog', () => {
       /<dialog class="ui-dialog wide" id="lightbox" aria-labelledby="lightbox-title" closedby="any">/
     );
     expect(out).toMatch(/commandfor="lightbox" command="close">Sluiten<\/button>/);
+  });
+});
+
+// #66 PR 1: the shell's navigation, its icons, the tabs of the edit screen and the dashboard.
+describe('Icon and IconSprite', () => {
+  it('draws a hidden local reference to one symbol of the sprite', () => {
+    const out = html(Icon, { name: 'globe' });
+    expect(out).toMatch(/^<svg class="ui-icon" aria-hidden="true" focusable="false"/);
+    expect(out).toContain('<use href="#icon-globe">');
+  });
+  it('holds every icon once, hidden, with no external reference', () => {
+    const out = html(IconSprite, {});
+    expect(out).toMatch(/^<svg class="ui-icon-sprite" aria-hidden="true"/);
+    for (const name of Object.keys(ICONS)) {
+      expect(out.split(`id="icon-${name}"`)).toHaveLength(2);
+    }
+    expect(out).not.toMatch(/href=|xlink/);
+  });
+});
+
+describe('NavGroup', () => {
+  const items = [
+    { href: '/a', label: 'Pages', icon: 'file-text' as const, current: true },
+    { href: '/b', label: 'Articles', icon: 'newspaper' as const },
+  ];
+  it('names its list by its label, not a heading, and marks the current link', () => {
+    const out = html(NavGroup, { id: 'g', label: 'Content', items });
+    expect(out).toContain('<p class="ui-navgroup-label" id="g-label">Content</p>');
+    expect(out).toContain('<ul aria-labelledby="g-label">');
+    expect(out).not.toMatch(/<h\d/);
+    expect(out).toMatch(
+      /<a href="\/a" aria-current="page"><svg class="ui-icon"[^]*?<span>Pages<\/span><\/a>/
+    );
+    expect(out).not.toMatch(/href="\/b" aria-current/);
+  });
+  it('has no label when none is given, and renders nothing without items', () => {
+    expect(html(NavGroup, { id: 'g', items })).not.toContain('aria-labelledby');
+    expect(html(NavGroup, { id: 'g', label: 'Library', items: [] })).toBe('');
+  });
+});
+
+describe('Tabs', () => {
+  const tabs = [
+    { id: 'content', label: 'Content', content: text('Title and blocks') },
+    { id: 'seo', label: 'Findability', content: text('Slug') },
+  ];
+  it('renders every section with its heading, and a hidden tablist for the script', () => {
+    const out = html(Tabs, { id: 't', label: 'Item', tabs });
+    expect(out).toMatch(/<div class="ui-tabs-list" role="tablist" aria-label="Item" hidden/);
+    expect(out).toMatch(
+      /<section class="ui-tabs-panel" id="t-seo" aria-labelledby="t-seo-title"><h2 class="ui-tabs-title" id="t-seo-title">Findability<\/h2>\s*<span>Slug<\/span><\/section>/
+    );
+    expect(out).toContain('<span>Title and blocks</span>');
+  });
+  it('selects the first tab and leaves the others out of the tab order', () => {
+    const out = html(Tabs, { id: 't', label: 'Item', tabs, level: 3 });
+    expect(out).toContain(
+      'id="t-tab-content" aria-controls="t-content" aria-selected="true" tabindex="0"'
+    );
+    expect(out).toContain(
+      'id="t-tab-seo" aria-controls="t-seo" aria-selected="false" tabindex="-1"'
+    );
+    expect(out).toContain('<h3 class="ui-tabs-title"');
+  });
+});
+
+describe('DashboardWidget', () => {
+  it('is a region named by its heading, with its content', () => {
+    const out = html(DashboardWidget, {
+      id: 'w',
+      title: 'Usage and limits',
+      locale: 'en',
+      children: text('3 of 5'),
+    });
+    expect(out).toMatch(
+      /^<section class="ui-widget" aria-labelledby="w"><h2 class="ui-widget-title" id="w">Usage and limits<\/h2>\s*<span>3 of 5<\/span>/
+    );
+  });
+  it('says in the admin locale that an empty widget comes later', () => {
+    const out = html(DashboardWidget, { id: 'w', title: 'Bezoek', locale: 'nl', level: 3 });
+    expect(out).toContain('class="ui-widget empty"');
+    expect(out).toContain('<h3 class="ui-widget-title" id="w">Bezoek</h3>');
+    expect(out).toContain('<p class="ui-widget-later">Komt later.</p>');
   });
 });

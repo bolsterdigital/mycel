@@ -41,6 +41,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
     params.blockId
   );
   return {
+    contentType: item.type,
     item: {
       id: item.id,
       type: item.type,
