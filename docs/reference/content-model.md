@@ -139,3 +139,14 @@ Migration 0011 converts every row of `pages` in SQL, once, inside the migration'
 ## Not here yet
 
 Blocks inside other blocks, named slots and composed blocks (the operations address one flat list until a container block exists) #11; tenant theme storage and theme editing #11 (the contract is in [theme.md](theme.md)); SEO output, feeds and redirects #9; the editor #11; reader access #19. Archive and list pages, feeds, sitemap and `llms.txt` #9; the teaser and the reader's view in every representation #19.
+
+## Constants
+
+| Constant            | Value         | Where                                                                            | Why                                                               |
+| ------------------- | ------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| slug length         | 63 characters | `packages/core/src/content/model.ts`                                             | the longest slug `slugFromTitle` produces                         |
+| free slug attempts  | 100           | `packages/core/src/content/service.ts`                                           | `-2` up to `-100` are tried before create refuses with `conflict` |
+| `DEFAULT_PAGE_SIZE` | 20            | `packages/core/src/content/service.ts`                                           | one page of a content list when no `limit` is given               |
+| list `limit`        | at most 100   | `packages/core/src/content/service.ts`                                           | bounds one page of a content list                                 |
+| `MAX_TAGS`          | 20            | `packages/core/src/content/model.ts`                                             | tags per article                                                  |
+| autosave delay      | 650 ms        | `apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/write/+page.svelte` | the writer saves after a pause in typing, not on every keystroke  |

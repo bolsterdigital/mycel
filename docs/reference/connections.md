@@ -36,3 +36,14 @@ Both require `connections:replay`. Completed, blocked, failed and resolved inten
 ## Storage
 
 Migration 0025 adds `connection_intents` and append-only `connection_attempts`, both under forced tenant RLS; 0028 narrows their value sets. Both are operational and excluded from portable tenant exports: importing unfinished work into another installation could duplicate effects. Installation backups retain them for recovery. Erasure detaches the supporter id, invalidates the worker lease and preserves anonymous success, uncertainty or manual resolution; pending work becomes blocked. The remaining business id is an opaque UUID, not an address or a submitted payload. This does not assert that an external copy was erased. Real-data sources, provider-specific suppression and reconciliation, and administration of external copies are not built yet.
+
+## Constants
+
+| Constant                          | Value                                                       | Where                                       | Why                                                             |
+| --------------------------------- | ----------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------- |
+| `CONNECTION_LEASE_MS`             | 60 s                                                        | `packages/core/src/connections/dispatch.ts` | another worker cannot claim an intent while an attempt holds it |
+| backoff                           | 60 s times 2 to the power of the attempt count, at most 1 h | `packages/core/src/connections/dispatch.ts` | spaces automatic retries and reconciliation                     |
+| `CONNECTION_MAX_ATTEMPTS`         | 5                                                           | `packages/core/src/connections/intents.ts`  | the automatic budget dispatch and reconciliation share          |
+| `connections:dispatch` rate limit | 60 claims per tenant per 60 s                               | `packages/core/src/connections/dispatch.ts` | one tenant cannot flood the engine                              |
+| rate-limited retry                | 60 s                                                        | `packages/core/src/connections/dispatch.ts` | a claim over the rate limit is planned again a minute later     |
+| `WEBHOOK_TIMEOUT_MS`              | 5 s                                                         | `packages/api/src/webhook.ts`               | socket idle timeout and overall deadline of one delivery        |

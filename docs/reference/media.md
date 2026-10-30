@@ -108,3 +108,19 @@ The renderer (#8c) reads the asset with `media.get` (or the repository in the sa
 ## A later delivery adapter
 
 A CDN or an image service (ImageKit) is another `MediaDelivery`: `variantPath` returns its URL for the same `(id, file)`, `signedVariantPath` its signed form. The variants and their names stay what this page lists, so content and the register do not change; the composition root (`packages/api/src/compose.ts`, `media.delivery`) is the only place that changes. Moving files between stores is a copy of the `tenants/` prefix; the keys are the contract.
+
+## Constants
+
+| Constant               | Value                        | Where                                | Why                                                                 |
+| ---------------------- | ---------------------------- | ------------------------------------ | ------------------------------------------------------------------- |
+| `MAX_UPLOAD_BYTES`     | 25 MiB                       | `packages/core/src/media/model.ts`   | decoded upload size; the base64 body is a third larger              |
+| `MAX_PIXELS`           | 50,000,000                   | `packages/core/src/media/model.ts`   | refuses decompression bombs                                         |
+| `VARIANT_WIDTHS`       | 320, 640, 960, 1280, 1920 px | `packages/core/src/media/model.ts`   | fixed variant widths, never upscaled                                |
+| `VARIANT_FORMATS`      | `avif`, `webp`               | `packages/core/src/media/model.ts`   | one `<source>` per format in `<picture>`                            |
+| `THUMB_WIDTH`          | 160 px                       | `packages/core/src/media/model.ts`   | the `thumb.webp` the admin and picker show                          |
+| `MEDIA_PURGE_DELAY_MS` | 24 h                         | `packages/core/src/media/model.ts`   | a backup or export that began before a delete still finds the files |
+| `ORPHAN_AGE_MS`        | 24 h                         | `packages/core/src/media/service.ts` | younger orphans may belong to an upload that has not committed      |
+| `ORIGINAL_TTL_MS`      | 10 min                       | `apps/web/src/lib/server/media.ts`   | how long a signed download link for an original works               |
+| `media.list` `limit`   | default 50, at most 100      | `packages/core/src/media/service.ts` | bounds one page of the library                                      |
+| `PART_BYTES`           | 16 MiB                       | `packages/blob/src/s3.ts`            | one part in memory at a time, and 10,000 parts reach 160 GiB        |
+| `BATCH`                | 1,000 keys                   | `packages/blob/src/s3.ts`            | DeleteObjects takes at most a thousand keys per call                |
