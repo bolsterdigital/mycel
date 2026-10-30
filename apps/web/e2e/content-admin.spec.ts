@@ -1321,6 +1321,8 @@ test.describe('content-blocks', () => {
 // proof covers autosave, axe and the action layout at 320 CSS px with 200% text; the no-JS
 // project proves the adjacent form can write the same prose without hydrating the editor.
 test.describe('article-writing', () => {
+  test.use({ locale: 'nl-NL' });
+
   async function article(request: APIRequestContext) {
     const slug = `writer-${test.info().project.name}-${Date.now()}`;
     const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
@@ -1464,10 +1466,10 @@ test.describe('article-writing', () => {
     await page.getByRole('button', { name: 'Mijn tekst behouden' }).click();
     await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');
     await page.goto(edit);
-    await expect(page.getByLabel('Title (nl)')).toHaveValue('Nieuwe kop van collega');
+    await expect(page.getByLabel('Titel (nl)')).toHaveValue('Nieuwe kop van collega');
     const prose = page.locator('details.block').first();
     await prose.locator(':scope > summary').click();
-    await expect(prose.getByLabel('Text (nl)')).toHaveValue('Mijn nieuwe tekst');
+    await expect(prose.getByLabel('Tekst (nl)')).toHaveValue('Mijn nieuwe tekst');
   });
 
   test('pasted image waits for media and alternative text before saving', async ({
