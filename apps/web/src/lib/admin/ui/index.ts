@@ -11,6 +11,7 @@ export { default as CardGrid } from './CardGrid.svelte';
 export { default as Checkbox } from './Checkbox.svelte';
 export { default as Choices } from './Choices.svelte';
 export { default as ConfirmAction } from './ConfirmAction.svelte';
+export { default as CopyField } from './CopyField.svelte';
 export { default as DetailPage } from './DetailPage.svelte';
 export { default as DashboardWidget } from './DashboardWidget.svelte';
 export { default as Dialog } from './Dialog.svelte';

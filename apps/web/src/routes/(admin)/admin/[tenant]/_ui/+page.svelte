@@ -14,6 +14,7 @@
     Checkbox,
     Choices,
     ConfirmAction,
+    CopyField,
     Dialog,
     EmptyState,
     Field,
@@ -315,6 +316,12 @@
     >
       <p>{t('admin.keys.token.body')}</p>
     </KeyReveal>
+    <CopyField
+      id="ui-copy-field"
+      label="{t('admin.domains.dns.txt')}: {t('admin.domains.dns.value')}"
+      value="Xk3vQ9pL2mN7rT1wY5zA8bC4dE6fG0hJ-sU2iO3kP9q"
+      locale={data.locale}
+    />
   </section>
   <section aria-labelledby="ui-navigation">
     <h2 id="ui-navigation">{t('admin.ui.catalogue.navigation')}</h2>

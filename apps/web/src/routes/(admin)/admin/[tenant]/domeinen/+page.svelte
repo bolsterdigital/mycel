@@ -1,13 +1,29 @@
-<!-- The site's hostnames (TODO #14), moved verbatim from the tenant home when it became the
-     dashboard (#66 PR 1); dev turns it into its own screen in #81. Every action is a native form
-     post. Action groups wrap whole buttons onto a new line when they do not fit, and a long label
-     wraps inside its own button at word boundaries (skill ui-action-layout); the e2e specs check
-     320 CSS px and 200% text.
-     On the shared basis (brief #56 § C3): page header, notices, and every domain a form around a
-     card with its buttons as one `Actions` group. The form wraps the card, not the other way
-     round, so a card's buttons share one form via `formaction`. -->
+<!-- The site's hostnames (brief #81 PR 2, nail-brief admin-settings-screens): one row per hostname
+     with its kind, primary and verification as badges, the DNS records to set as values to copy,
+     and the row's actions: check the DNS again, make primary, and remove with a confirmation in
+     the row. Adding a domain happens in a dialog.
+     The server actions are those moved from the tenant home in #66 PR 1, unchanged: every control
+     is still a native form post to them, with or without JavaScript (the dialog is an invoker
+     button, the confirmation a <details>, the copy buttons an enhancement that stays hidden
+     without the script). The form wraps the card, not the other way round, so a card's buttons
+     share one form via `formaction`. Action groups wrap whole buttons; a long label wraps inside
+     its own button at word boundaries (skill ui-action-layout); the UI gate measures this page at
+     320 CSS px and 200% text with every disclosure open (e2e/routes.ts).
+     Rejected: a table of hostnames (four DNS values and three actions do not fit a table row at
+     320 CSS px) and a page per domain (the records and the check belong next to each other). -->
 <script lang="ts">
-  import { Actions, Badge, Button, Card, Field, Notice, PageHeader } from '#lib/admin/ui/index.js';
+  import {
+    Actions,
+    Badge,
+    Button,
+    Card,
+    ConfirmAction,
+    CopyField,
+    Dialog,
+    Field,
+    Notice,
+    PageHeader,
+  } from '#lib/admin/ui/index.js';
   import { fill, ui, type UiKey } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -79,7 +95,36 @@
   <section aria-labelledby="domains">
     <h2 id="domains">{t('admin.domains.title')}</h2>
     <p>{t('admin.domains.intro')}</p>
-    {#each data.hostnames as h (h.hostname)}
+    <Actions>
+      <Dialog
+        id="add-domain"
+        title={t('admin.domains.add.title')}
+        trigger={t('admin.domains.add.title')}
+        variant="primary"
+        locale={data.locale}
+      >
+        <form method="post" action="?/addHostname" class="ui-fields">
+          <Field
+            id="add-hostname"
+            name="hostname"
+            type="text"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            required
+            maxlength={300}
+            label={t('admin.domains.add.hostname')}
+            hint={t('admin.domains.add.hint')}
+            locale={data.locale}
+            value={failed?.action === 'addHostname' ? (failed.hostname ?? '') : ''}
+          />
+          <Actions>
+            <Button>{t('admin.domains.add.submit')}</Button>
+          </Actions>
+        </form>
+      </Dialog>
+    </Actions>
+    {#each data.hostnames as h, i (h.hostname)}
       <form
         method="post"
         action={h.kind === 'custom' ? '?/verifyHostname' : '?/setPrimaryHostname'}
@@ -119,26 +164,30 @@
           {/if}
           {#if h.dns}
             <h4>{t('admin.domains.dns.title')}</h4>
-            <div class="ui-meta-host">
-              <dl class="ui-meta">
-                <div>
-                  <dt>{t('admin.domains.dns.txt')}: {t('admin.domains.dns.name')}</dt>
-                  <dd><code>{h.dns.txt.name}</code></dd>
-                </div>
-                <div>
-                  <dt>{t('admin.domains.dns.txt')}: {t('admin.domains.dns.value')}</dt>
-                  <dd><code class="dns-value">{h.dns.txt.value}</code></dd>
-                </div>
-                <div>
-                  <dt>{t('admin.domains.dns.cname')}: {t('admin.domains.dns.name')}</dt>
-                  <dd><code>{h.dns.cname.name}</code></dd>
-                </div>
-                <div>
-                  <dt>{t('admin.domains.dns.cname')}: {t('admin.domains.dns.target')}</dt>
-                  <dd><code>{h.dns.cname.target}</code></dd>
-                </div>
-              </dl>
-            </div>
+            <CopyField
+              id="dns-{i}-txt-name"
+              label="{t('admin.domains.dns.txt')}: {t('admin.domains.dns.name')}"
+              value={h.dns.txt.name}
+              locale={data.locale}
+            />
+            <CopyField
+              id="dns-{i}-txt-value"
+              label="{t('admin.domains.dns.txt')}: {t('admin.domains.dns.value')}"
+              value={h.dns.txt.value}
+              locale={data.locale}
+            />
+            <CopyField
+              id="dns-{i}-cname-name"
+              label="{t('admin.domains.dns.cname')}: {t('admin.domains.dns.name')}"
+              value={h.dns.cname.name}
+              locale={data.locale}
+            />
+            <CopyField
+              id="dns-{i}-cname-target"
+              label="{t('admin.domains.dns.cname')}: {t('admin.domains.dns.target')}"
+              value={h.dns.cname.target}
+              locale={data.locale}
+            />
             <p class="ui-hint">{t('admin.domains.dns.apex')}</p>
           {/if}
           <input type="hidden" name="hostname" value={h.hostname} />
@@ -153,36 +202,18 @@
                 >
               {/if}
               {#if h.kind === 'custom' && !h.primary}
-                <Button variant="secondary" formaction="?/removeHostname"
-                  >{t('admin.domains.remove')}</Button
-                >
+                <ConfirmAction
+                  label={t('admin.domains.remove')}
+                  question={t('admin.domains.removeQuestion')}
+                  confirm={t('admin.domains.removeConfirm')}
+                  name={h.hostname}
+                  formaction="?/removeHostname"
+                />
               {/if}
             </Actions>
           {/if}
         </Card>
       </form>
     {/each}
-
-    <form method="post" action="?/addHostname" class="ui-card-form">
-      <Card title={t('admin.domains.add.title')}>
-        <Field
-          id="add-hostname"
-          name="hostname"
-          type="text"
-          autocomplete="off"
-          autocapitalize="off"
-          spellcheck="false"
-          required
-          maxlength={300}
-          label={t('admin.domains.add.hostname')}
-          hint={t('admin.domains.add.hint')}
-          locale={data.locale}
-          value={failed?.action === 'addHostname' ? (failed.hostname ?? '') : ''}
-        />
-        <Actions>
-          <Button>{t('admin.domains.add.submit')}</Button>
-        </Actions>
-      </Card>
-    </form>
   </section>
 </main>

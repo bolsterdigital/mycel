@@ -16,6 +16,7 @@ import {
   Checkbox,
   Choices,
   ConfirmAction,
+  CopyField,
   DashboardWidget,
   DetailPage,
   Dialog,
@@ -642,6 +643,26 @@ describe('KeyReveal', () => {
     );
     expect(out).toContain('data-copied="Gekopieerd"');
     // The enhancement is a same-origin module in the head, the only script it brings.
+    expect(rendered.head).toContain('<script type="module" src="/_admin/copy.js"></script>');
+  });
+});
+
+// #81 PR 2: the domains screen.
+describe('CopyField', () => {
+  it('shows a labelled value with a copy button named after the label, hidden without script', () => {
+    const props = { id: 'dns-0-txt-value', label: 'TXT record: Value', value: 'abc', locale: 'en' };
+    const rendered = render(CopyField as Component<Record<string, unknown>>, { props });
+    const out = html(CopyField, props);
+    expect(out).toContain(
+      '<span class="ui-copy-label" id="dns-0-txt-value-label">TXT record: Value</span>'
+    );
+    // A <code>, not an <output>: no live region per value.
+    expect(out).toContain('<code class="ui-copy-value" id="dns-0-txt-value">abc</code>');
+    expect(out).not.toContain('<output');
+    expect(out).toMatch(
+      /<button class="ui-button secondary" type="button" hidden="" id="dns-0-txt-value-copy" aria-labelledby="dns-0-txt-value-copy dns-0-txt-value-label" data-copy="dns-0-txt-value"/
+    );
+    expect(out).toContain('>Copy</button>');
     expect(rendered.head).toContain('<script type="module" src="/_admin/copy.js"></script>');
   });
 });

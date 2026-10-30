@@ -197,6 +197,9 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.domains.check': 'DNS controleren',
   'admin.domains.makePrimary': 'Primair maken',
   'admin.domains.remove': 'Verwijderen',
+  'admin.domains.removeQuestion':
+    'De site is daarna niet meer op deze hostnaam te bereiken. Je kunt het domein later opnieuw toevoegen en verifiëren.',
+  'admin.domains.removeConfirm': 'Ja, verwijderen',
   'admin.domains.add.title': 'Domein toevoegen',
   'admin.domains.add.hostname': 'Hostnaam',
   'admin.domains.add.hint':
@@ -913,7 +916,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.ui.catalogue.subnav.general': 'Algemeen',
   'admin.ui.catalogue.subnav.theme': 'Thema',
   'admin.ui.catalogue.subnav.domains': 'Domeinen',
-  'admin.ui.catalogue.confirm': 'Bevestigen in de rij en eenmalig tonen',
+  'admin.ui.catalogue.confirm': 'Bevestigen in de rij, eenmalig tonen en kopiëren',
   'admin.ui.catalogue.dialog': 'Dialoogvenster',
   'admin.ui.catalogue.dialog.open': 'Op ware grootte bekijken',
   'admin.ui.catalogue.dialog.body':
