@@ -4,6 +4,7 @@
 // without touching them.
 export { default as Actions } from './Actions.svelte';
 export { default as Badge } from './Badge.svelte';
+export { default as BlockCard } from './BlockCard.svelte';
 export { default as Breadcrumb } from './Breadcrumb.svelte';
 export { default as Button } from './Button.svelte';
 export { default as Card } from './Card.svelte';

@@ -1,8 +1,8 @@
 <!-- Sections of one screen that a script may show as tabs (brief edit-screen § 6). The server
      renders every section below the other, each with its heading, so without JavaScript nothing
-     is out of reach. The tablist is in the markup but `hidden`: the admin's edit-screen script
-     (#66 PR 6) unhides it, gives the sections role="tabpanel" and shows one at a time, with the
-     arrow keys of the ARIA tabs pattern. Rejected: links to `?tab=` (a page load per tab, and a
+     is out of reach. The tablist is in the markup but `hidden`: static/_admin/tabs.js (#66 PR 3),
+     loaded by the screen that wants tabs, unhides it, gives the sections role="tabpanel" and
+     shows one at a time, with the arrow keys of the ARIA tabs pattern and the tab in the hash. Rejected: links to `?tab=` (a page load per tab, and a
      form split over URLs loses what was typed) and radio buttons with :checked CSS (a form
      control for navigation, announced as a choice). -->
 <script lang="ts">

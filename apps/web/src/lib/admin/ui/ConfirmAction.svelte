@@ -16,6 +16,8 @@
     confirm,
     name,
     formaction,
+    variant = 'secondary',
+    field,
   }: {
     /** The action, on the summary: "Revoke". */
     label: string;
@@ -26,17 +28,23 @@
     name?: string | undefined;
     /** The action the submit posts to, when the row's form has another. */
     formaction?: string | undefined;
+    /** `link` in a row of light actions, such as a block card's head (#66 PR 3). */
+    variant?: 'secondary' | 'link';
+    /** The submit's own name and value, when the form tells several rows apart by it. */
+    field?: { name: string; value: string } | undefined;
   } = $props();
 </script>
 
 <details class="ui-fold ui-confirm">
-  <summary class="ui-button secondary">{label}</summary>
+  <summary class="ui-button {variant}">{label}</summary>
   <div class="ui-confirm-body">
     <p>{question}</p>
     <button
       class="ui-button danger"
       type="submit"
       {formaction}
+      name={field?.name}
+      value={field?.value}
       aria-label={name ? `${confirm}: ${name}` : undefined}>{confirm}</button
     >
   </div>

@@ -222,6 +222,16 @@
     width: 100%;
     text-align: start;
   }
+  /* Signing out is one of the menu's lines, not a button that outweighs them (#87-rest): in the
+     rail an outlined button was the heaviest thing on screen. */
+  .admin-sidebar-bottom .admin-logout {
+    font-weight: inherit;
+    color: inherit;
+    background: none;
+  }
+  .admin-sidebar-bottom .admin-logout:hover {
+    text-decoration: underline;
+  }
   /* The collapse button (#87): absent until static/_admin/nav.js has run, and only from 60rem,
      where the menu is a sidebar; it shows the label of what it will do. */
   .admin-sidebar-bottom .admin-collapse {

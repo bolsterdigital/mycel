@@ -255,7 +255,12 @@ test.describe('admin-shell', () => {
       const picker = (s: { src: string | null }) => s.src === '/_admin/media-picker.js';
       // Every tenant route carries the menu's collapse script (#87), a classic one in <head>.
       expect(all).toContainEqual({ src: '/_admin/nav.js', type: null });
-      const scripts = all.filter((s) => !picker(s) && s.src !== '/_admin/nav.js');
+      // The edit screen's sections become tabs with a module of their own (#66 PR 3).
+      const tabs = { src: '/_admin/tabs.js', type: 'module' };
+      if (/\/content\/[^/]+$/.test(path)) expect(all).toContainEqual(tabs);
+      const scripts = all.filter(
+        (s) => !picker(s) && s.src !== '/_admin/nav.js' && s.src !== tabs.src
+      );
       if (all.some(picker)) {
         expect(path).toMatch(/\/content\/[^/]+$/);
         expect(all.filter(picker).every((s) => s.type === 'module')).toBe(true);

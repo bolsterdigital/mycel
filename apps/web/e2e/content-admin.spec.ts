@@ -81,6 +81,11 @@ test.describe('content-admin', () => {
     `a1-${what}-${test.info().project.name}-${Date.now()}`.toLowerCase();
 
   /** Make a page in nl and en through the "new" form; returns its edit URL. */
+  /** With JavaScript the edit screen's sections are tabs (#66 PR 3): show the one named. */
+  async function showTab(page: Page, name: string) {
+    if (isA11y()) await page.getByRole('tab', { name, exact: true }).click();
+  }
+
   async function newPage(page: Page, slug: string, title: string): Promise<string> {
     await page.goto('/admin/probe/content/new?type=page');
     await page.getByLabel('Slug').fill(slug);
@@ -116,8 +121,10 @@ test.describe('content-admin', () => {
     await expectNoAxeViolations(page);
 
     await page.getByLabel('Titel (nl)').fill('Over onze buurt');
-    // Search settings are folded away until asked for (skill cms-inrichting).
-    await page.locator('summary', { hasText: 'Zoeken en delen' }).click();
+    // Search settings are a tab away with JavaScript, folded away without (skill
+    // cms-inrichting); the tab opens its one fold itself (#66 PR 3).
+    if (isA11y()) await page.getByRole('tab', { name: 'Zoeken en delen' }).click();
+    else await page.locator('summary', { hasText: 'Zoeken en delen' }).click();
     await page.getByLabel('Titel in zoekresultaten (nl)').fill('De buurt');
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await expect(page).toHaveURL(`${edit}?saved`);
@@ -147,7 +154,9 @@ test.describe('content-admin', () => {
     const slug = slugFor('preview');
     await newPage(page, slug, 'Nog geheim');
 
-    const link = page.getByRole('link', { name: 'Voorbeeld (en)' });
+    // With JavaScript the bar's preview links give way to the toggle (#66 PR 3): the hook finds
+    // them either way.
+    const link = page.locator('a[data-preview-link="en"]');
     await expect(link).toHaveAttribute('target', '_blank');
     const href = (await link.getAttribute('href'))!;
     const response = await page.goto(href);
@@ -179,6 +188,78 @@ test.describe('content-admin', () => {
     });
   });
 
+  test('the edit screen shows its sections as tabs with JavaScript, all of them without', async ({
+    page,
+  }) => {
+    await login(page, '/admin/probe');
+    const edit = await newPage(page, slugFor('tabs'), 'Tabbladen');
+    const titles = ['Inhoud', 'Zoeken en delen', 'Instellingen'];
+    if (!isA11y()) {
+      // No script: every section below the other, each under its own heading.
+      for (const name of titles)
+        await expect(page.getByRole('heading', { level: 2, name, exact: true })).toBeVisible();
+      await expect(page.getByRole('tablist')).toBeHidden();
+      return;
+    }
+    const list = page.getByRole('tablist', { name: 'Onderdelen van dit item' });
+    await expect(list.getByRole('tab')).toHaveText(titles);
+    await expect(page.getByRole('tabpanel')).toHaveCount(1);
+    await expect(page.getByRole('tabpanel', { name: 'Inhoud' })).toBeVisible();
+    await expect(page.locator('#title\\.nl')).toBeVisible();
+    // The arrow keys of the ARIA tabs pattern: focus moves and shows its panel.
+    await list.getByRole('tab', { name: 'Inhoud' }).focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(list.getByRole('tab', { name: 'Zoeken en delen' })).toBeFocused();
+    await expect(list.getByRole('tab', { name: 'Zoeken en delen' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
+    await expect(page.getByLabel('Titel in zoekresultaten (nl)')).toBeVisible();
+    await expect(page.locator('#title\\.nl')).toBeHidden();
+    await page.keyboard.press('End');
+    await expect(page.getByRole('tabpanel', { name: 'Instellingen' })).toBeVisible();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByRole('tabpanel', { name: 'Inhoud' })).toBeVisible();
+    // The chosen tab is the hash: a reload comes back on it, and it is the same form.
+    await list.getByRole('tab', { name: 'Zoeken en delen' }).click();
+    await expect(page).toHaveURL(`${edit}#item-tabs-findability`);
+    await page.getByLabel('Titel in zoekresultaten (nl)').fill('Getabd');
+    await page.reload();
+    await expect(page.getByRole('tabpanel', { name: 'Zoeken en delen' })).toBeVisible();
+    await list.getByRole('tab', { name: 'Inhoud' }).click();
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
+    await expectNoAxeViolations(page);
+
+    // B: a required field on a hidden tab. The browser refuses the submit and focuses the field,
+    // so its panel shows first.
+    await page.locator('#title\\.nl').fill('');
+    await list.getByRole('tab', { name: 'Zoeken en delen' }).click();
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(page.getByRole('tabpanel', { name: 'Inhoud' })).toBeVisible();
+    await expect(page.locator('#title\\.nl')).toBeFocused();
+    await page.locator('#title\\.nl').fill('Tabbladen');
+
+    // A: the server refuses a field on another tab. The page comes back on that tab, and the
+    // summary's link shows it again from any tab and focuses the field.
+    await list.getByRole('tab', { name: 'Zoeken en delen' }).click();
+    await page.locator('[name="canonical"]').fill('geen url');
+    await list.getByRole('tab', { name: 'Inhoud' }).click();
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    const summary = page.getByRole('alert');
+    const link = summary.getByRole('link', {
+      name: 'Canoniek adres (optioneel, begint met https://)',
+    });
+    await expect(summary).toContainText('Het canonieke adres moet beginnen met https://');
+    await expect(page.getByRole('tabpanel', { name: 'Zoeken en delen' })).toBeVisible();
+    await expect(page.locator('#canonical')).toHaveAttribute('aria-invalid', 'true');
+    await list.getByRole('tab', { name: 'Inhoud' }).click();
+    await link.click();
+    await expect(page.getByRole('tabpanel', { name: 'Zoeken en delen' })).toBeVisible();
+    await expect(page.locator('#canonical')).toBeFocused();
+    await expectNoAxeViolations(page);
+  });
+
   test('live preview shows unsaved fields, isolates tenants and opens a clicked block', async ({
     page,
     browser,
@@ -195,6 +276,40 @@ test.describe('content-admin', () => {
     await page.getByLabel('Tekst (en)').fill('Saved heading');
     await page.getByRole('button', { name: 'Toevoegen en opslaan' }).click();
     await expect(page).toHaveURL(/\?saved&block=/);
+
+    // Closed by default (#66 PR 3): the eye in the bar takes the place of the saved-preview links,
+    // which move into the preview itself.
+    const toggle = page.getByRole('button', { name: 'Voorbeeld', exact: true });
+    const panel = page.locator('[data-live-preview]');
+    const side = page.locator('.ui-edit-side');
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await expect(panel).toBeHidden();
+    await expect(page.locator('.ui-item-bar a[data-preview-link]')).toHaveCount(2);
+    await expect(page.locator('.ui-item-bar a[data-preview-link]').first()).toBeHidden();
+    await expect(side).toBeVisible();
+    // Open on a wide screen: a column beside the text, the side column steps aside.
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    await expect(panel).toBeVisible();
+    await expect(side).toBeHidden();
+    const main = (await page.locator('.ui-edit-main').boundingBox())!;
+    const beside = (await panel.boundingBox())!;
+    expect(beside.x).toBeGreaterThanOrEqual(main.x + main.width);
+    expect(beside.y).toBeLessThan(main.y + 200);
+    await expect(
+      panel.getByRole('link', { name: 'Opgeslagen versie in nieuw tabblad (nl)' })
+    ).toBeVisible();
+    await expectNoAxeViolations(page);
+    // The state in the bar points into the side column: following it closes the preview.
+    await page.locator('.ui-item-bar-state').click();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await expect(side).toBeVisible();
+    // The browser remembers the choice.
+    await toggle.click();
+    await page.reload();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    await page.setViewportSize({ width: 1280, height: 720 });
 
     const frame = page.frameLocator('[data-live-preview-frame]');
     await expect(frame.getByRole('heading', { level: 1, name: 'Saved title' })).toBeVisible();
@@ -397,6 +512,7 @@ test.describe('content-admin', () => {
 
     // A validation error on the new base must preserve the same choices too. They still
     // are not in the latest document, and the section/old author are outside the directory page.
+    await showTab(page, 'Zoeken en delen');
     await page.locator('[name="canonical"]').fill('not-a-url');
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await expect(page.getByRole('alert')).toBeVisible();
@@ -407,6 +523,7 @@ test.describe('content-admin', () => {
       await expect(page.getByLabel(name, { exact: true })).toBeChecked();
     await expect(page.getByLabel('Rubriek')).toHaveValue(oldSection.id);
     await expect(page.locator('#title\\.nl')).toHaveValue('Mijn artikel bij conflict');
+    await showTab(page, 'Zoeken en delen');
     await page.locator('[name="canonical"]').fill('');
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await expect(page).toHaveURL(new RegExp(`${item.id}\\?saved$`));
@@ -806,6 +923,9 @@ test.describe('content-blocks', () => {
     return `/admin/probe/content/${items[0]!.id}`;
   }
 
+  /** The card of block `n` (1-based): its head holds the block's actions (#66 PR 3). */
+  const card = (page: Page, n: number): Locator => page.locator('section.ui-block-card').nth(n - 1);
+
   /** Block `n` (1-based) of the edit page, opened. */
   async function block(page: Page, n: number): Promise<Locator> {
     const details = page.locator('details.block').nth(n - 1);
@@ -830,20 +950,19 @@ test.describe('content-blocks', () => {
     const edit = await seededPage(request);
     await login(page, edit);
     const stamp = String(Date.now());
-    const summaries = page.locator('details.block > summary');
-    await expect(summaries).toHaveText([
-      /^1\. Kop/,
-      /^2\. Inschrijfformulier \(oud\)/,
-      /^3\. Tekst/,
-      /^4\. Betaalmuur/,
-      /^5\. Afbeelding/,
-      /^6\. Opening/,
-      /^7\. Oproep/,
-      /^8\. Kader/,
-      /^9\. Vragen en antwoorden/,
-      /^10\. Citaat/,
-      /^11\. Video/,
-      /^12\. Formulier/,
+    await expect(page.locator('.ui-block-card-title')).toHaveText([
+      '1. Kop',
+      '2. Inschrijfformulier (oud)',
+      '3. Tekst',
+      '4. Betaalmuur',
+      '5. Afbeelding',
+      '6. Opening',
+      '7. Oproep',
+      '8. Kader',
+      '9. Vragen en antwoorden',
+      '10. Citaat',
+      '11. Video',
+      '12. Formulier',
     ]);
 
     /** Fill one field of block `n`, save, and see the value back in the reopened form. */
@@ -895,16 +1014,20 @@ test.describe('content-blocks', () => {
       /^More about our work is in \[the annual report\]\(item:[0-9a-f-]{36}\)$/
     );
     // And the edited locale was read back from Markdown: the preview renders the bold and the link.
-    const preview = await page.getByRole('link', { name: 'Voorbeeld (nl)' }).getAttribute('href');
+    const preview = await page.locator('a[data-preview-link="nl"]').getAttribute('href');
     await page.goto(preview!);
     await expect(page.locator('main strong', { hasText: 'tekst' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'een link' })).toHaveAttribute('href', /\/over$/);
     await expect(page.locator('main .faq.width-wide')).toContainText(`Wat? ${stamp}`);
     await page.goto(edit);
-    if (isA11y())
+    if (isA11y()) {
+      await page.getByRole('button', { name: 'Voorbeeld', exact: true }).click();
       await expect(
         page.frameLocator('iframe[data-live-preview-frame]').locator('.faq.width-wide')
       ).toBeVisible();
+      // Closed again, the side column with the publish button comes back.
+      await page.getByRole('button', { name: 'Voorbeeld', exact: true }).click();
+    }
     await page.getByRole('button', { name: 'Publiceren (nl)' }).click();
     await page.goto(`/probe/e2e-blokken-${test.info().project.name}`);
     await expect(page.locator('main .faq.width-wide')).toContainText(`Wat? ${stamp}`);
@@ -927,13 +1050,14 @@ test.describe('content-blocks', () => {
    * place in the same form (#66 PR 2) and is stored with the next save. Returns that card.
    */
   async function insert(page: Page, type: string, place: 'end' | 'before' | 'after', n?: number) {
-    if (n) {
-      const fold = (await block(page, n)).locator('details', { hasText: 'Blok invoegen' });
+    // The "+" above each card (#66 PR 3); after the last card that is the one at the end.
+    const above = n && (place === 'before' ? n : n + 1);
+    const folds = page.locator('details.ui-block-insert');
+    if (above && above <= (await folds.count())) {
+      const fold = folds.nth(above - 1);
       await fold.locator('summary').click();
       await fold.getByLabel('Soort').selectOption({ label: type });
-      await fold
-        .getByRole('button', { name: place === 'before' ? 'Erboven invoegen' : 'Eronder invoegen' })
-        .click();
+      await fold.getByRole('button', { name: 'Hier invoegen' }).click();
     } else {
       await page.locator('#insert-type-end').selectOption({ label: type });
       await page.getByRole('button', { name: 'Toevoegen', exact: true }).click();
@@ -980,17 +1104,18 @@ test.describe('content-blocks', () => {
     await fresh.getByLabel('Tekst (en)').fill('An _italic_ introduction.');
     await add(page);
     await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
-    const summaries = page.locator('details.block > summary');
-    await expect(summaries).toHaveText([
-      /^1\. Tekst: Een schuine inleiding\./,
-      /^2\. Kop: Eerste kop/,
+    const summaries = page.locator('.ui-block-card-title');
+    await expect(summaries).toHaveText(['1. Tekst', '2. Kop']);
+    await expect(page.locator('details.block > summary')).toHaveText([
+      'Een schuine inleiding.',
+      'Eerste kop',
     ]);
 
     // A block action saves what was typed elsewhere first (brief edit-screen § 1 point 4).
     await page.locator('#title\\.nl').fill('Blokkenproef bewaard');
-    await (await block(page, 2)).getByRole('button', { name: 'Omhoog' }).click();
+    await card(page, 2).getByRole('button', { name: 'Omhoog' }).click();
     await expect(page.getByRole('status')).toContainText('Blok verplaatst.');
-    await expect(summaries).toHaveText([/^1\. Kop/, /^2\. Tekst/]);
+    await expect(summaries).toHaveText(['1. Kop', '2. Tekst']);
     await expect(page.locator('#title\\.nl')).toHaveValue('Blokkenproef bewaard');
     await expectNoAxeViolations(page);
 
@@ -1002,14 +1127,45 @@ test.describe('content-blocks', () => {
     await expect(summaries).toHaveCount(2);
     await expect(page.locator('#title\\.nl')).toHaveValue('Blokkenproef zonder citaat');
 
-    const first = await block(page, 1);
-    await first.locator('details', { hasText: 'Blok verwijderen' }).locator('summary').click();
+    const first = card(page, 1);
+    await first.locator('details.ui-confirm > summary').click();
     await expect(first).toContainText('Blok 1 verdwijnt');
     await expectNoAxeViolations(page);
     await first.getByRole('button', { name: 'Ja, verwijder dit blok' }).click();
     await expect(page).toHaveURL(new RegExp(`${edit}\\?done=blockRemoved`));
     await expect(page.getByRole('status')).toContainText('Blok verwijderd.');
-    await expect(summaries).toHaveText([/^1\. Tekst/]);
+    await expect(summaries).toHaveText(['1. Tekst']);
+  });
+
+  test('a block is duplicated right after itself, with its fields and a new id', async ({
+    page,
+  }) => {
+    await login(page, '/admin/probe');
+    const edit = await newPage(page, 'dup');
+    const fresh = await insert(page, 'Kop', 'end');
+    await fresh.getByLabel('Tekst (nl)').fill('Twee keer');
+    await fresh.getByLabel('Tekst (en)').fill('Twice');
+    await add(page);
+    const original = await page.locator('details.block').first().getAttribute('id');
+    // What was typed elsewhere is saved first, as with every block action.
+    await page.locator('#title\\.nl').fill('Blokkenproef gedupliceerd');
+    await card(page, 1).getByRole('button', { name: 'Dupliceren' }).click();
+    await expect(page.getByRole('status')).toContainText('Blok gedupliceerd.');
+    await expect(page.locator('#title\\.nl')).toHaveValue('Blokkenproef gedupliceerd');
+    await expect(page.locator('.ui-block-card-title')).toHaveText(['1. Kop', '2. Kop']);
+    const copy = page.locator('details.block').nth(1);
+    await expect(copy).not.toHaveAttribute('id', original!);
+    // The screen lands on the copy, open, with the same fields in both locales.
+    await expect(page).toHaveURL(new RegExp(`${edit}\\?done=blockDuplicated&block=.+#block-`));
+    await expect(copy).toHaveAttribute('open', '');
+    await expect(copy.getByLabel('Tekst (en)')).toHaveValue('Twice');
+    // A text block cannot stand next to its copy: it offers no duplicate.
+    await insert(page, 'Tekst', 'end');
+    await page.locator('#block-new').getByLabel('Tekst (nl)').fill('Los');
+    await page.locator('#block-new').getByLabel('Tekst (en)').fill('Loose');
+    await add(page);
+    await expect(card(page, 3).getByRole('button', { name: 'Dupliceren' })).toHaveCount(0);
+    await expectNoAxeViolations(page);
   });
 
   test('FAQ v2 inserts, moves and publishes through native forms in both locales', async ({
@@ -1031,7 +1187,7 @@ test.describe('content-blocks', () => {
     await add(page);
     await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
     const id = await page.locator('details.block').nth(1).getAttribute('id');
-    await (await block(page, 2)).getByRole('button', { name: 'Omhoog' }).click();
+    await card(page, 2).getByRole('button', { name: 'Omhoog' }).click();
     await expect(page.locator('details.block').first()).toHaveAttribute('id', id!);
     await page.reload();
     await expect((await block(page, 1)).getByLabel('Breedte')).toHaveValue('full');
@@ -1039,9 +1195,7 @@ test.describe('content-blocks', () => {
       'Why does this matter?'
     );
     for (const locale of ['nl', 'en']) {
-      const preview = await page
-        .getByRole('link', { name: `Voorbeeld (${locale})` })
-        .getAttribute('href');
+      const preview = await page.locator(`a[data-preview-link="${locale}"]`).getAttribute('href');
       await page.goto(preview!);
       await expect(page.locator('main .faq-accordion.width-full')).toContainText(
         locale === 'nl' ? 'Waarom is dit belangrijk?' : 'Why does this matter?'
@@ -1092,9 +1246,9 @@ test.describe('content-blocks', () => {
     await fresh.getByLabel('Antwoord (en)').first().fill('Yes, in both languages.');
     await add(page);
     const faqId = await page.locator('details.block').nth(1).getAttribute('id');
-    await (await block(page, 2)).getByRole('button', { name: 'Omhoog' }).click();
+    await card(page, 2).getByRole('button', { name: 'Omhoog' }).click();
     await expect(page.locator('details.block').first()).toHaveAttribute('id', faqId!);
-    await (await block(page, 1)).getByRole('button', { name: 'Omlaag' }).click();
+    await card(page, 1).getByRole('button', { name: 'Omlaag' }).click();
     await page.goto(`${edit}/write`);
     await expect(
       page.locator(`.writing-surface .editor-card[data-block-id="${faqId?.replace('block-', '')}"]`)
@@ -1119,7 +1273,7 @@ test.describe('content-blocks', () => {
     await expect((await block(page, 2)).getByLabel('Vraag (en)').first()).toHaveValue(
       'Does this survive?'
     );
-    const preview = await page.getByRole('link', { name: 'Voorbeeld (en)' }).getAttribute('href');
+    const preview = await page.locator('a[data-preview-link="en"]').getAttribute('href');
     await page.goto(preview!);
     await expect(page.locator('main .faq.width-full')).toContainText('Does this survive?');
     await page.goto(edit);
@@ -1266,9 +1420,7 @@ test.describe('article-writing', () => {
     await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');
     await page.goto(edit);
     await expect(page.locator('details.block')).toHaveCount(2);
-    await expect(page.locator('details.block').nth(1).locator(':scope > summary')).toContainText(
-      /Quote|Citaat/
-    );
+    await expect(page.locator('.ui-block-card-title').nth(1)).toContainText(/Quote|Citaat/);
   });
 
   test('autosave reports a newer revision and preserves its unrelated fields on retry', async ({
@@ -1359,9 +1511,7 @@ test.describe('article-writing', () => {
     await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');
     await page.goto(edit);
     await expect(page.locator('details.block')).toHaveCount(2);
-    await expect(page.locator('details.block').nth(1).locator(':scope > summary')).toContainText(
-      /Image|Afbeelding/
-    );
+    await expect(page.locator('.ui-block-card-title').nth(1)).toContainText(/Image|Afbeelding/);
   });
 
   test('TipTap saves headings, lists, links and notes without changing stored structure', async ({

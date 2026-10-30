@@ -2,8 +2,8 @@
 // document. Its fields, every block's fields (`lib/server/edit-form.ts`) and a block chosen but
 // not stored yet are saved together as one `content.item.update` with the revision the form was
 // opened on as `baseRevisionId` (ADR 018 rule 2); every other action of the screen (publish,
-// schedule, move, remove, insert) is a button of the same form that saves first and then runs its
-// own use case on the revision that save made, so no action loses what was typed. Authors and
+// schedule, move, remove, insert, duplicate) is a button of the same form that saves first and
+// then runs its own use case on the revision that save made, so no action loses what was typed. Authors and
 // section always list what the document or a failed post has, also beyond the first page of the
 // directory (`withAssigned`).
 //
@@ -57,11 +57,13 @@ import {
 import {
   issueCopy as blockIssueCopy,
   pickerOptions,
+  previewOf,
   summaryOf,
 } from '#lib/server/content-blocks.js';
 import {
   NEW_BLOCK,
   blockIssues,
+  documentFieldIssues,
   blockPrefix,
   blocksFrom,
   pendingBlock,
@@ -216,6 +218,8 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
       id: b.id,
       type: b.type,
       summary: summaryOf(b, item.defaultLocale),
+      preview: previewOf(b, item.defaultLocale),
+      duplicable: !SINGLE.has(b.type),
       values: prefixed(
         formValues(
           BLOCK_DEFINITIONS[b.type].fields,
@@ -291,9 +295,16 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
   };
 };
 
+/**
+ * Blocks a copy right after the original could never stand: two text blocks side by side merge
+ * (`content.blocks.adjacent-rich-text`) and a document has one paywall marker.
+ */
+const SINGLE = new Set<string>(['rich-text', 'paywall']);
+
 /** The notice after a publication action, by the `done` parameter of its redirect. */
 const DONE: Record<string, UiKey> = {
   blockMoved: 'admin.block.done.moved',
+  blockDuplicated: 'admin.block.done.duplicated',
   blockRemoved: 'admin.block.done.removed',
   publish: 'admin.content.publication.done.publish',
   unpublish: 'admin.content.publication.done.unpublish',
@@ -468,14 +479,24 @@ async function commit(
       issues: ISSUES,
     });
     const onBlocks = e.code === 'invalid_input' ? blockIssues(e, blocks) : [];
+    // A document field (canonical, tags, access, locales) is named too: it may sit on a tab
+    // that is not shown, and the summary's link is the way to it.
+    const onFields = e.code === 'invalid_input' ? documentFieldIssues(e) : [];
     // A refused insert comes after a save that stood: the form now edits that revision.
     const saved = { ...values, baseRevisionId: revisionId };
     if (e.code !== 'conflict')
       return {
         failure: await refused(tenant, principal, itemId, saved, pending, {
           ...body,
-          ...(onBlocks.length ? { error: 'admin.block.error.invalid' as UiKey } : {}),
-          fieldIssues: onBlocks.map((i) => ({ name: i.name, copy: blockIssueCopy(i.message) })),
+          ...(onFields.length
+            ? { error: 'admin.content.error.invalid' as UiKey }
+            : onBlocks.length
+              ? { error: 'admin.block.error.invalid' as UiKey }
+              : {}),
+          fieldIssues: [
+            ...onFields.map((i) => ({ name: i.name, copy: ISSUES[i.message] ?? body.error })),
+            ...onBlocks.map((i) => ({ name: i.name, copy: blockIssueCopy(i.message) })),
+          ],
           status,
         }),
       };
@@ -588,16 +609,18 @@ async function publication(
 
 /**
  * One block operation after the save of the form, on the revision that save made; the screen
- * comes back at the block (`#block-<id>`), or at the blocks when it is gone.
+ * comes back at the block (`#block-<id>`), at the copy a duplicate made, or at the blocks when it
+ * is gone.
  */
 async function blockStep(
   saved: Committed,
   itemId: string,
   blockId: string,
-  done: 'blockMoved' | 'blockRemoved',
+  done: 'blockMoved' | 'blockRemoved' | 'blockDuplicated',
   run: (blocks: ContentDocument['blocks'], index: number) => Promise<unknown>
 ) {
   const { tenant, principal, revisionId, zone } = saved;
+  let landing = blockId;
   try {
     const { revision } = await runtime().invoker.run(useCases.getItem, principal, {
       itemId,
@@ -605,7 +628,9 @@ async function blockStep(
     });
     const index = revision.document.blocks.findIndex((b) => b.id === blockId);
     if (index < 0) error(404, 'Not found');
-    await run(revision.document.blocks, index);
+    const made = await run(revision.document.blocks, index);
+    // A duplicate names the block it made; the screen lands there instead.
+    if (typeof made === 'string') landing = made;
   } catch (e) {
     if (!(e instanceof UseCaseError)) throw e;
     const { status, body } = failureOf(e, 'block', {
@@ -620,10 +645,10 @@ async function blockStep(
       conflict: conflict && { who: conflict.who, when: conflict.when, changes: conflict.changes },
     });
   }
-  const at = done === 'blockRemoved' ? 'blocks' : `block-${blockId}`;
+  const at = done === 'blockRemoved' ? 'blocks' : `block-${landing}`;
   redirect(
     303,
-    `/admin/${tenant.slug}/content/${itemId}?done=${done}&block=${encodeURIComponent(blockId)}#${at}`
+    `/admin/${tenant.slug}/content/${itemId}?done=${done}&block=${encodeURIComponent(landing)}#${at}`
   );
 }
 
@@ -684,6 +709,32 @@ export const actions: Actions = {
         baseRevisionId: saved.revisionId,
         blockId,
       })
+    );
+  },
+  /** A copy of the block right after it, with the same props and a new id; the screen lands on it. */
+  duplicate: async (event) => {
+    const saved = await commit(event);
+    if ('failure' in saved) return saved.failure;
+    const blockId = text(saved.data, 'duplicate');
+    return blockStep(
+      saved,
+      event.params.itemId,
+      blockId,
+      'blockDuplicated',
+      async (blocks, index) => {
+        const b = blocks[index]!;
+        const { created } = await runtime().invoker.run(useCases.insertBlock, saved.principal, {
+          itemId: event.params.itemId,
+          baseRevisionId: saved.revisionId,
+          block: {
+            type: b.type,
+            version: b.version,
+            props: structuredClone(b.props),
+          } as BlockInput,
+          place: { after: b.id },
+        });
+        return created[0];
+      }
     );
   },
   publish: (event) =>

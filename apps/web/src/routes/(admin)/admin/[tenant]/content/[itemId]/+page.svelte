@@ -3,9 +3,10 @@
      three sections a script may show as tabs (#66 PR 6): Content (the title large and first, the
      lead, the featured image and the blocks in reading order), Search and sharing, and Settings
      (access only on an item that has it, corrections, languages), the last two folded. Each block
-     is a Panel in the same form, with move, remove (a confirmation inside the card) and insert
-     (an empty block at its place, stored with the next save); every such button saves what was
-     typed first. The side column has the status card of each locale (the state in words, the
+     is a BlockCard in the same form (#66 PR 3): its head holds move, duplicate and remove (a
+     confirmation in place), its folded summary shows what the block says, and a "+" above each
+     card inserts an empty block there (stored with the next save); every such button saves what
+     was typed first. The side column has the status card of each locale (the state in words, the
      main action by state, scheduling folded, view on the site) and "This item" (address, authors,
      section and tags as WordPress and Ghost have them, revisions). A failed save comes back with
      what was typed and every fold open; a conflict also shows who saved in between and what
@@ -17,18 +18,20 @@
   import { issueLabel } from '#lib/admin/issue-label.js';
   import {
     Actions,
+    BlockCard,
     Button,
     Checkbox,
     Choices,
+    ConfirmAction,
     EditPage,
     EmptyState,
     Field,
     Fieldset,
+    Icon,
     ItemBar,
     MediaPicker,
     MetaList,
     Notice,
-    Panel,
     Select,
     StatusCard,
     Tabs,
@@ -101,8 +104,21 @@
     return { text: t('admin.content.state.draft'), tone: 'neutral' };
   };
 
-  /** A field name of a block as words: the field's label, plus its locale. */
+  /** The document fields a refused save can name (`documentFieldIssues`), with their label. */
+  const DOC_FIELDS: Record<string, UiKey> = {
+    canonical: 'admin.content.field.canonical',
+    tags: 'admin.content.field.tags',
+    level: 'admin.content.field.level',
+    teaser: 'admin.content.field.teaser',
+    teaserBlocks: 'admin.content.field.teaserBlocks',
+    locales: 'admin.content.new.locales',
+    correctionDate: 'admin.content.edit.correctionDate',
+  };
+  /** Whether a refused save named this field. */
+  const flagged = (name: string) => issues.some((i) => i.name === name);
+  /** A field name as words: a document field's label, or a block field's plus its locale. */
   const fieldLabel = (name: string): string => {
+    if (name in DOC_FIELDS) return t(DOC_FIELDS[name]!);
     const parts = name
       .replace(/^(b\.[^.]+|new)\./, '')
       .split('.')
@@ -114,9 +130,13 @@
   };
   /** The element id of a block field: `b-<block id>-p-…`, `b-new-p-…` for the pending block. */
   const fieldId = (name: string) =>
-    name.startsWith('new.')
-      ? `b-new-${name.slice(4).replaceAll('.', '-')}`
-      : `b-${name.slice(2).replaceAll('.', '-')}`;
+    name === 'locales'
+      ? `locale-${defaultLocale}`
+      : name in DOC_FIELDS
+        ? name
+        : name.startsWith('new.')
+          ? `b-new-${name.slice(4).replaceAll('.', '-')}`
+          : `b-${name.slice(2).replaceAll('.', '-')}`;
   /** An issue path in words: "Titel (en)", "Blok 3: Tekst (nl)", else the path itself. */
   const issueName = (path: string): string => {
     const l = issueLabel(path, data.docLocales);
@@ -126,8 +146,10 @@
       l.block === null ? label : fill(t('admin.content.issue.block'), { n: l.block, field: label });
     return l.locale ? `${named} (${l.locale})` : named;
   };
-  const preview = (l: string) =>
+  const previewHref = (l: string) =>
     `${base}/preview/item/${data.item.id}?revision=${data.revision.id}&locale=${l}`;
+  /** The live preview of unsaved fields (#11 D): pages, for a member who can write. */
+  const livePreview = $derived(!article && data.canWrite);
   const assist = (params: Record<string, string>) =>
     `${base}/content/${data.item.id}/assist?${new URLSearchParams(params)}`;
   /** The values of a block's fields: what a refused post typed, else what is stored. */
@@ -179,6 +201,7 @@
     locale={data.locale}
     maxlength={opts.max ?? 200}
     required={opts.required ?? false}
+    invalid={flagged(name)}
     value={v(name)}
   />
 {/snippet}
@@ -237,12 +260,47 @@
 {#snippet blockCard(b: (typeof data.blocks)[number], i: number)}
   {@const prefix = `b.${b.id}.`}
   {@const refused = issues.some((x) => x.name.startsWith(prefix))}
-  <Panel
+  {@const image = b.preview.mediaId
+    ? data.media.find((m) => m.id === b.preview.mediaId && m.thumb)
+    : undefined}
+  <BlockCard
     id="block-{b.id}"
     class="block"
+    title="{i + 1}. {t(`admin.block.type.${b.type}` as UiKey)}"
     open={refused || data.openBlocks.includes(b.id)}
-    summary="{i + 1}. {t(`admin.block.type.${b.type}` as UiKey)}{b.summary ? `: ${b.summary}` : ''}"
+    text={b.preview.text}
+    thumb={image ? `${base}/media/${image.id}/thumb` : null}
+    entries={b.preview.entries}
+    empty={t('admin.block.emptySummary')}
   >
+    {#snippet actions()}
+      {#if data.canWrite}
+        {#if i > 0}
+          <Button variant="link" formaction="?/move" name="move" value="{b.id}:up"
+            >{t('admin.block.move.up')}</Button
+          >
+        {/if}
+        {#if i < data.blocks.length - 1}
+          <Button variant="link" formaction="?/move" name="move" value="{b.id}:down"
+            >{t('admin.block.move.down')}</Button
+          >
+        {/if}
+        {#if b.duplicable}
+          <Button variant="link" formaction="?/duplicate" name="duplicate" value={b.id}
+            >{t('admin.block.duplicate')}</Button
+          >
+        {/if}
+        <ConfirmAction
+          variant="link"
+          label={t('admin.block.remove.short')}
+          question={fill(t('admin.block.remove.ask'), { n: i + 1 })}
+          confirm={t('admin.block.remove.confirm')}
+          name="{i + 1}. {t(`admin.block.type.${b.type}` as UiKey)}"
+          formaction="?/remove"
+          field={{ name: 'remove', value: b.id }}
+        />
+      {/if}
+    {/snippet}
     <BlockFields
       fields={BLOCK_DEFINITIONS[b.type].fields}
       values={blockValues(b)}
@@ -280,48 +338,25 @@
         {/each}
       </p>
     {/if}
-    {#if data.canWrite}
-      <Actions stack>
-        {#if i > 0}
-          <Button variant="secondary" formaction="?/move" name="move" value="{b.id}:up"
-            >{t('admin.block.move.up')}</Button
-          >
-        {/if}
-        {#if i < data.blocks.length - 1}
-          <Button variant="secondary" formaction="?/move" name="move" value="{b.id}:down"
-            >{t('admin.block.move.down')}</Button
-          >
-        {/if}
-      </Actions>
-      <details class="ui-fold">
-        <summary>{t('admin.block.insert.fold')}</summary>
-        <Select
-          id="insert-type-{b.id}"
-          name="insertType.{b.id}"
-          label={t('admin.block.insert.type')}
-          locale={data.locale}
-          options={blockTypeOptions}
-        />
-        <Actions stack>
-          <Button variant="secondary" formaction="?/insert" name="insert" value="before:{b.id}"
-            >{t('admin.block.insert.before')}</Button
-          >
-          <Button variant="secondary" formaction="?/insert" name="insert" value="after:{b.id}"
-            >{t('admin.block.insert.after')}</Button
-          >
-        </Actions>
-      </details>
-      <details class="ui-fold">
-        <summary>{t('admin.block.remove')}</summary>
-        <p>{fill(t('admin.block.remove.ask'), { n: i + 1 })}</p>
-        <Actions>
-          <Button variant="danger" formaction="?/remove" name="remove" value={b.id}
-            >{t('admin.block.remove.confirm')}</Button
-          >
-        </Actions>
-      </details>
-    {/if}
-  </Panel>
+  </BlockCard>
+{/snippet}
+
+{#snippet inserter(b: (typeof data.blocks)[number])}
+  <details class="ui-block-insert">
+    <summary><Icon name="plus" />{t('admin.block.insert.fold')}</summary>
+    <div class="ui-block-insert-body">
+      <Select
+        id="insert-type-{b.id}"
+        name="insertType.{b.id}"
+        label={t('admin.block.insert.type')}
+        locale={data.locale}
+        options={blockTypeOptions}
+      />
+      <Button variant="secondary" formaction="?/insert" name="insert" value="before:{b.id}"
+        >{t('admin.block.insert.here')}</Button
+      >
+    </div>
+  </details>
 {/snippet}
 
 {#snippet contentTab()}
@@ -377,6 +412,7 @@
       <EmptyState title={t('admin.block.empty')} level={3} />
     {/if}
     {#each data.blocks as b, i (b.id)}
+      {#if data.canWrite && !pending}{@render inserter(b)}{/if}
       {#if pending?.place === 'before' && pending.anchor === b.id}{@render pendingCard(
           pending
         )}{/if}
@@ -447,6 +483,7 @@
       <Select
         id="level"
         name="level"
+        invalid={flagged('level')}
         label={t('admin.content.field.level')}
         locale={data.locale}
         value={v('level')}
@@ -458,6 +495,7 @@
       <Select
         id="teaser"
         name="teaser"
+        invalid={flagged('teaser')}
         label={t('admin.content.field.teaser')}
         locale={data.locale}
         value={v('teaser')}
@@ -469,6 +507,7 @@
       <Field
         id="teaserBlocks"
         name="teaserBlocks"
+        invalid={flagged('teaserBlocks')}
         type="number"
         label={t('admin.content.field.teaserBlocks')}
         locale={data.locale}
@@ -486,6 +525,7 @@
       <Field
         id="correctionDate"
         name="correctionDate"
+        invalid={flagged('correctionDate')}
         type="date"
         label={t('admin.content.edit.correctionDate')}
         locale={data.locale}
@@ -509,6 +549,7 @@
       locale={data.locale}
       hint={t('admin.content.edit.localesHint')}
       selected={docLocales}
+      invalid={flagged('locales')}
       options={data.locales.map((l) => ({ value: l, label: l }))}
     />
   </Fieldset>
@@ -643,9 +684,26 @@
       tone={state?.tone}
     >
       {#snippet actions()}
+        {#if livePreview}
+          <button
+            type="button"
+            class="ui-button secondary ui-preview-toggle"
+            data-preview-toggle
+            aria-pressed="false"
+            aria-controls="live-preview"
+            ><span class="ui-preview-toggle-off"><Icon name="eye" /></span><span
+              class="ui-preview-toggle-on"><Icon name="eye-off" /></span
+            >{t('admin.content.edit.previewShort')}</button
+          >
+        {/if}
         {#each data.docLocales as l (l)}
-          <Button variant="secondary" href={preview(l)} target="_blank" aria-describedby="new-tab"
-            >{t('admin.content.edit.previewShort')}{per(l)}</Button
+          <Button
+            variant="secondary"
+            class="ui-preview-link"
+            href={previewHref(l)}
+            target="_blank"
+            aria-describedby="new-tab"
+            data-preview-link={l}>{t('admin.content.edit.previewShort')}{per(l)}</Button
           >
         {/each}
         <Button form="item-edit" formaction="?/save">{t('admin.content.edit.save')}</Button>
@@ -704,37 +762,48 @@
       { id: 'settings', label: t('admin.content.tab.settings'), content: settingsTab },
     ]}
   />
+  <script type="module" src="/_admin/tabs.js"></script>
 
-  {#if !article && data.canWrite}
-    <section
-      class="ui-section live-preview"
-      data-live-preview
-      data-item-id={data.item.id}
-      data-preview-action="{base}/preview/draft"
-      hidden
-      aria-labelledby="live-preview-title"
-    >
-      <h2 id="live-preview-title">{t('admin.content.preview.live')}</h2>
-      <Field
-        id="live-preview-locale"
-        label={t('admin.content.preview.locale')}
-        locale={data.locale}
+  {#snippet preview()}
+    {#if livePreview}
+      <section
+        id="live-preview"
+        class="ui-section live-preview ui-edit-preview"
+        data-live-preview
+        data-item-id={data.item.id}
+        data-preview-action="{base}/preview/draft"
+        hidden
+        aria-labelledby="live-preview-title"
       >
-        {#snippet control(attributes)}
-          <select {...attributes} data-live-preview-locale>
-            {#each data.docLocales as l (l)}<option value={l}>{l}</option>{/each}
-          </select>
-        {/snippet}
-      </Field>
-      <iframe
-        name="mycel-live-preview"
-        title={t('admin.content.preview.live')}
-        data-live-preview-frame
-      ></iframe>
-      <p class="ui-hint">{t('admin.content.preview.keyboard')}</p>
-    </section>
-    <script type="module" src="/_admin/live-preview-parent.js"></script>
-  {/if}
+        <h2 id="live-preview-title">{t('admin.content.preview.live')}</h2>
+        <Field
+          id="live-preview-locale"
+          label={t('admin.content.preview.locale')}
+          locale={data.locale}
+        >
+          {#snippet control(attributes)}
+            <select {...attributes} data-live-preview-locale>
+              {#each data.docLocales as l (l)}<option value={l}>{l}</option>{/each}
+            </select>
+          {/snippet}
+        </Field>
+        <iframe
+          name="mycel-live-preview"
+          title={t('admin.content.preview.live')}
+          data-live-preview-frame
+        ></iframe>
+        <p class="ui-hint">{t('admin.content.preview.keyboard')}</p>
+        <p class="ui-hint">
+          {#each data.docLocales as l (l)}
+            <a href={previewHref(l)} target="_blank" aria-describedby="new-tab"
+              >{t('admin.content.preview.saved')}{per(l)}</a
+            >{' '}
+          {/each}
+        </p>
+      </section>
+      <script type="module" src="/_admin/live-preview-parent.js"></script>
+    {/if}
+  {/snippet}
 
   {#snippet aside()}
     {#if mainPublication}{@render statusCard(mainPublication, 2)}{/if}

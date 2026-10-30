@@ -2,7 +2,8 @@
      the state in words first, then what holds a publish back, then the main action and the rarer
      ones. Anything that must be read before a button (ADR 018 rule 6) goes in `children`, which
      comes before the actions. The main action takes a line of its own and the rarer ones follow
-     as text links that wrap whole (#87; skill ui-action-layout). -->
+     as text links that wrap whole (#87; skill ui-action-layout). The folded choices close that row
+     as one more link, and open on a line of their own (#87-rest). -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import Actions from './Actions.svelte';
@@ -39,6 +40,7 @@
   >
   <p class="ui-status-card-state"><Badge {tone}>{state}</Badge></p>
   {#if children}{@render children()}{/if}
-  {#if actions}<Actions>{@render actions()}</Actions>{/if}
-  {#if more}{@render more()}{/if}
+  {#if actions || more}<Actions
+      >{#if actions}{@render actions()}{/if}{#if more}{@render more()}{/if}</Actions
+    >{/if}
 </section>
