@@ -31,6 +31,7 @@ import {
   type UnitOfWork,
 } from '@mycel/core';
 import { auditRepository } from './audit.js';
+import { applicationName } from './infra/sessions.js';
 import { siteSettingsRepository, brandAssetsRepository } from './site-settings.js';
 import { connectionIntentsRepository } from './connection-intents.js';
 import { connectionRepository, credentialKey } from './connections.js';
@@ -129,6 +130,7 @@ export {
   migrate,
   migrationsAhead,
 } from './infra/migrate.js';
+export { foreignSessions, sessionsWarning } from './infra/sessions.js';
 export {
   createTenant,
   ensureTenant,
@@ -142,10 +144,10 @@ export {
   type PlatformTenant,
 } from './platform.js';
 
+/** A pool that names its process in `pg_stat_activity`, so a test run can say who else is on. */
 export function createDb(connectionString: string): Kysely<Database> {
-  return new Kysely<Database>({
-    dialect: new PostgresDialect({ pool: new pg.Pool({ connectionString, max: 10 }) }),
-  });
+  const pool = new pg.Pool({ connectionString, max: 10, application_name: applicationName() });
+  return new Kysely<Database>({ dialect: new PostgresDialect({ pool }) });
 }
 
 /**

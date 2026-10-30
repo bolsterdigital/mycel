@@ -40,7 +40,14 @@ const procs = [
   ['web', 'npm', ['run', '-s', 'dev', '-w', '@mycel/web']],
   ...(mockIdp ? [['idp', 'node', ['scripts/e2e/mock-oidc.mjs']]] : []),
 ].map(([name, cmd, args]) => {
-  const child = spawn(cmd, args, { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
+  // How a test run's preflight names this process's database sessions (TODO #27): stopping
+  // this pid stops all of them.
+  const PGAPPNAME = env.PGAPPNAME ?? `mycel npm run dev ${name}, pid ${process.pid}`;
+  const child = spawn(cmd, args, {
+    cwd: root,
+    env: { ...env, PGAPPNAME },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
   for (const [stream, out] of [
     [child.stdout, process.stdout],
     [child.stderr, process.stderr],

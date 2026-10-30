@@ -5,10 +5,13 @@
 // recording the newer schema cannot import into a fresh database) or pass on the wrong schema,
 // while CI on an empty database is green (TODO #27). One message here instead of scattered reds.
 // Rejected: making `migrate` refuse it, which would break a production rollback (migrate.ts).
+// It also names every other session on that database (a dev server's worker drains the outbox
+// the suites wait on) and goes on: a warning, because `npm run dev` next to tests is allowed.
 // Without DATABASE_URL the database suites skip, and so does this check.
 
 import pg from 'pg';
 import { migrationsAhead } from '../packages/db/src/infra/migrate.ts';
+import { foreignSessions, sessionsWarning } from '../packages/db/src/infra/sessions.ts';
 
 export default async function preflight() {
   const url = process.env.DATABASE_URL;
@@ -34,6 +37,8 @@ export default async function preflight() {
       error.stack = `Error: ${error.message}`;
       throw error;
     }
+    const warning = sessionsWarning(client.database, await foreignSessions(client));
+    if (warning) console.warn(`test preflight: ${warning}`);
   } finally {
     await client.end();
   }
