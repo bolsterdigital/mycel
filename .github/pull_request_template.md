@@ -10,7 +10,7 @@
 - Hand-written invariants added:
 - Could not be run locally:
 - Snapshot updated, and why:
-- UI with two or more actions: screenshots at 320 px and at 200 % zoom, attached to this PR (never committed; `scripts/repo-size.test.mjs` rejects files over 200 KB):
+- UI with two or more actions: screenshots at 320 px and at 200 % zoom, attached to this PR (never committed; `scripts/gates/repo-size.test.mjs` rejects files over 200 KB):
 
 **Review signals** (`node scripts/review-signals.mjs`, paste the block; `unmapped` paths are mapped or explained):
 

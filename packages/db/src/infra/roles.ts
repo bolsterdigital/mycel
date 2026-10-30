@@ -1,6 +1,6 @@
 // The one place that switches a transaction's role and takes an advisory lock (TODO #53). A role
 // switch is the route around RLS, so every switch names a role from the closed list below, and
-// `scripts/db-roles.test.mjs` keeps every form of role switch and advisory lock out of every
+// `scripts/gates/db-roles.test.mjs` keeps every form of role switch and advisory lock out of every
 // other file. Rejected: a helper per module (`asWorker`, `asAuth`, `asOps`, `asPlatform`), which
 // is how the pattern ended up written by hand seventeen times with no way to see them all.
 

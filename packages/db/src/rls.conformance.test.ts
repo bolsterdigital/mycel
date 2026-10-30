@@ -4,7 +4,7 @@
 // the kind of list a forgotten table never makes it onto.
 //
 // Skips without DATABASE_URL (operator) and APP_DATABASE_URL (mycel_app); in CI
-// a missing database is a failure, as in scripts/e2e.mjs.
+// a missing database is a failure, as in scripts/e2e/e2e.mjs.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';

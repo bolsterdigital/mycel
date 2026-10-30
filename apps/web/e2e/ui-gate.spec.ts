@@ -263,7 +263,7 @@ test.describe('admin-ui', () => {
 });
 
 // Browser axe over every block example in the registry (TODO #30B, brief renderer-regressions
-// § B). scripts/e2e.mjs publishes one page per example of `BLOCK_DEFINITIONS`, slug
+// § B). scripts/e2e/e2e.mjs publishes one page per example of `BLOCK_DEFINITIONS`, slug
 // `blok-<example name>`, in nl and en, with the example ids swapped for real seeded data; this
 // spec walks the same registry. A new example or variant is therefore in the browser gate the
 // moment it is in the registry: there is no second list to keep in step. Per example and locale:

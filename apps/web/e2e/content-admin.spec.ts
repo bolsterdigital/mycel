@@ -427,7 +427,7 @@ test.describe('content-admin', () => {
       if (found) return found;
       after = page.next;
     } while (after);
-    throw new Error(`${slug} is not seeded; run through scripts/e2e.mjs`);
+    throw new Error(`${slug} is not seeded; run through scripts/e2e/e2e.mjs`);
   }
 
   // The pickers list one page of the directory (newest first, a hundred), so an
@@ -444,7 +444,7 @@ test.describe('content-admin', () => {
         slug: name.toLowerCase().replace(/\W+/g, '-'),
         name,
       });
-    // Seeded by scripts/e2e.mjs with 101 newer authors and sections after them.
+    // Seeded by scripts/e2e/e2e.mjs with 101 newer authors and sections after them.
     const old = await bySlug<{ id: string }>(
       request,
       'content.author.list',
@@ -907,7 +907,7 @@ test.describe('content-admin', () => {
 // edited once through its generated form, and a block is inserted, moved and removed, all with
 // native forms. The admin ships no script, so the `no-js` project is the no-JavaScript proof and
 // the `a11y` project runs axe and the UI gate (skill ui-action-layout). Each project edits its own
-// seeded page (`e2e-blokken-<project>`, scripts/e2e.mjs) with the first example of every type, so
+// seeded page (`e2e-blokken-<project>`, scripts/e2e/e2e.mjs) with the first example of every type, so
 // the bulk fixture is seeded once and not made here (the audit log the status part of admin.spec.ts reads).
 test.describe('content-blocks', () => {
   test.use({ locale: 'nl-NL' });
@@ -919,7 +919,7 @@ test.describe('content-blocks', () => {
       type: 'page',
       slug,
     });
-    expect(items, `${slug} is seeded by scripts/e2e.mjs`).toHaveLength(1);
+    expect(items, `${slug} is seeded by scripts/e2e/e2e.mjs`).toHaveLength(1);
     return `/admin/probe/content/${items[0]!.id}`;
   }
 

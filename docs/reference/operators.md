@@ -32,7 +32,7 @@ The session (`packages/core/src/operators/session.ts`) is a stateless value sign
 
 Login starts and callbacks are rate limited together per client, keyed by `Signer.hashIp` of the client address (never the address), through `IdentityStore.loginAttempt`. The count is one upsert per `(key, window_start)` in `login_attempts` (migration 0018), so every web process shares the same fixed window. The hourly `rate_limits.sweep` job deletes windows older than a day as `mycel_janitor`.
 
-For development and the end-to-end tests, `scripts/mock-oidc.mjs` is a minimal OpenID provider: discovery, a "sign in as" form that works without JavaScript (untick "verified" for an unverified address), a token endpoint that checks the PKCE verifier and a JWKS. The subject is derived from the address, so the same address is the same operator across restarts. It refuses to start with `NODE_ENV=production`.
+For development and the end-to-end tests, `scripts/e2e/mock-oidc.mjs` is a minimal OpenID provider: discovery, a "sign in as" form that works without JavaScript (untick "verified" for an unverified address), a token endpoint that checks the PKCE verifier and a JWKS. The subject is derived from the address, so the same address is the same operator across restarts. It refuses to start with `NODE_ENV=production`.
 
 ## Database roles
 

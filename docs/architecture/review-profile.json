@@ -76,10 +76,10 @@
         "packages/db/src/erasures.conformance.test.ts",
         "packages/db/src/erasure-backups.test.ts",
         "packages/db/src/adapter-rules.test.ts",
-        "scripts/db-roles.test.mjs",
+        "scripts/gates/db-roles.test.mjs",
         "packages/db/src/login-limit.test.ts",
         "apps/web/src/lib/server/security-headers.test.ts",
-        "scripts/gitleaks.test.mjs",
+        "scripts/gates/gitleaks.test.mjs",
         ".github/workflows/verify.yml"
       ],
       "counterproof": "A second tenant, an anonymous principal or a revoked key against the new path; an address that must be gone, searched in every copy."
@@ -210,7 +210,7 @@
         "packages/media-sharp/**",
         "docker/**",
         "compose*.yml",
-        "scripts/drill-*",
+        "scripts/drill/**",
         "scripts/compose-proof.sh",
         "docs/self-hosting.md",
         "docs/upgrading.md",
@@ -256,8 +256,8 @@
         "packages/api/src/runtime/compose.ts",
         "apps/web/src/lib/server/runtime.ts",
         "packages/observability/**",
-        "scripts/check-dependency-rules*",
-        "scripts/dead-exports*",
+        "scripts/gates/check-dependency-rules*",
+        "scripts/gates/dead-exports*",
         "docs/architecture/overview.md",
         "packages/*/src/index.ts",
         "packages/db/src/infra/ids.ts",
@@ -273,9 +273,9 @@
       ],
       "adrs": ["001", "006", "008", "013"],
       "gates": [
-        "scripts/check-dependency-rules.mjs",
-        "scripts/check-dependency-rules.test.mjs",
-        "scripts/dead-exports.test.mjs"
+        "scripts/gates/check-dependency-rules.mjs",
+        "scripts/gates/check-dependency-rules.test.mjs",
+        "scripts/gates/dead-exports.test.mjs"
       ],
       "counterproof": "Count the call sites the abstraction replaces, or the duplicated lines it removes; a new dependency names what it replaces and its licence."
     },
@@ -287,8 +287,8 @@
       "paths": [
         ".github/**",
         "scripts/*.test.mjs",
-        "scripts/fixtures/**",
-        "scripts/e2e.mjs",
+        "scripts/gates/fixtures/**",
+        "scripts/e2e/e2e.mjs",
         "scripts/release.mjs",
         "vitest.config.ts",
         "apps/web/playwright.config.ts",
@@ -305,8 +305,8 @@
       ],
       "adrs": ["000"],
       "gates": [
-        "scripts/workflows.test.mjs",
-        "scripts/docs-links.test.mjs",
+        "scripts/gates/workflows.test.mjs",
+        "scripts/gates/docs-links.test.mjs",
         "scripts/review-signals.test.mjs"
       ],
       "counterproof": "Run the changed gate against a change it must refuse."
@@ -325,7 +325,7 @@
         "**/*.test.mjs",
         "**/*.spec.ts",
         "**/__snapshots__/**",
-        "scripts/fixtures/**",
+        "scripts/gates/fixtures/**",
         "apps/web/e2e/lib/**",
         "apps/web/e2e/routes.ts",
         "apps/web/playwright.config.ts",

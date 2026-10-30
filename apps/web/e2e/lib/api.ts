@@ -1,4 +1,4 @@
-// The HTTP API of the run: scripts/e2e.mjs starts it at `E2E_API_URL` with `MYCEL_API_KEY`, a key
+// The HTTP API of the run: scripts/e2e/e2e.mjs starts it at `E2E_API_URL` with `MYCEL_API_KEY`, a key
 // of tenant probe. Specs seed and read through it, so the address, the key and the check that a
 // call succeeded live here once instead of in a helper per describe block.
 // Rejected: a Playwright fixture with its own request context, which would hide which spec talks
@@ -6,10 +6,10 @@
 
 import { expect, test, type APIRequestContext, type APIResponse } from '@playwright/test';
 
-/** The API's base URL; skips the current test when the spec runs outside scripts/e2e.mjs. */
+/** The API's base URL; skips the current test when the spec runs outside scripts/e2e/e2e.mjs. */
 export function requireApi(): string {
   const url = process.env['E2E_API_URL'];
-  test.skip(!url, 'run through scripts/e2e.mjs');
+  test.skip(!url, 'run through scripts/e2e/e2e.mjs');
   return url!;
 }
 

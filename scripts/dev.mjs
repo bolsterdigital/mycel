@@ -5,7 +5,7 @@
 // that renders pages whose form posts go nowhere.
 //
 // Operator login needs an IdP: when OIDC_ISSUER is unset or points at 127.0.0.1, this also starts
-// scripts/mock-oidc.mjs (log in at /admin as admin@probe.test after `npm run db:seed`). Set
+// scripts/e2e/mock-oidc.mjs (log in at /admin as admin@probe.test after `npm run db:seed`). Set
 // OIDC_ISSUER to a real provider (Zitadel, see .env.example) to use that instead.
 // Rejected: `concurrently` or `npm-run-all` (ADR 008 policy 1: forty lines of our own cover it).
 
@@ -38,7 +38,7 @@ if (mockIdp) {
 const procs = [
   ['api', 'npm', ['run', '-s', 'dev', '-w', '@mycel/api']],
   ['web', 'npm', ['run', '-s', 'dev', '-w', '@mycel/web']],
-  ...(mockIdp ? [['idp', 'node', ['scripts/mock-oidc.mjs']]] : []),
+  ...(mockIdp ? [['idp', 'node', ['scripts/e2e/mock-oidc.mjs']]] : []),
 ].map(([name, cmd, args]) => {
   const child = spawn(cmd, args, { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
   for (const [stream, out] of [

@@ -45,7 +45,7 @@ const sha256 = (text: string) => createHash('sha256').update(text).digest('hex')
  * by a newer branch or image. `migrate` accepts that (after a rollback the newer schema stays),
  * but a test run against such a database proves another schema than the checkout's, and an
  * export from it refuses to import into a fresh one. The test preflights (scripts/
- * test-db-preflight.mjs, scripts/e2e.mjs) stop on it with one message instead (TODO #27).
+ * test-db-preflight.mjs, scripts/e2e/e2e.mjs) stop on it with one message instead (TODO #27).
  */
 export async function migrationsAhead(
   db: pg.ClientBase | pg.Pool,

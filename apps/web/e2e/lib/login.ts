@@ -1,4 +1,4 @@
-// Sign in through the mock IdP (scripts/mock-oidc.mjs), the one way every admin spec gets a
+// Sign in through the mock IdP (scripts/e2e/mock-oidc.mjs), the one way every admin spec gets a
 // session. Each login comes from an address of its own: the admin allows twenty logins per
 // address in ten minutes, and a file that logs in per test passes that within one worker. The
 // addresses are IPv6 documentation space, so they never count against the IPv4 addresses the
@@ -8,7 +8,7 @@
 
 import { expect, type Page } from '@playwright/test';
 
-/** The admin `scripts/e2e.mjs` seeds as `tenant:admin` of the probe site. */
+/** The admin `scripts/e2e/e2e.mjs` seeds as `tenant:admin` of the probe site. */
 export const ADMIN = 'e2e-admin@probe.test';
 
 /** An IPv6 documentation address no other request of the run is likely to use. */

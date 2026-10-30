@@ -158,7 +158,7 @@ SQL
 mv "$db/roles.sql.part" "$db/roles.sql"
 say "roles: $(grep -c '^do ' "$db/roles.sql") roles, $(grep -c '^grant ' "$db/roles.sql") memberships"
 
-# The restore drill holds the run here (scripts/drill-run.sh) to delete or purge media while a
+# The restore drill holds the run here (scripts/drill/drill-run.sh) to delete or purge media while a
 # backup is under way. Unset in production.
 if [ -n "${BACKUP_HOLD_AFTER_DUMP:-}" ]; then
   touch "${BACKUP_HOLD_AFTER_DUMP}.dumped"

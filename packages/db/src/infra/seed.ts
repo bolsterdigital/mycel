@@ -112,7 +112,7 @@ try {
     if (!(e instanceof UseCaseError && e.code === 'conflict')) throw e;
   }
 
-  // A key whose token the operator chose (dev .env, scripts/e2e.mjs), so API and MCP work
+  // A key whose token the operator chose (dev .env, scripts/e2e/e2e.mjs), so API and MCP work
   // without clicking one together first. A rerun changes nothing, and refuses a stale key.
   const token = process.env['MYCEL_API_KEY'];
   const outcome = token

@@ -50,10 +50,10 @@ const NOT_IN_EXAMPLE: Record<string, string> = {
   HOST_HEADER: 'derived from MYCEL_TRUST_PROXY by docker/entrypoint.sh',
   ADDRESS_HEADER: 'derived from MYCEL_TRUST_PROXY by docker/entrypoint.sh',
   XFF_DEPTH: 'derived from MYCEL_TRUST_PROXY by docker/entrypoint.sh',
-  MOCK_OIDC_PORT: 'development IdP, set by scripts/dev.mjs and scripts/e2e.mjs',
+  MOCK_OIDC_PORT: 'development IdP, set by scripts/dev.mjs and scripts/e2e/e2e.mjs',
   MOCK_OIDC_USER: 'development IdP, set by scripts/dev.mjs',
   E2E_REQUIRED: 'test harness (CI)',
-  E2E_API_URL: 'test harness, set by scripts/e2e.mjs',
+  E2E_API_URL: 'test harness, set by scripts/e2e/e2e.mjs',
   E2E_API_PORT: 'test harness',
   E2E_OIDC_PORT: 'test harness',
   E2E_WORKER_PORT: 'test harness',
@@ -79,8 +79,8 @@ const NOT_IN_EXAMPLE: Record<string, string> = {
   PGUSER: 'set by compose.yml per backup service (backup: mycel_backup, restore: the owner)',
   PGPASSWORD: 'built by compose.yml from MYCEL_BACKUP_PASSWORD or MYCEL_DB_PASSWORD',
   PGDATABASE: 'set by compose.yml for the backup services',
-  DRILL_BACKUP_DATABASE_URL: 'restore drill harness, set by scripts/drill-run.sh',
-  BACKUP_HOLD_AFTER_DUMP: 'restore drill harness, passed by scripts/drill-run.sh (TODO #29A)',
+  DRILL_BACKUP_DATABASE_URL: 'restore drill harness, set by scripts/drill/drill-run.sh',
+  BACKUP_HOLD_AFTER_DUMP: 'restore drill harness, passed by scripts/drill/drill-run.sh (TODO #29A)',
 };
 
 /**

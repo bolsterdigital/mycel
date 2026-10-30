@@ -18,7 +18,7 @@ CI runs `verify` plus a DCO check (`.github/workflows/verify.yml`). Commits are 
 
 ## Frozen design decisions (summary; the ADRs are authoritative)
 
-- **`packages/core` is framework-free** and imports no I/O library; adapters implement its ports; fronts call its use-case registry. `scripts/check-dependency-rules.mjs` enforces direction and licences (ADR 001, 006, 008).
+- **`packages/core` is framework-free** and imports no I/O library; adapters implement its ports; fronts call its use-case registry. `scripts/gates/check-dependency-rules.mjs` enforces direction and licences (ADR 001, 006, 008).
 - **One Postgres, `tenant_id` on every tenant-owned row, forced RLS**, tenant context from authentication via `set_config` per transaction, never from a payload (ADR 002).
 - **Supporter = normalised e-mail + append-only event log + projection**; envelope `wings.supporter-event.v1` inherited from Dreamkit (ADR 003).
 - **Pages are JSON block trees with Zod schemas; rendering is an adapter; ordinary client differences are validated data, and reviewed managed extensions have a versioned contract** (ADRs 004, 022).

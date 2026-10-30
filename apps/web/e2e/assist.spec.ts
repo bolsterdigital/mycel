@@ -99,7 +99,7 @@ async function enable(page: Page) {
     .click();
 }
 
-// Only the real process started by scripts/e2e.mjs completes jobs. Native refresh reads its
+// Only the real process started by scripts/e2e/e2e.mjs completes jobs. Native refresh reads its
 // result; there is no competing helper worker and alt must read the actual stored image bytes.
 // Wait for that refresh instead of reloading in the test: competing navigations can detach
 // Chromium's page, and a manual reload would not prove the no-JavaScript refresh works.

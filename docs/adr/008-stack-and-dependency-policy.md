@@ -58,5 +58,5 @@ Replacing a framework or library in the table is a brief plus a PR, not an ADR, 
 
 ## Consequences
 
-- `scripts/check-dependency-rules.mjs` enforces import direction and licence allow-list in `verify`.
+- `scripts/gates/check-dependency-rules.mjs` enforces import direction and licence allow-list in `verify`.
 - `renovate`/dependabot runs weekly; a dependency that goes unmaintained for a year is a TODO item to replace or vendor.

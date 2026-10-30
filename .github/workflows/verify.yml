@@ -144,7 +144,7 @@ jobs:
             git /repo --config /repo/.gitleaks.toml --redact --verbose
 
       - name: Secretscan allow-list regression
-        run: node --test scripts/gitleaks.test.mjs
+        run: node --test scripts/gates/gitleaks.test.mjs
 
   # The deployable artefact (Dockerfile): build it without pushing, then start each entrypoint
   # and wait for its HEALTHCHECK. A separate job so an image problem shows up as its own red

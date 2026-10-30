@@ -25,7 +25,7 @@ import { isA11y, onlyA11y } from './lib/project';
 import { requireApi } from './lib/api';
 
 // Operator admin (TODO #7), the seed of the "publish" flow in testing.md: login through the mock
-// IdP as e2e-admin@probe.test (scripts/e2e.mjs seeds that admin and starts the IdP), access by
+// IdP as e2e-admin@probe.test (scripts/e2e/e2e.mjs seeds that admin and starts the IdP), access by
 // membership, and an API key made in the admin that works over HTTP until it is revoked there.
 // Runs without JavaScript and under axe like the signup spec. The dashboard and the members and
 // domains pages (moved verbatim from the tenant home in #66 PR 1) are routes of the generic UI

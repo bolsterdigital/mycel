@@ -1,7 +1,7 @@
 // testing.md rule 3, once: a suite that needs an outside service (Postgres, S3) skips locally
 // without it and fails in CI, where `E2E_REQUIRED=1`. Every suite asks here instead of comparing
 // `E2E_REQUIRED` itself, so the rule cannot be copied wrong (the #99 slip in setup.conformance);
-// `scripts/testing-shape.test.mjs` keeps the comparison in this file. The environment is a
+// `scripts/gates/testing-shape.test.mjs` keeps the comparison in this file. The environment is a
 // parameter because core reads no process state; callers pass `process.env`.
 // Rejected: a Vitest global setup that fails the run (it cannot tell which suite needed what),
 // and one helper per package (blob needs it too and depends on core alone).
