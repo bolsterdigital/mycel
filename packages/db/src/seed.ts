@@ -8,10 +8,8 @@ import {
   Invoker,
   UseCaseError,
   buildRegistry,
-  hashApiKey,
   systemPrincipal,
   useCases,
-  type KeyCapability,
   type Signer,
 } from '@mycel/core';
 import {
@@ -22,6 +20,7 @@ import {
   uuidv7,
   uuidv7Ids,
 } from './index.js';
+import { seedApiKey } from './seed-key.js';
 import {
   FakeDns,
   FakeInputHasher,
@@ -113,37 +112,17 @@ try {
   }
 
   // A key whose token the operator chose (dev .env, scripts/e2e.mjs), so API and MCP work
-  // without clicking one together first. Upsert on the hash: a rerun changes nothing.
+  // without clicking one together first. A rerun changes nothing, and refuses a stale key.
   const token = process.env['MYCEL_API_KEY'];
-  if (token) {
-    const keyHash = await hashApiKey(token);
-    const capabilities: KeyCapability[] = [
-      'content:read',
-      'forms:read',
-      'supporters:read',
-      'content:write',
-      'media:read',
-      'media:write',
-    ];
-    const created = await uow
-      .run(admin, async (ctx) => {
-        await ctx.apiKeys.insert({
-          id: uuidv7(),
-          name: 'seed',
-          prefix: token.slice(0, 12),
-          keyHash,
-          capabilities,
-          createdBy: admin.actor,
-          createdAt: new Date(),
-        });
-        return true;
+  const outcome = token
+    ? await seedApiKey(uow, admin, token).catch((e: Error) => {
+        console.error(e.message);
+        process.exitCode = 1;
+        return 'refused';
       })
-      .catch((e: { code?: string }) => {
-        if (e.code === '23505') return false; // unique key_hash: seeded before
-        throw e;
-      });
-    if (created) console.log(`seeded API key "seed" for ${tenant.slug} from MYCEL_API_KEY`);
-  }
+    : 'none';
+  if (outcome === 'created')
+    console.log(`seeded API key "seed" for ${tenant.slug} from MYCEL_API_KEY`);
 } finally {
   await operatorDb.destroy();
   await appDb.destroy();
