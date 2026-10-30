@@ -11,6 +11,7 @@ import { sha256Hex } from '../util/digest.js';
 import { PROVIDER_RECONCILES, type ConnectionProvider } from './ports.js';
 import { isFrozen } from './rules.js';
 import { isSyntheticIntent, SYNTHETIC_SCOPE, SYNTHETIC_SOURCE } from './synthetic.js';
+import { exampleId } from '../util/ids.js';
 
 export const ConnectionIntentState = z.enum([
   'pending',
@@ -180,7 +181,7 @@ export async function enqueueConnectionIntent(
   });
 }
 const id = z.object({ id: z.string().guid() }).strict();
-const example = { id: '01900000-0000-7000-8000-000000000001' };
+const example = { id: exampleId(0x1) };
 const view = z.object({
   id: z.string().guid(),
   connectionId: z.string().guid(),

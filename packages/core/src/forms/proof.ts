@@ -11,6 +11,7 @@
 import { z } from 'zod';
 import type { Signer } from '../ports.js';
 import { sha256Hex } from '../util/digest.js';
+import { randomHex } from '../util/token.js';
 
 /**
  * The search space; on average half of it is searched. Measured 2026-10-23 in headless Chromium
@@ -40,11 +41,6 @@ const ProofSolution = z.object({
   salt: z.string().max(200),
   signature: z.string().max(2000),
 });
-
-const randomHex = (bytes: number): string =>
-  [...globalThis.crypto.getRandomValues(new Uint8Array(bytes))]
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
 
 /** A uniformly random integer in [0, max]. */
 function randomInt(max: number): number {

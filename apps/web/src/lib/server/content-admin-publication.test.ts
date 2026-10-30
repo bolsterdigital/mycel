@@ -3,7 +3,6 @@ import {
   fieldOf,
   issuePath,
   fromLocalInput,
-  issueKey,
   localInput,
   localLabel,
 } from './content-admin-publication.js';
@@ -49,8 +48,5 @@ describe('fieldOf', () => {
     expect(fieldOf('locales', 'en')).toBe('publication-en');
     expect(fieldOf('blocks.0.props.text.en', 'en')).toBeNull();
     expect(issuePath('title', 'content.publish.missing-translation', 'en')).toBe('title.en');
-    expect(issueKey('content.reference.author-unknown:abc')).toBe(
-      'content.reference.author-unknown'
-    );
   });
 });

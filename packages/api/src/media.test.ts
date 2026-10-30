@@ -89,7 +89,7 @@ describe('media over HTTP', () => {
       bytes: over,
     });
     expect(big.status).toBe(400);
-    expect(await big.json()).toMatchObject({ issues: [{ message: 'media.size.too_large' }] });
+    expect(await big.json()).toMatchObject({ issues: [{ message: 'media.size.too-large' }] });
 
     const huge = await post('media.upload', `{"bytes":"${'A'.repeat(MAX_BODY_BYTES)}"}`);
     expect(huge.status).toBe(413);

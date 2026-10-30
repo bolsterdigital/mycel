@@ -143,7 +143,7 @@ const ISSUE_COPY: Record<string, UiKey> = {
   'content.reference.media-not-image': 'admin.content.issue.mediaNotImage',
   'content.blocks.adjacent-rich-text': 'admin.block.issue.adjacentText',
   'content.blocks.too-many': 'admin.block.issue.tooMany',
-  'entitlements.feature_off': 'admin.block.issue.notIncluded',
+  'entitlements.feature-off': 'admin.block.issue.notIncluded',
   'editor.markdown.unclosed-link': 'admin.block.issue.unclosedLink',
   'editor.markdown.unknown-footnote': 'admin.block.issue.unknownFootnote',
   'editor.markdown.list-item-start': 'admin.block.issue.listItemStart',
@@ -152,7 +152,7 @@ const ISSUE_COPY: Record<string, UiKey> = {
 
 /** Catalog copy for an issue key of core or of the Markdown reader. */
 export const issueCopy = (message: string): UiKey =>
-  ISSUE_COPY[message] ?? ISSUE_COPY[message.split(':')[0]!] ?? 'admin.block.issue.other';
+  ISSUE_COPY[message] ?? 'admin.block.issue.other';
 
 /**
  * Core's issues of a block operation as field issues. A path inside the block's props

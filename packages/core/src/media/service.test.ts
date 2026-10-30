@@ -153,7 +153,7 @@ describe('media', () => {
       await expectCode(
         upload({ bytes: pngHeader(8000, 8000) }),
         'invalid_input',
-        'media.pixels.too_many'
+        'media.pixels.too-many'
       );
       expect(keys()).toEqual([]);
     });
@@ -173,7 +173,7 @@ describe('media', () => {
       await expectCode(
         upload({ filename: 'loop.gif', contentType: 'image/gif', bytes: GIF }),
         'invalid_input',
-        'media.pixels.too_many'
+        'media.pixels.too-many'
       );
       expect(keys()).toEqual([]);
     });
@@ -182,7 +182,7 @@ describe('media', () => {
       await expectCode(
         upload({ bytes: 'A'.repeat(35_000_000) }),
         'invalid_input',
-        'media.size.too_large'
+        'media.size.too-large'
       );
     });
 

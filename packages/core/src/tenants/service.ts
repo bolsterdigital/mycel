@@ -28,6 +28,7 @@ import {
 } from './model.js';
 import { DnsUnavailableError, type HostnameRecord } from './ports.js';
 import '../jobs/ports.js';
+import { iso } from '../util/date.js';
 
 /** How often a custom hostname is re-checked, and after how many misses in a row it lapses. */
 export const REVERIFY_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -41,8 +42,8 @@ function toHostname(ctx: TransactionContext, row: HostnameRecord, slug: string):
     hostname: row.hostname,
     kind: row.kind,
     primary: row.primary,
-    verifiedAt: row.verifiedAt?.toISOString() ?? null,
-    lastCheckedAt: row.lastCheckedAt?.toISOString() ?? null,
+    verifiedAt: iso(row.verifiedAt),
+    lastCheckedAt: iso(row.lastCheckedAt),
     checkFailures: row.checkFailures,
   };
   return row.kind === 'custom' && row.verificationToken
@@ -123,7 +124,7 @@ export async function verifyHostname(
       hostname: row.hostname,
       checked: false,
       verified: false,
-      verifiedAt: row.verifiedAt?.toISOString() ?? null,
+      verifiedAt: iso(row.verifiedAt),
       found: { txt: [], cname: null },
       pointsToPlatform: false,
     };
@@ -142,7 +143,7 @@ export async function verifyHostname(
     hostname: row.hostname,
     checked: true,
     verified,
-    verifiedAt: verifiedAt?.toISOString() ?? null,
+    verifiedAt: iso(verifiedAt),
     found: { txt, cname },
     pointsToPlatform: cname === platformHostname(slug, ctx.platform.domain),
   };

@@ -16,6 +16,7 @@ import {
   issueStartedToken,
 } from './spam.js';
 import './ports.js';
+import { exampleId } from '../util/ids.js';
 
 export const getForm = defineUseCase({
   name: 'form.get',
@@ -26,7 +27,7 @@ export const getForm = defineUseCase({
   input: z.object({ id: z.string().guid() }),
   output: z.object({ form: FormDefinition, startedToken: z.string(), proof: ProofChallenge }),
   resource: { uriTemplate: 'mycel://forms/{id}' },
-  examples: [{ input: { id: '01900000-0000-7000-8000-00000000f000' } }],
+  examples: [{ input: { id: exampleId(0xf000) } }],
   async handler(ctx, { id }) {
     const form = await ctx.forms.findById(id);
     if (!form) throw notFound('form', `the id "${id}"`);
@@ -85,7 +86,7 @@ export const submitForm = defineUseCase({
   examples: [
     {
       input: {
-        formId: '01900000-0000-7000-8000-00000000f000',
+        formId: exampleId(0xf000),
         values: { email: 'a@example.org', consent: true },
         locale: 'nl',
       },

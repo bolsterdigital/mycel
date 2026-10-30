@@ -6,11 +6,11 @@ import { anonymousPrincipal, systemPrincipal } from '../principal.js';
 import { MemoryUnitOfWork } from '../testing/memory.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { DEFAULT_CHROME } from './settings.js';
+import { EXAMPLE_PNG } from '../media/service.js';
 
 const a = '01900000-0000-7000-8000-00000000aa31';
 const b = '01900000-0000-7000-8000-00000000bb31';
-const png =
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+const png = EXAMPLE_PNG;
 
 describe('brand asset registry', () => {
   it('keeps independent versions, tenants and other settings', async () => {

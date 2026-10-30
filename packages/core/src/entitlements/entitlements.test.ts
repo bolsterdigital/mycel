@@ -30,14 +30,11 @@ import {
   expectCode,
   TENANT,
 } from '../testing/index.js';
+import { hostedPlatform } from '../testing/fixtures.js';
 
 const FORM = '01900000-0000-7000-8000-00000000f000';
-const platform = {
-  domain: 'mycel.site',
-  devHosts: ['localhost'],
-  platformOrigin: 'https://admin.example.org',
-  siteUrlMode: 'hostnames' as const,
-};
+// The origin outside the platform domain, so a hostname add can try the admin's own host.
+const platform = { ...hostedPlatform, platformOrigin: 'https://admin.example.org' };
 
 const admin = systemPrincipal(TENANT, 'test');
 const limited = (overrides: Partial<Entitlements>, p: Principal = admin): Principal => ({

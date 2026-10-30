@@ -27,7 +27,7 @@ describe('fieldIssues', () => {
     const e = new UseCaseError('invalid_input', 'x', [
       { path: 'blocks.3.props.title.nl', message: 'i18n.localized.empty' },
       { path: 'blocks.2.props.title.nl', message: 'i18n.localized.empty' },
-      { path: 'block.props.text', message: 'content.link.unsafe:x' },
+      { path: 'block.props.text', message: 'content.link.unsafe' },
       { path: 'props', message: 'content.hero.image-required' },
       { path: 'blocks', message: 'content.blocks.adjacent-rich-text' },
     ]);

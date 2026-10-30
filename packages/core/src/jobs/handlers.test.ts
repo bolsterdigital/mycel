@@ -19,14 +19,10 @@ import {
   probeTenant,
   TENANT,
 } from '../testing/index.js';
+import { hostedPlatform } from '../testing/fixtures.js';
 
 const OTHER = '01900000-0000-7000-8000-00000000bbbb';
-const platform = {
-  domain: 'mycel.site',
-  devHosts: ['localhost'],
-  platformOrigin: 'https://admin.mycel.site',
-  siteUrlMode: 'hostnames' as const,
-};
+const platform = hostedPlatform;
 const HOST = 'www.example.org';
 const DAY = REVERIFY_INTERVAL_MS;
 

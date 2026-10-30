@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { pageDocument } from '../testing/fixtures.js';
 import { preserveTranslationReview } from './translation-review.js';
 import { BLOCK_DEFINITIONS } from './block-types.js';
 import { MAX_BLOCKS, assignBlockIds, projectBlock, type Block } from './blocks.js';
@@ -38,14 +39,8 @@ const paywall = (id?: string) => ({
   props: {},
 });
 
-const page = (over: Record<string, unknown> = {}) => ({
-  type: 'page',
-  defaultLocale: 'nl',
-  locales: ['nl', 'en'],
-  title: { nl: 'Titel', en: 'Title' },
-  blocks: [heading('h1', { nl: 'Kop', en: 'Heading' })],
-  ...over,
-});
+const page = (over: Record<string, unknown> = {}) =>
+  pageDocument({ blocks: [heading('h1', { nl: 'Kop', en: 'Heading' })], ...over });
 const article = (over: Record<string, unknown> = {}) => ({
   ...page(),
   type: 'article',

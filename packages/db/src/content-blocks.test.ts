@@ -132,12 +132,16 @@ describe.skipIf(skip)('content blocks conformance', () => {
         .select((eb) => eb.fn.countAll<string>().as('n'))
         .executeTakeFirstOrThrow()
     ).then((r) => Number(r.n));
-  const refused = (p: Promise<unknown>, message: string) =>
+  const refused = (p: Promise<unknown>, message: string, params?: Record<string, string>) =>
     expect(p).rejects.toSatisfy(
       (e) =>
         e instanceof UseCaseError &&
         e.code === 'invalid_input' &&
-        e.issues.some((i) => i.message.startsWith(message))
+        e.issues.some(
+          (i) =>
+            i.message === message &&
+            (!params || JSON.stringify(i.params) === JSON.stringify(params))
+        )
     );
 
   beforeAll(async () => {
@@ -225,7 +229,8 @@ describe.skipIf(skip)('content blocks conformance', () => {
         baseRevisionId: revision.id,
         document: doc({ featuredImageId: foreign }),
       }),
-      `content.reference.media-unknown:${foreign}`
+      'content.reference.media-unknown',
+      { id: foreign }
     );
     await expect(
       invoker.run(useCases.deleteMedia, adminOf(tenantA), { id: share })
@@ -276,9 +281,9 @@ describe.skipIf(skip)('content blocks conformance', () => {
     const pdf = await upload(adminOf(tenantA), true);
     const gone = await upload(adminOf(tenantA));
     await invoker.run(useCases.deleteMedia, adminOf(tenantA), { id: gone });
-    await refused(page([image('i', foreign)]), `content.reference.media-unknown:${foreign}`);
-    await refused(page([image('i', gone)]), `content.reference.media-unknown:${gone}`);
-    await refused(page([image('i', pdf)]), `content.reference.media-not-image:${pdf}`);
+    await refused(page([image('i', foreign)]), 'content.reference.media-unknown', { id: foreign });
+    await refused(page([image('i', gone)]), 'content.reference.media-unknown', { id: gone });
+    await refused(page([image('i', pdf)]), 'content.reference.media-not-image', { id: pdf });
     await refused(pattern([image('i', foreign)]), 'content.reference.media-unknown');
     expect(await count('content_revisions')).toBe(before);
     expect(await usagesOf(foreign, adminOf(tenantB))).toEqual([]);
@@ -422,7 +427,7 @@ describe.skipIf(skip)('content blocks conformance', () => {
     expect(settled).toBe(false);
     paused.release();
     await expect(del).resolves.toMatchObject({ id: photo });
-    await refused(save, `content.reference.media-unknown:${photo}`);
+    await refused(save, 'content.reference.media-unknown', { id: photo });
     expect(await count('content_revisions')).toBe(before);
     expect(await usagesOf(photo)).toEqual([]);
   });

@@ -150,7 +150,11 @@ export function openApiDocument(registry: UseCaseRegistry): Record<string, unkno
               items: {
                 type: 'object',
                 required: ['path', 'message'],
-                properties: { path: { type: 'string' }, message: { type: 'string' } },
+                properties: {
+                  path: { type: 'string' },
+                  message: { type: 'string' },
+                  params: { type: 'object', additionalProperties: { type: 'string' } },
+                },
               },
             },
           },

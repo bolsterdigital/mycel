@@ -252,7 +252,9 @@ export function normalizeBlocks(blocks: readonly Block[]): Normalized {
     const b = block.props.content;
     const locales = Object.keys(a).sort();
     if (locales.join() !== Object.keys(b).sort().join())
-      throw new BlockOperationError('blockId', `content.blocks.merge-ambiguous:${previous.id}`);
+      throw new BlockOperationError('blockId', 'content.blocks.merge-ambiguous', {
+        id: previous.id,
+      });
     const content: Record<string, RichTextDoc> = {};
     for (const l of locales)
       content[l] = { type: 'doc', content: [...a[l]!.content, ...b[l]!.content] };
@@ -267,7 +269,9 @@ export class BlockOperationError extends Error {
   constructor(
     /** The input field the problem is about (`blockId`, `before`, `at.en`, ...). */
     readonly path: string,
-    readonly issue: string
+    readonly issue: string,
+    /** What the issue is about (`Issue.params`), such as the block id. */
+    readonly params?: Record<string, string>
   ) {
     super(issue);
   }

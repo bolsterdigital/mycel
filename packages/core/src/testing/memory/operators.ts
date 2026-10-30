@@ -20,6 +20,7 @@ import type { Clock, Ids } from '../../ports.js';
 import { normalizeEmail } from '../../util/email.js';
 import { FakeClock, MemoryTenants, SequentialIds } from './fakes.js';
 import type { MemoryStore, OperatorRow, StoredApiKey, TenantStore } from './store.js';
+import { iso } from '../../util/date.js';
 
 /** `ctx.operators`: an invite finds or creates the platform-wide operator row. */
 export function memoryOperators(rows: Map<string, OperatorRow>): OperatorRepository {
@@ -97,8 +98,8 @@ const summary = (k: StoredApiKey) =>
     capabilities: [...k.capabilities],
     createdBy: structuredClone(k.createdBy),
     createdAt: k.createdAt.toISOString(),
-    lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
-    revokedAt: k.revokedAt?.toISOString() ?? null,
+    lastUsedAt: iso(k.lastUsedAt),
+    revokedAt: iso(k.revokedAt),
   }) satisfies ApiKeySummary;
 
 export function memoryApiKeys(s: TenantStore): ApiKeyRepository {
@@ -180,8 +181,8 @@ export class MemoryIdentityStore implements IdentityStore {
       id: row.id,
       email: row.email,
       name: row.name,
-      emailVerifiedAt: row.emailVerifiedAt?.toISOString() ?? null,
-      lastLoginAt: row.lastLoginAt?.toISOString() ?? null,
+      emailVerifiedAt: iso(row.emailVerifiedAt),
+      lastLoginAt: iso(row.lastLoginAt),
     };
   }
 

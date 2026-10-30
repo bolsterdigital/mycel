@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { defineUseCase } from '../registry.js';
 import { UseCaseError } from '../errors.js';
 import { base64ToBytes } from '../util/bytes.js';
+import { EXAMPLE_PNG } from '../media/service.js';
 import './ports.js';
 
 export const BrandKind = z.enum(['logo', 'font']);
@@ -78,8 +79,7 @@ export const putBrandAsset = defineUseCase({
         kind: 'logo',
         baseVersion: 0,
         contentType: 'image/png',
-        bytes:
-          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+        bytes: EXAMPLE_PNG,
       },
     },
   ],

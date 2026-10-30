@@ -80,6 +80,3 @@ export function fieldOf(path: string, locale: string): string | null {
  */
 export const issuePath = (path: string, message: string, locale: string): string =>
   message === 'content.publish.missing-translation' ? `${path}.${locale}` : path;
-
-/** Core's issue message without the id some carry (`content.reference.author-unknown:<id>`). */
-export const issueKey = (message: string): string => message.split(':')[0] ?? message;

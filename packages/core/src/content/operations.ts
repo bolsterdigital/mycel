@@ -38,6 +38,7 @@ import {
   writeRevision,
 } from './service.js';
 import './ports.js';
+import { exampleId } from '../util/ids.js';
 
 const ItemId = z.string().guid();
 const Limit = z.number().int().min(1).max(100).optional();
@@ -69,14 +70,14 @@ interface Applied {
   merged: { from: string; into: string }[];
 }
 
-const fail = (path: string, issue: string): never => {
-  throw new BlockOperationError(path, issue);
+const fail = (path: string, issue: string, params?: Record<string, string>): never => {
+  throw new BlockOperationError(path, issue, params);
 };
 
 /** Index of `id` in the list, or an `invalid_input` on `path`. Flat while no block has children. */
 function indexOf(blocks: readonly Block[], id: string, path: string): number {
   const i = blocks.findIndex((b) => b.id === id);
-  return i >= 0 ? i : fail(path, `content.block.unknown:${id}`);
+  return i >= 0 ? i : fail(path, 'content.block.unknown', { id });
 }
 
 function place(blocks: Block[], block: Block, where: Placement): Block[] {
@@ -114,7 +115,7 @@ async function mutate(
   } catch (e) {
     if (!(e instanceof BlockOperationError)) throw e;
     throw new UseCaseError('invalid_input', 'the operation does not fit the document', [
-      { path: e.path, message: e.issue },
+      { path: e.path, message: e.issue, ...(e.params && { params: e.params }) },
     ]);
   }
   const doc: ContentDocument = finalize(ctx, base.document, applied.blocks);
@@ -129,8 +130,8 @@ function normalized(blocks: Block[], created: string[], retired: string[]): Appl
 }
 
 const exampleTarget = {
-  itemId: '01900000-0000-7000-8000-000000000001',
-  baseRevisionId: '01900000-0000-7000-8000-000000000002',
+  itemId: exampleId(0x1),
+  baseRevisionId: exampleId(0x2),
 };
 const exampleHeading = {
   type: 'heading' as const,
@@ -305,7 +306,7 @@ export const findItems = defineUseCase({
   examples: [
     { input: { blockType: 'signup-form' } },
     {
-      input: { ref: { type: 'form', id: '01900000-0000-7000-8000-000000000003' }, live: true },
+      input: { ref: { type: 'form', id: exampleId(0x3) }, live: true },
       note: 'Where a form is live: only revisions a locale publishes count.',
     },
   ],

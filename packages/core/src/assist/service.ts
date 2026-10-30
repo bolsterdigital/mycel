@@ -24,11 +24,10 @@ import { jobKey } from '../jobs/types.js';
 import { AltResult, PENDING_TIMEOUT_MS, SettingsView, SuggestionView } from './model.js';
 import type { AssistSettings, AssistSuggestion } from './ports.js';
 import './ports.js';
+import { iso } from '../util/date.js';
+import { Uuid, exampleId } from '../util/ids.js';
 
-const uuid = z.string().guid();
-const exampleId = '01900000-0000-7000-8000-000000000001';
 const OPERATOR_WINDOW_MS = 3_600_000;
-const iso = (date: Date | null) => date?.toISOString() ?? null;
 const settingsView = (settings: AssistSettings, provider: string | null) => ({
   ...settings,
   consentedAt: iso(settings.consentedAt),
@@ -160,18 +159,18 @@ export const suggestAlt = defineUseCase({
   consumes: 'ai.monthly_max',
   input: z
     .object({
-      itemId: uuid,
-      baseRevisionId: uuid,
+      itemId: Uuid,
+      baseRevisionId: Uuid,
       blockId: z.string().min(1),
       locale: z.string().min(2),
     })
     .strict(),
-  output: z.object({ suggestionId: uuid, status: z.literal('pending') }),
+  output: z.object({ suggestionId: Uuid, status: z.literal('pending') }),
   examples: [
     {
       input: {
-        itemId: exampleId,
-        baseRevisionId: exampleId,
+        itemId: exampleId(1),
+        baseRevisionId: exampleId(1),
         blockId: 'example-image',
         locale: 'nl',
       },
@@ -220,9 +219,9 @@ export const getSuggestion = defineUseCase({
   description: 'Read one tenant-owned assistance proposal.',
   requires: 'content:read',
   authenticatedOnly: true,
-  input: z.object({ suggestionId: uuid }),
+  input: z.object({ suggestionId: Uuid }),
   output: SuggestionView,
-  examples: [{ input: { suggestionId: exampleId } }],
+  examples: [{ input: { suggestionId: exampleId(1) } }],
   async handler(ctx, { suggestionId }) {
     return suggestionView(await findSuggestion(ctx, suggestionId), ctx.clock.now());
   },
@@ -234,9 +233,9 @@ export const listSuggestions = defineUseCase({
   description: 'List assistance proposals for one content item.',
   requires: 'content:read',
   authenticatedOnly: true,
-  input: z.object({ itemId: uuid }),
+  input: z.object({ itemId: Uuid }),
   output: z.object({ suggestions: z.array(SuggestionView) }),
-  examples: [{ input: { itemId: exampleId } }],
+  examples: [{ input: { itemId: exampleId(1) } }],
   async handler(ctx, { itemId }) {
     return {
       suggestions: (await ctx.assist.list(itemId)).map((s) => suggestionView(s, ctx.clock.now())),
@@ -251,9 +250,9 @@ export const dismissSuggestion = defineUseCase({
   requires: 'content:write',
   authenticatedOnly: true,
   actors: ['operator'],
-  input: z.object({ suggestionId: uuid }),
+  input: z.object({ suggestionId: Uuid }),
   output: SuggestionView,
-  examples: [{ input: { suggestionId: exampleId } }],
+  examples: [{ input: { suggestionId: exampleId(1) } }],
   async handler(ctx, { suggestionId }) {
     const row = await findSuggestion(ctx, suggestionId);
     if (row.status !== 'ready' && row.status !== 'failed' && !timedOut(row, ctx.clock.now()))
@@ -275,10 +274,10 @@ export const acceptSuggestion = defineUseCase({
   authenticatedOnly: true,
   actors: ['operator'],
   input: z
-    .object({ suggestionId: uuid, baseRevisionId: uuid, value: z.string().optional() })
+    .object({ suggestionId: Uuid, baseRevisionId: Uuid, value: z.string().optional() })
     .strict(),
-  output: z.object({ revisionId: uuid }),
-  examples: [{ input: { suggestionId: exampleId, baseRevisionId: exampleId } }],
+  output: z.object({ revisionId: Uuid }),
+  examples: [{ input: { suggestionId: exampleId(1), baseRevisionId: exampleId(1) } }],
   async handler(ctx, { suggestionId, baseRevisionId, value }) {
     const row = await findSuggestion(ctx, suggestionId);
     if (row.status !== 'ready' || !row.value || !row.model) refuse('conflict', 'not-ready');
@@ -372,19 +371,19 @@ export const suggestTranslation = defineUseCase({
   consumes: 'ai.monthly_max',
   input: z
     .object({
-      itemId: uuid,
-      baseRevisionId: uuid,
+      itemId: Uuid,
+      baseRevisionId: Uuid,
       from: z.string().min(2),
       to: z.string().min(2),
       targets: TranslationTargets,
     })
     .strict(),
-  output: z.object({ suggestionId: uuid, status: z.literal('pending') }),
+  output: z.object({ suggestionId: Uuid, status: z.literal('pending') }),
   examples: [
     {
       input: {
-        itemId: exampleId,
-        baseRevisionId: exampleId,
+        itemId: exampleId(1),
+        baseRevisionId: exampleId(1),
         from: 'nl',
         to: 'en',
         targets: ['title'],

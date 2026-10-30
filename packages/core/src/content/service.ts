@@ -52,6 +52,8 @@ import {
 import type { ItemRecord } from './ports.js';
 import { preserveTranslationReview } from './translation-review.js';
 import './ports.js';
+import { iso } from '../util/date.js';
+import { exampleId } from '../util/ids.js';
 
 export const DEFAULT_PAGE_SIZE = 20;
 /** How long a scheduled publication of a suspended site waits before it looks again. */
@@ -60,7 +62,6 @@ const Limit = z.number().int().min(1).max(100).optional();
 const ItemId = z.string().guid();
 
 export function toContentItem(r: ItemRecord): ContentItem {
-  const iso = (d: Date | null) => d?.toISOString() ?? null;
   return {
     id: r.id,
     type: r.type,
@@ -126,7 +127,11 @@ export function finalize(
 export function assertBase(item: ItemRecord, baseRevisionId: string): void {
   if (item.latestRevisionId !== baseRevisionId)
     throw new UseCaseError('conflict', 'the item has a newer revision than baseRevisionId', [
-      { path: 'baseRevisionId', message: `content.revision.conflict:${item.latestRevisionId}` },
+      {
+        path: 'baseRevisionId',
+        message: 'content.revision.conflict',
+        params: { latestRevisionId: item.latestRevisionId },
+      },
     ]);
 }
 
@@ -246,10 +251,10 @@ export async function blockReferenceIssues(
   if (refs.media.length) await ctx.media.lock();
   for (const id of refs.forms)
     if (!(await ctx.forms.findById(id)))
-      issues.push({ path, message: `content.reference.form-unknown:${id}` });
+      issues.push({ path, message: 'content.reference.form-unknown', params: { id } });
   for (const id of refs.items)
     if (!(await ctx.content.get(id)))
-      issues.push({ path, message: `content.reference.item-unknown:${id}` });
+      issues.push({ path, message: 'content.reference.item-unknown', params: { id } });
   for (const id of refs.media) {
     const issue = await imageIssue(ctx, id, path);
     if (issue) issues.push(issue);
@@ -265,9 +270,9 @@ async function imageIssue(
 ): Promise<Issue | null> {
   const media = await ctx.media.get(mediaId);
   if (!media || media.deletedAt)
-    return { path, message: `content.reference.media-unknown:${mediaId}` };
+    return { path, message: 'content.reference.media-unknown', params: { id: mediaId } };
   if (media.kind !== 'image')
-    return { path, message: `content.reference.media-not-image:${mediaId}` };
+    return { path, message: 'content.reference.media-not-image', params: { id: mediaId } };
   return null;
 }
 
@@ -290,7 +295,11 @@ export async function referenceIssues(
   if (doc.type === 'article') {
     for (const id of doc.authorIds)
       if (!(await ctx.authors.get(id)))
-        issues.push({ path: 'authorIds', message: `content.reference.author-unknown:${id}` });
+        issues.push({
+          path: 'authorIds',
+          message: 'content.reference.author-unknown',
+          params: { id },
+        });
     if (doc.sectionId && !(await ctx.sections.get(doc.sectionId)))
       issues.push({ path: 'sectionId', message: 'content.reference.section-unknown' });
   }
@@ -441,8 +450,8 @@ export const updateItem = defineUseCase({
   examples: [
     {
       input: {
-        itemId: '01900000-0000-7000-8000-000000000001',
-        baseRevisionId: '01900000-0000-7000-8000-000000000002',
+        itemId: exampleId(0x1),
+        baseRevisionId: exampleId(0x2),
         document: pageExample.document,
       },
     },
@@ -457,7 +466,11 @@ export const updateItem = defineUseCase({
     for (const s of item.publication)
       if (!document.locales.includes(s.locale) && (s.publishedRevisionId || s.scheduleId))
         throw new UseCaseError('invalid_input', `locale "${s.locale}" is published or planned`, [
-          { path: 'document.locales', message: `content.locale.still-live:${s.locale}` },
+          {
+            path: 'document.locales',
+            message: 'content.locale.still-live',
+            params: { locale: s.locale },
+          },
         ]);
     const previous = await ctx.content.revision(itemId, baseRevisionId);
     if (!previous) throw notFound('revision');
@@ -476,7 +489,7 @@ export const getItem = defineUseCase({
   input: z.object({ itemId: ItemId, revisionId: z.string().guid().optional() }),
   output: ItemWithRevision,
   resource: { uriTemplate: 'mycel://content/{itemId}' },
-  examples: [{ input: { itemId: '01900000-0000-7000-8000-000000000001' } }],
+  examples: [{ input: { itemId: exampleId(0x1) } }],
   async handler(ctx, { itemId, revisionId }) {
     const item = await ctx.content.get(itemId);
     if (!item) throw notFound('content item');
@@ -515,7 +528,7 @@ export const listRevisions = defineUseCase({
   authenticatedOnly: true,
   input: z.object({ itemId: ItemId, after: z.string().guid().optional(), limit: Limit }),
   output: z.object({ revisions: z.array(RevisionSummary), next: z.string().guid().nullable() }),
-  examples: [{ input: { itemId: '01900000-0000-7000-8000-000000000001' } }],
+  examples: [{ input: { itemId: exampleId(0x1) } }],
   async handler(ctx, { itemId, after, limit }) {
     if (!(await ctx.content.get(itemId))) throw notFound('content item');
     const page = await ctx.content.revisions(itemId, after ?? null, limit ?? DEFAULT_PAGE_SIZE);
@@ -543,9 +556,9 @@ export const diffRevisions = defineUseCase({
   examples: [
     {
       input: {
-        itemId: '01900000-0000-7000-8000-000000000001',
-        fromRevisionId: '01900000-0000-7000-8000-000000000002',
-        toRevisionId: '01900000-0000-7000-8000-000000000003',
+        itemId: exampleId(0x1),
+        fromRevisionId: exampleId(0x2),
+        toRevisionId: exampleId(0x3),
       },
     },
   ],
@@ -600,8 +613,8 @@ const PublicationTarget = z.object({
   locale: Locale,
 });
 const exampleTarget = {
-  itemId: '01900000-0000-7000-8000-000000000001',
-  revisionId: '01900000-0000-7000-8000-000000000002',
+  itemId: exampleId(0x1),
+  revisionId: exampleId(0x2),
   locale: 'nl',
 };
 

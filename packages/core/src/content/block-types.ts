@@ -15,6 +15,7 @@ import { z } from 'zod';
 import { localized } from '../i18n/locale.js';
 import { MediaCredit } from '../media/model.js';
 import { RichTextDoc, isSafeHref, linkedItemIds } from './rich-text.js';
+import { exampleId } from '../util/ids.js';
 
 /** A localised map inside a block's props, with its path from `props`. */
 export interface LocalField {
@@ -214,10 +215,10 @@ function docRefs(map: Partial<Record<string, RichTextDoc>> | undefined): PropRef
 
 /** Example ids: the renderer's resolver fixtures (#8c) map these to a form, an item and images. */
 export const EXAMPLE_IDS = {
-  form: '01900000-0000-7000-8000-00000000f001',
-  item: '01900000-0000-7000-8000-00000000c001',
-  image: '01900000-0000-7000-8000-00000000d001',
-  portrait: '01900000-0000-7000-8000-00000000d002',
+  form: exampleId(0xf001),
+  item: exampleId(0xc001),
+  image: exampleId(0xd001),
+  portrait: exampleId(0xd002),
 } as const;
 
 const doc = (...paragraphs: string[]): RichTextDoc => ({

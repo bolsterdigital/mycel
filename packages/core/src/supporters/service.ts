@@ -19,6 +19,7 @@ import {
   rebuildProjection,
 } from './model.js';
 import './ports.js';
+import { exampleId } from '../util/ids.js';
 
 export const SOURCE = 'mycel';
 
@@ -149,7 +150,7 @@ export const changeSupporterEmail = defineUseCase({
   examples: [
     {
       input: {
-        supporterId: '01900000-0000-7000-8000-000000000001',
+        supporterId: exampleId(0x1),
         newEmail: 'new@example.org',
         reason: 'Requested by the supporter by e-mail.',
       },

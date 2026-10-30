@@ -4,20 +4,18 @@
 // No Authorization header is needed, and a valid key of tenant A opens nothing of tenant B.
 import { describe, expect, it } from 'vitest';
 import { Invoker, buildRegistry, systemPrincipal, useCases } from '@mycel/core';
-import { MemoryTenants, MemoryUnitOfWork, probeTenant } from '@mycel/core/testing';
+import { MemoryTenants, MemoryUnitOfWork, pageDocument, probeTenant } from '@mycel/core/testing';
 import { createApp } from './app.js';
 
 const A = '01900000-0000-7000-8000-00000000aaaa';
 const B = '01900000-0000-7000-8000-00000000bbbb';
 
-const doc = (title: string, extra: Record<string, unknown> = {}) => ({
-  type: 'page' as const,
-  defaultLocale: 'nl',
-  locales: ['nl', 'en'],
-  title: { nl: title, en: `${title} (en)` },
-  blocks: [{ type: 'heading', version: 1, props: { text: { nl: 'Kop', en: 'Heading' } } }],
-  ...extra,
-});
+const doc = (title: string, extra: Record<string, unknown> = {}) =>
+  pageDocument({
+    title: { nl: title, en: `${title} (en)` },
+    blocks: [{ type: 'heading', version: 1, props: { text: { nl: 'Kop', en: 'Heading' } } }],
+    ...extra,
+  });
 
 async function setup() {
   const uow = new MemoryUnitOfWork();

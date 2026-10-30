@@ -50,7 +50,6 @@ import {
 import {
   fieldOf,
   fromLocalInput,
-  issueKey,
   issuePath,
   localInput,
   localLabel,
@@ -321,8 +320,7 @@ const ISSUE_COPY: Record<string, UiKey> = {
   'content.schedule.not-in-future': 'admin.content.issue.notInFuture',
   'admin.content.publication.time-invalid': 'admin.content.issue.timeInvalid',
 };
-const issueCopy = (message: string): UiKey =>
-  ISSUE_COPY[issueKey(message)] ?? 'admin.content.issue.other';
+const issueCopy = (message: string): UiKey => ISSUE_COPY[message] ?? 'admin.content.issue.other';
 
 /** The time of the schedule form, or a refusal core will word like its own. */
 function instant(at: string, zone: string): string {

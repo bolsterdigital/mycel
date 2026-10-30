@@ -159,11 +159,12 @@ describe('media references of blocks', () => {
       'content.reference.media-unknown'
     );
     // Another tenant's image is unknown here, with the same message as an id that never existed.
-    await expectCode(
+    const fromForeign = await expectCode(
       page([image('a', foreign)]),
       'invalid_input',
-      `content.reference.media-unknown:${foreign}`
+      'content.reference.media-unknown'
     );
+    expect(fromForeign.issues[0]?.params).toEqual({ id: foreign });
     await expectCode(page([image('a', pdf)]), 'invalid_input', 'content.reference.media-not-image');
     await remove(photo2);
     await expectCode(
@@ -183,7 +184,7 @@ describe('media references of blocks', () => {
     });
     expect(next.revision.document.blocks.map((b) => b.id)).toEqual(['t']);
     expect(usages(photo)).toEqual([`item:${item.id}:rev:${revision.id} a`]);
-    await expectCode(remove(photo), 'conflict', 'media.in_use');
+    await expectCode(remove(photo), 'conflict', 'media.in-use');
   });
 
   it('checks media again at publish: a revision whose image vanished is not published', async () => {
@@ -280,7 +281,7 @@ describe('media references of blocks', () => {
         blocks: [text('t')] as never,
       });
       expect(usages(photo)).toEqual([`pattern:${b.id} ${b.blocks[0]!.id}`]);
-      await expectCode(remove(photo), 'conflict', 'media.in_use');
+      await expectCode(remove(photo), 'conflict', 'media.in-use');
       await invoker.run(useCases.updatePattern, system, {
         patternId: b.id,
         name: { nl: 'Leeg' },
@@ -390,7 +391,7 @@ describe('media references of blocks', () => {
       const ref = `item:${item.id}:rev:${revision.id}`;
       expect(usages(photo)).toEqual([`${ref} a`, `${ref} doc:featured`]);
       expect(usages(photo2)).toEqual([`${ref} doc:seo`]);
-      await expectCode(remove(photo2), 'conflict', 'media.in_use');
+      await expectCode(remove(photo2), 'conflict', 'media.in-use');
       // The read model has one document-level row per image, next to the block's.
       const refs = uow.store.for(TENANT).blockRefs.get(revision.id) ?? [];
       expect(refs.filter((r) => r.type === 'media').map((r) => `${r.blockId} ${r.refId}`)).toEqual([
@@ -401,11 +402,21 @@ describe('media references of blocks', () => {
     });
 
     it('refuses an unknown, foreign, deleted or non-image id at its own path', async () => {
-      const refused = async (p: Promise<unknown>, path: string, message: string) =>
+      const refused = async (
+        p: Promise<unknown>,
+        path: string,
+        message: string,
+        params?: Record<string, string>
+      ) =>
         expect(p).rejects.toSatisfy(
           (e) =>
             e instanceof UseCaseError &&
-            e.issues.some((i) => i.path === path && i.message.startsWith(message))
+            e.issues.some(
+              (i) =>
+                i.path === path &&
+                i.message === message &&
+                (!params || JSON.stringify(i.params) === JSON.stringify(params))
+            )
         );
       await refused(
         withImages({ featuredImageId: UNKNOWN }),
@@ -415,7 +426,8 @@ describe('media references of blocks', () => {
       await refused(
         withImages({ imageId: foreign }),
         'seo.imageId',
-        `content.reference.media-unknown:${foreign}`
+        'content.reference.media-unknown',
+        { id: foreign }
       );
       await refused(
         withImages({ featuredImageId: pdf }),
@@ -487,7 +499,7 @@ describe('media references of blocks', () => {
       expect(await pending(del)).toBe(true);
       paused.release();
       await expect(save).resolves.toBeTruthy();
-      await expectCode(del, 'conflict', 'media.in_use');
+      await expectCode(del, 'conflict', 'media.in-use');
     });
 
     it('delete first: the save waits and then refuses, writing nothing', async () => {

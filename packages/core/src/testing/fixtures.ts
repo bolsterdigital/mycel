@@ -15,14 +15,26 @@ import type { MediaRepository } from '../media/ports.js';
 import type { UnitOfWork } from '../ports.js';
 import type { Entitlements } from '../entitlements/model.js';
 import type { Principal } from '../principal.js';
-import type { TenantInfo } from '../tenants/ports.js';
+import type { PlatformConfig, TenantInfo } from '../tenants/ports.js';
 import { UseCaseError } from '../errors.js';
 import { systemPrincipal } from '../principal.js';
 import { useCases } from '../use-cases.js';
 import { sha256Hex } from '../util/digest.js';
+import { exampleId } from '../util/ids.js';
 
 /** The tenant id of every in-memory suite; a database suite creates its own (`testTenant`). */
-export const TENANT = '01900000-0000-7000-8000-00000000aaaa';
+export const TENANT = exampleId(0xaaaa);
+
+/**
+ * A hosted platform in hostnames mode, the shape production runs: three suites had
+ * their own copy. `memoryPlatform` stays the development shape (path form, localhost).
+ */
+export const hostedPlatform: PlatformConfig = {
+  domain: 'mycel.site',
+  devHosts: ['localhost'],
+  platformOrigin: 'https://admin.mycel.site',
+  siteUrlMode: 'hostnames',
+};
 
 /** The system principal that administers `tenantId`, as tests act on a tenant. */
 export const adminOf = (tenantId: string = TENANT): Principal => systemPrincipal(tenantId, 'test');
@@ -104,6 +116,20 @@ export function probeForm(id: string): FormDefinition {
     minFillSeconds: 3,
   };
 }
+
+/**
+ * A page document in nl and en, without blocks unless `over` brings them: the base
+ * every content suite started from with its own builder. Raw input, so a suite can also make it
+ * invalid on purpose.
+ */
+export const pageDocument = <T extends Record<string, unknown>>(over: T = {} as T) => ({
+  type: 'page' as const,
+  defaultLocale: 'nl',
+  locales: ['nl', 'en'],
+  title: { nl: 'Titel', en: 'Title' },
+  blocks: [] as never[],
+  ...over,
+});
 
 /** `content.item.create` input for the probe's signup page. */
 export function probePage(formId: string): z.input<typeof useCases.createItem.input> {

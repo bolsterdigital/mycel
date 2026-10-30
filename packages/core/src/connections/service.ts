@@ -8,13 +8,12 @@ import { defineUseCase } from '../registry.js';
 import type { TransactionContext } from '../ports.js';
 import { CONNECTION_DIRECTIONS, CONNECTION_PROVIDERS, type ConnectionRecord } from './ports.js';
 import { isFrozen } from './rules.js';
+import { Uuid, exampleId } from '../util/ids.js';
 
-const uuid = z.string().guid();
-const exampleId = '01900000-0000-7000-8000-000000000001';
 const shortText = z.string().trim().min(1).max(160);
 const versionText = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/);
 const scopes = z.array(z.string().regex(/^[a-z0-9][a-z0-9._:-]{0,63}$/)).max(30);
-const formIds = z.array(uuid).max(100);
+const formIds = z.array(Uuid).max(100);
 const destination = z
   .string()
   .url()
@@ -43,7 +42,7 @@ const fields = {
   adapterVersion: versionText,
 };
 const view = z.object({
-  id: uuid,
+  id: Uuid,
   provider,
   ...fields,
   state,
@@ -53,8 +52,8 @@ const view = z.object({
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
-const idInput = z.object({ id: uuid }).strict();
-const versionInput = z.object({ id: uuid, baseVersion: z.number().int().positive() }).strict();
+const idInput = z.object({ id: Uuid }).strict();
+const versionInput = z.object({ id: Uuid, baseVersion: z.number().int().positive() }).strict();
 const exampleFields = {
   accountRef: null,
   externalOwner: 'Example organisation',
@@ -111,7 +110,7 @@ export const getConnection = defineUseCase({
   authenticatedOnly: true,
   input: idInput,
   output: view,
-  examples: [{ input: { id: exampleId } }],
+  examples: [{ input: { id: exampleId(1) } }],
   async handler(ctx, { id }) {
     return asView(await find(ctx, id));
   },
@@ -143,13 +142,15 @@ export const updateConnection = defineUseCase({
   authenticatedOnly: true,
   input: z
     .object({
-      id: uuid,
+      id: Uuid,
       baseVersion: z.number().int().positive(),
       changes: z.object(fields).partial().strict(),
     })
     .strict(),
   output: view,
-  examples: [{ input: { id: exampleId, baseVersion: 1, changes: { purpose: 'Updated purpose' } } }],
+  examples: [
+    { input: { id: exampleId(1), baseVersion: 1, changes: { purpose: 'Updated purpose' } } },
+  ],
   async handler(ctx, { id, baseVersion, changes }) {
     const prior = await find(ctx, id);
     refuseFrozen(prior);
@@ -175,7 +176,7 @@ function stateChange(
     authenticatedOnly: true,
     input: versionInput,
     output: view,
-    examples: [{ input: { id: exampleId, baseVersion: 1 } }],
+    examples: [{ input: { id: exampleId(1), baseVersion: 1 } }],
     async handler(ctx, { id, baseVersion }) {
       const prior = await find(ctx, id);
       refuseFrozen(prior);
@@ -210,13 +211,13 @@ export const replaceConnectionCredential = defineUseCase({
   authenticatedOnly: true,
   input: z
     .object({
-      id: uuid,
+      id: Uuid,
       baseVersion: z.number().int().positive(),
       secret: z.string().min(1).max(8192),
     })
     .strict(),
   output: view,
-  examples: [{ input: { id: exampleId, baseVersion: 1, secret: 'example-only' } }],
+  examples: [{ input: { id: exampleId(1), baseVersion: 1, secret: 'example-only' } }],
   async handler(ctx, { id, baseVersion, secret }) {
     const prior = await find(ctx, id);
     refuseFrozen(prior);

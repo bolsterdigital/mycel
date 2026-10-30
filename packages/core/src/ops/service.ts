@@ -16,6 +16,8 @@ import { ERASURE_UNSECURED_WARN_MS } from '../supporters/erasure.js';
 import { ErasureBackupView, StuckJobView, UnresolvedMailView, buildDiagnosis } from './model.js';
 import type { RecoveryResult } from './ports.js';
 import './ports.js';
+import { iso } from '../util/date.js';
+import { exampleId } from '../util/ids.js';
 
 /** At most this many exhausted jobs on the page; the platform API pages through the rest. */
 const STATUS_JOBS = 100;
@@ -73,14 +75,14 @@ export const getOpsStatus = defineUseCase({
         subscriber: m.subscriber,
         attempts: m.attempts,
         attemptedAt: m.attemptedAt!.toISOString(),
-        abandonedAt: m.abandonedAt?.toISOString() ?? null,
+        abandonedAt: iso(m.abandonedAt),
         lastError: m.lastError,
       }));
     const oldest = register.oldestUnsecuredAt;
     const erasures = {
       registered: register.registered,
       unsecured: register.registered - register.secured,
-      oldestUnsecuredAt: oldest?.toISOString() ?? null,
+      oldestUnsecuredAt: iso(oldest),
       late: oldest !== null && now.getTime() - oldest.getTime() > ERASURE_UNSECURED_WARN_MS,
     };
     return {
@@ -118,7 +120,7 @@ export const retryJob = defineUseCase({
   requires: 'tenant:admin',
   input: JobId,
   output: Recovered,
-  examples: [{ input: { id: '01900000-0000-7000-8000-00000000b001' } }],
+  examples: [{ input: { id: exampleId(0xb001) } }],
   handler: async (ctx, { id }) => recovered(await ctx.jobRecovery.retry(id), id),
 });
 
@@ -130,6 +132,6 @@ export const closeJob = defineUseCase({
   requires: 'tenant:admin',
   input: JobId,
   output: Recovered,
-  examples: [{ input: { id: '01900000-0000-7000-8000-00000000b001' } }],
+  examples: [{ input: { id: exampleId(0xb001) } }],
   handler: async (ctx, { id }) => recovered(await ctx.jobRecovery.close(id), id),
 });

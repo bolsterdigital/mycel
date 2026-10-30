@@ -56,7 +56,7 @@ const FEATURE_WHAT: Record<string, UiKey> = {
 
 function limitFailure(e: UseCaseError, action: string): { error: UiKey; what: UiKey } {
   const key = e.issues[0]?.message ?? '';
-  return key === 'entitlements.feature_off'
+  return key === 'entitlements.feature-off'
     ? { error: 'admin.limit.featureOff', what: FEATURE_WHAT[action] ?? 'admin.limit.what.other' }
     : { error: 'admin.limit.reached', what: LIMIT_WHAT[key] ?? 'admin.limit.what.other' };
 }
@@ -110,8 +110,7 @@ export function failureOf(
   const status = statusOf[e.code];
   if (e.code === 'limit_exceeded') return { status, body: { action, ...limitFailure(e, action) } };
   if (e.code === 'suspended') return { status, body: { action, error: 'admin.error.suspended' } };
-  // Some messages carry the id they are about (`content.reference.media-unknown:<id>`).
-  const issue = copy.issues?.[(e.issues[0]?.message ?? '').split(':')[0] ?? ''];
+  const issue = copy.issues?.[e.issues[0]?.message ?? ''];
   const error: UiKey =
     e.code === 'conflict'
       ? copy.conflict

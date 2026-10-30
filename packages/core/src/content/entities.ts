@@ -29,9 +29,9 @@ import {
   requireBlockTypes,
 } from './service.js';
 import './ports.js';
+import { exampleId } from '../util/ids.js';
 
 const Limit = z.number().int().min(1).max(100).optional();
-const ExampleId = '01900000-0000-7000-8000-000000000001';
 
 async function assertFreeSlug<T extends { id: string; slug: string }>(
   repo: SluggedRepository<T>,
@@ -73,7 +73,7 @@ export const updateAuthor = defineUseCase({
   authenticatedOnly: true,
   input: AuthorInput.extend({ authorId: z.string().guid() }),
   output: Author,
-  examples: [{ input: { authorId: ExampleId, name: 'Sam de Vries' } }],
+  examples: [{ input: { authorId: exampleId(1), name: 'Sam de Vries' } }],
   async handler(ctx, { authorId, ...fields }) {
     const current = await ctx.authors.get(authorId);
     if (!current) throw notFound('author');
@@ -97,7 +97,7 @@ export const getAuthor = defineUseCase({
   authenticatedOnly: true,
   input: z.object({ authorId: z.string().guid() }),
   output: Author,
-  examples: [{ input: { authorId: ExampleId } }],
+  examples: [{ input: { authorId: exampleId(1) } }],
   async handler(ctx, { authorId }) {
     return (await ctx.authors.get(authorId)) ?? Promise.reject(notFound('author'));
   },
@@ -151,7 +151,7 @@ export const updateSection = defineUseCase({
   authenticatedOnly: true,
   input: SectionInput.extend({ sectionId: z.string().guid() }),
   output: Section,
-  examples: [{ input: { sectionId: ExampleId, title: { nl: 'Politiek' } } }],
+  examples: [{ input: { sectionId: exampleId(1), title: { nl: 'Politiek' } } }],
   async handler(ctx, { sectionId, ...fields }) {
     const current = await ctx.sections.get(sectionId);
     if (!current) throw notFound('section');
@@ -175,7 +175,7 @@ export const getSection = defineUseCase({
   authenticatedOnly: true,
   input: z.object({ sectionId: z.string().guid() }),
   output: Section,
-  examples: [{ input: { sectionId: ExampleId } }],
+  examples: [{ input: { sectionId: exampleId(1) } }],
   async handler(ctx, { sectionId }) {
     return (await ctx.sections.get(sectionId)) ?? Promise.reject(notFound('section'));
   },
@@ -264,7 +264,7 @@ export const updatePattern = defineUseCase({
   examples: [
     {
       input: {
-        patternId: ExampleId,
+        patternId: exampleId(1),
         name: { nl: 'Interview' },
         intendedType: 'article',
         blocks: [],
@@ -295,7 +295,7 @@ export const getPattern = defineUseCase({
   authenticatedOnly: true,
   input: z.object({ patternId: z.string().guid() }),
   output: Pattern,
-  examples: [{ input: { patternId: ExampleId } }],
+  examples: [{ input: { patternId: exampleId(1) } }],
   async handler(ctx, { patternId }) {
     return (await ctx.patterns.get(patternId)) ?? Promise.reject(notFound('pattern'));
   },

@@ -7,19 +7,13 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { Invoker } from '../invoke.js';
 import { parseJobPayload } from '../jobs/types.js';
 import { systemPrincipal, type Principal } from '../principal.js';
-import { FakeClock, MemoryUnitOfWork, TENANT } from '../testing/index.js';
+import { FakeClock, MemoryUnitOfWork, TENANT, pageDocument } from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { publishScheduled } from './service.js';
 
 const HOUR = 3_600_000;
 
-const doc = (title: string) => ({
-  type: 'page' as const,
-  defaultLocale: 'nl',
-  locales: ['nl', 'en'],
-  title: { nl: title, en: title },
-  blocks: [],
-});
+const doc = (title: string) => pageDocument({ title: { nl: title, en: title } });
 
 describe('scheduled publication', () => {
   let clock: FakeClock;

@@ -33,6 +33,7 @@ import {
   generateApiKey,
 } from './model.js';
 import './ports.js';
+import { exampleId } from '../util/ids.js';
 
 const OperatorId = z.string().guid();
 
@@ -141,7 +142,7 @@ export const updateMember = defineUseCase({
   examples: [
     {
       input: {
-        operatorId: '01900000-0000-7000-8000-000000000001',
+        operatorId: exampleId(0x1),
         capabilities: ['content:read'],
       },
     },
@@ -164,7 +165,7 @@ export const removeMember = defineUseCase({
   requires: 'tenant:admin',
   input: z.object({ operatorId: OperatorId }),
   output: z.object({ operatorId: OperatorId, revokedKeys: z.number().int() }),
-  examples: [{ input: { operatorId: '01900000-0000-7000-8000-000000000001' } }],
+  examples: [{ input: { operatorId: exampleId(0x1) } }],
   async handler(ctx, { operatorId }) {
     await lockAsCurrentActor(ctx);
     const member = await requireMember(ctx, operatorId);
@@ -228,7 +229,7 @@ export const revokeKey = defineUseCase({
   requires: 'tenant:admin',
   input: z.object({ id: z.string().guid() }),
   output: z.object({ id: z.string().guid() }),
-  examples: [{ input: { id: '01900000-0000-7000-8000-000000000001' } }],
+  examples: [{ input: { id: exampleId(0x1) } }],
   async handler(ctx, { id }) {
     if (!(await ctx.apiKeys.revoke(id, ctx.clock.now()))) throw notFound('active API key');
     return { id };

@@ -26,6 +26,7 @@ import { can } from '../principal.js';
 import { defineUseCase } from '../registry.js';
 import { actorRef, errorMessage } from '../util/log.js';
 import { scrubText } from '../util/scrub.js';
+import { iso } from '../util/date.js';
 
 export const ExportStatus = z.enum(['queued', 'running', 'ready', 'failed', 'expired']);
 export type ExportStatus = z.infer<typeof ExportStatus>;
@@ -229,8 +230,6 @@ export const ExportView = z.object({
   expiresAt: z.string().datetime().nullable(),
 });
 export type ExportView = z.infer<typeof ExportView>;
-
-const iso = (d: Date | null) => d?.toISOString() ?? null;
 
 /** A ready archive whose time is up reads as expired before the daily job has caught up. */
 function effectiveStatus(r: TenantExportRecord, now: Date): ExportStatus {

@@ -89,7 +89,7 @@ Flat keys, the names of ADR 015 rule 2. Missing keys get the default; an empty d
 | `ai.pending_max`          | limit             | 3             | the same two, proposals pending in the last ten minutes   |
 | `ai.operator_hourly_max`  | limit             | 30            | the same two, one operator's proposals in the last hour   |
 
-A refused action is `403` with `urn:mycel:problem:limit_exceeded` and an issue naming the key (`entitlements.limit.supporters.max`, `entitlements.feature_off`); the admin and the public pages turn that into "ask your host", never a price. Only growth is blocked: what a tenant already has stays published (ADR 015 rule 7).
+A refused action is `403` with `urn:mycel:problem:limit_exceeded` and an issue naming the key (`entitlements.limit.supporters.max`, `entitlements.feature-off`); the admin and the public pages turn that into "ask your host", never a price. Only growth is blocked: what a tenant already has stays published (ADR 015 rule 7).
 
 **Status** is not an entitlement. A `suspended` tenant answers every command with `403 urn:mycel:problem:suspended`, except export commands; queries keep working, so the public site stays readable and the admin stays open.
 

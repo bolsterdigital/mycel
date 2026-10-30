@@ -43,8 +43,14 @@ const MAX_LENGTH = 253;
 const LABEL = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
 const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
 
-const invalid = (why: string) =>
-  new UseCaseError('invalid_input', `hostname ${why}`, [{ path: 'hostname', message: why }]);
+/**
+ * The English `why` is for the log and the API's `detail`; the issue carries the i18n key and
+ * what it names (ADR 007), so a front translates instead of showing the sentence.
+ */
+const invalid = (key: string, why: string, params?: Record<string, string>) =>
+  new UseCaseError('invalid_input', `hostname ${why}`, [
+    { path: 'hostname', message: `tenant.hostname.${key}`, ...(params && { params }) },
+  ]);
 
 /**
  * Trim, lowercase, drop a trailing dot, and turn an internationalised name into punycode.
@@ -53,22 +59,23 @@ const invalid = (why: string) =>
  */
 export function normalizeHostname(raw: string): string {
   const trimmed = raw.trim().toLowerCase().replace(/\.$/, '');
-  if (!trimmed) throw invalid('is empty');
-  if (/[\s/\\?#@:]/.test(trimmed)) throw invalid('contains a port, a path or other characters');
+  if (!trimmed) throw invalid('empty', 'is empty');
+  if (/[\s/\\?#@:]/.test(trimmed))
+    throw invalid('characters', 'contains a port, a path or other characters');
   let url: URL;
   try {
     url = new URL(`http://${trimmed}`);
   } catch {
-    throw invalid('is not a valid domain name');
+    throw invalid('invalid', 'is not a valid domain name');
   }
   const hostname = url.hostname;
   // A different `host` means the parser saw a port, credentials or a path; `[` is IPv6.
   if (url.host !== hostname || url.pathname !== '/' || hostname.startsWith('['))
-    throw invalid('contains a port, a path or other characters');
-  if (IPV4.test(hostname)) throw invalid('is an IP address, not a domain name');
-  if (hostname.length > MAX_LENGTH) throw invalid('is longer than 253 characters');
+    throw invalid('characters', 'contains a port, a path or other characters');
+  if (IPV4.test(hostname)) throw invalid('ip-address', 'is an IP address, not a domain name');
+  if (hostname.length > MAX_LENGTH) throw invalid('too-long', 'is longer than 253 characters');
   for (const label of hostname.split('.'))
-    if (!LABEL.test(label)) throw invalid(`has an invalid label "${label}"`);
+    if (!LABEL.test(label)) throw invalid('label', `has an invalid label "${label}"`, { label });
   return hostname;
 }
 
@@ -91,10 +98,12 @@ export function normalizeCustomHostname(
 ): string {
   const hostname = normalizeHostname(raw);
   if (underDomain(hostname, platform.domain))
-    throw invalid(`cannot be under the platform domain ${platform.domain}`);
-  if (platform.devHosts.includes(hostname)) throw invalid('is a development host');
+    throw invalid('platform-domain', `cannot be under the platform domain ${platform.domain}`, {
+      domain: platform.domain,
+    });
+  if (platform.devHosts.includes(hostname)) throw invalid('dev-host', 'is a development host');
   if (platform.platformOrigin && hostname === platformOriginHost(platform.platformOrigin))
-    throw invalid('is the address of the platform itself');
+    throw invalid('platform-origin', 'is the address of the platform itself');
   return hostname;
 }
 

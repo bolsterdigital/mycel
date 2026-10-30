@@ -1,4 +1,4 @@
-// Base64 to bytes with `atob`, a platform standard in Node, browsers and workers (ADR 001: not an
+// Base64 and hex for bytes with `atob`, a platform standard in Node, browsers and workers (ADR 001: not an
 // I/O dependency). Rejected: Node's `Buffer`, which would tie the core to one runtime.
 
 /** Standard base64 (with or without padding), as JSON carries an upload; throws on bad input. */
@@ -16,3 +16,7 @@ export function bytesToBase64(bytes: Uint8Array): string {
     binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(binary);
 }
+
+/** Lowercase hex, two characters per byte: digests and random ids. */
+export const bytesToHex = (bytes: Uint8Array): string =>
+  Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');

@@ -45,6 +45,7 @@ import {
   type StoredVariant,
 } from './model.js';
 import './ports.js';
+import { exampleId } from '../util/ids.js';
 
 const MediaId = z.string().guid();
 
@@ -69,7 +70,7 @@ const Filename = z
     z
       .string()
       .min(1, 'media.filename.empty')
-      .max(200, 'media.filename.too_long')
+      .max(200, 'media.filename.too-long')
       // eslint-disable-next-line no-control-regex
       .regex(/^[^\u0000-\u001f\u007f"]+$/, 'media.filename.invalid')
   );
@@ -178,7 +179,7 @@ async function prepare(
   if (probe.width * probe.height * probe.pages > MAX_PIXELS)
     throw invalid(
       'bytes',
-      'media.pixels.too_many',
+      'media.pixels.too-many',
       `the image has more than ${MAX_PIXELS} pixels (${probe.width}x${probe.height}` +
         (probe.pages > 1 ? `, ${probe.pages} frames)` : ')')
     );
@@ -257,7 +258,7 @@ export const uploadMedia = defineUseCase({
       bytes: z
         .string()
         .min(1, 'media.bytes.empty')
-        .max(MAX_BASE64, 'media.size.too_large')
+        .max(MAX_BASE64, 'media.size.too-large')
         .regex(/^[A-Za-z0-9+/]*={0,2}$/, 'media.bytes.base64'),
       ...Editorial,
     })
@@ -287,7 +288,7 @@ export const uploadMedia = defineUseCase({
       throw invalid('bytes', 'media.bytes.base64', 'bytes is not valid base64');
     }
     if (bytes.length > MAX_UPLOAD_BYTES)
-      throw invalid('bytes', 'media.size.too_large', 'the file is larger than 25 MB');
+      throw invalid('bytes', 'media.size.too-large', 'the file is larger than 25 MB');
 
     const prepared = await prepare(ctx, contentType.data, bytes);
     const totalBytes = prepared.files.reduce((n, f) => n + f.bytes.length, 0);
@@ -344,7 +345,7 @@ export const getMedia = defineUseCase({
   input: z.object({ id: MediaId }).strict(),
   output: MediaView,
   resource: { uriTemplate: 'mycel://media/{id}' },
-  examples: [{ input: { id: '01900000-0000-7000-8000-00000000d001' } }],
+  examples: [{ input: { id: exampleId(0xd001) } }],
   async handler(ctx, { id }) {
     return toMediaView(ctx, await requireMedia(ctx, id));
   },
@@ -388,7 +389,7 @@ export const updateMedia = defineUseCase({
   examples: [
     {
       input: {
-        id: '01900000-0000-7000-8000-00000000d001',
+        id: exampleId(0xd001),
         caption: { nl: 'Demonstratie op het Malieveld', en: 'Demonstration at the Malieveld' },
         credit: { work: null, photographer: 'A. Fotograaf' },
       },
@@ -413,7 +414,7 @@ export const deleteMedia = defineUseCase({
   consumes: null,
   input: z.object({ id: MediaId }).strict(),
   output: z.object({ id: MediaId, purgeScheduled: z.boolean() }),
-  examples: [{ input: { id: '01900000-0000-7000-8000-00000000d001' } }],
+  examples: [{ input: { id: exampleId(0xd001) } }],
   async handler(ctx, { id }) {
     // The lock every reference-checking save takes (content/service.ts `blockReferenceIssues`):
     // a save and this delete serialise, so the usage count below includes a save that won.
@@ -422,7 +423,7 @@ export const deleteMedia = defineUseCase({
     // ADR 004 rule 6: a live reference refuses. The count only, never where (refs may be drafts).
     if (m.usageCount > 0)
       throw new UseCaseError('conflict', `this media is in use in ${m.usageCount} place(s)`, [
-        { path: 'id', message: 'media.in_use' },
+        { path: 'id', message: 'media.in-use' },
       ]);
     const now = ctx.clock.now();
     await ctx.media.softDelete(id, now);

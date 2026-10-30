@@ -216,7 +216,7 @@ describe('block operations', () => {
       })
     ).rejects.toMatchObject({
       code: 'invalid_input',
-      issues: [{ path: 'blockId', message: 'content.blocks.merge-ambiguous:a' }],
+      issues: [{ path: 'blockId', message: 'content.blocks.merge-ambiguous', params: { id: 'a' } }],
     });
     expect(await revisionCount(item.id)).toBe(1);
   });
@@ -351,17 +351,22 @@ describe('block operations', () => {
     expect(
       results.map((r) =>
         r.status === 'rejected'
-          ? [r.reason.code, r.reason.issues[0].path, r.reason.issues[0].message]
+          ? [
+              r.reason.code,
+              r.reason.issues[0].path,
+              r.reason.issues[0].message,
+              r.reason.issues[0].params,
+            ]
           : r
       )
     ).toEqual([
-      ['invalid_input', 'blockId', 'content.block.unknown:nope'],
-      ['invalid_input', 'blockId', 'content.block.unknown:nope'],
-      ['invalid_input', 'before', 'content.block.unknown:nope'],
-      ['invalid_input', 'after', 'content.block.anchor-is-target'],
-      ['invalid_input', 'after', 'content.block.unknown:nope'],
-      ['invalid_input', 'blockId', 'content.block.unknown:nope'],
-      ['invalid_input', 'blockId', 'content.split.not-rich-text'],
+      ['invalid_input', 'blockId', 'content.block.unknown', { id: 'nope' }],
+      ['invalid_input', 'blockId', 'content.block.unknown', { id: 'nope' }],
+      ['invalid_input', 'before', 'content.block.unknown', { id: 'nope' }],
+      ['invalid_input', 'after', 'content.block.anchor-is-target', undefined],
+      ['invalid_input', 'after', 'content.block.unknown', { id: 'nope' }],
+      ['invalid_input', 'blockId', 'content.block.unknown', { id: 'nope' }],
+      ['invalid_input', 'blockId', 'content.split.not-rich-text', undefined],
     ]);
     expect(await revisionCount(item.id)).toBe(1);
   });
@@ -400,7 +405,11 @@ describe('block operations', () => {
       await expect(call()).rejects.toMatchObject({
         code: 'conflict',
         issues: [
-          { path: 'baseRevisionId', message: `content.revision.conflict:${fresh.revision.id}` },
+          {
+            path: 'baseRevisionId',
+            message: 'content.revision.conflict',
+            params: { latestRevisionId: fresh.revision.id },
+          },
         ],
       });
     expect(await revisionCount(item.id)).toBe(2);
@@ -412,7 +421,7 @@ describe('block operations', () => {
       entitlements: { ...DEFAULT_ENTITLEMENTS, blocks: { 'signup-form': false } },
       status: 'active',
     });
-    const refused = { code: 'limit_exceeded', issues: [{ message: 'entitlements.feature_off' }] };
+    const refused = { code: 'limit_exceeded', issues: [{ message: 'entitlements.feature-off' }] };
     await expect(
       invoker.run(useCases.setBlockProps, off, {
         itemId: item.id,

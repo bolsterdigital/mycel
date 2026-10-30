@@ -15,11 +15,11 @@ const UPLOAD_ISSUES: Record<string, UiKey> = {
   'media.type.unsupported': 'admin.media.error.type',
   'media.type.mismatch': 'admin.media.error.mismatch',
   'media.type.unreadable': 'admin.media.error.unreadable',
-  'media.pixels.too_many': 'admin.media.error.pixels',
-  'media.size.too_large': 'admin.media.error.tooLarge',
+  'media.pixels.too-many': 'admin.media.error.pixels',
+  'media.size.too-large': 'admin.media.error.tooLarge',
   'media.bytes.empty': 'admin.media.error.noFile',
   'media.filename.empty': 'admin.media.error.noFile',
-  'media.filename.too_long': 'admin.media.error.filename',
+  'media.filename.too-long': 'admin.media.error.filename',
   'media.filename.invalid': 'admin.media.error.filename',
 };
 

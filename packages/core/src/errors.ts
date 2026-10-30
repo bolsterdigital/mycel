@@ -16,6 +16,12 @@ export interface Issue {
   path: string;
   /** An i18n message key (ADR 007) or Zod's English default for schema-level problems. */
   message: string;
+  /**
+   * What the key is about, for a front that names it (`{ id }` of an unknown reference, the
+   * `locale` still live). Kept out of the key so the key stays a catalog lookup;
+   * rejected: `key:<id>` suffixes, which every front had to split off again.
+   */
+  params?: Record<string, string>;
 }
 
 export class UseCaseError extends Error {

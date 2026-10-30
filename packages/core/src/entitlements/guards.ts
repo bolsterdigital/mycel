@@ -22,7 +22,7 @@ export function entitled(principal: Principal, feature: FeatureName): boolean {
 export function requireEntitled(
   principal: Principal,
   feature: FeatureName,
-  issue = 'entitlements.feature_off'
+  issue = 'entitlements.feature-off'
 ): void {
   if (!entitled(principal, feature))
     throw new UseCaseError('limit_exceeded', `this site is not entitled to ${feature}`, [

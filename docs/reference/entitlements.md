@@ -40,7 +40,7 @@ The document has two readings:
 
 | Check                                       | Refuses when                                                 | Issue message                |
 | ------------------------------------------- | ------------------------------------------------------------ | ---------------------------- |
-| `requireEntitled(principal, feature)`       | the switch is off, or `blocks.<type>` is `false`             | `entitlements.feature_off`   |
+| `requireEntitled(principal, feature)`       | the switch is off, or `blocks.<type>` is `false`             | `entitlements.feature-off`   |
 | `withinLimit(ctx, limit, current, add = 1)` | `current + add > max`; reaching the limit exactly is allowed | `entitlements.limit.<limit>` |
 
 The assistance use cases check `ai.assist` and the three `ai.*` limits in their own gate (`packages/core/src/assist/service.ts`), refusing with `limit_exceeded` once a count has reached its maximum.
