@@ -20,8 +20,10 @@
     fields: readonly BlockField[];
     values: Record<string, string>;
     locales: readonly string[];
-    /** Unique per form on the page; element ids are `<idPrefix>-<name>`. */
+    /** Unique per block on the page; element ids are `<idPrefix>-<name without prefix>`. */
     idPrefix: string;
+    /** In front of every field name, for a block inside the one edit form (`b.<id>.`, #66 PR 2). */
+    prefix?: string;
     media: readonly MediaChoice[];
     /** The tenant's admin root, for the media picker's thumbnails, search and upload. */
     base: string;
@@ -32,12 +34,23 @@
     invalid: readonly string[];
     locale: string;
   }
-  let { fields, values, locales, idPrefix, media, base, upload, items, invalid, locale }: Props =
-    $props();
+  let {
+    fields,
+    values,
+    locales,
+    idPrefix,
+    prefix = '',
+    media,
+    base,
+    upload,
+    items,
+    invalid,
+    locale,
+  }: Props = $props();
   const t = $derived(ui(locale));
   const label = (key: string) => t(`admin.block.field.${key}` as UiKey);
   const v = (name: string) => values[name] ?? '';
-  const id = (name: string) => `${idPrefix}-${name.replaceAll('.', '-')}`;
+  const id = (name: string) => `${idPrefix}-${name.slice(prefix.length).replaceAll('.', '-')}`;
   const bad = (name: string) => invalid.includes(name);
   const help = $derived(`${idPrefix}-markdown-help`);
   const hasRichText = (fs: readonly BlockField[]): boolean =>
@@ -175,7 +188,7 @@
 {/snippet}
 
 {#each fields as f (f.key)}
-  {@render field(f, `p.${f.key}`)}
+  {@render field(f, `${prefix}p.${f.key}`)}
 {/each}
 {#if fields.length === 0}
   <p class="ui-hint">{t('admin.block.noFields')}</p>

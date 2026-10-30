@@ -1,5 +1,6 @@
 // Progressive enhancement for TODO #11 D. The native save and saved-preview links remain usable
 // without this script. Form submissions target only our same-origin iframe; no draft is persisted.
+// The edit form carries every block's fields since #66 PR 2, so one copy of it is the draft.
 const source = document.querySelector('[data-live-preview-source]');
 const panel = document.querySelector('[data-live-preview]');
 const frame = panel?.querySelector('[data-live-preview-frame]');
@@ -25,13 +26,6 @@ if (source instanceof HTMLFormElement && panel && frame instanceof HTMLIFrameEle
     for (const [name, value] of new FormData(source)) add(name, value);
     add('itemId', panel.dataset.itemId);
     add('previewLocale', locale.value);
-    for (const blockForm of document.querySelectorAll(
-      'details.block form[data-live-block-dirty]'
-    )) {
-      const id = blockForm.querySelector('[name="blockId"]')?.value;
-      if (!/^[0-9a-f-]{36}$/.test(id ?? '')) continue;
-      for (const [name, value] of new FormData(blockForm)) add(`draftBlock.${id}.${name}`, value);
-    }
     document.body.append(form);
     form.submit();
     form.remove();
@@ -43,16 +37,6 @@ if (source instanceof HTMLFormElement && panel && frame instanceof HTMLIFrameEle
   source.addEventListener('input', schedule);
   source.addEventListener('change', schedule);
   locale.addEventListener('change', schedule);
-  for (const blockForm of document.querySelectorAll('details.block form[action*="setProps"]')) {
-    blockForm.addEventListener('input', () => {
-      blockForm.dataset.liveBlockDirty = '';
-      schedule();
-    });
-    blockForm.addEventListener('change', () => {
-      blockForm.dataset.liveBlockDirty = '';
-      schedule();
-    });
-  }
   window.addEventListener('message', (event) => {
     if (event.origin !== window.location.origin || event.source !== frame.contentWindow) return;
     if (event.data?.type !== 'mycel:block-select') return;

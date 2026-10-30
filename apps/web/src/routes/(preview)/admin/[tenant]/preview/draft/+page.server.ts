@@ -10,14 +10,15 @@ import {
   projectDocument,
   readinessIssues,
   useCases,
+  type Block,
   type ContentDocument,
 } from '@mycel/core';
 import { resolveDocument, runtimeSource } from '#lib/blocks/resolve.js';
-import { posted, propsFromForm } from '#lib/editor/block-form.js';
-import { BLOCK_DEFINITIONS } from '@mycel/core';
+import { posted } from '#lib/editor/block-form.js';
 import { requireTenantPrincipal } from '#lib/server/admin.js';
 import { text } from '#lib/server/admin-actions.js';
 import { documentFrom, valuesFromForm } from '#lib/server/content-admin.js';
+import { blocksFrom } from '#lib/server/edit-form.js';
 import { PREVIEW_HEADERS, previewBase, previewSite, siteReader } from '#lib/server/preview.js';
 import { runtime } from '#lib/server/runtime.js';
 import { siteBrand, siteTheme } from '#lib/server/theme.js';
@@ -57,22 +58,11 @@ export const actions: Actions = {
       valuesFromForm(data),
       new Date().toISOString().slice(0, 10)
     );
-    // Only block forms changed in this browser session are applied. Untouched blocks keep their
-    // exact props; previewing a title cannot silently normalize rich text or another locale.
-    for (const block of input.blocks) {
-      const prefix = `draftBlock.${block.id}.`;
-      const fields = [...data.entries()].filter(([name]) => name.startsWith(prefix));
-      if (!fields.length) continue;
-      const blockData = new FormData();
-      for (const [name, value] of fields) blockData.append(name.slice(prefix.length), value);
-      const result = propsFromForm(
-        BLOCK_DEFINITIONS[block.type].fields,
-        posted(blockData),
-        block.props as Record<string, unknown>
-      );
-      if (result.errors.length) error(400, 'Invalid block');
-      (block as { props: Record<string, unknown> }).props = result.props;
-    }
+    // The edit form carries every block's fields (#66 PR 2); a block it reads back unchanged
+    // keeps its exact props, so previewing a title never normalizes rich text or another locale.
+    const read = blocksFrom(input.blocks as Block[], posted(data));
+    if (read.errors.length) error(400, 'Invalid block');
+    input.blocks = read.blocks;
     const parsed = ContentDocumentInput.safeParse(input);
     if (!parsed.success) error(400, 'Invalid document');
     const doc = parsed.data as ContentDocument;

@@ -1,10 +1,11 @@
-// The edit page of one item (TODO #11, brief content-editor § A1): the document fields of the
-// latest revision, saved as a new revision through `content.item.update` with the revision the
-// form was opened on as `baseRevisionId` (ADR 018 rule 2); `documentFrom` carries the blocks over
-// unchanged. Each block has its own forms (brief § B): its fields through `set_props` and a move
-// up or down through `move`, both on the revision the page showed; inserting and removing have
-// pages of their own (`blocks/new`, `blocks/[blockId]/remove`). Authors and section always list what
-// the document or a failed post has, also beyond the first page of the directory (`withAssigned`).
+// The edit screen of one item (TODO #66 PR 2, brief edit-screen § 6): one form for the whole
+// document. Its fields, every block's fields (`lib/server/edit-form.ts`) and a block chosen but
+// not stored yet are saved together as one `content.item.update` with the revision the form was
+// opened on as `baseRevisionId` (ADR 018 rule 2); every other action of the screen (publish,
+// schedule, move, remove, insert) is a button of the same form that saves first and then runs its
+// own use case on the revision that save made, so no action loses what was typed. Authors and
+// section always list what the document or a failed post has, also beyond the first page of the
+// directory (`withAssigned`).
 //
 // A conflict shows both versions, as the ADR asks: the form keeps what was typed, a notice names
 // who saved the newer revision and when, and a table lists what changed between the revision the
@@ -12,10 +13,10 @@
 // deliberate choice to put these values on top. Rejected: last-write-wins with a warning, and a
 // silent merge (which field wins is the editor's call, not ours).
 //
-// The publication panel (brief § A2) acts per locale on the revision this page shows: publish,
-// take offline, schedule (a time in the site zone, `content-admin-publication.ts`) and cancel a
-// schedule; pinning the newest revision is a schedule of it at the pinned time. Buttons show only
-// for `content:publish`; the registry refuses the rest regardless.
+// The status card (brief § 4) acts per locale: publish, take offline, schedule (a time in the site
+// zone, `content-admin-publication.ts`) and cancel a schedule; pinning the newest revision is a
+// schedule of it at the pinned time. Buttons show only for `content:publish`, and a member
+// without it is refused before anything is saved; the registry refuses the rest regardless.
 import { isDeepStrictEqual } from 'node:util';
 import { error, fail, redirect } from '@sveltejs/kit';
 import {
@@ -23,15 +24,17 @@ import {
   BLOCK_TYPES,
   UseCaseError,
   can,
+  contentPath,
   documentMedia,
   readinessIssues,
   useCases,
+  type BlockInput,
   type ContentDocument,
   type Principal,
   type Section,
   type TenantInfo,
 } from '@mycel/core';
-import { formValues, posted, propsFromForm } from '#lib/editor/block-form.js';
+import { formValues, posted } from '#lib/editor/block-form.js';
 import { failureOf, text } from '#lib/server/admin-actions.js';
 import { requireTenantPrincipal } from '#lib/server/admin.js';
 import {
@@ -54,13 +57,22 @@ import {
   localLabel,
 } from '#lib/server/content-admin-publication.js';
 import {
-  type FieldIssue,
-  fieldIssues,
   issueCopy as blockIssueCopy,
   pickerOptions,
   summaryOf,
 } from '#lib/server/content-blocks.js';
+import {
+  NEW_BLOCK,
+  blockIssues,
+  blockPrefix,
+  blocksFrom,
+  pendingBlock,
+  pendingProps,
+  pendingView,
+  type PendingBlock,
+} from '#lib/server/edit-form.js';
 import { runtime } from '#lib/server/runtime.js';
+import { adminSiteUrls } from '#lib/server/site.js';
 import { ui, type UiKey } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -134,6 +146,10 @@ async function relationshipChoices(
   return { authors, sections };
 }
 
+/** Form values under a name prefix. */
+const prefixed = (values: Record<string, string>, prefix: string): Record<string, string> =>
+  Object.fromEntries(Object.entries(values).map(([k, v]) => [`${prefix}${k}`, v]));
+
 export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
   const { tenant } = await parent();
   const principal = locals.principal!;
@@ -172,6 +188,16 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
     item.defaultLocale,
     documentMedia(doc).map((m) => m.mediaId)
   );
+  const canWrite = can(principal, 'content:write');
+  const pending = pendingBlock(
+    url.searchParams.get('insert'),
+    url.searchParams.get('place'),
+    url.searchParams.get('anchor'),
+    doc.blocks.map((b) => b.id)
+  );
+  const siteUrl = item.publication.some((p) => p.publishedRevisionId)
+    ? await adminSiteUrls(principal, tenant.slug)
+    : null;
   const assistSettings =
     can(principal, 'ai:assist') && can(principal, 'content:write')
       ? await invoker.run(useCases.getAssistSettings, principal, {})
@@ -191,14 +217,18 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
       id: b.id,
       type: b.type,
       summary: summaryOf(b, item.defaultLocale),
-      values: formValues(
-        BLOCK_DEFINITIONS[b.type].fields,
-        b.props as Record<string, unknown>,
-        doc.locales
+      values: prefixed(
+        formValues(
+          BLOCK_DEFINITIONS[b.type].fields,
+          b.props as Record<string, unknown>,
+          doc.locales
+        ),
+        blockPrefix(b.id)
       ),
     })),
-    openBlock: url.searchParams.get('block'),
+    openBlocks: (url.searchParams.get('block') ?? '').split(','),
     blockTypes: BLOCK_TYPES,
+    pending: canWrite && pending ? pendingView(pending, doc.locales) : null,
     docLocales: doc.locales,
     ...options,
     item: {
@@ -211,6 +241,11 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
           locale: p.locale,
           status: p.status,
           changes: p.hasUnpublishedChanges,
+          publishedAt: p.publishedAt,
+          href:
+            siteUrl && p.publishedRevisionId
+              ? siteUrl(contentPath(item, p.locale, tenant.defaultLocale))
+              : null,
           live: p.publishedRevisionId ? await describe(p.publishedRevisionId) : null,
           pin:
             p.scheduledRevisionId && p.scheduledFor
@@ -233,8 +268,10 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
       ),
     },
     canPublish: can(principal, 'content:publish'),
-    canWrite: can(principal, 'content:write'),
+    canWrite,
     restricted: doc.access.level !== 'public',
+    // Readers (#19) do not exist yet: access shows only on an item that already has it.
+    showAccess: doc.access.level !== 'public',
     timeZone: SITE_TIME_ZONE,
     done: DONE[url.searchParams.get('done') ?? ''] ?? null,
     doneLocale: url.searchParams.get('locale') ?? '',
@@ -251,9 +288,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
 
 /** The notice after a publication action, by the `done` parameter of its redirect. */
 const DONE: Record<string, UiKey> = {
-  blockSaved: 'admin.block.done.saved',
   blockMoved: 'admin.block.done.moved',
-  blockInserted: 'admin.block.done.inserted',
   blockRemoved: 'admin.block.done.removed',
   publish: 'admin.content.publication.done.publish',
   unpublish: 'admin.content.publication.done.unpublish',
@@ -283,37 +318,239 @@ const ISSUE_COPY: Record<string, UiKey> = {
 const issueCopy = (message: string): UiKey =>
   ISSUE_COPY[issueKey(message)] ?? 'admin.content.issue.other';
 
+/** The time of the schedule form, or a refusal core will word like its own. */
+function instant(at: string): string {
+  const parsed = fromLocalInput(at);
+  if (!parsed)
+    throw new UseCaseError('invalid_input', 'no time given', [
+      { path: 'at', message: 'admin.content.publication.time-invalid' },
+    ]);
+  return parsed.toISOString();
+}
+
+/** Core's issue keys on a save, as admin copy; anything else is the generic invalid message. */
+const ISSUES: Record<string, UiKey> = {
+  'i18n.default-not-in-locales': 'admin.content.error.defaultLocale',
+  'content.seo.canonical.invalid': 'admin.content.error.canonical',
+  'content.tag.invalid': 'admin.content.error.tag',
+  'content.access.marker-needs-one-paywall': 'admin.content.error.marker',
+  'content.access.teaser-too-long': 'admin.content.error.teaserTooLong',
+  'content.access.tier-ids-required': 'admin.content.error.tier',
+};
+
+/** Who saved the newest revision, when, and what changed since `from`. */
+async function conflictOf(principal: Principal, itemId: string, from: string) {
+  const { item, revision } = await latest(principal, itemId);
+  const { changes } = await runtime().invoker.run(useCases.diffRevisions, principal, {
+    itemId: item.id,
+    fromRevisionId: from,
+    toRevisionId: revision.id,
+  });
+  return {
+    newest: revision.id,
+    who: actorLabel(revision.actor),
+    when: when(revision.createdAt),
+    changes: diffRows(changes),
+  };
+}
+
+type Event = Parameters<Actions[string]>[0];
+
+/** What a successful save of the one form hands to the action that follows it. */
+interface Committed {
+  tenant: TenantInfo;
+  principal: Principal;
+  data: FormData;
+  /** The revision the action runs on: the save's, or the one the form was opened on. */
+  revisionId: string;
+  /** The block the save inserted, if a pending one was in the form. */
+  inserted: string | null;
+  /** The blocks whose fields the save changed, so the screen comes back with them open. */
+  changed: string[];
+}
+
 /**
- * One publication action on one locale (brief content-editor § A2). Core decides: `content:publish`
- * through the registry (a member without it gets a 403 whatever the page showed), readiness and
- * references on publish and schedule. A refusal names the locale and every issue with its path.
+ * Saves what the one form carries before any action of the screen (brief edit-screen § 6): the
+ * document's fields and every block's as one `content.item.update` on the revision the form was
+ * opened on, then a pending block through `content.block.insert`. Only `always` (the save button)
+ * adds a revision for an untouched form, as before; any other action saves only a change, and a
+ * member without `content:write` changes nothing on the way to an action they may do. The block
+ * being removed keeps its stored props, so an unfinished block can always be thrown away.
+ * `publication` refuses a member without `content:publish` before anything is saved.
  */
-async function publication(
-  event: Parameters<Actions[string]>[0],
-  action: keyof typeof DONE,
-  run: (
-    principal: Principal,
-    input: { itemId: string; locale: string; revisionId: string; at: string }
-  ) => Promise<unknown>,
-  posted?: FormData
-) {
+async function commit(
+  event: Event,
+  opts: { always?: boolean; publication?: boolean; discard?: boolean } = {}
+): Promise<Committed | { failure: Awaited<ReturnType<typeof refused>> }> {
   const { tenant, principal } = await requireTenantPrincipal(
     event.locals,
     event.url,
     event.params.tenant!
   );
-  const data = posted ?? (await event.request.formData());
-  const field = (name: string) => {
-    const v = data.get(name);
-    return typeof v === 'string' ? v : '';
-  };
-  const locale = field('locale');
+  if (opts.publication && !can(principal, 'content:publish')) error(403, 'Forbidden');
+  const data = await event.request.formData();
+  const itemId = event.params.itemId!;
+  const baseRevisionId = text(data, 'baseRevisionId');
+  let changed: string[] = [];
+  const done = (revisionId: string, inserted: string | null = null): Committed => ({
+    tenant,
+    principal,
+    data,
+    revisionId,
+    inserted,
+    changed,
+  });
+  if (!opts.always && !can(principal, 'content:write')) return done(baseRevisionId);
+  const values = valuesFromForm(data);
+  const post = posted(data);
+  const rt = runtime();
+  let blocks: readonly { id: string }[] = [];
+  let pending: PendingBlock | null = null;
+  let revisionId = baseRevisionId;
+  try {
+    const { revision } = await rt.invoker.run(useCases.getItem, principal, {
+      itemId,
+      revisionId: baseRevisionId,
+    });
+    const base = revision.document;
+    blocks = base.blocks;
+    pending = opts.discard
+      ? null
+      : pendingBlock(
+          text(data, `${NEW_BLOCK}type`),
+          text(data, `${NEW_BLOCK}place`),
+          text(data, `${NEW_BLOCK}anchor`),
+          base.blocks.map((b) => b.id)
+        );
+    const read = blocksFrom(base.blocks, post, text(data, 'remove') || undefined);
+    const added = pending && pendingProps(pending, post);
+    // Rich text the form could not read never reaches core.
+    const unread = [...read.errors, ...(added?.errors ?? [])];
+    if (unread.length)
+      return {
+        failure: await refused(tenant, principal, itemId, values, pending, {
+          error: 'admin.block.error.invalid',
+          fieldIssues: unread.map((e) => ({ name: e.name, copy: blockIssueCopy(e.message) })),
+        }),
+      };
+    changed = read.blocks.filter((b, i) => !isDeepStrictEqual(b, base.blocks[i])).map((b) => b.id);
+    const today = rt.clock.now().toISOString().slice(0, 10);
+    const document = { ...documentFrom(base, values, today), blocks: read.blocks };
+    if (opts.always || !isDeepStrictEqual(document, documentFrom(base, valuesOf(base), today)))
+      revisionId = (
+        await rt.invoker.run(useCases.updateItem, principal, { itemId, baseRevisionId, document })
+      ).revision.id;
+    if (!pending || !added) return done(revisionId);
+    const result = await rt.invoker.run(useCases.insertBlock, principal, {
+      itemId,
+      baseRevisionId: revisionId,
+      block: {
+        type: pending.type,
+        version: BLOCK_DEFINITIONS[pending.type].version,
+        props: added.props,
+      } as BlockInput,
+      place: pending.place,
+    });
+    return done(result.revision.id, result.created[0] ?? null);
+  } catch (e) {
+    if (!(e instanceof UseCaseError)) throw e;
+    const { status, body } = failureOf(e, 'save', {
+      conflict: 'admin.content.conflict.title',
+      invalid: 'admin.content.error.invalid',
+      issues: ISSUES,
+    });
+    const onBlocks = e.code === 'invalid_input' ? blockIssues(e, blocks) : [];
+    // A refused insert comes after a save that stood: the form now edits that revision.
+    const saved = { ...values, baseRevisionId: revisionId };
+    if (e.code !== 'conflict')
+      return {
+        failure: await refused(tenant, principal, itemId, saved, pending, {
+          ...body,
+          ...(onBlocks.length ? { error: 'admin.block.error.invalid' as UiKey } : {}),
+          fieldIssues: onBlocks.map((i) => ({ name: i.name, copy: blockIssueCopy(i.message) })),
+          status,
+        }),
+      };
+    const conflict = await conflictOf(principal, itemId, baseRevisionId);
+    return {
+      failure: await refused(
+        tenant,
+        principal,
+        itemId,
+        { ...values, baseRevisionId: conflict.newest },
+        pending,
+        {
+          ...body,
+          status,
+          conflict: { who: conflict.who, when: conflict.when, changes: conflict.changes },
+        }
+      ),
+    };
+  }
+}
+
+/**
+ * The failure of a save: what was typed, the pending block, the refused fields and the choices
+ * the authors and section fields need to show what was posted.
+ */
+async function refused(
+  tenant: TenantInfo,
+  principal: Principal,
+  itemId: string,
+  values: FormValues,
+  pending: PendingBlock | null,
+  outcome: {
+    error: UiKey;
+    status?: number;
+    fieldIssues?: { name: string; copy: UiKey }[];
+    conflict?: { who: string; when: string; changes: ReturnType<typeof diffRows> };
+    [key: string]: unknown;
+  }
+) {
+  const { revision } = await latest(principal, itemId);
+  const choices = await relationshipChoices(
+    principal,
+    tenant.defaultLocale,
+    revision.document.type === 'article',
+    Array.isArray(values.authorIds) ? [...new Set(values.authorIds)] : [],
+    typeof values.sectionId === 'string' ? values.sectionId : ''
+  );
+  const { status = 400, ...rest } = outcome;
+  return fail(status, {
+    action: 'save',
+    ...rest,
+    ...choices,
+    values,
+    pending: pending && pendingView(pending, revision.document.locales, values),
+    fieldIssues: outcome.fieldIssues ?? [],
+    conflict: outcome.conflict ?? null,
+  });
+}
+
+/**
+ * One publication action on one locale (brief content-editor § A2) after the save of the form.
+ * Core decides: `content:publish` through the registry (a member without it gets a 403 whatever
+ * the page showed), readiness and references on publish and schedule. A refusal names the
+ * locale and every issue with its path.
+ */
+async function publication(
+  event: Event,
+  action: keyof typeof DONE,
+  run: (
+    principal: Principal,
+    input: { itemId: string; locale: string; revisionId: string; at: string }
+  ) => Promise<unknown>
+) {
+  const saved = await commit(event, { publication: true });
+  if ('failure' in saved) return saved.failure;
+  const { tenant, principal, data, revisionId } = saved;
+  const locale = text(data, 'locale');
   try {
     await run(principal, {
       itemId: event.params.itemId!,
       locale,
-      revisionId: field('revisionId'),
-      at: field('at'),
+      revisionId,
+      at: text(data, `at.${locale}`),
     });
   } catch (e) {
     if (!(e instanceof UseCaseError)) throw e;
@@ -341,235 +578,109 @@ async function publication(
   );
 }
 
-/** The time of the schedule form, or a refusal core will word like its own. */
-function instant(at: string): string {
-  const parsed = fromLocalInput(at);
-  if (!parsed)
-    throw new UseCaseError('invalid_input', 'no time given', [
-      { path: 'at', message: 'admin.content.publication.time-invalid' },
-    ]);
-  return parsed.toISOString();
-}
-
-/** Core's issue keys on a save, as admin copy; anything else is the generic invalid message. */
-const ISSUES: Record<string, UiKey> = {
-  'i18n.default-not-in-locales': 'admin.content.error.defaultLocale',
-  'content.seo.canonical.invalid': 'admin.content.error.canonical',
-  'content.tag.invalid': 'admin.content.error.tag',
-  'content.access.marker-needs-one-paywall': 'admin.content.error.marker',
-  'content.access.teaser-too-long': 'admin.content.error.teaserTooLong',
-  'content.access.tier-ids-required': 'admin.content.error.tier',
-};
-
 /**
- * One block action on the revision the page showed (brief content-editor § B). `apply` gets the
- * block and its index in that revision and runs the operation; a refusal comes back with what was
- * typed and the issues on their fields, a stale revision as the conflict of A1.
+ * One block operation after the save of the form, on the revision that save made; the screen
+ * comes back at the block (`#block-<id>`), or at the blocks when it is gone.
  */
-async function blockAction(
-  event: Parameters<Actions[string]>[0],
-  done: string,
-  apply: (input: {
-    principal: Principal;
-    data: FormData;
-    blocks: ContentDocument['blocks'];
-    index: number;
-    target: { itemId: string; baseRevisionId: string };
-  }) => Promise<FieldIssue[] | void>
+async function blockStep(
+  saved: Committed,
+  itemId: string,
+  blockId: string,
+  done: 'blockMoved' | 'blockRemoved',
+  run: (blocks: ContentDocument['blocks'], index: number) => Promise<unknown>
 ) {
-  const { tenant, principal } = await requireTenantPrincipal(
-    event.locals,
-    event.url,
-    event.params.tenant!
-  );
-  const data = await event.request.formData();
-  const blockId = text(data, 'blockId');
-  const target = { itemId: event.params.itemId!, baseRevisionId: text(data, 'baseRevisionId') };
-  const blockValues: Record<string, string> = {};
-  for (const [k, v] of data) if (typeof v === 'string' && !(k in blockValues)) blockValues[k] = v;
-  const rt = runtime();
-  let index = -1;
+  const { tenant, principal, revisionId } = saved;
   try {
-    const { revision } = await rt.invoker.run(useCases.getItem, principal, {
-      itemId: target.itemId,
-      revisionId: target.baseRevisionId,
+    const { revision } = await runtime().invoker.run(useCases.getItem, principal, {
+      itemId,
+      revisionId,
     });
-    const blocks = revision.document.blocks;
-    index = blocks.findIndex((b) => b.id === blockId);
+    const index = revision.document.blocks.findIndex((b) => b.id === blockId);
     if (index < 0) error(404, 'Not found');
-    // Rich text the form could not read never reaches core.
-    const unread = await apply({ principal, data, blocks, index, target });
-    if (unread?.length)
-      return fail(400, {
-        action: 'block',
-        error: 'admin.block.error.invalid' as UiKey,
-        blockId,
-        blockValues,
-        fieldIssues: unread,
-        conflict: null,
-      });
+    await run(revision.document.blocks, index);
   } catch (e) {
     if (!(e instanceof UseCaseError)) throw e;
     const { status, body } = failureOf(e, 'block', {
       conflict: 'admin.content.conflict.title',
       invalid: 'admin.block.error.invalid',
     });
-    const conflict =
-      e.code === 'conflict'
-        ? await conflictOf(principal, target.itemId, target.baseRevisionId)
-        : null;
+    const conflict = e.code === 'conflict' ? await conflictOf(principal, itemId, revisionId) : null;
     return fail(status, {
       ...body,
-      blockId,
-      blockValues: conflict ? { ...blockValues, baseRevisionId: conflict.newest } : blockValues,
-      fieldIssues: e.code === 'invalid_input' ? fieldIssues(e, index) : [],
+      fieldIssues: [],
       conflict: conflict && { who: conflict.who, when: conflict.when, changes: conflict.changes },
     });
   }
+  const at = done === 'blockRemoved' ? 'blocks' : `block-${blockId}`;
   redirect(
     303,
-    `/admin/${tenant.slug}/content/${target.itemId}?done=${done}&block=${encodeURIComponent(blockId)}#block-${blockId}`
+    `/admin/${tenant.slug}/content/${itemId}?done=${done}&block=${encodeURIComponent(blockId)}#${at}`
   );
 }
 
-/** Who saved the newest revision, when, and what changed since `from`. */
-async function conflictOf(principal: Principal, itemId: string, from: string) {
-  const { item, revision } = await latest(principal, itemId);
-  const { changes } = await runtime().invoker.run(useCases.diffRevisions, principal, {
-    itemId: item.id,
-    fromRevisionId: from,
-    toRevisionId: revision.id,
-  });
-  return {
-    newest: revision.id,
-    who: actorLabel(revision.actor),
-    when: when(revision.createdAt),
-    changes: diffRows(changes),
-  };
-}
-
-/**
- * Saves the edit form as a new revision (brief content-editor § A1). `onlyIfChanged` is the
- * publish button of the same form (editor trial 2026-10-28): it saves first so a publish never skips what was
- * typed, but an untouched form adds no empty revision. A refusal is the page's own failure.
- */
-async function saveFields(
-  tenant: TenantInfo,
-  principal: Principal,
-  itemId: string,
-  values: FormValues,
-  onlyIfChanged: boolean
-) {
-  const baseRevisionId = typeof values.baseRevisionId === 'string' ? values.baseRevisionId : '';
-  const rt = runtime();
-  let base: ContentDocument;
-  try {
-    const got = await rt.invoker.run(useCases.getItem, principal, {
-      itemId,
-      revisionId: baseRevisionId,
-    });
-    base = got.revision.document;
-    const today = rt.clock.now().toISOString().slice(0, 10);
-    const document = documentFrom(base, values, today);
-    if (onlyIfChanged && isDeepStrictEqual(document, documentFrom(base, valuesOf(base), today)))
-      return { revisionId: baseRevisionId };
-    const saved = await rt.invoker.run(useCases.updateItem, principal, {
-      itemId,
-      baseRevisionId,
-      document,
-    });
-    return { revisionId: saved.revision.id };
-  } catch (e) {
-    if (!(e instanceof UseCaseError)) throw e;
-    const { status, body } = failureOf(e, 'save', {
-      conflict: 'admin.content.conflict.title',
-      invalid: 'admin.content.error.invalid',
-      issues: ISSUES,
-    });
-    const { item, revision } = await latest(principal, itemId);
-    const choices = await relationshipChoices(
-      principal,
-      tenant.defaultLocale,
-      revision.document.type === 'article',
-      Array.isArray(values.authorIds) ? [...new Set(values.authorIds)] : [],
-      typeof values.sectionId === 'string' ? values.sectionId : ''
-    );
-    if (e.code !== 'conflict')
-      return { failure: fail(status, { ...body, ...choices, values, conflict: null }) };
-    const { changes } = await rt.invoker.run(useCases.diffRevisions, principal, {
-      itemId: item.id,
-      fromRevisionId: baseRevisionId,
-      toRevisionId: revision.id,
-    });
-    return {
-      failure: fail(status, {
-        ...body,
-        ...choices,
-        values: { ...values, baseRevisionId: revision.id },
-        conflict: {
-          who: actorLabel(revision.actor),
-          when: when(revision.createdAt),
-          changes: diffRows(changes),
-        },
-      }),
-    };
-  }
-}
-
 export const actions: Actions = {
-  setProps: (event) =>
-    blockAction(event, 'blockSaved', async ({ principal, data, blocks, index, target }) => {
-      const block = blocks[index]!;
-      const { props, errors } = propsFromForm(
-        BLOCK_DEFINITIONS[block.type].fields,
-        posted(data),
-        block.props as Record<string, unknown>
-      );
-      if (errors.length)
-        return errors.map((e) => ({ name: e.name, copy: blockIssueCopy(e.message) }));
-      await runtime().invoker.run(useCases.setBlockProps, principal, {
-        ...target,
-        blockId: block.id,
-        props,
-      });
-    }),
-  move: (event) =>
-    blockAction(event, 'blockMoved', async ({ principal, data, blocks, index, target }) => {
-      const up = text(data, 'direction') === 'up';
-      const neighbour = blocks[up ? index - 1 : index + 1];
-      if (!neighbour) return;
-      await runtime().invoker.run(useCases.moveBlock, principal, {
-        ...target,
-        blockId: blocks[index]!.id,
-        place: up ? { before: neighbour.id } : { after: neighbour.id },
-      });
-    }),
-  publish: async (event) => {
-    const posted = await event.request.formData();
-    // The publish button of the edit form carries its fields: save them first (editor trial 2026-10-28).
-    if (posted.has('baseRevisionId')) {
-      const { locals, url, params } = event;
-      const { tenant, principal } = await requireTenantPrincipal(locals, url, params.tenant);
-      // Without the right to publish, nothing is saved on the way to a refusal.
-      if (!can(principal, 'content:publish')) error(403, 'Forbidden');
-      const saved = await saveFields(
-        tenant,
-        principal,
-        params.itemId,
-        valuesFromForm(posted),
-        true
-      );
-      if ('failure' in saved) return saved.failure;
-      posted.set('revisionId', saved.revisionId);
-    }
-    return publication(
-      event,
-      'publish',
-      (principal, { itemId, locale, revisionId }) =>
-        runtime().invoker.run(useCases.publishItem, principal, { itemId, locale, revisionId }),
-      posted
+  save: async (event) => {
+    const saved = await commit(event, { always: true });
+    if ('failure' in saved) return saved.failure;
+    const { tenant, inserted, changed } = saved;
+    const open = inserted ? [inserted] : changed;
+    redirect(
+      303,
+      `/admin/${tenant.slug}/content/${event.params.itemId}?saved${
+        open.length ? `&block=${encodeURIComponent(open.join(','))}#block-${open[0]}` : ''
+      }`
     );
   },
+  /** "Do not add": saves the rest of the form without the pending block. */
+  discard: async (event) => {
+    const saved = await commit(event, { discard: true });
+    if ('failure' in saved) return saved.failure;
+    redirect(303, `/admin/${saved.tenant.slug}/content/${event.params.itemId}#blocks`);
+  },
+  /** Shows an empty block of the chosen type at its place, after saving what was typed. */
+  insert: async (event) => {
+    const saved = await commit(event);
+    if ('failure' in saved) return saved.failure;
+    const [place = '', anchor = ''] = text(saved.data, 'insert').split(':');
+    const query = new URLSearchParams({
+      insert: text(saved.data, `insertType.${anchor || place}`),
+      place,
+      ...(anchor ? { anchor } : {}),
+    });
+    redirect(303, `/admin/${saved.tenant.slug}/content/${event.params.itemId}?${query}#block-new`);
+  },
+  move: async (event) => {
+    const saved = await commit(event);
+    if ('failure' in saved) return saved.failure;
+    const [blockId = '', direction] = text(saved.data, 'move').split(':');
+    return blockStep(saved, event.params.itemId, blockId, 'blockMoved', async (blocks, index) => {
+      const up = direction === 'up';
+      const neighbour = blocks[up ? index - 1 : index + 1];
+      if (!neighbour) return;
+      await runtime().invoker.run(useCases.moveBlock, saved.principal, {
+        itemId: event.params.itemId,
+        baseRevisionId: saved.revisionId,
+        blockId,
+        place: up ? { before: neighbour.id } : { after: neighbour.id },
+      });
+    });
+  },
+  remove: async (event) => {
+    const saved = await commit(event);
+    if ('failure' in saved) return saved.failure;
+    const blockId = text(saved.data, 'remove');
+    return blockStep(saved, event.params.itemId, blockId, 'blockRemoved', () =>
+      runtime().invoker.run(useCases.removeBlock, saved.principal, {
+        itemId: event.params.itemId,
+        baseRevisionId: saved.revisionId,
+        blockId,
+      })
+    );
+  },
+  publish: (event) =>
+    publication(event, 'publish', (principal, { itemId, locale, revisionId }) =>
+      runtime().invoker.run(useCases.publishItem, principal, { itemId, locale, revisionId })
+    ),
   unpublish: (event) =>
     publication(event, 'unpublish', (principal, { itemId, locale }) =>
       runtime().invoker.run(useCases.unpublishItem, principal, { itemId, locale })
@@ -604,17 +715,19 @@ export const actions: Actions = {
     publication(event, 'unschedule', (principal, { itemId, locale }) =>
       runtime().invoker.run(useCases.unscheduleItem, principal, { itemId, locale })
     ),
-  approveTranslation: async ({ locals, url, params, request }) => {
-    const { tenant, principal } = await requireTenantPrincipal(locals, url, params.tenant);
+  approveTranslation: async (event) => {
+    const { locals, url, params } = event;
+    const { principal } = await requireTenantPrincipal(locals, url, params.tenant);
     if (!can(principal, 'content:publish'))
       error(403, ui(locals.lang ?? 'en')('admin.assist.error.forbidden'));
-    const data = await request.formData();
-    const locale = text(data, 'locale');
+    const saved = await commit(event);
+    if ('failure' in saved) return saved.failure;
+    const locale = text(saved.data, 'locale');
     try {
       await runtime().invoker.run(useCases.approveTranslation, principal, {
         itemId: params.itemId,
         locale,
-        baseRevisionId: text(data, 'baseRevisionId'),
+        baseRevisionId: saved.revisionId,
       });
     } catch (e) {
       if (!(e instanceof UseCaseError)) throw e;
@@ -627,14 +740,7 @@ export const actions: Actions = {
     }
     redirect(
       303,
-      `/admin/${tenant.slug}/content/${params.itemId}?done=translationApproved&locale=${encodeURIComponent(locale)}`
+      `/admin/${saved.tenant.slug}/content/${params.itemId}?done=translationApproved&locale=${encodeURIComponent(locale)}`
     );
-  },
-  save: async ({ locals, url, params, request }) => {
-    const { tenant, principal } = await requireTenantPrincipal(locals, url, params.tenant);
-    const values = valuesFromForm(await request.formData());
-    const saved = await saveFields(tenant, principal, params.itemId, values, false);
-    if ('failure' in saved) return saved.failure;
-    redirect(303, `/admin/${tenant.slug}/content/${params.itemId}?saved`);
   },
 };

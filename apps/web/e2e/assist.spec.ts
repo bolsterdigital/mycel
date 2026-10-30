@@ -280,9 +280,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
         .fill('Edited English heading');
       await acceptWithKeyboard(page);
       await expect(page).toHaveURL(`${edit}?saved=1`);
-      const publication = page.locator('.publication', {
-        has: page.locator('#publication-en'),
-      });
+      const publication = page.locator('#publication-en');
       await expect(page.locator('details.block')).toHaveCount(0);
       await expect(publication).toContainText(/Machinevertaling|Machine translation/);
       await expect(publication.locator('a[href="#publication-en"]')).toHaveCount(1);
@@ -301,7 +299,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
       await permissions(page, ['tenant:admin']);
       await page.reload();
       await page
-        .locator('.publication', { has: page.locator('#publication-en') })
+        .locator('#publication-en')
         .getByRole('button', { name: /Vertaling in en goedkeuren|Approve translation in en/ })
         .click();
       await expect(publication).not.toContainText(/Machinevertaling|Machine translation/);
@@ -452,9 +450,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
       });
       await page.reload();
       await expect(page.locator('details.block')).toHaveCount(0);
-      const publication = page.locator('.publication', {
-        has: page.locator('#publication-en'),
-      });
+      const publication = page.locator('#publication-en');
       await expect(publication).toContainText(/Machinevertaling|Machine translation/);
       await expect(publication.locator('a[href="#publication-en"]')).toHaveCount(1);
       // Prove all approval controls in the same nl/en reflow and text cases as suggestions.

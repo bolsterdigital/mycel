@@ -16,6 +16,7 @@ import {
   anonymousPrincipal,
   siteUrl,
   type PlatformConfig,
+  type Principal,
   type ResolvedSite,
   type TenantAccess,
   type TenantInfo,
@@ -107,6 +108,21 @@ export async function siteUrls(site: Site): Promise<(path: string) => string> {
           )
         )?.hostname ?? null);
   return (path) => rt.siteUrl({ slug: site.tenant.slug, primaryHostname }, path);
+}
+
+/**
+ * The builder of a site's absolute URLs from the admin, where there is no site request: the
+ * operator's principal reads the primary hostname under its own tenant ("view on the site", #66
+ * PR 2).
+ */
+export async function adminSiteUrls(
+  principal: Principal,
+  slug: string
+): Promise<(path: string) => string> {
+  const rt = runtime();
+  const primaryHostname =
+    (await rt.uow.run(principal, (ctx) => ctx.hostnames.primary()))?.hostname ?? null;
+  return (path) => rt.siteUrl({ slug, primaryHostname }, path);
 }
 
 /** One absolute URL of the site; `siteUrls` when you need several. */

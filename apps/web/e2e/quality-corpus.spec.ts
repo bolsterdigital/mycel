@@ -192,7 +192,7 @@ test('admin corpus uses the populated shell, native editor and enhanced writer',
   await expect(page.locator('#content-table tbody tr')).not.toHaveCount(0);
   await expect(page.locator('.admin-site-name')).toHaveText('Probe');
   await page.goto(`/admin/probe/content/${id}`);
-  await expect(page.getByRole('main')).toContainText('De straat die ruimte maakt');
+  await expect(page.locator('#title\\.nl')).toHaveValue('De straat die ruimte maakt');
   await expect(page.locator('.admin-site-name')).toHaveText('Probe');
   const consoleErrors: string[] = [];
   page.on('console', (message) => {

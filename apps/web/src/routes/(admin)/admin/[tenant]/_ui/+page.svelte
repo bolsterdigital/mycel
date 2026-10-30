@@ -6,6 +6,8 @@
     Actions,
     Badge,
     Button,
+    ItemBar,
+    StatusCard,
     Card,
     CardGrid,
     DashboardWidget,
@@ -365,6 +367,47 @@
         { id: 'settings', label: t('admin.ui.catalogue.tabs.settings'), content: tabSettings },
       ]}
     />
+  </section>
+
+  <section aria-labelledby="ui-item-bar">
+    <h2 id="ui-item-bar">{t('admin.ui.catalogue.itemBar')}</h2>
+    <p>{t('admin.ui.catalogue.itemBar.intro')}</p>
+    <ItemBar
+      back={{ href: '#ui-item-bar', label: t('admin.content.filter.page') }}
+      title={fill(t('admin.content.edit.title'), { type: t('admin.content.type.page') })}
+      state={t('admin.content.state.changed')}
+      stateHref="#ui-status-card"
+      tone="warning"
+      level={3}
+    >
+      {#snippet actions()}
+        <Button variant="secondary" type="button">{t('admin.content.edit.previewShort')}</Button>
+        <Button type="button">{t('admin.content.edit.save')}</Button>
+      {/snippet}
+    </ItemBar>
+  </section>
+
+  <section aria-labelledby="ui-status-card">
+    <h2 id="ui-status-card">{t('admin.ui.catalogue.statusCard')}</h2>
+    <p>{t('admin.ui.catalogue.statusCard.intro')}</p>
+    <StatusCard
+      id="ui-status-card-sample"
+      level={3}
+      title={t('admin.content.edit.side')}
+      state={t('admin.content.state.changed')}
+      tone="warning"
+    >
+      {#snippet actions()}
+        <Button type="button">{t('admin.content.action.publishChanges')}</Button>
+        <Button variant="secondary" type="button">{t('admin.content.action.unpublish')}</Button>
+      {/snippet}
+      {#snippet more()}
+        <details class="ui-fold">
+          <summary>{t('admin.content.action.scheduleFold')}</summary>
+          <p>{t('admin.content.publication.zone')} Europe/Amsterdam</p>
+        </details>
+      {/snippet}
+    </StatusCard>
   </section>
 
   <section aria-labelledby="ui-widgets">

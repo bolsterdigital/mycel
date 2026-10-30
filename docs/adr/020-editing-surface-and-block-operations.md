@@ -6,6 +6,7 @@
 - **Refines**: ADR 004 rules 1 to 3 and 6 (block identity, heading context, rendering and references)
 - **Builds on**: ADR 007 (localisation), ADR 009 (HTML first and one registry), ADR 013 (bounded customisation), ADR 018 (revisions, capabilities and publication)
 - **Managed extension scope**: 2026-10-24 [ADR 022](022-managed-extensions-and-site-integrations.md) allows reviewed style parts, slots and type profiles within the same bounded block tree. The free canvas and arbitrary layout code rejected below remain rejected.
+- **Rule 5 refined**: 2026-10-30. "Forms per block" is a fieldset per block inside one document form: the document's fields and every block's fields are saved together as one `content.item.update`, and every block action (insert, move, remove) is a button of that form that saves what was typed first and then runs its own operation of rule 6. Separate forms lost what was typed in one block when another was moved or inserted (editor trial of 2026-10-28). The model, the operations and their authorization are unchanged.
 
 ## Context
 

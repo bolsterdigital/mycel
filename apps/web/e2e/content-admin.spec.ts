@@ -102,8 +102,9 @@ test.describe('content-admin', () => {
     await expectNoAxeViolations(page);
     const slug = slugFor('edit');
     const edit = await newPage(page, slug, 'Over de buurt');
-    await expect(page.getByRole('heading', { level: 1, name: 'Over de buurt' })).toBeVisible();
-    await expect(page.getByText('nl: concept')).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Pagina bewerken' })).toBeVisible();
+    await expect(page.locator('#title\\.nl')).toHaveValue('Over de buurt');
+    await expect(page.locator('#publication-nl')).toContainText('Concept');
     await expectNoAxeViolations(page);
 
     await page.getByLabel('Titel (nl)').fill('Over onze buurt');
@@ -138,7 +139,7 @@ test.describe('content-admin', () => {
     const slug = slugFor('preview');
     await newPage(page, slug, 'Nog geheim');
 
-    const link = page.getByRole('link', { name: 'Voorbeeld (en), opent een nieuw tabblad' });
+    const link = page.getByRole('link', { name: 'Voorbeeld (en)' });
     await expect(link).toHaveAttribute('target', '_blank');
     const href = (await link.getAttribute('href'))!;
     const response = await page.goto(href);
@@ -180,14 +181,12 @@ test.describe('content-admin', () => {
     const edit = await newPage(page, slugFor('live'), 'Saved title');
 
     // Give the preview a block to select. Its native details remains the keyboard route.
-    const insert = page.locator('section > form.insert');
-    await insert.getByLabel('Soort').selectOption({ label: 'Kop' });
-    await insert.getByLabel('Waar').selectOption({ label: 'Onderaan' });
-    await insert.getByRole('button', { name: 'Velden invullen' }).click();
+    await page.getByLabel('Soort', { exact: true }).last().selectOption({ label: 'Kop' });
+    await page.getByRole('button', { name: 'Toevoegen', exact: true }).click();
     await page.getByLabel('Tekst (nl)').fill('Saved heading');
     await page.getByLabel('Tekst (en)').fill('Saved heading');
-    await page.getByRole('button', { name: 'Blok invoegen' }).click();
-    await expect(page).toHaveURL(/\?done=blockInserted&block=/);
+    await page.getByRole('button', { name: 'Toevoegen en opslaan' }).click();
+    await expect(page).toHaveURL(/\?saved&block=/);
 
     const frame = page.frameLocator('[data-live-preview-frame]');
     await expect(frame.getByRole('heading', { level: 1, name: 'Saved title' })).toBeVisible();
@@ -203,10 +202,10 @@ test.describe('content-admin', () => {
     await frame.getByRole('heading', { name: 'Saved heading' }).click();
     const details = page.locator('details.block').first();
     await expect(details).toHaveAttribute('open', '');
-    await expect(details.locator('summary')).toBeFocused();
+    await expect(details.locator(':scope > summary')).toBeFocused();
     await details.getByLabel('Tekst (nl)').fill('Unsaved heading');
     await expect(frame.getByRole('heading', { name: 'Unsaved heading' })).toBeVisible();
-    await details.locator('summary').press('Enter');
+    await details.locator(':scope > summary').press('Enter');
     await expect(details).not.toHaveAttribute('open');
     await expectNoAxeViolations(page);
     await page.setViewportSize(NARROW);
@@ -362,7 +361,7 @@ test.describe('content-admin', () => {
     await login(page, `/admin/probe/content/${item.id}`);
     await expect(page.getByLabel('Ver Weg')).toBeChecked();
     await expect(page.getByLabel('Rubriek')).toHaveValue(oldSection.id);
-    await page.getByLabel('Titel (nl)').fill('Alleen de titel');
+    await page.locator('#title\\.nl').fill('Alleen de titel');
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await expect(page).toHaveURL(new RegExp(`${item.id}\\?saved$`));
     expect(await saved()).toMatchObject({ authorIds, sectionId: oldSection.id });
@@ -372,7 +371,7 @@ test.describe('content-admin', () => {
     const { revision } = await callApi<{
       revision: { id: string; document: Record<string, unknown> };
     }>(request, 'content.item.get', { itemId: item.id });
-    await page.getByLabel('Titel (nl)').fill('Mijn artikel bij conflict');
+    await page.locator('#title\\.nl').fill('Mijn artikel bij conflict');
     await callApi(request, 'content.item.update', {
       itemId: item.id,
       baseRevisionId: revision.id,
@@ -382,7 +381,7 @@ test.describe('content-admin', () => {
     await expect(page.getByRole('alert')).toContainText(
       'Iemand anders heeft dit item intussen opgeslagen'
     );
-    await expect(page.getByLabel('Titel (nl)')).toHaveValue('Mijn artikel bij conflict');
+    await expect(page.locator('#title\\.nl')).toHaveValue('Mijn artikel bij conflict');
     for (const name of [`Eerste ${run}`, `Tweede ${run}`, 'Ver Weg'])
       await expect(page.getByLabel(name, { exact: true })).toBeChecked();
     await expect(page.getByLabel('Rubriek')).toHaveValue(oldSection.id);
@@ -399,7 +398,7 @@ test.describe('content-admin', () => {
     for (const name of [`Eerste ${run}`, `Tweede ${run}`, 'Ver Weg'])
       await expect(page.getByLabel(name, { exact: true })).toBeChecked();
     await expect(page.getByLabel('Rubriek')).toHaveValue(oldSection.id);
-    await expect(page.getByLabel('Titel (nl)')).toHaveValue('Mijn artikel bij conflict');
+    await expect(page.locator('#title\\.nl')).toHaveValue('Mijn artikel bij conflict');
     await page.locator('[name="canonical"]').fill('');
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await expect(page).toHaveURL(new RegExp(`${item.id}\\?saved$`));
@@ -430,12 +429,16 @@ test.describe('content-admin', () => {
     await expectNoAxeViolations(page);
   });
 
-  // Publication per locale (brief content-editor § A2): core decides, the panel shows what it
-  // decided. One card per locale; every action is its own native form.
-  const card = (page: Page, locale: string) =>
-    page.locator('.publication', {
-      has: page.getByRole('heading', { name: new RegExp(`^Taal ${locale}:`) }),
-    });
+  // Publication per locale (brief content-editor § A2, edit-screen § 4): core decides, the
+  // status card of each locale shows what it decided, its state in words. Every action is a
+  // button of the one edit form.
+  const card = (page: Page, locale: string) => page.locator(`#publication-${locale}`);
+  /** The schedule fold of a card, opened. */
+  const scheduleFold = async (page: Page, locale: string) => {
+    const fold = card(page, locale).locator('details', { hasText: `Inplannen (${locale})` });
+    if ((await fold.getAttribute('open')) === null) await fold.locator('summary').click();
+    return fold;
+  };
 
   test('publishing puts a locale live; a later edit stays unpublished until published', async ({
     page,
@@ -444,12 +447,16 @@ test.describe('content-admin', () => {
     await login(page, '/admin/probe');
     const slug = slugFor('publish');
     const edit = await newPage(page, slug, 'Buurtfeest');
-    await expect(card(page, 'nl')).toContainText('Klaar om te publiceren.');
+    await expect(card(page, 'nl')).toContainText('Concept');
+    await expect(card(page, 'nl').getByRole('list')).toHaveCount(0);
     await card(page, 'nl').getByRole('button', { name: 'Publiceren (nl)' }).click();
     await expect(page).toHaveURL(`${edit}?done=publish&locale=nl`);
     await expect(page.getByRole('status')).toContainText('Gepubliceerd in nl.');
-    await expect(card(page, 'nl')).toContainText('Live staat de revisie die je bewerkt.');
-    await expect(card(page, 'nl').getByRole('button', { name: 'Publiceren (nl)' })).toHaveCount(0);
+    await expect(card(page, 'nl')).toContainText(/Gepubliceerd op \d+ \w+ \d{4}/);
+    await expect(card(page, 'nl').getByRole('button', { name: /publiceren/i })).toHaveCount(0);
+    await expect(
+      card(page, 'nl').getByRole('link', { name: /Bekijk op de site \(nl\)/ })
+    ).toHaveAttribute('href', new RegExp(`/${slug}$`));
     await expectNoAxeViolations(page);
     expect((await request.get(`${SITE}/${slug}`)).status()).toBe(200);
     expect((await request.get(`${SITE}/en/${slug}`)).status()).toBe(404);
@@ -458,10 +465,10 @@ test.describe('content-admin', () => {
     await page.getByLabel('Titel (nl)').fill('Buurtfeest verplaatst');
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await expect(page).toHaveURL(`${edit}?saved`);
-    await expect(card(page, 'nl').getByRole('heading')).toContainText(
-      'gepubliceerd, ongepubliceerde wijzigingen'
-    );
-    await expect(card(page, 'nl')).toContainText(`opgeslagen door ${ADMIN}`);
+    await expect(card(page, 'nl')).toContainText('Gepubliceerd, sindsdien gewijzigd');
+    await expect(
+      card(page, 'nl').getByRole('button', { name: 'Wijzigingen publiceren (nl)' })
+    ).toBeVisible();
     const live = await (await request.get(`${SITE}/${slug}`)).text();
     expect(live).toContain('Buurtfeest');
     expect(live).not.toContain('Buurtfeest verplaatst');
@@ -474,7 +481,7 @@ test.describe('content-admin', () => {
     await page.goto(edit);
     await card(page, 'nl').getByRole('button', { name: 'Offline halen (nl)' }).click();
     await expect(page.getByRole('status')).toContainText('Offline gehaald in nl.');
-    await expect(card(page, 'nl').getByRole('heading')).toContainText('offline');
+    await expect(card(page, 'nl')).toContainText('Offline gehaald');
     expect((await request.get(`${SITE}/${slug}`)).status()).toBe(404);
   });
 
@@ -511,28 +518,27 @@ test.describe('content-admin', () => {
     await login(page, '/admin/probe');
     const edit = await newPage(page, slugFor('schedule'), 'Op vrijdag');
     const nl = card(page, 'nl');
-    await nl.getByLabel('Publiceren op').fill('2030-01-04T09:00');
+    // Scheduling is folded away until asked for: no date field in view by default.
+    await expect(nl.getByLabel('Publiceren op')).toBeHidden();
+    await (await scheduleFold(page, 'nl')).getByLabel('Publiceren op').fill('2030-01-04T09:00');
     await nl.getByRole('button', { name: 'Inplannen (nl)' }).click();
     await expect(page).toHaveURL(`${edit}?done=schedule&locale=nl`);
-    await expect(nl.getByRole('heading')).toContainText('ingepland');
-    await expect(nl).toContainText(
-      'De revisie die je bewerkt gaat op 2030-01-04 09:00 (Europe/Amsterdam) live.'
-    );
+    await expect(nl).toContainText('Ingepland voor 2030-01-04 09:00 (Europe/Amsterdam)');
 
     // Edited after planning: the pin stays on the old revision until the editor moves it.
     await page.getByLabel('Titel (nl)').fill('Op vrijdagochtend');
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await expect(page).toHaveURL(`${edit}?saved`);
-    await expect(nl).toContainText('gaat op 2030-01-04 09:00 (Europe/Amsterdam) live.');
+    await expect(nl).toContainText('Ingepland voor 2030-01-04 09:00 (Europe/Amsterdam)');
     await expect(nl).toContainText('Je bewerkt een nieuwere revisie');
     await expectNoAxeViolations(page);
-    await nl.getByRole('button', { name: 'Deze revisie op dat moment publiceren (nl)' }).click();
-    await expect(nl).toContainText(
-      'De revisie die je bewerkt gaat op 2030-01-04 09:00 (Europe/Amsterdam) live.'
-    );
+    await nl.getByRole('button', { name: 'Deze versie op dat moment publiceren (nl)' }).click();
+    await expect(page).toHaveURL(`${edit}?done=repin&locale=nl`);
+    await expect(nl).toContainText('Ingepland voor 2030-01-04 09:00 (Europe/Amsterdam)');
+    await expect(nl).not.toContainText('Je bewerkt een nieuwere revisie');
 
     // A time in the past is core's refusal, worded in the panel's terms.
-    await nl.getByLabel('Publiceren op').fill('2020-01-01T09:00');
+    await (await scheduleFold(page, 'nl')).getByLabel('Publiceren op').fill('2020-01-01T09:00');
     await nl.getByRole('button', { name: 'Inplannen (nl)' }).click();
     await expect(page.getByRole('alert')).toContainText(
       'Publiceren op: de tijd ligt niet in de toekomst'
@@ -541,7 +547,7 @@ test.describe('content-admin', () => {
     await page.goto(edit);
     await nl.getByRole('button', { name: 'Planning intrekken (nl)' }).click();
     await expect(page.getByRole('status')).toContainText('Planning ingetrokken in nl.');
-    await expect(nl.getByRole('heading')).toContainText('concept');
+    await expect(nl).toContainText('Concept');
   });
 
   test('repinning an HTTP schedule preserves the second autumn hour and seconds', async ({
@@ -590,7 +596,7 @@ test.describe('content-admin', () => {
         const newRevisionId = await page.locator('input[name="baseRevisionId"]').inputValue();
         expect(newRevisionId).not.toBe(oldRevisionId);
         await card(page, 'nl')
-          .getByRole('button', { name: 'Deze revisie op dat moment publiceren (nl)' })
+          .getByRole('button', { name: 'Deze versie op dat moment publiceren (nl)' })
           .click();
         await expect(page).toHaveURL(`${edit}?done=repin&locale=nl`);
         const after = await call('content.item.get', { itemId });
@@ -604,17 +610,32 @@ test.describe('content-admin', () => {
     });
   });
 
-  test('a restricted item says what visitors get before any publish button', async ({ page }) => {
+  test('a restricted item says what visitors get before any publish button', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
     await login(page, '/admin/probe');
-    await newPage(page, slugFor('restricted'), 'Voor leden');
-    await page.getByLabel('Wie het mag lezen').selectOption({ label: 'Lezers met een account' });
-    await page.getByRole('button', { name: 'Opslaan' }).click();
-    const panel = page.getByRole('region', { name: 'Publicatie' });
-    const notice = panel.getByText('Bezoekers zonder account zien dit item niet');
+    const edit = await newPage(page, slugFor('restricted'), 'Voor leden');
+    // A public item shows no access fields: the site has no readers yet (#19, #66 PR 2).
+    await expect(page.getByLabel('Wie het mag lezen')).toHaveCount(0);
+    // An item that has restricted access keeps its fields, so it can be opened up again.
+    const itemId = edit.split('/').at(-1)!;
+    const { revision } = await callApi<{
+      revision: { id: string; document: Record<string, unknown> };
+    }>(request, 'content.item.get', { itemId });
+    await callApi(request, 'content.item.update', {
+      itemId,
+      baseRevisionId: revision.id,
+      document: { ...revision.document, access: { level: 'members', teaser: 'lead' } },
+    });
+    await page.goto(edit);
+    await expect(page.getByLabel('Wie het mag lezen')).toHaveValue('members');
+    const notice = card(page, 'nl').getByText('Bezoekers zonder account zien dit item niet');
     await expect(notice).toBeVisible();
     // Before the first button in document order, and no button closes it.
     const before = await notice.evaluate((el) => {
-      const button = document.querySelector('.publication button')!;
+      const button = document.querySelector('.ui-status-card button')!;
       return !!(el.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING);
     });
     expect(before).toBe(true);
@@ -639,9 +660,11 @@ test.describe('content-admin', () => {
     try {
       await context.clearCookies();
       await login(page, edit, email);
-      await expect(card(page, 'nl').getByRole('heading')).toContainText('concept');
-      await expect(page.getByText('vragen de bevoegdheid content:publish')).toBeVisible();
-      await expect(page.locator('.publication button')).toHaveCount(0);
+      await expect(card(page, 'nl')).toContainText('Concept');
+      await expect(
+        card(page, 'nl').getByText('vragen de bevoegdheid content:publish')
+      ).toBeVisible();
+      await expect(page.locator('.ui-status-card button')).toHaveCount(0);
       await expectNoAxeViolations(page);
 
       // The registry refuses, whatever the page showed.
@@ -679,6 +702,20 @@ test.describe('content-admin', () => {
       await page.reload();
       await expect(page.locator('input[name="baseRevisionId"]')).toHaveValue(revisionId);
       await expect(page.locator('input[name="title.nl"]')).toHaveValue('Schrijverswerk');
+
+      // Without content:publish, the other publication actions are refused before a save too.
+      for (const action of ['schedule', 'unschedule', 'unpublish']) {
+        const refused = await page.request.post(`${edit}?/${action}`, {
+          headers: {
+            origin: 'http://127.0.0.1:4173',
+            'content-type': 'application/x-www-form-urlencoded',
+          },
+          data: posted,
+        });
+        expect(refused.status(), action).toBe(403);
+      }
+      await page.reload();
+      await expect(page.locator('input[name="baseRevisionId"]')).toHaveValue(revisionId);
     } finally {
       await context.clearCookies();
       await login(page, '/admin/probe/leden');
@@ -719,8 +756,9 @@ test.describe('content-admin', () => {
   /** Live, pinned to an older revision: all four actions of the nl card, plus the schedule. */
   async function fourActions(page: Page, locale: string) {
     const nl = locale.startsWith('nl');
-    const card = page.locator('.publication').first();
+    const card = page.locator('#publication-nl');
     await card.getByRole('button', { name: nl ? 'Publiceren (nl)' : 'Publish (nl)' }).click();
+    await card.locator('details > summary').click();
     await card.locator('input[type="datetime-local"]').fill('2030-01-04T09:00');
     await card.getByRole('button', { name: nl ? 'Inplannen (nl)' : 'Schedule (nl)' }).click();
     await page.getByLabel(nl ? 'Titel (nl)' : 'Title (nl)').fill('Poort 2');
@@ -768,11 +806,12 @@ test.describe('content-blocks', () => {
     return details;
   }
 
-  /** Save block `n` and wait for the edit page to come back with it open. */
+  /** Save the one edit form after editing block `n` (#66 PR 2: one form, one save). */
   async function save(page: Page, n: number) {
-    await (await block(page, n)).getByRole('button', { name: 'Blok opslaan' }).click();
-    await expect(page).toHaveURL(/\?done=blockSaved&block=/);
-    await expect(page.getByRole('status')).toContainText('Blok opgeslagen.');
+    await block(page, n);
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/\?saved/);
+    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
   }
 
   test('every block type is edited once through its form, without JavaScript', async ({
@@ -875,62 +914,91 @@ test.describe('content-blocks', () => {
     return new URL(page.url()).pathname;
   }
 
-  /** Insert a block of `type` through the document's or block `n`'s insert form. */
-  async function insert(page: Page, type: string, place: string, n?: number) {
-    const form = n
-      ? (await block(page, n)).locator('form.insert')
-      : page.locator('section > form.insert');
-    await form.getByLabel('Soort').selectOption({ label: type });
-    await form.getByLabel('Waar').selectOption({ label: place });
-    await form.getByRole('button', { name: 'Velden invullen' }).click();
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(`Nieuw blok: ${type}`);
+  /**
+   * Choose a block of `type` at the end, or before or after block `n`: it shows empty at its
+   * place in the same form (#66 PR 2) and is stored with the next save. Returns that card.
+   */
+  async function insert(page: Page, type: string, place: 'end' | 'before' | 'after', n?: number) {
+    if (n) {
+      const fold = (await block(page, n)).locator('details', { hasText: 'Blok invoegen' });
+      await fold.locator('summary').click();
+      await fold.getByLabel('Soort').selectOption({ label: type });
+      await fold
+        .getByRole('button', { name: place === 'before' ? 'Erboven invoegen' : 'Eronder invoegen' })
+        .click();
+    } else {
+      await page.locator('#insert-type-end').selectOption({ label: type });
+      await page.getByRole('button', { name: 'Toevoegen', exact: true }).click();
+    }
+    const fresh = page.locator('#block-new');
+    await expect(fresh.getByRole('heading')).toHaveText(`Nieuw blok: ${type}`);
+    return fresh;
   }
 
-  test('a block is inserted, moved and removed, each through a form of its own', async ({
+  /** Store the chosen block with everything else in the form. */
+  async function add(page: Page) {
+    await page.getByRole('button', { name: 'Toevoegen en opslaan' }).click();
+  }
+
+  test('a block is inserted, moved and removed in place, without losing what was typed', async ({
     page,
   }) => {
     await login(page, '/admin/probe');
     const edit = await newPage(page, 'ops');
     await expect(page.getByText('Dit item heeft nog geen blokken.')).toBeVisible();
 
-    await insert(page, 'Kop', 'Onderaan');
+    let fresh = await insert(page, 'Kop', 'end');
+    await expect(page).toHaveURL(new RegExp(`${edit}\\?insert=heading&place=end#block-new$`));
     await expectNoAxeViolations(page);
-    // Nothing typed: core refuses, the issue links to its field.
-    await page.getByRole('button', { name: 'Blok invoegen' }).click();
+    // Nothing typed: core refuses, the issue links to its field, the block stays at its place.
+    await add(page);
     const summary = page.getByRole('alert');
     await expect(summary).toContainText('Het blok kon niet worden opgeslagen');
     await expect(summary.getByRole('link', { name: 'Tekst' })).toBeVisible();
-    await page.getByLabel('Tekst (nl)').fill('Eerste kop');
-    await page.getByLabel('Tekst (en)').fill('First heading');
-    await page.getByRole('button', { name: 'Blok invoegen' }).click();
-    await expect(page).toHaveURL(/\?done=blockInserted&block=/);
-    await expect(page.getByRole('status')).toContainText('Blok ingevoegd.');
+    fresh = page.locator('#block-new');
+    await fresh.getByLabel('Tekst (nl)').fill('Eerste kop');
+    await fresh.getByLabel('Tekst (en)').fill('First heading');
+    await add(page);
+    await expect(page).toHaveURL(/\?saved&block=/);
+    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
 
-    await insert(page, 'Tekst', 'Voor dit blok', 1);
-    await page.getByLabel('Tekst (nl)').fill('Een [open link](https://example.org');
-    await page.getByRole('button', { name: 'Blok invoegen' }).click();
+    fresh = await insert(page, 'Tekst', 'before', 1);
+    await fresh.getByLabel('Tekst (nl)').fill('Een [open link](https://example.org');
+    await add(page);
     await expect(page.getByRole('alert')).toContainText('een link is niet afgesloten met )');
-    await expect(page.getByLabel('Tekst (nl)')).toHaveValue('Een [open link](https://example.org');
-    await page.getByLabel('Tekst (nl)').fill('Een _schuine_ inleiding.');
-    await page.getByLabel('Tekst (en)').fill('An _italic_ introduction.');
-    await page.getByRole('button', { name: 'Blok invoegen' }).click();
-    await expect(page.getByRole('status')).toContainText('Blok ingevoegd.');
+    fresh = page.locator('#block-new');
+    await expect(fresh.getByLabel('Tekst (nl)')).toHaveValue('Een [open link](https://example.org');
+    await fresh.getByLabel('Tekst (nl)').fill('Een _schuine_ inleiding.');
+    await fresh.getByLabel('Tekst (en)').fill('An _italic_ introduction.');
+    await add(page);
+    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
     const summaries = page.locator('details.block > summary');
     await expect(summaries).toHaveText([
       /^1\. Tekst: Een schuine inleiding\./,
       /^2\. Kop: Eerste kop/,
     ]);
 
+    // A block action saves what was typed elsewhere first (brief edit-screen § 1 point 4).
+    await page.locator('#title\\.nl').fill('Blokkenproef bewaard');
     await (await block(page, 2)).getByRole('button', { name: 'Omhoog' }).click();
     await expect(page.getByRole('status')).toContainText('Blok verplaatst.');
     await expect(summaries).toHaveText([/^1\. Kop/, /^2\. Tekst/]);
+    await expect(page.locator('#title\\.nl')).toHaveValue('Blokkenproef bewaard');
     await expectNoAxeViolations(page);
 
-    await (await block(page, 1)).getByRole('link', { name: 'Blok verwijderen' }).click();
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Blok verwijderen?');
-    await expect(page.locator('main')).toContainText('1. Kop: Eerste kop');
+    // A chosen block that is not wanted after all: the rest of the form is still saved.
+    fresh = await insert(page, 'Citaat', 'end');
+    await page.locator('#title\\.nl').fill('Blokkenproef zonder citaat');
+    await fresh.getByRole('button', { name: 'Niet toevoegen' }).click();
+    await expect(page.locator('#block-new')).toHaveCount(0);
+    await expect(summaries).toHaveCount(2);
+    await expect(page.locator('#title\\.nl')).toHaveValue('Blokkenproef zonder citaat');
+
+    const first = await block(page, 1);
+    await first.locator('details', { hasText: 'Blok verwijderen' }).locator('summary').click();
+    await expect(first).toContainText('Blok 1 verdwijnt');
     await expectNoAxeViolations(page);
-    await page.getByRole('button', { name: 'Ja, verwijder dit blok' }).click();
+    await first.getByRole('button', { name: 'Ja, verwijder dit blok' }).click();
     await expect(page).toHaveURL(new RegExp(`${edit}\\?done=blockRemoved`));
     await expect(page.getByRole('status')).toContainText('Blok verwijderd.');
     await expect(summaries).toHaveText([/^1\. Tekst/]);
@@ -941,19 +1009,19 @@ test.describe('content-blocks', () => {
   }) => {
     await login(page, '/admin/probe');
     const edit = await newPage(page, 'faq-width');
-    await insert(page, 'Kop', 'Onderaan');
-    await page.getByLabel('Tekst (nl)').fill('Vooraf');
-    await page.getByLabel('Tekst (en)').fill('Before');
-    await page.getByRole('button', { name: 'Blok invoegen' }).click();
-    await insert(page, 'Vragen en antwoorden', 'Na dit blok', 1);
-    await page.getByLabel('Variant').selectOption('accordion');
-    await page.getByLabel('Breedte').selectOption('full');
-    await page.getByLabel('Vraag (nl)').first().fill('Waarom is dit belangrijk?');
-    await page.getByLabel('Vraag (en)').first().fill('Why does this matter?');
-    await page.getByLabel('Antwoord (nl)').first().fill('Omdat iedereen kan meedoen.');
-    await page.getByLabel('Antwoord (en)').first().fill('Because everyone can take part.');
-    await page.getByRole('button', { name: 'Blok invoegen' }).click();
-    await expect(page.getByRole('status')).toContainText('Blok ingevoegd.');
+    let fresh = await insert(page, 'Kop', 'end');
+    await fresh.getByLabel('Tekst (nl)').fill('Vooraf');
+    await fresh.getByLabel('Tekst (en)').fill('Before');
+    await add(page);
+    fresh = await insert(page, 'Vragen en antwoorden', 'after', 1);
+    await fresh.getByLabel('Variant').selectOption('accordion');
+    await fresh.getByLabel('Breedte').selectOption('full');
+    await fresh.getByLabel('Vraag (nl)').first().fill('Waarom is dit belangrijk?');
+    await fresh.getByLabel('Vraag (en)').first().fill('Why does this matter?');
+    await fresh.getByLabel('Antwoord (nl)').first().fill('Omdat iedereen kan meedoen.');
+    await fresh.getByLabel('Antwoord (en)').first().fill('Because everyone can take part.');
+    await add(page);
+    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
     const id = await page.locator('details.block').nth(1).getAttribute('id');
     await (await block(page, 2)).getByRole('button', { name: 'Omhoog' }).click();
     await expect(page.locator('details.block').first()).toHaveAttribute('id', id!);
@@ -1004,17 +1072,17 @@ test.describe('content-blocks', () => {
     const edit = `/admin/probe/content/${created.item.id}`;
     await login(page, `${edit}/write`);
     await page.getByRole('link', { name: 'Kaart invoegen' }).click();
-    await expect(page).toHaveURL(new RegExp(`${edit}#insert-document$`));
-    await insert(page, 'Vragen en antwoorden', 'Onderaan');
-    await page.getByLabel('Variant').selectOption('accordion');
-    await page.getByLabel('Breedte').selectOption('wide');
-    await page.getByLabel('Titel (nl)').fill('Schrijfvragen');
-    await page.getByLabel('Titel (en)').fill('Writing questions');
-    await page.getByLabel('Vraag (nl)').first().fill('Blijft dit bewaard?');
-    await page.getByLabel('Vraag (en)').first().fill('Does this survive?');
-    await page.getByLabel('Antwoord (nl)').first().fill('Ja, in beide talen.');
-    await page.getByLabel('Antwoord (en)').first().fill('Yes, in both languages.');
-    await page.getByRole('button', { name: 'Blok invoegen' }).click();
+    await expect(page).toHaveURL(new RegExp(`${edit}#insert-type-end$`));
+    const fresh = await insert(page, 'Vragen en antwoorden', 'end');
+    await fresh.getByLabel('Variant').selectOption('accordion');
+    await fresh.getByLabel('Breedte').selectOption('wide');
+    await fresh.getByLabel('Titel (nl)').fill('Schrijfvragen');
+    await fresh.getByLabel('Titel (en)').fill('Writing questions');
+    await fresh.getByLabel('Vraag (nl)').first().fill('Blijft dit bewaard?');
+    await fresh.getByLabel('Vraag (en)').first().fill('Does this survive?');
+    await fresh.getByLabel('Antwoord (nl)').first().fill('Ja, in beide talen.');
+    await fresh.getByLabel('Antwoord (en)').first().fill('Yes, in both languages.');
+    await add(page);
     const faqId = await page.locator('details.block').nth(1).getAttribute('id');
     await (await block(page, 2)).getByRole('button', { name: 'Omhoog' }).click();
     await expect(page.locator('details.block').first()).toHaveAttribute('id', faqId!);
@@ -1062,22 +1130,15 @@ test.describe('content-blocks', () => {
         onlyA11y('measures the layout with a script');
         const edit = await seededPage(request);
         await login(page, edit);
-        const remove = await page
-          .locator('details.block')
-          .nth(6)
-          .locator('a', { hasText: 'Blok verwijderen' })
-          .getAttribute('href');
-        for (const path of [edit, remove!]) {
-          await page.goto(path);
-          await page.evaluate(() =>
-            document.querySelectorAll('details').forEach((d) => (d.open = true))
-          );
-          await setTextSize(page, text);
-          await layoutGate(page, path);
-        }
-        // The insert page of the block with the most fields.
+        // Every block open with its insert and remove folds: all actions of the one form.
+        await page.evaluate(() =>
+          document.querySelectorAll('details').forEach((d) => (d.open = true))
+        );
+        await setTextSize(page, text);
+        await layoutGate(page, edit);
+        // The block with the most fields, chosen but not stored, at its place.
         await page.goto(edit);
-        await insert(page, 'Opening', 'Na dit blok', 7);
+        await insert(page, 'Opening', 'after', 7);
         await setTextSize(page, text);
         await layoutGate(page, 'new hero');
       });
@@ -1131,8 +1192,8 @@ test.describe('article-writing', () => {
       const prose = page.locator('details.block').first();
       await prose.locator(':scope > summary').click();
       await prose.getByLabel(/^(Text|Tekst) \(nl\)$/).fill('Nieuwe tekst');
-      await prose.getByRole('button', { name: /^(Save block|Blok opslaan)$/ }).click();
-      await expect(page).toHaveURL(/\?done=blockSaved/);
+      await page.getByRole('button', { name: /^(Save|Opslaan)$/ }).click();
+      await expect(page).toHaveURL(/\?saved&block=/);
       await expect(page.locator(`a[href="${edit}/write"]`)).toBeVisible();
     } else {
       const consoleErrors: string[] = [];
