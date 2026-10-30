@@ -73,14 +73,14 @@ Flat keys, the names of ADR 015 rule 2. Missing keys get the default; an empty d
 
 | Key                       | Kind              | Default       | Enforced in                                               |
 | ------------------------- | ----------------- | ------------- | --------------------------------------------------------- |
-| `mailing.enabled`         | switch            | `true`        | (no consumer yet)                                         |
-| `donations.enabled`       | switch            | `true`        | (no consumer yet; fase 4)                                 |
+| `mailing.enabled`         | switch            | `true`        | planned (`scripts/entitlements-enforced.test.mjs`)        |
+| `donations.enabled`       | switch            | `true`        | planned, phase 4 (`entitlements-enforced`)                |
 | `custom_domain`           | switch            | `true`        | `tenant.hostname.add`                                     |
 | `api_keys`                | switch            | `true`        | `tenant.key.create`                                       |
 | `remove_branding`         | switch            | `false`       | the public layout: `false` shows the credit               |
 | `blocks`                  | `{ type: false }` | `{}` (all on) | (per block type when a tree is saved)                     |
 | `supporters.max`          | limit             | 100 000       | `form.submit`, for a new address only                     |
-| `mail.monthly_max`        | limit             | 1 000 000     | (no consumer yet)                                         |
+| `mail.monthly_max`        | limit             | 1 000 000     | planned (`scripts/entitlements-enforced.test.mjs`)        |
 | `media.storage_max_bytes` | limit             | 50 GiB        | `media.upload` (original plus every variant)              |
 | `operators.max`           | limit             | 50            | `tenant.member.invite` (members plus pending invitations) |
 | `custom_domains.max`      | limit             | 20            | `tenant.hostname.add`                                     |

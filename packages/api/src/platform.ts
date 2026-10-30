@@ -17,6 +17,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import {
   EntitlementsDocument,
+  Locale,
   TenantStatus,
   UseCaseError,
   noopLogger,
@@ -106,8 +107,8 @@ const CreateTenant = z
   .object({
     slug: z.string(),
     name: z.string().trim().min(1).max(200),
-    locales: z.array(z.string().min(2).max(10)).min(1),
-    defaultLocale: z.string().min(2).max(10).optional(),
+    locales: z.array(Locale).min(1),
+    defaultLocale: Locale.optional(),
     entitlements: EntitlementsDocument.optional(),
   })
   .strict();

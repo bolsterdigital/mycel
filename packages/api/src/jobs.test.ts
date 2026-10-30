@@ -139,6 +139,31 @@ describe('job handlers', () => {
     expect(swept).toEqual([]);
   });
 
+  it('keeps deleting old assist suggestions after one tenant fails, then fails the job (#84)', async () => {
+    const BROKEN = '01900000-0000-7000-8000-00000000cccc';
+    const swept: string[] = [];
+    const captured: (string | undefined)[] = [];
+    const stub = {
+      run: async (p: Principal, fn: (ctx: unknown) => Promise<unknown>) => {
+        if (p.tenantId === BROKEN) throw new Error('connection reset');
+        return fn({ assist: { deleteBefore: async () => (swept.push(p.tenantId), 1) } });
+      },
+    } as unknown as MemoryUnitOfWork;
+    const h = jobHandlers({
+      uow: stub,
+      operatorDb,
+      mail,
+      identity,
+      tenantIds: async () => [BROKEN, TENANT],
+      errors: { capture: (_e, ctx) => void captured.push(ctx?.tenantId) },
+    });
+    await expect(
+      h['assist.retention']!(job({ tenantId: null, type: 'assist.retention', payload: {} }))
+    ).rejects.toThrow('assist.retention failed for 1 tenant(s)');
+    expect(swept).toEqual([TENANT]);
+    expect(captured).toEqual([BROKEN]);
+  });
+
   describe('mail.reconcile (brief #22C)', () => {
     const OTHER = '01900000-0000-7000-8000-00000000bbbb';
     const message = renderConfirmationMail({

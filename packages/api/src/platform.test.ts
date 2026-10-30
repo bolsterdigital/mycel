@@ -109,6 +109,10 @@ describe.skipIf(skip)('platform API', () => {
     expect((await call('POST', '/tenants', { slug: 'x', name: 'x', locales: [] })).status).toBe(
       400
     );
+    // The locale shape of ADR 007, not just a short string (#84).
+    expect(
+      (await call('POST', '/tenants', { slug: `${slug}-l`, name: 'x', locales: ['nl_NL'] })).status
+    ).toBe(400);
 
     const listed = (await (await call('GET', '/tenants')).json()) as { tenants: { id: string }[] };
     expect(listed.tenants.map((t) => t.id)).toContain(tenant.id);
