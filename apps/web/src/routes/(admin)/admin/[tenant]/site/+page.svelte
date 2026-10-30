@@ -8,9 +8,10 @@
      usage, each subject shown only to a member who may open it. With JavaScript, a changed form
      says it is not saved yet and leaving asks first (static/_admin/unsaved.js).
      The subjects are the page's `subnav` (#81-rest): the shell shows them under "Settings" in the
-     sidebar, so this screen draws no sub-navigation of its own. -->
+     sidebar, so this screen draws no sub-navigation of its own. The brand subject also picks the
+     default image items inherit (#81-rest), and the theme whether articles open with a drop cap. -->
 <script lang="ts">
-  import { FONT_PAIRS, THEME_MODES, THEME_ROLES } from '@mycel/core';
+  import { DROP_CAPS, FONT_PAIRS, THEME_MODES, THEME_ROLES } from '@mycel/core';
   import {
     Actions,
     Button,
@@ -18,6 +19,7 @@
     Field,
     Fieldset,
     FileDrop,
+    MediaPicker,
     MetaList,
     Notice,
     Select,
@@ -276,6 +278,15 @@
           options={FONT_PAIRS.map((font) => ({ value: font, label: font }))}
           value={value('fontPair', data.theme.value.fontPair)}
         />
+        <Select
+          id="site-dropCap"
+          name="dropCap"
+          label={t('admin.site.dropCap')}
+          locale={data.locale}
+          hint={t('admin.site.dropCap.hint')}
+          options={DROP_CAPS.map((d) => ({ value: d, label: t(`admin.site.dropCap.${d}`) }))}
+          value={value('dropCap', data.theme.value.dropCap ?? 'articles')}
+        />
         {#each numericFields as key (key)}
           <Field
             id="site-{key}"
@@ -291,6 +302,37 @@
       </Fieldset>
     </SettingsSection>
   {:else if data.section === 'brand'}
+    {#if data.images}
+      {@const images = data.images}
+      <SettingsSection
+        id="site-images"
+        title={t('admin.site.images')}
+        action={action('images')}
+        submit={t('admin.site.defaultImage.save')}
+        saved={saved('images')}
+        unsaved={t('admin.site.unsaved')}
+      >
+        <input
+          type="hidden"
+          name="baseVersion"
+          value={form?.action === 'images'
+            ? value('baseVersion', String(images.version))
+            : images.version}
+        />
+        <MediaPicker
+          id="site-defaultImageId"
+          name="defaultImageId"
+          label={t('admin.site.defaultImage')}
+          hint={t('admin.site.defaultImage.hint')}
+          locale={data.locale}
+          value={value('defaultImageId', images.value.defaultImageId ?? '')}
+          options={images.media}
+          {base}
+          upload={images.upload}
+          invalid={form?.action === 'images'}
+        />
+      </SettingsSection>
+    {/if}
     {#each ['logo', 'font'] as const as kind (kind)}
       {@const state = kind === 'logo' ? data.logo : data.font}
       <SettingsSection
