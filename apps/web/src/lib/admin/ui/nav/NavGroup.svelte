@@ -6,8 +6,8 @@
      an indented list under it, the current section marked "page" and the item itself "true", so
      there is still one current page. -->
 <script lang="ts">
-  import Icon from './Icon.svelte';
-  import type { IconName } from './icons.js';
+  import Icon from '../Icon.svelte';
+  import type { IconName } from '../icons.js';
 
   type Child = { label: string; href: string; current?: boolean };
 

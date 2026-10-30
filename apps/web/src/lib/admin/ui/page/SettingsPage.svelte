@@ -4,7 +4,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import PageHeader from './PageHeader.svelte';
-  import SubNav from './SubNav.svelte';
+  import SubNav from '../nav/SubNav.svelte';
 
   type Crumb = { label: string; href?: string | undefined };
 

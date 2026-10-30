@@ -7,11 +7,11 @@
      fighting over a subtree. Rejected: a <select> of filenames (editor trial 2026-10-28) and a separate picker
      page, which loses what was typed in the form. -->
 <script lang="ts">
-  import { ui } from '../../../i18n/index.js';
-  import type { MediaChoice } from '../media-choice.js';
-  import Actions from './Actions.svelte';
-  import Dialog from './Dialog.svelte';
-  import HintButton from './HintButton.svelte';
+  import { ui } from '../../../../i18n/index.js';
+  import type { MediaChoice } from '../../media-choice.js';
+  import Actions from '../display/Actions.svelte';
+  import Dialog from '../feedback/Dialog.svelte';
+  import HintButton from '../feedback/HintButton.svelte';
 
   let {
     id,

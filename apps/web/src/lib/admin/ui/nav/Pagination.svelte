@@ -2,7 +2,7 @@
      pages and for the cursor lists of the API alike. An absent direction is left out, not shown
      disabled: a disabled link does not exist in HTML. -->
 <script lang="ts">
-  import { ui } from '../../../i18n/index.js';
+  import { ui } from '../../../../i18n/index.js';
 
   let {
     locale,

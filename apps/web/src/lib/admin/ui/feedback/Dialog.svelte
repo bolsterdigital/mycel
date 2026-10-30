@@ -5,7 +5,7 @@
      calls showModal() (the admin ships no client JavaScript). -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { ui } from '../../../i18n/index.js';
+  import { ui } from '../../../../i18n/index.js';
 
   let {
     id,

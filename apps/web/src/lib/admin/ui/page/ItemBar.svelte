@@ -7,8 +7,8 @@
      other screens, which put the title twice and the actions under a line of ids. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import Badge from './Badge.svelte';
-  import Icon from './Icon.svelte';
+  import Badge from '../feedback/Badge.svelte';
+  import Icon from '../Icon.svelte';
 
   let {
     back,

@@ -4,8 +4,8 @@
      alone (aria-labelledby), so the button's own name never becomes part of the question. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { ui } from '../../../i18n/index.js';
-  import HintButton from './HintButton.svelte';
+  import { ui } from '../../../../i18n/index.js';
+  import HintButton from '../feedback/HintButton.svelte';
 
   type Option = { value: string; label: string };
 

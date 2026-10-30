@@ -7,8 +7,8 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import type { HTMLInputAttributes } from 'svelte/elements';
-  import { ui } from '../../../i18n/index.js';
-  import HintButton from './HintButton.svelte';
+  import { ui } from '../../../../i18n/index.js';
+  import HintButton from '../feedback/HintButton.svelte';
 
   export type ControlAttributes = {
     id: string;

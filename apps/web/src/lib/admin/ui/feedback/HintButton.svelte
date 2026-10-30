@@ -6,8 +6,8 @@
      button only shows it. Rejected: a hover tooltip (unreachable by keyboard and touch) and a
      <details> (pushes the field down every time it opens). -->
 <script lang="ts">
-  import { ui } from '../../../i18n/index.js';
-  import Icon from './Icon.svelte';
+  import { ui } from '../../../../i18n/index.js';
+  import Icon from '../Icon.svelte';
 
   let {
     target,
