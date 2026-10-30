@@ -347,11 +347,14 @@ describe.skipIf(skip)('content conformance', () => {
     const holder = uow.run(adminOf(tenantA), async (ctx) => {
       await ctx.content.lock(item.id);
       await gate;
-      await useCases.updateItem.handler(ctx, {
-        itemId: item.id,
-        baseRevisionId: revision.id,
-        document: doc('held'),
-      });
+      await useCases.updateItem.handler(
+        ctx,
+        useCases.updateItem.input.parse({
+          itemId: item.id,
+          baseRevisionId: revision.id,
+          document: doc('held'),
+        })
+      );
     });
     let settled = false;
     const second = invoker

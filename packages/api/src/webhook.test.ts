@@ -60,7 +60,8 @@ describe('webhook destination and transport', () => {
         { stdio: 'ignore' }
       );
       const paths: string[] = [];
-      const received: { address?: string; host?: string; body?: string } = {};
+      const received: { address?: string | undefined; host?: string | undefined; body?: string } =
+        {};
       const server = createServer(
         { key: readFileSync(keyPath), cert: readFileSync(certPath) },
         (request, response) => {

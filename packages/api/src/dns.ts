@@ -21,8 +21,16 @@ export function createDnsResolver({
   resolver = new Resolver({ timeout: timeoutMs, tries: 2 }),
 }: {
   timeoutMs?: number;
-  /** Tests pass a stand-in; production uses the system's DNS servers. */
-  resolver?: Pick<Resolver, 'resolveTxt' | 'resolveCname' | 'resolve4' | 'resolve6'>;
+  /**
+   * Tests pass a stand-in; production uses the system's DNS servers. Only the one-argument
+   * forms, so a stand-in need not implement Node's TTL overloads.
+   */
+  resolver?: {
+    resolveTxt(hostname: string): Promise<string[][]>;
+    resolveCname(hostname: string): Promise<string[]>;
+    resolve4(hostname: string): Promise<string[]>;
+    resolve6(hostname: string): Promise<string[]>;
+  };
 } = {}): DnsResolver {
   const code = (e: unknown) => (e as { code?: string }).code ?? '';
   /** Map a resolver error to "not found", or throw what it means. */

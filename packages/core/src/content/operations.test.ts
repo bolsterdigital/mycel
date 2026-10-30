@@ -26,7 +26,7 @@ const heading = (t: string) => ({
   content: [{ type: 'text' as const, text: t }],
 });
 const doc = (...content: object[]) => ({ type: 'doc' as const, content });
-const richText = (id: string, content: Record<string, object>) => ({
+const richText = (id: string, content: Record<string, ReturnType<typeof doc>>) => ({
   id,
   type: 'rich-text' as const,
   version: 1 as const,

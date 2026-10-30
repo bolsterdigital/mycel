@@ -1,0 +1,17 @@
+{
+  // The package tsconfigs exclude `*.test.ts` so that tests never land in `dist`, and Vitest
+  // strips types without checking them, so a test could call a signature that no longer exists
+  // and still run green. This config checks every package test against the shared contract;
+  // `npm run typecheck` runs it after `tsc -b` has built the packages the tests import by name.
+  // Rejected: a test tsconfig per package (nine copies of these lines, and a new package that
+  // forgets one is unchecked again) and dropping the exclude (tests would be emitted to `dist`).
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "composite": false,
+    "declaration": false,
+    "sourceMap": false,
+    "noEmit": true
+  },
+  "include": ["packages/*/src/**/*.test.ts"]
+}

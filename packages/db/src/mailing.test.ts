@@ -269,6 +269,8 @@ describe.skipIf(skip)('mailing conformance', () => {
       ids: uuidv7Ids,
       signer,
       inputHasher: new FakeInputHasher(),
+      dns: new FakeDns(),
+      platform: memoryPlatform,
     });
     await old.run(adminOf(tenantId), (ctx) =>
       ctx.rateLimits.hit(`janitor-${run}`, { max: 5, windowSeconds: 60 })
@@ -321,6 +323,8 @@ describe.skipIf(skip)('mailing conformance', () => {
       ids: uuidv7Ids,
       signer,
       inputHasher: new FakeInputHasher(),
+      dns: new FakeDns(),
+      platform: memoryPlatform,
     });
     expect(await later.run(adminOf(tenantId), (ctx) => ctx.rateLimits.cooldown(key, day))).toBe(
       true
