@@ -50,6 +50,7 @@ Every check `npm run lint:infra` and `npm run lint:deps` run, with the rule it k
 | `scripts/testing-shape.test.mjs`                                                | `core/testing` stays one factory per port; `E2E_REQUIRED` compared in one file (rule 3); principals via `principal()` (rule 4).                                                                                                                                 |
 | `scripts/dead-exports.test.mjs`                                                 | Dead exports only go down from the baseline.                                                                                                                                                                                                                    |
 | `scripts/docs-links.test.mjs`                                                   | Every relative docs link and heading resolves.                                                                                                                                                                                                                  |
+| `scripts/docs-map.test.mjs`                                                     | The overview picture names every package and core module and only exported ports; every reference and architecture page is linked from the maps; the ADR index matches each status.                                                                             |
 | `scripts/e2e-budget.test.mjs`                                                   | Ten specs, each naming its flow, shared checks once in `apps/web/e2e/lib/`.                                                                                                                                                                                     |
 | `scripts/repo-size.test.mjs`                                                    | No tracked file over 200 KB outside fixtures and static assets; no review evidence in `docs/reports/`.                                                                                                                                                          |
 | `scripts/check-owner-strings.test.mjs`                                          | No personal path, private planning word or owner tooling in the public repository.                                                                                                                                                                              |
@@ -77,6 +78,17 @@ How each rule above is held:
 | 9    | `public-site.spec.ts` (no client script beyond the enhancement bundle) and the frontend quality gate.                            |
 | 10   | Manual, at review: `migrateSchema` (`@mycel/db/testing`) is the call that passes no passwords.                                   |
 | 11   | Manual, at review.                                                                                                               |
+
+The numeric limits of the ratchets above:
+
+| Constant         | Value     | Where                            | Why                                                                                  |
+| ---------------- | --------- | -------------------------------- | ------------------------------------------------------------------------------------ |
+| `FUNCTION_LIMIT` | 150 lines | `scripts/testing-shape.test.mjs` | no function under `packages/core/src/testing` grows back into one every module edits |
+| `BARREL_LIMIT`   | 300 lines | `scripts/testing-shape.test.mjs` | `testing/memory.ts` stays a list of exports                                          |
+| `MAX_SPECS`      | 10        | `scripts/e2e-budget.test.mjs`    | a new flow replaces a spec or makes the case to raise this in review                 |
+| `LIMIT`          | 200 KiB   | `scripts/repo-size.test.mjs`     | review evidence and generated files stay out of the public repository                |
+
+The two `packages/db` ratchets have their limits in [database.md](../reference/database.md#constants).
 
 ## Local database
 
