@@ -87,7 +87,7 @@
                         class="ui-locale-dot {o.state}"
                         aria-hidden="true"
                       ></span><span class="ui-visually-hidden"
-                        >({t(`admin.locale.state.${o.state}` as UiKey)})</span
+                        >{' '}({t(`admin.locale.state.${o.state}` as UiKey)})</span
                       >{/if}
                   </li>
                 {/each}

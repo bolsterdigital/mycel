@@ -52,7 +52,7 @@
       ><span class="ui-locale-switch-code">{l.locale}</span>{#if l.state !== 'ok'}<span
           class="ui-locale-dot {l.state}"
           aria-hidden="true"
-        ></span><span class="ui-visually-hidden">({words(l.state)})</span>{/if}</button
+        ></span><span class="ui-visually-hidden">{' '}({words(l.state)})</span>{/if}</button
     >
   {/each}
 </div>

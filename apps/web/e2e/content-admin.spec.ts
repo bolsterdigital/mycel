@@ -1057,10 +1057,14 @@ test.describe('content-blocks', () => {
       [10, 'Naam', `Fatima ${stamp}`],
       [11, 'Titel', `Verslag ${stamp}`],
     ];
+    // The first field of that name: a hero also has the title of its image's work, in the
+    // credit fieldset further down.
     for (const [n, label, value] of edits) {
-      await (await block(page, n)).getByLabel(label, { exact: true }).fill(value);
+      await (await block(page, n)).getByLabel(label, { exact: true }).first().fill(value);
       await save(page, n);
-      await expect((await block(page, n)).getByLabel(label, { exact: true })).toHaveValue(value);
+      await expect((await block(page, n)).getByLabel(label, { exact: true }).first()).toHaveValue(
+        value
+      );
     }
     // A list row, a choice, and the two blocks without editable text: saved through their forms.
     await (await block(page, 9)).getByLabel('Vraag', { exact: true }).first().fill(`Wat? ${stamp}`);
@@ -1107,7 +1111,7 @@ test.describe('content-blocks', () => {
       // Closed again, the side column with the publish button comes back.
       await page.getByRole('button', { name: 'Voorbeeld', exact: true }).click();
     }
-    await page.getByRole('button', { name: 'Publiceren', exact: true }).click();
+    await page.getByRole('button', { name: /^(Wijzigingen )?publiceren$/i }).click();
     await page.goto(`/probe/e2e-blokken-${test.info().project.name}`);
     await expect(page.locator('main .faq.width-wide')).toContainText(`Wat? ${stamp}`);
   });
@@ -1445,7 +1449,7 @@ test.describe('article-writing', () => {
     if (!isA11y()) {
       const prose = page.locator('details.block').first();
       await prose.locator(':scope > summary').click();
-      await prose.getByLabel(/^(Text|Tekst) \(nl\)$/).fill('Nieuwe tekst');
+      await prose.getByLabel(/^(Text|Tekst)$/).fill('Nieuwe tekst');
       await page.getByRole('button', { name: /^(Save|Opslaan)$/ }).click();
       await expect(page).toHaveURL(/\?saved&block=/);
       await expect(page.locator(`a[href="${edit}/write"]`)).toBeVisible();
@@ -1472,8 +1476,12 @@ test.describe('article-writing', () => {
     await page.goto(edit);
     const prose = page.locator('details.block').first();
     await prose.locator(':scope > summary').click();
-    await expect(prose.getByLabel(/^(Text|Tekst) \(nl\)$/)).toHaveValue('Nieuwe tekst');
-    await expect(prose.getByLabel(/^(Text|Tekst) \(en\)$/)).toHaveValue('Old text');
+    await expect(prose.getByLabel(/^(Text|Tekst)$/)).toHaveValue('Nieuwe tekst');
+    // English, on its own screen (#66 PR 4), was not touched.
+    await page.goto(`${edit}?locale=en`);
+    const english = page.locator('details.block').first();
+    await english.locator(':scope > summary').click();
+    await expect(english.getByLabel(/^(Text|Tekst)$/)).toHaveValue('Old text');
   });
 
   test('writer toolbar wraps whole actions at 320 CSS px and 200% text', async ({

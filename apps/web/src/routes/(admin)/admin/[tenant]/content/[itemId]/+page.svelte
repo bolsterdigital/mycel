@@ -431,7 +431,7 @@
       name="title.{work}"
       type="text"
       maxlength="200"
-      required
+      required={work === defaultLocale}
       value={v(`title.${work}`)}
       lang={work}
     />

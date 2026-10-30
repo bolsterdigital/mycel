@@ -883,8 +883,16 @@ export const actions: Actions = {
     const saved = await commit(event);
     if ('failure' in saved) return saved.failure;
     const to = text(saved.data, 'to');
-    if (!saved.tenant.locales.includes(to)) error(400, 'Unknown locale');
-    chooseContentLocale(event.cookies, saved.tenant.slug, to);
+    // A locale the document still has but the site no longer does is shown, not remembered.
+    if (saved.tenant.locales.includes(to))
+      chooseContentLocale(event.cookies, saved.tenant.slug, to);
+    else {
+      const { revision } = await runtime().invoker.run(useCases.getItem, saved.principal, {
+        itemId: event.params.itemId,
+        revisionId: saved.revisionId,
+      });
+      if (!revision.document.locales.includes(to)) error(400, 'Unknown locale');
+    }
     redirect(303, itemPath(saved.tenant.slug, event.params.itemId, to));
   },
   /**
