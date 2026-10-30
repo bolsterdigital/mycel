@@ -45,7 +45,6 @@
   "apps/web/src/routes/(admin)/admin/[tenant]/content/new/+page.server.ts": 1,
   "apps/web/src/routes/(admin)/admin/[tenant]/content/new/+page.svelte": 1,
   "apps/web/src/routes/(admin)/admin/[tenant]/domeinen/+page.server.ts": 2,
-  "apps/web/src/routes/(admin)/admin/[tenant]/domeinen/+page.svelte": 1,
   "apps/web/src/routes/(admin)/admin/[tenant]/export/+page.server.ts": 1,
   "apps/web/src/routes/(admin)/admin/[tenant]/export/+page.svelte": 1,
   "apps/web/src/routes/(admin)/admin/[tenant]/export/[id]/+server.ts": 1,

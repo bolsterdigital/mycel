@@ -192,6 +192,9 @@ export const en = {
   'admin.domains.check': 'Check DNS',
   'admin.domains.makePrimary': 'Make primary',
   'admin.domains.remove': 'Remove',
+  'admin.domains.removeQuestion':
+    'The site stops answering on this hostname. You can add and verify the domain again later.',
+  'admin.domains.removeConfirm': 'Yes, remove',
   'admin.domains.add.title': 'Add a domain',
   'admin.domains.add.hostname': 'Hostname',
   'admin.domains.add.hint':
@@ -888,7 +891,7 @@ export const en = {
   'admin.ui.catalogue.subnav.general': 'General',
   'admin.ui.catalogue.subnav.theme': 'Theme',
   'admin.ui.catalogue.subnav.domains': 'Domains',
-  'admin.ui.catalogue.confirm': 'Confirm in the row and show once',
+  'admin.ui.catalogue.confirm': 'Confirm in the row, show once and copy',
   'admin.ui.catalogue.dialog': 'Dialog',
   'admin.ui.catalogue.dialog.open': 'View full size',
   'admin.ui.catalogue.dialog.body':

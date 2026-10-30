@@ -30,6 +30,22 @@ test.use({
 const formWith = (page: Page, heading: string) =>
   page.locator('form', { has: page.getByRole('heading', { level: 3, name: heading }) });
 
+/** Adds a domain through the dialog the "Domein toevoegen" invoker button opens (no script). */
+async function addDomain(page: Page, hostname: string) {
+  await page.getByRole('button', { name: 'Domein toevoegen' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Domein toevoegen' });
+  await dialog.getByLabel('Hostnaam').fill(hostname);
+  await dialog.getByRole('button', { name: 'Domein toevoegen' }).click();
+}
+
+/** Removing asks first, in the domain's own row: the summary opens, the second button posts. */
+async function removeDomain(page: Page, hostname: string) {
+  const row = formWith(page, hostname);
+  await expect(row.getByRole('button', { name: `Ja, verwijderen: ${hostname}` })).toBeHidden();
+  await row.locator('summary', { hasText: 'Verwijderen' }).click();
+  await row.getByRole('button', { name: `Ja, verwijderen: ${hostname}` }).click();
+}
+
 /** The console mailer spools each message as JSON (scripts/e2e.mjs sets MAIL_SPOOL_DIR). */
 async function waitForMail(to: string): Promise<{ text: string }> {
   const dir = process.env['MAIL_SPOOL_DIR']!;
@@ -177,13 +193,11 @@ test('an admin adds a domain, sees the records, checks (not found), and cannot r
 }) => {
   await login(page, '/admin/probe/domeinen');
   const domain = `e2e-${test.info().project.name}-${Date.now()}.example`;
-  const add = formWith(page, 'Domein toevoegen');
-  await add.getByLabel('Hostnaam').fill(domain.toUpperCase());
-  await add.getByRole('button', { name: 'Domein toevoegen' }).click();
+  await addDomain(page, domain.toUpperCase());
   await expect(page.getByRole('status')).toContainText(`Domein ${domain} toegevoegd`);
   const card = formWith(page, domain);
   await expect(card.getByText(`_mycel-verify.${domain}`)).toBeVisible();
-  await expect(card.locator('.dns-value')).toHaveText(/^[\w-]{43}$/);
+  await expect(card.locator('code[id$="-txt-value"]')).toHaveText(/^[\w-]{43}$/);
   await expect(card.getByText('probe.localhost', { exact: true })).toBeVisible();
   await expect(card.getByText('nog niet geverifieerd')).toBeVisible();
   await expectNoAxeViolations(page);
@@ -211,12 +225,11 @@ test('an admin adds a domain, sees the records, checks (not found), and cannot r
   await expect(formWith(page, 'probe.localhost').getByRole('button')).toHaveCount(0);
 
   // The same domain on another site is a conflict that names no owner.
-  await add.getByLabel('Hostnaam').fill(domain);
-  await add.getByRole('button', { name: 'Domein toevoegen' }).click();
+  await addDomain(page, domain);
   await expect(page.getByRole('alert')).toContainText('al in gebruik');
   await expect(page.getByRole('alert')).not.toContainText('probe');
 
-  await formWith(page, domain).getByRole('button', { name: 'Verwijderen' }).click();
+  await removeDomain(page, domain);
   await expect(page.getByRole('status')).toContainText(`Domein ${domain} verwijderd`);
   await expect(formWith(page, domain)).toHaveCount(0);
   await expectNoAxeViolations(page);
@@ -230,13 +243,14 @@ test.describe('UI gate: the domain action group at 320 CSS px and 200% text', ()
       onlyA11y('measures the layout with a script');
       await login(page, '/admin/probe/domeinen');
       const domain = `gate-${text.replace('%', '')}-${Date.now()}.example`;
-      const add = formWith(page, 'Domein toevoegen');
-      await add.getByLabel('Hostnaam').fill(domain);
-      await add.getByRole('button', { name: 'Domein toevoegen' }).click();
+      await addDomain(page, domain);
       await expect(formWith(page, domain)).toBeVisible();
       await setTextSize(page, text);
+      await formWith(page, domain).locator('summary', { hasText: 'Verwijderen' }).click();
       await layoutGate(page, 'domain actions');
-      await formWith(page, domain).getByRole('button', { name: 'Verwijderen' }).click();
+      await formWith(page, domain)
+        .getByRole('button', { name: `Ja, verwijderen: ${domain}` })
+        .click();
       await expect(formWith(page, domain)).toHaveCount(0);
     });
   }

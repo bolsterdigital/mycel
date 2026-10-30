@@ -1142,6 +1142,17 @@
     border-radius: var(--radius);
   }
 
+  /* A value to copy elsewhere (CopyField): its label above it, the value and button as in
+     KeyReveal, at the type size of the surrounding text. */
+  .ui-copy-field {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-0);
+  }
+  .ui-copy-label {
+    font-weight: 600;
+  }
+
   /* A dangerous action confirmed in place (ConfirmAction): the summary looks like the secondary
      button it acts as; open, the question and the danger button take a line of their own in the
      action group, so the row's other actions do not squeeze them. */
