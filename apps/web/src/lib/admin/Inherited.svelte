@@ -36,6 +36,8 @@
       ? fill(t('admin.content.inherited'), {
           source: t(`admin.content.inherited.${kind}.${source}` as UiKey),
         })
-      : t('admin.content.inherited.empty')}{#if source && text}: <q>{text}</q>{/if}</span
+      : t('admin.content.inherited.empty')}{#if source && text}: <span class="ui-inherited-text"
+        >“{text}”</span
+      >{/if}</span
   >
 </p>

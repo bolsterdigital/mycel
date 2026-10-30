@@ -193,7 +193,7 @@ test.describe('content-admin', () => {
   }) => {
     await login(page, '/admin/probe');
     const edit = await newPage(page, slugFor('tabs'), 'Tabbladen');
-    const titles = ['Inhoud', 'Zoeken en delen', 'Instellingen'];
+    const titles = ['Inhoud', 'Uitgelicht', 'Zoeken en delen', 'Instellingen'];
     if (!isA11y()) {
       // No script: every section below the other, each under its own heading.
       for (const name of titles)
@@ -208,6 +208,14 @@ test.describe('content-admin', () => {
     await expect(page.locator('#title\\.nl')).toBeVisible();
     // The arrow keys of the ARIA tabs pattern: focus moves and shows its panel.
     await list.getByRole('tab', { name: 'Inhoud' }).focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(list.getByRole('tab', { name: 'Uitgelicht' })).toBeFocused();
+    // An empty featured field names what applies instead and where it comes from (#86 PR 2).
+    await expect(page.getByLabel('Uitgelichte titel (nl)')).toBeVisible();
+    await expect(page.locator('#featuredTitle\\.nl-inherited')).toHaveText(
+      'Standaard: de titel: “Tabbladen”'
+    );
+    await expect(page.locator('#featuredImageId-inherited')).toHaveText('Standaard: leeg');
     await page.keyboard.press('ArrowRight');
     await expect(list.getByRole('tab', { name: 'Zoeken en delen' })).toBeFocused();
     await expect(list.getByRole('tab', { name: 'Zoeken en delen' })).toHaveAttribute(
