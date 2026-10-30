@@ -4,8 +4,8 @@
 // re-renders the form with what was typed.
 import { fail, redirect } from '@sveltejs/kit';
 import { ContentType, UseCaseError, useCases, type ContentDocumentInput } from '@mycel/core';
-import { failureOf } from '#lib/server/admin-actions.js';
-import { requireTenantPrincipal } from '#lib/server/admin.js';
+import { failureOf } from '#lib/server/admin/admin-actions.js';
+import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { valuesFromForm } from '#lib/server/content-admin.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { UiKey } from '../../../../../../i18n/index.js';

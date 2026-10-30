@@ -4,7 +4,7 @@
 // session with `media:read`, private, five minutes. Rejected: a signed link to the site's route,
 // which is on a tenant hostname and would put the admin's preview behind the site's cache.
 import { runtime } from '#lib/server/runtime.js';
-import { adminMediaPrincipal } from '#lib/server/admin.js';
+import { adminMediaPrincipal } from '#lib/server/admin/admin.js';
 import { serveAdminMedia } from '#lib/server/media.js';
 import type { RequestHandler } from './$types';
 

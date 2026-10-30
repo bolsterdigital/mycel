@@ -9,7 +9,7 @@
 // keeps it apart from every other payload the shared Signer signs.
 
 import * as client from 'openid-client';
-import { runtime } from './runtime.js';
+import { runtime } from '../runtime.js';
 
 export const OIDC_COOKIE = 'mycel_oidc';
 export const OIDC_COOKIE_TTL_MS = 10 * 60 * 1000;

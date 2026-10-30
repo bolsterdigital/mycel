@@ -13,7 +13,7 @@ import {
 } from '@mycel/core';
 import { error, redirect, type Cookies } from '@sveltejs/kit';
 import { adminCookieOptions, loginLimiter } from './admin-paths.js';
-import { runtime } from './runtime.js';
+import { runtime } from '../runtime.js';
 
 export const SESSION_COOKIE = 'mycel_session';
 
@@ -59,7 +59,7 @@ export async function requireTenantPrincipal(
 /**
  * The operator's principal for the tenant in an /admin/[tenant]/... file route, or null: no
  * session, an unknown tenant or no membership all end as a 403 in `serveAdminMedia`
- * (lib/server/media.ts) and as a 404 in `serveExportDownload` (lib/server/export-download.ts).
+ * (lib/server/media.ts) and as a 404 in `serveExportDownload` (lib/server/admin/export-download.ts).
  */
 export async function adminMediaPrincipal(
   locals: App.Locals,

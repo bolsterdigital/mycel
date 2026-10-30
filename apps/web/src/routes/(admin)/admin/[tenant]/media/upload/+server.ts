@@ -5,8 +5,8 @@
 // SvelteKit's serialised action result, not a contract a plain script should parse.
 import { json } from '@sveltejs/kit';
 import { MAX_UPLOAD_BYTES } from '@mycel/core';
-import { requireTenantPrincipal } from '#lib/server/admin.js';
-import { uploadFile } from '#lib/server/media-choices.js';
+import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
+import { uploadFile } from '#lib/server/admin/media-choices.js';
 import { formatBytes } from '#lib/admin/format.js';
 import { fill, ui } from '../../../../../../i18n/index.js';
 import type { RequestHandler } from './$types';

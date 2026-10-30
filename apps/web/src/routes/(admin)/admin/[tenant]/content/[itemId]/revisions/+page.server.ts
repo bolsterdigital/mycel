@@ -4,7 +4,7 @@
 import { error } from '@sveltejs/kit';
 import { UseCaseError, useCases } from '@mycel/core';
 import { actorLabel, diffRows, when } from '#lib/server/content-admin.js';
-import { adminTimeZone } from '#lib/server/admin.js';
+import { adminTimeZone } from '#lib/server/admin/admin.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { PageServerLoad } from './$types';
 

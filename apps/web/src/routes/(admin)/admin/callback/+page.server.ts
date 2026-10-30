@@ -8,8 +8,8 @@ import {
   allowLoginAttempt,
   clearCookie,
   cookieOptions,
-} from '#lib/server/admin.js';
-import { LoginNotConfigured, OIDC_COOKIE, finishLogin } from '#lib/server/oidc.js';
+} from '#lib/server/admin/admin.js';
+import { LoginNotConfigured, OIDC_COOKIE, finishLogin } from '#lib/server/admin/oidc.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { PageServerLoad } from './$types';
 

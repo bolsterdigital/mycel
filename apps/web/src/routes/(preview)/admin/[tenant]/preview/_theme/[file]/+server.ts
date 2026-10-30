@@ -2,7 +2,7 @@
 // site's `/_theme/<hash>.css`. Only an operator of this site gets it; a stale valid hash redirects
 // without caching, while a malformed hash is a 404.
 import { error } from '@sveltejs/kit';
-import { adminMediaPrincipal } from '#lib/server/admin.js';
+import { adminMediaPrincipal } from '#lib/server/admin/admin.js';
 import { PREVIEW_HEADERS, previewSite } from '#lib/server/preview.js';
 import { runtime } from '#lib/server/runtime.js';
 import { siteTheme, themePath } from '#lib/server/theme.js';

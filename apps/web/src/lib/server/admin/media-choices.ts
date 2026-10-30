@@ -5,9 +5,9 @@
 // map in the picker route, which would drift from the media page's.
 import { MAX_UPLOAD_BYTES, UseCaseError, useCases, type Principal } from '@mycel/core';
 import { failureOf } from './admin-actions.js';
-import { runtime } from './runtime.js';
-import type { UiKey } from '../../i18n/index.js';
-import type { MediaChoice } from '../admin/media-choice.js';
+import { runtime } from '../runtime.js';
+import type { UiKey } from '../../../i18n/index.js';
+import type { MediaChoice } from '../../admin/media-choice.js';
 
 /** Core's i18n key of a refused upload, mapped to the admin's copy. */
 const UPLOAD_ISSUES: Record<string, UiKey> = {

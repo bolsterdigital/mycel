@@ -3,8 +3,8 @@
 // server-rendered grid is the no-script path. Same use case and authorization as the media page.
 import { json } from '@sveltejs/kit';
 import { UseCaseError, useCases } from '@mycel/core';
-import { requireTenantPrincipal } from '#lib/server/admin.js';
-import { mediaChoice } from '#lib/server/media-choices.js';
+import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
+import { mediaChoice } from '#lib/server/admin/media-choices.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { RequestHandler } from './$types';
 

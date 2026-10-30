@@ -19,9 +19,9 @@ import {
 } from '@mycel/core';
 import { error, fail, redirect } from '@sveltejs/kit';
 import { runtime } from '#lib/server/runtime.js';
-import { requireTenantPrincipal } from '#lib/server/admin.js';
-import { saveAssistSettings } from '#lib/server/assist-settings.js';
-import { timeZoneOptions } from '#lib/server/time-zones.js';
+import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
+import { saveAssistSettings } from '#lib/server/admin/assist-settings.js';
+import { timeZoneOptions } from '#lib/server/admin/time-zones.js';
 import type { Actions, PageServerLoad } from './$types';
 import { ui, type UiKey } from '../../../../../i18n/index.js';
 

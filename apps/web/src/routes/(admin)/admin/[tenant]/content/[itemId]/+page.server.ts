@@ -35,8 +35,8 @@ import {
   type TenantInfo,
 } from '@mycel/core';
 import { formValues, posted } from '#lib/editor/block-form.js';
-import { failureOf, text } from '#lib/server/admin-actions.js';
-import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin.js';
+import { failureOf, text } from '#lib/server/admin/admin-actions.js';
+import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import {
   actorLabel,
   diffRows,

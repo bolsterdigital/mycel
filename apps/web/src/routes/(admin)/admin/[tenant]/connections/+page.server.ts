@@ -2,7 +2,7 @@
 // posts without JavaScript; no credential or webhook payload is included in the page load.
 import { can, useCases } from '@mycel/core';
 import { error } from '@sveltejs/kit';
-import { act, text } from '#lib/server/admin-actions.js';
+import { act, text } from '#lib/server/admin/admin-actions.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { Actions, PageServerLoad } from './$types';
 

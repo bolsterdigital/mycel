@@ -5,7 +5,7 @@
 import { fail, type ActionFailure } from '@sveltejs/kit';
 import { UseCaseError, type Principal, type UseCaseErrorCode } from '@mycel/core';
 import { requireTenantPrincipal } from './admin.js';
-import type { UiKey } from '../../i18n/index.js';
+import type { UiKey } from '../../../i18n/index.js';
 
 export type Failure = ActionFailure<{
   action: string;

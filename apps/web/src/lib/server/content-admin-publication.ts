@@ -4,7 +4,7 @@
 // this module only turns its state into words and a form's local time into an instant.
 //
 // Times are entered and shown in the admin's time zone: the operator's own, else the site's
-// (`adminTimeZone`, lib/server/admin.ts, #88). Every function here takes it as an argument,
+// (`adminTimeZone`, lib/server/admin/admin.ts, #88). Every function here takes it as an argument,
 // so no page can fall back to a zone of its own. Rejected: the browser's offset (needs
 // JavaScript, and two editors in different zones would read one plan differently) and UTC in the
 // form (an editor plans 09:00 local, not 07:00 or 08:00 depending on the season).

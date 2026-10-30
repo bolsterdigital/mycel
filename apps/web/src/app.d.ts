@@ -19,7 +19,7 @@ declare global {
       preferences?: OperatorPreferences;
       /**
        * The zone the admin shows and reads times in: the operator's own, else the site's, else
-       * Europe/Amsterdam. Set by `adminTimeZone` (lib/server/admin.ts), the one place deciding it.
+       * Europe/Amsterdam. Set by `adminTimeZone` (lib/server/admin/admin.ts), the one place deciding it.
        */
       timeZone?: string;
     }

@@ -7,7 +7,7 @@
 // and a "send to support" button (it would send a text the administrator never read).
 import { can, useCases } from '@mycel/core';
 import { error } from '@sveltejs/kit';
-import { act, text } from '#lib/server/admin-actions.js';
+import { act, text } from '#lib/server/admin/admin-actions.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { UiKey } from '../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';

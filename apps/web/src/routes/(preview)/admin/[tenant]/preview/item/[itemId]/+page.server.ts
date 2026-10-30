@@ -4,7 +4,7 @@
 // value in this locale yet is left out of it (`projectDocument`).
 import { error } from '@sveltejs/kit';
 import { UseCaseError, projectDocument, readinessIssues, useCases } from '@mycel/core';
-import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin.js';
+import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { actorLabel, when } from '#lib/server/content-admin.js';
 import {
   PREVIEW_HEADERS,

@@ -15,8 +15,8 @@ import {
 } from '@mycel/core';
 import { resolveDocument, resolveIntro, runtimeSource } from '#lib/blocks/resolve.js';
 import { posted } from '#lib/editor/block-form.js';
-import { requireTenantPrincipal } from '#lib/server/admin.js';
-import { text } from '#lib/server/admin-actions.js';
+import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
+import { text } from '#lib/server/admin/admin-actions.js';
 import { documentFrom, valuesFromForm } from '#lib/server/content-admin.js';
 import { blocksFrom } from '#lib/server/edit-form.js';
 import {

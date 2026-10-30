@@ -2,7 +2,7 @@
 // accepting a suggestion id alone, which would let a forged POST select another field or item.
 import { can, decodeTranslation, translationValue, useCases, UseCaseError } from '@mycel/core';
 import { error, fail, redirect } from '@sveltejs/kit';
-import { requireTenantPrincipal } from '#lib/server/admin.js';
+import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { Actions, PageServerLoad } from './$types';
 import { ui } from '../../../../../../../i18n/index.js';

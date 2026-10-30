@@ -1,6 +1,6 @@
 # Operators, keys and authentication
 
-Who may act on a site and how a credential becomes a `Principal`. An operator is a person who logs in to the admin over OIDC; a membership gives them capabilities on one tenant; an API key belongs to one tenant and carries its own capabilities, for HTTP integrations and MCP agents. The tenant and capabilities always come from authentication, never from a payload (ADR 002 rule 3, [ADR 002](../adr/002-single-postgres-rls-tenancy.md)); authentication reads across tenants only through its own role ([ADR 011](../adr/011-background-roles-and-outbox.md)). Code: `packages/core/src/operators/`, `packages/db/src/operators.ts`, `apps/web/src/lib/server/oidc.ts`. What each command leaves behind is in [audit.md](audit.md); the platform-level API is in [platform-api.md](platform-api.md).
+Who may act on a site and how a credential becomes a `Principal`. An operator is a person who logs in to the admin over OIDC; a membership gives them capabilities on one tenant; an API key belongs to one tenant and carries its own capabilities, for HTTP integrations and MCP agents. The tenant and capabilities always come from authentication, never from a payload (ADR 002 rule 3, [ADR 002](../adr/002-single-postgres-rls-tenancy.md)); authentication reads across tenants only through its own role ([ADR 011](../adr/011-background-roles-and-outbox.md)). Code: `packages/core/src/operators/`, `packages/db/src/operators.ts`, `apps/web/src/lib/server/admin/oidc.ts`. What each command leaves behind is in [audit.md](audit.md); the platform-level API is in [platform-api.md](platform-api.md).
 
 ## Principals
 
@@ -60,15 +60,15 @@ An invitation is a membership of a pending operator row (no subject yet); it doe
 
 ## Constants
 
-| Constant               | Value                                         | Where                                     | Why                                                             |
-| ---------------------- | --------------------------------------------- | ----------------------------------------- | --------------------------------------------------------------- |
-| `SESSION_TTL_MS`       | 12 hours                                      | `packages/core/src/operators/session.ts`  | absolute lifetime; a stolen cookie stops on a fixed clock       |
-| future `iat` allowance | 60 s                                          | `packages/core/src/operators/session.ts`  | clock skew between processes; a session issued later is refused |
-| `OIDC_COOKIE_TTL_MS`   | 10 minutes                                    | `apps/web/src/lib/server/oidc.ts`         | one login attempt at the IdP                                    |
-| `LOGIN_LIMIT`          | 20 per 10 minutes                             | `apps/web/src/lib/server/admin-paths.ts`  | login starts and callbacks per client address hash              |
-| `KEEP`                 | 1 day                                         | `packages/db/src/infra/janitor.ts`        | age after which login and rate-limit windows are swept          |
-| token                  | `mycel_` + 32 bytes (43 base64url characters) | `packages/core/src/operators/model.ts`    | 256 bits make a plain SHA-256 an unguessable lookup key         |
-| `PREFIX_LENGTH`        | 12                                            | `packages/core/src/operators/model.ts`    | enough of the token to recognise a key in a list                |
-| key touch resolution   | 1 minute                                      | `packages/db/src/operators.ts`            | a busy key does not write on every request                      |
-| key name               | 1 to 100 characters                           | `packages/core/src/operators/service.ts`  | input bound                                                     |
-| `operators.max`        | 50 (default)                                  | `packages/core/src/entitlements/model.ts` | members per tenant, checked on invite under the membership lock |
+| Constant               | Value                                         | Where                                          | Why                                                             |
+| ---------------------- | --------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------- |
+| `SESSION_TTL_MS`       | 12 hours                                      | `packages/core/src/operators/session.ts`       | absolute lifetime; a stolen cookie stops on a fixed clock       |
+| future `iat` allowance | 60 s                                          | `packages/core/src/operators/session.ts`       | clock skew between processes; a session issued later is refused |
+| `OIDC_COOKIE_TTL_MS`   | 10 minutes                                    | `apps/web/src/lib/server/admin/oidc.ts`        | one login attempt at the IdP                                    |
+| `LOGIN_LIMIT`          | 20 per 10 minutes                             | `apps/web/src/lib/server/admin/admin-paths.ts` | login starts and callbacks per client address hash              |
+| `KEEP`                 | 1 day                                         | `packages/db/src/infra/janitor.ts`             | age after which login and rate-limit windows are swept          |
+| token                  | `mycel_` + 32 bytes (43 base64url characters) | `packages/core/src/operators/model.ts`         | 256 bits make a plain SHA-256 an unguessable lookup key         |
+| `PREFIX_LENGTH`        | 12                                            | `packages/core/src/operators/model.ts`         | enough of the token to recognise a key in a list                |
+| key touch resolution   | 1 minute                                      | `packages/db/src/operators.ts`                 | a busy key does not write on every request                      |
+| key name               | 1 to 100 characters                           | `packages/core/src/operators/service.ts`       | input bound                                                     |
+| `operators.max`        | 50 (default)                                  | `packages/core/src/entitlements/model.ts`      | members per tenant, checked on invite under the membership lock |

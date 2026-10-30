@@ -11,7 +11,7 @@
 // Every response, including 404s and problems, carries the API's security headers from the same
 // middleware (TODO #20c decision 3): the API serves no HTML, so its CSP forbids everything.
 // Rejected: `hono/secure-headers`, a dependency for five lines whose defaults differ from the
-// web app's (apps/web/src/lib/server/security-headers.ts).
+// web app's (apps/web/src/lib/server/http/security-headers.ts).
 
 import { randomUUID } from 'node:crypto';
 import { Hono, type Context } from 'hono';
