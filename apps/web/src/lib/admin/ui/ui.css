@@ -1176,16 +1176,81 @@
     line-height: 1.2;
   }
 
-  /* A label for assistive technology only, where the control's place already says what it is. */
-  .ui-sr-only {
+  /* Text for a screen reader only: a label where the control's place already says what it is, or
+     the live region of a copy button (static/_admin/copy.js). Clipped, not display: none, so it
+     stays in the accessibility tree. */
+  .ui-visually-hidden {
     position: absolute;
     width: 1px;
     height: 1px;
-    margin: -1px;
-    padding: 0;
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
-    border: 0;
+  }
+
+  /* A secret shown once (KeyReveal): framed in the success tone of a notice, the value on its own
+     line so a token without break opportunities wraps anywhere instead of widening the page, and
+     selected whole by one click or tap. */
+  .ui-reveal {
+    display: grid;
+    /* One column no wider than the frame, as on .ui-card-body: an auto track grew to the token's
+       flex basis and pushed the frame past 320 CSS px at 200% text. */
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+    margin-block: var(--space-2);
+    padding: var(--space-1) min(var(--space-2), 4vw);
+    color: var(--status-success-fg);
+    background: var(--status-success-bg);
+    border: var(--border-width) solid currentColor;
+    border-radius: var(--radius-lg);
+  }
+  .ui-reveal > * {
+    margin: 0;
+  }
+  .ui-reveal > h2 {
+    font-size: var(--step-0);
+  }
+  .ui-copy {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
+  }
+  .ui-copy-value {
+    flex: 1 1 16rem;
+    min-width: 0;
+    padding: var(--space-1);
+    font-family: ui-monospace, monospace;
+    overflow-wrap: anywhere;
+    user-select: all;
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+    border: var(--border-width) solid var(--color-border-strong);
+    border-radius: var(--radius);
+  }
+
+  /* A dangerous action confirmed in place (ConfirmAction): the summary looks like the secondary
+     button it acts as; open, the question and the danger button take a line of their own in the
+     action group, so the row's other actions do not squeeze them. */
+  .ui-confirm > summary {
+    display: inline-flex;
+    list-style: none;
+  }
+  .ui-confirm > summary::-webkit-details-marker {
+    display: none;
+  }
+  .ui-confirm[open] {
+    flex-basis: 100%;
+  }
+  .ui-confirm-body {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-1);
+    margin-block-start: var(--space-1);
+    padding: var(--space-1) min(var(--space-2), 4vw);
+    border-inline-start: 3px solid var(--color-danger-bg);
+  }
+  .ui-confirm-body > p {
+    margin: 0;
   }
 }

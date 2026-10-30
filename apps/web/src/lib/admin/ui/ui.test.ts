@@ -15,6 +15,7 @@ import {
   CardGrid,
   Checkbox,
   Choices,
+  ConfirmAction,
   DashboardWidget,
   DetailPage,
   Dialog,
@@ -28,6 +29,7 @@ import {
   Icon,
   IconSprite,
   ItemBar,
+  KeyReveal,
   MetaList,
   NavGroup,
   Notice,
@@ -587,6 +589,60 @@ describe('Dialog', () => {
       /<dialog class="ui-dialog wide" id="lightbox" aria-labelledby="lightbox-title" closedby="any">/
     );
     expect(out).toMatch(/commandfor="lightbox" command="close">Sluiten<\/button>/);
+  });
+});
+
+// #81 PR 1: the members and access screen.
+describe('ConfirmAction', () => {
+  it('asks in place and posts only from its second, named button', () => {
+    const out = html(ConfirmAction, {
+      label: 'Revoke key',
+      question: 'This cannot be undone.',
+      confirm: 'Yes, revoke',
+      name: 'newsletter_sync',
+      formaction: '?/revoke',
+    });
+    expect(out).toMatch(
+      /^<details class="ui-fold ui-confirm"><summary class="ui-button secondary">/
+    );
+    // The summary opens; only the button inside submits, named after what it acts on.
+    expect(out).toContain('<summary class="ui-button secondary">Revoke key</summary>');
+    expect(out).toContain(
+      '<button class="ui-button danger" type="submit" formaction="?/revoke" aria-label="Yes, revoke: newsletter_sync">Yes, revoke</button>'
+    );
+    expect(out.match(/<button/g)).toHaveLength(1);
+    expect(out).toContain('<p>This cannot be undone.</p>');
+  });
+  it("posts to the form's own action without formaction", () => {
+    const out = html(ConfirmAction, { label: 'Remove', question: 'Sure?', confirm: 'Yes' });
+    expect(out).toContain('<button class="ui-button danger" type="submit">Yes</button>');
+    expect(out).not.toContain('aria-label');
+  });
+});
+
+describe('KeyReveal', () => {
+  it('shows the value once, selectable, with a copy button that starts hidden', () => {
+    const rendered = render(KeyReveal as Component<Record<string, unknown>>, {
+      props: { id: 'new-key', title: 'Your new API key: sync', value: 'mycel_abc', locale: 'nl' },
+    });
+    const out = html(KeyReveal, {
+      id: 'new-key',
+      title: 'Your new API key: sync',
+      value: 'mycel_abc',
+      locale: 'nl',
+    });
+    expect(out).toMatch(
+      /<section class="ui-reveal" aria-labelledby="new-key-title"><h2 id="new-key-title">/
+    );
+    expect(out).toContain('Dit is de enige keer dat je dit ziet');
+    expect(out).toContain('<output class="ui-copy-value" id="new-key-value">mycel_abc</output>');
+    // Without the script the button never shows: no dead control.
+    expect(out).toMatch(
+      /<button class="ui-button secondary" type="button" hidden="" data-copy="new-key-value"/
+    );
+    expect(out).toContain('data-copied="Gekopieerd"');
+    // The enhancement is a same-origin module in the head, the only script it brings.
+    expect(rendered.head).toContain('<script type="module" src="/_admin/copy.js"></script>');
   });
 });
 

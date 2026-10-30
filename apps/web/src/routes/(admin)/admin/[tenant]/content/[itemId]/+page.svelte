@@ -327,7 +327,7 @@
 {#snippet contentTab()}
   <input type="hidden" name="baseRevisionId" value={baseRevision} />
   <div class="ui-field">
-    <label class="ui-sr-only" for="title.{defaultLocale}"
+    <label class="ui-visually-hidden" for="title.{defaultLocale}"
       >{t('admin.content.edit.titleLabel')}{per(defaultLocale)}</label
     >
     <input
@@ -692,7 +692,7 @@
     {/if}
   {/snippet}
 
-  <p id="new-tab" class="ui-sr-only">{t('admin.content.edit.newTab')}</p>
+  <p id="new-tab" class="ui-visually-hidden">{t('admin.content.edit.newTab')}</p>
   <Tabs
     id="item-tabs"
     label={t('admin.content.tab.label')}

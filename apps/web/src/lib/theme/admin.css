@@ -391,14 +391,6 @@
   .notice p {
     margin-block: 0.25rem;
   }
-  .token-value {
-    display: block;
-    padding: var(--space-1);
-    overflow-wrap: anywhere;
-    background: var(--color-bg);
-    border: var(--border-width) solid var(--color-border-strong);
-    border-radius: var(--radius);
-  }
   /* Term above value: two columns leave no room for the value at 200% text. */
   .admin dl {
     display: grid;

@@ -293,7 +293,7 @@
         "packages/core/src/testing/**",
         "packages/db/src/testing.ts",
         "scripts/**",
-        "packages/db/src/seed.ts"
+        "packages/db/src/seed*.ts"
       ],
       "adrs": ["000"],
       "gates": [

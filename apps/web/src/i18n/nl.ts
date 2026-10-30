@@ -141,16 +141,25 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.keys.never': 'nooit',
   'admin.keys.revoked': 'Ingetrokken',
   'admin.keys.revoke': 'Sleutel intrekken',
-  'admin.keys.revokeName': 'Sleutel intrekken: {name}',
   'admin.keys.create.title': 'API-sleutel aanmaken',
   'admin.keys.create.name': 'Naam',
   'admin.keys.create.capabilities': 'Bevoegdheden',
   'admin.keys.create.hint':
     'Een sleutel krijgt nooit tenant:admin: sleutels beheren geen leden of andere sleutels.',
   'admin.keys.create.submit': 'Sleutel aanmaken',
+  'admin.keys.revokeQuestion':
+    'Wat deze sleutel gebruikt, komt er vanaf nu niet meer in. Dat is niet terug te draaien.',
+  'admin.keys.revokeConfirm': 'Ja, intrekken',
+  'admin.access.title': 'Toegang',
+  'admin.access.intro':
+    'Met een API-sleutel werkt een programma via de API of MCP met deze site, met alleen de bevoegdheden die je de sleutel geeft.',
+  'admin.members.edit': 'Bevoegdheden wijzigen',
+  'admin.members.removeQuestion':
+    'Dit lid verliest de toegang tot deze site, en de API-sleutels die het maakte.',
+  'admin.members.removeConfirm': 'Ja, verwijderen',
+  'admin.members.pendingTitle': 'Openstaande uitnodigingen',
   'admin.keys.token.title': 'Je nieuwe API-sleutel',
-  'admin.keys.token.body':
-    'Kopieer hem nu. Dit is de enige keer dat hij getoond wordt; daarna staan alleen de eerste tekens in de lijst.',
+  'admin.keys.token.body': 'Daarna staan alleen de eerste tekens in de lijst.',
   'admin.done.invited': '{email} is uitgenodigd.',
   'admin.done.updated': 'Bevoegdheden opgeslagen.',
   'admin.done.removed': 'Lid verwijderd.',
@@ -855,6 +864,10 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.ui.previous': 'Vorige',
   'admin.ui.next': 'Volgende',
   'admin.ui.close': 'Sluiten',
+  'admin.ui.reveal.once': 'Dit is de enige keer dat je dit ziet: kopieer het nu.',
+  'admin.ui.copy': 'Kopiëren',
+  'admin.ui.copy.done': 'Gekopieerd',
+  'admin.ui.copy.failed': 'Kopiëren lukte niet; selecteer de tekst',
   'admin.ui.file.drop': 'Kies een bestand, of sleep het op het veld',
   'admin.ui.file.chosen': 'Voorvertoning van wat je uploadt',
   'admin.ui.catalogue.title': 'Interfacecomponenten',
@@ -900,6 +913,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.ui.catalogue.subnav.general': 'Algemeen',
   'admin.ui.catalogue.subnav.theme': 'Thema',
   'admin.ui.catalogue.subnav.domains': 'Domeinen',
+  'admin.ui.catalogue.confirm': 'Bevestigen in de rij en eenmalig tonen',
   'admin.ui.catalogue.dialog': 'Dialoogvenster',
   'admin.ui.catalogue.dialog.open': 'Op ware grootte bekijken',
   'admin.ui.catalogue.dialog.body':
