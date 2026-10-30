@@ -28,7 +28,10 @@ test.describe('ui-gate', () => {
     if (route.menu) await page.locator('.admin-menu > summary').click();
     if (route.folds) {
       const folds = page.locator('.ui-fold > summary');
-      for (let i = 0; i < (await folds.count()); i++) await folds.nth(i).click();
+      // A fold inside a closed dialog (the role picker's advanced part, #101) is not on the page
+      // to measure; clicking it would wait for it forever.
+      for (let i = 0; i < (await folds.count()); i++)
+        if (await folds.nth(i).isVisible()) await folds.nth(i).click();
     }
     await setTextSize(page, text);
     await layoutGate(page, `${route.path} at ${text}`, route.within);

@@ -69,6 +69,7 @@ export * from './operators/service.js';
 export * from './operators/session.js';
 export * from './operators/authenticate.js';
 export * from './operators/preferences.js';
+export * from './operators/roles.js';
 export * from './util/time-zone.js';
 export * from './util/email.js';
 export * from './util/token.js';

@@ -396,6 +396,44 @@
   .ui-table .numeric {
     text-align: end;
   }
+  /* A role option: its name, then one line of what it may do (RolePicker, #101). */
+  .ui-role {
+    display: grid;
+  }
+  .ui-table-scroll:has(> .ui-table.stack) {
+    container-type: inline-size;
+  }
+  @container (max-width: 36rem) {
+    .ui-table.stack,
+    .ui-table.stack tbody,
+    .ui-table.stack tr,
+    .ui-table.stack th,
+    .ui-table.stack td {
+      display: block;
+    }
+    .ui-table.stack thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+    .ui-table.stack tr {
+      padding-block: var(--space-1);
+      border-block-end: var(--border-width) solid var(--color-border);
+    }
+    .ui-table.stack th,
+    .ui-table.stack td {
+      border: 0;
+      padding-inline: 0;
+    }
+    .ui-table.stack [data-label]::before {
+      content: attr(data-label);
+      display: block;
+      font-size: var(--step--1);
+      font-weight: 600;
+    }
+  }
   .ui-table th a {
     display: inline-flex;
     align-items: center;

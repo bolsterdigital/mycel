@@ -786,8 +786,8 @@ test.describe('content-admin', () => {
     await page.getByRole('button', { name: 'Iemand uitnodigen' }).click();
     const invite = page.locator('form[action="?/invite"]');
     await invite.getByLabel('E-mailadres (verplicht)', { exact: true }).fill(email);
-    await invite.getByLabel('content:read', { exact: true }).check();
-    await invite.getByLabel('content:write', { exact: true }).check();
+    // An author writes and does not publish (#101).
+    await invite.getByRole('radio', { name: /^Auteur/ }).check();
     await invite.getByRole('button', { name: 'Uitnodigen' }).click();
     await expect(page.getByRole('status')).toContainText(email);
     try {
@@ -852,9 +852,9 @@ test.describe('content-admin', () => {
     } finally {
       await context.clearCookies();
       await login(page, '/admin/probe/leden');
-      const member = page.locator('form', { has: page.getByRole('heading', { name: email }) });
+      const member = page.getByRole('row', { name: new RegExp(email) });
       await member.locator('summary', { hasText: 'Verwijderen' }).click();
-      await member.locator('button[formaction="?/remove"]').click();
+      await member.getByRole('button', { name: `Ja, verwijderen: ${email}` }).click();
       await expect(page.getByRole('status')).toContainText('Lid verwijderd');
     }
   });
@@ -1400,6 +1400,9 @@ test.describe('article-writing', () => {
     requireApi();
     const edit = await article(request);
     await login(page, `${edit}/write`);
+    // login() returns once the URL is the writer's, which can be before its markup is parsed;
+    // measuring then finds no toolbar at all (flake on main, run 41097277041).
+    await expect(page.getByRole('toolbar')).toBeVisible();
     await page.setViewportSize(NARROW);
     await setTextSize(page, '200%');
     await layoutGate(page, 'writer actions', '.writer-actions');
