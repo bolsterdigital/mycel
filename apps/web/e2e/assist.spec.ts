@@ -87,7 +87,8 @@ async function acceptWithKeyboard(page: Page) {
     page.getByRole('button', { name: /Aangepaste waarde overnemen|Accept edited value/ })
   ).toBeFocused();
   await page.keyboard.press('Enter');
-  await expect(page).toHaveURL(`${edit}?saved=1`);
+  // Back in the locale the suggestion was for, named when it is not the default (#66 PR 4).
+  await expect(page).toHaveURL(new RegExp(`${edit}\\?saved=1(&locale=[a-z]+)?$`));
 }
 
 async function enable(page: Page) {
@@ -254,6 +255,8 @@ for (const locale of ['nl-NL', 'en-GB']) {
       await page.getByLabel(/^(Titel|Title) \(en\)$/).fill('English heading');
       await page.getByRole('button', { name: /Concept maken|Create draft/ }).click();
       const edit = new URL(page.url()).pathname;
+      // The English screen offers to translate its empty title from Dutch (#66 PR 4).
+      await page.goto(`${edit}?locale=en`);
       await page
         .getByRole('link', { name: /(Vertaal uit nl.*Titel|Translate from nl.*Title).*en/ })
         .click();
@@ -286,7 +289,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
         .getByLabel(/Pas het voorstel aan|Edit the proposal/)
         .fill('Edited English heading');
       await acceptWithKeyboard(page);
-      await expect(page).toHaveURL(`${edit}?saved=1`);
+      await expect(page).toHaveURL(`${edit}?saved=1&locale=en`);
       const publication = page.locator('#publication-en');
       await expect(page.locator('details.block')).toHaveCount(0);
       await expect(publication).toContainText(/Machinevertaling|Machine translation/);

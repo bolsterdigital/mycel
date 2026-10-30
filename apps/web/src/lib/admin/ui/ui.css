@@ -875,6 +875,64 @@
     border-color: var(--color-primary-bg);
     text-decoration: none;
   }
+  /* LocaleSwitch (#66 PR 4): the site's locales as one compact row of pressed/unpressed buttons;
+     a dot marks a translation that is behind (amber ring) or missing (hollow), the word is in the
+     button's text for a screen reader. Codes stay lower case, as the URLs show them. */
+  .ui-locale-switch {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-0);
+    color: var(--color-muted-fg);
+  }
+  .ui-locale-switch-option {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    min-width: var(--tap);
+    min-height: var(--tap);
+    padding: 0 var(--space-1);
+    font: inherit;
+    font-weight: 600;
+    color: var(--color-link);
+    background: transparent;
+    border: var(--border-width) solid var(--color-control-border);
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+  .ui-locale-switch-option[aria-pressed='true'] {
+    color: var(--color-primary-fg);
+    background: var(--color-primary-bg);
+    border-color: var(--color-primary-bg);
+  }
+  .ui-locale-dot {
+    display: inline-block;
+    inline-size: 0.5rem;
+    block-size: 0.5rem;
+    border-radius: 50%;
+    background: var(--status-warning-fg);
+  }
+  .ui-locale-dot.missing {
+    background: transparent;
+    border: 2px solid currentColor;
+  }
+  /* The list's other locales next to the one badge: codes, each with its dot. */
+  .ui-locale-codes {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0 var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--step--1);
+    color: var(--color-muted-fg);
+  }
+  .ui-locale-codes li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
   .ui-overview-bar {
     display: flex;
     flex-wrap: wrap;
@@ -954,11 +1012,6 @@
   }
   .ui-edit[data-preview-open] > .ui-edit-side {
     display: none;
-  }
-  /* An open preview needs the room the admin's page width (72rem) would cap: the screen takes
-     the whole workspace, so the 75rem column beside the text can appear on a wide screen. */
-  .admin-workspace .page.admin.ui-edit-page:has(.ui-edit[data-preview-open]) {
-    max-width: none;
   }
   @container (min-width: 60rem) {
     .ui-edit[data-preview-open] {
@@ -1587,6 +1640,13 @@
   }
   .ui-confirm[open] {
     flex-basis: 100%;
+  }
+  /* Opened in a right-aligned row (a block card's head), the action stays where it was and the
+     question opens under the row (#66 PR 4); it no longer jumps to the start of a line of its own. */
+  .ui-actions.end > .ui-confirm[open] > summary {
+    display: flex;
+    inline-size: fit-content;
+    margin-inline-start: auto;
   }
   /* Closed, the question is out of layout too: Chromium lays out a closed <details>' content, and
      in a row of light actions (a block card's head) the closed fold is only as wide as its

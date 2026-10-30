@@ -17,6 +17,11 @@
 // zone, `content-admin-publication.ts`) and cancel a schedule; pinning the newest revision is a
 // schedule of it at the pinned time. Buttons show only for `content:publish`, and a member
 // without it is refused before anything is saved; the registry refuses the rest regardless.
+//
+// One locale at a time (#66 PR 4): the screen shows the content locale (`content-locale.ts`) and
+// carries it as `editLocale`; a save reads only that locale and keeps every other one as the base
+// revision has it (`formDocument`). Switching locale saves first and remembers the choice; a
+// locale the document lacks shows "start the translation", empty or as a copy of another locale.
 import { isDeepStrictEqual } from 'node:util';
 import { error, fail, redirect } from '@sveltejs/kit';
 import {
@@ -34,19 +39,24 @@ import {
   type Section,
   type TenantInfo,
 } from '@mycel/core';
-import { formValues, posted } from '#lib/editor/block-form.js';
+import { formValues, posted, type Posted } from '#lib/editor/block-form.js';
 import { failureOf, text } from '#lib/server/admin/admin-actions.js';
 import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import {
   actorLabel,
   diffRows,
-  documentFrom,
   valuesFromForm,
   type FormValues,
   withAssigned,
+  withLocale,
   valuesOf,
   when,
 } from '#lib/server/content-admin.js';
+import {
+  chooseContentLocale,
+  contentLocale,
+  translationState,
+} from '#lib/server/content-locale.js';
 import {
   fieldOf,
   fromLocalInput,
@@ -65,7 +75,7 @@ import {
   blockIssues,
   documentFieldIssues,
   blockPrefix,
-  blocksFrom,
+  formDocument,
   pendingBlock,
   pendingProps,
   pendingView,
@@ -146,16 +156,42 @@ async function relationshipChoices(
   return { authors, sections };
 }
 
+/** A post without block fields: the document as stored, to tell a change from none. */
+const unposted: Posted = { get: () => null, names: () => [] };
+
 /** Form values under a name prefix. */
 const prefixed = (values: Record<string, string>, prefix: string): Record<string, string> =>
   Object.fromEntries(Object.entries(values).map(([k, v]) => [`${prefix}${k}`, v]));
 
-export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
+/**
+ * The edit screen's address: the item, whatever the redirect adds, and the locale when it is
+ * not the one the screen shows anyway.
+ */
+const itemPath = (
+  tenant: string,
+  itemId: string,
+  locale: string | null | undefined,
+  query: Record<string, string> = {},
+  hash = ''
+) => {
+  const q = new URLSearchParams({ ...query, ...(locale ? { locale } : {}) });
+  // `saved` is a flag without a value, as the screen reads it.
+  const search = q.toString().replace(/(^|&)saved=(?=&|$)/, '$1saved');
+  return `/admin/${tenant}/content/${itemId}${search ? `?${search}` : ''}${hash ? `#${hash}` : ''}`;
+};
+
+export const load: PageServerLoad = async ({ parent, locals, params, url, cookies }) => {
   const { tenant } = await parent();
   const principal = locals.principal!;
   const { zone, site } = await adminTimeZone(locals);
   const { item, revision, effective } = await latest(principal, params.itemId);
   const doc = revision.document;
+  // The site's locales first, then any the document has that the site no longer does.
+  const locales = [...new Set([...tenant.locales, ...doc.locales])];
+  const work = contentLocale(cookies, tenant, url.searchParams.get('locale'), locales);
+  // The fields of one locale only; none while the document lacks it (start the translation).
+  const shown = doc.locales.includes(work) ? [work] : [];
+  const read = shown[0] ?? item.defaultLocale;
   const { invoker } = runtime();
   // Which revision is live or pinned, in the words of the revisions page; one lookup per id.
   const seen = new Map<string, Promise<{ when: string; who: string; latest: boolean }>>();
@@ -224,22 +260,33 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
     blocks: doc.blocks.map((b) => ({
       id: b.id,
       type: b.type,
-      summary: summaryOf(b, item.defaultLocale),
-      preview: previewOf(b, item.defaultLocale),
+      summary: summaryOf(b, read),
+      preview: previewOf(b, read),
       duplicable: !SINGLE.has(b.type),
+      // The other locales a text block has, to translate the shown one from (AI help).
+      translatable:
+        b.type === 'rich-text' && shown.length
+          ? doc.locales.filter(
+              (l) => l !== work && (b.props as { content: Record<string, unknown> }).content[l]
+            )
+          : [],
       values: prefixed(
-        formValues(
-          BLOCK_DEFINITIONS[b.type].fields,
-          b.props as Record<string, unknown>,
-          doc.locales
-        ),
+        formValues(BLOCK_DEFINITIONS[b.type].fields, b.props as Record<string, unknown>, shown),
         blockPrefix(b.id)
       ),
     })),
     openBlocks: (url.searchParams.get('block') ?? '').split(','),
     blockTypes: BLOCK_TYPES,
-    pending: canWrite && pending ? pendingView(pending, doc.locales) : null,
+    pending: canWrite && pending && shown.length ? pendingView(pending, shown) : null,
     docLocales: doc.locales,
+    /** The one locale the screen shows and saves (#66 PR 4). */
+    workLocale: work,
+    /** The document lacks the content locale: the screen offers to start the translation. */
+    translating: !shown.length,
+    /** Every locale of the site with where its translation stands, for the switch. */
+    translations: locales.map((l) => ({ locale: l, state: translationState(doc, l) })),
+    /** The shell's own locale switch steps aside: the item's bar switches, and saves first. */
+    itemLocale: true,
     ...options,
     item: {
       id: item.id,
@@ -296,8 +343,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
     values: valuesOf(doc),
     // What every empty field inherits, per locale, with its source (#86): `Inherited` shows it.
     effective,
-    // The site's locales first, then any the document has that the site no longer does.
-    locales: [...new Set([...tenant.locales, ...doc.locales])],
+    locales,
     authors,
     sections,
     saved: url.searchParams.has('saved'),
@@ -393,6 +439,11 @@ interface Committed {
   changed: string[];
   /** The admin's time zone for this request (`adminTimeZone`). */
   zone: string;
+  /**
+   * The locale the form showed (`editLocale`) when the screen must name it to come back in it:
+   * null when it is the operator's content locale anyway.
+   */
+  editing: string | null;
 }
 
 /**
@@ -418,6 +469,8 @@ async function commit(
   const data = await event.request.formData();
   const itemId = event.params.itemId!;
   const baseRevisionId = text(data, 'baseRevisionId');
+  // The one locale the form shows; a form without the field (an older tab) carries them all.
+  const editing = data.has('editLocale') ? text(data, 'editLocale') || null : undefined;
   let changed: string[] = [];
   const done = (revisionId: string, inserted: string | null = null): Committed => ({
     tenant,
@@ -427,6 +480,7 @@ async function commit(
     inserted,
     changed,
     zone,
+    editing: editing && editing !== contentLocale(event.cookies, tenant) ? editing : null,
   });
   if (!opts.always && !can(principal, 'content:write')) return done(baseRevisionId);
   const values = valuesFromForm(data);
@@ -450,7 +504,15 @@ async function commit(
           text(data, `${NEW_BLOCK}anchor`),
           base.blocks.map((b) => b.id)
         );
-    const read = blocksFrom(base.blocks, post, text(data, 'remove') || undefined);
+    const today = rt.clock.now().toISOString().slice(0, 10);
+    const read = formDocument(
+      base,
+      values,
+      post,
+      today,
+      editing,
+      text(data, 'remove') || undefined
+    );
     const added = pending && pendingProps(pending, post);
     // Rich text the form could not read never reaches core.
     const unread = [...read.errors, ...(added?.errors ?? [])];
@@ -462,9 +524,9 @@ async function commit(
         }),
       };
     changed = read.blocks.filter((b, i) => !isDeepStrictEqual(b, base.blocks[i])).map((b) => b.id);
-    const today = rt.clock.now().toISOString().slice(0, 10);
-    const document = { ...documentFrom(base, values, today), blocks: read.blocks };
-    if (opts.always || !isDeepStrictEqual(document, documentFrom(base, valuesOf(base), today)))
+    const document = read.document;
+    const untouched = formDocument(base, valuesOf(base), unposted, today, editing).document;
+    if (opts.always || !isDeepStrictEqual(document, untouched))
       revisionId = (
         await rt.invoker.run(useCases.updateItem, principal, { itemId, baseRevisionId, document })
       ).revision.id;
@@ -610,10 +672,7 @@ async function publication(
           : [],
     });
   }
-  redirect(
-    303,
-    `/admin/${tenant.slug}/content/${event.params.itemId}?done=${action}&locale=${encodeURIComponent(locale)}`
-  );
+  redirect(303, itemPath(tenant.slug, event.params.itemId!, locale, { done: action }));
 }
 
 /**
@@ -628,7 +687,7 @@ async function blockStep(
   done: 'blockMoved' | 'blockRemoved' | 'blockDuplicated',
   run: (blocks: ContentDocument['blocks'], index: number) => Promise<unknown>
 ) {
-  const { tenant, principal, revisionId, zone } = saved;
+  const { tenant, principal, revisionId, zone, editing } = saved;
   let landing = blockId;
   try {
     const { revision } = await runtime().invoker.run(useCases.getItem, principal, {
@@ -655,10 +714,7 @@ async function blockStep(
     });
   }
   const at = done === 'blockRemoved' ? 'blocks' : `block-${landing}`;
-  redirect(
-    303,
-    `/admin/${tenant.slug}/content/${itemId}?done=${done}&block=${encodeURIComponent(landing)}#${at}`
-  );
+  redirect(303, itemPath(tenant.slug, itemId, editing, { done, block: landing }, at));
 }
 
 export const actions: Actions = {
@@ -669,28 +725,35 @@ export const actions: Actions = {
     const open = inserted ? [inserted] : changed;
     redirect(
       303,
-      `/admin/${tenant.slug}/content/${event.params.itemId}?saved${
-        open.length ? `&block=${encodeURIComponent(open.join(','))}#block-${open[0]}` : ''
-      }`
+      itemPath(
+        tenant.slug,
+        event.params.itemId,
+        saved.editing,
+        { saved: '', ...(open.length ? { block: open.join(',') } : {}) },
+        open.length ? `block-${open[0]}` : ''
+      )
     );
   },
   /** "Do not add": saves the rest of the form without the pending block. */
   discard: async (event) => {
     const saved = await commit(event, { discard: true });
     if ('failure' in saved) return saved.failure;
-    redirect(303, `/admin/${saved.tenant.slug}/content/${event.params.itemId}#blocks`);
+    redirect(303, itemPath(saved.tenant.slug, event.params.itemId, saved.editing, {}, 'blocks'));
   },
   /** Shows an empty block of the chosen type at its place, after saving what was typed. */
   insert: async (event) => {
     const saved = await commit(event);
     if ('failure' in saved) return saved.failure;
     const [place = '', anchor = ''] = text(saved.data, 'insert').split(':');
-    const query = new URLSearchParams({
+    const query = {
       insert: text(saved.data, `insertType.${anchor || place}`),
       place,
       ...(anchor ? { anchor } : {}),
-    });
-    redirect(303, `/admin/${saved.tenant.slug}/content/${event.params.itemId}?${query}#block-new`);
+    };
+    redirect(
+      303,
+      itemPath(saved.tenant.slug, event.params.itemId, saved.editing, query, 'block-new')
+    );
   },
   move: async (event) => {
     const saved = await commit(event);
@@ -809,7 +872,58 @@ export const actions: Actions = {
     }
     redirect(
       303,
-      `/admin/${saved.tenant.slug}/content/${params.itemId}?done=translationApproved&locale=${encodeURIComponent(locale)}`
+      itemPath(saved.tenant.slug, params.itemId, locale, { done: 'translationApproved' })
     );
+  },
+  /**
+   * The bar's locale switch: saves what was typed, remembers the choice for the whole admin of
+   * this site (`content-locale.ts`) and shows the item in the chosen locale.
+   */
+  switchLocale: async (event) => {
+    const saved = await commit(event);
+    if ('failure' in saved) return saved.failure;
+    const to = text(saved.data, 'to');
+    if (!saved.tenant.locales.includes(to)) error(400, 'Unknown locale');
+    chooseContentLocale(event.cookies, saved.tenant.slug, to);
+    redirect(303, itemPath(saved.tenant.slug, event.params.itemId, to));
+  },
+  /**
+   * "Start the translation" for a locale the document lacks: after saving the rest of the form,
+   * adds the locale, empty or with every value of `from` copied (`withLocale`), as one revision.
+   */
+  startTranslation: async (event) => {
+    const saved = await commit(event);
+    if ('failure' in saved) return saved.failure;
+    const { tenant, principal, data, revisionId, zone } = saved;
+    const itemId = event.params.itemId;
+    const to = text(data, 'to');
+    const from = text(data, 'from') || null;
+    if (!tenant.locales.includes(to)) error(400, 'Unknown locale');
+    try {
+      const { revision } = await runtime().invoker.run(useCases.getItem, principal, {
+        itemId,
+        revisionId,
+      });
+      await runtime().invoker.run(useCases.updateItem, principal, {
+        itemId,
+        baseRevisionId: revisionId,
+        document: withLocale(revision.document, to, from),
+      });
+    } catch (e) {
+      if (!(e instanceof UseCaseError)) throw e;
+      const { status, body } = failureOf(e, 'save', {
+        conflict: 'admin.content.conflict.title',
+        invalid: 'admin.content.error.invalid',
+        issues: ISSUES,
+      });
+      const conflict =
+        e.code === 'conflict' ? await conflictOf(principal, itemId, revisionId, zone) : null;
+      return fail(status, {
+        ...body,
+        fieldIssues: [],
+        conflict: conflict && { who: conflict.who, when: conflict.when, changes: conflict.changes },
+      });
+    }
+    redirect(303, itemPath(tenant.slug, itemId, to, { saved: '' }));
   },
 };

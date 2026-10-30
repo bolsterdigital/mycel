@@ -379,6 +379,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.status.published': 'gepubliceerd',
   'admin.content.status.unpublished': 'offline',
   'admin.content.status.changes': 'ongepubliceerde wijzigingen',
+  'admin.content.status.changed': 'gewijzigd',
+  'admin.content.status.missing': 'nog geen vertaling',
   'admin.content.type.legend': 'Soort',
   'admin.content.type.page': 'Pagina',
   'admin.content.type.article': 'Artikel',
@@ -432,7 +434,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.state': 'Status',
   'admin.content.edit.fields': 'Gegevens',
   'admin.content.edit.localesHint':
-    'Na het toevoegen van een taal eerst opslaan; dan verschijnen de velden. Een taal weghalen verwijdert de teksten in die taal uit dit item; eerdere revisies bewaren ze.',
+    'Een toegevoegde taal vul je na het opslaan in via de taalwissel bovenaan. Een taal weghalen verwijdert de teksten in die taal uit dit item; eerdere revisies bewaren ze.',
   'admin.content.edit.noAuthors': 'Deze site heeft nog geen auteurs.',
   'admin.content.edit.noSection': 'Geen rubriek',
   'admin.content.edit.correctionDate': 'Datum van een nieuwe correctie',
@@ -577,6 +579,16 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.error.tier': 'Een betaald niveau vraagt een niveau; dat is er nog niet.',
   'admin.content.publication.title': 'Publicatie',
   'admin.content.publication.locale': 'Taal {locale}',
+  'admin.locale.switch': 'Taal van de inhoud',
+  'admin.locale.state.behind': 'vertaling loopt achter',
+  'admin.locale.state.missing': 'nog geen vertaling',
+  'admin.locale.translate.title': 'Nog geen versie in {locale}',
+  'admin.locale.translate.body':
+    'Begin met een kopie van een andere taal en vertaal die veld voor veld, of begin leeg. De andere talen blijven zoals ze zijn.',
+  'admin.locale.translate.copy': 'Begin vanuit {locale}',
+  'admin.locale.translate.empty': 'Leeg beginnen',
+  'admin.locale.translate.assist':
+    'Met AI-hulp vertaal je daarna elk veld vanuit een andere taal; zo’n vertaling blijft gemarkeerd tot iemand hem goedkeurt.',
   'admin.content.publication.pinnedOlder':
     'Je bewerkt een nieuwere revisie; die gaat niet vanzelf mee.',
   'admin.content.publication.ready': 'Klaar om te publiceren.',

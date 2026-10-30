@@ -10,15 +10,21 @@
 // save through `content.block.insert`, which refuses it with its fields when it is not complete.
 // Rejected: a page of its own per insert (the old `blocks/new`, which left the screen) and
 // inserting a placeholder block with dummy props (stored content nobody wrote).
+//
+// The form shows one locale (#66 PR 4): `formDocument` is the whole save of one post, document
+// fields and blocks, and keeps every other locale as the base revision has it.
 
 import {
   BLOCK_DEFINITIONS,
   BLOCK_TYPES,
   type Block,
   type BlockType,
+  type ContentDocument,
+  type ContentDocumentInput,
   type UseCaseError,
 } from '@mycel/core';
 import { formValues, propsFromForm, type FieldError, type Posted } from '#lib/editor/block-form.js';
+import { documentFrom, type FormValues } from './content-admin.js';
 
 /** The name prefix of a stored block's fields. */
 export const blockPrefix = (id: string): string => `b.${id}.`;
@@ -199,4 +205,25 @@ export function documentFieldIssues(e: UseCaseError): { name: string; message: s
       message: i.message,
     }))
     .filter((i) => i.name);
+}
+
+/**
+ * The document one post of the edit form makes on top of `base`: the document's fields
+ * (`documentFrom`) and every block's (`blocksFrom`), with `editing` the one locale the form shows
+ * (left out: every locale it carries). Blocks are read from the base without a locale the form
+ * took off; the fields of a locale that is taken off in the same post are not read at all.
+ */
+export function formDocument(
+  base: ContentDocument,
+  values: FormValues,
+  post: Posted,
+  today: string,
+  editing?: string | null,
+  skip?: string
+): { document: ContentDocumentInput; blocks: Block[]; errors: FieldError[] } {
+  const doc = documentFrom(base, values, today, editing);
+  const kept = doc.blocks as Block[];
+  const readable = editing === undefined || (!!editing && doc.locales.includes(editing));
+  const read = readable ? blocksFrom(kept, post, skip) : { blocks: kept, errors: [] };
+  return { document: { ...doc, blocks: read.blocks }, blocks: read.blocks, errors: read.errors };
 }

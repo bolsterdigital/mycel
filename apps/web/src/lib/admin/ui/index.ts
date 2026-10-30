@@ -27,6 +27,7 @@ export { default as Icon } from './Icon.svelte';
 export { default as IconSprite } from './IconSprite.svelte';
 export { default as ItemBar } from './page/ItemBar.svelte';
 export { default as KeyReveal } from './form/KeyReveal.svelte';
+export { default as LocaleSwitch } from './nav/LocaleSwitch.svelte';
 export { default as MediaPicker } from './form/MediaPicker.svelte';
 export { default as MetaList } from './display/MetaList.svelte';
 export { default as NavGroup } from './nav/NavGroup.svelte';

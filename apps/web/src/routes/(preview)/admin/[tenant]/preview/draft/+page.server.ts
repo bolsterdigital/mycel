@@ -10,15 +10,14 @@ import {
   projectDocument,
   readinessIssues,
   useCases,
-  type Block,
   type ContentDocument,
 } from '@mycel/core';
 import { resolveDocument, resolveIntro, runtimeSource } from '#lib/blocks/resolve.js';
 import { posted } from '#lib/editor/block-form.js';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { text } from '#lib/server/admin/admin-actions.js';
-import { documentFrom, valuesFromForm } from '#lib/server/content-admin.js';
-import { blocksFrom } from '#lib/server/edit-form.js';
+import { valuesFromForm } from '#lib/server/content-admin.js';
+import { formDocument } from '#lib/server/edit-form.js';
 import {
   PREVIEW_HEADERS,
   previewBase,
@@ -59,16 +58,18 @@ export const actions: Actions = {
       if (e instanceof UseCaseError && e.code === 'forbidden') error(403, 'Forbidden');
       throw e;
     }
-    const input = documentFrom(
+    // The edit form carries every block's fields (#66 PR 2) in the one locale it shows (PR 4);
+    // a block it reads back unchanged keeps its exact props, and every other locale is the
+    // revision's, so previewing a title never normalizes rich text or another locale.
+    const read = formDocument(
       revision.document,
       valuesFromForm(data),
-      new Date().toISOString().slice(0, 10)
+      posted(data),
+      new Date().toISOString().slice(0, 10),
+      data.has('editLocale') ? text(data, 'editLocale') || null : undefined
     );
-    // The edit form carries every block's fields (#66 PR 2); a block it reads back unchanged
-    // keeps its exact props, so previewing a title never normalizes rich text or another locale.
-    const read = blocksFrom(input.blocks as Block[], posted(data));
     if (read.errors.length) error(400, 'Invalid block');
-    input.blocks = read.blocks;
+    const input = read.document;
     const parsed = ContentDocumentInput.safeParse(input);
     if (!parsed.success) error(400, 'Invalid document');
     const doc = parsed.data as ContentDocument;

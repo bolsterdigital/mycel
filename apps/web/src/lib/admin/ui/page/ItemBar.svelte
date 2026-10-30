@@ -3,8 +3,9 @@
      the page header there, so the actions sit in one place on every item. The actions are buttons
      of the edit form through `form=`, so the bar may stand outside it. Without a script it is an
      ordinary bar on top; the edit-screen script of #66 PR 6 may make it stick. The actions wrap
-     as whole buttons (skill ui-action-layout). Rejected: the breadcrumb and page header of the
-     other screens, which put the title twice and the actions under a line of ids. -->
+     as whole buttons (skill ui-action-layout). The locale switch (#66 PR 4) stands with the
+     state, as it says which version the state is of. Rejected: the breadcrumb and page header of
+     the other screens, which put the title twice and the actions under a line of ids. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import Badge from '../feedback/Badge.svelte';
@@ -17,6 +18,7 @@
     stateHref,
     tone = 'neutral',
     level = 1,
+    locales,
     actions,
   }: {
     /** The list this item belongs to. */
@@ -29,6 +31,8 @@
     tone?: 'neutral' | 'info' | 'success' | 'warning' | 'error';
     /** 1 on the edit screen; lower only where the bar is shown as a sample (the catalogue). */
     level?: 1 | 2 | 3;
+    /** The content locale switch, after the state. */
+    locales?: Snippet;
     actions?: Snippet;
   } = $props();
 </script>
@@ -40,6 +44,7 @@
     {#if state && stateHref}<a class="ui-item-bar-state" href={stateHref}
         ><Badge {tone}>{state}</Badge></a
       >{:else if state}<Badge {tone}>{state}</Badge>{/if}
+    {#if locales}{@render locales()}{/if}
   </div>
   {#if actions}
     <div class="ui-actions-host">

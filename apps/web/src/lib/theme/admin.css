@@ -81,10 +81,11 @@
     --control-border-width: 2px;
     --shadow-1: 0 1px 2px rgb(28 25 23 / 0.08);
     --shadow-2: 0 0.5rem 1.5rem rgb(28 25 23 / 0.2);
-    --admin-width: 72rem;
     /* One reading column on an edit screen (#87): title, intro, image and blocks share the width
        of the public column (about 720px), and so does every form. */
     --read-width: 45rem;
+    /* The widest a dialog grows (the media library); the workspace itself has no cap. */
+    --admin-width: 72rem;
     --form-width: var(--read-width);
     --nav-width: minmax(13rem, 15rem);
     --rail-width: 3.5rem;
@@ -257,8 +258,13 @@
   .admin-workspace {
     min-width: 0;
   }
+  /* The workspace stands at a fixed distance from the sidebar and grows with the window (#66
+     PR 4, Jaap 2026-10-30): zoomed out, a centred page of capped width left a growing gap between
+     the navigation and the work. Only running text and forms keep a reading measure
+     (`--read-width`, `--form-width`). Rejected: a larger cap, which only moves the gap. */
   .admin-workspace .page.admin {
-    max-width: var(--admin-width);
+    max-width: none;
+    margin-inline: 0;
     /* Match the original page inset: doubling it consumed the width needed by whole action
        labels at 320 CSS px and 200% text. */
     padding: var(--inset);
