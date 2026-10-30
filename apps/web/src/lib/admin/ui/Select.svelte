@@ -11,6 +11,7 @@
     value,
     hint,
     error,
+    invalid = false,
     required = false,
   }: {
     id: string;
@@ -21,11 +22,13 @@
     value?: string | undefined;
     hint?: string | undefined;
     error?: string | undefined;
+    /** Marks the control invalid when its message stands elsewhere (an error summary). */
+    invalid?: boolean;
     required?: boolean;
   } = $props();
 </script>
 
-<Field {id} {label} {locale} {hint} {error} {required}>
+<Field {id} {label} {locale} {hint} {error} {invalid} {required}>
   {#snippet control(attributes)}
     <select {name} {...attributes}>
       {#each options as option (option.value)}

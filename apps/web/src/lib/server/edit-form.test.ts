@@ -7,6 +7,7 @@ import { BLOCK_DEFINITIONS, BLOCK_TYPES, Block, UseCaseError } from '@mycel/core
 import { formValues, postedValues } from '#lib/editor/block-form.js';
 import {
   blockIssues,
+  documentFieldIssues,
   blockPrefix,
   blocksFrom,
   pendingBlock,
@@ -97,6 +98,24 @@ describe('the one edit form', () => {
     expect(blockIssues(e, [{ id: 'a' }, { id: 'b' }])).toEqual([
       { name: 'b.b.p.text.nl', message: 'x' },
       { name: 'new.p.text.en', message: 'y' },
+    ]);
+  });
+
+  it('puts document issues on the form field that holds them, whatever its tab', () => {
+    const e = new UseCaseError('invalid_input', 'bad', [
+      { path: 'document.seo.canonical', message: 'content.seo.canonical.invalid' },
+      { path: 'document.tags.2', message: 'content.tag.invalid' },
+      { path: 'document.access.teaser.blocks', message: 'content.access.teaser-too-long' },
+      { path: 'document.access.teaser', message: 'content.access.marker-needs-one-paywall' },
+      { path: 'document.defaultLocale', message: 'i18n.default-not-in-locales' },
+      { path: 'document.blocks.0.props.text.nl', message: 'x' },
+    ]);
+    expect(documentFieldIssues(e).map((i) => i.name)).toEqual([
+      'canonical',
+      'tags',
+      'teaserBlocks',
+      'teaser',
+      'locales',
     ]);
   });
 });

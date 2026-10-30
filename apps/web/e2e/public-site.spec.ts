@@ -476,7 +476,7 @@ test.describe('grid-compositions', () => {
       await page.getByRole('button', { name: 'Sign in' }).click();
       await expect(page).toHaveURL(new RegExp(`/content/${saved.item.id}$`));
       const edit = page.url();
-      const href = await page.getByRole('link', { name: /Voorbeeld \(nl\)/ }).getAttribute('href');
+      const href = await page.locator('a[data-preview-link="nl"]').getAttribute('href');
       await page.goto(href!);
       const savedMetrics = await metrics(page);
       expect(savedMetrics.overflow).toBe(false);
@@ -502,6 +502,9 @@ test.describe('grid-compositions', () => {
           form.submit();
         }, saved.item.id);
         await expect(page.locator('main h1')).toHaveText(entry.title);
+        // Measured once the site's stylesheet applies: before \`load\` the prose has the 40rem of
+        // the unstyled fallback (640px), which made this a load-timing flake (#66 PR 3).
+        await page.waitForLoadState('load');
         const draft = await metrics(page);
         expect(draft.overflow).toBe(false);
         expect(draft.prose!.width).toBeCloseTo(savedMetrics.prose!.width, 0);
@@ -511,6 +514,8 @@ test.describe('grid-compositions', () => {
         });
         return;
       }
+      // The preview opens on its toggle (#66 PR 3).
+      await page.getByRole('button', { name: 'Voorbeeld', exact: true }).click();
       const frame = page.frameLocator('[data-live-preview-frame]');
       await expect(frame.locator('main h1')).toHaveText(entry.title);
       // The real editor gives the iframe a narrower container than the monitor. Its own

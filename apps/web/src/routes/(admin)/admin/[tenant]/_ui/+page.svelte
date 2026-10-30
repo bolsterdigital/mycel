@@ -7,6 +7,7 @@
   import {
     Actions,
     Badge,
+    BlockCard,
     Button,
     ItemBar,
     StatusCard,
@@ -22,6 +23,7 @@
     Field,
     Fieldset,
     FileDrop,
+    Icon,
     KeyReveal,
     MetaList,
     NavGroup,
@@ -201,6 +203,42 @@
         <Button variant="secondary" href={here}>{t('admin.block.remove')}</Button>
       </Actions>
     </Panel>
+  </section>
+
+  <section aria-labelledby="ui-block-card">
+    <h2 id="ui-block-card">{t('admin.ui.catalogue.blockCard')}</h2>
+    <BlockCard
+      id="ui-block-card-faq"
+      title="3. {t('admin.block.type.faq')}"
+      text={t('admin.ui.catalogue.blockCard.text')}
+      entries={[t('admin.ui.catalogue.blockCard.q1'), t('admin.ui.catalogue.blockCard.q2')]}
+      empty={t('admin.block.emptySummary')}
+      open
+    >
+      {#snippet actions()}
+        <Button variant="link">{t('admin.block.move.up')}</Button>
+        <Button variant="link">{t('admin.block.move.down')}</Button>
+        <Button variant="link">{t('admin.block.duplicate')}</Button>
+        <ConfirmAction
+          variant="link"
+          label={t('admin.block.remove.short')}
+          question={fill(t('admin.block.remove.ask'), { n: 3 })}
+          confirm={t('admin.block.remove.confirm')}
+        />
+      {/snippet}
+      <p>{t('admin.ui.catalogue.panel.body')}</p>
+    </BlockCard>
+    <details class="ui-block-insert">
+      <summary><Icon name="plus" />{t('admin.block.insert.fold')}</summary>
+    </details>
+    <BlockCard
+      id="ui-block-card-empty"
+      title="4. {t('admin.block.type.heading')}"
+      text=""
+      empty={t('admin.block.emptySummary')}
+    >
+      <p>{t('admin.ui.catalogue.panel.body')}</p>
+    </BlockCard>
   </section>
 
   <section aria-labelledby="ui-table">

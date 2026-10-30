@@ -910,9 +910,11 @@
     gap: var(--space-3);
   }
   /* One reading column for everything an item says (title, intro, image, blocks: about the
-     public column's 720px), a side column of 18 to 20rem beside it, and from 75rem a third column
-     the preview takes when it is open (#87; #66 PR 3 fills it, `data-preview-open` on the grid).
-     Below 60rem everything stands under each other. */
+     public column's 720px) and a side column of 18 to 20rem beside it; below 60rem everything
+     stands under each other. An open live preview (#66 PR 3, `data-preview-open` on the grid) takes
+     the side column's place: beside the reading column from 75rem, under it below that. The side
+     column steps aside while it is open; the state in the ItemBar stays, and its link closes the
+     preview (live-preview-parent.js). */
   @container (min-width: 60rem) {
     .ui-edit {
       grid-template-columns: minmax(0, var(--read-width)) minmax(18rem, 20rem);
@@ -926,14 +928,53 @@
       grid-area: side;
     }
   }
-  @container (min-width: 75rem) {
+  .ui-edit[data-preview-open] > .ui-edit-side {
+    display: none;
+  }
+  /* An open preview needs the room the admin's page width (72rem) would cap: the screen takes
+     the whole workspace, so the 75rem column beside the text can appear on a wide screen. */
+  .admin-workspace .page.admin.ui-edit-page:has(.ui-edit[data-preview-open]) {
+    max-width: none;
+  }
+  @container (min-width: 60rem) {
     .ui-edit[data-preview-open] {
-      grid-template-columns: minmax(0, var(--read-width)) minmax(0, 1fr) minmax(18rem, 20rem);
-      grid-template-areas: 'main preview side';
+      grid-template-columns: minmax(0, var(--read-width));
+      grid-template-areas: 'main' 'preview';
     }
-    .ui-edit[data-preview-open] > .ui-edit-preview {
+    .ui-edit-preview {
       grid-area: preview;
     }
+  }
+  @container (min-width: 75rem) {
+    .ui-edit[data-preview-open] {
+      grid-template-columns: minmax(0, var(--read-width)) minmax(0, 1fr);
+      grid-template-areas: 'main preview';
+    }
+    /* Beside the text it previews, it stays in view while the column scrolls. */
+    .ui-edit[data-preview-open] > .ui-edit-preview {
+      position: sticky;
+      inset-block-start: var(--space-2);
+      max-block-size: calc(100vh - 2 * var(--space-2));
+      overflow: auto;
+    }
+    .ui-edit[data-preview-open] > .ui-edit-preview iframe {
+      min-block-size: 70vh;
+    }
+  }
+  /* The preview toggle exists once live-preview-parent.js has run; it then replaces the links to
+     the saved preview in the bar, which stay inside the preview itself. Its icon follows its
+     state: an eye to show, a crossed-out eye to hide. */
+  .ui-preview-toggle,
+  .ui-preview-toggle[aria-pressed='true'] .ui-preview-toggle-off,
+  .ui-preview-toggle[aria-pressed='false'] .ui-preview-toggle-on,
+  :root[data-live-preview-ready] .ui-item-bar .ui-preview-link {
+    display: none;
+  }
+  :root[data-live-preview-ready] .ui-preview-toggle {
+    display: inline-flex;
+  }
+  .ui-preview-toggle > span {
+    display: inline-flex;
   }
   .ui-edit-main,
   .ui-edit-side {
@@ -979,6 +1020,112 @@
   .ui-panel-body > form {
     display: grid;
     gap: var(--space-2);
+  }
+
+  /* BlockCard (#66 PR 3): a thin head (number, type, actions as light whole buttons that wrap
+     under the title when the card is narrow) above a fold whose summary shows the block as the
+     page will: its thumbnail beside its text, an FAQ's questions one per line. */
+  .ui-block-card {
+    container-type: inline-size;
+    min-width: 0;
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-lg);
+  }
+  .ui-block-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0 var(--space-1);
+    padding: var(--space-0) var(--space-1) var(--space-0) var(--space-2);
+    border-block-end: var(--border-width) solid var(--color-border);
+  }
+  .ui-block-card-title {
+    display: flex;
+    align-items: center;
+    min-height: var(--tap);
+    margin: 0;
+    font-size: var(--step-0);
+    font-weight: 600;
+    color: var(--color-muted-fg);
+  }
+  .ui-block-card-head > .ui-actions-host {
+    flex: 1 1 auto;
+    min-width: min(100%, 14rem);
+    margin-block: 0;
+  }
+  .ui-block-card-head .ui-actions {
+    gap: 0 var(--space-1);
+  }
+  .ui-block-card-fold {
+    margin: 0;
+  }
+  .ui-block-card-fold > summary {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-1);
+    min-height: var(--tap);
+    padding: var(--space-1) var(--space-2);
+    overflow-wrap: anywhere;
+    cursor: pointer;
+  }
+  .ui-block-card-fold > summary > img {
+    flex: none;
+    width: 6rem;
+    height: auto;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-radius: var(--radius);
+  }
+  .ui-block-card-says {
+    display: grid;
+    gap: 0.125rem;
+    min-width: 0;
+  }
+  .ui-block-card-text {
+    font-weight: 600;
+  }
+  .ui-block-card-entry {
+    padding-inline-start: var(--space-1);
+    border-inline-start: 2px solid var(--color-border);
+  }
+  .ui-block-card-empty {
+    color: var(--color-muted-fg);
+  }
+  .ui-block-card-body {
+    display: grid;
+    gap: var(--space-2);
+    padding: 0 var(--space-2) var(--space-2);
+  }
+  /* The insert point between two cards: a light "+ Insert a block" that opens the type and the
+     button in place, at the card's left edge. */
+  .ui-block-insert > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: var(--tap);
+    color: var(--color-link);
+    list-style: none;
+    cursor: pointer;
+  }
+  .ui-block-insert > summary::-webkit-details-marker {
+    display: none;
+  }
+  .ui-block-insert[open] {
+    padding: var(--space-1) var(--space-2);
+    border: var(--border-width) dashed var(--color-border);
+    border-radius: var(--radius-lg);
+  }
+  .ui-block-insert-body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: var(--space-1);
+  }
+  .ui-block-insert-body > .ui-field {
+    flex: 1 1 12rem;
   }
 
   .ui-detail-footer {
@@ -1124,8 +1271,9 @@
     border-inline-start-color: var(--color-primary-bg);
   }
 
-  /* Tabs: without a script every section stands below the other with its heading; the script of
-     #66 PR 6 unhides the tablist and marks the panels. */
+  /* Tabs: without a script every section stands below the other with its heading; tabs.js
+     (#66 PR 3) unhides the tablist, marks the panels and sets `data-tabs`. A panel's heading then
+     repeats its tab, so it steps out of sight and stays a heading to navigate by. */
   .ui-tabs-list {
     display: flex;
     flex-wrap: wrap;
@@ -1162,6 +1310,24 @@
   }
   .ui-tabs-panel + .ui-tabs-panel {
     margin-block-start: var(--space-4);
+  }
+  .ui-tabs-panel[hidden] {
+    display: none;
+  }
+  .ui-tabs[data-tabs] .ui-tabs-panel + .ui-tabs-panel {
+    margin-block-start: 0;
+  }
+  .ui-tabs[data-tabs] .ui-tabs-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .ui-tabs-panel:focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
   }
   /* One rhythm (#87): a heading, the panel's gap, then its content; no extra margin of its own. */
   .ui-tabs-title {
@@ -1292,13 +1458,23 @@
   .ui-status-card .ui-button:not(.secondary) {
     flex: 1 1 100%;
   }
-  .ui-status-card .ui-button.secondary {
+  .ui-status-card .ui-button.secondary,
+  .ui-status-card .ui-actions > .ui-fold > summary {
     padding-inline: 0;
     font-weight: 400;
     color: var(--color-link);
     background: transparent;
     box-shadow: none;
     text-decoration: underline;
+  }
+  .ui-status-card .ui-actions > .ui-fold > summary {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap);
+    cursor: pointer;
+  }
+  .ui-status-card .ui-actions > .ui-fold[open] {
+    flex-basis: 100%;
   }
 
   /* The title of an item: the first thing you see and type, large and without a frame label. */
@@ -1387,6 +1563,12 @@
   }
   .ui-confirm[open] {
     flex-basis: 100%;
+  }
+  /* Closed, the question is out of layout too: Chromium lays out a closed <details>' content, and
+     in a row of light actions (a block card's head) the closed fold is only as wide as its
+     summary, so the hidden danger button would be laid out clipped. */
+  .ui-confirm:not([open]) > .ui-confirm-body {
+    display: none;
   }
   .ui-confirm-body {
     display: grid;
