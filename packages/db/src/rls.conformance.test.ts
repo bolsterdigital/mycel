@@ -424,6 +424,9 @@ describe.skipIf(skip)('row level security conformance', () => {
       );
       expect(grants.rows[0]?.granted).toEqual([]);
       await reader.query('commit');
+      // The 100 ms timeout only proves the hold above. Dropping a partition also locks its
+      // parent, which other suites write to under full load; wait for it like any DDL.
+      await dropper.query('reset lock_timeout');
       await dropper.query(`drop table ${name}`);
       await expect(
         reader.query(`select has_table_privilege('mycel_app', $1, 'select')`, [`public.${name}`])
