@@ -3,6 +3,10 @@
 
 import type { TenantAccess } from '../../entitlements/model.js';
 import type { ApiKeySummary, Member, Operator } from '../../operators/model.js';
+import {
+  DEFAULT_OPERATOR_PREFERENCES,
+  type OperatorPreferences,
+} from '../../operators/preferences.js';
 import type {
   ApiKeyRecord,
   ApiKeyRepository,
@@ -210,5 +214,16 @@ export class MemoryIdentityStore implements IdentityStore {
     const hits = (this.store.loginAttempts.get(slot) ?? 0) + 1;
     this.store.loginAttempts.set(slot, hits);
     return hits <= max;
+  }
+
+  async preferencesOf(operatorId: string): Promise<OperatorPreferences> {
+    return {
+      ...(this.store.operators.get(operatorId)?.preferences ?? DEFAULT_OPERATOR_PREFERENCES),
+    };
+  }
+
+  async setPreferences(operatorId: string, preferences: OperatorPreferences): Promise<void> {
+    const row = this.store.operators.get(operatorId);
+    if (row) row.preferences = { ...preferences };
   }
 }

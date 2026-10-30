@@ -8,6 +8,7 @@ import { Theme } from './contrast.js';
 import './ports.js';
 import { Palette, FONT_PAIRS, HEADING_WEIGHTS, THEME_VERSION } from './model.js';
 import { DEFAULT_THEME } from './presets.js';
+import { DEFAULT_TIME_ZONE, IanaTimeZone } from '../util/time-zone.js';
 
 const Localized = z.record(z.string().min(2).max(12), z.string().trim().min(1).max(240));
 const Footer = z.record(z.string().min(2).max(12), z.string().trim().max(500));
@@ -41,6 +42,14 @@ export const DEFAULT_CHROME: SiteChrome = {
   support: null,
   help: null,
 };
+/**
+ * The general settings of a site (TODO #88): today its time zone, in which the admin plans and
+ * labels times unless an operator chose their own. A document like theme and chrome, so the next
+ * general setting needs no new use case.
+ */
+export const SiteGeneral = z.object({ timeZone: IanaTimeZone }).strict();
+export type SiteGeneral = z.infer<typeof SiteGeneral>;
+export const DEFAULT_GENERAL: SiteGeneral = { timeZone: DEFAULT_TIME_ZONE };
 const version = z.number().int().nonnegative();
 const ResolvedTheme = z
   .object({
@@ -65,6 +74,7 @@ const ResolvedTheme = z
   .strict();
 const ThemeState = z.object({ version, value: ResolvedTheme });
 const ChromeState = z.object({ version, value: SiteChrome });
+const GeneralState = z.object({ version, value: SiteGeneral });
 const conflict = () => {
   throw new UseCaseError('conflict', 'site.settings.conflict');
 };
@@ -116,5 +126,30 @@ export const updateSiteChrome = defineUseCase({
     const next = await ctx.siteSettings.updateChrome(baseVersion, chrome);
     if (next === null) return conflict();
     return { version: next, value: chrome };
+  },
+});
+export const getSiteGeneral = defineUseCase({
+  name: 'site.general.get',
+  kind: 'query',
+  description: 'Read the general settings of this site, such as its time zone.',
+  requires: 'content:read',
+  input: z.object({}).strict(),
+  output: GeneralState,
+  examples: [{ input: {} }],
+  handler: async (ctx) => ctx.siteSettings.general(),
+});
+export const updateSiteGeneral = defineUseCase({
+  name: 'site.general.update',
+  kind: 'command',
+  description: 'Replace the general settings of this site at a known version.',
+  requires: 'content:write',
+  authenticatedOnly: true,
+  input: z.object({ baseVersion: version, general: SiteGeneral }).strict(),
+  output: GeneralState,
+  examples: [{ input: { baseVersion: 0, general: { timeZone: 'Europe/Berlin' } } }],
+  handler: async (ctx, { baseVersion, general }) => {
+    const next = await ctx.siteSettings.updateGeneral(baseVersion, general);
+    if (next === null) return conflict();
+    return { version: next, value: general };
   },
 });

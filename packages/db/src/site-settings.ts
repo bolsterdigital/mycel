@@ -1,4 +1,5 @@
-// The row stays tenant scoped under forced RLS. Every setting on it (theme, chrome, logo, font)
+// The row stays tenant scoped under forced RLS. Every setting on it (theme, chrome, general, logo,
+// font)
 // is a value with its own version, written through one compare-and-set (`writeVersioned`). A
 // column that was never written is null and reads as the current default, so the first write of
 // one setting does not freeze the defaults of the others (TODO #53). Rejected: read, then
@@ -6,8 +7,10 @@
 import type { Kysely, Updateable } from 'kysely';
 import {
   DEFAULT_CHROME,
+  DEFAULT_GENERAL,
   DEFAULT_THEME,
   SiteChrome,
+  SiteGeneral,
   Theme,
   type SiteSettingsRepository,
   type BrandAssetsRepository,
@@ -17,7 +20,8 @@ import {
 import type { Database } from './schema.js';
 
 type Row = Database['site_settings'];
-type VersionColumn = 'theme_version' | 'chrome_version' | 'logo_version' | 'font_version';
+type VersionColumn =
+  'theme_version' | 'chrome_version' | 'general_version' | 'logo_version' | 'font_version';
 
 /**
  * Writes `changes` and moves `version` from `baseVersion` to the next, or returns null when the
@@ -87,6 +91,21 @@ export function siteSettingsRepository(
     updateChrome: (baseVersion, value) =>
       writeVersioned(db, tenantId, 'chrome_version', baseVersion, {
         chrome: JSON.stringify(value),
+      }),
+    async general() {
+      const row = await db
+        .selectFrom('site_settings')
+        .select(['general', 'general_version'])
+        .where('tenant_id', '=', tenantId)
+        .executeTakeFirst();
+      return {
+        version: row?.general_version ?? 0,
+        value: row?.general == null ? DEFAULT_GENERAL : SiteGeneral.parse(row.general),
+      };
+    },
+    updateGeneral: (baseVersion, value) =>
+      writeVersioned(db, tenantId, 'general_version', baseVersion, {
+        general: JSON.stringify(value),
       }),
   };
 }

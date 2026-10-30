@@ -33,7 +33,13 @@ import type { SupporterProjection } from '../../supporters/model.js';
 import type { BrandAsset } from '../../theme/assets.js';
 import type { ResolvedTheme } from '../../theme/model.js';
 import { DEFAULT_THEME } from '../../theme/presets.js';
-import { DEFAULT_CHROME, type SiteChrome } from '../../theme/settings.js';
+import {
+  DEFAULT_CHROME,
+  DEFAULT_GENERAL,
+  type SiteChrome,
+  type SiteGeneral,
+} from '../../theme/settings.js';
+import type { OperatorPreferences } from '../../operators/preferences.js';
 import type { TenantExportRecord } from '../../tenants/exports.js';
 import { platformHostname } from '../../tenants/model.js';
 import type { HostnameRecord, TenantInfo } from '../../tenants/ports.js';
@@ -41,6 +47,7 @@ import type { HostnameRecord, TenantInfo } from '../../tenants/ports.js';
 export interface TenantStore {
   siteTheme: { version: number; value: ResolvedTheme };
   siteChrome: { version: number; value: SiteChrome };
+  siteGeneral: { version: number; value: SiteGeneral };
   brandLogo: { version: number; asset: BrandAsset | null };
   brandFont: { version: number; asset: BrandAsset | null };
   connections: Map<string, ConnectionRecord>;
@@ -97,6 +104,7 @@ export type StoredMedia = NewMedia & { deletedAt: Date | null };
 const emptyTenant = (): TenantStore => ({
   siteTheme: { version: 0, value: DEFAULT_THEME },
   siteChrome: { version: 0, value: DEFAULT_CHROME },
+  siteGeneral: { version: 0, value: DEFAULT_GENERAL },
   brandLogo: { version: 0, asset: null },
   brandFont: { version: 0, asset: null },
   connections: new Map(),
@@ -146,6 +154,8 @@ export interface OperatorRow {
   emailVerifiedAt: Date | null;
   name: string | null;
   lastLoginAt: Date | null;
+  /** Absent until the operator saves preferences (TODO #88). */
+  preferences?: OperatorPreferences;
 }
 
 /** All tenants' data, keyed by tenant id: isolation is by construction, like RLS. */

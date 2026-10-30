@@ -9,6 +9,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import {
+  DEFAULT_OPERATOR_PREFERENCES,
   Invoker,
   UseCaseError,
   activeKey,
@@ -234,6 +235,61 @@ describe.skipIf(skip)('operator and key conformance', () => {
       pending: false,
       name: 'Pending',
     });
+  });
+
+  it('keeps preferences per operator, behind mycel_auth only (#88)', async () => {
+    const one = await identity.login({
+      issuer: ISSUER,
+      subject: `pref-1-${run}`,
+      email: addr('pref-1'),
+      emailVerified: true,
+    });
+    const two = await identity.login({
+      issuer: ISSUER,
+      subject: `pref-2-${run}`,
+      email: addr('pref-2'),
+      emailVerified: true,
+    });
+    expect(await identity.preferencesOf(one.id)).toEqual(DEFAULT_OPERATOR_PREFERENCES);
+    const chosen = {
+      uiLocale: 'nl',
+      timeZone: 'America/New_York',
+      dateFormat: 'absolute',
+    } as const;
+    await identity.setPreferences(one.id, chosen);
+    expect(await identity.preferencesOf(one.id)).toEqual(chosen);
+    expect(await identity.preferencesOf(two.id)).toEqual(DEFAULT_OPERATOR_PREFERENCES);
+    expect(await identity.preferencesOf(uuidv7())).toEqual(DEFAULT_OPERATOR_PREFERENCES);
+    // A login rewrites address and name, never the preferences.
+    await identity.login({
+      issuer: ISSUER,
+      subject: `pref-1-${run}`,
+      email: addr('pref-1'),
+      emailVerified: true,
+    });
+    expect(await identity.preferencesOf(one.id)).toEqual(chosen);
+
+    // The checks refuse what core refuses, and a member's preferences stay out of a tenant
+    // transaction: mycel_app's column grant does not reach them (0030).
+    const refused = await sqlState(
+      operatorDb
+        .updateTable('operators')
+        .set({ date_format: 'sometimes' })
+        .where('id', '=', one.id)
+        .execute()
+    );
+    await invoker.run(useCases.inviteMember, systemPrincipal(a, 't'), {
+      email: addr('pref-1'),
+      capabilities: ['content:read'],
+    });
+    const fromApp = await as(appUrl, async (c) => {
+      await c.query('begin');
+      await c.query(`select set_config('app.tenant_id', $1, true)`, [a]);
+      const read = await sqlState(c.query('select ui_locale, time_zone from operators'));
+      await c.query('rollback');
+      return read;
+    });
+    expect({ refused, fromApp }).toEqual({ refused: '23514', fromApp: '42501' });
   });
 
   it('drops the verification when the address changes, and keys on (issuer, subject)', async () => {
