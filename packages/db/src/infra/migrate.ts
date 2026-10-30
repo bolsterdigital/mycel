@@ -11,7 +11,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
-const MIGRATIONS_DIR = fileURLToPath(new URL('../migrations/', import.meta.url));
+const MIGRATIONS_DIR = fileURLToPath(new URL('../../migrations/', import.meta.url));
 const LOCK_KEY = 4_242_001;
 /** First month with event partitions; older rows (a backfill) need their own range first. */
 export const FIRST_EVENT_MONTH = '2026-10-01';

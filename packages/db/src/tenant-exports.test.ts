@@ -61,10 +61,10 @@ import {
   withTenant,
   type ExportManifest,
 } from './index.js';
-import { claimExportRow, stepExportRow, tenantExportRepository } from './exports.js';
+import { claimExportRow, stepExportRow, tenantExportRepository } from './tenant-exports.js';
 import { toJobRecord } from './jobs.js';
-import type { Database } from './schema.js';
-import { asRole } from './roles.js';
+import type { Database } from './infra/schema.js';
+import { asRole } from './infra/roles.js';
 import { requireDatabase, migrateSchema, testTenant } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');

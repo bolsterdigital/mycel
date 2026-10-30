@@ -26,11 +26,11 @@ import {
   type RecoveryResult,
   type StuckJob,
 } from '@mycel/core';
-import { recordPlatformAudit } from './audit.js';
+import { recordPlatformAudit } from '../audit.js';
 import { uuidv7 } from './ids.js';
-import { JOB_LEASE_SECONDS } from './jobs.js';
-import { MAX_ATTEMPTS } from './outbox.js';
-import type { PlatformActor } from './platform.js';
+import { JOB_LEASE_SECONDS } from '../jobs.js';
+import { MAX_ATTEMPTS } from '../outbox.js';
+import type { PlatformActor } from '../platform.js';
 import type { Database } from './schema.js';
 import { asRole, setRole } from './roles.js';
 

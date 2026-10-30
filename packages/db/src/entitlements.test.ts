@@ -47,7 +47,7 @@ import {
   uuidv7Ids,
   withTenant,
 } from './index.js';
-import { setClientRole } from './roles.js';
+import { setClientRole } from './infra/roles.js';
 import { closeTenantWork, requireDatabase, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl, auth: authUrl } = requireDatabase('app', 'auth');

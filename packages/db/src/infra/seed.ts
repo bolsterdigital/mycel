@@ -20,7 +20,7 @@ import {
   setEntitlements,
   uuidv7,
   uuidv7Ids,
-} from './index.js';
+} from '../index.js';
 import { seedApiKey } from './seed-key.js';
 import {
   FakeDns,

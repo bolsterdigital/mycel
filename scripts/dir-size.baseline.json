@@ -4,7 +4,7 @@
     "apps/web/src/lib/server": 24,
     "packages/api/src": 19,
     "packages/core/src/testing/memory": 16,
-    "packages/db/src": 29,
+    "packages/db/src": 23,
     "scripts": 23
   },
   "exempt": {

@@ -28,7 +28,7 @@ case "$role" in
     fi
     exec node apps/web/build/index.js "$@"
     ;;
-  migrate) exec node packages/db/dist/migrate.js "$@" ;;
+  migrate) exec node packages/db/dist/infra/migrate.js "$@" ;;
   # The self-hoster's command line (packages/api/src/cli.ts): `docker compose run --rm worker
   # mycel setup ...`. Run it in the worker service, the one with DATABASE_URL (ADR 011 rule 1).
   mycel) exec node packages/api/dist/cli.js "$@" ;;

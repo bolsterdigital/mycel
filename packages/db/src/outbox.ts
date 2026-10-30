@@ -16,8 +16,8 @@ import {
   type Subscriber,
 } from '@mycel/core';
 import { reportOrLog, type WorkerHooks } from './jobs.js';
-import type { Database } from './schema.js';
-import { asRole } from './roles.js';
+import type { Database } from './infra/schema.js';
+import { asRole } from './infra/roles.js';
 
 export function outboxEventBus(trx: Kysely<Database>): EventBus {
   return {

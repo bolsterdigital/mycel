@@ -1,7 +1,7 @@
 // Stuck work of one site, for its administrators (TODO #17c, brief observability-c-recovery
 // decisions 2 to 6): what is stuck, the two recoveries for an exhausted job, and the diagnosis to
 // share. The hoster does the same platform-wide through the platform API and CLI, with the same
-// rules (packages/db/src/recovery.ts). Both recoveries are commands, so the Invoker audits them
+// rules (packages/db/src/infra/recovery.ts). Both recoveries are commands, so the Invoker audits them
 // like any other; nobody acts "as" someone else (decision 3).
 
 import { z } from 'zod';

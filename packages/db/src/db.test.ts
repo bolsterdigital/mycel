@@ -36,7 +36,7 @@ import {
   uuidv7,
   uuidv7Ids,
 } from './index.js';
-import { asRole } from './roles.js';
+import { asRole } from './infra/roles.js';
 import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
