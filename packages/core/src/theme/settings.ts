@@ -11,7 +11,6 @@ import { DEFAULT_THEME } from './presets.js';
 import { DEFAULT_TIME_ZONE, IanaTimeZone } from '../util/time-zone.js';
 import { imageIssue } from '../content/service.js';
 import '../media/ports.js';
-import { exampleId } from '../util/ids.js';
 
 const Localized = z.record(z.string().min(2).max(12), z.string().trim().min(1).max(240));
 const Footer = z.record(z.string().min(2).max(12), z.string().trim().max(500));
@@ -190,7 +189,8 @@ export const updateSiteImages = defineUseCase({
   authenticatedOnly: true,
   input: z.object({ baseVersion: version, images: SiteImages }).strict(),
   output: ImagesState,
-  examples: [{ input: { baseVersion: 0, images: { defaultImageId: exampleId(0xd001) } } }],
+  // Clearing the default: an id must name an image of the tenant, which an empty tenant lacks.
+  examples: [{ input: { baseVersion: 0, images: { defaultImageId: null } } }],
   handler: async (ctx, { baseVersion, images }) => {
     // The lock `media.delete` takes: the image cannot be deleted between this check and the usage.
     await ctx.media.lock();
