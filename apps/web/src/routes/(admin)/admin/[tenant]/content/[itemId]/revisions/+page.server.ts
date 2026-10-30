@@ -36,6 +36,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
           )
         : null;
     return {
+      contentType: item.type,
       item: {
         id: item.id,
         title: item.title[item.defaultLocale] ?? Object.values(item.title)[0] ?? '',

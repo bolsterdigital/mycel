@@ -11,11 +11,15 @@ export interface GateRoute {
   within?: string;
   /** Open every `.ui-fold` disclosure before measuring. */
   folds?: boolean;
+  /** Open the admin's ☰ menu (closed by default at 320 CSS px) before measuring. */
+  menu?: boolean;
 }
 
 /** Admin routes, measured signed in as the seeded tenant admin in both admin locales. */
 export const ADMIN_ROUTES: GateRoute[] = [
-  { path: '/admin/probe', within: 'main' },
+  { path: '/admin/probe', menu: true },
+  { path: '/admin/probe/leden', within: 'main' },
+  { path: '/admin/probe/domeinen', within: 'main' },
   { path: '/admin/probe/content?type=page' },
   { path: '/admin/probe/content/new' },
   ...['overview', 'overview?view=list', 'detail', 'edit', 'settings', 'form', 'states'].map(

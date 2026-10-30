@@ -41,7 +41,10 @@ async function signInToFreshSite(page: Page) {
     })
   );
   await login(page, `${base(page)}/assist`, email);
-  await expect(page.getByText(email, { exact: true })).toBeVisible();
+  // Signed in as this member; at 320 CSS px the address sits in the closed ☰ menu (#66 PR 1).
+  await expect(
+    page.locator('.admin-sidebar-bottom').getByText(email, { exact: true })
+  ).toBeAttached();
 }
 
 const FAKE_MODEL = { assistProviderLabel: 'Fake model' };

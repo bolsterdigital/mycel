@@ -27,8 +27,9 @@ import { requireApi } from './lib/api';
 // Operator admin (TODO #7), the seed of the "publish" flow in testing.md: login through the mock
 // IdP as e2e-admin@probe.test (scripts/e2e.mjs seeds that admin and starts the IdP), access by
 // membership, and an API key made in the admin that works over HTTP until it is revoked there.
-// Runs without JavaScript and under axe like the signup spec. The overview with members, domains
-// and keys is a route of the generic UI gate (routes.ts).
+// Runs without JavaScript and under axe like the signup spec. The dashboard and the members and
+// domains pages (moved verbatim from the tenant home in #66 PR 1) are routes of the generic UI
+// gate (routes.ts).
 test.describe('admin', () => {
   test.use({
     locale: 'nl-NL',
@@ -50,8 +51,8 @@ test.describe('admin', () => {
     page,
     context,
   }) => {
-    await login(page, '/admin/probe');
-    await expect(page.getByRole('heading', { level: 1, name: 'Probe' })).toBeVisible();
+    await login(page, '/admin/probe/leden');
+    await expect(page.getByRole('heading', { level: 1, name: 'Leden' })).toBeVisible();
     await expect(
       page.locator('.admin-sidebar-bottom').getByText('e2e-admin@probe.test')
     ).toBeVisible();
@@ -81,7 +82,7 @@ test.describe('admin', () => {
     expect((await api('/v1/tenant.key.list', token)).status).toBe(403);
 
     // Shown once: the next visit lists the key by its prefix only.
-    await page.goto('/admin/probe');
+    await page.goto('/admin/probe/leden');
     await expect(page.locator('.token-value')).toHaveCount(0);
     await expect(page.getByText(token.slice(0, 12))).toBeVisible();
 
@@ -144,7 +145,7 @@ test.describe('admin', () => {
 
   test('an admin action posted from another origin is refused', async ({ request, baseURL }) => {
     const post = (origin: string) =>
-      request.post('/admin/probe?/createKey', {
+      request.post('/admin/probe/leden?/createKey', {
         headers: { origin, 'content-type': 'application/x-www-form-urlencoded' },
         data: 'name=evil&capabilities=content%3Aread',
         maxRedirects: 0,
@@ -219,7 +220,15 @@ test.describe('admin-shell', () => {
     });
   });
 
+  /** At 320 CSS px the navigation is one ☰ bar, closed on every page load (#66 PR 1). */
+  async function openMenu(page: Page) {
+    const summary = page.locator('.admin-menu > summary');
+    if ((await summary.isVisible()) && (await page.locator('.admin-menu[open]').count()) === 0)
+      await summary.click();
+  }
+
   async function checkShell(page: Page, name: string, current: string) {
+    await openMenu(page);
     await expect(page.locator('.admin-site-name')).toHaveText(name);
     await expect(
       page
@@ -258,7 +267,7 @@ test.describe('admin-shell', () => {
     page,
   }) => {
     await login(page, '/admin/probe', email);
-    await checkShell(page, 'Probe', 'Overview');
+    await checkShell(page, 'Probe', 'Dashboard');
     await page
       .getByRole('navigation', { name: 'Site navigation' })
       .getByRole('link', { name: 'Pages' })
@@ -269,17 +278,17 @@ test.describe('admin-shell', () => {
     await checkShell(page, 'Probe', 'Pages');
     await page
       .getByRole('navigation', { name: 'Site navigation' })
-      .getByRole('link', { name: 'Manage media' })
+      .getByRole('link', { name: 'Media' })
       .click();
-    await checkShell(page, 'Probe', 'Manage media');
+    await checkShell(page, 'Probe', 'Media');
     await page
       .getByRole('navigation', { name: 'Site navigation' })
-      .getByRole('link', { name: 'Site settings' })
+      .getByRole('link', { name: 'Settings' })
       .click();
     await expect(page).toHaveURL(/\/admin\/probe\/site$/);
     await page.getByRole('link', { name: 'Back to your sites' }).click();
     await page.getByRole('main').getByRole('link', { name: 'Second editorial site' }).click();
-    await checkShell(page, 'Second editorial site', 'Overview');
+    await checkShell(page, 'Second editorial site', 'Dashboard');
     await page
       .getByRole('navigation', { name: 'Site navigation' })
       .getByRole('link', { name: 'Pages' })
@@ -287,6 +296,77 @@ test.describe('admin-shell', () => {
     await expect(page.locator('#content-table tbody tr')).toHaveCount(0);
     await checkShell(page, 'Second editorial site', 'Pages');
     await expect(page.locator('body')).not.toContainText('Probe');
+  });
+
+  // #66 PR 1: the dashboard first, then three groups with short labels and icons; an article is
+  // marked as an article in its list, its editor and its writer. Axe in both schemes.
+  test('the dashboard has six widgets and the navigation three groups', async ({ page }) => {
+    await login(page, '/admin/probe', email);
+    await checkShell(page, 'Probe', 'Dashboard');
+    await expect(page.locator('.admin-menu > summary')).toBeHidden();
+    await expect(page.locator('.ui-dashboard > .ui-widget')).toHaveCount(6);
+    await expect(page.locator('.ui-widget.empty')).toHaveCount(5);
+    // Two columns on a wide screen, never three (brief edit-screen § 4).
+    expect(
+      await page
+        .locator('.ui-dashboard > .ui-widget')
+        .evaluateAll(
+          (nodes) => new Set(nodes.map((n) => Math.round(n.getBoundingClientRect().left))).size
+        )
+    ).toBe(2);
+    await expect(page.getByRole('region', { name: 'Usage and limits' })).toContainText(
+      'Supporters'
+    );
+    await expect(page.getByRole('region', { name: 'Waiting for you' })).toContainText(
+      'Coming later.'
+    );
+    const nav = page.getByRole('navigation', { name: 'Site navigation' });
+    for (const [group, links] of [
+      ['Content', ['Pages', 'Articles']],
+      ['Library', ['Media']],
+      [
+        'Manage',
+        ['Settings', 'Members', 'Domains', 'Connections', 'AI assistance', 'Export', 'Status'],
+      ],
+    ] as const)
+      await expect(nav.getByRole('list', { name: group }).getByRole('link')).toHaveText([...links]);
+    await expect(nav.getByRole('link', { name: 'Overview' })).toHaveCount(0);
+    await expect(page.locator('.admin-site-name')).toHaveAttribute('href', '/admin/probe');
+    if (isA11y()) await expectNoAxeViolations(page, { dark: true });
+
+    await nav.getByRole('link', { name: 'Articles' }).click();
+    await checkShell(page, 'Probe', 'Articles');
+    if (isA11y()) await expectNoAxeViolations(page, { dark: true });
+    // The article editor loads no live preview, unlike the page editor checkShell expects, so
+    // its mark is checked here directly.
+    await page.locator('#content-table tbody th a').first().click();
+    await expect(nav.getByRole('link', { name: 'Articles' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
+    await page.goto(`${new URL(page.url()).pathname}/write`);
+    await expect(nav.getByRole('link', { name: 'Articles' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
+    await expect(nav.getByRole('link', { name: 'Pages' })).not.toHaveAttribute('aria-current');
+  });
+
+  test.describe('narrow dashboard', () => {
+    test.use({ viewport: NARROW });
+    test('stacks the widgets in one column behind a closed ☰ bar', async ({ page }) => {
+      await login(page, '/admin/probe', email);
+      await expect(page.locator('.admin-menu')).not.toHaveAttribute('open');
+      await expect(page.getByRole('navigation', { name: 'Site navigation' })).toBeHidden();
+      const lefts = await page
+        .locator('.ui-dashboard > .ui-widget')
+        .evaluateAll(
+          (nodes) => new Set(nodes.map((n) => Math.round(n.getBoundingClientRect().left))).size
+        );
+      expect(lefts).toBe(1);
+      await page.locator('.admin-menu > summary').click();
+      await checkShell(page, 'Probe', 'Dashboard');
+    });
   });
 
   test.describe('narrow navigation and action labels', () => {
@@ -308,18 +388,22 @@ test.describe('admin-shell', () => {
     });
   });
 
-  /** The overview and an editor at 320 CSS px and 200% text: reflow, targets and whole labels. */
+  /** The members page and an editor at 320 CSS px and 200% text: reflow, targets and whole labels. */
   async function narrowOverview(page: Page) {
-    await login(page, '/admin/probe', email);
+    await login(page, '/admin/probe/leden', email);
     await setTextSize(page, '200%');
+    // Closed by default on a phone; the ☰ bar opens and closes it from the keyboard.
+    await expect(page.locator('.admin-menu')).not.toHaveAttribute('open');
+    await expect(page.getByRole('navigation', { name: 'Site navigation' })).toBeHidden();
     const menu = page.getByText('Menu', { exact: true });
     await menu.focus();
     await page.keyboard.press('Enter');
+    await expect(page.locator('.admin-menu')).toHaveAttribute('open');
+    await page.keyboard.press('Enter');
     await expect(page.locator('.admin-menu')).not.toHaveAttribute('open');
     await page.keyboard.press('Enter');
-    await expect(page.locator('.admin-menu')).toHaveAttribute('open');
-    // The whole overview, the long key's revoke button included (TODO #63).
-    await layoutGate(page, 'overview with the menu open');
+    // The whole members page, the long key's revoke button included (TODO #63).
+    await layoutGate(page, 'members with the menu open');
     await page
       .getByRole('navigation', { name: 'Site navigation' })
       .getByRole('link', { name: 'Pages' })
@@ -334,8 +418,8 @@ test.describe('admin-shell', () => {
     test('keeps the active section and whole navigation labels at 200% text', async ({ page }) => {
       await login(page, '/admin/probe', email);
       await setTextSize(page, '200%');
-      await checkShell(page, 'Probe', 'Overzicht');
-      await layoutGate(page, 'overview');
+      await checkShell(page, 'Probe', 'Dashboard');
+      await layoutGate(page, 'dashboard with the menu open');
       await page
         .getByRole('navigation', { name: 'Sitenavigatie' })
         .getByRole('link', { name: 'Pagina’s' })
@@ -417,7 +501,7 @@ test.describe('status', () => {
     const ids = [await stuckJob(retried), await stuckJob(closed)];
     try {
       await login(page, '/admin/probe');
-      await page.getByRole('link', { name: 'Status en vastgelopen werk' }).click();
+      await page.getByRole('link', { name: 'Status', exact: true }).click();
       await expect(page.getByRole('heading', { level: 1, name: 'Status' })).toBeVisible();
       await expect(card(page, retried)).toContainText('10 van 10');
       await expect(card(page, retried)).toContainText('delivery failed for [email]');

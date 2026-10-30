@@ -60,6 +60,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
   const index = doc.blocks.findIndex((b) => b.id === req.anchor);
   if (req.anchor && index < 0) error(404, 'Not found');
   return {
+    contentType: item.type,
     request: req,
     position: index + 1,
     item: {

@@ -110,7 +110,7 @@ test('an operator uploads, sees, edits, downloads and deletes an image', async (
   request,
 }) => {
   await login(page, '/admin/probe');
-  await page.getByRole('link', { name: 'Media beheren' }).click();
+  await page.getByRole('link', { name: 'Media', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Media' })).toBeVisible();
   // Only the thumbnail enhancement of the file field; the upload works without it.
   expect(await page.locator('script:not([src="/_admin/file-preview.js"])').count()).toBe(0);
@@ -307,7 +307,7 @@ test('a media editor can use the library without tenant administration rights', 
   context,
 }) => {
   const email = `media-editor-${test.info().project.name}-${Date.now()}@probe.test`;
-  await login(page, '/admin/probe');
+  await login(page, '/admin/probe/leden');
   const invite = page.locator('form[action="?/invite"]');
   await invite.getByLabel('E-mailadres (verplicht)', { exact: true }).fill(email);
   await invite.getByLabel('media:read', { exact: true }).check();
@@ -327,7 +327,7 @@ test('a media editor can use the library without tenant administration rights', 
     await remove(page, id, filename);
   } finally {
     await context.clearCookies();
-    await login(page, '/admin/probe');
+    await login(page, '/admin/probe/leden');
     const member = page.locator('form', { has: page.getByRole('heading', { name: email }) });
     await member.locator('button[formaction="?/remove"]').click();
     await expect(page.getByRole('status')).toContainText('Lid verwijderd');

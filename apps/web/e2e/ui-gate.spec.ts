@@ -25,6 +25,7 @@ test.describe('ui-gate', () => {
   test.use({ viewport: NARROW });
 
   const measure = async (page: Page, route: GateRoute, text: string) => {
+    if (route.menu) await page.locator('.admin-menu > summary').click();
     if (route.folds) {
       const folds = page.locator('.ui-fold > summary');
       for (let i = 0; i < (await folds.count()); i++) await folds.nth(i).click();
