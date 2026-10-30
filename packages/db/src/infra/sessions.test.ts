@@ -1,7 +1,9 @@
 // The foreign-session warning of the test preflight and the e2e runner: a pool from `createDb`
 // names its process, `foreignSessions` lists it and never the asking session, and the warning names
 // it with role and age. Other suites run in parallel, so the database part only looks for its own
-// named sessions, never for an empty list. Skips without DATABASE_URL.
+// named sessions, never for an empty list. An asker without the owner's privileges (`mycel_app`)
+// still finds the owner's session: Postgres hides its `backend_type`, not its name (#100). Skips
+// without DATABASE_URL.
 
 import pg from 'pg';
 import { sql } from 'kysely';
@@ -16,7 +18,7 @@ import {
   type ForeignSession,
 } from './sessions.js';
 
-const { skip, operator: operatorUrl } = requireDatabase();
+const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
 describe('sessionsWarning', () => {
   const now = new Date('2026-10-30T12:00:00Z');
@@ -64,6 +66,7 @@ describe('sessionsWarning', () => {
 
 describe.skipIf(skip)('foreignSessions', () => {
   const asking = new pg.Client({ connectionString: operatorUrl });
+  const askingAsApp = new pg.Client({ connectionString: appUrl });
   const name = `sessions-test ${runSuffix()}`;
   const before = process.env.PGAPPNAME;
   process.env.PGAPPNAME = name;
@@ -74,6 +77,7 @@ describe.skipIf(skip)('foreignSessions', () => {
   afterAll(async () => {
     await db.destroy();
     await asking.end();
+    await askingAsApp.end();
   });
 
   it('lists a createDb pool by its name and leaves the asking session out', async () => {
@@ -85,5 +89,15 @@ describe.skipIf(skip)('foreignSessions', () => {
     expect(sessions.filter((s) => s.application === name)).toHaveLength(1);
     expect(sessions.find((s) => s.application === name)?.since).toBeInstanceOf(Date);
     expect(sessions.map((s) => s.pid)).not.toContain(own?.pid);
+  });
+
+  it("names the owner's session to an asker that does not share its privileges", async () => {
+    await askingAsApp.connect();
+    await sql`select 1`.execute(db);
+    const sessions = await foreignSessions(askingAsApp);
+    const owner = sessions.find((s) => s.application === name);
+
+    expect(owner).toMatchObject({ application: name, pid: expect.any(Number) });
+    expect(sessions.every((s) => s.user)).toBe(true);
   });
 });

@@ -27,13 +27,20 @@ export type ForeignSession = {
   since: Date | null;
 };
 
-/** The other client sessions on `db`'s current database, oldest first; this one excluded. */
+/**
+ * The other client sessions on `db`'s current database, oldest first; this one excluded. For a
+ * session of a role the asker does not have the privileges of (`mycel_app` asking about the
+ * owner), Postgres shows only name, role and pid and nulls the rest, `backend_type` included; so
+ * a client is any row with a role (`usesysid`, which background processes lack) whose type is
+ * hidden or `client backend` (#100). Such a row comes back without state and age.
+ */
 export async function foreignSessions(db: pg.ClientBase | pg.Pool): Promise<ForeignSession[]> {
   const { rows } = await db.query<ForeignSession>(
     `select pid, usename as "user", application_name as application, state,
             backend_start as since
      from pg_stat_activity
-     where datname = current_database() and backend_type = 'client backend'
+     where datname = current_database() and usesysid is not null
+       and coalesce(backend_type, 'client backend') = 'client backend'
        and pid <> pg_backend_pid()
      order by backend_start nulls last, pid`
   );
