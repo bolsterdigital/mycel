@@ -1,8 +1,8 @@
-// Who else is connected to the database a local test run is about to use (TODO #27). The local
-// database is shared by every checkout on the machine, and a forgotten `npm run dev` or an
-// orphaned API from an earlier session keeps its worker draining every tenant's outbox: a suite
-// that waits for its own outbox row or mail then fails far from the diff (PR #167). The test
-// preflight and the e2e runner print these sessions before they start, by name, and go on.
+// Who else is connected to the database a local test run is about to use. The local database is
+// shared by every checkout on the machine, and a forgotten `npm run dev` or an orphaned API from an
+// earlier session keeps its worker draining every tenant's outbox: a suite that waits for its own
+// outbox row or mail then fails far from the diff (PR #167). The test preflight and the e2e runner
+// print these sessions before they start, by name, and go on.
 // Rejected: refusing to run, which would forbid `npm run dev` next to the tests; and naming the
 // client process through `ss`/`lsof` on its port, which sees nothing behind Docker's NAT. Instead
 // every pool `createDb` opens names its own process (`applicationName`).

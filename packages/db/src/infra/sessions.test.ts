@@ -1,7 +1,7 @@
-// The foreign-session warning of the test preflight and the e2e runner (TODO #27): a pool from
-// `createDb` names its process, `foreignSessions` lists it and never the asking session, and the
-// warning names it with role and age. Other suites run in parallel, so the database part only
-// looks for its own named sessions, never for an empty list. Skips without DATABASE_URL.
+// The foreign-session warning of the test preflight and the e2e runner: a pool from `createDb`
+// names its process, `foreignSessions` lists it and never the asking session, and the warning names
+// it with role and age. Other suites run in parallel, so the database part only looks for its own
+// named sessions, never for an empty list. Skips without DATABASE_URL.
 
 import pg from 'pg';
 import { sql } from 'kysely';

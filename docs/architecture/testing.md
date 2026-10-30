@@ -105,6 +105,8 @@ CI starts every run on an empty database; a laptop or the dev server reuses one,
 
 A local run is no proof for the layout gate. Text measurement depends on the installed fonts, so a button that fits at 320 CSS px and 200% text on a laptop or the dev server can be clipped on the CI runner (PR #175); the CI run on the PR's head is the evidence for a UI change.
 
+Run the local `verify` after committing, not before. Gates that read `git ls-files` (the `TODO #` baseline among them) see only committed files, so a green run over an uncommitted change can still turn red in CI (PR #179).
+
 ## What a PR needs
 
 The PR description names the conformance suite that grew (or says why none did), the hand-written invariants added, and what could not be run locally. Review reads the fixtures first: if the examples are right, the generic suites have already read the rest. The pull request template asks for exactly that, plus the block `scripts/review-signals.mjs` prints; how a reviewer uses it to pick at most one extra counterproof is [review.md](review.md).
