@@ -51,7 +51,8 @@ describe('MCP front', () => {
     });
 
     const res = await client.readResource({ uri: 'mycel://published/page/signup' });
-    const page = String(res.contents[0]?.text);
+    const content = res.contents[0];
+    const page = String(content && 'text' in content ? content.text : undefined);
     expect(JSON.parse(page)).toMatchObject({ slug: 'signup', locale: 'nl' });
     expect(page).not.toContain('EN-DRAFT-MARKER');
   });

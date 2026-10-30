@@ -37,6 +37,8 @@ describe.skipIf(skip)('supporter conformance', () => {
     ids: uuidv7Ids,
     signer: new FakeSigner(),
     inputHasher: new FakeInputHasher(),
+    dns: new FakeDns(),
+    platform: memoryPlatform,
   });
   const invoker = new Invoker(buildRegistry(), uow);
   const run = runSuffix();

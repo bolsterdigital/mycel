@@ -20,6 +20,7 @@ import {
   type JobRecord,
   type MailMessage,
   type Mailer,
+  type JobOutcome,
 } from '@mycel/core';
 import {
   FakeDns,
@@ -191,7 +192,7 @@ describe.skipIf(skip)('mail.reconcile against Postgres', () => {
     await setStatus(operatorDb, tenantB, 'suspended', testPlatformActor);
     try {
       const before = Date.now();
-      const outcome = await handlerFor(provider)(jobFor(event));
+      const outcome = (await handlerFor(provider)(jobFor(event))) as JobOutcome;
       expect(outcome.next!.getTime() - before).toBeGreaterThanOrEqual(24 * 60 * 60 * 1000 - 1000);
       expect(provider.delivered).toEqual([]);
     } finally {

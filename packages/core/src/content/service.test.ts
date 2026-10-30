@@ -3,6 +3,7 @@
 // against Postgres, where locks and RLS are real.
 
 import { beforeEach, describe, expect, it } from 'vitest';
+import type { z } from 'zod';
 import { Invoker } from '../invoke.js';
 import { anonymousPrincipal, systemPrincipal, type Principal } from '../principal.js';
 import { FakeClock, MemoryUnitOfWork, TENANT, principal, probeForm } from '../testing/index.js';
@@ -52,8 +53,11 @@ describe('content items', () => {
     admin = systemPrincipal(TENANT, 'test');
   });
 
-  const create = (document = pageDoc(), slug = 'about', p = admin) =>
-    invoker.run(useCases.createItem, p, { slug, document });
+  const create = (
+    document: z.input<typeof useCases.createItem.input>['document'] = pageDoc(),
+    slug = 'about',
+    p = admin
+  ) => invoker.run(useCases.createItem, p, { slug, document });
 
   it('creates a draft with a first revision attributed to the actor, and assigns block ids', async () => {
     const { item, revision } = await create({

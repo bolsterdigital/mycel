@@ -182,6 +182,7 @@ describe('translation boundary', () => {
             itemId: accepted.item.id,
             revisionId: removed.revision.id,
             locale: 'en',
+            // @ts-expect-error: the strict input refuses a field it does not know
             at: '2030-01-01T00:00:00Z',
           })
         ).rejects.toMatchObject({ code: 'invalid_input' });
@@ -560,7 +561,7 @@ describe('translation boundary', () => {
   it('sends only selected Markdown, rejects changed structure, and needs a human publisher', async () => {
     const { uow, invoker, model, created, run } = await setup();
     const source = {
-      type: 'doc',
+      type: 'doc' as const,
       content: [
         {
           type: 'paragraph',
@@ -664,7 +665,10 @@ describe('translation boundary', () => {
         locale: 'en',
       })
     ).rejects.toThrow();
-    const agent = { ...operator, actor: { kind: 'system' as const, name: 'agent' } };
+    const agent = {
+      ...operator,
+      actor: { kind: 'agent' as const, sessionId: 'session', keyId: 'key' },
+    };
     await expect(
       invoker.run(useCases.approveTranslation, agent, {
         itemId: created.item.id,

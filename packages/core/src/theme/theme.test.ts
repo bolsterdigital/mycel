@@ -9,12 +9,13 @@ import { anonymousPrincipal, systemPrincipal } from '../principal.js';
 import { MemoryUnitOfWork, TENANT } from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { Theme, checkTheme, contrastRatio, resolveTheme } from './contrast.js';
-import { THEME_RANGES, ThemeInput, type Palette } from './model.js';
+import { THEME_RANGES, THEME_VERSION, ThemeInput, type Palette } from './model.js';
 import { DEFAULT_THEME, THEME_PRESETS } from './presets.js';
 
 const light = DEFAULT_THEME.palettes.light;
 const dark = DEFAULT_THEME.palettes.dark;
-const withLight = (patch: Partial<Palette>) => ({
+const withLight = (patch: Partial<Palette>): ThemeInput => ({
+  version: THEME_VERSION,
   palettes: { light: { ...light, ...patch }, dark },
 });
 
@@ -82,6 +83,7 @@ describe('checkTheme', () => {
 
   it('checks dark on its own: a failing dark pair is invalid while light is fine', () => {
     const report = checkTheme({
+      version: THEME_VERSION,
       palettes: { light, dark: { ...dark, link: '#2b2b30' } },
     });
     expect(report.valid).toBe(false);
