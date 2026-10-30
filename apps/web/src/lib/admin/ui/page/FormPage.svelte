@@ -2,8 +2,8 @@
      groups and save and cancel always in the same place, at the end of the form, save first. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import Actions from './Actions.svelte';
-  import Button from './Button.svelte';
+  import Actions from '../display/Actions.svelte';
+  import Button from '../display/Button.svelte';
   import PageHeader from './PageHeader.svelte';
 
   type Crumb = { label: string; href?: string | undefined };

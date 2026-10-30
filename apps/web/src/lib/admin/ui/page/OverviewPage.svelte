@@ -6,10 +6,10 @@
      takes `listTitle` as its caption does the same; a different one (Media: "Files") shows. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import EmptyState from './EmptyState.svelte';
+  import EmptyState from '../feedback/EmptyState.svelte';
   import PageHeader from './PageHeader.svelte';
-  import Pagination from './Pagination.svelte';
-  import ViewSwitch from './ViewSwitch.svelte';
+  import Pagination from '../nav/Pagination.svelte';
+  import ViewSwitch from '../nav/ViewSwitch.svelte';
 
   type Crumb = { label: string; href?: string | undefined };
   type View = { href: string; label: string; current?: boolean };

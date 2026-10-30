@@ -1,6 +1,5 @@
 {
   "ceilings": {
-    "apps/web/src/lib/admin/ui": 45,
     "packages/core/src/testing/memory": 16,
     "packages/db/src": 23
   },

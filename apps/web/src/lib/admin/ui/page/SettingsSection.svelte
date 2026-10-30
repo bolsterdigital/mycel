@@ -7,9 +7,9 @@
      leaving the page unsaved (brief #81); without the script nothing changes. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import Actions from './Actions.svelte';
-  import Button from './Button.svelte';
-  import Notice from './Notice.svelte';
+  import Actions from '../display/Actions.svelte';
+  import Button from '../display/Button.svelte';
+  import Notice from '../feedback/Notice.svelte';
 
   let {
     id,

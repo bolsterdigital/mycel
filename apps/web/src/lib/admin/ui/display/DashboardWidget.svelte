@@ -5,7 +5,7 @@
      link, media slot and footer a widget does not use, and whose h3 sits under no h2 here. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { ui } from '../../../i18n/index.js';
+  import { ui } from '../../../../i18n/index.js';
 
   let {
     id,

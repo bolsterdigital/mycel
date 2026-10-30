@@ -7,7 +7,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import Actions from './Actions.svelte';
-  import Badge from './Badge.svelte';
+  import Badge from '../feedback/Badge.svelte';
 
   let {
     id,

@@ -6,7 +6,7 @@
      a <dialog open> (not modal without a script, and the token belongs to the page that made it). -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { ui } from '../../../i18n/index.js';
+  import { ui } from '../../../../i18n/index.js';
 
   let {
     id,

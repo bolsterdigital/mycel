@@ -1,7 +1,7 @@
 <!-- Where this screen sits: an ordered list in a labelled nav; the last item is the current page,
      marked with aria-current and not a link. -->
 <script lang="ts">
-  import { ui } from '../../../i18n/index.js';
+  import { ui } from '../../../../i18n/index.js';
 
   let {
     locale,
