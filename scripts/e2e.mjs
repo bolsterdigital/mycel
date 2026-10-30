@@ -625,7 +625,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
       });
   }
   // An author and a section beyond the first page of the admin's pickers (a hundred, newest
-  // first), with 101 newer ones after them, for content-admin.spec.ts (review of PR #45). Seeded
+  // first), with 101 newer ones after them, for content-admin.spec.ts. Seeded
   // once: every later author or section is newer still. Here and not in the spec, so a run does
   // not flood the audit log that the status part of admin.spec.ts reads.
   if (!(await uow.run(admin, (ctx) => ctx.authors.findBySlug('e2e-ver-auteur')))) {

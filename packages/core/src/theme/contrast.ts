@@ -110,7 +110,7 @@ export function checkTheme(input: ThemeInput): ThemeReport {
 
 /**
  * A theme as every write stores it: the structure of `ThemeInput`, contrast that passes, every
- * default explicit. There is no theme write yet (#11); this is the schema it will use.
+ * default explicit; `site.theme.update` parses with it (`theme/settings.ts`).
  */
 export const Theme = ThemeInput.superRefine((input, ctx) => {
   for (const issue of checkTheme(input).issues)

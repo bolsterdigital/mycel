@@ -11,7 +11,7 @@
 // (core rejects a value for a locale the document does not have).
 //
 // Authors and the section are picked from a bounded page of the site's directory, which need not
-// hold what the document already has (review of PR #45). So the edit page lists the document's
+// hold what the document already has. So the edit page lists the document's
 // own authors first, in its order, resolved one by one, and its section even when the page lacks
 // it (`withAssigned`); and `documentFrom` keeps the order of the authors that stay, adding new
 // ones after them. A save that only changes the title then keeps both. Rejected: a hidden field

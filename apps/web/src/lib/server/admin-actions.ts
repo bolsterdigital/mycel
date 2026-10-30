@@ -1,8 +1,7 @@
 // The form-action plumbing every admin page shares: run one use case as the operator and turn a
 // UseCaseError into a form failure with catalog copy. A refusal by an entitlement or a
-// suspension names what was refused, never a price (ADR 015 rule 3). Moved here from the tenant
-// page when the media page (TODO #10b) became the second user. Rejected: a copy per page, which
-// lets the error mapping of two admin pages drift apart.
+// suspension names what was refused, never a price (ADR 015 rule 3). Rejected: a copy per page,
+// which lets the error mapping of the admin pages drift apart.
 import { fail, type ActionFailure } from '@sveltejs/kit';
 import { UseCaseError, type Principal, type UseCaseErrorCode } from '@mycel/core';
 import { requireTenantPrincipal } from './admin.js';

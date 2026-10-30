@@ -6,9 +6,9 @@
 // source file of the packages and apps, tests and the e2e suite included: a test enters a role
 // with `asRole`, `setRole`, `enterTenant` or, on a raw `pg` client, `setClientRole` (testing.md
 // rule 3). The files named below may switch by hand, each with its reason: the suites that test
-// the switch itself, and what a helper cannot express. Comments may name the statement. The same holds for the other way to change the platform: a
-// tenant row is inserted only in `packages/db/src/platform.ts`, where every creation writes its
-// audit row (TODO #74 removed `upsertTenant`, a second path without one). Run by
+// the switch itself, and what a helper cannot express. Comments may name the statement. The same
+// holds for the other way to change the platform: a tenant row is inserted only in
+// `packages/db/src/platform.ts`, where every creation writes its audit row. Run by
 // `npm run lint:infra`, offline.
 // Rejected: a grep in the workflow, which no test covers and which counts the comments too.
 
@@ -37,10 +37,10 @@ export const EXCEPTIONS = new Map([
   ['packages/db/src/migrate.ts', /pg_advisory_(un)?lock\(/i],
   // The suites that test the switch or the lock itself: every role against every policy, the
   // migration suites on a bare client at a past schema, the helper's own lock.
-  ['packages/db/src/rls.conformance.test.ts', PATTERN],
-  ['packages/db/src/content-migration.test.ts', PATTERN],
-  ['packages/db/src/content-refs-migration.test.ts', PATTERN],
-  ['packages/db/src/consent-snapshot-migration.test.ts', PATTERN],
+  ['packages/db/src/rls.conformance.test.ts', /set local role|reset role/i],
+  ['packages/db/src/content-migration.test.ts', /set local role|reset role/i],
+  ['packages/db/src/content-refs-migration.test.ts', /set local role|reset role/i],
+  ['packages/db/src/consent-snapshot-migration.test.ts', /set local role|reset role/i],
   ['packages/db/src/roles.test.ts', /pg_try_advisory_xact_lock\(/i],
   // Proves that the authenticator login cannot switch to another role: the refused switch is
   // the assertion.

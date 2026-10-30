@@ -24,8 +24,7 @@ import './ports.js';
 import type { Signer, TransactionContext } from '../ports.js';
 import { can } from '../principal.js';
 import { defineUseCase } from '../registry.js';
-import { actorRef } from '../util/log.js';
-import { errorMessage } from '../util/log.js';
+import { actorRef, errorMessage } from '../util/log.js';
 import { scrubText } from '../util/scrub.js';
 
 export const ExportStatus = z.enum(['queued', 'running', 'ready', 'failed', 'expired']);

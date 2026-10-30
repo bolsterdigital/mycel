@@ -48,7 +48,7 @@ describe('parseCommand', () => {
     });
   });
 
-  it('keeps the arguments of the platform commands it took over from scripts/platform.mjs', () => {
+  it('parses the arguments of the platform commands', () => {
     expect(parseCommand(['tenants', 'list'])).toEqual({ kind: 'tenants.list' });
     expect(parseCommand(['tenants', 'create', 'demo', 'Demo', 'nl,en'])).toEqual({
       kind: 'tenants.create',

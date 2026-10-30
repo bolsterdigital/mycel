@@ -1,7 +1,7 @@
 // Negative fixtures for check-owner-strings.mjs: each directory under fixtures/owner-strings/
 // breaks one rule and must fail with its own message; `good` holds the look-alikes that must pass
 // (an npm `dev` script, a lane name in data rather than code, a CI runner's home, the Dutch word
-// `proef` in copy, the excluded CLAUDE.md). The last
+// `proef` in copy, an ADR amendment naming its review, the excluded CLAUDE.md). The last
 // test runs the gate on this repository. Run by `npm run lint:infra` through `node --test`.
 
 import { spawnSync } from 'node:child_process';
@@ -31,6 +31,7 @@ const failing = {
   'shared-task': '.github/claim.mjs:1: owner agent tooling',
   'lane-mbp': 'apps/web/src/lane.ts:1: planning lane word',
   'lane-owner-dev': 'scripts/route.mjs:1: planning lane literal',
+  provenance: 'scripts/drill.sh:2: provenance comment',
   'stale-allowlist':
     'scripts/owner-strings.allowlist.json: tools/run.mjs has no violation any more; remove the entry',
 };
