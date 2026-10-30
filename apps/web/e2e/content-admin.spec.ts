@@ -211,7 +211,7 @@ test.describe('content-admin', () => {
     await page.keyboard.press('ArrowRight');
     await expect(list.getByRole('tab', { name: 'Uitgelicht' })).toBeFocused();
     // An empty featured field names what applies instead and where it comes from (#86 PR 2).
-    await expect(page.getByLabel('Uitgelichte titel (nl)')).toBeVisible();
+    await expect(page.getByLabel('Titel in overzichten (nl)')).toBeVisible();
     await expect(page.locator('#featuredTitle\\.nl-inherited')).toHaveText(
       'Standaard: de titel: “Tabbladen”'
     );

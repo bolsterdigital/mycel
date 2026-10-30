@@ -504,7 +504,8 @@ test('a page gets its featured image from the picker, and shares it when publish
   // Publishing from the same form saves the choice first (editor trial 2026-10-28).
   await page.getByRole('button', { name: 'Publiceren', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Gepubliceerd in nl.');
-  await expect(page.getByRole('group', { name: 'Uitgelicht beeld' })).toContainText(filename);
+  // Back on the first tab after the redirect: the picker is there, a tab away with JavaScript.
+  await expect(page.locator('#featuredImageId')).toContainText(filename);
   await expectNoAxeViolations(page);
 
   // No share image of its own: the featured image is the one a share preview shows.
