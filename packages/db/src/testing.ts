@@ -17,14 +17,14 @@
 
 import { sql, type Kysely } from 'kysely';
 import { memoryPlatform, requireServices, testPlatformActor } from '@mycel/core/testing';
-import { migrate } from './migrate.js';
+import { migrate } from './infra/migrate.js';
 import { createTenant, ensureTenant, type NewTenant, type PlatformTenant } from './platform.js';
-import { uuidv7 } from './ids.js';
-import type { Database } from './schema.js';
-import { asRole } from './roles.js';
+import { uuidv7 } from './infra/ids.js';
+import type { Database } from './infra/schema.js';
+import { asRole } from './infra/roles.js';
 
 /** A role switch for suites in other packages, through the one helper (`db-roles` ratchet). */
-export { asRole } from './roles.js';
+export { asRole } from './infra/roles.js';
 
 const URL_KEYS = {
   operator: 'DATABASE_URL',

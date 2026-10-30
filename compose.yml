@@ -83,7 +83,7 @@ services:
       retries: 30
 
   # Forward-only migrations as the owner, then exit; the fronts start after it succeeded. It also
-  # sets the passwords of the mycel_app and mycel_authenticator logins (packages/db/src/migrate.ts).
+  # sets the passwords of the mycel_app and mycel_authenticator logins (packages/db/src/infra/migrate.ts).
   migrate:
     image: *image
     command: migrate

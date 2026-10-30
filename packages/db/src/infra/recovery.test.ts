@@ -44,9 +44,9 @@ import {
   uuidv7,
   uuidv7Ids,
   withTenant,
-} from './index.js';
+} from '../index.js';
 import { asRole } from './roles.js';
-import { requireDatabase, testTenant, migrateSchema } from './testing.js';
+import { requireDatabase, testTenant, migrateSchema } from '../testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 

@@ -21,8 +21,8 @@ import {
   type SiteDirectory,
   type TenantInfo,
 } from '@mycel/core';
-import type { Database } from './schema.js';
-import { asRole } from './roles.js';
+import type { Database } from './infra/schema.js';
+import { asRole } from './infra/roles.js';
 
 type Trx = Kysely<Database>;
 

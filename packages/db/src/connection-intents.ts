@@ -2,7 +2,7 @@
 // Rejected: unconditional completion updates that let an old attempt overwrite a newer one.
 import type { Kysely, Selectable } from 'kysely';
 import type { ConnectionIntent, ConnectionIntents } from '@mycel/core';
-import type { Database } from './schema.js';
+import type { Database } from './infra/schema.js';
 function decode(r: Selectable<Database['connection_intents']>): ConnectionIntent {
   return {
     id: r.id,

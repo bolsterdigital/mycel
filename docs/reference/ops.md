@@ -1,6 +1,6 @@
 # Stuck work and recovery
 
-Three kinds of background work can stall without anyone noticing: a job that used up its attempts, an outbox event that failed every pass without reaching every subscriber, and a mail intent whose outcome is unknown or that was given up. This module makes them visible and recoverable, for a site's own administrators through three use cases in `packages/core/src/ops/`, and for the hoster platform-wide through `/platform/ops/*` and the CLI ([platform-api.md](platform-api.md)), with one set of rules in `packages/db/src/recovery.ts` (migration 0016; ADR 011 rules 1 and 2, [`../adr/011-background-roles-and-outbox.md`](../adr/011-background-roles-and-outbox.md)). The queues themselves are in [jobs.md](jobs.md), mail intents in [mail.md](mail.md). Nobody acts "as" someone else: a tenant administrator recovers as themselves, the hoster as the platform, and both are audited ([audit.md](audit.md)).
+Three kinds of background work can stall without anyone noticing: a job that used up its attempts, an outbox event that failed every pass without reaching every subscriber, and a mail intent whose outcome is unknown or that was given up. This module makes them visible and recoverable, for a site's own administrators through three use cases in `packages/core/src/ops/`, and for the hoster platform-wide through `/platform/ops/*` and the CLI ([platform-api.md](platform-api.md)), with one set of rules in `packages/db/src/infra/recovery.ts` (migration 0016; ADR 011 rules 1 and 2, [`../adr/011-background-roles-and-outbox.md`](../adr/011-background-roles-and-outbox.md)). The queues themselves are in [jobs.md](jobs.md), mail intents in [mail.md](mail.md). Nobody acts "as" someone else: a tenant administrator recovers as themselves, the hoster as the platform, and both are audited ([audit.md](audit.md)).
 
 ## What counts as stuck
 
@@ -65,4 +65,4 @@ Reading covers every row's metadata, not only stuck ones, because Postgres check
 | `DIAGNOSIS_FAILED_REQUESTS` | 5           | `packages/core/src/ops/service.ts`        | failed request ids in the diagnosis                                 |
 | `DIAGNOSIS_KEY_CHARS`       | 48          | `packages/core/src/ops/model.ts`          | enough of a job key to recognise the subject, not to reconstruct it |
 | `ERASURE_UNSECURED_WARN_MS` | 1 h         | `packages/core/src/supporters/erasure.ts` | when an erasure no backup holds yet is shown as late                |
-| ops page size               | 50, max 200 | `packages/db/src/recovery.ts`             | default and ceiling of `limit` on the `ops*` listings               |
+| ops page size               | 50, max 200 | `packages/db/src/infra/recovery.ts`       | default and ceiling of `limit` on the `ops*` listings               |

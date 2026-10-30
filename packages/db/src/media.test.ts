@@ -41,7 +41,7 @@ import {
   runSuffix,
 } from '@mycel/core/testing';
 import { createDb, createUnitOfWork, runJobs, uuidv7, uuidv7Ids } from './index.js';
-import { enterTenant } from './roles.js';
+import { enterTenant } from './infra/roles.js';
 import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');

@@ -1,7 +1,7 @@
 // The tenant's view of its own stuck jobs (TODO #17c, brief observability-c-recovery decision 2):
 // exhausted jobs without their payload, and the two recoveries. Tenant data in the unit of work
 // like any repository, so a recovery and its audit row commit together. The hoster's platform-wide
-// counterpart is not a port: it runs under no tenant, as `mycel_ops` (packages/db/src/recovery.ts),
+// counterpart is not a port: it runs under no tenant, as `mycel_ops` (packages/db/src/infra/recovery.ts),
 // with the same rules (`retry` and `close` touch an exhausted job only).
 
 /** An exhausted job as the status page shows it: never the payload. */

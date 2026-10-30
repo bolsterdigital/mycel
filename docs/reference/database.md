@@ -1,6 +1,6 @@
 # Database conventions
 
-Rules for code in `packages/db` and for migrations that no single module owns. ADR 002 has the tenancy model; `packages/db/src/roles.ts` and the ratchets in `scripts/` (`db-roles`, `db-raw-sql`, `db-refusals`) enforce the rest.
+Rules for code in `packages/db` and for migrations that no single module owns. ADR 002 has the tenancy model; `packages/db/src/infra/roles.ts` and the ratchets in `scripts/` (`db-roles`, `db-raw-sql`, `db-refusals`) enforce the rest.
 
 ## An explicit `tenant_id` filter next to RLS
 

@@ -14,8 +14,8 @@ import {
   type MediaRecord,
   type MediaRepository,
 } from '@mycel/core';
-import type { Database } from './schema.js';
-import { advisoryLock } from './roles.js';
+import type { Database } from './infra/schema.js';
+import { advisoryLock } from './infra/roles.js';
 
 type Trx = Kysely<Database>;
 type Row = Selectable<Database['media']> & { usage_count: string | number };

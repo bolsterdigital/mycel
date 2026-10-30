@@ -68,7 +68,7 @@ export interface OpsQuery {
   limit?: number | undefined;
 }
 
-/** A page of stuck rows; the shapes are packages/db/src/recovery.ts's, never a payload. */
+/** A page of stuck rows; the shapes are packages/db/src/infra/recovery.ts's, never a payload. */
 export interface OpsPage {
   items: unknown[];
   nextCursor: string | null;

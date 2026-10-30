@@ -25,7 +25,7 @@ import {
   type RevisionSummary,
   type SluggedRepository,
 } from '@mycel/core';
-import type { Database } from './schema.js';
+import type { Database } from './infra/schema.js';
 
 type Trx = Kysely<Database>;
 type ItemRow = Selectable<Database['content_items']>;

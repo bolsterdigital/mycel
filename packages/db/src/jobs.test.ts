@@ -49,7 +49,7 @@ import {
   withTenant,
 } from './index.js';
 import { toJobRecord } from './jobs.js';
-import { asRole, setClientRole } from './roles.js';
+import { asRole, setClientRole } from './infra/roles.js';
 import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');

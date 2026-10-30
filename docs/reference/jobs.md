@@ -35,7 +35,7 @@ A use case plans work with `ctx.jobs.enqueue({ type, key, runAt, payload })` (th
 3. **Complete** (`completeJob`): `done_at = now()`, `last_error` cleared. When the handler returned `{ next }`, the same job (type, key, payload, tenant) is planned again at that time in the same transaction; a re-plan from inside the handler would be refused, because the running job still holds its key.
 4. **Fail** (`failJob`): `last_error` scrubbed, lease released, `run_at = now() + min(2^attempts, 3600)` seconds. A type without a handler is a failure.
 
-Complete and fail are guarded on `attempts` and `done_at is null`: if the lease expired and another worker claimed the job meanwhile, the late run changes nothing (`superseded`, logged as a warning) and the newer run owns it. A worker that dies mid-job leaves its lease to expire. A long job renews its lease with `touchJob`: `tenant.export` does so every `HEARTBEAT_MS` (`packages/db/src/exports.ts`). An exhausted job stays in the table with its `last_error` until someone recovers it ([ops.md](ops.md)).
+Complete and fail are guarded on `attempts` and `done_at is null`: if the lease expired and another worker claimed the job meanwhile, the late run changes nothing (`superseded`, logged as a warning) and the newer run owns it. A worker that dies mid-job leaves its lease to expire. A long job renews its lease with `touchJob`: `tenant.export` does so every `HEARTBEAT_MS` (`packages/db/src/tenant-exports.ts`). An exhausted job stays in the table with its `last_error` until someone recovers it ([ops.md](ops.md)).
 
 The job loop (`startJobWorker`) ticks every `JOBS_INTERVAL_MS`: plan the recurring jobs, then claim and run one batch; while a batch came back non-empty it ticks again at once.
 
@@ -79,7 +79,7 @@ A tenant handler throws when the job has no tenant, a platform handler when it h
 | job backoff           | `min(2^attempts, 3600)` s | `packages/db/src/jobs.ts`              | 2, 4, 8 ... seconds after each failure, at most an hour                  |
 | job batch size        | 10                        | `packages/db/src/jobs.ts`              | jobs per claim (`claimJobs`)                                             |
 | `JOBS_INTERVAL_MS`    | 5 s                       | `packages/api/src/compose.ts`          | job loop tick when the queue is empty                                    |
-| `HEARTBEAT_MS`        | 60 s                      | `packages/db/src/exports.ts`           | how often a running export renews its lease, well inside the 300 s lease |
+| `HEARTBEAT_MS`        | 60 s                      | `packages/db/src/tenant-exports.ts`    | how often a running export renews its lease, well inside the 300 s lease |
 | `MAX_ATTEMPTS`        | 10                        | `packages/db/src/outbox.ts`            | failed passes before an outbox event is dead                             |
 | outbox backoff        | `min(2^attempts, 3600)` s | `packages/db/src/outbox.ts`            | the same schedule as jobs                                                |
 | outbox batch size     | 50                        | `packages/db/src/outbox.ts`            | events per claim (`drainOutbox`)                                         |

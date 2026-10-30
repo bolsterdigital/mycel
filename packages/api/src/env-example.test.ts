@@ -16,9 +16,9 @@ const root = fileURLToPath(new URL('../../..', import.meta.url));
 
 /** Configuration read outside the runtime schema, with the file that reads it. */
 const INVENTORY: Record<string, string> = {
-  MYCEL_APP_PASSWORD: 'packages/db/src/migrate.ts',
-  MYCEL_AUTH_PASSWORD: 'packages/db/src/migrate.ts',
-  MYCEL_SEED_OPERATOR_EMAIL: 'packages/db/src/seed.ts',
+  MYCEL_APP_PASSWORD: 'packages/db/src/infra/migrate.ts',
+  MYCEL_AUTH_PASSWORD: 'packages/db/src/infra/migrate.ts',
+  MYCEL_SEED_OPERATOR_EMAIL: 'packages/db/src/infra/seed.ts',
   MYCEL_IMAGE: 'compose.yml',
   MYCEL_DB_PASSWORD: 'compose.yml',
   PG_SUPERUSER_PASSWORD: 'compose.yml',

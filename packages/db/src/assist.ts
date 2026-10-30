@@ -3,8 +3,8 @@
 
 import { sql, type Kysely, type Selectable } from 'kysely';
 import type { AssistRepository, AssistSettings, AssistSuggestion } from '@mycel/core';
-import type { Database } from './schema.js';
-import { advisoryLock } from './roles.js';
+import type { Database } from './infra/schema.js';
+import { advisoryLock } from './infra/roles.js';
 
 const empty: AssistSettings = {
   enabled: false,

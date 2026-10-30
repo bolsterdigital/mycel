@@ -41,7 +41,7 @@ export class MemoryScheduler implements Scheduler {
 
 /**
  * `ctx.jobRecovery` over a MemoryStore: this tenant's jobs only, like `tenant_isolation` on `jobs`
- * (0016), and the same exhaustion rule as the SQL in packages/db/src/recovery.ts.
+ * (0016), and the same exhaustion rule as the SQL in packages/db/src/infra/recovery.ts.
  */
 export class MemoryJobRecovery implements JobRecovery {
   constructor(

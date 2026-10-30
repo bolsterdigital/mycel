@@ -50,10 +50,10 @@ import {
   type MediaRecord,
   type PlatformConfig,
 } from '@mycel/core';
-import { uuidv7 } from './ids.js';
+import { uuidv7 } from './infra/ids.js';
 import { createTenantIn, getTenant, getTenantBySlug, type PlatformActor } from './platform.js';
-import type { Database } from './schema.js';
-import { enterTenant, setRole } from './roles.js';
+import type { Database } from './infra/schema.js';
+import { enterTenant, setRole } from './infra/roles.js';
 
 type Trx = Kysely<Database>;
 

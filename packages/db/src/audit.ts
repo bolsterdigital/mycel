@@ -5,8 +5,8 @@
 
 import { sql, type Kysely } from 'kysely';
 import { AuditActorKind, type AuditEntry, type AuditLog } from '@mycel/core';
-import type { Database } from './schema.js';
-import { asRole } from './roles.js';
+import type { Database } from './infra/schema.js';
+import { asRole } from './infra/roles.js';
 
 type Row = Database['audit_log'];
 

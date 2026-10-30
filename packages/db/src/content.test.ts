@@ -42,7 +42,7 @@ import {
   withTenant,
   type JobHandlers,
 } from './index.js';
-import { asRole } from './roles.js';
+import { asRole } from './infra/roles.js';
 import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');

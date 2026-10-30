@@ -1,5 +1,5 @@
 // The job side of self-service export over a Map of rows (TODO #74): what
-// packages/db/src/exports.ts does in Postgres (claim, the steps of a run, the daily expiry and
+// packages/db/src/tenant-exports.ts does in Postgres (claim, the steps of a run, the daily expiry and
 // purge), as the same core decisions, so a property can run one sequence through both and
 // compare the rows. No archive is built: a `ready` step takes its digest as given, and the files
 // are a set of keys. Rejected: building archives here (the round trip is proven in
