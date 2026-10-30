@@ -997,7 +997,6 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.site.general.defaultLocale': 'Standaardtaal',
   'admin.site.general.fixed': 'De naam en de talen van de site kun je hier nog niet wijzigen.',
   'admin.site.unsaved': 'Niet opgeslagen wijzigingen',
-  'admin.site.sections': 'Onderwerpen',
   'admin.site.group.type': 'Typografie en ruimte',
   'admin.connections.edit': 'Gegevens bewerken',
   'admin.preferences.title': 'Voorkeuren',

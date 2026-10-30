@@ -986,7 +986,6 @@ export const en = {
   'admin.site.general.defaultLocale': 'Default language',
   'admin.site.general.fixed': 'The name and languages of the site cannot be changed here yet.',
   'admin.site.unsaved': 'Unsaved changes',
-  'admin.site.sections': 'Settings subjects',
   'admin.site.group.type': 'Typography and spacing',
   'admin.connections.edit': 'Edit details',
   'admin.preferences.title': 'Preferences',

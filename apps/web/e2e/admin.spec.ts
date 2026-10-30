@@ -293,6 +293,22 @@ test.describe('admin-shell', () => {
       .getByRole('link', { name: 'Settings' })
       .click();
     await expect(page).toHaveURL(/\/admin\/probe\/site$/);
+    // The subjects of Settings sit under it in the sidebar (#81-rest), not as tabs on the page.
+    const sections = page
+      .getByRole('navigation', { name: 'Site navigation' })
+      .locator('.ui-navgroup-sub');
+    await expect(sections.getByRole('link')).toHaveCount(6);
+    await expect(sections.getByRole('link', { name: 'General' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
+    await expect(page.getByRole('main').locator('.ui-subnav')).toHaveCount(0);
+    await sections.getByRole('link', { name: 'Theme' }).click();
+    await expect(page).toHaveURL(/\/admin\/probe\/site\?section=theme$/);
+    await expect(sections.getByRole('link', { name: 'Theme' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
     await page.getByRole('link', { name: 'Back to your sites' }).click();
     await page.getByRole('main').getByRole('link', { name: 'Second editorial site' }).click();
     await checkShell(page, 'Second editorial site', 'Dashboard');

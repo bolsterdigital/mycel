@@ -6,6 +6,8 @@
 // a member sees only the subjects they may open. Rejected: a route per subject (the sub-navigation is
 // already one URL per subject) and loading only the current subject's data (the look's four
 // reads would become optional in every section of the page, for reads that are cheap).
+// The subjects go to the shell as `subnav` (#81-rest, the contract of #87), so they sit under
+// "Settings" in the sidebar; rejected: tabs above the form (tabs are for the parts of one item).
 import {
   BRAND_LIMITS,
   can,
@@ -21,7 +23,7 @@ import { requireTenantPrincipal } from '#lib/server/admin.js';
 import { saveAssistSettings } from '#lib/server/assist-settings.js';
 import { timeZoneOptions } from '#lib/server/time-zones.js';
 import type { Actions, PageServerLoad } from './$types';
-import { ui } from '../../../../../i18n/index.js';
+import { ui, type UiKey } from '../../../../../i18n/index.js';
 
 const text = (data: FormData, key: string) => String(data.get(key) ?? '').trim();
 const baseVersion = (data: FormData) => {
@@ -43,6 +45,14 @@ const NEEDS: Record<SiteSection, Capability> = {
   chrome: 'content:write',
   assist: 'tenant:admin',
   usage: 'tenant:admin',
+};
+const SUBJECT: Record<SiteSection, UiKey> = {
+  general: 'admin.site.general',
+  theme: 'admin.site.theme',
+  brand: 'admin.site.brand',
+  chrome: 'admin.site.chrome',
+  assist: 'admin.assist.title',
+  usage: 'admin.dashboard.usage',
 };
 export const load: PageServerLoad = async ({ parent, locals, url }) => {
   await parent();
@@ -69,9 +79,15 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
       : null;
   const usage =
     section === 'usage' ? await runtime().invoker.run(useCases.getUsage, principal, {}) : null;
+  const t = ui(locals.lang ?? 'en');
+  const here = url.pathname;
   return {
     section,
-    sections: SECTIONS.filter((s) => can(principal, NEEDS[s])),
+    subnav: SECTIONS.filter((s) => can(principal, NEEDS[s])).map((s) => ({
+      label: t(SUBJECT[s]),
+      href: s === 'general' ? here : `${here}?section=${s}`,
+      current: s === section,
+    })),
     general,
     zones: section === 'general' ? timeZoneOptions(locals.lang ?? 'en') : [],
     theme,
