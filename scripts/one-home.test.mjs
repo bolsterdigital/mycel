@@ -35,7 +35,7 @@ export const HOMES = [
   [
     'an entitlement read outside the entitlements module (use entitled, requireEntitled or withinLimit)',
     'packages/core/src/entitlements/',
-    /\.entitlements\s*[[;]/,
+    /\.entitlements\s*[[;]|\{[^}]*\bentitlements\b[^}]*\}\s*=\s*[\w.]+\s*;/,
     'packages/core/',
   ],
   [
@@ -116,6 +116,10 @@ test('a directory home, a pattern home and a scope', () => {
           text: 'const e = ctx.principal.entitlements;',
         },
         { path: 'packages/core/src/entitlements/service.ts', text: 'const e = p.entitlements;' },
+        {
+          path: 'packages/core/src/forms/guard.ts',
+          text: 'const { entitlements } = ctx.principal;',
+        },
         { path: 'apps/web/src/lib/x.ts', text: "if (principal.entitlements['ai.assist']) show();" },
         { path: 'packages/core/src/forms/service.ts', text: "declare module '../ports.js' {}" },
         { path: 'packages/core/src/forms/ports.ts', text: "declare module '../ports.js' {}" },
@@ -124,6 +128,7 @@ test('a directory home, a pattern home and a scope', () => {
     ),
     [
       `packages/core/src/assist/service.ts: ${entitlement[0]}`,
+      `packages/core/src/forms/guard.ts: ${entitlement[0]}`,
       `packages/core/src/forms/service.ts: ${port[0]}`,
     ]
   );
