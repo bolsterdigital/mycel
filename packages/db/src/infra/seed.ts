@@ -3,6 +3,8 @@
 // per locale like any front would), a pending admin to log in as, entitlements with the credit on
 // and a supporter cap, and, when MYCEL_API_KEY is set, an API key with that token.
 // Idempotent: running it twice leaves one tenant, one form, one page, one admin, one key.
+// `npm run db:seed` follows this with `@mycel/api`'s `seed:demo` (a filled page and article with
+// images), which needs the blob store and image processor this package may not import.
 
 import {
   Invoker,
