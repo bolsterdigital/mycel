@@ -928,6 +928,12 @@
     font-size: var(--step--1);
     color: var(--color-muted-fg);
   }
+  /* Positioned, so the visually hidden state stays inside a table that scrolls on its own
+     instead of widening the page (320 CSS px at 200 % text). */
+  .ui-locale-codes li,
+  .ui-locale-switch-option {
+    position: relative;
+  }
   .ui-locale-codes li {
     display: inline-flex;
     align-items: center;
