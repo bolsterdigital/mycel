@@ -11,11 +11,13 @@
     DashboardWidget,
     Checkbox,
     Choices,
+    ConfirmAction,
     Dialog,
     EmptyState,
     Field,
     Fieldset,
     FileDrop,
+    KeyReveal,
     MetaList,
     NavGroup,
     Notice,
@@ -287,6 +289,30 @@
       <img src={sample} alt="" width="1200" height="900" />
       <p>{t('admin.ui.catalogue.dialog.body')}</p>
     </Dialog>
+  </section>
+  <section aria-labelledby="ui-confirm">
+    <h2 id="ui-confirm">{t('admin.ui.catalogue.confirm')}</h2>
+    <!-- A form without action posts nowhere but this page: the catalogue has no actions. -->
+    <form class="ui-card-form">
+      <Card title="newsletter_sync_production">
+        <Actions>
+          <ConfirmAction
+            label={t('admin.keys.revoke')}
+            question={t('admin.keys.revokeQuestion')}
+            confirm={t('admin.keys.revokeConfirm')}
+            name="newsletter_sync_production"
+          />
+        </Actions>
+      </Card>
+    </form>
+    <KeyReveal
+      id="ui-reveal"
+      title="{t('admin.keys.token.title')}: newsletter_sync_production"
+      value="mycel_3q2Vh8y1Jt0WkXc5ZpQe7RrB9nLmA4sDfG6hJkLzXcV"
+      locale={data.locale}
+    >
+      <p>{t('admin.keys.token.body')}</p>
+    </KeyReveal>
   </section>
   <section aria-labelledby="ui-navigation">
     <h2 id="ui-navigation">{t('admin.ui.catalogue.navigation')}</h2>

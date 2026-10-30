@@ -136,16 +136,25 @@ export const en = {
   'admin.keys.never': 'never',
   'admin.keys.revoked': 'Revoked',
   'admin.keys.revoke': 'Revoke key',
-  'admin.keys.revokeName': 'Revoke key: {name}',
   'admin.keys.create.title': 'Create an API key',
   'admin.keys.create.name': 'Name',
   'admin.keys.create.capabilities': 'Capabilities',
   'admin.keys.create.hint':
     'A key never gets tenant:admin: keys cannot manage members or other keys.',
   'admin.keys.create.submit': 'Create key',
+  'admin.keys.revokeQuestion':
+    'Whatever uses this key can no longer get in from now on. This cannot be undone.',
+  'admin.keys.revokeConfirm': 'Yes, revoke',
+  'admin.access.title': 'Access',
+  'admin.access.intro':
+    'With an API key a program works with this site over the API or MCP, with only the capabilities you give the key.',
+  'admin.members.edit': 'Change capabilities',
+  'admin.members.removeQuestion':
+    'This member loses access to this site, and the API keys they made.',
+  'admin.members.removeConfirm': 'Yes, remove',
+  'admin.members.pendingTitle': 'Pending invitations',
   'admin.keys.token.title': 'Your new API key',
-  'admin.keys.token.body':
-    'Copy it now. This is the only time it is shown; afterwards only its first characters are listed.',
+  'admin.keys.token.body': 'After this, only its first characters are listed.',
   'admin.done.invited': '{email} is invited.',
   'admin.done.updated': 'Capabilities saved.',
   'admin.done.removed': 'Member removed.',
@@ -830,6 +839,10 @@ export const en = {
   'admin.ui.previous': 'Previous',
   'admin.ui.next': 'Next',
   'admin.ui.close': 'Close',
+  'admin.ui.reveal.once': 'This is the only time you will see this: copy it now.',
+  'admin.ui.copy': 'Copy',
+  'admin.ui.copy.done': 'Copied',
+  'admin.ui.copy.failed': 'Copying failed; select the text',
   'admin.ui.file.drop': 'Choose a file, or drop it on the field',
   'admin.ui.file.chosen': 'Preview of what you upload',
   'admin.ui.catalogue.title': 'Interface components',
@@ -875,6 +888,7 @@ export const en = {
   'admin.ui.catalogue.subnav.general': 'General',
   'admin.ui.catalogue.subnav.theme': 'Theme',
   'admin.ui.catalogue.subnav.domains': 'Domains',
+  'admin.ui.catalogue.confirm': 'Confirm in the row and show once',
   'admin.ui.catalogue.dialog': 'Dialog',
   'admin.ui.catalogue.dialog.open': 'View full size',
   'admin.ui.catalogue.dialog.body':

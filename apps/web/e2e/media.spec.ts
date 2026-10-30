@@ -308,6 +308,7 @@ test('a media editor can use the library without tenant administration rights', 
 }) => {
   const email = `media-editor-${test.info().project.name}-${Date.now()}@probe.test`;
   await login(page, '/admin/probe/leden');
+  await page.getByRole('button', { name: 'Iemand uitnodigen' }).click();
   const invite = page.locator('form[action="?/invite"]');
   await invite.getByLabel('E-mailadres (verplicht)', { exact: true }).fill(email);
   await invite.getByLabel('media:read', { exact: true }).check();
@@ -329,6 +330,7 @@ test('a media editor can use the library without tenant administration rights', 
     await context.clearCookies();
     await login(page, '/admin/probe/leden');
     const member = page.locator('form', { has: page.getByRole('heading', { name: email }) });
+    await member.locator('summary', { hasText: 'Verwijderen' }).click();
     await member.locator('button[formaction="?/remove"]').click();
     await expect(page.getByRole('status')).toContainText('Lid verwijderd');
   }

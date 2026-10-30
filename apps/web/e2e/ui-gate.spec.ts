@@ -121,8 +121,8 @@ test.describe('admin-ui', () => {
       )
     ).toEqual([]);
     if (!isA11y()) {
-      // The catalogue holds what screens will hold: no script at all.
-      await expect(page.locator('script')).toHaveCount(0);
+      // The catalogue holds what screens will hold: no script but KeyReveal's copy enhancement.
+      await expect(page.locator('script:not([src="/_admin/copy.js"])')).toHaveCount(0);
       return;
     }
     await expectNoAxeViolations(page, { dark: true });
@@ -166,7 +166,7 @@ test.describe('admin-ui', () => {
       test('keeps every label whole and nothing scrolls sideways', async ({ page }) => {
         await open(page);
         await setTextSize(page, '200%');
-        await page.locator('.ui-fold > summary').click();
+        await page.locator('.ui-fold:not(.ui-confirm) > summary').click();
         await layoutGate(page, 'catalogue');
         // Each stacking group stands in one column: every button as wide as its group.
         const widths = await page

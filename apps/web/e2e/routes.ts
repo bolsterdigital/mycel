@@ -18,7 +18,7 @@ export interface GateRoute {
 /** Admin routes, measured signed in as the seeded tenant admin in both admin locales. */
 export const ADMIN_ROUTES: GateRoute[] = [
   { path: '/admin/probe', menu: true },
-  { path: '/admin/probe/leden', within: 'main' },
+  { path: '/admin/probe/leden', within: 'main', folds: true },
   { path: '/admin/probe/domeinen', within: 'main' },
   { path: '/admin/probe/content?type=page' },
   { path: '/admin/probe/content/new' },
