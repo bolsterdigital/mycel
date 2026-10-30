@@ -11,7 +11,7 @@ import {
   memoryPlatform,
   runSuffix,
 } from '@mycel/core/testing';
-import { DEFAULT_THEME, DEFAULT_CHROME } from '@mycel/core';
+import { DEFAULT_THEME, DEFAULT_CHROME, DEFAULT_GENERAL } from '@mycel/core';
 import { createDb, createUnitOfWork, uuidv7Ids } from './index.js';
 import type { Database } from './schema.js';
 import { requireDatabase, testTenant, migrateSchema } from './testing.js';
@@ -90,6 +90,29 @@ describe.skipIf(skip)('site settings conformance', () => {
     expect(await invoker.run(useCases.getSiteChrome, systemPrincipal(b, 'test'), {})).toMatchObject(
       { version: 0, value: DEFAULT_CHROME }
     );
+  });
+  it('gives every site Europe/Amsterdam until it chooses a zone of its own (#88)', async () => {
+    const principal = systemPrincipal(a, 'test');
+    expect(DEFAULT_GENERAL).toEqual({ timeZone: 'Europe/Amsterdam' });
+    expect(await invoker.run(useCases.getSiteGeneral, principal, {})).toEqual({
+      version: 0,
+      value: DEFAULT_GENERAL,
+    });
+    const general = { timeZone: 'Europe/Berlin' };
+    expect(
+      await invoker.run(useCases.updateSiteGeneral, principal, { baseVersion: 0, general })
+    ).toEqual({ version: 1, value: general });
+    await expect(
+      invoker.run(useCases.updateSiteGeneral, principal, { baseVersion: 0, general })
+    ).rejects.toMatchObject({ code: 'conflict' });
+    expect(await invoker.run(useCases.getSiteGeneral, principal, {})).toEqual({
+      version: 1,
+      value: general,
+    });
+    expect(await invoker.run(useCases.getSiteGeneral, systemPrincipal(b, 'test'), {})).toEqual({
+      version: 0,
+      value: DEFAULT_GENERAL,
+    });
   });
   it('isolates brand bytes and versions under the same forced RLS row', async () => {
     const aPrincipal = systemPrincipal(a, 'test');

@@ -24,6 +24,7 @@ export const ADMIN_ROUTES: GateRoute[] = [
     path: `/admin/probe/site${section}`,
     within: 'main',
   })),
+  { path: '/admin/voorkeuren' },
   { path: '/admin/probe/content?type=page' },
   { path: '/admin/probe/content/new' },
   ...['overview', 'overview?view=list', 'detail', 'edit', 'settings', 'form', 'states'].map(

@@ -4,6 +4,7 @@
 import { error } from '@sveltejs/kit';
 import { UseCaseError, useCases } from '@mycel/core';
 import { actorLabel, diffRows, when } from '#lib/server/content-admin.js';
+import { adminTimeZone } from '#lib/server/admin.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { PageServerLoad } from './$types';
 
@@ -12,6 +13,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
   await parent();
   const principal = locals.principal!;
+  const { zone } = await adminTimeZone(locals);
   const { invoker } = runtime();
   if (!UUID.test(params.itemId)) error(404, 'Not found');
   const after = url.searchParams.get('after');
@@ -46,7 +48,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
       },
       revisions: revisions.map((r) => ({
         id: r.id,
-        when: when(r.createdAt),
+        when: when(r.createdAt, zone),
         who: actorLabel(r.actor),
       })),
       next,

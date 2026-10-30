@@ -603,7 +603,9 @@
             type="datetime-local"
             label={t('admin.content.publication.at')}
             locale={data.locale}
-            hint="{t('admin.content.publication.zone')} {data.timeZone}"
+            hint={data.timeZoneNamed
+              ? `${t('admin.content.publication.zone')} ${data.timeZone}`
+              : undefined}
             value={p.pin?.input ?? ''}
           />
           <Actions stack>

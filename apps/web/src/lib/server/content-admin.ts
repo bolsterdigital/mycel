@@ -25,6 +25,7 @@ import {
   type ContentDocument,
   type ContentDocumentInput,
 } from '@mycel/core';
+import { localInput } from './content-admin-publication.js';
 
 /** Form values: one string per field, a list for checkboxes and multi-selects. */
 export type FormValues = Record<string, string | string[]>;
@@ -214,8 +215,9 @@ export function actorLabel(actor: Actor): string {
   }
 }
 
-/** `2026-10-23 14:05 UTC`, the admin's one timestamp form. */
-export const when = (iso: string): string => `${iso.slice(0, 16).replace('T', ' ')} UTC`;
+/** `2026-10-23 16:05`, the admin's one timestamp form, in the admin's zone (`adminTimeZone`). */
+export const when = (iso: string, zone: string): string =>
+  localInput(new Date(iso), zone).replace('T', ' ');
 
 /** The rows of a diff table: short JSON per value, never a whole document. */
 export function diffRows(

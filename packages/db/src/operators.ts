@@ -26,6 +26,8 @@ import {
   type MembershipRepository,
   type Operator,
   type OperatorRepository,
+  DEFAULT_OPERATOR_PREFERENCES,
+  OperatorPreferences,
 } from '@mycel/core';
 import type { Database } from './schema.js';
 import { advisoryLock, asRole } from './roles.js';
@@ -368,6 +370,39 @@ export function createIdentityStore(
           .executeTakeFirstOrThrow();
         return row.hits <= max;
       });
+    },
+
+    preferencesOf(operatorId) {
+      return asRole(authDb, 'mycel_auth', async (trx) => {
+        const r = await trx
+          .selectFrom('operators')
+          .select(['ui_locale', 'time_zone', 'date_format'])
+          .where('id', '=', operatorId)
+          .executeTakeFirst();
+        if (!r) return { ...DEFAULT_OPERATOR_PREFERENCES };
+        // A zone the runtime stopped knowing (a tzdata update) falls back rather than locking the
+        // operator out of every admin page.
+        const parsed = OperatorPreferences.safeParse({
+          uiLocale: r.ui_locale,
+          timeZone: r.time_zone,
+          dateFormat: r.date_format,
+        });
+        return parsed.success ? parsed.data : { ...DEFAULT_OPERATOR_PREFERENCES };
+      });
+    },
+
+    async setPreferences(operatorId, preferences) {
+      await asRole(authDb, 'mycel_auth', (trx) =>
+        trx
+          .updateTable('operators')
+          .set({
+            ui_locale: preferences.uiLocale,
+            time_zone: preferences.timeZone,
+            date_format: preferences.dateFormat,
+          })
+          .where('id', '=', operatorId)
+          .execute()
+      );
     },
   };
 }

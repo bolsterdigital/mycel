@@ -1,5 +1,5 @@
 // See https://svelte.dev/docs/kit/types#app.d.ts
-import type { OperatorSession, Principal, TenantInfo } from '@mycel/core';
+import type { OperatorPreferences, OperatorSession, Principal, TenantInfo } from '@mycel/core';
 import type { Site } from '#lib/server/site.js';
 
 declare global {
@@ -15,6 +15,13 @@ declare global {
       session?: OperatorSession;
       /** The operator's principal for the tenant in an /admin/[tenant] URL, from the membership. */
       principal?: Principal;
+      /** The logged-in operator's own preferences (#88), read once per admin request. */
+      preferences?: OperatorPreferences;
+      /**
+       * The zone the admin shows and reads times in: the operator's own, else the site's, else
+       * Europe/Amsterdam. Set by `adminTimeZone` (lib/server/admin.ts), the one place deciding it.
+       */
+      timeZone?: string;
     }
   }
 }

@@ -22,6 +22,8 @@ export interface Database {
     font_bytes: Generated<Buffer | null>;
     font_licence: Generated<string | null>;
     font_version: Generated<number>;
+    general: Json<unknown> | null;
+    general_version: Generated<number>;
   };
   connection_intents: {
     id: string;
@@ -330,6 +332,9 @@ export interface Database {
     name: string | null;
     created_at: Generated<Date>;
     last_login_at: Timestamp | null;
+    ui_locale: string | null;
+    time_zone: string | null;
+    date_format: Generated<string>;
   };
   tenant_memberships: {
     tenant_id: string;

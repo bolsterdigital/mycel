@@ -3,17 +3,14 @@
 // page. Publishing itself is core's (`content.item.publish` and friends, `content:publish`);
 // this module only turns its state into words and a form's local time into an instant.
 //
-// Times are entered and shown in one site time zone. Tenants have no time zone setting yet, and
-// every site Mycel serves now is in Central European time, so it is a constant here, named on the
-// form next to the field. Rejected: the browser's offset (needs JavaScript, and two editors in
-// different zones would read one plan differently) and UTC in the form (an editor plans 09:00
-// local, not 07:00 or 08:00 depending on the season).
-
-/** The zone a scheduled time is typed and read in, until tenants have their own setting. */
-export const SITE_TIME_ZONE = 'Europe/Amsterdam';
+// Times are entered and shown in the admin's time zone: the operator's own, else the site's
+// (`adminTimeZone`, lib/server/admin.ts, #88). Every function here takes it as an argument,
+// so no page can fall back to a zone of its own. Rejected: the browser's offset (needs
+// JavaScript, and two editors in different zones would read one plan differently) and UTC in the
+// form (an editor plans 09:00 local, not 07:00 or 08:00 depending on the season).
 
 /** Wall-clock parts of `instant` in `zone`, as `YYYY-MM-DDTHH:mm`. */
-export function localInput(instant: Date, zone = SITE_TIME_ZONE): string {
+export function localInput(instant: Date, zone: string): string {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat('en-GB', {
       timeZone: zone,
@@ -30,16 +27,20 @@ export function localInput(instant: Date, zone = SITE_TIME_ZONE): string {
   return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
 }
 
-/** `2026-10-24 09:00 (Europe/Amsterdam)`, how the panel names a planned time. */
-export const localLabel = (instant: Date, zone = SITE_TIME_ZONE): string =>
-  `${localInput(instant, zone).replace('T', ' ')} (${zone})`;
+/**
+ * `2026-10-24 09:00`, how the panel names a planned time; with the zone in brackets when it is
+ * named (`2026-10-24 09:00 (America/New_York)`): the page names it only where the operator's own
+ * zone differs from the site's.
+ */
+export const localLabel = (instant: Date, zone: string, named = false): string =>
+  `${localInput(instant, zone).replace('T', ' ')}${named ? ` (${zone})` : ''}`;
 
 /**
  * The instant a `datetime-local` value means in `zone`, or `null` for anything else. A time
  * that does not exist (the hour skipped in spring) moves forward by the gap; an hour that occurs
  * twice in autumn takes the first.
  */
-export function fromLocalInput(value: string, zone = SITE_TIME_ZONE): Date | null {
+export function fromLocalInput(value: string, zone: string): Date | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
   if (!m) return null;
   const [, y, mo, d, h, mi] = m.map(Number) as [number, number, number, number, number, number];

@@ -3,6 +3,7 @@ import { FakeClock, MemoryIdentityStore, MemoryStore, MemoryTenants } from '@myc
 import {
   LOGIN_LIMIT,
   adminCookieOptions,
+  adminLanguage,
   loginLimiter,
   onPlatformOrigin,
   safeReturn,
@@ -67,5 +68,18 @@ describe('adminCookieOptions', () => {
 
   it('is Secure for an https platform origin', () => {
     expect(adminCookieOptions('https://admin.example.org', 60).secure).toBe(true);
+  });
+});
+
+describe('adminLanguage', () => {
+  it("lets the operator's chosen language win over the browser's (#88)", () => {
+    expect(adminLanguage('nl', 'en-GB,en;q=0.9')).toBe('nl');
+    expect(adminLanguage('en', 'nl-NL,nl;q=0.9')).toBe('en');
+  });
+
+  it('negotiates with the browser without a choice, English as the last resort', () => {
+    expect(adminLanguage(null, 'nl-NL,nl;q=0.9,en;q=0.8')).toBe('nl');
+    expect(adminLanguage(undefined, 'de-DE,de;q=0.9')).toBe('en');
+    expect(adminLanguage(null, null)).toBe('en');
   });
 });

@@ -4,7 +4,7 @@
 // a tenant site. Until TODO #14 splits a separate platform hostname off, that origin is the one
 // in PUBLIC_BASE_URL.
 
-import type { IdentityStore } from '@mycel/core';
+import { ADMIN_UI_LOCALES, negotiateLocale, type IdentityStore } from '@mycel/core';
 
 /** HttpOnly, SameSite=Lax, only under /admin, Secure whenever the platform origin is https. */
 export function adminCookieOptions(publicBaseUrl: string, maxAgeSeconds: number) {
@@ -56,3 +56,10 @@ export function loginLimiter(
 ): (key: string) => Promise<boolean> {
   return (key) => identity.loginAttempt(key, LOGIN_LIMIT);
 }
+
+/**
+ * The admin's language for one request (ADR 007, #88): the operator's chosen language,
+ * else the best match for the browser's `Accept-Language`, else English.
+ */
+export const adminLanguage = (chosen: string | null | undefined, acceptLanguage: string | null) =>
+  chosen ?? negotiateLocale(acceptLanguage, ADMIN_UI_LOCALES, 'en');

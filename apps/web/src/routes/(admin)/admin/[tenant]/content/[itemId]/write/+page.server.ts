@@ -10,7 +10,7 @@ import {
   toArticleEditor,
 } from '#lib/editor/article-document.js';
 import { actorLabel, diffRows, when } from '#lib/server/content-admin.js';
-import { requireTenantPrincipal } from '#lib/server/admin.js';
+import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin.js';
 import { mediaChoices } from '#lib/server/content-blocks.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { Actions, PageServerLoad } from './$types';
@@ -84,7 +84,7 @@ export const actions: Actions = {
             revisionId: revision.id,
             editor: toArticleEditor(revision.document, locale),
             who: actorLabel(revision.actor),
-            when: when(revision.createdAt),
+            when: when(revision.createdAt, (await adminTimeZone(locals)).zone),
             changes: diffRows(changes),
           });
         }

@@ -4,7 +4,7 @@
 // value in this locale yet is left out of it (`projectDocument`).
 import { error } from '@sveltejs/kit';
 import { UseCaseError, projectDocument, readinessIssues, useCases } from '@mycel/core';
-import { requireTenantPrincipal } from '#lib/server/admin.js';
+import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin.js';
 import { actorLabel, when } from '#lib/server/content-admin.js';
 import { PREVIEW_HEADERS, previewBase, previewSite, siteReader } from '#lib/server/preview.js';
 import { runtime } from '#lib/server/runtime.js';
@@ -69,7 +69,7 @@ export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) 
     },
     issues: readinessIssues(doc, locale).map((i) => i.path),
     revision: {
-      when: when(revision.createdAt),
+      when: when(revision.createdAt, (await adminTimeZone(locals)).zone),
       who: actorLabel(revision.actor),
       latest: revision.id === item.latestRevisionId,
     },

@@ -431,6 +431,81 @@ test.describe('admin-shell', () => {
   });
 });
 
+// Operator preferences (#88): an operator whose browser speaks English chooses Dutch and a
+// time zone of their own; the menu changes language at once, and a planned time is typed and
+// shown in their zone, named only while it differs from the site's. Its own operator, reset at
+// the start, because the database outlives a run and the other specs negotiate on the browser.
+// The page itself is a route of the generic UI gate (routes.ts).
+test.describe('preferences', () => {
+  const email = 'prefs-admin@probe.test';
+  test.use({ locale: 'en-GB' });
+
+  test.beforeAll(async () => {
+    const probe = await tenantId();
+    await withInvoker(async (invoker) => {
+      try {
+        await invoker.run(useCases.inviteMember, systemPrincipal(probe, 'e2e'), {
+          email,
+          capabilities: ['tenant:admin'],
+        });
+      } catch (e) {
+        if (!(e instanceof UseCaseError && e.code === 'conflict')) throw e;
+      }
+    });
+    await asOwner((owner) =>
+      owner
+        .updateTable('operators')
+        .set({ ui_locale: null, time_zone: null, date_format: 'relative' })
+        .where('email', '=', email)
+        .execute()
+    );
+  });
+
+  test('a chosen language and zone win over the browser on every admin page', async ({ page }) => {
+    await login(page, '/admin/probe', email, { 'accept-language': 'en-GB' });
+    const nav = (name: string) => page.getByRole('navigation', { name });
+    await expect(nav('Site navigation').getByRole('link', { name: 'Pages' })).toBeAttached();
+
+    await page.getByRole('link', { name: 'Preferences' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Preferences' })).toBeVisible();
+    await page.getByLabel('Language of the admin').selectOption('nl');
+    await page.getByLabel('Time zone').selectOption('Asia/Tokyo');
+    await page.getByRole('button', { name: 'Save preferences' }).click();
+    await expect(page.getByText('Voorkeuren opgeslagen.')).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'nl');
+    await expectNoAxeViolations(page);
+
+    // Back to the site the operator came from: the menu speaks Dutch.
+    await page.getByRole('link', { name: 'Terug' }).click();
+    await expect(page).toHaveURL(/\/admin\/probe$/);
+    await expect(nav('Sitenavigatie').getByRole('link', { name: 'Pagina’s' })).toBeAttached();
+
+    // A time typed in the operator's zone is planned in it, and named because it is not the site's.
+    await page.goto('/admin/probe/content/new?type=page');
+    await page.getByLabel('Titel (nl)').fill(`Tokio ${Date.now()}`);
+    await page.getByLabel('Titel (en)').fill('Tokyo');
+    await page.getByRole('button', { name: 'Concept maken' }).click();
+    await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
+    const edit = new URL(page.url()).pathname;
+    const nl = page.locator('#publication-nl');
+    await nl.locator('details', { hasText: 'Inplannen (nl)' }).locator('summary').click();
+    await expect(nl.getByText('Tijd in Asia/Tokyo')).toBeAttached();
+    await nl.getByLabel('Publiceren op').fill('2030-01-04T17:00');
+    await nl.getByRole('button', { name: 'Inplannen (nl)' }).click();
+    await expect(page).toHaveURL(`${edit}?done=schedule&locale=nl`);
+    await expect(nl).toContainText('Ingepland voor 2030-01-04 17:00 (Asia/Tokyo)');
+
+    // Back to the site's zone: the same instant, nine hours earlier on the clock, unnamed.
+    await page.goto('/admin/voorkeuren');
+    await page.getByLabel('Tijdzone').selectOption('');
+    await page.getByRole('button', { name: 'Voorkeuren opslaan' }).click();
+    await expect(page.getByText('Voorkeuren opgeslagen.')).toBeVisible();
+    await page.goto(edit);
+    await expect(nl).toContainText('Ingepland voor 2030-01-04 09:00');
+    await expect(nl).not.toContainText('(Europe/Amsterdam)');
+  });
+});
+
 // Status page (TODO #17c): a tenant administrator sees a stuck task of the site, tries it again,
 // closes another after confirming, and reads a diagnosis without an address in it. Runs without
 // JavaScript and under axe like the other admin specs; the UI gate (skill ui-action-layout) checks

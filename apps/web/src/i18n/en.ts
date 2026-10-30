@@ -985,6 +985,25 @@ export const en = {
   'admin.site.sections': 'Settings subjects',
   'admin.site.group.type': 'Typography and spacing',
   'admin.connections.edit': 'Edit details',
+  'admin.preferences.title': 'Preferences',
+  'admin.preferences.description':
+    'How the admin speaks to you and shows times. They apply on every site you work on.',
+  'admin.preferences.language': 'Language of the admin',
+  'admin.preferences.language.browser': 'Follow my browser',
+  'admin.preferences.timeZone': 'Time zone',
+  'admin.preferences.timeZone.site': 'The time zone of the site',
+  'admin.preferences.timeZone.hint': 'Times are shown and planned in this zone.',
+  'admin.preferences.dateFormat': 'Dates',
+  'admin.preferences.dateFormat.relative': 'Relative where possible (yesterday, 3 hours ago)',
+  'admin.preferences.dateFormat.absolute': 'Always the full date',
+  'admin.preferences.save': 'Save preferences',
+  'admin.preferences.saved': 'Preferences saved.',
+  'admin.preferences.invalid': 'Choose one of the options in the list.',
+  'admin.preferences.back': 'Back',
+  'admin.site.general.timeZone': 'Time zone',
+  'admin.site.general.timeZone.hint':
+    'The admin plans and shows times in this zone, unless someone chose their own under Preferences.',
+  'admin.site.general.save': 'Save time zone',
 } as const;
 
 export type UiKey = keyof typeof en;
