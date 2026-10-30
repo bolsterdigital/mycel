@@ -27,7 +27,7 @@ on:
       # The export job and its archives, which a backup leaves out (TODO #28).
       - 'packages/db/src/tenant-exports.ts'
       - 'packages/db/migrations/**'
-      - 'packages/api/src/cli.ts'
+      - 'packages/api/src/runtime/cli.ts'
 
 concurrency:
   group: restore-drill-${{ github.ref }}

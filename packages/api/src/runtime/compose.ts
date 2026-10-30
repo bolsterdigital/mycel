@@ -82,16 +82,16 @@ import { ConsoleMailer, TemMailer } from '@mycel/mail-tem';
 import { createSharpProcessor, createBrandProcessor } from '@mycel/media-sharp';
 import { FakeTextModel } from '@mycel/core/testing';
 import { OpenAITextModel } from '@mycel/assist-openai';
-import { createAuthenticator, type Authenticator } from './auth.js';
+import { createAuthenticator, type Authenticator } from '../auth.js';
 import { createDnsResolver } from './dns.js';
-import type { HttpObservability } from './app.js';
-import { assessWorker, type WorkerReadiness } from './health.js';
-import type { PlatformDeps } from './platform.js';
-import { RECURRING_JOBS, jobHandlers } from './jobs.js';
+import type { HttpObservability } from '../app.js';
+import { assessWorker, type WorkerReadiness } from '../health.js';
+import type { PlatformDeps } from '../platform.js';
+import { RECURRING_JOBS, jobHandlers } from '../jobs.js';
 import { HmacInputHasher, HmacSigner } from './signer.js';
-import { webhookTransport } from './webhook.js';
+import { webhookTransport } from '../webhook.js';
 
-export { createAuthenticator, type Authenticator, type AuthenticatorDeps } from './auth.js';
+export { createAuthenticator, type Authenticator, type AuthenticatorDeps } from '../auth.js';
 
 const isHttps = (url: string | undefined) => url?.startsWith('https://') ?? false;
 const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
@@ -342,7 +342,7 @@ export function blobStoreFor(config: RuntimeConfig): BlobStore {
     : createFsBlobStore(
         isAbsolute(config.BLOB_DIR)
           ? config.BLOB_DIR
-          : resolve(fileURLToPath(new URL('../../..', import.meta.url)), config.BLOB_DIR)
+          : resolve(fileURLToPath(new URL('../../../..', import.meta.url)), config.BLOB_DIR)
       );
 }
 

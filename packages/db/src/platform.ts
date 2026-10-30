@@ -2,7 +2,7 @@
 // their entitlements and status. They run under no tenant, so they are not use cases: nothing
 // here is in the registry, reachable over MCP or callable as mycel_app. Two callers share these
 // functions: the platform API (`/platform/*` in packages/api, for the hoster's portal) and
-// the `mycel` CLI (packages/api/src/cli.ts, for a self-hoster), so both refuse and accept exactly
+// the `mycel` CLI (packages/api/src/runtime/cli.ts, for a self-hoster), so both refuse and accept exactly
 // the same things. What a tenant may be is core's (`tenants/platform.ts`: slug, locales,
 // entitlements, status); what stays here is what only storage knows, a slug or hostname taken.
 //

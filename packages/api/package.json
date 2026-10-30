@@ -11,8 +11,8 @@
       "default": "./dist/index.js"
     },
     "./compose": {
-      "types": "./dist/compose.d.ts",
-      "default": "./dist/compose.js"
+      "types": "./dist/runtime/compose.d.ts",
+      "default": "./dist/runtime/compose.js"
     },
     "./conditional": {
       "types": "./dist/conditional.d.ts",
@@ -22,9 +22,9 @@
   "scripts": {
     "typecheck": "tsc -b",
     "build": "tsc -b",
-    "dev": "node --env-file-if-exists=../../.env --import tsx src/server.ts",
-    "start": "node --env-file-if-exists=../../.env dist/server.js",
-    "worker": "node --env-file-if-exists=../../.env --import tsx src/worker.ts"
+    "dev": "node --env-file-if-exists=../../.env --import tsx src/runtime/server.ts",
+    "start": "node --env-file-if-exists=../../.env dist/runtime/server.js",
+    "worker": "node --env-file-if-exists=../../.env --import tsx src/runtime/worker.ts"
   },
   "dependencies": {
     "@mycel/core": "*",

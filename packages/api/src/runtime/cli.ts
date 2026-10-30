@@ -42,7 +42,7 @@ import {
   platformOperations,
   s3ConfigOf,
 } from './compose.js';
-import { OPS_REFUSALS } from './platform.js';
+import { OPS_REFUSALS } from '../platform.js';
 
 export const USAGE = `usage:
   mycel setup --tenant <slug> --name <name> --operator <e-mail> [--locales nl,en] [--hostname <domain>]

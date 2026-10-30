@@ -108,4 +108,4 @@ mycel ops retry jobs|outbox <id>
 mycel ops close jobs <id>
 ```
 
-`mycel` is `packages/api/src/cli.ts`. In the production stack it runs in the worker service, the one with `DATABASE_URL` (the operator role): `docker compose run --rm worker mycel tenants list`. From a checkout it reads `.env`: `npm run mycel -- tenants list`, or under its old name `npm run platform -- tenants list`. `mycel setup` adds a tenant with its first operator and a custom domain in one idempotent run ([`docs/self-hosting.md`](../self-hosting.md)).
+`mycel` is `packages/api/src/runtime/cli.ts`. In the production stack it runs in the worker service, the one with `DATABASE_URL` (the operator role): `docker compose run --rm worker mycel tenants list`. From a checkout it reads `.env`: `npm run mycel -- tenants list`, or under its old name `npm run platform -- tenants list`. `mycel setup` adds a tenant with its first operator and a custom domain in one idempotent run ([`docs/self-hosting.md`](../self-hosting.md)).
