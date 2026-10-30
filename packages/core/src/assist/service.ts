@@ -15,7 +15,9 @@ import {
   applyTranslation,
 } from './translation.js';
 import { assertBase, lockItem, writeRevision } from '../content/service.js';
-import { UseCaseError } from '../errors.js';
+import type { LimitName } from '../entitlements/model.js';
+import { requireEntitled, withinLimit } from '../entitlements/guards.js';
+import { notFound, UseCaseError } from '../errors.js';
 import type { TransactionContext } from '../ports.js';
 import { defineUseCase } from '../registry.js';
 import { jobKey } from '../jobs/types.js';
@@ -57,32 +59,31 @@ async function assistGate(
   ctx: TransactionContext,
   target: { itemId: string; baseRevisionId: string }
 ) {
-  const e = ctx.principal.entitlements;
-  if (!e['ai.assist']) refuse('limit_exceeded', 'ai-not-entitled');
+  requireEntitled(ctx.principal, 'ai.assist', 'assist.error.ai-not-entitled');
   await ctx.assist.lockQuota();
   const now = ctx.clock.now();
   const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  if ((await ctx.assist.countSince(month)) >= e['ai.monthly_max'])
-    refuse('limit_exceeded', 'limit-reached');
-  if (
-    (await ctx.assist.pendingCount(new Date(now.getTime() - PENDING_TIMEOUT_MS))) >=
-    e['ai.pending_max']
-  )
-    refuse('limit_exceeded', 'limit-reached');
+  const limit = (name: LimitName, count: number) =>
+    withinLimit(ctx, name, count, 1, 'assist.error.limit-reached');
+  limit('ai.monthly_max', await ctx.assist.countSince(month));
+  limit(
+    'ai.pending_max',
+    await ctx.assist.pendingCount(new Date(now.getTime() - PENDING_TIMEOUT_MS))
+  );
   const { actor } = ctx.principal;
-  if (
-    actor.kind === 'operator' &&
-    (await ctx.assist.countByOperatorSince(
-      actor.operatorId,
-      new Date(now.getTime() - OPERATOR_WINDOW_MS)
-    )) >= e['ai.operator_hourly_max']
-  )
-    refuse('limit_exceeded', 'limit-reached');
+  if (actor.kind === 'operator')
+    limit(
+      'ai.operator_hourly_max',
+      await ctx.assist.countByOperatorSince(
+        actor.operatorId,
+        new Date(now.getTime() - OPERATOR_WINDOW_MS)
+      )
+    );
   const item = await ctx.content.get(target.itemId);
-  if (!item) throw new UseCaseError('not_found', 'item not found');
+  if (!item) throw notFound('content item');
   assertBase(item, target.baseRevisionId);
   const revision = await ctx.content.revision(item.id, item.latestRevisionId);
-  if (!revision) throw new UseCaseError('not_found', 'revision not found');
+  if (!revision) throw notFound('revision');
   const provider = ctx.assistProviderLabel;
   if (!provider) return refuse('invalid_input', 'unavailable');
   const settings = await ctx.assist.settings();
@@ -93,7 +94,7 @@ async function assistGate(
 
 const findSuggestion = async (ctx: TransactionContext, id: string): Promise<AssistSuggestion> => {
   const row = await ctx.assist.get(id);
-  if (!row) throw new UseCaseError('not_found', 'suggestion not found');
+  if (!row) throw notFound('suggestion');
   return row;
 };
 
@@ -285,7 +286,7 @@ export const acceptSuggestion = defineUseCase({
     assertBase(item, baseRevisionId);
     if (row.baseRevisionId !== item.latestRevisionId) refuse('conflict', 'stale');
     const revision = await ctx.content.revision(item.id, item.latestRevisionId);
-    if (!revision) throw new UseCaseError('not_found', 'revision not found');
+    if (!revision) throw notFound('revision');
     const translation = decodeTranslation(row.blockId);
     if (translation) {
       let parsedValue: unknown;
@@ -429,34 +430,5 @@ export const suggestTranslation = defineUseCase({
       payload: { suggestionId: id },
     });
     return { suggestionId: id, status: 'pending' as const };
-  },
-});
-
-export const approveTranslation = defineUseCase({
-  name: 'content.translation.approve',
-  kind: 'command',
-  description: 'Approve the machine-translated fields of one locale as a human publisher.',
-  requires: 'content:publish',
-  authenticatedOnly: true,
-  actors: ['operator'],
-  input: z.object({ itemId: uuid, locale: z.string().min(2), baseRevisionId: uuid }).strict(),
-  output: z.object({ revisionId: uuid }),
-  examples: [{ input: { itemId: exampleId, locale: 'en', baseRevisionId: exampleId } }],
-  async handler(ctx, input) {
-    const item = await lockItem(ctx, input.itemId);
-    assertBase(item, input.baseRevisionId);
-    const revision = await ctx.content.revision(item.id, item.latestRevisionId);
-    if (!revision) throw new UseCaseError('not_found', 'revision not found');
-    if (!revision.document.locales.includes(input.locale)) refuse('invalid_input', 'locale');
-    const markers = { ...(revision.document.machineTranslation ?? {}) };
-    delete markers[input.locale];
-    const written = await writeRevision(
-      ctx,
-      item,
-      ContentDocument.parse({ ...revision.document, machineTranslation: markers }),
-      undefined,
-      input.locale
-    );
-    return { revisionId: written.revision.id };
   },
 });

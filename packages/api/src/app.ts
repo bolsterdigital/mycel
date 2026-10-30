@@ -18,13 +18,14 @@ import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { routePath } from 'hono/route';
 import {
-  MAX_UPLOAD_BYTES,
-  UseCaseError,
-  noopLogger,
   type ErrorReporter,
   type Invoker,
   type Logger,
+  MAX_UPLOAD_BYTES,
+  noopLogger,
+  notFound,
   type Principal,
+  UseCaseError,
 } from '@mycel/core';
 import {
   METRICS_CONTENT_TYPE,
@@ -202,8 +203,7 @@ export function createApp({
       return problem('method_not_allowed', `${useCase.name} is POST only`, [], { allow: 'POST' });
     const principal = await principalOf(c);
     if (!principal) return unauthorized('api key');
-    if (!useCase || !fields)
-      throw new UseCaseError('not_found', `unknown operation "${c.req.param('name')}"`);
+    if (!useCase || !fields) throw notFound('operation', `the name "${c.req.param('name')}"`);
 
     const body = JSON.stringify(
       await invoker.run(useCase, principal, coerceQuery(fields, c.req.queries()))

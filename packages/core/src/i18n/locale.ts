@@ -22,11 +22,6 @@ export function pick<T>(value: Localized<T>, locale: string, fallback: string): 
   return value[locale] ?? value[fallback];
 }
 
-/** True when `value` has an entry for every locale in `locales`. */
-export function coversLocales(value: Localized<unknown>, locales: readonly string[]): boolean {
-  return locales.every((l) => value[l] !== undefined);
-}
-
 /**
  * Picks the best of `available` for an `Accept-Language` header. Primary-tag match is enough for
  * now (`nl-BE` gets `nl`); quality values are honoured, everything else falls back.

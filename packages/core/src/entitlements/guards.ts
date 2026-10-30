@@ -15,10 +15,18 @@ export function entitled(principal: Principal, feature: FeatureName): boolean {
   return e[feature as Exclude<FeatureName, `blocks.${string}`>];
 }
 
-export function requireEntitled(principal: Principal, feature: FeatureName): void {
+/**
+ * `issue` replaces the generic key where a module has its own wording for the editor (assist
+ * says "assistance is not available" rather than naming the entitlement); the check is the same.
+ */
+export function requireEntitled(
+  principal: Principal,
+  feature: FeatureName,
+  issue = 'entitlements.feature_off'
+): void {
   if (!entitled(principal, feature))
     throw new UseCaseError('limit_exceeded', `this site is not entitled to ${feature}`, [
-      { path: '', message: 'entitlements.feature_off' },
+      { path: '', message: issue },
     ]);
 }
 
@@ -27,12 +35,13 @@ export function withinLimit(
   ctx: Pick<TransactionContext, 'principal'>,
   limit: LimitName,
   current: number,
-  add = 1
+  add = 1,
+  issue = `entitlements.limit.${limit}`
 ): void {
   const max = ctx.principal.entitlements[limit];
   if (current + add > max)
     throw new UseCaseError('limit_exceeded', `this site has reached ${limit} (${max})`, [
-      { path: '', message: `entitlements.limit.${limit}` },
+      { path: '', message: issue },
     ]);
 }
 
@@ -43,6 +52,11 @@ export function withinLimit(
  * pinned revision), rather than letting the throw consume an attempt (ADR 015 rule 7).
  */
 export function requireActive(principal: Principal): void {
-  if (principal.tenantStatus === 'suspended')
+  if (!active(principal))
     throw new UseCaseError('suspended', 'this site is suspended; only reading and export work');
+}
+
+/** The test behind `requireActive`, for a handler that answers a suspension without a throw. */
+export function active(principal: Principal): boolean {
+  return principal.tenantStatus !== 'suspended';
 }

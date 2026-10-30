@@ -64,8 +64,6 @@ export const JobPayloads = {
 export type JobType = keyof typeof JobPayloads;
 export type JobPayload<T extends JobType> = z.infer<(typeof JobPayloads)[T]>;
 
-export const isJobType = (type: string): type is JobType => Object.hasOwn(JobPayloads, type);
-
 /** The payload of a stored job, validated against its type; throws on an unknown type. */
 export function parseJobPayload<T extends JobType>(type: T, payload: unknown): JobPayload<T> {
   return JobPayloads[type].parse(payload) as JobPayload<T>;

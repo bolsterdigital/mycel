@@ -7,7 +7,7 @@
 import { z } from 'zod';
 import { toAuditRow, AuditRow } from '../audit/service.js';
 import '../audit/ports.js';
-import { UseCaseError } from '../errors.js';
+import { notFound, UseCaseError } from '../errors.js';
 import '../mailing/ports.js';
 import type { TransactionContext } from '../ports.js';
 import { defineUseCase } from '../registry.js';
@@ -104,7 +104,7 @@ const JobId = z.object({ id: z.string().guid() }).strict();
 const Recovered = z.object({ id: z.string().guid() });
 
 function recovered(result: RecoveryResult, id: string): { id: string } {
-  if (result === 'not_found') throw new UseCaseError('not_found', 'no job with that id');
+  if (result === 'not_found') throw notFound('job');
   if (result === 'not_exhausted')
     throw new UseCaseError('conflict', 'the job has attempts left; only an exhausted job recovers');
   return { id };

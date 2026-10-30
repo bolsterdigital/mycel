@@ -10,8 +10,6 @@
 
 import { z } from 'zod';
 
-export const RICH_TEXT_VERSION = 1;
-
 /** Upper bounds per document (one locale's value): generous for a long read, finite for storage. */
 export const RICH_TEXT_LIMITS = {
   nodes: 5_000,

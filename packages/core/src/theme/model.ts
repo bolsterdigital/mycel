@@ -23,7 +23,6 @@ export const HEADING_WEIGHTS = [400, 500, 600, 700, 800] as const;
 
 /** The role pairs of a palette: each a foreground on its background. */
 export const THEME_ROLES = ['body', 'surface', 'primary', 'accent', 'muted', 'warning'] as const;
-export type ThemeRole = (typeof THEME_ROLES)[number];
 
 export const THEME_MODES = ['light', 'dark'] as const;
 export type ThemeMode = (typeof THEME_MODES)[number];

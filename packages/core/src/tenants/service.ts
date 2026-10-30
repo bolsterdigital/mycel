@@ -12,7 +12,7 @@
 // `custom_domains.max`; verifying, making primary and removing never grow anything.
 
 import { z } from 'zod';
-import { UseCaseError } from '../errors.js';
+import { notFound, UseCaseError } from '../errors.js';
 import type { TransactionContext } from '../ports.js';
 import { requireEntitled, withinLimit } from '../entitlements/guards.js';
 import { defineUseCase } from '../registry.js';
@@ -66,8 +66,7 @@ async function slugOf(ctx: TransactionContext): Promise<string> {
 
 async function requireCustom(ctx: TransactionContext, raw: string): Promise<HostnameRecord> {
   const row = await ctx.hostnames.get(normalizeHostname(raw));
-  if (!row || row.kind !== 'custom')
-    throw new UseCaseError('not_found', 'no custom hostname by that name on this site');
+  if (!row || row.kind !== 'custom') throw notFound('custom hostname', 'that name on this site');
   return row;
 }
 
@@ -223,7 +222,7 @@ export const setPrimaryHostname = defineUseCase({
   async handler(ctx, input) {
     const hostname = normalizeHostname(input.hostname);
     const row = await ctx.hostnames.get(hostname);
-    if (!row) throw new UseCaseError('not_found', 'no hostname by that name on this site');
+    if (!row) throw notFound('hostname', 'that name on this site');
     if (!row.verifiedAt)
       throw new UseCaseError('conflict', 'a hostname must be verified before it can be primary');
     if (!row.primary) await ctx.hostnames.setPrimary(hostname);

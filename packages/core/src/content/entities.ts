@@ -8,7 +8,7 @@
 // `content.entity.*` with a kind field, which would blur the capability and the MCP tool list.
 
 import { z } from 'zod';
-import { UseCaseError } from '../errors.js';
+import { notFound, UseCaseError } from '../errors.js';
 import type { TransactionContext } from '../ports.js';
 import { defineUseCase } from '../registry.js';
 import { assignBlockIds, type BlockInput } from './blocks.js';
@@ -32,8 +32,6 @@ import './ports.js';
 
 const Limit = z.number().int().min(1).max(100).optional();
 const ExampleId = '01900000-0000-7000-8000-000000000001';
-
-const notFound = (what: string) => new UseCaseError('not_found', `no ${what} with that id`);
 
 async function assertFreeSlug<T extends { id: string; slug: string }>(
   repo: SluggedRepository<T>,
@@ -219,7 +217,7 @@ async function savePatternBlocks(
   if (issues.length)
     throw new UseCaseError('invalid_input', 'the pattern references unknown data', issues);
   await write();
-  await recordMediaUsages(ctx, `pattern:${pattern.id}`, pattern.blocks);
+  await recordMediaUsages(ctx, `pattern:${pattern.id}`, pattern.blocks, []);
   return pattern;
 }
 

@@ -2,7 +2,8 @@
 // Rejected: retrying a thrown transport call, which may already have changed the provider.
 import { z } from 'zod';
 import type { TransactionContext } from '../ports.js';
-import { UseCaseError } from '../errors.js';
+import { active } from '../entitlements/guards.js';
+import { notFound, UseCaseError } from '../errors.js';
 import { defineUseCase } from '../registry.js';
 import { can, grants } from '../principal.js';
 import { isTombstone } from '../supporters/erasure.js';
@@ -95,7 +96,7 @@ export async function connectionIntentGuard(
   ctx: TransactionContext,
   row: ConnectionIntent
 ): Promise<ConnectionFailure | null> {
-  if (ctx.principal.tenantStatus !== 'active') return 'suspended';
+  if (!active(ctx.principal)) return 'suspended';
   const c = await ctx.connections.get(row.connectionId);
   if (!c || isFrozen(c)) return 'disconnected';
   if (c.state === 'paused') return 'paused';
@@ -134,7 +135,7 @@ export async function planConnectionIntent(
     return old;
   }
   const c = await ctx.connections.get(input.connectionId);
-  if (!c) throw new UseCaseError('not_found', 'connection not found');
+  if (!c) throw notFound('connection');
   const actor = ctx.principal.actor;
   const now = ctx.clock.now();
   const row: ConnectionIntent = {
@@ -237,7 +238,7 @@ export const listConnectionIntents = defineUseCase({
   examples: [{ input: { connectionId: example.id } }],
   async handler(ctx, { connectionId }) {
     const c = await ctx.connections.get(connectionId);
-    if (!c) throw new UseCaseError('not_found', 'connection not found');
+    if (!c) throw notFound('connection');
     return {
       intents: (await ctx.connectionIntents.list(connectionId, 30)).map((r) =>
         asView(r, c.provider)
@@ -257,7 +258,7 @@ export const testConnection = defineUseCase({
   examples: [{ input: example }],
   async handler(ctx, { id }) {
     const c = await ctx.connections.get(id);
-    if (!c) throw new UseCaseError('not_found', 'connection not found');
+    if (!c) throw notFound('connection');
     if (c.provider !== 'webhook') throw new UseCaseError('invalid_input', 'not a webhook');
     const actor = ctx.principal.actor;
     if (actor.kind === 'anonymous') throw new UseCaseError('forbidden', 'authentication required');
@@ -300,7 +301,7 @@ export const testConnection = defineUseCase({
 const intentWithProvider = async (ctx: TransactionContext, id: string) => {
   const row = await ctx.connectionIntents.get(id);
   const c = row && (await ctx.connections.get(row.connectionId));
-  if (!row || !c) throw new UseCaseError('not_found', 'connection intent not found');
+  if (!row || !c) throw notFound('connection intent');
   return { row, provider: c.provider };
 };
 export const getConnectionIntent = defineUseCase({

@@ -8,8 +8,6 @@ export { en, nl };
 export type { MessageKey, Messages };
 export * from './locale.js';
 
-export const DEFAULT_LOCALE = 'en';
-
 const catalogs: Record<string, Partial<Messages>> = { en, nl };
 
 export function isMessageKey(key: string): key is MessageKey {

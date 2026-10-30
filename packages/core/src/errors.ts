@@ -29,3 +29,11 @@ export class UseCaseError extends Error {
     this.issues = issues;
   }
 }
+
+/**
+ * The one `not_found`: "no <what> with <by>", one wording for every module, so an operator
+ * reading an API answer or a log sees the same sentence shape everywhere. Rejected: a wrapper per
+ * module, which drifted into two styles ("X not found" and "no X with that id").
+ */
+export const notFound = (what: string, by = 'that id'): UseCaseError =>
+  new UseCaseError('not_found', `no ${what} with ${by}`);

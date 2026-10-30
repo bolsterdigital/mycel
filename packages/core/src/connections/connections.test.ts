@@ -190,8 +190,8 @@ import {
   runConnectionIntent,
   CONNECTION_LEASE_MS,
   type ConnectionDispatchDeps,
-  type ConnectionSource,
 } from './dispatch.js';
+import type { ConnectionSource } from './ports.js';
 import { CONNECTION_MAX_ATTEMPTS, ConnectionFailure } from './intents.js';
 import { principal } from '../testing/index.js';
 

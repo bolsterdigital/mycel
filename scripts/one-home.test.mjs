@@ -16,6 +16,18 @@ export const HOMES = [
     'packages/core/src/util/log.ts',
     /instanceof\s+Error\s*\?\s*[\w.]+\.message\s*:\s*String\(/,
   ],
+  // TODO #72: one wording for a missing record, and suspension read only through the guards, so a
+  // rule written by hand cannot drift from the one `Invoker.run` and the job handlers apply.
+  [
+    "a 'not_found' error (use notFound)",
+    'packages/core/src/errors.ts',
+    /UseCaseError\(\s*'not_found'/,
+  ],
+  [
+    'a tenant status compared by hand (use active or requireActive)',
+    'packages/core/src/entitlements/guards.ts',
+    /tenantStatus\s*[!=]==/,
+  ],
 ];
 
 /** `path: what` for every fragment outside its home. */

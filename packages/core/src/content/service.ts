@@ -10,7 +10,7 @@
 
 import { z } from 'zod';
 import { requireActive, requireEntitled } from '../entitlements/guards.js';
-import { UseCaseError, type Issue } from '../errors.js';
+import { type Issue, notFound, UseCaseError } from '../errors.js';
 import { zodIssues } from '../invoke.js';
 import { Locale } from '../i18n/locale.js';
 import type { JobOutcome } from '../jobs/ports.js';
@@ -24,6 +24,7 @@ import {
   type Block,
   type BlockInput,
 } from './blocks.js';
+import { EXAMPLE_IDS } from './block-types.js';
 import { diffDocuments } from './diff.js';
 import {
   draftLocale,
@@ -85,8 +86,6 @@ export function toContentItem(r: ItemRecord): ContentItem {
   };
 }
 
-const notFound = (what: string) => new UseCaseError('not_found', `no ${what} with that id`);
-
 export async function lockItem(ctx: TransactionContext, itemId: string): Promise<ItemRecord> {
   const item = await ctx.content.lock(itemId);
   if (!item) throw notFound('content item');
@@ -143,7 +142,7 @@ export async function recordMediaUsages(
   ctx: TransactionContext,
   ref: string,
   blocks: readonly Block[],
-  document: readonly { slot: string; mediaId: string }[] = []
+  document: readonly { slot: string; mediaId: string }[]
 ): Promise<void> {
   const pairs = new Map<string, { mediaId: string; blockId: string }>();
   for (const b of allBlocks(blocks))
@@ -161,7 +160,33 @@ export async function recordMediaUsages(
     ]);
 }
 
-const revisionRef = (revision: Revision) => `item:${revision.itemId}:rev:${revision.id}`;
+/**
+ * A revision's usages: its blocks and its document slots together, so no revision path can record
+ * the one and silently skip the other (the slots were once added by hand on two paths).
+ */
+const recordRevisionUsages = (ctx: TransactionContext, revision: Revision) =>
+  recordMediaUsages(
+    ctx,
+    `item:${revision.itemId}:rev:${revision.id}`,
+    revision.document.blocks,
+    documentMedia(revision.document)
+  );
+
+/** The one shape of a new revision, for a new item and for every write after it. */
+const newRevision = (
+  ctx: TransactionContext,
+  itemId: string,
+  document: ContentDocument,
+  now: Date,
+  provenance?: Revision['provenance']
+): Revision => ({
+  id: ctx.ids.next(),
+  itemId,
+  createdAt: now.toISOString(),
+  actor: ctx.principal.actor,
+  ...(provenance ? { provenance } : {}),
+  document,
+});
 
 /**
  * One new revision on a locked item whose base was checked: insert it, move the latest pointer,
@@ -182,14 +207,7 @@ export async function writeRevision(
   );
   await assertReferences(ctx, doc);
   const now = ctx.clock.now();
-  const revision: Revision = {
-    id: ctx.ids.next(),
-    itemId: item.id,
-    createdAt: now.toISOString(),
-    actor: ctx.principal.actor,
-    ...(provenance ? { provenance } : {}),
-    document: doc,
-  };
+  const revision = newRevision(ctx, item.id, doc, now, provenance);
   const next: ItemRecord = {
     ...item,
     title: doc.title,
@@ -202,7 +220,7 @@ export async function writeRevision(
     ),
   };
   await ctx.content.insertRevision(revision);
-  await recordMediaUsages(ctx, revisionRef(revision), doc.blocks, documentMedia(doc));
+  await recordRevisionUsages(ctx, revision);
   await ctx.content.save(next);
   return { item: toContentItem(next), revision };
 }
@@ -233,13 +251,24 @@ export async function blockReferenceIssues(
     if (!(await ctx.content.get(id)))
       issues.push({ path, message: `content.reference.item-unknown:${id}` });
   for (const id of refs.media) {
-    const media = await ctx.media.get(id);
-    if (!media || media.deletedAt)
-      issues.push({ path, message: `content.reference.media-unknown:${id}` });
-    else if (media.kind !== 'image')
-      issues.push({ path, message: `content.reference.media-not-image:${id}` });
+    const issue = await imageIssue(ctx, id, path);
+    if (issue) issues.push(issue);
   }
   return issues;
+}
+
+/** An image reference must exist, not be deleted and be an image: one rule for blocks and slots. */
+async function imageIssue(
+  ctx: TransactionContext,
+  mediaId: string,
+  path: string
+): Promise<Issue | null> {
+  const media = await ctx.media.get(mediaId);
+  if (!media || media.deletedAt)
+    return { path, message: `content.reference.media-unknown:${mediaId}` };
+  if (media.kind !== 'image')
+    return { path, message: `content.reference.media-not-image:${mediaId}` };
+  return null;
 }
 
 /**
@@ -255,11 +284,8 @@ export async function referenceIssues(
   if (images.length) await ctx.media.lock();
   const issues = await blockReferenceIssues(ctx, doc.blocks);
   for (const { path, mediaId } of images) {
-    const media = await ctx.media.get(mediaId);
-    if (!media || media.deletedAt)
-      issues.push({ path, message: `content.reference.media-unknown:${mediaId}` });
-    else if (media.kind !== 'image')
-      issues.push({ path, message: `content.reference.media-not-image:${mediaId}` });
+    const issue = await imageIssue(ctx, mediaId, path);
+    if (issue) issues.push(issue);
   }
   if (doc.type === 'article') {
     for (const id of doc.authorIds)
@@ -380,13 +406,7 @@ export const createItem = defineUseCase({
     await assertReferences(ctx, doc);
     const now = ctx.clock.now();
     const itemId = ctx.ids.next();
-    const revision: Revision = {
-      id: ctx.ids.next(),
-      itemId,
-      createdAt: now.toISOString(),
-      actor: ctx.principal.actor,
-      document: doc,
-    };
+    const revision = newRevision(ctx, itemId, doc, now);
     const item: ItemRecord = {
       id: itemId,
       type: doc.type,
@@ -400,7 +420,7 @@ export const createItem = defineUseCase({
       publication: doc.locales.map(draftLocale),
     };
     await ctx.content.insert(item, revision);
-    await recordMediaUsages(ctx, revisionRef(revision), doc.blocks, documentMedia(doc));
+    await recordRevisionUsages(ctx, revision);
     return { item: toContentItem(item), revision };
   },
 });
@@ -703,3 +723,44 @@ export async function publishScheduled(
   });
   return {};
 }
+
+/**
+ * A human publisher clears the machine-translation marker of one locale (ADR 024). It lives with
+ * content, not assist: it writes a revision and needs `content:publish`, whatever produced the
+ * text; the issue key stays the one the editor already shows.
+ */
+export const approveTranslation = defineUseCase({
+  name: 'content.translation.approve',
+  kind: 'command',
+  description: 'Approve the machine-translated fields of one locale as a human publisher.',
+  requires: 'content:publish',
+  authenticatedOnly: true,
+  actors: ['operator'],
+  input: z
+    .object({ itemId: ItemId, locale: z.string().min(2), baseRevisionId: z.string().guid() })
+    .strict(),
+  output: z.object({ revisionId: z.string().guid() }),
+  examples: [
+    { input: { itemId: EXAMPLE_IDS.item, locale: 'en', baseRevisionId: EXAMPLE_IDS.item } },
+  ],
+  async handler(ctx, input) {
+    const item = await lockItem(ctx, input.itemId);
+    assertBase(item, input.baseRevisionId);
+    const revision = await ctx.content.revision(item.id, item.latestRevisionId);
+    if (!revision) throw notFound('revision');
+    if (!revision.document.locales.includes(input.locale))
+      throw new UseCaseError('invalid_input', 'locale', [
+        { path: '', message: 'assist.error.locale' },
+      ]);
+    const markers = { ...(revision.document.machineTranslation ?? {}) };
+    delete markers[input.locale];
+    const written = await writeRevision(
+      ctx,
+      item,
+      ContentDocument.parse({ ...revision.document, machineTranslation: markers }),
+      undefined,
+      input.locale
+    );
+    return { revisionId: written.revision.id };
+  },
+});

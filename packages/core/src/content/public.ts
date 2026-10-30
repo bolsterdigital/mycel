@@ -19,7 +19,7 @@
 // keeping `content.page.get` as an alias (two names for one contract drift apart).
 
 import { z } from 'zod';
-import { UseCaseError } from '../errors.js';
+import { notFound } from '../errors.js';
 import { Locale } from '../i18n/locale.js';
 import { defineUseCase } from '../registry.js';
 import { Block, blockLocalized, projectBlock } from './blocks.js';
@@ -104,7 +104,7 @@ export const getPublished = defineUseCase({
   resource: { uriTemplate: 'mycel://published/{type}/{slug}' },
   examples: [{ input: { type: 'page', slug: 'signup' } }],
   async handler(ctx, { type, slug, locale }) {
-    const missing = () => new UseCaseError('not_found', `no published ${type} with slug "${slug}"`);
+    const missing = () => notFound(`published ${type}`, `slug "${slug}"`);
     const item = await ctx.content.findBySlug(type, slug);
     if (!item) throw missing();
     const live = item.publication.filter((s) => statusOf(s) === 'published');

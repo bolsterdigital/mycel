@@ -13,7 +13,7 @@
 // (whoever sends the whole document sends it canonical).
 
 import { z } from 'zod';
-import { UseCaseError } from '../errors.js';
+import { notFound, UseCaseError } from '../errors.js';
 import type { TransactionContext } from '../ports.js';
 import { defineUseCase } from '../registry.js';
 import {
@@ -107,7 +107,7 @@ async function mutate(
   const item = await lockItem(ctx, itemId);
   assertBase(item, baseRevisionId);
   const base = await ctx.content.revision(itemId, baseRevisionId);
-  if (!base) throw new UseCaseError('not_found', 'no revision with that id');
+  if (!base) throw notFound('revision');
   let applied: Applied;
   try {
     applied = apply(base.document.blocks);

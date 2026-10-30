@@ -1,7 +1,8 @@
 // A connection is tenant-owned configuration. The adapter stores credentials separately and
 // encrypted, so neither a read nor an export can accidentally return their plaintext.
 
-import type { ConnectionAttempt, ConnectionIntent } from './intents.js';
+import type { TransactionContext } from '../ports.js';
+import type { ConnectionAttempt, ConnectionFailure, ConnectionIntent } from './intents.js';
 
 // A value exists here only once a transport implements it (TODO #49): the first real provider
 // (#40 PR 2) adds itself together with its adapter and tests. Rejected: accepting `mailchimp`
@@ -113,4 +114,37 @@ declare module '../ports.js' {
     connections: ConnectionRepository;
     connectionIntents: ConnectionIntents;
   }
+}
+
+/** Installed sources resolve a pinned mapping and current external suppression, in tenant context.
+ * No source is installed by default. A source must not infer permission from a prior payload.
+ * `ready` means this exact mapping, operation and consent scope are currently authorized.
+ */
+export interface ConnectionSource {
+  prepare(
+    ctx: TransactionContext,
+    intent: Readonly<ConnectionIntent>
+  ): Promise<
+    | { ready: true; payload: Readonly<Record<string, unknown>> }
+    | { ready: false; failure: ConnectionFailure }
+  >;
+}
+export interface ConnectionTransport {
+  /** `succeeded` proves the business effect, not merely an HTTP 2xx. Throws mean unknown. */
+  dispatch(input: {
+    tenantId: string;
+    intent: Readonly<ConnectionIntent>;
+    connection: Readonly<ConnectionRecord>;
+    credential: string;
+    payload: Readonly<Record<string, unknown>>;
+  }): Promise<'succeeded' | 'pre_send' | 'unknown'>;
+  /**
+   * `absent` must prove no previous or still-running call can later perform the effect. A
+   * transport without this proof omits it: its unknown intents wait for manual resolution and
+   * are never attempted again (`PROVIDER_RECONCILES` says the same to the use cases).
+   */
+  reconcile?(input: {
+    tenantId: string;
+    intent: Readonly<ConnectionIntent>;
+  }): Promise<'succeeded' | 'absent' | 'unknown'>;
 }

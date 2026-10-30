@@ -2,7 +2,7 @@
 // secrets through a general tenant settings document or accepting tenant ids from input.
 
 import { z } from 'zod';
-import { UseCaseError } from '../errors.js';
+import { notFound, UseCaseError } from '../errors.js';
 import { checkDestination } from './destination.js';
 import { defineUseCase } from '../registry.js';
 import type { TransactionContext } from '../ports.js';
@@ -77,7 +77,7 @@ const asView = (record: ConnectionRecord) => ({
 });
 const find = async (ctx: TransactionContext, id: string) => {
   const record = await ctx.connections.get(id);
-  if (!record) throw new UseCaseError('not_found', 'connection not found');
+  if (!record) throw notFound('connection');
   return record;
 };
 /** No use case changes a disconnected connection; the adapters refuse the write as well. */
