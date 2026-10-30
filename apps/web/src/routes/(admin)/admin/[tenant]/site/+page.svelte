@@ -2,20 +2,28 @@
      (`?section=`), so the sub-navigation works without JavaScript, and a form with its own save
      per section. The form actions carry the subject (`?section=theme&/theme`), so the page that
      answers a post shows the section that was saved. The contrast of each colour pair is
-     recomputed as you pick; core checks it again on save. -->
+     recomputed as you pick; core checks it again on save.
+     Brief #81 PR 3: General (what the site is called and in which languages, read-only until
+     there is a use case to change it), the look, AI assistance (moved from its own route) and
+     usage, each subject shown only to a member who may open it. With JavaScript, a changed form
+     says it is not saved yet and leaving asks first (static/_admin/unsaved.js). -->
 <script lang="ts">
   import { FONT_PAIRS, THEME_MODES, THEME_ROLES } from '@mycel/core';
   import {
     Actions,
     Button,
+    Checkbox,
     Field,
     Fieldset,
     FileDrop,
+    MetaList,
     Notice,
     Select,
     SettingsPage,
     SettingsSection,
+    Table,
   } from '#lib/admin/ui/index.js';
+  import UsageList from '#lib/admin/UsageList.svelte';
   import { fill, ui, type UiKey } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -33,10 +41,15 @@
     'headingWeight',
   ] as const;
   const SUBJECT: Record<(typeof data.sections)[number], UiKey> = {
+    general: 'admin.site.general',
     theme: 'admin.site.theme',
     brand: 'admin.site.brand',
     chrome: 'admin.site.chrome',
+    assist: 'admin.assist.title',
+    usage: 'admin.dashboard.usage',
   };
+  const language = $derived(new Intl.DisplayNames([data.locale], { type: 'language' }));
+  const named = (locale: string) => `${language.of(locale) ?? locale} (${locale})`;
   const action = (name: string) => `?section=${data.section}&/${name}`;
   const value = (name: string, fallback: string) => String(form?.values?.[name] ?? fallback);
   const row = (links: { href: string; label: Record<string, string> }[]) =>
@@ -82,7 +95,7 @@
   nav={{
     label: t('admin.site.sections'),
     items: data.sections.map((section) => ({
-      href: section === 'theme' ? here : `${here}?section=${section}`,
+      href: section === 'general' ? here : `${here}?section=${section}`,
       label: t(SUBJECT[section]),
       current: section === data.section,
     })),
@@ -91,18 +104,104 @@
   {#snippet notices()}
     {#if form?.problem}
       <Notice tone="error" title={t('error.summary.title')}>
-        <p>{form.problem === 'conflict' ? t('admin.site.conflict') : t('admin.site.invalid')}</p>
+        <p>
+          {data.section === 'assist'
+            ? t(`admin.assist.error.${form.problem}` as UiKey)
+            : form.problem === 'conflict'
+              ? t('admin.site.conflict')
+              : t('admin.site.invalid')}
+        </p>
       </Notice>
     {/if}
   {/snippet}
 
-  {#if data.section === 'theme'}
+  {#if data.section === 'general'}
+    <SettingsSection id="site-general" title={t('admin.site.general')}>
+      <MetaList
+        items={[
+          { term: t('admin.site.general.name'), value: data.tenant.name },
+          {
+            term: t('admin.site.general.locales'),
+            value: data.tenant.locales.map(named).join(', '),
+          },
+          { term: t('admin.site.general.defaultLocale'), value: named(data.tenant.defaultLocale) },
+        ]}
+      />
+      <p class="ui-hint">{t('admin.site.general.fixed')}</p>
+    </SettingsSection>
+  {:else if data.section === 'assist' && data.assist}
+    {@const assist = data.assist}
+    <SettingsSection
+      id="site-assist"
+      title={t('admin.assist.title')}
+      description={assist.allowed ? t('admin.assist.allowed') : t('admin.assist.unavailable')}
+      action={action('assist')}
+      submit={t('admin.assist.save')}
+      saved={assist.saved ? t('admin.assist.saved') : undefined}
+      unsaved={t('admin.site.unsaved')}
+    >
+      <MetaList
+        items={[
+          {
+            term: t('admin.assist.provider'),
+            value: assist.settings.provider ?? t('admin.assist.none'),
+          },
+        ]}
+      />
+      <Table
+        id="site-assist-disclosure"
+        caption={t('admin.assist.disclosure')}
+        columns={[
+          { key: 'sent', label: t('admin.assist.sent') },
+          { key: 'notSent', label: t('admin.assist.notSent') },
+        ]}
+      >
+        {#snippet rows()}
+          <tr
+            ><td>{t('admin.assist.sent.alt')}</td><td>{t('admin.assist.notSent.supporters')}</td
+            ></tr
+          >
+          <tr
+            ><td>{t('admin.assist.sent.translate')}</td><td>{t('admin.assist.notSent.other')}</td
+            ></tr
+          >
+        {/snippet}
+      </Table>
+      <input type="hidden" name="provider" value={assist.settings.provider ?? ''} />
+      <Checkbox
+        id="site-assist-enabled"
+        name="enabled"
+        label={t('admin.assist.enable')}
+        checked={form?.enabled ?? assist.settings.enabled}
+        disabled={!assist.allowed}
+      />
+      <Checkbox id="site-assist-consent" name="consent" label={t('admin.assist.consent')} />
+      <Checkbox
+        id="site-assist-restricted"
+        name="allowRestricted"
+        label={t('admin.assist.restricted')}
+        checked={form?.allowRestricted ?? assist.settings.allowRestricted}
+        disabled={!assist.allowed}
+      />
+    </SettingsSection>
+  {:else if data.section === 'usage' && data.usage}
+    <SettingsSection id="site-usage" title={t('admin.dashboard.usage')}>
+      {#if data.usage.status === 'suspended'}
+        <Notice tone="warning">
+          <p>{t('admin.suspended')}</p>
+          <p><a href="{base}/export">{t('admin.suspended.export')}</a></p>
+        </Notice>
+      {/if}
+      <UsageList usage={data.usage} locale={data.locale} />
+    </SettingsSection>
+  {:else if data.section === 'theme'}
     <SettingsSection
       id="site-theme"
       title={t('admin.site.theme')}
       action={action('theme')}
       submit={t('admin.site.saveTheme')}
       saved={saved('theme')}
+      unsaved={t('admin.site.unsaved')}
     >
       <input
         type="hidden"
@@ -192,6 +291,7 @@
         enctype="multipart/form-data"
         submit={t('admin.site.upload')}
         saved={brandSaved(kind)}
+        unsaved={t('admin.site.unsaved')}
       >
         <input type="hidden" name="kind" value={kind} />
         <input type="hidden" name="baseVersion" value={state.version} />
@@ -240,7 +340,7 @@
         {/snippet}
       </SettingsSection>
     {/each}
-  {:else}
+  {:else if data.section === 'chrome'}
     <SettingsSection
       id="site-chrome"
       title={t('admin.site.chrome')}
@@ -248,6 +348,7 @@
       action={action('chrome')}
       submit={t('admin.site.saveChrome')}
       saved={saved('chrome')}
+      unsaved={t('admin.site.unsaved')}
     >
       <input
         type="hidden"

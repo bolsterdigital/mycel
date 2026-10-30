@@ -53,7 +53,6 @@
       ...(has('connections:read') ? [item('connections', 'admin.nav.connections', 'plug')] : []),
       ...(has('tenant:admin')
         ? [
-            item('assist', 'admin.nav.assist', 'sparkles'),
             item('export', 'admin.nav.export', 'download'),
             item('status', 'admin.nav.status', 'activity'),
           ]
