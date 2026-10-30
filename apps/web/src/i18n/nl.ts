@@ -38,7 +38,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.site.defaultImage': 'Standaardbeeld',
   'admin.site.defaultImage.hint':
     'Het beeld dat een pagina of artikel zonder eigen uitgelicht beeld of deelbeeld gebruikt, bijvoorbeeld bij delen op sociale media.',
-  'admin.site.defaultImage.save': 'Standaardbeeld opslaan',
+  'admin.site.defaultImage.save': 'Beeld opslaan',
   'admin.site.url': 'URL',
   'admin.site.mode.light': 'Lichte kleuren',
   'admin.site.mode.dark': 'Donkere kleuren',

@@ -39,7 +39,7 @@ export const en = {
   'admin.site.defaultImage': 'Default image',
   'admin.site.defaultImage.hint':
     'The image a page or article without its own featured or share image uses, for instance when shared on social media.',
-  'admin.site.defaultImage.save': 'Save default image',
+  'admin.site.defaultImage.save': 'Save image',
   'admin.site.url': 'URL',
   'admin.site.mode.light': 'Light colours',
   'admin.site.mode.dark': 'Dark colours',

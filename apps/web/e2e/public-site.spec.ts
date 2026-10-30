@@ -1021,7 +1021,7 @@ test.describe('site-settings', () => {
       const dialog = page.getByRole('dialog', { name: 'Default image' });
       await dialog.getByRole('radio', { name }).check();
       await dialog.getByRole('button', { name: 'Done' }).click();
-      await page.getByRole('button', { name: 'Save default image' }).click();
+      await page.getByRole('button', { name: 'Save image' }).click();
       await expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
     };
     await page.goto(`/admin/${slug}/site?section=brand`);
