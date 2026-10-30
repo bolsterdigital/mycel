@@ -36,8 +36,10 @@ import { DEFAULT_THEME } from '../../theme/presets.js';
 import {
   DEFAULT_CHROME,
   DEFAULT_GENERAL,
+  DEFAULT_IMAGES,
   type SiteChrome,
   type SiteGeneral,
+  type SiteImages,
 } from '../../theme/settings.js';
 import type { OperatorPreferences } from '../../operators/preferences.js';
 import type { TenantExportRecord } from '../../tenants/exports.js';
@@ -48,6 +50,7 @@ export interface TenantStore {
   siteTheme: { version: number; value: ResolvedTheme };
   siteChrome: { version: number; value: SiteChrome };
   siteGeneral: { version: number; value: SiteGeneral };
+  siteImages: { version: number; value: SiteImages };
   brandLogo: { version: number; asset: BrandAsset | null };
   brandFont: { version: number; asset: BrandAsset | null };
   connections: Map<string, ConnectionRecord>;
@@ -105,6 +108,7 @@ const emptyTenant = (): TenantStore => ({
   siteTheme: { version: 0, value: DEFAULT_THEME },
   siteChrome: { version: 0, value: DEFAULT_CHROME },
   siteGeneral: { version: 0, value: DEFAULT_GENERAL },
+  siteImages: { version: 0, value: DEFAULT_IMAGES },
   brandLogo: { version: 0, asset: null },
   brandFont: { version: 0, asset: null },
   connections: new Map(),

@@ -194,8 +194,14 @@
 
   /* An article's drop cap: the first letter of the first paragraph of the first text block, but
      only when that block starts with a paragraph. The link colour is the one brand colour the
-     theme check measures against the body background (ADR 013), so the letter keeps contrast. */
-  .page[data-drop-cap] > .rich-text:not(.rich-text ~ .rich-text) > p:first-child::first-letter {
+     theme check measures against the body background (ADR 013), so the letter keeps contrast.
+     The live preview wraps every block in a `.preview-selectable` (Blocks `selectable`), so there
+     the first text block is the first wrapper holding one (#86 PR 2). */
+  .page[data-drop-cap] > .rich-text:not(.rich-text ~ .rich-text) > p:first-child::first-letter,
+  .page[data-drop-cap]
+    > .preview-selectable:has(> .rich-text):not(.preview-selectable:has(> .rich-text) ~ *)
+    > .rich-text
+    > p:first-child::first-letter {
     float: inline-start;
     margin-inline-end: 0.08em;
     font-family: var(--font-heading);

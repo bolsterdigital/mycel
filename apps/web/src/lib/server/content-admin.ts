@@ -82,14 +82,17 @@ export function valuesOf(doc: ContentDocument): FormValues {
   put('seoDescription', doc.seo.description);
   if (doc.seo.noindex) v.noindex = 'on';
   v.canonical = doc.seo.canonical ?? '';
+  put('lead', doc.lead);
+  v.heroImageId = doc.heroImageId ?? '';
   v.featuredImageId = doc.featuredImageId ?? '';
+  put('featuredTitle', doc.featured?.title);
+  put('featuredDescription', doc.featured?.description);
   v.shareImageId = doc.seo.imageId ?? '';
   v.level = doc.access.level;
   const teaser = doc.access.teaser;
   v.teaser = typeof teaser === 'object' ? 'blocks' : teaser;
   v.teaserBlocks = typeof teaser === 'object' ? String(teaser.blocks) : '';
   if (doc.type === 'article') {
-    put('lead', doc.lead);
     v.authorIds = [...doc.authorIds];
     v.sectionId = doc.sectionId ?? '';
     v.tags = doc.tags.join(', ');
@@ -120,12 +123,35 @@ export function documentFrom(
   if (canonical) seo.canonical = canonical;
   const shareImage = image(v, 'shareImageId', doc.seo.imageId);
   if (shareImage) seo.imageId = shareImage;
+  const heroImageId = image(v, 'heroImageId', doc.heroImageId);
   const featuredImageId = image(v, 'featuredImageId', doc.featuredImageId);
+  const featured = {
+    title: optional(localized(v, 'featuredTitle', locales)),
+    description: optional(localized(v, 'featuredDescription', locales)),
+  };
   const tierIds = (level || doc.access.level) === 'tier' ? doc.access.tierIds : undefined;
-  const { featuredImageId: _featured, ...rest } = doc;
+  const {
+    heroImageId: _hero,
+    featuredImageId: _featured,
+    featured: _featuredTexts,
+    lead: _lead,
+    ...rest
+  } = doc;
+  const lead = optional(localized(v, 'lead', locales));
   const common = {
     ...rest,
+    ...(heroImageId ? { heroImageId } : {}),
     ...(featuredImageId ? { featuredImageId } : {}),
+    // Absent rather than `{}` when both are empty: a stored document parses byte for byte.
+    ...(featured.title || featured.description
+      ? {
+          featured: {
+            ...(featured.title ? { title: featured.title } : {}),
+            ...(featured.description ? { description: featured.description } : {}),
+          },
+        }
+      : {}),
+    ...(lead ? { lead } : {}),
     locales,
     title: localized(v, 'title', locales),
     seo,
@@ -151,7 +177,6 @@ export function documentFrom(
   return {
     ...common,
     type: 'article',
-    lead: optional(localized(v, 'lead', locales)),
     authorIds: keepOrder(doc.authorIds, many(v, 'authorIds')),
     sectionId: one(v, 'sectionId') || null,
     tags: one(v, 'tags')

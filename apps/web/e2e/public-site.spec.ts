@@ -405,6 +405,39 @@ test.describe('content-routes', () => {
         await layoutGate(page, `${path} at ${size}`, 'main');
       }
     }
+
+    // The live preview wraps every block in `.preview-selectable`; the drop cap is there too
+    // (#86 PR 2). The unsaved-document route, posted from the edit form as the composition
+    // test below does, since an article has no live-preview panel yet.
+    if (isA11y()) {
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await login(page, `/admin/probe/content/${target.item.id}`);
+      await page.locator('[data-live-preview-source]').evaluate((node, id) => {
+        const form = node as HTMLFormElement;
+        form.action = '/admin/probe/preview/draft';
+        for (const [name, value] of [
+          ['itemId', id],
+          ['previewLocale', 'nl'],
+        ]) {
+          const input = document.createElement('input');
+          input.name = name!;
+          input.value = value!;
+          form.append(input);
+        }
+        form.submit();
+      }, target.item.id);
+      await expect(page.locator('main > .lead')).toHaveText('Een straat die ruimte maakt.');
+      await page.waitForLoadState('load');
+      expect(
+        await page.evaluate(() => {
+          const p = document.querySelector(
+            'main[data-drop-cap] > .preview-selectable > .rich-text > p:first-child'
+          );
+          const letter = p && getComputedStyle(p, '::first-letter');
+          return letter && parseFloat(letter.fontSize) > parseFloat(getComputedStyle(p).fontSize);
+        })
+      ).toBe(true);
+    }
   });
 
   test('the JSON read route serves the same article without a key', async ({ request }) => {

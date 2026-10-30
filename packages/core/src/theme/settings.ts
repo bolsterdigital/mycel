@@ -9,6 +9,8 @@ import './ports.js';
 import { Palette, DROP_CAPS, FONT_PAIRS, HEADING_WEIGHTS, THEME_VERSION } from './model.js';
 import { DEFAULT_THEME } from './presets.js';
 import { DEFAULT_TIME_ZONE, IanaTimeZone } from '../util/time-zone.js';
+import { imageIssue } from '../content/service.js';
+import '../media/ports.js';
 
 const Localized = z.record(z.string().min(2).max(12), z.string().trim().min(1).max(240));
 const Footer = z.record(z.string().min(2).max(12), z.string().trim().max(500));
@@ -50,6 +52,18 @@ export const DEFAULT_CHROME: SiteChrome = {
 export const SiteGeneral = z.object({ timeZone: IanaTimeZone }).strict();
 export type SiteGeneral = z.infer<typeof SiteGeneral>;
 export const DEFAULT_GENERAL: SiteGeneral = { timeZone: DEFAULT_TIME_ZONE };
+/**
+ * The images of a site (#86): today its default image, the last link of an item's featured and
+ * share image chain (`content/effective.ts`). A document of its own, not part of `general`, so the
+ * Huisstijl form that sets it and the general form that sets the time zone never post over each
+ * other's value. Rejected: a field on the theme, which is validated design values and is posted
+ * whole by a form that knows nothing of media.
+ */
+export const SiteImages = z.object({ defaultImageId: z.string().guid().nullable() }).strict();
+export type SiteImages = z.infer<typeof SiteImages>;
+export const DEFAULT_IMAGES: SiteImages = { defaultImageId: null };
+/** The `media_usages` ref of the site's images: a default image counts as used. */
+export const SITE_IMAGES_REF = 'site:images';
 const version = z.number().int().nonnegative();
 const ResolvedTheme = z
   .object({
@@ -77,6 +91,7 @@ const ResolvedTheme = z
 const ThemeState = z.object({ version, value: ResolvedTheme });
 const ChromeState = z.object({ version, value: SiteChrome });
 const GeneralState = z.object({ version, value: SiteGeneral });
+const ImagesState = z.object({ version, value: SiteImages });
 const conflict = () => {
   throw new UseCaseError('conflict', 'site.settings.conflict');
 };
@@ -153,5 +168,42 @@ export const updateSiteGeneral = defineUseCase({
     const next = await ctx.siteSettings.updateGeneral(baseVersion, general);
     if (next === null) return conflict();
     return { version: next, value: general };
+  },
+});
+export const getSiteImages = defineUseCase({
+  name: 'site.image.get',
+  kind: 'query',
+  description: 'Read the images of this site, such as the default image items inherit.',
+  requires: 'content:read',
+  input: z.object({}).strict(),
+  output: ImagesState,
+  examples: [{ input: {} }],
+  handler: async (ctx) => ctx.siteSettings.images(),
+});
+export const updateSiteImages = defineUseCase({
+  name: 'site.image.update',
+  kind: 'command',
+  description:
+    'Replace the images of this site at a known version; the default image must be an image in the media library.',
+  requires: 'content:write',
+  authenticatedOnly: true,
+  input: z.object({ baseVersion: version, images: SiteImages }).strict(),
+  output: ImagesState,
+  // Clearing the default: an id must name an image of the tenant, which an empty tenant lacks.
+  examples: [{ input: { baseVersion: 0, images: { defaultImageId: null } } }],
+  handler: async (ctx, { baseVersion, images }) => {
+    // The lock `media.delete` takes: the image cannot be deleted between this check and the usage.
+    await ctx.media.lock();
+    const id = images.defaultImageId;
+    const issue = id ? await imageIssue(ctx, id, 'images.defaultImageId') : null;
+    if (issue) throw new UseCaseError('invalid_input', 'the default image is not usable', [issue]);
+    const next = await ctx.siteSettings.updateImages(baseVersion, images);
+    if (next === null) return conflict();
+    const usages = id ? [{ mediaId: id, blockId: 'default-image' }] : [];
+    if ((await ctx.media.replaceUsages(SITE_IMAGES_REF, usages)) !== usages.length)
+      throw new UseCaseError('invalid_input', 'the default image could not be recorded', [
+        { path: 'images.defaultImageId', message: 'content.reference.media-unrecorded' },
+      ]);
+    return { version: next, value: images };
   },
 });

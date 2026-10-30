@@ -90,6 +90,8 @@ import {
   updateSiteChrome,
   getSiteGeneral,
   updateSiteGeneral,
+  getSiteImages,
+  updateSiteImages,
 } from './theme/settings.js';
 import {
   addHostname,
@@ -190,6 +192,8 @@ export const useCases = {
   updateSiteChrome,
   getSiteGeneral,
   updateSiteGeneral,
+  getSiteImages,
+  updateSiteImages,
   getBrandAsset,
   putBrandAsset,
   removeBrandAsset,

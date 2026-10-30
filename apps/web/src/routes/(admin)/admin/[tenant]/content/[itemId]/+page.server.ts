@@ -154,7 +154,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
   const { tenant } = await parent();
   const principal = locals.principal!;
   const { zone, site } = await adminTimeZone(locals);
-  const { item, revision } = await latest(principal, params.itemId);
+  const { item, revision, effective } = await latest(principal, params.itemId);
   const doc = revision.document;
   const { invoker } = runtime();
   // Which revision is live or pinned, in the words of the revisions page; one lookup per id.
@@ -187,7 +187,14 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
     principal,
     doc.blocks,
     item.defaultLocale,
-    documentMedia(doc).map((m) => m.mediaId)
+    // The images the chain shows under an empty picker (the site's default too), so each has
+    // its thumbnail even when it is not among the newest.
+    [
+      ...documentMedia(doc).map((m) => m.mediaId),
+      ...Object.values(effective).flatMap((e) =>
+        [e.images.featured.mediaId, e.images.share.mediaId].filter((id) => id !== null)
+      ),
+    ]
   );
   const canWrite = can(principal, 'content:write');
   const pending = pendingBlock(
@@ -287,6 +294,8 @@ export const load: PageServerLoad = async ({ parent, locals, params, url }) => {
     },
     corrections: doc.type === 'article' ? doc.corrections : [],
     values: valuesOf(doc),
+    // What every empty field inherits, per locale, with its source (#86): `Inherited` shows it.
+    effective,
     // The site's locales first, then any the document has that the site no longer does.
     locales: [...new Set([...tenant.locales, ...doc.locales])],
     authors,

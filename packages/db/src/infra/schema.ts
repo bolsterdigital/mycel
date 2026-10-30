@@ -24,6 +24,8 @@ export interface Database {
     font_version: Generated<number>;
     general: Json<unknown> | null;
     general_version: Generated<number>;
+    images: Json<unknown> | null;
+    images_version: Generated<number>;
   };
   connection_intents: {
     id: string;

@@ -31,7 +31,7 @@ An empty field inherits along one chain, computed by the pure functions in `cont
 | summary         | `featured.description` → first paragraph of `lead` → first paragraph of the first rich-text block |
 | SEO description | `seo.description` → summary                                                                       |
 
-A derived text has its whitespace folded and is cut at a word to at most 300 characters; an own value is returned as written. The site's default image is an argument of the chain, stored as a site setting (#86 PR 2). Nothing derived is stored on the revision.
+A derived text has its whitespace folded and is cut at a word to at most 300 characters; an own value is returned as written. The site's default image is an argument of the chain, stored as the site setting `images.defaultImageId` (`site.image.get/update`, see `theme.md`). Nothing derived is stored on the revision.
 
 - **Block ids** (ADR 020 rule 1): a string of `A-Z a-z 0-9 _ -`, at most 64 characters, unique in the whole document. A caller may omit the id of a new block and the core assigns a UUIDv7; ids that are sent are kept. At most 200 blocks per document. Two `rich-text` blocks are never adjacent in one block list.
 - **Block set**: the four types of #8a (`heading`, `signup-form`, `rich-text`, `paywall`) plus the cards of #8b2 (`image`, `hero`, `cta`, `callout`, `faq`, `quote`, `video-embed`, `form`); see [Blocks](#blocks) below.
