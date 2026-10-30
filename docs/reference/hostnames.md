@@ -61,3 +61,13 @@ Caddy issues certificates on demand and asks the application first: `GET /intern
 ## The API over HTTP and MCP
 
 The same four use cases are available to an API key or an agent with `tenant:admin` (which a key never has, so in practice: the admin UI): `tenant.hostname.list`, `tenant.hostname.add`, `tenant.hostname.verify`, `tenant.hostname.set_primary`, `tenant.hostname.remove`. The number of custom domains is an entitlement, `custom_domains.max` (ADR 015 rule 2).
+
+## Constants
+
+| Constant                | Value          | Where                                  | Why                                                                                           |
+| ----------------------- | -------------- | -------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `SITE_CACHE_TTL_MS`     | 30 s           | `packages/db/src/hostnames.ts`         | how long a resolved hostname is cached, so a withdrawn domain serves at most this much longer |
+| `SITE_CACHE_MAX`        | 10,000 entries | `packages/db/src/hostnames.ts`         | bounds the in-process hostname cache                                                          |
+| `REVERIFY_INTERVAL_MS`  | 24 h           | `packages/core/src/tenants/service.ts` | how often a custom hostname is re-checked                                                     |
+| `REVERIFY_MAX_FAILURES` | 3              | `packages/core/src/tenants/service.ts` | misses in a row after which a custom hostname lapses                                          |
+| `REVERIFY_MIN_GAP_MS`   | 1 h            | `packages/core/src/jobs/handlers.ts`   | a rerun shortly after a recorded check does not count a second miss                           |

@@ -60,15 +60,18 @@ Archiving processed outbox rows (ADR 011 rule 5) must keep events younger than `
 
 ## Constants
 
-| Name                    | Value  | Meaning                                                                                |
-| ----------------------- | ------ | -------------------------------------------------------------------------------------- |
-| `SEND_TIMEOUT_MS`       | 30 s   | the provider call is aborted after this                                                |
-| `CLAIM_LEASE_MS`        | 60 s   | timeout plus 30 s to commit the outcome; an expired lease without `sent_at` is unknown |
-| `CLOCK_SKEW_MS`         | 60 s   | tolerance between our clock and the provider's `created_at`                            |
-| `RECONCILE_LAG_MS`      | 15 min | env `MAIL_RECONCILE_LAG_MINUTES`; how long the listing gets to show an attempt         |
-| `RECONCILE_INTERVAL_MS` | 10 min | the job's next look while unknown                                                      |
-| `RECONCILE_GIVE_UP_MS`  | 24 h   | after this, an unknown attempt is abandoned                                            |
-| `MAX_SEND_ATTEMPTS`     | 3      | attempts proven not to have arrived before the intent is abandoned                     |
+| Constant                | Value   | Where                                        | Why                                                                                     |
+| ----------------------- | ------- | -------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `SEND_TIMEOUT_MS`       | 30 s    | `packages/core/src/mailing/send-attempts.ts` | the provider call is aborted after this                                                 |
+| `CLAIM_SLACK_MS`        | 30 s    | `packages/core/src/mailing/send-attempts.ts` | time past the call's timeout to commit the outcome                                      |
+| `CLAIM_LEASE_MS`        | 60 s    | `packages/core/src/mailing/send-attempts.ts` | timeout plus slack; a lease that expires without `sent_at` means the outcome is unknown |
+| `CLOCK_SKEW_MS`         | 60 s    | `packages/core/src/mailing/send-attempts.ts` | tolerance between our clock and the provider's `created_at`                             |
+| `RECONCILE_LAG_MS`      | 15 min  | `packages/core/src/mailing/send-attempts.ts` | how long the listing gets to show an attempt; env `MAIL_RECONCILE_LAG_MINUTES`          |
+| `RECONCILE_INTERVAL_MS` | 10 min  | `packages/core/src/mailing/send-attempts.ts` | the job's next look while the outcome is unknown                                        |
+| `RECONCILE_GIVE_UP_MS`  | 24 h    | `packages/core/src/mailing/send-attempts.ts` | after this, an unknown attempt is abandoned and stays visible                           |
+| `MAX_SEND_ATTEMPTS`     | 3       | `packages/core/src/mailing/send-attempts.ts` | attempts proven not to have arrived before the intent is abandoned                      |
+| `LOOKUP_PAGE_SIZE`      | 100     | `packages/mail-tem/src/tem.ts`               | one page of the listing; more matches than this is an answer the core cannot count      |
+| `CONFIRM_TTL_MS`        | 14 days | `packages/core/src/mailing/confirmation.ts`  | how long a confirmation link stays valid                                                |
 
 ## Residual risk
 
