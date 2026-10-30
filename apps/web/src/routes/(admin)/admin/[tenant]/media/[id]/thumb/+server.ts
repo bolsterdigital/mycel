@@ -2,7 +2,7 @@
 // the platform origin and the site's `/media/...` route belongs to the tenant's hostnames. The
 // operator's session is enough; a thumbnail is no original.
 import { runtime } from '#lib/server/runtime.js';
-import { adminMediaPrincipal } from '#lib/server/admin.js';
+import { adminMediaPrincipal } from '#lib/server/admin/admin.js';
 import { serveAdminMedia } from '#lib/server/media.js';
 import type { RequestHandler } from './$types';
 

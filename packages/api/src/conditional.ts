@@ -1,5 +1,5 @@
 // The If-None-Match rule, shared by every front that answers a 304 (TODO #74): the Hono apps
-// through `http-shape.ts`, and the public site through `apps/web/src/lib/server/http-cache.ts`,
+// through `http-shape.ts`, and the public site through `apps/web/src/lib/server/http/http-cache.ts`,
 // which imports this file as `@mycel/api/conditional`. Each had its own copy. A file of its own,
 // not part of `http-shape.ts`, so the web front reaches this rule and nothing else of the API.
 // Rejected: a package for one function, and core, which owns no HTTP.

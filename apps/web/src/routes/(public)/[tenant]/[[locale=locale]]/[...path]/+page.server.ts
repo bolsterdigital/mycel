@@ -18,7 +18,7 @@ import { currentContext } from '@mycel/observability';
 import { ui } from '../../../../../i18n/index.js';
 import { localeOf, parseContentPath, thanksPath } from '#lib/server/content-route.js';
 import { failureFor } from '#lib/server/form-post.js';
-import { NO_STORE, PUBLIC_CACHE } from '#lib/server/http-cache.js';
+import { NO_STORE, PUBLIC_CACHE } from '#lib/server/http/http-cache.js';
 import { loadPublicItem } from '#lib/server/public-page.js';
 import { runtime } from '#lib/server/runtime.js';
 import { absoluteSiteUrl, requireSite, sitePath, siteTenant } from '#lib/server/site.js';

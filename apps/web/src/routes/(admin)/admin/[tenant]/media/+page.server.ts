@@ -12,9 +12,9 @@
 // without a script.
 import { MAX_UPLOAD_BYTES, can, useCases } from '@mycel/core';
 import { fail } from '@sveltejs/kit';
-import { text } from '#lib/server/admin-actions.js';
-import { requireTenantPrincipal } from '#lib/server/admin.js';
-import { uploadFile } from '#lib/server/media-choices.js';
+import { text } from '#lib/server/admin/admin-actions.js';
+import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
+import { uploadFile } from '#lib/server/admin/media-choices.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { UiKey } from '../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';

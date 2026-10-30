@@ -1,5 +1,5 @@
 // GET /admin: the sites the operator is a member of, straight from the memberships.
-import { requireSession } from '#lib/server/admin.js';
+import { requireSession } from '#lib/server/admin/admin.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { PageServerLoad } from './$types';
 

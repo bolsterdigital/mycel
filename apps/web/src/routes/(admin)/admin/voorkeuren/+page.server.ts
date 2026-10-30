@@ -9,10 +9,10 @@ import {
   updateOperatorPreferences,
 } from '@mycel/core';
 import { fail, redirect } from '@sveltejs/kit';
-import { requireSession } from '#lib/server/admin.js';
-import { safeReturn } from '#lib/server/admin-paths.js';
+import { requireSession } from '#lib/server/admin/admin.js';
+import { safeReturn } from '#lib/server/admin/admin-paths.js';
 import { runtime } from '#lib/server/runtime.js';
-import { timeZoneOptions } from '#lib/server/time-zones.js';
+import { timeZoneOptions } from '#lib/server/admin/time-zones.js';
 import type { Actions, PageServerLoad } from './$types';
 
 /** Where "back" goes: the admin page the operator came from, never another origin. */

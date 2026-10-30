@@ -14,7 +14,7 @@ import {
   type MediaView,
 } from '@mycel/core';
 import { error, redirect } from '@sveltejs/kit';
-import { act, text } from '#lib/server/admin-actions.js';
+import { act, text } from '#lib/server/admin/admin-actions.js';
 import { ORIGINAL_TTL_MS, signedOriginalPath } from '#lib/server/media.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { UiKey } from '../../../../../../i18n/index.js';

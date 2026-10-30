@@ -2,14 +2,14 @@
 // to the IdP. Rate limited per client address; 503 when no issuer is configured, so a site
 // without operator login still serves its public pages.
 import { error, redirect } from '@sveltejs/kit';
-import { allowLoginAttempt, cookieOptions } from '#lib/server/admin.js';
-import { safeReturn } from '#lib/server/admin-paths.js';
+import { allowLoginAttempt, cookieOptions } from '#lib/server/admin/admin.js';
+import { safeReturn } from '#lib/server/admin/admin-paths.js';
 import {
   LoginNotConfigured,
   OIDC_COOKIE,
   OIDC_COOKIE_TTL_MS,
   startLogin,
-} from '#lib/server/oidc.js';
+} from '#lib/server/admin/oidc.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { PageServerLoad } from './$types';
 

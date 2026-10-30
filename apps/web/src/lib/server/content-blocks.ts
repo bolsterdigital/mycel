@@ -24,7 +24,7 @@ import {
 } from '@mycel/core';
 import { runtime } from './runtime.js';
 import { withAssigned } from './content-admin.js';
-import { mediaChoice } from './media-choices.js';
+import { mediaChoice } from './admin/media-choices.js';
 import type { UiKey } from '../../i18n/index.js';
 import type { MediaChoice } from '../admin/media-choice.js';
 

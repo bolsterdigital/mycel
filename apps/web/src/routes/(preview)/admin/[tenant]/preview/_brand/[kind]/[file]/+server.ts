@@ -1,6 +1,6 @@
 // Preview assets use the same safe bytes as public delivery but require site membership.
 import { error } from '@sveltejs/kit';
-import { requireTenantPrincipal } from '#lib/server/admin.js';
+import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { PREVIEW_HEADERS } from '#lib/server/preview.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { RequestHandler } from './$types';

@@ -35,9 +35,9 @@
         "packages/api/src/runtime/signer.ts",
         "packages/api/src/platform*",
         "apps/web/src/hooks.server.ts",
-        "apps/web/src/lib/server/oidc.ts",
-        "apps/web/src/lib/server/security-headers*",
-        "apps/web/src/lib/server/body-limit*",
+        "apps/web/src/lib/server/admin/oidc.ts",
+        "apps/web/src/lib/server/http/security-headers*",
+        "apps/web/src/lib/server/http/body-limit*",
         "docker/backup/**",
         "docker/caddy/**",
         ".gitleaks.toml",
@@ -52,13 +52,13 @@
         "packages/db/src/hostnames*",
         "apps/web/src/hooks.ts",
         "apps/web/vite.config.ts",
-        "apps/web/src/lib/server/admin*",
+        "apps/web/src/lib/server/admin/admin*",
         "apps/web/src/lib/server/confirm*",
         "apps/web/src/lib/server/form-post*",
         "apps/web/src/lib/server/media.ts",
         "apps/web/src/lib/server/preview.ts",
         "apps/web/src/routes/(preview)/**",
-        "apps/web/src/lib/server/export-download*",
+        "apps/web/src/lib/server/admin/export-download*",
         "packages/core/src/entitlements/**",
         "packages/core/src/tenants/**",
         "packages/core/src/util/canonical-json*",
@@ -78,7 +78,7 @@
         "packages/db/src/adapter-rules.test.ts",
         "scripts/gates/db-roles.test.mjs",
         "packages/db/src/login-limit.test.ts",
-        "apps/web/src/lib/server/security-headers.test.ts",
+        "apps/web/src/lib/server/http/security-headers.test.ts",
         "scripts/gates/gitleaks.test.mjs",
         ".github/workflows/verify.yml"
       ],
@@ -170,7 +170,7 @@
       "paths": [
         "apps/web/src/i18n/**",
         "packages/core/src/i18n/**",
-        "apps/web/src/lib/server/http-cache*",
+        "apps/web/src/lib/server/http/http-cache*",
         "apps/web/src/lib/server/public-page.ts",
         "apps/web/src/params.ts",
         "packages/api/src/content-read.ts"
@@ -178,7 +178,7 @@
       "adrs": ["007", "012", "018"],
       "gates": [
         "apps/web/e2e/public-site.spec.ts",
-        "apps/web/src/lib/server/http-cache.test.ts",
+        "apps/web/src/lib/server/http/http-cache.test.ts",
         "packages/api/src/content-read.test.ts"
       ],
       "counterproof": "The same item in both locales through HTML and JSON, with a conditional GET after the cache lifetime has passed."

@@ -1,7 +1,7 @@
 // A media variant for the admin preview (lib/server/preview.ts): the site's own delivery
 // (`serveMedia`, as a visitor sees it, restricted originals included), but only for an operator
 // of this site, and never cached in a shared cache.
-import { adminMediaPrincipal } from '#lib/server/admin.js';
+import { adminMediaPrincipal } from '#lib/server/admin/admin.js';
 import { serveMedia } from '#lib/server/media.js';
 import { PREVIEW_HEADERS, previewSite } from '#lib/server/preview.js';
 import { runtime } from '#lib/server/runtime.js';

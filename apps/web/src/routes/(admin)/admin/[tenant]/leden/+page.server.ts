@@ -4,9 +4,9 @@
 // posts. A new key's token is in the response to the post that made it and nowhere else:
 // reloading the page does not show it again. A refusal by an entitlement or a suspension is a
 // message that names what, never a price (ADR 015 rule 3); the mapping lives in
-// lib/server/admin-actions.ts.
+// lib/server/admin/admin-actions.ts.
 import { Capability, KeyCapability, useCases } from '@mycel/core';
-import { act, text } from '#lib/server/admin-actions.js';
+import { act, text } from '#lib/server/admin/admin-actions.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { UiKey } from '../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';

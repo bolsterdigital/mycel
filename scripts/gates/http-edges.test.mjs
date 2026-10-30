@@ -47,7 +47,7 @@ const sources = () =>
 
 test('packages/api writes its HTTP edges only in http-shape.ts', () => {
   const files = sources();
-  for (const home of [HOME, RULE_HOME, 'apps/web/src/lib/server/http-cache.ts'])
+  for (const home of [HOME, RULE_HOME, 'apps/web/src/lib/server/http/http-cache.ts'])
     assert.ok(
       files.some((f) => f.path === home),
       `the scan finds ${home}`
