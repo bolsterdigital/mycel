@@ -186,10 +186,12 @@ describe.skipIf(skip)('content operations conformance', () => {
     ).rejects.toMatchObject({ code: 'not_found' });
     const revisions = await invoker.run(useCases.listRevisions, adminOf(tenantA), target);
     expect(revisions.revisions).toHaveLength(4);
-    expect(await invoker.run(useCases.getItem, adminOf(tenantA), target)).toEqual({
-      item: removed.item,
-      revision: removed.revision,
-    });
+    const { effective: _effective, ...read } = await invoker.run(
+      useCases.getItem,
+      adminOf(tenantA),
+      target
+    );
+    expect(read).toEqual({ item: removed.item, revision: removed.revision });
     const outcomes = await Promise.allSettled([
       invoker.run(useCases.approveTranslation, human, {
         ...target,

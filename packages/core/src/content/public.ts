@@ -23,7 +23,8 @@ import { notFound } from '../errors.js';
 import { Locale } from '../i18n/locale.js';
 import { defineUseCase } from '../registry.js';
 import { Block, blockLocalized, projectBlock } from './blocks.js';
-import { ContentType, Slug, shareImageId, type ContentDocument } from './model.js';
+import { ContentType, Slug, type ContentDocument } from './model.js';
+import { EffectiveView, effectiveOf } from './effective.js';
 import { statusOf } from './lifecycle.js';
 import './ports.js';
 
@@ -41,19 +42,23 @@ export const PublishedItem = z.object({
   publishedAt: z.string().datetime({ offset: true }),
   /** When the published revision was saved; a later draft does not move it. */
   updatedAt: z.string().datetime({ offset: true }),
+  /** The image on the item's own page; null without one. */
+  heroImageId: z.string().guid().nullable(),
   /** The item's own image, for cards that link to it; null without one. */
   featuredImageId: z.string().guid().nullable(),
   /**
-   * Search and sharing in this locale: the explicit title and description (null: derive them
-   * from the title and lead) and the share image, which falls back to the featured image.
+   * Search and sharing in this locale: the explicit title and description (null: none set) and
+   * the share image along the chain (`effective.images.share`).
    */
   seo: z.object({
     title: z.string().nullable(),
     description: z.string().nullable(),
     imageId: z.string().guid().nullable(),
   }),
-  /** Articles only, in this locale. */
-  lead: z.string().nullable().optional(),
+  /** The introduction in this locale, on pages and articles. */
+  lead: z.string().nullable(),
+  /** Images and short texts after inheritance (#86), so no reader derives them on its own. */
+  effective: EffectiveView,
   corrections: z.array(z.object({ date: z.string().date(), text: z.string() })).optional(),
   authors: z.array(z.object({ id: z.string().guid(), slug: Slug, name: z.string() })).optional(),
   section: z.object({ slug: Slug, name: z.string() }).nullable().optional(),
@@ -117,6 +122,7 @@ export const getPublished = defineUseCase({
     if (!revision) throw missing();
     const doc = revision.document;
     if (doc.access.level !== 'public') throw missing();
+    const effective = effectiveOf(doc, chosen);
     const base = {
       id: item.id,
       type: item.type,
@@ -127,12 +133,15 @@ export const getPublished = defineUseCase({
       ...projectDocument(doc, chosen),
       publishedAt: state.publishedAt!.toISOString(),
       updatedAt: revision.createdAt,
+      heroImageId: doc.heroImageId ?? null,
       featuredImageId: doc.featuredImageId ?? null,
       seo: {
         title: doc.seo.title?.[chosen] ?? null,
         description: doc.seo.description?.[chosen] ?? null,
-        imageId: shareImageId(doc),
+        imageId: effective.images.share.mediaId,
       },
+      lead: doc.lead?.[chosen] ?? null,
+      effective,
     };
     if (doc.type !== 'article') return base;
 
@@ -146,7 +155,6 @@ export const getPublished = defineUseCase({
     const section = doc.sectionId ? await ctx.sections.get(doc.sectionId) : null;
     return {
       ...base,
-      lead: doc.lead?.[chosen] ?? null,
       corrections: doc.corrections.flatMap((c) => {
         const text = c.text[chosen];
         return text ? [{ date: c.date, text }] : [];

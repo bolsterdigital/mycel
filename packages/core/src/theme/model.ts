@@ -21,6 +21,10 @@ export type FontPair = (typeof FONT_PAIRS)[number];
 
 export const HEADING_WEIGHTS = [400, 500, 600, 700, 800] as const;
 
+/** Where the first letter of the body is a drop cap in the accent colour (#86); a site choice. */
+export const DROP_CAPS = ['articles', 'off'] as const;
+export type DropCap = (typeof DROP_CAPS)[number];
+
 /** The role pairs of a palette: each a foreground on its background. */
 export const THEME_ROLES = ['body', 'surface', 'primary', 'accent', 'muted', 'warning'] as const;
 
@@ -102,6 +106,7 @@ export const ThemeInput = z
       radius: range('radius').optional(),
       density: range('density').optional(),
       headingWeight: HeadingWeight.optional(),
+      dropCap: z.enum(DROP_CAPS, notAllowed).optional(),
     },
     unknownKey
   )
@@ -119,4 +124,5 @@ export interface ResolvedTheme {
   radius: number;
   density: number;
   headingWeight: (typeof HEADING_WEIGHTS)[number];
+  dropCap: DropCap;
 }

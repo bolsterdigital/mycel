@@ -189,19 +189,21 @@ describe.skipIf(skip)('content blocks conformance', () => {
   it("writes refs and usages of the document's featured and share image, and refuses foreign ones", async () => {
     const photo = await upload(adminOf(tenantA));
     const share = await upload(adminOf(tenantA));
+    const hero = await upload(adminOf(tenantA));
     const foreign = await upload(adminOf(tenantB));
-    const doc = (images: { featuredImageId?: string; imageId?: string }) => ({
+    const doc = (images: { featuredImageId?: string; imageId?: string; heroImageId?: string }) => ({
       type: 'article' as const,
       defaultLocale: 'nl',
       locales: ['nl'],
       title: { nl: 'Titel' },
       blocks: [image('img', photo)],
       ...(images.featuredImageId ? { featuredImageId: images.featuredImageId } : {}),
+      ...(images.heroImageId ? { heroImageId: images.heroImageId } : {}),
       seo: images.imageId ? { imageId: images.imageId } : {},
     });
     const { item, revision } = await invoker.run(useCases.createItem, adminOf(tenantA), {
       slug: `doc-images-${run}`,
-      document: doc({ featuredImageId: photo, imageId: share }),
+      document: doc({ featuredImageId: photo, imageId: share, heroImageId: hero }),
     });
     const rows = await withTenant(appDb, adminOf(tenantA), (trx) =>
       trx
@@ -213,11 +215,17 @@ describe.skipIf(skip)('content blocks conformance', () => {
     const key = (r: { block_id: string | null; type: string; ref_id: string }) =>
       `${r.block_id} ${r.type} ${r.ref_id}`;
     expect(rows.map(key).sort()).toEqual(
-      [`img media ${photo}`, `null media ${photo}`, `null media ${share}`].sort()
+      [
+        `img media ${photo}`,
+        `null media ${photo}`,
+        `null media ${share}`,
+        `null media ${hero}`,
+      ].sort()
     );
     const ref = `item:${item.id}:rev:${revision.id}`;
     expect(await usagesOf(photo)).toEqual([`${ref} doc:featured`, `${ref} img`]);
     expect(await usagesOf(share)).toEqual([`${ref} doc:seo`]);
+    expect(await usagesOf(hero)).toEqual([`${ref} doc:hero`]);
     // Where-used finds the item by its share image, with no block to point at.
     const found = await invoker.run(useCases.findItems, adminOf(tenantA), {
       ref: { type: 'media', id: share },

@@ -3,6 +3,7 @@
      shown but do not post. -->
 <script lang="ts">
   import Blocks from '#lib/blocks/Blocks.svelte';
+  import Intro from '#lib/blocks/Intro.svelte';
   import { fill, ui } from '../../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -46,7 +47,8 @@
   </span>
 </header>
 
-<main class="page">
+<main class="page" data-drop-cap={data.dropCap ? '' : undefined}>
   <h1>{data.model.title}</h1>
-  <Blocks model={data.model} preview={data.formNote} />
+  <Intro intro={data.intro} model={data.model} />
+  <Blocks model={data.model} preview={data.formNote} eagerFirstImage={!data.intro.hero} />
 </main>

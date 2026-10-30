@@ -31,6 +31,7 @@ export * from './content/rich-text.js';
 export * from './content/markdown.js';
 export * from './content/blocks.js';
 export * from './content/model.js';
+export * from './content/effective.js';
 export * from './content/lifecycle.js';
 export * from './content/ports.js';
 export * from './content/diff.js';

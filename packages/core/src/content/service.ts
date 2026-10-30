@@ -26,6 +26,7 @@ import {
 } from './blocks.js';
 import { EXAMPLE_IDS } from './block-types.js';
 import { diffDocuments } from './diff.js';
+import { EffectiveView, effectiveOf } from './effective.js';
 import {
   draftLocale,
   publish,
@@ -328,6 +329,14 @@ export async function assertPublishable(
 
 export const ItemWithRevision = z.object({ item: ContentItem, revision: Revision });
 
+/**
+ * An item read for editing: the revision plus its chain per locale of the document (#86), so an
+ * agent sees what a card or a share preview will show without deriving it.
+ */
+export const ItemWithEffective = ItemWithRevision.extend({
+  effective: z.record(Locale, EffectiveView),
+});
+
 const pageExample = {
   slug: 'about',
   document: {
@@ -487,7 +496,7 @@ export const getItem = defineUseCase({
   requires: 'content:read',
   authenticatedOnly: true,
   input: z.object({ itemId: ItemId, revisionId: z.string().guid().optional() }),
-  output: ItemWithRevision,
+  output: ItemWithEffective,
   resource: { uriTemplate: 'mycel://content/{itemId}' },
   examples: [{ input: { itemId: exampleId(0x1) } }],
   async handler(ctx, { itemId, revisionId }) {
@@ -495,7 +504,9 @@ export const getItem = defineUseCase({
     if (!item) throw notFound('content item');
     const revision = await ctx.content.revision(itemId, revisionId ?? item.latestRevisionId);
     if (!revision) throw notFound('revision');
-    return { item: toContentItem(item), revision };
+    const doc = revision.document;
+    const effective = Object.fromEntries(doc.locales.map((l) => [l, effectiveOf(doc, l)]));
+    return { item: toContentItem(item), revision, effective };
   },
 });
 

@@ -8,15 +8,16 @@ Migration 0027 keeps the two active byte sequences and their metadata in `site_s
 
 ## Values
 
-| Value           | Range                                           | Default |
-| --------------- | ----------------------------------------------- | ------- |
-| `baseSize`      | 16 to 22 (px-equivalent; the renderer uses rem) | 18      |
-| `scaleRatio`    | 1.125 to 1.5                                    | 1.25    |
-| `measure`       | 45 to 85 (ch)                                   | 65      |
-| `radius`        | 0 to 24 (px-equivalent)                         | 4       |
-| `density`       | 0.8 to 1.3 (factor)                             | 1       |
-| `headingWeight` | 400, 500, 600, 700 or 800                       | 700     |
-| `fontPair`      | `inter` or `source-serif-inter`                 | `inter` |
+| Value           | Range                                           | Default    |
+| --------------- | ----------------------------------------------- | ---------- |
+| `baseSize`      | 16 to 22 (px-equivalent; the renderer uses rem) | 18         |
+| `scaleRatio`    | 1.125 to 1.5                                    | 1.25       |
+| `measure`       | 45 to 85 (ch)                                   | 65         |
+| `radius`        | 0 to 24 (px-equivalent)                         | 4          |
+| `density`       | 0.8 to 1.3 (factor)                             | 1          |
+| `headingWeight` | 400, 500, 600, 700 or 800                       | 700        |
+| `fontPair`      | `inter` or `source-serif-inter`                 | `inter`    |
+| `dropCap`       | `articles` or `off`                             | `articles` |
 
 `fontPair` is currently a closed product catalogue: Inter for headings and body, or Source Serif 4 headings with Inter body. Adding one to this schema is a product change; the managed extension route accepted in ADR 022 has a separate compatibility and effective-style contract.
 
@@ -47,16 +48,17 @@ Ratios are WCAG 2.2 relative luminance, compared unrounded; the report rounds to
 
 `themeCss(theme)` turns a `ResolvedTheme` into custom properties, and `apps/web/src/lib/theme/base.css` reads nothing else:
 
-| Theme value              | Custom property                                                                                                                |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| each role pair           | `--color-<role>-fg`, `--color-<role>-bg` (`body`, `surface`, `primary`, `accent`, `muted`, `warning`)                          |
-| `link`, `focus`          | `--color-link`, `--color-focus`                                                                                                |
-| `fontPair`               | `--font-body` (Inter in both pairs), `--font-heading` (Inter or Source Serif 4), plus the `@font-face` rules of that pair only |
-| `headingWeight`          | `--heading-weight`                                                                                                             |
-| `baseSize`, `scaleRatio` | `--step--1` to `--step-4`: `baseSize * scaleRatio^n / 16` in `rem`                                                             |
-| `measure`                | `--measure` in `ch`; the page column reads it through a registered `<length>` property, so headings share the text's column    |
-| `radius`                 | `--radius` in `rem`                                                                                                            |
-| `density`                | `--density`, a factor on the spacing steps                                                                                     |
+| Theme value              | Custom property                                                                                                                                                                             |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| each role pair           | `--color-<role>-fg`, `--color-<role>-bg` (`body`, `surface`, `primary`, `accent`, `muted`, `warning`)                                                                                       |
+| `link`, `focus`          | `--color-link`, `--color-focus`                                                                                                                                                             |
+| `fontPair`               | `--font-body` (Inter in both pairs), `--font-heading` (Inter or Source Serif 4), plus the `@font-face` rules of that pair only                                                              |
+| `headingWeight`          | `--heading-weight`                                                                                                                                                                          |
+| `baseSize`, `scaleRatio` | `--step--1` to `--step-4`: `baseSize * scaleRatio^n / 16` in `rem`                                                                                                                          |
+| `measure`                | `--measure` in `ch`; the page column reads it through a registered `<length>` property, so headings share the text's column                                                                 |
+| `radius`                 | `--radius` in `rem`                                                                                                                                                                         |
+| `density`                | `--density`, a factor on the spacing steps                                                                                                                                                  |
+| `dropCap`                | none: an article page carries `data-drop-cap` and `base.css` gives the first letter of its first text block the link colour, the one brand colour checked against the body background (#86) |
 
 The light palette sits in `:root`, the dark one under `@media (prefers-color-scheme: dark)`; both are explicit. Colour is only used as a validated pair: a link is coloured only on body and surface (the two backgrounds the check measures it against) and inherits the pair's foreground elsewhere, always underlined.
 

@@ -40,6 +40,7 @@ import type {
   RenderBlock,
   RenderForm,
   RenderImage,
+  RenderIntro,
   RenderModel,
 } from './model.js';
 import { videoUrl } from './model.js';
@@ -167,6 +168,24 @@ function renderImage(
     caption: caption.trim() ? caption : null,
     credit: credit.work || credit.photographer ? credit : null,
     focal: { x: q(asset.focal.x), y: q(asset.focal.y) },
+  };
+}
+
+/**
+ * What sits between an item's title and its blocks (#86): the lead in this locale and the hero
+ * image. The hero has no alt of its own, like the featured and share image
+ * (docs/reference/content-model.md), so it renders as decorative with the asset's caption and
+ * credit; the title and lead above it carry the meaning.
+ */
+export async function resolveIntro(
+  source: ResolveSource,
+  intro: { lead: string | null; heroImageId: string | null },
+  locale: string
+): Promise<RenderIntro> {
+  const asset = intro.heroImageId ? await source.media(intro.heroImageId) : null;
+  return {
+    lead: intro.lead,
+    hero: renderImage(asset, { decorative: true, alt: null }, locale),
   };
 }
 

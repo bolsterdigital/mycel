@@ -13,13 +13,19 @@ import {
   type Block,
   type ContentDocument,
 } from '@mycel/core';
-import { resolveDocument, runtimeSource } from '#lib/blocks/resolve.js';
+import { resolveDocument, resolveIntro, runtimeSource } from '#lib/blocks/resolve.js';
 import { posted } from '#lib/editor/block-form.js';
 import { requireTenantPrincipal } from '#lib/server/admin.js';
 import { text } from '#lib/server/admin-actions.js';
 import { documentFrom, valuesFromForm } from '#lib/server/content-admin.js';
 import { blocksFrom } from '#lib/server/edit-form.js';
-import { PREVIEW_HEADERS, previewBase, previewSite, siteReader } from '#lib/server/preview.js';
+import {
+  PREVIEW_HEADERS,
+  previewBase,
+  previewSite,
+  siteReader,
+  introOf,
+} from '#lib/server/preview.js';
 import { runtime } from '#lib/server/runtime.js';
 import { siteBrand, siteTheme } from '#lib/server/theme.js';
 import { ui } from '../../../../../../i18n/index.js';
@@ -70,17 +76,19 @@ export const actions: Actions = {
 
     const site = await previewSite(tenant);
     const base = previewBase(tenant.slug);
-    const [model, theme] = await Promise.all([
+    const source = runtimeSource({
+      invoker: rt.invoker,
+      uow: rt.uow,
+      reader: siteReader(site),
+      defaultLocale: tenant.defaultLocale,
+    });
+    const [model, intro, theme] = await Promise.all([
       resolveDocument(
-        runtimeSource({
-          invoker: rt.invoker,
-          uow: rt.uow,
-          reader: siteReader(site),
-          defaultLocale: tenant.defaultLocale,
-        }),
+        source,
         { locale, ...projectDocument(doc, locale) },
         { base, fallbackLocale: tenant.defaultLocale }
       ),
+      resolveIntro(source, introOf(doc, locale), locale),
       siteTheme(site),
     ]);
     const brand = await siteBrand(site);
@@ -90,6 +98,8 @@ export const actions: Actions = {
       admin,
       locale,
       model,
+      intro,
+      dropCap: doc.type === 'article' && theme.dropCap === 'articles',
       issues: readinessIssues(doc, locale).map((issue) => issue.path),
       theme: { href: `${base}/_theme/${theme.hash}.css`, preload: theme.preload },
       brand: {

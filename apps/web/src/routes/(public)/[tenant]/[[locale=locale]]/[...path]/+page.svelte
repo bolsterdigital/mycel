@@ -1,9 +1,12 @@
 <!-- A public page or article, or its thank-you page: the document title is the only h1 (ADR 004
-     rule 3), the blocks render from the resolved model (lib/blocks), and a failed form post comes
-     back as `form`. The head carries the canonical URL, one alternate per published locale and
+     rule 3), then the lead and the hero image (#86, in the order of the edit screen), then the
+     blocks from the resolved model (lib/blocks); a failed form post comes back as `form`. An
+     article on a site with a drop cap carries `data-drop-cap`, which base.css reads (no style
+     attribute under the CSP). The head carries the canonical URL, one alternate per published locale and
      the Open Graph tags with the share image (#66). -->
 <script lang="ts">
   import Blocks from '#lib/blocks/Blocks.svelte';
+  import Intro from '#lib/blocks/Intro.svelte';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -40,13 +43,16 @@
   {/if}
 </svelte:head>
 
-<main class="page">
-  {#if data.view === 'thanks'}
+{#if data.view === 'thanks'}
+  <main class="page">
     <h1>{data.title}</h1>
     <p>{data.message}</p>
     <p><a href={data.back.href}>{data.back.label}</a></p>
-  {:else}
+  </main>
+{:else}
+  <main class="page" data-drop-cap={data.dropCap ? '' : undefined}>
     <h1>{data.model.title}</h1>
-    <Blocks model={data.model} formState={form ?? null} />
-  {/if}
-</main>
+    <Intro intro={data.intro} model={data.model} />
+    <Blocks model={data.model} formState={form ?? null} eagerFirstImage={!data.intro.hero} />
+  </main>
+{/if}

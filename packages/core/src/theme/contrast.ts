@@ -69,6 +69,7 @@ export function resolveTheme(input: ThemeInput): ResolvedTheme {
     radius: value('radius'),
     density: value('density'),
     headingWeight: input.headingWeight ?? DEFAULT_THEME.headingWeight,
+    dropCap: input.dropCap ?? DEFAULT_THEME.dropCap,
   };
 }
 

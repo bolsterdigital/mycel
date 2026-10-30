@@ -372,6 +372,34 @@ describe('content items', () => {
     });
   });
 
+  describe('the inheritance chain in the projection (#86)', () => {
+    it('gives a page its lead and hero, and derives the rest in the asked locale only', async () => {
+      const { item, revision } = await create({
+        ...pageDoc('In English.'),
+        lead: { nl: 'Inleiding.', en: 'EN-LEAD' },
+        featured: { description: { en: 'EN-FEATURED' } },
+      } as never);
+      await invoker.run(useCases.publishItem, admin, {
+        itemId: item.id,
+        revisionId: revision.id,
+        locale: 'nl',
+      });
+      const page = await invoker.run(useCases.getPublished, visitor(), PAGE_ABOUT);
+      expect(page).toMatchObject({
+        lead: 'Inleiding.',
+        heroImageId: null,
+        effective: {
+          images: { hero: { mediaId: null, source: null } },
+          summary: { text: 'Inleiding.', source: 'lead' },
+          seoDescription: { text: 'Inleiding.', source: 'lead' },
+        },
+      });
+      expect(JSON.stringify(page)).not.toMatch(/EN-LEAD|EN-FEATURED/);
+      const got = await invoker.run(useCases.getItem, admin, { itemId: item.id });
+      expect(got.effective['en']!.summary).toEqual({ text: 'EN-FEATURED', source: 'featured' });
+    });
+  });
+
   describe('contentPath (brief #8c § 8)', () => {
     it('prefixes every locale but the default and puts articles under /articles', () => {
       const page = { type: 'page' as const, slug: 'about' };

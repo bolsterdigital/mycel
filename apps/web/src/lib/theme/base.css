@@ -179,6 +179,31 @@
   .credit {
     display: inline-block;
   }
+
+  /* The item's own introduction (#86): the lead in the next step of the scale, in the heading
+     font, and the hero image between it and the blocks. */
+  .page > .lead {
+    margin-block: 0 var(--space-3);
+    font-family: var(--font-heading);
+    font-size: var(--step-1);
+    line-height: 1.4;
+  }
+  .page > .page-hero {
+    margin-block-end: var(--space-3);
+  }
+
+  /* An article's drop cap: the first letter of the first paragraph of the first text block, but
+     only when that block starts with a paragraph. The link colour is the one brand colour the
+     theme check measures against the body background (ADR 013), so the letter keeps contrast. */
+  .page[data-drop-cap] > .rich-text:not(.rich-text ~ .rich-text) > p:first-child::first-letter {
+    float: inline-start;
+    margin-inline-end: 0.08em;
+    font-family: var(--font-heading);
+    font-size: calc(var(--step-1) * 2.6);
+    font-weight: var(--heading-weight);
+    line-height: 0.8;
+    color: var(--color-link);
+  }
   :is(.page, .page > :where(.preview-selectable)) > .layout-float-left,
   :is(.page, .page > :where(.preview-selectable)) > .layout-float-right {
     width: min(20rem, 45%);
