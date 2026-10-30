@@ -120,7 +120,7 @@
           ><Icon name="sliders-horizontal" /><span>{t('admin.preferences.title')}</span></a
         >
         <form method="post" action="/admin/logout">
-          <button type="submit" class="secondary"
+          <button type="submit" class="admin-logout"
             ><Icon name="log-out" /><span>{t('admin.logout')}</span></button
           >
         </form>

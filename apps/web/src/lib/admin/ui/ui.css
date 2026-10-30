@@ -1458,13 +1458,23 @@
   .ui-status-card .ui-button:not(.secondary) {
     flex: 1 1 100%;
   }
-  .ui-status-card .ui-button.secondary {
+  .ui-status-card .ui-button.secondary,
+  .ui-status-card .ui-actions > .ui-fold > summary {
     padding-inline: 0;
     font-weight: 400;
     color: var(--color-link);
     background: transparent;
     box-shadow: none;
     text-decoration: underline;
+  }
+  .ui-status-card .ui-actions > .ui-fold > summary {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap);
+    cursor: pointer;
+  }
+  .ui-status-card .ui-actions > .ui-fold[open] {
+    flex-basis: 100%;
   }
 
   /* The title of an item: the first thing you see and type, large and without a frame label. */
