@@ -1,6 +1,8 @@
 <!-- The component catalogue (brief #56 PR 1): each component once, with the longest real labels of
      the admin, so the UI gate in e2e/ui-gate.spec.ts measures what screens will show. Copy comes
-     from the catalogs; the file names are sample data. -->
+     from the catalogs; the file names are sample data. The rail (#87) is the page's own sidebar,
+     collapsed with its button; a field's hint behind its ⓘ is in the form section, a screen's
+     sections under its menu item in the navigation section, and relative dates in the table. -->
 <script lang="ts">
   import {
     Actions,
@@ -32,6 +34,7 @@
     Table,
     Tabs,
   } from '#lib/admin/ui/index.js';
+  import { formatWhen } from '#lib/admin/format.js';
   import { fill, ui } from '../../../../../i18n/index.js';
   import { PATTERNS } from './patterns.js';
   import type { PageProps } from './$types';
@@ -48,9 +51,11 @@
       maximumFractionDigits: 1,
     }).format(n / 1024 ** 2);
   const date = (iso: string) =>
-    new Intl.DateTimeFormat(data.locale, { dateStyle: 'medium', timeZone: 'UTC' }).format(
-      new Date(iso)
-    );
+    formatWhen(iso, {
+      locale: data.locale,
+      zone: data.timeZone,
+      relative: data.dateFormat !== 'absolute',
+    });
 </script>
 
 <svelte:head>
@@ -213,9 +218,10 @@
     >
       {#snippet rows()}
         {#each data.rows as row (row.name)}
+          {@const changed = date(row.changed)}
           <tr>
             <td>{row.name}</td>
-            <td>{date(row.changed)}</td>
+            <td><time datetime={changed.iso} title={changed.full}>{changed.text}</time></td>
             <td class="numeric">{size(row.size)}</td>
           </tr>
         {/each}
@@ -334,7 +340,6 @@
             href: `${here}#ui-navigation`,
             label: t('admin.content.filter.page'),
             icon: 'file-text',
-            current: true,
           },
           {
             href: `${base}/content?type=article`,
@@ -347,6 +352,20 @@
         id="ui-nav-manage"
         label={t('admin.nav.group.manage')}
         items={[
+          {
+            href: `${here}#ui-navigation`,
+            label: t('admin.nav.settings'),
+            icon: 'settings',
+            current: true,
+            children: [
+              {
+                href: `${here}#ui-navigation`,
+                label: t('admin.ui.pattern.settings.general'),
+                current: true,
+              },
+              { href: `${base}/site`, label: t('admin.ui.pattern.settings.contact') },
+            ],
+          },
           { href: `${base}/connections`, label: t('admin.nav.connections'), icon: 'plug' },
           { href: `${base}/assist`, label: t('admin.nav.assist'), icon: 'sparkles' },
         ]}
@@ -435,7 +454,10 @@
         <MetaList
           items={[
             { term: t('admin.ui.catalogue.table.name'), value: 'campaign-poster.jpg' },
-            { term: t('admin.ui.catalogue.table.changed'), value: date('2026-10-28T09:00:00Z') },
+            {
+              term: t('admin.ui.catalogue.table.changed'),
+              value: date('2026-10-28T09:00:00Z').text,
+            },
           ]}
         />
       </DashboardWidget>

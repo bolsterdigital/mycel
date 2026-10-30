@@ -1,8 +1,8 @@
 <!-- The state and publication of one locale of an item (brief edit-screen § 4, table stake 8):
      the state in words first, then what holds a publish back, then the main action and the rarer
      ones. Anything that must be read before a button (ADR 018 rule 6) goes in `children`, which
-     comes before the actions. The actions stack once the card is narrow (skill
-     ui-action-layout). -->
+     comes before the actions. The main action takes a line of its own and the rarer ones follow
+     as text links that wrap whole (#87; skill ui-action-layout). -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import Actions from './Actions.svelte';
@@ -39,6 +39,6 @@
   >
   <p class="ui-status-card-state"><Badge {tone}>{state}</Badge></p>
   {#if children}{@render children()}{/if}
-  {#if actions}<Actions stack>{@render actions()}</Actions>{/if}
+  {#if actions}<Actions>{@render actions()}</Actions>{/if}
   {#if more}{@render more()}{/if}
 </section>

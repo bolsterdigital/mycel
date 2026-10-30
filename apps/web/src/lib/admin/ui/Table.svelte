@@ -1,7 +1,9 @@
 <!-- A data table with a caption, sortable through links: the server sorts, so sorting works
      without JavaScript and the order is in the URL. The sorted column carries aria-sort; the
      arrow is decoration. On a narrow screen the table scrolls inside its own focusable region,
-     never the page (WCAG 1.4.10 allows two-dimensional tables to scroll). -->
+     never the page (WCAG 1.4.10 allows two-dimensional tables to scroll). `hideCaption` keeps the
+     caption for screen readers only, for a table whose caption repeats the visible heading above
+     it (#87). -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
@@ -10,6 +12,7 @@
   let {
     id,
     caption,
+    hideCaption = false,
     columns,
     sort,
     sortHref,
@@ -17,6 +20,8 @@
   }: {
     id: string;
     caption: string;
+    /** The caption repeats the heading above the table: visually hidden, still the table's name. */
+    hideCaption?: boolean;
     columns: readonly { key: string; label: string; sortable?: boolean; numeric?: boolean }[];
     sort?: { key: string; dir: Dir } | undefined;
     /** The link that sorts by `key` in `dir`; required when a column is sortable. */
@@ -34,7 +39,7 @@
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div class="ui-table-scroll" role="region" aria-labelledby="{id}-caption" tabindex="0">
   <table class="ui-table" {id}>
-    <caption id="{id}-caption">{caption}</caption>
+    <caption id="{id}-caption" class={[hideCaption && 'ui-visually-hidden']}>{caption}</caption>
     <thead>
       <tr>
         {#each columns as column (column.key)}

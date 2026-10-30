@@ -1,8 +1,11 @@
 <!-- A checkbox or radio group as a fieldset: the legend asks the question, each option is a
-     native input with its own label, and the hint and error describe the whole group. -->
+     native input with its own label, and the hint and error describe the whole group. The hint
+     waits behind an ⓘ in the legend (HintButton, #87); the group is named by the legend's text
+     alone (aria-labelledby), so the button's own name never becomes part of the question. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { ui } from '../../../i18n/index.js';
+  import HintButton from './HintButton.svelte';
 
   type Option = { value: string; label: string };
 
@@ -39,12 +42,18 @@
   );
 </script>
 
-<fieldset class={['ui-fieldset', 'ui-choices', error && 'invalid']} aria-describedby={describedby}>
+<fieldset
+  class={['ui-fieldset', 'ui-choices', error && 'invalid']}
+  aria-labelledby={hint ? `${id}-legend` : undefined}
+  aria-describedby={describedby}
+>
   <legend
-    >{legend}{#if required}<span class="ui-required">{` (${t('admin.ui.required')})`}</span
-      >{/if}</legend
+    ><span id="{id}-legend"
+      >{legend}{#if required}<span class="ui-required">{` (${t('admin.ui.required')})`}</span
+        >{/if}</span
+    >{#if hint}<HintButton target="{id}-hint" labelId="{id}-legend" {locale} />{/if}</legend
   >
-  {#if hint}<p class="ui-hint" id="{id}-hint">{hint}</p>{/if}
+  {#if hint}<p class="ui-hint" id="{id}-hint" popover>{hint}</p>{/if}
   {#if error}<p class="ui-error" id="{id}-error">{error}</p>{/if}
   {#each options as option (option.value)}
     <div class="ui-choice">

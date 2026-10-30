@@ -59,7 +59,8 @@ test.describe('admin', () => {
     await expect(
       page.locator('.admin-sidebar-bottom').getByRole('button', { name: 'Uitloggen' })
     ).toBeVisible();
-    expect(await page.locator('script').count()).toBe(0);
+    // The shell's one script is the menu's collapse button (#87); the screen itself has none.
+    expect(await page.locator('script:not([src="/_admin/nav.js"])').count()).toBe(0);
     await expectNoAxeViolations(page);
 
     const session = (await context.cookies()).find((c) => c.name === 'mycel_session');
@@ -252,7 +253,9 @@ test.describe('admin-shell', () => {
       // the no-JS contract. Other shell routes still emit no script.
       const path = new URL(page.url()).pathname;
       const picker = (s: { src: string | null }) => s.src === '/_admin/media-picker.js';
-      const scripts = all.filter((s) => !picker(s));
+      // Every tenant route carries the menu's collapse script (#87), a classic one in <head>.
+      expect(all).toContainEqual({ src: '/_admin/nav.js', type: null });
+      const scripts = all.filter((s) => !picker(s) && s.src !== '/_admin/nav.js');
       if (all.some(picker)) {
         expect(path).toMatch(/\/content\/[^/]+$/);
         expect(all.filter(picker).every((s) => s.type === 'module')).toBe(true);

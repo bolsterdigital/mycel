@@ -102,13 +102,41 @@ describe('Field', () => {
       error: 'Fill in a title',
       required: true,
     });
-    expect(out).toContain('<label for="title">Title<span class="ui-required"> (verplicht)</span>');
+    expect(out).toContain(
+      '<label for="title" id="title-label">Title<span class="ui-required"> (verplicht)</span>'
+    );
     expect(out).toContain('id="title-hint"');
     expect(out).toContain('id="title-error"');
     expect(out).toMatch(/<input[^>]*aria-describedby="title-hint title-error"/);
     expect(out).toMatch(/<input[^>]*aria-invalid="true"/);
     expect(out).toMatch(/<input[^>]*required/);
     expect(out).toMatch(/<input[^>]*name="title"/);
+  });
+  it('keeps the hint behind an ⓘ that opens it as a popover, inline on request (#87)', () => {
+    const out = html(Field, {
+      id: 'title',
+      label: 'Title',
+      locale: 'nl',
+      hint: 'Shown as heading',
+    });
+    expect(out).toMatch(
+      /<button type="button" class="ui-hint-toggle" popovertarget="title-hint" aria-label="Uitleg" aria-describedby="title-label">/
+    );
+    expect(out).toMatch(/<p class="ui-hint" id="title-hint" popover="auto">\s*Shown as heading/);
+    // The label comes before its ⓘ, and the hint stays the input's description.
+    expect(out.indexOf('<label')).toBeLessThan(out.indexOf('ui-hint-toggle'));
+    expect(out).toMatch(/<input[^>]*aria-describedby="title-hint"/);
+
+    const inline = html(Field, {
+      id: 'f',
+      label: 'File',
+      locale: 'en',
+      hint: 'Drop files here',
+      hintInline: true,
+    });
+    expect(inline).not.toContain('ui-hint-toggle');
+    expect(inline).not.toContain('popover');
+    expect(inline).toMatch(/<p class="ui-hint" id="f-hint">\s*Drop files here/);
   });
   it('leaves out an empty description and aria-invalid', () => {
     const out = html(Field, { id: 'x', label: 'X', locale: 'en' });
@@ -180,7 +208,7 @@ describe('Select', () => {
         { value: 'article', label: 'Article' },
       ],
     });
-    expect(out).toContain('<label for="kind">Type</label>');
+    expect(out).toContain('<label for="kind" id="kind-label">Type</label>');
     expect(out).toMatch(/<select name="kind" id="kind"/);
     expect(out).toMatch(/<option value="article" selected/);
     expect(out).not.toMatch(/<option value="page" selected/);
@@ -202,7 +230,13 @@ describe('Choices', () => {
       ],
     });
     expect(out).toMatch(/<fieldset[^>]*aria-describedby="access-hint"/);
-    expect(out).toContain('<legend>Who can see this</legend>');
+    // Named by the legend's text alone, so the ⓘ's own name is not part of the question.
+    expect(out).toMatch(/<fieldset[^>]*aria-labelledby="access-legend"/);
+    expect(out).toContain('<legend><span id="access-legend">Who can see this</span><button');
+    expect(out).toContain(
+      'popovertarget="access-hint" aria-label="Help" aria-describedby="access-legend"'
+    );
+    expect(out).toMatch(/<p class="ui-hint" id="access-hint" popover="">/);
     expect(out).toMatch(/type="radio" id="access-public" name="access" value="public" checked/);
     expect(out).toContain('<label for="access-restricted">Restricted</label>');
   });
@@ -308,6 +342,11 @@ describe('Table', () => {
     // A column that does not sort has no link and no aria-sort.
     expect(out).toMatch(/<th scope="col" class="numeric">Size<\/th>/);
   });
+  it('hides a caption that repeats the heading above, and keeps it as the name (#87)', () => {
+    const out = html(Table, { ...props, hideCaption: true });
+    expect(out).toContain('<caption id="files-caption" class="ui-visually-hidden">Files</caption>');
+    expect(out).toMatch(/role="region" aria-labelledby="files-caption"/);
+  });
 });
 
 describe('Card and CardGrid', () => {
@@ -406,6 +445,16 @@ describe('page patterns', () => {
     });
     expect(empty).toContain('No media yet.');
     expect(empty).not.toContain('the grid');
+
+    // One visible heading (#87): a list title equal to the page title is for screen readers only.
+    const same = html(OverviewPage, {
+      title: 'Pages',
+      locale: 'en',
+      listTitle: 'Pages',
+      children: text('the table'),
+    });
+    expect(same).toMatch(/<h2 id="ui-overview-title" class="ui-visually-hidden">\s*Pages/);
+    expect(full).not.toContain('ui-visually-hidden');
   });
 
   it('DetailPage: a named preview region before the facts, the actions at the end', () => {
@@ -729,6 +778,32 @@ describe('NavGroup', () => {
     );
     expect(out).not.toMatch(/href="\/b" aria-current/);
   });
+  it("lists a screen's sections under its item, the section as the current page (#87)", () => {
+    const out = html(NavGroup, {
+      id: 'g',
+      label: 'Manage',
+      items: [
+        {
+          href: '/site',
+          label: 'Settings',
+          icon: 'settings' as const,
+          current: true,
+          children: [
+            { href: '/site?s=general', label: 'General', current: true },
+            { href: '/site?s=brand', label: 'Brand' },
+          ],
+        },
+        { href: '/leden', label: 'Members', icon: 'users' as const },
+      ],
+    });
+    expect(out).toMatch(/<a href="\/site" aria-current="true">/);
+    expect(out).toContain(
+      '<ul class="ui-navgroup-sub"><li><a href="/site?s=general" aria-current="page">General</a></li><li><a href="/site?s=brand">Brand</a></li></ul>'
+    );
+    expect(out.match(/aria-current="page"/g)).toHaveLength(1);
+    // An item without sections has no sub-list.
+    expect(out.match(/ui-navgroup-sub/g)).toHaveLength(1);
+  });
   it('has no label when none is given, and renders nothing without items', () => {
     expect(html(NavGroup, { id: 'g', items })).not.toContain('aria-labelledby');
     expect(html(NavGroup, { id: 'g', label: 'Library', items: [] })).toBe('');
@@ -829,7 +904,9 @@ describe('StatusCard', () => {
     );
     expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(order.every((i) => i > 0)).toBe(true);
-    expect(out).toContain('class="ui-actions stack"');
+    // Compact (#87): one action group that wraps, no stacked column of buttons.
+    expect(out).toContain('class="ui-actions"');
+    expect(out).not.toContain('ui-actions stack');
   });
   it('takes a heading level and a tone', () => {
     const out = html(StatusCard, {

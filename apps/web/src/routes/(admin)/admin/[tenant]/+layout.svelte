@@ -4,7 +4,13 @@
      short labels and Lucide icons, Content, Library and Manage; a member sees only the items their
      capabilities open. On a phone it folds into one ☰ bar, closed by default; from 60rem admin.css
      shows the list whatever `open` says. Rejected: a heading "Menu" over the list, and a
-     JavaScript drawer (the details element already opens, closes and is announced). -->
+     JavaScript drawer (the details element already opens, closes and is announced).
+     From 60rem a button collapses the list to a rail of icons (#87); static/_admin/nav.js shows
+     it and remembers the choice per browser, so without JavaScript there is no button and the
+     list stays whole. A screen with sections (Settings) names them as `subnav` in its page data;
+     the shell hangs them under the current item, the screen itself knows nothing of the shell.
+     Rejected: a rail that switches on by itself on edit screens (it surprises, and the script
+     path would differ per screen; Jaap 2026-10-30). -->
 <script lang="ts">
   import { page } from '$app/state';
   import { Icon, IconSprite, NavGroup, type IconName } from '#lib/admin/ui/index.js';
@@ -25,7 +31,16 @@
   const has = (capability: (typeof data.capabilities)[number]) =>
     data.capabilities.includes(capability) || data.capabilities.includes('tenant:admin');
 
-  type Item = { href: string; label: string; icon: IconName; current: boolean };
+  type Section = { label: string; href: string; current: boolean };
+  /** The sections of the current screen, from its page data (the contract of #87). */
+  const subnav = $derived((page.data as { subnav?: readonly Section[] }).subnav);
+  type Item = {
+    href: string;
+    label: string;
+    icon: IconName;
+    current: boolean;
+    children?: readonly Section[] | undefined;
+  };
   const item = (segment: string, label: UiKey, icon: IconName): Item => ({
     href: `${base}/${segment}`,
     label: t(label),
@@ -58,13 +73,19 @@
           ]
         : []),
     ];
+    const withSections = (items: Item[]) =>
+      items.map((i) => (i.current && subnav?.length ? { ...i, children: subnav } : i));
     return [
-      { id: 'nav-content', label: t('admin.nav.group.content'), items: content },
-      { id: 'nav-library', label: t('admin.nav.group.library'), items: library },
-      { id: 'nav-manage', label: t('admin.nav.group.manage'), items: manage },
+      { id: 'nav-content', label: t('admin.nav.group.content'), items: withSections(content) },
+      { id: 'nav-library', label: t('admin.nav.group.library'), items: withSections(library) },
+      { id: 'nav-manage', label: t('admin.nav.group.manage'), items: withSections(manage) },
     ];
   });
 </script>
+
+<svelte:head>
+  <script src="/_admin/nav.js"></script>
+</svelte:head>
 
 <IconSprite />
 <a class="admin-skip" href="#admin-main">{t('admin.shell.skip')}</a>
@@ -93,15 +114,23 @@
         {/each}
       </nav>
       <div class="admin-sidebar-bottom">
-        <a href="/admin"><Icon name="arrow-left-right" />{t('admin.back')}</a>
+        <a href="/admin"><Icon name="arrow-left-right" /><span>{t('admin.back')}</span></a>
         <p>{data.email}</p>
         <a href="/admin/voorkeuren?return={encodeURIComponent(base)}"
-          ><Icon name="sliders-horizontal" />{t('admin.preferences.title')}</a
+          ><Icon name="sliders-horizontal" /><span>{t('admin.preferences.title')}</span></a
         >
         <form method="post" action="/admin/logout">
-          <button type="submit" class="secondary"><Icon name="log-out" />{t('admin.logout')}</button
+          <button type="submit" class="secondary"
+            ><Icon name="log-out" /><span>{t('admin.logout')}</span></button
           >
         </form>
+        <button type="button" class="admin-collapse" data-nav-toggle
+          ><span class="admin-collapse-close"
+            ><Icon name="panel-left-close" /><span>{t('admin.shell.collapse')}</span></span
+          ><span class="admin-collapse-open"
+            ><Icon name="panel-left-open" /><span>{t('admin.shell.expand')}</span></span
+          ></button
+        >
       </div>
     </details>
   </aside>

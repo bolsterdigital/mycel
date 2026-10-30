@@ -103,6 +103,69 @@
     color: var(--color-muted-fg);
     overflow-wrap: break-word;
   }
+  /* The label and its ⓘ on one line; the ⓘ keeps a whole target without making the line taller
+     (its margin takes back what the target adds beyond one line of text). */
+  .ui-field-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 var(--space-0);
+    min-width: 0;
+  }
+  .ui-field-head > label {
+    min-width: 0;
+  }
+  .ui-hint-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--tap);
+    block-size: var(--tap);
+    margin-block: calc((1lh - var(--tap)) / 2);
+    margin-inline-start: calc(var(--space-0) - (var(--tap) - 1.25em) / 2);
+    padding: 0;
+    color: var(--color-muted-fg);
+    background: none;
+    border: 0;
+    border-radius: 999px;
+    font: inherit;
+    vertical-align: middle;
+    cursor: pointer;
+  }
+  .ui-hint-toggle:hover,
+  .ui-hint-toggle:focus-visible {
+    color: var(--color-link);
+  }
+  .ui-hint-toggle:focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: -4px;
+  }
+  .ui-hint-toggle .ui-icon {
+    width: 1.125em;
+    height: 1.125em;
+  }
+  /* Open, the hint is a small card under its ⓘ where the browser can anchor it (the invoker is
+     the popover's implicit anchor), centred on the screen elsewhere; either way it never widens
+     the page at 320 CSS px. */
+  .ui-hint[popover] {
+    max-inline-size: min(24rem, 100vw - 2 * var(--gutter));
+    margin: auto;
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--step-0);
+    font-weight: 400;
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+    border: var(--border-width) solid var(--color-border-strong);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-2);
+  }
+  @supports (position-area: block-end) {
+    .ui-hint[popover] {
+      margin: var(--space-0) 0;
+      position-area: block-end span-inline-end;
+      position-try-fallbacks: flip-block, flip-inline;
+    }
+  }
   .ui-error {
     margin: 0;
     font-weight: 600;
@@ -338,6 +401,8 @@
     align-items: center;
     gap: var(--space-0);
     min-height: var(--tap);
+    /* A short title ("Home") at 14px is narrower than a whole target. */
+    min-width: var(--tap);
     color: var(--color-link);
   }
   .ui-sort {
@@ -419,7 +484,7 @@
   }
   .ui-meta {
     display: grid;
-    gap: var(--space-1);
+    gap: var(--space-0);
     margin: 0;
   }
   .ui-meta > div {
@@ -844,10 +909,30 @@
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-3);
   }
+  /* One reading column for everything an item says (title, intro, image, blocks: about the
+     public column's 720px), a side column of 18 to 20rem beside it, and from 75rem a third column
+     the preview takes when it is open (#87; #66 PR 3 fills it, `data-preview-open` on the grid).
+     Below 60rem everything stands under each other. */
   @container (min-width: 60rem) {
     .ui-edit {
-      grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+      grid-template-columns: minmax(0, var(--read-width)) minmax(18rem, 20rem);
+      grid-template-areas: 'main side';
       align-items: start;
+    }
+    .ui-edit-main {
+      grid-area: main;
+    }
+    .ui-edit-side {
+      grid-area: side;
+    }
+  }
+  @container (min-width: 75rem) {
+    .ui-edit[data-preview-open] {
+      grid-template-columns: minmax(0, var(--read-width)) minmax(0, 1fr) minmax(18rem, 20rem);
+      grid-template-areas: 'main preview side';
+    }
+    .ui-edit[data-preview-open] > .ui-edit-preview {
+      grid-area: preview;
     }
   }
   .ui-edit-main,
@@ -861,6 +946,11 @@
   .ui-edit-side > section {
     display: grid;
     gap: var(--space-2);
+  }
+  /* A section's heading takes the rhythm's step from the grid, not base.css's article margins. */
+  .ui-edit-main > section > :is(h2, h3),
+  .ui-edit-side > section > :is(h2, h3) {
+    margin: 0;
   }
 
   .ui-panel {
@@ -1011,10 +1101,27 @@
   .ui-navgroup a:hover {
     background: var(--color-muted-bg);
   }
-  .ui-navgroup a[aria-current='page'] {
+  .ui-navgroup a[aria-current='page'],
+  .ui-navgroup a[aria-current='true'] {
     color: var(--color-selected-fg);
     background: var(--color-selected-bg);
     font-weight: 700;
+  }
+  /* A screen's sections under its item (#87): indented to the item's label, the current one
+     marked by a bar and weight, so it reads apart from the filled item above it. */
+  .ui-navgroup .ui-navgroup-sub {
+    margin-block: 0.125rem var(--space-0);
+    padding-inline-start: calc(0.5rem + 1.125em);
+  }
+  .ui-navgroup-sub a {
+    font-weight: 400;
+    border-inline-start: 0.1875rem solid var(--color-border);
+    border-radius: 0 var(--radius) var(--radius) 0;
+  }
+  .ui-navgroup-sub a[aria-current='page'] {
+    color: var(--color-body-fg);
+    background: none;
+    border-inline-start-color: var(--color-primary-bg);
   }
 
   /* Tabs: without a script every section stands below the other with its heading; the script of
@@ -1054,10 +1161,19 @@
     gap: var(--space-2);
   }
   .ui-tabs-panel + .ui-tabs-panel {
-    margin-block-start: var(--space-3);
+    margin-block-start: var(--space-4);
   }
+  /* One rhythm (#87): a heading, the panel's gap, then its content; no extra margin of its own. */
   .ui-tabs-title {
-    margin-block: 0 var(--space-1);
+    margin: 0;
+  }
+  /* A fold is one line among the fields: its summary is the target, with no space of its own
+     above it, and its content follows at the rhythm's step once open. */
+  .ui-fold > summary {
+    margin: 0;
+  }
+  .ui-fold[open] > summary {
+    margin-block-end: var(--space-1);
   }
 
   /* Dashboard: two columns where they fit, one on a phone; an empty widget has a dashed outline,
@@ -1164,6 +1280,25 @@
   }
   .ui-status-card-title {
     font-size: var(--step-0);
+  }
+  /* Compact (#87): the main action on a line of its own, the rarer ones as text links on the line
+     under it, so the card shows state, what to do and what else in three short lines. */
+  .ui-status-card .ui-actions-host {
+    margin-block: 0;
+  }
+  .ui-status-card .ui-actions {
+    gap: 0 var(--space-2);
+  }
+  .ui-status-card .ui-button:not(.secondary) {
+    flex: 1 1 100%;
+  }
+  .ui-status-card .ui-button.secondary {
+    padding-inline: 0;
+    font-weight: 400;
+    color: var(--color-link);
+    background: transparent;
+    box-shadow: none;
+    text-decoration: underline;
   }
 
   /* The title of an item: the first thing you see and type, large and without a frame label. */

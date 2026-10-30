@@ -37,15 +37,19 @@
     --font-body: system-ui, -apple-system, 'Segoe UI', sans-serif;
     --font-heading: var(--font-body);
     --heading-weight: 700;
-    --step--1: 0.875rem;
-    --step-0: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
-    --step-1: clamp(1.25rem, 1.1rem + 0.6vw, 1.5rem);
-    --step-2: clamp(1.5rem, 1.3rem + 1vw, 1.75rem);
-    --step-3: 2rem;
-    --step-4: 2.5rem;
+    /* A worksheet, not a reading medium (#87, editor trial 4b-2: "at 80% it looks better than at
+       100%"): 14px running text like WordPress, Payload and Ghost, headings in proportion, no vw
+       component. Controls keep their 44px through --tap, and 200% text still doubles all of it.
+       Rejected: a "compact mode" beside a roomy default; the size is simply right. */
+    --step--1: 0.75rem;
+    --step-0: 0.875rem;
+    --step-1: 1.0625rem;
+    --step-2: 1.375rem;
+    --step-3: 1.75rem;
+    --step-4: 2rem;
     --measure: 48rem;
     --radius: 0.5rem;
-    --density: 1;
+    --density: 0.875;
     --color-text: var(--color-body-fg);
     --color-bg: var(--color-body-bg);
     --color-surface: var(--color-surface-bg);
@@ -78,7 +82,12 @@
     --shadow-1: 0 1px 2px rgb(28 25 23 / 0.08);
     --shadow-2: 0 0.5rem 1.5rem rgb(28 25 23 / 0.2);
     --admin-width: 72rem;
-    --form-width: 40rem;
+    /* One reading column on an edit screen (#87): title, intro, image and blocks share the width
+       of the public column (about 720px), and so does every form. */
+    --read-width: 45rem;
+    --form-width: var(--read-width);
+    --nav-width: minmax(13rem, 15rem);
+    --rail-width: 3.5rem;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -213,11 +222,33 @@
     width: 100%;
     text-align: start;
   }
+  /* The collapse button (#87): absent until static/_admin/nav.js has run, and only from 60rem,
+     where the menu is a sidebar; it shows the label of what it will do. */
+  .admin-sidebar-bottom .admin-collapse {
+    display: none;
+    color: var(--color-muted-fg);
+    background: none;
+    border: 0;
+    font: inherit;
+    cursor: pointer;
+  }
+  .admin-collapse > span {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+  }
+  .admin-collapse > .admin-collapse-open,
+  :root[data-admin-nav='rail'] .admin-collapse > .admin-collapse-close {
+    display: none;
+  }
+  :root[data-admin-nav='rail'] .admin-collapse > .admin-collapse-open {
+    display: flex;
+  }
   .admin-workspace {
     min-width: 0;
   }
   .admin-workspace .page.admin {
-    max-width: 72rem;
+    max-width: var(--admin-width);
     /* Match the original page inset: doubling it consumed the width needed by whole action
        labels at 320 CSS px and 200% text. */
     padding: var(--inset);
@@ -229,8 +260,78 @@
   @media (min-width: 60rem) {
     .admin-shell {
       display: grid;
-      grid-template-columns: minmax(14rem, 17rem) minmax(0, 1fr);
+      grid-template-columns: var(--nav-width) minmax(0, 1fr);
       min-height: 100vh;
+    }
+    .admin-workspace .page.admin {
+      padding: var(--space-3);
+    }
+    :root[data-admin-nav] .admin-sidebar-bottom .admin-collapse {
+      display: flex;
+    }
+    /* The rail: icons only, each label still the link's name (visually hidden) and shown beside
+       the icon as a tooltip on hover and on keyboard focus; group names become a line, the
+       sections of the current screen and the site's name step aside. position: fixed without
+       offsets keeps the tooltip at its own place yet outside the sidebar's scroll clip. */
+    :root[data-admin-nav='rail'] .admin-shell {
+      grid-template-columns: var(--rail-width) minmax(0, 1fr);
+    }
+    :root[data-admin-nav='rail'] .admin-sidebar {
+      padding-inline: var(--space-0);
+    }
+    :root[data-admin-nav='rail'] .admin-sidebar-top,
+    :root[data-admin-nav='rail'] .admin-sidebar-bottom > p,
+    :root[data-admin-nav='rail'] .ui-navgroup-sub {
+      display: none;
+    }
+    :root[data-admin-nav='rail'] .ui-navgroup-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    :root[data-admin-nav='rail'] .ui-navgroup + .ui-navgroup {
+      padding-block-start: var(--space-1);
+      border-block-start: var(--border-width) solid var(--color-border);
+    }
+    :root[data-admin-nav='rail']
+      :is(.ui-navgroup a, .admin-sidebar-bottom > a, .admin-sidebar-bottom button) {
+      /* The icon centred by padding, not by justify-content: a centred flex line would centre
+         the tooltip's static position too. */
+      justify-content: flex-start;
+      padding-inline: calc((var(--rail-width) - 2 * var(--space-0) - 1.125em) / 2);
+    }
+    :root[data-admin-nav='rail']
+      :is(.ui-navgroup a, .admin-sidebar-bottom > a, .admin-sidebar-bottom button)
+      span:not(:has(svg)) {
+      position: fixed;
+      z-index: 5;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    :root[data-admin-nav='rail']
+      :is(.ui-navgroup a, .admin-sidebar-bottom > a, .admin-sidebar-bottom button):is(
+        :hover,
+        :focus-visible
+      )
+      span:not(:has(svg)) {
+      width: auto;
+      height: auto;
+      margin-inline-start: calc(var(--rail-width) - 1.5rem);
+      padding: var(--space-0) var(--space-1);
+      overflow: visible;
+      clip-path: none;
+      font-weight: 600;
+      color: var(--color-surface-fg);
+      background: var(--color-surface-bg);
+      border: var(--border-width) solid var(--color-border-strong);
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow-1);
     }
     .admin-sidebar {
       position: sticky;
@@ -275,18 +376,24 @@
     margin: 0;
     overflow-wrap: anywhere;
   }
+  /* Fixed steps instead of base.css's vw clamps, which made an h2 as large as the h1 on a laptop:
+     page title, section, group, each one step down. */
   .admin h1,
   .admin h2 {
     hyphens: auto;
     overflow-wrap: break-word;
   }
+  .admin h1 {
+    font-size: var(--step-2);
+  }
+  .admin h2 {
+    font-size: var(--step-1);
+  }
   .admin h3,
   .admin h4 {
     margin: 0;
+    font-size: var(--step-0);
     overflow-wrap: anywhere;
-  }
-  .admin h4 {
-    font-size: 1rem;
   }
   /* A 43-character verification token has no word boundary: let it break anywhere. */
   .admin code {
@@ -504,6 +611,10 @@
     background: var(--color-surface);
     color: var(--color-text);
   }
+  /* At 14px text the padding alone no longer makes a whole target (#87). */
+  .admin .field :is(input:not([type='checkbox'], [type='radio'], [type='file']), select) {
+    min-height: var(--tap);
+  }
   .admin .filter,
   .admin .content-list,
   .admin .revisions {
@@ -532,6 +643,15 @@
      its move and remove actions stack like the publication actions on a narrow card. */
   .block {
     container-type: inline-size;
+  }
+  /* The blocks of an item: their heading, then each block, at the rhythm's step (#87). */
+  .admin .item-blocks {
+    display: grid;
+    gap: var(--space-2);
+  }
+  /* The public site's block margin (base.css `.block`) is not the admin's rhythm. */
+  .admin .item-blocks > :is(p, .block) {
+    margin: 0;
   }
   .block > summary,
   .markdown-help > summary {

@@ -113,7 +113,11 @@ test('an operator uploads, sees, edits, downloads and deletes an image', async (
   await page.getByRole('link', { name: 'Media', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Media' })).toBeVisible();
   // Only the thumbnail enhancement of the file field; the upload works without it.
-  expect(await page.locator('script:not([src="/_admin/file-preview.js"])').count()).toBe(0);
+  expect(
+    await page
+      .locator('script:not([src="/_admin/file-preview.js"], [src="/_admin/nav.js"])')
+      .count()
+  ).toBe(0);
   await expectNoAxeViolations(page, { dark: true });
 
   const filename = `e2e-${test.info().project.name}-${Date.now()}.png`;
@@ -141,7 +145,7 @@ test('an operator uploads, sees, edits, downloads and deletes an image', async (
 
   // Its own page: a preview from the admin's variant route and a lightbox without a script.
   await openDetail(page, filename);
-  expect(await page.locator('script').count()).toBe(0);
+  expect(await page.locator('script:not([src="/_admin/nav.js"])').count()).toBe(0);
   const preview = page.getByRole('region', { name: 'Voorbeeld' });
   const src = await preview.locator('img').first().getAttribute('src');
   expect(src).toMatch(new RegExp(`^/admin/probe/media/${id}/variant/w\\d+\\.webp$`));
