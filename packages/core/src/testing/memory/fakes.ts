@@ -10,6 +10,8 @@ import type {
   TenantDirectory,
   TenantInfo,
 } from '../../tenants/ports.js';
+import { bytesToHex } from '../../util/bytes.js';
+import { exampleId } from '../../util/ids.js';
 import { DnsUnavailableError } from '../../tenants/ports.js';
 
 export class FakeClock implements Clock {
@@ -27,7 +29,7 @@ export class SequentialIds implements Ids {
   #n = 0;
   next(): string {
     this.#n += 1;
-    return `01900000-0000-7000-8000-${this.#n.toString(16).padStart(12, '0')}`;
+    return exampleId(this.#n);
   }
 }
 
@@ -68,7 +70,7 @@ export class FakeInputHasher implements InputHasher {
       await this.#key,
       new TextEncoder().encode(canonical)
     );
-    return [...new Uint8Array(mac)].map((b) => b.toString(16).padStart(2, '0')).join('');
+    return bytesToHex(new Uint8Array(mac));
   }
 }
 
