@@ -13,7 +13,7 @@
 // A derived text is the first paragraph of its source, whitespace folded and cut at a word to a
 // sentence or two; an own value is returned as the editor wrote it. The functions are pure and
 // read one locale; the site's default image is an argument because it is site data, not part of
-// the revision (#86 PR 2 stores it).
+// the revision (`site.image.*` stores it).
 //
 // Rejected: storing the derived values on the revision (they go stale the moment the lead
 // changes, and a site default would have to be written into every item), and a separate card
@@ -38,7 +38,7 @@ export interface EffectiveText {
   source: TextSource | null;
 }
 
-/** What the site adds to the chain; absent until #86 PR 2 stores a default image. */
+/** What the site adds to the chain: its default image (`SiteImages`). */
 export interface ChainSite {
   defaultImageId?: string | null | undefined;
 }

@@ -53,6 +53,7 @@ import {
 import type { ItemRecord } from './ports.js';
 import { preserveTranslationReview } from './translation-review.js';
 import './ports.js';
+import '../theme/ports.js';
 import { iso } from '../util/date.js';
 import { exampleId } from '../util/ids.js';
 
@@ -263,8 +264,11 @@ export async function blockReferenceIssues(
   return issues;
 }
 
-/** An image reference must exist, not be deleted and be an image: one rule for blocks and slots. */
-async function imageIssue(
+/**
+ * An image reference must exist, not be deleted and be an image: one rule for blocks, slots and
+ * the site's default image (`site.image.update`).
+ */
+export async function imageIssue(
   ctx: TransactionContext,
   mediaId: string,
   path: string
@@ -505,7 +509,8 @@ export const getItem = defineUseCase({
     const revision = await ctx.content.revision(itemId, revisionId ?? item.latestRevisionId);
     if (!revision) throw notFound('revision');
     const doc = revision.document;
-    const effective = Object.fromEntries(doc.locales.map((l) => [l, effectiveOf(doc, l)]));
+    const site = (await ctx.siteSettings.images()).value;
+    const effective = Object.fromEntries(doc.locales.map((l) => [l, effectiveOf(doc, l, site)]));
     return { item: toContentItem(item), revision, effective };
   },
 });

@@ -1,6 +1,5 @@
-// The row stays tenant scoped under forced RLS. Every setting on it (theme, chrome, general, logo,
-// font)
-// is a value with its own version, written through one compare-and-set (`writeVersioned`). A
+// The row stays tenant scoped under forced RLS. Every setting on it (theme, chrome, general,
+// images, logo, font) is a value with its own version, written through one compare-and-set (`writeVersioned`). A
 // column that was never written is null and reads as the current default, so the first write of
 // one setting does not freeze the defaults of the others (TODO #53). Rejected: read, then
 // unconditional update; and one upsert per setting, which drifted into three copies.
@@ -8,9 +7,11 @@ import type { Kysely, Updateable } from 'kysely';
 import {
   DEFAULT_CHROME,
   DEFAULT_GENERAL,
+  DEFAULT_IMAGES,
   DEFAULT_THEME,
   SiteChrome,
   SiteGeneral,
+  SiteImages,
   Theme,
   type SiteSettingsRepository,
   type BrandAssetsRepository,
@@ -21,7 +22,12 @@ import type { Database } from './infra/schema.js';
 
 type Row = Database['site_settings'];
 type VersionColumn =
-  'theme_version' | 'chrome_version' | 'general_version' | 'logo_version' | 'font_version';
+  | 'theme_version'
+  | 'chrome_version'
+  | 'general_version'
+  | 'images_version'
+  | 'logo_version'
+  | 'font_version';
 
 /**
  * Writes `changes` and moves `version` from `baseVersion` to the next, or returns null when the
@@ -109,6 +115,21 @@ export function siteSettingsRepository(
     updateGeneral: (baseVersion, value) =>
       writeVersioned(db, tenantId, 'general_version', baseVersion, {
         general: JSON.stringify(value),
+      }),
+    async images() {
+      const row = await db
+        .selectFrom('site_settings')
+        .select(['images', 'images_version'])
+        .where('tenant_id', '=', tenantId)
+        .executeTakeFirst();
+      return {
+        version: row?.images_version ?? 0,
+        value: row?.images == null ? DEFAULT_IMAGES : SiteImages.parse(row.images),
+      };
+    },
+    updateImages: (baseVersion, value) =>
+      writeVersioned(db, tenantId, 'images_version', baseVersion, {
+        images: JSON.stringify(value),
       }),
   };
 }

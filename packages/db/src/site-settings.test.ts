@@ -11,7 +11,7 @@ import {
   memoryPlatform,
   runSuffix,
 } from '@mycel/core/testing';
-import { DEFAULT_THEME, DEFAULT_CHROME, DEFAULT_GENERAL } from '@mycel/core';
+import { DEFAULT_THEME, DEFAULT_CHROME, DEFAULT_GENERAL, DEFAULT_IMAGES } from '@mycel/core';
 import { createDb, createUnitOfWork, uuidv7Ids } from './index.js';
 import type { Database } from './infra/schema.js';
 import { enterTenant } from './infra/roles.js';
@@ -114,6 +114,32 @@ describe.skipIf(skip)('site settings conformance', () => {
       version: 0,
       value: DEFAULT_GENERAL,
     });
+  });
+  it('keeps the default image apart from the other documents (#86)', async () => {
+    const principal = systemPrincipal(a, 'test');
+    const before = await invoker.run(useCases.getSiteImages, principal, {});
+    expect(before.value).toEqual(DEFAULT_IMAGES);
+    expect(
+      await invoker.run(useCases.updateSiteImages, principal, {
+        baseVersion: before.version,
+        images: { defaultImageId: null },
+      })
+    ).toEqual({ version: before.version + 1, value: DEFAULT_IMAGES });
+    await expect(
+      invoker.run(useCases.updateSiteImages, principal, {
+        baseVersion: before.version,
+        images: { defaultImageId: null },
+      })
+    ).rejects.toMatchObject({ code: 'conflict' });
+    await expect(
+      invoker.run(useCases.updateSiteImages, principal, {
+        baseVersion: before.version + 1,
+        images: { defaultImageId: '01900000-0000-7000-8000-00000000dddd' },
+      })
+    ).rejects.toMatchObject({ issues: [{ message: 'content.reference.media-unknown' }] });
+    expect(
+      (await invoker.run(useCases.getSiteImages, systemPrincipal(b, 'test'), {})).version
+    ).toBe(0);
   });
   it('falls back to the default zone when the stored one is no longer known (#81-rest)', async () => {
     const principal = systemPrincipal(a, 'test');

@@ -27,6 +27,7 @@ import { ContentType, Slug, type ContentDocument } from './model.js';
 import { EffectiveView, effectiveOf } from './effective.js';
 import { statusOf } from './lifecycle.js';
 import './ports.js';
+import '../theme/ports.js';
 
 export const PublishedItem = z.object({
   id: z.string().guid(),
@@ -122,7 +123,7 @@ export const getPublished = defineUseCase({
     if (!revision) throw missing();
     const doc = revision.document;
     if (doc.access.level !== 'public') throw missing();
-    const effective = effectiveOf(doc, chosen);
+    const effective = effectiveOf(doc, chosen, (await ctx.siteSettings.images()).value);
     const base = {
       id: item.id,
       type: item.type,
