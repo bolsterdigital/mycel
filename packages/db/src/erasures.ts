@@ -2,8 +2,8 @@
 // `register` writes one permanent row as mycel_app; `status` reads which of them a backup holds
 // (0021, written by the backup login only). `apply` enters `mycel_erasure` for the rest of
 // its statements, inside the caller's tenant transaction: that role may tombstone events and the
-// projection, delete submissions, mail intents and jobs, rewrite outbox props and expire export
-// archives (0022), each on the current tenant's rows only. Only the schema owner's login may enter it, so the worker and the CLI
+// projection, delete submissions, mail intents, jobs and admission seats (0032), rewrite outbox
+// props and expire export archives (0022), each on the current tenant's rows only. Only the schema owner's login may enter it, so the worker and the CLI
 // apply and a front that tries gets a clear refusal.
 //
 // The addresses to erase are not stored anywhere: apply finds them from the register each time, in
@@ -19,7 +19,7 @@ import {
   ERASURE_EXPIRES_EXPORTS,
   ERASURE_EXPORT_ERROR,
   ERASURE_KEEPS_INTENT_STATES,
-  erasureEmailHash,
+  emailKey,
   scrubText,
   systemPrincipal,
   type Clock,
@@ -36,7 +36,7 @@ type Trx = Kysely<Database>;
 const HASHED = ['email', 'v.value'] as const;
 type Hashed = (typeof HASHED)[number];
 
-/** `erasureEmailHash` in SQL, over a column or value `x` of the current tenant's rows. */
+/** `emailKey(..., 'erasure')` in SQL, over a column or value `x` of the current tenant's rows. */
 const hashOf = (x: Hashed) => {
   // `sql.raw` splices `x` into the statement, so only an expression from the list gets there.
   if (!HASHED.includes(x)) throw new Error(`not a hashed expression: ${x}`);
@@ -59,7 +59,7 @@ export function erasureRepository(
         .values({
           tenant_id: tenantId,
           supporter_id: supporterId,
-          email_hash: await erasureEmailHash(tenantId, email),
+          email_hash: await emailKey(tenantId, email, 'erasure'),
           erased_at: clock.now(),
           actor: JSON.stringify(principal.actor),
         })
@@ -76,7 +76,7 @@ export function erasureRepository(
             `not as the fronts' login: ${(e as Error).message}`
         );
       }
-      const changed = await applyAsEraser(trx);
+      const changed = await applyAsEraser(trx, tenantId);
       await setRole(trx, 'mycel_app');
       return changed;
     },
@@ -98,8 +98,8 @@ export function erasureRepository(
   };
 }
 
-async function applyAsEraser(trx: Trx): Promise<number> {
-  const changed = await eraseRows(trx);
+async function applyAsEraser(trx: Trx, tenantId: string): Promise<number> {
+  const changed = await eraseRows(trx, tenantId);
   // Core `expiresOnErasure` as one statement. The file goes after commit (`expireExports`, run
   // by `mycel erasures apply` and daily by the worker); the row keeps no trace of who.
   const r = await sql`
@@ -114,7 +114,7 @@ async function applyAsEraser(trx: Trx): Promise<number> {
 const CARRIER_COLUMNS = ['props', '"values"', 'payload'] as const;
 type CarrierColumn = (typeof CARRIER_COLUMNS)[number];
 
-async function eraseRows(trx: Trx): Promise<number> {
+async function eraseRows(trx: Trx, tenantId: string): Promise<number> {
   const registered = await trx.selectFrom('erasures').select('supporter_id').execute();
   if (!registered.length) return 0;
   const ids = registered.map((r) => r.supporter_id);
@@ -180,6 +180,14 @@ async function eraseRows(trx: Trx): Promise<number> {
     await sql`delete from mail_sends where event_id::text = any(${eventIds}::text[])`.execute(trx)
   );
   count(await sql`delete from form_submissions where ${carries('"values"')}`.execute(trx));
+  // A seat reserved for a signup that was never ingested, under core's admission key.
+  // A rate-limit bucket stays: a hash that lives a day at most is no copy (ADR 019 rule 8).
+  const seats = await Promise.all(addresses.map((a) => emailKey(tenantId, a, 'admission')));
+  count(
+    await sql`delete from supporter_admissions where email_hash = any(${seats}::text[])`.execute(
+      trx
+    )
+  );
   for (const e of outbox)
     count(
       await sql`update outbox set props = ${scrubText(JSON.stringify(e.props))}::jsonb

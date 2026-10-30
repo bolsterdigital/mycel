@@ -53,6 +53,18 @@ export const HOMES = [
     'packages/core/src/util/ids.ts',
     /01900000-0000-7000-8000-/,
   ],
+  // One normalisation and one key per purpose, so an erasure can compute the key of
+  // every copy of an address and a change to the normalisation reaches all of them.
+  [
+    'an e-mail address lowercased by hand (use normalizeEmail or EmailAddress)',
+    'packages/core/src/util/email.ts',
+    /\bemail\w*(?:\.\w+)*(?:\.trim\(\))?\.toLowerCase\(\)|\.trim\(\)\.toLowerCase\(\)\.email\(\)/i,
+  ],
+  [
+    'a key hashed from a tenant id by hand (use emailKey)',
+    'packages/core/src/supporters/email-key.ts',
+    /(?:sha256Hex\(|\.update\()\s*`[^`]*\$\{[\w.]*tenantId\}/,
+  ],
 ];
 
 const isHome = (path, home) =>
@@ -102,6 +114,35 @@ test('the rule names a copy, and ignores comments, tests and the home file', () 
       { path: home, text: 'e instanceof Error ? e.message : String(e)' },
     ]),
     [`packages/db/src/x.ts: ${what}`, `packages/api/src/y.ts: ${what}`]
+  );
+});
+
+test('an address is normalised and keyed in one place', () => {
+  const lower = HOMES.find(([what]) => what.startsWith('an e-mail address'));
+  const key = HOMES.find(([what]) => what.startsWith('a key hashed'));
+  assert.deepEqual(
+    strays(
+      [
+        { path: 'packages/core/src/a.ts', text: 'const to = message.to.email.toLowerCase();' },
+        { path: 'packages/core/src/b.ts', text: 'z.string().trim().toLowerCase().email()' },
+        { path: 'packages/mail-tem/src/c.ts', text: 'emails.has(p.email.trim().toLowerCase())' },
+        { path: 'packages/core/src/d.ts', text: 'const t = tag.trim().toLowerCase();' },
+        { path: 'packages/core/src/e.ts', text: 'await sha256Hex(`${tenantId}:${email}`)' },
+        {
+          path: 'packages/db/src/f.ts',
+          text: "createHash('sha256').update(`${ctx.tenantId}:${a}`)",
+        },
+        { path: 'packages/core/src/g.ts', text: 'await sha256Hex(`${salt}${n}`)' },
+      ],
+      [lower, key]
+    ),
+    [
+      `packages/core/src/a.ts: ${lower[0]}`,
+      `packages/core/src/b.ts: ${lower[0]}`,
+      `packages/mail-tem/src/c.ts: ${lower[0]}`,
+      `packages/core/src/e.ts: ${key[0]}`,
+      `packages/db/src/f.ts: ${key[0]}`,
+    ]
   );
 });
 

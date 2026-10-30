@@ -6,7 +6,7 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { MailMessage, MailWindow, Mailer } from '@mycel/core';
+import { normalizeEmail, type MailMessage, type MailWindow, type Mailer } from '@mycel/core';
 
 export interface SpooledMail extends MailMessage {
   key: string;
@@ -43,13 +43,13 @@ export class ConsoleMailer implements Mailer {
       const file = `${Date.now()}-${String(this.#n).padStart(4, '0')}.json`;
       writeFileSync(join(this.spoolDir, file), JSON.stringify(spooled, null, 2));
     }
-    const to = message.to.email.toLowerCase();
+    const to = normalizeEmail(message.to.email);
     this.#sent.push({ key, to, subject: message.subject, at: new Date(), providerId: id });
     return { providerId: id };
   }
 
   async lookup(message: MailMessage, { since, until }: MailWindow) {
-    const to = message.to.email.toLowerCase();
+    const to = normalizeEmail(message.to.email);
     const ids = this.#sent
       .filter((m) => m.to === to && m.subject === message.subject && m.at >= since && m.at <= until)
       .map((m) => m.providerId);

@@ -1,5 +1,6 @@
 // The rules core owns and both adapters apply (ADR 001, TODO #53 PR 3): the credential gate,
-// "disconnected is frozen" and what an erasure does to connection intents. One scenario, one
+// "disconnected is frozen", what an erasure does to connection intents and that it takes the
+// admission seat of a signup that was never ingested under core's key. One scenario, one
 // expected record, run once over the memory adapter and once over Postgres; a rule that one
 // adapter keeps on its own shows up as a difference here. Rejected: a suite per adapter, which
 // is how memory came to block a `resolved` intent while Postgres kept it.
@@ -10,8 +11,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   ConnectionIntentState,
+  Invoker,
+  buildRegistry,
   erasedIntentState,
   systemPrincipal,
+  useCases,
   type ConnectionIntent,
   type UnitOfWork,
 } from '@mycel/core';
@@ -22,6 +26,7 @@ import {
   FakeSigner,
   MemoryUnitOfWork,
   memoryPlatform,
+  probeForm,
   runSuffix,
 } from '@mycel/core/testing';
 import { applyErasures, createDb, createUnitOfWork, migrate, uuidv7, uuidv7Ids } from './index.js';
@@ -129,14 +134,26 @@ async function observe({ uow, tenant, apply }: Adapter) {
     await uow.run(admin, (ctx) => ctx.connectionIntents.insert(row));
     intents.set(row.id, state);
   }
+  // A signup that holds a seat and was never ingested, registered as a restore would bring it
+  // back: the register knows the person, no projection does.
+  const formId = uuidv7();
+  await uow.run(admin, (ctx) => ctx.forms.insert(probeForm(formId)));
+  const submitted = await new Invoker(buildRegistry(), uow).run(useCases.submitForm, admin, {
+    formId,
+    values: { email: 'Seat@Example.org ', consent: true },
+    locale: 'nl',
+  });
+  const seated = () => uow.run(admin, (ctx) => ctx.admissions.pending('seat@example.org'));
+  const seat = { submitted: submitted.status, before: await seated() };
   await uow.run(admin, (ctx) => ctx.erasures.register(supporterId, 'rules@example.org'));
+  await uow.run(admin, (ctx) => ctx.erasures.register(uuidv7(), 'SEAT@example.org'));
   await apply(t);
   const erased: Record<string, unknown> = {};
   for (const [id, before] of intents) {
     const row = (await uow.run(admin, (ctx) => ctx.connectionIntents.get(id)))!;
     erased[before] = { state: row.state, failure: row.failure, supporterId: row.supporterId };
   }
-  return { credential, frozen, erased };
+  return { credential, frozen, erased, seat: { ...seat, after: await seated() } };
 }
 
 const expected = {
@@ -160,6 +177,7 @@ const expected = {
       { state: erasedIntentState(s), failure: 'erasure', supporterId: null },
     ])
   ),
+  seat: { submitted: 'accepted', before: true, after: false },
 };
 
 it('keeps an intent whose state says what happened, and blocks the rest', () => {
