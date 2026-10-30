@@ -1230,8 +1230,9 @@
     border-inline-start-color: var(--color-primary-bg);
   }
 
-  /* Tabs: without a script every section stands below the other with its heading; the script of
-     #66 PR 6 unhides the tablist and marks the panels. */
+  /* Tabs: without a script every section stands below the other with its heading; tabs.js
+     (#66 PR 3) unhides the tablist, marks the panels and sets `data-tabs`. A panel's heading then
+     repeats its tab, so it steps out of sight and stays a heading to navigate by. */
   .ui-tabs-list {
     display: flex;
     flex-wrap: wrap;
@@ -1268,6 +1269,24 @@
   }
   .ui-tabs-panel + .ui-tabs-panel {
     margin-block-start: var(--space-4);
+  }
+  .ui-tabs-panel[hidden] {
+    display: none;
+  }
+  .ui-tabs[data-tabs] .ui-tabs-panel + .ui-tabs-panel {
+    margin-block-start: 0;
+  }
+  .ui-tabs[data-tabs] .ui-tabs-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .ui-tabs-panel:focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
   }
   /* One rhythm (#87): a heading, the panel's gap, then its content; no extra margin of its own. */
   .ui-tabs-title {

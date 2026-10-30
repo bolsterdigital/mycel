@@ -720,6 +720,7 @@
       { id: 'settings', label: t('admin.content.tab.settings'), content: settingsTab },
     ]}
   />
+  <script type="module" src="/_admin/tabs.js"></script>
 
   {#if !article && data.canWrite}
     <section

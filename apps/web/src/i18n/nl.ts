@@ -436,7 +436,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.edit.titleLabel': 'Titel',
   'admin.content.tab.label': 'Onderdelen van dit item',
   'admin.content.tab.content': 'Inhoud',
-  'admin.content.tab.findability': 'Vindbaarheid',
+  'admin.content.tab.findability': 'Zoeken en delen',
   'admin.content.tab.settings': 'Instellingen',
   'admin.content.item.title': 'Dit item',
   'admin.content.item.url': 'Adres',

@@ -81,6 +81,11 @@ test.describe('content-admin', () => {
     `a1-${what}-${test.info().project.name}-${Date.now()}`.toLowerCase();
 
   /** Make a page in nl and en through the "new" form; returns its edit URL. */
+  /** With JavaScript the edit screen's sections are tabs (#66 PR 3): show the one named. */
+  async function showTab(page: Page, name: string) {
+    if (isA11y()) await page.getByRole('tab', { name, exact: true }).click();
+  }
+
   async function newPage(page: Page, slug: string, title: string): Promise<string> {
     await page.goto('/admin/probe/content/new?type=page');
     await page.getByLabel('Slug').fill(slug);
@@ -116,8 +121,10 @@ test.describe('content-admin', () => {
     await expectNoAxeViolations(page);
 
     await page.getByLabel('Titel (nl)').fill('Over onze buurt');
-    // Search settings are folded away until asked for (skill cms-inrichting).
-    await page.locator('summary', { hasText: 'Zoeken en delen' }).click();
+    // Search settings are a tab away with JavaScript, folded away without (skill
+    // cms-inrichting); the tab opens its one fold itself (#66 PR 3).
+    if (isA11y()) await page.getByRole('tab', { name: 'Zoeken en delen' }).click();
+    else await page.locator('summary', { hasText: 'Zoeken en delen' }).click();
     await page.getByLabel('Titel in zoekresultaten (nl)').fill('De buurt');
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await expect(page).toHaveURL(`${edit}?saved`);
@@ -177,6 +184,50 @@ test.describe('content-admin', () => {
       expect((await other.goto(href))!.status()).toBe(403);
       expect((await other.request.get(css!)).status()).toBe(403);
     });
+  });
+
+  test('the edit screen shows its sections as tabs with JavaScript, all of them without', async ({
+    page,
+  }) => {
+    await login(page, '/admin/probe');
+    const edit = await newPage(page, slugFor('tabs'), 'Tabbladen');
+    const titles = ['Inhoud', 'Zoeken en delen', 'Instellingen'];
+    if (!isA11y()) {
+      // No script: every section below the other, each under its own heading.
+      for (const name of titles)
+        await expect(page.getByRole('heading', { level: 2, name, exact: true })).toBeVisible();
+      await expect(page.getByRole('tablist')).toBeHidden();
+      return;
+    }
+    const list = page.getByRole('tablist', { name: 'Onderdelen van dit item' });
+    await expect(list.getByRole('tab')).toHaveText(titles);
+    await expect(page.getByRole('tabpanel')).toHaveCount(1);
+    await expect(page.getByRole('tabpanel', { name: 'Inhoud' })).toBeVisible();
+    await expect(page.locator('#title\\.nl')).toBeVisible();
+    // The arrow keys of the ARIA tabs pattern: focus moves and shows its panel.
+    await list.getByRole('tab', { name: 'Inhoud' }).focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(list.getByRole('tab', { name: 'Zoeken en delen' })).toBeFocused();
+    await expect(list.getByRole('tab', { name: 'Zoeken en delen' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
+    await expect(page.getByLabel('Titel in zoekresultaten (nl)')).toBeVisible();
+    await expect(page.locator('#title\\.nl')).toBeHidden();
+    await page.keyboard.press('End');
+    await expect(page.getByRole('tabpanel', { name: 'Instellingen' })).toBeVisible();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByRole('tabpanel', { name: 'Inhoud' })).toBeVisible();
+    // The chosen tab is the hash: a reload comes back on it, and it is the same form.
+    await list.getByRole('tab', { name: 'Zoeken en delen' }).click();
+    await expect(page).toHaveURL(`${edit}#item-tabs-findability`);
+    await page.getByLabel('Titel in zoekresultaten (nl)').fill('Getabd');
+    await page.reload();
+    await expect(page.getByRole('tabpanel', { name: 'Zoeken en delen' })).toBeVisible();
+    await list.getByRole('tab', { name: 'Inhoud' }).click();
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
+    await expectNoAxeViolations(page);
   });
 
   test('live preview shows unsaved fields, isolates tenants and opens a clicked block', async ({
@@ -397,6 +448,7 @@ test.describe('content-admin', () => {
 
     // A validation error on the new base must preserve the same choices too. They still
     // are not in the latest document, and the section/old author are outside the directory page.
+    await showTab(page, 'Zoeken en delen');
     await page.locator('[name="canonical"]').fill('not-a-url');
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await expect(page.getByRole('alert')).toBeVisible();
@@ -407,6 +459,7 @@ test.describe('content-admin', () => {
       await expect(page.getByLabel(name, { exact: true })).toBeChecked();
     await expect(page.getByLabel('Rubriek')).toHaveValue(oldSection.id);
     await expect(page.locator('#title\\.nl')).toHaveValue('Mijn artikel bij conflict');
+    await showTab(page, 'Zoeken en delen');
     await page.locator('[name="canonical"]').fill('');
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await expect(page).toHaveURL(new RegExp(`${item.id}\\?saved$`));
