@@ -1,5 +1,5 @@
 // The routes of the generic UI gate (ui-gate.spec.ts): pages whose state the seed of
-// scripts/e2e.mjs already holds, so the gate only opens them. A route that needs state a flow
+// scripts/e2e/e2e.mjs already holds, so the gate only opens them. A route that needs state a flow
 // makes first (a stuck task, an uploaded image, a page with four publication actions) keeps its
 // gate in that flow's spec, on the same lib/layout.ts.
 // Rejected: a fixture hook per route (the setup of a flow would live twice, here and in its spec).

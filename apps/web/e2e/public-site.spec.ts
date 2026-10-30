@@ -19,7 +19,7 @@ import { login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { callApi, requireApi } from './lib/api';
 
-// The block renderer on two composed pages (TODO #8c1, brief #8c § 5), seeded by scripts/e2e.mjs
+// The block renderer on two composed pages (TODO #8c1, brief #8c § 5), seeded by scripts/e2e/e2e.mjs
 // from the registry's own examples: `campagne` (hero cover, rich text, cta card, wide image, FAQ
 // accordion, form card) and `artikel` (hero split, rich text with headings and a footnote,
 // pullquote, floated image, warning callout, video link), each in nl and en. Per page and

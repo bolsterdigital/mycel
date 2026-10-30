@@ -2,7 +2,7 @@
 // Hostnames (TODO #14, ADR 014): the site served from `Host` on its platform hostname
 // probe.localhost (Chromium resolves *.localhost to loopback), a verified non-primary hostname
 // redirecting to the primary, the admin never on a tenant hostname, Caddy's `allowed` question,
-// and the admin's domain section without JavaScript and under axe. scripts/e2e.mjs runs both
+// and the admin's domain section without JavaScript and under axe. scripts/e2e/e2e.mjs runs both
 // processes with SITE_URL_MODE=hostnames, so the confirmation mail links to probe.localhost; the
 // development path form stays covered by signup.spec.ts.
 
@@ -46,7 +46,7 @@ async function removeDomain(page: Page, hostname: string) {
   await row.getByRole('button', { name: `Ja, verwijderen: ${hostname}` }).click();
 }
 
-/** The console mailer spools each message as JSON (scripts/e2e.mjs sets MAIL_SPOOL_DIR). */
+/** The console mailer spools each message as JSON (scripts/e2e/e2e.mjs sets MAIL_SPOOL_DIR). */
 async function waitForMail(to: string): Promise<{ text: string }> {
   const dir = process.env['MAIL_SPOOL_DIR']!;
   const find = () =>
@@ -98,7 +98,7 @@ test('unknown hosts, the admin on a tenant hostname, and the allowed question', 
   expect(
     (await request.get('/probe/signup', { headers: { host: 'probe.localhost' } })).status()
   ).toBe(404);
-  // A verified, non-primary hostname (scripts/e2e.mjs seeds it) is a 301 to the primary, with
+  // A verified, non-primary hostname (scripts/e2e/e2e.mjs seeds it) is a 301 to the primary, with
   // the path and query kept.
   const alias = await request.get('/signup?ref=x', {
     headers: { host: 'e2e-alias.example' },

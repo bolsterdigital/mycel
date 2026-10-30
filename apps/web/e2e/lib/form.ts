@@ -9,7 +9,7 @@
 import type { Page } from '@playwright/test';
 import { probeForm } from '@mycel/core/testing';
 
-/** What the seeded probe form waits (scripts/e2e.mjs seeds `probeForm`). */
+/** What the seeded probe form waits (scripts/e2e/e2e.mjs seeds `probeForm`). */
 const MIN_FILL_MS = probeForm('e2e').minFillSeconds * 1000;
 /** Margin for the time between this check and the server reading its clock. */
 const MARGIN_MS = 100;

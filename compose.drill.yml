@@ -1,4 +1,4 @@
-# Restore-drill override of compose.yml (scripts/drill-run.sh, .github/workflows/restore-drill.yml),
+# Restore-drill override of compose.yml (scripts/drill/drill-run.sh, .github/workflows/restore-drill.yml),
 # on top of compose.ci.yml and compose.ci.env:
 #
 #   docker compose --env-file compose.ci.env -f compose.yml -f compose.ci.yml -f compose.drill.yml ...

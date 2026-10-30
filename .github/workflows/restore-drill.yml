@@ -1,7 +1,7 @@
 name: Restore drill
 
 # Restoring is a rehearsed procedure, not a promise (TODO #18c, docs/self-hosting.md § Restore):
-# scripts/drill-run.sh backs up a populated compose.yml stack with the backup image, restores it
+# scripts/drill/drill-run.sh backs up a populated compose.yml stack with the backup image, restores it
 # onto an empty one as the non-superuser owner, migrates, and proves the data, the media files,
 # tenant isolation and the worker came back; the measured RTO goes into the job summary. Monthly on
 # an empty runner, so a drift in Postgres, restic or the images shows up without anyone touching
@@ -18,7 +18,7 @@ on:
       - 'docker/postgres/**'
       - 'compose.yml'
       - 'compose.drill.yml'
-      - 'scripts/drill-*'
+      - 'scripts/drill/**'
       - '.github/workflows/restore-drill.yml'
       # What the drill restores and erases with (TODO #29B): the register, the export's table
       # list, the schema and the CLI that applies and reports erasures.
@@ -57,4 +57,4 @@ jobs:
         run: docker build -t mycel:ci .
 
       - name: Restore drill
-        run: scripts/drill-run.sh
+        run: scripts/drill/drill-run.sh

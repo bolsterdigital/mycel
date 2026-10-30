@@ -64,10 +64,10 @@ test.describe('an English visitor of a page published in Dutch only', () => {
   });
 });
 
-/** The console mailer spools each message as JSON (scripts/e2e.mjs sets MAIL_SPOOL_DIR). */
+/** The console mailer spools each message as JSON (scripts/e2e/e2e.mjs sets MAIL_SPOOL_DIR). */
 async function waitForMail(to: string): Promise<{ text: string }> {
   const dir = process.env['MAIL_SPOOL_DIR'];
-  if (!dir) throw new Error('MAIL_SPOOL_DIR is not set; run through scripts/e2e.mjs');
+  if (!dir) throw new Error('MAIL_SPOOL_DIR is not set; run through scripts/e2e/e2e.mjs');
   await expect
     .poll(
       () =>
@@ -83,7 +83,7 @@ async function waitForMail(to: string): Promise<{ text: string }> {
   return JSON.parse(readFileSync(join(dir, file), 'utf8'));
 }
 
-/** `supporter.get` over the HTTP API (scripts/e2e.mjs starts it with a key for tenant probe). */
+/** `supporter.get` over the HTTP API (scripts/e2e/e2e.mjs starts it with a key for tenant probe). */
 async function supporter(
   request: APIRequestContext,
   email: string

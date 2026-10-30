@@ -2,7 +2,7 @@
 // Lighthouse is a replaceable Apache-2.0 development tool (ADR 008), never a runtime import.
 // Direct 13.5.0 replaces LHCI with explicit approval: LHCI's extra dependency tree had high
 // advisories, and our median/identity rules already require a separate evaluator. No public upload.
-// Run through scripts/e2e.mjs --quality: it owns seed, database lock, IdP, API and worker.
+// Run through scripts/e2e/e2e.mjs --quality: it owns seed, database lock, IdP, API and worker.
 import { spawn, execFileSync } from 'node:child_process';
 import { createHash, X509Certificate } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
@@ -39,7 +39,7 @@ if (
   throw new Error('Commit the measured tree first: dirty source cannot prove an exact SHA');
 const fixtureHash = createHash('sha256')
   .update(readFileSync(corpusPath))
-  .update(readFileSync('scripts/e2e.mjs'))
+  .update(readFileSync('scripts/e2e/e2e.mjs'))
   .digest('hex');
 const scope = option('scope', 'default');
 const profile = option('profile', 'mobile');
@@ -63,7 +63,7 @@ const result = {
   commit,
   fixtureHash,
   fixtureVersion: corpus.fixtureVersion,
-  fixtureFiles: [corpusPath, 'scripts/e2e.mjs'],
+  fixtureFiles: [corpusPath, 'scripts/e2e/e2e.mjs'],
   startedAt: new Date(started).toISOString(),
   workflow: process.env.GITHUB_ACTIONS
     ? { runId: process.env.GITHUB_RUN_ID, attempt: process.env.GITHUB_RUN_ATTEMPT }

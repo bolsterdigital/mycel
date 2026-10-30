@@ -19,8 +19,8 @@ Known exceptions, left as they are because a migration on `main` is not edited:
 
 ## Constants
 
-| Constant              | Value          | Where                          | Why                                                           |
-| --------------------- | -------------- | ------------------------------ | ------------------------------------------------------------- |
-| pool `max`            | 10 connections | `packages/db/src/index.ts`     | bounds the connections of one `createDb` pool                 |
-| `db-refusals` `LIMIT` | 3              | `scripts/db-refusals.test.mjs` | refusals `packages/db` may raise, each in a listed place      |
-| `db-raw-sql` `LIMIT`  | 3              | `scripts/db-raw-sql.test.mjs`  | `sql.raw` and `sql.lit` calls allowed, each in a listed place |
+| Constant              | Value          | Where                                | Why                                                           |
+| --------------------- | -------------- | ------------------------------------ | ------------------------------------------------------------- |
+| pool `max`            | 10 connections | `packages/db/src/index.ts`           | bounds the connections of one `createDb` pool                 |
+| `db-refusals` `LIMIT` | 3              | `scripts/gates/db-refusals.test.mjs` | refusals `packages/db` may raise, each in a listed place      |
+| `db-raw-sql` `LIMIT`  | 3              | `scripts/gates/db-raw-sql.test.mjs`  | `sql.raw` and `sql.lit` calls allowed, each in a listed place |

@@ -215,7 +215,7 @@ const clock = '2026-10-27T12:00:00Z';
 const source = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
 const contract = sourceContract({
   corpus: source('apps/web/e2e/quality-corpus.json'),
-  seed: source('scripts/e2e.mjs'),
+  seed: source('scripts/e2e/e2e.mjs'),
   matrixSource: source('scripts/quality/matrix.mjs'),
   workflow: source('.github/workflows/frontend-quality.yml'),
   lock: source('package-lock.json'),
@@ -582,7 +582,7 @@ test('measurement installs no mutable host browser dependencies and pins its con
   assert.doesNotMatch(workflow, /playwright install|apt-get|apt-mirrors/);
   const inputs = {
     corpus: source('apps/web/e2e/quality-corpus.json'),
-    seed: source('scripts/e2e.mjs'),
+    seed: source('scripts/e2e/e2e.mjs'),
     matrixSource: source('scripts/quality/matrix.mjs'),
     workflow,
     lock: source('package-lock.json'),

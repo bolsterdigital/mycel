@@ -19,7 +19,7 @@ docs/plans
 .scratch/
 
 # Review evidence (screenshots, measurements) belongs in the PR or CI artifacts, not here;
-# scripts/repo-size.test.mjs fails on a tracked file in it.
+# scripts/gates/repo-size.test.mjs fails on a tracked file in it.
 docs/reports/
 
 # Playwright output
@@ -29,5 +29,5 @@ playwright-report
 # Harness worktrees for background agents
 .claude/worktrees/
 
-# Fake installed packages of the dependency-rules fixtures (scripts/fixtures/dependency-rules)
-!scripts/fixtures/dependency-rules/*/node_modules
+# Fake installed packages of the dependency-rules fixtures (scripts/gates/fixtures/dependency-rules)
+!scripts/gates/fixtures/dependency-rules/*/node_modules

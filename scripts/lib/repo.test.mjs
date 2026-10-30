@@ -51,7 +51,7 @@ function gateFiles() {
 
 test('every gate uses scripts/lib/repo.mjs for walking, the root and tracked files', () => {
   const gates = gateFiles();
-  assert.ok(gates.includes('scripts/check-owner-strings.mjs'), 'follows imports and spawns');
+  assert.ok(gates.includes('scripts/gates/check-owner-strings.mjs'), 'follows imports and spawns');
   assert.ok(gates.length > 15, `found ${gates.length} gate files`);
   assert.deepEqual(ownPlumbing(readAll(gates)), []);
 });
