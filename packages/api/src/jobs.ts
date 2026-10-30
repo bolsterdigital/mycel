@@ -277,7 +277,13 @@ export function jobHandlers({
     'assist.retention': platformJob('assist.retention', async () => {
       const days = assist?.retentionDays ?? 30;
       const before = new Date((assist?.clock ?? mail.clock).now().getTime() - days * DAY_MS);
-      for (const id of await tenantIds()) await retainAssistSuggestions(uow, id, before);
+      // Like the other per-tenant platform jobs: one failing tenant does not stop the rest (#84).
+      await forEachTenant(
+        'assist.retention',
+        tenantIds,
+        (id) => retainAssistSuggestions(uow, id, before),
+        errors
+      );
     }),
     // A recheck is not a publication: it runs whatever the status (`requireActive` is for #8a).
     'hostnames.reverify': tenantJob({ uow, identity }, 'hostnames.reverify', reverifyHostname),
