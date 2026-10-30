@@ -17,7 +17,7 @@ import {
   type BrandKind,
   type BrandAsset,
 } from '@mycel/core';
-import type { Database } from './schema.js';
+import type { Database } from './infra/schema.js';
 
 type Row = Database['site_settings'];
 type VersionColumn =

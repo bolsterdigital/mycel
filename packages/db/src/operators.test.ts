@@ -28,7 +28,7 @@ import {
   runSuffix,
 } from '@mycel/core/testing';
 import { createDb, createIdentityStore, createUnitOfWork, uuidv7, uuidv7Ids } from './index.js';
-import { setClientRole } from './roles.js';
+import { setClientRole } from './infra/roles.js';
 import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl, auth: authUrl } = requireDatabase('app', 'auth');

@@ -42,28 +42,25 @@ import {
   sectionRepository,
 } from './content.js';
 import { erasureRepository } from './erasures.js';
-import { tenantExportRepository } from './exports.js';
+import { tenantExportRepository } from './tenant-exports.js';
 import { hostnameRepository } from './hostnames.js';
-import { enterTenant } from './roles.js';
+import { enterTenant } from './infra/roles.js';
 import { jobScheduler } from './jobs.js';
-import { jobRecoveryRepository } from './recovery.js';
+import { jobRecoveryRepository } from './infra/recovery.js';
 import { mediaRepository } from './media.js';
 import { apiKeyRepository, membershipRepository, operatorRepository } from './operators.js';
 import { outboxEventBus } from './outbox.js';
-import {
-  formRepository,
-  mailSendsRepository,
-  rateLimiter,
-  submissionRepository,
-  supporterRepository,
-} from './repositories.js';
-import type { Database } from './schema.js';
+import { formRepository, submissionRepository } from './forms.js';
+import { mailSendsRepository } from './mailing.js';
+import { rateLimiter } from './rate-limit.js';
+import { supporterRepository } from './supporters.js';
+import type { Database } from './infra/schema.js';
 import { usageReader } from './usage.js';
-import { supporterAdmissions } from './admissions.js';
+import { supporterAdmissions } from './infra/admissions.js';
 
-export type { Database } from './schema.js';
+export type { Database } from './infra/schema.js';
 export { credentialKey, encryptCredential, decryptCredential } from './connections.js';
-export { uuidv7, uuidv7Ids } from './ids.js';
+export { uuidv7, uuidv7Ids } from './infra/ids.js';
 export {
   MAX_ATTEMPTS as OUTBOX_MAX_ATTEMPTS,
   drainOutbox,
@@ -72,7 +69,7 @@ export {
   type DrainResult,
 } from './outbox.js';
 export { deleteFinishedJobs, ping, queueLag, type QueueLag } from './ops.js';
-export { sweepRateLimits } from './janitor.js';
+export { sweepRateLimits } from './infra/janitor.js';
 export {
   opsCloseJob,
   opsDeadEvents,
@@ -87,10 +84,10 @@ export {
   type OpsPage,
   type OpsTenantSummary,
   type Paged,
-} from './recovery.js';
+} from './infra/recovery.js';
 export { deleteExpiredAudit } from './audit.js';
 export { applyErasures, erasureStatus } from './erasures.js';
-export { expireExports, runExportJob, type ExportJobDeps } from './exports.js';
+export { expireExports, runExportJob, type ExportJobDeps } from './tenant-exports.js';
 export {
   EXPORT_FORMAT,
   EXPORT_ORDER,
@@ -126,7 +123,12 @@ export {
 export { createIdentityStore } from './operators.js';
 export { mediaRepository } from './media.js';
 export { createSiteDirectory, SITE_CACHE_TTL_MS } from './hostnames.js';
-export { FIRST_EVENT_MONTH, ensureEventPartitions, migrate, migrationsAhead } from './migrate.js';
+export {
+  FIRST_EVENT_MONTH,
+  ensureEventPartitions,
+  migrate,
+  migrationsAhead,
+} from './infra/migrate.js';
 export {
   createTenant,
   ensureTenant,

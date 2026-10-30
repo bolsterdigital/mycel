@@ -1,6 +1,6 @@
 # Supporters
 
-A supporter is one person per tenant, identified by a normalised e-mail address that resolves to a stable `supporter_id`, with an append-only event log as the source of truth and a projection folded from it. Other modules publish domain events; the supporter module subscribes, maps them onto the envelope `wings.supporter-event.v1` inherited from Dreamkit, appends them and folds ([ADR 003](../adr/003-supporter-identity-and-event-log.md), [ADR 019](../adr/019-supporter-consistency-identity-and-retention.md) rules 1 to 3). Code: `packages/core/src/supporters/`, `supporterRepository` in `packages/db/src/repositories.ts`, migration 0005. Erasure is described in [export.md](export.md#erasure-register); the consent flow that feeds the log in [mail.md](mail.md); the tables in [database.md](database.md).
+A supporter is one person per tenant, identified by a normalised e-mail address that resolves to a stable `supporter_id`, with an append-only event log as the source of truth and a projection folded from it. Other modules publish domain events; the supporter module subscribes, maps them onto the envelope `wings.supporter-event.v1` inherited from Dreamkit, appends them and folds ([ADR 003](../adr/003-supporter-identity-and-event-log.md), [ADR 019](../adr/019-supporter-consistency-identity-and-retention.md) rules 1 to 3). Code: `packages/core/src/supporters/`, `supporterRepository` in `packages/db/src/supporters.ts`, migration 0005. Erasure is described in [export.md](export.md#erasure-register); the consent flow that feeds the log in [mail.md](mail.md); the tables in [database.md](database.md).
 
 ## The envelope
 
@@ -23,7 +23,7 @@ Today the `supporters.ingest` subscriber maps `newsletter.subscribed` and `conse
 
 `ingest(ctx, event)` runs in one tenant transaction under a `system` principal:
 
-1. **Lock** the address: a transaction-scoped advisory lock on `supporter:<tenant>:<address>` (`advisoryLock` in `packages/db/src/roles.ts`). Two workers on one supporter serialise; different supporters run in parallel.
+1. **Lock** the address: a transaction-scoped advisory lock on `supporter:<tenant>:<address>` (`advisoryLock` in `packages/db/src/infra/roles.ts`). Two workers on one supporter serialise; different supporters run in parallel.
 2. **Resolve** the address to the projection's `id`, or a fresh UUIDv7 on first sight. The address decides, never a `supporter_id` on the input.
 3. **Append** to `events`; a conflict on `(tenant_id, id, occurred_at)` is a duplicate and ends ingest without a fold, so ingest is idempotent.
 4. **Fold**: if a projection exists and the event sorts after its `appliedThrough`, apply it on top; otherwise (a late event, or no projection) rebuild the projection of that one supporter from its whole log.
@@ -55,13 +55,13 @@ Fold order is `occurred_at` compared as an instant, then `id` by code unit, whic
 
 ## Constants
 
-| Constant                    | Value               | Where                                                   | Why                                                                            |
-| --------------------------- | ------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| partitions ahead            | 3 months            | `packages/db/src/migrate.ts`, `packages/db/src/jobs.ts` | a missed monthly job still leaves months before rows hit the default partition |
-| `FIRST_EVENT_MONTH`         | `2026-10-01`        | `packages/db/src/migrate.ts`                            | first month with partitions; older rows need their own range first             |
-| `events.partitions` cadence | monthly             | `packages/api/src/jobs.ts`                              | keeps the three-month lead without a deploy                                    |
-| `ADMISSION_WINDOW_MS`       | 7 days              | `packages/core/src/supporters/ports.ts`                 | a signup whose event never arrived must not hold a seat forever                |
-| `supporters.max`            | 100,000 (default)   | `packages/core/src/entitlements/model.ts`               | supporters per tenant, projection plus live reservations                       |
-| `reason`                    | 1 to 500 characters | `packages/core/src/supporters/service.ts`               | evidence for an address change                                                 |
-| `ERASED_DOMAIN`             | `erased.invalid`    | `packages/core/src/supporters/erasure.ts`               | RFC 2606 reserved: a tombstone is never deliverable                            |
-| `ERASURE_UNSECURED_WARN_MS` | 1 hour              | `packages/core/src/supporters/erasure.ts`               | four missed 15-minute erasure backups                                          |
+| Constant                    | Value               | Where                                                         | Why                                                                            |
+| --------------------------- | ------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| partitions ahead            | 3 months            | `packages/db/src/infra/migrate.ts`, `packages/db/src/jobs.ts` | a missed monthly job still leaves months before rows hit the default partition |
+| `FIRST_EVENT_MONTH`         | `2026-10-01`        | `packages/db/src/infra/migrate.ts`                            | first month with partitions; older rows need their own range first             |
+| `events.partitions` cadence | monthly             | `packages/api/src/jobs.ts`                                    | keeps the three-month lead without a deploy                                    |
+| `ADMISSION_WINDOW_MS`       | 7 days              | `packages/core/src/supporters/ports.ts`                       | a signup whose event never arrived must not hold a seat forever                |
+| `supporters.max`            | 100,000 (default)   | `packages/core/src/entitlements/model.ts`                     | supporters per tenant, projection plus live reservations                       |
+| `reason`                    | 1 to 500 characters | `packages/core/src/supporters/service.ts`                     | evidence for an address change                                                 |
+| `ERASED_DOMAIN`             | `erased.invalid`    | `packages/core/src/supporters/erasure.ts`                     | RFC 2606 reserved: a tombstone is never deliverable                            |
+| `ERASURE_UNSECURED_WARN_MS` | 1 hour              | `packages/core/src/supporters/erasure.ts`                     | four missed 15-minute erasure backups                                          |

@@ -21,7 +21,7 @@ import {
   runSuffix,
 } from '@mycel/core/testing';
 import { createDb, createUnitOfWork, erasureStatus, uuidv7, uuidv7Ids } from './index.js';
-import type { Database } from './schema.js';
+import type { Database } from './infra/schema.js';
 import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');

@@ -2,9 +2,9 @@
 
 import { afterAll, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
-import { createDb } from './index.js';
+import { createDb } from '../index.js';
 import { advisoryLock, asRole, setRole } from './roles.js';
-import { requireDatabase } from './testing.js';
+import { requireDatabase } from '../testing.js';
 
 const { skip, operator: operatorUrl } = requireDatabase();
 

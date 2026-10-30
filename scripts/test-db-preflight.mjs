@@ -8,7 +8,7 @@
 // Without DATABASE_URL the database suites skip, and so does this check.
 
 import pg from 'pg';
-import { migrationsAhead } from '../packages/db/src/migrate.ts';
+import { migrationsAhead } from '../packages/db/src/infra/migrate.ts';
 
 export default async function preflight() {
   const url = process.env.DATABASE_URL;

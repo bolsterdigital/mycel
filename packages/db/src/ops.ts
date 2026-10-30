@@ -7,8 +7,8 @@
 import { sql, type Kysely } from 'kysely';
 import { JOB_LEASE_SECONDS } from './jobs.js';
 import { MAX_ATTEMPTS } from './outbox.js';
-import type { Database } from './schema.js';
-import { asRole } from './roles.js';
+import type { Database } from './infra/schema.js';
+import { asRole } from './infra/roles.js';
 
 export interface QueueLag {
   /** Age of the oldest event still owed to a subscriber and not dead; 0 when there is none. */

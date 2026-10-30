@@ -8,7 +8,7 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { FakeClock, runSuffix } from '@mycel/core/testing';
 import { createDb, createIdentityStore, sweepRateLimits, uuidv7Ids } from './index.js';
-import { asRole } from './roles.js';
+import { asRole } from './infra/roles.js';
 import { requireDatabase } from './testing.js';
 
 const { skip, operator: operatorUrl, auth: authUrl } = requireDatabase('auth');

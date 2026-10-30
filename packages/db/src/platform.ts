@@ -37,9 +37,9 @@ import {
   type PlatformConfig,
 } from '@mycel/core';
 import { recordPlatformAudit } from './audit.js';
-import { uuidv7 } from './ids.js';
-import type { Database } from './schema.js';
-import { asRole } from './roles.js';
+import { uuidv7 } from './infra/ids.js';
+import type { Database } from './infra/schema.js';
+import { asRole } from './infra/roles.js';
 
 type Trx = Kysely<Database>;
 

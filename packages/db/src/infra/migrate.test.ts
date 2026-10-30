@@ -11,7 +11,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { runSuffix } from '@mycel/core/testing';
 import { applyMigrations, migrate, migrationsAhead } from './migrate.js';
-import { requireDatabase } from './testing.js';
+import { requireDatabase } from '../testing.js';
 
 const { skip, operator: operatorUrl } = requireDatabase();
 

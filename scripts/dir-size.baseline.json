@@ -1,0 +1,17 @@
+{
+  "ceilings": {
+    "apps/web/src/lib/admin/ui": 44,
+    "apps/web/src/lib/server": 24,
+    "packages/api/src": 19,
+    "packages/core/src/testing/memory": 16,
+    "packages/db/src": 23,
+    "scripts": 23
+  },
+  "exempt": {
+    ".": "the repository root holds the files tools look for there (package.json, licence, configs)",
+    "apps/web/src/lib/blocks": "one component per block type; the block registry is the index",
+    "docs/adr": "numbered decisions, read by number",
+    "docs/reference": "one page per subsystem, indexed by docs-map",
+    "packages/db/migrations": "numbered forward-only migrations, read in order"
+  }
+}

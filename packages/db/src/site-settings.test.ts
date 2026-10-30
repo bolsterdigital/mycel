@@ -13,8 +13,8 @@ import {
 } from '@mycel/core/testing';
 import { DEFAULT_THEME, DEFAULT_CHROME, DEFAULT_GENERAL } from '@mycel/core';
 import { createDb, createUnitOfWork, uuidv7Ids } from './index.js';
-import type { Database } from './schema.js';
-import { enterTenant } from './roles.js';
+import type { Database } from './infra/schema.js';
+import { enterTenant } from './infra/roles.js';
 import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');

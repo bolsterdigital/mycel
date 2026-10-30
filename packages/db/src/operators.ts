@@ -1,8 +1,8 @@
 // Operators, memberships and API keys over Postgres (TODO #7, migration 0007). Two halves:
 //
-// * The repositories run in a use case's tenant transaction as mycel_app, like those in
-//   repositories.ts: memberships and keys under RLS, operators only through the `member_read`
-//   policy and the `operator_for_invite` function.
+// * The repositories run in a use case's tenant transaction as mycel_app, like the other
+//   repositories in this package: memberships and keys under RLS, operators only through the
+//   `member_read` policy and the `operator_for_invite` function.
 // * `createIdentityStore` answers authentication before a tenant context exists. Each call is one
 //   transaction that switches to `mycel_auth` through `asRole`, the pattern of
 //   `drainOutbox` (mycel_worker) and `sweepRateLimits` (mycel_janitor). Its connection is the
@@ -29,8 +29,8 @@ import {
   DEFAULT_OPERATOR_PREFERENCES,
   OperatorPreferences,
 } from '@mycel/core';
-import type { Database } from './schema.js';
-import { advisoryLock, asRole } from './roles.js';
+import type { Database } from './infra/schema.js';
+import { advisoryLock, asRole } from './infra/roles.js';
 
 type Trx = Kysely<Database>;
 const iso = (d: Date | string | null) => (d === null ? null : new Date(d).toISOString());

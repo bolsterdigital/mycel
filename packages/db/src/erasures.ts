@@ -27,8 +27,8 @@ import {
   type Principal,
 } from '@mycel/core';
 import { withTenant } from './index.js';
-import type { Database } from './schema.js';
-import { setRole } from './roles.js';
+import type { Database } from './infra/schema.js';
+import { setRole } from './infra/roles.js';
 
 type Trx = Kysely<Database>;
 

@@ -61,7 +61,7 @@ Opening the link only reads (`mailing.opt_in.get`); the button on that page post
 
 ## Retention
 
-Rate-limit and cooldown windows live in `rate_limits` and are deleted by the hourly `rate_limits.sweep` job as `mycel_janitor` once older than a day (`packages/db/src/janitor.ts`); that is why no cooldown may exceed a day. A seat reservation stops counting after seven days and is swept by the tenant's next `reserve`.
+Rate-limit and cooldown windows live in `rate_limits` and are deleted by the hourly `rate_limits.sweep` job as `mycel_janitor` once older than a day (`packages/db/src/infra/janitor.ts`); that is why no cooldown may exceed a day. A seat reservation stops counting after seven days and is swept by the tenant's next `reserve`.
 
 ## Constants
 
@@ -77,6 +77,6 @@ Rate-limit and cooldown windows live in `rate_limits` and are deleted by the hou
 | proof reuse cooldown            | 24 h              | `packages/core/src/forms/service.ts`        | one use per solution while the challenge lives                       |
 | `WAIT_MS`                       | 2 s               | `apps/web/static/_form/proof.js`            | longest a submit waits for the solution before posting without       |
 | `MAX_COOLDOWN_SECONDS`          | 24 h              | `packages/core/src/forms/ports.ts`          | the hourly sweep keeps a day of windows                              |
-| `KEEP`                          | 1 day             | `packages/db/src/janitor.ts`                | rate-limit window retention                                          |
+| `KEEP`                          | 1 day             | `packages/db/src/infra/janitor.ts`          | rate-limit window retention                                          |
 | `ADMISSION_WINDOW_MS`           | 7 days            | `packages/core/src/supporters/ports.ts`     | a signup whose event never arrived must not hold a seat forever      |
 | `CONFIRM_TTL_MS`                | 14 days           | `packages/core/src/mailing/confirmation.ts` | lifetime of a confirmation link                                      |

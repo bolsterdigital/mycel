@@ -13,7 +13,7 @@ import {
   type ConnectionChanges,
   type NewConnection,
 } from '@mycel/core';
-import type { Database } from './schema.js';
+import type { Database } from './infra/schema.js';
 
 type Row = Selectable<Database['connections']> & { credential_id: string | null };
 

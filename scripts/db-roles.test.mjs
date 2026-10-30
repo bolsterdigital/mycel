@@ -1,5 +1,5 @@
 // A role switch is the route around RLS (ADR 002), and an advisory lock only serialises what
-// takes the same key, so both live in one helper, `packages/db/src/roles.ts` (TODO #53): a
+// takes the same key, so both live in one helper, `packages/db/src/infra/roles.ts` (TODO #53): a
 // closed list of roles and one key shape. This ratchet keeps every way to switch a role
 // (`set [local|session] role`, `set_config('role', …)`, `reset role`, `set session
 // authorization`) and every advisory lock (`pg_[try_]advisory[_xact]_lock`) out of every other
@@ -23,7 +23,7 @@ import {
   workspaceSources,
 } from './lib/repo.mjs';
 
-export const HELPER = 'packages/db/src/roles.ts';
+export const HELPER = 'packages/db/src/infra/roles.ts';
 const PATTERN =
   /set\s+(local\s+|session\s+)?role\b|set_config\(\s*'role'|reset\s+role|set\s+session\s+authorization|pg_(try_)?advisory(_xact)?_(un)?lock/i;
 
@@ -34,14 +34,14 @@ const PATTERN =
 export const EXCEPTIONS = new Map([
   // A session-level lock on a raw `pg` client across many transactions (one migrator at a time),
   // which a transaction-scoped helper on Kysely cannot express.
-  ['packages/db/src/migrate.ts', /pg_advisory_(un)?lock\(/i],
+  ['packages/db/src/infra/migrate.ts', /pg_advisory_(un)?lock\(/i],
   // The suites that test the switch or the lock itself: every role against every policy, the
   // migration suites on a bare client at a past schema, the helper's own lock.
   ['packages/db/src/rls.conformance.test.ts', /set local role|reset role/i],
   ['packages/db/src/content-migration.test.ts', /set local role|reset role/i],
   ['packages/db/src/content-refs-migration.test.ts', /set local role|reset role/i],
   ['packages/db/src/consent-snapshot-migration.test.ts', /set local role|reset role/i],
-  ['packages/db/src/roles.test.ts', /pg_try_advisory_xact_lock\(/i],
+  ['packages/db/src/infra/roles.test.ts', /pg_try_advisory_xact_lock\(/i],
   // Proves that the authenticator login cannot switch to another role: the refused switch is
   // the assertion.
   ['packages/db/src/operators.test.ts', /set role mycel_worker/i],
@@ -100,7 +100,7 @@ const sources = () => [
   ...readAll(walk('apps/web/e2e', { match: (p) => /\.[cm]?[jt]s$/.test(p) })),
 ];
 
-test('role switches and advisory locks go through packages/db/src/roles.ts', () => {
+test('role switches and advisory locks go through packages/db/src/infra/roles.ts', () => {
   const found = sources();
   assert.ok(
     found.some((f) => f.path === HELPER),
@@ -124,7 +124,10 @@ test('the tenant rule flags a second insert in any form and leaves platform.ts, 
   assert.deepEqual(
     tenantInserts([
       file('packages/db/src/index.ts', "await trx.insertInto('tenants').values(row).execute();"),
-      file('packages/db/src/seed.ts', 'await sql`insert into tenants (id, slug) values (1, 2)`;'),
+      file(
+        'packages/db/src/infra/seed.ts',
+        'await sql`insert into tenants (id, slug) values (1, 2)`;'
+      ),
       file('packages/db/src/a.ts', 'await sql`insert into public.tenants (id) values (1)`;'),
       file('packages/db/src/b.ts', 'await sql`insert into "public"."tenants" values (1)`;'),
       file('packages/db/src/c.ts', 'await sql`insert into tenants select * from old`;'),
@@ -138,7 +141,7 @@ test('the tenant rule flags a second insert in any form and leaves platform.ts, 
     ]),
     [
       "packages/db/src/index.ts:1: await trx.insertInto('tenants').values(row).execute();",
-      'packages/db/src/seed.ts:1: await sql`insert into tenants (id, slug) values (1, 2)`;',
+      'packages/db/src/infra/seed.ts:1: await sql`insert into tenants (id, slug) values (1, 2)`;',
       'packages/db/src/a.ts:1: await sql`insert into public.tenants (id) values (1)`;',
       'packages/db/src/b.ts:1: await sql`insert into "public"."tenants" values (1)`;',
       'packages/db/src/c.ts:1: await sql`insert into tenants select * from old`;',
@@ -208,7 +211,7 @@ test('every form of role switch and advisory lock counts, one per line', () => {
 });
 
 test('the migrate exception covers its session lock and nothing else', () => {
-  const migrate = 'packages/db/src/migrate.ts';
+  const migrate = 'packages/db/src/infra/migrate.ts';
   assert.deepEqual(
     bypasses([
       { path: migrate, text: "await client.query('select pg_advisory_lock($1)', [KEY]);" },

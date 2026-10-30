@@ -20,9 +20,9 @@ import {
   memoryPlatform,
   runSuffix,
 } from '@mycel/core/testing';
-import { createDb, createIdentityStore, createUnitOfWork, uuidv7, uuidv7Ids } from './index.js';
+import { createDb, createIdentityStore, createUnitOfWork, uuidv7, uuidv7Ids } from '../index.js';
 import { SEED_KEY_CAPABILITIES, seedApiKey } from './seed-key.js';
-import { requireDatabase, testTenant } from './testing.js';
+import { requireDatabase, testTenant } from '../testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 

@@ -55,7 +55,7 @@ import { exportTenant, schemaVersion } from './export.js';
 import { withTenant } from './index.js';
 import { JOB_LEASE_SECONDS, touchJob } from './jobs.js';
 import { getTenant } from './platform.js';
-import type { Database } from './schema.js';
+import type { Database } from './infra/schema.js';
 
 type Trx = Kysely<Database>;
 
