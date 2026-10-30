@@ -26,5 +26,5 @@ No operator id, email address or tenant name is sent. A model result is a propos
 | retry delay              | 30 s, one retry                | `packages/core/src/assist/worker.ts`      | a timeout or unavailable provider is retried once before the suggestion fails      |
 | alt image width          | at most 960 px                 | `packages/core/src/assist/worker.ts`      | the widest WebP variant up to this width is sent, never the original               |
 | `maxTokens`              | 200 (alt), 3,000 (translation) | `packages/core/src/assist/worker.ts`      | bounds the provider answer per task                                                |
-| `ASSIST_TIMEOUT_MS`      | 30 s (1 s to 120 s)            | `packages/api/src/compose.ts`             | the provider call is aborted after this                                            |
-| `ASSIST_RETENTION_DAYS`  | 30 (1 to 365)                  | `packages/api/src/compose.ts`             | suggestions older than this are deleted by the daily retention job                 |
+| `ASSIST_TIMEOUT_MS`      | 30 s (1 s to 120 s)            | `packages/api/src/runtime/compose.ts`     | the provider call is aborted after this                                            |
+| `ASSIST_RETENTION_DAYS`  | 30 (1 to 365)                  | `packages/api/src/runtime/compose.ts`     | suggestions older than this are deleted by the daily retention job                 |

@@ -7,7 +7,7 @@
 // `npm run worker`) it opens no port and cannot collide with the API on 8787.
 
 import { createRuntime } from './compose.js';
-import { startWorkerHealth } from './health.js';
+import { startWorkerHealth } from '../health.js';
 
 const runtime = createRuntime(undefined, { service: 'worker' });
 runtime.startWorker();

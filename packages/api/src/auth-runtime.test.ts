@@ -11,7 +11,7 @@ import { createDb } from '@mycel/db';
 import { requireDatabase, testTenant, migrateSchema } from '@mycel/db/testing';
 import { runSuffix } from '@mycel/core/testing';
 import { createApp } from './app.js';
-import { createRuntime, loadConfig, type Runtime } from './compose.js';
+import { createRuntime, loadConfig, type Runtime } from './runtime/compose.js';
 
 const env = process.env;
 const { skip } = requireDatabase('app', 'auth');

@@ -12,7 +12,7 @@ import { probeForm, runSuffix } from '@mycel/core/testing';
 import { createDb, uuidv7 } from '@mycel/db';
 import { asRole, closeTenantWork, requireDatabase, migrateSchema } from '@mycel/db/testing';
 import { createApp } from './app.js';
-import { createRuntime, loadConfig, tokenFingerprint, type Runtime } from './compose.js';
+import { createRuntime, loadConfig, tokenFingerprint, type Runtime } from './runtime/compose.js';
 
 const env = process.env;
 const { skip } = requireDatabase('app', 'auth');

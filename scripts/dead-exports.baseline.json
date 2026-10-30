@@ -1,9 +1,9 @@
 [
   "apps/web/src/lib/editor/markdown.ts#MarkdownResult",
   "apps/web/src/lib/editor/markdown.ts#canonicalRichText",
-  "packages/api/src/compose.ts#Authenticator",
-  "packages/api/src/compose.ts#AuthenticatorDeps",
-  "packages/api/src/compose.ts#createAuthenticator",
+  "packages/api/src/runtime/compose.ts#Authenticator",
+  "packages/api/src/runtime/compose.ts#AuthenticatorDeps",
+  "packages/api/src/runtime/compose.ts#createAuthenticator",
   "packages/api/src/index.ts#AppDeps",
   "packages/api/src/index.ts#PlatformDeps",
   "packages/api/src/index.ts#PlatformStore",

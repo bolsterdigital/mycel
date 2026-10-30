@@ -10,7 +10,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { CONFIG_KEYS } from './compose.js';
+import { CONFIG_KEYS } from './runtime/compose.js';
 
 const root = fileURLToPath(new URL('../../..', import.meta.url));
 
@@ -38,7 +38,7 @@ const INVENTORY: Record<string, string> = {
   API_HOST: 'docker/caddy/Caddyfile',
   MYCEL_PG_PORT: 'compose.dev.yml',
   MYCEL_S3_PORT: 'compose.dev.yml',
-  MYCEL_WORKER: 'packages/api/src/server.ts',
+  MYCEL_WORKER: 'packages/api/src/runtime/server.ts',
 };
 
 /** Read by the code, deliberately not in `.env.example`. */

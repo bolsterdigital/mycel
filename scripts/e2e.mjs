@@ -58,7 +58,7 @@ const { chromium } = await import('@playwright/test');
 if (!existsSync(chromium.executablePath()))
   skip('Chromium is not installed (npx playwright install chromium)');
 if (!existsSync(`${root}apps/web/build/index.js`)) skip('apps/web is not built (npm run build)');
-if (!existsSync(`${root}packages/api/dist/server.js`)) skip('packages/api is not built');
+if (!existsSync(`${root}packages/api/dist/runtime/server.js`)) skip('packages/api is not built');
 
 const run = (cmd, args, cwd = root, env = process.env) => {
   const r = spawnSync(cmd, args, { cwd, stdio: 'inherit', env });
@@ -676,12 +676,12 @@ const idp = spawn('node', ['scripts/mock-oidc.mjs'], {
   stdio: ['ignore', 'inherit', 'inherit'],
   env: { ...env, MOCK_OIDC_PORT: OIDC_PORT },
 });
-const api = spawn('node', ['packages/api/dist/server.js'], {
+const api = spawn('node', ['packages/api/dist/runtime/server.js'], {
   cwd: root,
   stdio: ['ignore', 'inherit', 'inherit'],
   env: { ...frontEnv, PORT: API_PORT, MYCEL_WORKER: 'off' },
 });
-const worker = spawn('node', ['packages/api/dist/worker.js'], {
+const worker = spawn('node', ['packages/api/dist/runtime/worker.js'], {
   cwd: root,
   stdio: ['ignore', 'inherit', 'inherit'],
   env: { ...env, PORT: WORKER_PORT },

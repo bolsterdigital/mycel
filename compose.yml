@@ -13,7 +13,7 @@
 
 x-image: &image ${MYCEL_IMAGE:-ghcr.io/bolsterdigital/mycel:latest}
 
-# What every process of the image reads (packages/api/src/compose.ts, `loadConfig`).
+# What every process of the image reads (packages/api/src/runtime/compose.ts, `loadConfig`).
 x-runtime-env: &runtime-env
   APP_DATABASE_URL: postgres://mycel_app:${MYCEL_APP_PASSWORD:?set MYCEL_APP_PASSWORD}@postgres:5432/mycel
   AUTH_DATABASE_URL: postgres://mycel_authenticator:${MYCEL_AUTH_PASSWORD:?set MYCEL_AUTH_PASSWORD}@postgres:5432/mycel

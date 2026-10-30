@@ -11,8 +11,8 @@ import {
 import { Metrics, createLogger } from '@mycel/observability';
 import { createApp } from './app.js';
 import type { PlatformStore } from './platform.js';
-import { loadConfig } from './compose.js';
-import { HmacInputHasher, HmacSigner } from './signer.js';
+import { loadConfig } from './runtime/compose.js';
+import { HmacInputHasher, HmacSigner } from './runtime/signer.js';
 
 const FORM = '01900000-0000-7000-8000-00000000f000';
 const PLATFORM_TOKEN = 'p'.repeat(32);

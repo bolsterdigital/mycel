@@ -2,7 +2,7 @@
 // MYCEL_WORKER=off to run `npm run worker -w @mycel/api` separately).
 
 import { serve } from '@hono/node-server';
-import { createApp } from './app.js';
+import { createApp } from '../app.js';
 import { createRuntime } from './compose.js';
 
 const runtime = createRuntime(undefined, { service: 'api' });

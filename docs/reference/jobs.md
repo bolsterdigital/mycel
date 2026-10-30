@@ -1,6 +1,6 @@
 # Jobs and the outbox
 
-Background work runs in one worker process over two Postgres queues, both claimed across tenants as `mycel_worker` with `FOR UPDATE SKIP LOCKED`, so any number of workers can run side by side (ADR 011, [`../adr/011-background-roles-and-outbox.md`](../adr/011-background-roles-and-outbox.md); ADR 012 rule 4). The **outbox** carries committed domain events to in-process subscribers; the **jobs** table carries work planned for a time. The core says what to run and when (`packages/core/src/jobs/`); the queue is `packages/db/src/jobs.ts` and `packages/db/src/outbox.ts`; which code runs a job type, and under which role, is `packages/api/src/jobs.ts`; the loops start in `Runtime.startWorker` (`packages/api/src/compose.ts`), entered from `packages/api/src/worker.ts`. Stuck work and its recovery are in [ops.md](ops.md); the `mail.reconcile` job in [mail.md](mail.md); the worker's health and metrics in [observability.md](observability.md).
+Background work runs in one worker process over two Postgres queues, both claimed across tenants as `mycel_worker` with `FOR UPDATE SKIP LOCKED`, so any number of workers can run side by side (ADR 011, [`../adr/011-background-roles-and-outbox.md`](../adr/011-background-roles-and-outbox.md); ADR 012 rule 4). The **outbox** carries committed domain events to in-process subscribers; the **jobs** table carries work planned for a time. The core says what to run and when (`packages/core/src/jobs/`); the queue is `packages/db/src/jobs.ts` and `packages/db/src/outbox.ts`; which code runs a job type, and under which role, is `packages/api/src/jobs.ts`; the loops start in `Runtime.startWorker` (`packages/api/src/runtime/compose.ts`), entered from `packages/api/src/runtime/worker.ts`. Stuck work and its recovery are in [ops.md](ops.md); the `mail.reconcile` job in [mail.md](mail.md); the worker's health and metrics in [observability.md](observability.md).
 
 ## The job record
 
@@ -78,11 +78,11 @@ A tenant handler throws when the job has no tenant, a platform handler when it h
 | `max_attempts`        | 10                        | `packages/db/migrations/0009_jobs.sql` | column default; an exhausted job waits for recovery                      |
 | job backoff           | `min(2^attempts, 3600)` s | `packages/db/src/jobs.ts`              | 2, 4, 8 ... seconds after each failure, at most an hour                  |
 | job batch size        | 10                        | `packages/db/src/jobs.ts`              | jobs per claim (`claimJobs`)                                             |
-| `JOBS_INTERVAL_MS`    | 5 s                       | `packages/api/src/compose.ts`          | job loop tick when the queue is empty                                    |
+| `JOBS_INTERVAL_MS`    | 5 s                       | `packages/api/src/runtime/compose.ts`  | job loop tick when the queue is empty                                    |
 | `HEARTBEAT_MS`        | 60 s                      | `packages/db/src/tenant-exports.ts`    | how often a running export renews its lease, well inside the 300 s lease |
 | `MAX_ATTEMPTS`        | 10                        | `packages/db/src/outbox.ts`            | failed passes before an outbox event is dead                             |
 | outbox backoff        | `min(2^attempts, 3600)` s | `packages/db/src/outbox.ts`            | the same schedule as jobs                                                |
 | outbox batch size     | 50                        | `packages/db/src/outbox.ts`            | events per claim (`drainOutbox`)                                         |
-| `OUTBOX_INTERVAL_MS`  | 1 s                       | `packages/api/src/compose.ts`          | outbox loop tick when nothing is pending                                 |
-| `JOBS_RETENTION_DAYS` | 30 (1 to 3650)            | `packages/api/src/compose.ts`          | env; finished jobs older than this are deleted daily                     |
+| `OUTBOX_INTERVAL_MS`  | 1 s                       | `packages/api/src/runtime/compose.ts`  | outbox loop tick when nothing is pending                                 |
+| `JOBS_RETENTION_DAYS` | 30 (1 to 3650)            | `packages/api/src/runtime/compose.ts`  | env; finished jobs older than this are deleted daily                     |
 | retention batch       | 1000                      | `packages/db/src/ops.ts`               | rows per delete, so no transaction holds many row locks                  |

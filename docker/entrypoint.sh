@@ -9,8 +9,8 @@ role="${1:-api}"
 [ "$#" -gt 0 ] && shift
 
 case "$role" in
-  api) exec node packages/api/dist/server.js "$@" ;;
-  worker) exec node packages/api/dist/worker.js "$@" ;;
+  api) exec node packages/api/dist/runtime/server.js "$@" ;;
+  worker) exec node packages/api/dist/runtime/worker.js "$@" ;;
   # adapter-node reads PORT and HOST; it listens on 0.0.0.0 by default. Behind the reverse proxy
   # (MYCEL_TRUST_PROXY=1, required in production) it takes host, protocol and client address
   # from the x-forwarded-* headers the proxy sets (docker/caddy/Caddyfile), so a
@@ -29,9 +29,9 @@ case "$role" in
     exec node apps/web/build/index.js "$@"
     ;;
   migrate) exec node packages/db/dist/infra/migrate.js "$@" ;;
-  # The self-hoster's command line (packages/api/src/cli.ts): `docker compose run --rm worker
+  # The self-hoster's command line (packages/api/src/runtime/cli.ts): `docker compose run --rm worker
   # mycel setup ...`. Run it in the worker service, the one with DATABASE_URL (ADR 011 rule 1).
-  mycel) exec node packages/api/dist/cli.js "$@" ;;
+  mycel) exec node packages/api/dist/runtime/cli.js "$@" ;;
   # The MCP server over stdio, acting with MYCEL_API_KEY: `docker compose run --rm -T worker mcp`.
   # Remote MCP over HTTP is TODO #25.
   mcp) exec node packages/mcp/dist/bin.js "$@" ;;

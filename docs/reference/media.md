@@ -107,7 +107,7 @@ The renderer (#8c) reads the asset with `media.get` (or the repository in the sa
 
 ## A later delivery adapter
 
-A CDN or an image service (ImageKit) is another `MediaDelivery`: `variantPath` returns its URL for the same `(id, file)`, `signedVariantPath` its signed form. The variants and their names stay what this page lists, so content and the register do not change; the composition root (`packages/api/src/compose.ts`, `media.delivery`) is the only place that changes. Moving files between stores is a copy of the `tenants/` prefix; the keys are the contract.
+A CDN or an image service (ImageKit) is another `MediaDelivery`: `variantPath` returns its URL for the same `(id, file)`, `signedVariantPath` its signed form. The variants and their names stay what this page lists, so content and the register do not change; the composition root (`packages/api/src/runtime/compose.ts`, `media.delivery`) is the only place that changes. Moving files between stores is a copy of the `tenants/` prefix; the keys are the contract.
 
 ## Constants
 

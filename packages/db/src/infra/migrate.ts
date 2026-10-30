@@ -1,5 +1,5 @@
 // Forward-only SQL migrations (ADR 008 policy 1: our own ~60 lines instead of a migration
-// library). Files in ../migrations named NNNN_name.sql run in name order, each in its own
+// library). Files in packages/db/migrations named NNNN_name.sql run in name order, each in its own
 // transaction, recorded in `schema_migrations` with the sha256 of the file. An advisory lock keeps
 // two deploys from racing. There is no "down": a mistake is fixed by the next migration, and a file
 // that changed after it was applied stops the runner before it touches anything (TODO #18b,
