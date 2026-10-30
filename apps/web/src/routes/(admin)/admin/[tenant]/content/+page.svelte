@@ -1,9 +1,12 @@
 <!-- The content list (TODO #11 A1, brief #56 § C2) on the overview pattern: pages and articles
      are separate menu items (editor trial 2026-10-28), one table row per item with its status per locale as badges, and the new
      item as the screen's primary action. Links only, no actions to post, so it works without
-     JavaScript; the table scrolls inside its own region on a narrow screen, never the page. -->
+     JavaScript; the table scrolls inside its own region on a narrow screen, never the page. The
+     page title is the one visible heading (#87); "updated" is relative in the operator's zone,
+     the full moment in its title. -->
 <script lang="ts">
   import { Badge, Button, OverviewPage, Table } from '#lib/admin/ui/index.js';
+  import { formatWhen } from '#lib/admin/format.js';
   import { ui, type UiKey } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -18,6 +21,15 @@
     unpublished: 'warning',
   } as const;
   const tone = (s: string) => TONE[s as keyof typeof TONE] ?? 'neutral';
+  // The admin renders on the server only (csr = false), so `now` is the moment of the request.
+  const now = new Date();
+  const when = (iso: string) =>
+    formatWhen(iso, {
+      locale: data.locale,
+      zone: data.timeZone,
+      now,
+      relative: data.dateFormat !== 'absolute',
+    });
   const kind = $derived(
     t(data.type === 'page' ? 'admin.content.filter.page' : 'admin.content.filter.article')
   );
@@ -42,6 +54,7 @@
   <Table
     id="content-table"
     caption={kind}
+    hideCaption
     columns={[
       { key: 'title', label: t('admin.content.field.title') },
       { key: 'status', label: t('admin.content.state') },
@@ -51,6 +64,7 @@
   >
     {#snippet rows()}
       {#each data.items as item (item.id)}
+        {@const updated = when(item.updated)}
         <tr>
           <th scope="row"
             ><a href="{base}/{item.id}">{item.title || t('admin.content.untitled')}</a></th
@@ -69,7 +83,7 @@
             </ul>
           </td>
           <td>/{item.slug}</td>
-          <td>{item.updated}</td>
+          <td><time datetime={updated.iso} title={updated.full}>{updated.text}</time></td>
         </tr>
       {/each}
     {/snippet}

@@ -95,7 +95,15 @@ test.describe('content-admin', () => {
     await login(page, '/admin/probe');
     await page.getByRole('link', { name: 'Pagina’s' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Pagina’s' })).toBeVisible();
-    expect(await page.locator('script').count()).toBe(0);
+    // One visible "Pagina's" (#87): the list heading and the table caption repeat the title for
+    // screen readers only.
+    expect(
+      await page
+        .locator('main :is(h1, h2, caption)', { hasText: 'Pagina’s' })
+        .evaluateAll((nodes) => nodes.filter((n) => n.getBoundingClientRect().width > 1).length)
+    ).toBe(1);
+    await expect(page.getByRole('table', { name: 'Pagina’s' })).toBeVisible();
+    expect(await page.locator('script:not([src="/_admin/nav.js"])').count()).toBe(0);
     await expectNoAxeViolations(page);
 
     await page.getByRole('link', { name: 'Nieuwe pagina' }).click();

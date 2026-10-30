@@ -11,6 +11,7 @@
   import type { MediaChoice } from '../media-choice.js';
   import Actions from './Actions.svelte';
   import Dialog from './Dialog.svelte';
+  import HintButton from './HintButton.svelte';
 
   let {
     id,
@@ -103,6 +104,7 @@
 <fieldset
   {id}
   class={['ui-media-picker', invalid && 'invalid']}
+  aria-labelledby={hint ? `${id}-legend` : undefined}
   aria-describedby={hint ? `${id}-hint` : undefined}
   data-media-picker
   data-name={name}
@@ -111,8 +113,14 @@
   data-copy={copy}
   onchange={changed}
 >
-  <legend>{label}</legend>
-  {#if hint}<p class="ui-hint" id="{id}-hint">{hint}</p>{/if}
+  <legend
+    ><span id="{id}-legend">{label}</span>{#if hint}<HintButton
+        target="{id}-hint"
+        labelId="{id}-legend"
+        {locale}
+      />{/if}</legend
+  >
+  {#if hint}<p class="ui-hint" id="{id}-hint" popover>{hint}</p>{/if}
   <div class="ui-media-picker-current">
     <img
       data-picker-img

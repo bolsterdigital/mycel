@@ -122,7 +122,9 @@ test.describe('admin-ui', () => {
     ).toEqual([]);
     if (!isA11y()) {
       // The catalogue holds what screens will hold: no script but KeyReveal's copy enhancement.
-      await expect(page.locator('script:not([src="/_admin/copy.js"])')).toHaveCount(0);
+      await expect(
+        page.locator('script:not([src="/_admin/copy.js"], [src="/_admin/nav.js"])')
+      ).toHaveCount(0);
       return;
     }
     await expectNoAxeViolations(page, { dark: true });
@@ -191,6 +193,36 @@ test.describe('admin-ui', () => {
     });
   }
 
+  // The menu's rail (#87): from 60rem a button collapses it to icons, the browser remembers it,
+  // each icon keeps its label as its name and shows it on focus; without JavaScript there is no
+  // button and the menu stays whole.
+  test('the menu collapses to a rail of icons and remembers it', async ({ page }) => {
+    onlyA11y('the collapse button is the script itself');
+    await open(page);
+    const sidebar = page.locator('.admin-sidebar');
+    const media = sidebar.getByRole('link', { name: 'Media' });
+    await page.getByRole('button', { name: 'Collapse menu' }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-admin-nav', 'rail');
+    expect((await sidebar.boundingBox())!.width).toBeLessThan(80);
+    await expect(media).toBeVisible();
+    await expect(sidebar.locator('.ui-navgroup-sub')).toBeHidden();
+    await media.hover();
+    expect((await media.locator('span').boundingBox())!.width).toBeGreaterThan(20);
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-admin-nav', 'rail');
+    await page.getByRole('button', { name: 'Expand menu' }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-admin-nav', 'full');
+    expect((await sidebar.boundingBox())!.width).toBeGreaterThan(180);
+    if (isA11y()) await expectNoAxeViolations(page);
+  });
+
+  test('without JavaScript the menu has no collapse button and stays whole', async ({ page }) => {
+    test.skip(isA11y(), 'the no-js project proves the menu without its script');
+    await open(page);
+    await expect(page.locator('[data-nav-toggle]')).toBeHidden();
+    await expect(page.locator('.admin-sidebar').getByRole('link', { name: 'Media' })).toBeVisible();
+  });
+
   test('is refused to a member without tenant:admin, patterns included', async ({ page }) => {
     await open(page, '/admin/probe/_ui', editor);
     expect((await page.reload())!.status()).toBe(403);
@@ -211,7 +243,7 @@ test.describe('admin-ui', () => {
       await open(page, `/admin/probe/_ui/${pattern}`);
       await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
       await expect(page.locator('main')).toHaveCount(1);
-      await expect(page.locator('script')).toHaveCount(0);
+      await expect(page.locator('script:not([src="/_admin/nav.js"])')).toHaveCount(0);
       if (!isA11y()) return;
       await expectNoAxeViolations(page, { dark: true });
     });

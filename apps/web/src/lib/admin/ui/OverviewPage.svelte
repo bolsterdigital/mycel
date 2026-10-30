@@ -1,6 +1,9 @@
 <!-- The overview pattern (brief #56 § B): the page header with its primary action, notices,
      filters and the view switch above the list, the list itself or its empty state, and paging
-     under it. A screen fills the snippets; the order and the spacing are the same everywhere. -->
+     under it. A screen fills the snippets; the order and the spacing are the same everywhere.
+     One visible heading per screen (#87, editor trial 4b-2: "Pages" four times): a list title
+     equal to the page title stays for screen readers but is visually hidden, and the table that
+     takes `listTitle` as its caption does the same; a different one (Media: "Files") shows. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import EmptyState from './EmptyState.svelte';
@@ -51,7 +54,9 @@
   {#if intro}{@render intro()}{/if}
   <section class="ui-overview-list" aria-labelledby="ui-overview-title">
     <div class="ui-overview-bar">
-      <h2 id="ui-overview-title">{listTitle}</h2>
+      <h2 id="ui-overview-title" class={[listTitle === title && 'ui-visually-hidden']}>
+        {listTitle}
+      </h2>
       {#if views}<ViewSwitch label={views.label} items={views.items} />{/if}
     </div>
     {#if filters}<div class="ui-overview-filters">{@render filters()}</div>{/if}

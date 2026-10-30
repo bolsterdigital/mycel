@@ -35,7 +35,7 @@
   const t = $derived(ui(locale));
 </script>
 
-<Field {id} {label} {locale} hint={hint ?? t('admin.ui.file.drop')} {error} {required}>
+<Field {id} {label} {locale} hint={hint ?? t('admin.ui.file.drop')} hintInline {error} {required}>
   {#snippet control(attributes)}
     <input
       class="ui-filedrop"
