@@ -105,8 +105,8 @@ describe('documentFrom(valuesOf(doc))', () => {
   });
 });
 
-// Review of PR #45: a title-only save posted the authors in directory order and lost the ones
-// beyond the directory's first page, the section too.
+// A title-only save once posted the authors in directory order and lost the ones beyond the
+// directory's first page, the section too.
 describe('authors and section on a save', () => {
   const [a, b, c, d] = [1, 2, 3, 4].map((n) => `01900000-0000-7000-8000-00000000000${n}`) as [
     string,

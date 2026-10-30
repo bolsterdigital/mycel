@@ -83,8 +83,7 @@ export const platformOriginHost = (platformOrigin: string): string =>
 /**
  * A custom hostname is anything a tenant may bring: never the platform domain or a subdomain of
  * it (those are platform hostnames, made at tenant creation), never a development host, and
- * never the host of the platform origin, which serves the admin and could never be verified
- * (review of PR #8, point (c)).
+ * never the host of the platform origin, which serves the admin and could never be verified.
  */
 export function normalizeCustomHostname(
   raw: string,

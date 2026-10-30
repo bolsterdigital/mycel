@@ -12,8 +12,7 @@
 #    dump while an unused image is deleted (TODO #29A: the purge waits, so the snapshot still has
 #    its files and step 3 finds them). Then three runs that must fail without a snapshot: one held
 #    while a second image is deleted and purged at once (scripts/drill-media.mjs), one held while
-#    a third image loses its original and gains an unexpected file (same count, review of PR
-#    #38), one over BACKUP_MAX_SECONDS. Three erasures runs (`backup erasures`), whose snapshots
+#    a third image loses its original and gains an unexpected file (same count), one over BACKUP_MAX_SECONDS. Three erasures runs (`backup erasures`), whose snapshots
 #    the next full run's retention must leave alone. Then one supporter is erased
 #    (scripts/drill-erase.mjs registers, `mycel erasures apply` applies) and a full backup is the
 #    newer snapshot. Then a second supporter is erased and only the erasures backup runs (TODO
@@ -243,7 +242,7 @@ host node scripts/drill-verify.mjs compare "$work/before.json" "$work/after.json
 [ "$(dc exec -T postgres psql -U mycel -d mycel -Atc "select rolsuper from pg_roles where rolname = current_user")" = f ]
 
 step 'restore erasures latest with an unlistable register: fails, loads nothing'
-# The review of PR #39: restic lists the full snapshots but not the erasures ones. A restore that
+# restic lists the full snapshots but not the erasures ones. A restore that
 # took that for "no register yet" would load only the full snapshot and miss the late erasure.
 if dc run --rm -T -v "$PWD/scripts/drill-restic-fault.sh:/fault/restic:ro" \
   -e PATH=/fault:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \

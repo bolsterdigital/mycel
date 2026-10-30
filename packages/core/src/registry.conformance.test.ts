@@ -356,7 +356,7 @@ describe('every command leaves exactly one audit row (TODO #17b)', () => {
     }
   );
 
-  // With every capability, so the success path is the real one (review of PR #19): an example
+  // With every capability, so the success path is the real one: an example
   // that needs state the probe fixture lacks still fails, but never for want of a right.
   const succeeded: string[] = [];
   it.each(commands.map((u) => [u.name, u] as const))(

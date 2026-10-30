@@ -6,7 +6,7 @@
 -- gives a name no file has, so the backup fails rather than skip it. The `media keys` test in
 -- packages/db/src/media.test.ts runs this file and holds it to `mediaKeys`.
 -- Rejected: a count of files per asset (an unexpected file in the folder hid a missing original,
--- review of PR #38) and a node step in the backup image (Alpine without node, on purpose).
+-- with the same count) and a node step in the backup image (Alpine without node, on purpose).
 select 't0' as id, extract(epoch from now())::bigint::text as key
 union all
 select m.id::text, 'tenants/' || m.tenant_id || '/media/' || m.id || '/' || f.file
