@@ -100,7 +100,10 @@ CI starts every run on an empty database; a laptop or the dev server reuses one,
 
 - **Schema.** `scripts/test-db-preflight.mjs` (Vitest global setup) and `scripts/e2e/e2e.mjs` stop when the database holds a migration this checkout has no file for: a newer branch migrated it, and its suites would prove another schema. Give such a branch its own database, `createdb mycel_<branch>` as the schema owner with the three URLs in `.env` pointing at it, then `npm run db:migrate` and `npm run db:seed`; switch back by pointing them at the old one.
 - **One end-to-end run per database.** `scripts/e2e/e2e.mjs` holds an advisory lock for the run and refuses a second one. It checks its ports first (web 4173, API 8797, mock IdP 8798, worker 8796; `E2E_*_PORT` to move them) and names a port that is still taken, usually by an interrupted run.
+- **Other sessions.** Both also name every other client session on that database and go on: a running `npm run dev` or an orphaned API keeps its worker draining every tenant's outbox, so a red test that waits for an outbox row or a mail may be theirs (PR #167). The warning is not a refusal, so a dev server may run next to the tests; each pool from `createDb` names its process (`PGAPPNAME`, or entry script and pid; `npm run dev` names its own pid), and an unnamed session is an older checkout or another client.
 - **Fixture operators.** The mock IdP's issuer includes its port, so a run on another port would log in as new operators without memberships. Before the seed, `scripts/e2e/e2e.mjs` moves the synthetic `@probe.test` operators onto the current mock issuer; the dev operator (`npm run dev`) is left alone. Production keeps issuer plus subject as the identity.
+
+A local run is no proof for the layout gate. Text measurement depends on the installed fonts, so a button that fits at 320 CSS px and 200% text on a laptop or the dev server can be clipped on the CI runner (PR #175); the CI run on the PR's head is the evidence for a UI change.
 
 ## What a PR needs
 
