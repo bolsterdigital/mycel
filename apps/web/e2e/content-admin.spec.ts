@@ -119,6 +119,10 @@ test.describe('content-admin', () => {
     const initial = await callApi(request, 'content.item.get', { itemId });
     expect(initial.revision.document.title).toEqual({ nl: '(geen titel)' });
     expect(initial.revision.document.blocks).toEqual([]);
+    // A programmatic select-all during hydration can append instead of replace (Notities, #66
+    // PR 6); wait for the screen script like the other editor tests do.
+    if (isA11y())
+      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
     await page.locator('#title\\.nl').fill('Meteen in het document');
     await page.getByLabel('Begin met een patroon').selectOption(pattern.id);
     await page.getByRole('button', { name: 'Begin met een patroon', exact: true }).click();
@@ -461,6 +465,45 @@ test.describe('content-admin', () => {
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await expect(page).toHaveURL(`${edit}?saved`);
     await expect(page.locator('#title\\.nl')).toHaveValue('Mijn versie');
+    await expect(side).toContainText(`/${moved}`);
+  });
+
+  // The #207 review's gap: a tab that never touched the address posts the slug it was rendered
+  // with; comparing that with the item read it as a request to move the address back.
+  test("a stale tab's title save keeps the address another tab gave the draft", async ({
+    page,
+    browser,
+  }) => {
+    await login(page, '/admin/probe');
+    const edit = await newPage(page, slugFor('stale-from'), 'Oud tabblad');
+    const side = page.locator('section[aria-labelledby="this-item"]');
+
+    // Tab B moves the address and saves; tab A still shows the old one.
+    const context = await freshContext(browser);
+    const other = await context.newPage();
+    await login(other, edit);
+    const moved = slugFor('stale-to');
+    const theirs = other.locator('section[aria-labelledby="this-item"]');
+    await theirs.locator('details', { hasText: 'Adres wijzigen' }).locator('summary').click();
+    await theirs.getByLabel('Slug').fill(moved);
+    await other.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(other).toHaveURL(`${edit}?saved`);
+    await expect(theirs).toContainText(`/${moved}`);
+    await context.close();
+
+    // Tab A saves a title: a conflict that names the address, and A's field now shows B's.
+    await page.locator('#title\\.nl').fill('Nieuwe titel');
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    const alert = page.getByRole('alert');
+    await expect(alert).toContainText('Iemand anders heeft dit item intussen opgeslagen');
+    await expect(alert).not.toContainText('Geen verschillen');
+    await expect(alert.getByRole('row', { name: /^slug/ })).toContainText(moved);
+    await expect(side.getByLabel('Slug')).toHaveValue(moved);
+
+    // Saving again keeps B's address and A's title.
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(page).toHaveURL(`${edit}?saved`);
+    await expect(page.locator('#title\\.nl')).toHaveValue('Nieuwe titel');
     await expect(side).toContainText(`/${moved}`);
   });
 
@@ -1361,14 +1404,73 @@ test.describe('content-blocks', () => {
     await expect(summaries).toHaveCount(2);
     await expect(page.locator('#title\\.nl')).toHaveValue('Blokkenproef zonder citaat');
 
-    const first = await more(page, 1);
-    await first.locator('details.ui-confirm > summary').click();
-    await expect(first).toContainText('Blok 1 verdwijnt');
-    await expectNoAxeViolations(page);
-    await first.getByRole('button', { name: 'Ja, verwijder dit blok' }).click();
+    // Remove asks nothing: the notice after it offers Undo, which puts the block back in place.
+    await (await more(page, 1)).getByRole('button', { name: 'Verwijderen' }).click();
     await expect(page).toHaveURL(new RegExp(`${edit}\\?done=blockRemoved`));
-    await expect(page.getByRole('status')).toContainText('Blok verwijderd.');
+    const status = page.getByRole('status');
+    await expect(status).toContainText('Blok verwijderd.');
     await expect(summaries).toHaveText(['1. Tekst']);
+    await expectNoAxeViolations(page);
+    await page.locator('#title\\.nl').fill('Blokkenproef na ongedaan maken');
+    await status.getByRole('button', { name: 'Ongedaan maken' }).click();
+    await expect(page.getByRole('status')).toContainText('Blok teruggezet.');
+    await expect(summaries).toHaveText(['1. Kop', '2. Tekst']);
+    await expect(page.locator('#title\\.nl')).toHaveValue('Blokkenproef na ongedaan maken');
+    await expect(page.getByRole('button', { name: 'Ongedaan maken' })).toHaveCount(0);
+  });
+
+  // #66 PR 6c: with JavaScript the block type list has a search field (Enter adds the first
+  // match), `?` opens the shortcuts panel and the bar stays in view; the undo notice and the
+  // search keep whole labels at 320 px and 200% text (skill ui-action-layout).
+  test('the block type search, the shortcuts panel and the bar that stays in view', async ({
+    page,
+  }) => {
+    onlyA11y('the search, the panel and the keys are the screen script');
+    await login(page, '/admin/probe');
+    await newPage(page, 'search');
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    const search = page.getByLabel('Zoek een bloktype');
+    await search.fill('cita');
+    await expect(page.locator('#insert-type-end option')).toHaveText(['Citaat']);
+    // Typing in the search is not a change of the document.
+    await expect(page.locator('[data-save-state]')).not.toHaveAttribute('data-current', 'unsaved');
+    await search.fill('zzz');
+    await expect(page.getByRole('button', { name: 'Toevoegen', exact: true })).toBeDisabled();
+    await search.fill('kop');
+    await search.press('Enter');
+    await expect(page.locator('#block-new').getByRole('heading')).toHaveText('Nieuw blok: Kop');
+    await page.locator('#block-new').getByLabel('Tekst', { exact: true }).fill('Gevonden');
+    await add(page);
+    await expect(page.locator('[data-block-rest]')).toHaveText(['Gevonden']);
+
+    // `?` outside a text field opens the shortcuts; Escape closes them again.
+    await page.locator('#blocks').click();
+    await page.keyboard.press('?');
+    const keys = page.locator('details[data-shortcuts]');
+    await expect(keys).toHaveAttribute('open', '');
+    await expect(keys).toContainText('Opslaan');
+    await page.keyboard.press('Escape');
+    await expect(keys).not.toHaveAttribute('open', '');
+    await page.locator('#title\\.nl').press('?');
+    await expect(keys).not.toHaveAttribute('open', '');
+    await page.locator('#title\\.nl').fill('Blokkenproef');
+
+    // On a wide screen the bar stays at the top while the page scrolls.
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.mouse.wheel(0, 2000);
+    await expect
+      .poll(() => page.locator('.ui-item-bar').evaluate((e) => e.getBoundingClientRect().top))
+      .toBeLessThan(2);
+    await expectNoAxeViolations(page);
+
+    // Remove, then the notice with Undo and the search, narrow and at 200% text.
+    await (await more(page, 1)).getByRole('button', { name: 'Verwijderen' }).click();
+    await expect(page.getByRole('button', { name: 'Ongedaan maken' })).toBeVisible();
+    await page.setViewportSize(NARROW);
+    for (const text of TEXT_SIZES) {
+      await setTextSize(page, text);
+      await layoutGate(page, `undo notice and type search at ${text}`);
+    }
   });
 
   test('a block is duplicated right after itself, with its fields and a new id', async ({
@@ -1592,9 +1694,8 @@ test.describe('content-blocks', () => {
     );
     // Remove: focus lands on the block that took its place.
     const removed = await more(page, 2);
-    await removed.locator('details.ui-confirm > summary').click();
-    await removed.getByRole('button', { name: 'Ja, verwijder dit blok' }).click();
-    await expect(page).toHaveURL(/done=blockRemoved#block-/);
+    await removed.getByRole('button', { name: 'Verwijderen' }).click();
+    await expect(page).toHaveURL(/done=blockRemoved&undo=[^#]+#block-/);
     await expect(page.locator('[data-block-rest]')).toHaveText(['Tweede, gewijzigd', 'Derde']);
     await expect(folds.nth(1).locator(':scope > summary')).toBeFocused();
     await expectNoAxeViolations(page);

@@ -39,7 +39,6 @@
     Button,
     Checkbox,
     Choices,
-    ConfirmAction,
     EditPage,
     EmptyState,
     Field,
@@ -403,14 +402,10 @@
             >{t('admin.block.duplicate')}</Button
           >
         {/if}
-        <ConfirmAction
-          label={t('admin.block.remove.short')}
-          question={fill(t('admin.block.remove.ask'), { n: i + 1 })}
-          confirm={t('admin.block.remove.confirm')}
-          name="{i + 1}. {t(`admin.block.type.${b.type}` as UiKey)}"
-          formaction="?/remove"
-          field={{ name: 'remove', value: b.id }}
-        />
+        <!-- No confirmation: the notice after it offers "Undo" (#66 PR 6c). -->
+        <Button variant="danger" formaction="?/remove" name="remove" value={b.id}
+          >{t('admin.block.remove.short')}</Button
+        >
       {/if}
     {/snippet}
     <BlockFields
@@ -449,10 +444,26 @@
   </BlockCard>
 {/snippet}
 
+<!-- Filters the block type list next to it; only with JavaScript (the screen's script shows it),
+     since a native select already jumps to a typed first letter. Without a name it posts nothing. -->
+{#snippet typeSearch(id: string)}
+  <div class="ui-field" data-type-search data-none={t('admin.block.insert.none')} hidden>
+    <label for="insert-search-{id}">{t('admin.block.insert.search')}</label>
+    <input
+      id="insert-search-{id}"
+      type="search"
+      autocomplete="off"
+      aria-describedby="insert-search-{id}-hint"
+    />
+    <p class="ui-hint" id="insert-search-{id}-hint">{t('admin.block.insert.searchHint')}</p>
+  </div>
+{/snippet}
+
 {#snippet inserter(b: (typeof data.blocks)[number])}
   <details class="ui-block-insert">
     <summary><Icon name="plus" />{t('admin.block.insert.fold')}</summary>
     <div class="ui-block-insert-body">
+      {@render typeSearch(b.id)}
       <Select
         id="insert-type-{b.id}"
         name="insertType.{b.id}"
@@ -575,6 +586,7 @@
     {#if pending?.place === 'end'}{@render pendingCard(pending)}{/if}
     {#if data.canWrite}
       <Fieldset legend={t('admin.block.add')}>
+        {@render typeSearch('end')}
         <Select
           id="insert-type-end"
           name="insertType.end"
@@ -974,7 +986,20 @@
         <Diff rows={form.conflict.changes} locale={data.locale} />
       </Notice>
     {/if}
-    {#if data.done}
+    {#if data.done && data.undo}
+      <Notice tone="success">
+        <p class="item-undo">
+          <span>{t(data.done)}</span>
+          <Button
+            variant="secondary"
+            form="item-edit"
+            formaction="?/restore"
+            name="restore"
+            value={data.undo}>{t('admin.block.undo')}</Button
+          >
+        </p>
+      </Notice>
+    {:else if data.done}
       <Notice tone="success"><p>{fill(t(data.done), { locale: data.doneLocale })}</p></Notice>
     {:else if data.saved && !form}
       <Notice tone="success"><p>{t('admin.content.done.saved')}</p></Notice>
@@ -1048,6 +1073,9 @@
       {:else if data.canWrite}
         <details class="ui-fold item-slug" open={flagged('slug')}>
           <summary>{t('admin.content.slug.change')}</summary>
+          <!-- The address this form was rendered with: a save changes the slug only when the
+               field differs from it, so a tab left open cannot move another tab's address back. -->
+          <input type="hidden" name="baseSlug" value={v('baseSlug') || data.item.slug} />
           <Field
             id="slug"
             name="slug"
@@ -1095,6 +1123,22 @@
         <a href="{base}/content/{data.item.id}/revisions">{t('admin.content.revisions')}</a>
       </p>
     </section>
+    {#if data.canWrite}
+      <!-- Every key here is the screen's script; without it the panel stays hidden. -->
+      <details class="ui-fold item-shortcuts" data-shortcuts hidden>
+        <summary>{t('admin.content.keys.title')}</summary>
+        <dl>
+          <dt><kbd>Ctrl</kbd>+<kbd>S</kbd> / <kbd>⌘</kbd>+<kbd>S</kbd></dt>
+          <dd>{t('admin.content.keys.save')}</dd>
+          <dt><kbd>Esc</kbd></dt>
+          <dd>{t('admin.content.keys.escape')}</dd>
+          <dt><kbd>Enter</kbd></dt>
+          <dd>{t('admin.content.keys.search')}</dd>
+          <dt><kbd>?</kbd></dt>
+          <dd>{t('admin.content.keys.open')}</dd>
+        </dl>
+      </details>
+    {/if}
   {/snippet}
 </EditPage>
 
@@ -1107,5 +1151,21 @@
   }
   .native-block[hidden] {
     display: none;
+  }
+  .item-shortcuts dl {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: var(--space-1) var(--space-3);
+    margin: var(--space-2) 0 0;
+  }
+  .item-shortcuts dd {
+    margin: 0;
+  }
+  /* The notice's words and its "Undo" share a line while both fit, and wrap otherwise. */
+  .item-undo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
   }
 </style>

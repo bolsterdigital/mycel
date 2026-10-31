@@ -15,7 +15,9 @@
 // - a link or a refused control inside a closed fold opens that fold first (the tabs script
 //   shows a hidden tab the same way), so the browser can scroll to it and focus it;
 // - an image block's alt text hides while the image is decorative and the field is empty, and a
-//   picture that fails to load turns its card into the "not available" state.
+//   picture that fails to load turns its card into the "not available" state;
+// - a search field over each block type list that narrows it, Enter adding the first match;
+// - a shortcuts panel that `?` opens (outside text fields).
 // Rejected: autosave (brief § 5: every pause would be a revision), a custom leave dialog
 // (browsers only allow their own), and comparing every field with its initial value (a value
 // typed and typed back still counts as a change, which errs on the side of asking).
@@ -41,6 +43,7 @@ if (form instanceof HTMLFormElement) {
   const mark = (event) => {
     const target = event.target;
     if (target instanceof Element && IGNORED.test(target.getAttribute('name') ?? '')) return;
+    if (target instanceof Element && target.closest('[data-type-search]')) return;
     if (dirty) return;
     dirty = true;
     say('unsaved');
@@ -73,7 +76,7 @@ if (form instanceof HTMLFormElement) {
     // A dialog (the media picker) closes itself; an open menu of the prose editor goes first.
     if (!target || target.closest('dialog')) return;
     const fold = target.closest(
-      'details.ui-confirm[open], details.ui-block-card-more[open], details.ui-block-card-fold[open], details.ui-block-insert[open]'
+      'details.ui-confirm[open], details.ui-block-card-more[open], details.ui-block-card-fold[open], details.ui-block-insert[open], details[data-shortcuts][open]'
     );
     if (!fold) return;
     event.preventDefault();
@@ -178,6 +181,50 @@ if (form instanceof HTMLFormElement) {
   );
   for (const img of form.querySelectorAll('img[data-block-image]'))
     if (img.complete && img.naturalWidth === 0) broken(img);
+  // Block type search: rebuilds the list from its original options, so the select keeps posting
+  // a valid type; nothing found leaves one disabled line and the insert button refuses nothing.
+  for (const search of form.querySelectorAll('[data-type-search]')) {
+    const input = search.querySelector('input');
+    const select = search.parentElement?.querySelector('select');
+    const button = search.parentElement?.querySelector('button[formaction="?/insert"]');
+    if (!(input instanceof HTMLInputElement) || !(select instanceof HTMLSelectElement)) continue;
+    search.hidden = false;
+    const all = [...select.options].map((o) => o.cloneNode(true));
+    const none = document.createElement('option');
+    none.disabled = true;
+    none.textContent = search.dataset.none ?? '';
+    input.addEventListener('input', () => {
+      const q = input.value.trim().toLocaleLowerCase();
+      const shown = all.filter((o) => !q || o.textContent.toLocaleLowerCase().includes(q));
+      select.replaceChildren(...(shown.length ? shown.map((o) => o.cloneNode(true)) : [none]));
+      if (shown.length) select.selectedIndex = 0;
+      if (button instanceof HTMLButtonElement) button.disabled = !shown.length;
+    });
+    input.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      // Enter in a text field would save the whole form; here it adds the type that matched.
+      event.preventDefault();
+      if (button instanceof HTMLButtonElement && !button.disabled) form.requestSubmit(button);
+    });
+  }
+
+  // Shortcuts panel: a fold the script shows; `?` outside a text field opens it.
+  const keys = document.querySelector('details[data-shortcuts]');
+  if (keys instanceof HTMLDetailsElement) {
+    keys.hidden = false;
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== '?' || event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest('input, textarea, select, [contenteditable="true"], .ProseMirror'))
+        return;
+      event.preventDefault();
+      keys.open = true;
+      const summary = keys.querySelector(':scope > summary');
+      summary?.focus({ preventScroll: true });
+      summary?.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
   // Ready: tests wait for this instead of a timeout.
   form.dataset.editScreen = '';
 }

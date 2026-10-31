@@ -347,6 +347,11 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     // Named next to the field only where the operator's own zone is not the site's (#88).
     timeZoneNamed: zone !== site,
     done: DONE[url.searchParams.get('done') ?? ''] ?? null,
+    // "Undo" after a removal: `<revision>:<block>`, posted back as is to `restore`.
+    undo:
+      canWrite && url.searchParams.get('done') === 'blockRemoved'
+        ? (url.searchParams.get('undo') ?? null)
+        : null,
     doneLocale: url.searchParams.get('locale') ?? '',
     revision: {
       id: revision.id,
@@ -375,6 +380,7 @@ const DONE: Record<string, UiKey> = {
   blockMoved: 'admin.block.done.moved',
   blockDuplicated: 'admin.block.done.duplicated',
   blockRemoved: 'admin.block.done.removed',
+  blockRestored: 'admin.block.done.restored',
   publish: 'admin.content.publication.done.publish',
   unpublish: 'admin.content.publication.done.unpublish',
   schedule: 'admin.content.publication.done.schedule',
@@ -437,19 +443,33 @@ function saveFailure(e: unknown) {
   return { error: e, status, body };
 }
 
-/** Who saved the newest revision, when, and what changed since `from`. */
-async function conflictOf(principal: Principal, itemId: string, from: string, zone: string) {
+/**
+ * Who saved the newest revision, when, and what changed since `from`. The slug lives on the item,
+ * not in a revision, so a moved address is its own row when the form says what it was rendered
+ * with (`baseSlug`); without it a conflict over a moved address read "No differences".
+ */
+async function conflictOf(
+  principal: Principal,
+  itemId: string,
+  from: string,
+  zone: string,
+  baseSlug?: string
+) {
   const { item, revision } = await latest(principal, itemId);
   const { changes } = await runtime().invoker.run(useCases.diffRevisions, principal, {
     itemId: item.id,
     fromRevisionId: from,
     toRevisionId: revision.id,
   });
+  const moved = baseSlug !== undefined && baseSlug !== item.slug;
   return {
     newest: revision.id,
+    slug: item.slug,
     who: actorLabel(revision.actor),
     when: when(revision.createdAt, zone),
-    changes: diffRows(changes),
+    changes: diffRows(
+      moved ? [{ path: 'slug', before: baseSlug, after: item.slug }, ...changes] : changes
+    ),
   };
 }
 
@@ -483,10 +503,35 @@ const SLUG_ISSUES: Record<string, UiKey> = {
   'content.slug.published': 'admin.content.error.slugPublished',
 };
 
-/** The new slug the form asks for, or null: empty, unchanged or a form without the field. */
+/**
+ * The slug the form was rendered with (`baseSlug`, next to the field), so a tab that never touched
+ * the field cannot move the address back after another tab moved it. A form without it (an older
+ * tab) compares with the item's slug, as before. Rejected: comparing with `item.slug` only, which
+ * read a stale tab's untouched field as a request to restore the old address.
+ */
+function baseSlugOf(item: { slug: string }, data: FormData): string {
+  return data.has('baseSlug') ? text(data, 'baseSlug') : item.slug;
+}
+
+/** The new slug the form asks for, or null: empty, untouched, already the item's, or no field. */
 function slugChange(item: { slug: string }, data: FormData): string | null {
   const slug = text(data, 'slug').trim();
-  return slug && slug !== item.slug ? slug : null;
+  return slug && slug !== baseSlugOf(item, data) && slug !== item.slug ? slug : null;
+}
+
+/**
+ * The form values a conflict comes back with: the newest revision as base and the item's slug as
+ * `baseSlug`. An untouched slug field follows the item, so the next save keeps the address the
+ * other tab gave it; a slug the operator typed stays, to be applied by that save.
+ */
+function conflictValues(values: FormValues, newest: string, slug: string): FormValues {
+  const untouched = !('slug' in values) || values.slug === values.baseSlug;
+  return {
+    ...values,
+    baseRevisionId: newest,
+    ...('baseSlug' in values ? { baseSlug: slug } : {}),
+    ...('slug' in values && untouched ? { slug } : {}),
+  };
 }
 
 /**
@@ -573,8 +618,12 @@ async function commit(
       itemId,
       revisionId: baseRevisionId,
     });
-    // A stale tab moves nothing: its slug change is part of the conflict like its fields are.
-    if (slugChange(item, data) && item.latestRevisionId !== baseRevisionId)
+    // A stale tab moves nothing: its slug change is part of the conflict like its fields are,
+    // also when only the address moved since the form was rendered (no newer revision then).
+    if (
+      slugChange(item, data) &&
+      (item.latestRevisionId !== baseRevisionId || item.slug !== baseSlugOf(item, data))
+    )
       throw new UseCaseError('conflict', 'the item has a newer revision than baseRevisionId');
     const base = revision.document;
     blocks = base.blocks;
@@ -661,13 +710,19 @@ async function commit(
           status,
         }),
       };
-    const conflict = await conflictOf(principal, itemId, baseRevisionId, zone);
+    const conflict = await conflictOf(
+      principal,
+      itemId,
+      baseRevisionId,
+      zone,
+      data.has('baseSlug') ? text(data, 'baseSlug') : undefined
+    );
     return {
       failure: await refused(
         tenant,
         principal,
         itemId,
-        { ...values, baseRevisionId: conflict.newest },
+        conflictValues(values, conflict.newest, conflict.slug),
         pending,
         {
           ...body,
@@ -766,33 +821,14 @@ async function publication(
 }
 
 /**
- * One block operation after the save of the form, on the revision that save made; the screen
- * comes back at the block (`#block-<id>`), at the copy a duplicate made, or at the blocks when it
- * is gone.
+ * Runs a block operation; a use-case refusal comes back as the screen's failure (a conflict with
+ * who saved in between), anything else is thrown. Shared by `blockStep` and `restore`.
  */
-async function blockStep(
-  saved: Committed,
-  itemId: string,
-  blockId: string,
-  done: 'blockMoved' | 'blockRemoved' | 'blockDuplicated',
-  run: (blocks: ContentDocument['blocks'], index: number) => Promise<unknown>
-) {
-  const { tenant, principal, revisionId, zone, editing } = saved;
-  let landing = blockId;
-  // A removed block hands focus to the one that takes its place, else the one before it.
-  let neighbour: string | null = null;
+async function blockTry(saved: Committed, itemId: string, run: () => Promise<void>) {
+  const { principal, revisionId, zone } = saved;
   try {
-    const { revision } = await runtime().invoker.run(useCases.getItem, principal, {
-      itemId,
-      revisionId,
-    });
-    const index = revision.document.blocks.findIndex((b) => b.id === blockId);
-    if (index < 0) error(404, 'Not found');
-    const blocks = revision.document.blocks;
-    neighbour = (blocks[index + 1] ?? blocks[index - 1])?.id ?? null;
-    const made = await run(revision.document.blocks, index);
-    // A duplicate names the block it made; the screen lands there instead.
-    if (typeof made === 'string') landing = made;
+    await run();
+    return null;
   } catch (e) {
     if (!(e instanceof UseCaseError)) throw e;
     const { status, body } = failureOf(e, 'block', {
@@ -807,9 +843,45 @@ async function blockStep(
       conflict: conflict && { who: conflict.who, when: conflict.when, changes: conflict.changes },
     });
   }
+}
+
+/**
+ * One block operation after the save of the form, on the revision that save made; the screen
+ * comes back at the block (`#block-<id>`), at the copy a duplicate made, or at the blocks when it
+ * is gone.
+ */
+async function blockStep(
+  saved: Committed,
+  itemId: string,
+  blockId: string,
+  done: 'blockMoved' | 'blockRemoved' | 'blockDuplicated',
+  run: (blocks: ContentDocument['blocks'], index: number) => Promise<unknown>
+) {
+  const { tenant, principal, revisionId, editing } = saved;
+  let landing = blockId;
+  // A removed block hands focus to the one that takes its place, else the one before it.
+  let neighbour: string | null = null;
+  const refused = await blockTry(saved, itemId, async () => {
+    const { revision } = await runtime().invoker.run(useCases.getItem, principal, {
+      itemId,
+      revisionId,
+    });
+    const index = revision.document.blocks.findIndex((b) => b.id === blockId);
+    if (index < 0) error(404, 'Not found');
+    const blocks = revision.document.blocks;
+    neighbour = (blocks[index + 1] ?? blocks[index - 1])?.id ?? null;
+    const made = await run(revision.document.blocks, index);
+    // A duplicate names the block it made; the screen lands there instead.
+    if (typeof made === 'string') landing = made;
+  });
+  if (refused) return refused;
   if (done === 'blockRemoved') {
     const at = neighbour ? `block-${neighbour}` : 'blocks';
-    redirect(303, itemPath(tenant.slug, itemId, editing, { done }, at));
+    // The revision the block was removed from names it for "Undo" (`restore`).
+    redirect(
+      303,
+      itemPath(tenant.slug, itemId, editing, { done, undo: `${revisionId}:${blockId}` }, at)
+    );
   }
   // The block lands at rest (MY-110 A): it is complete, and the screen's script puts focus back
   // on the control that moved or copied it.
@@ -885,6 +957,60 @@ export const actions: Actions = {
         baseRevisionId: saved.revisionId,
         blockId,
       })
+    );
+  },
+  /**
+   * "Undo" after a removal (#66 PR 6c): the block comes back from the revision it was removed
+   * from, after the nearest block before it that still stands (else before the nearest after it,
+   * else at the end), with its props and a new id, saved like every block action. Rejected: a
+   * confirmation before removing (one more step on every removal while the undo makes none
+   * needed) and restoring the whole older revision (it would throw away what was saved since).
+   */
+  restore: async (event) => {
+    const saved = await commit(event);
+    if ('failure' in saved) return saved.failure;
+    const { tenant, principal, revisionId, editing } = saved;
+    const itemId = event.params.itemId!;
+    const [from = '', blockId = ''] = text(saved.data, 'restore').split(':');
+    let landing: string | null = null;
+    const refused = await blockTry(saved, itemId, async () => {
+      const rt = runtime().invoker;
+      const [{ revision: old }, { revision: now }] = await Promise.all([
+        rt.run(useCases.getItem, principal, { itemId, revisionId: from }),
+        rt.run(useCases.getItem, principal, { itemId, revisionId }),
+      ]);
+      const index = old.document.blocks.findIndex((b) => b.id === blockId);
+      const b = old.document.blocks[index];
+      // Nothing to put back (an Undo for a block that was never there): land at the blocks.
+      if (!b) return;
+      const standing = new Set(now.document.blocks.map((x) => x.id));
+      if (standing.has(b.id)) {
+        landing = b.id;
+        return;
+      }
+      const before = old.document.blocks
+        .slice(0, index)
+        .reverse()
+        .find((x) => standing.has(x.id));
+      const after = old.document.blocks.slice(index + 1).find((x) => standing.has(x.id));
+      const { created } = await rt.run(useCases.insertBlock, principal, {
+        itemId,
+        baseRevisionId: revisionId,
+        block: { type: b.type, version: b.version, props: structuredClone(b.props) } as BlockInput,
+        place: before ? { after: before.id } : after ? { before: after.id } : { at: 'end' },
+      });
+      landing = created[0] ?? null;
+    });
+    if (refused) return refused;
+    redirect(
+      303,
+      itemPath(
+        tenant.slug,
+        itemId,
+        editing,
+        { done: 'blockRestored' },
+        landing ? `block-${landing}` : 'blocks'
+      )
     );
   },
   /** A copy of the block right after it, with the same props and a new id; the screen lands on it. */
