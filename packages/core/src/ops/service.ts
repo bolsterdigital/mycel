@@ -12,15 +12,19 @@ import '../mailing/ports.js';
 import type { TransactionContext } from '../ports.js';
 import { defineUseCase } from '../registry.js';
 import '../tenants/ports.js';
+import '../theme/ports.js';
 import { ERASURE_UNSECURED_WARN_MS } from '../supporters/erasure.js';
 import {
   ErasureBackupView,
+  MAIL_DAYS,
+  MailDayView,
   OpsVerdict,
   StuckJobView,
   UnresolvedMailView,
   WaitingWorkView,
   buildDiagnosis,
   judgeOps,
+  mailDays,
 } from './model.js';
 import type { RecoveryResult } from './ports.js';
 import './ports.js';
@@ -45,7 +49,7 @@ export const getOpsStatus = defineUseCase({
   name: 'ops.status.get',
   kind: 'query',
   description:
-    'Show how the work of this site is doing: a verdict with the moment it was checked, the waiting work per kind, and what is stuck: jobs that used up their attempts, mail whose delivery is unknown or was given up, erasures no backup holds yet, the latest actions, and a redacted diagnosis to share with support.',
+    "Show how the work of this site is doing: a verdict with the moment it was checked, the waiting work per kind, mail per day in the site's time zone, and what is stuck: jobs that used up their attempts, mail whose delivery is unknown or was given up, erasures no backup holds yet, the latest actions, and a redacted diagnosis to share with support.",
   requires: 'tenant:admin',
   input: z.object({}).strict(),
   output: z.object({
@@ -53,6 +57,8 @@ export const getOpsStatus = defineUseCase({
     waiting: z.array(WaitingWorkView),
     jobs: z.array(StuckJobView),
     mails: z.array(UnresolvedMailView),
+    /** The last 14 days in the site's time zone, oldest first, zeros included. */
+    mailDays: z.array(MailDayView),
     erasures: ErasureBackupView,
     audit: z.array(AuditRow),
     diagnosis: z.string(),
@@ -60,10 +66,14 @@ export const getOpsStatus = defineUseCase({
   examples: [{ input: {} }],
   async handler(ctx) {
     const now = ctx.clock.now();
-    const [stuck, waiting, unresolved, register, recent, failed, slug] = await Promise.all([
+    const { timeZone: zone } = (await ctx.siteSettings.general()).value;
+    // A day longer than the window, so the oldest day is whole in any zone; mailDays trims it.
+    const since = new Date(now.getTime() - (MAIL_DAYS + 1) * 24 * 60 * 60 * 1000);
+    const [stuck, waiting, unresolved, daily, register, recent, failed, slug] = await Promise.all([
       ctx.jobRecovery.exhausted(STATUS_JOBS),
       ctx.jobRecovery.waiting(),
       ctx.mailSends.unresolved(now),
+      ctx.mailSends.daily(since, now, zone),
       ctx.erasures.status(),
       ctx.audit.list({ limit: STATUS_AUDIT }),
       ctx.audit.list({ failed: true, limit: DIAGNOSIS_FAILED_REQUESTS }),
@@ -105,6 +115,7 @@ export const getOpsStatus = defineUseCase({
       })),
       jobs,
       mails,
+      mailDays: mailDays(daily, now, zone),
       erasures,
       audit: recent.map(toAuditRow),
       diagnosis: buildDiagnosis({

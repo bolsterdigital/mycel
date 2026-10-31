@@ -210,6 +210,45 @@ describe.skipIf(skip)('mailing conformance', () => {
     expect(siblings).toHaveLength(4);
   });
 
+  it('counts mail per day in the zone asked for, by the moment that decided each row', async () => {
+    // 2001, so the rows the other tests write today stay out of the days compared here.
+    // 23:30 UTC on 24 March is 25 March in Amsterdam.
+    const late = new Date('2001-03-24T23:30:00Z');
+    const early = new Date('2001-03-24T10:00:00Z');
+    const put = (name: string, at: Date, until: Date) =>
+      uow.run(adminOf(tenantId), (ctx) =>
+        ctx.mailSends.claim(
+          {
+            key: `${sub}:day-${name}`,
+            subscriber: sub,
+            eventId: uuidv7(),
+            correlation: 'd'.repeat(64),
+          },
+          { at, until, expected: null }
+        )
+      );
+    await put('sent-late', late, late);
+    await put('sent-early', early, early);
+    await put('abandoned', early, early);
+    await put('unknown', late, late);
+    await uow.run(adminOf(tenantId), async (ctx) => {
+      await ctx.mailSends.sent(`${sub}:day-sent-late`, late, 'p-1');
+      await ctx.mailSends.sent(`${sub}:day-sent-early`, early, 'p-2');
+      await ctx.mailSends.abandon(`${sub}:day-abandoned`, early);
+    });
+    const since = new Date('2001-03-20T00:00:00Z');
+    const until = (rows: { day: string }[]) => rows.filter((r) => r.day < '2001-04-01');
+    const daily = (zone: string) =>
+      uow.run(adminOf(tenantId), (ctx) => ctx.mailSends.daily(since, new Date(), zone));
+    expect(until(await daily('Europe/Amsterdam'))).toEqual([
+      { day: '2001-03-24', sent: 1, unknown: 0, abandoned: 1 },
+      { day: '2001-03-25', sent: 1, unknown: 1, abandoned: 0 },
+    ]);
+    expect(until(await daily('UTC'))).toEqual([
+      { day: '2001-03-24', sent: 2, unknown: 1, abandoned: 1 },
+    ]);
+  });
+
   it('confirms once when two clicks on one link race', async () => {
     const submitted = await invoker.run(useCases.submitForm, adminOf(tenantId), {
       formId,
