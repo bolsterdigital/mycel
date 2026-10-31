@@ -273,7 +273,7 @@ test('a main domain is added as both of its names, a subdomain as one', async ({
   await expect(pair).toContainText('ALIAS- of ANAME-record');
   await expect(pair).toContainText('CNAME-record');
   await expect(pair).toContainText('Zodra beide geverifieerd zijn');
-  await expect(pair.getByRole('button', { name: /als adres gebruiken/ })).toHaveCount(0);
+  await expect(pair.getByRole('button', { name: /als adres gebruiken/i })).toHaveCount(0);
   await expectNoAxeViolations(page);
 
   // A separate subdomain: one name, a CNAME, nothing about www or a bare domain.
@@ -352,7 +352,7 @@ test.describe('UI gate: the domain action group at 320 CSS px and 200% text', ()
       onlyA11y('measures the layout with a script');
       await login(page, '/admin/probe/domeinen');
       // A main domain whose two names are verified: the card with the most actions, "check
-      // both", "use … as the address" twice with a long name, and remove (#115).
+      // both", "use as the address" under each long name, and remove (#115).
       const domain = `gate-${text.replace('%', '')}-${Date.now()}-a-longer-name.example`;
       await addDomain(page, domain, 'main');
       await expect(formWith(page, domain)).toBeVisible();
@@ -364,9 +364,9 @@ test.describe('UI gate: the domain action group at 320 CSS px and 200% text', ()
         })
       );
       await page.reload();
-      await expect(formWith(page, domain).getByRole('button', { name: /als adres/ })).toHaveCount(
-        2
-      );
+      await expect(
+        formWith(page, domain).getByRole('button', { name: /als adres gebruiken/i })
+      ).toHaveCount(2);
       await setTextSize(page, text);
       await formWith(page, domain).locator('summary', { hasText: 'Verwijderen' }).click();
       await layoutGate(page, 'domain actions');

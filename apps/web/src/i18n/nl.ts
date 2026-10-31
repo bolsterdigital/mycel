@@ -276,7 +276,7 @@ export const nl: Partial<Record<UiKey, string>> = {
     'Beide namen zijn geverifieerd. Kies welke het adres van de site wordt; de andere stuurt daar dan naar door.',
   'admin.domains.pair.later':
     'Zet de records voor beide namen. Zodra beide geverifieerd zijn, kies je welke het adres van de site wordt; de andere stuurt daar dan naar door.',
-  'admin.domains.pair.useAs': '{hostname} als adres gebruiken',
+  'admin.domains.pair.useAs': 'Als adres gebruiken',
   'admin.domains.pair.removeQuestion':
     'Beide namen worden verwijderd en de site is daarna niet meer op die namen te bereiken. Je kunt het domein later opnieuw toevoegen.',
   'admin.domains.checkBoth': 'DNS van beide controleren',

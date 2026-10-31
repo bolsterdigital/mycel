@@ -214,20 +214,23 @@
               {@render state(h, false)}
               {#if h.dns}{@render records(h, `${i}-${j}`, j === 0 ? 'apex' : 'cname')}{/if}
               <input type="hidden" name="hostname" value={h.hostname} />
-            {/each}
-            <Actions>
-              <Button formaction="?/verifyHostname">{t('admin.domains.checkBoth')}</Button>
-              {#each [apex, www] as h (h.hostname)}
-                {#if h.verifiedAt && !h.primary}
+              <!-- Under the name it is about, with that name only in the accessible name: a
+                   hostname is one word a button cannot break at 320 CSS px and 200% text. -->
+              {#if h.verifiedAt && !h.primary}
+                <Actions>
                   <Button
                     variant="secondary"
                     formaction="?/setPrimaryHostname"
                     name="primary"
                     value={h.hostname}
-                    >{fill(t('admin.domains.pair.useAs'), { hostname: h.display })}</Button
+                    aria-label={`${t('admin.domains.pair.useAs')}: ${h.display}`}
+                    >{t('admin.domains.pair.useAs')}</Button
                   >
-                {/if}
-              {/each}
+                </Actions>
+              {/if}
+            {/each}
+            <Actions>
+              <Button formaction="?/verifyHostname">{t('admin.domains.checkBoth')}</Button>
               {#if !apex.primary && !www.primary}
                 <ConfirmAction
                   label={t('admin.domains.remove')}

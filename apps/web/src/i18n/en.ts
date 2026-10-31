@@ -276,7 +276,7 @@ export const en = {
     'Both names are verified. Choose which one is the address of the site; the other then redirects to it.',
   'admin.domains.pair.later':
     'Set the records for both names. Once both are verified, you choose which one is the address of the site; the other then redirects to it.',
-  'admin.domains.pair.useAs': 'Use {hostname} as the address',
+  'admin.domains.pair.useAs': 'Use as the address',
   'admin.domains.pair.removeQuestion':
     'Both names are removed, and the site can no longer be reached on them. You can add the domain again later.',
   'admin.domains.checkBoth': 'Check DNS for both',

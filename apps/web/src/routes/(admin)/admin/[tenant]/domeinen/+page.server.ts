@@ -5,7 +5,7 @@
 // A pasted URL becomes its hostname before the use case (#102, lib/server/admin/hostname.ts).
 // An organisation's main domain is added as its bare and its www name in one go and shown as one
 // card (#115, lib/admin/domain-pairs.ts): the card's form carries both names, so checking and
-// removing act on both, and "use as the address" names one with its own button value.
+// removing act on both, and "use as the address" under each name posts that name as its button value.
 import { domainToUnicode } from 'node:url';
 import { useCases, type Principal, type VerifyResult } from '@mycel/core';
 import { act, text } from '#lib/server/admin/admin-actions.js';
