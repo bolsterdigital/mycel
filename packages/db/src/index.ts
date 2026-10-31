@@ -115,6 +115,7 @@ export {
   type Cadence,
   type JobHandler,
   type JobHandlers,
+  type JobPool,
   type JobRunOutcome,
   type JobRunResult,
   type RecurringJob,
