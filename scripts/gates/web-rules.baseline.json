@@ -1,0 +1,72 @@
+{
+  "use-case-catch": {
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.server.ts": 6,
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/assist/+page.server.ts": 4,
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/revisions/+page.server.ts": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/write/+page.server.ts": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/new/+page.server.ts": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/media/[id]/+page.server.ts": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/media/choices/+server.ts": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/site/+page.server.ts": 6,
+    "apps/web/src/routes/(preview)/admin/[tenant]/preview/draft/+page.server.ts": 2,
+    "apps/web/src/routes/(preview)/admin/[tenant]/preview/item/[itemId]/+page.server.ts": 2,
+    "apps/web/src/routes/(public)/[tenant]/confirm/+page.server.ts": 1
+  },
+  "error-copy": {
+    "apps/web/src/routes/(admin)/admin/[tenant]/_ui/+layout.server.ts": 2,
+    "apps/web/src/routes/(admin)/admin/[tenant]/_ui/[pattern]/+page.server.ts": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/connections/+page.server.ts": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.server.ts": 4,
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/revisions/+page.server.ts": 2,
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/write/+page.server.ts": 3,
+    "apps/web/src/routes/(admin)/admin/[tenant]/export/+page.server.ts": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/media/[id]/+page.server.ts": 2,
+    "apps/web/src/routes/(admin)/admin/[tenant]/site/+page.server.ts": 5,
+    "apps/web/src/routes/(admin)/admin/[tenant]/status/+page.server.ts": 1,
+    "apps/web/src/routes/(admin)/admin/callback/+page.server.ts": 4,
+    "apps/web/src/routes/(admin)/admin/login/+page.server.ts": 2,
+    "apps/web/src/routes/(preview)/admin/[tenant]/preview/[...path]/+server.ts": 2,
+    "apps/web/src/routes/(preview)/admin/[tenant]/preview/_brand/[kind]/[file]/+server.ts": 2,
+    "apps/web/src/routes/(preview)/admin/[tenant]/preview/_theme/[file]/+server.ts": 3,
+    "apps/web/src/routes/(preview)/admin/[tenant]/preview/draft/+page.server.ts": 7,
+    "apps/web/src/routes/(preview)/admin/[tenant]/preview/item/[itemId]/+page.server.ts": 4,
+    "apps/web/src/routes/(public)/[tenant]/[[locale=locale]]/[...path]/+page.server.ts": 2,
+    "apps/web/src/routes/(public)/[tenant]/_brand/[kind]/[file]/+server.ts": 3,
+    "apps/web/src/routes/(public)/[tenant]/_theme/[file]/+server.ts": 1,
+    "apps/web/src/routes/(public)/[tenant]/confirm/[outcome]/+page.server.ts": 1
+  },
+  "link-regex": {
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/write/+page.svelte": 1
+  },
+  "locale-fallback": {
+    "apps/web/src/lib/server/content-blocks.ts": 4,
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/+page.server.ts": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.server.ts": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.svelte": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/revisions/+page.server.ts": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/new/+page.svelte": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/media/[id]/+page.svelte": 1,
+    "apps/web/src/routes/(public)/+layout.server.ts": 1
+  },
+  "english-default": {
+    "apps/web/src/hooks.server.ts": 1,
+    "apps/web/src/routes/(admin)/+error.svelte": 1,
+    "apps/web/src/routes/(admin)/+layout.server.ts": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.server.ts": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/assist/+page.server.ts": 5,
+    "apps/web/src/routes/(admin)/admin/[tenant]/media/upload/+server.ts": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/site/+page.server.ts": 4,
+    "apps/web/src/routes/(admin)/admin/voorkeuren/+page.server.ts": 1,
+    "apps/web/src/routes/(preview)/admin/[tenant]/preview/draft/+page.server.ts": 2,
+    "apps/web/src/routes/(preview)/admin/[tenant]/preview/item/[itemId]/+page.server.ts": 1
+  },
+  "uuid-regex": {
+    "apps/web/src/lib/server/media.ts": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.server.ts": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/revisions/+page.server.ts": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/media/[id]/+page.server.ts": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/media/choices/+server.ts": 1,
+    "apps/web/src/routes/(preview)/admin/[tenant]/preview/draft/+page.server.ts": 1,
+    "apps/web/src/routes/(preview)/admin/[tenant]/preview/item/[itemId]/+page.server.ts": 1
+  }
+}

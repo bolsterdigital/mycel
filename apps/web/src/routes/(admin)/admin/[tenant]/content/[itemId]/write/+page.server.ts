@@ -27,7 +27,8 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
     tenant: { slug: tenant.slug, name: tenant.name },
     contentType: item.type,
     itemId: item.id,
-    locale,
+    // Not `locale`: that is the operator's admin language from the layout.
+    contentLocale: locale,
     locales: revision.document.locales,
     revisionId: revision.id,
     editor: toArticleEditor(revision.document, locale),

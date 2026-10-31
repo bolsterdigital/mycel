@@ -3,7 +3,9 @@
      arrow is decoration. On a narrow screen the table scrolls inside its own focusable region,
      never the page (WCAG 1.4.10 allows two-dimensional tables to scroll). `hideCaption` keeps the
      caption for screen readers only, for a table whose caption repeats the visible heading above
-     it (#87). -->
+     it (#87). `stack` is for a table whose rows are records rather than figures (the members,
+     #101): below 36rem each row becomes a block and a cell with `data-label` shows its column
+     heading, so nothing scrolls sideways at 320 CSS px. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
@@ -13,6 +15,7 @@
     id,
     caption,
     hideCaption = false,
+    stack = false,
     columns,
     sort,
     sortHref,
@@ -22,6 +25,8 @@
     caption: string;
     /** The caption repeats the heading above the table: visually hidden, still the table's name. */
     hideCaption?: boolean;
+    /** Rows become blocks on a narrow screen; label a cell with `data-label`. */
+    stack?: boolean;
     columns: readonly { key: string; label: string; sortable?: boolean; numeric?: boolean }[];
     sort?: { key: string; dir: Dir } | undefined;
     /** The link that sorts by `key` in `dir`; required when a column is sortable. */
@@ -38,7 +43,7 @@
 <!-- A region that can scroll must be reachable by keyboard (axe scrollable-region-focusable). -->
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div class="ui-table-scroll" role="region" aria-labelledby="{id}-caption" tabindex="0">
-  <table class="ui-table" {id}>
+  <table class={['ui-table', stack && 'stack']} {id}>
     <caption id="{id}-caption" class={[hideCaption && 'ui-visually-hidden']}>{caption}</caption>
     <thead>
       <tr>

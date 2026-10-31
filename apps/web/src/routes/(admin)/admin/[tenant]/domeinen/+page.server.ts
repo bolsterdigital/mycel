@@ -2,9 +2,11 @@
 // dashboard (#66 PR 1); dev turns it into its own screen in #81. Hostnames are stored as punycode
 // and shown in Unicode next to it. A refusal by an entitlement or a suspension is a message that
 // names what, never a price (ADR 015 rule 3); the mapping lives in lib/server/admin/admin-actions.ts.
+// A pasted URL becomes its hostname before the use case (#102, lib/server/admin/hostname.ts).
 import { domainToUnicode } from 'node:url';
 import { useCases, type VerifyResult } from '@mycel/core';
 import { act, text } from '#lib/server/admin/admin-actions.js';
+import { pastedHostname } from '#lib/server/admin/hostname.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { UiKey } from '../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
@@ -30,7 +32,7 @@ export const actions: Actions = {
       async (principal, data) => {
         const rt = runtime();
         const added = await rt.invoker.run(useCases.addHostname, principal, {
-          hostname: text(data, 'hostname'),
+          hostname: pastedHostname(text(data, 'hostname')),
         });
         rt.sites.invalidate(added.hostname);
         return {

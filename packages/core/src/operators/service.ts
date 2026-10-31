@@ -25,12 +25,14 @@ import type { TransactionContext } from '../ports.js';
 import type { Capability } from '../principal.js';
 import { defineUseCase } from '../registry.js';
 import {
-  ApiKeySummary,
+  ApiKeyView,
   Capabilities,
   Email,
   KeyCapabilities,
   Member,
+  MemberView,
   generateApiKey,
+  withRole,
 } from './model.js';
 import './ports.js';
 import { exampleId } from '../util/ids.js';
@@ -95,10 +97,10 @@ export const listMembers = defineUseCase({
   requires: 'tenant:admin',
   // Strict: an input without fields still refuses what it does not know.
   input: z.object({}).strict(),
-  output: z.object({ members: z.array(Member) }),
+  output: z.object({ members: z.array(MemberView) }),
   examples: [{ input: {} }],
   async handler(ctx) {
-    return { members: await ctx.members.list() };
+    return { members: (await ctx.members.list()).map(withRole) };
   },
 });
 
@@ -110,7 +112,7 @@ export const inviteMember = defineUseCase({
   requires: 'tenant:admin',
   consumes: 'operators.max',
   input: z.object({ email: Email, capabilities: Capabilities }),
-  output: Member,
+  output: MemberView,
   examples: [{ input: { email: 'editor@example.org', capabilities: ['content:write'] } }],
   async handler(ctx, { email, capabilities }) {
     await lockAsCurrentActor(ctx);
@@ -127,7 +129,7 @@ export const inviteMember = defineUseCase({
     if (await ctx.members.get(target.id))
       throw new UseCaseError('conflict', 'that operator is already a member of this site');
     await ctx.members.insert(target.id, capabilities, ctx.clock.now());
-    return requireMember(ctx, target.id);
+    return withRole(await requireMember(ctx, target.id));
   },
 });
 
@@ -138,7 +140,7 @@ export const updateMember = defineUseCase({
     'Replace the capabilities of a member; their API keys that exceed the new capabilities are revoked.',
   requires: 'tenant:admin',
   input: z.object({ operatorId: OperatorId, capabilities: Capabilities }),
-  output: Member.extend({ revokedKeys: z.number().int() }),
+  output: MemberView.extend({ revokedKeys: z.number().int() }),
   examples: [
     {
       input: {
@@ -154,7 +156,7 @@ export const updateMember = defineUseCase({
       await ensureAdminRemains(ctx, operatorId);
     await ctx.members.update(operatorId, capabilities);
     const revokedKeys = await revokeKeysBeyond(ctx, operatorId, capabilities);
-    return { ...(await requireMember(ctx, operatorId)), revokedKeys };
+    return { ...withRole(await requireMember(ctx, operatorId)), revokedKeys };
   },
 });
 
@@ -182,10 +184,10 @@ export const listKeys = defineUseCase({
   requires: 'tenant:admin',
   // Strict: an input without fields still refuses what it does not know.
   input: z.object({}).strict(),
-  output: z.object({ keys: z.array(ApiKeySummary) }),
+  output: z.object({ keys: z.array(ApiKeyView) }),
   examples: [{ input: {} }],
   async handler(ctx) {
-    return { keys: await ctx.apiKeys.list() };
+    return { keys: (await ctx.apiKeys.list()).map(withRole) };
   },
 });
 
