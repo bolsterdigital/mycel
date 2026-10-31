@@ -1625,12 +1625,10 @@ test.describe('article-writing', () => {
       await layoutGate(page, `writer actions ${locale}`, '.writing-actions');
       const screenshot = test.info().outputPath(`integrated-editor-${locale}-320-200.png`);
       await page.screenshot({ path: screenshot, fullPage: true });
-      await test
-        .info()
-        .attach(`integrated-editor-${locale}-320-200`, {
-          path: screenshot,
-          contentType: 'image/png',
-        });
+      await test.info().attach(`integrated-editor-${locale}-320-200`, {
+        path: screenshot,
+        contentType: 'image/png',
+      });
     }
   });
 
