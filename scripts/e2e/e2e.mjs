@@ -631,6 +631,26 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
         locale,
       });
   }
+  // The demo page and article that `npm run db:seed` gives a development database, for the
+  // quality corpus's `demo` scope: the photos and blocks an editor judges first. Only with
+  // --quality, so the other specs keep their list sizes; the seed is idempotent like the rest.
+  // Rejected: a separate demo fixture here (it would measure something editors never see).
+  if (quality) {
+    const { seedDemoContent } = await import('@mycel/core/testing');
+    const [signup] = (
+      await invoker.run(useCases.listItems, admin, { type: 'page', slug: 'signup' })
+    ).items;
+    const { revision } = await invoker.run(useCases.getItem, admin, { itemId: signup.id });
+    const formId = revision.document.blocks.flatMap((b) =>
+      b.type === 'signup-form' || b.type === 'form' ? [b.props.formId] : []
+    )[0];
+    if (!formId) fail('the probe signup page references no form');
+    const photos = new URL('../../packages/api/demo-photos/', import.meta.url);
+    await seedDemoContent(invoker, admin, {
+      formId,
+      load: async (image) => new Uint8Array(readFileSync(new URL(image.filename, photos))),
+    });
+  }
   // An author and a section beyond the first page of the admin's pickers (a hundred, newest
   // first), with 101 newer ones after them, for content-admin.spec.ts. Seeded
   // once: every later author or section is newer still. Here and not in the spec, so a run does
