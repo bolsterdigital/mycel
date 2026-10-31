@@ -149,6 +149,44 @@ test.describe('blocks', () => {
       );
     });
 
+    // The accordion as the Dreamkit FAQ (brief 46C-2): Tab reaches the question, Enter and Space
+    // open and close it natively in both projects, axe passes open and closed, and at 320 CSS px
+    // and 200% text a question wraps inside its bar with the icon column still beside it. The
+    // registry example with the longest question stands alone, so the page gate measures the FAQ.
+    test('the FAQ accordion works from the keyboard and stays whole at 320 px and 200% text', async ({
+      page,
+    }) => {
+      await page.setViewportSize(NARROW);
+      await open(page, '/probe/blok-faq-accordion-full');
+      const details = page.locator('.faq-accordion details').first();
+      const summary = details.locator('summary');
+      await expect(details).toHaveAttribute('name', /^faq-/);
+      for (let i = 0; i < 60 && !(await summary.evaluate((s) => s === document.activeElement)); i++)
+        await page.keyboard.press('Tab');
+      await expect(summary).toBeFocused();
+      await page.keyboard.press('Enter');
+      await expect(details).toHaveAttribute('open', '');
+      await expect(details.locator('.answer')).toBeVisible();
+      await page.keyboard.press('Space');
+      await expect(details).not.toHaveAttribute('open', '');
+      await expectNoAxeViolations(page, { dark: true });
+      await page.keyboard.press('Space');
+      await expect(details.locator('.answer')).toBeVisible();
+      await expectNoAxeViolations(page, { dark: true });
+      for (const text of ['100%', '200%']) {
+        await setTextSize(page, text);
+        await layoutGate(page, `FAQ at 320 px and ${text} text`, '.faq');
+        const bar = await summary.evaluate((s) => {
+          const box = s.getBoundingClientRect();
+          const question = s.firstElementChild!.getBoundingClientRect();
+          return { height: box.height, room: box.right - question.right };
+        });
+        expect(bar.height).toBeGreaterThanOrEqual(44);
+        // The icon column (1.25rem plus its gap) stays to the right of the question.
+        expect(bar.room).toBeGreaterThanOrEqual(20);
+      }
+    });
+
     test('the article keeps its outline and its footnote', async ({ page }) => {
       await open(page, '/probe/artikel');
       const levels = await page
