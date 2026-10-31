@@ -47,6 +47,58 @@ export const ErasureBackupView = z.object({
 });
 export type ErasureBackupView = z.infer<typeof ErasureBackupView>;
 
+/** Open work with attempts left, counted per job type: waiting, nothing to do yet. */
+export const WaitingWorkView = z.object({
+  type: z.string(),
+  count: z.number().int(),
+  nextRunAt: Timestamp,
+});
+export type WaitingWorkView = z.infer<typeof WaitingWorkView>;
+
+/** What asks for an administrator: a task out of attempts, mail given up, a late erasure. */
+export const AttentionKind = z.enum(['job', 'mail', 'erasure']);
+export type AttentionKind = z.infer<typeof AttentionKind>;
+
+/**
+ * The status in one line, with the moment it was established. `ok` only when nothing asks for an
+ * administrator; mail whose outcome is still being settled and jobs with attempts left are
+ * waiting work, not attention. A front that could not read the status has no verdict at all and
+ * must say so: an unknown status is never shown as `ok`. Rejected: a verdict computed in each
+ * front (the status page and the dashboard would drift apart on what "attention" means).
+ */
+export const OpsVerdict = z.object({
+  state: z.enum(['ok', 'attention']),
+  /** Per kind that asks for attention, how many; kinds with nothing are left out. */
+  attention: z.array(z.object({ kind: AttentionKind, count: z.number().int().positive() })),
+  checkedAt: Timestamp,
+});
+export type OpsVerdict = z.infer<typeof OpsVerdict>;
+
+export function judgeOps(
+  {
+    jobs,
+    mails,
+    erasures,
+  }: {
+    jobs: readonly StuckJobView[];
+    mails: readonly UnresolvedMailView[];
+    erasures: ErasureBackupView;
+  },
+  at: Date
+): OpsVerdict {
+  const counts: [AttentionKind, number][] = [
+    ['job', jobs.length],
+    ['mail', mails.filter((m) => m.state === 'abandoned').length],
+    ['erasure', erasures.late ? erasures.unsecured : 0],
+  ];
+  const attention = counts.filter(([, n]) => n > 0).map(([kind, count]) => ({ kind, count }));
+  return {
+    state: attention.length ? 'attention' : 'ok',
+    attention,
+    checkedAt: at.toISOString(),
+  };
+}
+
 /** Longest key shown in the diagnosis: enough to recognise the subject, not to reconstruct it. */
 export const DIAGNOSIS_KEY_CHARS = 48;
 

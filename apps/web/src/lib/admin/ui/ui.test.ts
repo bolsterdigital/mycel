@@ -44,6 +44,7 @@ import {
   SettingsPage,
   SettingsSection,
   StatusCard,
+  StatusSummary,
   SubNav,
   SystemState,
   Table,
@@ -1059,6 +1060,40 @@ describe('ItemBar', () => {
     expect(out).toContain('<span class="ui-badge warning">Published, changed since</span>');
     expect(out).not.toContain('ui-item-bar-state');
     expect(out).not.toContain('ui-actions');
+  });
+});
+
+describe('StatusSummary', () => {
+  const checked = { text: 'just now', iso: '2026-10-31T10:00:00.000Z', full: 'Saturday 11:00' };
+  it('says the verdict in words, when it was checked, then each point with its link', () => {
+    const out = html(StatusSummary, {
+      id: 'verdict',
+      title: '2 things need attention',
+      tone: 'attention',
+      checked,
+      checkedLabel: 'Checked',
+      items: [{ label: '1 task failed', action: 'Try it again or close it.', href: '#jobs' }],
+      children: text('<a href="?">Refresh</a>'),
+    });
+    expect(out).toMatch(
+      /^<section class="ui-status-summary attention" id="verdict" aria-labelledby="verdict-title"><h2 id="verdict-title" class="ui-status-summary-title">2 things need attention<\/h2>/
+    );
+    expect(out).toContain(
+      '<time datetime="2026-10-31T10:00:00.000Z" title="Saturday 11:00">just now</time>'
+    );
+    expect(out).toContain('<li><a href="#jobs">1 task failed</a> Try it again or close it.</li>');
+    expect(out.indexOf('Refresh')).toBeGreaterThan(out.indexOf('1 task failed'));
+  });
+  it('has no list when nothing asks for attention', () => {
+    const out = html(StatusSummary, {
+      id: 'v',
+      title: 'Everything is running',
+      tone: 'ok',
+      checked,
+      checkedLabel: 'Checked',
+    });
+    expect(out).toContain('ui-status-summary ok');
+    expect(out).not.toContain('<ul');
   });
 });
 

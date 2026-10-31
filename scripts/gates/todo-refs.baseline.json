@@ -52,7 +52,6 @@
   "apps/web/src/routes/(admin)/admin/[tenant]/media/[id]/original/+server.ts": 1,
   "apps/web/src/routes/(admin)/admin/[tenant]/media/[id]/thumb/+server.ts": 1,
   "apps/web/src/routes/(admin)/admin/[tenant]/status/+page.server.ts": 1,
-  "apps/web/src/routes/(admin)/admin/[tenant]/status/+page.svelte": 2,
   "apps/web/src/routes/(preview)/admin/[tenant]/preview/+layout.svelte": 1,
   "apps/web/src/routes/(preview)/admin/[tenant]/preview/item/[itemId]/+page.svelte": 1,
   "apps/web/src/routes/(public)/[tenant]/confirm/+page.server.ts": 1,

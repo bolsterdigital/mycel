@@ -42,6 +42,7 @@ export { default as Select } from './form/Select.svelte';
 export { default as SettingsPage } from './page/SettingsPage.svelte';
 export { default as SettingsSection } from './page/SettingsSection.svelte';
 export { default as StatusCard } from './display/StatusCard.svelte';
+export { default as StatusSummary } from './feedback/StatusSummary.svelte';
 export { default as SubNav } from './nav/SubNav.svelte';
 export { default as SystemState } from './feedback/SystemState.svelte';
 export { default as Table } from './display/Table.svelte';

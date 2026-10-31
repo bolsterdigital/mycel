@@ -17,12 +17,22 @@ export interface StuckJob {
   createdAt: Date;
 }
 
+/** Open work of one type that has attempts left: what the status page calls waiting work. */
+export interface WaitingJobs {
+  type: string;
+  count: number;
+  /** The earliest `run_at` among them: due now or planned. */
+  nextRunAt: Date;
+}
+
 /** `ok`, or why nothing changed: no such job of this tenant, or a job that is not exhausted. */
 export type RecoveryResult = 'ok' | 'not_found' | 'not_exhausted';
 
 export interface JobRecovery {
   /** This tenant's open jobs that used up their attempts, oldest first. */
   exhausted(limit: number): Promise<StuckJob[]>;
+  /** This tenant's open jobs with attempts left, counted per type, by type name. */
+  waiting(): Promise<WaitingJobs[]>;
   /** `attempts = 0, run_at = now, claimed_at = null`; `last_error` stays until the next run. */
   retry(id: string): Promise<RecoveryResult>;
   /** `done_at = now`; `last_error` stays. Frees the job's key. */

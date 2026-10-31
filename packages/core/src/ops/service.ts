@@ -13,7 +13,15 @@ import type { TransactionContext } from '../ports.js';
 import { defineUseCase } from '../registry.js';
 import '../tenants/ports.js';
 import { ERASURE_UNSECURED_WARN_MS } from '../supporters/erasure.js';
-import { ErasureBackupView, StuckJobView, UnresolvedMailView, buildDiagnosis } from './model.js';
+import {
+  ErasureBackupView,
+  OpsVerdict,
+  StuckJobView,
+  UnresolvedMailView,
+  WaitingWorkView,
+  buildDiagnosis,
+  judgeOps,
+} from './model.js';
 import type { RecoveryResult } from './ports.js';
 import './ports.js';
 import { iso } from '../util/date.js';
@@ -37,10 +45,12 @@ export const getOpsStatus = defineUseCase({
   name: 'ops.status.get',
   kind: 'query',
   description:
-    'Show the work of this site that is stuck: jobs that used up their attempts, mail whose delivery is unknown or was given up, erasures no backup holds yet, the latest actions, and a redacted diagnosis to share with support.',
+    'Show how the work of this site is doing: a verdict with the moment it was checked, the waiting work per kind, and what is stuck: jobs that used up their attempts, mail whose delivery is unknown or was given up, erasures no backup holds yet, the latest actions, and a redacted diagnosis to share with support.',
   requires: 'tenant:admin',
   input: z.object({}).strict(),
   output: z.object({
+    verdict: OpsVerdict,
+    waiting: z.array(WaitingWorkView),
     jobs: z.array(StuckJobView),
     mails: z.array(UnresolvedMailView),
     erasures: ErasureBackupView,
@@ -50,8 +60,9 @@ export const getOpsStatus = defineUseCase({
   examples: [{ input: {} }],
   async handler(ctx) {
     const now = ctx.clock.now();
-    const [stuck, unresolved, register, recent, failed, slug] = await Promise.all([
+    const [stuck, waiting, unresolved, register, recent, failed, slug] = await Promise.all([
       ctx.jobRecovery.exhausted(STATUS_JOBS),
+      ctx.jobRecovery.waiting(),
       ctx.mailSends.unresolved(now),
       ctx.erasures.status(),
       ctx.audit.list({ limit: STATUS_AUDIT }),
@@ -86,6 +97,12 @@ export const getOpsStatus = defineUseCase({
       late: oldest !== null && now.getTime() - oldest.getTime() > ERASURE_UNSECURED_WARN_MS,
     };
     return {
+      verdict: judgeOps({ jobs, mails, erasures }, now),
+      waiting: waiting.map((w) => ({
+        type: w.type,
+        count: w.count,
+        nextRunAt: w.nextRunAt.toISOString(),
+      })),
       jobs,
       mails,
       erasures,

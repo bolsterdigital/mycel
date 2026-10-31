@@ -174,9 +174,14 @@ describe('job recovery (TODO #17c)', () => {
       expect(status.diagnosis).not.toContain('f'.repeat(64));
     });
 
-    it('is empty when nothing is stuck', async () => {
+    it('is empty when nothing is stuck, and says ok with the moment it checked', async () => {
       const status = await invoker.run(useCases.getOpsStatus, adminOf(), {});
-      expect(status).toMatchObject({ jobs: [], mails: [], audit: [] });
+      expect(status).toMatchObject({ jobs: [], mails: [], audit: [], waiting: [] });
+      expect(status.verdict).toEqual({
+        state: 'ok',
+        attention: [],
+        checkedAt: clock.now().toISOString(),
+      });
       expect(status.erasures).toEqual({
         registered: 0,
         unsecured: 0,
@@ -185,6 +190,52 @@ describe('job recovery (TODO #17c)', () => {
       });
       expect(status.diagnosis).toContain('exhausted jobs: 0');
       expect(status.diagnosis).toContain('erasures not in a backup: 0\n');
+    });
+
+    it('counts waiting work per type: open, attempts left, earliest run first', async () => {
+      const later = new Date(clock.now().getTime() + 3600_000);
+      job({ type: 'content.publish', attempts: 0, runAt: later });
+      job({ type: 'content.publish', attempts: 3 });
+      job({ type: 'tenant.export', attempts: 0 });
+      job({ type: 'tenant.export', attempts: 0, doneAt: clock.now() });
+      job({ type: 'tenant.export', attempts: 0, tenantId: OTHER });
+      job();
+      const status = await invoker.run(useCases.getOpsStatus, adminOf(), {});
+      expect(status.waiting).toEqual([
+        { type: 'content.publish', count: 2, nextRunAt: clock.now().toISOString() },
+        { type: 'tenant.export', count: 1, nextRunAt: clock.now().toISOString() },
+      ]);
+    });
+
+    it('asks for attention for a stuck job and given-up mail, not for mail still settling', async () => {
+      const store = uow.store.for(TENANT);
+      const intent = {
+        subscriber: 'mailing.confirmation',
+        eventId: 'e1',
+        attemptedAt: clock.now(),
+        claimedUntil: clock.now(),
+        attempts: 1,
+        sentAt: null,
+        abandonedAt: null,
+        providerId: null,
+        lastError: null,
+        correlation: 'f'.repeat(64),
+      };
+      store.mailSends.set('a', { ...intent, key: 'a' });
+      let status = await invoker.run(useCases.getOpsStatus, adminOf(), {});
+      expect(status.verdict).toMatchObject({ state: 'ok', attention: [] });
+
+      store.mailSends.set('b', { ...intent, key: 'b', abandonedAt: clock.now() });
+      job();
+      job();
+      status = await invoker.run(useCases.getOpsStatus, adminOf(), {});
+      expect(status.verdict).toMatchObject({
+        state: 'attention',
+        attention: [
+          { kind: 'job', count: 2 },
+          { kind: 'mail', count: 1 },
+        ],
+      });
     });
 
     it('warns about an erasure no backup holds after an hour, and not before (TODO #29B)', async () => {
@@ -203,6 +254,7 @@ describe('job recovery (TODO #17c)', () => {
       clock.advance(2 * 60_000);
       status = await invoker.run(useCases.getOpsStatus, adminOf(), {});
       expect(status.erasures.late).toBe(true);
+      expect(status.verdict.attention).toEqual([{ kind: 'erasure', count: 1 }]);
       expect(status.diagnosis).toContain(
         `erasures not in a backup: 1 oldest since ${erased.toISOString()} (late)`
       );
