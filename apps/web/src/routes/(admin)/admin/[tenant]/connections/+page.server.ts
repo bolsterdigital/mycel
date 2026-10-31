@@ -4,25 +4,27 @@
 // (connections/[id]). No credential or webhook payload is included in the page load.
 // Rejected: a card per connection with every form in it (up to six forms per card buried the
 // stand) and a separate count query (the latest attempts are already read per connection).
-import { can, useCases } from '@mycel/core';
-import { error, redirect } from '@sveltejs/kit';
-import { act, text } from '#lib/server/admin/admin-actions.js';
+import { useCases } from '@mycel/core';
+import { redirect } from '@sveltejs/kit';
+import { act, loaded, text } from '#lib/server/admin/admin-actions.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ parent, locals }) => {
   await parent();
   const principal = locals.principal!;
-  if (!can(principal, 'connections:read')) error(403, 'connections:read');
-  const connections = (await runtime().invoker.run(useCases.listConnections, principal, {}))
-    .connections;
+  const { connections } = await loaded(
+    runtime().invoker.run(useCases.listConnections, principal, {})
+  );
   const intents = await Promise.all(
     connections.map(async (connection) => ({
       connectionId: connection.id,
       rows: (
-        await runtime().invoker.run(useCases.listConnectionIntents, principal, {
-          connectionId: connection.id,
-        })
+        await loaded(
+          runtime().invoker.run(useCases.listConnectionIntents, principal, {
+            connectionId: connection.id,
+          })
+        )
       ).intents,
     }))
   );

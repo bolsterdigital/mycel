@@ -6,8 +6,10 @@
 // API keys are read once so a row says a name instead of an id. Rejected: a free-text search
 // (the log holds names and hashes, not text worth searching) and numbered pages (the log grows
 // at the top, so page 2 shifts while it is read; a cursor does not). `audit.list` asks
-// `tenant:admin` itself, and a cursor edited by hand is refused there as invalid input.
+// `tenant:admin` itself, and a cursor edited by hand is refused there as invalid input; `loaded`
+// turns either refusal into the admin's 403 or 400 page.
 import { AuditActorKind, useCases } from '@mycel/core';
+import { loaded } from '#lib/server/admin/admin-actions.js';
 import { adminTimeZone } from '#lib/server/admin/admin.js';
 import { statusSubnav } from '#lib/server/admin/status-nav.js';
 import { fromLocalInput } from '#lib/server/content-admin-publication.js';
@@ -50,17 +52,19 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
 
   const run = runtime().invoker;
   const [page, members, keys] = await Promise.all([
-    run.run(useCases.listAudit, principal, {
-      from: fromAt?.toISOString(),
-      to: toAt?.toISOString(),
-      operation: OPERATION.test(operation) ? operation : undefined,
-      actorKind: actorKind.success ? actorKind.data : undefined,
-      actorId: actorKind.success && id ? id.slice(0, 200) : undefined,
-      cursor: cursor || undefined,
-      limit: PAGE,
-    }),
-    run.run(useCases.listMembers, principal, {}),
-    run.run(useCases.listKeys, principal, {}),
+    loaded(
+      run.run(useCases.listAudit, principal, {
+        from: fromAt?.toISOString(),
+        to: toAt?.toISOString(),
+        operation: OPERATION.test(operation) ? operation : undefined,
+        actorKind: actorKind.success ? actorKind.data : undefined,
+        actorId: actorKind.success && id ? id.slice(0, 200) : undefined,
+        cursor: cursor || undefined,
+        limit: PAGE,
+      })
+    ),
+    loaded(run.run(useCases.listMembers, principal, {})),
+    loaded(run.run(useCases.listKeys, principal, {})),
   ]);
 
   const query = new URLSearchParams();

@@ -6,9 +6,8 @@
 // without JavaScript) and only a post with `confirm=yes` closes; one without changes nothing.
 // Rejected: a `confirm()` on the button (needs JavaScript, and a no-JS post would close at once)
 // and a "send to support" button (it would send a text the administrator never read).
-import { can, useCases } from '@mycel/core';
-import { error } from '@sveltejs/kit';
-import { act, text } from '#lib/server/admin/admin-actions.js';
+import { useCases } from '@mycel/core';
+import { act, loaded, text } from '#lib/server/admin/admin-actions.js';
 import { statusSubnav } from '#lib/server/admin/status-nav.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { UiKey } from '../../../../../i18n/index.js';
@@ -17,10 +16,9 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ parent, locals }) => {
   const { tenant, locale } = await parent();
   const principal = locals.principal!;
-  if (!can(principal, 'tenant:admin')) error(403, 'tenant:admin');
   return {
     subnav: statusSubnav(locale, `/admin/${tenant.slug}`, 'overview'),
-    status: await runtime().invoker.run(useCases.getOpsStatus, principal, {}),
+    status: await loaded(runtime().invoker.run(useCases.getOpsStatus, principal, {})),
   };
 };
 
