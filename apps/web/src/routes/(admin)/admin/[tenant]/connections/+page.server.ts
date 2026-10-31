@@ -1,7 +1,11 @@
-// Site operators manage the same registry operations exposed through HTTP and MCP. Every form
-// posts without JavaScript; no credential or webhook payload is included in the page load.
+// The connections of a site as a list (brief admin-operations-screens § 8, #82 PR 3): every
+// connection with its stand and last activity, read from the same registry operations HTTP and
+// MCP expose; adding one is the only action here, the rest lives on its own page
+// (connections/[id]). No credential or webhook payload is included in the page load.
+// Rejected: a card per connection with every form in it (up to six forms per card buried the
+// stand) and a separate count query (the latest attempts are already read per connection).
 import { can, useCases } from '@mycel/core';
-import { error } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import { act, text } from '#lib/server/admin/admin-actions.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { Actions, PageServerLoad } from './$types';
@@ -22,7 +26,8 @@ export const load: PageServerLoad = async ({ parent, locals }) => {
       ).intents,
     }))
   );
-  return { connections, intents };
+  /** One moment for every relative time on the page, the same on server and client. */
+  return { connections, intents, now: new Date().toISOString() };
 };
 
 const copy = {
@@ -30,7 +35,6 @@ const copy = {
   invalid: 'admin.connections.error.invalid',
   notFound: 'admin.connections.error.notFound',
 } as const;
-const version = (data: FormData) => Number(text(data, 'version'));
 
 export const actions: Actions = {
   create: (event) =>
@@ -53,81 +57,6 @@ export const actions: Actions = {
         contractVersion: 'v1',
         adapterVersion: 'v1',
       });
-      return { action: 'create', done: 'admin.connections.done.created', id: connection.id };
-    }),
-  update: (event) =>
-    act(event, 'update', copy, async (principal, data) => {
-      await runtime().invoker.run(useCases.updateConnection, principal, {
-        id: text(data, 'id'),
-        baseVersion: version(data),
-        changes: {
-          externalOwner: text(data, 'externalOwner'),
-          maintainer: text(data, 'maintainer'),
-          purpose: text(data, 'purpose'),
-          destination: text(data, 'destination'),
-          consentScopes: text(data, 'consentScopes')
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean),
-        },
-      });
-      return { action: 'update', done: 'admin.connections.done.saved' };
-    }),
-  credential: (event) =>
-    act(event, 'credential', copy, async (principal, data) => {
-      await runtime().invoker.run(useCases.replaceConnectionCredential, principal, {
-        id: text(data, 'id'),
-        baseVersion: version(data),
-        secret: text(data, 'secret'),
-      });
-      return { action: 'credential', done: 'admin.connections.done.credential' };
-    }),
-  pause: (event) =>
-    act(event, 'pause', copy, async (principal, data) => {
-      await runtime().invoker.run(useCases.pauseConnection, principal, {
-        id: text(data, 'id'),
-        baseVersion: version(data),
-      });
-      return { action: 'pause', done: 'admin.connections.done.paused' };
-    }),
-  resume: (event) =>
-    act(event, 'resume', copy, async (principal, data) => {
-      await runtime().invoker.run(useCases.resumeConnection, principal, {
-        id: text(data, 'id'),
-        baseVersion: version(data),
-      });
-      return { action: 'resume', done: 'admin.connections.done.resumed' };
-    }),
-  disconnect: (event) =>
-    act(event, 'disconnect', copy, async (principal, data) => {
-      if (text(data, 'confirm') !== 'yes')
-        return {
-          action: 'disconnect',
-          confirm: { id: text(data, 'id'), version: version(data) },
-        };
-      await runtime().invoker.run(useCases.disconnectConnection, principal, {
-        id: text(data, 'id'),
-        baseVersion: version(data),
-      });
-      return { action: 'disconnect', done: 'admin.connections.done.disconnected' };
-    }),
-  test: (event) =>
-    act(event, 'test', copy, async (principal, data) => {
-      await runtime().invoker.run(useCases.testConnection, principal, { id: text(data, 'id') });
-      return { action: 'test', done: 'admin.connections.done.test' };
-    }),
-  replay: (event) =>
-    act(event, 'replay', copy, async (principal, data) => {
-      await runtime().invoker.run(useCases.replayConnectionIntent, principal, {
-        id: text(data, 'id'),
-      });
-      return { action: 'replay', done: 'admin.connections.done.replay' };
-    }),
-  resolve: (event) =>
-    act(event, 'resolve', copy, async (principal, data) => {
-      await runtime().invoker.run(useCases.resolveConnectionIntent, principal, {
-        id: text(data, 'id'),
-      });
-      return { action: 'resolve', done: 'admin.connections.done.resolve' };
+      redirect(303, `/admin/${event.params.tenant}/connections/${connection.id}?created=1`);
     }),
 };
