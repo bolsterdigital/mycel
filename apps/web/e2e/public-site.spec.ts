@@ -167,21 +167,12 @@ test.describe('blocks', () => {
       await page.keyboard.press('Enter');
       await expect(details).toHaveAttribute('open', '');
       await expect(details.locator('.answer')).toBeVisible();
-      // Axe measures the settled colours, not a frame of the 0.2 s change between pairs.
-      const settled = () =>
-        page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
       await page.keyboard.press('Space');
       await expect(details).not.toHaveAttribute('open', '');
-      if (isA11y()) {
-        await settled();
-        await expectNoAxeViolations(page, { dark: true });
-      }
+      await expectNoAxeViolations(page, { dark: true });
       await page.keyboard.press('Space');
       await expect(details.locator('.answer')).toBeVisible();
-      if (isA11y()) {
-        await settled();
-        await expectNoAxeViolations(page, { dark: true });
-      }
+      await expectNoAxeViolations(page, { dark: true });
       for (const text of ['100%', '200%']) {
         await setTextSize(page, text);
         await layoutGate(page, `FAQ at 320 px and ${text} text`, '.faq');

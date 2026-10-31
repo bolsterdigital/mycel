@@ -467,6 +467,9 @@
   /* The accordion reads as the Dreamkit FAQ: every item a card, the question a bar in the
      primary pair that turns to the surface pair on hover and when open, a plus of two bars that
      turns into a minus, the answer on the surface pair. Only validated pairs, no script.
+     The pairs swap at once: a fade between them passes through colours no check measured, and
+     axe caught the question failing contrast mid-fade. Only the icon, which carries no text,
+     moves.
      Rejected: drawing the bars with gradients, which forced colours would erase; borders keep
      the icon visible there. */
   .faq-accordion details {
@@ -487,9 +490,6 @@
     cursor: pointer;
     color: var(--color-primary-fg);
     background: var(--color-primary-bg);
-    transition:
-      background-color 0.2s,
-      color 0.2s;
   }
   .faq-accordion summary::-webkit-details-marker {
     display: none;
@@ -512,6 +512,7 @@
   .faq-accordion summary > :is(h2, h3) {
     grid-area: 1 / 1;
     margin: 0;
+    color: inherit;
     font-size: var(--step-1);
   }
   .faq-accordion summary::before,
