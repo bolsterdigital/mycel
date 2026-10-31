@@ -60,7 +60,12 @@ const posterEra = <T>(document: T): T => {
     JSON.stringify({ work: null, photographer: DEMO_IMAGES[3]!.source.photographer }),
     JSON.stringify({ work: null, photographer: 'Demo-afbeelding, gemaakt door de Mycel-seed' })
   );
-  return JSON.parse(json) as T;
+  // Every object's keys reversed, as Postgres `jsonb` reorders them (`en` before `nl`).
+  return JSON.parse(json, (_, v: unknown) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v).reverse())
+      : v
+  ) as T;
 };
 
 describe('demo content', () => {

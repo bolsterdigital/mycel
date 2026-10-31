@@ -1024,7 +1024,14 @@ async function demoMedia(
   return media as DemoMediaIds;
 }
 
-const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+/** JSON with the keys of every object sorted: Postgres `jsonb` does not keep their order. */
+const canonical = (value: unknown): string =>
+  JSON.stringify(value, (_, v: unknown) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b)))
+      : v
+  );
+const sameJson = (a: unknown, b: unknown) => canonical(a) === canonical(b);
 
 /**
  * `value` with every poster id swapped for its photo id, and every poster-era text that is still
