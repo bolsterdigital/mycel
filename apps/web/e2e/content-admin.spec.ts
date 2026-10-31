@@ -16,7 +16,7 @@ import {
 import { expectNoAxeViolations } from './lib/axe';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
-import { ADMIN, login, forwarded } from './lib/login';
+import { ADMIN, login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { callApi, requireApi } from './lib/api';
 
