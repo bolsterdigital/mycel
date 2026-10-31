@@ -165,6 +165,19 @@ describe.skipIf(skip)('stuck-work recovery conformance', () => {
       ]);
     });
 
+    it('counts its own waiting work per type, not the stuck, the foreign or the platform', async () => {
+      const type = `conformance.${run}.waiting`;
+      await job({ type, attempts: 0 });
+      await job({ type, attempts: 4 });
+      await job({ type });
+      await job({ type, attempts: 0, tenant: otherId });
+      await job({ type, attempts: 0, tenant: null });
+      const status = await invoker.run(useCases.getOpsStatus, adminOf(tenantId), {});
+      expect(status.waiting.filter((w) => w.type === type)).toEqual([
+        { type, count: 2, nextRunAt: expect.any(String) },
+      ]);
+    });
+
     it('refuses an open job with conflict and a foreign or platform job as not found', async () => {
       const open = await job({ attempts: 3 });
       await expect(

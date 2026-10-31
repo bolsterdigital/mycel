@@ -2,7 +2,7 @@
 
 import type { JobRecord, JobRequest, Scheduler } from '../../jobs/ports.js';
 import type { JobType } from '../../jobs/types.js';
-import type { JobRecovery, RecoveryResult, StuckJob } from '../../ops/ports.js';
+import type { JobRecovery, RecoveryResult, StuckJob, WaitingJobs } from '../../ops/ports.js';
 import type { Clock, Ids } from '../../ports.js';
 import { FakeClock, SequentialIds } from './fakes.js';
 import type { MemoryStore } from './store.js';
@@ -58,6 +58,20 @@ export class MemoryJobRecovery implements JobRecovery {
       .sort((a, b) => +a.createdAt - +b.createdAt || a.id.localeCompare(b.id))
       .slice(0, limit)
       .map(({ payload: _payload, claimedAt: _claimed, doneAt: _done, tenantId: _t, ...j }) => j);
+  }
+
+  async waiting(): Promise<WaitingJobs[]> {
+    const byType = new Map<string, WaitingJobs>();
+    for (const j of this.store.jobs) {
+      if (j.tenantId !== this.tenantId || j.doneAt !== null || this.#exhausted(j)) continue;
+      const seen = byType.get(j.type);
+      if (!seen) byType.set(j.type, { type: j.type, count: 1, nextRunAt: new Date(j.runAt) });
+      else {
+        seen.count += 1;
+        if (j.runAt < seen.nextRunAt) seen.nextRunAt = new Date(j.runAt);
+      }
+    }
+    return [...byType.values()].sort((a, b) => a.type.localeCompare(b.type));
   }
 
   #recover(id: string, change: (j: JobRecord) => void): RecoveryResult {

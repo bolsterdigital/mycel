@@ -1,8 +1,9 @@
-// The status page of a site (TODO #17c, brief observability-c-recovery decisions 4 to 6): its
-// stuck jobs, its mail with an uncertain outcome, the latest actions and the diagnosis to share,
-// all from `ops.status.get`; per job "try again" and "close", native form posts through the same use
-// cases HTTP and MCP expose. Closing asks first: without JavaScript there is no `confirm()`, so the
-// first post answers with a confirmation and only a second post with `confirm=yes` closes.
+// The status page of a site (TODO #17c, brief observability-c-recovery decisions 4 to 6, brief
+// admin-operations-screens): the verdict, waiting and stuck work, mail with an uncertain outcome,
+// the erasure requests, the latest actions and the diagnosis to share, all from one
+// `ops.status.get`; per job "try again" and "close", native form posts through the same use cases
+// HTTP and MCP expose. Closing is confirmed in the row (ConfirmAction, a disclosure that works
+// without JavaScript) and only a post with `confirm=yes` closes; one without changes nothing.
 // Rejected: a `confirm()` on the button (needs JavaScript, and a no-JS post would close at once)
 // and a "send to support" button (it would send a text the administrator never read).
 import { can, useCases } from '@mycel/core';
@@ -32,10 +33,8 @@ export const actions: Actions = {
     }),
   close: (event) =>
     act(event, 'close', COPY, async (principal, data) => {
-      const id = text(data, 'id');
-      if (text(data, 'confirm') !== 'yes')
-        return { action: 'close', confirm: { id, type: text(data, 'type') } };
-      await runtime().invoker.run(useCases.closeJob, principal, { id });
+      if (text(data, 'confirm') !== 'yes') return { action: 'close' };
+      await runtime().invoker.run(useCases.closeJob, principal, { id: text(data, 'id') });
       return { action: 'close', done: 'admin.status.done.closed' as UiKey };
     }),
 };

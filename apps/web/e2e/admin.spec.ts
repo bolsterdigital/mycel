@@ -600,10 +600,13 @@ test.describe('preferences', () => {
   });
 });
 
-// Status page (TODO #17c): a tenant administrator sees a stuck task of the site, tries it again,
-// closes another after confirming, and reads a diagnosis without an address in it. Runs without
-// JavaScript and under axe like the other admin specs; the UI gate (skill ui-action-layout) checks
-// both action groups (a task's two buttons, the close confirmation) at 320 CSS px and 200% text.
+// Status page (TODO #17c, brief admin-operations-screens): a tenant administrator sees the
+// verdict with the moment it was checked, a stuck task of the site in words with its recovery in
+// the row, tries it again, closes another after confirming in its row, and reads a diagnosis
+// without an address in it. Runs without JavaScript and under axe like the other admin specs; with
+// JavaScript the page refreshes itself, and a refresh that fails or finds access gone turns the
+// verdict into "Status onbekend" instead of leaving the old one standing. The UI gate (skill
+// ui-action-layout) checks a task's actions and its open confirmation at 320 CSS px and 200% text.
 //
 // The stuck tasks go in as the worker leaves them (mycel_worker on the operator connection), with
 // a type no handler knows and a run time a day ahead, so the e2e worker never takes them first.
@@ -662,8 +665,10 @@ test.describe('status', () => {
     });
   }
 
-  const card = (page: Page, type: string) =>
-    page.locator('article', { has: page.getByRole('heading', { level: 3, name: type }) });
+  /** A task's row; its technical type is in the folded details, so the row is found by it. */
+  const row = (page: Page, type: string) => page.locator('li.status-row', { hasText: type });
+  const verdict = (page: Page) =>
+    page.getByRole('region', { name: /aandacht|Alles loopt|onbekend/ });
 
   test('an administrator retries and closes a stuck task without JavaScript', async ({ page }) => {
     const run = `${test.info().project.name}-${Date.now()}`;
@@ -674,12 +679,26 @@ test.describe('status', () => {
       await login(page, '/admin/probe');
       await page.getByRole('link', { name: 'Status', exact: true }).click();
       await expect(page.getByRole('heading', { level: 1, name: 'Status' })).toBeVisible();
-      await expect(card(page, retried)).toContainText('10 van 10');
-      await expect(card(page, retried)).toContainText('delivery failed for [email]');
+
+      // The verdict first, with its moment and a link to where the task can be recovered.
+      await expect(verdict(page)).toHaveClass(/attention/);
+      await expect(verdict(page)).toContainText('Gecontroleerd');
+      await expect(
+        verdict(page).getByRole('link', { name: /mislukten? bij elke poging/ })
+      ).toHaveAttribute('href', '#jobs');
+
+      // In words first; the type and the attempts only behind "Technische details".
+      await expect(row(page, retried).getByRole('heading', { level: 3 })).toHaveText('Andere taak');
+      await expect(row(page, retried)).toContainText('10 keer mislukt');
+      await expect(row(page, retried)).toContainText('delivery failed for [email]');
+      await expect(row(page, retried).getByText(retried).first()).toBeHidden();
+      await row(page, retried).getByText('Technische details').click();
+      await expect(row(page, retried)).toContainText('10 van 10');
       await expect(page.locator('main')).not.toContainText('e2e-payload');
       await expectNoAxeViolations(page);
 
-      // The diagnosis is on the page, redacted, before anyone shares it.
+      // The diagnosis is on the page, folded and redacted, before anyone shares it.
+      await page.getByText('Toon de diagnose').click();
       const diagnosis = page.locator('pre.diagnosis');
       await expect(diagnosis).toContainText('site: probe');
       await expect(diagnosis).toContainText(`- ${retried} `);
@@ -688,23 +707,68 @@ test.describe('status', () => {
         /site: probe/
       );
 
-      await card(page, retried).getByRole('button', { name: 'Opnieuw proberen' }).click();
+      await row(page, retried).getByRole('button', { name: 'Opnieuw proberen' }).click();
       await expect(page.getByRole('status')).toContainText('De taak draait opnieuw');
-      await expect(card(page, retried)).toHaveCount(0);
+      await expect(row(page, retried)).toHaveCount(0);
 
-      // Closing asks first; the confirmation is a form of its own, so it works without JS too.
-      await card(page, closed).getByRole('button', { name: 'Afsluiten' }).click();
-      await expect(page.getByRole('heading', { name: `${closed} afsluiten?` })).toBeVisible();
-      await expect(card(page, closed)).toBeVisible();
+      // Closing asks first, in the row; a disclosure, so it works without JS too.
+      await row(page, closed).getByText('Afsluiten', { exact: true }).click();
+      await expect(row(page, closed)).toContainText('De taak draait niet meer');
       await expectNoAxeViolations(page);
-      await page.getByRole('button', { name: 'Ja, sluit deze taak af' }).click();
+      await row(page, closed)
+        .getByRole('button', { name: /Ja, sluit deze taak af/ })
+        .click();
       await expect(page.getByRole('status')).toContainText('De taak is afgesloten.');
-      await expect(card(page, closed)).toHaveCount(0);
+      await expect(row(page, closed)).toHaveCount(0);
 
       // Both recoveries are in the latest actions.
       const actions = page.getByRole('region', { name: 'Laatste acties' });
       await expect(actions).toContainText('ops.job.close');
       await expect(actions).toContainText('ops.job.retry');
+    } finally {
+      await finish(ids);
+    }
+  });
+
+  test('with JavaScript it refreshes itself, and a failed refresh is never a green verdict', async ({
+    page,
+  }) => {
+    onlyA11y('the refresh is a script');
+    const type = `e2e.status.${test.info().project.name}-${Date.now()}.refresh`;
+    const ids: string[] = [];
+    let mode: 'pass' | 'fail' | 'forbidden' = 'pass';
+    await page.route('**/admin/probe/status', (route) => {
+      if (route.request().resourceType() !== 'fetch' || mode === 'pass') return route.continue();
+      return mode === 'fail' ? route.abort() : route.fulfill({ status: 403, body: '' });
+    });
+    const refresh = () =>
+      page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    try {
+      await login(page, '/admin/probe/status');
+      await expect(page.getByText('Deze pagina vernieuwt zichzelf elke minuut.')).toBeVisible();
+      await expect(row(page, type)).toHaveCount(0);
+
+      // A task gets stuck while the page is open: the next refresh shows it without a reload.
+      ids.push(await stuckJob(type));
+      await refresh();
+      await expect(row(page, type)).toHaveCount(1);
+      await expect(verdict(page)).toHaveClass(/attention/);
+
+      mode = 'fail';
+      await refresh();
+      await expect(page.getByRole('heading', { level: 2, name: 'Status onbekend' })).toBeVisible();
+      await expect(verdict(page)).toHaveClass(/unknown/);
+      await expect(page.getByRole('alert')).toContainText('Vernieuwen lukte niet');
+
+      mode = 'forbidden';
+      await refresh();
+      await expect(page.getByRole('alert')).toContainText('Je hebt geen toegang meer');
+      await expectNoAxeViolations(page);
+
+      mode = 'pass';
+      await refresh();
+      await expect(page.getByRole('heading', { level: 2, name: 'Status onbekend' })).toHaveCount(0);
+      await expect(page.getByRole('alert')).toHaveCount(0);
     } finally {
       await finish(ids);
     }
@@ -725,12 +789,13 @@ test.describe('status', () => {
             await layoutGate(page, name, 'main');
           };
           await measure('job');
-          await card(page, type).getByRole('button', { name: 'Afsluiten' }).click();
-          // The confirmation is a new page; measuring before it renders finds no `main`.
-          await expect(page.getByRole('heading', { name: `${type} afsluiten?` })).toBeVisible();
+          await row(page, type).getByText('Afsluiten', { exact: true }).click();
+          await expect(
+            row(page, type).getByRole('button', { name: /Ja, sluit deze taak af/ })
+          ).toBeVisible();
           await measure('confirm');
-          await page.getByRole('link', { name: 'Laten staan' }).click();
-          await expect(card(page, type)).toBeVisible();
+          await row(page, type).getByText('Technische details').click();
+          await measure('details');
         } finally {
           await finish([id]);
         }

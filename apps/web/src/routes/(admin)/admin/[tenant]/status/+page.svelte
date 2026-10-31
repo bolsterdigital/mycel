@@ -1,22 +1,26 @@
-<!-- The status page of a site (TODO #17c) on the shared admin components (brief #56): stuck tasks
-     with "try again" and "close", mail with an uncertain outcome, the latest actions and the
-     diagnosis to share, every action a native form post. Each task is a card with its facts as a
-     MetaList and its action group in the card footer; the group wraps whole buttons (skill
-     ui-action-layout), e2e/admin.spec.ts checks 320 CSS px and 200% text. The diagnosis stands
-     on the page as text and in a read-only field to copy from; nothing sends it. An erasure no
-     backup holds after an hour (TODO #29B) is a warning above everything else. -->
+<!-- The status page of a site (brief admin-operations-screens § 1-3, 6, 9): it opens with the
+     verdict from `ops.status.get` and the moment it was checked, then the waiting work in words,
+     then what asks for attention with its recovery in the row, the erasure requests, the latest
+     actions and, folded, the diagnosis to share. Technical types and keys stay behind "Technical
+     details". Closing asks first in the row itself (ConfirmAction), with and without JavaScript.
+     The verdict and the lists are one region the refresh script replaces every minute; when a
+     refresh fails or access is gone it says so beside the old verdict and marks it unknown, so a
+     failed refresh never reads as "Everything is running". Without JavaScript "Refresh" is a
+     link. The action groups wrap whole buttons (skill ui-action-layout); e2e/admin.spec.ts checks
+     320 CSS px and 200% text. Rejected: cards per task (the reader scans a list, #82) and a
+     confirmation above the page (it left the row it acts on). -->
 <script lang="ts">
   import {
     Actions,
     Button,
-    Card,
-    CardGrid,
-    EmptyState,
+    ConfirmAction,
     Field,
     MetaList,
     Notice,
     PageHeader,
+    StatusSummary,
   } from '#lib/admin/ui/index.js';
+  import { formatWhen } from '#lib/admin/format.js';
   import { fill, ui, type UiKey } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -27,14 +31,70 @@
 
   const failed = $derived(form && 'error' in form ? form : null);
   const done = $derived(form && 'done' in form ? form : null);
-  const confirming = $derived(form && 'confirm' in form ? form.confirm : null);
-  const when = $derived(
-    new Intl.DateTimeFormat(data.locale, { dateStyle: 'medium', timeStyle: 'short' })
+
+  const now = $derived(new Date(status.verdict.checkedAt));
+  const when = (iso: string) =>
+    formatWhen(iso, {
+      locale: data.locale,
+      zone: data.timeZone,
+      now,
+      relative: data.dateFormat !== 'absolute',
+    });
+
+  /** Job types with a name in the catalogue; any other type is "other". */
+  const NAMED = new Set([
+    'content.publish',
+    'mail.reconcile',
+    'tenant.export',
+    'media.purge',
+    'hostnames.reverify',
+    'connections.run',
+    'assist.run',
+  ]);
+  const named = (type: string) => (NAMED.has(type) ? type : 'other');
+  const taskName = (type: string) => t(`admin.status.task.${named(type)}` as UiKey);
+  const count = (key: string, n: number) =>
+    fill(t(`${key}.${n === 1 ? 'one' : 'many'}` as UiKey), { count: String(n) });
+
+  const ANCHOR = { job: '#jobs', mail: '#mail', erasure: '#erasures' } as const;
+  const attention = $derived(
+    status.verdict.attention.map(({ kind, count: n }) => ({
+      label: count(`admin.status.attention.${kind}`, n),
+      action: t(`admin.status.attention.${kind}.action` as UiKey),
+      href: ANCHOR[kind],
+    }))
   );
-  const at = (iso: string) => when.format(new Date(iso));
+  const verdictTitle = $derived(
+    status.verdict.state === 'ok'
+      ? t('admin.status.verdict.ok')
+      : count('admin.status.verdict', attention.length)
+  );
+
+  /** Waiting work per named kind; unnamed types together as "other tasks". */
+  const waiting = $derived.by(() => {
+    const byKind = new Map<string, { count: number; next: string }>();
+    for (const w of status.waiting) {
+      const kind = named(w.type);
+      const seen = byKind.get(kind);
+      if (!seen) byKind.set(kind, { count: w.count, next: w.nextRunAt });
+      else {
+        seen.count += w.count;
+        if (w.nextRunAt < seen.next) seen.next = w.nextRunAt;
+      }
+    }
+    return [...byKind].map(([kind, w]) => ({
+      kind,
+      label: t(`admin.status.kind.${kind}` as UiKey),
+      count: w.count,
+      next: new Date(w.next) > now ? when(w.next) : null,
+    }));
+  });
+  const settling = $derived(status.mails.filter((m) => m.state === 'unknown').length);
+
   type Job = (typeof status.jobs)[number];
   type Mail = (typeof status.mails)[number];
-  const jobFacts = (job: Job) => [
+  const jobDetails = (job: Job) => [
+    { term: t('admin.status.job.type'), value: job.type },
     { term: t('admin.status.job.key'), value: job.key },
     {
       term: t('admin.status.job.attempts'),
@@ -43,18 +103,14 @@
         max: job.maxAttempts,
       }),
     },
-    {
-      term: t('admin.status.job.lastError'),
-      value: job.lastError ?? t('admin.status.job.noError'),
-    },
-    { term: t('admin.status.job.created'), value: at(job.createdAt) },
+    { term: t('admin.status.job.created'), value: when(job.createdAt).full },
   ];
   const mailFacts = (mail: Mail) => [
     { term: t('admin.status.mail.subscriber'), value: mail.subscriber },
     { term: t('admin.status.job.attempts'), value: String(mail.attempts) },
-    { term: t('admin.status.mail.attempted'), value: at(mail.attemptedAt) },
+    { term: t('admin.status.mail.attempted'), value: when(mail.attemptedAt).full },
     ...(mail.abandonedAt
-      ? [{ term: t('admin.status.mail.abandonedAt'), value: at(mail.abandonedAt) }]
+      ? [{ term: t('admin.status.mail.abandonedAt'), value: when(mail.abandonedAt).full }]
       : []),
     {
       term: t('admin.status.job.lastError'),
@@ -67,6 +123,7 @@
   <title
     >{failed ? `${t('error.prefix')} ` : ''}{t('admin.status.title')} · {data.tenant.name}</title
   >
+  <script type="module" src="/_admin/status-refresh.js"></script>
 </svelte:head>
 
 <main class="page admin">
@@ -82,114 +139,180 @@
   {#if done}
     <Notice tone="success"><p>{t(done.done as UiKey)}</p></Notice>
   {/if}
-  {#if confirming}
-    <Notice tone="warning">
-      <form method="post" action="?/close" aria-labelledby="close-title">
-        <h2 id="close-title">{fill(t('admin.status.close.title'), { type: confirming.type })}</h2>
-        <p>{t('admin.status.close.body')}</p>
-        <input type="hidden" name="id" value={confirming.id} />
-        <input type="hidden" name="confirm" value="yes" />
-        <Actions>
-          <Button variant="danger">{t('admin.status.close.confirm')}</Button>
-          <Button variant="secondary" href="{base}/status">{t('admin.status.close.cancel')}</Button>
-        </Actions>
-      </form>
-    </Notice>
-  {/if}
 
-  {#if status.erasures.late && status.erasures.oldestUnsecuredAt}
-    <Notice tone="warning" title={t('admin.status.erasures.title')}>
-      <p>
-        {fill(t('admin.status.erasures.body'), {
-          count: String(status.erasures.unsecured),
-          time: at(status.erasures.oldestUnsecuredAt),
-        })}
+  <div class="status-live" data-status-live data-unknown={t('admin.status.verdict.unknown')}>
+    <StatusSummary
+      id="verdict"
+      title={verdictTitle}
+      tone={status.verdict.state}
+      checked={when(status.verdict.checkedAt)}
+      checkedLabel={t('admin.status.checked')}
+      items={attention}
+    >
+      <p class="status-refresh">
+        <Button variant="secondary" href="{base}/status" data-status-refresh
+          >{t('admin.status.refresh')}</Button
+        >
+        <span class="ui-hint" data-status-note="auto" hidden>{t('admin.status.refresh.auto')}</span>
       </p>
-    </Notice>
-  {/if}
+      <p class="status-note" data-status-note="failed" role="alert" hidden>
+        {t('admin.status.refresh.failed')}
+      </p>
+      <p class="status-note" data-status-note="forbidden" role="alert" hidden>
+        {t('admin.status.refresh.forbidden')}
+      </p>
+    </StatusSummary>
 
-  {#if status.jobs.length === 0 && status.mails.length === 0 && !status.erasures.late}
-    <EmptyState title={t('admin.status.nothing')} />
-  {/if}
+    <section aria-labelledby="waiting">
+      <h2 id="waiting">{t('admin.status.waiting.title')}</h2>
+      <p class="ui-hint">{t('admin.status.waiting.intro')}</p>
+      {#if waiting.length === 0 && settling === 0}
+        <p>{t('admin.status.waiting.none')}</p>
+      {:else}
+        <ul class="status-waiting">
+          {#each waiting as w (w.kind)}
+            <li>
+              {fill(t('admin.status.waiting.item'), { label: w.label, count: String(w.count) })}
+              {#if w.next}
+                <span class="ui-hint"
+                  >({t('admin.status.waiting.next')}
+                  <time datetime={w.next.iso} title={w.next.full}>{w.next.text}</time>)</span
+                >
+              {/if}
+            </li>
+          {/each}
+          {#if settling}
+            <li>
+              {fill(t('admin.status.waiting.item'), {
+                label: t('admin.status.waiting.mail'),
+                count: String(settling),
+              })}
+            </li>
+          {/if}
+        </ul>
+      {/if}
+    </section>
 
-  <section aria-labelledby="jobs">
-    <h2 id="jobs">{t('admin.status.jobs.title')}</h2>
-    <p class="ui-hint">{t('admin.status.jobs.intro')}</p>
-    {#if status.jobs.length === 0}
-      <p>{t('admin.status.jobs.none')}</p>
-    {:else}
-      <CardGrid items={status.jobs} key={(job) => job.id}>
-        {#snippet card(job)}
-          <Card title={job.type}>
-            <MetaList items={jobFacts(job)} />
-            {#snippet footer()}
-              <form method="post">
+    <section aria-labelledby="jobs" id="jobs">
+      <h2>{t('admin.status.jobs.title')}</h2>
+      <p class="ui-hint">{t('admin.status.jobs.intro')}</p>
+      {#if status.jobs.length === 0}
+        <p>{t('admin.status.jobs.none')}</p>
+      {:else}
+        <ul class="status-rows">
+          {#each status.jobs as job (job.id)}
+            {@const name = taskName(job.type)}
+            <li class="status-row" data-job={job.id}>
+              <form method="post" action="?/retry">
+                <h3>{name}</h3>
+                <p>{fill(t('admin.status.job.summary'), { attempts: job.attempts })}</p>
+                <p>
+                  {t('admin.status.job.lastError')}: {job.lastError ??
+                    t('admin.status.job.noError')}
+                </p>
                 <input type="hidden" name="id" value={job.id} />
-                <input type="hidden" name="type" value={job.type} />
                 <Actions>
-                  <Button formaction="?/retry">{t('admin.status.job.retry')}</Button>
-                  <Button variant="secondary" formaction="?/close"
-                    >{t('admin.status.job.close')}</Button
+                  <Button aria-label="{t('admin.status.job.retry')}: {name}"
+                    >{t('admin.status.job.retry')}</Button
                   >
+                  <ConfirmAction
+                    label={t('admin.status.job.close')}
+                    question={t('admin.status.close.body')}
+                    confirm={t('admin.status.close.confirm')}
+                    {name}
+                    formaction="?/close"
+                    field={{ name: 'confirm', value: 'yes' }}
+                  />
                 </Actions>
+                <details class="ui-fold">
+                  <summary>{t('admin.status.job.details')}</summary>
+                  <MetaList items={jobDetails(job)} />
+                </details>
               </form>
-            {/snippet}
-          </Card>
-        {/snippet}
-      </CardGrid>
-    {/if}
-  </section>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </section>
 
-  <section aria-labelledby="mail">
-    <h2 id="mail">{t('admin.status.mail.title')}</h2>
-    <p class="ui-hint">{t('admin.status.mail.intro')}</p>
-    {#if status.mails.length === 0}
-      <p>{t('admin.status.mail.none')}</p>
-    {:else}
-      <CardGrid items={status.mails.map((mail, i) => ({ mail, i }))} key={({ i }) => String(i)}>
-        {#snippet card({ mail })}
-          <Card
-            title={t(
-              mail.state === 'abandoned'
-                ? 'admin.status.mail.abandoned'
-                : 'admin.status.mail.unknown'
-            )}
-          >
-            <MetaList items={mailFacts(mail)} />
-          </Card>
-        {/snippet}
-      </CardGrid>
-    {/if}
-  </section>
+    <section aria-labelledby="mail-title" id="mail">
+      <h2 id="mail-title">{t('admin.status.mail.title')}</h2>
+      <p class="ui-hint">{t('admin.status.mail.intro')}</p>
+      {#if status.mails.length === 0}
+        <p>{t('admin.status.mail.none')}</p>
+      {:else}
+        <ul class="status-rows">
+          {#each status.mails as mail, i (i)}
+            <li class="status-row">
+              <h3>
+                {t(
+                  mail.state === 'abandoned'
+                    ? 'admin.status.mail.abandoned'
+                    : 'admin.status.mail.unknown'
+                )}
+              </h3>
+              <MetaList items={mailFacts(mail)} />
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </section>
 
-  <section aria-labelledby="audit">
-    <h2 id="audit">{t('admin.status.audit.title')}</h2>
-    {#if status.audit.length === 0}
-      <p>{t('admin.status.audit.none')}</p>
-    {:else}
-      <ol class="audit">
-        {#each status.audit as row (row.id)}
-          <li>
-            {fill(t('admin.status.audit.item'), {
-              time: at(row.occurredAt),
-              operation: row.operation,
-              actor: row.actorId ? `${row.actorKind}:${row.actorId}` : row.actorKind,
-              result: row.result,
+    <section aria-labelledby="erasures-title" id="erasures">
+      <h2 id="erasures-title">{t('admin.status.erasures.section')}</h2>
+      {#if status.erasures.late && status.erasures.oldestUnsecuredAt}
+        <Notice tone="warning" title={t('admin.status.erasures.title')}>
+          <p>
+            {fill(t('admin.status.erasures.body'), {
+              count: String(status.erasures.unsecured),
+              time: when(status.erasures.oldestUnsecuredAt).full,
             })}
-          </li>
-        {/each}
-      </ol>
-    {/if}
-  </section>
+          </p>
+        </Notice>
+      {:else if status.erasures.registered === 0}
+        <p>{t('admin.status.erasures.none')}</p>
+      {:else}
+        <p>
+          {fill(t('admin.status.erasures.state'), {
+            registered: String(status.erasures.registered),
+            unsecured: String(status.erasures.unsecured),
+          })}
+        </p>
+      {/if}
+    </section>
 
-  <section aria-labelledby="diagnosis">
-    <h2 id="diagnosis">{t('admin.status.diagnosis.title')}</h2>
-    <p class="ui-hint">{t('admin.status.diagnosis.intro')}</p>
-    <pre class="diagnosis">{status.diagnosis}</pre>
-    <Field id="diagnosis-copy" label={t('admin.status.diagnosis.copy')} locale={data.locale}>
-      {#snippet control(attributes)}
-        <textarea {...attributes} readonly rows="8">{status.diagnosis}</textarea>
-      {/snippet}
-    </Field>
-  </section>
+    <section aria-labelledby="audit">
+      <h2 id="audit">{t('admin.status.audit.title')}</h2>
+      {#if status.audit.length === 0}
+        <p>{t('admin.status.audit.none')}</p>
+      {:else}
+        <ol class="audit">
+          {#each status.audit as row (row.id)}
+            <li>
+              {fill(t('admin.status.audit.item'), {
+                time: when(row.occurredAt).text,
+                operation: row.operation,
+                actor: row.actorId ? `${row.actorKind}:${row.actorId}` : row.actorKind,
+                result: row.result,
+              })}
+            </li>
+          {/each}
+        </ol>
+      {/if}
+    </section>
+
+    <section aria-labelledby="diagnosis">
+      <h2 id="diagnosis">{t('admin.status.diagnosis.title')}</h2>
+      <p class="ui-hint">{t('admin.status.diagnosis.intro')}</p>
+      <details class="ui-fold">
+        <summary>{t('admin.status.diagnosis.open')}</summary>
+        <pre class="diagnosis">{status.diagnosis}</pre>
+        <Field id="diagnosis-copy" label={t('admin.status.diagnosis.copy')} locale={data.locale}>
+          {#snippet control(attributes)}
+            <textarea {...attributes} readonly rows="8">{status.diagnosis}</textarea>
+          {/snippet}
+        </Field>
+      </details>
+    </section>
+  </div>
 </main>

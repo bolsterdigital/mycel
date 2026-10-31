@@ -116,6 +116,22 @@ export function jobRecoveryRepository(trx: Trx, tenantId: string): JobRecovery {
         .execute();
       return rows.map(toStuckJob);
     },
+    async waiting() {
+      const rows = await trx
+        .selectFrom('jobs')
+        .select(['type', sql<string>`count(*)`.as('count'), sql<Date>`min(run_at)`.as('next')])
+        .where('tenant_id', '=', tenantId)
+        .where('done_at', 'is', null)
+        .where(sql<boolean>`attempts < max_attempts`)
+        .groupBy('type')
+        .orderBy('type')
+        .execute();
+      return rows.map((r) => ({
+        type: r.type,
+        count: Number(r.count),
+        nextRunAt: new Date(r.next),
+      }));
+    },
     async retry(id) {
       return (await retryJobRow(trx, id)) ? 'ok' : whyNot(trx, id);
     },
