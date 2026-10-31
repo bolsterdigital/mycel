@@ -1210,6 +1210,10 @@ test.describe('content-blocks', () => {
     }
     const fresh = page.locator('#block-new');
     await expect(fresh.getByRole('heading')).toHaveText(`Nieuw blok: ${type}`);
+    // With the script, its landing moves focus into the new block once it is ready; a fill
+    // before that loses its first characters to the focus change (review of PR #204).
+    if (isA11y())
+      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
     return fresh;
   }
 
