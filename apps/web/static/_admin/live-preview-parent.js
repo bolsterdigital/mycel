@@ -49,8 +49,11 @@ if (
       status.dataset.previewState = state;
   };
   const landed = () => {
-    // A load of about:blank (the frame just inserted) is no answer to a draft.
-    if (next.contentWindow?.location.href === 'about:blank') return;
+    // A load of about:blank (the frame just inserted) is no answer to a draft. Read it through
+    // contentDocument, which is null for a page the editor cannot read (an expired session
+    // redirected to the unframeable login, a network error), so such a landing falls through to
+    // 'behind'; contentWindow.location.href would throw a SecurityError there instead.
+    if (next.contentDocument?.URL === 'about:blank') return;
     if (!next.contentDocument?.querySelector('[data-live-preview-rendered]')) return say('behind');
     const y = shown.contentWindow?.scrollY ?? 0;
     shown.hidden = true;

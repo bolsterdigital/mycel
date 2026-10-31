@@ -673,6 +673,37 @@ test.describe('content-admin', () => {
     await expect(page.locator('iframe[data-live-preview-frame]')).toBeVisible();
   });
 
+  // An expired session answers the draft POST with a redirect to the login page, which refuses
+  // to be framed (`frame-ancestors 'none'`): the frame lands on a document the editor cannot
+  // read. The last image stays, and the label must not keep claiming it is the current input.
+  test('a draft that lands on an unreadable page keeps the last image and says it is behind', async ({
+    page,
+  }) => {
+    onlyA11y('the live preview is a JavaScript enhancement');
+    await ensureLiveAdmin();
+    await login(page, '/admin/probe', LIVE_ADMIN);
+    await newPage(page, slugFor('expired'), 'Eerste');
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await page.getByRole('button', { name: 'Voorbeeld', exact: true }).click();
+    const shows = page.locator('[data-live-preview]').getByRole('status');
+    const frame = page.frameLocator('[data-live-preview-frame]');
+    const current = shows.getByText('Actuele invoer');
+    const behind = shows.getByText('Dit voorbeeld loopt achter');
+    await expect(frame.getByRole('heading', { level: 1, name: 'Eerste' })).toBeVisible();
+    await expect(current).toBeVisible();
+
+    await page.route('**/preview/draft', (route) =>
+      route.request().method() === 'POST'
+        ? route.fulfill({ status: 303, headers: { location: '/admin/login' } })
+        : route.continue()
+    );
+    await page.locator('#title\\.nl').fill('Tweede');
+    await expect(behind).toBeVisible();
+    await expect(current).toBeHidden();
+    await expect(frame.getByRole('heading', { level: 1, name: 'Eerste' })).toBeVisible();
+    await expect(page.locator('iframe[data-live-preview-frame]')).toHaveCount(1);
+  });
+
   /** One entry of a paged directory by its slug, over the HTTP API. */
   async function bySlug<T>(
     request: APIRequestContext,
