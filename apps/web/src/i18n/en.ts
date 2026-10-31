@@ -141,6 +141,14 @@ export const en = {
   'admin.sites.title': 'Your sites',
   'admin.sites.empty': 'You are not a member of a site yet',
   'admin.sites.none': 'No sites yet. Ask an administrator of a site to invite {email}.',
+  'admin.sites.search': 'Find a site',
+  'admin.sites.search.submit': 'Search',
+  'admin.sites.search.clear': 'Show all sites',
+  'admin.sites.noMatch': 'No site matches “{q}”.',
+  'admin.sites.none.invited':
+    'When Dreamkit ID has confirmed this address, an invitation sent to it made you a member the moment you logged in. Were you invited at another address? Log out and log in with that one.',
+  'admin.loggedOut.idp':
+    'You may still be signed in to Dreamkit ID, so logging in again may not ask for your password. Log out there as well if you share this device.',
   'admin.forbidden.title': 'No access to this site',
   'admin.forbidden.body':
     'You are not a member of this site. Ask one of its administrators to invite {email}.',
@@ -391,6 +399,14 @@ export const en = {
   'admin.status.mail.subscriber': 'Sent by',
   'admin.status.mail.attempted': 'Attempted',
   'admin.status.mail.abandonedAt': 'Given up at',
+  'admin.status.mailDays.title': 'Mail per day',
+  'admin.status.mailDays.intro':
+    "The last 14 days in the site's time zone. Bounces and refusals are not shown yet: Mycel does not receive them from the mail provider.",
+  'admin.status.mailDays.none': 'No mail was sent in the last 14 days.',
+  'admin.status.mailDays.day': 'Day',
+  'admin.status.mailDays.sent': 'Sent',
+  'admin.status.mailDays.unknown': 'Outcome unknown',
+  'admin.status.mailDays.abandoned': 'Given up',
   'admin.status.audit.title': 'Latest actions',
   'admin.status.audit.none': 'No actions recorded yet.',
   'admin.status.audit.item': '{time} · {operation} · {actor} · {result}',

@@ -206,6 +206,25 @@ test.describe('admin', () => {
     await expect(page.locator('main')).toContainText('duurde langer dan tien minuten');
   });
 
+  test('one site opens at once, and the way back keeps the picker', async ({ page }) => {
+    await login(page, '/admin?all');
+    await expect(page.getByRole('heading', { level: 1, name: 'Jouw sites' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Probe' })).toBeVisible();
+    await expect(page.locator('main')).toContainText('Beheerder');
+    await expectNoAxeViolations(page);
+    await page.goto('/admin');
+    await expect(page).toHaveURL(/\/admin\/probe$/);
+
+    await page.goto('/admin/logout');
+    await page.getByRole('button', { name: 'Uitloggen' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Je bent uitgelogd' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Opnieuw inloggen' })).toHaveAttribute(
+      'href',
+      '/admin/login'
+    );
+    await expectNoAxeViolations(page);
+  });
+
   test('the admin is not served on another origin', async ({ request }) => {
     const res = await request.get('/admin', { headers: { host: 'probe.example.org' } });
     expect(res.status()).toBe(404);
@@ -254,7 +273,7 @@ test.describe('admin', () => {
   }) => {
     const session = async () =>
       (await context.cookies()).find((c) => c.name === 'mycel_session')?.value;
-    await login(page, '/admin');
+    await login(page, '/admin?all');
     const first = await session();
     expect(first).toBeTruthy();
     // A second login on the same browser, with the first session still present.
@@ -262,7 +281,8 @@ test.describe('admin', () => {
     await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
     await page.getByLabel('E-mail').fill(ADMIN);
     await page.getByRole('button', { name: 'Sign in' }).click();
-    await expect(page).toHaveURL(/\/admin$/);
+    // ADMIN has one site, so the picker at /admin opens it (brief admin-entry § 4).
+    await expect(page).toHaveURL(/\/admin\/probe$/);
     const second = await session();
     expect(second).toBeTruthy();
     expect(second).not.toBe(first);

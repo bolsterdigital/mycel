@@ -1,4 +1,10 @@
+<!-- Logging out (brief admin-entry § 8): the admin's menu posts here, so the page itself only
+     shows a button for someone who typed the address. After the post, or when no one is signed
+     in, it lands on "You are logged out" as a system state and says what it did not do: the
+     Dreamkit ID session stays (no RP-initiated logout, +page.server.ts), so logging in again may
+     not ask for a password. -->
 <script lang="ts">
+  import { Button, SystemState } from '#lib/admin/ui/index.js';
   import { ui } from '../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -11,15 +17,20 @@
   <title>{done ? t('admin.loggedOut.title') : t('admin.logout')} · {t('admin.title')}</title>
 </svelte:head>
 
-<main class="page admin">
-  {#if done}
-    <h1>{t('admin.loggedOut.title')}</h1>
+{#if done}
+  <SystemState kind="signed-out" title={t('admin.loggedOut.title')} page>
     <p>{t('admin.loggedOut.body')}</p>
-    <p><a href="/admin">{t('admin.login.again')}</a></p>
-  {:else}
-    <h1>{t('admin.logout')}</h1>
-    <form method="post">
-      <button type="submit">{t('admin.logout')}</button>
-    </form>
-  {/if}
-</main>
+    <p class="ui-hint">{t('admin.loggedOut.idp')}</p>
+    {#snippet action()}
+      <Button href="/admin/login">{t('admin.login.again')}</Button>
+    {/snippet}
+  </SystemState>
+{:else}
+  <SystemState kind="signed-out" title={t('admin.logout')} page>
+    {#snippet action()}
+      <form method="post">
+        <Button>{t('admin.logout')}</Button>
+      </form>
+    {/snippet}
+  </SystemState>
+{/if}

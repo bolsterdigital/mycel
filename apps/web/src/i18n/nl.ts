@@ -140,6 +140,14 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.sites.title': 'Jouw sites',
   'admin.sites.empty': 'Je bent nog geen lid van een site',
   'admin.sites.none': 'Nog geen sites. Vraag een beheerder van een site om {email} uit te nodigen.',
+  'admin.sites.search': 'Zoek een site',
+  'admin.sites.search.submit': 'Zoeken',
+  'admin.sites.search.clear': 'Alle sites tonen',
+  'admin.sites.noMatch': 'Geen site past bij “{q}”.',
+  'admin.sites.none.invited':
+    'Heeft Dreamkit ID dit adres bevestigd, dan had een uitnodiging aan dit adres je bij het inloggen al lid gemaakt. Ben je op een ander adres uitgenodigd? Log uit en log in met dat adres.',
+  'admin.loggedOut.idp':
+    'Bij Dreamkit ID ben je mogelijk nog ingelogd; opnieuw inloggen vraagt dan misschien geen wachtwoord. Log daar ook uit als je dit apparaat deelt.',
   'admin.forbidden.title': 'Geen toegang tot deze site',
   'admin.forbidden.body':
     'Je bent geen lid van deze site. Vraag een van de beheerders om {email} uit te nodigen.',
@@ -395,6 +403,14 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.status.mail.subscriber': 'Verstuurd door',
   'admin.status.mail.attempted': 'Geprobeerd',
   'admin.status.mail.abandonedAt': 'Opgegeven op',
+  'admin.status.mailDays.title': 'Mail per dag',
+  'admin.status.mailDays.intro':
+    'De afgelopen 14 dagen, in de tijdzone van de site. Bounces en weigeringen staan hier nog niet: die krijgt Mycel nog niet van de mailprovider.',
+  'admin.status.mailDays.none': 'De afgelopen 14 dagen is geen mail verstuurd.',
+  'admin.status.mailDays.day': 'Dag',
+  'admin.status.mailDays.sent': 'Verstuurd',
+  'admin.status.mailDays.unknown': 'Afloop onbekend',
+  'admin.status.mailDays.abandoned': 'Opgegeven',
   'admin.status.audit.title': 'Laatste acties',
   'admin.status.audit.none': 'Nog geen acties vastgelegd.',
   'admin.status.audit.item': '{time} · {operation} · {actor} · {result}',

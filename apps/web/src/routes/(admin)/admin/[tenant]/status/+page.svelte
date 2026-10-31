@@ -6,7 +6,8 @@
      The verdict and the lists are one region the refresh script replaces every minute; when a
      refresh fails or access is gone it says so beside the old verdict and marks it unknown, so a
      failed refresh never reads as "Everything is running". Without JavaScript "Refresh" is a
-     link. The action groups wrap whole buttons (skill ui-action-layout); e2e/admin.spec.ts checks
+     link. Mail per day lists only the days of the last fourteen with mail, newest first, as a
+     table that stacks below 36rem. The action groups wrap whole buttons (skill ui-action-layout); e2e/admin.spec.ts checks
      320 CSS px and 200% text. Rejected: cards per task (the reader scans a list, #82) and a
      confirmation above the page (it left the row it acts on). -->
 <script lang="ts">
@@ -19,6 +20,7 @@
     Notice,
     PageHeader,
     StatusSummary,
+    Table,
   } from '#lib/admin/ui/index.js';
   import { formatWhen } from '#lib/admin/format.js';
   import { actorLabel, operationKey, resultKey } from '#lib/admin/audit-words.js';
@@ -94,6 +96,21 @@
     const key = operationKey(op);
     return key ? t(key) : op;
   };
+  /** The days with mail, newest first; a day name in the admin's language, read in UTC. */
+  const mailDays = $derived(
+    status.mailDays
+      .filter((d) => d.sent + d.unknown + d.abandoned > 0)
+      .reverse()
+      .map((d) => ({
+        ...d,
+        label: new Intl.DateTimeFormat(data.locale, {
+          weekday: 'short',
+          day: 'numeric',
+          month: 'short',
+          timeZone: 'UTC',
+        }).format(new Date(`${d.day}T12:00:00Z`)),
+      }))
+  );
   const settling = $derived(status.mails.filter((m) => m.state === 'unknown').length);
 
   type Job = (typeof status.jobs)[number];
@@ -260,6 +277,42 @@
             </li>
           {/each}
         </ul>
+      {/if}
+    </section>
+
+    <section aria-labelledby="mail-days-title" id="mail-days">
+      <h2 id="mail-days-title">{t('admin.status.mailDays.title')}</h2>
+      <p class="ui-hint">{t('admin.status.mailDays.intro')}</p>
+      {#if mailDays.length === 0}
+        <p>{t('admin.status.mailDays.none')}</p>
+      {:else}
+        <Table
+          id="mail-days-table"
+          caption={t('admin.status.mailDays.title')}
+          hideCaption
+          stack
+          columns={[
+            { key: 'day', label: t('admin.status.mailDays.day') },
+            { key: 'sent', label: t('admin.status.mailDays.sent'), numeric: true },
+            { key: 'unknown', label: t('admin.status.mailDays.unknown'), numeric: true },
+            { key: 'abandoned', label: t('admin.status.mailDays.abandoned'), numeric: true },
+          ]}
+        >
+          {#snippet rows()}
+            {#each mailDays as d (d.day)}
+              <tr>
+                <td data-label={t('admin.status.mailDays.day')}
+                  ><time datetime={d.day}>{d.label}</time></td
+                >
+                <td data-label={t('admin.status.mailDays.sent')} class="numeric">{d.sent}</td>
+                <td data-label={t('admin.status.mailDays.unknown')} class="numeric">{d.unknown}</td>
+                <td data-label={t('admin.status.mailDays.abandoned')} class="numeric"
+                  >{d.abandoned}</td
+                >
+              </tr>
+            {/each}
+          {/snippet}
+        </Table>
       {/if}
     </section>
 
