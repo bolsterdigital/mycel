@@ -9,15 +9,19 @@
 import { can, useCases } from '@mycel/core';
 import { error } from '@sveltejs/kit';
 import { act, text } from '#lib/server/admin/admin-actions.js';
+import { statusSubnav } from '#lib/server/admin/status-nav.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { UiKey } from '../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ parent, locals }) => {
-  await parent();
+  const { tenant, locale } = await parent();
   const principal = locals.principal!;
   if (!can(principal, 'tenant:admin')) error(403, 'tenant:admin');
-  return { status: await runtime().invoker.run(useCases.getOpsStatus, principal, {}) };
+  return {
+    subnav: statusSubnav(locale, `/admin/${tenant.slug}`, 'overview'),
+    status: await runtime().invoker.run(useCases.getOpsStatus, principal, {}),
+  };
 };
 
 const COPY = {

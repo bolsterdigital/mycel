@@ -745,8 +745,21 @@ test.describe('status', () => {
 
       // Both recoveries are in the latest actions.
       const actions = page.getByRole('region', { name: 'Laatste acties' });
-      await expect(actions).toContainText('ops.job.close');
-      await expect(actions).toContainText('ops.job.retry');
+      await expect(actions).toContainText('Vastgelopen taak afgesloten');
+      await expect(actions).toContainText('Vastgelopen taak opnieuw geprobeerd');
+
+      // The log has them too, by the member's name, and its filter is a GET form without JS.
+      await actions.getByRole('link', { name: 'Alle acties in het logboek' }).click();
+      await expect(page.getByRole('heading', { level: 1, name: 'Logboek' })).toBeVisible();
+      await page.getByLabel('Handeling').selectOption({ label: 'Vastgelopen taak afgesloten' });
+      await page.getByRole('button', { name: 'Filteren' }).click();
+      await expect(page).toHaveURL(/operation=ops\.job\.close/);
+      const log = page.locator('#audit-table tbody tr');
+      await expect(log.first()).toContainText('Vastgelopen taak afgesloten');
+      await expect(log.first()).toContainText('Gelukt');
+      await expect(log.first()).not.toContainText('Een lid');
+      await expect(page.locator('#audit-table')).not.toContainText('opnieuw geprobeerd');
+      await expectNoAxeViolations(page);
     } finally {
       await finish(ids);
     }
