@@ -225,6 +225,21 @@ if (form instanceof HTMLFormElement) {
     });
   }
 
+  // The bar's real height while it stays in view (ui.css `--item-bar-block-size`): a long title
+  // wraps it to two lines, and the open preview and a fragment then start below that, not under
+  // it. Where the bar scrolls along, the stylesheet's own value (none) holds.
+  const bar = document.querySelector('.ui-item-bar');
+  if (bar instanceof HTMLElement && 'ResizeObserver' in window) {
+    const root = document.documentElement;
+    const measure = () => {
+      if (getComputedStyle(bar).position === 'sticky')
+        root.style.setProperty('--item-bar-block-size', `${bar.getBoundingClientRect().height}px`);
+      else root.style.removeProperty('--item-bar-block-size');
+    };
+    new ResizeObserver(measure).observe(bar);
+    window.addEventListener('resize', measure);
+  }
+
   // Ready: tests wait for this instead of a timeout.
   form.dataset.editScreen = '';
 }

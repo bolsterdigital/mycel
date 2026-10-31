@@ -507,6 +507,63 @@ test.describe('content-admin', () => {
     await expect(side).toContainText(`/${moved}`);
   });
 
+  /** A page of 24 blocks, heading and paragraph by turn, over the HTTP API (#66 PR 6d). */
+  async function longPage(request: APIRequestContext): Promise<string> {
+    const prose = (text: string) => ({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+    });
+    const words = 'De buurt praat mee over elke straat, elk plein en elke boom die erbij komt. ';
+    const blocks = Array.from({ length: 12 }, (_, i) => [
+      {
+        type: 'heading',
+        version: 1,
+        props: { text: { nl: `Hoofdstuk ${i + 1}`, en: `Chapter ${i + 1}` } },
+      },
+      {
+        type: 'rich-text',
+        version: 1,
+        props: {
+          content: { nl: prose(words.repeat(8)), en: prose(`Paragraph ${i + 1}.`) },
+        },
+      },
+    ]).flat();
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: slugFor('long'),
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl', 'en'],
+        title: { nl: 'Lange pagina', en: 'Long page' },
+        blocks,
+      },
+    });
+    return `/admin/probe/content/${item.id}`;
+  }
+
+  test('on a long page the open preview starts below the bar that stays in view', async ({
+    page,
+    request,
+  }) => {
+    onlyA11y('the sticky bar and the live preview need JavaScript');
+    await ensureLiveAdmin();
+    const edit = await longPage(request);
+    await page.setViewportSize({ width: 1700, height: 900 });
+    await login(page, edit, LIVE_ADMIN);
+    await expect(page.locator('#item-edit')).toHaveAttribute('data-edit-screen', '');
+    await page.getByRole('button', { name: 'Voorbeeld', exact: true }).click();
+    const panel = page.locator('[data-live-preview]');
+    await expect(panel).toBeVisible();
+    // The #208 review's F1: scrolled, the sticky preview started 73px under the sticky bar.
+    await page.evaluate(() => window.scrollTo(0, 1500));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(1000);
+    const bar = (await page.locator('.ui-item-bar').boundingBox())!;
+    const beside = (await panel.boundingBox())!;
+    expect(bar.y).toBeLessThanOrEqual(1);
+    expect(beside.y).toBeGreaterThanOrEqual(bar.y + bar.height);
+    expect(beside.y + beside.height).toBeLessThanOrEqual(900);
+  });
+
   /** One entry of a paged directory by its slug, over the HTTP API. */
   async function bySlug<T>(
     request: APIRequestContext,
