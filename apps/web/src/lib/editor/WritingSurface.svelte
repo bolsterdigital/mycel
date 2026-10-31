@@ -6,7 +6,7 @@
   import { Editor, type JSONContent } from '@tiptap/core';
   import MarkdownIt from 'markdown-it';
   import { DOMParser as PMDOMParser } from '@tiptap/pm/model';
-  import { MediaPicker } from '#lib/admin/ui/index.js';
+  import { Actions, Button, MediaPicker } from '#lib/admin/ui/index.js';
   import type { MediaChoice } from '#lib/admin/media-choice.js';
   import { ui } from '../../i18n/index.js';
 
@@ -283,18 +283,32 @@
 <input type="hidden" {name} value={payload} />
 <div class="writing" class:active>
   <div class="writing-actions" hidden={!active} aria-label={t('admin.editor.formatting')}>
-    <button type="button" onclick={() => editor?.chain().focus().toggleBold().run()}
-      >{t('admin.editor.bold')}</button
-    >
-    <button type="button" onclick={() => editor?.chain().focus().toggleItalic().run()}
-      >{t('admin.editor.italic')}</button
-    >
-    <button type="button" onclick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
-      >{t('admin.editor.heading')}</button
-    >
-    <button type="button" onclick={setLink}>{t('admin.editor.link')}</button>
-    <button type="button" onclick={() => editor?.commands.undo()}>{t('admin.editor.undo')}</button>
-    <button type="button" onclick={() => editor?.commands.redo()}>{t('admin.editor.redo')}</button>
+    <Actions>
+      <Button
+        variant="secondary"
+        type="button"
+        onclick={() => editor?.chain().focus().toggleBold().run()}>{t('admin.editor.bold')}</Button
+      >
+      <Button
+        variant="secondary"
+        type="button"
+        onclick={() => editor?.chain().focus().toggleItalic().run()}
+        >{t('admin.editor.italic')}</Button
+      >
+      <Button
+        variant="secondary"
+        type="button"
+        onclick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
+        >{t('admin.editor.heading')}</Button
+      >
+      <Button variant="secondary" type="button" onclick={setLink}>{t('admin.editor.link')}</Button>
+      <Button variant="secondary" type="button" onclick={() => editor?.commands.undo()}
+        >{t('admin.editor.undo')}</Button
+      >
+      <Button variant="secondary" type="button" onclick={() => editor?.commands.redo()}
+        >{t('admin.editor.redo')}</Button
+      >
+    </Actions>
   </div>
   <div bind:this={host} class="writing-surface" hidden={!active}></div>
   {#if reason}<p role="alert">{reason}</p>{/if}
@@ -344,29 +358,17 @@
             />
           </div>{/if}
       {/if}
-      <button type="button" onclick={() => completeCard(card)}
-        >{t('admin.editor.completeCard')}</button
+      <Button type="button" onclick={() => completeCard(card)}
+        >{t('admin.editor.completeCard')}</Button
       >
     </fieldset>
   {/each}
 </div>
 
 <style>
-  .writing-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-block: 0.75rem;
-  }
   .writing-actions[hidden],
   .writing-surface[hidden] {
     display: none;
-  }
-  .writing-actions button {
-    min-height: 44px;
-    max-width: 100%;
-    white-space: normal;
-    overflow-wrap: normal;
   }
   .writing-surface {
     max-inline-size: 70ch;
