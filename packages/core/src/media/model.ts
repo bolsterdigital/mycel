@@ -29,8 +29,18 @@ export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 /** Decompression bombs: a small file that decodes into billions of pixels. */
 export const MAX_PIXELS = 50_000_000;
 
-/** Fixed variant widths; never upscaled, see `variantPlan`. */
-export const VARIANT_WIDTHS = [320, 640, 960, 1280, 1920] as const;
+/**
+ * Fixed variant widths; never upscaled, see `variantWidths`. A browser takes the first width at
+ * least as wide as the displayed width times the device pixel ratio, so the step between two
+ * neighbours is the most it can overshoot. From 640 up no step exceeds 1.25: a 358 px float on a
+ * 2x screen (716 needed) gets w800, not w960. Below 640 the steps are wider, because a 2x image
+ * under 240 px is a thumbnail that weighs little either way. Rejected: steps of 1.25 all the way
+ * down (four more files per upload for images that cost a few KB) and fewer, wider steps (the
+ * earlier 320/640/960/1280/1920 sent 2.7x the displayed width to a 2x screen).
+ */
+export const VARIANT_WIDTHS = [320, 480, 640, 800, 960, 1080, 1280, 1600, 1920] as const;
+/** The largest step between neighbouring widths from 640 up; the test of `VARIANT_WIDTHS` holds it. */
+export const VARIANT_MAX_STEP = 1.25;
 export const VARIANT_FORMATS = ['avif', 'webp'] as const;
 export const THUMB_WIDTH = 160;
 
@@ -179,15 +189,24 @@ export function mediaKeys(
 }
 
 /**
+ * An image's own width is added to the ladder only when it is at least this much wider than the
+ * fixed width below it: a 1282 px photo would otherwise store w1280 and w1282, two near-identical
+ * pairs of files (200 KB on the demo photo) for two pixels nobody sees.
+ */
+export const OWN_WIDTH_MIN_GAIN = 1.05;
+
+/**
  * Which widths to render for an image `width` pixels wide: the fixed widths below it, plus its
- * own width when it is smaller than the largest fixed width and not one of them, so a 1000 px
- * image gets w320, w640, w960 and w1000. Never upscaled. A 4000 px image stops at w1920: its
- * full resolution stays private.
+ * own width when it is smaller than the largest fixed width and at least `OWN_WIDTH_MIN_GAIN`
+ * wider than the fixed width below it, so a 1200 px image gets w320 to w1080 and w1200, a 1000 px
+ * one stops at w960. An image narrower than the smallest fixed width gets its own width only.
+ * Never upscaled. A 4000 px image stops at w1920: its full resolution stays private.
  */
 export function variantWidths(width: number): number[] {
   const max = VARIANT_WIDTHS[VARIANT_WIDTHS.length - 1]!;
-  const fixed = VARIANT_WIDTHS.filter((w) => w <= width);
-  return width < max && !fixed.includes(width as (typeof VARIANT_WIDTHS)[number])
+  const fixed: number[] = VARIANT_WIDTHS.filter((w) => w <= width);
+  const below = fixed.at(-1);
+  return width < max && (below === undefined || width >= below * OWN_WIDTH_MIN_GAIN)
     ? [...fixed, width]
     : fixed;
 }

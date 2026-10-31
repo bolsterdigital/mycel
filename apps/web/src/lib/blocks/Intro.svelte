@@ -4,6 +4,7 @@
 <script lang="ts">
   import Credit from './Credit.svelte';
   import Picture from './Picture.svelte';
+  import { IMAGE_SIZES } from './sizes.js';
   import type { RenderIntro, RenderModel } from './model.js';
 
   let { intro, model }: { intro: RenderIntro; model: RenderModel } = $props();
@@ -12,7 +13,7 @@
 {#if intro.lead}<p class="lead">{intro.lead}</p>{/if}
 {#if intro.hero}
   <figure class="block image layout-wide page-hero">
-    <Picture image={intro.hero} base={model.base} sizes="(min-width: 72rem) 68rem, 100vw" eager />
+    <Picture image={intro.hero} base={model.base} sizes={IMAGE_SIZES.wide} eager />
     {#if intro.hero.caption || intro.hero.credit}
       <figcaption>
         {#if intro.hero.caption}{intro.hero.caption}{/if}
