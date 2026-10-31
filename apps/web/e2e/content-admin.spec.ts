@@ -1637,26 +1637,32 @@ test.describe('article-writing', () => {
   });
 
   test('writer toolbar wraps whole actions at 320 CSS px and 200% text', async ({
-    page,
+    browser,
     request,
   }) => {
     onlyA11y();
     requireApi();
     const edit = await article(request);
-    await login(page, edit);
-    await page.setViewportSize(NARROW);
+    // Chromium's context locale owns Accept-Language too; changing only the request header
+    // left both screenshots in Dutch. Use real locale contexts and assert the rendered language.
     for (const locale of ['nl-NL', 'en-GB']) {
-      await page.context().setExtraHTTPHeaders({ ...forwarded(), 'accept-language': locale });
-      await page.goto(edit);
-      await expect(page.locator('.writing-actions').first()).toBeVisible();
-      await setTextSize(page, '200%');
-      await layoutGate(page, `writer actions ${locale}`, '.writing-actions');
-      const screenshot = test.info().outputPath(`integrated-editor-${locale}-320-200.png`);
-      await page.screenshot({ path: screenshot, fullPage: true });
-      await test.info().attach(`integrated-editor-${locale}-320-200`, {
-        path: screenshot,
-        contentType: 'image/png',
-      });
+      const context = await browser.newContext({ locale, viewport: NARROW });
+      try {
+        const page = await context.newPage();
+        await login(page, edit);
+        await expect(page.locator('html')).toHaveAttribute('lang', locale.slice(0, 2));
+        await expect(page.locator('.writing-actions').first()).toBeVisible();
+        await setTextSize(page, '200%');
+        await layoutGate(page, `writer actions ${locale}`, '.writing-actions');
+        const screenshot = test.info().outputPath(`integrated-editor-${locale}-320-200.png`);
+        await page.screenshot({ path: screenshot, fullPage: true });
+        await test.info().attach(`integrated-editor-${locale}-320-200`, {
+          path: screenshot,
+          contentType: 'image/png',
+        });
+      } finally {
+        await context.close();
+      }
     }
   });
 
