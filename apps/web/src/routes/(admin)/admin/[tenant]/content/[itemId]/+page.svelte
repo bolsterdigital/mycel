@@ -333,8 +333,7 @@
     title="{i + 1}. {t(`admin.block.type.${b.type}` as UiKey)}"
     open={refused ||
       data.openBlocks.includes(b.id) ||
-      (Array.isArray(early.$openBlocks) && early.$openBlocks.includes(b.id)) ||
-      Object.keys(early).some((name) => name.startsWith(prefix))}
+      (Array.isArray(early.$openBlocks) && early.$openBlocks.includes(b.id))}
     text={b.preview.text}
     thumb={image ? `${base}/media/${image.id}/thumb` : null}
     entries={b.preview.entries}

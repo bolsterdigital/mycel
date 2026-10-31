@@ -16,7 +16,7 @@ import {
 import { expectNoAxeViolations } from './lib/axe';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
-import { ADMIN, login } from './lib/login';
+import { ADMIN, login, forwarded } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { callApi, requireApi } from './lib/api';
 
@@ -1616,16 +1616,22 @@ test.describe('article-writing', () => {
     requireApi();
     const edit = await article(request);
     await login(page, edit);
-    // login() returns once the URL is the writer's, which can be before its markup is parsed;
-    // measuring then finds no toolbar at all (flake on main, run 41097277041).
-    await expect(page.locator('.writing-actions').first()).toBeVisible();
     await page.setViewportSize(NARROW);
-    await setTextSize(page, '200%');
-    await layoutGate(page, 'writer actions', '.writing-actions');
-    await test.info().attach('integrated-editor-320-200', {
-      body: await page.screenshot({ fullPage: true }),
-      contentType: 'image/png',
-    });
+    for (const locale of ['nl-NL', 'en-GB']) {
+      await page.context().setExtraHTTPHeaders({ ...forwarded(), 'accept-language': locale });
+      await page.goto(edit);
+      await expect(page.locator('.writing-actions').first()).toBeVisible();
+      await setTextSize(page, '200%');
+      await layoutGate(page, `writer actions ${locale}`, '.writing-actions');
+      const screenshot = test.info().outputPath(`integrated-editor-${locale}-320-200.png`);
+      await page.screenshot({ path: screenshot, fullPage: true });
+      await test
+        .info()
+        .attach(`integrated-editor-${locale}-320-200`, {
+          path: screenshot,
+          contentType: 'image/png',
+        });
+    }
   });
 
   test('pasted blockquote becomes a structured quote card after attribution', async ({

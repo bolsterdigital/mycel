@@ -447,6 +447,7 @@ test.describe('admin-shell', () => {
       'aria-current',
       'page'
     );
+    await expect(page.locator('#item-edit')).toBeVisible();
     await page.goto(`${new URL(page.url()).pathname}/write`);
     await expect(nav.getByRole('link', { name: 'Articles' })).toHaveAttribute(
       'aria-current',
