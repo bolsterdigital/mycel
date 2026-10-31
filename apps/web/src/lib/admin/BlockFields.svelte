@@ -8,6 +8,9 @@
      controls are the shared Field, Fieldset and Checkbox (brief #56), so a block form looks like
      every other form of the admin; a refusal marks its control and is listed in the summary. -->
 <script lang="ts">
+  import WritingSurface from '#lib/editor/WritingSurface.svelte';
+  import { toTiptap } from '#lib/editor/article-document.js';
+  import { fromMarkdown } from '#lib/editor/markdown.js';
   import type { BlockField } from '@mycel/core';
   import { Checkbox, Field, Fieldset, MediaPicker } from './ui/index.js';
   import type { MediaChoice } from './media-choice.js';
@@ -56,6 +59,10 @@
   const help = $derived(`${idPrefix}-markdown-help`);
   /** " (en)" after a localised label, only when the form shows more than one locale. */
   const per = (l: string) => (locales.length > 1 ? ` (${l})` : '');
+  const prose = (value: string) => {
+    const read = fromMarkdown(value);
+    return read.ok ? toTiptap(read.doc) : null;
+  };
   const hasRichText = (fs: readonly BlockField[]): boolean =>
     fs.some((f) => f.kind === 'rich-text' || ('fields' in f && hasRichText(f.fields)));
 </script>
@@ -110,6 +117,16 @@
     {/each}
   {:else if f.kind === 'rich-text'}
     {#each locales as l (l)}
+      {#if prefix !== 'new.' && prose(v(`${name}.${l}`))}
+        <WritingSurface
+          content={prose(v(`${name}.${l}`))}
+          name="{name}.{l}.editor"
+          {locale}
+          contentLocale={l}
+          nativeId={id(`${name}.${l}`)}
+          value={v(`${name}.${l}.editor`)}
+        />
+      {/if}
       <Field
         id={id(`${name}.${l}`)}
         label="{label(f.key)}{per(l)}"

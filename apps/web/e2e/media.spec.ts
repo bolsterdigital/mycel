@@ -18,7 +18,7 @@ import { expectPixels, watchImages } from './lib/images';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { forwarded, login } from './lib/login';
-import { onlyA11y } from './lib/project';
+import { isA11y, onlyA11y } from './lib/project';
 
 const SITE = 'http://probe.localhost:4173';
 
@@ -535,7 +535,7 @@ test('a page gets its featured image from the picker, and shares it when publish
   await page.goto(`/admin/probe/content/${itemId}`);
   // With JavaScript the picker is on the Featured tab (#86 PR 2).
   const featuredTab = page.locator('#item-tabs-tab-featured');
-  if (await featuredTab.isVisible()) await featuredTab.click();
+  if (isA11y()) await featuredTab.click();
   const picker = page.getByRole('group', { name: 'Uitgelicht beeld' });
   await expect(picker.locator('[data-picker-name]')).toHaveText('Nog geen beeld gekozen');
   await picker.getByRole('button', { name: 'Beeld kiezen' }).click();
@@ -700,7 +700,8 @@ test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
         await setTextSize(page, text);
         // Four tabs (#86 PR 2) wrap as whole tabs; with JavaScript the picker is on Featured.
         const tabs = page.locator('#item-tabs [role="tablist"]');
-        if (await tabs.isVisible()) {
+        if (isA11y()) {
+          await expect(tabs).toBeVisible();
           await layoutGate(page, 'item tabs', '#item-tabs [role="tablist"]');
           await page.locator('#item-tabs-tab-featured').click();
         }
@@ -708,7 +709,7 @@ test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
         await page.locator('#featuredImageId [command="show-modal"]').click();
         await layoutGate(page, 'featured image dialog', 'dialog[open]');
         await page.keyboard.press('Escape');
-        if (await tabs.isVisible()) await page.locator('#item-tabs-tab-content').click();
+        if (isA11y()) await page.locator('#item-tabs-tab-content').click();
         await page.locator('details.block > summary').first().click();
         await layoutGate(page, 'media picker', 'details.block');
         await page.locator('details.block [command="show-modal"]').first().click();

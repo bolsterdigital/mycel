@@ -6,12 +6,12 @@
      page title is the one visible heading (#87); "updated" is relative in the operator's zone,
      the full moment in its title. -->
 <script lang="ts">
-  import { Badge, Button, OverviewPage, Table } from '#lib/admin/ui/index.js';
+  import { Badge, Button, Notice, OverviewPage, Table } from '#lib/admin/ui/index.js';
   import { formatWhen } from '#lib/admin/format.js';
   import { ui, type UiKey } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
-  let { data }: PageProps = $props();
+  let { data, form }: PageProps = $props();
   const t = $derived(ui(data.locale));
   const base = $derived(`/admin/${data.tenant.slug}/content`);
   const status = (s: string) => t(`admin.content.status.${s}` as UiKey);
@@ -50,8 +50,15 @@
   empty={data.items.length === 0 ? { title: t('admin.content.empty') } : undefined}
   paging={data.next ? { next: `${base}?type=${data.type}&after=${data.next}` } : undefined}
 >
+  {#snippet notices()}
+    {#if form}<Notice tone="error"><p>{t(form.error)}</p></Notice>{/if}
+  {/snippet}
   {#snippet actions()}
-    <Button href="{base}/new?type={data.type}">{t(`admin.content.new.${data.type}`)}</Button>
+    <form method="POST" action="?/create">
+      <input type="hidden" name="type" value={data.type} /><Button
+        >{t(`admin.content.new.${data.type}`)}</Button
+      >
+    </form>
   {/snippet}
 
   <Table

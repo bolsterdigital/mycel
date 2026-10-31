@@ -401,22 +401,18 @@ test.describe('admin-shell', () => {
       const picker = (s: { src: string | null }) => s.src === '/_admin/media-picker.js';
       // Every tenant route carries the menu's collapse script (#87), a classic one in <head>.
       expect(all).toContainEqual({ src: '/_admin/nav.js', type: null });
-      // The edit screen's sections become tabs with a module of their own (#66 PR 3).
-      const tabs = { src: '/_admin/tabs.js', type: 'module' };
-      if (/\/content\/[^/]+$/.test(path)) expect(all).toContainEqual(tabs);
-      const scripts = all.filter(
-        (s) => !picker(s) && s.src !== '/_admin/nav.js' && s.src !== tabs.src
-      );
+      // Only the integrated editor hydrates. Its tabs and live preview start after hydration;
+      // no-JavaScript still receives the complete native form and one inert bootstrap.
+      const editor = /\/content\/[0-9a-f-]{36}$/.test(path);
+      const bootstrap = all.filter((s) => s.src === null);
+      expect(bootstrap).toHaveLength(editor ? 1 : 0);
+      const scripts = all.filter((s) => !picker(s) && s.src !== '/_admin/nav.js' && s.src !== null);
       if (all.some(picker)) {
-        expect(path).toMatch(/\/content\/[^/]+$/);
+        expect(editor).toBe(true);
         expect(all.filter(picker).every((s) => s.type === 'module')).toBe(true);
       }
       expect(scripts).toEqual(
-        /\/content\/[^/]+$/.test(path)
-          ? [{ src: '/_admin/live-preview-parent.js', type: 'module' }]
-          : /\/media$/.test(path)
-            ? [{ src: '/_admin/file-preview.js', type: 'module' }]
-            : []
+        /\/media$/.test(path) ? [{ src: '/_admin/file-preview.js', type: 'module' }] : []
       );
     }
   }
@@ -517,6 +513,7 @@ test.describe('admin-shell', () => {
       'aria-current',
       'page'
     );
+    await expect(page.locator('#item-edit')).toBeVisible();
     await page.goto(`${new URL(page.url()).pathname}/write`);
     await expect(nav.getByRole('link', { name: 'Articles' })).toHaveAttribute(
       'aria-current',
@@ -640,6 +637,9 @@ test.describe('admin-shell', () => {
       .getByRole('link', { name: 'Pages' })
       .click();
     await page.locator('#content-table tbody th a').first().click();
+    await expect(page.locator('#item-edit')).toBeVisible();
+    if (isA11y())
+      await expect(page.getByRole('tab', { name: 'Content', exact: true })).toBeVisible();
     await setTextSize(page, '200%');
     await layoutGate(page, 'editor');
     // The long key's revoke button (TODO #63), on API access since #101.

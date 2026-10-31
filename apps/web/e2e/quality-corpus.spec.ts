@@ -209,17 +209,20 @@ test('admin corpus uses the populated shell, native editor and enhanced writer',
   await page.goto(`/admin/probe/content/${id}/write`);
   await expect(page.locator('.admin-site-name')).toHaveText('Probe');
   if (isA11y()) await expect(page.locator('.writing-surface .ProseMirror')).toBeVisible();
-  else
-    await expect(
-      page.getByRole('link', { name: /without JavaScript|zonder JavaScript/i })
-    ).toHaveAttribute('href', `/admin/probe/content/${id}`);
+  else {
+    await expect(page).toHaveURL(`/admin/probe/content/${id}#blocks`);
+    await expect(page.locator('#item-edit')).toHaveCount(1);
+    const prose = page.locator('[data-native-prose] details.block').first();
+    await prose.locator(':scope > summary').click();
+    await expect(prose.locator('textarea').first()).toBeVisible();
+  }
   if (isA11y()) {
     const writing = page.locator('.writing-surface .ProseMirror');
     expect((await writing.innerText()).trim().split(/\s+/u).length).toBeGreaterThanOrEqual(
       corpus.public.article.expected.minWords
     );
     await expect(writing).toHaveAttribute('contenteditable', 'true');
-    await writing.locator('p').first().click();
+    await writing.locator('.editor-prose p').first().click();
     await writing.press('ArrowRight');
     expect(await page.evaluate(() => window.writerCspViolations)).toEqual([]);
     expect(consoleErrors).toEqual([]);

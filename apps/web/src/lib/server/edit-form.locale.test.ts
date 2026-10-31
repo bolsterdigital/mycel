@@ -21,6 +21,7 @@ import {
 } from '@mycel/core';
 import { formValues, posted } from '#lib/editor/block-form.js';
 import { valuesFromForm, valuesOf, withLocale } from './content-admin.js';
+import { toArticleEditor } from '#lib/editor/article-document.js';
 import { blockPrefix, formDocument } from './edit-form.js';
 
 const LOCALE_KEY = /^[a-z]{2}$/;
@@ -183,5 +184,76 @@ describe('withLocale', () => {
     expect(valuesIn(copy, 'de')).toEqual(valuesIn(base, 'nl'));
     for (const l of base.locales) expect(valuesIn(copy, l)).toEqual(valuesIn(base, l));
     expect(valuesIn(base, 'de')).toEqual([]);
+  });
+  it('saves enhanced article prose together with document and structured card fields', () => {
+    const indices = ['rich-text', 'faq'].map((type) => examples.findIndex((e) => e.type === type));
+    const base = documentOf('article', indices, true);
+    const editor = toArticleEditor(base, 'nl');
+    editor.content[0]!.content = [
+      { type: 'paragraph', content: [{ type: 'text', text: 'Nieuwe tekst' }] },
+    ];
+    const form = screenForm(base, 'nl');
+    // The enhanced surface disables only the native prose fieldset.
+    for (const key of Object.keys(form)) if (key.startsWith('b.b0.')) delete form[key];
+    form.articleEditor = JSON.stringify(editor);
+    form['title.nl'] = 'Nieuwe kop';
+    form['b.b1.p.width'] = 'full';
+    const data = formData(form);
+    const read = formDocument(base, valuesFromForm(data), posted(data), '2026-10-31', 'nl');
+    expect(read.errors).toEqual([]);
+    expect(read.document.title.nl).toBe('Nieuwe kop');
+    expect(read.blocks[0]!.id).toBe(base.blocks[0]!.id);
+    expect((read.blocks[0]!.props as { content: unknown }).content).toEqual({
+      ...(base.blocks[0]!.props as { content: object }).content,
+      nl: { type: 'doc', content: editor.content[0]!.content },
+    });
+    expect((read.blocks[1]!.props as { width: string }).width).toBe('full');
+    for (const locale of ['en', 'de'])
+      expect(valuesIn(read.document, locale)).toEqual(valuesIn(base, locale));
+  });
+
+  it('refuses invalid enhanced identity and preserves the posted raw value for recovery', () => {
+    const base = documentOf('article', [examples.findIndex((e) => e.type === 'rich-text')], false);
+    const editor = toArticleEditor(base, 'nl');
+    editor.content[0]!.attrs.blockId = 'unrecognised';
+    const form = screenForm(base, 'nl');
+    form.articleEditor = JSON.stringify(editor);
+    const data = formData(form);
+    const read = formDocument(base, valuesFromForm(data), posted(data), '2026-10-31', 'nl');
+    expect(read.errors).toEqual([
+      { name: 'articleEditor', line: 1, message: 'editor.markdown.invalid' },
+    ]);
+    expect(data.get('articleEditor')).toBe(form.articleEditor);
+  });
+
+  it('reads inline TipTap prose in a page while keeping every other locale and block id', () => {
+    const base = documentOf('page', [examples.findIndex((e) => e.type === 'rich-text')], true);
+    const form = screenForm(base, 'nl');
+    form['b.b0.p.content.nl.editor'] = JSON.stringify({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Inline' }] }],
+    });
+    const data = formData(form);
+    const read = formDocument(base, valuesFromForm(data), posted(data), '2026-10-31', 'nl');
+    expect(read.errors).toEqual([]);
+    expect(read.blocks[0]!.id).toBe(base.blocks[0]!.id);
+    expect((read.blocks[0]!.props as { content: Record<string, unknown> }).content.nl).toEqual(
+      JSON.parse(form['b.b0.p.content.nl.editor'] as string)
+    );
+    for (const locale of ['en', 'de'])
+      expect(valuesIn(read.document, locale)).toEqual(valuesIn(base, locale));
+  });
+  it('an enhanced article save still prunes a deliberately removed locale', () => {
+    const base = documentOf('article', [examples.findIndex((e) => e.type === 'rich-text')], false);
+    const form = screenForm(base, 'nl');
+    form.locales = ['nl'];
+    const editor = toArticleEditor(base, 'nl');
+    form.articleEditor = JSON.stringify(editor);
+    const data = formData(form);
+    const read = formDocument(base, valuesFromForm(data), posted(data), '2026-10-31', 'nl');
+    expect(read.errors).toEqual([]);
+    expect(read.document.locales).toEqual(['nl']);
+    expect(valuesIn(read.document, 'en')).toEqual([]);
+    expect(ContentDocument.safeParse(read.document).success).toBe(true);
   });
 });
