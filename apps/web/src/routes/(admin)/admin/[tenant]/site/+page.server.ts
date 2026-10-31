@@ -10,9 +10,13 @@
 // "Settings" in the sidebar; rejected: tabs above the form (tabs are for the parts of one item).
 // The brand section also holds the site's default image (#81-rest, `site.image.update` from #86):
 // its own form and version, so a save there never overwrites the theme or the logo.
+// API access (#101) holds the site's API keys, moved from Members: rare, for administrators only,
+// so a subject here rather than a menu item of its own; its actions are those Members had.
 import {
   BRAND_LIMITS,
   can,
+  KEY_ROLES,
+  KeyCapability,
   DROP_CAPS,
   Theme,
   SiteChrome,
@@ -21,6 +25,8 @@ import {
   type Capability,
 } from '@mycel/core';
 import { error, fail, redirect } from '@sveltejs/kit';
+import { act, text as field } from '#lib/server/admin/admin-actions.js';
+import { postedCapabilities } from '#lib/server/admin/roles.js';
 import { runtime } from '#lib/server/runtime.js';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { saveAssistSettings } from '#lib/server/admin/assist-settings.js';
@@ -39,7 +45,7 @@ const report = (e: unknown) => {
   return e.code === 'conflict' ? 'conflict' : 'invalid';
 };
 /** The settings subjects, each its own URL (brief #56 § B); the first is the default. */
-const SECTIONS = ['general', 'theme', 'brand', 'chrome', 'assist', 'usage'] as const;
+const SECTIONS = ['general', 'theme', 'brand', 'chrome', 'assist', 'api', 'usage'] as const;
 type SiteSection = (typeof SECTIONS)[number];
 /** What a subject asks of the member; `tenant:admin` grants `content:write` as well. */
 const NEEDS: Record<SiteSection, Capability> = {
@@ -48,6 +54,7 @@ const NEEDS: Record<SiteSection, Capability> = {
   brand: 'content:write',
   chrome: 'content:write',
   assist: 'tenant:admin',
+  api: 'tenant:admin',
   usage: 'tenant:admin',
 };
 const SUBJECT: Record<SiteSection, UiKey> = {
@@ -56,6 +63,7 @@ const SUBJECT: Record<SiteSection, UiKey> = {
   brand: 'admin.site.brand',
   chrome: 'admin.site.chrome',
   assist: 'admin.assist.title',
+  api: 'admin.access.title',
   usage: 'admin.dashboard.usage',
 };
 export const load: PageServerLoad = async ({ parent, locals, url }) => {
@@ -83,6 +91,8 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
       : null;
   const usage =
     section === 'usage' ? await runtime().invoker.run(useCases.getUsage, principal, {}) : null;
+  const keys =
+    section === 'api' ? (await runtime().invoker.run(useCases.listKeys, principal, {})).keys : null;
   const images =
     section === 'brand' ? await runtime().invoker.run(useCases.getSiteImages, principal, {}) : null;
   const chosen = images?.value.defaultImageId;
@@ -107,6 +117,11 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
       saved: url.searchParams.has('saved'),
     },
     usage,
+    api: keys && {
+      keys,
+      roles: [...KEY_ROLES, 'custom' as const],
+      capabilities: KeyCapability.options,
+    },
     images: images && {
       ...images,
       media: await mediaChoices(principal, chosen ? [chosen] : []),
@@ -309,4 +324,18 @@ export const actions: Actions = {
     }
     redirect(303, `/admin/${tenant.slug}/site?section=assist&saved=1`);
   },
+  createKey: (event) =>
+    act(event, 'createKey', { conflict: 'admin.error.invalid' }, async (principal, data) => {
+      const name = field(data, 'name');
+      const key = await runtime().invoker.run(useCases.createKey, principal, {
+        name,
+        capabilities: postedCapabilities(data) as KeyCapability[],
+      });
+      return { action: 'createKey', token: key.token, keyName: name };
+    }),
+  revokeKey: (event) =>
+    act(event, 'revokeKey', { conflict: 'admin.error.notFound' }, async (principal, data) => {
+      await runtime().invoker.run(useCases.revokeKey, principal, { id: field(data, 'id') });
+      return { action: 'revokeKey', done: 'admin.done.revoked' as UiKey };
+    }),
 };

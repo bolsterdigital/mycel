@@ -14,6 +14,7 @@
     breadcrumb,
     description,
     notices,
+    lead,
     action,
     enctype,
     submit,
@@ -25,6 +26,8 @@
     breadcrumb?: readonly Crumb[] | undefined;
     description?: string | undefined;
     notices?: Snippet;
+    /** What the page shows before its form (the account and sites of the profile, #101). */
+    lead?: Snippet;
     /** The form action; the page itself when absent. */
     action?: string | undefined;
     enctype?: 'multipart/form-data' | undefined;
@@ -37,6 +40,7 @@
 <main class="page admin ui-form-page">
   <PageHeader {title} {locale} {breadcrumb} {description} />
   {#if notices}{@render notices()}{/if}
+  {#if lead}{@render lead()}{/if}
   <form method="post" {action} {enctype}>
     <div class="ui-fields">{@render children()}</div>
     <Actions stack>

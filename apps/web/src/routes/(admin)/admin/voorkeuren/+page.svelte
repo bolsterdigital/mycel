@@ -1,10 +1,12 @@
 <!-- The operator's preferences (#88) on the form pattern: three native selects, one save,
      "back" to where the operator came from. The language list names each language in itself, so
-     someone who cannot read the current one still finds their own. -->
+     someone who cannot read the current one still finds their own.
+     #101: "Profile and preferences". Before the form, the account (name and address from the
+     IdP, read only) and the operator's role on each site, so "who am I here" has one place. -->
 <script lang="ts">
   import Header from '#lib/admin/Header.svelte';
-  import { FormPage, Notice, Select } from '#lib/admin/ui/index.js';
-  import { ui } from '../../../../i18n/index.js';
+  import { FormPage, MetaList, Notice, Select } from '#lib/admin/ui/index.js';
+  import { ui, type UiKey } from '../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -37,6 +39,31 @@
     {:else if data.saved}
       <Notice tone="success"><p>{t('admin.preferences.saved')}</p></Notice>
     {/if}
+  {/snippet}
+  {#snippet lead()}
+    <section aria-labelledby="account">
+      <h2 id="account">{t('admin.profile.account')}</h2>
+      <MetaList
+        items={[
+          { term: t('admin.profile.name'), value: data.name ?? t('admin.profile.noName') },
+          { term: t('admin.profile.email'), value: data.email },
+        ]}
+      />
+      <p class="ui-hint">{t('admin.profile.idp')}</p>
+    </section>
+    {#if data.sites.length > 0}
+      <section aria-labelledby="sites">
+        <h2 id="sites">{t('admin.profile.sites')}</h2>
+        <ul>
+          {#each data.sites as site (site.slug)}
+            <li>
+              <a href="/admin/{site.slug}">{site.name}</a>: {t(`admin.role.${site.role}` as UiKey)}
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
+    <h2>{t('admin.profile.preferences')}</h2>
   {/snippet}
 
   <Select

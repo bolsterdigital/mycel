@@ -9,7 +9,8 @@
      says it is not saved yet and leaving asks first (static/_admin/unsaved.js).
      The subjects are the page's `subnav` (#81-rest): the shell shows them under "Settings" in the
      sidebar, so this screen draws no sub-navigation of its own. The brand subject also picks the
-     default image items inherit (#81-rest), and the theme whether articles open with a drop cap. -->
+     default image items inherit (#81-rest), and the theme whether articles open with a drop cap.
+     API access (#101) is the site's API keys, moved from Members (lib/admin/ApiAccess.svelte). -->
 <script lang="ts">
   import { DROP_CAPS, FONT_PAIRS, THEME_MODES, THEME_ROLES } from '@mycel/core';
   import {
@@ -27,6 +28,7 @@
     SettingsSection,
     Table,
   } from '#lib/admin/ui/index.js';
+  import ApiAccess from '#lib/admin/ApiAccess.svelte';
   import UsageList from '#lib/admin/UsageList.svelte';
   import { fill, ui, type UiKey } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
@@ -77,8 +79,9 @@
 
 <svelte:head>
   <title
-    >{form?.problem ? `${t('error.prefix')} ` : ''}{subject} · {t('admin.site.title')} · {data
-      .tenant.name}</title
+    >{form?.problem || form?.error ? `${t('error.prefix')} ` : ''}{subject} · {t(
+      'admin.site.title'
+    )} · {data.tenant.name}</title
   >
 </svelte:head>
 
@@ -196,6 +199,14 @@
         disabled={!assist.allowed}
       />
     </SettingsSection>
+  {:else if data.section === 'api' && data.api}
+    <ApiAccess
+      keys={data.api.keys}
+      roles={data.api.roles}
+      capabilities={data.api.capabilities}
+      locale={data.locale}
+      {form}
+    />
   {:else if data.section === 'usage' && data.usage}
     <SettingsSection id="site-usage" title={t('admin.dashboard.usage')}>
       {#if data.usage.status === 'suspended'}

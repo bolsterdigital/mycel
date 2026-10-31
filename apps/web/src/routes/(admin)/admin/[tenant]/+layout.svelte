@@ -117,7 +117,7 @@
         <a href="/admin"><Icon name="arrow-left-right" /><span>{t('admin.back')}</span></a>
         <p>{data.email}</p>
         <a href="/admin/voorkeuren?return={encodeURIComponent(base)}"
-          ><Icon name="sliders-horizontal" /><span>{t('admin.preferences.title')}</span></a
+          ><Icon name="sliders-horizontal" /><span>{t('admin.nav.profile')}</span></a
         >
         <form method="post" action="/admin/logout">
           <button type="submit" class="admin-logout"
