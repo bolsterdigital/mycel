@@ -1,6 +1,7 @@
 <!-- The fields of one block form (brief content-editor § B), rendered from the registry's field
      descriptions with the names `lib/editor/block-form.ts` reads back. Native controls only, so
-     the form works without JavaScript: a localised field is one input per document locale, rich
+     the form works without JavaScript: a localised field is one input per locale asked for (the
+     edit screen asks for one, #66 PR 4, and then names no locale in its labels), rich
      text a Markdown textarea, an image the shared MediaPicker (brief media-picker), a caption a
      choice between the file's caption, none and its own, an
      optional group a "use" checkbox, a list its rows plus one empty row to add an entry. The
@@ -53,6 +54,8 @@
   const id = (name: string) => `${idPrefix}-${name.slice(prefix.length).replaceAll('.', '-')}`;
   const bad = (name: string) => invalid.includes(name);
   const help = $derived(`${idPrefix}-markdown-help`);
+  /** " (en)" after a localised label, only when the form shows more than one locale. */
+  const per = (l: string) => (locales.length > 1 ? ` (${l})` : '');
   const hasRichText = (fs: readonly BlockField[]): boolean =>
     fs.some((f) => f.kind === 'rich-text' || ('fields' in f && hasRichText(f.fields)));
 </script>
@@ -86,14 +89,14 @@
   {#if f.kind === 'text'}
     {#if f.localized}
       {#each locales as l (l)}
-        {@render input(`${name}.${l}`, `${label(f.key)} (${l})`, f.multiline)}
+        {@render input(`${name}.${l}`, `${label(f.key)}${per(l)}`, f.multiline)}
       {/each}
     {:else}
       {@render input(name, label(f.key), f.multiline)}
     {/if}
   {:else if f.kind === 'caption'}
     {#each locales as l (l)}
-      <Fieldset legend="{label(f.key)} ({l})">
+      <Fieldset legend="{label(f.key)}{per(l)}">
         {@render select(
           `${name}.${l}.mode`,
           t('admin.block.caption.mode'),
@@ -109,7 +112,7 @@
     {#each locales as l (l)}
       <Field
         id={id(`${name}.${l}`)}
-        label="{label(f.key)} ({l})"
+        label="{label(f.key)}{per(l)}"
         {locale}
         invalid={bad(`${name}.${l}`)}
       >
@@ -148,7 +151,7 @@
     {#each Array.from({ length: f.max }, (_, i) => i) as i (i)}
       <Fieldset legend={fill(t('admin.block.action'), { n: i + 1 })}>
         {#each locales as l (l)}
-          {@render input(`${name}.${i}.label.${l}`, `${t('admin.block.field.label')} (${l})`)}
+          {@render input(`${name}.${i}.label.${l}`, `${t('admin.block.field.label')}${per(l)}`)}
         {/each}
         {@render select(
           `${name}.${i}.target`,

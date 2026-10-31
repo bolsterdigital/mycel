@@ -1,6 +1,7 @@
 <!-- The content list (TODO #11 A1, brief #56 § C2) on the overview pattern: pages and articles
-     are separate menu items (editor trial 2026-10-28), one table row per item with its status per locale as badges, and the new
-     item as the screen's primary action. Links only, no actions to post, so it works without
+     are separate menu items (editor trial 2026-10-28), one table row per item in the content
+     locale (#66 PR 4): its title, one status badge, and the other locales as codes with a dot
+     where the translation is behind or missing; the new item as the screen's primary action. Links only, no actions to post, so it works without
      JavaScript; the table scrolls inside its own region on a narrow screen, never the page. The
      page title is the one visible heading (#87); "updated" is relative in the operator's zone,
      the full moment in its title. -->
@@ -19,6 +20,8 @@
     scheduled: 'info',
     published: 'success',
     unpublished: 'warning',
+    changed: 'warning',
+    missing: 'neutral',
   } as const;
   const tone = (s: string) => TONE[s as keyof typeof TONE] ?? 'neutral';
   // The admin renders on the server only (csr = false), so `now` is the moment of the request.
@@ -67,20 +70,29 @@
         {@const updated = when(item.updated)}
         <tr>
           <th scope="row"
-            ><a href="{base}/{item.id}">{item.title || t('admin.content.untitled')}</a></th
+            ><a
+              href="{base}/{item.id}"
+              lang={item.titleLocale && item.titleLocale !== data.workLocale
+                ? item.titleLocale
+                : undefined}>{item.title || t('admin.content.untitled')}</a
+            ></th
           >
           <td>
-            <ul class="ui-badges">
-              {#each item.publication as p (p.locale)}
-                <li>
-                  <Badge tone={p.changes ? 'warning' : tone(p.status)}
-                    >{p.locale}: {status(p.status)}{#if p.changes}, {t(
-                        'admin.content.status.changes'
-                      )}{/if}</Badge
-                  >
-                </li>
-              {/each}
-            </ul>
+            <Badge tone={tone(item.status)}>{status(item.status)}</Badge>
+            {#if item.others.length}
+              <ul class="ui-locale-codes">
+                {#each item.others as o (o.locale)}
+                  <li>
+                    {o.locale}{#if o.state !== 'ok'}<span
+                        class="ui-locale-dot {o.state}"
+                        aria-hidden="true"
+                      ></span><span class="ui-visually-hidden"
+                        >{' '}({t(`admin.locale.state.${o.state}` as UiKey)})</span
+                      >{/if}
+                  </li>
+                {/each}
+              </ul>
+            {/if}
           </td>
           <td>/{item.slug}</td>
           <td><time datetime={updated.iso} title={updated.full}>{updated.text}</time></td>

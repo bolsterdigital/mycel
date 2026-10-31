@@ -14,7 +14,11 @@
      section and tags as WordPress and Ghost have them, revisions). A failed save comes back with
      what was typed and every fold open; a conflict also shows who saved in between and what
      changed (ADR 018 rule 2). The restricted note comes before every publication button and
-     cannot be closed (ADR 018 rule 6). -->
+     cannot be closed (ADR 018 rule 6).
+     One locale at a time (#66 PR 4): every field shows the content locale only, without a locale
+     in its label; the bar's LocaleSwitch saves and shows another locale with where each stands;
+     the side column has that locale's status card and the other locales as one line each. A
+     locale the item lacks shows "start the translation" in place of the content. -->
 <script lang="ts">
   import BlockFields from '#lib/admin/BlockFields.svelte';
   import Diff from '#lib/admin/Diff.svelte';
@@ -33,6 +37,7 @@
     Fieldset,
     Icon,
     ItemBar,
+    LocaleSwitch,
     MediaPicker,
     MetaList,
     Notice,
@@ -63,23 +68,38 @@
     form && 'fieldIssues' in form ? (form.fieldIssues ?? []) : []
   );
   const docLocales = $derived(list('locales'));
-  const multi = $derived(data.docLocales.length > 1);
-  /** " (en)" after a per-locale label when the item has more than one language. */
-  const per = (l: string) => (multi ? ` (${l})` : '');
+  /** The one locale the screen shows (#66 PR 4); its fields only, while the item has it. */
+  const work = $derived(data.workLocale);
+  const shown = $derived(data.translating ? [] : [work]);
+  /** The site has more than one locale: the switch shows (table stake 13). */
+  const multi = $derived(data.translations.length > 1);
   const base = $derived(`/admin/${data.tenant.slug}`);
   const article = $derived(data.item.type === 'article');
   const defaultLocale = $derived(data.item.defaultLocale);
   const title = $derived(
-    (data.values[`title.${defaultLocale}`] as string | undefined) || t('admin.content.untitled')
+    (data.values[`title.${work}`] as string | undefined) ||
+      (data.values[`title.${defaultLocale}`] as string | undefined) ||
+      t('admin.content.untitled')
   );
   const typeName = $derived(t(`admin.content.type.${data.item.type}` as UiKey));
   const baseRevision = $derived(v('baseRevisionId') || data.revision.id);
   /** Folded groups open after a failed save, so a field the summary links to is in view. */
   const folded = $derived(!form);
   const mainPublication = $derived(
-    data.item.publication.find((p) => p.locale === defaultLocale) ?? data.item.publication[0]
+    data.translating ? undefined : data.item.publication.find((p) => p.locale === work)
   );
-  const otherPublications = $derived(data.item.publication.filter((p) => p !== mainPublication));
+  /** Every other locale of the site, one line each in the side column. */
+  const others = $derived(
+    data.translations
+      .filter((x) => x.locale !== work)
+      .map((x) => ({ ...x, publication: data.item.publication.find((p) => p.locale === x.locale) }))
+  );
+  const stateWords = (s: 'ok' | 'behind' | 'missing') =>
+    s === 'behind'
+      ? t('admin.locale.state.behind')
+      : s === 'missing'
+        ? t('admin.locale.state.missing')
+        : '';
   const dateOf = $derived(
     new Intl.DateTimeFormat(data.locale, {
       day: 'numeric',
@@ -152,6 +172,11 @@
   };
   const previewHref = (l: string) =>
     `${base}/preview/item/${data.item.id}?revision=${data.revision.id}&locale=${l}`;
+  /** The locales the item can start from: those it has, its default first. */
+  const sources = $derived([
+    ...data.docLocales.filter((l) => l === defaultLocale),
+    ...data.docLocales.filter((l) => l !== defaultLocale),
+  ]);
   /** The live preview of unsaved fields (#11 D): pages, for a member who can write. */
   const livePreview = $derived(!article && data.canWrite);
   const assist = (params: Record<string, string>) =>
@@ -248,7 +273,7 @@
     <BlockFields
       fields={BLOCK_DEFINITIONS[p.type as BlockType].fields}
       values={p.values}
-      locales={data.docLocales}
+      locales={shown}
       idPrefix="b-new"
       prefix="new."
       media={data.media}
@@ -314,7 +339,7 @@
     <BlockFields
       fields={BLOCK_DEFINITIONS[b.type].fields}
       values={blockValues(b)}
-      locales={data.docLocales}
+      locales={shown}
       idPrefix="b-{b.id}"
       {prefix}
       media={data.media}
@@ -326,25 +351,20 @@
     />
     {#if data.assistEnabled && b.type === 'image' && b.values[`${prefix}p.decorative`] !== 'on'}
       <p class="ui-hint">
-        {#each data.docLocales as l (l)}
-          <a href={assist({ task: 'alt', block: b.id, locale: l })}>{t('admin.assist.alt')} ({l})</a
-          >
-        {/each}
+        <a href={assist({ task: 'alt', block: b.id, locale: work })}>{t('admin.assist.alt')}</a>
       </p>
     {/if}
-    {#if data.assistEnabled && b.type === 'rich-text'}
+    {#if data.assistEnabled && b.type === 'rich-text' && b.translatable.length}
       <p class="ui-hint">
-        {#each data.docLocales as l (l)}
-          {#each data.docLocales.filter((source: string) => source !== l && !!b.values[`${prefix}p.content.${source}`]) as source (source)}
-            <a
-              href={assist({
-                task: 'translate',
-                from: source,
-                to: l,
-                target: `blocks.${b.id}.props.content`,
-              })}>{fill(t('admin.assist.translateFrom'), { locale: source })} ({l})</a
-            >
-          {/each}
+        {#each b.translatable as source (source)}
+          <a
+            href={assist({
+              task: 'translate',
+              from: source,
+              to: work,
+              target: `blocks.${b.id}.props.content`,
+            })}>{fill(t('admin.assist.translateFrom'), { locale: source })}</a
+          >
         {/each}
       </p>
     {/if}
@@ -369,32 +389,56 @@
   </details>
 {/snippet}
 
+{#snippet startTranslation()}
+  <section class="ui-panel" id="translate" aria-labelledby="translate-title">
+    <h2 id="translate-title">{fill(t('admin.locale.translate.title'), { locale: work })}</h2>
+    <p>{t('admin.locale.translate.body')}</p>
+    {#if data.assistEnabled}<p class="ui-hint">{t('admin.locale.translate.assist')}</p>{/if}
+    {#if data.canWrite}
+      <input type="hidden" name="to" value={work} />
+      <Actions>
+        {#each sources as source (source)}
+          <Button formaction="?/startTranslation" name="from" value={source}
+            >{fill(t('admin.locale.translate.copy'), { locale: source })}</Button
+          >
+        {/each}
+        <Button variant="secondary" formaction="?/startTranslation" name="from" value=""
+          >{t('admin.locale.translate.empty')}</Button
+        >
+      </Actions>
+    {/if}
+  </section>
+{/snippet}
+
 {#snippet contentTab()}
   <input type="hidden" name="baseRevisionId" value={baseRevision} />
+  <input type="hidden" name="editLocale" value={data.translating ? '' : work} />
+  {#if data.translating}
+    {@render startTranslation()}
+  {:else}
+    {@render contentFields()}
+  {/if}
+{/snippet}
+
+{#snippet contentFields()}
   <div class="ui-field">
-    <label class="ui-visually-hidden" for="title.{defaultLocale}"
-      >{t('admin.content.edit.titleLabel')}{per(defaultLocale)}</label
+    <label class="ui-visually-hidden" for="title.{work}">{t('admin.content.edit.titleLabel')}</label
     >
     <input
       class="ui-title-input"
       size="1"
-      id="title.{defaultLocale}"
-      name="title.{defaultLocale}"
+      id="title.{work}"
+      name="title.{work}"
       type="text"
       maxlength="200"
-      required
-      value={v(`title.${defaultLocale}`)}
+      required={work === defaultLocale}
+      value={v(`title.${work}`)}
+      lang={work}
     />
   </div>
-  {@render translateLinks('title', 'title', defaultLocale, t('admin.content.field.title'))}
-  {#each docLocales.filter((l) => l !== defaultLocale) as l (l)}
-    {@render text(`title.${l}`, `${t('admin.content.field.title')} (${l})`)}
-    {@render translateLinks('title', 'title', l, t('admin.content.field.title'))}
-  {/each}
-  {#each docLocales as l (l)}
-    {@render area(`lead.${l}`, `${t('admin.content.field.lead')}${per(l)}`, 1000)}
-    {@render translateLinks('lead', 'lead', l, t('admin.content.field.lead'))}
-  {/each}
+  {@render translateLinks('title', 'title', work, t('admin.content.field.title'))}
+  {@render area(`lead.${work}`, t('admin.content.field.lead'), 1000)}
+  {@render translateLinks('lead', 'lead', work, t('admin.content.field.lead'))}
   <MediaPicker
     id="heroImageId"
     name="heroImageId"
@@ -483,49 +527,37 @@
     {base}
     upload={data.upload}
   />
-  {@render inheritedImage('featuredImageId', chain(defaultLocale).images.featured)}
-  {#each docLocales as l (l)}
-    {@render text(`featuredTitle.${l}`, `${t('admin.content.field.featuredTitle')}${per(l)}`)}
-    {@render inheritedText(`featuredTitle.${l}`, chain(l).title)}
-    {@render translateLinks(
-      'featuredTitle',
-      'featured.title',
-      l,
-      t('admin.content.field.featuredTitle')
-    )}
-    {@render area(
-      `featuredDescription.${l}`,
-      `${t('admin.content.field.featuredDescription')}${per(l)}`,
-      500
-    )}
-    {@render inheritedText(`featuredDescription.${l}`, chain(l).summary)}
-    {@render translateLinks(
-      'featuredDescription',
-      'featured.description',
-      l,
-      t('admin.content.field.featuredDescription')
-    )}
-  {/each}
+  {@render inheritedImage('featuredImageId', chain(work).images.featured)}
+  {@render text(`featuredTitle.${work}`, t('admin.content.field.featuredTitle'))}
+  {@render inheritedText(`featuredTitle.${work}`, chain(work).title)}
+  {@render translateLinks(
+    'featuredTitle',
+    'featured.title',
+    work,
+    t('admin.content.field.featuredTitle')
+  )}
+  {@render area(`featuredDescription.${work}`, t('admin.content.field.featuredDescription'), 500)}
+  {@render inheritedText(`featuredDescription.${work}`, chain(work).summary)}
+  {@render translateLinks(
+    'featuredDescription',
+    'featured.description',
+    work,
+    t('admin.content.field.featuredDescription')
+  )}
 {/snippet}
 
 {#snippet findabilityTab()}
   <Fieldset legend={t('admin.content.edit.seo')} collapsed={folded}>
-    {#each docLocales as l (l)}
-      {@render text(`seoTitle.${l}`, `${t('admin.content.field.seoTitle')}${per(l)}`)}
-      {@render translateLinks('seoTitle', 'seo.title', l, t('admin.content.field.seoTitle'))}
-      {@render area(
-        `seoDescription.${l}`,
-        `${t('admin.content.field.seoDescription')}${per(l)}`,
-        500
-      )}
-      {@render inheritedText(`seoDescription.${l}`, chain(l).seoDescription)}
-      {@render translateLinks(
-        'seoDescription',
-        'seo.description',
-        l,
-        t('admin.content.field.seoDescription')
-      )}
-    {/each}
+    {@render text(`seoTitle.${work}`, t('admin.content.field.seoTitle'))}
+    {@render translateLinks('seoTitle', 'seo.title', work, t('admin.content.field.seoTitle'))}
+    {@render area(`seoDescription.${work}`, t('admin.content.field.seoDescription'), 500)}
+    {@render inheritedText(`seoDescription.${work}`, chain(work).seoDescription)}
+    {@render translateLinks(
+      'seoDescription',
+      'seo.description',
+      work,
+      t('admin.content.field.seoDescription')
+    )}
     <Checkbox
       id="noindex"
       name="noindex"
@@ -543,7 +575,7 @@
       {base}
       upload={data.upload}
     />
-    {@render inheritedImage('shareImageId', chain(defaultLocale).images.share)}
+    {@render inheritedImage('shareImageId', chain(work).images.share)}
   </Fieldset>
 {/snippet}
 
@@ -590,7 +622,7 @@
   {#if article}
     <Fieldset legend={t('admin.content.field.corrections')} collapsed={folded}>
       {#each data.corrections as c, i (i)}
-        <p>{c.date}: {c.text[defaultLocale] ?? Object.values(c.text)[0]}</p>
+        <p>{c.date}: {c.text[work] ?? c.text[defaultLocale] ?? Object.values(c.text)[0]}</p>
       {/each}
       <Field
         id="correctionDate"
@@ -601,13 +633,9 @@
         locale={data.locale}
         value={v('correctionDate')}
       />
-      {#each docLocales as l (l)}
-        {@render area(
-          `correctionText.${l}`,
-          `${t('admin.content.edit.correctionText')}${per(l)}`,
-          2000
-        )}
-      {/each}
+      {#if !data.translating}
+        {@render area(`correctionText.${work}`, t('admin.content.edit.correctionText'), 2000)}
+      {/if}
     </Fieldset>
   {/if}
   <Fieldset legend={t('admin.content.new.locales')} collapsed={folded}>
@@ -625,16 +653,14 @@
   </Fieldset>
 {/snippet}
 
-{#snippet statusCard(p: Publication, level: 2 | 3)}
+{#snippet statusCard(p: Publication)}
   {@const state = stateOf(p)}
   <StatusCard
     id="publication-{p.locale}"
-    title={multi
-      ? fill(t('admin.content.publication.locale'), { locale: p.locale })
-      : t('admin.content.edit.side')}
+    title={t('admin.content.edit.side')}
     state={state.text}
     tone={state.tone}
-    {level}
+    level={2}
   >
     {#if data.restricted}
       <Notice tone="warning" live={false}><p>{t('admin.content.publication.restricted')}</p></Notice
@@ -657,8 +683,7 @@
       {@render issueList(p.issues)}
     {/if}
     {#if data.machineTranslation[p.locale]?.length}
-      <Notice tone="warning" live={false}><p>{t('admin.assist.unreviewed')} ({p.locale})</p></Notice
-      >
+      <Notice tone="warning" live={false}><p>{t('admin.assist.unreviewed')}</p></Notice>
       {#if data.canPublish}
         <div class="translation-approval">
           <Actions stack>
@@ -675,8 +700,8 @@
     {#snippet actions()}
       {#if data.canPublish && (!p.live || p.changes || (p.pin && !p.pin.revision.latest))}
         <Button formaction="?/publish" name="locale" value={p.locale}
-          >{t(p.live ? 'admin.content.action.publishChanges' : 'admin.content.action.publish')}{per(
-            p.locale
+          >{t(
+            p.live ? 'admin.content.action.publishChanges' : 'admin.content.action.publish'
           )}</Button
         >
       {/if}
@@ -685,29 +710,29 @@
           variant={p.live && !p.changes ? 'primary' : 'secondary'}
           href={p.href}
           aria-describedby="new-tab"
-          target="_blank">{t('admin.content.action.view')}{per(p.locale)}</Button
+          target="_blank">{t('admin.content.action.view')}</Button
         >
       {/if}
       {#if data.canPublish && p.pin && !p.pin.revision.latest}
         <Button variant="secondary" formaction="?/repin" name="locale" value={p.locale}
-          >{t('admin.content.action.repin')}{per(p.locale)}</Button
+          >{t('admin.content.action.repin')}</Button
         >
       {/if}
       {#if data.canPublish && p.pin}
         <Button variant="secondary" formaction="?/unschedule" name="locale" value={p.locale}
-          >{t('admin.content.action.unschedule')}{per(p.locale)}</Button
+          >{t('admin.content.action.unschedule')}</Button
         >
       {/if}
       {#if data.canPublish && p.live}
         <Button variant="secondary" formaction="?/unpublish" name="locale" value={p.locale}
-          >{t('admin.content.action.unpublish')}{per(p.locale)}</Button
+          >{t('admin.content.action.unpublish')}</Button
         >
       {/if}
     {/snippet}
     {#snippet more()}
       {#if data.canPublish}
         <details class="ui-fold" open={form && 'locale' in form && form.locale === p.locale}>
-          <summary>{t('admin.content.action.scheduleFold')}{per(p.locale)}</summary>
+          <summary>{t('admin.content.action.scheduleFold')}</summary>
           <Field
             id="at.{p.locale}"
             name="at.{p.locale}"
@@ -721,7 +746,7 @@
           />
           <Actions stack>
             <Button variant="secondary" formaction="?/schedule" name="locale" value={p.locale}
-              >{t('admin.content.action.schedule')}{per(p.locale)}</Button
+              >{t('admin.content.action.schedule')}</Button
             >
           </Actions>
         </details>
@@ -749,10 +774,22 @@
         label: t(article ? 'admin.content.filter.article' : 'admin.content.filter.page'),
       }}
       title={fill(t('admin.content.edit.title'), { type: typeName })}
-      state={state?.text}
+      state={state?.text ??
+        (data.translating ? fill(t('admin.locale.translate.title'), { locale: work }) : undefined)}
       stateHref={mainPublication ? `#publication-${mainPublication.locale}` : undefined}
       tone={state?.tone}
     >
+      {#snippet locales()}
+        {#if multi}
+          <LocaleSwitch
+            label={t('admin.locale.switch')}
+            locale={data.locale}
+            form="item-edit"
+            formaction="?/switchLocale"
+            locales={data.translations.map((x) => ({ ...x, current: x.locale === work }))}
+          />
+        {/if}
+      {/snippet}
       {#snippet actions()}
         {#if livePreview}
           <button
@@ -766,16 +803,16 @@
             >{t('admin.content.edit.previewShort')}</button
           >
         {/if}
-        {#each data.docLocales as l (l)}
+        {#if !data.translating}
           <Button
             variant="secondary"
             class="ui-preview-link"
-            href={previewHref(l)}
+            href={previewHref(work)}
             target="_blank"
             aria-describedby="new-tab"
-            data-preview-link={l}>{t('admin.content.edit.previewShort')}{per(l)}</Button
+            data-preview-link={work}>{t('admin.content.edit.previewShort')}</Button
           >
-        {/each}
+        {/if}
         <Button form="item-edit" formaction="?/save">{t('admin.content.edit.save')}</Button>
       {/snippet}
     </ItemBar>
@@ -847,17 +884,7 @@
         aria-labelledby="live-preview-title"
       >
         <h2 id="live-preview-title">{t('admin.content.preview.live')}</h2>
-        <Field
-          id="live-preview-locale"
-          label={t('admin.content.preview.locale')}
-          locale={data.locale}
-        >
-          {#snippet control(attributes)}
-            <select {...attributes} data-live-preview-locale>
-              {#each data.docLocales as l (l)}<option value={l}>{l}</option>{/each}
-            </select>
-          {/snippet}
-        </Field>
+        <input type="hidden" value={work} data-live-preview-locale />
         <iframe
           name="mycel-live-preview"
           title={t('admin.content.preview.live')}
@@ -865,11 +892,9 @@
         ></iframe>
         <p class="ui-hint">{t('admin.content.preview.keyboard')}</p>
         <p class="ui-hint">
-          {#each data.docLocales as l (l)}
-            <a href={previewHref(l)} target="_blank" aria-describedby="new-tab"
-              >{t('admin.content.preview.saved')}{per(l)}</a
-            >{' '}
-          {/each}
+          <a href={previewHref(work)} target="_blank" aria-describedby="new-tab"
+            >{t('admin.content.preview.saved')}</a
+          >
         </p>
       </section>
       <script type="module" src="/_admin/live-preview-parent.js"></script>
@@ -877,11 +902,21 @@
   {/snippet}
 
   {#snippet aside()}
-    {#if mainPublication}{@render statusCard(mainPublication, 2)}{/if}
-    {#if otherPublications.length}
-      <section aria-labelledby="other-locales">
+    {#if mainPublication}{@render statusCard(mainPublication)}{/if}
+    {#if multi && others.length}
+      <section aria-labelledby="other-locales" class="item-locales">
         <h2 id="other-locales">{t('admin.content.item.locales')}</h2>
-        {#each otherPublications as p (p.locale)}{@render statusCard(p, 3)}{/each}
+        <ul>
+          {#each others as o (o.locale)}
+            <li>
+              <Button variant="link" formaction="?/switchLocale" name="to" value={o.locale}
+                >{o.locale}</Button
+              >
+              {#if o.publication}<span>{stateOf(o.publication).text}</span>{/if}
+              {#if o.state !== 'ok'}<span class="ui-hint">{stateWords(o.state)}</span>{/if}
+            </li>
+          {/each}
+        </ul>
       </section>
     {/if}
 

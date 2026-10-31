@@ -439,6 +439,28 @@ test.describe('admin-shell', () => {
     await expect(nav.getByRole('link', { name: 'Pages' })).not.toHaveAttribute('aria-current');
   });
 
+  // #66 PR 4 (Jaap 2026-10-30, zoomed out): the workspace stands at one distance from the
+  // sidebar and grows with the window, instead of a capped page centred further and further away.
+  test('the workspace keeps its place beside the sidebar and grows on a wide screen', async ({
+    page,
+  }) => {
+    await login(page, '/admin/probe/content?type=page', email);
+    const measure = async (width: number) => {
+      await page.setViewportSize({ width, height: 900 });
+      return page.evaluate(() => {
+        const side = document.querySelector('.admin-sidebar')!.getBoundingClientRect();
+        const main = document
+          .querySelector('.admin-workspace .page.admin')!
+          .getBoundingClientRect();
+        return { gap: Math.round(main.left - side.right), width: Math.round(main.width) };
+      });
+    };
+    const normal = await measure(1280);
+    const wide = await measure(2560);
+    expect(wide.gap).toBe(normal.gap);
+    expect(wide.width - normal.width).toBe(1280);
+  });
+
   test.describe('narrow dashboard', () => {
     test.use({ viewport: NARROW });
     test('stacks the widgets in one column behind a closed ☰ bar', async ({ page }) => {
@@ -582,10 +604,10 @@ test.describe('preferences', () => {
     await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
     const edit = new URL(page.url()).pathname;
     const nl = page.locator('#publication-nl');
-    await nl.locator('details', { hasText: 'Inplannen (nl)' }).locator('summary').click();
+    await nl.locator('details', { hasText: 'Inplannen' }).locator('summary').click();
     await expect(nl.getByText('Tijd in Asia/Tokyo')).toBeAttached();
     await nl.getByLabel('Publiceren op').fill('2030-01-04T17:00');
-    await nl.getByRole('button', { name: 'Inplannen (nl)' }).click();
+    await nl.getByRole('button', { name: 'Inplannen', exact: true }).click();
     await expect(page).toHaveURL(`${edit}?done=schedule&locale=nl`);
     await expect(nl).toContainText('Ingepland voor 2030-01-04 17:00 (Asia/Tokyo)');
 

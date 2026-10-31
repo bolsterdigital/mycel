@@ -3,6 +3,7 @@
 import { can, decodeTranslation, translationValue, useCases, UseCaseError } from '@mycel/core';
 import { error, fail, redirect } from '@sveltejs/kit';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
+import { contentLocale } from '#lib/server/content-locale.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { Actions, PageServerLoad } from './$types';
 import { ui } from '../../../../../../../i18n/index.js';
@@ -218,7 +219,11 @@ export const actions: Actions = {
         baseRevisionId: field(data, 'baseRevisionId'),
         value,
       });
-      redirect(303, `/admin/${c.tenant.slug}/content/${c.item.id}?saved=1`);
+      // Back on the edit screen in the locale the suggestion was for (#66 PR 4), named only when
+      // it is not the operator's content locale anyway.
+      const locale = c.task === 'translate' ? c.to : c.locale;
+      const shown = locale !== contentLocale(event.cookies, c.tenant) ? `&locale=${locale}` : '';
+      redirect(303, `/admin/${c.tenant.slug}/content/${c.item.id}?saved=1${shown}`);
     } catch (e) {
       if (!(e instanceof UseCaseError)) throw e;
       const { status, problem } = failure(e);
