@@ -3,6 +3,8 @@
 // instead of a heading and a form. Together the two documents use every block type of
 // `BLOCK_DEFINITIONS` at its current version, interleave rich text with the other blocks, and
 // carry a lead and a hero image. The organisation, its people and its numbers are fictional.
+// Demo copy never names, links to or promises a feature the platform does not have yet: a probe
+// reader takes what the demo shows as what the platform does.
 //
 // The core cannot draw pixels (no I/O library, ADR 001), so `seedDemoContent` takes a `render`
 // function for the images and uploads them through `media.upload` like any front; the dev seed
@@ -92,18 +94,18 @@ export const DEMO_IMAGES: readonly DemoImage[] = [
   },
   {
     key: 'signatures',
-    filename: 'demo-handtekeningen.png',
+    filename: 'demo-aanbieding.png',
     width: 1600,
     height: 900,
-    label: '12.000 handtekeningen',
+    label: 'Aanbieding rapport',
     colors: ['#8a6d1d', '#2f3a12'],
     alt: {
-      nl: 'Stapels ondertekende petitiekaarten op een tafel in het stadhuis',
-      en: 'Piles of signed petition cards on a table in the town hall',
+      nl: 'Twee vrijwilligers overhandigen het zoutrapport aan een raadslid in het stadhuis',
+      en: 'Two volunteers hand the salt report to a councillor in the town hall',
     },
     caption: {
-      nl: 'De petitie werd in oktober aangeboden aan de gemeenteraad.',
-      en: 'The petition was handed to the council in October.',
+      nl: 'Het rapport werd in oktober aangeboden aan de gemeenteraad.',
+      en: 'The report was handed to the council in October.',
     },
   },
 ];
@@ -403,8 +405,8 @@ function pageCards(formId: string, media: DemoMediaIds): BlockIn[] {
         alt: signatures.alt,
         // This use's own caption, over the asset's.
         caption: {
-          nl: 'Vrijwilligers tellen de petitiekaarten na de actiedag van vorig jaar.',
-          en: "Volunteers count the petition cards after last year's day of action.",
+          nl: 'Vrijwilligers sorteren de steunbetuigingen na de actiedag van vorig jaar.',
+          en: "Volunteers sort the messages of support after last year's day of action.",
         },
         credit: { work: null, photographer: 'Demo-afbeelding, gemaakt door de Mycel-seed' },
         layout: 'wide',
@@ -645,7 +647,7 @@ function articleNext(): BlockIn {
         'Gemeenten: kies bij schoolfeesten en sinterklaasvieringen voor de zoutarme variant.'
       ),
       p(
-        'De petitie is inmiddels door ruim twaalfduizend mensen getekend. In januari meten we opnieuw, om te zien wie zijn belofte nakomt.'
+        'Wil je weten wie zijn belofte nakomt? In januari meten we opnieuw; schrijf je in en je leest de uitkomst als eerste.'
       )
     ),
     doc(
@@ -656,7 +658,7 @@ function articleNext(): BlockIn {
         'Councils: choose the low-salt option for school parties and Sinterklaas celebrations.'
       ),
       p(
-        'More than twelve thousand people have signed the petition so far. In January we measure again, to see who keeps their promise.'
+        'Want to know who keeps their promise? In January we measure again; sign up and you will read the outcome first.'
       )
     )
   );
@@ -801,7 +803,7 @@ function articleCards(formId: string, media: DemoMediaIds, pageId: string): Bloc
       type: 'faq',
       version: BLOCK_DEFINITIONS.faq.version,
       props: {
-        variant: 'list',
+        variant: 'accordion',
         title: { nl: 'Vragen over de meting', en: 'Questions about the measurement' },
         entries: ARTICLE_FAQ,
       },
@@ -811,14 +813,14 @@ function articleCards(formId: string, media: DemoMediaIds, pageId: string): Bloc
       version: BLOCK_DEFINITIONS.cta.version,
       props: {
         variant: 'band',
-        title: { nl: 'Teken de petitie', en: 'Sign the petition' },
+        title: { nl: 'Blijf op de hoogte', en: 'Stay informed' },
         body: {
-          nl: 'Hoe meer handtekeningen, hoe moeilijker het wordt om onze vraag te negeren.',
-          en: 'The more signatures, the harder it becomes to ignore our request.',
+          nl: 'Eén mail per maand over onze metingen en wat fabrikanten met onze vragen doen.',
+          en: 'One e-mail a month about our measurements and what manufacturers do with our requests.',
         },
         actions: [
           {
-            label: { nl: 'Ik teken', en: 'I will sign' },
+            label: { nl: 'Schrijf je in', en: 'Sign up' },
             target: { kind: 'url', url: '/signup' },
           },
           {
