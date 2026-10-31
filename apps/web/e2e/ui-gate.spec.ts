@@ -192,18 +192,17 @@ test.describe('admin-ui', () => {
           await summary.click();
         await layoutGate(page, 'catalogue');
         // Each stacking group stands in one column: every button as wide as its group.
-        const widths = await page
-          .locator('.ui-actions.stack')
-          .evaluateAll((groups) =>
-            groups.map(
-              (group) =>
-                new Set(
-                  [...group.querySelectorAll('.ui-button')].map((node) =>
-                    Math.round(node.getBoundingClientRect().width)
-                  )
-                ).size
-            )
-          );
+        const widths = await page.locator('.ui-actions.stack').evaluateAll((groups) =>
+          groups.map(
+            (group) =>
+              new Set(
+                [...group.querySelectorAll('.ui-button')]
+                  .map((node) => Math.round(node.getBoundingClientRect().width))
+                  // A button in a closed confirmation is not laid out (as in layoutGate).
+                  .filter((width) => width > 0)
+              ).size
+          )
+        );
         expect(widths.length).toBeGreaterThan(1);
         expect(widths.every((n) => n === 1)).toBe(true);
         const trigger = page.locator('[command="show-modal"]');

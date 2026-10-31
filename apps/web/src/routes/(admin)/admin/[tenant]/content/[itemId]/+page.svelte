@@ -1,19 +1,23 @@
 <!-- The edit screen of one item (TODO #66 PR 2, brief edit-screen § 4): one form for the whole
-     document, under an ItemBar with the state in words, Preview and Save. The main column has
-     four sections a script may show as tabs (#66 PR 6): Content (the title large and first, the
-     lead, the hero image and the blocks in reading order, as the page shows them), Featured (how
-     the item appears elsewhere: image, title, description; #86), Search and sharing, and Settings
-     (access only on an item that has it, corrections, languages), the last two folded. Under every
-     empty field that inherits, `Inherited` names what applies instead and where it comes from,
-     from core's chain (`effective`), never derived here. Each block
-     is a BlockCard in the same form (#66 PR 3): its head holds move, duplicate and remove (a
-     confirmation in place), its folded summary shows what the block says, and a "+" above each
-     card inserts an empty block there (stored with the next save); every such button saves what
-     was typed first. The side column has the status card of each locale (the state in words, the
-     main action by state, scheduling folded, view on the site) and "This item" (address, authors,
-     section and tags as WordPress and Ghost have them, revisions). A failed save comes back with
-     what was typed and every fold open; a conflict also shows who saved in between and what
-     changed (ADR 018 rule 2). The restricted note comes before every publication button and
+     document, under an ItemBar with the state in words, Preview and Save. The main column has four
+     sections a script may show as tabs (#66 PR 6): Content (the title large and first, the lead,
+     the hero image and the blocks in reading order, as the page shows them), Featured (how the item
+     appears elsewhere: image, title, description; #86), Search and sharing, and Settings (access
+     only on an item that has it, corrections, languages), the last two folded. Under every empty
+     field that inherits, `Inherited` names what applies instead and where it comes from, from
+     core's chain (`effective`), never derived here. Each block is a BlockCard in the same form (#66
+     PR 3, MY-110 A): at rest it shows what the page will (an image as its picture with caption and
+     credit, `lib/admin/block-presentation.ts` says per type), "Edit" opens its fields with the
+     rarer ones folded under "Display" and "Source and credits", and "More actions" holds move,
+     duplicate and remove (a confirmation in place); a "+" above each card inserts an empty block
+     there (stored with the next save); every such button saves what was typed first. The screen's
+     script (`/_admin/edit-screen.js`, #66 PR 6) adds the save state in the bar, Ctrl/Cmd+S, the
+     leave warning, Escape and the focus after a block action; Enter in a text field saves through a
+     hidden default button. The side column has the status card of each locale (the state in words,
+     the main action by state, scheduling folded, view on the site) and "This item" (address,
+     authors, section and tags as WordPress and Ghost have them, revisions). A failed save comes
+     back with what was typed and every fold open; a conflict also shows who saved in between and
+     what changed (ADR 018 rule 2). The restricted note comes before every publication button and
      cannot be closed (ADR 018 rule 6).
      One locale at a time (#66 PR 4): every field shows the content locale only, without a locale
      in its label; the bar's LocaleSwitch saves and shows another locale with where each stands;
@@ -30,6 +34,8 @@
   import {
     Actions,
     BlockCard,
+    BlockImage,
+    BlockSummary,
     Button,
     Checkbox,
     Choices,
@@ -48,7 +54,8 @@
     StatusCard,
     Tabs,
   } from '#lib/admin/ui/index.js';
-  import { BLOCK_DEFINITIONS, type BlockType } from '@mycel/core';
+  import { BLOCK_PRESENTATION } from '#lib/admin/block-presentation.js';
+  import { BLOCK_DEFINITIONS, type BlockType, type MediaCredit } from '@mycel/core';
   import { fill, ui, type UiKey } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -58,6 +65,7 @@
     // These modules change disclosure state; start them after hydration has claimed the form.
     for (const src of [
       '/_admin/tabs.js',
+      ...(data.canWrite ? ['/_admin/edit-screen.js'] : []),
       ...(!data.translating && data.item.type === 'page' && data.canWrite
         ? ['/_admin/live-preview-parent.js']
         : []),
@@ -220,6 +228,23 @@
   const empty = (name: string) => !v(name).trim() && !data.values[name];
   const thumbOf = (id: string | null) =>
     id && data.media.some((m) => m.id === id && m.thumb) ? `${base}/media/${id}/thumb` : null;
+  const cardLabels = $derived({
+    edit: t('admin.block.card.edit'),
+    done: t('admin.block.card.done'),
+    more: t('admin.block.card.more'),
+  });
+  const groupLabels = $derived({
+    display: t('admin.block.group.display'),
+    source: t('admin.block.group.source'),
+  });
+  /** A credit as the page words it (`lib/blocks/Credit.svelte`), in the content locale. */
+  const creditLine = (c: MediaCredit): string =>
+    [
+      c.work ? `${c.work.title}, ${c.work.maker}` : '',
+      c.photographer ? fill(ui(work)('block.credit.photographer'), { name: c.photographer }) : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
   const blockTypeOptions = $derived(
     data.blockTypes.map((type) => ({
       value: type,
@@ -321,12 +346,35 @@
   </section>
 {/snippet}
 
+{#snippet blockRest(b: (typeof data.blocks)[number])}
+  {#if BLOCK_PRESENTATION[b.type].rest === 'image' && b.image}
+    {@const img = b.image}
+    <BlockImage
+      src={img.card ? `${base}/media/${img.mediaId}/variant/${img.card.file}` : null}
+      width={img.card?.width ?? 4}
+      height={img.card?.height ?? 3}
+      caption={img.caption}
+      credit={img.credit ? creditLine(img.credit) : null}
+      missing={fill(t('admin.block.image.missing'), { file: img.label })}
+      replace={{ href: `#b-${b.id}-p-mediaId`, label: t('admin.block.image.replace') }}
+    />
+  {:else}
+    {@const image = b.preview.mediaId
+      ? data.media.find((m) => m.id === b.preview.mediaId && m.thumb)
+      : undefined}
+    <BlockSummary
+      text={b.preview.text}
+      thumb={image ? `${base}/media/${image.id}/thumb` : null}
+      entries={b.preview.entries}
+      empty={t('admin.block.emptySummary')}
+    />
+  {/if}
+{/snippet}
+
 {#snippet blockCard(b: (typeof data.blocks)[number], i: number)}
   {@const prefix = `b.${b.id}.`}
   {@const refused = issues.some((x) => x.name.startsWith(prefix))}
-  {@const image = b.preview.mediaId
-    ? data.media.find((m) => m.id === b.preview.mediaId && m.thumb)
-    : undefined}
+  {@const shape = BLOCK_PRESENTATION[b.type]}
   <BlockCard
     id="block-{b.id}"
     class="block"
@@ -334,30 +382,27 @@
     open={refused ||
       data.openBlocks.includes(b.id) ||
       (Array.isArray(early.$openBlocks) && early.$openBlocks.includes(b.id))}
-    text={b.preview.text}
-    thumb={image ? `${base}/media/${image.id}/thumb` : null}
-    entries={b.preview.entries}
-    empty={t('admin.block.emptySummary')}
+    labels={cardLabels}
   >
+    {#snippet rest()}{@render blockRest(b)}{/snippet}
     {#snippet actions()}
       {#if data.canWrite}
         {#if i > 0}
-          <Button variant="link" formaction="?/move" name="move" value="{b.id}:up"
+          <Button variant="secondary" formaction="?/move" name="move" value="{b.id}:up"
             >{t('admin.block.move.up')}</Button
           >
         {/if}
         {#if i < data.blocks.length - 1}
-          <Button variant="link" formaction="?/move" name="move" value="{b.id}:down"
+          <Button variant="secondary" formaction="?/move" name="move" value="{b.id}:down"
             >{t('admin.block.move.down')}</Button
           >
         {/if}
         {#if b.duplicable}
-          <Button variant="link" formaction="?/duplicate" name="duplicate" value={b.id}
+          <Button variant="secondary" formaction="?/duplicate" name="duplicate" value={b.id}
             >{t('admin.block.duplicate')}</Button
           >
         {/if}
         <ConfirmAction
-          variant="link"
           label={t('admin.block.remove.short')}
           question={fill(t('admin.block.remove.ask'), { n: i + 1 })}
           confirm={t('admin.block.remove.confirm')}
@@ -379,6 +424,7 @@
       items={data.items}
       invalid={issues.map((x) => x.name)}
       locale={data.locale}
+      groups={{ display: shape.display, source: shape.source, labels: groupLabels }}
     />
     {#if data.assistEnabled && b.type === 'image' && b.values[`${prefix}p.decorative`] !== 'on'}
       <p class="ui-hint">
@@ -822,6 +868,15 @@
 >
   {#snippet bar()}
     {@const state = mainPublication ? stateOf(mainPublication) : null}
+    <!-- Enter in a text field submits with the form's first submit button in document order;
+         without this one that is the bar's locale switch, which saves and then switches. -->
+    <button
+      form="item-edit"
+      formaction="?/save"
+      class="ui-default-submit"
+      tabindex="-1"
+      aria-hidden="true">{t('admin.content.edit.save')}</button
+    >
     <ItemBar
       back={{
         href: `${base}/content?type=${data.item.type}`,
@@ -832,6 +887,18 @@
         (data.translating ? fill(t('admin.locale.translate.title'), { locale: work }) : undefined)}
       stateHref={mainPublication ? `#publication-${mainPublication.locale}` : undefined}
       tone={state?.tone}
+      save={data.canWrite
+        ? {
+            text: form
+              ? t('admin.content.save.refused')
+              : data.saved
+                ? t('admin.content.save.saved')
+                : '',
+            unsaved: t('admin.content.save.unsaved'),
+            saving: t('admin.content.save.saving'),
+            refused: !!form,
+          }
+        : undefined}
     >
       {#snippet locales()}
         {#if multi}

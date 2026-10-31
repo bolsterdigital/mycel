@@ -19,6 +19,7 @@
     Notice,
     OverviewPage,
     BlockCard,
+    BlockSummary,
     PageHeader,
     SettingsPage,
     SettingsSection,
@@ -236,14 +237,23 @@
       <BlockCard
         id="ui-edit-block"
         title="1. {t('admin.block.type.faq')}"
-        text={t('admin.ui.catalogue.blockCard.text')}
-        entries={[t('admin.ui.catalogue.blockCard.q1')]}
-        empty={t('admin.block.emptySummary')}
+        labels={{
+          edit: t('admin.block.card.edit'),
+          done: t('admin.block.card.done'),
+          more: t('admin.block.card.more'),
+        }}
         open
       >
+        {#snippet rest()}
+          <BlockSummary
+            text={t('admin.ui.catalogue.blockCard.text')}
+            entries={[t('admin.ui.catalogue.blockCard.q1')]}
+            empty={t('admin.block.emptySummary')}
+          />
+        {/snippet}
         {#snippet actions()}
-          <Button variant="link" href={here}>{t('admin.block.move.down')}</Button>
-          <Button variant="link" href={here}>{t('admin.block.duplicate')}</Button>
+          <Button variant="secondary" href={here}>{t('admin.block.move.down')}</Button>
+          <Button variant="secondary" href={here}>{t('admin.block.duplicate')}</Button>
         {/snippet}
         <p>{t('admin.ui.catalogue.panel.body')}</p>
       </BlockCard>
