@@ -208,7 +208,8 @@ test.describe('content-admin', () => {
     expect(response!.headers()['cache-control']).toBe('private, no-store');
     expect(response!.headers()['x-robots-tag']).toBe('noindex');
     await expect(page.getByRole('heading', { level: 1, name: 'Nog geheim (en)' })).toBeVisible();
-    await expect(page.getByRole('heading', { level: 2, name: 'Voorbeeld' })).toBeVisible();
+    // It says which version it is (#66 PR 6d): the saved draft, not what visitors see.
+    await expect(page.getByRole('heading', { level: 2, name: 'Voorbeeld: Concept' })).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     expect(await page.locator('script').count()).toBe(0);
     // The site's own stylesheet, served on the admin origin to members only.
@@ -595,6 +596,83 @@ test.describe('content-admin', () => {
     expect(beside.y + beside.height).toBeLessThanOrEqual(900);
   });
 
+  // The compact table of contents (#66 PR 6d): a long page is a fold of one line per card,
+  // fragments that work without JavaScript and land below the bar that stays in view.
+  test('a long page has a compact table of contents that leads to every card', async ({
+    page,
+    request,
+  }) => {
+    const edit = await longPage(request);
+    await login(page, edit);
+    const outline = page.getByRole('navigation', { name: 'Inhoudsopgave' });
+    await expect(outline.locator('summary')).toHaveText('Inhoudsopgave 24 blokken');
+    await outline.locator('summary').click();
+    const links = outline.getByRole('link');
+    await expect(links).toHaveCount(24);
+    await expect(links.nth(14)).toHaveText(/^Kop\s+Hoofdstuk 8$/);
+    await expect(links.nth(15)).toContainText('De buurt praat mee');
+    await links.nth(14).click();
+    await expect(page).toHaveURL(/#block-[0-9a-f-]{36}$/);
+    const target = page.locator('details.block').nth(14);
+    await expect(target).toBeInViewport();
+    if (isA11y()) {
+      const bar = (await page.locator('.ui-item-bar').boundingBox())!;
+      expect((await target.boundingBox())!.y).toBeGreaterThanOrEqual(bar.y + bar.height);
+    }
+    await expectNoAxeViolations(page);
+    await page.setViewportSize(NARROW);
+    await setTextSize(page, '200%');
+    await layoutGate(page, 'document outline', '.ui-outline');
+    await outline.screenshot({ path: test.info().outputPath('outline-320-200.png') });
+    // A short page has none: eight closed cards fit about two screens.
+    const short = await newPage(page, slugFor('short'), 'Kort');
+    await page.goto(short);
+    await expect(page.getByRole('navigation', { name: 'Inhoudsopgave' })).toHaveCount(0);
+  });
+
+  // The labels on a preview (#66 PR 6d): the live preview says it shows what is typed now, and a
+  // draft the server refuses leaves the last good image in view with a note that it is behind.
+  test('a preview says what it shows, and a refused draft keeps the last image and says so', async ({
+    page,
+  }) => {
+    onlyA11y('the live preview is a JavaScript enhancement');
+    await ensureLiveAdmin();
+    await login(page, '/admin/probe', LIVE_ADMIN);
+    await newPage(page, slugFor('behind'), 'Eerste');
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await page.getByRole('button', { name: 'Voorbeeld', exact: true }).click();
+    const panel = page.locator('[data-live-preview]');
+    const shows = panel.getByRole('status');
+    const frame = page.frameLocator('[data-live-preview-frame]');
+    await expect(frame.getByRole('heading', { level: 1, name: 'Eerste' })).toBeVisible();
+    const current = shows.getByText('Actuele invoer');
+    const behind = shows.getByText('Dit voorbeeld loopt achter');
+    await expect(current).toBeVisible();
+    await expect(behind).toBeHidden();
+    await page.locator('#title\\.nl').fill('Tweede');
+    await expect(frame.getByRole('heading', { level: 1, name: 'Tweede' })).toBeVisible();
+
+    // A canonical address the document refuses: the preview cannot render this input.
+    await page.getByRole('tab', { name: 'Zoeken en delen' }).click();
+    await page.locator('[name="canonical"]').fill('geen url');
+    await page.getByRole('tab', { name: 'Inhoud' }).click();
+    await page.locator('#title\\.nl').fill('Derde');
+    await expect(behind).toBeVisible();
+    await expect(current).toBeHidden();
+    await expect(frame.getByRole('heading', { level: 1, name: 'Tweede' })).toBeVisible();
+    await expect(page.locator('iframe[data-live-preview-frame]')).toHaveCount(1);
+    await expectNoAxeViolations(page);
+    await panel.screenshot({ path: test.info().outputPath('preview-behind.png') });
+
+    // Corrected: the preview catches up and says so.
+    await page.getByRole('tab', { name: 'Zoeken en delen' }).click();
+    await page.locator('[name="canonical"]').fill('');
+    await expect(current).toBeVisible();
+    await expect(behind).toBeHidden();
+    await expect(frame.getByRole('heading', { level: 1, name: 'Derde' })).toBeVisible();
+    await expect(page.locator('iframe[data-live-preview-frame]')).toBeVisible();
+  });
+
   /** One entry of a paged directory by its slug, over the HTTP API. */
   async function bySlug<T>(
     request: APIRequestContext,
@@ -842,6 +920,12 @@ test.describe('content-admin', () => {
     await expectNoAxeViolations(page);
     expect((await request.get(`${SITE}/${slug}`)).status()).toBe(200);
     expect((await request.get(`${SITE}/en/${slug}`)).status()).toBe(404);
+    // The saved preview of the published revision says it is the live one (#66 PR 6d).
+    const preview = (await page.locator('a[data-preview-link="nl"]').first().getAttribute('href'))!;
+    await page.goto(preview);
+    await expect(page.getByRole('heading', { level: 2, name: 'Voorbeeld: Live' })).toBeVisible();
+    await expect(page.locator('.preview-banner')).toContainText('De versie die bezoekers nu zien');
+    await page.goto(edit);
 
     // A new revision: the site keeps the old title until it is published.
     await page.locator('#title\\.nl').fill('Buurtfeest verplaatst');

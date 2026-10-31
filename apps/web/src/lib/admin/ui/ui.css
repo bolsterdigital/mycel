@@ -697,6 +697,63 @@
     border-block-end-color: var(--color-primary-bg);
   }
 
+  /* DocumentOutline: one line per block of a long document. The kind keeps its word; the text
+     after it ends in an ellipsis rather than wrapping (the link's name still carries all of it),
+     and goes to a line of its own when the kind leaves too little room (320px at 200% text). */
+  /* Its width is the column's, never its longest line's: an unwrapped text would otherwise widen
+     the column it sits in (the page scrolled sideways at 320px). */
+  .ui-outline {
+    contain: inline-size;
+    margin-block-end: var(--space-2);
+  }
+  .ui-outline summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 var(--space-1);
+    min-height: var(--tap);
+    font-weight: 600;
+    list-style: none;
+    cursor: pointer;
+  }
+  .ui-outline summary::-webkit-details-marker {
+    display: none;
+  }
+  .ui-outline [open] > summary svg {
+    transform: rotate(180deg);
+  }
+  .ui-outline-count {
+    font-weight: 400;
+    color: var(--color-muted-fg);
+  }
+  .ui-outline ol {
+    margin: 0;
+    padding-inline-start: 2.25em;
+    color: var(--color-muted-fg);
+  }
+  .ui-outline a {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 var(--space-1);
+    min-block-size: 1.75rem;
+    padding-block: 0.125rem;
+    color: var(--color-link);
+  }
+  .ui-outline-kind {
+    flex: none;
+    max-inline-size: 100%;
+    overflow-wrap: anywhere;
+  }
+  .ui-outline-text {
+    flex: 1 1 8rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-body-fg);
+  }
+
   /* A flex column whose body scrolls and shrinks: the head keeps its real height at any text
      size and a long name, so nothing reserves a guessed height for it (TODO #61). */
   .ui-dialog[open] {
@@ -1222,6 +1279,18 @@
   }
   :root[data-live-preview-ready] .ui-preview-toggle {
     display: inline-flex;
+  }
+  /* The preview's status line shows one of its two states (live-preview-parent.js). Without the
+     script there is no preview panel at all. */
+  .ui-preview-shows > [data-preview-shows] {
+    display: none;
+  }
+  .ui-preview-shows[data-preview-state='current'] > [data-preview-shows='current'],
+  .ui-preview-shows[data-preview-state='behind'] > [data-preview-shows='behind'] {
+    display: block;
+  }
+  .ui-preview-shows p {
+    margin-block: 0 var(--space-1);
   }
   .ui-preview-toggle > span {
     display: inline-flex;

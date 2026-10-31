@@ -20,10 +20,19 @@
 </svelte:head>
 
 <aside class="preview-banner" lang={data.admin} aria-labelledby="preview-banner">
-  <h2 id="preview-banner">{t('admin.content.preview.title')}</h2>
+  <h2 id="preview-banner">
+    {t('admin.content.preview.title')}:
+    <span class="preview-kind">{t(`admin.content.preview.kind.${data.revision.kind}`)}</span>
+  </h2>
   <p>
     {fill(
-      t(data.revision.latest ? 'admin.content.preview.latest' : 'admin.content.preview.older'),
+      t(
+        data.revision.kind === 'live'
+          ? 'admin.content.preview.liveRevision'
+          : data.revision.kind === 'draft'
+            ? 'admin.content.preview.latest'
+            : 'admin.content.preview.older'
+      ),
       { when: data.revision.when, who: data.revision.who, locale: data.locale }
     )}
   </p>
