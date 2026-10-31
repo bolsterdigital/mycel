@@ -126,6 +126,14 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.sites.title': 'Jouw sites',
   'admin.sites.empty': 'Je bent nog geen lid van een site',
   'admin.sites.none': 'Nog geen sites. Vraag een beheerder van een site om {email} uit te nodigen.',
+  'admin.sites.search': 'Zoek een site',
+  'admin.sites.search.submit': 'Zoeken',
+  'admin.sites.search.clear': 'Alle sites tonen',
+  'admin.sites.noMatch': 'Geen site past bij “{q}”.',
+  'admin.sites.none.invited':
+    'Heeft Dreamkit ID dit adres bevestigd, dan had een uitnodiging aan dit adres je bij het inloggen al lid gemaakt. Ben je op een ander adres uitgenodigd? Log uit en log in met dat adres.',
+  'admin.loggedOut.idp':
+    'Bij Dreamkit ID ben je mogelijk nog ingelogd; opnieuw inloggen vraagt dan misschien geen wachtwoord. Log daar ook uit als je dit apparaat deelt.',
   'admin.forbidden.title': 'Geen toegang tot deze site',
   'admin.forbidden.body':
     'Je bent geen lid van deze site. Vraag een van de beheerders om {email} uit te nodigen.',

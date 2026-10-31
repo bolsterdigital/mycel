@@ -99,7 +99,7 @@
 <div class="admin-shell">
   <aside class="admin-sidebar" aria-label={t('admin.shell.navigation')}>
     <div class="admin-sidebar-top">
-      <a class="admin-brand" href="/admin">{t('admin.title')}</a>
+      <a class="admin-brand" href="/admin?all">{t('admin.title')}</a>
       <a class="admin-site-name" href={base}>{data.tenant.name}</a>
       {#if localeSwitch}
         <form class="admin-content-locale" method="post" action="{base}/content-locale">
@@ -135,7 +135,7 @@
         {/each}
       </nav>
       <div class="admin-sidebar-bottom">
-        <a href="/admin"><Icon name="arrow-left-right" /><span>{t('admin.back')}</span></a>
+        <a href="/admin?all"><Icon name="arrow-left-right" /><span>{t('admin.back')}</span></a>
         <p>{data.email}</p>
         <a href="/admin/voorkeuren?return={encodeURIComponent(base)}"
           ><Icon name="sliders-horizontal" /><span>{t('admin.nav.profile')}</span></a
