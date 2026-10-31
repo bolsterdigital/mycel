@@ -2,7 +2,8 @@
 // Self-service export (TODO #28): a site administrator asks for an archive, the e2e worker builds
 // it, and the download is a tar in the format `mycel import` reads (its manifest first). Runs
 // without JavaScript and under axe like the other admin specs; the UI gate (skill
-// ui-action-layout) checks the ask button and a card's download link at 320 CSS px and 200% text.
+// ui-action-layout) checks the ask button, the download and the history at 320 CSS px and 200%
+// text.
 // An ask while one is being built gets that one back, so the two projects may share an archive.
 
 import { execFile } from 'node:child_process';
@@ -28,15 +29,13 @@ test.use({
 async function readyArchive(page: Page) {
   await page.getByRole('button', { name: 'Archief aanvragen' }).click();
   await expect(page.getByRole('status')).toContainText('archief');
-  // The newest card may be another project's request still waiting; take one that is ready.
-  const card = page
-    .locator('article', { has: page.getByRole('link', { name: 'Archief downloaden' }) })
-    .first();
+  // The newest ready archive has a section of its own, whatever another project asked since.
+  const latest = page.getByRole('region', { name: 'Nieuwste archief' });
   await expect(async () => {
     await page.goto('/admin/probe/export');
-    await expect(card).toBeVisible({ timeout: 1000 });
+    await expect(latest).toBeVisible({ timeout: 1000 });
   }).toPass({ timeout: 90_000, intervals: [1000, 2000, 3000] });
-  return card;
+  return latest;
 }
 
 test('an administrator asks for an archive and downloads it without JavaScript', async ({
@@ -49,9 +48,15 @@ test('an administrator asks for an archive and downloads it without JavaScript',
   await expect(page.locator('main')).toContainText('7 dagen te downloaden');
   await expectNoAxeViolations(page);
 
-  const card = await readyArchive(page);
-  await expect(card).toContainText('Klaar');
-  const link = card.getByRole('link', { name: 'Archief downloaden' });
+  const latest = await readyArchive(page);
+  await expect(latest).toContainText('te downloaden tot');
+  const link = latest.getByRole('link', { name: 'Archief downloaden' });
+  // The history says the status in words and who asked by name, never an actor reference.
+  const history = page.locator('#export-table');
+  await expect(history).toContainText('Klaar');
+  await expect(history).not.toContainText('operator:');
+  await latest.getByText('Technische details').click();
+  await expect(latest).toContainText(/[0-9a-f]{64}/);
   await expectNoAxeViolations(page);
 
   // Through the page's own session, as media.spec.ts downloads an original: a browser download
