@@ -1220,6 +1220,41 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.site.unsaved': 'Niet opgeslagen wijzigingen',
   'admin.site.group.type': 'Typografie en ruimte',
   'admin.connections.edit': 'Gegevens bewerken',
+  'admin.connections.col.name': 'Koppeling',
+  'admin.connections.col.stand': 'Stand',
+  'admin.connections.col.last': 'Laatste activiteit',
+  'admin.connections.stand.connected': 'Verbonden',
+  'admin.connections.stand.attention': 'Vraagt aandacht',
+  'admin.connections.stand.paused': 'Gepauzeerd',
+  'admin.connections.stand.off': 'Losgekoppeld',
+  'admin.connections.never': 'Nog niets verstuurd',
+  'admin.connections.provider.webhook': 'Webhook',
+  'admin.connections.empty.title': 'Nog geen koppelingen',
+  'admin.connections.empty.body':
+    'Een koppeling geeft door wat op deze site binnenkomt, zoals een aanmelding, aan een dienst buiten Mycel: een webhook naar je eigen systeem, later een mailing- of CRM-pakket. Mycel houdt van elke levering bij hoe die afliep, en je kunt een koppeling altijd pauzeren. Welk formulier een koppeling voedt, stel je in bij het formulier zelf.',
+  'admin.connections.created':
+    'Webhook toegevoegd en gepauzeerd. Stel hieronder een ondertekeningssleutel in en hervat de aflevering om te beginnen.',
+  'admin.connections.switch.title': 'Aflevering',
+  'admin.connections.switch.active':
+    'Deze koppeling levert af. Pauzeren zet het versturen meteen stil; pogingen wachten tot je hervat.',
+  'admin.connections.switch.paused':
+    'De aflevering is gepauzeerd: er gaat niets weg, pogingen wachten tot je hervat.',
+  'admin.connections.switch.off':
+    'Deze koppeling is losgekoppeld en verstuurt niets meer. Het overzicht blijft bewaard.',
+  'admin.connections.attempts.when': 'Wanneer',
+  'admin.connections.attempts.outcome': 'Afloop',
+  'admin.connections.attempts.copy': 'Externe kopie',
+  'admin.connections.attempts.action': 'Wat je kunt doen',
+  'admin.connections.attempts.tries': 'Pogingen',
+  'admin.connections.details': 'Gegevens',
+  'admin.connections.secret.title': 'Ondertekeningssleutel',
+  'admin.connections.secret.set':
+    'Er is een sleutel ingesteld. Hij wordt nooit meer getoond; je kunt hem alleen vervangen.',
+  'admin.connections.secret.missing':
+    'Er is nog geen sleutel ingesteld. Zonder sleutel kan niets worden afgeleverd.',
+  'admin.connections.end.title': 'Loskoppelen',
+  'admin.connections.end.help':
+    'Loskoppelen zet deze koppeling definitief stil. Het overzicht van leveringen blijft leesbaar.',
   'admin.preferences.title': 'Profiel en voorkeuren',
   'admin.preferences.description':
     'Hoe het beheer je aanspreekt en tijden toont. Ze gelden op elke site waar je aan werkt.',
