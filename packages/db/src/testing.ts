@@ -10,7 +10,10 @@
 // their confirmations and plans a `mail.reconcile` per mail, which pile up ahead of
 // recovery.test's claim. CI never sees it, its database is fresh. Every such suite calls
 // `closeTenantWork` in `afterAll` with the tenants it created: a suite closes its own work and
-// never touches another suite's.
+// never touches another suite's. A suite that delivers its outbox events by hand and then compares
+// rows over time calls it right after that fixture as well: a worker of another checkout on the
+// same database (an e2e run, `npm run dev`) delivers them again in between (export and erasure
+// conformance, 2026-10-31).
 // Rejected: one sweep over every test tenant before the run, which would need to know every
 // suite's naming, and draining the outbox in each suite, which runs mail the suite never asked
 // for.

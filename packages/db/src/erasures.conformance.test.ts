@@ -136,6 +136,9 @@ describe.skipIf(skip)('erasure conformance', () => {
     await signup(tenants.a, other, uow);
     // Tenant B has a supporter with the very same address: an erasure is one tenant's business.
     await signup(tenants.b, email, uow);
+    // Delivered by hand above; a worker of another checkout on this database would deliver the
+    // same events with its own code while the tests below count rows, so close them now.
+    await closeTenantWork(operatorDb, [tenants.a, tenants.b]);
     supporterId = (await uow.run(systemPrincipal(tenants.a, 'erasure-test'), (ctx) =>
       ctx.supporters.getProjection(email)
     ))!.id;

@@ -254,6 +254,10 @@ describe.skipIf(skip)('tenant export and import', () => {
       ).id;
       await populate(t, n);
     }
+    // The fixture feeds the ingest itself and leaves the signup's outbox event open; a worker of
+    // another checkout on this database would ingest it a second time between the two exports
+    // of B below (an extra event, a changed supporter), so close it now, not only in afterAll.
+    await closeTenantWork(operatorDb, [tenant.a.id, tenant.b.id]);
     // Export works for a suspended tenant (ADR 015 rule 7), and the status travels.
     await setStatus(operatorDb, tenant.a.id, 'suspended', by);
     exportB = await exportTenant({
