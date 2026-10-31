@@ -437,6 +437,11 @@ test.describe('content-admin', () => {
     const other = await context.newPage();
     await login(other, edit);
     await page.locator('#title\\.nl').fill('Mijn versie');
+    // The stale tab asks for a new address too: it moves nothing until the conflict is resolved.
+    const side = page.locator('section[aria-labelledby="this-item"]');
+    await side.locator('details', { hasText: 'Adres wijzigen' }).locator('summary').click();
+    const moved = slugFor('conflict-moved');
+    await side.getByLabel('Slug').fill(moved);
     await other.locator('#title\\.nl').fill('Hun versie');
     await other.getByRole('button', { name: 'Opslaan' }).click();
     await expect(other).toHaveURL(`${edit}?saved`);
@@ -448,12 +453,15 @@ test.describe('content-admin', () => {
     await expect(alert).toContainText(ADMIN);
     await expect(alert.getByRole('row', { name: /title\.nl/ })).toContainText('Hun versie');
     await expect(page.locator('#title\\.nl')).toHaveValue('Mijn versie');
+    await expect(side.getByLabel('Slug')).toHaveValue(moved);
+    await expect(side).not.toContainText(`/${moved}`);
     await expectNoAxeViolations(page);
 
-    // Saving again is a deliberate choice on top of the newest revision.
+    // Saving again is a deliberate choice on top of the newest revision, the address with it.
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await expect(page).toHaveURL(`${edit}?saved`);
     await expect(page.locator('#title\\.nl')).toHaveValue('Mijn versie');
+    await expect(side).toContainText(`/${moved}`);
   });
 
   /** One entry of a paged directory by its slug, over the HTTP API. */

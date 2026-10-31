@@ -483,19 +483,29 @@ const SLUG_ISSUES: Record<string, UiKey> = {
   'content.slug.published': 'admin.content.error.slugPublished',
 };
 
+/** The new slug the form asks for, or null: empty, unchanged or a form without the field. */
+function slugChange(item: { slug: string }, data: FormData): string | null {
+  const slug = text(data, 'slug').trim();
+  return slug && slug !== item.slug ? slug : null;
+}
+
 /**
- * The slug field of "This item" (#66 PR 6b), applied before the revision is saved: a refusal then
- * leaves everything as it was and the form comes back with what was typed. The slug lives on the
- * item, not in a revision, so the save that follows keeps its base. Empty, or a form without the
- * field (an item that was published, an older tab), changes nothing.
+ * The slug field of "This item" (#66 PR 6b), applied after the base check and the form's own
+ * checks and just before the revision is saved: a refused slug then leaves everything as it was
+ * and the form comes back with what was typed. The slug lives on the item, not in a revision, so
+ * the save that follows keeps its base. The two are separate transactions: a revision core still
+ * refuses after the slug moved (a concurrent save in between, a document rule only core knows)
+ * leaves the slug moved, which the next save shows. Rejected: one combined use case, which would
+ * make every revision save a slug write too. Empty, or a form without the field (an item that
+ * was published, an older tab), changes nothing.
  */
 async function moveSlug(
   principal: Principal,
   item: { id: string; slug: string },
   data: FormData
 ): Promise<{ error: UiKey; status: number; fieldIssues: { name: string; copy: UiKey }[] } | null> {
-  const slug = text(data, 'slug').trim();
-  if (!slug || slug === item.slug) return null;
+  const slug = slugChange(item, data);
+  if (!slug) return null;
   try {
     await runtime().invoker.run(useCases.updateSlug, principal, { itemId: item.id, slug });
     return null;
@@ -563,11 +573,9 @@ async function commit(
       itemId,
       revisionId: baseRevisionId,
     });
-    const moved = await moveSlug(principal, item, data);
-    if (moved)
-      return {
-        failure: await refused(tenant, principal, itemId, values, null, moved),
-      };
+    // A stale tab moves nothing: its slug change is part of the conflict like its fields are.
+    if (slugChange(item, data) && item.latestRevisionId !== baseRevisionId)
+      throw new UseCaseError('conflict', 'the item has a newer revision than baseRevisionId');
     const base = revision.document;
     blocks = base.blocks;
     pending = opts.discard
@@ -607,6 +615,11 @@ async function commit(
       });
       document.blocks = pattern.blocks.map(({ id: _id, ...block }) => block);
     }
+    const moved = await moveSlug(principal, item, data);
+    if (moved)
+      return {
+        failure: await refused(tenant, principal, itemId, values, null, moved),
+      };
     const untouched = formDocument(base, valuesOf(base), unposted, today, editing).document;
     if (opts.always || !isDeepStrictEqual(document, untouched))
       revisionId = (
