@@ -95,6 +95,38 @@ async function upload(page: Page, filename: string, buffer = png(400, 300)) {
   return { card, id: id! };
 }
 
+/**
+ * What a test leaves in probe: pages it made and images it uploaded (by id, or by filename for an
+ * upload the picker made). Cleared after each test, pass or fail (TODO #108): there is no content
+ * delete, and every revision keeps the usages of its images, so a test page would otherwise pin
+ * its images and their files in the shared tenant for good, and probe grew by fifteen media a run.
+ */
+const leftovers = { items: [] as string[], media: [] as string[], names: [] as string[] };
+
+test.afterEach(async () => {
+  const { items, media, names } = leftovers;
+  leftovers.items = [];
+  leftovers.media = [];
+  leftovers.names = [];
+  if (items.length + media.length + names.length === 0) return;
+  const principal = systemPrincipal(await tenantId(), 'e2e');
+  await withInvoker(async (invoker, uow) => {
+    for (const itemId of items) {
+      const { revisions } = await invoker.run(useCases.listRevisions, principal, {
+        itemId,
+        limit: 100,
+      });
+      await uow.run(principal, async (ctx) => {
+        for (const r of revisions) await ctx.media.replaceUsages(`item:${itemId}:rev:${r.id}`, []);
+      });
+    }
+    for (const q of names)
+      for (const m of await uow.run(principal, (ctx) => ctx.media.list({ q, limit: 5 })))
+        if (m.filename === q) media.push(m.id);
+    for (const id of media) await invoker.run(useCases.deleteMedia, principal, { id });
+  });
+});
+
 /** Mark or clear a usage of `mediaId` the way #8b1's save transaction will. */
 async function setUsage(mediaId: string, inUse: boolean) {
   const probe = await tenantId();
@@ -220,6 +252,7 @@ async function pageUsing(mediaId: string, title: string) {
         access: { level: 'public' },
       }),
     });
+    leftovers.items.push(created.item.id);
     return created.item.id;
   });
 }
@@ -228,6 +261,7 @@ test('the asset page links the pages whose latest version uses it', async ({ pag
   await login(page, '/admin/probe/media');
   const filename = `used-${test.info().project.name}-${Date.now()}.png`;
   const { id } = await upload(page, filename);
+  leftovers.media.push(id);
   const title = `Pagina met ${filename}`;
   const itemId = await pageUsing(id, title);
   await page.goto(`/admin/probe/media/${id}`);
@@ -446,6 +480,7 @@ test('an image block chooses its image from a grid of thumbnails, without a scri
   const stamp = `${test.info().project.name}-${Date.now()}`;
   const names = [`eerst-${stamp}.png`, `daarna-${stamp}.png`];
   const ids = await uploadMany(page, names);
+  leftovers.media.push(...names.map((n) => ids[n]!));
   const itemId = await pageUsing(ids[names[0]!]!, `Kiezer ${stamp}`);
   await page.goto(`/admin/probe/content/${itemId}`);
   const block = page.locator('details.block').first();
@@ -479,6 +514,7 @@ test('a page gets its featured image from the picker, and shares it when publish
   const stamp = `${test.info().project.name}-${Date.now()}`;
   const filename = `uitgelicht-${stamp}.png`;
   const { id } = await upload(page, filename);
+  leftovers.media.push(id);
   const slug = `uitgelicht-${stamp}`.toLowerCase();
   const probe = await tenantId();
   const itemId = await withInvoker(async (invoker) => {
@@ -492,6 +528,7 @@ test('a page gets its featured image from the picker, and shares it when publish
         blocks: [],
       }),
     });
+    leftovers.items.push(created.item.id);
     return created.item.id;
   });
   await page.goto(`/admin/probe/content/${itemId}`);
@@ -534,6 +571,7 @@ test('the picker searches, and uploads dropped files with progress', async ({ pa
   const stamp = `${Date.now()}`;
   const first = `zoek-${stamp}.png`;
   const { id } = await upload(page, first);
+  leftovers.media.push(id);
   const itemId = await pageUsing(id, `Zoeken ${stamp}`);
   await page.goto(`/admin/probe/content/${itemId}`);
   const block = page.locator('details.block').first();
@@ -551,6 +589,7 @@ test('the picker searches, and uploads dropped files with progress', async ({ pa
 
   // Upload two at once, and a refused one: each gets its own line; the last good one is chosen.
   const added = [`nieuw-a-${stamp}.png`, `nieuw-b-${stamp}.png`];
+  leftovers.names.push(...added);
   await dialog.getByLabel('Nieuwe beelden: sleep ze hierheen of kies bestanden').setInputFiles([
     ...added.map((name) => ({ name, mimeType: 'image/png', buffer: png(400, 300) })),
     {
@@ -606,6 +645,7 @@ test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
         await page.context().setExtraHTTPHeaders({ ...headers, 'accept-language': 'nl-NL' });
         await page.goto('/admin/probe/media');
         const used = await upload(page, `kiezer-${Date.now()}.png`);
+        leftovers.media.push(used.id);
         await page.context().setExtraHTTPHeaders({ ...headers, 'accept-language': locale });
         const itemId = await pageUsing(used.id, `Gate ${filename}`);
         await page.goto(`/admin/probe/content/${itemId}`);
