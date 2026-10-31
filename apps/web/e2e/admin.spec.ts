@@ -962,78 +962,75 @@ test.describe('connections', () => {
         locale,
       });
 
-      test('admin controls and UI gate at 320 CSS px and 200% text', async ({ page }) => {
+      test('list, own page, controls and UI gate at 320 CSS px and 200% text', async ({ page }) => {
         const f = await fixture();
+        const nl = locale.startsWith('nl');
         await login(page, '/admin/probe/connections');
-        const card = page.locator('article', {
-          has: page.getByRole('heading', { name: f.purpose }),
-        });
-        await expect(card).toBeVisible();
-        const credential = card.locator('form[action="?/credential"]');
-        await credential
-          .getByLabel(locale.startsWith('nl') ? 'Nieuwe sleutel' : 'New signing secret')
-          .fill('e2e-synthetic-secret');
-        await credential.getByRole('button').click();
-        await expect(card).not.toContainText('e2e-synthetic-secret');
-        await card
-          .getByRole('button', {
-            name: locale.startsWith('nl') ? 'Aflevering hervatten' : 'Resume delivery',
-          })
-          .click();
-        await card
-          .getByRole('button', {
-            name: locale.startsWith('nl') ? 'Proef versturen' : 'Send test',
-          })
-          .click();
-        await expect(card).toContainText(
-          locale.startsWith('nl') ? 'Proef, geen persoon gekopieerd' : 'Test, no person copied'
-        );
+        // The list names the stand in words: the unknown attempt asks attention.
+        const row = page.locator('#connections-table tbody tr', { hasText: f.purpose });
+        await expect(row).toContainText(nl ? 'Vraagt aandacht' : 'Needs attention');
         if (isA11y()) {
           await setTextSize(page, '200%');
           await layoutGate(page, 'connections', 'main');
           await expectNoAxeViolations(page);
+          await setTextSize(page, '100%');
+        }
+        await row.getByRole('link', { name: f.purpose }).click();
+        await expect(page.getByRole('heading', { level: 1, name: f.purpose })).toBeVisible();
+
+        const main = page.locator('main');
+        const credential = main.locator('form[action="?/credential"]');
+        await credential
+          .getByLabel(nl ? 'Nieuwe sleutel' : 'New signing secret')
+          .fill('e2e-synthetic-secret');
+        await credential.getByRole('button').click();
+        await expect(main).toContainText(nl ? 'Er is een sleutel ingesteld' : 'A secret is set');
+        await expect(page.locator('body')).not.toContainText('e2e-synthetic-secret');
+        await main
+          .getByRole('button', { name: nl ? 'Aflevering hervatten' : 'Resume delivery' })
+          .click();
+        await main.getByRole('button', { name: nl ? 'Proef versturen' : 'Send test' }).click();
+        const attempts = page.locator('#attempts-table');
+        await expect(attempts).toContainText(
+          nl ? 'Proef, geen persoon gekopieerd' : 'Test, no person copied'
+        );
+        if (isA11y()) {
+          await setTextSize(page, '200%');
+          await layoutGate(page, 'connection', 'main');
+          await expectNoAxeViolations(page);
         }
         // The unknown attempt offers only a manual close, never a retry. The synthetic test sent
         // above is a separate, pending attempt and may keep its own retry.
-        const unknown = card.locator('.intent', {
-          hasText: locale.startsWith('nl') ? 'Uitkomst onbekend' : 'Outcome unknown',
+        const unknown = attempts.locator('tbody tr', {
+          hasText: nl ? 'Uitkomst onbekend' : 'Outcome unknown',
         });
         await expect(unknown).toContainText(
-          locale.startsWith('nl') ? 'Mycel weet niet of de ontvanger' : 'Mycel cannot tell whether'
+          nl ? 'Mycel weet niet of de ontvanger' : 'Mycel cannot tell whether'
         );
         await expect(unknown.getByRole('button')).toHaveCount(1);
         await unknown
-          .getByRole('button', {
-            name: locale.startsWith('nl') ? 'Markeer als afgehandeld' : 'Mark as handled',
-          })
+          .getByRole('button', { name: nl ? 'Markeer als afgehandeld' : 'Mark as handled' })
           .click();
-        await expect(card).toContainText(
-          locale.startsWith('nl') ? 'Handmatig afgehandeld' : 'Handled by hand'
-        );
-        await card
-          .getByRole('button', {
-            name: locale.startsWith('nl') ? 'Aflevering pauzeren' : 'Pause delivery',
-          })
+        await expect(attempts).toContainText(nl ? 'Handmatig afgehandeld' : 'Handled by hand');
+        await main
+          .getByRole('button', { name: nl ? 'Aflevering pauzeren' : 'Pause delivery' })
           .click();
-        await card
-          .getByRole('button', {
-            name: locale.startsWith('nl') ? 'Koppel los' : 'Disconnect',
-            exact: true,
-          })
+        await expect(main).toContainText(nl ? 'De aflevering is gepauzeerd' : 'Delivery is paused');
+        await main
+          .getByRole('button', { name: nl ? 'Koppel los' : 'Disconnect', exact: true })
           .click();
         await expect(
           page.getByRole('heading', {
-            name: locale.startsWith('nl')
-              ? 'Deze koppeling ontkoppelen?'
-              : 'Disconnect this connection?',
+            name: nl ? 'Deze koppeling ontkoppelen?' : 'Disconnect this connection?',
           })
         ).toBeVisible();
         await page
-          .getByRole('button', {
-            name: locale.startsWith('nl') ? 'Ja, koppel los' : 'Confirm disconnect',
-          })
+          .getByRole('button', { name: nl ? 'Ja, koppel los' : 'Confirm disconnect' })
           .click();
-        await expect(card).toContainText(locale.startsWith('nl') ? 'Ontkoppeld' : 'Disconnected');
+        await expect(main).toContainText(nl ? 'Losgekoppeld' : 'Disconnected');
+        await expect(
+          main.getByRole('button', { name: nl ? 'Aflevering hervatten' : 'Resume delivery' })
+        ).toHaveCount(0);
       });
     });
   }

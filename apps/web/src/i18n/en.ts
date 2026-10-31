@@ -1236,6 +1236,41 @@ export const en = {
   'admin.site.unsaved': 'Unsaved changes',
   'admin.site.group.type': 'Typography and spacing',
   'admin.connections.edit': 'Edit details',
+  'admin.connections.col.name': 'Connection',
+  'admin.connections.col.stand': 'Stand',
+  'admin.connections.col.last': 'Last activity',
+  'admin.connections.stand.connected': 'Connected',
+  'admin.connections.stand.attention': 'Needs attention',
+  'admin.connections.stand.paused': 'Paused',
+  'admin.connections.stand.off': 'Disconnected',
+  'admin.connections.never': 'Nothing sent yet',
+  'admin.connections.provider.webhook': 'Webhook',
+  'admin.connections.empty.title': 'No connections yet',
+  'admin.connections.empty.body':
+    'A connection passes what comes in on this site, such as a sign-up, to a service outside Mycel: a webhook to your own system, later a mailing or CRM tool. Mycel keeps a record of every delivery, and you can pause a connection at any time. Which form feeds a connection is set on the form itself.',
+  'admin.connections.created':
+    'Webhook added and paused. Set a signing secret below, then resume delivery to start.',
+  'admin.connections.switch.title': 'Delivery',
+  'admin.connections.switch.active':
+    'This connection delivers. Pausing stops sending at once; attempts wait until you resume.',
+  'admin.connections.switch.paused':
+    'Delivery is paused: nothing is sent, attempts wait until you resume.',
+  'admin.connections.switch.off':
+    'This connection is disconnected and sends nothing. Its record stays.',
+  'admin.connections.attempts.when': 'When',
+  'admin.connections.attempts.outcome': 'Outcome',
+  'admin.connections.attempts.copy': 'External copy',
+  'admin.connections.attempts.action': 'What you can do',
+  'admin.connections.attempts.tries': 'Attempts',
+  'admin.connections.details': 'Details',
+  'admin.connections.secret.title': 'Signing secret',
+  'admin.connections.secret.set':
+    'A secret is set. It is never shown again; you can only replace it.',
+  'admin.connections.secret.missing':
+    'No secret is set yet. Without one, nothing can be delivered.',
+  'admin.connections.end.title': 'Disconnect',
+  'admin.connections.end.help':
+    'Disconnecting stops this connection for good. Its delivery record stays readable.',
   'admin.preferences.title': 'Profile and preferences',
   'admin.preferences.description':
     'How the admin speaks to you and shows times. They apply on every site you work on.',
