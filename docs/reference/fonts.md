@@ -21,6 +21,8 @@ pyftsubset <font>.ttf --flavor=woff2 --layout-features='*' --output-file=<name>.
 The Inter italic is first instanced to `wght` 400–700 with `opsz` fixed at its text size, which halves it (116 KB to 53 KB): italic only appears in running text (`em`, `cite`), between regular and bold, and on a page that uses it the file sits on the mobile LCP path. Headings and pull quotes are plain text and never italic.
 
 ```sh
+# The instancer stamps head.modified with the current time; a fixed epoch makes the output byte-identical.
+export SOURCE_DATE_EPOCH=1793463045
 fonttools varLib.instancer InterVariable-Italic.ttf wght=400:700 opsz=14 -o InterItalic-text.ttf
 pyftsubset InterItalic-text.ttf ...   # same arguments as above
 ```
