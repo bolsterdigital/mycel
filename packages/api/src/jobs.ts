@@ -53,16 +53,16 @@ import {
   sweepRateLimits,
   type JobHandler,
   type JobHandlers,
-  type JobLane,
+  type JobPool,
   type RecurringJob,
 } from '@mycel/db';
 
 /**
- * Job types that run in a lane of their own (TODO #108): an export reads a whole tenant and its
+ * Job types that run in a pool of their own: an export reads a whole tenant and its
  * files, the orphan sweep lists every tenant's store; both take seconds to minutes on a big
- * tenant. Everything else (publish, assist, mail, DNS) stays in the default lane behind no such job.
+ * tenant. Everything else (publish, assist, mail, DNS) stays in the default pool behind no such job.
  */
-export const JOB_LANES: readonly JobLane[] = [
+export const JOB_POOLS: readonly JobPool[] = [
   { name: 'bulk', types: ['tenant.export', 'media.orphans'] },
 ];
 

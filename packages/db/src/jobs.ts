@@ -10,15 +10,15 @@
 //   lease, and after five minutes another worker takes the job again.
 // * `ensureRecurring` and `startJobWorker`: recurring platform jobs plan themselves, one row per
 //   period whose key names the period, so any number of workers insert at most one. A worker
-//   polls in lanes: types named in a lane are claimed only by that lane's loop, everything else
-//   by the default lane, so a ten-second export never holds a publish or an assist proposal
-//   behind it (TODO #108). Lanes share the role, the queue and SKIP LOCKED (ADR 011 rule 4).
+//   polls in pools: types named in a pool are claimed only by that pool's loop, everything else
+//   by the default pool, so a ten-second export never holds a publish or an assist proposal
+//   behind it. Pools share the role, the queue and SKIP LOCKED (ADR 011 rule 4).
 //
 // Rejected: running handlers inside the claim transaction as `drainOutbox` does (a five-second
 // DNS lookup or partition DDL would hold row locks on the queue, and a crash would roll back the
 // claim without a trace), a cron-expression parser (two cadences), planning recurring jobs at
 // `migrate` (a worker that runs for months without a deploy must keep itself going), and running
-// a batch with bounded concurrency instead of lanes (N slow exports still fill N slots, and the
+// a batch with bounded concurrency instead of pools (N slow exports still fill N slots, and the
 // order within a batch would no longer be the claim order).
 
 import { sql, type Kysely } from 'kysely';
@@ -98,7 +98,7 @@ export function jobScheduler(trx: Kysely<Database>, tenantId: string): Scheduler
 /**
  * Claim up to `batchSize` due jobs: open, due, not exhausted, and unclaimed or with an expired
  * lease. `types` narrows the claim (tests use their own type so they never take real work);
- * `excludeTypes` leaves the types another lane claims.
+ * `excludeTypes` leaves the types another pool claims.
  */
 export async function claimJobs(
   operatorDb: Kysely<Database>,
@@ -375,19 +375,19 @@ export function reportOrLog(
 }
 
 /**
- * A lane of its own for slow job types (TODO #108): its loop claims only `types`, `batchSize` at
+ * A pool of its own for slow job types: its loop claims only `types`, `batchSize` at
  * a time (default 1, so a waiting job's lease does not run out behind a long one), and the
- * default lane never claims them.
+ * default pool never claims them.
  */
-export interface JobLane {
+export interface JobPool {
   name: string;
   types: readonly string[];
   batchSize?: number;
 }
 
 /**
- * Poll for due jobs until stopped: the default lane (recurring planning, every type no lane
- * names) plus one loop per lane. `onTick` follows the default lane only: a lane of slow jobs is
+ * Poll for due jobs until stopped: the default pool (recurring planning, every type no pool
+ * names) plus one loop per pool. `onTick` follows the default pool only: a pool of slow jobs is
  * meant to be busy for minutes, so its silence says nothing about the worker's health. Returns a
  * function that stops every loop and awaits the last runs.
  */
@@ -397,7 +397,7 @@ export function startJobWorker(
   {
     intervalMs = 5000,
     recurring = [],
-    lanes = [],
+    pools = [],
     tenantId,
     log = noopLogger,
     onError,
@@ -406,13 +406,13 @@ export function startJobWorker(
   }: {
     intervalMs?: number;
     recurring?: readonly RecurringJob[];
-    lanes?: readonly JobLane[];
+    pools?: readonly JobPool[];
     /** Narrow every loop to one tenant's jobs, for a test; production workers leave this unset. */
     tenantId?: string;
   } & WorkerHooks = {}
 ): () => Promise<void> {
   let stopped = false;
-  const laned = lanes.flatMap((l) => l.types);
+  const pooled = pools.flatMap((l) => l.types);
   const loop = (
     claim: { types?: readonly string[]; excludeTypes?: readonly string[]; batchSize?: number },
     { plan, tick: onPass }: { plan: boolean; tick?: (() => void) | undefined }
@@ -453,8 +453,8 @@ export function startJobWorker(
     };
   };
   const stops = [
-    loop({ excludeTypes: laned }, { plan: true, tick: onTick }),
-    ...lanes.map((l) => loop({ types: l.types, batchSize: l.batchSize ?? 1 }, { plan: false })),
+    loop({ excludeTypes: pooled }, { plan: true, tick: onTick }),
+    ...pools.map((l) => loop({ types: l.types, batchSize: l.batchSize ?? 1 }, { plan: false })),
   ];
   return async () => {
     stopped = true;

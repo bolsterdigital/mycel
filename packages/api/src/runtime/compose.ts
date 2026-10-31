@@ -88,7 +88,7 @@ import { createDnsResolver } from './dns.js';
 import type { HttpObservability } from '../app.js';
 import { assessWorker, type WorkerReadiness } from '../health.js';
 import type { PlatformDeps } from '../platform.js';
-import { JOB_LANES, RECURRING_JOBS, jobHandlers } from '../jobs.js';
+import { JOB_POOLS, RECURRING_JOBS, jobHandlers } from '../jobs.js';
 import { HmacInputHasher, HmacSigner } from './signer.js';
 import { webhookTransport } from '../webhook.js';
 
@@ -742,7 +742,7 @@ export function createRuntime(
       const stopJobs = startJobWorker(operatorDb, inJobContext(handlers), {
         intervalMs: JOBS_INTERVAL_MS,
         recurring: RECURRING_JOBS,
-        lanes: JOB_LANES,
+        pools: JOB_POOLS,
         log,
         onError: errors.capture,
         onTick: () => void (ticks.jobs = Date.now()),

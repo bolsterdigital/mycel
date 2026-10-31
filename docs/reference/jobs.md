@@ -39,7 +39,7 @@ Complete and fail are guarded on `attempts` and `done_at is null`: if the lease 
 
 The job loop (`startJobWorker`) ticks every `JOBS_INTERVAL_MS`: plan the recurring jobs, then claim and run one batch; while a batch came back non-empty it ticks again at once.
 
-The worker polls in **lanes** (`JOB_LANES`, `packages/api/src/jobs.ts`; TODO #108). A batch runs one job after another, so a ten-second `tenant.export` used to hold every job claimed behind it: a scheduled publish, an assist proposal, a mail reconcile. The `bulk` lane claims only `tenant.export` and `media.orphans`, one at a time, in a loop of its own; the default lane claims every other type (`claimJobs` with `excludeTypes`) and plans the recurring jobs. Both are the same role, queue and `SKIP LOCKED` claim (ADR 011 rule 4). The worker's `/readyz` follows the default lane: a bulk job may keep its lane busy for minutes.
+The worker polls in **pools** (`JOB_POOLS`, `packages/api/src/jobs.ts`). A batch runs one job after another, so a ten-second `tenant.export` used to hold every job claimed behind it: a scheduled publish, an assist proposal, a mail reconcile. The `bulk` pool claims only `tenant.export` and `media.orphans`, one at a time, in a loop of its own; the default pool claims every other type (`claimJobs` with `excludeTypes`) and plans the recurring jobs. Both are the same role, queue and `SKIP LOCKED` claim (ADR 011 rule 4). The worker's `/readyz` follows the default pool: a bulk job may keep its pool busy for minutes.
 
 ## Tenant jobs and platform jobs
 
@@ -80,7 +80,7 @@ A tenant handler throws when the job has no tenant, a platform handler when it h
 | `max_attempts`        | 10                        | `packages/db/migrations/0009_jobs.sql` | column default; an exhausted job waits for recovery                      |
 | job backoff           | `min(2^attempts, 3600)` s | `packages/db/src/jobs.ts`              | 2, 4, 8 ... seconds after each failure, at most an hour                  |
 | job batch size        | 10                        | `packages/db/src/jobs.ts`              | jobs per claim (`claimJobs`)                                             |
-| lane batch size       | 1                         | `packages/db/src/jobs.ts`              | jobs per claim in a lane (`JobLane`), so a waiting lease never runs out  |
+| pool batch size       | 1                         | `packages/db/src/jobs.ts`              | jobs per claim in a pool (`JobPool`), so a waiting lease never runs out  |
 | `JOBS_INTERVAL_MS`    | 5 s                       | `packages/api/src/runtime/compose.ts`  | job loop tick when the queue is empty                                    |
 | `HEARTBEAT_MS`        | 60 s                      | `packages/db/src/tenant-exports.ts`    | how often a running export renews its lease, well inside the 300 s lease |
 | `MAX_ATTEMPTS`        | 10                        | `packages/db/src/outbox.ts`            | failed passes before an outbox event is dead                             |

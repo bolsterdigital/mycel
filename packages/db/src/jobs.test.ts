@@ -273,16 +273,16 @@ describe.skipIf(skip)('jobs conformance', () => {
     expect(await claimJobs(operatorDb, { types: [t] })).toEqual([]);
   });
 
-  it('leaves the types of another lane to that lane', async () => {
-    const [kept, laned] = [type('kept'), type('laned')];
+  it('leaves the types of another pool to that pool', async () => {
+    const [kept, pooled] = [type('kept'), type('pooled')];
     await due(kept);
-    await due(laned);
-    const claimed = await claimJobs(operatorDb, { types: [kept, laned], excludeTypes: [laned] });
+    await due(pooled);
+    const claimed = await claimJobs(operatorDb, { types: [kept, pooled], excludeTypes: [pooled] });
     expect(claimed.map((j) => j.type)).toEqual([kept]);
-    expect((await claimJobs(operatorDb, { types: [laned] })).map((j) => j.type)).toEqual([laned]);
+    expect((await claimJobs(operatorDb, { types: [pooled] })).map((j) => j.type)).toEqual([pooled]);
   });
 
-  it('runs a short job while a slow one holds its own lane (TODO #108)', async () => {
+  it('runs a short job while a slow one holds its own pool', async () => {
     const [slow, quick] = [type('slow'), type('quick')];
     // Tenant jobs, so the worker below can be narrowed to this suite's tenant.
     await asWorker((trx) =>
@@ -294,7 +294,7 @@ describe.skipIf(skip)('jobs conformance', () => {
             tenant_id: tenantId,
             type: t,
             key: `${t}:${uuidv7()}`,
-            // The slow job is due first: in one lane it would run first and hold the other.
+            // The slow job is due first: in one pool it would run first and hold the other.
             run_at: new Date(Date.now() - (t === slow ? 2000 : 1000)),
             payload: '{}',
           }))
@@ -313,7 +313,7 @@ describe.skipIf(skip)('jobs conformance', () => {
         },
         [quick]: async () => void done.push(quick),
       },
-      { tenantId, intervalMs: 50, lanes: [{ name: 'bulk', types: [slow] }] }
+      { tenantId, intervalMs: 50, pools: [{ name: 'bulk', types: [slow] }] }
     );
     try {
       await expect.poll(() => done, { timeout: 5000 }).toEqual([quick]);

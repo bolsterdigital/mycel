@@ -97,7 +97,7 @@ async function upload(page: Page, filename: string, buffer = png(400, 300)) {
 
 /**
  * What a test leaves in probe: pages it made and images it uploaded (by id, or by filename for an
- * upload the picker made). Cleared after each test, pass or fail (TODO #108): there is no content
+ * upload the picker made). Cleared after each test, pass or fail: there is no content
  * delete, and every revision keeps the usages of its images, so a test page would otherwise pin
  * its images and their files in the shared tenant for good, and probe grew by fifteen media a run.
  */
