@@ -14,7 +14,13 @@ import { login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { callApi, requireApi } from './lib/api';
 
-const entries = Object.values(corpus.public);
+// Only the default set: scripts/e2e/e2e.mjs seeds the demo page and article under --quality alone,
+// and the quality runner checks their identity itself (validateIdentity) in the demo scope. Same
+// rule as publicNames(manifest, 'default') in scripts/quality/matrix.mjs.
+// Rejected: seeding the demo content in every e2e run, which grows every list a spec counts.
+const entries = Object.values(corpus.public).filter(
+  (entry) => ((entry as { set?: string }).set ?? 'default') === 'default'
+);
 const qualityAdmin = 'quality-admin@probe.test';
 
 test.beforeAll(async () => {

@@ -20,7 +20,7 @@ test('PR set covers both public profiles; scheduled/manual expand locale, cache 
   assert.deepEqual(matrix('schedule'), matrix('workflow_dispatch'));
   // The merge queue measures what the PR measured, never less and never the full set.
   assert.deepEqual(matrix('merge_group'), matrix('pull_request'));
-  for (const scope of ['default', 'admin'])
+  for (const scope of ['default', 'admin', 'demo'])
     for (const locale of ['nl', 'en'])
       for (const profile of ['mobile', 'desktop'])
         assert.ok(
@@ -29,6 +29,13 @@ test('PR set covers both public profiles; scheduled/manual expand locale, cache 
           )
         );
   assert.ok(matrix('schedule').include.some((c) => c.cache === 'warm'));
+  // The demo page and article are scheduled-only, fresh cache: never on a PR shard.
+  const demo = matrix('schedule').include.filter((c) => c.scope === 'demo');
+  assert.equal(demo.length, 4);
+  assert.ok(demo.every((c) => c.cache === 'fresh'));
+  const ids = (event) => expectedShards(contract, event).flatMap((s) => s.ids);
+  assert.ok(!ids('pull_request').some((id) => id.startsWith('demo-')));
+  assert.equal(ids('schedule').filter((id) => id.startsWith('demo-')).length, 8);
 });
 test('calibration keeps raw fail visible, deadline blocks fail/inconclusive/missing', () => {
   const dated = { deadline: '2026-11-09T00:00:00Z', earlyActivation: null };
@@ -311,8 +318,8 @@ test('consumer counts the versioned full matrix and retains all red observation 
   bad.batches[1].state = 'pass';
   bad.batches[1].reasons = [];
   const result = consumeRun(run, load);
-  assert.equal(result.expected, 48);
-  assert.equal(result.samples, 245);
+  assert.equal(result.expected, 56);
+  assert.equal(result.samples, 285);
   assert.equal(result.state, 'fail');
   assert.equal(result.conclusion, 'success');
   assert.equal(result.cells[0].batches.length, 2);
@@ -812,7 +819,7 @@ test('gate CLI retains full reports and fails for absent downloads instead of pa
 });
 
 test('information expands both profiles/locales while historical v3 keeps its own coverage', () => {
-  assert.equal(contract.fixtureVersion, '43a-v4');
+  assert.equal(contract.fixtureVersion, '43a-v5');
   for (const locale of ['nl', 'en'])
     for (const profile of ['mobile', 'desktop']) {
       const shard = expectedShards(contract, 'local', {
@@ -826,6 +833,8 @@ test('information expands both profiles/locales while historical v3 keeps its ow
   const old = JSON.parse(source('apps/web/e2e/quality-corpus.json'));
   old.fixtureVersion = '43a-v3';
   delete old.public.information;
+  delete old.public['demo-page'];
+  delete old.public['demo-article'];
   const historical = sourceContract({
     corpus: JSON.stringify(old),
     seed: 'historical seed',
@@ -834,7 +843,7 @@ test('information expands both profiles/locales while historical v3 keeps its ow
     lock: source('package-lock.json'),
   });
   assert.equal(expectedShards(historical, 'workflow_dispatch').flatMap((s) => s.ids).length, 36);
-  assert.equal(expectedShards(contract, 'workflow_dispatch').flatMap((s) => s.ids).length, 48);
+  assert.equal(expectedShards(contract, 'workflow_dispatch').flatMap((s) => s.ids).length, 56);
   assert.notEqual(historical.fixtureHash, contract.fixtureHash);
   const run = retained('pull_request');
   for (const a of run.artifacts)

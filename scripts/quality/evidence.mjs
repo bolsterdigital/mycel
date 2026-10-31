@@ -7,7 +7,7 @@
 // names and item numbers that mean nothing outside the owner's planning.
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { matrix } from './matrix.mjs';
+import { matrix, publicNames } from './matrix.mjs';
 import { repairProposals } from './evaluate.mjs';
 
 const states = ['pass', 'fail', 'inconclusive', 'not-measured'];
@@ -24,7 +24,10 @@ const worst = (values) =>
 // A new corpus/matrix protocol requires an explicit consumer adapter, not guessing coverage.
 export function sourceContract({ corpus, seed, matrixSource, workflow, lock }) {
   const manifest = JSON.parse(corpus);
-  if (!['43a-v3', '43a-v4'].includes(manifest.fixtureVersion) || manifest.schemaVersion !== 1)
+  if (
+    !['43a-v3', '43a-v4', '43a-v5'].includes(manifest.fixtureVersion) ||
+    manifest.schemaVersion !== 1
+  )
     throw new Error('unsupported-corpus');
   if (matrixSource !== readFileSync(new URL('./matrix.mjs', import.meta.url), 'utf8'))
     throw new Error('unsupported-matrix');
@@ -49,7 +52,7 @@ export function sourceContract({ corpus, seed, matrixSource, workflow, lock }) {
 export function expectedShards(contract, event, selection) {
   if (
     contract.schemaVersion !== 1 ||
-    !['43a-v3', '43a-v4'].includes(contract.fixtureVersion) ||
+    !['43a-v3', '43a-v4', '43a-v5'].includes(contract.fixtureVersion) ||
     !hash(contract.fixtureHash)
   )
     throw new Error('invalid-contract');
@@ -66,7 +69,7 @@ export function expectedShards(contract, event, selection) {
       s.scope === 'admin'
         ? contract.manifest.admin.routes.map((entry) => entry.name)
         : [
-            ...Object.keys(contract.manifest.public),
+            ...publicNames(contract.manifest, s.scope),
             ...(s.scope === 'full'
               ? contract.manifest.admin.routes.map((entry) => entry.name)
               : []),
