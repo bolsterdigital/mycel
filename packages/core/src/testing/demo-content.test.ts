@@ -10,7 +10,8 @@ import { Invoker } from '../invoke.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { exampleId } from '../util/ids.js';
 import { DEMO_IMAGES, demoArticle, demoPage, seedDemoContent } from './demo-content.js';
-import { adminOf, probeForm } from './fixtures.js';
+import { bytesToBase64 } from '../util/bytes.js';
+import { adminOf, probeForm, publishProbePage } from './fixtures.js';
 import { MemoryUnitOfWork } from './memory.js';
 
 const FORM = exampleId(0xf00d);
@@ -25,14 +26,42 @@ const documents = [
   demoArticle({ formId: FORM, media, pageId: exampleId(0xc101) }).document,
 ];
 
-/** A PNG signature and IHDR of the image's size: all the memory image processor reads. */
-async function pngHeader({ width, height }: { width: number; height: number }) {
+/** A JPEG start-of-image marker: all the memory image processor reads of a JPEG. */
+const jpegHeader = async () => new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+
+/** A PNG signature and IHDR, for the posters an earlier seed uploaded. */
+function pngHeader() {
   const bytes = new Uint8Array(24);
   bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
-  new DataView(bytes.buffer).setUint32(16, width);
-  new DataView(bytes.buffer).setUint32(20, height);
+  new DataView(bytes.buffer).setUint32(16, 1600);
+  new DataView(bytes.buffer).setUint32(20, 900);
   return bytes;
 }
+
+/** The texts the poster-era seed wrote, in place of the photo texts. */
+const posterEra = <T>(document: T): T => {
+  let json = JSON.stringify(document);
+  const swap = (from: Record<string, string>, to: Record<string, string>) => {
+    for (const locale of ['nl', 'en'])
+      json = json.replaceAll(JSON.stringify(from[locale]), JSON.stringify(to[locale]));
+  };
+  for (const image of DEMO_IMAGES) swap(image.alt, image.replaces.alt);
+  swap(
+    {
+      nl: 'Hier boden we na de actiedag van vorig jaar de steunbetuigingen aan.',
+      en: "Here we handed over the messages of support after last year's day of action.",
+    },
+    {
+      nl: 'Vrijwilligers sorteren de steunbetuigingen na de actiedag van vorig jaar.',
+      en: "Volunteers sort the messages of support after last year's day of action.",
+    }
+  );
+  json = json.replace(
+    JSON.stringify({ work: null, photographer: DEMO_IMAGES[3]!.source.photographer }),
+    JSON.stringify({ work: null, photographer: 'Demo-afbeelding, gemaakt door de Mycel-seed' })
+  );
+  return JSON.parse(json) as T;
+};
 
 describe('demo content', () => {
   it.each(documents.map((d) => [d.type, d] as const))(
@@ -72,8 +101,8 @@ describe('demo content', () => {
     const admin = adminOf();
     await uow.run(admin, (ctx) => ctx.forms.insert(probeForm(FORM)));
 
-    const first = await seedDemoContent(invoker, admin, { formId: FORM, render: pngHeader });
-    expect(first.created).toBe(true);
+    const first = await seedDemoContent(invoker, admin, { formId: FORM, load: jpegHeader });
+    expect(first).toMatchObject({ created: true, upgraded: [] });
     for (const item of [first.page, first.article])
       expect(
         item.publication.map((p) => [p.locale, p.status]).sort((x, y) => x[0]!.localeCompare(y[0]!))
@@ -84,8 +113,89 @@ describe('demo content', () => {
     const { items } = await invoker.run(useCases.listMedia, admin, {});
     expect(items.map((m) => m.filename).sort()).toEqual(DEMO_IMAGES.map((i) => i.filename).sort());
 
-    const again = await seedDemoContent(invoker, admin, { formId: FORM, render: pngHeader });
-    expect(again).toMatchObject({ created: false, page: { id: first.page.id } });
+    const again = await seedDemoContent(invoker, admin, { formId: FORM, load: jpegHeader });
+    expect(again).toMatchObject({ created: false, upgraded: [], page: { id: first.page.id } });
     expect((await invoker.run(useCases.listMedia, admin, {})).items).toHaveLength(4);
+  });
+
+  it('swaps the posters of an earlier seed for the photos, once, keeping history and drafts', async () => {
+    const uow = new MemoryUnitOfWork();
+    const invoker = new Invoker(buildRegistry(), uow);
+    const admin = adminOf();
+    await uow.run(admin, (ctx) => ctx.forms.insert(probeForm(FORM)));
+
+    // What the poster-era seed left: four PNG posters, both items published with their ids and
+    // texts, and an editor's unpublished change to the article.
+    const posters = Object.fromEntries(
+      await Promise.all(
+        DEMO_IMAGES.map(async (image) => {
+          const m = await invoker.run(useCases.uploadMedia, admin, {
+            filename: image.replaces.filename,
+            contentType: 'image/png',
+            bytes: bytesToBase64(pngHeader()),
+          });
+          return [image.key, m.id];
+        })
+      )
+    ) as typeof media;
+    const page = await publishProbePage(
+      invoker,
+      admin,
+      FORM,
+      posterEra(demoPage({ formId: FORM, media: posters }))
+    );
+    const article = await publishProbePage(
+      invoker,
+      admin,
+      FORM,
+      posterEra(demoArticle({ formId: FORM, media: posters, pageId: page.id }))
+    );
+    const published = (await invoker.run(useCases.getItem, admin, { itemId: article.id })).revision;
+    const edited = posterEra(published.document);
+    const editedAlt = { nl: 'Door de redactie herschreven', en: 'Rewritten by the editors' };
+    const imageBlock = edited.blocks.find((b) => b.type === 'image')!;
+    (imageBlock.props as { alt: unknown }).alt = editedAlt;
+    await invoker.run(useCases.updateItem, admin, {
+      itemId: article.id,
+      baseRevisionId: published.id,
+      document: edited,
+    });
+
+    const seeded = await seedDemoContent(invoker, admin, { formId: FORM, load: jpegHeader });
+    expect(seeded.created).toBe(false);
+    expect(seeded.upgraded.map((u) => [u.item.id, u.published])).toEqual([
+      [page.id, true],
+      [article.id, false],
+    ]);
+
+    const photoIds = new Set(
+      (await invoker.run(useCases.listMedia, admin, {})).items
+        .filter((m) => DEMO_IMAGES.some((i) => i.filename === m.filename))
+        .map((m) => m.id)
+    );
+    expect(photoIds.size).toBe(4);
+    const latest = async (itemId: string) =>
+      JSON.stringify((await invoker.run(useCases.getItem, admin, { itemId })).revision.document);
+    for (const item of [page, article]) {
+      const json = await latest(item.id);
+      for (const id of Object.values(posters)) expect(json).not.toContain(id);
+      for (const image of DEMO_IMAGES) expect(json).not.toContain(image.replaces.alt.nl);
+      expect(json).not.toContain('Mycel-seed');
+    }
+    // The page went live with the photos; the article's live revision still has the posters,
+    // and the editor's text survived in the new draft.
+    const livePage = await invoker.run(useCases.getItem, admin, {
+      itemId: page.id,
+      revisionId: seeded.upgraded[0]!.item.publication[0]!.publishedRevisionId!,
+    });
+    expect(JSON.stringify(livePage.revision.document)).toContain(DEMO_IMAGES[0]!.alt.nl);
+    const liveArticle = seeded.upgraded[1]!.item.publication[0]!;
+    expect(liveArticle.publishedRevisionId).toBe(published.id);
+    expect(liveArticle.hasUnpublishedChanges).toBe(true);
+    expect(await latest(article.id)).toContain(editedAlt.nl);
+
+    const again = await seedDemoContent(invoker, admin, { formId: FORM, load: jpegHeader });
+    expect(again).toMatchObject({ created: false, upgraded: [] });
+    expect((await invoker.run(useCases.listMedia, admin, {})).items).toHaveLength(8);
   });
 });

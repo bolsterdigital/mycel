@@ -1,0 +1,16 @@
+# Demo photos
+
+The four photographs the dev seed (`src/runtime/seed-demo.ts`) uploads into the demo page and article of tenant `probe`. Each is in the public domain under CC0 1.0, so it may be redistributed with this AGPL repository; none shows an identifiable face. The seed reads these files and never fetches anything.
+
+Each file is the source image auto-oriented, scaled to at most 1920 pixels on its long side (the largest variant width, `VARIANT_WIDTHS`), stripped of metadata and encoded as JPEG (mozjpeg, quality 78) with sharp. The media pipeline derives every rendition from it; no page serves this file directly.
+
+| File                            | Photographer                                                                 | Source (licence statement)                                                                                          | Source SHA-1                               | File SHA-256                                                       |
+| ------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------ |
+| `demo-pepernoten.jpg`           | Jim Lindstrom, own work                                                      | [Commons: Peppernuts, US Variation](https://commons.wikimedia.org/wiki/File:Peppernuts,_US_Variation.jpg)           | `e62d535735d5de7d1e080171165100766ea6dcad` | `53eae10d4ee0373b3a1e11200ba674dbdc74c42bdae49a50cb99b4fc460dc140` |
+| `demo-brood.jpg`                | Kate Remmer, via Unsplash (2017, CC0 at the time, archived)                  | [Commons: Man holding bread (Unsplash)](<https://commons.wikimedia.org/wiki/File:Man_holding_bread_(Unsplash).jpg>) | `dea55900a923458ba3d2daddd49d408b4014c6d4` | `554d36c22d57a5435e3f4a76f5df561239956a77b2323cfb91e6eea24f964741` |
+| `demo-chocolade-kruidnoten.jpg` | Ineke Huizing, via Pixabay (2018, CC0 at the time, licence review confirmed) | [Commons: Chocolate-covered kruidnoten](https://commons.wikimedia.org/wiki/File:Chocolate-covered_kruidnoten.jpg)   | `aefd167695b5af98fc8c6633e937f24d8a5c4bf2` | `9527d4e0cb0317afbb098f2c6cd83aae9029d6dd07c312ee28cc58b418f0dcb7` |
+| `demo-stadhuis.jpg`             | Gouwenaar, own work                                                          | [Commons: Stadhuis Stavoren](https://commons.wikimedia.org/wiki/File:Stadhuis_Stavoren.jpg)                         | `99e3d5645c061636968a03cae97dd57e52727eb5` | `91fd7728e7014def52efe1eef8bafa3b00e5cae1c98aeb94b1b23943a456e61c` |
+
+The source SHA-1 is the one Wikimedia Commons reports for the original upload, checked on 2026-10-31. `demo-photos.test.ts` holds the file hashes, dimensions and format, so a replaced or recompressed file fails the test until this table and `DEMO_IMAGES` in `@mycel/core/testing` agree with it.
+
+A photo that is not CC0 or public domain does not belong here: a "free to use" licence (Unsplash or Pixabay after their licence changes) does not clearly allow redistribution inside a software package.
