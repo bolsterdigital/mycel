@@ -410,8 +410,11 @@
   .hero-text {
     padding: var(--inset) 0;
   }
+  /* One column no wider than the block: an image that has not loaded (or failed) lays out as its
+     alt text, whose min-content width an `auto` track would take, past the viewport at 320 CSS px. */
   .hero-cover {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
   }
   .hero-cover > .hero-media,
   .hero-cover > .hero-text {
@@ -443,7 +446,7 @@
   @media (min-width: 48rem) {
     .hero-split {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       align-items: center;
     }
   }

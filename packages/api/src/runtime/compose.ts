@@ -5,7 +5,8 @@
 // would triplicate config parsing, signer setup and subscriber lists.
 
 import { createHash } from 'node:crypto';
-import { isAbsolute, resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import {
@@ -188,7 +189,8 @@ const Config = z
     BLOB_STORE: z.enum(['fs', 's3']).optional(),
     /**
      * The `fs` store's directory. A relative path is taken from the repository root, so the web
-     * app (run from apps/web) and the API (from packages/api) share one store in development.
+     * app (run from apps/web) and the API (from packages/api) share one store in development; in
+     * a linked git worktree from the main checkout's root (`blobRoot`).
      */
     BLOB_DIR: z.string().min(1).default('.scratch/blob'),
     BLOB_S3_ENDPOINT: z.string().url().optional(),
@@ -334,6 +336,33 @@ export function s3ConfigOf(config: RuntimeConfig): S3BlobStoreConfig | null {
     : null;
 }
 
+/**
+ * The directory a relative BLOB_DIR is taken from: `repoRoot`, or, when `repoRoot` is a linked git
+ * worktree, the root of the main checkout it belongs to. Every worktree of a clone reads one
+ * development database (`.env`), so they share one store too: with a store per worktree, a row
+ * written from one checkout had no file in the others, and the e2e seed, which reuses the fixture
+ * pages it finds in the database, served images that did not exist. Read from the `.git`
+ * file and the worktree's `commondir`, without running git; anything else (a plain checkout, a
+ * submodule, a bare clone, production without `.git`) keeps `repoRoot`.
+ * Rejected: `git rev-parse --git-common-dir` (a process spawn in the runtime for a development
+ * path), and an absolute BLOB_DIR prescribed per worktree (every new worktree red until set).
+ */
+export function blobRoot(repoRoot: string): string {
+  try {
+    const pointer = /^gitdir:\s*(.+)$/m.exec(readFileSync(join(repoRoot, '.git'), 'utf8'));
+    if (!pointer?.[1]) return repoRoot;
+    const worktreeDir = resolve(repoRoot, pointer[1].trim());
+    const common = resolve(
+      worktreeDir,
+      readFileSync(join(worktreeDir, 'commondir'), 'utf8').trim()
+    );
+    return basename(common) === '.git' ? dirname(common) : repoRoot;
+  } catch {
+    // `.git` is a directory (a plain checkout) or absent, or the pointer has no commondir.
+    return repoRoot;
+  }
+}
+
 /** The BlobStore the configuration names; S3 credentials were checked by `loadConfig`. */
 export function blobStoreFor(config: RuntimeConfig): BlobStore {
   const s3 = s3ConfigOf(config);
@@ -342,7 +371,10 @@ export function blobStoreFor(config: RuntimeConfig): BlobStore {
     : createFsBlobStore(
         isAbsolute(config.BLOB_DIR)
           ? config.BLOB_DIR
-          : resolve(fileURLToPath(new URL('../../../..', import.meta.url)), config.BLOB_DIR)
+          : resolve(
+              blobRoot(fileURLToPath(new URL('../../../..', import.meta.url))),
+              config.BLOB_DIR
+            )
       );
 }
 

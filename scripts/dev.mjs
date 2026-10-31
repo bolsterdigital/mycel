@@ -37,7 +37,8 @@ if (mockIdp) {
 
 const procs = [
   ['api', 'npm', ['run', '-s', 'dev', '-w', '@mycel/api']],
-  ['web', 'npm', ['run', '-s', 'dev', '-w', '@mycel/web']],
+  // Arguments after `npm run dev --` go to Vite (`-- --port 5174 --strictPort`); they were dropped.
+  ['web', 'npm', ['run', '-s', 'dev', '-w', '@mycel/web', '--', ...process.argv.slice(2)]],
   ...(mockIdp ? [['idp', 'node', ['scripts/e2e/mock-oidc.mjs']]] : []),
 ].map(([name, cmd, args]) => {
   // How a test run's preflight names this process's database sessions (TODO #27): stopping
