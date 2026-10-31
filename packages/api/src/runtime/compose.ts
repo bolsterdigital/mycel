@@ -13,6 +13,7 @@ import {
   Invoker,
   appDelivery,
   buildRegistry,
+  mediaKeys,
   CONFIRMATION_SUBSCRIBER,
   confirmationMailSource,
   confirmationMailSubscriber,
@@ -362,6 +363,42 @@ export function blobRoot(repoRoot: string): string {
     return repoRoot;
   }
 }
+
+/**
+ * The filenames of the live media of a tenant that have a row but no file in `store`: rows another
+ * checkout wrote into this database with its own store. Every one of them is a broken image in
+ * the admin and on the site (404, logged as "in the register but not in the store"). The e2e
+ * gate and the dev seed both ask this before they trust the media they find.
+ * Rejected: re-uploading or deleting a row on a miss (the file still exists in the other store,
+ * and its references and history belong to that row).
+ */
+export async function missingMediaFiles(
+  uow: UnitOfWork,
+  store: BlobStore,
+  principal: Principal
+): Promise<string[]> {
+  const missing: string[] = [];
+  for (let cursor: string | undefined; ;) {
+    const page = await uow.run(principal, (ctx) => ctx.media.list({ cursor, limit: 100 }));
+    for (const m of page)
+      for (const key of mediaKeys(principal.tenantId, m))
+        if (!(await store.head(key))) {
+          missing.push(m.filename);
+          break;
+        }
+    if (page.length < 100) return missing;
+    cursor = page[page.length - 1]!.id;
+  }
+}
+
+/** Why `missingMediaFiles` found anything, and the two ways out. */
+export const missingMediaAdvice = (tenant: string, missing: readonly string[]) =>
+  `${missing.length} live media of tenant ${tenant} have no files in this checkout's blob ` +
+  `store (${missing.slice(0, 5).join(', ')}${missing.length > 5 ? ', ...' : ''}).\n` +
+  'They were written by a checkout with another store on this same database. Point BLOB_DIR ' +
+  "at that checkout's store (an absolute path), or give this checkout its own database " +
+  '(docs/architecture/testing.md § Local database). A linked git worktree already shares ' +
+  "the main checkout's .scratch/blob.";
 
 /** The BlobStore the configuration names; S3 credentials were checked by `loadConfig`. */
 export function blobStoreFor(config: RuntimeConfig): BlobStore {

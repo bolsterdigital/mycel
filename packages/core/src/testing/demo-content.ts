@@ -114,17 +114,17 @@ export const DEMO_IMAGES: readonly DemoImage[] = [
   },
   {
     key: 'measuring',
-    filename: 'demo-chocolade-kruidnoten.jpg',
-    width: 1437,
+    filename: 'demo-bloem.jpg',
+    width: 1282,
     height: 1920,
     source: {
-      photographer: 'Ineke Huizing',
-      url: 'https://commons.wikimedia.org/wiki/File:Chocolate-covered_kruidnoten.jpg',
+      photographer: 'Gaelle Marcel',
+      url: 'https://commons.wikimedia.org/wiki/File:Making_Bread_(Unsplash).jpg',
       licence: 'CC0 1.0',
     },
     alt: {
-      nl: 'Witte en bruine chocoladekruidnoten op een jute zak met een Sinterklaasprint',
-      en: 'White and brown chocolate-covered kruidnoten on a jute sack with a Sinterklaas print',
+      nl: 'Een hand laat bloem in een glazen kom vallen, tegen een donkere achtergrond',
+      en: 'A hand lets flour fall into a glass bowl, against a dark background',
     },
     caption: {
       nl: 'Elke zak werd drie keer gemeten, door twee verschillende vrijwilligers.',
@@ -140,17 +140,17 @@ export const DEMO_IMAGES: readonly DemoImage[] = [
   },
   {
     key: 'signatures',
-    filename: 'demo-stadhuis.jpg',
+    filename: 'demo-overleg.jpg',
     width: 1920,
-    height: 1440,
+    height: 1286,
     source: {
-      photographer: 'Gouwenaar',
-      url: 'https://commons.wikimedia.org/wiki/File:Stadhuis_Stavoren.jpg',
+      photographer: 'Alejandro Escamilla',
+      url: 'https://commons.wikimedia.org/wiki/File:Two_people_meeting_with_iphone_and_ipad_(Unsplash).jpg',
       licence: 'CC0 1.0',
     },
     alt: {
-      nl: 'Het oude stadhuis van Stavoren, een bakstenen gebouw achter een gazon en een haag',
-      en: 'The old town hall of Stavoren, a brick building behind a lawn and a hedge',
+      nl: 'Twee mensen aan een houten tafel met een notitieboek, een telefoon, een tablet en koffie',
+      en: 'Two people at a wooden table with a notebook, a phone, a tablet and coffee',
     },
     caption: {
       nl: 'Het rapport werd in oktober aangeboden aan de gemeenteraad.',
@@ -166,11 +166,11 @@ export const DEMO_IMAGES: readonly DemoImage[] = [
   },
 ];
 
-/** The page's own caption and credit for the town-hall photo, and what they replaced. */
+/** The page's own caption and credit for the meeting photo, and what they replaced. */
 const SIGNATURES_USE = {
   caption: {
-    nl: 'Hier boden we na de actiedag van vorig jaar de steunbetuigingen aan.',
-    en: "Here we handed over the messages of support after last year's day of action.",
+    nl: 'Na de actiedag van vorig jaar bespraken we de steunbetuigingen met de wethouder.',
+    en: "After last year's day of action we discussed the messages of support with the alderman.",
   },
   credit: { work: null, photographer: DEMO_IMAGES[3]!.source.photographer },
   replaces: {

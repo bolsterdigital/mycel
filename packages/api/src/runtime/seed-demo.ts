@@ -13,7 +13,7 @@
 import { readFile } from 'node:fs/promises';
 import { contentPath, systemPrincipal, useCases } from '@mycel/core';
 import { seedDemoContent } from '@mycel/core/testing';
-import { createRuntime, loadConfig } from './compose.js';
+import { createRuntime, loadConfig, missingMediaAdvice, missingMediaFiles } from './compose.js';
 
 const PHOTOS = new URL('../../demo-photos/', import.meta.url);
 
@@ -54,6 +54,14 @@ try {
     console.log(
       `  admin ${item.type}: ${runtime.platform.platformOrigin}/admin/${tenant.slug}/content/${item.id}`
     );
+
+  // Reused rows are only as good as their files: a row written by another checkout's store is
+  // a broken image in the admin and on the site. Say so here instead of in a screenshot.
+  const missing = await missingMediaFiles(runtime.uow, runtime.blobs, admin);
+  if (missing.length) {
+    console.error(`\n${missingMediaAdvice(tenant.slug, missing)}`);
+    process.exitCode = 1;
+  }
 } finally {
   await runtime.close();
 }

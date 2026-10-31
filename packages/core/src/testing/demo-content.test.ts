@@ -48,8 +48,8 @@ const posterEra = <T>(document: T): T => {
   for (const image of DEMO_IMAGES) swap(image.alt, image.replaces.alt);
   swap(
     {
-      nl: 'Hier boden we na de actiedag van vorig jaar de steunbetuigingen aan.',
-      en: "Here we handed over the messages of support after last year's day of action.",
+      nl: 'Na de actiedag van vorig jaar bespraken we de steunbetuigingen met de wethouder.',
+      en: "After last year's day of action we discussed the messages of support with the alderman.",
     },
     {
       nl: 'Vrijwilligers sorteren de steunbetuigingen na de actiedag van vorig jaar.',

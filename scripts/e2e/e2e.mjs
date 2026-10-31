@@ -191,11 +191,11 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
     Invoker,
     appDelivery,
     buildRegistry,
-    mediaKeys,
     systemPrincipal,
     useCases,
   } = await import('@mycel/core');
-  const { blobStoreFor, loadConfig } = await import('@mycel/api/compose');
+  const { blobStoreFor, loadConfig, missingMediaAdvice, missingMediaFiles } =
+    await import('@mycel/api/compose');
   const { createSharpProcessor } = await import('@mycel/media-sharp');
   const { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } =
     await import('@mycel/core/testing');
@@ -655,28 +655,8 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
   // store that does not hold them shows up as some twenty red specs (export, every block, the
   // quality corpus) that say nothing about the diff; stop here and say why instead.
   // Rejected: re-uploading on a miss (the export spec would still meet rows of another checkout).
-  const store = blobStoreFor(loadConfig());
-  const missing = [];
-  for (let cursor; ;) {
-    const page = await uow.run(admin, (ctx) => ctx.media.list({ cursor, limit: 100 }));
-    for (const m of page)
-      for (const key of mediaKeys(probe.id, m))
-        if (!(await store.head(key))) {
-          missing.push(m.filename);
-          break;
-        }
-    if (page.length < 100) break;
-    cursor = page[page.length - 1].id;
-  }
-  if (missing.length)
-    fail(
-      `${missing.length} live media of tenant probe have no files in this checkout's blob ` +
-        `store (${missing.slice(0, 5).join(', ')}${missing.length > 5 ? ', ...' : ''}).\n` +
-        'They were written by a checkout with another store on this same database. Point BLOB_DIR ' +
-        "at that checkout's store (an absolute path), or give this checkout its own database " +
-        '(docs/architecture/testing.md § Local database). A linked git worktree already shares ' +
-        "the main checkout's .scratch/blob."
-    );
+  const missing = await missingMediaFiles(uow, blobStoreFor(loadConfig()), admin);
+  if (missing.length) fail(missingMediaAdvice('probe', missing));
   await operatorDb.destroy();
   await appDb.destroy();
 }

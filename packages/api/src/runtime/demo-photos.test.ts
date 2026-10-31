@@ -15,9 +15,8 @@ const PHOTOS = new URL('../../demo-photos/', import.meta.url);
 const SHA256: Record<string, string> = {
   'demo-pepernoten.jpg': '53eae10d4ee0373b3a1e11200ba674dbdc74c42bdae49a50cb99b4fc460dc140',
   'demo-brood.jpg': '554d36c22d57a5435e3f4a76f5df561239956a77b2323cfb91e6eea24f964741',
-  'demo-chocolade-kruidnoten.jpg':
-    '9527d4e0cb0317afbb098f2c6cd83aae9029d6dd07c312ee28cc58b418f0dcb7',
-  'demo-stadhuis.jpg': '91fd7728e7014def52efe1eef8bafa3b00e5cae1c98aeb94b1b23943a456e61c',
+  'demo-bloem.jpg': 'b3ca37d41e58f24eb4e46c86d2803178600f91d07f1d9e5c0eb5d45a60534851',
+  'demo-overleg.jpg': '343a8d9e3da8e3af7fd5593e99f0db41be05e616a2a3067856fb2a6179824cf2',
 };
 
 describe('demo photos', () => {
