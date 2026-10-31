@@ -15,7 +15,7 @@ Needs Node 22 and Docker (for Postgres only; the apps run on the host).
 npm install
 cp .env.example .env
 npm run db:up       # Postgres 16 from compose.dev.yml, waits until it is healthy
-npm run db:seed     # applies migrations, then creates tenant `probe` with a signup page
+npm run db:seed     # applies migrations, then creates tenant `probe` with a signup page, plus a filled demo page and article
 npm run dev         # API + outbox worker on :8787, web on :5173
 ```
 
