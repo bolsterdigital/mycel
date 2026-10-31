@@ -227,7 +227,12 @@ export function formDocument(
   const article = post.get('articleEditor');
   if (article && editing && base.type === 'article') {
     try {
-      kept = fromArticleEditor(base, editing, JSON.parse(article)).blocks;
+      kept = documentFrom(
+        fromArticleEditor(base, editing, JSON.parse(article)),
+        values,
+        today,
+        editing
+      ).blocks as Block[];
     } catch {
       return {
         document: doc,

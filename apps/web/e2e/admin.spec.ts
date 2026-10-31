@@ -570,6 +570,9 @@ test.describe('admin-shell', () => {
       .getByRole('link', { name: 'Pages' })
       .click();
     await page.locator('#content-table tbody th a').first().click();
+    await expect(page.locator('#item-edit')).toBeVisible();
+    if (isA11y())
+      await expect(page.getByRole('tab', { name: 'Content', exact: true })).toBeVisible();
     await setTextSize(page, '200%');
     await layoutGate(page, 'editor');
     // The long key's revoke button (TODO #63), on API access since #101.

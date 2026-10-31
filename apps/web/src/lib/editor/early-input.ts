@@ -12,25 +12,29 @@ export function earlyInput(id: string): Record<string, string | string[]> {
         (control instanceof HTMLInputElement && control.checked !== control.defaultChecked)
       )
         changed.add(control.name);
-    } else if (
-      control instanceof HTMLSelectElement &&
-      Array.from(control.options).some((o) => o.selected !== o.defaultSelected)
-    )
-      changed.add(control.name);
+    } else if (control instanceof HTMLSelectElement) {
+      const options = Array.from(control.options);
+      // A single select with no selected attribute starts at its first option automatically.
+      const initial = options.filter((option) => option.defaultSelected).at(-1) ?? options[0];
+      const changedSelection = control.multiple
+        ? options.some((option) => option.selected !== option.defaultSelected)
+        : control.value !== initial?.value;
+      if (changedSelection) changed.add(control.name);
+    }
   }
   const data = new FormData(form);
-  return Object.fromEntries(
+  const values = Object.fromEntries(
     Array.from(changed)
       .filter(Boolean)
       .map((name) => {
         const values = data.getAll(name).filter((v): v is string => typeof v === 'string');
-        const control = form.elements.namedItem(name);
-        return [
-          name,
-          control instanceof RadioNodeList || name === 'locales' || name === 'authorIds'
-            ? values
-            : (values[0] ?? ''),
-        ];
+        return [name, name === 'locales' || name === 'authorIds' ? values : (values[0] ?? '')];
       })
   );
+  return {
+    ...values,
+    $openBlocks: Array.from(form.querySelectorAll('details.block[open]')).map((block) =>
+      block.id.replace('block-', '')
+    ),
+  };
 }

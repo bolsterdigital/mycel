@@ -243,4 +243,17 @@ describe('withLocale', () => {
     for (const locale of ['en', 'de'])
       expect(valuesIn(read.document, locale)).toEqual(valuesIn(base, locale));
   });
+  it('an enhanced article save still prunes a deliberately removed locale', () => {
+    const base = documentOf('article', [examples.findIndex((e) => e.type === 'rich-text')], false);
+    const form = screenForm(base, 'nl');
+    form.locales = ['nl'];
+    const editor = toArticleEditor(base, 'nl');
+    form.articleEditor = JSON.stringify(editor);
+    const data = formData(form);
+    const read = formDocument(base, valuesFromForm(data), posted(data), '2026-10-31', 'nl');
+    expect(read.errors).toEqual([]);
+    expect(read.document.locales).toEqual(['nl']);
+    expect(valuesIn(read.document, 'en')).toEqual([]);
+    expect(ContentDocument.safeParse(read.document).success).toBe(true);
+  });
 });
