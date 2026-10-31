@@ -29,7 +29,7 @@ import {
   type MediaView,
   type ResolvedTheme,
 } from '@mycel/core';
-import { probeForm } from '@mycel/core/testing';
+import { demoArticle, demoPage, probeForm } from '@mycel/core/testing';
 import Blocks from './Blocks.svelte';
 import { headingTag } from './headings.js';
 import { renderMarkdown } from './markdown.js';
@@ -376,6 +376,38 @@ describe('rich text', () => {
     expect(markdown).toContain('[^1]: Gezien op 1 mei.');
     expect(markdown).toContain('3. Drie');
   });
+});
+
+// The seeded demo page and article: a whole document of interleaved blocks, where
+// the examples above each render one block alone. Their images and links point at the example
+// ids, so the same fixtures resolve them.
+describe('the demo documents render whole', () => {
+  const media = {
+    market: EXAMPLE_IDS.image,
+    bakery: EXAMPLE_IDS.image,
+    measuring: EXAMPLE_IDS.portrait,
+    signatures: EXAMPLE_IDS.image,
+  };
+  const demos = [
+    demoPage({ formId: EXAMPLE_IDS.form, media }),
+    demoArticle({ formId: EXAMPLE_IDS.form, media, pageId: EXAMPLE_IDS.item }),
+  ].map(({ slug, document }) => ({
+    slug,
+    blocks: document.blocks.map((b, i) => Block.parse({ ...b, id: `${slug}-${i}` })),
+  }));
+
+  for (const { slug, blocks } of demos)
+    for (const locale of LOCALES)
+      it(`${slug} (${locale})`, async () => {
+        const { html, markdown, model } = await representations(blocks, locale);
+        expect(model.blocks).toHaveLength(blocks.length);
+        expect(markupProblems(html)).toEqual([]);
+        expect(outlineProblems(headingLevels(html))).toEqual([]);
+        expect(markdown).not.toMatch(/<[a-z][a-z0-9-]*[\s>/]/i);
+        const marked = blocks.map((b) => Block.parse(sentinel(b)));
+        const leak = await representations(marked, 'nl');
+        expect(leak.html + leak.markdown).not.toContain(SENTINEL);
+      });
 });
 
 describe('theme tokens', () => {

@@ -33,7 +33,7 @@ docs/adr        decisions (read first)
 npm install
 cp .env.example .env
 npm run db:up       # Postgres in Docker
-npm run db:seed     # migrations + tenant `probe` with a signup page
+npm run db:seed     # migrations + tenant `probe` with a signup page and a demo page and article
 npm run dev         # API on :8787, web on :5173 -> http://localhost:5173/probe/signup
 ```
 
