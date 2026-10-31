@@ -36,6 +36,51 @@ export const UnresolvedMailView = z.object({
 export type UnresolvedMailView = z.infer<typeof UnresolvedMailView>;
 
 /**
+ * Mail of one day in the site's time zone (brief admin-operations-screens § 4): sent, attempted
+ * with an outcome still unknown, given up. Counted from the send log only; bounces and refusals
+ * need a provider feed Mycel does not have yet, so they are not guessed here.
+ */
+export const MailDayView = z.object({
+  day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  sent: z.number().int().nonnegative(),
+  unknown: z.number().int().nonnegative(),
+  abandoned: z.number().int().nonnegative(),
+});
+export type MailDayView = z.infer<typeof MailDayView>;
+
+/** How many days the status page counts mail for, today included. */
+export const MAIL_DAYS = 14;
+
+/** `YYYY-MM-DD` of `at` in `zone`. */
+export const dayIn = (at: Date, zone: string): string =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: zone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(at);
+
+/**
+ * The last `MAIL_DAYS` days in `zone`, oldest first, with zeros where nothing happened; counts
+ * for any other day (the query reads a little wider than the window) are left out.
+ */
+export function mailDays(
+  counts: readonly MailDayView[],
+  now: Date,
+  zone: string,
+  days = MAIL_DAYS
+): MailDayView[] {
+  const byDay = new Map(counts.map((c) => [c.day, c]));
+  // Noon of today in UTC terms steps a whole day per iteration whatever the zone's offset.
+  const today = dayIn(now, zone);
+  const [y, m, d] = today.split('-').map(Number) as [number, number, number];
+  return Array.from({ length: days }, (_, i) => {
+    const day = new Date(Date.UTC(y, m - 1, d - (days - 1 - i), 12)).toISOString().slice(0, 10);
+    return byDay.get(day) ?? { day, sent: 0, unknown: 0, abandoned: 0 };
+  });
+}
+
+/**
  * The site's erasure register against its backups (TODO #29B): counts only, never an id. `late`
  * when a registration has waited longer than ERASURE_UNSECURED_WARN_MS for a backup to hold it.
  */

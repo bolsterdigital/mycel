@@ -11,9 +11,32 @@ import {
   secureErasures,
 } from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
-import { buildDiagnosis, keyPrefix } from './model.js';
+import { buildDiagnosis, dayIn, keyPrefix, mailDays } from './model.js';
 
 const OTHER = '01900000-0000-7000-8000-00000000bbbb';
+
+describe('mail days', () => {
+  it('fill the window oldest first and place a count on its zone day', () => {
+    // 23:30 UTC on 31 October is already 1 November in Amsterdam.
+    const now = new Date('2026-10-31T23:30:00Z');
+    const days = mailDays(
+      [
+        { day: '2026-11-01', sent: 3, unknown: 0, abandoned: 1 },
+        { day: '2026-10-10', sent: 9, unknown: 9, abandoned: 9 },
+      ],
+      now,
+      'Europe/Amsterdam'
+    );
+    expect(days.map((d) => d.day)).toEqual(
+      Array.from(
+        { length: 14 },
+        (_, i) => `2026-${i < 13 ? '10' : '11'}-${String(i < 13 ? 19 + i : 1).padStart(2, '0')}`
+      )
+    );
+    expect(days.at(-1)).toEqual({ day: '2026-11-01', sent: 3, unknown: 0, abandoned: 1 });
+    expect(mailDays([], now, 'UTC').at(-1)?.day).toBe('2026-10-31');
+  });
+});
 
 describe('job recovery (TODO #17c)', () => {
   let uow: MemoryUnitOfWork;
@@ -172,6 +195,47 @@ describe('job recovery (TODO #17c)', () => {
       expect(status.diagnosis).toContain('- abandoned mailing.confirmation attempts 1');
       expect(status.diagnosis).not.toContain('@');
       expect(status.diagnosis).not.toContain('f'.repeat(64));
+    });
+
+    it('counts mail per day in the site time zone, fourteen days with zeros', async () => {
+      const store = uow.store.for(TENANT);
+      const now = clock.now();
+      const at = new Date(now.getTime() - 3600_000);
+      const base = {
+        subscriber: 'mailing.confirmation',
+        eventId: 'e1',
+        attemptedAt: at,
+        claimedUntil: at,
+        attempts: 1,
+        sentAt: null,
+        abandonedAt: null,
+        providerId: null,
+        lastError: null,
+        correlation: null,
+      };
+      store.mailSends.set('a', { ...base, key: 'a', sentAt: at });
+      store.mailSends.set('b', { ...base, key: 'b', sentAt: at });
+      store.mailSends.set('c', { ...base, key: 'c', abandonedAt: at });
+      store.mailSends.set('d', { ...base, key: 'd' });
+      // In flight: its lease has not expired, so it is neither counted nor unknown yet.
+      store.mailSends.set('e', {
+        ...base,
+        key: 'e',
+        claimedUntil: new Date(now.getTime() + 60_000),
+      });
+      const old = new Date(now.getTime() - 20 * 24 * 3600_000);
+      store.mailSends.set('f', { ...base, key: 'f', attemptedAt: old, sentAt: old });
+      const { mailDays: days } = await invoker.run(useCases.getOpsStatus, adminOf(), {});
+      expect(days).toHaveLength(14);
+      expect(days.at(-1)).toEqual({
+        day: dayIn(at, 'Europe/Amsterdam'),
+        sent: 2,
+        unknown: 1,
+        abandoned: 1,
+      });
+      expect(days.slice(0, -1).every((d) => d.sent + d.unknown + d.abandoned === 0)).toBe(
+        dayIn(at, 'Europe/Amsterdam') === dayIn(now, 'Europe/Amsterdam')
+      );
     });
 
     it('is empty when nothing is stuck, and says ok with the moment it checked', async () => {

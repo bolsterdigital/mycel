@@ -98,5 +98,35 @@ export function mailSendsRepository(trx: Trx, tenantId: string): MailSendsReposi
         .execute();
       return rows.map(toMailSend);
     },
+    async daily(since, now, zone) {
+      // One pass: each row lands on the day of the moment that decided its state. The zone is a
+      // bound parameter, never spliced; Postgres refuses a name it does not know.
+      const { rows } = await sql<{ day: string; sent: number; unknown: number; abandoned: number }>`
+        with decided as (
+          select
+            case
+              when sent_at is not null then 'sent'
+              when abandoned_at is not null then 'abandoned'
+              else 'unknown'
+            end as state,
+            coalesce(sent_at, abandoned_at, attempted_at) as at
+          from mail_sends
+          where tenant_id = ${tenantId}
+            and (sent_at is not null or abandoned_at is not null
+              or (attempted_at is not null
+                and (claimed_until is null or claimed_until <= ${now})))
+        )
+        select
+          to_char((at at time zone ${zone})::date, 'YYYY-MM-DD') as day,
+          count(*) filter (where state = 'sent')::int as sent,
+          count(*) filter (where state = 'unknown')::int as unknown,
+          count(*) filter (where state = 'abandoned')::int as abandoned
+        from decided
+        where at >= ${since}
+        group by 1
+        order by 1
+      `.execute(trx);
+      return rows;
+    },
   };
 }
