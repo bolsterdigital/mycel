@@ -4,7 +4,9 @@
      the redirect it always did. Not a form: the admin's CSP `form-action 'self'` also covers the
      redirect to the IdP that follows a form submission, and the browser would stop there. Without
      a configured issuer it says so instead of offering a button that would fail. Language follows
-     the browser until the operator chooses one. -->
+     the browser until the operator chooses one. Sent here by an admin page, it loads
+     session-restore.js, which marks the editor input that post carried as not arrived, so the
+     edit screen can put it back after the login. -->
 <script lang="ts">
   import { Button, SystemState } from '#lib/admin/ui/index.js';
   import { fill, ui } from '../../../../i18n/index.js';
@@ -16,11 +18,12 @@
 
 <svelte:head>
   <title>{t('admin.login.title')} · {t('admin.title')}</title>
+  {#if data.sentHere}<script type="module" src="/_admin/session-restore.js"></script>{/if}
 </svelte:head>
 
 <SystemState kind="signed-out" title={t('admin.login.title')} page>
   {#if data.sentHere}
-    <p>{t('admin.login.reason.return')}</p>
+    <p data-restore-return={data.returnTo}>{t('admin.login.reason.return')}</p>
   {/if}
   {#if data.idp}
     <p>{fill(t('admin.login.how'), { idp: data.idp })}</p>

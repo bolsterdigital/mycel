@@ -31,6 +31,9 @@ if (form instanceof HTMLFormElement) {
   // A refused save comes back with what was typed, still unsaved: leaving asks from the start.
   let dirty = !!state?.hasAttribute('data-refused');
   let submitting = false;
+  // The form says so too, for session-restore.js: it keeps what a submit sends only while
+  // something is unsaved, from this one source rather than its own detection.
+  form.toggleAttribute('data-has-unsaved', dirty);
 
   /** Shows one of the bar's save states; they share a cell, so nothing moves. */
   const say = (which) => {
@@ -46,6 +49,7 @@ if (form instanceof HTMLFormElement) {
     if (target instanceof Element && target.closest('[data-type-search]')) return;
     if (dirty) return;
     dirty = true;
+    form.setAttribute('data-has-unsaved', '');
     say('unsaved');
   };
   form.addEventListener('input', mark);
@@ -60,6 +64,11 @@ if (form instanceof HTMLFormElement) {
       submitting = false;
       say(dirty ? 'unsaved' : 'none');
     });
+  });
+  // A link that throws the unsaved input away on purpose ("Discard" after a restore) leaves
+  // without asking: the click was the question.
+  document.addEventListener('click', (event) => {
+    if (event.target instanceof Element && event.target.closest('a[data-discard]')) dirty = false;
   });
   window.addEventListener('beforeunload', (event) => {
     if (dirty && !submitting) event.preventDefault();
