@@ -119,6 +119,10 @@ test.describe('content-admin', () => {
     const initial = await callApi(request, 'content.item.get', { itemId });
     expect(initial.revision.document.title).toEqual({ nl: '(geen titel)' });
     expect(initial.revision.document.blocks).toEqual([]);
+    // A programmatic select-all during hydration can append instead of replace (Notities, #66
+    // PR 6); wait for the screen script like the other editor tests do.
+    if (isA11y())
+      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
     await page.locator('#title\\.nl').fill('Meteen in het document');
     await page.getByLabel('Begin met een patroon').selectOption(pattern.id);
     await page.getByRole('button', { name: 'Begin met een patroon', exact: true }).click();
