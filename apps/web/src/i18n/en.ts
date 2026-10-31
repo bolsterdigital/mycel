@@ -152,7 +152,14 @@ export const en = {
   'admin.forbidden.title': 'No access to this site',
   'admin.forbidden.body':
     'You are not a member of this site. Ask one of its administrators to invite {email}.',
+  'admin.forbidden.pageTitle': 'No access to this page',
+  'admin.forbidden.capability':
+    'Your role on this site does not include this page. Ask one of its administrators if you need it.',
   'admin.notFound.title': 'Page not found',
+  'admin.notFound.body':
+    'This page does not exist, or what it showed has been removed. Check the address or go back.',
+  'admin.error.badRequest':
+    'The address of this page holds a value that cannot be used. Go back and try again.',
   'admin.error.title': 'Something went wrong',
   'admin.back': 'Back to your sites',
   'admin.members.title': 'Members',

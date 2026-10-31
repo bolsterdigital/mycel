@@ -12,7 +12,7 @@
 // without a script.
 import { MAX_UPLOAD_BYTES, can, useCases } from '@mycel/core';
 import { fail } from '@sveltejs/kit';
-import { text } from '#lib/server/admin/admin-actions.js';
+import { loaded, text } from '#lib/server/admin/admin-actions.js';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { uploadFile } from '#lib/server/admin/media-choices.js';
 import { runtime } from '#lib/server/runtime.js';
@@ -26,7 +26,7 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
   const cursor = url.searchParams.get('cursor') ?? undefined;
   const q = url.searchParams.get('q')?.trim().slice(0, 100) || undefined;
   const [list, usage] = await Promise.all([
-    rt.invoker.run(useCases.listMedia, principal, { q, cursor, limit: 50 }),
+    loaded(rt.invoker.run(useCases.listMedia, principal, { q, cursor, limit: 50 })),
     can(principal, 'tenant:admin') ? rt.invoker.run(useCases.getUsage, principal, {}) : null,
   ]);
   return {
