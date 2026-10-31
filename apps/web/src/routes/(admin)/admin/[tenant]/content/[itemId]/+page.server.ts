@@ -437,19 +437,33 @@ function saveFailure(e: unknown) {
   return { error: e, status, body };
 }
 
-/** Who saved the newest revision, when, and what changed since `from`. */
-async function conflictOf(principal: Principal, itemId: string, from: string, zone: string) {
+/**
+ * Who saved the newest revision, when, and what changed since `from`. The slug lives on the item,
+ * not in a revision, so a moved address is its own row when the form says what it was rendered
+ * with (`baseSlug`); without it a conflict over a moved address read "No differences".
+ */
+async function conflictOf(
+  principal: Principal,
+  itemId: string,
+  from: string,
+  zone: string,
+  baseSlug?: string
+) {
   const { item, revision } = await latest(principal, itemId);
   const { changes } = await runtime().invoker.run(useCases.diffRevisions, principal, {
     itemId: item.id,
     fromRevisionId: from,
     toRevisionId: revision.id,
   });
+  const moved = baseSlug !== undefined && baseSlug !== item.slug;
   return {
     newest: revision.id,
+    slug: item.slug,
     who: actorLabel(revision.actor),
     when: when(revision.createdAt, zone),
-    changes: diffRows(changes),
+    changes: diffRows(
+      moved ? [{ path: 'slug', before: baseSlug, after: item.slug }, ...changes] : changes
+    ),
   };
 }
 
@@ -483,10 +497,35 @@ const SLUG_ISSUES: Record<string, UiKey> = {
   'content.slug.published': 'admin.content.error.slugPublished',
 };
 
-/** The new slug the form asks for, or null: empty, unchanged or a form without the field. */
+/**
+ * The slug the form was rendered with (`baseSlug`, next to the field), so a tab that never touched
+ * the field cannot move the address back after another tab moved it. A form without it (an older
+ * tab) compares with the item's slug, as before. Rejected: comparing with `item.slug` only, which
+ * read a stale tab's untouched field as a request to restore the old address.
+ */
+function baseSlugOf(item: { slug: string }, data: FormData): string {
+  return data.has('baseSlug') ? text(data, 'baseSlug') : item.slug;
+}
+
+/** The new slug the form asks for, or null: empty, untouched, already the item's, or no field. */
 function slugChange(item: { slug: string }, data: FormData): string | null {
   const slug = text(data, 'slug').trim();
-  return slug && slug !== item.slug ? slug : null;
+  return slug && slug !== baseSlugOf(item, data) && slug !== item.slug ? slug : null;
+}
+
+/**
+ * The form values a conflict comes back with: the newest revision as base and the item's slug as
+ * `baseSlug`. An untouched slug field follows the item, so the next save keeps the address the
+ * other tab gave it; a slug the operator typed stays, to be applied by that save.
+ */
+function conflictValues(values: FormValues, newest: string, slug: string): FormValues {
+  const untouched = !('slug' in values) || values.slug === values.baseSlug;
+  return {
+    ...values,
+    baseRevisionId: newest,
+    ...('baseSlug' in values ? { baseSlug: slug } : {}),
+    ...('slug' in values && untouched ? { slug } : {}),
+  };
 }
 
 /**
@@ -573,8 +612,12 @@ async function commit(
       itemId,
       revisionId: baseRevisionId,
     });
-    // A stale tab moves nothing: its slug change is part of the conflict like its fields are.
-    if (slugChange(item, data) && item.latestRevisionId !== baseRevisionId)
+    // A stale tab moves nothing: its slug change is part of the conflict like its fields are,
+    // also when only the address moved since the form was rendered (no newer revision then).
+    if (
+      slugChange(item, data) &&
+      (item.latestRevisionId !== baseRevisionId || item.slug !== baseSlugOf(item, data))
+    )
       throw new UseCaseError('conflict', 'the item has a newer revision than baseRevisionId');
     const base = revision.document;
     blocks = base.blocks;
@@ -661,13 +704,19 @@ async function commit(
           status,
         }),
       };
-    const conflict = await conflictOf(principal, itemId, baseRevisionId, zone);
+    const conflict = await conflictOf(
+      principal,
+      itemId,
+      baseRevisionId,
+      zone,
+      data.has('baseSlug') ? text(data, 'baseSlug') : undefined
+    );
     return {
       failure: await refused(
         tenant,
         principal,
         itemId,
-        { ...values, baseRevisionId: conflict.newest },
+        conflictValues(values, conflict.newest, conflict.slug),
         pending,
         {
           ...body,

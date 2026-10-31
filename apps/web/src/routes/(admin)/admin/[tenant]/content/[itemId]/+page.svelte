@@ -1048,6 +1048,9 @@
       {:else if data.canWrite}
         <details class="ui-fold item-slug" open={flagged('slug')}>
           <summary>{t('admin.content.slug.change')}</summary>
+          <!-- The address this form was rendered with: a save changes the slug only when the
+               field differs from it, so a tab left open cannot move another tab's address back. -->
+          <input type="hidden" name="baseSlug" value={v('baseSlug') || data.item.slug} />
           <Field
             id="slug"
             name="slug"

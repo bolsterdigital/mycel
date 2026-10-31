@@ -464,6 +464,45 @@ test.describe('content-admin', () => {
     await expect(side).toContainText(`/${moved}`);
   });
 
+  // The #207 review's gap: a tab that never touched the address posts the slug it was rendered
+  // with; comparing that with the item read it as a request to move the address back.
+  test("a stale tab's title save keeps the address another tab gave the draft", async ({
+    page,
+    browser,
+  }) => {
+    await login(page, '/admin/probe');
+    const edit = await newPage(page, slugFor('stale-from'), 'Oud tabblad');
+    const side = page.locator('section[aria-labelledby="this-item"]');
+
+    // Tab B moves the address and saves; tab A still shows the old one.
+    const context = await freshContext(browser);
+    const other = await context.newPage();
+    await login(other, edit);
+    const moved = slugFor('stale-to');
+    const theirs = other.locator('section[aria-labelledby="this-item"]');
+    await theirs.locator('details', { hasText: 'Adres wijzigen' }).locator('summary').click();
+    await theirs.getByLabel('Slug').fill(moved);
+    await other.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(other).toHaveURL(`${edit}?saved`);
+    await expect(theirs).toContainText(`/${moved}`);
+    await context.close();
+
+    // Tab A saves a title: a conflict that names the address, and A's field now shows B's.
+    await page.locator('#title\\.nl').fill('Nieuwe titel');
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    const alert = page.getByRole('alert');
+    await expect(alert).toContainText('Iemand anders heeft dit item intussen opgeslagen');
+    await expect(alert).not.toContainText('Geen verschillen');
+    await expect(alert.getByRole('row', { name: /^slug/ })).toContainText(moved);
+    await expect(side.getByLabel('Slug')).toHaveValue(moved);
+
+    // Saving again keeps B's address and A's title.
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(page).toHaveURL(`${edit}?saved`);
+    await expect(page.locator('#title\\.nl')).toHaveValue('Nieuwe titel');
+    await expect(side).toContainText(`/${moved}`);
+  });
+
   /** One entry of a paged directory by its slug, over the HTTP API. */
   async function bySlug<T>(
     request: APIRequestContext,
