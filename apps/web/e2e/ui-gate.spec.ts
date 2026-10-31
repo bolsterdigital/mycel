@@ -68,6 +68,17 @@ test.describe('ui-gate', () => {
           await measure(page, route, text);
         }
       });
+    // An image that fails lays out as its alt text: a cover hero once took that text's width as
+    // its column and scrolled sideways at 320 CSS px (seen when a worktree lacked the files).
+    test('every public route with its images failing, at 200% text', async ({ page }) => {
+      onlyA11y('measures the layout with a script');
+      await page.route('**/media/**', (route) => route.abort());
+      for (const route of PUBLIC_ROUTES) {
+        expect((await page.goto(route.path))?.status(), route.path).toBe(200);
+        await setTextSize(page, '200%');
+        await layoutGate(page, `${route.path} without images at 200%`, route.within);
+      }
+    });
   });
 });
 
