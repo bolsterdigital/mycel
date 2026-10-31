@@ -710,6 +710,14 @@ test.describe('grid-compositions', () => {
     // The full image touches the screen edge: its caption text starts one gutter (1rem) in.
     expect(wide.full.img.left).toBe(0);
     expect(wide.full.inset).toBe(16);
+    // The lead sits centred under the title in its own 44rem rail (brief 46C-1 rule 8).
+    const lead = await page.locator('main > .lead').evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.x, width: r.width, align: getComputedStyle(el).textAlign };
+    });
+    expect(lead.align).toBe('center');
+    expect(lead.width).toBeLessThanOrEqual(44 * 16 + 1);
+    expect(Math.abs(lead.x + lead.width / 2 - 720)).toBeLessThanOrEqual(1);
     // Half the reading column, standing 8rem out of it.
     expect(wide.float.figure).toBeGreaterThan(wide.prose.right + 100);
     expect(wide.float.img.width).toBeCloseTo((wide.prose.right - wide.prose.left) / 2, 0);

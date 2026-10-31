@@ -171,8 +171,8 @@
     justify-content: flex-end;
   }
 
-  /* The item title is centred in its own rail (brief 46C-1 rule 8); the lead stays in the
-     reading column and the hero runs wide under it. Scoped away from the admin, whose page
+  /* The item title is centred in its own rail (brief 46C-1 rule 8); the centred lead follows
+     in its own narrower rail and the hero runs wide under it. Scoped away from the admin, whose page
      heading is a working title, not an item's. Rejected: a class on the public route only,
      which would leave the saved and live previews showing a different title than the page. */
   .page:not(.admin) > h1 {
@@ -215,7 +215,11 @@
 
   /* The item's own introduction (#86): the lead in the next step of the scale, in the heading
      font, and the hero image between it and the blocks. */
+  /* Centred under the title like Dreamkit's compact-header lede, in a 44rem rail of its own:
+     narrower than the title, whose larger font may run wider. */
   .page > .lead {
+    width: min(44rem, 100% - 2 * var(--gutter));
+    text-align: center;
     margin-block: 0 var(--space-3);
     font-family: var(--font-heading);
     font-size: var(--step-1);
