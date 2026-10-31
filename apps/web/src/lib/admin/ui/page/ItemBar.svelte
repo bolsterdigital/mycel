@@ -5,7 +5,12 @@
      ordinary bar on top; the edit-screen script of #66 PR 6 may make it stick. The actions wrap
      as whole buttons (skill ui-action-layout). The locale switch (#66 PR 4) stands with the
      state, as it says which version the state is of. Rejected: the breadcrumb and page header of
-     the other screens, which put the title twice and the actions under a line of ids. -->
+     the other screens, which put the title twice and the actions under a line of ids.
+     The save state (#66 PR 6) stands apart from the publication state, as WordPress and Ghost
+     keep "Saved" apart from "Published": what the server knows after a save or a refused one,
+     and the screen's script with "Unsaved changes" and "Saving…" in between. The words share
+     one grid cell, so a change of state never moves the Save button under a pointer, and a
+     polite live line (not a second `status` role beside the screen's notice) reads them. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import Badge from '../feedback/Badge.svelte';
@@ -19,6 +24,7 @@
     tone = 'neutral',
     level = 1,
     locales,
+    save,
     actions,
   }: {
     /** The list this item belongs to. */
@@ -31,6 +37,11 @@
     tone?: 'neutral' | 'info' | 'success' | 'warning' | 'error';
     /** 1 on the edit screen; lower only where the bar is shown as a sample (the catalogue). */
     level?: 1 | 2 | 3;
+    /**
+     * The save state: what the server knows (`text`, empty when nothing happened yet) and the
+     * words the script shows while the form has unsaved changes or is being saved.
+     */
+    save?: { text: string; unsaved: string; saving: string; refused?: boolean } | undefined;
     /** The content locale switch, after the state. */
     locales?: Snippet;
     actions?: Snippet;
@@ -45,6 +56,21 @@
         ><Badge {tone}>{state}</Badge></a
       >{:else if state}<Badge {tone}>{state}</Badge>{/if}
     {#if locales}{@render locales()}{/if}
+    {#if save}
+      <span
+        class="ui-item-bar-save"
+        data-save-state
+        data-current={save.text ? 'done' : 'none'}
+        data-refused={save.refused ? '' : undefined}
+      >
+        <span class="ui-item-bar-save-words" aria-hidden="true">
+          <span data-state="unsaved">{save.unsaved}</span>
+          <span data-state="saving">{save.saving}</span>
+          <span data-state="done">{save.text}</span>
+        </span>
+        <span class="ui-visually-hidden" aria-live="polite" data-save-live>{save.text}</span>
+      </span>
+    {/if}
   </div>
   {#if actions}
     <div class="ui-actions-host">

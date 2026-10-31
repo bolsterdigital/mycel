@@ -19,6 +19,7 @@ import {
   type Block,
   type BlockField,
   type BlockType,
+  type MediaCredit,
   type Principal,
   type UseCaseError,
 } from '@mycel/core';
@@ -177,6 +178,47 @@ export function previewOf(block: Block, locale: string): BlockPreview {
     ) ||
     (list ? '' : summaryOf(block, locale));
   return { text: clip(text), mediaId: media(fields, props), entries: entries.filter(Boolean) };
+}
+
+/**
+ * An image block at rest (MY-110 A): the file it shows at card scale and the caption and credit
+ * the page will print, by the renderer's rule (`lib/blocks/resolve.ts`): the block's own caption
+ * wins and an empty one hides the file's; the block's credit replaces the file's. `card` is null
+ * when the file cannot be shown, so the card says so instead of showing nothing.
+ */
+export interface ImageRest {
+  mediaId: string;
+  /** The file's name, or its id when the operator cannot read it. */
+  label: string;
+  card: { file: string; width: number; height: number } | null;
+  caption: string | null;
+  credit: MediaCredit | null;
+}
+
+export function imageRestOf(
+  block: Block,
+  locale: string,
+  media: readonly MediaChoice[]
+): ImageRest | null {
+  if (block.type !== 'image') return null;
+  const p = block.props as {
+    mediaId: string;
+    caption?: Partial<Record<string, string>>;
+    credit?: MediaCredit;
+  };
+  const asset = media.find((m) => m.id === p.mediaId);
+  const own = p.caption?.[locale];
+  const caption = own !== undefined ? own : (asset?.card?.caption[locale] ?? '');
+  const credit = p.credit ?? asset?.card?.credit ?? null;
+  return {
+    mediaId: p.mediaId,
+    label: asset?.label ?? p.mediaId,
+    card: asset?.card
+      ? { file: asset.card.file, width: asset.card.width, height: asset.card.height }
+      : null,
+    caption: caption.trim() ? caption : null,
+    credit: credit && (credit.work || credit.photographer) ? credit : null,
+  };
 }
 
 const clip = (text: string) => (text.length > 80 ? `${text.slice(0, 79)}…` : text);

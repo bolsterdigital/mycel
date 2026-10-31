@@ -6,7 +6,11 @@
      choice between the file's caption, none and its own, an
      optional group a "use" checkbox, a list its rows plus one empty row to add an entry. The
      controls are the shared Field, Fieldset and Checkbox (brief #56), so a block form looks like
-     every other form of the admin; a refusal marks its control and is listed in the summary. -->
+     every other form of the admin; a refusal marks its control and is listed in the summary.
+     With `groups` (MY-110 A), the content fields come first and the rarer ones fold under
+     "Display" and "Source and credits"; a fold with a refused field starts open. An image's
+     caption says what it inherits from the file; its alt field is marked for the screen's
+     script, which hides it while the image is decorative and the field is empty. -->
 <script lang="ts">
   import WritingSurface from '#lib/editor/WritingSurface.svelte';
   import { toTiptap } from '#lib/editor/article-document.js';
@@ -37,6 +41,14 @@
     /** Names with a refusal, marked `aria-invalid`. */
     invalid: readonly string[];
     locale: string;
+    /** Top-level keys folded under "Display" and "Source and credits", with their legends. */
+    groups?:
+      | {
+          display: readonly string[];
+          source: readonly string[];
+          labels: { display: string; source: string };
+        }
+      | undefined;
   }
   let {
     fields,
@@ -50,6 +62,7 @@
     items,
     invalid,
     locale,
+    groups,
   }: Props = $props();
   const t = $derived(ui(locale));
   const label = (key: string) => t(`admin.block.field.${key}` as UiKey);
@@ -63,6 +76,14 @@
     const read = fromMarkdown(value);
     return read.ok ? toTiptap(read.doc) : null;
   };
+  /** The file a caption field's image points at, for the caption it inherits. */
+  const assetOf = (captionName: string) =>
+    media.find((m) => m.id === v(captionName.replace(/caption$/, 'mediaId')));
+  const inGroup = (key: string) =>
+    !!groups && (groups.display.includes(key) || groups.source.includes(key));
+  /** A group starts open when a refusal names one of its fields. */
+  const refusedIn = (keys: readonly string[]) =>
+    keys.some((k) => invalid.some((name) => name.startsWith(`${prefix}p.${k}`)));
   const hasRichText = (fs: readonly BlockField[]): boolean =>
     fs.some((f) => f.kind === 'rich-text' || ('fields' in f && hasRichText(f.fields)));
 </script>
@@ -94,7 +115,13 @@
 
 {#snippet field(f: BlockField, name: string)}
   {#if f.kind === 'text'}
-    {#if f.localized}
+    {#if f.localized && f.key === 'alt'}
+      <div class="ui-block-alt" data-alt-of={name.replace(/alt$/, 'decorative')}>
+        {#each locales as l (l)}
+          {@render input(`${name}.${l}`, `${label(f.key)}${per(l)}`, f.multiline)}
+        {/each}
+      </div>
+    {:else if f.localized}
       {#each locales as l (l)}
         {@render input(`${name}.${l}`, `${label(f.key)}${per(l)}`, f.multiline)}
       {/each}
@@ -113,6 +140,14 @@
           }))
         )}
         {@render input(`${name}.${l}`, t('admin.block.caption.own'), true)}
+        {@const asset = assetOf(name)}
+        {#if asset?.card}
+          <p class="ui-hint">
+            {asset.card.caption[l]?.trim()
+              ? fill(t('admin.block.caption.inherited'), { caption: asset.card.caption[l]! })
+              : t('admin.block.caption.noneInherited')}
+          </p>
+        {/if}
       </Fieldset>
     {/each}
   {:else if f.kind === 'rich-text'}
@@ -208,8 +243,20 @@
 {/snippet}
 
 {#each fields as f (f.key)}
-  {@render field(f, `${prefix}p.${f.key}`)}
+  {#if !inGroup(f.key)}{@render field(f, `${prefix}p.${f.key}`)}{/if}
 {/each}
+{#if groups}
+  {#each [['display', groups.display], ['source', groups.source]] as const as [kind, keys] (kind)}
+    {#if keys.length}
+      <details class="ui-fold ui-block-group" open={refusedIn(keys)}>
+        <summary>{groups.labels[kind]}</summary>
+        {#each fields.filter((f) => keys.includes(f.key)) as f (f.key)}
+          {@render field(f, `${prefix}p.${f.key}`)}
+        {/each}
+      </details>
+    {/if}
+  {/each}
+{/if}
 {#if fields.length === 0}
   <p class="ui-hint">{t('admin.block.noFields')}</p>
 {/if}

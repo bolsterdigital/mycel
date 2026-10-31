@@ -19,6 +19,7 @@ import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { ADMIN, login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { callApi, requireApi } from './lib/api';
+import { expectPixels } from './lib/images';
 
 // Content admin (TODO #11, brief content-editor § A1): an operator makes a page in two locales,
 // edits it, reads its revisions and their diff, and opens a preview that the public site never
@@ -412,7 +413,7 @@ test.describe('content-admin', () => {
     }
     await page.reload();
     await expect(page.locator('#title\\.nl')).toHaveValue('Saved title');
-    await expect(page.locator('details.block').first()).toContainText('Saved heading');
+    await expect(page.locator('[data-block-rest]').first()).toContainText('Saved heading');
   });
 
   /** A second browser context logged in as an operator without a membership of probe. */
@@ -1049,12 +1050,21 @@ test.describe('content-blocks', () => {
   /** The card of block `n` (1-based): its head holds the block's actions (#66 PR 3). */
   const card = (page: Page, n: number): Locator => page.locator('section.ui-block-card').nth(n - 1);
 
-  /** Block `n` (1-based) of the edit page, opened. */
+  /** Block `n` (1-based) of the edit page, opened, with its Display and Source folds open. */
   async function block(page: Page, n: number): Promise<Locator> {
     const details = page.locator('details.block').nth(n - 1);
     if ((await details.getAttribute('open')) === null)
       await details.locator(':scope > summary').click();
+    const closed = details.locator('details.ui-block-group:not([open])');
+    while ((await closed.count()) > 0) await closed.first().locator(':scope > summary').click();
     return details;
+  }
+
+  /** Opens "More actions" of block `n` (MY-110 A) and returns its card. */
+  async function more(page: Page, n: number): Promise<Locator> {
+    const menu = card(page, n).locator('details.ui-block-card-more');
+    if ((await menu.getAttribute('open')) === null) await menu.locator(':scope > summary').click();
+    return card(page, n);
   }
 
   /** Save the one edit form after editing block `n` (#66 PR 2: one form, one save). */
@@ -1242,14 +1252,19 @@ test.describe('content-blocks', () => {
     await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
     const summaries = page.locator('.ui-block-card-title');
     await expect(summaries).toHaveText(['1. Tekst', '2. Kop']);
-    await expect(page.locator('details.block > summary')).toHaveText([
+    // At rest each card shows what it says, beside a named Edit (MY-110 A).
+    await expect(page.locator('[data-block-rest]')).toHaveText([
       'Een schuine inleiding.',
       'Eerste kop',
     ]);
+    for (const fold of await page.locator('details.block').all())
+      await expect(fold.locator(':scope > summary')).toHaveAccessibleName(
+        (await fold.getAttribute('open')) === null ? 'Bewerken' : 'Gereed'
+      );
 
     // A block action saves what was typed elsewhere first (brief edit-screen § 1 point 4).
     await page.locator('#title\\.nl').fill('Blokkenproef bewaard');
-    await card(page, 2).getByRole('button', { name: 'Omhoog' }).click();
+    await (await more(page, 2)).getByRole('button', { name: 'Omhoog' }).click();
     await expect(page.getByRole('status')).toContainText('Blok verplaatst.');
     await expect(summaries).toHaveText(['1. Kop', '2. Tekst']);
     await expect(page.locator('#title\\.nl')).toHaveValue('Blokkenproef bewaard');
@@ -1263,7 +1278,7 @@ test.describe('content-blocks', () => {
     await expect(summaries).toHaveCount(2);
     await expect(page.locator('#title\\.nl')).toHaveValue('Blokkenproef zonder citaat');
 
-    const first = card(page, 1);
+    const first = await more(page, 1);
     await first.locator('details.ui-confirm > summary').click();
     await expect(first).toContainText('Blok 1 verdwijnt');
     await expectNoAxeViolations(page);
@@ -1284,16 +1299,18 @@ test.describe('content-blocks', () => {
     const original = await page.locator('details.block').first().getAttribute('id');
     // What was typed elsewhere is saved first, as with every block action.
     await page.locator('#title\\.nl').fill('Blokkenproef gedupliceerd');
-    await card(page, 1).getByRole('button', { name: 'Dupliceren' }).click();
+    await (await more(page, 1)).getByRole('button', { name: 'Dupliceren' }).click();
     await expect(page.getByRole('status')).toContainText('Blok gedupliceerd.');
     await expect(page.locator('#title\\.nl')).toHaveValue('Blokkenproef gedupliceerd');
     await expect(page.locator('.ui-block-card-title')).toHaveText(['1. Kop', '2. Kop']);
     const copy = page.locator('details.block').nth(1);
     await expect(copy).not.toHaveAttribute('id', original!);
-    // The screen lands on the copy, open, with the same fields.
-    await expect(page).toHaveURL(new RegExp(`${edit}\\?done=blockDuplicated&block=.+#block-`));
-    await expect(copy).toHaveAttribute('open', '');
-    await expect(copy.getByLabel('Tekst', { exact: true })).toHaveValue('Twee keer');
+    // The screen lands on the copy at rest (it is complete), with the same fields.
+    await expect(page).toHaveURL(new RegExp(`${edit}\\?done=blockDuplicated#block-`));
+    await expect(copy).not.toHaveAttribute('open', '');
+    await expect((await block(page, 2)).getByLabel('Tekst', { exact: true })).toHaveValue(
+      'Twee keer'
+    );
     // A text block cannot stand next to its copy: it offers no duplicate.
     await insert(page, 'Tekst', 'end');
     await page.locator('#block-new').getByLabel('Tekst', { exact: true }).fill('Los');
@@ -1318,7 +1335,7 @@ test.describe('content-blocks', () => {
     await add(page);
     await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
     const id = await page.locator('details.block').nth(1).getAttribute('id');
-    await card(page, 2).getByRole('button', { name: 'Omhoog' }).click();
+    await (await more(page, 2)).getByRole('button', { name: 'Omhoog' }).click();
     await expect(page.locator('details.block').first()).toHaveAttribute('id', id!);
     await page.reload();
     await expect((await block(page, 1)).getByLabel('Breedte')).toHaveValue('full');
@@ -1381,6 +1398,7 @@ test.describe('content-blocks', () => {
     await page.locator('#title\\.nl').fill('Een nieuwe kop');
     const card = surface.locator('details.block');
     await card.locator(':scope > summary').click();
+    await card.locator('details.ui-block-group > summary').click();
     await card.getByLabel('Breedte').selectOption('full');
     await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
     await expect(page).toHaveURL(/saved/);
@@ -1393,6 +1411,141 @@ test.describe('content-blocks', () => {
     expect(saved.revision.document.blocks[0].props.content.en).toEqual(prose.props.content.en);
     expect(saved.revision.document.blocks[1].props.width).toBe('full');
     await expectNoAxeViolations(page);
+  });
+
+  test('Enter in a text field saves in the locale on screen, not the first locale of the switch', async ({
+    page,
+  }) => {
+    // The bar's locale switch comes before Save in the document; without a script Enter would
+    // post the first submit button, "nl", and switch away (#66 PR 6). Both projects.
+    await login(page, '/admin/probe');
+    const edit = await newPage(page, 'enter');
+    await page.goto(`${edit}?locale=en`);
+    await page.locator('#title\\.en').fill('Saved with Enter');
+    await page.locator('#title\\.en').press('Enter');
+    await expect(page).toHaveURL(`${edit}?saved&locale=en`);
+    await expect(page.locator('#title\\.en')).toHaveValue('Saved with Enter');
+  });
+
+  test('the screen says what is unsaved, saves with Ctrl+S and warns before leaving', async ({
+    page,
+  }) => {
+    onlyA11y('the save state, the shortcut and the leave warning are the script');
+    await login(page, '/admin/probe');
+    const edit = await newPage(page, 'keys');
+    const state = page.locator('[data-save-state]');
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    await expect(state).toHaveAttribute('data-current', 'none');
+    await page.locator('#title\\.nl').fill('Nog niet bewaard');
+    await expect(state).toHaveAttribute('data-current', 'unsaved');
+    await expect(state.locator('[data-save-live]')).toHaveText('Niet opgeslagen wijzigingen');
+    // Leaving asks first; staying keeps what was typed.
+    page.once('dialog', (dialog) => {
+      expect(dialog.type()).toBe('beforeunload');
+      void dialog.dismiss();
+    });
+    await page.locator('.ui-item-bar-back').click();
+    await expect(page).toHaveURL(edit);
+    await expect(page.locator('#title\\.nl')).toHaveValue('Nog niet bewaard');
+    await page.locator('#title\\.nl').press('ControlOrMeta+s');
+    await expect(page).toHaveURL(`${edit}?saved`);
+    await expect(page.locator('#title\\.nl')).toHaveValue('Nog niet bewaard');
+    await expect(state).toHaveAttribute('data-current', 'done');
+    await expect(state.locator('[data-save-live]')).toHaveText('Alles opgeslagen');
+    // Choosing a block type to insert is no change to the document: leaving does not ask.
+    await page.locator('#insert-type-end').selectOption({ label: 'Kop' });
+    await expect(state).toHaveAttribute('data-current', 'done');
+  });
+
+  test('a block rests until Edit, Escape and Done close it with what was typed, and focus follows actions', async ({
+    page,
+  }) => {
+    onlyA11y('Escape, Done and the focus after a round trip are the script');
+    await login(page, '/admin/probe');
+    const edit = await newPage(page, 'rest');
+    for (const text of ['Eerste', 'Tweede', 'Derde']) {
+      const fresh = await insert(page, 'Kop', 'end');
+      await expect(fresh.getByLabel('Tekst', { exact: true })).toBeFocused();
+      await fresh.getByLabel('Tekst', { exact: true }).fill(text);
+      await add(page);
+    }
+    await page.goto(edit);
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    const folds = page.locator('details.block');
+    await expect(folds.locator(':scope[open]')).toHaveCount(0);
+    await expect(page.locator('[data-block-rest]')).toHaveText(['Eerste', 'Tweede', 'Derde']);
+
+    // Edit opens the fields; Escape closes only this block and keeps what was typed.
+    const second = folds.nth(1);
+    await second.locator(':scope > summary').click();
+    await second.getByLabel('Tekst', { exact: true }).fill('Tweede, gewijzigd');
+    await page.keyboard.press('Escape');
+    await expect(second).not.toHaveAttribute('open', '');
+    await expect(second.locator(':scope > summary')).toBeFocused();
+    await expect(page.locator('[data-save-state]')).toHaveAttribute('data-current', 'unsaved');
+    // A click on the block at rest opens it too; Done under the fields closes it again.
+    await card(page, 2).locator('[data-block-rest]').click();
+    await expect(second).toHaveAttribute('open', '');
+    await expect(second.getByLabel('Tekst', { exact: true })).toHaveValue('Tweede, gewijzigd');
+    await second.locator('[data-block-done] button').click();
+    await expect(second).not.toHaveAttribute('open', '');
+    await expect(second.locator(':scope > summary')).toBeFocused();
+
+    // Move: focus lands on the moved block's More actions, the edit is saved with it.
+    await (await more(page, 2)).getByRole('button', { name: 'Omhoog' }).click();
+    await expect(page).toHaveURL(/done=blockMoved#block-/);
+    await expect(page.locator('[data-block-rest]')).toHaveText([
+      'Tweede, gewijzigd',
+      'Eerste',
+      'Derde',
+    ]);
+    await expect(card(page, 1).locator('details.ui-block-card-more > summary')).toBeFocused();
+    // Escape closes an open More actions and returns to its summary.
+    await (await more(page, 1)).locator('details.ui-block-card-more > summary').focus();
+    await page.keyboard.press('Escape');
+    await expect(card(page, 1).locator('details.ui-block-card-more')).not.toHaveAttribute(
+      'open',
+      ''
+    );
+    // Remove: focus lands on the block that took its place.
+    const removed = await more(page, 2);
+    await removed.locator('details.ui-confirm > summary').click();
+    await removed.getByRole('button', { name: 'Ja, verwijder dit blok' }).click();
+    await expect(page).toHaveURL(/done=blockRemoved#block-/);
+    await expect(page.locator('[data-block-rest]')).toHaveText(['Tweede, gewijzigd', 'Derde']);
+    await expect(folds.nth(1).locator(':scope > summary')).toBeFocused();
+    await expectNoAxeViolations(page);
+  });
+
+  test('an image block shows its picture with caption and credit at rest, its layout under Display', async ({
+    page,
+    request,
+  }) => {
+    const edit = await seededPage(request);
+    await login(page, edit);
+    const image = card(page, 5);
+    await expect(image.locator('.ui-block-card-title')).toHaveText('5. Afbeelding');
+    await expectPixels(image.locator('[data-block-rest] img'), 'the image block at rest');
+    const fields = page.locator('details.block').nth(4);
+    await fields.locator(':scope > summary').click();
+    // Content first; layout and credit folded until asked for.
+    await expect(fields.getByLabel('Plaatsing')).toBeHidden();
+    await fields.locator('details.ui-block-group > summary', { hasText: 'Weergave' }).click();
+    await expect(fields.getByLabel('Plaatsing')).toBeVisible();
+    await expect(
+      fields.locator('details.ui-block-group > summary', { hasText: 'Bron en credits' })
+    ).toBeVisible();
+    // Evidence for the PR's UI gate: the card at rest and opened, at 320 CSS px and 200% text.
+    if (isA11y()) {
+      await page.setViewportSize(NARROW);
+      await setTextSize(page, '200%');
+      await layoutGate(page, 'image card opened', '#item-edit');
+      await image.screenshot({ path: test.info().outputPath('image-card-open-320-200.png') });
+      await fields.locator(':scope > summary').click();
+      await (await more(page, 5)).locator('details.ui-block-card-more > summary').focus();
+      await layoutGate(page, 'image card at rest with more actions', '#item-edit');
+      await image.screenshot({ path: test.info().outputPath('image-card-rest-320-200.png') });
+    }
   });
 
   test.describe('UI gate: the block forms at 320 CSS px and 200% text', () => {
@@ -1493,6 +1646,10 @@ test.describe('article-writing', () => {
   }) => {
     const edit = await article(request);
     await login(page, edit);
+    // This proves the save, not input during hydration (the early-input test below does): a fill
+    // whose select-all lands while hydration sets the title's value would append to it.
+    if (isA11y())
+      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
     await page.locator('#title\\.nl').fill('Gewijzigde kop');
     if (isA11y()) {
       await expect(page.locator('.writing-surface .ProseMirror').first()).toBeVisible();

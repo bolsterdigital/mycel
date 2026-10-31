@@ -10,6 +10,8 @@ import {
   Actions,
   Badge,
   BlockCard,
+  BlockImage,
+  BlockSummary,
   Breadcrumb,
   Button,
   Card,
@@ -200,48 +202,86 @@ describe('Panel', () => {
 });
 
 describe('BlockCard', () => {
-  it('names the block in its head, keeps actions out of the summary and folds the fields', () => {
+  const labels = { edit: 'Edit', done: 'Done', more: 'More actions' };
+  it('shows the block at rest, a named Edit over the fields and actions under More actions', () => {
     const out = html(BlockCard, {
       id: 'block-1',
       title: '2. Image',
       class: 'block',
-      text: 'Over two thousand came',
-      thumb: '/admin/probe/media/m1/thumb',
-      empty: 'Still empty',
+      labels,
       actions: text('ACTIONS'),
+      rest: text('REST'),
       children: text('FIELDS'),
     });
-    expect(out).toMatch(/^<section class="ui-block-card" aria-labelledby="block-1-title">/);
+    expect(out).toMatch(/^<section class="ui-block-card" aria-labelledby="block-1-title"/);
     expect(out).toContain('<h4 class="ui-block-card-title" id="block-1-title">2. Image</h4>');
     expect(out).toMatch(/<details class="ui-block-card-fold block" id="block-1">/);
-    const summary = out.slice(out.indexOf('<summary>'), out.indexOf('</summary>'));
-    expect(summary).toContain('<img src="/admin/probe/media/m1/thumb" alt=""');
-    expect(summary).toContain('Over two thousand came');
-    expect(summary).not.toContain('ACTIONS');
-    expect(out.indexOf('ACTIONS')).toBeLessThan(out.indexOf('<details'));
-    expect(out).toContain('<div class="ui-block-card-body"><span>FIELDS</span></div>');
-    expect(out).not.toContain('Still empty');
+    const more = out.slice(out.indexOf('ui-block-card-more'), out.indexOf('data-block-rest'));
+    expect(more).toContain('More actions');
+    expect(more).toContain('ACTIONS');
+    // The rest view stands outside both summaries: its text is not a button's name.
+    const rest = out.indexOf('<span>REST</span>');
+    expect(rest).toBeGreaterThan(out.indexOf('ACTIONS'));
+    expect(rest).toBeLessThan(out.indexOf('<details class="ui-block-card-fold'));
+    const summary = out.slice(out.lastIndexOf('<summary'), out.lastIndexOf('</summary>'));
+    expect(summary).toContain('Edit');
+    expect(summary).toContain('Done');
+    expect(summary).toContain('aria-describedby="block-1-title"');
+    expect(out).toContain('<span>FIELDS</span>');
+    expect(out).toMatch(/data-block-done="" hidden/);
   });
-  it('lists the entries of a list one per line, and says when the block is empty', () => {
-    const faq = html(BlockCard, {
+  it('opens when asked, and has no More actions without actions', () => {
+    const out = html(BlockCard, {
       id: 'block-2',
       title: '3. FAQ',
+      labels,
+      open: true,
+      rest: text('r'),
+      children: text('x'),
+    });
+    expect(out).toMatch(/<details[^>]* open/);
+    expect(out).not.toContain('ui-block-card-more');
+  });
+});
+
+describe('BlockSummary', () => {
+  it('lists the entries of a list one per line, and says when the block is empty', () => {
+    const faq = html(BlockSummary, {
       text: '',
       entries: ['When?', 'Where?'],
       empty: 'Still empty',
-      open: true,
-      children: text('x'),
     });
     expect(faq.match(/class="ui-block-card-entry"/g)).toHaveLength(2);
-    expect(faq).toMatch(/<details[^>]* open/);
-    const empty = html(BlockCard, {
-      id: 'b',
-      title: '1. Text',
-      text: '',
-      empty: 'Still empty',
-      children: text('x'),
-    });
+    const empty = html(BlockSummary, { text: '', empty: 'Still empty' });
     expect(empty).toContain('<span class="ui-block-card-empty">Still empty</span>');
+    const image = html(BlockSummary, { text: 'Over two', thumb: '/t', empty: 'x' });
+    expect(image).toContain('<img src="/t" alt=""');
+    expect(image).not.toContain('Still empty');
+  });
+});
+
+describe('BlockImage', () => {
+  const props = {
+    width: 1600,
+    height: 900,
+    caption: 'Bread',
+    credit: 'Photo: Archief',
+    missing: 'Not available: brood.jpg',
+    replace: { href: '#b-1-p-mediaId', label: 'Replace image' },
+  };
+  it('shows the picture in its ratio with the caption and credit the page prints', () => {
+    const out = html(BlockImage, { ...props, src: '/v/w960.webp' });
+    expect(out).toMatch(/<img src="\/v\/w960.webp" alt="" width="1600" height="900"/);
+    expect(out).toContain('<span>Bread</span>');
+    expect(out).toContain('Photo: Archief');
+    expect(out).not.toMatch(/data-broken/);
+  });
+  it('says which file is missing and offers Replace, without an image', () => {
+    const out = html(BlockImage, { ...props, src: null });
+    expect(out).toContain('data-broken');
+    expect(out).not.toContain('<img');
+    expect(out).toContain('Not available: brood.jpg');
+    expect(out).toContain('<a href="#b-1-p-mediaId">Replace image</a>');
   });
 });
 

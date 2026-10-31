@@ -74,6 +74,9 @@ export function layoutProblems(page: Page, within = 'body'): Promise<string[]> {
       for (const b of root.querySelectorAll(actions.join(', '))) {
         const r = b.getBoundingClientRect();
         if (r.width === 0 && r.height === 0) continue; // inside a closed dialog or disclosure
+        // Hidden from everyone on purpose (the edit form's default button for Enter, #66 PR 6):
+        // no pointer or tab reaches it, so it is no action to measure.
+        if (b.closest('[aria-hidden="true"]') && b.getAttribute('tabindex') === '-1') continue;
         const label = b.textContent?.trim() ?? '';
         if (b.scrollWidth > b.clientWidth + 1) out.push(`clipped: ${label}`);
         if (b.scrollHeight > b.clientHeight + 1) out.push(`clipped in height: ${label}`);

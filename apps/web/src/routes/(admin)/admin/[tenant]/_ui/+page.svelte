@@ -9,6 +9,7 @@
     Actions,
     Badge,
     BlockCard,
+    BlockSummary,
     Button,
     ItemBar,
     LocaleSwitch,
@@ -240,17 +241,25 @@
     <BlockCard
       id="ui-block-card-faq"
       title="3. {t('admin.block.type.faq')}"
-      text={t('admin.ui.catalogue.blockCard.text')}
-      entries={[t('admin.ui.catalogue.blockCard.q1'), t('admin.ui.catalogue.blockCard.q2')]}
-      empty={t('admin.block.emptySummary')}
+      labels={{
+        edit: t('admin.block.card.edit'),
+        done: t('admin.block.card.done'),
+        more: t('admin.block.card.more'),
+      }}
       open
     >
+      {#snippet rest()}
+        <BlockSummary
+          text={t('admin.ui.catalogue.blockCard.text')}
+          entries={[t('admin.ui.catalogue.blockCard.q1'), t('admin.ui.catalogue.blockCard.q2')]}
+          empty={t('admin.block.emptySummary')}
+        />
+      {/snippet}
       {#snippet actions()}
-        <Button variant="link">{t('admin.block.move.up')}</Button>
-        <Button variant="link">{t('admin.block.move.down')}</Button>
-        <Button variant="link">{t('admin.block.duplicate')}</Button>
+        <Button variant="secondary">{t('admin.block.move.up')}</Button>
+        <Button variant="secondary">{t('admin.block.move.down')}</Button>
+        <Button variant="secondary">{t('admin.block.duplicate')}</Button>
         <ConfirmAction
-          variant="link"
           label={t('admin.block.remove.short')}
           question={fill(t('admin.block.remove.ask'), { n: 3 })}
           confirm={t('admin.block.remove.confirm')}
@@ -264,9 +273,15 @@
     <BlockCard
       id="ui-block-card-empty"
       title="4. {t('admin.block.type.heading')}"
-      text=""
-      empty={t('admin.block.emptySummary')}
+      labels={{
+        edit: t('admin.block.card.edit'),
+        done: t('admin.block.card.done'),
+        more: t('admin.block.card.more'),
+      }}
     >
+      {#snippet rest()}
+        <BlockSummary text="" empty={t('admin.block.emptySummary')} />
+      {/snippet}
       <p>{t('admin.ui.catalogue.panel.body')}</p>
     </BlockCard>
   </section>

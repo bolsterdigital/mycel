@@ -6,6 +6,8 @@
 export { default as Actions } from './display/Actions.svelte';
 export { default as Badge } from './feedback/Badge.svelte';
 export { default as BlockCard } from './display/BlockCard.svelte';
+export { default as BlockImage } from './display/BlockImage.svelte';
+export { default as BlockSummary } from './display/BlockSummary.svelte';
 export { default as Breadcrumb } from './page/Breadcrumb.svelte';
 export { default as Button } from './display/Button.svelte';
 export { default as Card } from './display/Card.svelte';
