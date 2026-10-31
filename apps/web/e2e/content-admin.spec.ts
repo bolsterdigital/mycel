@@ -1405,16 +1405,44 @@ test.describe('content-blocks', () => {
       }) => {
         onlyA11y('measures the layout with a script');
         const edit = await seededPage(request);
+        // A committed URL can precede the HTML body. Throttled delivery keeps that window
+        // observable without sleeps; restore normal networking once the document is parsed.
+        const network = await page.context().newCDPSession(page);
+        await network.send('Network.enable');
+        await network.send('Network.emulateNetworkConditions', {
+          offline: false,
+          latency: 20,
+          downloadThroughput: 128 * 1024,
+          uploadThroughput: 128 * 1024,
+        });
         await login(page, edit);
-        // Every block open with its insert and remove folds: all actions of the one form.
+        const form = page.locator('form#item-edit');
+        await expect(form).toBeVisible();
+        await expect(form.locator('input[name="baseRevisionId"]')).toHaveValue(/.+/);
+        await page.waitForLoadState('domcontentloaded');
+        await network.detach();
+        // Mounting the prose editor and the tab enhancement is observable readiness, unlike
+        // the URL or body alone. Open folds afterwards so hydration cannot replace the state.
+        await expect(form.locator('details.block').nth(2).locator('.ProseMirror')).toHaveCount(1);
+        await expect(form.locator('.ui-tabs')).toHaveAttribute('data-tabs', '');
         await page.evaluate(() =>
           document.querySelectorAll('details').forEach((d) => (d.open = true))
         );
+        const blocks = form.locator('details.block');
+        await expect(blocks).toHaveCount(12);
+        await expect(form.locator('details.block:not([open])')).toHaveCount(0);
+        await expect(blocks.nth(2).locator('.ProseMirror')).toBeVisible();
+        await expect(blocks.nth(8).getByLabel('Vraag', { exact: true }).first()).toBeVisible();
         await setTextSize(page, text);
+        await expect(page).toHaveURL(new RegExp(`${edit}$`));
         await layoutGate(page, edit);
         // The block with the most fields, chosen but not stored, at its place.
         await page.goto(edit);
         await insert(page, 'Opening', 'after', 7);
+        await expect(form.locator('.ui-tabs')).toHaveAttribute('data-tabs', '');
+        await expect(
+          page.locator('#block-new').getByLabel('Titel', { exact: true }).first()
+        ).toBeVisible();
         await setTextSize(page, text);
         await layoutGate(page, 'new hero');
       });
