@@ -24,6 +24,7 @@ import {
   type UseCaseError,
 } from '@mycel/core';
 import { formValues, propsFromForm, type FieldError, type Posted } from '#lib/editor/block-form.js';
+import { fromArticleEditor } from '#lib/editor/article-document.js';
 import { documentFrom, type FormValues } from './content-admin.js';
 
 /** The name prefix of a stored block's fields. */
@@ -222,7 +223,24 @@ export function formDocument(
   skip?: string
 ): { document: ContentDocumentInput; blocks: Block[]; errors: FieldError[] } {
   const doc = documentFrom(base, values, today, editing);
-  const kept = doc.blocks as Block[];
+  let kept = doc.blocks as Block[];
+  const article = post.get('articleEditor');
+  if (article && editing && base.type === 'article') {
+    try {
+      kept = documentFrom(
+        fromArticleEditor(base, editing, JSON.parse(article)),
+        values,
+        today,
+        editing
+      ).blocks as Block[];
+    } catch {
+      return {
+        document: doc,
+        blocks: kept,
+        errors: [{ name: 'articleEditor', message: 'editor.markdown.invalid', line: 1 }],
+      };
+    }
+  }
   const readable = editing === undefined || (!!editing && doc.locales.includes(editing));
   const read = readable ? blocksFrom(kept, post, skip) : { blocks: kept, errors: [] };
   return { document: { ...doc, blocks: read.blocks }, blocks: read.blocks, errors: read.errors };

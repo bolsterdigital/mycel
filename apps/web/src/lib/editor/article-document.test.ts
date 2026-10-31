@@ -3,8 +3,8 @@
 import { describe, expect, it } from 'vitest';
 import { getSchema } from '@tiptap/core';
 import { BLOCK_DEFINITIONS, BLOCK_TYPES, Block, ContentDocument } from '@mycel/core';
-import { fromArticleEditor, toArticleEditor } from './article-document.js';
-import { articleExtensions } from './article-extensions.js';
+import { fromArticleEditor, toArticleEditor, toTiptap, fromTiptap } from './article-document.js';
+import { articleExtensions, proseExtensions } from './article-extensions.js';
 
 const editorSchema = getSchema(articleExtensions);
 const throughEditorSchema = (document: ContentDocument, locale: string) =>
@@ -30,6 +30,23 @@ const base = (block: (typeof blocks)[number]) =>
     seo: {},
     access: block.type === 'paywall' ? { level: 'members', teaser: 'marker' } : { level: 'public' },
   });
+
+it('the inline page schema keeps all prose at the document root without article wrappers', () => {
+  const content = {
+    type: 'doc',
+    content: [
+      { type: 'paragraph', content: [{ type: 'text', text: 'First paragraph' }] },
+      { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'Section' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: 'Last paragraph' }] },
+    ],
+  };
+  const schema = getSchema(proseExtensions);
+  const through = schema.nodeFromJSON(toTiptap(content));
+  through.check();
+  expect(fromTiptap(through.toJSON())).toEqual(content);
+  expect(schema.nodes.mycelProse).toBeUndefined();
+  expect(schema.nodes.mycelCard).toBeUndefined();
+});
 
 describe('article editor document', () => {
   it.each(blocks.map((block) => [block.id, block] as const))(

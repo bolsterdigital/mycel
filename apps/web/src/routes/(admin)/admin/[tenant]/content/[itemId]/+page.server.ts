@@ -22,9 +22,11 @@
 // carries it as `editLocale`; a save reads only that locale and keeps every other one as the base
 // revision has it (`formDocument`). Switching locale saves first and remembers the choice; a
 // locale the document lacks shows "start the translation", empty or as a copy of another locale.
+import { toArticleEditor } from '#lib/editor/article-document.js';
 import { isDeepStrictEqual } from 'node:util';
 import { error, fail, redirect } from '@sveltejs/kit';
 import {
+  pick,
   BLOCK_DEFINITIONS,
   BLOCK_TYPES,
   UseCaseError,
@@ -255,6 +257,12 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
   );
   return {
     contentType: item.type,
+    patterns: doc.blocks.length
+      ? []
+      : (await invoker.run(useCases.listPatterns, principal, { limit: 100 })).patterns
+          .filter((p) => !p.intendedType || p.intendedType === item.type)
+          .map((p) => ({ id: p.id, name: pick(p.name, work, tenant.defaultLocale) ?? p.id })),
+    articleEditor: shown.length ? toArticleEditor(doc, work) : null,
     assistEnabled,
     machineTranslation: doc.machineTranslation ?? {},
     blocks: doc.blocks.map((b) => ({
@@ -472,7 +480,7 @@ interface Committed {
  */
 async function commit(
   event: Event,
-  opts: { always?: boolean; publication?: boolean; discard?: boolean } = {}
+  opts: { always?: boolean; publication?: boolean; discard?: boolean; pattern?: boolean } = {}
 ): Promise<Committed | { failure: Awaited<ReturnType<typeof refused>> }> {
   const { tenant, principal } = await requireTenantPrincipal(
     event.locals,
@@ -540,6 +548,14 @@ async function commit(
       };
     changed = read.blocks.filter((b, i) => !isDeepStrictEqual(b, base.blocks[i])).map((b) => b.id);
     const document = read.document;
+    if (opts.pattern) {
+      if (base.blocks.length || read.blocks.length)
+        throw new UseCaseError('conflict', 'Pattern requires an empty document');
+      const pattern = await rt.invoker.run(useCases.getPattern, principal, {
+        patternId: text(data, 'patternId'),
+      });
+      document.blocks = pattern.blocks.map(({ id: _id, ...block }) => block);
+    }
     const untouched = formDocument(base, valuesOf(base), unposted, today, editing).document;
     if (opts.always || !isDeepStrictEqual(document, untouched))
       revisionId = (
@@ -728,6 +744,11 @@ async function blockStep(
 }
 
 export const actions: Actions = {
+  pattern: async (event) => {
+    const saved = await commit(event, { pattern: true, always: true });
+    if ('failure' in saved) return saved.failure;
+    redirect(303, itemPath(saved.tenant.slug, event.params.itemId, saved.editing, {}, 'blocks'));
+  },
   save: async (event) => {
     const saved = await commit(event, { always: true });
     if ('failure' in saved) return saved.failure;

@@ -6,10 +6,15 @@
 // are links, so the list works without JavaScript and every view has its own URL.
 // The latest revision is one read per row, a page of at most 20; rejected for now: a translation
 // summary in `content.item.list` itself, which changes core's output for the overviews of #79.
+import { ui } from '../../../../../i18n/index.js';
+import { randomUUID } from 'node:crypto';
+import { redirect } from '@sveltejs/kit';
+import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
+import { act } from '#lib/server/admin/admin-actions.js';
 import { ContentType, useCases } from '@mycel/core';
 import { translationState } from '#lib/server/content-locale.js';
 import { runtime } from '#lib/server/runtime.js';
-import type { PageServerLoad } from './$types';
+import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ parent, locals, url }) => {
   const { tenant, contentLocale: work } = await parent();
@@ -55,4 +60,38 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
       })
     ),
   };
+};
+
+// Creation is a POST, so following or prefetching a link can never create content.
+export const actions: Actions = {
+  create: async (event) => {
+    const result = await act(
+      event,
+      'create',
+      {
+        conflict: 'admin.content.error.slugTaken',
+        invalid: 'admin.content.error.invalid',
+      },
+      async (principal, form) => {
+        const { tenant } = await requireTenantPrincipal(
+          event.locals,
+          event.url,
+          event.params.tenant
+        );
+        const type = ContentType.parse(form.get('type'));
+        return runtime().invoker.run(useCases.createItem, principal, {
+          slug: `${type}-${randomUUID()}`,
+          document: {
+            type,
+            title: { [tenant.defaultLocale]: ui(tenant.defaultLocale)('admin.content.untitled') },
+            defaultLocale: tenant.defaultLocale,
+            locales: tenant.locales,
+            blocks: [],
+          },
+        });
+      }
+    );
+    if ('status' in result) return result;
+    redirect(303, `/admin/${event.params.tenant}/content/${result.item.id}`);
+  },
 };

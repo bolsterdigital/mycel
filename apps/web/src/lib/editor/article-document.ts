@@ -13,7 +13,7 @@ export type EditorNode = {
 export type ArticleEditorDocument = { type: 'doc'; content: EditorNode[] };
 export class EditorInputError extends Error {}
 
-const toTiptap = (value: unknown): unknown => {
+export const toTiptap = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(toTiptap);
   if (!value || typeof value !== 'object') return value;
   const node = value as Record<string, unknown>;
@@ -42,7 +42,7 @@ const toTiptap = (value: unknown): unknown => {
   return Object.fromEntries(Object.entries(converted).map(([key, item]) => [key, toTiptap(item)]));
 };
 
-const fromTiptap = (value: unknown): unknown => {
+export const fromTiptap = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(fromTiptap);
   if (!value || typeof value !== 'object') return value;
   const node = value as Record<string, unknown>;
