@@ -33,6 +33,13 @@ export function memoryContent(s: TenantStore): ContentRepository {
       insertRevision(first);
     },
     save: async (item) => void s.items.set(item.id, structuredClone(item)),
+    async setSlug(itemId, slug, at) {
+      const item = s.items.get(itemId)!;
+      const holder = [...s.items.values()].find((i) => i.type === item.type && i.slug === slug);
+      if (holder && holder.id !== itemId) return false;
+      s.items.set(itemId, { ...item, slug, updatedAt: at });
+      return true;
+    },
     insertRevision: async (r) => insertRevision(r),
     async find({ blockType, ref, live, type }, after, limit) {
       const matches: (ItemMatch & { id: string })[] = [];

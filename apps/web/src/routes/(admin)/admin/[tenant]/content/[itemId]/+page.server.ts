@@ -302,6 +302,10 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
       id: item.id,
       type: item.type,
       slug: item.slug,
+      /** The address in the site's default locale, as the public site serves it. */
+      path: contentPath(item, tenant.defaultLocale, tenant.defaultLocale),
+      /** A locale went live once: the slug stays (`content.slug.update`). */
+      slugFixed: item.publication.some((p) => p.firstPublishedAt !== null),
       defaultLocale: item.defaultLocale,
       publication: await Promise.all(
         item.publication.map(async (p) => ({
@@ -471,6 +475,56 @@ interface Committed {
   editing: string | null;
 }
 
+/** Core's refusals of a new slug, as admin copy. */
+const SLUG_ISSUES: Record<string, UiKey> = {
+  'content.slug.invalid': 'admin.content.error.slugInvalid',
+  'content.slug.reserved': 'admin.content.error.slugReserved',
+  'content.slug.taken': 'admin.content.error.slugTaken',
+  'content.slug.published': 'admin.content.error.slugPublished',
+};
+
+/** The new slug the form asks for, or null: empty, unchanged or a form without the field. */
+function slugChange(item: { slug: string }, data: FormData): string | null {
+  const slug = text(data, 'slug').trim();
+  return slug && slug !== item.slug ? slug : null;
+}
+
+/**
+ * The slug field of "This item" (#66 PR 6b), applied after the base check and the form's own
+ * checks and just before the revision is saved: a refused slug then leaves everything as it was
+ * and the form comes back with what was typed. The slug lives on the item, not in a revision, so
+ * the save that follows keeps its base. The two are separate transactions: a revision core still
+ * refuses after the slug moved (a concurrent save in between, a document rule only core knows)
+ * leaves the slug moved, which the next save shows. Rejected: one combined use case, which would
+ * make every revision save a slug write too. Empty, or a form without the field (an item that
+ * was published, an older tab), changes nothing.
+ */
+async function moveSlug(
+  principal: Principal,
+  item: { id: string; slug: string },
+  data: FormData
+): Promise<{ error: UiKey; status: number; fieldIssues: { name: string; copy: UiKey }[] } | null> {
+  const slug = slugChange(item, data);
+  if (!slug) return null;
+  try {
+    await runtime().invoker.run(useCases.updateSlug, principal, { itemId: item.id, slug });
+    return null;
+  } catch (thrown) {
+    const { error: e } = saveFailure(thrown);
+    if (e.code !== 'conflict' && e.code !== 'invalid_input') throw e;
+    const key = e.issues.map((i) => SLUG_ISSUES[i.message]).find(Boolean);
+    const copy =
+      key ??
+      (e.code === 'conflict' ? 'admin.content.error.slugTaken' : 'admin.content.error.slugInvalid');
+    // The summary's line names the field and says why; the heading is the save's.
+    return {
+      error: 'admin.content.error.invalid',
+      status: e.code === 'conflict' ? 409 : 400,
+      fieldIssues: [{ name: 'slug', copy }],
+    };
+  }
+}
+
 /**
  * Saves what the one form carries before any action of the screen (brief edit-screen § 6): the
  * document's fields and every block's as one `content.item.update` on the revision the form was
@@ -515,10 +569,13 @@ async function commit(
   let pending: PendingBlock | null = null;
   let revisionId = baseRevisionId;
   try {
-    const { revision } = await rt.invoker.run(useCases.getItem, principal, {
+    const { item, revision } = await rt.invoker.run(useCases.getItem, principal, {
       itemId,
       revisionId: baseRevisionId,
     });
+    // A stale tab moves nothing: its slug change is part of the conflict like its fields are.
+    if (slugChange(item, data) && item.latestRevisionId !== baseRevisionId)
+      throw new UseCaseError('conflict', 'the item has a newer revision than baseRevisionId');
     const base = revision.document;
     blocks = base.blocks;
     pending = opts.discard
@@ -558,6 +615,11 @@ async function commit(
       });
       document.blocks = pattern.blocks.map(({ id: _id, ...block }) => block);
     }
+    const moved = await moveSlug(principal, item, data);
+    if (moved)
+      return {
+        failure: await refused(tenant, principal, itemId, values, null, moved),
+      };
     const untouched = formDocument(base, valuesOf(base), unposted, today, editing).document;
     if (opts.always || !isDeepStrictEqual(document, untouched))
       revisionId = (

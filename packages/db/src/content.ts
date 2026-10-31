@@ -196,6 +196,22 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
         .execute();
       await writeLocales(item);
     },
+    async setSlug(itemId, slug, at) {
+      try {
+        await trx
+          .updateTable('content_items')
+          .set({ slug, updated_at: at })
+          .where('id', '=', itemId)
+          .execute();
+        return true;
+      } catch (e) {
+        // Only the slug key; any other failure is not a taken slug.
+        const pg = e as { code?: string; constraint?: string };
+        if (pg.code === '23505' && pg.constraint === 'content_items_tenant_id_type_slug_key')
+          return false;
+        throw e;
+      }
+    },
     insertRevision,
     async find({ blockType, ref, live, type }, after, limit) {
       // Containment on the whole document, so the GIN jsonb_path_ops index of 0017 applies.

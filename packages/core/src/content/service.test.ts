@@ -93,6 +93,65 @@ describe('content items', () => {
     expect(await slugOf(titled('!!!'))).toBe('page');
   });
 
+  describe('changing the slug (#66 PR 6b)', () => {
+    const rename = (itemId: string, slug: string, p: Principal = admin) =>
+      invoker.run(useCases.updateSlug, p, { itemId, slug });
+
+    it('moves a never-published item without a new revision, and a reader with write may do it', async () => {
+      const { item, revision } = await create(pageDoc(), 'about', writer());
+      clock.advance(1000);
+      const moved = await rename(item.id, 'wie-we-zijn', writer());
+      expect(moved.slug).toBe('wie-we-zijn');
+      expect(moved.latestRevisionId).toBe(revision.id);
+      expect(moved.updatedAt).not.toBe(item.updatedAt);
+      const { items } = await invoker.run(useCases.listItems, admin, { slug: 'about' });
+      expect(items).toEqual([]);
+      // The same slug again changes nothing and is no conflict with itself.
+      expect((await rename(item.id, 'wie-we-zijn')).updatedAt).toBe(moved.updatedAt);
+    });
+
+    it('refuses a taken, reserved or malformed slug with the issue the form shows', async () => {
+      const { item } = await create();
+      await create(pageDoc(), 'taken');
+      await create({ ...pageDoc(), type: 'article' } as never, 'article-only');
+      await expect(rename(item.id, 'taken')).rejects.toMatchObject({
+        code: 'conflict',
+        issues: [{ path: 'slug', message: 'content.slug.taken' }],
+      });
+      await expect(rename(item.id, 'admin')).rejects.toMatchObject({
+        code: 'invalid_input',
+        issues: [{ path: 'slug', message: 'content.slug.reserved' }],
+      });
+      await expect(rename(item.id, 'Met Spatie')).rejects.toMatchObject({
+        code: 'invalid_input',
+        issues: [{ path: 'slug', message: 'content.slug.invalid' }],
+      });
+      // Pages and articles have their own space.
+      expect((await rename(item.id, 'article-only')).slug).toBe('article-only');
+    });
+
+    it('keeps the slug once any locale went live, also after it went offline again', async () => {
+      const { item, revision } = await create(pageDoc('Hello.'));
+      await invoker.run(useCases.publishItem, admin, {
+        itemId: item.id,
+        revisionId: revision.id,
+        locale: 'en',
+      });
+      await invoker.run(useCases.unpublishItem, admin, { itemId: item.id, locale: 'en' });
+      await expect(rename(item.id, 'elders')).rejects.toMatchObject({
+        code: 'invalid_input',
+        issues: [{ path: 'slug', message: 'content.slug.published' }],
+      });
+    });
+
+    it('needs content:write and a known item of the tenant', async () => {
+      const { item } = await create();
+      const reader = principal({ capabilities: ['content:read'] });
+      await expect(rename(item.id, 'elders', reader)).rejects.toMatchObject({ code: 'forbidden' });
+      await expect(rename(OTHER, 'elders')).rejects.toMatchObject({ code: 'not_found' });
+    });
+  });
+
   it('saves on the latest revision only: a stale base is a typed conflict with no write', async () => {
     const { item, revision } = await create();
     const first = await invoker.run(useCases.updateItem, admin, {

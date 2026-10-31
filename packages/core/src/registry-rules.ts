@@ -22,6 +22,7 @@ const EDITORIAL_PREFIXES = [
   'content.item.',
   'content.block.',
   'content.revision.',
+  'content.slug.',
   'content.translation.',
   'content.author.',
   'content.section.',

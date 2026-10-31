@@ -492,6 +492,44 @@ export const updateItem = defineUseCase({
   },
 });
 
+/**
+ * The address of an item that never went live (#66 PR 6b, brief edit-screen § 6): until a locale
+ * has been published once, nobody can have linked to the slug, so it may change without a
+ * redirect. Once any locale has a first publication the slug stays as it is; renames with
+ * redirects are #9. Rejected: allowing it while a locale is only scheduled to go live later, then
+ * refusing at the moment of the job; the scheduled path is not live yet, so it may still move.
+ */
+export const updateSlug = defineUseCase({
+  name: 'content.slug.update',
+  kind: 'command',
+  description:
+    'Change the slug of an item that has never been published in any locale; fails with conflict when another item of the same type has that slug, and leaves revisions and publication untouched.',
+  requires: 'content:write',
+  authenticatedOnly: true,
+  input: z.object({ itemId: ItemId, slug: Slug }),
+  output: ContentItem,
+  examples: [{ input: { itemId: exampleId(0x1), slug: 'over-ons' } }],
+  async handler(ctx, { itemId, slug }) {
+    const item = await lockItem(ctx, itemId);
+    if (item.slug === slug) return toContentItem(item);
+    if (item.publication.some((s) => s.firstPublishedAt))
+      throw new UseCaseError('invalid_input', 'the item has been published; its slug stays', [
+        { path: 'slug', message: 'content.slug.published' },
+      ]);
+    if (item.type === 'page' && isReservedPageSlug(slug))
+      throw new UseCaseError('invalid_input', `"${slug}" is reserved`, [
+        { path: 'slug', message: 'content.slug.reserved' },
+      ]);
+    // The write decides, not a read before it: two renames to one free slug cannot both win.
+    const now = ctx.clock.now();
+    if (!(await ctx.content.setSlug(itemId, slug, now)))
+      throw new UseCaseError('conflict', `a ${item.type} with slug "${slug}" already exists`, [
+        { path: 'slug', message: 'content.slug.taken' },
+      ]);
+    return toContentItem({ ...item, slug, updatedAt: now });
+  },
+});
+
 export const getItem = defineUseCase({
   name: 'content.item.get',
   kind: 'query',

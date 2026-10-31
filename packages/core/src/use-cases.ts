@@ -64,6 +64,7 @@ import {
   unpublishItem,
   unscheduleItem,
   updateItem,
+  updateSlug,
 } from './content/service.js';
 import { getEntitlements, getUsage } from './entitlements/service.js';
 import { getForm, submitForm } from './forms/service.js';
@@ -136,6 +137,7 @@ export const useCases = {
   unpublishItem,
   scheduleItem,
   unscheduleItem,
+  updateSlug,
   insertBlock,
   moveBlock,
   removeBlock,

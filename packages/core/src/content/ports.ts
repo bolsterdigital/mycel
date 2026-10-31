@@ -58,6 +58,12 @@ export interface ContentRepository {
   /** Item columns and the complete set of publication rows; rows not in the list are removed. */
   save(item: ItemRecord): Promise<void>;
   /**
+   * Moves the item to `slug` and stamps `updatedAt`; false when another item of its type holds
+   * the slug. The unique key decides, so two renames racing to one free slug end in one true and
+   * one false. After false the transaction may be unusable: the caller refuses, it does not go on.
+   */
+  setSlug(itemId: string, slug: string, at: Date): Promise<boolean>;
+  /**
    * Inserts the revision and its `content_block_refs` rows, derived from the document here so no
    * caller can forget them (`documentReferences`).
    */

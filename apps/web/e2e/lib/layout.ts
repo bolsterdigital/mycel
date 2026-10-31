@@ -22,6 +22,19 @@ export async function setTextSize(page: Page, size: TextSize | string) {
   await page.evaluate((s) => (document.documentElement.style.fontSize = s), size);
 }
 
+/** WCAG 1.4.12 text spacing as a user stylesheet. A constructable sheet leaves the page's strict
+ *  CSP untouched (an injected <style> is refused). The wider text also stands in for a wider
+ *  font: a label that wraps on CI's Linux fonts and not on a Mac wraps here on both (#66 PR 6b). */
+export async function setTextSpacing(page: Page) {
+  await page.evaluate(() => {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(
+      '* { line-height: 1.5 !important; letter-spacing: .12em !important; word-spacing: .16em !important; } p { margin-bottom: 2em !important; }'
+    );
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  });
+}
+
 /** Every problem the gate sees on the current page; `within` narrows the actions it measures. */
 export function layoutProblems(page: Page, within = 'body'): Promise<string[]> {
   return page.evaluate((scope) => {

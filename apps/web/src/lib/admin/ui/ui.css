@@ -114,6 +114,18 @@
   }
   .ui-field-head > label {
     min-width: 0;
+    max-inline-size: 100%;
+  }
+  /* The ⓘ sits close to its label while both fit on a line. The label gives up the room (a
+     negative end margin), not the ⓘ: when a wide label pushes the ⓘ onto its own line, it then
+     starts at the field's edge. Rejected: the ⓘ's own negative start margin, which on that new
+     line pulled its 44px box past the left edge of a 320 CSS px screen at 200% text in CI's
+     wider font (#66 PR 6b). */
+  .ui-field-head > label:has(+ .ui-hint-toggle) {
+    margin-inline-end: calc(var(--space-0) - (var(--tap) - 1.25em) / 2);
+  }
+  .ui-field-head > .ui-hint-toggle {
+    margin-inline-start: 0;
   }
   .ui-hint-toggle {
     display: inline-flex;
