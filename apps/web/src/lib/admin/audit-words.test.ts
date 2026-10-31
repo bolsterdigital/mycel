@@ -26,7 +26,7 @@ describe('audit words', () => {
     const t = ui('nl');
     const names = { 'operator:o1': 'Sam' };
     expect(actorLabel(t, { actorKind: 'operator', actorId: 'o1' }, names)).toBe('Sam');
-    expect(actorLabel(t, { actorKind: 'operator', actorId: 'gone' }, names)).toBe('Een lid');
+    expect(actorLabel(t, { actorKind: 'operator', actorId: 'gone' }, names)).toBe('Een teamlid');
     expect(actorLabel(t, { actorKind: 'anonymous', actorId: null }, names)).toBe('Een bezoeker');
   });
 });

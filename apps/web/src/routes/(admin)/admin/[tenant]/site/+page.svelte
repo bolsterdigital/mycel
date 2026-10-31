@@ -233,6 +233,7 @@
       submit={t('admin.site.saveTheme')}
       saved={saved('theme')}
       unsaved={t('admin.site.unsaved')}
+      sticky
     >
       <input
         type="hidden"

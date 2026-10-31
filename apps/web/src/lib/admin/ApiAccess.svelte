@@ -1,8 +1,8 @@
 <!-- Settings, API access (#101): the site's API keys, moved from Members because members are
      people. Creating a key happens in a dialog with the role picker without
      Administrator (a key never holds tenant:admin); its token is shown once, in KeyReveal, in the
-     response to the post that made it. Each key is a card with its role, prefix and dates, and
-     revoking asks in the card. The forms post to the site settings page with `?section=api`, so
+     response to the post that made it. Each key is a card with its role on one line and prefix
+     and dates side by side under it (`ui-meta inline`, #113), and revoking asks in the card. The forms post to the site settings page with `?section=api`, so
      the answer shows this section again. -->
 <script lang="ts">
   import type { ApiKeyView, Role } from '@mycel/core';
@@ -110,8 +110,8 @@
           </ul>
         {/if}
         <div class="ui-meta-host">
-          <dl class="ui-meta">
-            <div>
+          <dl class="ui-meta inline">
+            <div class={[key.role === 'custom' && 'wide']}>
               <dt>{t('admin.keys.role')}</dt>
               <dd>
                 {key.role === 'custom'

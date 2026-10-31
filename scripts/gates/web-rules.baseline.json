@@ -43,13 +43,13 @@
   },
   "english-default": {
     "apps/web/src/hooks.server.ts": 1,
+    "apps/web/src/lib/server/admin/profile.ts": 1,
     "apps/web/src/routes/(admin)/+error.svelte": 1,
     "apps/web/src/routes/(admin)/+layout.server.ts": 1,
     "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.server.ts": 1,
     "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/assist/+page.server.ts": 5,
     "apps/web/src/routes/(admin)/admin/[tenant]/media/upload/+server.ts": 1,
     "apps/web/src/routes/(admin)/admin/[tenant]/site/+page.server.ts": 4,
-    "apps/web/src/routes/(admin)/admin/voorkeuren/+page.server.ts": 1,
     "apps/web/src/routes/(preview)/admin/[tenant]/preview/draft/+page.server.ts": 2,
     "apps/web/src/routes/(preview)/admin/[tenant]/preview/item/[itemId]/+page.server.ts": 1
   },

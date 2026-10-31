@@ -1,9 +1,10 @@
-<!-- Members (#81 PR 1, reshaped by #101): who works on this site, as a table
+<!-- Team (#81 PR 1, reshaped by #101, renamed by #113): who works on this site, as a table
      with the name on the left and the role next to it, actions in the row. A role is a preset
      over the capability set (core operators/roles.ts); a set that matches none reads "Custom"
      with the set behind an ⓘ. Invitations not yet used are the same table under a group heading;
      you are an ordinary row marked "(you)", without Remove. Your own role per site is on
-     "Profile and preferences", API keys on Settings, API access.
+     "Profile and preferences", API keys on Settings, API access (its own item in the Settings
+     menu; the sentence that pointed there from here read as loose text and went in #113).
      Every control is a native form post, with or without JavaScript: inviting and changing a
      role happen in a dialog (an invoker button), removing asks in the row. On a narrow screen the
      table stacks its rows (Table `stack`); the UI gate measures this page at 320 CSS px and 200%
@@ -29,7 +30,6 @@
 
   let { data, form }: PageProps = $props();
   const t = $derived(ui(data.locale));
-  const base = $derived(`/admin/${data.tenant.slug}`);
 
   const failed = $derived(form && 'error' in form ? form : null);
   const done = $derived(form && 'done' in form ? form : null);
@@ -56,8 +56,7 @@
   {@const self = m.email === data.email}
   <tr>
     <th scope="row">
-      {m.name ?? m.email}{#if self}
-        {t('admin.members.you')}{/if}
+      {m.name ?? m.email}{#if self}{' '}{t('admin.members.you')}{/if}
       {#if m.name}<br /><span class="ui-hint">{m.email}</span>{/if}
     </th>
     <td data-label={t('admin.members.column.role')}>
@@ -133,9 +132,6 @@
   {/if}
 
   <p>{t('admin.members.note')}</p>
-  <p id="access">
-    <a href="{base}/site?section=api">{t('admin.members.keysMoved')}</a>
-  </p>
   <Actions>
     <Dialog
       id="invite"
