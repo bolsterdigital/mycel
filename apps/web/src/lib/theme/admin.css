@@ -87,7 +87,7 @@
     /* The widest a dialog grows (the media library); the workspace itself has no cap. */
     --admin-width: 72rem;
     --form-width: var(--read-width);
-    --nav-width: minmax(13rem, 15rem);
+    --nav-width: max-content;
     --rail-width: 3.5rem;
   }
   @media (prefers-color-scheme: dark) {
@@ -348,6 +348,19 @@
       border: var(--border-width) solid var(--color-border-strong);
       border-radius: var(--radius-sm);
       box-shadow: var(--shadow-1);
+    }
+    /* Menu labels determine the track; site names and account addresses wrap within it. */
+    .admin-sidebar-top,
+    .admin-sidebar-bottom {
+      contain: inline-size;
+    }
+    .admin-menu .ui-navgroup a {
+      white-space: nowrap;
+    }
+    .admin-menu .ui-navgroup > ul > li > a {
+      margin-inline: calc(-1 * var(--space-2));
+      padding-inline: var(--space-2);
+      border-radius: 0;
     }
     .admin-sidebar {
       position: sticky;

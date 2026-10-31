@@ -1,19 +1,24 @@
-<!-- The export page of a site (TODO #28) on the shared admin components (brief #56): what an
-     archive holds and how long it stays, one button to ask for one (a native form post), and the
-     earlier archives as cards with a status badge, the facts as a MetaList and the download under
-     them. e2e/export.spec.ts checks 320 CSS px and 200% text (skill
-     ui-action-layout). -->
+<!-- The export page of a site (TODO #28, brief admin-operations-screens § 7) on the shared admin
+     components: what an archive holds and how long it stays with the one button to ask for one
+     (a native form post); the archive being built, with its step in words and a refresh link;
+     the newest ready archive with its download, the checksum behind "Technical details"; and
+     the history as a table that stacks below 36rem, who asked by name. Nothing polls: a reload
+     shows the progress. No cancel, because the export state machine has none (#74).
+     e2e/export.spec.ts checks the flow and 320 CSS px and 200% text (skill ui-action-layout).
+     Rejected: a card per archive (the reader scans a history, #82) and a progress bar (the job
+     reports steps, not a fraction; a bar would invent one). -->
 <script lang="ts">
   import {
     Actions,
     Badge,
     Button,
-    Card,
-    CardGrid,
     MetaList,
     Notice,
     PageHeader,
+    Table,
   } from '#lib/admin/ui/index.js';
+  import { actorLabel } from '#lib/admin/audit-words.js';
+  import { formatBytes, formatWhen } from '#lib/admin/format.js';
   import { fill, ui, type UiKey } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -23,17 +28,20 @@
 
   const failed = $derived(form && 'error' in form ? form : null);
   const done = $derived(form && 'done' in form ? form : null);
-  const when = $derived(
-    new Intl.DateTimeFormat(data.locale, { dateStyle: 'medium', timeStyle: 'short' })
-  );
-  const at = (iso: string) => when.format(new Date(iso));
-  const size = $derived(new Intl.NumberFormat(data.locale, { maximumFractionDigits: 1 }));
-  const bytes = (n: number) =>
-    n >= 1024 ** 3
-      ? `${size.format(n / 1024 ** 3)} GB`
-      : n >= 1024 ** 2
-        ? `${size.format(n / 1024 ** 2)} MB`
-        : `${size.format(Math.max(n / 1024, 0.1))} kB`;
+
+  const now = $derived(new Date(data.now));
+  const when = (iso: string) =>
+    formatWhen(iso, {
+      locale: data.locale,
+      zone: data.timeZone,
+      now,
+      relative: data.dateFormat !== 'absolute',
+    });
+  const who = (ref: string) => {
+    const [kind, id] = ref.split(/:(.*)/s) as [string, string | undefined];
+    return actorLabel(t, { actorKind: kind, actorId: id ?? null }, data.names);
+  };
+
   type Item = (typeof data.exports)[number];
   const TONE: Record<string, 'neutral' | 'info' | 'success' | 'error'> = {
     queued: 'neutral',
@@ -42,17 +50,6 @@
     failed: 'error',
     expired: 'neutral',
   };
-  const facts = (item: Item) => [
-    { term: t('admin.export.field.by'), value: item.requestedBy },
-    ...(item.sizeBytes !== null
-      ? [{ term: t('admin.export.field.size'), value: bytes(item.sizeBytes) }]
-      : []),
-    ...(item.status === 'ready' && item.expiresAt
-      ? [{ term: t('admin.export.field.expires'), value: at(item.expiresAt) }]
-      : []),
-    ...(item.sha256 ? [{ term: t('admin.export.field.sha256'), value: item.sha256 }] : []),
-    ...(item.error ? [{ term: t('admin.export.field.error'), value: item.error }] : []),
-  ];
   const STATUS: Record<string, UiKey> = {
     queued: 'admin.export.status.queued',
     running: 'admin.export.status.running',
@@ -60,6 +57,28 @@
     failed: 'admin.export.status.failed',
     expired: 'admin.export.status.expired',
   };
+  const status = (item: Item) => t(STATUS[item.status] ?? 'admin.export.status.queued');
+
+  /** The archive being built: the newest that is queued or running. */
+  const building = $derived(
+    data.exports.find((e) => e.status === 'queued' || e.status === 'running') ?? null
+  );
+  const latest = $derived(data.exports.find((e) => e.status === 'ready') ?? null);
+  const details = (item: Item) => [
+    ...(item.sha256 ? [{ term: t('admin.export.field.sha256'), value: item.sha256 }] : []),
+    ...(item.schemaVersion
+      ? [{ term: t('admin.export.field.schema'), value: item.schemaVersion }]
+      : []),
+  ];
+  /** What the history says beside the status: until when, why it failed, or that it is gone. */
+  const note = (item: Item) =>
+    item.status === 'ready' && item.expiresAt
+      ? fill(t('admin.export.until'), { time: when(item.expiresAt).text })
+      : item.status === 'failed' && item.error
+        ? item.error
+        : item.status === 'expired'
+          ? t('admin.export.expired')
+          : '';
 </script>
 
 <svelte:head>
@@ -91,33 +110,94 @@
     </form>
   </section>
 
+  {#if building}
+    {@const asked = when(building.requestedAt)}
+    <Notice tone="info" live={false} title={t('admin.export.building.title')}>
+      <p>
+        {fill(t('admin.export.building.step'), {
+          step: building.status === 'queued' ? 1 : 2,
+          status: status(building),
+        })}
+        {t('admin.export.building.asked')}
+        <time datetime={asked.iso} title={asked.full}>{asked.text}</time>
+        · {who(building.requestedBy)}
+      </p>
+      <p>{t('admin.export.building.next')}</p>
+      <Actions>
+        <Button variant="secondary" href="{base}/export">{t('admin.export.refresh')}</Button>
+      </Actions>
+    </Notice>
+  {/if}
+
+  {#if latest?.href}
+    {@const made = when(latest.finishedAt ?? latest.requestedAt)}
+    <section aria-labelledby="latest">
+      <h2 id="latest">{t('admin.export.latest.title')}</h2>
+      <p>
+        {t('admin.export.latest.made')}
+        <time datetime={made.iso} title={made.full}>{made.text}</time
+        >{#if latest.sizeBytes !== null}
+          · {formatBytes(latest.sizeBytes, data.locale)}{/if}{#if latest.expiresAt}
+          · {fill(t('admin.export.until'), { time: when(latest.expiresAt).text })}{/if}
+      </p>
+      <Actions>
+        <Button href={latest.href} download>{t('admin.export.download')}</Button>
+      </Actions>
+      {#if details(latest).length}
+        <details class="ui-fold">
+          <summary>{t('admin.export.details')}</summary>
+          <MetaList items={details(latest)} />
+        </details>
+      {/if}
+    </section>
+  {/if}
+
   <section aria-labelledby="archives">
     <h2 id="archives">{t('admin.export.list.title')}</h2>
     {#if data.exports.length === 0}
       <p>{t('admin.export.list.none')}</p>
     {:else}
-      <p class="ui-hint">{t('admin.export.list.reload')}</p>
-      <CardGrid items={data.exports} key={(item) => item.id}>
-        {#snippet card(item)}
-          <Card title={fill(t('admin.export.item'), { time: at(item.requestedAt) })}>
-            <p>
-              <Badge tone={TONE[item.status] ?? 'neutral'}
-                >{t(STATUS[item.status] ?? 'admin.export.status.queued')}</Badge
+      <Table
+        id="export-table"
+        caption={t('admin.export.list.title')}
+        hideCaption
+        stack
+        columns={[
+          { key: 'asked', label: t('admin.export.col.asked') },
+          { key: 'by', label: t('admin.export.field.by') },
+          { key: 'status', label: t('admin.export.field.status') },
+          { key: 'size', label: t('admin.export.field.size'), numeric: true },
+          { key: 'note', label: t('admin.export.col.note') },
+        ]}
+      >
+        {#snippet rows()}
+          {#each data.exports as item (item.id)}
+            {@const asked = when(item.requestedAt)}
+            <tr data-export={item.id}>
+              <td data-label={t('admin.export.col.asked')}
+                ><time datetime={asked.iso} title={asked.full}>{asked.text}</time></td
               >
-            </p>
-            <MetaList items={facts(item)} />
-            {#if item.href}
-              <Actions>
-                <Button variant="secondary" href={item.href} download
-                  >{t('admin.export.download')}</Button
-                >
-              </Actions>
-            {:else if item.status === 'expired'}
-              <p>{t('admin.export.expired')}</p>
-            {/if}
-          </Card>
+              <td data-label={t('admin.export.field.by')}>{who(item.requestedBy)}</td>
+              <td data-label={t('admin.export.field.status')}
+                ><Badge tone={TONE[item.status] ?? 'neutral'}>{status(item)}</Badge></td
+              >
+              <td data-label={t('admin.export.field.size')} class="numeric"
+                >{item.sizeBytes !== null ? formatBytes(item.sizeBytes, data.locale) : ''}</td
+              >
+              <td data-label={t('admin.export.col.note')}>
+                {note(item)}
+                {#if item.href && item.id !== latest?.id}
+                  <a href={item.href} download
+                    >{t('admin.export.download')}<span class="ui-visually-hidden">
+                      · {asked.full}</span
+                    ></a
+                  >
+                {/if}
+              </td>
+            </tr>
+          {/each}
         {/snippet}
-      </CardGrid>
+      </Table>
     {/if}
   </section>
 </main>

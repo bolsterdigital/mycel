@@ -1,6 +1,7 @@
 // `mail_sends` in memory: the intent rows that make a delivery at-most-once (ADR 019 rule 6).
 
-import type { MailSend, MailSendsRepository } from '../../mailing/ports.js';
+import type { MailDayCount, MailSend, MailSendsRepository } from '../../mailing/ports.js';
+import { dayIn } from '../../ops/model.js';
 import type { TenantStore } from './store.js';
 
 export function memoryMailSends(s: TenantStore): MailSendsRepository {
@@ -67,5 +68,22 @@ export function memoryMailSends(s: TenantStore): MailSendsRepository {
             (m.claimedUntil === null || m.claimedUntil <= now)
         )
         .map((m) => ({ ...m })),
+    daily: async (since, now, zone) => {
+      const days = new Map<string, MailDayCount>();
+      const add = (at: Date, field: 'sent' | 'unknown' | 'abandoned') => {
+        if (at < since) return;
+        const day = dayIn(at, zone);
+        const row = days.get(day) ?? { day, sent: 0, unknown: 0, abandoned: 0 };
+        row[field]++;
+        days.set(day, row);
+      };
+      for (const m of s.mailSends.values()) {
+        if (m.sentAt) add(m.sentAt, 'sent');
+        else if (m.abandonedAt) add(m.abandonedAt, 'abandoned');
+        else if (m.attemptedAt && (m.claimedUntil === null || m.claimedUntil <= now))
+          add(m.attemptedAt, 'unknown');
+      }
+      return [...days.values()].sort((a, b) => a.day.localeCompare(b.day));
+    },
   };
 }

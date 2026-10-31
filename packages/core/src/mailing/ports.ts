@@ -91,6 +91,20 @@ export interface MailSendsRepository {
   siblings(correlation: string, attemptedWithin: MailWindow): Promise<MailSend[]>;
   /** Attempted, not sent, lease expired at `now`, abandoned or not: what #17 shows. */
   unresolved(now: Date): Promise<MailSend[]>;
+  /**
+   * Counts per day in `zone` since `since`: sent by `sentAt`, given up by `abandonedAt`, and
+   * attempted without either and with the lease expired at `now` by `attemptedAt`. Only days
+   * with a count; never an address.
+   */
+  daily(since: Date, now: Date, zone: string): Promise<MailDayCount[]>;
+}
+
+export interface MailDayCount {
+  /** `YYYY-MM-DD` in the zone asked for. */
+  day: string;
+  sent: number;
+  unknown: number;
+  abandoned: number;
 }
 
 declare module '../ports.js' {

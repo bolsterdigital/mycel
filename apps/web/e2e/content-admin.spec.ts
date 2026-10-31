@@ -707,6 +707,11 @@ test.describe('content-admin', () => {
     await layoutGate(page, 'start the translation', '#translate');
     await layoutGate(page, 'locale switch', '.ui-item-bar');
     await setTextSize(page, '100%');
+    await page.locator('.ui-edit-side button[name="to"][value="nl"]').click();
+    await expect(page).toHaveURL(`${edit}?locale=nl`);
+    await expect(page.locator('#title\\.nl')).toHaveValue(title);
+    await expect(page.locator('#lead\\.nl')).toHaveValue('Een korte kern.');
+    await page.goto(`${edit}?locale=en`);
     await page.getByRole('button', { name: 'Begin vanuit nl' }).click();
     await expect(page).toHaveURL(`${edit}?saved&locale=en`);
     await expect(page.locator('#title\\.en')).toHaveValue(title);
@@ -1486,6 +1491,41 @@ test.describe('article-writing', () => {
     const english = page.locator('details.block').first();
     await english.locator(':scope > summary').click();
     await expect(english.getByLabel(/^(Text|Tekst)$/)).toHaveValue('Old text');
+  });
+
+  test('typing in an empty article saves and reopens with stable block identity', async ({
+    page,
+    request,
+  }) => {
+    onlyA11y();
+    requireApi();
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `empty-writer-${Date.now()}`,
+      document: {
+        type: 'article',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: 'Leeg artikel' },
+        blocks: [],
+      },
+    });
+    const route = `/admin/probe/content/${item.id}/write`;
+    await login(page, route);
+    const writing = page.locator('.writing-surface .ProseMirror');
+    await expect(writing).toBeVisible();
+    await writing.click();
+    await page.keyboard.type('Eerste tekst');
+    await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');
+    const id = await writing.locator('[data-mycel-prose]').getAttribute('data-block-id');
+    expect(id).toBeTruthy();
+    await page.reload();
+    await expect(writing).toContainText('Eerste tekst');
+    await expect(writing.locator('[data-mycel-prose]')).toHaveAttribute('data-block-id', id!);
+    await writing.locator('p').first().fill('Tweede tekst');
+    await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');
+    await page.reload();
+    await expect(writing).toContainText('Tweede tekst');
+    await expect(writing.locator('[data-mycel-prose]')).toHaveAttribute('data-block-id', id!);
   });
 
   test('writer toolbar wraps whole actions at 320 CSS px and 200% text', async ({
