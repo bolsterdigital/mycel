@@ -5,10 +5,14 @@
      be read: it is never drawn as `ok`. The status page and the dashboard show the same summary,
      so "attention" means one thing in both. Rejected: a coloured dot or a number alone (the state
      would be in the colour) and a live region on the heading (a page that opens on it reads it
-     as content; the refresh script announces a change itself). -->
+     as content; the refresh script announces a change itself). Since #116 it has the form of a
+     StatusLine: in a white card, a mark per tone, the verdict, and the moment on the right. The
+     three marks are all in the markup and the tone class shows one, so the refresh script, which
+     only changes that class and the heading, changes the mark with it. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import type { When } from '../../format.js';
+  import Icon from '../Icon.svelte';
 
   let {
     id,
@@ -37,13 +41,20 @@
 </script>
 
 <section class={['ui-status-summary', tone]} {id} aria-labelledby="{id}-title">
-  <svelte:element this={`h${level}`} id="{id}-title" class="ui-status-summary-title"
-    >{title}</svelte:element
-  >
-  <p class="ui-status-summary-checked">
-    {checkedLabel}
-    <time datetime={checked.iso} title={checked.full}>{checked.text}</time>
-  </p>
+  <div class="ui-status-summary-head">
+    <span class="ui-status-mark"
+      ><span class="ok"><Icon name="circle-check" /></span><span class="attention"
+        ><Icon name="triangle-alert" /></span
+      ><span class="unknown"><Icon name="circle-help" /></span></span
+    >
+    <svelte:element this={`h${level}`} id="{id}-title" class="ui-status-summary-title"
+      >{title}</svelte:element
+    >
+    <p class="ui-status-summary-checked">
+      {checkedLabel}
+      <time datetime={checked.iso} title={checked.full}>{checked.text}</time>
+    </p>
+  </div>
   {#if items.length}
     <ul class="ui-status-summary-items">
       {#each items as item (item.href)}

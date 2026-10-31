@@ -25,10 +25,10 @@ test.use({
   },
 });
 
-/** Ask for an archive (or get the one being built) and reload until one can be downloaded. */
+/** Create an export (or get the one being prepared) and reload until one can be downloaded. */
 async function readyArchive(page: Page) {
-  await page.getByRole('button', { name: 'Archief aanvragen' }).click();
-  await expect(page.getByRole('status')).toContainText('archief');
+  await page.getByRole('button', { name: 'Export maken' }).click();
+  await expect(page.locator('.ui-notice[role="status"]')).toContainText('export');
   // The newest ready archive has a section of its own, whatever another project asked since.
   const latest = page.getByRole('region', { name: 'Nieuwste archief' });
   await expect(async () => {
@@ -42,8 +42,9 @@ test('an administrator asks for an archive and downloads it without JavaScript',
   page,
 }) => {
   test.setTimeout(120_000);
-  await login(page, '/admin/probe');
-  await page.getByRole('link', { name: 'Exporteren' }).click();
+  // Export is not in the main menu (#116): Settings and Status link to it.
+  await login(page, '/admin/probe/status');
+  await page.getByRole('link', { name: 'Een export van deze site maken' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Export' })).toBeVisible();
   await expect(page.locator('main')).toContainText('7 dagen te downloaden');
   await expectNoAxeViolations(page);

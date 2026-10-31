@@ -1,8 +1,10 @@
 <!-- The connections of a site (brief admin-operations-screens § 8, #82 PR 3) on the overview
      pattern: a table that stacks below 36rem with name, provider, stand and last activity, each
      name a link to the connection's own page where every action lives; an empty state that says
-     what a connection is. Adding a webhook is a folded native form above the list (it is rare,
-     skill cms-inrichting) and lands on the new connection's page. Stand and last activity come
+     what a connection is, under the plug icon. Adding a webhook is the primary action: a native
+     <details> whose summary looks like the primary button, above the list or, while there is
+     none, in the empty state (#116); its form lands on the new connection's page. What a
+     connection is waits behind the ⓘ beside the list heading. Stand and last activity come
      from connection-stand.ts, the same words the detail page uses. e2e/admin.spec.ts checks 320
      CSS px and 200% text. -->
 <script lang="ts">
@@ -11,7 +13,6 @@
     Badge,
     Button,
     Field,
-    Fieldset,
     Notice,
     OverviewPage,
     Table,
@@ -60,8 +61,14 @@
   breadcrumb={[{ label: data.tenant.name, href: base }, { label: t('admin.connections.title') }]}
   description={t('admin.connections.intro')}
   listTitle={t('admin.connections.inventory')}
+  listInfo={t('admin.connections.info')}
   empty={list.length === 0
-    ? { title: t('admin.connections.empty.title'), body: t('admin.connections.empty.body') }
+    ? {
+        title: t('admin.connections.empty.title'),
+        body: t('admin.connections.empty.body'),
+        icon: 'plug',
+        action: addFirst,
+      }
     : undefined}
 >
   {#snippet notices()}
@@ -73,58 +80,7 @@
   {/snippet}
 
   {#snippet intro()}
-    {#if allowed('connections:configure')}
-      <form method="post" action="?/create" class="ui-fields">
-        <Fieldset legend={t('admin.connections.create.title')} collapsed={!failed}>
-          <Field
-            id="create-owner"
-            size="m"
-            name="externalOwner"
-            label={t('admin.connections.owner')}
-            locale={data.locale}
-            required
-            maxlength={160}
-          />
-          <Field
-            id="create-maintainer"
-            size="m"
-            name="maintainer"
-            label={t('admin.connections.maintainer')}
-            locale={data.locale}
-            required
-            maxlength={160}
-          />
-          <Field
-            id="create-purpose"
-            name="purpose"
-            label={t('admin.connections.purpose')}
-            locale={data.locale}
-            required
-            maxlength={160}
-          />
-          <Field
-            id="create-destination"
-            name="destination"
-            type="url"
-            label={t('admin.connections.destination')}
-            locale={data.locale}
-            required
-            placeholder="https://hooks.example.org/mycel"
-          />
-          <Field
-            id="create-scopes"
-            size="m"
-            name="consentScopes"
-            label={t('admin.connections.scopes')}
-            locale={data.locale}
-            required
-            placeholder="newsletter:main"
-          />
-          <p class="ui-hint">{t('admin.connections.create.help')}</p>
-          <Actions><Button>{t('admin.connections.create.submit')}</Button></Actions>
-        </Fieldset>
-      </form>
-    {/if}
+    {#if list.length && allowed('connections:configure')}{@render create()}{/if}
   {/snippet}
 
   <Table
@@ -132,6 +88,7 @@
     caption={t('admin.connections.inventory')}
     hideCaption
     stack
+    card
     columns={[
       { key: 'name', label: t('admin.connections.col.name') },
       { key: 'provider', label: t('admin.connections.provider') },
@@ -164,3 +121,61 @@
     {/snippet}
   </Table>
 </OverviewPage>
+
+{#snippet create()}
+  <details class="ui-create" open={!!failed}>
+    <summary class="ui-button primary">{t('admin.connections.create.title')}</summary>
+    <form method="post" action="?/create" class="ui-fields">
+      <Field
+        id="create-owner"
+        size="m"
+        name="externalOwner"
+        label={t('admin.connections.owner')}
+        locale={data.locale}
+        required
+        maxlength={160}
+      />
+      <Field
+        id="create-maintainer"
+        size="m"
+        name="maintainer"
+        label={t('admin.connections.maintainer')}
+        locale={data.locale}
+        required
+        maxlength={160}
+      />
+      <Field
+        id="create-purpose"
+        name="purpose"
+        label={t('admin.connections.purpose')}
+        locale={data.locale}
+        required
+        maxlength={160}
+      />
+      <Field
+        id="create-destination"
+        name="destination"
+        type="url"
+        label={t('admin.connections.destination')}
+        locale={data.locale}
+        required
+        placeholder="https://hooks.example.org/mycel"
+      />
+      <Field
+        id="create-scopes"
+        size="m"
+        name="consentScopes"
+        label={t('admin.connections.scopes')}
+        locale={data.locale}
+        required
+        placeholder="newsletter:main"
+      />
+      <p class="ui-hint">{t('admin.connections.create.help')}</p>
+      <Actions><Button>{t('admin.connections.create.submit')}</Button></Actions>
+    </form>
+  </details>
+{/snippet}
+
+{#snippet addFirst()}
+  {#if allowed('connections:configure')}{@render create()}{/if}
+{/snippet}

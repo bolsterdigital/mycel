@@ -73,12 +73,8 @@
           ]
         : []),
       ...(has('connections:read') ? [item('connections', 'admin.nav.connections', 'plug')] : []),
-      ...(has('tenant:admin')
-        ? [
-            item('export', 'admin.nav.export', 'download'),
-            item('status', 'admin.nav.status', 'activity'),
-          ]
-        : []),
+      // Export is reached from Settings and Status, not the main menu (#116).
+      ...(has('tenant:admin') ? [item('status', 'admin.nav.status', 'activity')] : []),
     ];
     const withSections = (items: Item[]) =>
       items.map((i) => (i.current && subnav?.length ? { ...i, children: subnav } : i));

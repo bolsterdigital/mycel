@@ -1,8 +1,9 @@
 <!-- The export page of a site (TODO #28, brief admin-operations-screens § 7) on the shared admin
-     components: what an archive holds and how long it stays with the one button to ask for one
-     (a native form post); the archive being built, with its step in words and a refresh link;
+     components: one line on what an export is (the contents and how long it stays behind an ⓘ)
+     with the one button that creates it (a native form post; "Create export", never "ask",
+     #116); the archive being built, with its step in words and a refresh link;
      the newest ready archive with its download, the checksum behind "Technical details"; and
-     the history as a table that stacks below 36rem, who asked by name. Nothing polls: a reload
+     the history as a table in a card that stacks below 36rem, who created it by name. Nothing polls: a reload
      shows the progress. No cancel, because the export state machine has none (#74).
      e2e/export.spec.ts checks the flow and 320 CSS px and 200% text (skill ui-action-layout).
      Rejected: a card per archive (the reader scans a history, #82) and a progress bar (the job
@@ -15,6 +16,8 @@
     MetaList,
     Notice,
     PageHeader,
+    Section,
+    StatusLine,
     Table,
   } from '#lib/admin/ui/index.js';
   import { actorLabel } from '#lib/admin/audit-words.js';
@@ -101,14 +104,19 @@
     <Notice tone="success"><p>{t(done.done as UiKey)}</p></Notice>
   {/if}
 
-  <section aria-labelledby="request">
-    <h2 id="request">{t('admin.export.request.title')}</h2>
-    <p>{t('admin.export.intro.contents')}</p>
-    <p>{fill(t('admin.export.intro.lifetime'), { days: data.retentionDays })}</p>
+  <Section
+    id="request"
+    title={t('admin.export.request.title')}
+    intro={t('admin.export.intro')}
+    info="{t('admin.export.intro.contents')} {fill(t('admin.export.intro.lifetime'), {
+      days: data.retentionDays,
+    })}"
+    locale={data.locale}
+  >
     <form method="post" action="?/request">
       <Actions><Button>{t('admin.export.request.button')}</Button></Actions>
     </form>
-  </section>
+  </Section>
 
   {#if building}
     {@const asked = when(building.requestedAt)}
@@ -131,14 +139,16 @@
 
   {#if latest?.href}
     {@const made = when(latest.finishedAt ?? latest.requestedAt)}
-    <section aria-labelledby="latest">
-      <h2 id="latest">{t('admin.export.latest.title')}</h2>
+    <Section id="latest" title={t('admin.export.latest.title')} locale={data.locale}>
       <p>
         {t('admin.export.latest.made')}
         <time datetime={made.iso} title={made.full}>{made.text}</time
-        >{#if latest.sizeBytes !== null}
-          · {formatBytes(latest.sizeBytes, data.locale)}{/if}{#if latest.expiresAt}
-          · {fill(t('admin.export.until'), { time: when(latest.expiresAt).text })}{/if}
+        >{#if latest.sizeBytes !== null}{' · '}{formatBytes(
+            latest.sizeBytes,
+            data.locale
+          )}{/if}{#if latest.expiresAt}{' · '}{fill(t('admin.export.until'), {
+            time: when(latest.expiresAt).text,
+          })}{/if}
       </p>
       <Actions>
         <Button href={latest.href} download>{t('admin.export.download')}</Button>
@@ -149,19 +159,19 @@
           <MetaList items={details(latest)} />
         </details>
       {/if}
-    </section>
+    </Section>
   {/if}
 
-  <section aria-labelledby="archives">
-    <h2 id="archives">{t('admin.export.list.title')}</h2>
+  <Section id="archives" title={t('admin.export.list.title')} locale={data.locale}>
     {#if data.exports.length === 0}
-      <p>{t('admin.export.list.none')}</p>
+      <StatusLine tone="none" text={t('admin.export.list.none')} />
     {:else}
       <Table
         id="export-table"
         caption={t('admin.export.list.title')}
         hideCaption
         stack
+        card
         columns={[
           { key: 'asked', label: t('admin.export.col.asked') },
           { key: 'by', label: t('admin.export.field.by') },
@@ -199,5 +209,5 @@
         {/snippet}
       </Table>
     {/if}
-  </section>
+  </Section>
 </main>

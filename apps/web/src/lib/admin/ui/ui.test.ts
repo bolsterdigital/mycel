@@ -47,6 +47,8 @@ import {
   SettingsSection,
   StatusCard,
   StatusSummary,
+  StatusLine,
+  Section,
   SubNav,
   SystemState,
   Table,
@@ -537,6 +539,10 @@ describe('Table', () => {
     const out = html(Table, { ...props, hideCaption: true });
     expect(out).toContain('<caption id="files-caption" class="ui-visually-hidden">Files</caption>');
     expect(out).toMatch(/role="region" aria-labelledby="files-caption"/);
+  });
+  it('sits in the card of an overview section when asked (#116)', () => {
+    expect(html(Table, { ...props, card: true })).toMatch(/^<div class="ui-table-scroll card"/);
+    expect(html(Table, props)).toMatch(/^<div class="ui-table-scroll"/);
   });
 });
 
@@ -1116,8 +1122,15 @@ describe('StatusSummary', () => {
       children: text('<a href="?">Refresh</a>'),
     });
     expect(out).toMatch(
-      /^<section class="ui-status-summary attention" id="verdict" aria-labelledby="verdict-title"><h2 id="verdict-title" class="ui-status-summary-title">2 things need attention<\/h2>/
+      /^<section class="ui-status-summary attention" id="verdict" aria-labelledby="verdict-title"><div class="ui-status-summary-head">/
     );
+    expect(out).toContain(
+      '<h2 id="verdict-title" class="ui-status-summary-title">2 things need attention</h2>'
+    );
+    // All three marks are in the markup; the tone class shows one, so a refresh that only
+    // changes the class changes the mark with it.
+    for (const name of ['circle-check', 'triangle-alert', 'circle-help'])
+      expect(out).toContain(`#icon-${name}`);
     expect(out).toContain(
       '<time datetime="2026-10-31T10:00:00.000Z" title="Saturday 11:00">just now</time>'
     );
@@ -1134,6 +1147,63 @@ describe('StatusSummary', () => {
     });
     expect(out).toContain('ui-status-summary ok');
     expect(out).not.toContain('<ul');
+  });
+});
+
+describe('StatusLine (#116)', () => {
+  const checked = { text: '19:43', iso: '2026-10-31T18:43:00.000Z', full: 'Saturday 19:43' };
+  it('says the state in words with a mark per tone and the moment on the right', () => {
+    const out = html(StatusLine, {
+      text: 'No task is stuck.',
+      checked,
+      checkedLabel: 'Checked',
+    });
+    expect(out).toMatch(/^<div class="ui-status-line ok" role="status">/);
+    expect(out).toContain('#icon-circle-check');
+    expect(out).toContain('<span class="ui-status-line-text">No task is stuck.</span>');
+    expect(out).toContain('<time datetime="2026-10-31T18:43:00.000Z" title="Saturday 19:43">');
+  });
+  it('never draws unknown or no data as healthy', () => {
+    const unknown = html(StatusLine, { text: 'Could not be read.', tone: 'unknown' });
+    const none = html(StatusLine, { text: 'No mail yet.', tone: 'none' });
+    expect(unknown).toContain('ui-status-line unknown');
+    expect(unknown).toContain('#icon-circle-help');
+    expect(none).toContain('#icon-info');
+    for (const out of [unknown, none]) {
+      expect(out).not.toContain('circle-check');
+      expect(out).not.toContain('<time');
+    }
+  });
+});
+
+describe('Section (#116)', () => {
+  it('names the section by its heading, with the count beside it and one line under it', () => {
+    const out = html(Section, {
+      id: 'waiting',
+      title: 'Waiting',
+      intro: 'Work that will get its turn.',
+      count: '3 tasks',
+      locale: 'en-GB',
+      children: text('<p>rows</p>'),
+    });
+    expect(out).toMatch(
+      /^<section class="ui-overview-section" id="waiting" aria-labelledby="waiting-title">/
+    );
+    expect(out).toContain('<h2 id="waiting-title">Waiting</h2>');
+    expect(out).toContain('<span class="ui-overview-section-count">3 tasks</span>');
+    expect(out).toContain('<p class="ui-overview-section-intro">Work that will get its turn.</p>');
+    expect(out).not.toContain('popover');
+  });
+  it('puts a longer explanation behind an ⓘ that works without JavaScript', () => {
+    const out = html(Section, {
+      id: 'mail',
+      title: 'Mail',
+      info: 'Unknown: we could not establish it.',
+      locale: 'en-GB',
+      children: text(''),
+    });
+    expect(out).toContain('popovertarget="mail-info"');
+    expect(out).toContain('<p class="ui-hint" id="mail-info" popover="">');
   });
 });
 

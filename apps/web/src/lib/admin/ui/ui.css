@@ -442,10 +442,13 @@
     background: var(--status-neutral-bg);
   }
 
+  /* Spaced as a table is (.ui-table-scroll): a list title has no bottom margin of its own
+     (.ui-overview-bar h2), so an empty state without one touched the heading above it (#116). */
   .ui-empty {
     display: grid;
     justify-items: start;
     gap: var(--space-1);
+    margin-block: var(--space-2);
     padding: var(--space-3) var(--space-2);
     border: var(--control-border-width) dashed var(--color-border-strong);
     border-radius: var(--radius-lg);
@@ -455,6 +458,28 @@
   }
   .ui-empty-title {
     font-size: var(--step-1);
+  }
+  .ui-empty-icon {
+    display: inline-flex;
+    padding: var(--space-1);
+    border-radius: 50%;
+    color: var(--color-muted-fg);
+    background: var(--status-neutral-bg);
+  }
+  .ui-empty-icon .ui-icon {
+    width: 1.5em;
+    height: 1.5em;
+  }
+  /* A create form folded behind a button-shaped summary (Add a webhook, #116): the summary is
+     the primary action, the form opens under it, without JavaScript. */
+  .ui-create > summary {
+    list-style: none;
+  }
+  .ui-create > summary::-webkit-details-marker {
+    display: none;
+  }
+  .ui-create[open] > summary {
+    margin-block-end: var(--space-2);
   }
 
   .ui-table-scroll {
@@ -1104,6 +1129,9 @@
     align-items: center;
     gap: 0.25rem;
   }
+  .ui-overview-list {
+    margin-block-start: var(--space-3);
+  }
   .ui-overview-bar {
     display: flex;
     flex-wrap: wrap;
@@ -1113,6 +1141,11 @@
   }
   .ui-overview-bar h2 {
     margin: 0;
+  }
+  .ui-overview-head {
+    display: flex;
+    align-items: center;
+    gap: 0;
   }
   .ui-overview-filters {
     margin-block: var(--space-2);
@@ -1528,31 +1561,49 @@
     max-width: var(--form-width);
   }
 
-  /* StatusSummary: the verdict of a site's work, the tone on the start border only. */
+  /* StatusSummary: the verdict of a site's work in the form of a StatusLine (#116); `unknown`
+     keeps its dashed border, so it never looks like `ok`. */
   .ui-status-summary {
     display: grid;
     gap: var(--space-1);
-    padding: var(--space-3) var(--space-2);
-    border: var(--border-width) solid var(--color-border-strong);
-    border-inline-start-width: 0.375rem;
-    border-radius: var(--radius-lg);
+    padding: 0.875rem min(var(--space-2), 4vw);
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius);
     overflow-wrap: anywhere;
   }
   .ui-status-summary > * {
     margin: 0;
   }
-  .ui-status-summary.ok {
-    border-color: var(--status-success-fg);
-  }
-  .ui-status-summary.attention {
-    border-color: var(--status-warning-fg);
-  }
   .ui-status-summary.unknown {
     border-style: dashed;
     border-color: var(--status-neutral-fg);
   }
+  .ui-status-summary-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-0) var(--space-1);
+  }
   .ui-status-summary-title {
+    flex: 1 1 12rem;
+    margin: 0;
     font-size: var(--step-1);
+  }
+  .ui-status-summary-checked {
+    margin: 0;
+    margin-inline-start: auto;
+    font-size: var(--step-0);
+    color: var(--color-muted-fg);
+  }
+  .ui-status-summary .ui-status-mark > span {
+    display: none;
+  }
+  .ui-status-summary.ok .ui-status-mark > .ok,
+  .ui-status-summary.attention .ui-status-mark > .attention,
+  .ui-status-summary.unknown .ui-status-mark > .unknown {
+    display: inline-flex;
   }
   .ui-status-summary-items {
     display: grid;
@@ -2007,5 +2058,202 @@
   }
   .ui-confirm-body > p {
     margin: 0;
+  }
+
+  /* Overview sections (#116, after the background-tasks mockup of 2026-10-31): a heading with a
+     muted count beside it, one line under it, then the content in a white card with a 1px border
+     and the small radius; sections 2.5rem apart. The section owns this rhythm, so no screen spaces
+     its own heading. */
+  .ui-overview-section {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+    margin-block: var(--space-4);
+  }
+  .ui-overview-section > * {
+    margin: 0;
+  }
+  .ui-overview-section-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: var(--space-1);
+  }
+  .ui-overview-section-head > :is(h2, h3) {
+    margin: 0;
+  }
+  .ui-overview-section-head > .ui-hint-toggle {
+    align-self: center;
+    margin-inline-start: calc(-1 * var(--space-0));
+  }
+  .ui-overview-section-count,
+  .ui-overview-section-intro {
+    font-size: var(--step-0);
+    color: var(--color-muted-fg);
+  }
+  .ui-overview-section-intro {
+    margin-block-start: calc(-1 * var(--space-0));
+  }
+  .ui-overview-section-intro + * {
+    margin-block-start: var(--space-0);
+  }
+
+  /* StatusLine: a mark, the state in words, the moment on the right. */
+  .ui-status-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-0) var(--space-1);
+    padding: 0.875rem min(var(--space-2), 4vw);
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius);
+    overflow-wrap: anywhere;
+  }
+  .ui-status-line-text {
+    flex: 1 1 12rem;
+    font-weight: 500;
+  }
+  .ui-status-line-time {
+    margin-inline-start: auto;
+    font-size: var(--step-0);
+    color: var(--color-muted-fg);
+  }
+  .ui-status-line.unknown {
+    border-style: dashed;
+    border-color: var(--status-neutral-fg);
+  }
+  /* The mark: a tinted disc behind the icon, its colour per tone; `unknown` and `none` are grey,
+     told apart by the icon (a question mark, an i) and the dashed border. */
+  .ui-status-mark {
+    display: inline-flex;
+    flex: none;
+    padding: 0.125rem;
+    border-radius: 50%;
+    color: var(--status-success-fg);
+    background: var(--status-success-bg);
+  }
+  .ui-status-mark .ui-icon {
+    width: 1.25em;
+    height: 1.25em;
+  }
+  .unknown > .ui-status-mark,
+  .none > .ui-status-mark,
+  .unknown .ui-status-summary-head > .ui-status-mark {
+    color: var(--status-neutral-fg);
+    background: var(--status-neutral-bg);
+  }
+  .attention > .ui-status-mark,
+  .attention .ui-status-summary-head > .ui-status-mark {
+    color: var(--status-warning-fg);
+    background: var(--status-warning-bg);
+  }
+
+  /* A list as rows in one card (waiting work, stuck tasks, latest actions, connections): what on
+     the left, its state, the time on the right and muted. Below 36rem a row stacks. */
+  .ui-rows {
+    container-type: inline-size;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius);
+  }
+  .ui-row {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--space-0) var(--space-2);
+    align-items: baseline;
+    padding: 0.75rem min(var(--space-2), 4vw);
+    overflow-wrap: anywhere;
+  }
+  .ui-row + .ui-row {
+    border-block-start: var(--border-width) solid var(--color-border);
+  }
+  .ui-row > * {
+    margin: 0;
+  }
+  /* A row that holds more than three facts (a stuck task with its error and actions) is a block. */
+  .ui-row.block {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
+  .ui-row-state {
+    color: var(--color-muted-fg);
+  }
+  .ui-row-time {
+    font-size: var(--step-0);
+    color: var(--color-muted-fg);
+    text-align: end;
+  }
+  @container (max-width: 36rem) {
+    .ui-row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .ui-row-time {
+      text-align: start;
+    }
+  }
+
+  /* Table.card: the table in the same card as the rows, its column headings small and muted. */
+  .ui-table-scroll.card {
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius);
+  }
+  .ui-table-scroll.card .ui-table {
+    font-size: var(--step-0);
+  }
+  .ui-table-scroll.card .ui-table :is(th, td) {
+    padding: 0.75rem min(var(--space-2), 4vw);
+  }
+  .ui-table-scroll.card .ui-table thead th {
+    padding-block: 0.625rem;
+    font-size: var(--step--1);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-muted-fg);
+  }
+  .ui-table-scroll.card .ui-table tbody tr:last-child :is(th, td) {
+    border-block-end: 0;
+  }
+
+  /* A filter bar (#116, the log): the fields and the filter buttons side by side on one row from
+     a wide screen, wrapping whole fields on a narrow one; labels small above their fields. A GET
+     form, so it filters without JavaScript. */
+  .ui-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-1) var(--space-2);
+    padding: var(--space-1) min(var(--space-2), 4vw) var(--space-2);
+    background: var(--color-surface-bg);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius);
+  }
+  .ui-filter-bar > .ui-field {
+    flex: 1 1 9rem;
+    max-inline-size: var(--field-width);
+    min-inline-size: 0;
+  }
+  .ui-filter-bar > .ui-field.size-m {
+    flex-basis: 12rem;
+  }
+  .ui-filter-bar .ui-field-head > label {
+    font-size: var(--step--1);
+    font-weight: 500;
+    color: var(--color-muted-fg);
+  }
+  /* The button group is a size container (it stacks on its own width); in a flex row that gives
+     it no width of its own, so it gets a basis. */
+  .ui-filter-bar > .ui-actions-host {
+    flex: 1 1 12rem;
+    margin-block: 0;
   }
 }
