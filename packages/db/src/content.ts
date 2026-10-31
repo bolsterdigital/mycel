@@ -24,6 +24,7 @@ import {
   type Paged,
   type RevisionSummary,
   type SluggedRepository,
+  UseCaseError,
 } from '@mycel/core';
 import type { Database } from './infra/schema.js';
 
@@ -49,6 +50,25 @@ const toLocale = (r: LocaleRow): LocaleState => ({
   scheduledFor: date(r.scheduled_for),
   scheduleId: r.schedule_id,
 });
+
+/**
+ * The slug check in core reads before it writes, and two items are two locks: two creates or
+ * renames to one free slug can both pass it. The unique key decides; the loser gets the same
+ * typed conflict as the read would have given, not a 500. Rejected: a tenant-wide slug lock,
+ * which serialises every create of a site for a race that costs one retry.
+ */
+async function slugUnique(item: ItemRecord, write: Promise<unknown>): Promise<void> {
+  try {
+    await write;
+  } catch (e) {
+    const pg = e as { code?: string; constraint?: string };
+    if (pg.code === '23505' && pg.constraint === 'content_items_tenant_id_type_slug_key')
+      throw new UseCaseError('conflict', `a ${item.type} with slug "${item.slug}" already exists`, [
+        { path: 'slug', message: 'content.slug.taken' },
+      ]);
+    throw e;
+  }
+}
 
 export function contentRepository(trx: Trx, tenantId: string): ContentRepository {
   /** Items with their locale rows, in the item's locale order. */
@@ -164,36 +184,43 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
       return { rows: await withLocales(page.rows), next: page.next };
     },
     async insert(item, first) {
-      await trx
-        .insertInto('content_items')
-        .values({
-          id: item.id,
-          tenant_id: tenantId,
-          type: item.type,
-          slug: item.slug,
-          title: JSON.stringify(item.title),
-          default_locale: item.defaultLocale,
-          locales: item.locales,
-          latest_revision_id: item.latestRevisionId,
-          created_at: item.createdAt,
-          updated_at: item.updatedAt,
-        })
-        .execute();
+      await slugUnique(
+        item,
+        trx
+          .insertInto('content_items')
+          .values({
+            id: item.id,
+            tenant_id: tenantId,
+            type: item.type,
+            slug: item.slug,
+            title: JSON.stringify(item.title),
+            default_locale: item.defaultLocale,
+            locales: item.locales,
+            latest_revision_id: item.latestRevisionId,
+            created_at: item.createdAt,
+            updated_at: item.updatedAt,
+          })
+          .execute()
+      );
       await insertRevision(first);
       await writeLocales(item);
     },
     async save(item) {
-      await trx
-        .updateTable('content_items')
-        .set({
-          title: JSON.stringify(item.title),
-          default_locale: item.defaultLocale,
-          locales: item.locales,
-          latest_revision_id: item.latestRevisionId,
-          updated_at: item.updatedAt,
-        })
-        .where('id', '=', item.id)
-        .execute();
+      await slugUnique(
+        item,
+        trx
+          .updateTable('content_items')
+          .set({
+            slug: item.slug,
+            title: JSON.stringify(item.title),
+            default_locale: item.defaultLocale,
+            locales: item.locales,
+            latest_revision_id: item.latestRevisionId,
+            updated_at: item.updatedAt,
+          })
+          .where('id', '=', item.id)
+          .execute()
+      );
       await writeLocales(item);
     },
     insertRevision,

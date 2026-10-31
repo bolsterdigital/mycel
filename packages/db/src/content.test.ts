@@ -406,6 +406,65 @@ describe.skipIf(skip)('content conformance', () => {
     }
   });
 
+  it('moves the slug of a never-published item, and one of two racing renames to a free slug wins', async () => {
+    const { item } = await create('slug-from');
+    const moved = await invoker.run(useCases.updateSlug, adminOf(tenantA), {
+      itemId: item.id,
+      slug: `slug-to-${run}`,
+    });
+    expect(moved.slug).toBe(`slug-to-${run}`);
+    const read = await invoker.run(useCases.getItem, adminOf(tenantA), { itemId: item.id });
+    expect(read.item.slug).toBe(`slug-to-${run}`);
+    // Another tenant has its own slug space.
+    await invoker.run(useCases.createItem, adminOf(tenantB), {
+      slug: `slug-elsewhere-${run}`,
+      document: doc('b'),
+    });
+    expect(
+      (
+        await invoker.run(useCases.updateSlug, adminOf(tenantA), {
+          itemId: item.id,
+          slug: `slug-elsewhere-${run}`,
+        })
+      ).slug
+    ).toBe(`slug-elsewhere-${run}`);
+    // Two items, two locks: both read the slug as free, the unique key decides.
+    for (let round = 0; round < 3; round++) {
+      const items = await Promise.all(
+        Array.from({ length: 4 }, (_, i) => create(`slug-race-${round}-${i}`))
+      );
+      const results = await Promise.allSettled(
+        items.map(({ item: it }) =>
+          invoker.run(useCases.updateSlug, adminOf(tenantA), {
+            itemId: it.id,
+            slug: `slug-won-${round}-${run}`,
+          })
+        )
+      );
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      for (const r of results.filter((r) => r.status === 'rejected') as PromiseRejectedResult[])
+        expect(r.reason).toMatchObject({
+          code: 'conflict',
+          issues: [{ path: 'slug', message: 'content.slug.taken' }],
+        });
+    }
+  });
+
+  it('keeps the slug once a locale was published', async () => {
+    const { item, revision } = await create('slug-live');
+    await invoker.run(useCases.publishItem, adminOf(tenantA), {
+      itemId: item.id,
+      revisionId: revision.id,
+      locale: 'nl',
+    });
+    await expect(
+      invoker.run(useCases.updateSlug, adminOf(tenantA), {
+        itemId: item.id,
+        slug: `slug-moved-${run}`,
+      })
+    ).rejects.toMatchObject({ code: 'invalid_input' });
+  });
+
   it('keeps revisions immutable and pins relational for mycel_app', async () => {
     const one = await create('pin-one');
     const two = await create('pin-two');

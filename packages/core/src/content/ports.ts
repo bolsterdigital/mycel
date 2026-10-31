@@ -55,7 +55,10 @@ export interface ContentRepository {
   ): Promise<Paged<ItemRecord>>;
   /** A new item with its first revision (inserted in the same transaction, refs included). */
   insert(item: ItemRecord, first: Revision): Promise<void>;
-  /** Item columns and the complete set of publication rows; rows not in the list are removed. */
+  /**
+   * Item columns (slug included, which only `content.slug.update` changes) and the complete set
+   * of publication rows; rows not in the list are removed.
+   */
   save(item: ItemRecord): Promise<void>;
   /**
    * Inserts the revision and its `content_block_refs` rows, derived from the document here so no
