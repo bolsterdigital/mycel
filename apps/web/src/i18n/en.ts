@@ -240,7 +240,7 @@ export const en = {
   'admin.error.forbidden': 'You do not have the capability for this.',
   'admin.domains.title': 'Domains',
   'admin.domains.intro':
-    'The site is served on its primary hostname; every other hostname redirects there. Add your own domain, set its two DNS records, check them, and make it primary.',
+    'The site is served on its primary hostname, its address; every other hostname redirects there. Add your own domain, set its DNS records, check them, and choose the address.',
   'admin.domains.kind.platform': 'platform hostname',
   'admin.domains.kind.custom': 'custom domain',
   'admin.domains.primary': 'primary',
@@ -253,7 +253,7 @@ export const en = {
   'admin.domains.dns.value': 'Value',
   'admin.domains.dns.target': 'Points to',
   'admin.domains.dns.apex':
-    'A domain without a subdomain (example.org itself) cannot take a CNAME at most providers: use the A and AAAA records from your hosting documentation instead. The TXT record is always needed.',
+    'The bare domain cannot take a CNAME: use an ALIAS or ANAME record if your provider has one, otherwise the A and AAAA records from your hosting documentation. The TXT record is always needed.',
   'admin.domains.checks.none': 'Checked every day; the first check is within a day.',
   'admin.domains.checks.ok': 'Last checked {when}: the TXT record was found.',
   'admin.domains.checks.failing':
@@ -268,9 +268,26 @@ export const en = {
   'admin.domains.removeConfirm': 'Yes, remove',
   'admin.domains.add.title': 'Add a domain',
   'admin.domains.add.hostname': 'Hostname',
-  'admin.domains.add.hint':
-    'Only the hostname, without https:// or a path; with www if that is what your site is called.',
-  'admin.domains.add.placeholder': 'www.example.org',
+  'admin.domains.add.hint': 'Only the hostname, without https:// or a path.',
+  'admin.domains.add.placeholder': 'example.org',
+  'admin.domains.kind.main': 'main domain, with www',
+  'admin.domains.pair.redirects': '{from} redirects to {to}, the address of the site.',
+  'admin.domains.pair.choose':
+    'Both names are verified. Choose which one is the address of the site; the other then redirects to it.',
+  'admin.domains.pair.later':
+    'Set the records for both names. Once both are verified, you choose which one is the address of the site; the other then redirects to it.',
+  'admin.domains.pair.useAs': 'Use as the address',
+  'admin.domains.pair.removeQuestion':
+    'Both names are removed, and the site can no longer be reached on them. You can add the domain again later.',
+  'admin.domains.checkBoth': 'Check DNS for both',
+  'admin.domains.dns.alias': 'ALIAS or ANAME record',
+  'admin.domains.add.scope': 'What kind of domain is it?',
+  'admin.domains.add.scope.main':
+    "Your organisation's own domain, such as example.org: example.org and www.example.org are both added",
+  'admin.domains.add.scope.sub':
+    'A separate subdomain, such as campaign.example.org: only that name is added',
+  'admin.domains.done.addedPair':
+    'Domains {hostname} and www.{hostname} added. Set their DNS records, then check them.',
   'admin.domains.add.submit': 'Add domain',
   'admin.domains.done.added': 'Domain {hostname} added. Set its DNS records, then check them.',
   'admin.domains.done.verified': 'Domain {hostname} is verified.',

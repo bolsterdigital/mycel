@@ -239,7 +239,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.error.forbidden': 'Je hebt daar de bevoegdheid niet voor.',
   'admin.domains.title': 'Domeinen',
   'admin.domains.intro':
-    'De site wordt geserveerd op de primaire hostnaam; elke andere hostnaam verwijst daarheen door. Voeg je eigen domein toe, zet de twee DNS-records, controleer ze en maak het domein primair.',
+    'De site wordt geserveerd op de primaire hostnaam, het adres van de site; elke andere hostnaam verwijst daarheen door. Voeg je eigen domein toe, zet de DNS-records, controleer ze en kies het adres.',
   'admin.domains.kind.platform': 'platform-hostnaam',
   'admin.domains.kind.custom': 'eigen domein',
   'admin.domains.primary': 'primair',
@@ -252,7 +252,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.domains.dns.value': 'Waarde',
   'admin.domains.dns.target': 'Wijst naar',
   'admin.domains.dns.apex':
-    'Een domein zonder subdomein (example.org zelf) kan bij de meeste providers geen CNAME krijgen: gebruik dan de A- en AAAA-records uit de documentatie van je hoster. Het TXT-record is altijd nodig.',
+    'Het kale domein kan geen CNAME krijgen: gebruik een ALIAS- of ANAME-record als je provider dat heeft, anders de A- en AAAA-records uit de documentatie van je hoster. Het TXT-record is altijd nodig.',
   'admin.domains.checks.none':
     'Wordt elke dag gecontroleerd; de eerste controle volgt binnen een dag.',
   'admin.domains.checks.ok': 'Laatst gecontroleerd {when}: het TXT-record is gevonden.',
@@ -268,9 +268,26 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.domains.removeConfirm': 'Ja, verwijderen',
   'admin.domains.add.title': 'Domein toevoegen',
   'admin.domains.add.hostname': 'Hostnaam',
-  'admin.domains.add.hint':
-    'Alleen de hostnaam, zonder https:// en zonder pad; met www als je site zo heet.',
-  'admin.domains.add.placeholder': 'www.voorbeeld.nl',
+  'admin.domains.add.hint': 'Alleen de hostnaam, zonder https:// en zonder pad.',
+  'admin.domains.add.placeholder': 'voorbeeld.nl',
+  'admin.domains.kind.main': 'hoofddomein, met www',
+  'admin.domains.pair.redirects': '{from} stuurt door naar {to}, het adres van de site.',
+  'admin.domains.pair.choose':
+    'Beide namen zijn geverifieerd. Kies welke het adres van de site wordt; de andere stuurt daar dan naar door.',
+  'admin.domains.pair.later':
+    'Zet de records voor beide namen. Zodra beide geverifieerd zijn, kies je welke het adres van de site wordt; de andere stuurt daar dan naar door.',
+  'admin.domains.pair.useAs': 'Als adres gebruiken',
+  'admin.domains.pair.removeQuestion':
+    'Beide namen worden verwijderd en de site is daarna niet meer op die namen te bereiken. Je kunt het domein later opnieuw toevoegen.',
+  'admin.domains.checkBoth': 'DNS van beide controleren',
+  'admin.domains.dns.alias': 'ALIAS- of ANAME-record',
+  'admin.domains.add.scope': 'Wat voor domein is het?',
+  'admin.domains.add.scope.main':
+    'Het eigen domein van je organisatie, zoals voorbeeld.nl: voorbeeld.nl en www.voorbeeld.nl worden allebei toegevoegd',
+  'admin.domains.add.scope.sub':
+    'Een los subdomein, zoals campagne.voorbeeld.nl: alleen die naam wordt toegevoegd',
+  'admin.domains.done.addedPair':
+    'Domeinen {hostname} en www.{hostname} toegevoegd. Zet de DNS-records en controleer ze daarna.',
   'admin.domains.add.submit': 'Domein toevoegen',
   'admin.domains.done.added':
     'Domein {hostname} toegevoegd. Zet de DNS-records en controleer ze daarna.',
