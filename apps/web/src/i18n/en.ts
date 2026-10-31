@@ -127,6 +127,14 @@ export const en = {
   'admin.sites.title': 'Your sites',
   'admin.sites.empty': 'You are not a member of a site yet',
   'admin.sites.none': 'No sites yet. Ask an administrator of a site to invite {email}.',
+  'admin.sites.search': 'Find a site',
+  'admin.sites.search.submit': 'Search',
+  'admin.sites.search.clear': 'Show all sites',
+  'admin.sites.noMatch': 'No site matches “{q}”.',
+  'admin.sites.none.invited':
+    'When Dreamkit ID has confirmed this address, an invitation sent to it made you a member the moment you logged in. Were you invited at another address? Log out and log in with that one.',
+  'admin.loggedOut.idp':
+    'You may still be signed in to Dreamkit ID, so logging in again may not ask for your password. Log out there as well if you share this device.',
   'admin.forbidden.title': 'No access to this site',
   'admin.forbidden.body':
     'You are not a member of this site. Ask one of its administrators to invite {email}.',
