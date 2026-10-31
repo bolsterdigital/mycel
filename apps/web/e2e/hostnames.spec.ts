@@ -16,6 +16,9 @@ import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { pastMinimumFillTime } from './lib/form';
+import { asOwner, tenantId, withInvoker } from './lib/invoker';
+import { systemPrincipal } from '@mycel/core';
+import { testTenant } from '@mycel/db/testing';
 
 const SITE = 'http://probe.localhost:4173';
 
@@ -28,13 +31,21 @@ test.use({
 });
 
 const formWith = (page: Page, heading: string) =>
-  page.locator('form', { has: page.getByRole('heading', { level: 3, name: heading }) });
+  page.locator('form', {
+    has: page.getByRole('heading', { level: 3, name: heading, exact: true }),
+  });
 
-/** Adds a domain through the dialog the "Domein toevoegen" invoker button opens (no script). */
-async function addDomain(page: Page, hostname: string) {
+/**
+ * Adds a domain through the dialog the "Domein toevoegen" invoker button opens (no script): a
+ * separate subdomain unless `main` says it is the organisation's own domain (#115).
+ */
+async function addDomain(page: Page, hostname: string, kind: 'main' | 'sub' = 'sub') {
   await page.getByRole('button', { name: 'Domein toevoegen' }).click();
   const dialog = page.getByRole('dialog', { name: 'Domein toevoegen' });
   await dialog.getByLabel('Hostnaam').fill(hostname);
+  await dialog
+    .getByLabel(kind === 'main' ? /eigen domein van je organisatie/ : /los subdomein/)
+    .check();
   await dialog.getByRole('button', { name: 'Domein toevoegen' }).click();
 }
 
@@ -235,6 +246,104 @@ test('an admin adds a domain, sees the records, checks (not found), and cannot r
   await expectNoAxeViolations(page);
 });
 
+// #115: an organisation's own domain is added as its bare and its www name and shown as one
+// card with the records per name; a separate subdomain is one name without a word about www.
+test('a main domain is added as both of its names, a subdomain as one', async ({
+  page,
+  request,
+}) => {
+  await login(page, '/admin/probe/domeinen');
+  const domain = `pair-${test.info().project.name}-${Date.now()}.example`;
+  // Typed with www: the bare name is the card, both names are added.
+  await addDomain(page, `www.${domain}`, 'main');
+  await expect(page.getByRole('status')).toContainText(
+    `Domeinen ${domain} en www.${domain} toegevoegd`
+  );
+  const pair = formWith(page, domain);
+  for (const name of [domain, `www.${domain}`]) {
+    await expect(pair.getByRole('heading', { level: 4, name, exact: true })).toBeVisible();
+    await expect(pair.getByText(`_mycel-verify.${name}`, { exact: true })).toBeVisible();
+    // Neither is verified, so neither serves or gets a certificate yet.
+    const allowed = await request.get(`/internal/hostnames/allowed?domain=${name}`, {
+      headers: { host: 'web.internal' },
+    });
+    expect(allowed.status()).toBe(404);
+  }
+  // The bare name points with an ALIAS (it cannot take a CNAME), www with a CNAME.
+  await expect(pair).toContainText('ALIAS- of ANAME-record');
+  await expect(pair).toContainText('CNAME-record');
+  await expect(pair).toContainText('Zodra beide geverifieerd zijn');
+  await expect(pair.getByRole('button', { name: /als adres gebruiken/ })).toHaveCount(0);
+  await expectNoAxeViolations(page);
+
+  // A separate subdomain: one name, a CNAME, nothing about www or a bare domain.
+  const sub = `campagne.${domain}`;
+  await addDomain(page, sub);
+  await expect(page.getByRole('status')).toContainText(`Domein ${sub} toegevoegd`);
+  const single = formWith(page, sub);
+  await expect(single).toContainText('CNAME-record');
+  await expect(single).not.toContainText('www');
+  await expect(single).not.toContainText('ALIAS');
+
+  // Both names or neither: when www is taken, the bare name added a moment before goes again.
+  const taken = `taken-${domain}`;
+  await addDomain(page, `www.${taken}`);
+  await addDomain(page, taken, 'main');
+  await expect(page.getByRole('alert')).toContainText('al in gebruik');
+  await expect(formWith(page, taken)).toHaveCount(0);
+
+  // Removing the main domain removes both names.
+  await pair.locator('summary', { hasText: 'Verwijderen' }).click();
+  await pair.getByRole('button', { name: `Ja, verwijderen: ${domain}` }).click();
+  await expect(page.getByRole('status')).toContainText('verwijderd');
+  await expect(page.getByRole('heading', { name: `www.${domain}`, exact: true })).toHaveCount(0);
+  await expect(formWith(page, domain)).toHaveCount(0);
+  for (const name of [sub, `www.${taken}`]) await removeDomain(page, name);
+});
+
+// #115 scenarios 1a and 1b: once both names are verified, the one the operator makes primary is
+// the address and the other answers with a 301 to it; both get a certificate. Fixtures on a site
+// of their own, so the primary of probe stays as every other test expects.
+for (const address of ['bare', 'www'] as const)
+  test(`a verified main domain with ${address} as the address redirects the other name`, async ({
+    request,
+  }) => {
+    const slug = `pair-${address}-${test.info().project.name}-${Date.now()}`;
+    const tenant = await asOwner((owner) =>
+      testTenant(owner, slug, { platformDomain: process.env['PLATFORM_DOMAIN']! })
+    );
+    const apex = `${slug}.example`;
+    const www = `www.${apex}`;
+    const [primary, other] = address === 'bare' ? [apex, www] : [www, apex];
+    await withInvoker((_invoker, uow) =>
+      uow.run(systemPrincipal(tenant.id, 'e2e'), async (ctx) => {
+        for (const hostname of [apex, www]) {
+          await ctx.hostnames.insert({
+            hostname,
+            kind: 'custom',
+            verificationToken: 'e2e-fixture',
+            verifiedAt: null,
+            createdAt: new Date(),
+          });
+          await ctx.hostnames.setVerified(hostname, new Date());
+        }
+        await ctx.hostnames.setPrimary(primary);
+      })
+    );
+    const redirect = await request.get('/nieuws?p=2', {
+      headers: { host: other },
+      maxRedirects: 0,
+    });
+    expect(redirect.status()).toBe(301);
+    expect(redirect.headers()['location']).toBe(`http://${primary}:4173/nieuws?p=2`);
+    for (const name of [apex, www]) {
+      const allowed = await request.get(`/internal/hostnames/allowed?domain=${name}`, {
+        headers: { host: 'web.internal' },
+      });
+      expect(allowed.status()).toBe(200);
+    }
+  });
+
 test.describe('UI gate: the domain action group at 320 CSS px and 200% text', () => {
   test.use({ viewport: NARROW });
 
@@ -242,9 +351,22 @@ test.describe('UI gate: the domain action group at 320 CSS px and 200% text', ()
     test(`every button whole and no horizontal scroll, text ${text}`, async ({ page }) => {
       onlyA11y('measures the layout with a script');
       await login(page, '/admin/probe/domeinen');
-      const domain = `gate-${text.replace('%', '')}-${Date.now()}.example`;
-      await addDomain(page, domain);
+      // A main domain whose two names are verified: the card with the most actions, "check
+      // both", "use … as the address" twice with a long name, and remove (#115).
+      const domain = `gate-${text.replace('%', '')}-${Date.now()}-a-longer-name.example`;
+      await addDomain(page, domain, 'main');
       await expect(formWith(page, domain)).toBeVisible();
+      const probe = await tenantId();
+      await withInvoker((_invoker, uow) =>
+        uow.run(systemPrincipal(probe, 'e2e'), async (ctx) => {
+          for (const name of [domain, `www.${domain}`])
+            await ctx.hostnames.setVerified(name, new Date());
+        })
+      );
+      await page.reload();
+      await expect(formWith(page, domain).getByRole('button', { name: /als adres/ })).toHaveCount(
+        2
+      );
       await setTextSize(page, text);
       await formWith(page, domain).locator('summary', { hasText: 'Verwijderen' }).click();
       await layoutGate(page, 'domain actions');
