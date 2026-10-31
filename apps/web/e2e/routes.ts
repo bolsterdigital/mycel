@@ -38,6 +38,7 @@ export const ADMIN_ROUTES: GateRoute[] = [
   { path: '/admin/probe/status/audit', within: 'main' },
   { path: '/admin?all' },
   { path: '/admin/logout' },
+  { path: '/admin/login' },
   { path: '/admin/voorkeuren' },
   { path: '/admin/probe/content?type=page' },
   { path: '/admin/probe/content/new' },

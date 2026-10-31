@@ -124,6 +124,20 @@ export const en = {
   'admin.loginFailed.title': 'Login failed',
   'admin.loginFailed.body':
     'The login could not be completed, or took longer than ten minutes. Try again.',
+  'admin.login.title': 'Log in',
+  'admin.login.reason.return':
+    'You are not logged in, or your session has ended. After logging in you return to the page you were on.',
+  'admin.login.how': 'You log in with your account at {idp}, then come back here.',
+  'admin.login.submit': 'Log in',
+  'admin.login.retry': 'Try again',
+  'admin.login.notConfigured':
+    'Logging in to the admin is not set up on this installation. Ask whoever runs it.',
+  'admin.login.tooMany':
+    'There were too many login attempts from this connection. Wait a few minutes and try again.',
+  'admin.loginFailed.denied':
+    'The login was cancelled or refused at the login service. Nothing was changed; try again when you are ready.',
+  'admin.loginFailed.idp':
+    'The login service could not complete the login. Try again; if it keeps failing, ask whoever runs this installation.',
   'admin.sites.title': 'Your sites',
   'admin.sites.empty': 'You are not a member of a site yet',
   'admin.sites.none': 'No sites yet. Ask an administrator of a site to invite {email}.',
