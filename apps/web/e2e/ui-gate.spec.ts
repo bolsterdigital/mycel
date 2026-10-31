@@ -232,7 +232,8 @@ test.describe('admin-ui', () => {
     await expect(page.locator('html')).toHaveAttribute('data-admin-nav', 'rail');
     await page.getByRole('button', { name: 'Expand menu' }).click();
     await expect(page.locator('html')).toHaveAttribute('data-admin-nav', 'full');
-    expect((await sidebar.boundingBox())!.width).toBeGreaterThan(180);
+    expect((await media.locator('span').boundingBox())!.width).toBeGreaterThan(20);
+    await layoutGate(page, 'expanded menu', '.admin-sidebar');
     if (isA11y()) await expectNoAxeViolations(page);
   });
 

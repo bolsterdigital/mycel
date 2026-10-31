@@ -461,6 +461,43 @@ test.describe('admin-shell', () => {
     expect(wide.width - normal.width).toBe(1280);
   });
 
+  for (const locale of ['nl', 'en']) {
+    test.describe(`sidebar language ${locale}`, () => {
+      test.use({ locale });
+      test(`sidebar follows its longest label and reflows in ${locale}`, async ({ page }) => {
+        await login(page, '/admin/probe/content?type=page', email, { 'accept-language': locale });
+        await expect(page.locator('html')).toHaveAttribute('lang', locale);
+        await page.setViewportSize({ width: 1280, height: 900 });
+        const metrics = await page.locator('.admin-sidebar').evaluate((sidebar) => {
+          const links = [...sidebar.querySelectorAll('.ui-navgroup > ul > li > a')];
+          const longest = Math.max(
+            ...links.map((link) => {
+              const range = document.createRange();
+              range.selectNodeContents(link.querySelector('span')!);
+              return range.getBoundingClientRect().width;
+            })
+          );
+          const active = sidebar.querySelector('[aria-current]')!.getBoundingClientRect();
+          return {
+            width: sidebar.getBoundingClientRect().width,
+            longest,
+            edge: sidebar.getBoundingClientRect().right - active.right,
+          };
+        });
+        expect(metrics.width - metrics.longest).toBeLessThan(100);
+        expect(metrics.edge).toBeLessThan(2);
+        await page.setViewportSize(NARROW);
+        await setTextSize(page, '200%');
+        await page.locator('.admin-menu > summary').click();
+        await layoutGate(page, `sidebar ${locale}`, '.admin-sidebar');
+        await page.screenshot({
+          path: test.info().outputPath(`sidebar-${locale}-320-200.png`),
+          fullPage: true,
+        });
+      });
+    });
+  }
+
   test.describe('narrow dashboard', () => {
     test.use({ viewport: NARROW });
     test('stacks the widgets in one column behind a closed ☰ bar', async ({ page }) => {

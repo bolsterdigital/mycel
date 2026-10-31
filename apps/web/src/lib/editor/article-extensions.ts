@@ -2,6 +2,7 @@
 // marks and nodes are disabled; the few Mycel nodes carry block identity, not a second storage
 // schema. Rejected: StarterKit defaults, which would silently admit blockquotes and code blocks.
 import { Extension, Mark, Node } from '@tiptap/core';
+import { Plugin } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import { z } from 'zod';
 
@@ -117,6 +118,31 @@ const ExplicitListStart = Extension.create({
   },
 });
 
+// Typing into an empty document creates prose through the schema, bypassing the paste path.
+// Assign identity in the transaction before onUpdate can serialize it; existing ids stay intact.
+const BlockIdentity = Extension.create({
+  name: 'mycelBlockIdentity',
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        appendTransaction(_transactions, _oldState, state) {
+          const transaction = state.tr;
+          state.doc.forEach((node, position) => {
+            if (node.type.name !== 'mycelProse' || node.attrs.blockId) return;
+            const id = crypto.randomUUID();
+            transaction.setNodeMarkup(position, undefined, {
+              ...node.attrs,
+              blockId: id,
+              newBlock: { id, type: 'rich-text', version: 1, props: { content: {} } },
+            });
+          });
+          return transaction.docChanged ? transaction : null;
+        },
+      }),
+    ];
+  },
+});
+
 export const articleExtensions = [
   StarterKit.configure({
     document: false,
@@ -135,4 +161,5 @@ export const articleExtensions = [
   SafeLink,
   FootnoteReference,
   ExplicitListStart,
+  BlockIdentity,
 ];

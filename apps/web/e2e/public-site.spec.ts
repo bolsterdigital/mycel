@@ -882,6 +882,16 @@ test.describe('grid-compositions', () => {
         body: JSON.stringify({ faq, version: context.browser()?.version() }),
         contentType: 'application/json',
       });
+      // The same origin retains real browser zoom across the admin navigation.
+      await login(page, '/admin/probe/content?type=page');
+      await expect(page.locator('.admin-sidebar')).toBeVisible();
+      expect(await page.evaluate(() => devicePixelRatio)).toBe(before.ratio * 2);
+      await page.locator('.admin-menu > summary').click();
+      await layoutGate(page, 'admin at real 200% browser zoom', '.admin-sidebar');
+      await page.screenshot({
+        path: test.info().outputPath('admin-browser-zoom-200.png'),
+        fullPage: true,
+      });
     } finally {
       await context?.close();
       await rm(directory, { recursive: true, force: true });
