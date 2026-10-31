@@ -40,12 +40,39 @@ export function preloadFonts(pair: FontPair): string[] {
     : [FONT_FILES.sourceSerif.roman, FONT_FILES.inter.roman];
 }
 
+// Elements a browser renders italic by default; no stylesheet here sets `font-style` itself.
+const ITALIC_ELEMENT = /<(?:em|i|cite|dfn|var|address)[\s>]/;
+const ROMAN_PRELOAD = new RegExp(
+  `<link rel="preload" href="${FONT_FILES.inter.roman}"[^>]*>`.replaceAll('/', '\\/')
+);
+
+/**
+ * The italic Inter face as a low-priority preload, after the roman one, on a rendered page whose
+ * body uses italic text. Discovered during layout instead, the font is fetched at the highest
+ * priority, which Lighthouse counts as render-blocking although `font-display: swap` lets text
+ * paint before it arrives: 116 KB on the first paint's critical path. Low priority keeps it off
+ * that path and out of the LCP image's way. Pages without italic text never fetch it. Only the
+ * body face: headings and pull quotes are plain text and never italic.
+ * Rejected: preloading the italic face on every page (wasted bytes on most of them), and listing
+ * the italic-emitting components (a new one would silently bring the cost back).
+ */
+export function withItalicPreload(html: string): string {
+  const roman = ROMAN_PRELOAD.exec(html);
+  if (!roman) return html;
+  const body = html.indexOf('<body');
+  if (body < 0 || !ITALIC_ELEMENT.test(html.slice(body))) return html;
+  const italic = `<link rel="preload" href="${FONT_FILES.inter.italic}" as="font" type="font/woff2" crossorigin="anonymous" fetchpriority="low">`;
+  const end = roman.index + roman[0].length;
+  return html.slice(0, end) + italic + html.slice(end);
+}
+
 function fontFaces(pair: FontPair): string {
   const face = (family: string, file: string, style: string, weight: string) =>
     `@font-face { font-family: '${family}'; src: url('${file}') format('woff2'); font-style: ${style}; font-weight: ${weight}; font-display: swap; unicode-range: ${LATIN}; }`;
   const faces = [
     face('Inter', FONT_FILES.inter.roman, 'normal', '100 900'),
-    face('Inter', FONT_FILES.inter.italic, 'italic', '100 900'),
+    // The italic file is instanced to 400-700 at text size (docs/reference/fonts.md).
+    face('Inter', FONT_FILES.inter.italic, 'italic', '400 700'),
   ];
   if (pair === 'source-serif-inter')
     faces.push(

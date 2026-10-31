@@ -31,6 +31,12 @@ test.describe('blocks', () => {
     campagne: { nl: 'Schone lucht, nu', en: 'Clean air, now' },
     artikel: { nl: 'Een straat vol bomen', en: 'A street full of trees' },
   } as const;
+  /**
+   * Which fixture pages use italic in their body text. The italic face is preloaded at low
+   * priority only there (theme/tokens.ts `withItalicPreload`); an exact count per page catches
+   * both a missing hint and one that leaks onto pages without italic.
+   */
+  const ITALIC: Record<keyof typeof PAGES, boolean> = { campagne: false, artikel: true };
 
   test.use({ extraHTTPHeaders: { 'x-forwarded-proto': 'http' } });
 
@@ -75,7 +81,19 @@ test.describe('blocks', () => {
             await expect(img).toHaveAttribute('alt', /.*/);
           }
           await expect(page.locator('link[rel="stylesheet"][href*="/_theme/"]')).toHaveCount(1);
-          await expect(page.locator('link[rel="preload"][as="font"]')).toHaveCount(1);
+          await expect(
+            page.locator('link[rel="preload"][as="font"][href$="-roman.woff2"]')
+          ).toHaveCount(1);
+          const italic = page.locator('link[rel="preload"][as="font"][href$="-italic.woff2"]');
+          if (ITALIC[slug as keyof typeof PAGES]) {
+            await expect(italic).toHaveCount(1);
+            await expect(italic).toHaveAttribute('fetchpriority', 'low');
+          } else {
+            await expect(italic).toHaveCount(0);
+          }
+          await expect(page.locator('link[rel="preload"][as="font"]')).toHaveCount(
+            ITALIC[slug as keyof typeof PAGES] ? 2 : 1
+          );
           if (isA11y()) {
             // Images actually load (the media route serves the seeded variants), fonts are ours.
             await page.evaluate(() => document.fonts.ready);

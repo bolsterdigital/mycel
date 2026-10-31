@@ -41,6 +41,7 @@ import { decideSite } from '#lib/server/site.js';
 import { bodyLimit, boundedBody } from '#lib/server/http/body-limit.js';
 import { applySecurityHeaders, type ResponseKind } from '#lib/server/http/security-headers.js';
 import { conditional } from '#lib/server/http/http-cache.js';
+import { withItalicPreload } from '#lib/theme/tokens.js';
 
 const isAdmin = (path: string) => path === '/admin' || path.startsWith('/admin/');
 const isProbe = (path: string) => path === '/healthz' || path === '/readyz';
@@ -98,7 +99,8 @@ const route: Handle = async ({ event, resolve }) => {
     resolve(
       { ...event, request },
       {
-        transformPageChunk: ({ html }) => html.replace('%lang%', event.locals.lang ?? 'en'),
+        transformPageChunk: ({ html }) =>
+          withItalicPreload(html.replace('%lang%', event.locals.lang ?? 'en')),
       }
     );
 
