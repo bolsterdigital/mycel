@@ -14,7 +14,7 @@ import { type APIRequestContext, type Page, chromium, expect, test } from '@play
 import sharp from 'sharp';
 import { expectNoAxeViolations } from './lib/axe';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
-import { NARROW, layoutGate, setTextSize } from './lib/layout';
+import { NARROW, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
 import { login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { callApi, requireApi } from './lib/api';
@@ -911,15 +911,7 @@ test.describe('grid-compositions', () => {
         );
         for (const spacing of [false, true]) {
           await setTextSize(page, '200%');
-          if (spacing)
-            await page.evaluate(() => {
-              // Constructable user stylesheet leaves the page's strict CSP untouched.
-              const sheet = new CSSStyleSheet();
-              sheet.replaceSync(
-                '* { line-height: 1.5 !important; letter-spacing: .12em !important; word-spacing: .16em !important; } p { margin-bottom: 2em !important; }'
-              );
-              document.adoptedStyleSheets.push(sheet);
-            });
+          if (spacing) await setTextSpacing(page);
           await layoutGate(page, spacing ? 'with WCAG text spacing' : '200% text');
         }
       });

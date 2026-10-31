@@ -9,7 +9,7 @@ import corpus from './quality-corpus.json' with { type: 'json' };
 import { themeCss } from '../src/lib/theme/tokens.js';
 import { WCAG, expectNoAxeViolations } from './lib/axe';
 import { tenantId, withInvoker } from './lib/invoker';
-import { NARROW, layoutGate, setTextSize } from './lib/layout';
+import { NARROW, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
 import { login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { callApi, requireApi } from './lib/api';
@@ -133,14 +133,7 @@ test.describe('quality corpus reflow and text spacing', () => {
       test(`${entry.slug} ${locale}: 320 CSS px, 200% text and WCAG spacing`, async ({ page }) => {
         onlyA11y('requires DOM measurements');
         await page.goto(identity.path);
-        await page.evaluate(() => {
-          // Constructable user stylesheet leaves the page's strict CSP untouched.
-          const sheet = new CSSStyleSheet();
-          sheet.replaceSync(
-            '* { line-height: 1.5 !important; letter-spacing: .12em !important; word-spacing: .16em !important; } p { margin-bottom: 2em !important; }'
-          );
-          document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
-        });
+        await setTextSpacing(page);
         await setTextSize(page, '200%');
         await layoutGate(page, `${entry.slug} ${locale} with WCAG text spacing`);
       });

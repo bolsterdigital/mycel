@@ -15,7 +15,7 @@ import {
 } from '@playwright/test';
 import { expectNoAxeViolations } from './lib/axe';
 import { tenantId, withInvoker } from './lib/invoker';
-import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
+import { NARROW, TEXT_SIZES, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
 import { ADMIN, login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { callApi, postUseCase, requireApi } from './lib/api';
@@ -630,6 +630,13 @@ test.describe('content-admin', () => {
     await setTextSize(page, '200%');
     await layoutGate(page, 'address fold', 'section[aria-labelledby="this-item"]');
     await side.screenshot({ path: test.info().outputPath('address-fold-320-200.png') });
+    // With wider text the ⓘ wraps under "Slug (verplicht)" and still starts at the edge.
+    await setTextSpacing(page);
+    await layoutGate(
+      page,
+      'address fold with WCAG text spacing',
+      'section[aria-labelledby="this-item"]'
+    );
     await setTextSize(page, '100%');
     await page.setViewportSize({ width: 1280, height: 900 });
 
