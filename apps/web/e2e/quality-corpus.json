@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "fixtureVersion": "43a-v4",
+  "fixtureVersion": "43a-v5",
   "tenant": "probe",
   "themeProfiles": {
     "default": { "status": "active", "source": "DEFAULT_THEME" },
@@ -67,6 +67,51 @@
         "minImages": 1,
         "font": "Inter",
         "headings": [1]
+      }
+    },
+    "demo-page": {
+      "slug": "over-ons",
+      "routeClass": "page",
+      "indexable": true,
+      "state": "published",
+      "set": "demo",
+      "locales": {
+        "nl": { "path": "/probe/over-ons", "title": "Over Stichting Gezonde Trommel" },
+        "en": { "path": "/probe/en/over-ons", "title": "About the Healthy Tin Foundation" }
+      },
+      "expected": {
+        "status": 200,
+        "form": true,
+        "hero": true,
+        "minImages": 3,
+        "font": "Inter",
+        "headings": [1]
+      }
+    },
+    "demo-article": {
+      "slug": "pepernoten-te-zout",
+      "routeClass": "article",
+      "indexable": true,
+      "state": "published",
+      "set": "demo",
+      "locales": {
+        "nl": {
+          "path": "/probe/articles/pepernoten-te-zout",
+          "title": "Pepernoten zijn vaak zouter dan chips"
+        },
+        "en": {
+          "path": "/probe/en/articles/pepernoten-te-zout",
+          "title": "Pepernoten are often saltier than crisps"
+        }
+      },
+      "expected": {
+        "status": 200,
+        "form": true,
+        "minImages": 3,
+        "font": "Inter",
+        "headings": [1, 2],
+        "lists": ["ul", "ol"],
+        "quote": true
       }
     }
   },

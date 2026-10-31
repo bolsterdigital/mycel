@@ -17,6 +17,7 @@ import { validateIdentity, writerExpectation } from './identity.mjs';
 import { compareBaseline } from './baseline.mjs';
 import { protectReports } from './protect.mjs';
 import { evaluateCell, repairProposals } from './evaluate.mjs';
+import { publicNames } from './matrix.mjs';
 
 const require = createRequire(import.meta.url);
 const args = process.argv.slice(2);
@@ -46,7 +47,7 @@ const profile = option('profile', 'mobile');
 const locale = option('locale', 'nl');
 const cache = option('cache', 'fresh');
 if (
-  !['default', 'full', 'admin'].includes(scope) ||
+  !['default', 'full', 'admin', 'demo'].includes(scope) ||
   !['mobile', 'desktop'].includes(profile) ||
   !['nl', 'en'].includes(locale) ||
   !['fresh', 'warm', 'cold'].includes(cache)
@@ -223,8 +224,9 @@ try {
       await new Promise((r) => setTimeout(r, 250));
     }
   }
+  const names = publicNames(corpus, scope);
   const entries = Object.entries(corpus.public)
-    .filter(([name]) => !route || name === route)
+    .filter(([name]) => names.includes(name) && (!route || name === route))
     .map(([name, entry]) => ({
       id: `${name}-${locale}-${profile}-${cache}`,
       name,
@@ -237,7 +239,7 @@ try {
       article: entry.routeClass === 'article',
     }));
   let cookie;
-  if (scope !== 'default') {
+  if (scope === 'full' || scope === 'admin') {
     const list = await fetch(`${process.env.E2E_API_URL}/v1/content.item.list`, {
       method: 'POST',
       headers: {
@@ -288,7 +290,7 @@ try {
     result.coverage.push({
       state: 'not-measured',
       route: 'admin corpus',
-      reason: 'default set is public; use --scope=full locally',
+      reason: `${scope} set is public; use --scope=full locally`,
     });
   await context.close();
   for (const entry of entries.filter((e) => scope !== 'admin' || !e.indexable)) {
