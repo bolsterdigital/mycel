@@ -12,8 +12,9 @@
 import { expect, test, type Page } from '@playwright/test';
 import { crc32, deflateSync } from 'node:zlib';
 import { request as httpRequest } from 'node:http';
-import { ContentDocumentInput, systemPrincipal, useCases } from '@mycel/core';
+import { BLOCK_DEFINITIONS, ContentDocumentInput, systemPrincipal, useCases } from '@mycel/core';
 import { expectNoAxeViolations } from './lib/axe';
+import { expectPixels, watchImages } from './lib/images';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { forwarded, login } from './lib/login';
@@ -563,6 +564,53 @@ test('a page gets its featured image from the picker, and shares it when publish
   await page.goto(`/admin/probe/media/${id}`);
   await page.getByRole('button', { name: 'Verwijderen' }).click();
   await expect(page.getByRole('alert')).toContainText(`${filename} is in gebruik`);
+});
+
+test('an item shows real pixels in its header, picker, blocks and preview', async ({ page }) => {
+  // A thumbnail that is in the DOM but has no file behind it looked like a working
+  // editor in every earlier spec. Header (hero and featured image), the picker's grid, an image
+  // block and a legacy hero block, and the preview each have to decode to a real picture.
+  await login(page, '/admin/probe/media');
+  const stamp = `${test.info().project.name}-${Date.now()}`;
+  const filename = `pixels-${stamp}.png`;
+  const { id } = await upload(page, filename);
+  leftovers.media.push(id);
+  const probe = await tenantId();
+  const image = { mediaId: id, decorative: false, alt: { nl: 'Een proefbeeld' } };
+  const itemId = await withInvoker(async (invoker) => {
+    const created = await invoker.run(useCases.createItem, systemPrincipal(probe, 'e2e'), {
+      slug: `pixels-${stamp}`.toLowerCase(),
+      document: ContentDocumentInput.parse({
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: `Pixels ${stamp}` },
+        heroImageId: id,
+        featuredImageId: id,
+        blocks: [
+          {
+            type: 'hero',
+            version: BLOCK_DEFINITIONS.hero.version,
+            props: { variant: 'cover', title: { nl: 'Kop' }, image, actions: [], align: 'start' },
+          },
+          { type: 'image', version: BLOCK_DEFINITIONS.image.version, props: image },
+        ],
+      }),
+    });
+    leftovers.items.push(created.item.id);
+    return created.item.id;
+  });
+
+  const images = watchImages(page);
+  await page.goto(`/admin/probe/content/${itemId}`);
+  await expectPixels(page.locator('.ui-media-picker-current img'), 'header and block pickers');
+  await expectPixels(page.locator('.ui-media-option img'), "the picker's grid");
+  await expectPixels(page.locator('[class*="ui-block-card"] img'), 'block cards');
+  const preview = await page.locator('a[href*="/preview/item/"]').first().getAttribute('href');
+  expect(preview, 'a preview link').toBeTruthy();
+  await page.goto(preview!);
+  await expectPixels(page.locator('main img'), 'preview');
+  expect(images.bad()).toEqual([]);
 });
 
 test('the picker searches, and uploads dropped files with progress', async ({ page }) => {

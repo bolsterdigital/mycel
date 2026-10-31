@@ -6,11 +6,15 @@
 // Demo copy never names, links to or promises a feature the platform does not have yet: a probe
 // reader takes what the demo shows as what the platform does.
 //
-// The core cannot draw pixels (no I/O library, ADR 001), so `seedDemoContent` takes a `render`
-// function for the images and uploads them through `media.upload` like any front; the dev seed
-// passes the sharp renderer of `@mycel/media-sharp`, a test passes a PNG header. Rejected: the
-// examples of each block definition as demo content (they show each variant in isolation, with
-// ids that resolve to nothing) and committed image files (binary weight for a picture of a label).
+// The images are four photographs in the public domain (CC0), committed in
+// `packages/api/demo-photos/` with their source and hash. The core cannot read files (no I/O
+// library, ADR 001), so `seedDemoContent` takes a `load` function for the bytes and uploads them
+// through `media.upload` like any front; the dev seed reads the committed files, a test passes a
+// JPEG header. Rejected: the examples of each block definition as demo content (they show each
+// variant in isolation, with ids that resolve to nothing); generated posters with a label (they
+// mislead an editor judging photo, title and button); and a
+// stock-photo URL fetched per seed (network in a seed, a hotlink on a public page, a licence
+// that may change under us).
 
 import type { z } from 'zod';
 import type { ContentItem } from '../content/model.js';
@@ -30,85 +34,153 @@ type BlockIn = CreateInput['document']['blocks'][number];
 
 export type DemoImageKey = 'market' | 'bakery' | 'measuring' | 'signatures';
 
-/** What `render` draws (a gradient and a label) and what the upload stores with it. */
+/** Where a demo photo comes from; the same three facts the media library shows as credit. */
+export interface DemoPhotoSource {
+  photographer: string;
+  /** The page that states the licence, not the file URL. */
+  url: string;
+  licence: 'CC0 1.0';
+}
+
+/** A demo photograph: the committed file, what the upload stores with it, and what it replaced. */
 export interface DemoImage {
   key: DemoImageKey;
+  /** Name of the committed JPEG and of the uploaded asset. */
   filename: string;
   width: number;
   height: number;
-  label: string;
-  /** Gradient from the top left to the bottom right, as `#rrggbb`. */
-  colors: readonly [string, string];
+  source: DemoPhotoSource;
   alt: L;
   caption: L;
+  /**
+   * The generated poster this photo replaced: its asset filename and the alt text the
+   * demo documents carried for it. The seed swaps both in a demo document that still has them.
+   */
+  replaces: { filename: string; alt: L };
 }
 
 export const DEMO_IMAGES: readonly DemoImage[] = [
   {
     key: 'market',
-    filename: 'demo-proeverij-op-de-markt.png',
-    width: 1600,
-    height: 900,
-    label: 'Proeverij op de markt',
-    colors: ['#1f6f5c', '#0b2e4a'],
+    filename: 'demo-pepernoten.jpg',
+    width: 1920,
+    height: 1282,
+    source: {
+      photographer: 'Jim Lindstrom',
+      url: 'https://commons.wikimedia.org/wiki/File:Peppernuts,_US_Variation.jpg',
+      licence: 'CC0 1.0',
+    },
     alt: {
-      nl: 'Een kraam op de zaterdagmarkt met schalen pepernoten en bordjes met zoutgehaltes',
-      en: 'A stall at the Saturday market with bowls of pepernoten and signs showing salt levels',
+      nl: 'Een wit schaaltje met pepernoten op een granieten aanrecht',
+      en: 'A small white bowl of pepernoten on a granite counter',
     },
     caption: {
       nl: 'De eerste blinde proeverij, op de zaterdagmarkt in de Lindewijk.',
       en: 'The first blind tasting, at the Saturday market in the Lindewijk.',
     },
+    replaces: {
+      filename: 'demo-proeverij-op-de-markt.png',
+      alt: {
+        nl: 'Een kraam op de zaterdagmarkt met schalen pepernoten en bordjes met zoutgehaltes',
+        en: 'A stall at the Saturday market with bowls of pepernoten and signs showing salt levels',
+      },
+    },
   },
   {
     key: 'bakery',
-    filename: 'demo-in-de-bakkerij.png',
-    width: 1600,
-    height: 900,
-    label: 'In de bakkerij',
-    colors: ['#b4532a', '#5a1e3c'],
+    filename: 'demo-brood.jpg',
+    width: 1920,
+    height: 1280,
+    source: {
+      photographer: 'Kate Remmer',
+      url: 'https://commons.wikimedia.org/wiki/File:Man_holding_bread_(Unsplash).jpg',
+      licence: 'CC0 1.0',
+    },
     alt: {
-      nl: 'Een bakker weegt zout af boven een grote kom deeg',
-      en: 'A baker weighs out salt above a large bowl of dough',
+      nl: 'Twee handen houden een vers gebakken brood in een linnen doek',
+      en: 'Two hands hold a freshly baked loaf of bread in a linen cloth',
     },
     caption: {
       nl: 'Veertien bakkers testten het recept met de helft van het zout.',
       en: 'Fourteen bakers tested the recipe with half the salt.',
     },
+    replaces: {
+      filename: 'demo-in-de-bakkerij.png',
+      alt: {
+        nl: 'Een bakker weegt zout af boven een grote kom deeg',
+        en: 'A baker weighs out salt above a large bowl of dough',
+      },
+    },
   },
   {
     key: 'measuring',
-    filename: 'demo-zoutmeting.png',
-    width: 900,
-    height: 1200,
-    label: 'Zoutmeting',
-    colors: ['#3b3f8f', '#141a33'],
+    filename: 'demo-bloem.jpg',
+    width: 1282,
+    height: 1920,
+    source: {
+      photographer: 'Gaelle Marcel',
+      url: 'https://commons.wikimedia.org/wiki/File:Making_Bread_(Unsplash).jpg',
+      licence: 'CC0 1.0',
+    },
     alt: {
-      nl: 'Een vrijwilliger leest een zoutmeter af naast een zakje pepernoten',
-      en: 'A volunteer reads a salt meter next to a bag of pepernoten',
+      nl: 'Een hand laat bloem in een glazen kom vallen, tegen een donkere achtergrond',
+      en: 'A hand lets flour fall into a glass bowl, against a dark background',
     },
     caption: {
       nl: 'Elke zak werd drie keer gemeten, door twee verschillende vrijwilligers.',
       en: 'Every bag was measured three times, by two different volunteers.',
     },
+    replaces: {
+      filename: 'demo-zoutmeting.png',
+      alt: {
+        nl: 'Een vrijwilliger leest een zoutmeter af naast een zakje pepernoten',
+        en: 'A volunteer reads a salt meter next to a bag of pepernoten',
+      },
+    },
   },
   {
     key: 'signatures',
-    filename: 'demo-aanbieding.png',
-    width: 1600,
-    height: 900,
-    label: 'Aanbieding rapport',
-    colors: ['#8a6d1d', '#2f3a12'],
+    filename: 'demo-overleg.jpg',
+    width: 1920,
+    height: 1286,
+    source: {
+      photographer: 'Alejandro Escamilla',
+      url: 'https://commons.wikimedia.org/wiki/File:Two_people_meeting_with_iphone_and_ipad_(Unsplash).jpg',
+      licence: 'CC0 1.0',
+    },
     alt: {
-      nl: 'Twee vrijwilligers overhandigen het zoutrapport aan een raadslid in het stadhuis',
-      en: 'Two volunteers hand the salt report to a councillor in the town hall',
+      nl: 'Twee mensen aan een houten tafel met een notitieboek, een telefoon, een tablet en koffie',
+      en: 'Two people at a wooden table with a notebook, a phone, a tablet and coffee',
     },
     caption: {
       nl: 'Het rapport werd in oktober aangeboden aan de gemeenteraad.',
       en: 'The report was handed to the council in October.',
     },
+    replaces: {
+      filename: 'demo-aanbieding.png',
+      alt: {
+        nl: 'Twee vrijwilligers overhandigen het zoutrapport aan een raadslid in het stadhuis',
+        en: 'Two volunteers hand the salt report to a councillor in the town hall',
+      },
+    },
   },
 ];
+
+/** The page's own caption and credit for the meeting photo, and what they replaced. */
+const SIGNATURES_USE = {
+  caption: {
+    nl: 'Na de actiedag van vorig jaar bespraken we de steunbetuigingen met de wethouder.',
+    en: "After last year's day of action we discussed the messages of support with the alderman.",
+  },
+  credit: { work: null, photographer: DEMO_IMAGES[3]!.source.photographer },
+  replaces: {
+    caption: {
+      nl: 'Vrijwilligers sorteren de steunbetuigingen na de actiedag van vorig jaar.',
+      en: "Volunteers sort the messages of support after last year's day of action.",
+    },
+    credit: { work: null, photographer: 'Demo-afbeelding, gemaakt door de Mycel-seed' },
+  },
+};
 
 export type DemoMediaIds = Record<DemoImageKey, string>;
 
@@ -403,12 +475,9 @@ function pageCards(formId: string, media: DemoMediaIds): BlockIn[] {
         mediaId: media.signatures,
         decorative: false,
         alt: signatures.alt,
-        // This use's own caption, over the asset's.
-        caption: {
-          nl: 'Vrijwilligers sorteren de steunbetuigingen na de actiedag van vorig jaar.',
-          en: "Volunteers sort the messages of support after last year's day of action.",
-        },
-        credit: { work: null, photographer: 'Demo-afbeelding, gemaakt door de Mycel-seed' },
+        // This use's own caption and credit, over the asset's.
+        caption: SIGNATURES_USE.caption,
+        credit: SIGNATURES_USE.credit,
         layout: 'wide',
       },
     },
@@ -912,69 +981,157 @@ export function demoArticle(refs: {
 export interface DemoSeed {
   page: ContentItem;
   article: ContentItem;
-  /** False when both items already existed: nothing was uploaded or written. */
+  /** False when both items already existed: nothing was created. */
   created: boolean;
+  /** Items whose posters this run swapped for the photos, with whether the swap is live. */
+  upgraded: { item: ContentItem; published: boolean }[];
 }
 
-type Render = (image: DemoImage) => Promise<Uint8Array>;
+/** The bytes of the committed photo `image.filename`, a JPEG of `image.width` by `image.height`. */
+type Load = (image: DemoImage) => Promise<Uint8Array>;
 
-/** The demo images by key: an asset with the same filename is reused, the rest uploaded. */
+async function findMedia(invoker: Invoker, principal: Principal, filename: string) {
+  const { items } = await invoker.run(useCases.listMedia, principal, {
+    kind: 'image',
+    q: filename,
+  });
+  return items.find((m) => m.filename === filename);
+}
+
+/** The demo photos by key: an asset with the same filename is reused, the rest uploaded. */
 async function demoMedia(
   invoker: Invoker,
   principal: Principal,
-  render: Render
+  load: Load
 ): Promise<DemoMediaIds> {
   const media: Partial<DemoMediaIds> = {};
   for (const image of DEMO_IMAGES) {
-    const { items } = await invoker.run(useCases.listMedia, principal, {
-      kind: 'image',
-      q: image.filename,
-    });
-    const found = items.find((m) => m.filename === image.filename);
+    const found = await findMedia(invoker, principal, image.filename);
     media[image.key] =
       found?.id ??
       (
         await invoker.run(useCases.uploadMedia, principal, {
           filename: image.filename,
-          contentType: 'image/png',
-          bytes: bytesToBase64(await render(image)),
+          contentType: 'image/jpeg',
+          bytes: bytesToBase64(await load(image)),
           caption: image.caption,
+          credit: { work: null, photographer: image.source.photographer },
+          source: image.source.url,
+          licence: image.source.licence,
         })
       ).id;
   }
   return media as DemoMediaIds;
 }
 
+/** JSON with the keys of every object sorted: Postgres `jsonb` does not keep their order. */
+const canonical = (value: unknown): string =>
+  JSON.stringify(value, (_, v: unknown) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b)))
+      : v
+  );
+const sameJson = (a: unknown, b: unknown) => canonical(a) === canonical(b);
+
 /**
- * Upload the demo images, then create and publish the page and the article in every locale.
- * Idempotent: an item with the slug is kept as it is, and when both exist nothing is written.
- * `render` returns PNG bytes of `image.width` by `image.height`.
+ * `value` with every poster id swapped for its photo id, and every poster-era text that is still
+ * exactly as the seed wrote it swapped for the photo's. A text an editor changed stays.
+ */
+function swapPosters(
+  value: unknown,
+  ids: Map<string, string>,
+  texts: [unknown, unknown][]
+): unknown {
+  if (typeof value === 'string') return ids.get(value) ?? value;
+  if (Array.isArray(value)) return value.map((v) => swapPosters(v, ids, texts));
+  if (value === null || typeof value !== 'object') return value;
+  const text = texts.find(([old]) => sameJson(old, value));
+  if (text) return text[1];
+  return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, swapPosters(v, ids, texts)]));
+}
+
+/**
+ * Replace the posters of an earlier seed in an existing demo item: a new revision
+ * with the photo ids and texts, published in the locales where the latest revision was the
+ * published one. A locale with unpublished changes keeps what it publishes; the new revision
+ * then waits for an editor. Earlier revisions and the poster assets stay: they are history,
+ * and a revision may still reference them. Nothing happens when no poster is referenced.
+ */
+async function upgradeItem(
+  invoker: Invoker,
+  principal: Principal,
+  item: ContentItem,
+  ids: Map<string, string>
+): Promise<DemoSeed['upgraded'][number] | null> {
+  const { revision } = await invoker.run(useCases.getItem, principal, { itemId: item.id });
+  const json = JSON.stringify(revision.document);
+  if (![...ids.keys()].some((id) => json.includes(`"${id}"`))) return null;
+  const texts: [unknown, unknown][] = [
+    ...DEMO_IMAGES.map((i): [unknown, unknown] => [i.replaces.alt, i.alt]),
+    [SIGNATURES_USE.replaces.caption, SIGNATURES_USE.caption],
+    [SIGNATURES_USE.replaces.credit, SIGNATURES_USE.credit],
+  ];
+  const document = swapPosters(revision.document, ids, texts) as CreateInput['document'];
+  const saved = await invoker.run(useCases.updateItem, principal, {
+    itemId: item.id,
+    baseRevisionId: revision.id,
+    document,
+  });
+  const live = item.publication.filter(
+    (p) => p.status === 'published' && p.publishedRevisionId === revision.id
+  );
+  let upgraded = saved.item;
+  for (const { locale } of live)
+    upgraded = await invoker.run(useCases.publishItem, principal, {
+      itemId: item.id,
+      revisionId: saved.revision.id,
+      locale,
+    });
+  return { item: upgraded, published: live.length > 0 };
+}
+
+/**
+ * Upload the demo photos, then create and publish the page and the article in every locale.
+ * Idempotent: an item with the slug is kept, except that the posters of an earlier seed are
+ * swapped for the photos once (`upgradeItem`); a second run finds nothing to swap.
  */
 export async function seedDemoContent(
   invoker: Invoker,
   principal: Principal,
-  options: { formId: string; render: Render }
+  options: { formId: string; load: Load }
 ): Promise<DemoSeed> {
   const find = async (type: 'page' | 'article', slug: string) =>
     (await invoker.run(useCases.listItems, principal, { type, slug })).items[0];
   const existingPage = await find('page', PAGE_SLUG);
   const existingArticle = await find('article', ARTICLE_SLUG);
-  if (existingPage && existingArticle)
-    return { page: existingPage, article: existingArticle, created: false };
 
   const refs = {
     formId: options.formId,
-    media: await demoMedia(invoker, principal, options.render),
+    media: await demoMedia(invoker, principal, options.load),
   };
+  const ids = new Map<string, string>();
+  for (const image of DEMO_IMAGES) {
+    const poster = await findMedia(invoker, principal, image.replaces.filename);
+    if (poster) ids.set(poster.id, refs.media[image.key]);
+  }
+  const upgraded: DemoSeed['upgraded'] = [];
+  const upgrade = async (item: ContentItem | undefined) => {
+    if (!item || ids.size === 0) return item;
+    const done = await upgradeItem(invoker, principal, item, ids);
+    if (done) upgraded.push(done);
+    return done?.item ?? item;
+  };
+
   const page =
-    existingPage ?? (await publishProbePage(invoker, principal, refs.formId, demoPage(refs)));
+    (await upgrade(existingPage)) ??
+    (await publishProbePage(invoker, principal, refs.formId, demoPage(refs)));
   const article =
-    existingArticle ??
+    (await upgrade(existingArticle)) ??
     (await publishProbePage(
       invoker,
       principal,
       refs.formId,
       demoArticle({ ...refs, pageId: page.id })
     ));
-  return { page, article, created: true };
+  return { page, article, created: !existingPage || !existingArticle, upgraded };
 }
