@@ -1,7 +1,7 @@
 // Whether the images a screen shows are real pictures. A media list that answered 200, or an
 // `<img>` that is in the DOM, says nothing about the bytes behind its `src`: a row whose file is
 // in another checkout's blob store renders as a broken image while every request around it
-// succeeds (MY-110 D). This loads every image in `scope`, also the lazy ones in a closed dialog,
+// succeeds. This loads every image in `scope`, also the lazy ones in a closed dialog,
 // and fails on a failed or non-image response and on `naturalWidth === 0`.
 // Rejected: counting `<img>` elements or checking `src` strings (both pass on a 404).
 

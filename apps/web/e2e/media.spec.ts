@@ -567,7 +567,7 @@ test('a page gets its featured image from the picker, and shares it when publish
 });
 
 test('an item shows real pixels in its header, picker, blocks and preview', async ({ page }) => {
-  // MY-110 D: a thumbnail that is in the DOM but has no file behind it looked like a working
+  // A thumbnail that is in the DOM but has no file behind it looked like a working
   // editor in every earlier spec. Header (hero and featured image), the picker's grid, an image
   // block and a legacy hero block, and the preview each have to decode to a real picture.
   await login(page, '/admin/probe/media');

@@ -12,7 +12,7 @@
 // through `media.upload` like any front; the dev seed reads the committed files, a test passes a
 // JPEG header. Rejected: the examples of each block definition as demo content (they show each
 // variant in isolation, with ids that resolve to nothing); generated posters with a label (they
-// mislead an editor judging photo, title and button, and replaced by this in MY-110 D); and a
+// mislead an editor judging photo, title and button); and a
 // stock-photo URL fetched per seed (network in a seed, a hotlink on a public page, a licence
 // that may change under us).
 
@@ -53,7 +53,7 @@ export interface DemoImage {
   alt: L;
   caption: L;
   /**
-   * The generated poster this photo replaced (MY-110 D): its asset filename and the alt text the
+   * The generated poster this photo replaced: its asset filename and the alt text the
    * demo documents carried for it. The seed swaps both in a demo document that still has them.
    */
   replaces: { filename: string; alt: L };
@@ -1051,7 +1051,7 @@ function swapPosters(
 }
 
 /**
- * Replace the posters of an earlier seed in an existing demo item (MY-110 D): a new revision
+ * Replace the posters of an earlier seed in an existing demo item: a new revision
  * with the photo ids and texts, published in the locales where the latest revision was the
  * published one. A locale with unpublished changes keeps what it publishes; the new revision
  * then waits for an editor. Earlier revisions and the poster assets stay: they are history,
