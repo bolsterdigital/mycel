@@ -20,7 +20,8 @@ import {
 } from '../testing/index.js';
 import { confirmationMailSubscriber } from '../mailing/confirmation.js';
 import { supporterIngestSubscriber } from './service.js';
-import { erasureEmailHash, tombstoneEmail } from './erasure.js';
+import { emailKey } from './email-key.js';
+import { tombstoneEmail } from './erasure.js';
 
 const OTHER = '01900000-0000-7000-8000-00000000bbbb';
 const FORM = '01900000-0000-7000-8000-00000000f000';
@@ -79,7 +80,7 @@ describe('ctx.erasures in memory', () => {
     await uow.run(adminOf(), (ctx) => ctx.erasures.register(id, 'ada@example.org'));
     const register = uow.store.for(TENANT).erasures;
     expect(register.size).toBe(1);
-    expect(register.get(id)?.emailHash).toBe(await erasureEmailHash(TENANT, 'ada@example.org'));
+    expect(register.get(id)?.emailHash).toBe(await emailKey(TENANT, 'ada@example.org', 'erasure'));
     expect(copies(TENANT, 'ada@example.org').erasures).toBe(0);
   });
 

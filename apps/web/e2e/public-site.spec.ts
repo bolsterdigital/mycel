@@ -832,7 +832,7 @@ test.describe('site-settings', () => {
       const principal = systemPrincipal(tenant.id, 'e2e');
       await invoker.run(useCases.inviteMember, principal, {
         email: `site-editor-${slug}@probe.test`,
-        capabilities: ['content:write', 'content:read'],
+        capabilities: ['content:write', 'content:read', 'media:read', 'media:write'],
       });
       await invoker.run(useCases.inviteMember, systemPrincipal(singleTenant.id, 'e2e'), {
         email: `site-editor-${singleSlug}@probe.test`,
@@ -949,7 +949,7 @@ test.describe('site-settings', () => {
       .getAttribute('href');
     await login(page, `/admin/${slug}/site?section=theme`, `site-editor-${slug}@probe.test`);
     await page.locator('select[name="fontPair"]').selectOption('inter');
-    await page.locator('form[action$="&/theme"]').getByRole('button').click();
+    await page.getByRole('button', { name: 'Save theme' }).click();
     await expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
     const stalePage = await context.newPage();
     await stalePage.goto(`/admin/${slug}/site?section=chrome`);
@@ -996,6 +996,61 @@ test.describe('site-settings', () => {
       true
     );
     await expectNoAxeViolations(page);
+  });
+
+  // #81-rest: the default image (`site.image.update`) has its own form and version beside the
+  // logo, and the theme form carries the drop cap so a later theme save keeps a chosen `off`.
+  test('the default image and the drop cap are chosen in the settings', async ({ page }) => {
+    const principal = systemPrincipal(tenantId, 'e2e');
+    const filename = `default-${Date.now()}.png`;
+    await login(page, `/admin/${slug}/media`, `site-editor-${slug}@probe.test`);
+    await page.getByLabel('Files (required)', { exact: true }).setInputFiles({
+      name: filename,
+      mimeType: 'image/png',
+      buffer: Buffer.from(useCases.uploadMedia.examples[0]!.input.bytes, 'base64'),
+    });
+    await page.getByRole('button', { name: 'Upload', exact: true }).click();
+    const src = await page.locator('article img').first().getAttribute('src');
+    const mediaId = /media\/([0-9a-f-]{36})\/thumb/.exec(src ?? '')?.[1];
+    expect(mediaId).toBeTruthy();
+    const images = () =>
+      withInvoker((invoker) => invoker.run(useCases.getSiteImages, principal, {}));
+    const choose = async (name: string) => {
+      const picker = page.getByRole('group', { name: 'Default image' });
+      await picker.getByRole('button', { name: /^Choose (another )?image$/ }).click();
+      const dialog = page.getByRole('dialog', { name: 'Default image' });
+      await dialog.getByRole('radio', { name }).check();
+      await dialog.getByRole('button', { name: 'Done' }).click();
+      await page.getByRole('button', { name: 'Save image' }).click();
+      await expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
+    };
+    await page.goto(`/admin/${slug}/site?section=brand`);
+    await choose(filename);
+    expect((await images()).value.defaultImageId).toBe(mediaId);
+    await expect(page.locator('#site-defaultImageId [data-picker-name]')).toHaveText(filename);
+    await expectNoAxeViolations(page);
+    await page.goto(`/${slug}/home`);
+    await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
+      'content',
+      new RegExp(`/media/${mediaId}/`)
+    );
+    await page.goto(`/admin/${slug}/site?section=brand`);
+    await choose('No image');
+    expect((await images()).value.defaultImageId).toBeNull();
+
+    const theme = () => withInvoker((invoker) => invoker.run(useCases.getSiteTheme, principal, {}));
+    await page.goto(`/admin/${slug}/site?section=theme`);
+    const dropCap = page.getByLabel('Drop cap on articles');
+    await expect(dropCap).toHaveValue('articles');
+    await dropCap.selectOption('off');
+    await page.getByRole('button', { name: 'Save theme' }).click();
+    await expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
+    expect((await theme()).value.dropCap).toBe('off');
+    await page.goto(`/admin/${slug}/site?section=theme`);
+    await expect(dropCap).toHaveValue('off');
+    await page.getByRole('button', { name: 'Save theme' }).click();
+    await expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
+    expect((await theme()).value.dropCap).toBe('off');
   });
 
   test('single-locale site saves without another translation', async ({ page }) => {

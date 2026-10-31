@@ -19,6 +19,7 @@
     Checkbox,
     Choices,
     ConfirmAction,
+    ColorField,
     CopyField,
     Dialog,
     EmptyState,
@@ -161,6 +162,33 @@
             { value: 'public', label: t('admin.media.access.public') },
             { value: 'restricted', label: t('admin.media.upload.restricted') },
           ]}
+        />
+        <!-- Sizes and the colour field (#102): a control as wide as what it holds. -->
+        <Field
+          id="ui-size-number"
+          name="baseSize"
+          type="number"
+          value="18"
+          unit={t('admin.site.unit.px')}
+          label={t('admin.site.field.baseSize')}
+          locale={data.locale}
+        />
+        <Field
+          id="ui-size-host"
+          name="hostname"
+          size="m"
+          placeholder={t('admin.domains.add.placeholder')}
+          label={t('admin.domains.add.hostname')}
+          hint={t('admin.domains.add.hint')}
+          hintInline
+          locale={data.locale}
+        />
+        <ColorField
+          id="ui-colour"
+          name="colour"
+          value="#1d4ed8"
+          label={t('admin.site.role.primary')}
+          locale={data.locale}
         />
         <FileDrop
           id="ui-file"

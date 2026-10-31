@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { notFound } from '../errors.js';
 import { withinLimit } from '../entitlements/guards.js';
 import { defineUseCase } from '../registry.js';
-import { sha256Hex } from '../util/digest.js';
+import { emailKey } from '../supporters/email-key.js';
 import type { NewsletterSubscribedProps } from './events.js';
 import { FormDefinition, SubmitInput, SubmitResult, type FormField } from './model.js';
 import { ProofChallenge, checkProof, issueProofChallenge } from './proof.js';
@@ -16,6 +16,7 @@ import {
   issueStartedToken,
 } from './spam.js';
 import './ports.js';
+import { EmailAddress } from '../util/email.js';
 import { exampleId } from '../util/ids.js';
 
 export const getForm = defineUseCase({
@@ -40,7 +41,6 @@ export const getForm = defineUseCase({
   },
 });
 
-const EmailAddress = z.string().trim().toLowerCase().email();
 const isChecked = (v: string | boolean | undefined): boolean =>
   v === true || (typeof v === 'string' && v !== '' && v !== 'false');
 
@@ -182,10 +182,10 @@ export const submitForm = defineUseCase({
     // After the tenant lock, which already serialises submissions; the adapter's own lock makes
     // the primitive safe without it. Hashed so the table holds no address (the submission row is
     // the only copy). A refusal writes nothing: no submission, no event, no seat.
-    const emailKey = await sha256Hex(`${principal.tenantId}:${email}`);
+    const recipientKey = await emailKey(principal.tenantId, email, 'rate-limit');
     if (
       !(await ctx.rateLimits.cooldown(
-        `forms.confirm:${form.id}:${emailKey}`,
+        `forms.confirm:${form.id}:${recipientKey}`,
         CONFIRMATION_COOLDOWN_SECONDS
       ))
     )

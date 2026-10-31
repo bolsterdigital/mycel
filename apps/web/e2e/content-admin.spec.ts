@@ -859,8 +859,8 @@ test.describe('content-admin', () => {
     await page.getByRole('button', { name: 'Iemand uitnodigen' }).click();
     const invite = page.locator('form[action="?/invite"]');
     await invite.getByLabel('E-mailadres (verplicht)', { exact: true }).fill(email);
-    await invite.getByLabel('content:read', { exact: true }).check();
-    await invite.getByLabel('content:write', { exact: true }).check();
+    // An author writes and does not publish (#101).
+    await invite.getByRole('radio', { name: /^Auteur/ }).check();
     await invite.getByRole('button', { name: 'Uitnodigen' }).click();
     await expect(page.getByRole('status')).toContainText(email);
     try {
@@ -925,9 +925,9 @@ test.describe('content-admin', () => {
     } finally {
       await context.clearCookies();
       await login(page, '/admin/probe/leden');
-      const member = page.locator('form', { has: page.getByRole('heading', { name: email }) });
+      const member = page.getByRole('row', { name: new RegExp(email) });
       await member.locator('summary', { hasText: 'Verwijderen' }).click();
-      await member.locator('button[formaction="?/remove"]').click();
+      await member.getByRole('button', { name: `Ja, verwijderen: ${email}` }).click();
       await expect(page.getByRole('status')).toContainText('Lid verwijderd');
     }
   });
@@ -1361,6 +1361,8 @@ test.describe('content-blocks', () => {
     await (await block(page, 2)).getByLabel('Breedte').selectOption('full');
     await save(page, 2);
     await page.goto(`${edit}/write?locale=en`);
+    // Writing the English text leaves the admin in the operator's language.
+    await expect(page.getByRole('link', { name: 'Kaart invoegen' })).toBeVisible();
     await expect(
       page.locator(`.writing-surface .editor-card[data-block-id="${faqId?.replace('block-', '')}"]`)
     ).toBeVisible();
@@ -1407,6 +1409,8 @@ test.describe('content-blocks', () => {
 // proof covers autosave, axe and the action layout at 320 CSS px with 200% text; the no-JS
 // project proves the adjacent form can write the same prose without hydrating the editor.
 test.describe('article-writing', () => {
+  test.use({ locale: 'nl-NL' });
+
   async function article(request: APIRequestContext) {
     const slug = `writer-${test.info().project.name}-${Date.now()}`;
     const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
@@ -1492,6 +1496,9 @@ test.describe('article-writing', () => {
     requireApi();
     const edit = await article(request);
     await login(page, `${edit}/write`);
+    // login() returns once the URL is the writer's, which can be before its markup is parsed;
+    // measuring then finds no toolbar at all (flake on main, run 41097277041).
+    await expect(page.getByRole('toolbar')).toBeVisible();
     await page.setViewportSize(NARROW);
     await setTextSize(page, '200%');
     await layoutGate(page, 'writer actions', '.writer-actions');
@@ -1557,7 +1564,7 @@ test.describe('article-writing', () => {
     await expect(page.locator('#title\\.nl')).toHaveValue('Nieuwe kop van collega');
     const prose = page.locator('details.block').first();
     await prose.locator(':scope > summary').click();
-    await expect(prose.getByLabel('Text', { exact: true })).toHaveValue('Mijn nieuwe tekst');
+    await expect(prose.getByLabel('Tekst', { exact: true })).toHaveValue('Mijn nieuwe tekst');
   });
 
   test('pasted image waits for media and alternative text before saving', async ({

@@ -7,6 +7,7 @@
 import {
   Invoker,
   SYNTHETIC_SCOPE,
+  capabilitiesFor,
   SYNTHETIC_SOURCE,
   UseCaseError,
   systemPrincipal,
@@ -70,11 +71,16 @@ test.describe('admin', () => {
     expect(hours).toBeLessThanOrEqual(12);
 
     const name = `e2e-${test.info().project.name}-${Date.now()}`;
-    // Creating a key happens in a dialog, opened by a native invoker button (no script).
+    // Keys live under Settings, API access (#101); Members links there.
+    await page.getByRole('link', { name: /API-toegang/ }).click();
+    await expect(page).toHaveURL(/\/admin\/probe\/site\?section=api$/);
+    // Creating a key happens in a dialog, opened by a native invoker button (no script), with
+    // the role picker without Administrator.
     await page.getByRole('button', { name: 'API-sleutel aanmaken' }).click();
     const create = page.getByRole('dialog', { name: 'API-sleutel aanmaken' });
     await create.getByLabel('Naam').fill(name);
-    await create.getByLabel('content:read', { exact: true }).check();
+    await expect(create.getByRole('radio', { name: /^Beheerder/ })).toHaveCount(0);
+    await create.getByRole('radio', { name: /^Auteur/ }).check();
     await create.getByRole('button', { name: 'Sleutel aanmaken' }).click();
     const token = (await page.locator('#new-key-value').textContent())?.trim() ?? '';
     expect(token).toMatch(/^mycel_[A-Za-z0-9_-]{43}$/);
@@ -84,10 +90,11 @@ test.describe('admin', () => {
     // The key's own capabilities: reading content is not managing keys.
     expect((await api('/v1/tenant.key.list', token)).status).toBe(403);
 
-    // Shown once: the next visit lists the key by its prefix only.
-    await page.goto('/admin/probe/leden');
+    // Shown once: the next visit lists the key by its prefix only, with its role.
+    await page.goto('/admin/probe/site?section=api');
     await expect(page.locator('#new-key-value')).toHaveCount(0);
     await expect(page.getByText(token.slice(0, 12))).toBeVisible();
+    await expect(formWith(page, name)).toContainText('Auteur');
 
     // Revoking asks first, in the key's own row: the summary opens, the second button posts.
     const row = formWith(page, name);
@@ -104,6 +111,59 @@ test.describe('admin', () => {
     await expectNoAxeViolations(page);
     await page.goto('/admin/probe');
     await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
+  });
+
+  // Roles as presets over capabilities (#101): invite as Editor, then make the set Custom in the
+  // advanced part; the stored set is what the role says, and the table names the role.
+  test('an admin invites an editor by role and makes them custom', async ({ page }) => {
+    const email = `role-${test.info().project.name}-${Date.now()}@probe.test`;
+    const probe = await tenantId();
+    const member = async () =>
+      (
+        await withInvoker((invoker) =>
+          invoker.run(useCases.listMembers, systemPrincipal(probe, 'e2e'), {})
+        )
+      ).members.find((m) => m.email === email);
+    await login(page, '/admin/probe/leden');
+    // Your own row says so and cannot remove itself.
+    const own = page.getByRole('row', { name: new RegExp(ADMIN) });
+    await expect(own).toContainText('(jij)');
+    await expect(own).toContainText('Beheerder');
+    await expect(own.getByText('Verwijderen')).toHaveCount(0);
+    try {
+      await page.getByRole('button', { name: 'Iemand uitnodigen' }).click();
+      const invite = page.getByRole('dialog', { name: 'Iemand uitnodigen' });
+      await invite.getByLabel('E-mailadres').fill(email);
+      await invite.getByRole('radio', { name: /^Redacteur/ }).check();
+      await invite.getByRole('button', { name: 'Uitnodigen' }).click();
+      await expect(page.getByRole('status')).toContainText(`${email} is uitgenodigd.`);
+      const row = page.getByRole('row', { name: new RegExp(email) });
+      await expect(row).toContainText('Redacteur');
+      expect((await member())?.capabilities.sort()).toEqual(capabilitiesFor('editor').sort());
+      expect((await member())?.role).toBe('editor');
+      await expectNoAxeViolations(page);
+
+      await row.getByRole('button', { name: 'Rol wijzigen' }).click();
+      const change = page.getByRole('dialog', { name: `Rol van ${email}` });
+      await expect(change.getByRole('radio', { name: /^Redacteur/ })).toBeChecked();
+      await change.getByRole('radio', { name: /^Aangepast/ }).check();
+      await change.locator('summary', { hasText: 'Geavanceerd' }).click();
+      await change.getByLabel('forms:read', { exact: true }).uncheck();
+      await change.getByRole('button', { name: 'Opslaan' }).click();
+      await expect(page.getByRole('status')).toContainText('Rol opgeslagen.');
+      await expect(page.getByRole('row', { name: new RegExp(email) })).toContainText('Aangepast');
+      expect((await member())?.role).toBe('custom');
+      expect((await member())?.capabilities).not.toContain('forms:read');
+      await expectNoAxeViolations(page);
+    } finally {
+      const found = await member();
+      if (found)
+        await withInvoker((invoker) =>
+          invoker.run(useCases.removeMember, systemPrincipal(probe, 'e2e'), {
+            operatorId: found.operatorId,
+          })
+        );
+    }
   });
 
   test('an operator without a membership sees no sites and gets 403 on one', async ({ page }) => {
@@ -150,9 +210,9 @@ test.describe('admin', () => {
 
   test('an admin action posted from another origin is refused', async ({ request, baseURL }) => {
     const post = (origin: string) =>
-      request.post('/admin/probe/leden?/createKey', {
+      request.post('/admin/probe/site?section=api&/createKey', {
         headers: { origin, 'content-type': 'application/x-www-form-urlencoded' },
-        data: 'name=evil&capabilities=content%3Aread',
+        data: 'name=evil&role=author',
         maxRedirects: 0,
       });
     expect((await post('https://evil.example')).status()).toBe(403);
@@ -302,7 +362,8 @@ test.describe('admin-shell', () => {
     const sections = page
       .getByRole('navigation', { name: 'Site navigation' })
       .locator('.ui-navgroup-sub');
-    await expect(sections.getByRole('link')).toHaveCount(6);
+    // Seven since API access joined them (#101).
+    await expect(sections.getByRole('link')).toHaveCount(7);
     await expect(sections.getByRole('link', { name: 'General' })).toHaveAttribute(
       'aria-current',
       'page'
@@ -436,7 +497,7 @@ test.describe('admin-shell', () => {
     });
   });
 
-  /** The members page and an editor at 320 CSS px and 200% text: reflow, targets and whole labels. */
+  /** Members, API access and an editor at 320 CSS px and 200% text: reflow, targets, whole labels. */
   async function narrowOverview(page: Page) {
     await login(page, '/admin/probe/leden', email);
     await setTextSize(page, '200%');
@@ -450,7 +511,6 @@ test.describe('admin-shell', () => {
     await page.keyboard.press('Enter');
     await expect(page.locator('.admin-menu')).not.toHaveAttribute('open');
     await page.keyboard.press('Enter');
-    // The whole members page, the long key's revoke button included (TODO #63).
     await layoutGate(page, 'members with the menu open');
     await page
       .getByRole('navigation', { name: 'Site navigation' })
@@ -459,6 +519,10 @@ test.describe('admin-shell', () => {
     await page.locator('#content-table tbody th a').first().click();
     await setTextSize(page, '200%');
     await layoutGate(page, 'editor');
+    // The long key's revoke button (TODO #63), on API access since #101.
+    await page.goto('/admin/probe/site?section=api');
+    await setTextSize(page, '200%');
+    await layoutGate(page, 'API access with a long key name');
   }
 
   test.describe('Dutch shell copy', () => {
@@ -512,8 +576,14 @@ test.describe('preferences', () => {
     const nav = (name: string) => page.getByRole('navigation', { name });
     await expect(nav('Site navigation').getByRole('link', { name: 'Pages' })).toBeAttached();
 
-    await page.getByRole('link', { name: 'Preferences' }).click();
-    await expect(page.getByRole('heading', { level: 1, name: 'Preferences' })).toBeVisible();
+    await page.getByRole('link', { name: 'Profile' }).click();
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Profile and preferences' })
+    ).toBeVisible();
+    // Your role per site sits on your profile (#101), not on Members.
+    await expect(page.getByRole('listitem').filter({ hasText: 'Probe' })).toContainText(
+      'Administrator'
+    );
     await page.getByLabel('Language of the admin').selectOption('nl');
     await page.getByLabel('Time zone').selectOption('Asia/Tokyo');
     await page.getByRole('button', { name: 'Save preferences' }).click();

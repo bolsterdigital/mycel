@@ -105,7 +105,7 @@ if (!(await runLock.query('select pg_try_advisory_lock(4242027) as ok')).rows[0]
   fail(`another e2e run holds database ${runLock.database}; wait for it or use another database`);
 // A schema ahead of this checkout (another branch migrated the shared local database) fails
 // specs that have nothing to do with the diff; scripts/test-db-preflight.mjs explains it.
-const { migrationsAhead } = await import('@mycel/db');
+const { foreignSessions, migrationsAhead, sessionsWarning } = await import('@mycel/db');
 const ahead = await migrationsAhead(runLock);
 if (ahead.length)
   fail(
@@ -113,6 +113,12 @@ if (ahead.length)
       `${ahead.join(', ')}; use a database for this checkout (docs/architecture/testing.md ` +
       '§ Local database)'
   );
+// Another API or worker on this database drains the outbox the signup specs wait on (TODO #27):
+// named here, not refused, since `npm run dev` may run next to the gate.
+{
+  const warning = sessionsWarning(runLock.database, await foreignSessions(runLock));
+  if (warning) console.warn(`e2e: ${warning}`);
+}
 // The seed stores this token's hash as the `seed` key of tenant probe; API and spec use it.
 const apiKey = process.env.MYCEL_API_KEY ?? `mycel_${randomBytes(32).toString('base64url')}`;
 // The synthetic webhook fixture needs the same installation-local key in the web and worker.

@@ -1,11 +1,14 @@
 <!-- A checkbox or radio group as a fieldset: the legend asks the question, each option is a
      native input with its own label, and the hint and error describe the whole group. The hint
      waits behind an ⓘ in the legend (HintButton, #87); the group is named by the legend's text
-     alone (aria-labelledby), so the button's own name never becomes part of the question. -->
+     alone (aria-labelledby), so the button's own name never becomes part of the question. `size`
+     caps the group's width like a Field's (#102); inside a Fieldset it draws no border of its own,
+     so a question within a group is one outline deep. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { ui } from '../../../../i18n/index.js';
   import HintButton from '../feedback/HintButton.svelte';
+  import type { FieldSize } from './Field.svelte';
 
   type Option = { value: string; label: string };
 
@@ -22,6 +25,7 @@
     invalid = false,
     required = false,
     optionLabel,
+    size = 'l',
   }: {
     id: string;
     name: string;
@@ -37,6 +41,8 @@
     required?: boolean;
     /** Renders a label's content instead of its plain text, e.g. an identifier with break points. */
     optionLabel?: Snippet<[Option]>;
+    /** How wide the group may grow (Field); `l` by default. */
+    size?: FieldSize;
   } = $props();
 
   const t = $derived(ui(locale));
@@ -46,7 +52,7 @@
 </script>
 
 <fieldset
-  class={['ui-fieldset', 'ui-choices', (error || invalid) && 'invalid']}
+  class={['ui-fieldset', 'ui-choices', `size-${size}`, (error || invalid) && 'invalid']}
   aria-labelledby={hint ? `${id}-legend` : undefined}
   aria-describedby={describedby}
 >

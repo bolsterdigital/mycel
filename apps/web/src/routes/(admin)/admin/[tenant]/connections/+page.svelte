@@ -46,6 +46,7 @@
 {#snippet details(prefix: string, c: Connection | null)}
   <Field
     id="{prefix}-owner"
+    size="m"
     name="externalOwner"
     label={t('admin.connections.owner')}
     locale={data.locale}
@@ -55,6 +56,7 @@
   />
   <Field
     id="{prefix}-maintainer"
+    size="m"
     name="maintainer"
     label={t('admin.connections.maintainer')}
     locale={data.locale}
@@ -165,6 +167,7 @@
             <input type="hidden" name="version" value={connection.version} />
             <Field
               id="secret-{connection.id}"
+              size="m"
               name="secret"
               type="password"
               autocomplete="new-password"

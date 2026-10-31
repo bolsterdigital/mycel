@@ -36,6 +36,7 @@
         "packages/api/src/platform*",
         "apps/web/src/hooks.server.ts",
         "apps/web/src/lib/server/admin/oidc.ts",
+        "apps/web/src/lib/server/admin/roles*",
         "apps/web/src/lib/server/http/security-headers*",
         "apps/web/src/lib/server/http/body-limit*",
         "docker/backup/**",
@@ -227,13 +228,15 @@
         "apps/web/src/routes/healthz/**",
         "apps/web/src/routes/readyz/**",
         "packages/db/src/ops.ts",
-        "packages/db/src/usage.ts"
+        "packages/db/src/usage.ts",
+        "packages/db/src/site-settings*"
       ],
       "adrs": ["005", "011", "019"],
       "gates": [
         "packages/db/src/jobs.test.ts",
         "packages/db/src/infra/recovery.test.ts",
         "packages/db/src/mailing.test.ts",
+        "packages/db/src/site-settings.test.ts",
         "packages/db/src/infra/migrate.test.ts",
         "packages/db/src/export.conformance.test.ts",
         "packages/api/src/mail.test.ts",
@@ -306,7 +309,8 @@
         "packages/core/src/testing/**",
         "packages/db/src/testing.ts",
         "scripts/**",
-        "packages/db/src/infra/seed*.ts"
+        "packages/db/src/infra/seed*.ts",
+        "packages/db/src/infra/sessions*"
       ],
       "adrs": ["000"],
       "gates": [

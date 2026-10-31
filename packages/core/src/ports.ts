@@ -116,11 +116,13 @@ export interface TransactionContext {
 
 /**
  * The erasure register (ADR 003 rule 5, ADR 019 rule 8; migration 0019). `register` records that
- * a supporter is erased, permanently and without the address (only `erasureEmailHash`); `apply`
- * makes every copy of every registered supporter in this tenant anonymous: events and the
+ * a supporter is erased, permanently and without the address (only `emailKey(..., 'erasure')`);
+ * `apply` makes every copy of every registered supporter in this tenant anonymous: events and the
  * projection become tombstones (`tombstoneEmail`, empty props and lists; type and time stay, so
- * counts hold), submissions that carry the address go, outbox props are scrubbed, mail intents
- * and queued jobs for those events go. The audit log stays: it holds pseudonymous ids only.
+ * counts hold), submissions that carry the address go, outbox props are scrubbed, mail intents,
+ * queued jobs for those events and admission seats go. The audit log stays: it holds
+ * pseudonymous ids only, and so does a rate-limit bucket, which expires within a day (ADR 019
+ * rule 8).
  *
  * `apply` is idempotent and returns how many rows it changed, so a second call returns 0. It
  * runs after a restore (`mycel erasures apply`) to erase again what an older backup brought back.

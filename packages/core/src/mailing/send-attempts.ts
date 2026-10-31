@@ -20,7 +20,7 @@ import type { JobOutcome } from '../jobs/ports.js';
 import { jobKey } from '../jobs/types.js';
 import type { Clock, DomainEvent, TransactionContext, UnitOfWork } from '../ports.js';
 import { systemPrincipal } from '../principal.js';
-import { sha256Hex } from '../util/digest.js';
+import { emailKey } from '../supporters/email-key.js';
 import { errorMessage } from '../util/log.js';
 import { scrubText } from '../util/scrub.js';
 import type { MailMessage, MailSend, MailWindow, Mailer } from './ports.js';
@@ -73,9 +73,9 @@ export const attemptWindow = (at: Date): MailWindow => ({
   until: new Date(at.getTime() + SEND_TIMEOUT_MS + CLOCK_SKEW_MS),
 });
 
-/** Hex `sha256(tenant id, lower(recipient), subject)`: what a provider listing cannot tell apart. */
+/** The recipient and subject as one key: what a provider listing cannot tell apart. */
 export const mailCorrelation = (tenantId: string, message: MailMessage): Promise<string> =>
-  sha256Hex(`${tenantId}\n${message.to.email.toLowerCase()}\n${message.subject}`);
+  emailKey(tenantId, message.to.email, 'mail-correlation', message.subject);
 
 export const intentKey = (subscriber: string, eventId: string): string =>
   `${subscriber}:${eventId}`;

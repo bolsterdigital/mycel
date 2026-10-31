@@ -13,6 +13,7 @@ import { Actor, Capability } from '../principal.js';
 import { sha256Hex } from '../util/digest.js';
 import { normalizeEmail } from '../util/email.js';
 import { randomToken } from '../util/token.js';
+import { Role, roleFor } from './roles.js';
 
 export const Email = z.preprocess(
   (v) => (typeof v === 'string' ? normalizeEmail(v) : v),
@@ -64,6 +65,20 @@ export const ApiKeySummary = z.object({
   revokedAt: z.string().datetime().nullable(),
 });
 export type ApiKeySummary = z.infer<typeof ApiKeySummary>;
+
+/**
+ * What the use cases return: the stored set plus the role it amounts to (#101), so HTTP, MCP and
+ * the admin name the same role. Additive: the capabilities stay in the output and stay the truth.
+ */
+export const MemberView = Member.extend({ role: Role });
+export type MemberView = z.infer<typeof MemberView>;
+export const ApiKeyView = ApiKeySummary.extend({ role: Role });
+export type ApiKeyView = z.infer<typeof ApiKeyView>;
+
+export const withRole = <T extends { capabilities: readonly Capability[] }>(row: T) => ({
+  ...row,
+  role: roleFor(row.capabilities),
+});
 
 export const TOKEN_PREFIX = 'mycel_';
 export const TOKEN_PATTERN = /^mycel_[A-Za-z0-9_-]{43}$/;

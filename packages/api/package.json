@@ -24,7 +24,8 @@
     "build": "tsc -b",
     "dev": "node --env-file-if-exists=../../.env --import tsx src/runtime/server.ts",
     "start": "node --env-file-if-exists=../../.env dist/runtime/server.js",
-    "worker": "node --env-file-if-exists=../../.env --import tsx src/runtime/worker.ts"
+    "worker": "node --env-file-if-exists=../../.env --import tsx src/runtime/worker.ts",
+    "seed:demo": "node --env-file-if-exists=../../.env --import tsx src/runtime/seed-demo.ts"
   },
   "dependencies": {
     "@mycel/core": "*",

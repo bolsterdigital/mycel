@@ -50,6 +50,8 @@ const NOT_IN_EXAMPLE: Record<string, string> = {
   HOST_HEADER: 'derived from MYCEL_TRUST_PROXY by docker/entrypoint.sh',
   ADDRESS_HEADER: 'derived from MYCEL_TRUST_PROXY by docker/entrypoint.sh',
   XFF_DEPTH: 'derived from MYCEL_TRUST_PROXY by docker/entrypoint.sh',
+  PGAPPNAME:
+    'libpq session name, per process; scripts/dev.mjs sets it, createDb falls back to script and pid',
   MOCK_OIDC_PORT: 'development IdP, set by scripts/dev.mjs and scripts/e2e/e2e.mjs',
   MOCK_OIDC_USER: 'development IdP, set by scripts/dev.mjs',
   E2E_REQUIRED: 'test harness (CI)',
