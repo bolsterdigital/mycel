@@ -395,7 +395,7 @@
     <p>{t('admin.locale.translate.body')}</p>
     {#if data.assistEnabled}<p class="ui-hint">{t('admin.locale.translate.assist')}</p>{/if}
     {#if data.canWrite}
-      <input type="hidden" name="to" value={work} />
+      <input type="hidden" name="translateTo" value={work} />
       <Actions>
         {#each sources as source (source)}
           <Button formaction="?/startTranslation" name="from" value={source}

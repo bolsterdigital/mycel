@@ -915,7 +915,7 @@ export const actions: Actions = {
     if ('failure' in saved) return saved.failure;
     const { tenant, principal, data, revisionId, zone } = saved;
     const itemId = event.params.itemId;
-    const to = text(data, 'to');
+    const to = text(data, 'translateTo');
     const from = text(data, 'from') || null;
     if (!tenant.locales.includes(to)) error(400, adminUi(event.locals)('admin.locale.unknown'));
     try {
