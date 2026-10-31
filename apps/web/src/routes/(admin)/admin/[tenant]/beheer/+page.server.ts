@@ -3,10 +3,12 @@
 // reads as broken).
 import { error } from '@sveltejs/kit';
 import { MANAGE, opens } from '#lib/admin/nav.js';
+import { ui } from '../../../../../i18n/index.js';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ parent }) => {
-  const { capabilities } = await parent();
-  if (!MANAGE.screens.some((s) => opens(capabilities, s.needs))) error(403, 'tenant:admin');
+  const { capabilities, locale } = await parent();
+  if (!MANAGE.screens.some((s) => opens(capabilities, s.needs)))
+    error(403, ui(locale)('admin.error.forbidden'));
   return {};
 };

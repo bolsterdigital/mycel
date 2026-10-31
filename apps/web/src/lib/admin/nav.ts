@@ -1,4 +1,4 @@
-// The admin's menu as data (TODO #114, brief admin-navigation § Besluiten): one file says which
+// The admin's menu as data (Jaap's navigation choices of 2026-10-31): one file says which
 // screen sits where, under which label and for which capability, and the shell only renders it.
 // Two entries hold the rarer screens: Manage (who and what runs the site: team, domains,
 // connections, status) and Settings (how the site looks and works). Each lists its screens under
