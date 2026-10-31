@@ -21,6 +21,7 @@
     StatusSummary,
   } from '#lib/admin/ui/index.js';
   import { formatWhen } from '#lib/admin/format.js';
+  import { actorLabel, operationKey, resultKey } from '#lib/admin/audit-words.js';
   import { fill, ui, type UiKey } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -89,6 +90,10 @@
       next: new Date(w.next) > now ? when(w.next) : null,
     }));
   });
+  const operationWords = (op: string) => {
+    const key = operationKey(op);
+    return key ? t(key) : op;
+  };
   const settling = $derived(status.mails.filter((m) => m.state === 'unknown').length);
 
   type Job = (typeof status.jobs)[number];
@@ -193,8 +198,8 @@
       {/if}
     </section>
 
-    <section aria-labelledby="jobs" id="jobs">
-      <h2>{t('admin.status.jobs.title')}</h2>
+    <section aria-labelledby="jobs-title" id="jobs">
+      <h2 id="jobs-title">{t('admin.status.jobs.title')}</h2>
       <p class="ui-hint">{t('admin.status.jobs.intro')}</p>
       {#if status.jobs.length === 0}
         <p>{t('admin.status.jobs.none')}</p>
@@ -291,14 +296,15 @@
             <li>
               {fill(t('admin.status.audit.item'), {
                 time: when(row.occurredAt).text,
-                operation: row.operation,
-                actor: row.actorId ? `${row.actorKind}:${row.actorId}` : row.actorKind,
-                result: row.result,
+                operation: operationWords(row.operation),
+                actor: actorLabel(t, row, {}),
+                result: t(resultKey(row.result)),
               })}
             </li>
           {/each}
         </ol>
       {/if}
+      <p><a href="{base}/status/audit">{t('admin.audit.all')}</a></p>
     </section>
 
     <section aria-labelledby="diagnosis">
