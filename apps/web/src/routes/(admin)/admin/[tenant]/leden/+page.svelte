@@ -147,6 +147,7 @@
       <form method="post" action="?/invite" class="ui-fields">
         <Field
           id="invite-email"
+          size="m"
           name="email"
           type="email"
           autocomplete="off"

@@ -12,6 +12,7 @@ export { default as Card } from './display/Card.svelte';
 export { default as CardGrid } from './display/CardGrid.svelte';
 export { default as Checkbox } from './form/Checkbox.svelte';
 export { default as Choices } from './form/Choices.svelte';
+export { default as ColorField } from './form/ColorField.svelte';
 export { default as RolePicker } from './form/RolePicker.svelte';
 export { default as ConfirmAction } from './feedback/ConfirmAction.svelte';
 export { default as CopyField } from './form/CopyField.svelte';

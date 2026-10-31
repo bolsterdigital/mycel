@@ -36,6 +36,7 @@
         "packages/api/src/platform*",
         "apps/web/src/hooks.server.ts",
         "apps/web/src/lib/server/admin/oidc.ts",
+        "apps/web/src/lib/server/admin/roles*",
         "apps/web/src/lib/server/http/security-headers*",
         "apps/web/src/lib/server/http/body-limit*",
         "docker/backup/**",

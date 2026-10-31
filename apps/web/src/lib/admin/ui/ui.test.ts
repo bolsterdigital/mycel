@@ -16,6 +16,7 @@ import {
   CardGrid,
   Checkbox,
   Choices,
+  ColorField,
   ConfirmAction,
   CopyField,
   DashboardWidget,
@@ -49,6 +50,7 @@ import {
   Tabs,
   ViewSwitch,
 } from './index.js';
+import { GROUP as FIELDSET_GROUP } from './form/Fieldset.svelte';
 
 const text = (html: string) => createRawSnippet(() => ({ render: () => `<span>${html}</span>` }));
 const html = <P extends Record<string, unknown>>(component: Component<P>, props: P) => {
@@ -152,7 +154,7 @@ describe('Field', () => {
       locale: 'en',
       invalid: true,
     });
-    expect(out).toMatch(/^<div class="ui-field invalid">/);
+    expect(out).toMatch(/^<div class="ui-field size-l invalid">/);
     expect(out).toMatch(/<input[^>]*aria-invalid="true"/);
     expect(out).not.toContain('aria-describedby');
   });
@@ -337,8 +339,109 @@ describe('Fieldset', () => {
       /^<details class="ui-fold"><summary>Display<\/summary>\s*<fieldset/
     );
     expect(html(Fieldset, { legend: 'Display', children: text('x') })).toMatch(
-      /^<fieldset class="ui-fieldset"><legend>Display<\/legend>/
+      /^<fieldset class="ui-fieldset ui-group"><legend>Display<\/legend>/
     );
+  });
+});
+
+describe('Fieldset nesting (#102)', () => {
+  it('renders a group inside a group flat, one outline deep', () => {
+    const nested = render(Fieldset as Component<Record<string, unknown>>, {
+      props: { legend: 'Body', children: text('x') },
+      context: new Map([[FIELDSET_GROUP, true]]),
+    }).body;
+    expect(nested).toMatch(/<fieldset class="ui-fieldset ui-group nested"><legend>Body<\/legend>/);
+    expect(html(Fieldset, { legend: 'Top', children: text('x') })).not.toContain('nested');
+  });
+});
+
+describe('Field sizes and units (#102)', () => {
+  it('is large by default and extra small for a number', () => {
+    expect(html(Field, { id: 'a', label: 'A', locale: 'en' })).toMatch(
+      /^<div class="ui-field size-l">/
+    );
+    expect(html(Field, { id: 'n', label: 'N', locale: 'en', type: 'number' })).toMatch(
+      /^<div class="ui-field size-xs">/
+    );
+    expect(html(Field, { id: 'h', label: 'H', locale: 'en', size: 'm' })).toMatch(
+      /^<div class="ui-field size-m">/
+    );
+    expect(html(Field, { id: 'h', label: 'H', locale: 'en', size: 'm' })).not.toMatch(
+      /<input[^>]*size=/
+    );
+  });
+  it('puts the unit after the control and into its description', () => {
+    const out = html(Field, {
+      id: 'base',
+      label: 'Base size',
+      locale: 'en',
+      type: 'number',
+      unit: 'px',
+      hint: 'Body text',
+    });
+    expect(out).toMatch(
+      /<div class="ui-unit"><input[^>]*><span class="ui-unit-suffix" id="base-unit">px<\/span><\/div>/
+    );
+    expect(out).toMatch(/<input[^>]*aria-describedby="base-hint base-unit"/);
+    expect(out).not.toMatch(/<label[^>]*>[^<]*px/);
+  });
+  it('sizes a select and a choices group the same way', () => {
+    expect(
+      html(Select, {
+        id: 'tz',
+        name: 'tz',
+        label: 'Time zone',
+        locale: 'en',
+        size: 'm',
+        options: [{ value: 'a', label: 'A' }],
+      })
+    ).toMatch(/^<div class="ui-field size-m">/);
+    expect(
+      html(Choices, {
+        id: 'c',
+        name: 'c',
+        legend: 'C',
+        locale: 'en',
+        size: 's',
+        options: [{ value: 'a', label: 'A' }],
+      })
+    ).toMatch(/^<fieldset class="ui-fieldset ui-choices size-s"/);
+  });
+});
+
+describe('ColorField (#102)', () => {
+  it('is a swatch beside the hex code, and only the code posts', () => {
+    const out = html(ColorField, {
+      id: 'body-fg',
+      name: 'light.body.foreground',
+      label: 'Body: text colour',
+      locale: 'nl',
+      value: '#1A1A1A',
+      required: true,
+    });
+    expect(out).toMatch(
+      /<input type="color" id="body-fg-swatch" class="ui-color-swatch" value="#1a1a1a" aria-label="Body: text colour: kleurkiezer"/
+    );
+    expect(out).not.toMatch(/<input type="color"[^>]*name=/);
+    expect(out).toMatch(/<input type="text" name="light.body.foreground"[^>]*id="body-fg"/);
+    expect(out).toMatch(/<input type="text"[^>]*value="#1A1A1A"/);
+    expect(out).toMatch(/<input type="text"[^>]*pattern="#\[0-9A-Fa-f\]\{6\}"/);
+    expect(out).toMatch(/<input type="text"[^>]*required/);
+    expect(out).toContain('<label for="body-fg" id="body-fg-label">');
+    expect(out).toContain('ui-field size-s');
+  });
+  it('keeps a hidden label for a table cell, and a black swatch for a code that is not one', () => {
+    const out = html(ColorField, {
+      id: 'x',
+      name: 'x',
+      label: 'X',
+      locale: 'en',
+      value: '#12',
+      hideLabel: true,
+    });
+    expect(out).toMatch(/^<div class="ui-color hide-label">/);
+    expect(out).toContain('<label for="x" id="x-label">X');
+    expect(out).toMatch(/type="color"[^>]*value="#000000"/);
   });
 });
 

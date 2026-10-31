@@ -190,6 +190,81 @@
   .ui-field.invalid textarea {
     border-color: var(--status-error-fg);
   }
+  /* Field sizes (#102): the control is as wide as what it holds, never wider than its line, so
+     `m` and `l` fill the line at 320 CSS px and `xs` and `s` keep their width. A Choices group
+     takes the same widths. */
+  .ui-field,
+  .ui-choices {
+    --field-width: var(--form-width);
+  }
+  .ui-field.size-xs,
+  .ui-choices.size-xs {
+    --field-width: 6rem;
+  }
+  .ui-field.size-s,
+  .ui-choices.size-s {
+    --field-width: 11rem;
+  }
+  .ui-field.size-m,
+  .ui-choices.size-m {
+    --field-width: 20rem;
+  }
+  .ui-field input:not([type='checkbox'], [type='radio'], [type='color']),
+  .ui-field select,
+  .ui-choices {
+    max-inline-size: var(--field-width);
+  }
+  /* A unit after its control ("px"), on the same line while both fit. */
+  .ui-unit {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-0);
+  }
+  .ui-unit > :first-child {
+    flex: 0 1 var(--field-width);
+    min-inline-size: 0;
+  }
+  .ui-unit-suffix {
+    color: var(--color-muted-fg);
+  }
+  /* ColorField: a 2rem swatch (the native picker) beside the hex code that posts. */
+  .ui-color-pair {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
+  }
+  .ui-color-pair > input[type='text'] {
+    flex: 0 1 var(--field-width);
+    font-variant-numeric: tabular-nums;
+  }
+  .ui-color-swatch {
+    flex: none;
+    inline-size: var(--tap);
+    block-size: var(--tap);
+    padding: 0.25rem;
+    background: var(--color-surface-bg);
+    border: var(--control-border-width) solid var(--color-control-border);
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+  .ui-color-swatch::-webkit-color-swatch-wrapper {
+    padding: 0;
+  }
+  .ui-color-swatch::-webkit-color-swatch,
+  .ui-color-swatch::-moz-color-swatch {
+    border: 0;
+    border-radius: calc(var(--radius) / 2);
+  }
+  .ui-color.hide-label .ui-field-head {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
   /* The drop zone may wrap: at 320 CSS px and 200% text the browser's button and its "no file
      chosen" line cannot share one row, and a clipped button label fails the UI gate. */
   .ui-field input.ui-filedrop {
@@ -252,6 +327,13 @@
   }
   .ui-fieldset > .ui-hint {
     margin-block-end: var(--space-1);
+  }
+  /* A question or a subgroup inside a group draws no outline of its own (Fieldset, #102). */
+  .ui-group .ui-choices,
+  .ui-group.nested {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
   }
   .ui-fold > summary {
     display: flex;

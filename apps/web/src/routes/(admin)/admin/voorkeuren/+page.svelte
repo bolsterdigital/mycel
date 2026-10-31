@@ -68,6 +68,7 @@
 
   <Select
     id="uiLocale"
+    size="s"
     name="uiLocale"
     label={t('admin.preferences.language')}
     locale={data.locale}
@@ -81,6 +82,7 @@
   />
   <Select
     id="timeZone"
+    size="m"
     name="timeZone"
     label={t('admin.preferences.timeZone')}
     locale={data.locale}
@@ -91,6 +93,7 @@
   />
   <Select
     id="dateFormat"
+    size="m"
     name="dateFormat"
     label={t('admin.preferences.dateFormat')}
     locale={data.locale}

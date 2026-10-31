@@ -113,8 +113,11 @@
             spellcheck="false"
             required
             maxlength={300}
+            size="m"
+            placeholder={t('admin.domains.add.placeholder')}
             label={t('admin.domains.add.hostname')}
             hint={t('admin.domains.add.hint')}
+            hintInline
             locale={data.locale}
             value={failed?.action === 'addHostname' ? (failed.hostname ?? '') : ''}
           />
