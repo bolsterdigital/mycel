@@ -24,11 +24,11 @@ The upload is synchronous: probe, render every variant, then take the tenant's m
 
 Keys: `tenants/<tenant id>/media/<media id>/<file>`.
 
-| Kind                  | Files                                                                                                                                                                                                                                                                                              |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| JPEG, PNG, WebP, AVIF | `original.<ext>` (private: the upload re-encoded at its own size, orientation applied, **no metadata**), `w<width>.avif` and `w<width>.webp` for 320, 640, 960, 1280 and 1920 up to the image's width, plus its own width when that is below 1920 and not one of them, and `thumb.webp` (160 wide) |
-| GIF                   | `file.gif` (all frames, no metadata; delivered as stored) and `thumb.webp` (first frame)                                                                                                                                                                                                           |
-| PDF                   | `file.pdf` (delivered as stored)                                                                                                                                                                                                                                                                   |
+| Kind                  | Files                                                                                                                                                                                                                                                                                                                    |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| JPEG, PNG, WebP, AVIF | `original.<ext>` (private: the upload re-encoded at its own size, orientation applied, **no metadata**), `w<width>.avif` and `w<width>.webp` for 320, 480, 640, 800, 960, 1080, 1280, 1600 and 1920 up to the image's width, plus its own width when that is below 1920 and not one of them, and `thumb.webp` (160 wide) |
+| GIF                   | `file.gif` (all frames, no metadata; delivered as stored) and `thumb.webp` (first frame)                                                                                                                                                                                                                                 |
+| PDF                   | `file.pdf` (delivered as stored)                                                                                                                                                                                                                                                                                         |
 
 Never upscaled. A 4000 px photo stops at `w1920`: its full resolution stays private. `checksum` (sha256 hex) and `sizeBytes` describe the stored original (or `file`), `totalBytes` everything, which is what the cap counts. A PDF's own metadata (author, producer) is not rewritten: only images pass through the processor.
 
@@ -111,16 +111,16 @@ A CDN or an image service (ImageKit) is another `MediaDelivery`: `variantPath` r
 
 ## Constants
 
-| Constant               | Value                        | Where                                | Why                                                                 |
-| ---------------------- | ---------------------------- | ------------------------------------ | ------------------------------------------------------------------- |
-| `MAX_UPLOAD_BYTES`     | 25 MiB                       | `packages/core/src/media/model.ts`   | decoded upload size; the base64 body is a third larger              |
-| `MAX_PIXELS`           | 50,000,000                   | `packages/core/src/media/model.ts`   | refuses decompression bombs                                         |
-| `VARIANT_WIDTHS`       | 320, 640, 960, 1280, 1920 px | `packages/core/src/media/model.ts`   | fixed variant widths, never upscaled                                |
-| `VARIANT_FORMATS`      | `avif`, `webp`               | `packages/core/src/media/model.ts`   | one `<source>` per format in `<picture>`                            |
-| `THUMB_WIDTH`          | 160 px                       | `packages/core/src/media/model.ts`   | the `thumb.webp` the admin and picker show                          |
-| `MEDIA_PURGE_DELAY_MS` | 24 h                         | `packages/core/src/media/model.ts`   | a backup or export that began before a delete still finds the files |
-| `ORPHAN_AGE_MS`        | 24 h                         | `packages/core/src/media/service.ts` | younger orphans may belong to an upload that has not committed      |
-| `ORIGINAL_TTL_MS`      | 10 min                       | `apps/web/src/lib/server/media.ts`   | how long a signed download link for an original works               |
-| `media.list` `limit`   | default 50, at most 100      | `packages/core/src/media/service.ts` | bounds one page of the library                                      |
-| `PART_BYTES`           | 16 MiB                       | `packages/blob/src/s3.ts`            | one part in memory at a time, and 10,000 parts reach 160 GiB        |
-| `BATCH`                | 1,000 keys                   | `packages/blob/src/s3.ts`            | DeleteObjects takes at most a thousand keys per call                |
+| Constant               | Value                                              | Where                                | Why                                                                                       |
+| ---------------------- | -------------------------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `MAX_UPLOAD_BYTES`     | 25 MiB                                             | `packages/core/src/media/model.ts`   | decoded upload size; the base64 body is a third larger                                    |
+| `MAX_PIXELS`           | 50,000,000                                         | `packages/core/src/media/model.ts`   | refuses decompression bombs                                                               |
+| `VARIANT_WIDTHS`       | 320, 480, 640, 800, 960, 1080, 1280, 1600, 1920 px | `packages/core/src/media/model.ts`   | fixed variant widths, never upscaled; from 640 up no step above 1.25 (`VARIANT_MAX_STEP`) |
+| `VARIANT_FORMATS`      | `avif`, `webp`                                     | `packages/core/src/media/model.ts`   | one `<source>` per format in `<picture>`                                                  |
+| `THUMB_WIDTH`          | 160 px                                             | `packages/core/src/media/model.ts`   | the `thumb.webp` the admin and picker show                                                |
+| `MEDIA_PURGE_DELAY_MS` | 24 h                                               | `packages/core/src/media/model.ts`   | a backup or export that began before a delete still finds the files                       |
+| `ORPHAN_AGE_MS`        | 24 h                                               | `packages/core/src/media/service.ts` | younger orphans may belong to an upload that has not committed                            |
+| `ORIGINAL_TTL_MS`      | 10 min                                             | `apps/web/src/lib/server/media.ts`   | how long a signed download link for an original works                                     |
+| `media.list` `limit`   | default 50, at most 100                            | `packages/core/src/media/service.ts` | bounds one page of the library                                                            |
+| `PART_BYTES`           | 16 MiB                                             | `packages/blob/src/s3.ts`            | one part in memory at a time, and 10,000 parts reach 160 GiB                              |
+| `BATCH`                | 1,000 keys                                         | `packages/blob/src/s3.ts`            | DeleteObjects takes at most a thousand keys per call                                      |

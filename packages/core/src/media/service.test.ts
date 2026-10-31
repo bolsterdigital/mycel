@@ -23,7 +23,7 @@ import {
   expectCode,
   principal,
 } from '../testing/index.js';
-import { MEDIA_PURGE_DELAY_MS } from './model.js';
+import { MEDIA_PURGE_DELAY_MS, VARIANT_MAX_STEP, VARIANT_WIDTHS, variantWidths } from './model.js';
 import { EXAMPLE_PNG, ORPHAN_AGE_MS } from './service.js';
 
 const OTHER = '01900000-0000-7000-8000-00000000bbbb';
@@ -68,6 +68,23 @@ describe('media', () => {
     invoker = new Invoker(buildRegistry(), uow);
   });
 
+  describe('variant ladder', () => {
+    it('never steps more than VARIANT_MAX_STEP from 640 up, so a browser overshoots by at most that', () => {
+      const from = VARIANT_WIDTHS.indexOf(640);
+      for (let i = from + 1; i < VARIANT_WIDTHS.length; i++)
+        expect(VARIANT_WIDTHS[i]! / VARIANT_WIDTHS[i - 1]!).toBeLessThanOrEqual(VARIANT_MAX_STEP);
+    });
+
+    it('adds the own width only when it gains enough over the step below, and never upscales', () => {
+      expect(variantWidths(1200)).toEqual([320, 480, 640, 800, 960, 1080, 1200]);
+      expect(variantWidths(1080)).toEqual([320, 480, 640, 800, 960, 1080]);
+      expect(variantWidths(4000)).toEqual([...VARIANT_WIDTHS]);
+      expect(variantWidths(200)).toEqual([200]);
+      expect(variantWidths(1282)).toEqual([320, 480, 640, 800, 960, 1080, 1280]);
+      expect(variantWidths(1000)).toEqual([320, 480, 640, 800, 960]);
+    });
+  });
+
   describe('upload', () => {
     it('stores a metadata-free original, AVIF and WebP up to its own width, and a thumbnail', async () => {
       const m = await upload({ filename: 'C:\\Users\\x\\photo.png' });
@@ -85,12 +102,14 @@ describe('media', () => {
       expect(m.variants.map((v) => `${v.name}.${v.format}`)).toEqual([
         'w320.avif',
         'w320.webp',
+        'w480.avif',
+        'w480.webp',
         'w640.avif',
         'w640.webp',
+        'w800.avif',
+        'w800.webp',
         'w960.avif',
         'w960.webp',
-        'w1000.avif',
-        'w1000.webp',
         'thumb.webp',
       ]);
       expect(m.variants[0]!.path).toBe(`/media/${m.id}/w320.avif`);
@@ -107,18 +126,10 @@ describe('media', () => {
     it('never upscales: a 3000 px image stops at w1920 and keeps its full size private', async () => {
       const m = await upload({ bytes: pngHeader(3000, 2000) });
       expect(m.variants.map((v) => v.name)).toEqual([
-        'w320',
-        'w320',
-        'w640',
-        'w640',
-        'w960',
-        'w960',
-        'w1280',
-        'w1280',
-        'w1920',
-        'w1920',
+        ...VARIANT_WIDTHS.flatMap((w) => [`w${w}`, `w${w}`]),
         'thumb',
       ]);
+      expect(m.variants.at(-2)!.width).toBe(1920);
     });
 
     it('refuses SVG with its reason, and any type outside the allowlist', async () => {
@@ -395,7 +406,7 @@ describe('media', () => {
       clock.advance(1);
       const swept = await uow.run(system, (ctx) => sweepMediaOrphans(ctx));
       expect(swept).toEqual([`${prefix}01900000-0000-7000-8000-0000000000ff/original.png`]);
-      expect(keys().filter((k) => k.includes(m.id))).toHaveLength(10);
+      expect(keys().filter((k) => k.includes(m.id))).toHaveLength(1 + m.variants.length);
       expect(keys()).toContain(`tenants/${OTHER}/media/01900000-0000-7000-8000-0000000000fd/x.png`);
     });
   });

@@ -17,8 +17,10 @@ export interface SharpProcessorOptions {
   maxPixels?: number;
 }
 
+// AVIF at 50, sharp's own default: on the demo's portrait photo 55 gave 62 KB at 1080 px, over
+// the 60 KB budget of an image shown 400 px wide; effort 6 instead saved 1 KB for 2.5x the time.
 const QUALITY: Record<ImageFormat, (s: Sharp) => Sharp> = {
-  avif: (s) => s.avif({ quality: 55, effort: 4 }),
+  avif: (s) => s.avif({ quality: 50, effort: 4 }),
   webp: (s) => s.webp({ quality: 80 }),
   jpeg: (s) => s.jpeg({ quality: 85, mozjpeg: true }),
   png: (s) => s.png({ compressionLevel: 9 }),
