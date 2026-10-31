@@ -4,7 +4,11 @@
      that uploads takes `enctype`; one with more than a save (replace and remove) brings its own
      `actions`, still inside the one form. A section without `action` only shows facts. Given
      `unsaved`, static/_admin/unsaved.js shows that text once a field changes and warns before
-     leaving the page unsaved (brief #81); without the script nothing changes. -->
+     leaving the page unsaved (brief #81); without the script nothing changes. A long section
+     (Theme) takes `sticky`: its save stays at the bottom of the window while the form scrolls
+     past (#113), on a window tall enough that a bar does not take the room to read. Rejected: a
+     second save at the top (two buttons for one form, and the top one is out of view as soon as
+     the fields begin). -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import Actions from '../display/Actions.svelte';
@@ -21,6 +25,7 @@
     saved,
     actions,
     unsaved,
+    sticky = false,
     children,
   }: {
     id: string;
@@ -37,6 +42,8 @@
     saved?: string | undefined;
     /** The note shown, with JavaScript, once a field of the form has changed. */
     unsaved?: string | undefined;
+    /** Keep the save in view at the bottom of the window while a long form scrolls. */
+    sticky?: boolean;
     children: Snippet;
   } = $props();
 </script>
@@ -52,8 +59,10 @@
   {#if action}
     <form method="post" {action} {enctype} data-unsaved={unsaved ? '' : undefined}>
       <div class="ui-fields">{@render children()}</div>
-      {#if unsaved}<p class="ui-hint" hidden data-unsaved-note>{unsaved}</p>{/if}
-      {#if actions}{@render actions()}{:else}<Actions><Button>{submit}</Button></Actions>{/if}
+      <div class={['ui-settings-save', sticky && 'sticky']}>
+        {#if unsaved}<p class="ui-hint" hidden data-unsaved-note>{unsaved}</p>{/if}
+        {#if actions}{@render actions()}{:else}<Actions><Button>{submit}</Button></Actions>{/if}
+      </div>
     </form>
   {:else}
     {@render children()}

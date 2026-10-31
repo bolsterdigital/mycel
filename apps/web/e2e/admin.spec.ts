@@ -53,7 +53,7 @@ test.describe('admin', () => {
     context,
   }) => {
     await login(page, '/admin/probe/leden');
-    await expect(page.getByRole('heading', { level: 1, name: 'Leden' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Team' })).toBeVisible();
     await expect(
       page.locator('.admin-sidebar-bottom').getByText('e2e-admin@probe.test')
     ).toBeVisible();
@@ -71,8 +71,11 @@ test.describe('admin', () => {
     expect(hours).toBeLessThanOrEqual(12);
 
     const name = `e2e-${test.info().project.name}-${Date.now()}`;
-    // Keys live under Settings, API access (#101); Members links there.
-    await page.getByRole('link', { name: /API-toegang/ }).click();
+    // Keys live under Settings, API access (#101): a section in the Settings menu, no longer a
+    // sentence on Team (#113).
+    await expect(page.locator('main a[href$="section=api"]')).toHaveCount(0);
+    await page.getByRole('link', { name: 'Instellingen' }).click();
+    await page.getByRole('link', { name: 'API-toegang' }).click();
     await expect(page).toHaveURL(/\/admin\/probe\/site\?section=api$/);
     // Creating a key happens in a dialog, opened by a native invoker button (no script), with
     // the role picker without Administrator.
@@ -496,7 +499,7 @@ test.describe('admin-shell', () => {
       ['Content', ['Pages', 'Articles']],
       ['Library', ['Media']],
       // AI assistance is a section of Settings (#81 PR 3), not a menu item.
-      ['Manage', ['Settings', 'Members', 'Domains', 'Connections', 'Export', 'Status']],
+      ['Manage', ['Settings', 'Team', 'Domains', 'Connections', 'Export', 'Status']],
     ] as const)
       await expect(nav.getByRole('list', { name: group }).getByRole('link')).toHaveText([...links]);
     await expect(nav.getByRole('link', { name: 'Overview' })).toHaveCount(0);
@@ -542,6 +545,37 @@ test.describe('admin-shell', () => {
     const wide = await measure(2560);
     expect(wide.gap).toBe(normal.gap);
     expect(wide.width - normal.width).toBe(1280);
+  });
+
+  // Trial 4b-8/9 (#113): Team's table is as wide as its content with every cell of a row on one
+  // baseline, and the long Theme form keeps its save in view at the bottom of the window.
+  test('Team reads as a compact table, and Theme keeps its save in view', async ({ page }) => {
+    await login(page, '/admin/probe/leden', email);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const team = await page.locator('#members').evaluate((table) => {
+      const row = table.querySelector('tbody tr')!;
+      // The bottom of each cell's first line of text: equal when the cells share a baseline.
+      const bottoms = [...row.querySelectorAll('th, td')].map((cell) => {
+        // No filter callback: with JavaScript off (no-js) the page cannot run one.
+        const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
+        let node = walker.nextNode();
+        while (node && !node.textContent!.trim()) node = walker.nextNode();
+        const range = document.createRange();
+        range.selectNodeContents(node!);
+        return range.getClientRects()[0]!.bottom;
+      });
+      return {
+        width: table.getBoundingClientRect().width,
+        column: table.closest('main')!.getBoundingClientRect().width,
+        spread: Math.max(...bottoms) - Math.min(...bottoms),
+      };
+    });
+    expect(team.width).toBeLessThan(team.column * 0.8);
+    expect(team.spread).toBeLessThanOrEqual(4);
+
+    await page.goto('/admin/probe/site?section=theme');
+    const save = page.getByRole('button', { name: 'Save theme' });
+    await expect(save).toBeInViewport();
   });
 
   for (const locale of ['nl', 'en']) {
@@ -617,7 +651,7 @@ test.describe('admin-shell', () => {
     });
   });
 
-  /** Members, API access and an editor at 320 CSS px and 200% text: reflow, targets, whole labels. */
+  /** Team, API access and an editor at 320 CSS px and 200% text: reflow, targets, whole labels. */
   async function narrowOverview(page: Page) {
     await login(page, '/admin/probe/leden', email);
     await setTextSize(page, '200%');
@@ -703,6 +737,9 @@ test.describe('preferences', () => {
     await expect(
       page.getByRole('heading', { level: 1, name: 'Profile and preferences' })
     ).toBeVisible();
+    // Inside the site's shell: the menu stays (trial 4b-8/9).
+    await expect(page).toHaveURL(/\/admin\/probe\/profiel$/);
+    await expect(nav('Site navigation').getByRole('link', { name: 'Pages' })).toBeAttached();
     // Your role per site sits on your profile (#101), not on Members.
     await expect(page.getByRole('listitem').filter({ hasText: 'Probe' })).toContainText(
       'Administrator'
@@ -715,7 +752,7 @@ test.describe('preferences', () => {
     await expectNoAxeViolations(page);
 
     // Back to the site the operator came from: the menu speaks Dutch.
-    await page.getByRole('link', { name: 'Terug' }).click();
+    await page.getByRole('link', { name: 'Terug', exact: true }).click();
     await expect(page).toHaveURL(/\/admin\/probe$/);
     await expect(nav('Sitenavigatie').getByRole('link', { name: 'Pagina’s' })).toBeAttached();
 
@@ -734,7 +771,8 @@ test.describe('preferences', () => {
     await expect(page).toHaveURL(`${edit}?done=schedule&locale=nl`);
     await expect(nl).toContainText('Ingepland voor 2030-01-04 17:00 (Asia/Tokyo)');
 
-    // Back to the site's zone: the same instant, nine hours earlier on the clock, unnamed.
+    // Back to the site's zone: the same instant, nine hours earlier on the clock, unnamed. The
+    // profile outside any site (from the site picker) is the same form.
     await page.goto('/admin/voorkeuren');
     await page.getByLabel('Tijdzone').selectOption('');
     await page.getByRole('button', { name: 'Voorkeuren opslaan' }).click();
@@ -880,7 +918,7 @@ test.describe('status', () => {
       const log = page.locator('#audit-table tbody tr');
       await expect(log.first()).toContainText('Vastgelopen taak afgesloten');
       await expect(log.first()).toContainText('Gelukt');
-      await expect(log.first()).not.toContainText('Een lid');
+      await expect(log.first()).not.toContainText('Een teamlid');
       await expect(page.locator('#audit-table')).not.toContainText('opnieuw geprobeerd');
       await expectNoAxeViolations(page);
     } finally {

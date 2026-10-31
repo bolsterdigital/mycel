@@ -137,7 +137,7 @@
       <div class="admin-sidebar-bottom">
         <a href="/admin?all"><Icon name="arrow-left-right" /><span>{t('admin.back')}</span></a>
         <p>{data.email}</p>
-        <a href="/admin/voorkeuren?return={encodeURIComponent(base)}"
+        <a href="{base}/profiel" aria-current={within('profiel') ? 'page' : undefined}
           ><Icon name="sliders-horizontal" /><span>{t('admin.nav.profile')}</span></a
         >
         <form method="post" action="/admin/logout">

@@ -1050,7 +1050,7 @@ test.describe('content-admin', () => {
       const member = page.getByRole('row', { name: new RegExp(email) });
       await member.locator('summary', { hasText: 'Verwijderen' }).click();
       await member.getByRole('button', { name: `Ja, verwijderen: ${email}` }).click();
-      await expect(page.getByRole('status')).toContainText('Lid verwijderd');
+      await expect(page.getByRole('status')).toContainText('Uit het team verwijderd');
     }
   });
 

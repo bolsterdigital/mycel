@@ -40,6 +40,7 @@ export const ADMIN_ROUTES: GateRoute[] = [
   { path: '/admin/logout' },
   { path: '/admin/login' },
   { path: '/admin/voorkeuren' },
+  { path: '/admin/probe/profiel', within: 'main' },
   { path: '/admin/probe/content?type=page' },
   { path: '/admin/probe/content/new' },
   ...['overview', 'overview?view=list', 'detail', 'edit', 'settings', 'form', 'states'].map(

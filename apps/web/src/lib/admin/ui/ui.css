@@ -497,6 +497,24 @@
   .ui-table-scroll:has(> .ui-table.stack) {
     container-type: inline-size;
   }
+  /* A record table (#113) is as wide as its content, up to the column, so a short list of people
+     does not spread its three columns over the whole screen; every cell of a row sits on the
+     same baseline, a button's label level with the name and the role beside it. */
+  .ui-table.stack {
+    width: auto;
+    max-width: 100%;
+  }
+  .ui-table.stack tbody :is(th, td) {
+    vertical-align: baseline;
+  }
+  /* An action group in a cell: no margin above it (it would push the buttons below the row's
+     text), and no size container, which gives a table cell a min-content width of nothing and
+     breaks every button onto its own line. The group still wraps whole buttons when the cell is
+     narrow. */
+  .ui-table td > .ui-actions-host {
+    container-type: normal;
+    margin-block: 0;
+  }
   @container (max-width: 36rem) {
     .ui-table.stack,
     .ui-table.stack tbody,
@@ -637,6 +655,21 @@
     .ui-meta > div {
       grid-template-columns: minmax(8rem, 1fr) 2fr;
     }
+  }
+  /* Short facts side by side (#113, an API key's prefix and dates): each term above its value,
+     the pairs in a wrapping row, so a card of four short facts is a few lines high instead of a
+     column of label-value lines with the values far to the right. A `wide` pair (a long role
+     list) takes a line of its own. Below 32rem the pairs stack like any meta list. */
+  .ui-meta.inline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+  }
+  .ui-meta.inline > div {
+    grid-template-columns: none;
+  }
+  .ui-meta.inline > .wide {
+    flex-basis: 100%;
   }
 
   .ui-subnav ul {
@@ -1472,6 +1505,21 @@
   .ui-section > h2 {
     margin-block: 0 var(--space-1);
     font-size: var(--step-1);
+  }
+  /* The save of a long settings section stays at the bottom of the window (#113), only where the
+     window is tall enough that the bar leaves room to read; at 200% text on a phone it scrolls
+     with the form like any other button. */
+  @media (min-height: 32rem) {
+    .ui-settings-save.sticky {
+      position: sticky;
+      inset-block-end: 0;
+      margin-inline: calc(-1 * var(--space-2));
+      padding-inline: var(--space-2);
+      /* The button group's margin would fall out of the bar and leave the button on its edge. */
+      padding-block-end: var(--space-1);
+      background: var(--color-surface-bg);
+      border-block-start: var(--border-width) solid var(--color-border);
+    }
   }
 
   .ui-form-page form {
