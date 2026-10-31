@@ -582,6 +582,18 @@ test.describe('grid-compositions', () => {
     });
   }
 
+  /** The item title sits centred in its own 52rem rail (brief 46C-1 rule 8): never narrower
+   *  than the reading column, never wider than the rail, its centre on the viewport's. */
+  function expectTitleRail(
+    title: { x: number; width: number },
+    prose: { width: number },
+    viewport: number
+  ) {
+    expect(title.width).toBeGreaterThanOrEqual(prose.width - 1);
+    expect(title.width).toBeLessThanOrEqual(52 * 16 + 1);
+    expect(Math.abs(title.x + title.width / 2 - viewport / 2)).toBeLessThanOrEqual(1);
+  }
+
   for (const entry of compositions)
     for (const width of [320, 768, 1440])
       test(`${entry.slug}: composition at ${width}px`, async ({ page }) => {
@@ -598,7 +610,7 @@ test.describe('grid-compositions', () => {
         expect(measured.overflow).toBe(false);
         if (measured.full) expect(measured.full.width).toBe(width);
         if (width === 1440 && measured.wide) expect(measured.wide.width).toBe(1088);
-        expect(measured.title!.width).toBeCloseTo(measured.prose!.width, 0);
+        expectTitleRail(measured.title!, measured.prose!, measured.viewport);
         if (width === 1440) {
           expect(measured.prose!.width).toBeGreaterThanOrEqual(680);
           expect(measured.prose!.width).toBeLessThanOrEqual(740);
@@ -627,7 +639,7 @@ test.describe('grid-compositions', () => {
       const savedMetrics = await metrics(page);
       expect(savedMetrics.overflow).toBe(false);
       expect(savedMetrics.prose!.width).toBeGreaterThanOrEqual(680);
-      expect(savedMetrics.title!.width).toBeCloseTo(savedMetrics.prose!.width, 0);
+      expectTitleRail(savedMetrics.title!, savedMetrics.prose!, savedMetrics.viewport);
       await page.goto(edit);
       if (entry.type === 'article') {
         // The article writer has no automatic live-preview panel yet. Exercise the real
@@ -673,12 +685,12 @@ test.describe('grid-compositions', () => {
         return {
           width,
           prose: prose.width,
-          title: title.width,
+          title: { x: title.x, width: title.width },
           overflow: main.ownerDocument.documentElement.scrollWidth > width + 1,
         };
       });
       expect(live.overflow).toBe(false);
-      expect(live.title).toBeCloseTo(live.prose, 0);
+      expectTitleRail(live.title, { width: live.prose }, live.width);
       await test.info().attach('preview-rails.json', {
         body: JSON.stringify({ saved: savedMetrics, live }),
         contentType: 'application/json',
@@ -687,6 +699,74 @@ test.describe('grid-compositions', () => {
       await page.goto(`/probe/${entry.type === 'article' ? 'articles/' : ''}${entry.slug}`);
       expect((await metrics(page)).prose!.width).toBeCloseTo(live.prose, 0);
     });
+
+  // Brief 46C-1 rules 1 to 4: a caption starts at its image's left edge, whatever the layout;
+  // only an edgeless (full) image insets its caption by the gutter; a float beside the text
+  // stands out of the reading column on a wide screen. At 375 px nothing scrolls sideways.
+  test('captions share the left edge of their image and a float stands out of the column', async ({
+    page,
+  }) => {
+    onlyA11y('DOM measurements');
+    const figures = () =>
+      page.evaluate(() => {
+        const prose = document.querySelector('.page .rich-text')!.getBoundingClientRect();
+        const figure = (selector: string) => {
+          const el = document.querySelector(`.page > figure.image.${selector}`)!;
+          const img = el.querySelector('img')!.getBoundingClientRect();
+          const caption = el.querySelector('figcaption')!;
+          const box = caption.getBoundingClientRect();
+          return {
+            img: { left: img.left, right: img.right, width: img.width },
+            caption: { left: box.left, width: box.width },
+            inset: parseFloat(getComputedStyle(caption).paddingInlineStart),
+            figure: el.getBoundingClientRect().right,
+          };
+        };
+        return {
+          prose: { left: prose.left, right: prose.right },
+          wide: figure('layout-wide'),
+          full: figure('layout-full'),
+          float: figure('layout-float-right'),
+          overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+        };
+      });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/probe/articles/quality-article-v3');
+    await page.evaluate(() => document.fonts.ready);
+    const wide = await figures();
+    await test.info().attach('captions-1440.json', {
+      body: JSON.stringify(wide),
+      contentType: 'application/json',
+    });
+    for (const key of ['wide', 'full', 'float'] as const) {
+      const f = wide[key];
+      expect(f.caption.left).toBeCloseTo(f.img.left, 0);
+      expect(f.caption.width).toBeCloseTo(f.img.width, 0);
+    }
+    expect(wide.wide.inset).toBe(0);
+    expect(wide.float.inset).toBe(0);
+    // The full image touches the screen edge: its caption text starts one gutter (1rem) in.
+    expect(wide.full.img.left).toBe(0);
+    expect(wide.full.inset).toBe(16);
+    // The lead sits centred under the title in its own 44rem rail (brief 46C-1 rule 8).
+    const lead = await page.locator('main > .lead').evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.x, width: r.width, align: getComputedStyle(el).textAlign };
+    });
+    expect(lead.align).toBe('center');
+    expect(lead.width).toBeLessThanOrEqual(44 * 16 + 1);
+    expect(Math.abs(lead.x + lead.width / 2 - 720)).toBeLessThanOrEqual(1);
+    // Half the reading column, standing 8rem out of it.
+    expect(wide.float.figure).toBeGreaterThan(wide.prose.right + 100);
+    expect(wide.float.img.width).toBeCloseTo((wide.prose.right - wide.prose.left) / 2, 0);
+
+    await page.setViewportSize({ width: 375, height: 800 });
+    await page.reload();
+    const narrow = await figures();
+    expect(narrow.overflow).toBe(false);
+    expect(narrow.float.caption.left).toBeCloseTo(narrow.float.img.left, 0);
+    expect(narrow.full.inset).toBeGreaterThan(0);
+  });
 
   test('a narrow composition on a wide monitor contains floats and full media', async ({
     page,
@@ -761,7 +841,7 @@ test.describe('grid-compositions', () => {
       const after = await metrics(page);
       expect(after.viewport).toBeCloseTo(before.width / 2, 0);
       expect(after.overflow).toBe(false);
-      expect(after.title!.width).toBeCloseTo(after.prose!.width, 0);
+      expectTitleRail(after.title!, after.prose!, after.viewport);
       await writeFile(
         test.info().outputPath('browser-zoom.json'),
         JSON.stringify({ before, after, version: context.browser()?.version() })

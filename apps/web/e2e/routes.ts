@@ -20,7 +20,14 @@ export const ADMIN_ROUTES: GateRoute[] = [
   { path: '/admin/probe', menu: true },
   { path: '/admin/probe/leden', within: 'main', folds: true },
   { path: '/admin/probe/domeinen', within: 'main', folds: true },
-  ...['', '?section=assist', '?section=usage'].map((section) => ({
+  ...[
+    '',
+    '?section=theme',
+    '?section=brand',
+    '?section=chrome',
+    '?section=assist',
+    '?section=usage',
+  ].map((section) => ({
     path: `/admin/probe/site${section}`,
     within: 'main',
   })),

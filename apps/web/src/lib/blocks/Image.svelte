@@ -15,12 +15,16 @@
     eager: boolean;
   } = $props();
 
+  // A float follows the container steps of base.css (brief 46C-1): half the reading column from
+  // 64rem, 40% of it from 40rem, the full width below. Measured on the probe theme at 65ch: a
+  // 734 px column gives a 367 px float at 1440 px (23rem) and 293 px at 768 px (18.5rem).
+  const FLOAT = '(min-width: 64rem) 23rem, (min-width: 40rem) 18.5rem, 100vw';
   const SIZES = {
     content: '(min-width: 48rem) 44rem, 100vw',
     wide: '(min-width: 72rem) 68rem, 100vw',
     full: '100vw',
-    'float-left': '(min-width: 48rem) 20rem, 100vw',
-    'float-right': '(min-width: 48rem) 20rem, 100vw',
+    'float-left': FLOAT,
+    'float-right': FLOAT,
   };
 </script>
 
