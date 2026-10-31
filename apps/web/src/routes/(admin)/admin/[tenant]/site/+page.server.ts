@@ -6,8 +6,9 @@
 // a member sees only the subjects they may open. Rejected: a route per subject (the sub-navigation is
 // already one URL per subject) and loading only the current subject's data (the look's four
 // reads would become optional in every section of the page, for reads that are cheap).
-// The subjects go to the shell as `subnav` (#81-rest, the contract of #87), so they sit under
-// "Settings" in the sidebar; rejected: tabs above the form (tabs are for the parts of one item).
+// The subjects sit in the sidebar (#81-rest): the look under Settings, assistance, API access and
+// usage under Manage (#114, src/lib/admin/nav.ts says which); rejected: tabs above the form (tabs
+// are for the parts of one item).
 // The brand section also holds the site's default image (#81-rest, `site.image.update` from #86):
 // its own form and version, so a save there never overwrites the theme or the logo.
 // API access (#101) holds the site's API keys, moved from Members: rare, for administrators only,
@@ -97,14 +98,9 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
     section === 'brand' ? await runtime().invoker.run(useCases.getSiteImages, principal, {}) : null;
   const chosen = images?.value.defaultImageId;
   const t = ui(locals.lang ?? 'en');
-  const here = url.pathname;
   return {
     section,
-    subnav: SECTIONS.filter((s) => can(principal, NEEDS[s])).map((s) => ({
-      label: t(SUBJECT[s]),
-      href: s === 'general' ? here : `${here}?section=${s}`,
-      current: s === section,
-    })),
+    subject: t(SUBJECT[section]),
     general,
     zones: section === 'general' ? timeZoneOptions(locals.lang ?? 'en') : [],
     theme,

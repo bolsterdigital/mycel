@@ -43,7 +43,9 @@ test('an administrator asks for an archive and downloads it without JavaScript',
 }) => {
   test.setTimeout(120_000);
   await login(page, '/admin/probe');
-  await page.getByRole('link', { name: 'Exporteren' }).click();
+  // Export is one of the screens under Beheer (#114), not a line of the main menu.
+  await page.getByRole('link', { name: 'Beheer', exact: true }).click();
+  await page.getByRole('main').getByRole('link', { name: 'Exporteren' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Export' })).toBeVisible();
   await expect(page.locator('main')).toContainText('7 dagen te downloaden');
   await expectNoAxeViolations(page);
