@@ -483,6 +483,7 @@ export const en = {
   'admin.audit.op.content.item.schedule': 'Publication scheduled',
   'admin.audit.op.content.item.unpublish': 'Unpublished',
   'admin.audit.op.content.item.unschedule': 'Scheduled publication cancelled',
+  'admin.audit.op.content.slug.update': 'Address changed',
   'admin.audit.op.content.item.update': 'Page or article saved',
   'admin.audit.op.content.pattern.create': 'Pattern created',
   'admin.audit.op.content.pattern.update': 'Pattern changed',
@@ -607,8 +608,13 @@ export const en = {
   'admin.content.new.submit': 'Create draft',
   'admin.content.new.page': 'New page',
   'admin.content.new.article': 'New article',
+  'admin.content.slug.change': 'Change address',
+  'admin.content.slug.editHint':
+    'The last part of the address: lowercase letters, digits and hyphens. Saved with Save, and it can change until the first publication.',
+  'admin.content.slug.fixed':
+    'The address is fixed since the first publication, so links keep working.',
   'admin.content.slug.hint':
-    'The last part of the address. Leave it empty and it is made from the title. It cannot be changed later.',
+    'The last part of the address. Leave it empty and it is made from the title. It can change until the first publication.',
   'admin.content.field.title': 'Title',
   'admin.content.field.lead': 'Lead',
   'admin.content.field.authors': 'Authors',
@@ -784,6 +790,8 @@ export const en = {
   'admin.content.error.invalid': 'This could not be saved. Check the fields and try again.',
   'admin.content.error.slugTaken': 'There is already an item of this type with this slug.',
   'admin.content.error.slugReserved': 'The site uses this slug itself. Choose another.',
+  'admin.content.error.slugPublished':
+    'This item has been published before; its address stays as it is.',
   'admin.content.error.slugInvalid':
     'A slug has only lowercase letters, digits and hyphens, and starts with a letter or digit.',
   'admin.content.error.defaultLocale': 'The item needs the site’s main language.',

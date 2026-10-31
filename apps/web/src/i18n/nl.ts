@@ -488,6 +488,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.content.item.schedule': 'Publicatie ingepland',
   'admin.audit.op.content.item.unpublish': 'Offline gehaald',
   'admin.audit.op.content.item.unschedule': 'Ingeplande publicatie geschrapt',
+  'admin.audit.op.content.slug.update': 'Adres gewijzigd',
   'admin.audit.op.content.item.update': 'Pagina of artikel opgeslagen',
   'admin.audit.op.content.pattern.create': 'Patroon aangemaakt',
   'admin.audit.op.content.pattern.update': 'Patroon gewijzigd',
@@ -612,8 +613,13 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.new.submit': 'Concept maken',
   'admin.content.new.page': 'Nieuwe pagina',
   'admin.content.new.article': 'Nieuw artikel',
+  'admin.content.slug.change': 'Adres wijzigen',
+  'admin.content.slug.editHint':
+    'Het laatste deel van het adres: kleine letters, cijfers en streepjes. Wordt bewaard met Opslaan en kan tot de eerste publicatie nog veranderen.',
+  'admin.content.slug.fixed':
+    'Het adres ligt vast sinds de eerste publicatie, zodat links blijven werken.',
   'admin.content.slug.hint':
-    'Het laatste deel van het adres. Leeg laten: dan maken we hem uit de titel. Later niet meer te wijzigen.',
+    'Het laatste deel van het adres. Leeg laten: dan maken we hem uit de titel. Te wijzigen tot de eerste publicatie.',
   'admin.content.field.title': 'Titel',
   'admin.content.field.lead': 'Intro',
   'admin.content.field.authors': 'Auteurs',
@@ -791,6 +797,8 @@ export const nl: Partial<Record<UiKey, string>> = {
     'Dit kon niet worden opgeslagen. Controleer de velden en probeer het opnieuw.',
   'admin.content.error.slugTaken': 'Er is al een item van deze soort met deze slug.',
   'admin.content.error.slugReserved': 'De site gebruikt deze slug zelf. Kies een andere.',
+  'admin.content.error.slugPublished':
+    'Dit item is al eens gepubliceerd; het adres blijft zoals het is.',
   'admin.content.error.slugInvalid':
     'Een slug heeft alleen kleine letters, cijfers en streepjes, en begint met een letter of cijfer.',
   'admin.content.error.defaultLocale': 'Het item moet de hoofdtaal van de site hebben.',

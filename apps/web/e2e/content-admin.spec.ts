@@ -18,7 +18,7 @@ import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { ADMIN, login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
-import { callApi, requireApi } from './lib/api';
+import { callApi, postUseCase, requireApi } from './lib/api';
 import { expectPixels } from './lib/images';
 
 // Content admin (TODO #11, brief content-editor § A1): an operator makes a page in two locales,
@@ -610,6 +610,70 @@ test.describe('content-admin', () => {
     if ((await fold.getAttribute('open')) === null) await fold.locator('summary').click();
     return fold;
   };
+
+  // The address of a draft (#66 PR 6b): "This item" changes it until a locale goes live, with
+  // the save of the one form; a taken slug comes back on the field with what was typed.
+  test('the address of a draft changes with Save until the first publication', async ({
+    page,
+    request,
+  }) => {
+    await login(page, '/admin/probe');
+    const taken = slugFor('slug-taken');
+    await newPage(page, taken, 'Bezet');
+    const edit = await newPage(page, slugFor('slug-from'), 'Verhuizing');
+    const side = page.locator('section[aria-labelledby="this-item"]');
+    const fold = side.locator('details', { hasText: 'Adres wijzigen' });
+    await fold.locator('summary').click();
+    const field = side.getByLabel('Slug');
+    await expectNoAxeViolations(page);
+    await page.setViewportSize(NARROW);
+    await setTextSize(page, '200%');
+    await layoutGate(page, 'address fold', 'section[aria-labelledby="this-item"]');
+    await side.screenshot({ path: test.info().outputPath('address-fold-320-200.png') });
+    await setTextSize(page, '100%');
+    await page.setViewportSize({ width: 1280, height: 900 });
+
+    // Taken: nothing is saved, the field says why and keeps what was typed.
+    await page.locator('#title\\.nl').fill('Verhuizing gepland');
+    await field.fill(taken);
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    const alert = page.getByRole('alert');
+    await expect(alert).toContainText('Dit kon niet worden opgeslagen.');
+    await expect(alert.getByRole('link', { name: 'Slug' })).toHaveAttribute('href', '#slug');
+    await expect(alert).toContainText('Er is al een item van deze soort met deze slug.');
+    await expect(side.getByLabel('Slug')).toHaveValue(taken);
+    await expect(side.getByLabel('Slug')).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.locator('#title\\.nl')).toHaveValue('Verhuizing gepland');
+    await expectNoAxeViolations(page);
+
+    const moved = slugFor('slug-to');
+    await side.getByLabel('Slug').fill(moved);
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(`${edit}?saved`);
+    await expect(side).toContainText(`/${moved}`);
+    await expect(page.locator('#title\\.nl')).toHaveValue('Verhuizing gepland');
+
+    // The same use case over HTTP: a taken slug is a 409 Problem.
+    const itemId = edit.split('/').at(-1)!;
+    const conflict = await postUseCase(request, 'content.slug.update', { itemId, slug: taken });
+    expect(conflict.status()).toBe(409);
+    expect(await conflict.json()).toMatchObject({ code: 'conflict' });
+
+    // Live once: the address stays, also over the API.
+    await card(page, 'nl').getByRole('button', { name: 'Publiceren', exact: true }).click();
+    await expect(page).toHaveURL(`${edit}?done=publish&locale=nl`);
+    await expect(side.locator('details', { hasText: 'Adres wijzigen' })).toHaveCount(0);
+    await expect(side).toContainText('Het adres ligt vast sinds de eerste publicatie');
+    expect((await request.get(`${SITE}/${moved}`)).status()).toBe(200);
+    const refused = await postUseCase(request, 'content.slug.update', {
+      itemId,
+      slug: slugFor('slug-late'),
+    });
+    expect(refused.status()).toBe(400);
+    expect(await refused.json()).toMatchObject({
+      issues: [{ path: 'slug', message: 'content.slug.published' }],
+    });
+  });
 
   test('publishing puts a locale live; a later edit stays unpublished until published', async ({
     page,

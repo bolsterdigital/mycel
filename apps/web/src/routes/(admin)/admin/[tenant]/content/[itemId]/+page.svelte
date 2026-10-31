@@ -169,6 +169,7 @@
     teaserBlocks: 'admin.content.field.teaserBlocks',
     locales: 'admin.content.new.locales',
     correctionDate: 'admin.content.edit.correctionDate',
+    slug: 'admin.content.slug',
   };
   /** Whether a refused save named this field. */
   const flagged = (name: string) => issues.some((i) => i.name === name);
@@ -1041,7 +1042,29 @@
 
     <section aria-labelledby="this-item">
       <h2 id="this-item">{t('admin.content.item.title')}</h2>
-      <MetaList items={[{ term: t('admin.content.item.url'), value: `/${data.item.slug}` }]} />
+      <MetaList items={[{ term: t('admin.content.item.url'), value: data.item.path }]} />
+      {#if data.item.slugFixed}
+        <p class="ui-hint">{t('admin.content.slug.fixed')}</p>
+      {:else if data.canWrite}
+        <details class="ui-fold item-slug" open={flagged('slug')}>
+          <summary>{t('admin.content.slug.change')}</summary>
+          <Field
+            id="slug"
+            name="slug"
+            label={t('admin.content.slug')}
+            locale={data.locale}
+            size="m"
+            hint={t('admin.content.slug.editHint')}
+            required
+            maxlength={63}
+            pattern={'[a-z0-9][a-z0-9-]{0,62}'}
+            autocapitalize="off"
+            spellcheck={false}
+            invalid={flagged('slug')}
+            value={v('slug') || data.item.slug}
+          />
+        </details>
+      {/if}
       {#if article}
         <div id="authors">
           <Choices
