@@ -4,6 +4,9 @@
 // same `tenant.export.create` command HTTP and MCP expose; it works while the site is suspended, and a
 // second ask while one is being built gets that one back. A reload shows the progress; nothing
 // polls. Rejected: links signed for longer than a page view, which would outlive the session.
+// One screen (brief admin-operations-screens § 7, #82 PR 2): the archive being built with its
+// step, the newest ready one to download, the history with who asked by name; members and keys
+// are read for those names. No cancel: the export state machine has none (#74).
 import { EXPORT_LINK_TTL_MS, can, signExportDownload, useCases } from '@mycel/core';
 import { error } from '@sveltejs/kit';
 import { act } from '#lib/server/admin/admin-actions.js';
@@ -16,10 +19,24 @@ export const load: PageServerLoad = async ({ parent, locals, params }) => {
   const principal = locals.principal!;
   if (!can(principal, 'tenant:admin')) error(403, 'tenant:admin');
   const rt = runtime();
-  const { exports } = await rt.invoker.run(useCases.listExports, principal, {});
+  const [{ exports }, { members }, { keys }] = await Promise.all([
+    rt.invoker.run(useCases.listExports, principal, {}),
+    rt.invoker.run(useCases.listMembers, principal, {}),
+    rt.invoker.run(useCases.listKeys, principal, {}),
+  ]);
   const until = new Date(rt.clock.now().getTime() + EXPORT_LINK_TTL_MS);
   return {
     retentionDays: rt.config.EXPORT_RETENTION_DAYS,
+    /** One moment for every relative time on the page, the same on server and client. */
+    now: rt.clock.now().toISOString(),
+    /** Who asked, by `actorRef`: a member's name, a key's name. */
+    names: Object.fromEntries([
+      ...members.map((m) => [`operator:${m.operatorId}`, m.name ?? m.email]),
+      ...keys.flatMap((k) => [
+        [`api-key:${k.id}`, k.name],
+        [`agent:${k.id}`, k.name],
+      ]),
+    ]) as Record<string, string>,
     exports: await Promise.all(
       exports.map(async (e) => {
         if (e.status !== 'ready') return { ...e, href: null };
