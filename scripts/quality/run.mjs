@@ -265,6 +265,7 @@ try {
     if (!writerBlocks.some((block) => block.type === 'rich-text' && block.text))
       throw new Error('Corpus revision has no representative prose');
     await page.goto(`${origin}/admin/probe/content`);
+    await page.locator('main a[href*="start=1"]').click();
     await page.getByLabel('E-mail').fill('e2e-admin@probe.test');
     await page.getByRole('button', { name: 'Sign in' }).click();
     await page.waitForURL(`${origin}/admin/probe/content`);

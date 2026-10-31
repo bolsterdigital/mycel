@@ -105,12 +105,18 @@ test.describe('admin', () => {
     expect((await api('/v1/content.published.get?type=page&slug=signup', token)).status).toBe(401);
     await expectNoAxeViolations(page);
 
-    // Logging out ends the session: the admin sends you back through the IdP.
+    // Logging out ends the session: the admin sends you to the login page, which says why and
+    // returns you to the page you asked for.
     await page.getByRole('button', { name: 'Uitloggen' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Je bent uitgelogd' })).toBeVisible();
     await expectNoAxeViolations(page);
     await page.goto('/admin/probe');
-    await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Inloggen' })).toBeVisible();
+    await expect(page.locator('main')).toContainText('of je sessie is verlopen');
+    await expect(page.getByRole('link', { name: 'Inloggen' })).toHaveAttribute(
+      'href',
+      '/admin/login?return=%2Fadmin%2Fprobe&start=1'
+    );
   });
 
   // Roles as presets over capabilities (#101): invite as Editor, then make the set Custom in the
@@ -180,6 +186,26 @@ test.describe('admin', () => {
     await expectNoAxeViolations(page);
   });
 
+  // Brief admin-entry § 1, 7: a page before the IdP, and what the IdP answered in words.
+  test('the login page names the way in, and a refused login says so', async ({ page }) => {
+    await page.goto('/admin/login');
+    await expect(page.getByRole('heading', { level: 1, name: 'Inloggen' })).toBeVisible();
+    await expect(page.locator('main')).not.toContainText('sessie is verlopen');
+    await expect(page.locator('main')).toContainText('Je logt in met je account bij');
+    await expectNoAxeViolations(page);
+
+    await page.goto('/admin/callback?error=access_denied&state=stale');
+    await expect(page.getByRole('heading', { level: 1, name: 'Inloggen mislukt' })).toBeVisible();
+    await expect(page.locator('main')).toContainText('geannuleerd of geweigerd');
+    await expect(page.getByRole('link', { name: 'Opnieuw proberen' })).toHaveAttribute(
+      'href',
+      '/admin/login'
+    );
+    await expectNoAxeViolations(page);
+    await page.goto('/admin/callback?state=stale');
+    await expect(page.locator('main')).toContainText('duurde langer dan tien minuten');
+  });
+
   test('the admin is not served on another origin', async ({ request }) => {
     const res = await request.get('/admin', { headers: { host: 'probe.example.org' } });
     expect(res.status()).toBe(404);
@@ -192,7 +218,9 @@ test.describe('admin', () => {
     page,
     request,
   }) => {
-    const start = await request.get('/admin/login?return=/admin', { maxRedirects: 0 });
+    const start = await request.get('/admin/login?return=/admin&start=1', {
+      maxRedirects: 0,
+    });
     expect(start.status()).toBe(303);
     expect(start.headers()['x-content-type-options']).toBe('nosniff');
     expect(start.headers()['referrer-policy']).toBe('same-origin');
@@ -230,7 +258,7 @@ test.describe('admin', () => {
     const first = await session();
     expect(first).toBeTruthy();
     // A second login on the same browser, with the first session still present.
-    await page.goto('/admin/login?return=/admin');
+    await page.goto('/admin/login?return=/admin&start=1');
     await expect(page.getByRole('heading', { name: 'Mock IdP' })).toBeVisible();
     await page.getByLabel('E-mail').fill(ADMIN);
     await page.getByRole('button', { name: 'Sign in' }).click();

@@ -630,6 +630,7 @@ test.describe('grid-compositions', () => {
         'x-forwarded-for': `2001:db8:46::${Math.floor(Math.random() * 0xffff).toString(16)}`,
       });
       await page.goto(`/admin/probe/content/${saved.item.id}`);
+      await page.locator('main a[href*="start=1"]').click();
       await page.getByLabel('E-mail').fill('e2e-admin@probe.test');
       await page.getByRole('button', { name: 'Sign in' }).click();
       await expect(page).toHaveURL(new RegExp(`/content/${saved.item.id}$`));

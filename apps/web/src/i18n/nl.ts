@@ -123,6 +123,20 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.loginFailed.title': 'Inloggen mislukt',
   'admin.loginFailed.body':
     'Het inloggen kon niet worden afgerond, of duurde langer dan tien minuten. Probeer het opnieuw.',
+  'admin.login.title': 'Inloggen',
+  'admin.login.reason.return':
+    'Je bent niet ingelogd, of je sessie is verlopen. Na het inloggen kom je terug op de pagina waar je was.',
+  'admin.login.how': 'Je logt in met je account bij {idp} en komt daarna hier terug.',
+  'admin.login.submit': 'Inloggen',
+  'admin.login.retry': 'Opnieuw proberen',
+  'admin.login.notConfigured':
+    'Inloggen op het beheer is op deze installatie niet ingesteld. Vraag het aan wie hem beheert.',
+  'admin.login.tooMany':
+    'Er zijn te veel inlogpogingen gedaan vanaf deze verbinding. Wacht een paar minuten en probeer het opnieuw.',
+  'admin.loginFailed.denied':
+    'Het inloggen is geannuleerd of geweigerd bij de inlogdienst. Er is niets veranderd; probeer het opnieuw wanneer je zover bent.',
+  'admin.loginFailed.idp':
+    'De inlogdienst kon het inloggen niet afronden. Probeer het opnieuw; lukt het steeds niet, vraag het dan aan wie deze installatie beheert.',
   'admin.sites.title': 'Jouw sites',
   'admin.sites.empty': 'Je bent nog geen lid van een site',
   'admin.sites.none': 'Nog geen sites. Vraag een beheerder van een site om {email} uit te nodigen.',
