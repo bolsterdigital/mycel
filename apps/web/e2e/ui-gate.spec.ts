@@ -33,6 +33,12 @@ test.describe('ui-gate', () => {
       for (let i = 0; i < (await folds.count()); i++)
         if (await folds.nth(i).isVisible()) await folds.nth(i).click();
     }
+    // One outline deep (#102): inside a group only a flat subgroup (Fieldset `nested`) or a
+    // Choices question, never a second outlined fieldset.
+    await expect(
+      page.locator('.ui-group fieldset:not(.ui-choices, .nested)'),
+      route.path
+    ).toHaveCount(0);
     await setTextSize(page, text);
     await layoutGate(page, `${route.path} at ${text}`, route.within);
     if (text === '100%') await expectNoAxeViolations(page, { label: route.path });

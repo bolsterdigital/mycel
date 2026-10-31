@@ -17,6 +17,7 @@
     Actions,
     Button,
     Checkbox,
+    ColorField,
     Field,
     Fieldset,
     FileDrop,
@@ -45,6 +46,12 @@
     'density',
     'headingWeight',
   ] as const;
+  /** The unit after a number field (#102); the others are plain ratios or weights. */
+  const units: Partial<Record<(typeof numericFields)[number], UiKey>> = {
+    baseSize: 'admin.site.unit.px',
+    measure: 'admin.site.unit.characters',
+    radius: 'admin.site.unit.px',
+  };
   const subject = $derived(data.subnav.find((s) => s.current)?.label ?? '');
   const language = $derived(new Intl.DisplayNames([data.locale], { type: 'language' }));
   const named = (locale: string) => `${language.of(locale) ?? locale} (${locale})`;
@@ -136,6 +143,7 @@
       />
       <Select
         id="site-timeZone"
+        size="m"
         name="timeZone"
         label={t('admin.site.general.timeZone')}
         locale={data.locale}
@@ -233,52 +241,74 @@
           ? value('baseVersion', String(data.theme.version))
           : data.theme.version}
       />
+      <!-- One table per mode (#102): a row per role, its text and background colour and their
+           contrast, one outline deep; the extra roles have one colour. Below 36rem the rows
+           stack (Table `stack`). Rejected: a fieldset per role inside a fieldset per mode. -->
       {#each THEME_MODES as mode (mode)}
-        <Fieldset legend={t(`admin.site.mode.${mode}`)}>
-          {#each THEME_ROLES as role (role)}
-            <Fieldset legend={t(`admin.site.role.${role}`)}>
-              {#each ['foreground', 'background'] as side (side)}
-                {@const name = `${mode}.${role}.${side}`}
-                <Field
-                  id="site-{mode}-{role}-{side}"
-                  {name}
-                  type="color"
-                  label={t(
-                    side === 'foreground' ? 'admin.site.foreground' : 'admin.site.background'
-                  )}
-                  locale={data.locale}
-                  value={value(
-                    name,
-                    data.theme.value.palettes[mode][role][side as 'foreground' | 'background']
-                  )}
-                  oninput={(event) => {
-                    changed[name] = event.currentTarget.value;
-                  }}
-                />
-              {/each}
-              <p class="ui-hint">
-                <output aria-live="polite"
-                  >{t('admin.site.contrast')}: {ratio(mode, role).toFixed(1)}:1 ({ratio(
-                    mode,
-                    role
-                  ) >= 4.5
-                    ? t('admin.site.pass')
-                    : t('admin.site.fail')})</output
-                >
-              </p>
-            </Fieldset>
-          {/each}
-          {#each extraRoles as key (key)}
-            <Field
-              id="site-{mode}-{key}"
-              name="{mode}.{key}"
-              type="color"
-              label={t(`admin.site.role.${key}`)}
-              locale={data.locale}
-              value={value(`${mode}.${key}`, data.theme.value.palettes[mode][key])}
-            />
-          {/each}
-        </Fieldset>
+        <Table
+          id="site-colours-{mode}"
+          caption={t(`admin.site.mode.${mode}`)}
+          stack
+          columns={[
+            { key: 'role', label: t('admin.site.colours.role') },
+            { key: 'foreground', label: t('admin.site.foreground') },
+            { key: 'background', label: t('admin.site.background') },
+            { key: 'contrast', label: t('admin.site.colours.contrast') },
+          ]}
+        >
+          {#snippet rows()}
+            {#each THEME_ROLES as role (role)}
+              {@const roleLabel = t(`admin.site.role.${role}`)}
+              <tr>
+                <th scope="row">{roleLabel}</th>
+                {#each ['foreground', 'background'] as const as side (side)}
+                  {@const name = `${mode}.${role}.${side}`}
+                  {@const sideLabel = t(`admin.site.${side}`)}
+                  <td data-label={sideLabel}>
+                    <ColorField
+                      id="site-{mode}-{role}-{side}"
+                      {name}
+                      label="{roleLabel}: {sideLabel}"
+                      hideLabel
+                      required
+                      locale={data.locale}
+                      value={value(name, data.theme.value.palettes[mode][role][side])}
+                      onchange={(next) => {
+                        changed[name] = next;
+                      }}
+                    />
+                  </td>
+                {/each}
+                <td data-label={t('admin.site.colours.contrast')}>
+                  <output aria-live="polite"
+                    >{ratio(mode, role).toFixed(1)}:1 ({ratio(mode, role) >= 4.5
+                      ? t('admin.site.pass')
+                      : t('admin.site.fail')})</output
+                  >
+                </td>
+              </tr>
+            {/each}
+            {#each extraRoles as key (key)}
+              {@const roleLabel = t(`admin.site.role.${key}`)}
+              <tr>
+                <th scope="row">{roleLabel}</th>
+                <td data-label={t('admin.site.foreground')}>
+                  <ColorField
+                    id="site-{mode}-{key}"
+                    name="{mode}.{key}"
+                    label="{roleLabel}: {t('admin.site.foreground')}"
+                    hideLabel
+                    required
+                    locale={data.locale}
+                    value={value(`${mode}.${key}`, data.theme.value.palettes[mode][key])}
+                  />
+                </td>
+                <td></td>
+                <td></td>
+              </tr>
+            {/each}
+          {/snippet}
+        </Table>
       {/each}
       <Fieldset legend={t('admin.site.group.type')}>
         <Select
@@ -286,6 +316,7 @@
           name="fontPair"
           label={t('admin.site.font')}
           locale={data.locale}
+          size="m"
           options={FONT_PAIRS.map((font) => ({ value: font, label: font }))}
           value={value('fontPair', data.theme.value.fontPair)}
         />
@@ -294,6 +325,7 @@
           name="dropCap"
           label={t('admin.site.dropCap')}
           locale={data.locale}
+          size="m"
           hint={t('admin.site.dropCap.hint')}
           options={DROP_CAPS.map((d) => ({ value: d, label: t(`admin.site.dropCap.${d}`) }))}
           value={value('dropCap', data.theme.value.dropCap ?? 'articles')}
@@ -306,6 +338,7 @@
             step="any"
             required
             label={t(`admin.site.field.${key}`)}
+            unit={units[key] && t(units[key])}
             locale={data.locale}
             value={value(key, String(data.theme.value[key]))}
           />

@@ -82,6 +82,7 @@
       <form method="post" action="?section=api&/createKey" class="ui-fields">
         <Field
           id="key-name"
+          size="m"
           name="name"
           type="text"
           required
