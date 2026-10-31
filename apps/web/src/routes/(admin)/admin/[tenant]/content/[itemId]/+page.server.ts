@@ -613,6 +613,8 @@ async function commit(
   let blocks: readonly { id: string }[] = [];
   let pending: PendingBlock | null = null;
   let revisionId = baseRevisionId;
+  // The address this save moved the item to, once that transaction stood (`moveSlug`).
+  let movedTo: string | null = null;
   try {
     const { item, revision } = await rt.invoker.run(useCases.getItem, principal, {
       itemId,
@@ -669,6 +671,7 @@ async function commit(
       return {
         failure: await refused(tenant, principal, itemId, values, null, moved),
       };
+    movedTo = slugChange(item, data);
     const untouched = formDocument(base, valuesOf(base), unposted, today, editing).document;
     if (opts.always || !isDeepStrictEqual(document, untouched))
       revisionId = (
@@ -692,8 +695,14 @@ async function commit(
     // A document field (canonical, tags, access, locales) is named too: it may sit on a tab
     // that is not shown, and the summary's link is the way to it.
     const onFields = e.code === 'invalid_input' ? documentFieldIssues(e) : [];
-    // A refused insert comes after a save that stood: the form now edits that revision.
-    const saved = { ...values, baseRevisionId: revisionId };
+    // A refused insert comes after a save that stood: the form now edits that revision. A moved
+    // address stood too (its own transaction), so the form is based on it, as `conflictValues`
+    // does; on the old one, moving the address back would read as untouched (#208 review, F2).
+    const saved = {
+      ...values,
+      baseRevisionId: revisionId,
+      ...(movedTo && 'baseSlug' in values ? { baseSlug: movedTo } : {}),
+    };
     if (e.code !== 'conflict')
       return {
         failure: await refused(tenant, principal, itemId, saved, pending, {

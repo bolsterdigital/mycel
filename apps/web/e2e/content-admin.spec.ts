@@ -507,6 +507,37 @@ test.describe('content-admin', () => {
     await expect(side).toContainText(`/${moved}`);
   });
 
+  // The #208 review's F2: the address moves in its own transaction before the revision, so a
+  // revision core refuses after a move leaves the address moved. The form that comes back must
+  // then be based on the new address, or moving it back reads as "unchanged" and is ignored.
+  test('a refused save after a moved address comes back on the new address', async ({ page }) => {
+    // The refusal is the server's; the folded sections without JavaScript add nothing here.
+    onlyA11y('the tabs show the canonical field in one click');
+    await login(page, '/admin/probe');
+    const from = slugFor('refused-from');
+    const edit = await newPage(page, from, 'Geweigerd');
+    const side = page.locator('section[aria-labelledby="this-item"]');
+    await side.locator('details', { hasText: 'Adres wijzigen' }).locator('summary').click();
+    const moved = slugFor('refused-to');
+    await side.getByLabel('Slug').fill(moved);
+    await page.getByRole('tab', { name: 'Zoeken en delen' }).click();
+    await page.locator('[name="canonical"]').fill('geen url');
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page.getByRole('alert')).toContainText(
+      'Het canonieke adres moet beginnen met https://'
+    );
+    await expect(side).toContainText(`/${moved}`);
+    await expect(page.locator('[name="baseSlug"]')).toHaveValue(moved);
+
+    // Moving it back is a change again, saved with the corrected field.
+    await side.locator('details', { hasText: 'Adres wijzigen' }).locator('summary').click();
+    await side.getByLabel('Slug').fill(from);
+    await page.locator('[name="canonical"]').fill('');
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(`${edit}?saved`);
+    await expect(side).toContainText(`/${from}`);
+  });
+
   /** A page of 24 blocks, heading and paragraph by turn, over the HTTP API (#66 PR 6d). */
   async function longPage(request: APIRequestContext): Promise<string> {
     const prose = (text: string) => ({
