@@ -30,6 +30,9 @@
     --gutter: min(1rem, 4vw);
     --inset: min(var(--space-3), 5vw);
     --wide-width: 68rem;
+    /* The item title's own rail (brief 46C-1 rule 8, Dreamkit's centred entry title): wider than
+       the reading column so a long title breaks less, narrower than the wide rail. */
+    --title-width: 52rem;
     --tap: 2.75rem;
   }
 }
@@ -65,6 +68,13 @@
     margin-block: var(--space-4) var(--space-2);
     overflow-wrap: break-word;
     hyphens: auto;
+  }
+  /* The two large steps set tighter (Dreamkit's entry title, 1.1): at 1.2 a two-line h2 reads
+     as two headings. Balanced lines are an enhancement; a browser without it wraps greedily. */
+  h1,
+  h2 {
+    line-height: 1.1;
+    text-wrap: balance;
   }
   h1 {
     font-size: clamp(var(--step-2), 1rem + 4vw, var(--step-4));
@@ -161,16 +171,39 @@
     justify-content: flex-end;
   }
 
-  /* Images: the focal point as object-position, from quantised classes. */
+  /* The item title is centred in its own rail (brief 46C-1 rule 8); the lead stays in the
+     reading column and the hero runs wide under it. Scoped away from the admin, whose page
+     heading is a working title, not an item's. Rejected: a class on the public route only,
+     which would leave the saved and live previews showing a different title than the page. */
+  .page:not(.admin) > h1 {
+    width: min(var(--title-width), 100% - 2 * var(--gutter));
+    text-align: center;
+  }
+
+  /* Images. A caption is as wide as its image and starts at the image's left edge, whatever the
+     layout (brief 46C-1 rules 1 to 4): it sits inside the figure and never follows the reading
+     column. Only an image that touches the container's edge insets its caption, so the text
+     never runs against the screen edge; that is one property, set where a layout is edgeless.
+     Rejected: centring wide captions as Wings and Dreamkit did, which loses the shared edge. */
+  .image,
+  .video {
+    --caption-inset: 0px;
+  }
+  .image.layout-full {
+    --caption-inset: var(--gutter);
+  }
   .image figcaption,
   .video figcaption {
     margin-block-start: var(--space-1);
+    padding-inline: var(--caption-inset);
+    text-align: start;
     font-size: var(--step--1);
     color: var(--color-muted-fg);
   }
-  .page :is(.image, .video) figcaption {
-    width: min(var(--content-width), 100% - 2 * var(--gutter));
-    margin-inline: auto;
+  /* Every image fills its figure, so the image and its caption share a left edge even when the
+     file is narrower than its rail. */
+  .image img {
+    width: 100%;
   }
   .page :is(.cta, .quote, .form) > * {
     max-width: var(--content-width);
@@ -187,6 +220,7 @@
     font-family: var(--font-heading);
     font-size: var(--step-1);
     line-height: 1.4;
+    text-wrap: balance;
   }
   .page > .page-hero {
     margin-block-end: var(--space-3);
@@ -210,17 +244,38 @@
     line-height: 0.8;
     color: var(--color-link);
   }
-  :is(.page, .page > :where(.preview-selectable)) > .layout-float-left,
-  :is(.page, .page > :where(.preview-selectable)) > .layout-float-right {
-    width: min(20rem, 45%);
+  /* An image beside the text (brief 46C-1, the sizes of Wings' floats.js and Dreamkit's
+     _wings-image.scss in this theme's tokens). Container sizes, not viewport sizes, so a
+     narrow preview gets the narrow layout:
+     - from 64rem: half the reading column, standing 8rem out of it but never past the gutter;
+     - between 40rem and 64rem: 40% of the column, on the column's edge;
+     - up to 40rem: no float, the full width inside the gutter.
+     `--float-column` is the reading column as the text sees it; a percentage in it resolves
+     against the page, the float's containing block, in both width and margin. Everything that
+     must not sit beside a hanging float clears it (rule 5). */
+  :is(.page, .page > :where(.preview-selectable)) > :is(.layout-float-left, .layout-float-right) {
+    --float-column: min(var(--content-width), 100% - 2 * var(--gutter));
+    --float-outer: max(var(--gutter), (100% - var(--float-column)) / 2);
+    --float-inner: 1.5rem;
+    width: calc(var(--float-column) * 0.4);
+  }
+  @container (min-width: 64rem) {
+    :is(.page, .page > :where(.preview-selectable)) > :is(.layout-float-left, .layout-float-right) {
+      --float-outer: max(var(--gutter), (100% - var(--float-column)) / 2 - 8rem);
+      --float-inner: max(var(--space-3), 2rem);
+      width: calc(var(--float-column) / 2);
+    }
   }
   :is(.page, .page > :where(.preview-selectable)) > .layout-float-left {
     float: left;
-    margin: 0 var(--space-3) var(--space-2) max(var(--gutter), (100% - var(--content-width)) / 2);
+    margin: 0 var(--float-inner) var(--space-2) var(--float-outer);
   }
   :is(.page, .page > :where(.preview-selectable)) > .layout-float-right {
     float: right;
-    margin: 0 max(var(--gutter), (100% - var(--content-width)) / 2) var(--space-2) var(--space-3);
+    margin: 0 var(--float-outer) var(--space-2) var(--float-inner);
+  }
+  .page :is(.cta, .faq) {
+    clear: both;
   }
   @container (max-width: 40rem) {
     :is(.page, .page > :where(.preview-selectable)) > .layout-float-left,
