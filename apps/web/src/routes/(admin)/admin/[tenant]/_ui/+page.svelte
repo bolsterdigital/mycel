@@ -259,11 +259,7 @@
         <Button variant="secondary">{t('admin.block.move.up')}</Button>
         <Button variant="secondary">{t('admin.block.move.down')}</Button>
         <Button variant="secondary">{t('admin.block.duplicate')}</Button>
-        <ConfirmAction
-          label={t('admin.block.remove.short')}
-          question={fill(t('admin.block.remove.ask'), { n: 3 })}
-          confirm={t('admin.block.remove.confirm')}
-        />
+        <Button variant="danger">{t('admin.block.remove.short')}</Button>
       {/snippet}
       <p>{t('admin.ui.catalogue.panel.body')}</p>
     </BlockCard>

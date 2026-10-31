@@ -1752,6 +1752,22 @@
     padding-block-end: var(--space-1);
     border-block-end: var(--border-width) solid var(--color-border);
   }
+  /* With room for both, the bar stays in view while a long document scrolls (#66 PR 6c): Save
+     and the save state are always one glance away. On a narrow or short screen, or at 200% text,
+     it wraps tall and would cover the text, so it scrolls with the page there. */
+  @media (min-width: 48rem) and (min-height: 36rem) {
+    .ui-item-bar {
+      position: sticky;
+      inset-block-start: 0;
+      z-index: 4;
+      padding-block-start: var(--space-1);
+      background: var(--color-bg);
+    }
+    /* A fragment (an issue link, a block after a save) lands below the bar, not under it. */
+    :root:has(.ui-item-bar) {
+      scroll-padding-block-start: 6rem;
+    }
+  }
   .ui-item-bar-where {
     display: flex;
     flex-wrap: wrap;
