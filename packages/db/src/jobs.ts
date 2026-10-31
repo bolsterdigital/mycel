@@ -9,12 +9,17 @@
 //   transaction marks it done or schedules the retry. A worker that dies mid-job leaves the
 //   lease, and after five minutes another worker takes the job again.
 // * `ensureRecurring` and `startJobWorker`: recurring platform jobs plan themselves, one row per
-//   period whose key names the period, so any number of workers insert at most one.
+//   period whose key names the period, so any number of workers insert at most one. A worker
+//   polls in lanes: types named in a lane are claimed only by that lane's loop, everything else
+//   by the default lane, so a ten-second export never holds a publish or an assist proposal
+//   behind it (TODO #108). Lanes share the role, the queue and SKIP LOCKED (ADR 011 rule 4).
 //
 // Rejected: running handlers inside the claim transaction as `drainOutbox` does (a five-second
 // DNS lookup or partition DDL would hold row locks on the queue, and a crash would roll back the
-// claim without a trace), a cron-expression parser (two cadences), and planning recurring jobs
-// at `migrate` (a worker that runs for months without a deploy must keep itself going).
+// claim without a trace), a cron-expression parser (two cadences), planning recurring jobs at
+// `migrate` (a worker that runs for months without a deploy must keep itself going), and running
+// a batch with bounded concurrency instead of lanes (N slow exports still fill N slots, and the
+// order within a batch would no longer be the claim order).
 
 import { sql, type Kysely } from 'kysely';
 import {
@@ -92,21 +97,25 @@ export function jobScheduler(trx: Kysely<Database>, tenantId: string): Scheduler
 
 /**
  * Claim up to `batchSize` due jobs: open, due, not exhausted, and unclaimed or with an expired
- * lease. `types` narrows the claim (tests use their own type so they never take real work).
+ * lease. `types` narrows the claim (tests use their own type so they never take real work);
+ * `excludeTypes` leaves the types another lane claims.
  */
 export async function claimJobs(
   operatorDb: Kysely<Database>,
   {
     batchSize = 10,
     types,
+    excludeTypes,
     tenantId,
   }: {
     batchSize?: number | undefined;
     types?: readonly string[] | undefined;
+    excludeTypes?: readonly string[] | undefined;
     tenantId?: string | undefined;
   } = {}
 ): Promise<JobRecord[]> {
   const only = types ? [...types] : null;
+  const except = excludeTypes?.length ? [...excludeTypes] : null;
   return asRole(operatorDb, 'mycel_worker', async (trx) => {
     const { rows } = await sql<JobRow>`
       update jobs set claimed_at = now(), attempts = attempts + 1
@@ -116,6 +125,7 @@ export async function claimJobs(
           and (claimed_at is null
                or claimed_at < now() - make_interval(secs => ${JOB_LEASE_SECONDS}))
           and (${only}::text[] is null or type = any(${only}::text[]))
+          and (${except}::text[] is null or type <> all(${except}::text[]))
           and (${tenantId ?? null}::uuid is null or tenant_id = ${tenantId ?? null}::uuid)
         order by run_at, id
         limit ${batchSize}
@@ -285,6 +295,7 @@ export async function runJobs(
   {
     batchSize,
     types,
+    excludeTypes,
     tenantId,
     onError,
     onRun,
@@ -292,6 +303,7 @@ export async function runJobs(
   }: {
     batchSize?: number;
     types?: readonly string[];
+    excludeTypes?: readonly string[];
     /** Narrow a test run to its own tenant; production workers leave this unset. */
     tenantId?: string;
     onError?: (e: unknown, job: JobRecord) => void;
@@ -300,7 +312,7 @@ export async function runJobs(
     log?: Logger;
   } = {}
 ): Promise<JobRunResult> {
-  const jobs = await claimJobs(operatorDb, { batchSize, types, tenantId });
+  const jobs = await claimJobs(operatorDb, { batchSize, types, excludeTypes, tenantId });
   const result: JobRunResult = { claimed: jobs.length, completed: 0, failed: 0, superseded: 0 };
   for (const job of jobs) {
     const handler = Object.hasOwn(handlers, job.type) ? handlers[job.type] : undefined;
@@ -362,13 +374,31 @@ export function reportOrLog(
     });
 }
 
-/** Poll for due jobs until stopped. Returns a function that stops the loop and awaits the last run. */
+/**
+ * A lane of its own for slow job types (TODO #108): its loop claims only `types`, `batchSize` at
+ * a time (default 1, so a waiting job's lease does not run out behind a long one), and the
+ * default lane never claims them.
+ */
+export interface JobLane {
+  name: string;
+  types: readonly string[];
+  batchSize?: number;
+}
+
+/**
+ * Poll for due jobs until stopped: the default lane (recurring planning, every type no lane
+ * names) plus one loop per lane. `onTick` follows the default lane only: a lane of slow jobs is
+ * meant to be busy for minutes, so its silence says nothing about the worker's health. Returns a
+ * function that stops every loop and awaits the last runs.
+ */
 export function startJobWorker(
   operatorDb: Kysely<Database>,
   handlers: JobHandlers,
   {
     intervalMs = 5000,
     recurring = [],
+    lanes = [],
+    tenantId,
     log = noopLogger,
     onError,
     onTick,
@@ -376,41 +406,59 @@ export function startJobWorker(
   }: {
     intervalMs?: number;
     recurring?: readonly RecurringJob[];
+    lanes?: readonly JobLane[];
+    /** Narrow every loop to one tenant's jobs, for a test; production workers leave this unset. */
+    tenantId?: string;
   } & WorkerHooks = {}
 ): () => Promise<void> {
   let stopped = false;
-  let timer: NodeJS.Timeout | undefined;
-  let running: Promise<void> = Promise.resolve();
-  const tick = () => {
-    running = ensureRecurring(operatorDb, recurring)
-      .catch((e) => reportOrLog({ log, onError }, 'planning recurring jobs failed', e))
-      .then(() =>
-        runJobs(operatorDb, handlers, {
-          log,
-          onRun,
-          onError: (e, job) =>
-            reportOrLog({ log, onError }, 'job failed', e, {
-              job: job.type,
-              tenantId: job.tenantId ?? undefined,
-              tags: { jobId: job.id, attempt: String(job.attempts) },
-            }),
+  const laned = lanes.flatMap((l) => l.types);
+  const loop = (
+    claim: { types?: readonly string[]; excludeTypes?: readonly string[]; batchSize?: number },
+    { plan, tick: onPass }: { plan: boolean; tick?: (() => void) | undefined }
+  ) => {
+    let timer: NodeJS.Timeout | undefined;
+    let running: Promise<void> = Promise.resolve();
+    const tick = () => {
+      running = (plan ? ensureRecurring(operatorDb, recurring) : Promise.resolve())
+        .catch((e) => reportOrLog({ log, onError }, 'planning recurring jobs failed', e))
+        .then(() =>
+          runJobs(operatorDb, handlers, {
+            ...claim,
+            ...(tenantId ? { tenantId } : {}),
+            log,
+            onRun,
+            onError: (e, job) =>
+              reportOrLog({ log, onError }, 'job failed', e, {
+                job: job.type,
+                tenantId: job.tenantId ?? undefined,
+                tags: { jobId: job.id, attempt: String(job.attempts) },
+              }),
+          })
+        )
+        .then((r) => {
+          onPass?.();
+          // Run again immediately while there is a backlog.
+          if (!stopped) timer = setTimeout(tick, r.claimed > 0 ? 0 : intervalMs);
         })
-      )
-      .then((r) => {
-        onTick?.();
-        // Run again immediately while there is a backlog.
-        if (!stopped) timer = setTimeout(tick, r.claimed > 0 ? 0 : intervalMs);
-      })
-      .catch((e) => {
-        reportOrLog({ log, onError }, 'job run failed', e);
-        if (!stopped) timer = setTimeout(tick, intervalMs);
-      });
+        .catch((e) => {
+          reportOrLog({ log, onError }, 'job run failed', e);
+          if (!stopped) timer = setTimeout(tick, intervalMs);
+        });
+    };
+    tick();
+    return async () => {
+      clearTimeout(timer);
+      await running;
+    };
   };
-  tick();
+  const stops = [
+    loop({ excludeTypes: laned }, { plan: true, tick: onTick }),
+    ...lanes.map((l) => loop({ types: l.types, batchSize: l.batchSize ?? 1 }, { plan: false })),
+  ];
   return async () => {
     stopped = true;
-    clearTimeout(timer);
-    await running;
+    await Promise.all(stops.map((s) => s()));
   };
 }
 

@@ -43,6 +43,7 @@ import {
   failJob,
   queueLag,
   runJobs,
+  startJobWorker,
   sweepRateLimits,
   uuidv7,
   uuidv7Ids,
@@ -270,6 +271,57 @@ describe.skipIf(skip)('jobs conformance', () => {
     expect([...a!, ...b!].every((j) => j.attempts === 1 && j.claimedAt !== null)).toBe(true);
     // Leased: nothing left to claim.
     expect(await claimJobs(operatorDb, { types: [t] })).toEqual([]);
+  });
+
+  it('leaves the types of another lane to that lane', async () => {
+    const [kept, laned] = [type('kept'), type('laned')];
+    await due(kept);
+    await due(laned);
+    const claimed = await claimJobs(operatorDb, { types: [kept, laned], excludeTypes: [laned] });
+    expect(claimed.map((j) => j.type)).toEqual([kept]);
+    expect((await claimJobs(operatorDb, { types: [laned] })).map((j) => j.type)).toEqual([laned]);
+  });
+
+  it('runs a short job while a slow one holds its own lane (TODO #108)', async () => {
+    const [slow, quick] = [type('slow'), type('quick')];
+    // Tenant jobs, so the worker below can be narrowed to this suite's tenant.
+    await asWorker((trx) =>
+      trx
+        .insertInto('jobs')
+        .values(
+          [slow, quick].map((t) => ({
+            id: uuidv7(),
+            tenant_id: tenantId,
+            type: t,
+            key: `${t}:${uuidv7()}`,
+            // The slow job is due first: in one lane it would run first and hold the other.
+            run_at: new Date(Date.now() - (t === slow ? 2000 : 1000)),
+            payload: '{}',
+          }))
+        )
+        .execute()
+    );
+    let release = () => {};
+    const held = new Promise<void>((r) => (release = r));
+    const done: string[] = [];
+    const stop = startJobWorker(
+      operatorDb,
+      {
+        [slow]: async () => {
+          await held;
+          done.push(slow);
+        },
+        [quick]: async () => void done.push(quick),
+      },
+      { tenantId, intervalMs: 50, lanes: [{ name: 'bulk', types: [slow] }] }
+    );
+    try {
+      await expect.poll(() => done, { timeout: 5000 }).toEqual([quick]);
+    } finally {
+      release();
+      await expect.poll(() => done, { timeout: 5000 }).toEqual([quick, slow]);
+      await stop();
+    }
   });
 
   it('frees the job of a dead worker after the lease, and the late worker cannot complete it', async () => {
