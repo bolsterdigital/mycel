@@ -455,35 +455,104 @@
     margin-block-end: 0;
   }
 
-  /* FAQ: <details> works without JavaScript; the question heading sits inside <summary>. */
+  /* FAQ: <details> works without JavaScript; the question heading sits inside <summary>. The
+     items paint their own surfaces, so a hanging float drops above the block instead of
+     overlapping a card (Dreamkit `_faq.scss`). */
+  .faq {
+    clear: both;
+  }
   .faq h3 {
     margin-block: var(--space-3) var(--space-1);
   }
-  .faq details {
-    border-block-end: 1px solid currentColor;
-    padding-block: var(--space-1);
+  /* The accordion reads as the Dreamkit FAQ: every item a card, the question a bar in the
+     primary pair that turns to the surface pair on hover and when open, a plus of two bars that
+     turns into a minus, the answer on the surface pair. Only validated pairs, no script.
+     Rejected: drawing the bars with gradients, which forced colours would erase; borders keep
+     the icon visible there. */
+  .faq-accordion details {
+    margin-block-end: var(--space-1);
+    border: 1px solid currentColor;
+    border-color: color-mix(in srgb, currentColor 25%, transparent);
+    border-radius: var(--radius);
+    overflow: hidden;
   }
-  .faq summary {
-    cursor: pointer;
-    min-height: var(--tap);
-    display: flex;
+  .faq-accordion summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 1.25rem;
     align-items: center;
-    gap: var(--space-1);
+    column-gap: var(--space-2);
+    min-height: var(--tap);
+    padding: var(--space-2) var(--inset);
+    list-style: none;
+    cursor: pointer;
+    color: var(--color-primary-fg);
+    background: var(--color-primary-bg);
+    transition:
+      background-color 0.2s,
+      color 0.2s;
   }
-  .faq summary::before {
-    content: '+';
-    font-weight: 700;
-    width: 1em;
+  .faq-accordion summary::-webkit-details-marker {
+    display: none;
   }
-  .faq details[open] > summary::before {
-    content: '−';
+  .faq-accordion details[open] > summary {
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
   }
-  .faq summary h3 {
+  @media (hover: hover) {
+    .faq-accordion summary:hover {
+      color: var(--color-surface-fg);
+      background: var(--color-surface-bg);
+    }
+  }
+  /* The card clips its corners, which would clip an outline outside the bar too: draw it just
+     inside. The theme check measures the focus colour 3:1 on every role background. */
+  .faq-accordion summary:focus-visible {
+    outline-offset: -0.25rem;
+  }
+  .faq-accordion summary > :is(h2, h3) {
+    grid-area: 1 / 1;
     margin: 0;
     font-size: var(--step-1);
   }
-  .faq details .answer {
-    padding-block: var(--space-1) var(--space-2);
+  .faq-accordion summary::before,
+  .faq-accordion summary::after {
+    content: '';
+    grid-area: 1 / 2;
+  }
+  .faq-accordion summary::before {
+    border-block-start: 3px solid;
+  }
+  .faq-accordion summary::after {
+    justify-self: center;
+    block-size: 1.25rem;
+    border-inline-start: 3px solid;
+    transition: transform 0.2s;
+  }
+  .faq-accordion details[open] > summary::after {
+    transform: rotate(90deg);
+  }
+  .faq-accordion details > .answer {
+    padding: var(--space-2) var(--inset);
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+  }
+  /* A soft opening where the browser can animate to `auto`; elsewhere it opens at once. */
+  @supports (interpolate-size: allow-keywords) {
+    @media (prefers-reduced-motion: no-preference) {
+      .faq-accordion details {
+        interpolate-size: allow-keywords;
+      }
+      .faq-accordion details::details-content {
+        block-size: 0;
+        overflow-y: clip;
+        transition:
+          block-size 0.2s,
+          content-visibility 0.2s allow-discrete;
+      }
+      .faq-accordion details[open]::details-content {
+        block-size: auto;
+      }
+    }
   }
   /* A wide FAQ uses its wider rail for the section while questions and answers keep a
      readable measure within the actual container, including a narrow preview. */
