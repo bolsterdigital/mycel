@@ -80,14 +80,12 @@ const SafeLink = Mark.create({
     };
   },
   parseHTML() {
-    return [{ tag: 'a[href]' }];
+    return [{ tag: 'a[href]' }, { tag: 'span[data-item-id]' }];
   },
   renderHTML({ HTMLAttributes }) {
-    return [
-      'a',
-      { href: HTMLAttributes.href ?? '#', 'data-item-id': HTMLAttributes.itemId ?? undefined },
-      0,
-    ];
+    return HTMLAttributes.href
+      ? ['a', { href: HTMLAttributes.href, 'data-item-id': HTMLAttributes.itemId ?? undefined }, 0]
+      : ['span', { 'data-item-id': HTMLAttributes.itemId }, 0];
   },
 });
 
@@ -162,4 +160,14 @@ export const articleExtensions = [
   FootnoteReference,
   ExplicitListStart,
   BlockIdentity,
+];
+
+// A page field is one rich-text document. Giving it the article wrapper would let Enter create
+// a second top-level prose node that a single-field serializer could accidentally drop.
+export const proseExtensions = [
+  ...articleExtensions.filter(
+    (extension) =>
+      !['doc', 'mycelProse', 'mycelCard', 'mycelBlockIdentity'].includes(extension.name)
+  ),
+  Node.create({ name: 'doc', topNode: true, content: 'block+' }),
 ];

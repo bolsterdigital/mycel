@@ -335,22 +335,18 @@ test.describe('admin-shell', () => {
       const picker = (s: { src: string | null }) => s.src === '/_admin/media-picker.js';
       // Every tenant route carries the menu's collapse script (#87), a classic one in <head>.
       expect(all).toContainEqual({ src: '/_admin/nav.js', type: null });
-      // The edit screen's sections become tabs with a module of their own (#66 PR 3).
-      const tabs = { src: '/_admin/tabs.js', type: 'module' };
-      if (/\/content\/[^/]+$/.test(path)) expect(all).toContainEqual(tabs);
-      const scripts = all.filter(
-        (s) => !picker(s) && s.src !== '/_admin/nav.js' && s.src !== tabs.src
-      );
+      // Only the integrated editor hydrates. Its tabs and live preview start after hydration;
+      // no-JavaScript still receives the complete native form and one inert bootstrap.
+      const editor = /\/content\/[0-9a-f-]{36}$/.test(path);
+      const bootstrap = all.filter((s) => s.src === null);
+      expect(bootstrap).toHaveLength(editor ? 1 : 0);
+      const scripts = all.filter((s) => !picker(s) && s.src !== '/_admin/nav.js' && s.src !== null);
       if (all.some(picker)) {
-        expect(path).toMatch(/\/content\/[^/]+$/);
+        expect(editor).toBe(true);
         expect(all.filter(picker).every((s) => s.type === 'module')).toBe(true);
       }
       expect(scripts).toEqual(
-        /\/content\/[^/]+$/.test(path)
-          ? [{ src: '/_admin/live-preview-parent.js', type: 'module' }]
-          : /\/media$/.test(path)
-            ? [{ src: '/_admin/file-preview.js', type: 'module' }]
-            : []
+        /\/media$/.test(path) ? [{ src: '/_admin/file-preview.js', type: 'module' }] : []
       );
     }
   }

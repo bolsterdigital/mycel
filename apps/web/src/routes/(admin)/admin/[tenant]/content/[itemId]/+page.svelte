@@ -20,6 +20,9 @@
      the side column has that locale's status card and the other locales as one line each. A
      locale the item lacks shows "start the translation" in place of the content. -->
 <script lang="ts">
+  import { onMount } from 'svelte';
+  import { earlyInput } from '#lib/editor/early-input.js';
+  import WritingSurface from '#lib/editor/WritingSurface.svelte';
   import BlockFields from '#lib/admin/BlockFields.svelte';
   import Diff from '#lib/admin/Diff.svelte';
   import Inherited from '#lib/admin/Inherited.svelte';
@@ -51,8 +54,29 @@
 
   let { data, form }: PageProps = $props();
   const t = $derived(ui(data.locale));
+  onMount(() => {
+    // These modules change disclosure state; start them after hydration has claimed the form.
+    for (const src of [
+      '/_admin/tabs.js',
+      ...(!data.translating && data.item.type === 'page' && data.canWrite
+        ? ['/_admin/live-preview-parent.js']
+        : []),
+    ]) {
+      const script = document.createElement('script');
+      script.type = 'module';
+      script.src = src;
+      document.head.append(script);
+    }
+  });
+  const early = earlyInput('item-edit');
+  const earlyProse = Object.keys(early).some((name) =>
+    data.blocks.some((b) => b.type === 'rich-text' && name.startsWith(`b.${b.id}.`))
+  );
   const posted = $derived(form && 'values' in form ? form.values : null);
-  const values: Record<string, string | string[]> = $derived(posted ?? data.values);
+  const values: Record<string, string | string[]> = $derived({
+    ...(posted ?? data.values),
+    ...early,
+  });
   const v = (k: string): string => {
     const x = values[k];
     return typeof x === 'string' ? x : '';
@@ -183,12 +207,12 @@
     `${base}/content/${data.item.id}/assist?${new URLSearchParams(params)}`;
   /** The values of a block's fields: what a refused post typed, else what is stored. */
   const blockValues = (b: (typeof data.blocks)[number]): Record<string, string> => {
-    if (!posted) return b.values;
+    if (!posted && !Object.keys(early).length) return b.values;
     const prefix = `b.${b.id}.`;
-    const typed = Object.entries(posted).filter(
+    const typed = Object.entries({ ...posted, ...early }).filter(
       (e): e is [string, string] => e[0].startsWith(prefix) && typeof e[1] === 'string'
     );
-    return typed.length ? Object.fromEntries(typed) : b.values;
+    return { ...b.values, ...Object.fromEntries(typed) };
   };
   /** The chain of one locale (#86); images are the same in every locale. */
   const chain = (l: string) => data.effective[l] ?? data.effective[defaultLocale]!;
@@ -272,7 +296,12 @@
     {/each}
     <BlockFields
       fields={BLOCK_DEFINITIONS[p.type as BlockType].fields}
-      values={p.values}
+      values={{
+        ...p.values,
+        ...Object.fromEntries(
+          Object.entries(early).filter((e): e is [string, string] => typeof e[1] === 'string')
+        ),
+      }}
       locales={shown}
       idPrefix="b-new"
       prefix="new."
@@ -302,7 +331,9 @@
     id="block-{b.id}"
     class="block"
     title="{i + 1}. {t(`admin.block.type.${b.type}` as UiKey)}"
-    open={refused || data.openBlocks.includes(b.id)}
+    open={refused ||
+      data.openBlocks.includes(b.id) ||
+      Object.keys(early).some((name) => name.startsWith(prefix))}
     text={b.preview.text}
     thumb={image ? `${base}/media/${image.id}/thumb` : null}
     entries={b.preview.entries}
@@ -453,22 +484,45 @@
 
   <section aria-labelledby="blocks" class="item-blocks">
     <h3 id="blocks">{t('admin.block.title')}</h3>
-    {#if article}
-      <p>
-        <Button variant="secondary" href="{base}/content/{data.item.id}/write"
-          >{t('admin.editor.title')}</Button
-        >
-      </p>
+    {#if article && data.canWrite}
+      <WritingSurface
+        content={data.articleEditor}
+        name="articleEditor"
+        locale={data.locale}
+        contentLocale={work}
+        media={data.media}
+        {base}
+        upload={data.upload}
+        article
+        fallback={earlyProse}
+        value={v('articleEditor')}
+      />
     {/if}
     {#if data.blocks.length === 0 && !pending}
       <EmptyState title={t('admin.block.empty')} level={3} />
+      {#if data.canWrite && data.patterns.length}
+        <Select
+          id="patternId"
+          name="patternId"
+          label={t('admin.content.new.pattern')}
+          locale={data.locale}
+          options={data.patterns.map((p) => ({ value: p.id, label: p.name }))}
+        />
+        <Button variant="secondary" formaction="?/pattern">{t('admin.content.new.pattern')}</Button>
+      {/if}
     {/if}
     {#each data.blocks as b, i (b.id)}
       {#if data.canWrite && !pending}{@render inserter(b)}{/if}
       {#if pending?.place === 'before' && pending.anchor === b.id}{@render pendingCard(
           pending
         )}{/if}
-      {@render blockCard(b, i)}
+      <fieldset
+        data-native-prose={article && b.type === 'rich-text' ? '' : undefined}
+        class="native-block"
+      >
+        <legend class="ui-visually-hidden">{t(`admin.block.type.${b.type}` as UiKey)}</legend>
+        {@render blockCard(b, i)}
+      </fieldset>
       {#if pending?.place === 'after' && pending.anchor === b.id}{@render pendingCard(pending)}{/if}
     {/each}
     {#if pending?.place === 'end'}{@render pendingCard(pending)}{/if}
@@ -870,7 +924,6 @@
       { id: 'settings', label: t('admin.content.tab.settings'), content: settingsTab },
     ]}
   />
-  <script type="module" src="/_admin/tabs.js"></script>
 
   {#snippet preview()}
     {#if livePreview}
@@ -897,7 +950,6 @@
           >
         </p>
       </section>
-      <script type="module" src="/_admin/live-preview-parent.js"></script>
     {/if}
   {/snippet}
 
@@ -955,3 +1007,15 @@
     </section>
   {/snippet}
 </EditPage>
+
+<style>
+  .native-block {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    min-inline-size: 0;
+  }
+  .native-block[hidden] {
+    display: none;
+  }
+</style>

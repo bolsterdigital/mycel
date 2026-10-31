@@ -96,6 +96,43 @@ test.describe('content-admin', () => {
     return new URL(page.url()).pathname;
   }
 
+  test('new content opens a draft immediately and chooses a pattern in the empty column', async ({
+    page,
+    request,
+  }) => {
+    const pattern = await callApi(request, 'content.pattern.create', {
+      name: { nl: `Start ${Date.now()}` },
+      intendedType: 'page',
+      blocks: [
+        {
+          type: 'heading',
+          version: 1,
+          props: { text: { nl: 'Patrooninhoud', en: 'Pattern content' } },
+        },
+      ],
+    });
+    await login(page, '/admin/probe/content?type=page');
+    await page.getByRole('button', { name: 'Nieuwe pagina' }).click();
+    await expect(page).toHaveURL(/\/content\/[0-9a-f-]{36}$/);
+    const itemId = new URL(page.url()).pathname.split('/').at(-1)!;
+    const initial = await callApi(request, 'content.item.get', { itemId });
+    expect(initial.revision.document.title).toEqual({ nl: '(geen titel)' });
+    expect(initial.revision.document.blocks).toEqual([]);
+    await page.locator('#title\\.nl').fill('Meteen in het document');
+    await page.getByLabel('Begin met een patroon').selectOption(pattern.id);
+    await page.getByRole('button', { name: 'Begin met een patroon', exact: true }).click();
+    await expect(page).toHaveURL(/#blocks$/);
+    const saved = await callApi(request, 'content.item.get', { itemId });
+    expect(saved.revision.document.title.nl).toBe('Meteen in het document');
+    expect(saved.revision.document.blocks[0].id).not.toBe(pattern.blocks[0].id);
+    expect(saved.revision.document.blocks[0].props).toEqual(pattern.blocks[0].props);
+    expect(saved.item.publication.every((p: { status: string }) => p.status === 'draft')).toBe(
+      true
+    );
+    await expect(page.getByLabel('Begin met een patroon')).toHaveCount(0);
+    await expectNoAxeViolations(page);
+  });
+
   test('an operator makes a page, edits it, and compares its revisions', async ({ page }) => {
     await login(page, '/admin/probe');
     await page.getByRole('link', { name: 'Pagina’s' }).click();
@@ -111,7 +148,7 @@ test.describe('content-admin', () => {
     expect(await page.locator('script:not([src="/_admin/nav.js"])').count()).toBe(0);
     await expectNoAxeViolations(page);
 
-    await page.getByRole('link', { name: 'Nieuwe pagina' }).click();
+    await page.getByRole('button', { name: 'Nieuwe pagina' }).click();
     await expectNoAxeViolations(page);
     const slug = slugFor('edit');
     const edit = await newPage(page, slug, 'Over de buurt');
@@ -1065,7 +1102,18 @@ test.describe('content-blocks', () => {
     // The first field of that name: a hero also has the title of its image's work, in the
     // credit fieldset further down.
     for (const [n, label, value] of edits) {
-      await (await block(page, n)).getByLabel(label, { exact: true }).first().fill(value);
+      const current = await block(page, n);
+      if (n === 3 && isA11y()) {
+        const surface = current.locator('.writing-surface .ProseMirror');
+        await surface.locator('p').first().fill('');
+        await surface.evaluate((element, source) => {
+          const clipboardData = new DataTransfer();
+          clipboardData.setData('text/plain', source);
+          element.dispatchEvent(
+            new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData })
+          );
+        }, value);
+      } else await current.getByLabel(label, { exact: true }).first().fill(value);
       await save(page, n);
       await expect((await block(page, n)).getByLabel(label, { exact: true }).first()).toHaveValue(
         value
@@ -1302,86 +1350,49 @@ test.describe('content-blocks', () => {
     await expectNoAxeViolations(page);
   });
 
-  test('the enhanced article writer keeps a native FAQ card through autosave and locale changes', async ({
+  test('the integrated article keeps its structured card, identity and other locale in one save', async ({
     page,
     request,
   }) => {
-    onlyA11y('the enhanced writer requires JavaScript');
-    requireApi();
+    onlyA11y();
     const source = await callApi(request, 'content.item.list', {
       type: 'article',
       slug: 'quality-article-v3',
     });
-    expect(source.items).toHaveLength(1);
     const fetched = await callApi(request, 'content.item.get', { itemId: source.items[0].id });
     const prose = fetched.revision.document.blocks.find(
-      (entry: { type: string }) => entry.type === 'rich-text'
+      (b: { type: string }) => b.type === 'rich-text'
     );
-    expect(prose).toBeTruthy();
-    const document = {
-      ...fetched.revision.document,
-      title: { nl: 'Schrijfproef', en: 'Writer proof' },
-      blocks: [prose],
-    };
+    const faqSource = await callApi(request, 'content.item.list', {
+      type: 'page',
+      slug: 'e2e-blokken-a11y',
+    });
+    const fixture = await callApi(request, 'content.item.get', { itemId: faqSource.items[0].id });
+    const faq = fixture.revision.document.blocks.find((b: { type: string }) => b.type === 'faq');
     const created = await callApi(request, 'content.item.create', {
-      slug: `faq-writer-${Date.now()}`,
-      document,
+      slug: `integrated-${Date.now()}`,
+      document: { ...fetched.revision.document, blocks: [prose, faq] },
     });
     const edit = `/admin/probe/content/${created.item.id}`;
-    await login(page, `${edit}/write`);
-    await page.getByRole('link', { name: 'Kaart invoegen' }).click();
-    await expect(page).toHaveURL(new RegExp(`${edit}#insert-type-end$`));
-    const fresh = await insert(page, 'Vragen en antwoorden', 'end');
-    await fresh.getByLabel('Variant').selectOption('accordion');
-    await fresh.getByLabel('Breedte').selectOption('wide');
-    await fresh.getByLabel('Titel', { exact: true }).fill('Schrijfvragen');
-    await fresh.getByLabel('Vraag').first().fill('Blijft dit bewaard?');
-    await fresh.getByLabel('Antwoord').first().fill('Ja, in beide talen.');
-    await add(page);
-    // The English of the new card, on the English screen (#66 PR 4).
-    await page.goto(`${edit}?locale=en`);
-    const english = await block(page, 2);
-    await english.getByLabel('Titel', { exact: true }).fill('Writing questions');
-    await english.getByLabel('Vraag').first().fill('Does this survive?');
-    await english.getByLabel('Antwoord').first().fill('Yes, in both languages.');
-    await save(page, 2);
-    await page.goto(edit);
-    const faqId = await page.locator('details.block').nth(1).getAttribute('id');
-    await card(page, 2).getByRole('button', { name: 'Omhoog' }).click();
-    await expect(page.locator('details.block').first()).toHaveAttribute('id', faqId!);
-    await card(page, 1).getByRole('button', { name: 'Omlaag' }).click();
-    await page.goto(`${edit}/write`);
-    await expect(
-      page.locator(`.writing-surface .editor-card[data-block-id="${faqId?.replace('block-', '')}"]`)
-    ).toBeVisible();
-    await page.locator('.writing-surface .editor-prose p').first().click();
-    await page.keyboard.press('End');
-    await page.keyboard.type(' A new sentence.');
-    await expect(page.getByRole('status')).toHaveText('Alle wijzigingen opgeslagen.');
-    await page.reload();
-    await expect(
-      page.locator(`.writing-surface .editor-card[data-block-id="${faqId?.replace('block-', '')}"]`)
-    ).toBeVisible();
-    await page.goto(edit);
-    await (await block(page, 2)).getByLabel('Breedte').selectOption('full');
-    await save(page, 2);
-    await page.goto(`${edit}/write?locale=en`);
-    // Writing the English text leaves the admin in the operator's language.
-    await expect(page.getByRole('link', { name: 'Kaart invoegen' })).toBeVisible();
-    await expect(
-      page.locator(`.writing-surface .editor-card[data-block-id="${faqId?.replace('block-', '')}"]`)
-    ).toBeVisible();
-    await page.goto(`${edit}?locale=en`);
-    await expect((await block(page, 2)).getByLabel('Breedte')).toHaveValue('full');
-    await expect((await block(page, 2)).getByLabel('Vraag').first()).toHaveValue(
-      'Does this survive?'
-    );
-    const preview = await page.locator('a[data-preview-link="en"]').getAttribute('href');
-    await page.goto(preview!);
-    await expect(page.locator('main .faq.width-full')).toContainText('Does this survive?');
-    await page.goto(`${edit}?locale=en`);
-    await page.getByRole('button', { name: 'Publiceren', exact: true }).click();
-    await expect(page.getByRole('status')).toContainText('Gepubliceerd in en.');
+    await login(page, edit);
+    const surface = page.locator('.writing-surface .ProseMirror').first();
+    await expect(surface).toBeVisible();
+    await surface.locator('.editor-prose p').first().fill('Artikeltekst in één scherm');
+    await page.locator('#title\\.nl').fill('Een nieuwe kop');
+    const card = surface.locator('details.block');
+    await card.locator(':scope > summary').click();
+    await card.getByLabel('Breedte').selectOption('full');
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/saved/);
+    const saved = await callApi(request, 'content.item.get', { itemId: created.item.id });
+    expect(saved.revision.document.title.nl).toBe('Een nieuwe kop');
+    expect(saved.revision.document.blocks.map((b: { id: string }) => b.id)).toEqual([
+      prose.id,
+      faq.id,
+    ]);
+    expect(saved.revision.document.blocks[0].props.content.en).toEqual(prose.props.content.en);
+    expect(saved.revision.document.blocks[1].props.width).toBe('full');
+    await expectNoAxeViolations(page);
   });
 
   test.describe('UI gate: the block forms at 320 CSS px and 200% text', () => {
@@ -1411,7 +1422,7 @@ test.describe('content-blocks', () => {
 });
 
 // The enhanced article view and native block forms save the same core document. The browser
-// proof covers autosave, axe and the action layout at 320 CSS px with 200% text; the no-JS
+// proof covers explicit saving, axe and the action layout at 320 CSS px with 200% text; the no-JS
 // project proves the adjacent form can write the same prose without hydrating the editor.
 test.describe('article-writing', () => {
   test.use({ locale: 'nl-NL' });
@@ -1448,49 +1459,115 @@ test.describe('article-writing', () => {
     return `/admin/probe/content/${item.id}`;
   }
 
-  test('article prose saves through the native form or the enhanced editor', async ({
+  test('article prose and title save together, while the native form and other locale remain lossless', async ({
     page,
     request,
   }) => {
-    requireApi();
     const edit = await article(request);
     await login(page, edit);
-    if (!isA11y()) {
+    await page.locator('#title\\.nl').fill('Gewijzigde kop');
+    if (isA11y()) {
+      await expect(page.locator('.writing-surface .ProseMirror').first()).toBeVisible();
+      await page.locator('.writing-surface .editor-prose p').first().fill('Nieuwe tekst');
+    } else {
       const prose = page.locator('details.block').first();
       await prose.locator(':scope > summary').click();
-      await prose.getByLabel(/^(Text|Tekst)$/).fill('Nieuwe tekst');
-      await page.getByRole('button', { name: /^(Save|Opslaan)$/ }).click();
-      await expect(page).toHaveURL(/\?saved&block=/);
-      await expect(page.locator(`a[href="${edit}/write"]`)).toBeVisible();
-    } else {
-      const consoleErrors: string[] = [];
-      page.on('console', (message) => {
-        if (message.type() === 'error') consoleErrors.push(message.text());
-      });
-      await page.addInitScript(() => {
-        window.writerCspViolations = [];
-        window.addEventListener('securitypolicyviolation', (event) => {
-          window.writerCspViolations.push(`${event.violatedDirective}: ${event.blockedURI}`);
-        });
-      });
-      await page.locator(`a[href="${edit}/write"]`).click();
-      const writing = page.locator('.writing-surface .ProseMirror');
-      await expect(writing).toBeVisible();
-      await writing.locator('p').first().fill('Nieuwe tekst');
-      await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');
-      expect(await page.evaluate(() => window.writerCspViolations)).toEqual([]);
-      expect(consoleErrors).toEqual([]);
-      await expectNoAxeViolations(page);
+      await prose.getByLabel('Tekst', { exact: true }).fill('Nieuwe tekst');
     }
-    await page.goto(edit);
-    const prose = page.locator('details.block').first();
-    await prose.locator(':scope > summary').click();
-    await expect(prose.getByLabel(/^(Text|Tekst)$/)).toHaveValue('Nieuwe tekst');
-    // English, on its own screen (#66 PR 4), was not touched.
-    await page.goto(`${edit}?locale=en`);
-    const english = page.locator('details.block').first();
-    await english.locator(':scope > summary').click();
-    await expect(english.getByLabel(/^(Text|Tekst)$/)).toHaveValue('Old text');
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/saved/);
+    const { revision } = await callApi(request, 'content.item.get', {
+      itemId: edit.split('/').at(-1)!,
+    });
+    expect(revision.document.title.nl).toBe('Gewijzigde kop');
+    expect(revision.document.blocks[0].props.content.nl.content[0].content[0].text).toBe(
+      'Nieuwe tekst'
+    );
+    expect(revision.document.blocks[0].props.content.en.content[0].content[0].text).toBe(
+      'Old text'
+    );
+    if (isA11y()) await expectNoAxeViolations(page);
+    await page.goto(`${edit}/write?locale=en`);
+    await expect(page).toHaveURL(`${edit}?locale=en#blocks`);
+  });
+
+  test('native input typed while the editor bundle loads survives enhancement', async ({
+    page,
+    request,
+  }) => {
+    onlyA11y();
+    const edit = await article(request);
+    await login(page, edit);
+    let release!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/_app/immutable/**/*.js', async (route) => {
+      await ready;
+      await route.continue();
+    });
+    await page.reload({ waitUntil: 'commit' });
+    await page.locator('#title\\.nl').fill('Voor de enhancement');
+    const native = page.locator('details.block').first();
+    await native.locator(':scope > summary').click();
+    await native.getByLabel('Tekst', { exact: true }).fill('Native invoer voor het laden');
+    release();
+    await page.waitForFunction(
+      () => !!document.head.querySelector('script[src="/_admin/tabs.js"]')
+    );
+    await expect(page.locator('#title\\.nl')).toHaveValue('Voor de enhancement');
+    await expect(native.getByLabel('Tekst', { exact: true })).toBeVisible();
+    await expect(native.getByLabel('Tekst', { exact: true })).toHaveValue(
+      'Native invoer voor het laden'
+    );
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/saved/);
+    const saved = await callApi(request, 'content.item.get', { itemId: edit.split('/').at(-1)! });
+    expect(saved.revision.document.title.nl).toBe('Voor de enhancement');
+    expect(saved.revision.document.blocks[0].props.content.nl.content[0].content[0].text).toBe(
+      'Native invoer voor het laden'
+    );
+  });
+
+  test('page prose edits inline and saves in the same form as its title', async ({
+    page,
+    request,
+  }) => {
+    onlyA11y();
+    const source = await article(request);
+    const original = await callApi(request, 'content.item.get', {
+      itemId: source.split('/').at(-1)!,
+    });
+    const {
+      type: _type,
+      authorIds: _authors,
+      sectionId: _section,
+      tags: _tags,
+      corrections: _corrections,
+      delivery: _delivery,
+      ...document
+    } = original.revision.document;
+    const created = await callApi(request, 'content.item.create', {
+      document: { ...document, type: 'page' },
+    });
+    await login(page, `/admin/probe/content/${created.item.id}`);
+    const native = page.locator('details.block').first();
+    await native.locator(':scope > summary').click();
+    const prose = native.locator('.writing-surface .ProseMirror');
+    await expect(prose).toBeVisible();
+    await prose.locator('p').first().fill('Inline pagina-inhoud');
+    await page.locator('#title\\.nl').fill('Pagina met schrijfvlak');
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/saved/);
+    const saved = await callApi(request, 'content.item.get', { itemId: created.item.id });
+    expect(saved.revision.document.title.nl).toBe('Pagina met schrijfvlak');
+    expect(saved.revision.document.blocks[0].props.content.nl.content[0].content[0].text).toBe(
+      'Inline pagina-inhoud'
+    );
+    expect(saved.revision.document.blocks[0].props.content.en).toEqual(
+      original.revision.document.blocks[0].props.content.en
+    );
+    await expectNoAxeViolations(page);
   });
 
   test('typing in an empty article saves and reopens with stable block identity', async ({
@@ -1510,19 +1587,22 @@ test.describe('article-writing', () => {
       },
     });
     const route = `/admin/probe/content/${item.id}/write`;
-    await login(page, route);
+    await login(page, `/admin/probe/content/${item.id}`);
+    await page.goto(route);
     const writing = page.locator('.writing-surface .ProseMirror');
     await expect(writing).toBeVisible();
     await writing.click();
     await page.keyboard.type('Eerste tekst');
-    await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/saved/);
     const id = await writing.locator('[data-mycel-prose]').getAttribute('data-block-id');
     expect(id).toBeTruthy();
     await page.reload();
     await expect(writing).toContainText('Eerste tekst');
     await expect(writing.locator('[data-mycel-prose]')).toHaveAttribute('data-block-id', id!);
     await writing.locator('p').first().fill('Tweede tekst');
-    await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/saved/);
     await page.reload();
     await expect(writing).toContainText('Tweede tekst');
     await expect(writing.locator('[data-mycel-prose]')).toHaveAttribute('data-block-id', id!);
@@ -1535,13 +1615,17 @@ test.describe('article-writing', () => {
     onlyA11y();
     requireApi();
     const edit = await article(request);
-    await login(page, `${edit}/write`);
+    await login(page, edit);
     // login() returns once the URL is the writer's, which can be before its markup is parsed;
     // measuring then finds no toolbar at all (flake on main, run 41097277041).
-    await expect(page.getByRole('toolbar')).toBeVisible();
+    await expect(page.locator('.writing-actions').first()).toBeVisible();
     await page.setViewportSize(NARROW);
     await setTextSize(page, '200%');
-    await layoutGate(page, 'writer actions', '.writer-actions');
+    await layoutGate(page, 'writer actions', '.writing-actions');
+    await test.info().attach('integrated-editor-320-200', {
+      body: await page.screenshot({ fullPage: true }),
+      contentType: 'image/png',
+    });
   });
 
   test('pasted blockquote becomes a structured quote card after attribution', async ({
@@ -1551,7 +1635,7 @@ test.describe('article-writing', () => {
     onlyA11y();
     requireApi();
     const edit = await article(request);
-    await login(page, `${edit}/write`);
+    await login(page, edit);
     const writing = page.locator('.writing-surface .ProseMirror');
     await writing.click();
     await writing.evaluate((element) => {
@@ -1564,47 +1648,45 @@ test.describe('article-writing', () => {
     await expect(page.getByRole('heading', { name: 'Geplakt citaat' })).toBeVisible();
     await page.getByLabel('Naam voor bronvermelding').fill('Sam');
     await page.getByRole('button', { name: 'Kaart toevoegen' }).click();
-    await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/saved/);
     await page.goto(edit);
     await expect(page.locator('details.block')).toHaveCount(2);
-    await expect(page.locator('.ui-block-card-title').nth(1)).toContainText(/Quote|Citaat/);
+    await expect(page.locator('.writing-surface .ui-block-card-title')).toContainText(
+      /Quote|Citaat/
+    );
   });
 
-  test('autosave reports a newer revision and preserves its unrelated fields on retry', async ({
+  test('an integrated prose conflict retains input and never overwrites the newer revision', async ({
     page,
     request,
   }) => {
     onlyA11y();
-    requireApi();
     const edit = await article(request);
     const itemId = edit.split('/').at(-1)!;
-    await login(page, `${edit}/write`);
-    const { revision } = await callApi<{
-      revision: { id: string; document: Record<string, unknown> };
-    }>(request, 'content.item.get', { itemId });
+    await login(page, edit);
+    await expect(page.locator('.writing-surface .ProseMirror').first()).toBeVisible();
+    const { revision } = await callApi(request, 'content.item.get', { itemId });
     await callApi(request, 'content.item.update', {
       itemId,
       baseRevisionId: revision.id,
-      document: {
-        ...revision.document,
-        title: { nl: 'Nieuwe kop van collega', en: 'An article' },
-      },
+      document: { ...revision.document, title: { nl: 'Kop van collega', en: 'An article' } },
     });
-    await page.locator('.writing-surface .ProseMirror p').first().fill('Mijn nieuwe tekst');
+    await page.locator('.writing-surface .editor-prose p').first().fill('Mijn nieuwe tekst');
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
     await expect(
-      page.getByRole('heading', { name: 'Iemand anders heeft dit item intussen opgeslagen' })
+      page
+        .getByRole('alert')
+        .filter({ hasText: 'Iemand anders heeft dit item intussen opgeslagen' })
     ).toBeVisible();
-    await page.setViewportSize(NARROW);
-    await setTextSize(page, '200%');
-    await layoutGate(page, 'writer actions', '.writer-actions');
-    await expect(page.getByText('Mijn nieuwe tekst').first()).toBeVisible();
-    await page.getByRole('button', { name: 'Mijn tekst behouden' }).click();
-    await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');
-    await page.goto(edit);
-    await expect(page.locator('#title\\.nl')).toHaveValue('Nieuwe kop van collega');
-    const prose = page.locator('details.block').first();
-    await prose.locator(':scope > summary').click();
-    await expect(prose.getByLabel('Tekst', { exact: true })).toHaveValue('Mijn nieuwe tekst');
+    await expect(page.locator('.writing-surface .ProseMirror').first()).toContainText(
+      'Mijn nieuwe tekst'
+    );
+    const saved = await callApi(request, 'content.item.get', { itemId });
+    expect(saved.revision.document.title.nl).toBe('Kop van collega');
+    expect(saved.revision.document.blocks[0].props.content.nl).toEqual(
+      revision.document.blocks[0].props.content.nl
+    );
   });
 
   test('pasted image waits for media and alternative text before saving', async ({
@@ -1623,7 +1705,7 @@ test.describe('article-writing', () => {
     const mediaId = revision.document.blocks.find((block) => block.type === 'image')?.props.mediaId;
     expect(mediaId).toBeTruthy();
     const edit = await article(request);
-    await login(page, `${edit}/write`);
+    await login(page, edit);
     const writing = page.locator('.writing-surface .ProseMirror');
     await writing.click();
     await writing.evaluate((element) => {
@@ -1639,26 +1721,29 @@ test.describe('article-writing', () => {
     await expect(page.getByRole('heading', { name: 'Geplakte afbeelding' })).toBeVisible();
     await page.setViewportSize(NARROW);
     await setTextSize(page, '200%');
-    await layoutGate(page, 'writer actions', '.writer-actions');
-    await expect(page.getByRole('status')).toContainText('Niet-opgeslagen wijzigingen');
+    await layoutGate(page, 'writer actions', '.writing-actions');
+    await expect(page.getByRole('alert')).toContainText('Vul de velden van de geplakte kaarten in');
     // The card's image comes from the shared media picker, not a typed id (brief media-picker).
     // The grid holds the newest hundred; this spec's other tests upload more, so search by name.
     const { filename } = await callApi<{ filename: string }>(request, 'media.get', { id: mediaId });
-    await page.getByRole('button', { name: 'Beeld kiezen' }).click();
+    await page.locator('.writing .pending').getByRole('button', { name: 'Beeld kiezen' }).click();
     const picker = page.getByRole('dialog', { name: 'Afbeelding' });
     await picker.getByLabel('Zoeken op naam of bijschrift').fill(filename);
     // A click, not check(): the hydrated picker then renders the choice as its own radio of the
     // same value, which unchecks the script's search result.
     await picker.locator(`input[type="radio"][value="${mediaId}"]`).click();
-    await expect(page.locator('[data-picker-name]').first()).toHaveText(filename);
+    await expect(page.locator('.writing .pending [data-picker-name]').first()).toHaveText(filename);
     await picker.getByRole('button', { name: 'Klaar' }).click();
     await expect(page.getByRole('button', { name: 'Ander beeld kiezen' })).toBeVisible();
     await expect(page.getByLabel('Alternatieve tekst')).toHaveValue('Een boom');
     await page.getByRole('button', { name: 'Kaart toevoegen' }).click();
-    await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/saved/);
     await page.goto(edit);
     await expect(page.locator('details.block')).toHaveCount(2);
-    await expect(page.locator('.ui-block-card-title').nth(1)).toContainText(/Image|Afbeelding/);
+    await expect(page.locator('.writing-surface .ui-block-card-title')).toContainText(
+      /Image|Afbeelding/
+    );
   });
 
   test('TipTap saves headings, lists, links and notes without changing stored structure', async ({
@@ -1754,9 +1839,10 @@ test.describe('article-writing', () => {
         ],
       },
     });
-    await login(page, `${edit}/write`);
-    await page.getByRole('button', { name: 'Nu opslaan' }).click();
-    await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');
+    await login(page, edit);
+
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/saved/);
     const { revision: latest } = await callApi<{ revision: { document: any } }>(
       request,
       'content.item.get',
@@ -1772,6 +1858,8 @@ test.describe('article-writing', () => {
     await page.keyboard.press('End');
     await page.keyboard.type(' aangevuld');
     await expect(listItem).toContainText('Eerste punt aangevuld');
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/saved/);
     await expect
       .poll(async () => {
         const { revision: current } = await callApi<{ revision: { document: any } }>(
@@ -1784,7 +1872,8 @@ test.describe('article-writing', () => {
           .join('');
       })
       .toBe('Eerste punt aangevuld');
-    await expect(page.getByRole('status')).toContainText('Alle wijzigingen opgeslagen');
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/saved/);
     const { revision: afterEdit } = await callApi<{ revision: { document: any } }>(
       request,
       'content.item.get',

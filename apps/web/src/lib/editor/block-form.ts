@@ -14,7 +14,8 @@
 // walk that derives the form from the schema (unions and refinements make it guesswork, see
 // block-types.ts) and per-type Svelte forms (a new type would need a form before it is editable).
 
-import type { BlockField } from '@mycel/core';
+import { RichTextDoc, type BlockField } from '@mycel/core';
+import { fromTiptap } from './article-document.js';
 import { fromMarkdown, toMarkdown, type MarkdownError } from './markdown.js';
 
 export type FormValues = Record<string, string>;
@@ -230,6 +231,15 @@ function reader(form: Posted, errors: FieldError[]): Read {
         );
       case 'rich-text':
         return localizedFrom(form, base, name, (v, l, before) => {
+          const enhanced = form.get(`${join(name, l)}.editor`);
+          if (enhanced) {
+            try {
+              return RichTextDoc.parse(fromTiptap(JSON.parse(enhanced)));
+            } catch {
+              errors.push({ name: join(name, l), message: 'editor.markdown.invalid', line: 1 });
+              return before;
+            }
+          }
           if (isEmpty(v)) return undefined;
           // Unchanged text keeps the stored document exactly.
           if (before && toMarkdown(before as never) === v.replace(/\r\n?/g, '\n')) return before;

@@ -3,7 +3,6 @@
     "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.server.ts": 6,
     "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/assist/+page.server.ts": 4,
     "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/revisions/+page.server.ts": 1,
-    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/write/+page.server.ts": 1,
     "apps/web/src/routes/(admin)/admin/[tenant]/content/new/+page.server.ts": 1,
     "apps/web/src/routes/(admin)/admin/[tenant]/media/[id]/+page.server.ts": 1,
     "apps/web/src/routes/(admin)/admin/[tenant]/media/choices/+server.ts": 1,
@@ -18,7 +17,6 @@
     "apps/web/src/routes/(admin)/admin/[tenant]/connections/+page.server.ts": 1,
     "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.server.ts": 4,
     "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/revisions/+page.server.ts": 2,
-    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/write/+page.server.ts": 3,
     "apps/web/src/routes/(admin)/admin/[tenant]/export/+page.server.ts": 1,
     "apps/web/src/routes/(admin)/admin/[tenant]/media/[id]/+page.server.ts": 2,
     "apps/web/src/routes/(admin)/admin/[tenant]/site/+page.server.ts": 5,
@@ -35,9 +33,7 @@
     "apps/web/src/routes/(public)/[tenant]/_theme/[file]/+server.ts": 1,
     "apps/web/src/routes/(public)/[tenant]/confirm/[outcome]/+page.server.ts": 1
   },
-  "link-regex": {
-    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/write/+page.svelte": 1
-  },
+  "link-regex": {},
   "locale-fallback": {
     "apps/web/src/lib/server/content-blocks.ts": 4,
     "apps/web/src/routes/(admin)/admin/[tenant]/content/+page.server.ts": 1,
