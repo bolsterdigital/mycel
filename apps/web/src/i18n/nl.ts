@@ -616,6 +616,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.publication.title': 'Publicatie',
   'admin.content.publication.locale': 'Taal {locale}',
   'admin.locale.switch': 'Taal van de inhoud',
+  'admin.locale.unknown': 'Deze site heeft die taal niet.',
   'admin.locale.state.behind': 'vertaling loopt achter',
   'admin.locale.state.missing': 'nog geen vertaling',
   'admin.locale.translate.title': 'Nog geen versie in {locale}',

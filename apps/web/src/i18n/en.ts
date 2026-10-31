@@ -609,6 +609,7 @@ export const en = {
   'admin.content.publication.title': 'Publication',
   'admin.content.publication.locale': 'Language {locale}',
   'admin.locale.switch': 'Content language',
+  'admin.locale.unknown': 'This site does not have that language.',
   'admin.locale.state.behind': 'translation is behind',
   'admin.locale.state.missing': 'no translation yet',
   'admin.locale.translate.title': 'No {locale} version yet',

@@ -398,6 +398,9 @@ function instant(at: string, zone: string): string {
   return parsed.toISOString();
 }
 
+/** The operator's admin language; the admin hook always sets it, English only as a last resort. */
+const adminUi = (locals: App.Locals) => ui(locals.lang ?? 'en');
+
 /** Core's issue keys on a save, as admin copy; anything else is the generic invalid message. */
 const ISSUES: Record<string, UiKey> = {
   'i18n.default-not-in-locales': 'admin.content.error.defaultLocale',
@@ -407,6 +410,18 @@ const ISSUES: Record<string, UiKey> = {
   'content.access.teaser-too-long': 'admin.content.error.teaserTooLong',
   'content.access.tier-ids-required': 'admin.content.error.tier',
 };
+
+/** A refused save as admin copy, with the narrowed error; anything that is not a use-case
+ *  refusal is rethrown. Shared by the form's save and the translation start. */
+function saveFailure(e: unknown) {
+  if (!(e instanceof UseCaseError)) throw e;
+  const { status, body } = failureOf(e, 'save', {
+    conflict: 'admin.content.conflict.title',
+    invalid: 'admin.content.error.invalid',
+    issues: ISSUES,
+  });
+  return { error: e, status, body };
+}
 
 /** Who saved the newest revision, when, and what changed since `from`. */
 async function conflictOf(principal: Principal, itemId: string, from: string, zone: string) {
@@ -542,13 +557,8 @@ async function commit(
       place: pending.place,
     });
     return done(result.revision.id, result.created[0] ?? null);
-  } catch (e) {
-    if (!(e instanceof UseCaseError)) throw e;
-    const { status, body } = failureOf(e, 'save', {
-      conflict: 'admin.content.conflict.title',
-      invalid: 'admin.content.error.invalid',
-      issues: ISSUES,
-    });
+  } catch (thrown) {
+    const { error: e, status, body } = saveFailure(thrown);
     const onBlocks = e.code === 'invalid_input' ? blockIssues(e, blocks) : [];
     // A document field (canonical, tags, access, locales) is named too: it may sit on a tab
     // that is not shown, and the summary's link is the way to it.
@@ -851,7 +861,7 @@ export const actions: Actions = {
     const { locals, url, params } = event;
     const { principal } = await requireTenantPrincipal(locals, url, params.tenant);
     if (!can(principal, 'content:publish'))
-      error(403, ui(locals.lang ?? 'en')('admin.assist.error.forbidden'));
+      error(403, adminUi(locals)('admin.assist.error.forbidden'));
     const saved = await commit(event);
     if ('failure' in saved) return saved.failure;
     const locale = text(saved.data, 'locale');
@@ -891,7 +901,8 @@ export const actions: Actions = {
         itemId: event.params.itemId,
         revisionId: saved.revisionId,
       });
-      if (!revision.document.locales.includes(to)) error(400, 'Unknown locale');
+      if (!revision.document.locales.includes(to))
+        error(400, adminUi(event.locals)('admin.locale.unknown'));
     }
     redirect(303, itemPath(saved.tenant.slug, event.params.itemId, to));
   },
@@ -906,7 +917,7 @@ export const actions: Actions = {
     const itemId = event.params.itemId;
     const to = text(data, 'to');
     const from = text(data, 'from') || null;
-    if (!tenant.locales.includes(to)) error(400, 'Unknown locale');
+    if (!tenant.locales.includes(to)) error(400, adminUi(event.locals)('admin.locale.unknown'));
     try {
       const { revision } = await runtime().invoker.run(useCases.getItem, principal, {
         itemId,
@@ -917,13 +928,8 @@ export const actions: Actions = {
         baseRevisionId: revisionId,
         document: withLocale(revision.document, to, from),
       });
-    } catch (e) {
-      if (!(e instanceof UseCaseError)) throw e;
-      const { status, body } = failureOf(e, 'save', {
-        conflict: 'admin.content.conflict.title',
-        invalid: 'admin.content.error.invalid',
-        issues: ISSUES,
-      });
+    } catch (thrown) {
+      const { error: e, status, body } = saveFailure(thrown);
       const conflict =
         e.code === 'conflict' ? await conflictOf(principal, itemId, revisionId, zone) : null;
       return fail(status, {
