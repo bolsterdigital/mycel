@@ -35,7 +35,7 @@ import { headingTag } from './headings.js';
 import { renderMarkdown } from './markdown.js';
 import type { RenderModel } from './model.js';
 import { resolveDocument, type ResolveSource } from './resolve.js';
-import { STEPS, themeCss } from '../theme/tokens.js';
+import { FONT_FILES, STEPS, themeCss, withItalicPreload } from '../theme/tokens.js';
 
 /** A fixed challenge, so the snapshots do not change per run. */
 const PROOF = {
@@ -408,6 +408,31 @@ describe('the demo documents render whole', () => {
         const leak = await representations(marked, 'nl');
         expect(leak.html + leak.markdown).not.toContain(SENTINEL);
       });
+
+  // The public layout's head, as Svelte renders it, around a document body.
+  const page = (body: string) =>
+    `<head><link rel="preload" href="${FONT_FILES.inter.roman}" as="font" type="font/woff2" crossorigin="anonymous"/></head><body>${body}</body>`;
+  const italicLinks = (html: string) =>
+    html.match(/<link rel="preload" href="\/fonts\/inter\/inter-latin-italic\.woff2"[^>]*>/g) ?? [];
+
+  it('a page with italic text preloads the italic face once, at low priority', async () => {
+    const [page1, article] = await Promise.all(
+      demos.map(({ blocks }) => representations(blocks, 'nl'))
+    );
+    const withItalic = withItalicPreload(page(article!.html));
+    expect(italicLinks(withItalic)).toHaveLength(1);
+    expect(italicLinks(withItalic)[0]).toContain('fetchpriority="low"');
+    expect(withItalic.indexOf('inter-latin-italic')).toBeLessThan(withItalic.indexOf('<body'));
+    expect(withItalicPreload(page(page1!.html))).toBe(page(page1!.html));
+    // No theme preload (admin, error pages): nothing to add, whatever the body holds.
+    expect(withItalicPreload(`<head></head><body><em>x</em></body>`)).toBe(
+      `<head></head><body><em>x</em></body>`
+    );
+    // Italic only in the head (a comment, a script string) does not count.
+    expect(withItalicPreload(page('<p>x</p>').replace('<head>', '<head><cite>'))).not.toContain(
+      'inter-latin-italic'
+    );
+  });
 });
 
 describe('theme tokens', () => {
