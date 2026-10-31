@@ -24,7 +24,8 @@ export const forwarded = (address = freshAddress()) => ({
 const escape = (path: string) => path.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 
 /**
- * Go to `path`, get sent through the mock IdP's sign-in form as `email`, and land back on `path`.
+ * Go to `path`, land on the admin's login page, press its button, get sent through the mock IdP's
+ * sign-in form as `email`, and land back on `path`.
  * `headers` are kept on the context next to the fresh address (an `accept-language`, say).
  */
 export async function login(
@@ -35,6 +36,7 @@ export async function login(
 ) {
   await page.context().setExtraHTTPHeaders({ ...headers, ...forwarded() });
   await page.goto(path);
+  await page.locator('main a[href*="start=1"]').click();
   await expect(
     page.getByRole('heading', { name: 'Mock IdP' }),
     `login route: ${path}`
