@@ -6,7 +6,13 @@
 //
 // A field left empty in a locale removes that locale's key: an empty string is not a translation.
 // Taking a locale off the document removes its values everywhere in the document, blocks
-// included; the revision history keeps them. Rejected: refusing to remove a locale that still has
+// included; the revision history keeps them.
+//
+// The edit screen shows one locale at a time (#66 PR 4, ADR 020 rule 5): `documentFrom` with an
+// `editing` locale reads only that locale's values from the form and keeps every other locale of
+// every localised field exactly as the base revision has it. That is the merge which makes a
+// form of one locale safe; content-admin.test.ts proves it as a property. Rejected: posting the
+// other locales as hidden fields (a stale tab would write them back over a newer translation). Rejected: refusing to remove a locale that still has
 // text (until #11 B there is no way to clear a block's text in the admin), and keeping the values
 // (core rejects a value for a locale the document does not have).
 //
@@ -52,10 +58,23 @@ const many = (v: FormValues, key: string): string[] => {
   return Array.isArray(x) ? x : typeof x === 'string' && x ? [x] : [];
 };
 
-/** `{ nl: 'x' }` from `title.nl` and friends; empty values are left out. */
-function localized(v: FormValues, prefix: string, locales: readonly string[]) {
+/**
+ * `{ nl: 'x' }` from `title.nl` and friends; empty values are left out. With `editing`, only that
+ * locale comes from the form and every other locale of `locales` keeps what `kept` has.
+ */
+function localized(
+  v: FormValues,
+  prefix: string,
+  locales: readonly string[],
+  editing?: { locale: string | null; kept: Partial<Record<string, string>> | undefined }
+) {
   const out: Record<string, string> = {};
   for (const l of locales) {
+    if (editing && l !== editing.locale) {
+      const kept = editing.kept?.[l];
+      if (kept !== undefined) out[l] = kept;
+      continue;
+    }
     const text = one(v, `${prefix}.${l}`).trim();
     if (text) out[l] = text;
   }
@@ -102,21 +121,31 @@ export function valuesOf(doc: ContentDocument): FormValues {
 
 /**
  * `base` with the form's fields put in; the result goes to `content.item.update`, which
- * validates it. `today` dates a new correction when the form gives no date.
+ * validates it. `today` dates a new correction when the form gives no date. `editing` is the one
+ * locale the form shows (#66 PR 4): every other locale keeps the base's values; `null` reads no
+ * locale at all (a form opened on a locale the document does not have yet); left out, the form
+ * carries every locale of the document.
  */
 export function documentFrom(
   base: ContentDocument,
   v: FormValues,
-  today: string
+  today: string,
+  editing?: string | null
 ): ContentDocumentInput {
   const chosen = many(v, 'locales');
   const locales = chosen.length ? chosen : [...base.locales];
   const doc = withoutLocales(base, locales);
+  // The locale the form shows, if the document (still) has it; a locale taken off is not read.
+  const shown =
+    editing === undefined ? undefined : editing && locales.includes(editing) ? editing : null;
+  /** The localised map under `prefix`, merged with `kept` when the form shows one locale. */
+  const pick = (prefix: string, kept: Partial<Record<string, string>> | undefined) =>
+    localized(v, prefix, locales, shown === undefined ? undefined : { locale: shown, kept });
   const teaser = one(v, 'teaser');
   const level = one(v, 'level') as ContentDocument['access']['level'];
   const seo: ContentDocumentInput['seo'] = { noindex: one(v, 'noindex') === 'on' };
-  const seoTitle = optional(localized(v, 'seoTitle', locales));
-  const seoDescription = optional(localized(v, 'seoDescription', locales));
+  const seoTitle = optional(pick('seoTitle', doc.seo.title));
+  const seoDescription = optional(pick('seoDescription', doc.seo.description));
   const canonical = one(v, 'canonical').trim();
   if (seoTitle) seo.title = seoTitle;
   if (seoDescription) seo.description = seoDescription;
@@ -126,8 +155,8 @@ export function documentFrom(
   const heroImageId = image(v, 'heroImageId', doc.heroImageId);
   const featuredImageId = image(v, 'featuredImageId', doc.featuredImageId);
   const featured = {
-    title: optional(localized(v, 'featuredTitle', locales)),
-    description: optional(localized(v, 'featuredDescription', locales)),
+    title: optional(pick('featuredTitle', doc.featured?.title)),
+    description: optional(pick('featuredDescription', doc.featured?.description)),
   };
   const tierIds = (level || doc.access.level) === 'tier' ? doc.access.tierIds : undefined;
   const {
@@ -137,7 +166,7 @@ export function documentFrom(
     lead: _lead,
     ...rest
   } = doc;
-  const lead = optional(localized(v, 'lead', locales));
+  const lead = optional(pick('lead', doc.lead));
   const common = {
     ...rest,
     ...(heroImageId ? { heroImageId } : {}),
@@ -153,7 +182,7 @@ export function documentFrom(
       : {}),
     ...(lead ? { lead } : {}),
     locales,
-    title: localized(v, 'title', locales),
+    title: pick('title', doc.title),
     seo,
     // The access fields show only on a site with readers (#66 PR 2); a form without them keeps
     // the document's access as it is.
@@ -173,7 +202,12 @@ export function documentFrom(
   };
   if (doc.type !== 'article') return common as ContentDocumentInput;
 
-  const correction = localized(v, 'correctionText', locales);
+  // A new correction is written in the locale the form shows; the stored ones stay as they are.
+  const correction = localized(
+    v,
+    'correctionText',
+    shown === undefined ? locales : shown ? [shown] : []
+  );
   return {
     ...common,
     type: 'article',
@@ -221,6 +255,21 @@ export function withoutLocales(doc: ContentDocument, keep: readonly string[]): C
   // `localizedFields` hands out the maps of `copy` itself, so deleting from them edits the copy.
   for (const field of localizedFields(copy))
     for (const l of Object.keys(field.value)) if (!keep.includes(l)) delete field.value[l];
+  return copy;
+}
+
+/**
+ * A copy of `doc` with `to` among its locales: empty, or with every localised value of `from`
+ * copied (#66 PR 4, "start the translation from nl"). Nothing else changes, so the copy is an
+ * ordinary save; readiness then holds the new locale to the same fields as the others.
+ */
+export function withLocale(doc: ContentDocument, to: string, from: string | null): ContentDocument {
+  const copy = structuredClone(doc);
+  if (!copy.locales.includes(to)) copy.locales = [...copy.locales, to];
+  if (from && from !== to && doc.locales.includes(from))
+    for (const field of localizedFields(copy))
+      if (field.value[from] !== undefined && field.value[to] === undefined)
+        field.value[to] = structuredClone(field.value[from]);
   return copy;
 }
 

@@ -10,10 +10,13 @@
      list stays whole. A screen with sections (Settings) names them as `subnav` in its page data;
      the shell hangs them under the current item, the screen itself knows nothing of the shell.
      Rejected: a rail that switches on by itself on edit screens (it surprises, and the script
-     path would differ per screen; Jaap 2026-10-30). -->
+     path would differ per screen; Jaap 2026-10-30).
+     Under the site's name, a site with more than one locale has the content locale switch (#66
+     PR 4): a form that stores the choice and comes back here. An edit screen says `itemLocale`
+     in its page data and switches in its own bar instead, where it saves what was typed first. -->
 <script lang="ts">
   import { page } from '$app/state';
-  import { Icon, IconSprite, NavGroup, type IconName } from '#lib/admin/ui/index.js';
+  import { Icon, IconSprite, LocaleSwitch, NavGroup, type IconName } from '#lib/admin/ui/index.js';
   import { ui, type UiKey } from '../../../../i18n/index.js';
   import type { LayoutProps } from './$types';
 
@@ -27,6 +30,10 @@
    * says which type it shows as `contentType` in its page data, the editor and writer included. */
   const contentType = $derived(
     (page.data as { contentType?: unknown }).contentType === 'article' ? 'article' : 'page'
+  );
+  /** The shell's locale switch: a site with several locales, off on an edit screen. */
+  const localeSwitch = $derived(
+    data.tenant.locales.length > 1 && !(page.data as { itemLocale?: boolean }).itemLocale
   );
   const has = (capability: (typeof data.capabilities)[number]) =>
     data.capabilities.includes(capability) || data.capabilities.includes('tenant:admin');
@@ -94,6 +101,20 @@
     <div class="admin-sidebar-top">
       <a class="admin-brand" href="/admin">{t('admin.title')}</a>
       <a class="admin-site-name" href={base}>{data.tenant.name}</a>
+      {#if localeSwitch}
+        <form class="admin-content-locale" method="post" action="{base}/content-locale">
+          <input type="hidden" name="return" value={page.url.pathname + page.url.search} />
+          <LocaleSwitch
+            label={t('admin.locale.switch')}
+            locale={data.locale}
+            locales={data.tenant.locales.map((l) => ({
+              locale: l,
+              state: 'ok' as const,
+              current: l === data.contentLocale,
+            }))}
+          />
+        </form>
+      {/if}
     </div>
     <details class="admin-menu">
       <summary><Icon name="menu" />{t('admin.shell.menu')}</summary>

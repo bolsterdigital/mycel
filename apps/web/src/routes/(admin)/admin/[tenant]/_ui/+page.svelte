@@ -2,7 +2,8 @@
      the admin, so the UI gate in e2e/ui-gate.spec.ts measures what screens will show. Copy comes
      from the catalogs; the file names are sample data. The rail (#87) is the page's own sidebar,
      collapsed with its button; a field's hint behind its ⓘ is in the form section, a screen's
-     sections under its menu item in the navigation section, and relative dates in the table. -->
+     sections under its menu item in the navigation section, and relative dates in the table. The
+     item bar carries the content locale switch with a locale behind and one missing (#66 PR 4). -->
 <script lang="ts">
   import {
     Actions,
@@ -10,6 +11,7 @@
     BlockCard,
     Button,
     ItemBar,
+    LocaleSwitch,
     StatusCard,
     Card,
     CardGrid,
@@ -472,6 +474,17 @@
       tone="warning"
       level={3}
     >
+      {#snippet locales()}
+        <LocaleSwitch
+          label={t('admin.locale.switch')}
+          locale={data.locale}
+          locales={[
+            { locale: 'nl', state: 'ok', current: true },
+            { locale: 'en', state: 'behind', current: false },
+            { locale: 'de', state: 'missing', current: false },
+          ]}
+        />
+      {/snippet}
       {#snippet actions()}
         <Button variant="secondary" type="button">{t('admin.content.edit.previewShort')}</Button>
         <Button type="button">{t('admin.content.edit.save')}</Button>

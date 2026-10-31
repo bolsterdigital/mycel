@@ -6,7 +6,8 @@
 // with and without the base (block-form.test.ts).
 //
 // Editing one locale leaves the others alone: a locale the form does not carry keeps what the
-// base had, and only the locales of the document are rendered. Rich text that is unchanged in
+// base had, and only the locales asked for are rendered (the edit screen asks for one, #66 PR 4).
+// A list row whose shown locale is emptied stays while another locale still has text in it. Rich text that is unchanged in
 // the textarea keeps its stored JSON exactly, so opening and saving a form never rewrites a
 // document into its canonical form. Validation stays core's: this builds the props as typed and
 // the block schema decides (`content.block.update`, `content.block.insert`). Rejected: a Zod
@@ -166,6 +167,39 @@ function localesIn(form: Posted, name: string): Record<string, true> {
 }
 
 function reader(form: Posted, errors: FieldError[]): Read {
+  /** A localised value under `name` with a locale the form does not carry (#66 PR 4). */
+  const untouched = (value: unknown, name: string) =>
+    Object.entries(asRecord(value)).some(
+      ([l, x]) => x !== undefined && form.get(join(name, l)) === null
+    );
+  /**
+   * Whether the stored row `base` has text in a locale the form does not show: a form of one
+   * locale then keeps the row, even when its own locale's fields are empty.
+   */
+  const elsewhere = (fields: readonly BlockField[], base: unknown, name: string): boolean =>
+    fields.some((f) => {
+      const value = asRecord(base)[f.key];
+      const at = join(name, f.key);
+      switch (f.kind) {
+        case 'text':
+          return f.localized && untouched(value, at);
+        case 'caption':
+        case 'rich-text':
+          return untouched(value, at);
+        case 'actions':
+          return (Array.isArray(value) ? (value as Props[]) : []).some((a, i) =>
+            untouched(a.label, join(join(at, i), 'label'))
+          );
+        case 'group':
+          return elsewhere(f.fields, value, at);
+        case 'list':
+          return (Array.isArray(value) ? value : []).some((row, i) =>
+            elsewhere(f.fields, row, join(at, i))
+          );
+        default:
+          return false;
+      }
+    });
   const read: Read = (field, base, name) => {
     switch (field.kind) {
       case 'text': {
@@ -254,7 +288,7 @@ function reader(form: Posted, errors: FieldError[]): Read {
             .names()
             .filter((n) => n.startsWith(`${row}.`))
             .some((n) => !isEmpty(form.get(n)) && !n.endsWith('.mode'));
-          if (!typed) continue;
+          if (!typed && !elsewhere(field.fields, before[i], row)) continue;
           out.push(groupFrom(field.fields, asRecord(before[i]), row, read));
         }
         return out;

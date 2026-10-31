@@ -558,6 +558,8 @@ export const en = {
   'admin.content.status.published': 'published',
   'admin.content.status.unpublished': 'offline',
   'admin.content.status.changes': 'unpublished changes',
+  'admin.content.status.changed': 'changed',
+  'admin.content.status.missing': 'no translation yet',
   'admin.content.type.legend': 'Type',
   'admin.content.type.page': 'Page',
   'admin.content.type.article': 'Article',
@@ -611,7 +613,7 @@ export const en = {
   'admin.content.state': 'Status',
   'admin.content.edit.fields': 'Details',
   'admin.content.edit.localesHint':
-    'After adding a language, save first; its fields then appear. Taking a language off removes its texts from this item; earlier revisions keep them.',
+    'After saving, fill in an added language through the language switch at the top. Taking a language off removes its texts from this item; earlier revisions keep them.',
   'admin.content.edit.noAuthors': 'This site has no authors yet.',
   'admin.content.edit.noSection': 'No section',
   'admin.content.edit.correctionDate': 'Date of a new correction',
@@ -753,6 +755,17 @@ export const en = {
   'admin.content.error.tier': 'A paid tier needs a tier; that is not available yet.',
   'admin.content.publication.title': 'Publication',
   'admin.content.publication.locale': 'Language {locale}',
+  'admin.locale.switch': 'Content language',
+  'admin.locale.unknown': 'This site does not have that language.',
+  'admin.locale.state.behind': 'translation is behind',
+  'admin.locale.state.missing': 'no translation yet',
+  'admin.locale.translate.title': 'No {locale} version yet',
+  'admin.locale.translate.body':
+    'Start from a copy of another language and translate it field by field, or start empty. The other languages stay as they are.',
+  'admin.locale.translate.copy': 'Start from {locale}',
+  'admin.locale.translate.empty': 'Start empty',
+  'admin.locale.translate.assist':
+    'With AI help you then translate each field from another language; such a translation stays marked until someone approves it.',
   'admin.content.publication.pinnedOlder':
     'You are editing a newer revision; it does not go along by itself.',
   'admin.content.publication.ready': 'Ready to publish.',

@@ -146,6 +146,7 @@
         "apps/web/src/routes/(admin)/**",
         "apps/web/src/lib/server/content-admin*",
         "apps/web/src/lib/server/content-blocks*",
+        "apps/web/src/lib/server/edit-form*",
         "apps/web/src/lib/editor/**",
         "apps/web/src/lib/theme/**",
         "packages/core/src/theme/**",
@@ -176,6 +177,7 @@
         "apps/web/src/lib/server/http/http-cache*",
         "apps/web/src/lib/server/public-page.ts",
         "apps/web/src/lib/server/admin/time-zones*",
+        "apps/web/src/lib/server/content-locale*",
         "apps/web/src/params.ts",
         "packages/api/src/content-read.ts"
       ],
