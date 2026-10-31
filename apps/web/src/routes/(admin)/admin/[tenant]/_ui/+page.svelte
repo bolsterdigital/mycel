@@ -11,6 +11,7 @@
     BlockCard,
     BlockSummary,
     Button,
+    DocumentOutline,
     ItemBar,
     LocaleSwitch,
     StatusCard,
@@ -360,6 +361,28 @@
         {
           href: `${here}?section=domains#ui-subnav`,
           label: t('admin.ui.catalogue.subnav.domains'),
+        },
+      ]}
+    />
+  </section>
+
+  <section aria-labelledby="ui-outline">
+    <h2 id="ui-outline">{t('admin.ui.catalogue.outline')}</h2>
+    <DocumentOutline
+      label={t('admin.content.outline.title')}
+      count={fill(t('admin.content.outline.count'), { count: '3' })}
+      open
+      entries={[
+        {
+          href: `${here}#ui-block-card`,
+          kind: t('admin.block.type.signup-form'),
+          text: t('admin.ui.catalogue.blockCard.q1'),
+        },
+        { href: `${here}#ui-panel`, kind: t('admin.block.type.image'), text: '' },
+        {
+          href: `${here}#ui-table`,
+          kind: t('admin.block.type.faq'),
+          text: t('admin.ui.catalogue.blockCard.text'),
         },
       ]}
     />

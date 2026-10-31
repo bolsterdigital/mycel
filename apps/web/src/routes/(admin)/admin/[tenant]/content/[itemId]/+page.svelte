@@ -33,12 +33,14 @@
   import { issueLabel } from '#lib/admin/issue-label.js';
   import {
     Actions,
+    Badge,
     BlockCard,
     BlockImage,
     BlockSummary,
     Button,
     Checkbox,
     Choices,
+    DocumentOutline,
     EditPage,
     EmptyState,
     Field,
@@ -106,6 +108,20 @@
   const multi = $derived(data.translations.length > 1);
   const base = $derived(`/admin/${data.tenant.slug}`);
   const article = $derived(data.item.type === 'article');
+  /**
+   * From this many blocks a page gets its compact table of contents (#66 PR 6d): about two
+   * screens of closed cards. An article with JavaScript is one running editor, not cards.
+   */
+  const OUTLINE_FROM = 8;
+  const outline = $derived(
+    !article && data.blocks.length >= OUTLINE_FROM
+      ? data.blocks.map((b) => ({
+          href: `#block-${b.id}`,
+          kind: t(`admin.block.type.${b.type}` as UiKey),
+          text: b.preview.text || b.preview.entries[0] || '',
+        }))
+      : []
+  );
   const defaultLocale = $derived(data.item.defaultLocale);
   const title = $derived(
     (data.values[`title.${work}`] as string | undefined) ||
@@ -569,6 +585,13 @@
         <Button variant="secondary" formaction="?/pattern">{t('admin.content.new.pattern')}</Button>
       {/if}
     {/if}
+    {#if outline.length}
+      <DocumentOutline
+        label={t('admin.content.outline.title')}
+        count={fill(t('admin.content.outline.count'), { count: String(outline.length) })}
+        entries={outline}
+      />
+    {/if}
     {#each data.blocks as b, i (b.id)}
       {#if data.canWrite && !pending}{@render inserter(b)}{/if}
       {#if pending?.place === 'before' && pending.anchor === b.id}{@render pendingCard(
@@ -1030,6 +1053,19 @@
         aria-labelledby="live-preview-title"
       >
         <h2 id="live-preview-title">{t('admin.content.preview.live')}</h2>
+        <!-- What the preview shows, in words (#66 PR 6d): what is typed now, or an older image when
+             the newest input could not be shown. One status region, so the switch is announced. -->
+        <div class="ui-preview-shows" role="status" data-preview-state="current">
+          <p data-preview-shows="current">
+            <Badge tone="info">{t('admin.content.preview.kind.input')}</Badge>
+            {t('admin.content.preview.kind.inputHint')}
+          </p>
+          <div data-preview-shows="behind">
+            <Notice tone="warning" live={false} title={t('admin.content.preview.behind.title')}>
+              <p>{t('admin.content.preview.behind.body')}</p>
+            </Notice>
+          </div>
+        </div>
         <input type="hidden" value={work} data-live-preview-locale />
         <iframe
           name="mycel-live-preview"

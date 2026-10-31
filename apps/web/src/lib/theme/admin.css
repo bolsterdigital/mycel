@@ -473,7 +473,8 @@
     min-block-size: 28rem;
     border: 2px solid var(--color-muted);
   }
-  .live-preview[hidden] {
+  .live-preview[hidden],
+  .live-preview iframe[hidden] {
     display: none;
   }
   /* Inline padding follows the public `.button` (base.css): at 320 px and 200% text a fixed

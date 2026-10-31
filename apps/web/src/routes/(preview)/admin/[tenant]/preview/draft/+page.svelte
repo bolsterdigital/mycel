@@ -41,7 +41,9 @@
       <span class:site-wordmark={form.brand.wordmark}>{form.brand.name}</span>
     </span>
   </header>
-  <main class="page" data-drop-cap={form.dropCap ? '' : undefined}>
+  <!-- `data-live-preview-rendered`: the editor shows this frame only once it carries the mark, so
+       a refused draft (an error page) never replaces the last good image (#66 PR 6d). -->
+  <main class="page" data-drop-cap={form.dropCap ? '' : undefined} data-live-preview-rendered>
     <h1>{form.model.title}</h1>
     <Intro intro={form.intro} model={form.model} />
     <Blocks

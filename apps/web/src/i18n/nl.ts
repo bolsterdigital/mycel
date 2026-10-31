@@ -786,11 +786,24 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.preview.issues': 'Nog niet klaar om in deze taal te publiceren:',
   'admin.content.preview.edit': 'Terug naar bewerken',
   'admin.content.preview.form': 'Het formulier werkt niet in het voorbeeld.',
-  'admin.content.preview.live': 'Live voorbeeld van niet-opgeslagen wijzigingen',
+  'admin.content.preview.live': 'Voorbeeld van je invoer',
   'admin.content.preview.saved': 'Opgeslagen versie in nieuw tabblad',
-  'admin.content.preview.locale': 'Taal van het live voorbeeld',
+  'admin.content.preview.locale': 'Taal van het voorbeeld',
   'admin.content.preview.keyboard':
     'Met het toetsenbord kun je elk blok via de bloklijst hieronder bewerken.',
+  'admin.content.preview.kind.input': 'Actuele invoer',
+  'admin.content.preview.kind.inputHint':
+    'Wat nu in het formulier staat, ook wat nog niet is opgeslagen.',
+  'admin.content.preview.kind.draft': 'Concept',
+  'admin.content.preview.kind.live': 'Live',
+  'admin.content.preview.kind.older': 'Eerdere revisie',
+  'admin.content.preview.liveRevision':
+    'De versie die bezoekers nu zien ({when}, door {who}) in {locale}.',
+  'admin.content.preview.behind.title': 'Dit voorbeeld loopt achter',
+  'admin.content.preview.behind.body':
+    'Je laatste invoer kon nog niet als voorbeeld worden getoond, bijvoorbeeld omdat een veld nog niet klopt. Je ziet de laatste versie die wel kon; Opslaan laat zien wat er mis is.',
+  'admin.content.outline.title': 'Inhoudsopgave',
+  'admin.content.outline.count': '{count} blokken',
   'admin.content.error.invalid':
     'Dit kon niet worden opgeslagen. Controleer de velden en probeer het opnieuw.',
   'admin.content.error.slugTaken': 'Er is al een item van deze soort met deze slug.',
@@ -1219,6 +1232,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.ui.catalogue.subnav.general': 'Algemeen',
   'admin.ui.catalogue.subnav.theme': 'Thema',
   'admin.ui.catalogue.subnav.domains': 'Domeinen',
+  'admin.ui.catalogue.outline': 'Inhoudsopgave van een document',
   'admin.ui.catalogue.confirm': 'Bevestigen in de rij, eenmalig tonen en kopiëren',
   'admin.ui.catalogue.dialog': 'Dialoogvenster',
   'admin.ui.catalogue.dialog.open': 'Op ware grootte bekijken',
