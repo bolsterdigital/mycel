@@ -7,9 +7,8 @@
 // One screen (brief admin-operations-screens § 7, #82 PR 2): the archive being built with its
 // step, the newest ready one to download, the history with who asked by name; members and keys
 // are read for those names. No cancel: the export state machine has none (#74).
-import { EXPORT_LINK_TTL_MS, can, signExportDownload, useCases } from '@mycel/core';
-import { error } from '@sveltejs/kit';
-import { act } from '#lib/server/admin/admin-actions.js';
+import { EXPORT_LINK_TTL_MS, signExportDownload, useCases } from '@mycel/core';
+import { act, loaded } from '#lib/server/admin/admin-actions.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { UiKey } from '../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
@@ -17,12 +16,11 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ parent, locals, params }) => {
   await parent();
   const principal = locals.principal!;
-  if (!can(principal, 'tenant:admin')) error(403, 'tenant:admin');
   const rt = runtime();
   const [{ exports }, { members }, { keys }] = await Promise.all([
-    rt.invoker.run(useCases.listExports, principal, {}),
-    rt.invoker.run(useCases.listMembers, principal, {}),
-    rt.invoker.run(useCases.listKeys, principal, {}),
+    loaded(rt.invoker.run(useCases.listExports, principal, {})),
+    loaded(rt.invoker.run(useCases.listMembers, principal, {})),
+    loaded(rt.invoker.run(useCases.listKeys, principal, {})),
   ]);
   const until = new Date(rt.clock.now().getTime() + EXPORT_LINK_TTL_MS);
   return {

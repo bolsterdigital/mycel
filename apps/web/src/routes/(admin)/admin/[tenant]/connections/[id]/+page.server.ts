@@ -7,9 +7,9 @@
 // Rejected: reading the connection with `connection.get` (an unknown id would surface as a
 // server error; the list is small and already authorised) and a confirm dialog in JavaScript
 // for disconnecting (a second post with `confirm=yes` works without it).
-import { can, useCases } from '@mycel/core';
+import { useCases } from '@mycel/core';
 import { error } from '@sveltejs/kit';
-import { act, text } from '#lib/server/admin/admin-actions.js';
+import { act, loaded, text } from '#lib/server/admin/admin-actions.js';
 import { runtime } from '#lib/server/runtime.js';
 import { ui } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
@@ -18,14 +18,13 @@ export const load: PageServerLoad = async ({ parent, locals, params }) => {
   const { locale } = await parent();
   const t = ui(locale);
   const principal = locals.principal!;
-  if (!can(principal, 'connections:read')) error(403, t('admin.forbidden.title'));
   const run = runtime().invoker;
-  const { connections } = await run.run(useCases.listConnections, principal, {});
+  const { connections } = await loaded(run.run(useCases.listConnections, principal, {}));
   const connection = connections.find((c) => c.id === params.id);
   if (!connection) error(404, t('admin.connections.error.notFound'));
-  const { intents } = await run.run(useCases.listConnectionIntents, principal, {
-    connectionId: connection.id,
-  });
+  const { intents } = await loaded(
+    run.run(useCases.listConnectionIntents, principal, { connectionId: connection.id })
+  );
   /** One moment for every relative time on the page, the same on server and client. */
   return { connection, intents, now: new Date().toISOString() };
 };

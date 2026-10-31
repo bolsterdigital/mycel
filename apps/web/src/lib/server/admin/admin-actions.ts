@@ -2,7 +2,14 @@
 // UseCaseError into a form failure with catalog copy. A refusal by an entitlement or a
 // suspension names what was refused, never a price (ADR 015 rule 3). Rejected: a copy per page,
 // which lets the error mapping of the admin pages drift apart.
-import { fail, type ActionFailure } from '@sveltejs/kit';
+//
+// `loaded` is the same mapping for a page load: a refusal there becomes the admin's
+// error page with its status, so a member without the capability sees "no access" instead of a
+// server error that `handleError` reports as a failure. The use case decides; the route asks
+// nothing itself. Rejected: `handleError` (SvelteKit fixes the status of an unknown error at 500
+// before it runs) and wrapping each whole load (the generated `$types` proxy only types a load
+// that is a function literal).
+import { error, fail, type ActionFailure } from '@sveltejs/kit';
 import { UseCaseError, type Principal, type UseCaseErrorCode } from '@mycel/core';
 import { requireTenantPrincipal } from './admin.js';
 import type { UiKey } from '../../../i18n/index.js';
@@ -120,4 +127,26 @@ export function failureOf(
           ? 'admin.error.forbidden'
           : (issue ?? copy.invalid ?? 'admin.error.invalid');
   return { status, body: { action, error } };
+}
+
+/** What a refusal in a page load becomes; any other UseCaseError stays a failure. */
+const LOAD_STATUS: Partial<Record<UseCaseErrorCode, 400 | 403 | 404>> = {
+  invalid_input: 400,
+  forbidden: 403,
+  not_found: 404,
+};
+
+/**
+ * Await one use case in a page load: `forbidden`, `not_found` and `invalid_input` become the
+ * admin's error page with that status (its copy comes from the catalog by status, the message is
+ * the code); everything else is rethrown as it was.
+ */
+export async function loaded<T>(result: Promise<T>): Promise<T> {
+  try {
+    return await result;
+  } catch (e) {
+    const status = e instanceof UseCaseError ? LOAD_STATUS[e.code] : undefined;
+    if (status === undefined) throw e;
+    error(status, (e as UseCaseError).code);
+  }
 }

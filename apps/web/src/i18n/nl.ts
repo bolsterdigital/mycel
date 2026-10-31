@@ -151,7 +151,14 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.forbidden.title': 'Geen toegang tot deze site',
   'admin.forbidden.body':
     'Je bent geen lid van deze site. Vraag een van de beheerders om {email} uit te nodigen.',
+  'admin.forbidden.pageTitle': 'Geen toegang tot deze pagina',
+  'admin.forbidden.capability':
+    'Je rol op deze site geeft geen toegang tot deze pagina. Vraag het aan een van de beheerders als je hem nodig hebt.',
   'admin.notFound.title': 'Pagina niet gevonden',
+  'admin.notFound.body':
+    'Deze pagina bestaat niet, of wat erop stond is verwijderd. Controleer het adres of ga terug.',
+  'admin.error.badRequest':
+    'Het adres van deze pagina bevat een waarde die niet te gebruiken is. Ga terug en probeer het opnieuw.',
   'admin.error.title': 'Er ging iets mis',
   'admin.back': 'Terug naar je sites',
   'admin.members.title': 'Leden',

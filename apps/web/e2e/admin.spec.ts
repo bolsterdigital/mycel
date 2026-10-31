@@ -186,6 +186,44 @@ test.describe('admin', () => {
     await expectNoAxeViolations(page);
   });
 
+  // A refusal by the use case in a page load is the 403 page, not a server error; the
+  // route asks nothing itself. An editor lacks `tenant:admin` (log, status, export, members) and
+  // `connections:read`.
+  test('a member without the capability gets "no access" on an admin page', async ({ page }) => {
+    const email = `editor-${test.info().project.name}-${Date.now()}@probe.test`;
+    const probe = await tenantId();
+    const system = systemPrincipal(probe, 'e2e');
+    const member = await withInvoker((invoker) =>
+      invoker.run(useCases.inviteMember, system, {
+        email,
+        capabilities: capabilitiesFor('editor'),
+      })
+    );
+    try {
+      await login(page, '/admin/probe/content?type=page', email);
+      for (const path of ['status/audit', 'status', 'export', 'leden', 'connections']) {
+        const response = await page.goto(`/admin/probe/${path}`);
+        expect(response?.status(), path).toBe(403);
+        await expect(
+          page.getByRole('heading', { level: 1, name: 'Geen toegang tot deze pagina' }),
+          path
+        ).toBeVisible();
+        await expect(page.locator('main')).toContainText('Je rol op deze site');
+      }
+      await expectNoAxeViolations(page);
+      // A cursor edited by hand is invalid input for `audit.list`: a 400 in words, for an admin.
+      await page.context().clearCookies();
+      await login(page, '/admin/probe/status');
+      const response = await page.goto('/admin/probe/status/audit?cursor=not-a-cursor');
+      expect(response?.status()).toBe(400);
+      await expect(page.locator('main')).toContainText('waarde die niet te gebruiken is');
+    } finally {
+      await withInvoker((invoker) =>
+        invoker.run(useCases.removeMember, system, { operatorId: member.operatorId })
+      );
+    }
+  });
+
   // Brief admin-entry § 1, 7: a page before the IdP, and what the IdP answered in words.
   test('the login page names the way in, and a refused login says so', async ({ page }) => {
     await page.goto('/admin/login');

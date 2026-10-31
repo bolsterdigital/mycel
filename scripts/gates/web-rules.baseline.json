@@ -14,13 +14,10 @@
   "error-copy": {
     "apps/web/src/routes/(admin)/admin/[tenant]/_ui/+layout.server.ts": 2,
     "apps/web/src/routes/(admin)/admin/[tenant]/_ui/[pattern]/+page.server.ts": 1,
-    "apps/web/src/routes/(admin)/admin/[tenant]/connections/+page.server.ts": 1,
     "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.server.ts": 4,
     "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/revisions/+page.server.ts": 2,
-    "apps/web/src/routes/(admin)/admin/[tenant]/export/+page.server.ts": 1,
     "apps/web/src/routes/(admin)/admin/[tenant]/media/[id]/+page.server.ts": 2,
     "apps/web/src/routes/(admin)/admin/[tenant]/site/+page.server.ts": 5,
-    "apps/web/src/routes/(admin)/admin/[tenant]/status/+page.server.ts": 1,
     "apps/web/src/routes/(admin)/admin/callback/+page.server.ts": 4,
     "apps/web/src/routes/(admin)/admin/login/+page.server.ts": 2,
     "apps/web/src/routes/(preview)/admin/[tenant]/preview/[...path]/+server.ts": 2,

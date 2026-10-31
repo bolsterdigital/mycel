@@ -6,7 +6,7 @@
 // that names what, never a price (ADR 015 rule 3); the mapping lives in
 // lib/server/admin/admin-actions.ts.
 import { Capability, Role, useCases } from '@mycel/core';
-import { act, text } from '#lib/server/admin/admin-actions.js';
+import { act, loaded, text } from '#lib/server/admin/admin-actions.js';
 import { postedCapabilities } from '#lib/server/admin/roles.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { UiKey } from '../../../../../i18n/index.js';
@@ -15,7 +15,7 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ parent, locals }) => {
   await parent();
   const { invoker, config } = runtime();
-  const { members } = await invoker.run(useCases.listMembers, locals.principal!, {});
+  const { members } = await loaded(invoker.run(useCases.listMembers, locals.principal!, {}));
   return {
     members,
     roles: Role.options,
