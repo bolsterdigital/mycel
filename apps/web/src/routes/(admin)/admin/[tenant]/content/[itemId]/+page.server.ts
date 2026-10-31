@@ -69,6 +69,7 @@ import {
 import {
   issueCopy as blockIssueCopy,
   pickerOptions,
+  imageRestOf,
   previewOf,
   summaryOf,
 } from '#lib/server/content-blocks.js';
@@ -270,6 +271,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
       type: b.type,
       summary: summaryOf(b, read),
       preview: previewOf(b, read),
+      image: imageRestOf(b, read, options.media),
       duplicable: !SINGLE.has(b.type),
       // The other locales a text block has, to translate the shown one from (AI help).
       translatable:
@@ -715,6 +717,8 @@ async function blockStep(
 ) {
   const { tenant, principal, revisionId, zone, editing } = saved;
   let landing = blockId;
+  // A removed block hands focus to the one that takes its place, else the one before it.
+  let neighbour: string | null = null;
   try {
     const { revision } = await runtime().invoker.run(useCases.getItem, principal, {
       itemId,
@@ -722,6 +726,8 @@ async function blockStep(
     });
     const index = revision.document.blocks.findIndex((b) => b.id === blockId);
     if (index < 0) error(404, 'Not found');
+    const blocks = revision.document.blocks;
+    neighbour = (blocks[index + 1] ?? blocks[index - 1])?.id ?? null;
     const made = await run(revision.document.blocks, index);
     // A duplicate names the block it made; the screen lands there instead.
     if (typeof made === 'string') landing = made;
@@ -739,8 +745,13 @@ async function blockStep(
       conflict: conflict && { who: conflict.who, when: conflict.when, changes: conflict.changes },
     });
   }
-  const at = done === 'blockRemoved' ? 'blocks' : `block-${landing}`;
-  redirect(303, itemPath(tenant.slug, itemId, editing, { done, block: landing }, at));
+  if (done === 'blockRemoved') {
+    const at = neighbour ? `block-${neighbour}` : 'blocks';
+    redirect(303, itemPath(tenant.slug, itemId, editing, { done }, at));
+  }
+  // The block lands at rest (MY-110 A): it is complete, and the screen's script puts focus back
+  // on the control that moved or copied it.
+  redirect(303, itemPath(tenant.slug, itemId, editing, { done }, `block-${landing}`));
 }
 
 export const actions: Actions = {

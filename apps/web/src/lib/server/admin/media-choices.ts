@@ -3,7 +3,13 @@
 // catalog copy. The media page's upload action and the picker's JSON route share `uploadFile`,
 // so a file is refused in the same words in both places. Rejected: a second copy of the issue
 // map in the picker route, which would drift from the media page's.
-import { MAX_UPLOAD_BYTES, UseCaseError, useCases, type Principal } from '@mycel/core';
+import {
+  MAX_UPLOAD_BYTES,
+  UseCaseError,
+  useCases,
+  type MediaCredit,
+  type Principal,
+} from '@mycel/core';
 import { failureOf } from './admin-actions.js';
 import { runtime } from '../runtime.js';
 import type { UiKey } from '../../../i18n/index.js';
@@ -23,15 +29,38 @@ const UPLOAD_ISSUES: Record<string, UiKey> = {
   'media.filename.invalid': 'admin.media.error.filename',
 };
 
+/** The card of a block shows an image about this wide; the next wider variant is enough. */
+const CARD_WIDTH = 640;
+
 export const mediaChoice = (m: {
   id: string;
   filename: string;
-  variants: readonly { name: string }[];
-}): MediaChoice => ({
-  id: m.id,
-  label: m.filename,
-  thumb: m.variants.some((v) => v.name === 'thumb'),
-});
+  variants: readonly { name: string; format: string; width: number | null }[];
+  width?: number | null;
+  height?: number | null;
+  caption?: Record<string, string>;
+  credit?: MediaCredit;
+}): MediaChoice => {
+  const widths = m.variants
+    .filter((v) => v.format === 'webp' && /^w\d+$/.test(v.name) && v.width !== null)
+    .sort((a, b) => a.width! - b.width!);
+  const variant = widths.find((v) => v.width! >= CARD_WIDTH) ?? widths.at(-1);
+  return {
+    id: m.id,
+    label: m.filename,
+    thumb: m.variants.some((v) => v.name === 'thumb'),
+    card:
+      variant && m.width && m.height && m.caption && m.credit
+        ? {
+            file: `${variant.name}.webp`,
+            width: m.width,
+            height: m.height,
+            caption: m.caption,
+            credit: m.credit,
+          }
+        : null,
+  };
+};
 
 export type Uploaded =
   | { ok: true; choice: MediaChoice }
