@@ -499,9 +499,9 @@ async function moveSlug(
   try {
     await runtime().invoker.run(useCases.updateSlug, principal, { itemId: item.id, slug });
     return null;
-  } catch (e) {
-    if (!(e instanceof UseCaseError) || (e.code !== 'conflict' && e.code !== 'invalid_input'))
-      throw e;
+  } catch (thrown) {
+    const { error: e } = saveFailure(thrown);
+    if (e.code !== 'conflict' && e.code !== 'invalid_input') throw e;
     const key = e.issues.map((i) => SLUG_ISSUES[i.message]).find(Boolean);
     const copy =
       key ??

@@ -520,13 +520,13 @@ export const updateSlug = defineUseCase({
       throw new UseCaseError('invalid_input', `"${slug}" is reserved`, [
         { path: 'slug', message: 'content.slug.reserved' },
       ]);
-    if (await ctx.content.findBySlug(item.type, slug))
+    // The write decides, not a read before it: two renames to one free slug cannot both win.
+    const now = ctx.clock.now();
+    if (!(await ctx.content.setSlug(itemId, slug, now)))
       throw new UseCaseError('conflict', `a ${item.type} with slug "${slug}" already exists`, [
         { path: 'slug', message: 'content.slug.taken' },
       ]);
-    const saved: ItemRecord = { ...item, slug, updatedAt: ctx.clock.now() };
-    await ctx.content.save(saved);
-    return toContentItem(saved);
+    return toContentItem({ ...item, slug, updatedAt: now });
   },
 });
 
