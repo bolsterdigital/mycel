@@ -253,6 +253,45 @@ describe('BlockCard', () => {
     expect(quote).toContain('<blockquote class="ui-block-text-quote" data-variant="pullquote"');
     expect(quote).toContain('data-rest-from="a b|c"');
   });
+  it('shows a callout by its kind in words, and a CTA without a control (MY-110 C2)', () => {
+    const callout = html(BlockText, {
+      view: {
+        kind: 'callout',
+        variant: 'warning',
+        variantFrom: 'v',
+        title: 'T',
+        titleFrom: 't',
+        html: '<p>x</p>',
+      },
+      kindLabel: 'Waarschuwing',
+    });
+    expect(callout).toContain('data-variant="warning"');
+    expect(callout).toContain('data-rest-option="v"');
+    expect(callout).toContain('>Waarschuwing</p>');
+    const cta = html(BlockText, {
+      view: {
+        kind: 'cta',
+        variant: 'band',
+        title: 'Doe mee',
+        body: '',
+        bodyFrom: 'b',
+        actions: [
+          { label: 'Nu', from: 'a0' },
+          { label: '', from: 'a1' },
+        ],
+      },
+    });
+    expect(cta).toContain('data-rest-from="a0"');
+    expect(cta).not.toMatch(/<a\b|<button|<h[1-6]/);
+  });
+  it('folds an accordion FAQ with a summary and lists a list FAQ without one', () => {
+    const entries = [{ question: 'Wat?', html: '<p>Dit.</p>' }];
+    const view = (variant: string) => ({ kind: 'faq' as const, variant, title: '', entries });
+    expect(html(BlockText, { view: view('accordion') })).toContain('<summary');
+    const list = html(BlockText, { view: view('list') });
+    expect(list).not.toContain('<summary');
+    expect(list).toContain('Wat?');
+  });
   it('opens when asked, and has no More actions without actions', () => {
     const out = html(BlockCard, {
       id: 'block-2',

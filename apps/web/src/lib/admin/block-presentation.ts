@@ -11,7 +11,7 @@ import type { BlockType } from '@mycel/core';
 export type RestView =
   /** The picture itself at card scale, with the caption and credit the page shows. */
   | 'image'
-  /** The words as the page sets them (`BlockText`): a heading, a text, a quote with its source. */
+  /** The words as the page sets them (`BlockText`): a heading, a text, a quote, a callout, an FAQ, a CTA. */
   | 'text'
   /** The first text and the entries of a list, beside a thumbnail: the interim view of PR 3. */
   | 'summary';
@@ -23,8 +23,8 @@ export interface BlockPresentation {
   /** Top-level field keys shown folded under "Source and credits". */
   source: readonly string[];
   /**
-   * The MY-110 step that designed this entry: `A` is the image pilot, `C1` the text blocks;
-   * `C2`-`C4` still show the interim summary until their group is built (brief
+   * The MY-110 step that designed this entry: `A` is the image pilot, `C1` and `C2` the text
+   * blocks; `C3` and `C4` still show the interim summary until their group is built (brief
    * block-editor-interactions § C).
    */
   stage: 'A' | 'C1' | 'C2' | 'C3' | 'C4';
@@ -38,9 +38,9 @@ export const BLOCK_PRESENTATION: { readonly [T in BlockType]: BlockPresentation 
   heading: { rest: 'text', display: [], source: [], stage: 'C1' },
   'rich-text': { rest: 'text', display: [], source: [], stage: 'C1' },
   quote: { rest: 'text', display: ['variant', 'width'], source: [], stage: 'C1' },
-  callout: summary('C2', ['variant']),
-  faq: summary('C2', ['variant', 'width']),
-  cta: summary('C2', ['variant', 'width', 'align']),
+  callout: { rest: 'text', display: ['variant'], source: [], stage: 'C2' },
+  faq: { rest: 'text', display: ['variant', 'width'], source: [], stage: 'C2' },
+  cta: { rest: 'text', display: ['variant', 'width', 'align'], source: [], stage: 'C2' },
   'video-embed': summary('C3', ['width']),
   form: summary('C3', ['variant', 'width']),
   'signup-form': summary('C3'),

@@ -315,6 +315,24 @@
             variant: 'blockquote',
           }}
         />
+        <BlockText
+          kindLabel={t('admin.block.option.warning')}
+          view={{
+            kind: 'callout',
+            variant: 'warning',
+            title: t('admin.ui.catalogue.blockCard.text'),
+            html: '',
+          }}
+        />
+        <BlockText
+          view={{
+            kind: 'cta',
+            variant: 'band',
+            title: t('admin.ui.catalogue.blockCard.text'),
+            body: '',
+            actions: [{ label: t('admin.ui.catalogue.blockCard.q1') }],
+          }}
+        />
       {/snippet}
       <p>{t('admin.ui.catalogue.panel.body')}</p>
     </BlockCard>
