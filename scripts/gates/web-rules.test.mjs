@@ -6,6 +6,8 @@
 // layout viewport, which a mobile browser's toolbar covers, so the theme uses `dvh` or `svh`.
 // And the public theme draws no shape with a box-shadow: forced colours (Windows High Contrast)
 // drop every shadow, so a frame or a secondary button made of one disappears there.
+// And the admin's own markup reaches the browser through two helpers, because a hydrated page can
+// mount it later, where Trusted Types refuse a copied script tag and a plain string.
 // Run by `npm run lint:infra`, offline.
 // Rejected: one-home.test.mjs (it allows no copy at all, and these have dozens until the sweep),
 // and one total per rule (a removed copy and a new one elsewhere cancel out silently).
@@ -29,6 +31,26 @@ export const RULES = {
     'an error message written in a route (throw a catalogue key)',
     /\berror\(\s*\d{3}\s*,\s*['"`]/g,
     ROUTES,
+  ],
+  'admin-script-tag': [
+    'a script tag in an admin component (use AdminScript: Trusted Types refuse its copy on a later mount)',
+    /<script[^>]*\ssrc=/g,
+    `${WEB}lib/admin/`,
+  ],
+  'admin-route-script-tag': [
+    'a script tag in an admin route (use AdminScript: Trusted Types refuse its copy on a later mount)',
+    /<script[^>]*\ssrc=/g,
+    `${ROUTES}(admin)/`,
+  ],
+  'admin-raw-html': [
+    'raw {@html} in an admin component (use renderedHtml: Trusted Types refuse a string on a later mount)',
+    /\{@html\s+(?!renderedHtml\()/g,
+    `${WEB}lib/admin/`,
+  ],
+  'admin-route-raw-html': [
+    'raw {@html} in an admin route (use renderedHtml: Trusted Types refuse a string on a later mount)',
+    /\{@html\s+(?!renderedHtml\()/g,
+    `${ROUTES}(admin)/`,
   ],
   'link-regex': [
     'a link scheme matched by hand (use isSafeHref from @mycel/core)',
@@ -140,6 +162,14 @@ test('each rule sees its copy, within its scope, and not in comments or tests', 
         text: '.a { box-shadow: inset 0 0 0 2px; transition: box-shadow 0.1s; }\n/* box-shadow: 0 */',
       },
       { path: `${WEB}lib/theme/admin.css`, text: '.b { box-shadow: 0 1px 2px; }' },
+      {
+        path: `${WEB}lib/admin/x.svelte`,
+        text: '<script src="/_admin/a.js"></script>{@html a}{@html renderedHtml(a)}<script lang="ts">',
+      },
+      {
+        path: `${ROUTES}(admin)/a/+page.svelte`,
+        text: '<script type="module" src="/_admin/a.js"></script>{@html a}',
+      },
       { path: `${ROUTES}b/+page.server.ts`, text: "// e instanceof UseCaseError ?? 'en'" },
       { path: `${ROUTES}b/x.test.ts`, text: 'e instanceof UseCaseError' },
       { path: 'packages/core/src/x.ts', text: "e instanceof UseCaseError; x ?? 'en'" },
@@ -147,6 +177,10 @@ test('each rule sees its copy, within its scope, and not in comments or tests', 
     {
       'use-case-catch': { [route]: 1 },
       'error-copy': { [route]: 2 },
+      'admin-script-tag': { [`${WEB}lib/admin/x.svelte`]: 1 },
+      'admin-route-script-tag': { [`${ROUTES}(admin)/a/+page.svelte`]: 1 },
+      'admin-raw-html': { [`${WEB}lib/admin/x.svelte`]: 1 },
+      'admin-route-raw-html': { [`${ROUTES}(admin)/a/+page.svelte`]: 1 },
       'link-regex': { [view]: 1 },
       'locale-fallback': { [lib]: 2 },
       'english-default': { [route]: 1 },

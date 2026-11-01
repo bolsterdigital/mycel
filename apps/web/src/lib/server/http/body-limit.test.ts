@@ -1,7 +1,7 @@
 // Regression for media and brand uploads' raised body ceilings: neither chunking nor another action
 // on the media page may raise the public-form limit. Accepted bytes must still parse normally.
 import { expect, it } from 'vitest';
-import { SMALL_BODY, bodyLimit, boundedBody } from './body-limit.js';
+import { REPORTS_BODY, SMALL_BODY, bodyLimit, boundedBody } from './body-limit.js';
 
 it('stops reading chunked bytes on overflow, even with a falsely small length', async () => {
   for (const length of [undefined, '1']) {
@@ -110,4 +110,10 @@ it('bounds actual brand transport bytes even without a truthful Content-Length',
     body: new Uint8Array(ceiling),
   });
   expect(await boundedBody(request, bodyLimit(request, url))).not.toBeNull();
+});
+
+it('gives the browser reports far less room than a form', () => {
+  const request = new Request('https://probe.example/_reports', { method: 'POST' });
+  expect(bodyLimit(request, new URL(request.url))).toBe(REPORTS_BODY);
+  expect(REPORTS_BODY).toBeLessThan(SMALL_BODY);
 });

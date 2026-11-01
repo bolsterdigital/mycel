@@ -17,6 +17,7 @@
      PR 4): a form that stores the choice and comes back here. An edit screen says `itemLocale`
      in its page data and switches in its own bar instead, where it saves what was typed first. -->
 <script lang="ts">
+  import AdminScript from '#lib/admin/AdminScript.svelte';
   import { page } from '$app/state';
   import { Icon, IconSprite, LocaleSwitch, NavGroup, type IconName } from '#lib/admin/ui/index.js';
   import { navEntries } from '#lib/admin/nav.js';
@@ -83,7 +84,7 @@
 </script>
 
 <svelte:head>
-  <script src="/_admin/nav.js"></script>
+  <AdminScript src="/_admin/nav.js" classic />
 </svelte:head>
 
 <IconSprite />

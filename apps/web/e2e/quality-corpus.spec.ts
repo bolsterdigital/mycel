@@ -351,9 +351,16 @@ test.describe('quality corpus reflow and text spacing', () => {
     const [entry] = entries;
     await page.goto(Object.values(entry!.locales)[0]!.path);
     await page.evaluate(() => {
-      const twin = '<p><a href="#twin">Twin</a></p>';
-      document.body.insertAdjacentHTML('afterbegin', twin + twin);
-      document.body.insertAdjacentHTML('beforeend', '<p><button>Last control</button></p>');
+      const paragraph = (tag: string, text: string) => {
+        const control = document.createElement(tag);
+        control.textContent = text;
+        if (tag === 'a') control.setAttribute('href', '#twin');
+        const p = document.createElement('p');
+        p.append(control);
+        return p;
+      };
+      document.body.prepend(paragraph('a', 'Twin'), paragraph('a', 'Twin'));
+      document.body.append(paragraph('button', 'Last control'));
     });
     const names = (await tabStops(page)).map((stop) => stop.name);
     expect(names.filter((name) => name === 'Twin')).toHaveLength(2);

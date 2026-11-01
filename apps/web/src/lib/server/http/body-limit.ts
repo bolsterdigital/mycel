@@ -3,9 +3,14 @@
 // when media uploads raise adapter-node's process-wide ceiling. Buffering is bounded by the
 // route's limit. Stop reading on overflow; adapter-node drains the remainder after sending 413.
 // Cancelling here destroys its socket before the client can receive that response.
+import { REPORTS_PATH } from './security-headers.js';
+
 export const SMALL_BODY = 512 * 1024;
+/** A batch of browser reports; anyone may post here, so far less than a form. */
+export const REPORTS_BODY = 64 * 1024;
 
 export function bodyLimit(request: Request, url: URL): number {
+  if (url.pathname === REPORTS_PATH) return REPORTS_BODY;
   const action = [...url.searchParams.keys()].find((key) => key.startsWith('/'));
   const multipartPost =
     request.method === 'POST' &&

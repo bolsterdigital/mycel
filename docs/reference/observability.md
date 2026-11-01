@@ -31,6 +31,8 @@ Every process writes one JSON object per line: api, web and worker to stdout, th
 | `actor`                                   | when logged: `operator:<id>`, `api-key:<id>`, `agent:<keyId>`, `system:<job>` or `anonymous` (`actorRef`)                   |
 | `method`, `route`, `status`, `durationMs` | the access line, one per request; `route` is the pattern (`/v1/:name`, a SvelteKit route id), never the path with its query |
 
+The web app also writes a `browser report` line at `warn` for what a browser posts to `/_reports` (Reporting-Endpoints: a blocked script, a Trusted Types sink, a deprecation): `type`, `directive`, `blocked` (a keyword or an origin), `disposition` and `path`, each checked and without a query string. Anyone can post there, so a line says what a client claims, at most 120 lines a minute per process; `browser reports dropped` counts the rest.
+
 The request id is echoed in the `X-Request-Id` response header. Access lines of `/healthz`, `/readyz` and `/metrics` are written at `debug`, so a probe every few seconds does not drown the log. `LOG_LEVEL` (`debug`, `info`, `warn`, `error`; default `info`) sets the lowest level written.
 
 Core code logs through `ctx.log`, the `Logger` port; its fields are scalars only (`LogFields`), so an input, a payload or a principal object cannot ride along.

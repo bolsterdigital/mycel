@@ -13,6 +13,7 @@
      with the moment it was checked, never in loose text. Rejected: cards per task (the reader
      scans a list, #82) and a confirmation above the page (it left the row it acts on). -->
 <script lang="ts">
+  import AdminScript from '#lib/admin/AdminScript.svelte';
   import {
     Actions,
     Button,
@@ -151,7 +152,7 @@
   <title
     >{failed ? `${t('error.prefix')} ` : ''}{t('admin.status.title')} · {data.tenant.name}</title
   >
-  <script type="module" src="/_admin/status-refresh.js"></script>
+  <AdminScript src="/_admin/status-refresh.js" />
 </svelte:head>
 
 <main class="page admin">

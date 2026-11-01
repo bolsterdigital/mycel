@@ -4,6 +4,7 @@
      chosen and to accept a drop. With `preview` and JavaScript a chosen image also shows as a thumbnail
      before upload (editor trial 2026-10-28, static/_admin/file-preview.js; the admin itself ships no client bundle). -->
 <script lang="ts">
+  import AdminScript from '../../AdminScript.svelte';
   import { ui } from '../../../../i18n/index.js';
   import Field from './Field.svelte';
 
@@ -46,6 +47,6 @@
       {...attributes}
       data-file-preview={preview ? t('admin.ui.file.chosen') : undefined}
     />
-    {#if preview}<script type="module" src="/_admin/file-preview.js"></script>{/if}
+    {#if preview}<AdminScript src="/_admin/file-preview.js" />{/if}
   {/snippet}
 </Field>

@@ -5,6 +5,7 @@
      not ask for a password. Logged out, session-restore.js removes any editor input this tab
      kept for after a login. -->
 <script lang="ts">
+  import AdminScript from '#lib/admin/AdminScript.svelte';
   import { Button, SystemState } from '#lib/admin/ui/index.js';
   import { ui } from '../../../../i18n/index.js';
   import type { PageProps } from './$types';
@@ -16,7 +17,7 @@
 
 <svelte:head>
   <title>{done ? t('admin.loggedOut.title') : t('admin.logout')} · {t('admin.title')}</title>
-  {#if done}<script type="module" src="/_admin/session-restore.js"></script>{/if}
+  {#if done}<AdminScript src="/_admin/session-restore.js" />{/if}
 </svelte:head>
 
 {#if done}

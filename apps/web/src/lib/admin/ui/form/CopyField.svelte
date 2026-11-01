@@ -7,6 +7,7 @@
      out of view inside it) and an <output> (an implicit status role: one live region per record,
      and a second "status" next to the page's notice). -->
 <script lang="ts">
+  import AdminScript from '../../AdminScript.svelte';
   import { ui } from '../../../../i18n/index.js';
 
   let {
@@ -24,7 +25,7 @@
   const t = $derived(ui(locale));
 </script>
 
-<svelte:head><script type="module" src="/_admin/copy.js"></script></svelte:head>
+<svelte:head><AdminScript src="/_admin/copy.js" /></svelte:head>
 
 <div class="ui-copy-field">
   <span class="ui-copy-label" id="{id}-label">{label}</span>
