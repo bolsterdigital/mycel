@@ -16,7 +16,7 @@
 
 import {
   BLOCK_DEFINITIONS,
-  BLOCK_TYPES,
+  INSERTABLE_BLOCK_TYPES,
   type Block,
   type BlockType,
   type ContentDocument,
@@ -56,7 +56,8 @@ export interface PendingBlock {
 /**
  * The block chosen but not stored yet, from the query (`insert`, `place`, `anchor`) or the hidden
  * fields of the form (`new.type`, `new.place`, `new.anchor`); null when there is none or it does
- * not name a known type, a known place and, for before and after, a block of `blockIds`.
+ * not name a type new content may get (no `hero`, ADR 025 rule 4), a known place and, for before
+ * and after, a block of `blockIds`.
  */
 export function pendingBlock(
   type: string | null,
@@ -64,7 +65,7 @@ export function pendingBlock(
   anchor: string | null,
   blockIds: readonly string[]
 ): PendingBlock | null {
-  if (!type || !(BLOCK_TYPES as readonly string[]).includes(type)) return null;
+  if (!type || !(INSERTABLE_BLOCK_TYPES as readonly string[]).includes(type)) return null;
   const known = !!anchor && blockIds.includes(anchor);
   const at: Placement | null =
     place === 'end'

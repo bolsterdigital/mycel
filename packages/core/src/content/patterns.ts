@@ -74,9 +74,10 @@ export interface StoryPhoto {
 }
 
 /**
- * A cover hero with the first photo, then each further photo wide with a caption and a short
- * text in between. Throws without photos; alt text that does not fit the schema fails the parse,
- * so the result is always a valid pattern.
+ * The first photo full width, then each further photo wide with a caption and a short text in
+ * between. No hero block: the item's title, lead and main image are its one header (ADR 025
+ * rule 4), so the story starts with its photo. Throws without photos; alt text that does not fit
+ * the schema fails the parse, so the result is always a valid pattern.
  */
 export function photoStoryPattern(
   photos: readonly StoryPhoto[],
@@ -95,15 +96,7 @@ export function photoStoryPattern(
     description: copy(locales, 'patterns.photo-story.description'),
     intendedType: 'article',
     blocks: [
-      {
-        type: 'hero',
-        version: 1,
-        props: {
-          variant: 'cover',
-          title: copy(locales, 'patterns.photo-story.title'),
-          image: use(cover),
-        },
-      },
+      { type: 'image', version: 1, props: { ...use(cover), layout: 'full' } },
       {
         type: 'rich-text',
         version: 1,

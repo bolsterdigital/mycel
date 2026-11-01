@@ -43,7 +43,6 @@ export const en = {
   'patterns.long-read.quote-name': 'Name of the speaker',
   'patterns.photo-story.name': 'Photo story',
   'patterns.photo-story.description': 'A story told in photos, each with a short text.',
-  'patterns.photo-story.title': 'Title of the photo story',
   'patterns.photo-story.intro': 'Introduce the story: where, when and why these photos.',
   'patterns.photo-story.between': 'Tell what this photo shows that the reader would not see.',
   'forms.error.malformed': 'This form could not be processed. Reload the page and try again.',

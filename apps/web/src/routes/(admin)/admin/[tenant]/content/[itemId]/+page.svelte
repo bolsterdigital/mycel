@@ -536,62 +536,76 @@
 {/snippet}
 
 {#snippet contentFields()}
-  <div class="ui-field">
-    <label class="ui-visually-hidden" for="title.{work}">{t('admin.content.edit.titleLabel')}</label
-    >
-    <input
-      class="ui-title-input"
-      size="1"
-      id="title.{work}"
-      name="title.{work}"
-      type="text"
-      maxlength="200"
-      required={work === defaultLocale}
-      value={v(`title.${work}`)}
-      lang={work}
-    />
-  </div>
-  {@render translateLinks('title', 'title', work, t('admin.content.field.title'))}
-  {@render area(`lead.${work}`, t('admin.content.field.lead'), 1000)}
-  {@render translateLinks('lead', 'lead', work, t('admin.content.field.lead'))}
-  <MediaPicker
-    id="heroImageId"
-    name="heroImageId"
-    label={t('admin.content.field.heroImage')}
-    hint={t('admin.content.field.heroImageHint')}
-    locale={data.locale}
-    value={v('heroImageId')}
-    options={data.media}
-    {base}
-    upload={data.upload}
-  />
-  {#if v('heroImageId')}
-    <!-- #99: the hero's use, like an image block's: decorative, or described per locale. The
-         screen's script hides the empty alt while the box is ticked (data-alt-of). The marker
-         tells the server the box was on the form, so an unticked box is not a box never shown. -->
-    <input type="hidden" name="heroAltShown" value="1" />
-    <Checkbox
-      id="heroDecorative"
-      name="heroDecorative"
-      label={t('admin.block.field.decorative')}
-      hint={t('admin.content.field.heroDecorativeHint')}
-      checked={v('heroDecorative') === 'on'}
-    />
-    <div class="ui-block-alt" data-alt-of="heroDecorative">
-      <Field
-        id="heroAlt"
-        label={t('admin.content.field.heroAlt')}
-        locale={data.locale}
-        invalid={flagged('heroAlt')}
+  <!-- MY-110 B3 (ADR 025): title, lead and main image are one header, in the order the page
+       shows them; the blocks follow as their own section. The heading is for the outline only:
+       the big title field already says where the header starts. -->
+  <section aria-labelledby="item-header" class="item-header">
+    <h3 id="item-header" class="ui-visually-hidden">{t('admin.content.header.title')}</h3>
+    <div class="ui-field">
+      <label class="ui-visually-hidden" for="title.{work}"
+        >{t('admin.content.edit.titleLabel')}</label
       >
-        {#snippet control(attributes)}
-          <textarea name="heroAlt.{work}" maxlength="1000" rows="2" lang={work} {...attributes}
-            >{v(`heroAlt.${work}`)}</textarea
-          >
-        {/snippet}
-      </Field>
+      <input
+        class="ui-title-input"
+        size="1"
+        id="title.{work}"
+        name="title.{work}"
+        type="text"
+        maxlength="200"
+        required={work === defaultLocale}
+        value={v(`title.${work}`)}
+        lang={work}
+      />
     </div>
-  {/if}
+    {@render translateLinks('title', 'title', work, t('admin.content.field.title'))}
+    {@render area(`lead.${work}`, t('admin.content.field.lead'), 1000)}
+    {@render translateLinks('lead', 'lead', work, t('admin.content.field.lead'))}
+    <MediaPicker
+      id="heroImageId"
+      name="heroImageId"
+      label={t('admin.content.field.heroImage')}
+      hint={t('admin.content.field.heroImageHint')}
+      locale={data.locale}
+      value={v('heroImageId')}
+      options={data.media}
+      {base}
+      upload={data.upload}
+    />
+    {#if v('heroImageId')}
+      <!-- #99: the hero's use, like an image block's: decorative, or described per locale. The
+         screen's script hides the empty alt while the box is ticked (data-alt-of). The marker
+         tells the server the box was on the form, so an unticked box is not a box never shown.
+         A rare choice (MY-110 B3): folded while the image is decorative and nothing is wrong. -->
+      <input type="hidden" name="heroAltShown" value="1" />
+      <details
+        class="ui-fold item-hero-alt"
+        open={v('heroDecorative') !== 'on' || flagged('heroAlt')}
+      >
+        <summary>{t('admin.content.field.heroAltFold')}</summary>
+        <Checkbox
+          id="heroDecorative"
+          name="heroDecorative"
+          label={t('admin.block.field.decorative')}
+          hint={t('admin.content.field.heroDecorativeHint')}
+          checked={v('heroDecorative') === 'on'}
+        />
+        <div class="ui-block-alt" data-alt-of="heroDecorative">
+          <Field
+            id="heroAlt"
+            label={t('admin.content.field.heroAlt')}
+            locale={data.locale}
+            invalid={flagged('heroAlt')}
+          >
+            {#snippet control(attributes)}
+              <textarea name="heroAlt.{work}" maxlength="1000" rows="2" lang={work} {...attributes}
+                >{v(`heroAlt.${work}`)}</textarea
+              >
+            {/snippet}
+          </Field>
+        </div>
+      </details>
+    {/if}
+  </section>
 
   <section aria-labelledby="blocks" class="item-blocks">
     <h3 id="blocks">{t('admin.block.title')}</h3>

@@ -436,24 +436,19 @@ const PAGE_FAQ = [
 ];
 
 function pageCards(formId: string, media: DemoMediaIds): BlockIn[] {
-  const market = DEMO_IMAGES[0]!;
   const signatures = DEMO_IMAGES[3]!;
   return [
+    // What the opening hero said before ADR 025, as a separate call to action: the document
+    // header is the page's only header, and actions never sit on an image.
     {
-      type: 'hero',
-      version: BLOCK_DEFINITIONS.hero.version,
+      type: 'cta',
+      version: BLOCK_DEFINITIONS.cta.version,
       props: {
-        variant: 'cover',
+        variant: 'band',
         title: { nl: 'Minder zout, meer smaak', en: 'Less salt, more flavour' },
         body: {
           nl: 'Samen met ouders, bakkers en scholen maken we snoepgoed gezonder, één meting tegelijk.',
           en: 'Together with parents, bakers and schools we make sweets healthier, one measurement at a time.',
-        },
-        image: {
-          mediaId: media.market,
-          decorative: false,
-          alt: market.alt,
-          caption: market.caption,
         },
         actions: [
           {
@@ -465,7 +460,6 @@ function pageCards(formId: string, media: DemoMediaIds): BlockIn[] {
             target: { kind: 'url', url: '/signup' },
           },
         ],
-        align: 'start',
       },
     },
     {
@@ -578,9 +572,15 @@ function pageCards(formId: string, media: DemoMediaIds): BlockIn[] {
   ];
 }
 
-/** `content.item.create` input for the demo page: 13 blocks, hero first and the form last. */
+/**
+ * `content.item.create` input for the demo page: the document header (title, lead, main image
+ * described) and 13 blocks, the form last. No hero block (ADR 025 rule 4).
+ */
 export function demoPage(refs: { formId: string; media: DemoMediaIds }): CreateInput {
-  const [hero, image, quote, faq, callout, cta, video, form] = pageCards(refs.formId, refs.media);
+  const [opening, image, quote, faq, callout, cta, video, form] = pageCards(
+    refs.formId,
+    refs.media
+  );
   return {
     slug: PAGE_SLUG,
     document: {
@@ -590,10 +590,11 @@ export function demoPage(refs: { formId: string; media: DemoMediaIds }): CreateI
       title: PAGE_TITLE,
       lead: PAGE_LEAD,
       heroImageId: refs.media.bakery,
+      heroAlt: DEMO_IMAGES[1]!.alt,
       featuredImageId: refs.media.market,
       blocks: [
-        hero!,
         pageIntro(),
+        opening!,
         image!,
         heading({ nl: 'Wat we doen', en: 'What we do' }),
         pageWork(),

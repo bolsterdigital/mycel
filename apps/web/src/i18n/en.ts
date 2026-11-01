@@ -666,10 +666,12 @@ export const en = {
   'admin.content.field.seoDescription': 'Description in search results',
   'admin.content.field.noindex': 'Hide from search engines',
   'admin.content.field.canonical': 'Canonical address (optional, starts with https://)',
-  'admin.content.field.heroImage': 'Hero image',
+  'admin.content.field.heroImage': 'Main image',
   'admin.content.field.heroImageHint':
     'The large image at the top of the page, below the title and the lead. Leave empty for no image above the story.',
-  'admin.content.field.heroAlt': 'Description of the hero image (alt text)',
+  'admin.content.header.title': 'Header',
+  'admin.content.field.heroAltFold': 'Description for people who cannot see the image',
+  'admin.content.field.heroAlt': 'Description of the main image (alt text)',
   'admin.content.field.heroDecorativeHint':
     'Tick when the image adds nothing the title and lead do not say. Untick to describe it for people who cannot see it.',
   'admin.content.field.featuredImage': 'Featured image',
@@ -681,7 +683,7 @@ export const en = {
   'admin.content.inherited': 'Default: {source}',
   'admin.content.inherited.empty': 'Default: empty',
   'admin.content.inherited.image.featured': 'the featured image',
-  'admin.content.inherited.image.hero': 'the hero image',
+  'admin.content.inherited.image.hero': 'the main image',
   'admin.content.inherited.image.site': "the site's default image",
   'admin.content.inherited.text.title': 'the title',
   'admin.content.inherited.text.featured': 'the description in lists',

@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { BLOCK_DEFINITIONS } from '../content/block-types.js';
+import { INSERTABLE_BLOCK_TYPES } from '../content/blocks.js';
 import { assignBlockIds } from '../content/blocks.js';
 import { ContentDocument, ContentDocumentInput, readinessIssues } from '../content/model.js';
 import { Invoker } from '../invoke.js';
@@ -91,13 +92,13 @@ describe('demo content', () => {
     }
   );
 
-  it('uses every block type at its current version', () => {
+  // Every type new content can get, at its current version; not the hero, which new content
+  // does not get (ADR 025 rule 4): the page's header is its title, lead and main image.
+  it('uses every insertable block type at its current version, and no hero', () => {
     const used = new Map(documents.flatMap((d) => d.blocks.map((b) => [b.type, b.version])));
-    for (const [type, definition] of Object.entries(BLOCK_DEFINITIONS))
-      expect([type, used.get(type as keyof typeof BLOCK_DEFINITIONS)]).toEqual([
-        type,
-        definition.version,
-      ]);
+    for (const type of INSERTABLE_BLOCK_TYPES)
+      expect([type, used.get(type)]).toEqual([type, BLOCK_DEFINITIONS[type].version]);
+    expect(used.has('hero')).toBe(false);
   });
 
   it('seeds both items published in every locale, once', async () => {
@@ -193,7 +194,8 @@ describe('demo content', () => {
       itemId: page.id,
       revisionId: seeded.upgraded[0]!.item.publication[0]!.publishedRevisionId!,
     });
-    expect(JSON.stringify(livePage.revision.document)).toContain(DEMO_IMAGES[0]!.alt.nl);
+    // The main image's alt (`heroAlt`) is swapped like any other use of a photo.
+    expect(JSON.stringify(livePage.revision.document)).toContain(DEMO_IMAGES[1]!.alt.nl);
     const liveArticle = seeded.upgraded[1]!.item.publication[0]!;
     expect(liveArticle.publishedRevisionId).toBe(published.id);
     expect(liveArticle.hasUnpublishedChanges).toBe(true);

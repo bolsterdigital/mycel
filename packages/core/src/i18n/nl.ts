@@ -45,7 +45,6 @@ export const nl: Partial<Messages> = {
   'patterns.long-read.quote-name': 'Naam van de spreker',
   'patterns.photo-story.name': 'Fotoverhaal',
   'patterns.photo-story.description': 'Een verhaal in foto’s, elk met een korte tekst.',
-  'patterns.photo-story.title': 'Titel van het fotoverhaal',
   'patterns.photo-story.intro': 'Leid het verhaal in: waar, wanneer en waarom deze foto’s.',
   'patterns.photo-story.between': 'Vertel wat deze foto laat zien dat de lezer anders niet ziet.',
   'forms.error.malformed':

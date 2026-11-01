@@ -723,6 +723,13 @@
   .block {
     container-type: inline-size;
   }
+  /* The document header of an item (MY-110 B3): title, lead and main image as one group, at
+     the same step as the tab panel it sits in, so grouping changes no spacing. */
+  .admin .item-header {
+    display: grid;
+    gap: var(--space-2);
+    min-width: 0;
+  }
   /* The blocks of an item: their heading, then each block, at the rhythm's step (#87). */
   .admin .item-blocks {
     display: grid;

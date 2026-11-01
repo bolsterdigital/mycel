@@ -158,14 +158,25 @@ export function documentFrom(
   const heroImageId = image(v, 'heroImageId', doc.heroImageId);
   // The alt belongs to the hero (#99): read where the form showed it (`heroAltShown`, the box only
   // shows once there is an image), kept otherwise, gone with the image. An unticked box with no
-  // text in any locale is sent as `{}`, which core refuses.
+  // text in any locale is sent as `{}`, which core refuses. A different image keeps no stored
+  // description (it described the old picture, in every locale): only text typed over it counts,
+  // and without that the new image is decorative until someone describes it (MY-110 B3).
+  const replaced = !!heroImageId && heroImageId !== doc.heroImageId;
+  const retyped = (alt: Partial<Record<string, string>>) => {
+    const typed = Object.entries(alt).filter(([l, text]) => text && text !== doc.heroAlt?.[l]);
+    return typed.length ? Object.fromEntries(typed) : undefined;
+  };
   const heroAlt = !heroImageId
     ? undefined
     : 'heroAltShown' in v
       ? one(v, 'heroDecorative') === 'on'
         ? undefined
-        : pick('heroAlt', doc.heroAlt)
-      : doc.heroAlt;
+        : replaced
+          ? retyped(pick('heroAlt', undefined))
+          : pick('heroAlt', doc.heroAlt)
+      : replaced
+        ? undefined
+        : doc.heroAlt;
   const featuredImageId = image(v, 'featuredImageId', doc.featuredImageId);
   const featured = {
     title: optional(pick('featuredTitle', doc.featured?.title)),
