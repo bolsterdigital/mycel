@@ -80,6 +80,7 @@ import {
   NEW_BLOCK,
   blockIssues,
   documentFieldIssues,
+  formFieldOf,
   blockPrefix,
   formDocument,
   pendingBlock,
@@ -740,7 +741,10 @@ async function commit(
               : {}),
           fieldIssues: [
             ...onFields.map((i) => ({ name: i.name, copy: ISSUES[i.message] ?? body.error })),
-            ...onBlocks.map((i) => ({ name: i.name, copy: blockIssueCopy(i.message) })),
+            ...onBlocks.map((i) => ({
+              name: formFieldOf(i.name, values),
+              copy: blockIssueCopy(i.message),
+            })),
           ],
           status,
         }),
@@ -866,15 +870,19 @@ async function blockTry(saved: Committed, itemId: string, run: () => Promise<voi
     return null;
   } catch (e) {
     if (!(e instanceof UseCaseError)) throw e;
+    // The reason can sit on the document, not the block: the only paywall of a marker teaser cannot
+    // go. Without a named field the message has to stand alone, so it is not the sentence that
+    // ends in a colon.
+    const onFields = e.code === 'invalid_input' ? documentFieldIssues(e) : [];
     const { status, body } = failureOf(e, 'block', {
       conflict: 'admin.content.conflict.title',
-      invalid: 'admin.block.error.invalid',
+      invalid: onFields.length ? 'admin.block.error.invalid' : 'admin.content.error.invalid',
     });
     const conflict =
       e.code === 'conflict' ? await conflictOf(principal, itemId, revisionId, zone) : null;
     return fail(status, {
       ...body,
-      fieldIssues: [],
+      fieldIssues: onFields.map((i) => ({ name: i.name, copy: ISSUES[i.message] ?? body.error })),
       conflict: conflict && { who: conflict.who, when: conflict.when, changes: conflict.changes },
     });
   }
@@ -934,6 +942,10 @@ export const actions: Actions = {
     if ('failure' in saved) return saved.failure;
     const { tenant, inserted, changed } = saved;
     const open = inserted ? [inserted] : changed;
+    // Nothing changed to land at: stay at the card the editor was looking at (edit-screen.js).
+    // Without JavaScript the field is empty and the page opens at its top. Only its form reaches
+    // the redirect; a stale id finds no element and lands at the top as well.
+    const near = text(saved.data, 'nearBlock');
     redirect(
       303,
       itemPath(
@@ -941,7 +953,7 @@ export const actions: Actions = {
         event.params.itemId,
         saved.editing,
         { saved: '', ...(open.length ? { block: open.join(',') } : {}) },
-        open.length ? `block-${open[0]}` : ''
+        open.length ? `block-${open[0]}` : /^[0-9a-f-]{36}$/.test(near) ? `block-${near}` : ''
       )
     );
   },

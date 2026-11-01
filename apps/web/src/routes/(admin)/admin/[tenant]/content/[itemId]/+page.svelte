@@ -628,6 +628,8 @@
 
 {#snippet contentTab()}
   <input type="hidden" name="baseRevisionId" value={baseRevision} />
+  <!-- Filled by the screen's script on submit: the card in view, so a save stays there. -->
+  <input type="hidden" name="nearBlock" value="" />
   <input type="hidden" name="editLocale" value={data.translating ? '' : work} />
   {#if data.translating}
     {@render startTranslation()}

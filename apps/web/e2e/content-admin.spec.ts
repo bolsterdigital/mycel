@@ -2497,6 +2497,250 @@ test.describe('content-blocks', () => {
     await expect(rest.locator('.ui-block-text-heading')).toHaveText('Frisse lucht');
   });
 
+  /** A page with its text in the middle and a picture at both ends; `mediaId` from the seeded page. */
+  async function pictureAtBothEnds(page: Page, request: APIRequestContext, name: string) {
+    await login(page, await seededPage(request));
+    const src = await card(page, 5).locator('[data-block-rest] img').getAttribute('src');
+    const mediaId = /\/media\/([0-9a-f-]{36})\//.exec(src ?? '')?.[1];
+    const image = (caption: string) => ({
+      type: 'image',
+      version: 1,
+      props: { mediaId, decorative: false, alt: { nl: 'Een plein' }, caption: { nl: caption } },
+    });
+    const heading = (text: string) => ({
+      type: 'heading',
+      version: 1,
+      props: { text: { nl: text } },
+    });
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `${name}-${isA11y() ? 'a11y' : 'no-js'}-${Date.now()}`,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: 'Lange pagina met beeld' },
+        blocks: [
+          image('Bovenaan'),
+          ...Array.from({ length: 12 }, (_, i) => heading(`Kop ${i + 1}`)),
+          image('Onderaan'),
+        ],
+      },
+    });
+    return { itemId: item.id, edit: `/admin/probe/content/${item.id}`, mediaId: mediaId! };
+  }
+
+  test('on a long page a change, a closed fold, a move and a save stay where the editor is', async ({
+    page,
+    request,
+  }) => {
+    if (!isA11y()) return;
+    requireApi();
+    const { itemId, edit } = await pictureAtBothEnds(page, request, 'c-long');
+    await page.goto(edit);
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    const titles = page.locator('.ui-block-card-title');
+    const inView = async (at: Locator) => {
+      await expect
+        .poll(() => page.evaluate(() => scrollY), 'not at the page top')
+        .toBeGreaterThan(400);
+      await expect(at).toBeInViewport();
+    };
+
+    // The picture on top is closed and shows itself and its caption.
+    await expect(page.locator('details.block[open]')).toHaveCount(0);
+    await expectPixels(card(page, 1).locator('[data-block-rest] img'), 'the top image at rest');
+    await expect(card(page, 1).locator('[data-block-rest]')).toContainText('Bovenaan');
+
+    // A text halfway, closed again: its rest follows, the page does not move.
+    const middle = card(page, 8);
+    await middle.locator('details.block > summary').click();
+    await middle.getByLabel('Tekst', { exact: true }).fill('Gewijzigd halverwege');
+    await page.keyboard.press('Escape');
+    await expect(middle.locator('[data-block-rest]')).toHaveText('Gewijzigd halverwege');
+    await inView(middle);
+
+    // Another picture, opened and closed. Its rest keeps the saved caption until the save.
+    const last = card(page, 14);
+    await last.locator('details.block > summary').click();
+    await last
+      .locator('input[name$=".p.caption.nl"], textarea[name$=".p.caption.nl"]')
+      .fill('Onderaan gewijzigd');
+    await page.keyboard.press('Escape');
+    await inView(last);
+
+    // A move saves what was typed and lands at the block.
+    await middle.locator('details.ui-block-card-more > summary').click();
+    await middle.getByRole('button', { name: 'Omhoog', exact: true }).click();
+    await expect(page.getByRole('status')).toContainText('Blok verplaatst.');
+    await expect(titles.nth(6)).toHaveText('7. Kop');
+    await expect(card(page, 7).locator('[data-block-rest]')).toHaveText('Gewijzigd halverwege');
+    await inView(card(page, 7));
+
+    // A save with nothing left to land at stays at the card in view, not at the page top.
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/\?saved/);
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    await inView(card(page, 7));
+    await expect(page.locator('details.block[open]')).toHaveCount(0);
+
+    const { revision } = await callApi<{
+      revision: {
+        document: { blocks: { props: { text?: { nl: string }; caption?: { nl: string } } }[] };
+      };
+    }>(request, 'content.item.get', { itemId });
+    const saved = revision.document.blocks;
+    expect(saved[6]?.props.text?.nl).toBe('Gewijzigd halverwege');
+    expect(saved[13]?.props.caption?.nl).toBe('Onderaan gewijzigd');
+    expect(saved[0]?.props.caption?.nl).toBe('Bovenaan');
+  });
+
+  test('a refused save opens the closed block, keeps the rest and leads to the field', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `c-refused-${isA11y() ? 'a11y' : 'no-js'}-${Date.now()}`,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: 'Weigering' },
+        blocks: [
+          { type: 'heading', version: 1, props: { text: { nl: 'Wordt leeg' } } },
+          { type: 'heading', version: 1, props: { text: { nl: 'Blijft dicht' } } },
+        ],
+      },
+    });
+    await login(page, `/admin/probe/content/${item.id}`);
+    const first = card(page, 1);
+    await first.locator('details.block > summary').click();
+    await first.getByLabel('Tekst', { exact: true }).fill('');
+    await first.locator('details.block > summary').click();
+    const second = card(page, 2);
+    await second.locator('details.block > summary').click();
+    await second.getByLabel('Tekst', { exact: true }).fill('Getypt in het andere blok');
+    await second.locator('details.block > summary').click();
+    await page.locator('#title\\.nl').fill('Getypte titel');
+    await expect(first.locator('details.block')).not.toHaveAttribute('open', '');
+
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    const alert = page.getByRole('alert');
+    await expect(alert).toContainText('Het blok kon niet worden opgeslagen');
+    await expect(first.locator('details.block')).toHaveAttribute('open', '');
+    await expect(page.locator('#title\\.nl')).toHaveValue('Getypte titel');
+    await expect(card(page, 2).locator('details.block')).not.toHaveAttribute('open', '');
+    await expect(card(page, 2).getByLabel('Tekst', { exact: true })).toHaveValue(
+      'Getypt in het andere blok'
+    );
+    // By keyboard: the link in the summary reaches the refused field.
+    const link = alert.getByRole('link', { name: /Tekst/ });
+    await link.focus();
+    await page.keyboard.press('Enter');
+    await expect(first.getByLabel('Tekst', { exact: true })).toBeFocused();
+    await expectNoAxeViolations(page);
+  });
+
+  test('a paywall lands on its actions after a move, and its removal says why it cannot go', async ({
+    page,
+    request,
+  }) => {
+    if (!isA11y()) return;
+    requireApi();
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `c-paywall-${Date.now()}`,
+      document: {
+        type: 'article',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: 'Voor leden' },
+        access: { level: 'members', teaser: 'marker' },
+        blocks: [
+          { type: 'heading', version: 1, props: { text: { nl: 'Voor iedereen' } } },
+          { type: 'paywall', version: 1, props: {} },
+          { type: 'heading', version: 1, props: { text: { nl: 'Voor leden' } } },
+        ],
+      },
+    });
+    await login(page, `/admin/probe/content/${item.id}`);
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    await card(page, 2).locator('details.ui-block-card-more > summary').click();
+    await card(page, 2).getByRole('button', { name: 'Omlaag', exact: true }).click();
+    await expect(page.getByRole('status')).toContainText('Blok verplaatst.');
+    const paywall = card(page, 3);
+    await expect(paywall.locator('.ui-block-card-title')).toHaveText('3. Betaalmuur');
+    await expect(paywall.locator('details.ui-block-card-more > summary')).toBeFocused();
+
+    await paywall.locator('details.ui-block-card-more > summary').click();
+    await paywall.getByRole('button', { name: 'Verwijderen', exact: true }).click();
+    const alert = page.getByRole('alert');
+    await expect(alert.getByRole('link', { name: 'Wat alle anderen zien' })).toBeVisible();
+    await expect(alert.locator('li')).not.toBeEmpty();
+    await expect(page.locator('.ui-block-card-title').nth(2)).toHaveText('3. Betaalmuur');
+    await alert.getByRole('link', { name: 'Wat alle anderen zien' }).click();
+    await expect(page.locator('#teaser')).toBeFocused();
+  });
+
+  test('a picture that does not load says so, and its reference stays', async ({
+    page,
+    request,
+  }) => {
+    if (!isA11y()) return;
+    requireApi();
+    const { itemId, edit, mediaId } = await pictureAtBothEnds(page, request, 'd-broken');
+    const { item: hero } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `d-broken-hero-${Date.now()}`,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: 'Kapotte hero' },
+        blocks: [
+          {
+            type: 'hero',
+            version: 1,
+            props: {
+              variant: 'cover',
+              title: { nl: 'Schone lucht' },
+              image: { mediaId, decorative: false, alt: { nl: 'Een plein' } },
+            },
+          },
+        ],
+      },
+    });
+    await page.route(`**/media/${mediaId}/variant/**`, (route) => route.abort());
+
+    // An image block: the words and the way out, no working-looking picture.
+    await page.goto(edit);
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    const figure = card(page, 1).locator('figure.ui-block-image');
+    await expect(figure).toHaveAttribute('data-broken', '');
+    await expect(figure.locator('img')).toBeHidden();
+    const note = figure.locator('.ui-block-image-missing');
+    await expect(note).toBeVisible();
+    await note.getByRole('link', { name: 'Beeld vervangen' }).click();
+    await expect(card(page, 1).locator('details.block')).toHaveAttribute('open', '');
+    await expect(page).toHaveURL(/#b-[0-9a-f-]+-p-mediaId$/);
+    // Saved as it stands: the reference is not touched by a request that failed.
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/\?saved/);
+    const { revision } = await callApi<{
+      revision: { document: { blocks: { props: { mediaId?: string } }[] } };
+    }>(request, 'content.item.get', { itemId });
+    expect(revision.document.blocks[0]?.props.mediaId).toBe(mediaId);
+
+    // A legacy hero's picture says the same, and "Replace" reaches its own field.
+    await page.goto(`/admin/probe/content/${hero.id}`);
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    const heroFigure = card(page, 1).locator('figure.ui-block-image');
+    await expect(heroFigure).toHaveAttribute('data-broken', '');
+    await heroFigure.getByRole('link', { name: 'Beeld vervangen' }).click();
+    await expect(page).toHaveURL(/#b-[0-9a-f-]+-p-image-mediaId$/);
+    const field = decodeURIComponent(new URL(page.url()).hash);
+    await expect(page.locator(field)).toBeAttached();
+    await expect(card(page, 1).locator('details.block')).toHaveAttribute('open', '');
+  });
+
   test('an FAQ rebuilt on the other locale keeps the words of its untouched fields', async ({
     page,
     request,

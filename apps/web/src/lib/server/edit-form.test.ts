@@ -8,6 +8,7 @@ import { formValues, postedValues } from '#lib/editor/block-form.js';
 import {
   blockIssues,
   documentFieldIssues,
+  formFieldOf,
   blockPrefix,
   blocksFrom,
   pendingBlock,
@@ -101,6 +102,29 @@ describe('the one edit form', () => {
       { name: 'b.b.p.text.nl', message: 'x' },
       { name: 'new.p.text.en', message: 'y' },
     ]);
+  });
+
+  it("reads a block action's issue, which starts at the document root, the same way", () => {
+    const e = new UseCaseError('invalid_input', 'bad', [
+      { path: 'access.teaser', message: 'content.access.marker-needs-one-paywall' },
+      { path: 'blocks.0.props.text', message: 'x' },
+    ]);
+    expect(documentFieldIssues(e)).toEqual([
+      { name: 'teaser', message: 'content.access.marker-needs-one-paywall' },
+    ]);
+  });
+
+  it('points a refusal of a whole localised field at the control on screen', () => {
+    const values = {
+      'b.a.p.text.nl': '',
+      'b.a.p.text.en': '',
+      'b.a.p.body.nl.editor': '{}',
+      'b.a.p.width': 'full',
+    };
+    expect(formFieldOf('b.a.p.text', values)).toBe('b.a.p.text.nl');
+    expect(formFieldOf('b.a.p.width', values)).toBe('b.a.p.width');
+    expect(formFieldOf('b.a.p.body', values)).toBe('b.a.p.body');
+    expect(formFieldOf('b.a.p.gone', values)).toBe('b.a.p.gone');
   });
 
   it('puts document issues on the form field that holds them, whatever its tab', () => {
