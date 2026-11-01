@@ -1574,7 +1574,7 @@ test.describe('content-blocks', () => {
 
   /** Block `n` (1-based) of the edit page, opened, with its Display and Source folds open. */
   async function block(page: Page, n: number): Promise<Locator> {
-    const details = page.locator('details.block').nth(n - 1);
+    const details = card(page, n).locator('details.block');
     if ((await details.getAttribute('open')) === null)
       await details.locator(':scope > summary').click();
     const closed = details.locator('details.ui-block-group:not([open])');
@@ -1668,7 +1668,11 @@ test.describe('content-blocks', () => {
     await expect((await block(page, 12)).getByLabel('Breedte')).toHaveValue(
       next === 'Breed' ? 'wide' : 'full'
     );
-    for (const n of [2, 4]) await save(page, n);
+    await save(page, 2);
+    // A paywall has no fold and no fields: the save keeps it through the document alone.
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
+    await expect(card(page, 4).locator('.ui-block-card-title')).toHaveText('4. Betaalmuur');
     await expectNoAxeViolations(page);
 
     // The other locale, shown on its own (#66 PR 4), kept its values: the FAQ's questions, and
@@ -2359,6 +2363,140 @@ test.describe('content-blocks', () => {
     expect(hosts).toEqual([]);
   });
 
+  test('a paywall says what it does, and has nothing to edit', async ({ page, request }) => {
+    const edit = await seededPage(request);
+    await login(page, edit);
+    const paywall = card(page, 4);
+    await expect(paywall.locator('.ui-block-card-title')).toHaveText('4. Betaalmuur');
+    const boundary = paywall.locator('[data-block-rest] .ui-block-text-boundary');
+    await expect(boundary).toContainText('Toegangsgrens');
+    // The seeded page is public: the boundary is there, and holds nobody back yet.
+    await expect(boundary).toContainText('openbaar');
+    await expect(paywall.locator('details.ui-block-card-fold')).toHaveCount(0);
+    await expect(paywall.locator('details.ui-block-card-more')).toHaveCount(1);
+    // The target of a save and an outline link is the card itself.
+    await expect(paywall).toHaveAttribute('id', /^block-/);
+    await page.setViewportSize(NARROW);
+    for (const size of TEXT_SIZES) {
+      await setTextSize(page, size);
+      await layoutGate(page, `paywall at rest at ${size}`, '.item-blocks');
+    }
+    await setTextSize(page, '100%');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expectNoAxeViolations(page);
+    if (!isA11y()) return;
+    // A click on the words opens nothing, and the page stays where it is.
+    const url = page.url();
+    await boundary.click();
+    expect(page.url()).toBe(url);
+    await expect(page.locator('details.block[open]')).toHaveCount(0);
+  });
+
+  test('a paywall on a restricted page does not say the page is public', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `c4-restricted-${isA11y() ? 'a11y' : 'no-js'}-${Date.now()}`,
+      document: {
+        type: 'article',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: 'Voor leden' },
+        access: { level: 'members', teaser: 'marker' },
+        blocks: [
+          { type: 'heading', version: 1, props: { text: { nl: 'Voor iedereen' } } },
+          { type: 'paywall', version: 1, props: {} },
+          { type: 'heading', version: 1, props: { text: { nl: 'Voor leden' } } },
+        ],
+      },
+    });
+    await login(page, `/admin/probe/content/${item.id}`);
+    const boundary = page.locator('.ui-block-text-boundary');
+    await expect(boundary).toContainText('Toegangsgrens');
+    await expect(boundary).not.toContainText('openbaar');
+  });
+
+  test('a legacy hero shows its picture and words, and stays what it is', async ({
+    page,
+    request,
+  }) => {
+    const seeded = await seededPage(request);
+    await login(page, seeded);
+    // The first example has no image: only its words, no picture and nothing that leaves the form.
+    const minimal = card(page, 6).locator('[data-block-rest]');
+    await expect(minimal.locator('.ui-block-text-heading')).not.toBeEmpty();
+    await expect(minimal.locator('img, a[href^="http"], button, form')).toHaveCount(0);
+    await expect(minimal).toContainText('ouder openingsblok');
+    const src = await card(page, 5).locator('[data-block-rest] img').getAttribute('src');
+    const mediaId = /\/media\/([0-9a-f-]{36})\//.exec(src ?? '')?.[1];
+    expect(mediaId).toBeTruthy();
+
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `c4-hero-${isA11y() ? 'a11y' : 'no-js'}-${Date.now()}`,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: 'Schone lucht' },
+        blocks: [
+          {
+            type: 'hero',
+            version: 1,
+            props: {
+              variant: 'cover',
+              title: { nl: 'Schone lucht' },
+              body: { nl: 'Doe mee met de buurt.' },
+              image: {
+                mediaId,
+                decorative: false,
+                alt: { nl: 'Een plein' },
+                caption: { nl: 'Geen bijschrift in deze weergave' },
+              },
+              actions: [
+                {
+                  label: { nl: 'Lees meer' },
+                  target: { kind: 'url', url: 'https://example.org/' },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+    await page.goto(`/admin/probe/content/${item.id}`);
+    const rest = page.locator('[data-block-rest]').first();
+    await expectPixels(rest.locator('img'), 'the legacy hero at rest');
+    await expect(rest.locator('.ui-block-text-heading')).toHaveText('Schone lucht');
+    await expect(rest.locator('.ui-block-text-body')).toHaveText('Doe mee met de buurt.');
+    await expect(rest.locator('.ui-block-text-action').first()).toHaveText('Lees meer');
+    await expect(rest).not.toContainText('Geen bijschrift');
+    await expect(rest.locator('a[href^="https:"], button, input')).toHaveCount(0);
+    // Its way into the header is one link away; the notice it points at is on this page.
+    const move = rest.getByRole('link', { name: 'Verplaats het naar de kop' });
+    await expect(move).toHaveAttribute('href', '#hero-conversion');
+    await expect(page.locator('#hero-conversion')).toContainText(/kop/i);
+    await page.setViewportSize(NARROW);
+    for (const size of TEXT_SIZES) {
+      await setTextSize(page, size);
+      await layoutGate(page, `legacy hero at rest at ${size}`, '.item-blocks');
+    }
+    await setTextSize(page, '100%');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expectNoAxeViolations(page);
+
+    if (!isA11y()) return;
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    // A click on the title goes to its field; closing shows what was typed.
+    await rest.locator('.ui-block-text-heading').click();
+    const fold = page.locator('details.block').first();
+    await expect(fold.getByLabel('Titel', { exact: true }).first()).toBeFocused();
+    await fold.getByLabel('Titel', { exact: true }).first().fill('Frisse lucht');
+    await page.keyboard.press('Escape');
+    await expect(rest.locator('.ui-block-text-heading')).toHaveText('Frisse lucht');
+  });
+
   test('an FAQ rebuilt on the other locale keeps the words of its untouched fields', async ({
     page,
     request,
@@ -2469,7 +2607,7 @@ test.describe('content-blocks', () => {
     const image = card(page, 5);
     await expect(image.locator('.ui-block-card-title')).toHaveText('5. Afbeelding');
     await expectPixels(image.locator('[data-block-rest] img'), 'the image block at rest');
-    const fields = page.locator('details.block').nth(4);
+    const fields = image.locator('details.block');
     await fields.locator(':scope > summary').click();
     // Content first; layout and credit folded until asked for.
     await expect(fields.getByLabel('Plaatsing')).toBeHidden();
@@ -2525,10 +2663,12 @@ test.describe('content-blocks', () => {
           document.querySelectorAll('details').forEach((d) => (d.open = true))
         );
         const blocks = form.locator('details.block');
-        await expect(blocks).toHaveCount(12);
+        // Twelve cards, one fold less: a paywall has no fields to open.
+        await expect(form.locator('section.ui-block-card')).toHaveCount(12);
+        await expect(blocks).toHaveCount(11);
         await expect(form.locator('details.block:not([open])')).toHaveCount(0);
         await expect(blocks.nth(2).locator('.ProseMirror')).toBeVisible();
-        await expect(blocks.nth(8).getByLabel('Vraag', { exact: true }).first()).toBeVisible();
+        await expect(card(page, 9).getByLabel('Vraag', { exact: true }).first()).toBeVisible();
         await setTextSize(page, text);
         await expect(page).toHaveURL(new RegExp(`${edit}$`));
         await layoutGate(page, edit);

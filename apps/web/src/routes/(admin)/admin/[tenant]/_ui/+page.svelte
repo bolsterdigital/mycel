@@ -348,6 +348,7 @@
             },
           }}
         />
+        <BlockText view={{ kind: 'paywall' }} kindLabel={t('admin.block.paywall.boundary')} />
         <BlockText
           view={{
             kind: 'cta',

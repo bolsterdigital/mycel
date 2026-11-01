@@ -6,7 +6,8 @@
      the one control here is an accordion's own summary, which folds the answer and never opens the
      block. A video is its title and host, with no player, poster or request to the host (ADR 009;
      external images fall outside img-src 'self'). A form is the shape of its definition in spans:
-     no form, input or button exists here, so nothing can be submitted. The `html` comes from the escaping walk in `lib/blocks/rich-text.ts`, in its inert mode.
+     no form, input or button exists here, so nothing can be submitted. A paywall is a line that
+     says what the boundary does, and only here: the public page renders nothing for it. The `html` comes from the escaping walk in `lib/blocks/rich-text.ts`, in its inert mode.
      The `data-rest-*` attributes are what the screen's script brings up to date when a block
      closes with typed changes. Rejected: the public block components, which print `h2` and real
      links. -->
@@ -52,6 +53,7 @@
         bodyFrom?: string;
         actions: readonly { label: string; from?: string }[];
       }
+    | { kind: 'paywall' }
     | {
         kind: 'video';
         provider: string;
@@ -77,13 +79,16 @@
   let {
     view,
     kindLabel,
-    changedLabel,
+    noteLabel,
   }: {
     view: View;
-    /** A callout's kind, a video's host or what a form is, in words: never colour alone. */
+    /** A callout's kind, a video's host, what a form is or what a paywall does, in words. */
     kindLabel?: string | undefined;
-    /** Shown once a form's reference was edited: the screen cannot look it up before the save. */
-    changedLabel?: string | undefined;
+    /**
+     * A form: shown once its reference was edited, as the screen cannot look it up before the save.
+     * A paywall: what the boundary does on this page now, when that differs from the rule.
+     */
+    noteLabel?: string | undefined;
   } = $props();
 </script>
 
@@ -148,6 +153,11 @@
         {/each}
       </div>
     </div>
+  {:else if view.kind === 'paywall'}
+    <div class="ui-block-text-boundary">
+      <p class="ui-block-text-kind">{kindLabel}</p>
+      {#if noteLabel}<p class="ui-block-text-changed">{noteLabel}</p>{/if}
+    </div>
   {:else if view.kind === 'video'}
     <div class="ui-block-text-video">
       <span class="ui-block-text-play"></span>
@@ -181,7 +191,7 @@
           <span class="ui-block-text-action">{view.form.submit}</span>
         </div>
       {/if}
-      <p class="ui-block-text-changed" data-rest-changed={view.idFrom} hidden>{changedLabel}</p>
+      <p class="ui-block-text-changed" data-rest-changed={view.idFrom} hidden>{noteLabel}</p>
     </div>
   {:else}
     {@render answer(view)}

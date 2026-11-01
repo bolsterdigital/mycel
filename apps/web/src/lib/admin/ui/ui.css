@@ -1652,6 +1652,16 @@
     color: var(--color-primary-bg);
     background: transparent;
   }
+  /* A paywall at rest: a dashed line across the block, so it reads as a place in the text. Border,
+     so it stays in forced colours; the words say what it does. */
+  .ui-block-text-boundary {
+    padding-block-start: var(--space-1);
+    overflow-wrap: anywhere;
+    border-block-start: calc(2 * var(--border-width)) dashed currentColor;
+  }
+  .ui-block-text-boundary .ui-block-text-changed {
+    margin-block-start: var(--space-0);
+  }
   /* A video at rest: what it is and where it lives. The triangle only says "plays"; borders, so it
      stays in forced colours. No poster: the host's images would be a request to the host. */
   .ui-block-text-video {

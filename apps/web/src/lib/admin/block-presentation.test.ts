@@ -45,6 +45,15 @@ describe('block presentation', () => {
     expect(groupOf('signup-form', 'formId')).toBe('content');
   });
 
+  it("shows the paywall and the legacy hero at rest, with the hero's looks under display", () => {
+    for (const type of ['paywall', 'hero'] as const)
+      expect(BLOCK_PRESENTATION[type]).toMatchObject({ rest: 'text', stage: 'C4' });
+    expect(groupOf('hero', 'variant')).toBe('display');
+    expect(groupOf('hero', 'align')).toBe('display');
+    expect(groupOf('hero', 'title')).toBe('content');
+    expect(groupOf('hero', 'image')).toBe('content');
+  });
+
   it('shows the image pilot as a picture, with layout under display and credit as source', () => {
     expect(BLOCK_PRESENTATION.image).toMatchObject({ rest: 'image', stage: 'A' });
     expect(groupOf('image', 'layout')).toBe('display');

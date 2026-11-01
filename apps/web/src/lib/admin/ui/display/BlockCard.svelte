@@ -9,7 +9,9 @@
      JavaScript; the screen's script adds Escape, a second "Done" under long fields and a click
      on the rest view. Rejected: the preview inside the summary (its whole text became the
      button's name, and a block had no visible "Edit"), actions on hover (unreachable on touch
-     and by keyboard) and a modal or global properties panel (loses the reading context). -->
+     and by keyboard) and a modal or global properties panel (loses the reading context). A block
+     with no fields at all (a paywall) has no fold: an "Edit" that opens nothing is a false promise;
+     the card itself is then the `#block-<id>` target. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import Icon from '../Icon.svelte';
@@ -18,6 +20,7 @@
     id,
     title,
     open = false,
+    editable = true,
     labels,
     class: extra = '',
     actions,
@@ -29,6 +32,8 @@
     /** "3. Kop": the block's place and type. */
     title: string;
     open?: boolean;
+    /** False for a type without fields: no fold, only the rest view and the actions. */
+    editable?: boolean;
     /** The words of the card's own controls, in the operator's language. */
     labels: { edit: string; done: string; more: string };
     /** A hook for the screen's tests and scripts, never for styling. */
@@ -41,7 +46,12 @@
   } = $props();
 </script>
 
-<section class="ui-block-card" aria-labelledby="{id}-title" data-block-card>
+<section
+  class="ui-block-card"
+  id={editable ? undefined : id}
+  aria-labelledby="{id}-title"
+  data-block-card
+>
   <div class="ui-block-card-head">
     <h4 class="ui-block-card-title" id="{id}-title">{title}</h4>
     {#if actions}
@@ -56,19 +66,21 @@
     {/if}
   </div>
   <div class="ui-block-card-rest" data-block-rest>{@render rest()}</div>
-  <details class={['ui-block-card-fold', extra]} {id} {open}>
-    <summary aria-describedby="{id}-title"
-      ><span class="ui-block-card-closed">{labels.edit}</span><span class="ui-block-card-open"
-        >{labels.done}</span
-      ></summary
-    >
-    <div class="ui-block-card-body">
-      {@render children()}
-      <div class="ui-block-card-done" data-block-done hidden>
-        <button type="button" class="ui-button secondary" aria-describedby="{id}-title"
-          >{labels.done}</button
-        >
+  {#if editable}
+    <details class={['ui-block-card-fold', extra]} {id} {open}>
+      <summary aria-describedby="{id}-title"
+        ><span class="ui-block-card-closed">{labels.edit}</span><span class="ui-block-card-open"
+          >{labels.done}</span
+        ></summary
+      >
+      <div class="ui-block-card-body">
+        {@render children()}
+        <div class="ui-block-card-done" data-block-done hidden>
+          <button type="button" class="ui-button secondary" aria-describedby="{id}-title"
+            >{labels.done}</button
+          >
+        </div>
       </div>
-    </div>
-  </details>
+    </details>
+  {/if}
 </section>

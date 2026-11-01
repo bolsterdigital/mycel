@@ -207,6 +207,25 @@ describe('Panel', () => {
 
 describe('BlockCard', () => {
   const labels = { edit: 'Edit', done: 'Done', more: 'More actions' };
+  it('has no fold for a block without fields, and is then the target itself', () => {
+    const out = html(BlockCard, {
+      id: 'block-1',
+      title: '4. Paywall',
+      class: 'block',
+      labels,
+      editable: false,
+      actions: text('ACTIONS'),
+      rest: text('REST'),
+      children: text('FIELDS'),
+    });
+    expect(out).toMatch(/^<section class="ui-block-card" id="block-1"/);
+    expect(out).toContain('ACTIONS');
+    expect(out).toContain('REST');
+    expect(out).not.toContain('ui-block-card-fold');
+    expect(out).not.toContain('FIELDS');
+    expect(out).not.toContain('>Edit<');
+  });
+
   it('shows the block at rest, a named Edit over the fields and actions under More actions', () => {
     const out = html(BlockCard, {
       id: 'block-1',
@@ -242,9 +261,18 @@ describe('BlockCard', () => {
     expect(video).toContain('Mars &lt;1>');
     expect(video).toContain('YouTube');
     expect(video).not.toMatch(/<(iframe|img|a|video|script)\b/);
+    const boundary = html(BlockText, {
+      view: { kind: 'paywall' },
+      kindLabel: 'Access boundary',
+      noteLabel: 'This page is public',
+    });
+    expect(boundary).toContain('Access boundary');
+    expect(boundary).toContain('This page is public');
+    const restricted = html(BlockText, { view: { kind: 'paywall' }, kindLabel: 'Access boundary' });
+    expect(restricted).not.toContain('ui-block-text-changed');
     const form = html(BlockText, {
       kindLabel: 'Signup form for list news',
-      changedLabel: 'Changed',
+      noteLabel: 'Changed',
       view: {
         kind: 'form',
         variant: 'card',
