@@ -26,7 +26,7 @@ import {
 } from './blocks.js';
 import { EXAMPLE_IDS } from './block-types.js';
 import { diffDocuments } from './diff.js';
-import { EffectiveView, effectiveOf } from './effective.js';
+import { EffectiveView, effectiveOf } from './header/effective.js';
 import {
   draftLocale,
   publish,

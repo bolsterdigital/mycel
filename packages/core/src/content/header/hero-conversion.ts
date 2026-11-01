@@ -17,15 +17,15 @@
 // onto `presentation.header` (an article's cover is its own decision; the layout is reported).
 
 import { z } from 'zod';
-import { notFound, UseCaseError } from '../errors.js';
-import { Locale } from '../i18n/locale.js';
-import { defineUseCase } from '../registry.js';
-import { exampleId } from '../util/ids.js';
-import { BLOCK_DEFINITIONS, BlockAction } from './block-types.js';
-import { BlockId, allBlocks, type Block } from './blocks.js';
-import type { ContentDocument } from './model.js';
-import { OperationResult } from './operations.js';
-import { assertBase, finalize, lockItem, writeRevision } from './service.js';
+import { notFound, UseCaseError } from '../../errors.js';
+import { Locale } from '../../i18n/locale.js';
+import { defineUseCase } from '../../registry.js';
+import { exampleId } from '../../util/ids.js';
+import { BLOCK_DEFINITIONS, BlockAction } from '../block-types.js';
+import { BlockId, allBlocks, type Block } from '../blocks.js';
+import type { ContentDocument } from '../model.js';
+import { OperationResult } from '../operations.js';
+import { assertBase, finalize, lockItem, writeRevision } from '../service.js';
 
 /** The longest lead a document takes; a hero's body may be longer (5000). */
 const LEAD_MAX = 1000;

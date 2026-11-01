@@ -54,7 +54,7 @@ export type SiteGeneral = z.infer<typeof SiteGeneral>;
 export const DEFAULT_GENERAL: SiteGeneral = { timeZone: DEFAULT_TIME_ZONE };
 /**
  * The images of a site (#86): today its default image, the last link of an item's featured and
- * share image chain (`content/effective.ts`). A document of its own, not part of `general`, so the
+ * share image chain (`content/header/effective.ts`). A document of its own, not part of `general`, so the
  * Huisstijl form that sets it and the general form that sets the time zone never post over each
  * other's value. Rejected: a field on the theme, which is validated design values and is posted
  * whole by a form that knows nothing of media.

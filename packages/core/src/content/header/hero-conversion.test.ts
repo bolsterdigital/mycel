@@ -4,11 +4,11 @@
 
 import fc from 'fast-check';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { Invoker } from '../invoke.js';
-import { systemPrincipal, type Principal } from '../principal.js';
-import { MemoryUnitOfWork, TENANT } from '../testing/index.js';
-import { buildRegistry, useCases } from '../use-cases.js';
-import { ContentDocument } from './model.js';
+import { Invoker } from '../../invoke.js';
+import { systemPrincipal, type Principal } from '../../principal.js';
+import { MemoryUnitOfWork, TENANT } from '../../testing/index.js';
+import { buildRegistry, useCases } from '../../use-cases.js';
+import { ContentDocument } from '../model.js';
 import { applyHeroConversion, proposeHeroConversion } from './hero-conversion.js';
 
 const MEDIA = '01900000-0000-7000-8000-00000000a001';

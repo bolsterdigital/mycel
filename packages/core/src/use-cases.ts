@@ -51,7 +51,7 @@ import {
   setBlockProps,
   splitInsertBlock,
 } from './content/operations.js';
-import { convertHero, getHeroConversion } from './content/hero-conversion.js';
+import { convertHero, getHeroConversion } from './content/header/hero-conversion.js';
 import { getPublished } from './content/public.js';
 import {
   approveTranslation,

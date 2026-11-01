@@ -59,7 +59,7 @@
     Tabs,
   } from '#lib/admin/ui/index.js';
   import { BLOCK_PRESENTATION } from '#lib/admin/block-presentation.js';
-  import { BLOCK_DEFINITIONS, type BlockType, type MediaCredit } from '@mycel/core';
+  import { BLOCK_DEFINITIONS, pick, type BlockType, type MediaCredit } from '@mycel/core';
   import { fill, ui, type UiKey } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -372,9 +372,7 @@
         {#if c.cta}
           <li>
             {fill(t('admin.content.heroConversion.cta'), {
-              labels: c.cta.actions
-                .map((a) => a.label[work] ?? Object.values(a.label)[0] ?? '')
-                .join(', '),
+              labels: c.cta.actions.map((a) => pick(a.label, work, defaultLocale) ?? '').join(', '),
             })}
           </li>
         {/if}
