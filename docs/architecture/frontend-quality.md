@@ -117,6 +117,17 @@ The implementation must demonstrate these cases before its status becomes requir
 
 Grow the existing browser/conformance suites for product defects. A small evaluator unit suite is justified for the new aggregation and classification logic; do not build a parallel application test framework.
 
+## Modern web checklist
+
+Lighthouse and axe do not ask whether a site is complete as a website: feeds, well-known URIs, security headers, discovery for agents, hreflang. [specification.website](https://specification.website/checklist/) (CC BY 4.0) lists 178 such items in ten categories. [`scripts/quality/spec-checklist.json`](../../scripts/quality/spec-checklist.json) gives every one of them a status:
+
+- `gate`: checked on every corpus page by a rule in [`spec-check.mjs`](../../scripts/quality/spec-check.mjs), run in `quality-corpus.spec.ts` over the server's own responses (both locales, a revalidation, a missing path, a fingerprinted asset, the preloaded font, a request in another language). A `gap` names the part of the item the rule does not yet check, a `deviation` a reasoned difference from the checklist.
+- `covered`: an existing gate already proves it; the file is named.
+- `open`: not met yet; the `gap` says what is missing.
+- `declined` and `not-applicable`: with the reason.
+
+`spec-check.test.mjs` keeps the file complete (all 178 items, each with the field its status needs, each named rule and file present) and shows each rule fails on the defect it names. An `open` item that gets built moves to `gate` or `covered` in the same PR. A refresh against a newer checklist is a deliberate edit of the JSON, with the retrieval date; the gate never fetches it.
+
 ## Sources and interpretation
 
 Google documents [performance score variability](https://developer.chrome.com/docs/lighthouse/performance/performance-scoring) and [LHCI repetition and aggregation](https://googlechrome.github.io/lighthouse-ci/docs/configuration.html). These justify fixing the environment and retaining repeated samples; the thresholds, cadence and rollout above are Mycel choices.

@@ -6,6 +6,8 @@ import AxeBuilder from '@axe-core/playwright';
 import { THEME_PRESETS, Theme, UseCaseError, systemPrincipal, useCases } from '@mycel/core';
 import { expect, test } from '@playwright/test';
 import corpus from './quality-corpus.json' with { type: 'json' };
+import checklist from '../../../scripts/quality/spec-checklist.json' with { type: 'json' };
+import { type Sample, specFailures } from '../../../scripts/quality/spec-check.mjs';
 import { themeCss } from '../src/lib/theme/tokens.js';
 import { WCAG, expectNoAxeViolations } from './lib/axe';
 import { tenantId, withInvoker } from './lib/invoker';
@@ -174,6 +176,55 @@ test('campaign accordion and task link work with keyboard only', async ({ page }
   await link.focus();
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/probe\/signup$/);
+});
+
+// The gate items of scripts/quality/spec-checklist.json (specification.website) on the server's
+// own responses: every corpus page in both locales, a revalidation, a missing path, a
+// fingerprinted asset, the preloaded font and a page asked for in another language. Over the
+// forwarded HTTPS scheme, as behind Caddy. The checklist file says which items are gated here,
+// which an existing gate already covers and which are open.
+test('public pages meet the gated items of the modern web checklist', async ({ request }) => {
+  onlyA11y('reads raw HTTP responses, so one project is enough');
+  const https = { 'x-forwarded-proto': 'https' };
+  const sample = async (
+    role: Sample['role'],
+    path: string,
+    headers: Record<string, string> = {},
+    locale?: string
+  ): Promise<Sample> => {
+    const response = await request.get(path, {
+      headers: { ...https, ...headers },
+      maxRedirects: 0,
+    });
+    return {
+      role,
+      path,
+      status: response.status(),
+      headers: response.headers(),
+      body: await response.text(),
+      https: true,
+      ...(locale ? { locale } : {}),
+    };
+  };
+  const samples: Sample[] = [];
+  for (const entry of entries)
+    for (const [locale, identity] of Object.entries(entry.locales)) {
+      const page = await sample('page', identity.path, {}, locale);
+      samples.push(page);
+      const etag = page.headers['etag'];
+      if (etag)
+        samples.push(await sample('revalidation', identity.path, { 'if-none-match': etag }));
+      if (locale === 'nl')
+        samples.push(await sample('negotiation', identity.path, { 'accept-language': 'en' }));
+    }
+  samples.push(await sample('missing', '/probe/spec-check-missing-page'));
+  const first = samples[0]?.body ?? '';
+  const asset = first.match(/href="([^"]*_app\/immutable\/[^"]+\.css)"/)?.[1];
+  const font = first.match(/<link rel="preload" href="([^"]+)" as="font"/)?.[1];
+  if (asset)
+    samples.push(await sample('asset', new URL(asset, `http://x${samples[0]?.path}`).pathname));
+  if (font) samples.push(await sample('font', font));
+  expect(specFailures(checklist, samples)).toEqual([]);
 });
 
 test('admin corpus uses the populated shell, native editor and enhanced writer', async ({
