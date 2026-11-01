@@ -437,7 +437,10 @@ describe.skipIf(skip)('self-service export', () => {
     expect((await list(tenant.b)).exports.find((e) => e.id === kept)?.status).toBe('ready');
   });
 
-  it('runs every sequence of requests, job steps, expiries and time like core (property)', async () => {
+  // Requests, job steps, expiries and time. Fifteen runs of fifteen steps are some 700 transactions,
+  // so a loaded machine needs far more than the default 5 s: 11.9 s in a full run on a laptop, under
+  // 1 s on a server. Rejected: fewer runs, which would let a slow machine pass by proving less.
+  it('runs every sequence of steps like core (property)', { timeout: 30_000 }, async () => {
     const leaseMs = JOB_LEASE_SECONDS * 1000;
     await fc.assert(
       fc.asyncProperty(fc.gen(), async (g) => {
