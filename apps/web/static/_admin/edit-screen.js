@@ -9,7 +9,8 @@
 // - Escape closes the innermost open block fold, "More actions" or confirmation and gives focus
 //   back to its summary; it never touches what was typed;
 // - a "Done" under a block's fields that closes it like its summary does, and a click on the
-//   block at rest that opens it, with a text block's words brought up to date when it closes;
+//   block at rest that opens it, with a text block's words brought up to date when it closes
+//   and a click on them landing in the field they came from;
 // - focus after a round trip lands where the action was: the moved block's "More actions", the
 //   copy's or neighbour's "Edit", the first field of a new block;
 // - a link or a refused control inside a closed fold opens that fold first (the tabs script
@@ -109,31 +110,52 @@ if (form instanceof HTMLFormElement) {
       if (fold) close(fold);
     });
   }
+  let rememberFold = () => {};
   form.addEventListener('click', (event) => {
     const target = event.target instanceof Element ? event.target : null;
     const rest = target?.closest('[data-block-rest]');
     if (!rest || target.closest('a, button, summary')) return;
     const fold = rest.parentElement?.querySelector(':scope > details.ui-block-card-fold');
     if (!fold || fold.open) return;
+    rememberFold(fold);
     fold.open = true;
-    // A click on the words is a wish to write them: into the editor, else the first field.
+    // A click on the words is a wish to write them: into the field they came from, else the first.
     const field = rest.querySelector('.ui-block-text')
-      ? [...fold.querySelectorAll('.ProseMirror, input:not([type="hidden"]), textarea')].find(
-          (control) => control.getClientRects().length
-        )
+      ? (sourceOf(target) ??
+        [...fold.querySelectorAll('.ProseMirror, input:not([type="hidden"]), textarea')].find(
+          shown
+        ))
       : null;
     (field ?? fold.querySelector(':scope > summary'))?.focus();
   });
 
-  // A closed block says what its fields say now, not what was last saved (MY-110 C1). Without
+  // A closed block says what its fields say now, not what was last saved (MY-110 C1, C2). Without
   // JavaScript the rest view stays the saved text until the save; the fields keep what was typed.
+  const controlOf = (name) => form.elements.namedItem(name);
   const valueOf = (names) => {
     for (const name of names.split('|')) {
-      const control = form.elements.namedItem(name);
+      const control = controlOf(name);
       if (control?.value) return control.value;
     }
     return '';
   };
+  /** The editor that writes to a `.editor` field: it follows that field's hidden input. */
+  const editorOf = (name) => controlOf(name)?.nextElementSibling?.querySelector('.ProseMirror');
+  /** The field a word at rest came from, when it can take the focus. */
+  const shown = (control) => control.getClientRects().length > 0;
+  const sourceOf = (target) => {
+    const prose = target.closest('[data-rest-prose]')?.dataset.restProse;
+    if (prose) {
+      const control = editorOf(prose) ?? controlOf(prose.replace(/\.editor$/, ''));
+      if (control && shown(control)) return control;
+    }
+    const names = target.closest('[data-rest-from]')?.dataset.restFrom?.split(/[ |]/) ?? [];
+    return names.map(controlOf).find((control) => control?.getClientRects && shown(control));
+  };
+  /** What every field held on load (Svelte's hydration clears `defaultValue`, so it says nothing). */
+  const loaded = new Map([...form.elements].map((control) => [control.name, control.value]));
+  const typedInto = (names) =>
+    names.split(/[ |]/).some((name) => controlOf(name)?.value !== loaded.get(name));
   const PROSE_TAGS = new Set(['P', 'STRONG', 'EM', 'CODE', 'UL', 'OL', 'LI', 'BR', 'SUP']);
   /** The editor's words as the inert markup of `rich-text.ts`, built from its nodes, no copies. */
   const inertCopy = (source, target) => {
@@ -154,26 +176,109 @@ if (form instanceof HTMLFormElement) {
       inertCopy(node, copy ?? target);
     }
   };
-  /** What a fold's editor held when it opened: an unchanged one keeps the server's rendering. */
+  /** What each editor held when its fold opened: an unchanged one keeps the server's rendering. */
   const opened = new WeakMap();
+  /** The words the server set on a line: what stays while its fields are as they were loaded. */
+  const served = new WeakMap();
+  const fieldsOf = (fold) =>
+    [...fold.querySelectorAll('input:not([type="hidden"]), textarea, select')]
+      .map((control) => control.value)
+      .join('\0');
+  /** An FAQ whose rows changed is set again: its rows and its variant decide the elements. */
+  const rebuildEntries = (faq, place) => {
+    const { restList: list, restLocale: locale } = faq.dataset;
+    const accordion = controlOf(faq.dataset.restVariant)?.value === 'accordion';
+    const previous = new Map(
+      [...place.querySelectorAll('[data-rest-prose]')].map((el) => [el.dataset.restProse, el])
+    );
+    const entries = [];
+    for (let i = 0; i < Number(controlOf(`${list}.rows`)?.value ?? 0); i++) {
+      const from = `${list}.${i}.question.${locale}`;
+      const proseFrom = `${list}.${i}.answer.${locale}.editor`;
+      const question = valueOf(from);
+      const editor = editorOf(proseFrom);
+      const native = controlOf(proseFrom.replace(/\.editor$/, ''))?.value ?? '';
+      const words = editor ? (editor.textContent ?? '') : native;
+      if (!question && !words.trim()) continue;
+      const answer = document.createElement('div');
+      answer.className = 'ui-block-text-prose';
+      answer.dataset.restProse = proseFrom;
+      const kept = previous.get(proseFrom);
+      if (kept && editor && editor.innerHTML === opened.get(editor)) {
+        answer.append(...kept.childNodes);
+      } else if (editor) {
+        inertCopy(editor, answer);
+      } else {
+        const line = document.createElement('p');
+        line.textContent = native;
+        answer.append(line);
+      }
+      const entry = document.createElement(accordion ? 'details' : 'div');
+      entry.className = 'ui-block-text-entry';
+      const label = document.createElement(accordion ? 'span' : 'p');
+      label.dataset.restFrom = from;
+      label.textContent = question;
+      if (accordion) {
+        const summary = document.createElement('summary');
+        summary.append(label);
+        entry.append(summary);
+      } else {
+        label.className = 'ui-block-text-question';
+        entry.append(label);
+      }
+      entry.append(answer);
+      entries.push(entry);
+    }
+    place.replaceChildren(...entries);
+  };
+  /** What the plain fields of a fold held when it opened. */
+  const restFolds = new WeakMap();
+  // Also called from the click that opens a fold: `toggle` comes a task later, after a fast typist.
+  rememberFold = (fold) => {
+    if (restFolds.has(fold)) return;
+    for (const editor of fold.querySelectorAll('.ProseMirror'))
+      opened.set(editor, editor.innerHTML);
+    restFolds.set(fold, fieldsOf(fold));
+  };
   form.addEventListener(
     'toggle',
     (event) => {
       const fold = event.target;
       if (!(fold instanceof HTMLDetailsElement) || !fold.matches('.ui-block-card-fold')) return;
-      const editor = fold.querySelector('.ProseMirror');
+      const editors = fold.querySelectorAll('.ProseMirror');
       if (fold.open) {
-        opened.set(fold, editor?.innerHTML);
+        rememberFold(fold);
         return;
       }
       const rest = fold.parentElement?.querySelector(':scope > [data-block-rest]');
       if (!rest) return;
+      const entries = rest.querySelector('[data-rest-entries]');
+      const edited =
+        restFolds.get(fold) !== fieldsOf(fold) ||
+        [...editors].some((editor) => editor.innerHTML !== opened.get(editor));
+      restFolds.delete(fold);
+      if (entries && edited) rebuildEntries(entries.closest('[data-rest-list]'), entries);
       for (const line of rest.querySelectorAll('[data-rest-from]')) {
-        const parts = line.dataset.restFrom.split(' ').map(valueOf).filter(Boolean);
-        if (parts.length) line.textContent = parts.join(', ');
+        const names = line.dataset.restFrom;
+        if (!names) continue;
+        if (!served.has(line)) served.set(line, line.textContent);
+        // Untouched fields keep the server's words, which may be another locale's fallback; an
+        // emptied one is empty, as the save will make it.
+        line.textContent = typedInto(names)
+          ? names.split(' ').map(valueOf).filter(Boolean).join(', ')
+          : served.get(line);
       }
-      const prose = rest.querySelector('[data-rest-prose]');
-      if (prose && editor && editor.innerHTML !== opened.get(fold)) {
+      for (const box of rest.querySelectorAll('[data-rest-variant]')) {
+        const value = controlOf(box.dataset.restVariant)?.value;
+        if (value) box.dataset.variant = value;
+      }
+      for (const kind of rest.querySelectorAll('[data-rest-option]')) {
+        const text = controlOf(kind.dataset.restOption)?.selectedOptions?.[0]?.textContent;
+        if (text) kind.textContent = text;
+      }
+      for (const prose of rest.querySelectorAll('[data-rest-prose]')) {
+        const editor = editorOf(prose.dataset.restProse);
+        if (!editor || editor.innerHTML === opened.get(editor)) continue;
         prose.replaceChildren();
         inertCopy(editor, prose);
       }

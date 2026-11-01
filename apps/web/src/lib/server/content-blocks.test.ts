@@ -86,8 +86,48 @@ describe('textRestOf', () => {
     });
   });
 
+  it('sets a callout with its kind, title and inert body, and each answer of an FAQ', () => {
+    const callout = textRestOf(
+      Block.parse({
+        id: 'b',
+        type: 'callout',
+        version: 1,
+        props: { variant: 'warning', title: { nl: 'Let <op>' }, body: { nl: doc } },
+      }),
+      'nl',
+      'b.b.'
+    );
+    expect(callout).toMatchObject({
+      kind: 'callout',
+      variant: 'warning',
+      title: 'Let <op>',
+      titleFrom: 'b.b.p.title.nl',
+      proseFrom: 'b.b.p.body.nl.editor',
+    });
+    if (callout?.kind !== 'callout') throw new Error('no callout view');
+    expect(callout.html).not.toMatch(/<a\b|<h[1-6]|\bid=|href/);
+
+    const faq = textRestOf(example('faq', 1), 'nl', 'b.b.');
+    if (faq?.kind !== 'faq') throw new Error('no faq view');
+    expect(faq.variant).toBe('accordion');
+    expect(faq.list).toBe('b.b.p.entries');
+    expect(faq.entries[0]).toMatchObject({
+      from: 'b.b.p.entries.0.question.nl',
+      proseFrom: 'b.b.p.entries.0.answer.nl.editor',
+    });
+    for (const entry of faq.entries) expect(entry.html).not.toMatch(/<a\b|href/);
+  });
+
+  it('gives a CTA both of its action places, also when only one is filled', () => {
+    const cta = textRestOf(example('cta'), 'nl', 'b.b.');
+    if (cta?.kind !== 'cta') throw new Error('no cta view');
+    expect(cta.title).toBe('Doe mee');
+    expect(cta.actions).toHaveLength(2);
+    expect(cta.actions[1]).toEqual({ label: '', from: 'b.b.p.actions.1.label.nl' });
+  });
+
   it('has no view for a type that still shows the summary', () => {
-    expect(textRestOf(example('faq'), 'nl', 'b.b.')).toBe(null);
+    expect(textRestOf(example('video-embed'), 'nl', 'b.b.')).toBe(null);
   });
 });
 

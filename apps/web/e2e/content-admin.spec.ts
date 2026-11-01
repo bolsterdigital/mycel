@@ -2185,6 +2185,119 @@ test.describe('content-blocks', () => {
     await expect(rests.nth(2).locator('footer')).toHaveText('Sam de Vries, Voorzitter');
   });
 
+  test('a callout, an FAQ and a CTA rest as the page shows them, and nothing there acts', async ({
+    page,
+  }) => {
+    await login(page, '/admin/probe');
+    const edit = await newPage(page, 'c2-rest');
+    const callout = await insert(page, 'Kader', 'end');
+    await callout.getByLabel('Titel', { exact: true }).fill('Let op');
+    await callout.getByLabel('Tekst', { exact: true }).fill('Een **vette** zin.');
+    await add(page);
+    const faq = await insert(page, 'Vragen en antwoorden', 'end');
+    await faq.getByLabel('Vraag', { exact: true }).first().fill('Waarom dit?');
+    await faq.getByLabel('Antwoord', { exact: true }).first().fill('Omdat **het** kan.');
+    await add(page);
+    const cta = await insert(page, 'Oproep', 'end');
+    await cta.getByLabel('Titel', { exact: true }).fill('Doe mee');
+    await cta.getByLabel('Tekst op de knop', { exact: true }).first().fill('Teken nu');
+    await cta.getByLabel('Linkt naar').first().selectOption({ label: 'Het adres hieronder' });
+    await cta.getByLabel('Adres (URL)').first().fill('https://example.org/teken');
+    await add(page);
+
+    await page.goto(edit);
+    const rests = page.locator('[data-block-rest]');
+    const box = rests.nth(0).locator('.ui-block-text-callout');
+    await expect(box.locator('.ui-block-text-kind')).toHaveText('Informatie');
+    await expect(box.locator('.ui-block-text-title')).toHaveText('Let op');
+    await expect(box.locator('strong')).toHaveText('vette');
+    await expect(rests.nth(1).locator('.ui-block-text-question')).toHaveText('Waarom dit?');
+    await expect(rests.nth(1).locator('strong')).toHaveText('het');
+    await expect(rests.nth(2).locator('.ui-block-text-heading')).toHaveText('Doe mee');
+    await expect(rests.nth(2).locator('.ui-block-text-action').first()).toHaveText('Teken nu');
+    // The second place is there for a label typed later, and takes no room until then.
+    await expect(rests.nth(2).locator('.ui-block-text-action').nth(1)).toBeHidden();
+    await expect(
+      rests.locator('h1, h2, h3, h4, h5, h6, a[href], button, input, form, [id]')
+    ).toHaveCount(0);
+
+    await page.setViewportSize(NARROW);
+    for (const size of TEXT_SIZES) {
+      await setTextSize(page, size);
+      await layoutGate(page, `callout, FAQ and CTA at rest at ${size}`, '.item-blocks');
+    }
+    await setTextSize(page, '100%');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expectNoAxeViolations(page);
+
+    if (!isA11y()) return;
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    const folds = page.locator('details.block');
+    const done = (i: number) => folds.nth(i).locator('[data-block-done] button').click();
+
+    // A click lands in the field those words came from; closing shows what changed, kind included.
+    await box.locator('.ui-block-text-prose').click();
+    await expect(folds.nth(0).locator('.ProseMirror')).toBeFocused();
+    await page.keyboard.type('Erbij. ');
+    await folds.nth(0).locator('details.ui-block-group > summary').click();
+    await folds.nth(0).getByLabel('Variant').selectOption({ label: 'Waarschuwing' });
+    await folds.nth(0).getByLabel('Titel', { exact: true }).fill('');
+    await done(0);
+    await expect(box).toHaveAttribute('data-variant', 'warning');
+    await expect(box.locator('.ui-block-text-kind')).toHaveText('Waarschuwing');
+    await expect(box).toContainText('Erbij.');
+    await expect(box.locator('strong')).toHaveText('vette');
+    // An emptied optional title goes, as the save will make it.
+    await expect(box.locator('.ui-block-text-title')).toBeHidden();
+
+    // A CTA's preview goes nowhere: a click on its button opens the block at that label.
+    await rests.nth(2).locator('.ui-block-text-action').first().click();
+    await expect(page).toHaveURL(new RegExp(`${edit}$`));
+    const label = folds.nth(2).getByLabel('Tekst op de knop', { exact: true });
+    await expect(label.first()).toBeFocused();
+    await label.nth(1).fill('Lees meer');
+    const second = folds.nth(2);
+    await second.getByLabel('Linkt naar').nth(1).selectOption({ label: 'Het adres hieronder' });
+    await second.getByLabel('Adres (URL)').nth(1).fill('https://example.org/meer');
+    await label.nth(1).focus();
+    await page.keyboard.press('Escape');
+    await expect(rests.nth(2).locator('.ui-block-text-action').nth(1)).toHaveText('Lees meer');
+
+    // An FAQ's answer goes to its editor; its question to its field.
+    await rests.nth(1).locator('.ui-block-text-prose').first().click();
+    await expect(folds.nth(1).locator('.ProseMirror').first()).toBeFocused();
+    await page.keyboard.press('Escape');
+    await rests.nth(1).locator('.ui-block-text-question').first().click();
+    const question = folds.nth(1).getByLabel('Vraag', { exact: true }).first();
+    await expect(question).toBeFocused();
+
+    // As an accordion its answers fold at rest: the keyboard folds without opening the block, and
+    // "Edit" is a separate stop.
+    await question.fill('Waarom nu?');
+    await folds.nth(1).locator('details.ui-block-group > summary').click();
+    await folds.nth(1).getByLabel('Variant').selectOption({ label: 'Uitklapbaar' });
+    await done(1);
+    const summary = rests.nth(1).locator('details > summary').first();
+    await expect(summary).toHaveText('Waarom nu?');
+    await expect(rests.nth(1).locator('strong')).toBeHidden();
+    await summary.focus();
+    await page.keyboard.press('Enter');
+    await expect(rests.nth(1).locator('strong')).toHaveText('het');
+    await expect(folds.nth(1)).not.toHaveAttribute('open', '');
+    await summary.click();
+    await expect(rests.nth(1).locator('strong')).toBeHidden();
+    await expect(folds.nth(1)).not.toHaveAttribute('open', '');
+
+    // All of it survives the save.
+    await page.getByRole('button', { name: 'Opslaan' }).first().click();
+    await expect(page.getByRole('status').first()).toContainText('Opgeslagen');
+    await expect(box.locator('.ui-block-text-kind')).toHaveText('Waarschuwing');
+    await expect(box.locator('strong')).toHaveText('vette');
+    await expect(rests.nth(1).locator('details > summary').first()).toHaveText('Waarom nu?');
+    await expect(rests.nth(2).locator('.ui-block-text-action').nth(1)).toHaveText('Lees meer');
+    await expect(rests.locator('a[href]')).toHaveCount(0);
+  });
+
   test('an image block shows its picture with caption and credit at rest, its layout under Display', async ({
     page,
     request,

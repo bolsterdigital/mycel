@@ -1536,6 +1536,122 @@
     font-weight: 700;
     line-height: 1.25;
   }
+  /* What has no words yet takes no room: an optional title, a second action. */
+  .ui-block-text [data-rest-from]:empty {
+    display: none;
+  }
+  /* A callout's kind is the label's words, its colour only repeats them. */
+  .ui-block-text-callout {
+    padding: var(--space-1) var(--space-2);
+    border: var(--border-width) solid currentColor;
+    border-inline-start-width: 0.375rem;
+    border-radius: var(--radius);
+    overflow-wrap: anywhere;
+    color: var(--status-info-fg);
+    background: var(--status-info-bg);
+  }
+  .ui-block-text-callout[data-variant='note'] {
+    color: var(--color-text);
+    background: transparent;
+  }
+  .ui-block-text-callout[data-variant='warning'] {
+    color: var(--status-warning-fg);
+    background: var(--status-warning-bg);
+  }
+  /* The box sets its own colours, in both themes; its links stay legible by their underline. */
+  .ui-block-text-callout .ui-block-text-prose [data-link] {
+    color: inherit;
+  }
+  .ui-block-text-kind {
+    margin: 0;
+    font-size: var(--step--1, 0.875em);
+    font-weight: 700;
+  }
+  .ui-block-text-title {
+    margin-block: var(--space-0);
+    font-weight: 700;
+  }
+  .ui-block-text-faq > .ui-block-text-title {
+    margin-block: 0 var(--space-1);
+    font-size: var(--step-1);
+    line-height: 1.25;
+  }
+  .ui-block-text-entry + .ui-block-text-entry {
+    margin-block-start: var(--space-1);
+  }
+  .ui-block-text-question {
+    margin: 0;
+    font-weight: 700;
+  }
+  /* An accordion folds here as on the page: its summary is the rest view's one control. */
+  .ui-block-text-faq details > summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-0);
+    min-block-size: var(--tap);
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .ui-block-text-faq details > summary::before {
+    content: '';
+    flex: none;
+    inline-size: 0.5em;
+    block-size: 0.5em;
+    border-block-end: 2px solid currentColor;
+    border-inline-end: 2px solid currentColor;
+    transform: rotate(-45deg);
+  }
+  .ui-block-text-faq details[open] > summary::before {
+    transform: rotate(45deg);
+  }
+  .ui-block-text-faq details > summary:hover {
+    text-decoration: underline;
+  }
+  .ui-block-text-faq details > summary:focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+  .ui-block-text-faq details > .ui-block-text-prose {
+    margin-block-end: var(--space-1);
+  }
+  .ui-block-text-cta {
+    padding: var(--space-2);
+    overflow-wrap: anywhere;
+    background: var(--color-muted-bg);
+  }
+  .ui-block-text-cta[data-variant='card'] {
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius);
+    background: transparent;
+  }
+  .ui-block-text-body {
+    margin-block: var(--space-0) 0;
+    white-space: pre-line;
+  }
+  /* What a button will say, as words: it cannot be pressed, so it has no target to size or hover.
+     Whole labels wrap to the next line; a long one wraps inside its own shape. */
+  .ui-block-text-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-0);
+    margin-block-start: var(--space-1);
+  }
+  .ui-block-text-action {
+    max-inline-size: 100%;
+    padding: 0.375rem 0.75rem;
+    border: var(--border-width) solid var(--color-primary-bg);
+    border-radius: var(--radius);
+    font-weight: 600;
+    color: var(--color-primary-fg);
+    background: var(--color-primary-bg);
+  }
+  .ui-block-text-action:empty {
+    display: none;
+  }
+  .ui-block-text-action:not(:first-child) {
+    color: var(--color-primary-bg);
+    background: transparent;
+  }
   /* A link in words, not by colour alone, as the page has it; not one you can follow from here. */
   .ui-block-text-prose [data-link] {
     color: var(--color-link);

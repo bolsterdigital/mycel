@@ -452,7 +452,12 @@
       replace={{ href: `#b-${b.id}-p-mediaId`, label: t('admin.block.image.replace') }}
     />
   {:else if BLOCK_PRESENTATION[b.type].rest === 'text' && b.text}
-    <BlockText view={b.text} />
+    <BlockText
+      view={b.text}
+      kindLabel={b.text.kind === 'callout'
+        ? t(`admin.block.option.${b.text.variant}` as UiKey)
+        : undefined}
+    />
   {:else}
     {@const image = b.preview.mediaId
       ? data.media.find((m) => m.id === b.preview.mediaId && m.thumb)

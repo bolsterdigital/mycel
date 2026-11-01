@@ -186,10 +186,11 @@ export function previewOf(block: Block, locale: string): BlockPreview {
 }
 
 /**
- * A text block at rest (MY-110 C1): what the page says, as the page sets it. `from` names the form
- * fields the text comes from, so the screen's script can bring a closed block up to date with what
- * was typed; each name is a field, `|` between alternatives. Null for a type without this view, or
- * when the block has nothing to say yet: the card's summary then says so.
+ * A text block at rest (MY-110 C1, C2): what the page says, as the page sets it. Every `*From` names
+ * the form fields a text comes from, so the screen's script can bring a closed block up to date
+ * with what was typed; each name is a field, `|` between alternatives. `html` is the escaping walk
+ * in its inert mode, and `proseFrom` the editor that holds the same text. Null for a type without
+ * this view, or when the block has nothing to say yet: the card's summary then says so.
  */
 export type TextRest =
   | { kind: 'heading'; text: string; from: string }
@@ -198,14 +199,62 @@ export type TextRest =
       text: string;
       by: string;
       variant: string;
+      variantFrom: string;
       from: string;
       byFrom: readonly string[];
     }
-  | { kind: 'rich-text'; html: string };
+  | { kind: 'rich-text'; html: string; proseFrom: string }
+  | {
+      kind: 'callout';
+      variant: string;
+      variantFrom: string;
+      title: string;
+      titleFrom: string;
+      html: string;
+      proseFrom: string;
+    }
+  | {
+      kind: 'faq';
+      variant: string;
+      variantFrom: string;
+      title: string;
+      titleFrom: string;
+      /** The list's field name and the locale on screen: how the script finds the rows. */
+      list: string;
+      locale: string;
+      entries: readonly { question: string; from: string; html: string; proseFrom: string }[];
+    }
+  | {
+      kind: 'cta';
+      variant: string;
+      variantFrom: string;
+      title: string;
+      titleFrom: string;
+      body: string;
+      bodyFrom: string;
+      /** Always both places the form has, so one typed after opening has somewhere to show. */
+      actions: readonly { label: string; from: string }[];
+    };
+
+/** How many actions a CTA's form offers (`max` of its `actions` field). */
+const CTA_ACTION_ROWS = 2;
 
 export function textRestOf(block: Block, locale: string, prefix: string): TextRest | null {
   const local = (v: unknown): string => anyLocale<string>(v, locale) ?? '';
   const field = (path: string) => `${prefix}p.${path}`;
+  const inert = (v: unknown, idPrefix: string): string => {
+    const doc = anyLocale<RichTextDoc>(v, locale);
+    if (!doc || !textOf(doc)) return '';
+    return richTextHtml(doc, {
+      depth: 1,
+      links: {},
+      base: '',
+      idPrefix,
+      footnotes: '',
+      footnoteBack: '',
+      inert: true,
+    });
+  };
   if (block.type === 'heading') {
     const text = local(block.props.text);
     return text ? { kind: 'heading', text, from: field(`text.${locale}`) } : null;
@@ -218,6 +267,7 @@ export function textRestOf(block: Block, locale: string, prefix: string): TextRe
       // As the page prints it (`Quote.svelte`): the source, else the bare address.
       by: [by.name, local(by.role), local(by.source) || by.url].filter(Boolean).join(', '),
       variant,
+      variantFrom: field('variant'),
       from: field(`text.${locale}`),
       byFrom: [
         field('attribution.name'),
@@ -227,19 +277,51 @@ export function textRestOf(block: Block, locale: string, prefix: string): TextRe
     };
   }
   if (block.type === 'rich-text') {
-    const doc = anyLocale<RichTextDoc>(block.props.content, locale);
-    const html =
-      doc &&
-      richTextHtml(doc, {
-        depth: 1,
-        links: {},
-        base: '',
-        idPrefix: block.id,
-        footnotes: '',
-        footnoteBack: '',
-        inert: true,
-      });
-    return html && textOf(doc) ? { kind: 'rich-text', html } : null;
+    const html = inert(block.props.content, block.id);
+    return html ? { kind: 'rich-text', html, proseFrom: field(`content.${locale}.editor`) } : null;
+  }
+  if (block.type === 'callout') {
+    return {
+      kind: 'callout',
+      variant: block.props.variant,
+      variantFrom: field('variant'),
+      title: local(block.props.title),
+      titleFrom: field(`title.${locale}`),
+      html: inert(block.props.body, block.id),
+      proseFrom: field(`body.${locale}.editor`),
+    };
+  }
+  if (block.type === 'faq') {
+    return {
+      kind: 'faq',
+      variant: block.props.variant,
+      variantFrom: field('variant'),
+      title: local(block.props.title),
+      titleFrom: field(`title.${locale}`),
+      list: field('entries'),
+      locale,
+      entries: block.props.entries.map((entry, i) => ({
+        question: local(entry.question),
+        from: field(`entries.${i}.question.${locale}`),
+        html: inert(entry.answer, `${block.id}-${i}`),
+        proseFrom: field(`entries.${i}.answer.${locale}.editor`),
+      })),
+    };
+  }
+  if (block.type === 'cta') {
+    return {
+      kind: 'cta',
+      variant: block.props.variant,
+      variantFrom: field('variant'),
+      title: local(block.props.title),
+      titleFrom: field(`title.${locale}`),
+      body: local(block.props.body),
+      bodyFrom: field(`body.${locale}`),
+      actions: Array.from({ length: CTA_ACTION_ROWS }, (_, i) => ({
+        label: local(block.props.actions[i]?.label),
+        from: field(`actions.${i}.label.${locale}`),
+      })),
+    };
   }
   return null;
 }
