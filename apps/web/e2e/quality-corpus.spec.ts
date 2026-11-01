@@ -12,7 +12,13 @@ import { themeCss } from '../src/lib/theme/tokens.js';
 import { WCAG, expectNoAxeViolations } from './lib/axe';
 import { mobileInputProblems } from './lib/forms';
 import { tenantId, withInvoker } from './lib/invoker';
-import { NARROW, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
+import {
+  NARROW,
+  forcedColorsProblems,
+  layoutGate,
+  setTextSize,
+  setTextSpacing,
+} from './lib/layout';
 import { login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { callApi, requireApi } from './lib/api';
@@ -146,6 +152,15 @@ test.describe('quality corpus reflow and text spacing', () => {
         onlyA11y('requires DOM measurements');
         await page.goto(identity.path);
         expect(await mobileInputProblems(page)).toEqual([]);
+      });
+  for (const entry of entries)
+    for (const [locale, identity] of Object.entries(entry.locales))
+      test(`${entry.slug} ${locale}: forced colours keep shapes and focus`, async ({ page }) => {
+        onlyA11y('requires DOM measurements');
+        await page.emulateMedia({ forcedColors: 'active' });
+        await page.goto(identity.path);
+        await layoutGate(page, `${entry.slug} ${locale} in forced colours`);
+        expect(await forcedColorsProblems(page)).toEqual([]);
       });
 });
 

@@ -229,8 +229,9 @@
     "forced-colors": {
       "category": "accessibility",
       "level": "recommended",
-      "status": "open",
-      "gap": "no forced-colors fixture in the layout gate"
+      "status": "covered",
+      "file": "apps/web/e2e/quality-corpus.spec.ts",
+      "note": "every corpus page under forced-colors: active passes the layout gate, keeps a border on every button and field and an outline on every tab stop (apps/web/e2e/lib/layout.ts); web-rules keeps box-shadow out of the public theme"
     },
     "image-alt": {
       "category": "accessibility",

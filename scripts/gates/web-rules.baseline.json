@@ -62,5 +62,6 @@
     "apps/web/src/routes/(preview)/admin/[tenant]/preview/draft/+page.server.ts": 1,
     "apps/web/src/routes/(preview)/admin/[tenant]/preview/item/[itemId]/+page.server.ts": 1
   },
-  "viewport-height": {}
+  "viewport-height": {},
+  "public-box-shadow": {}
 }
