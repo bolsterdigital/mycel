@@ -215,6 +215,14 @@
         host.closest('form')?.querySelectorAll<HTMLDetailsElement>('details.block') ?? []
       ).map((card) => [card.id.replace('block-', ''), card.closest('.ui-block-card') ?? card])
     );
+    // A card's "+" stands above it, in the fieldset's place: both move into the writer together,
+    // or every "+" stays stacked under the text with nothing to say where it inserts.
+    const inserts = new Map<Element, Element>();
+    for (const card of cards.values()) {
+      const field = card.closest('fieldset.native-block');
+      const insert = field?.previousElementSibling;
+      if (insert?.matches('details.ui-block-insert')) inserts.set(card, insert);
+    }
     const instance = new Editor({
       element: host,
       injectCSS: false,
@@ -242,8 +250,12 @@
               const card =
                 document.getElementById(`block-${node.attrs.blockId}`) ??
                 cards.get(node.attrs.blockId);
-              if (card) dom.append(card.closest('.ui-block-card') ?? card);
-              else dom.textContent = node.attrs.blockType ?? '';
+              if (card) {
+                const whole = card.closest('.ui-block-card') ?? card;
+                const insert = inserts.get(whole);
+                if (insert) dom.append(insert);
+                dom.append(whole);
+              } else dom.textContent = node.attrs.blockType ?? '';
               return { dom, stopEvent: () => true, ignoreMutation: () => true };
             },
           }
@@ -258,6 +270,15 @@
           field.disabled = true;
           field.hidden = true;
         });
+      // What the cards left behind: their empty fieldsets, and the "+" before prose, which is one
+      // text here and has no place for it.
+      for (const field of host
+        .closest('form')
+        ?.querySelectorAll<HTMLElement>('fieldset.native-block') ?? []) {
+        if (!field.querySelector('.ui-block-card')) field.hidden = true;
+        const insert = field.previousElementSibling;
+        if (insert?.matches('details.ui-block-insert')) (insert as HTMLElement).hidden = true;
+      }
     } else if (nativeId) {
       const native = document.getElementById(nativeId);
       if (native) native.hidden = true;

@@ -3139,6 +3139,80 @@ test.describe('article-writing', () => {
     await expectNoAxeViolations(page);
   });
 
+  test("a card's insert point stands above it in the writer, and inserts there", async ({
+    page,
+    request,
+  }) => {
+    onlyA11y();
+    requireApi();
+    const prose = (text: string) => ({
+      type: 'rich-text',
+      version: 1,
+      props: {
+        content: {
+          nl: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] },
+        },
+      },
+    });
+    const heading = (text: string) => ({
+      type: 'heading',
+      version: 1,
+      props: { text: { nl: text } },
+    });
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `writer-inserts-${Date.now()}`,
+      document: {
+        type: 'article',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: 'Artikel met kaarten' },
+        blocks: [prose('Eerst'), heading('Kop een'), prose('Dan'), heading('Kop twee')],
+      },
+    });
+    const edit = `/admin/probe/content/${item.id}`;
+    await login(page, edit);
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    const surface = page.locator('.writing .ProseMirror');
+    await expect(surface).toBeVisible();
+
+    // One "+" per card, each directly above its card; none left under the writer.
+    const shown = page.locator('details.ui-block-insert:visible');
+    await expect(shown).toHaveCount(2);
+    for (const name of ['Kop een', 'Kop twee']) {
+      const card = surface.locator('section.ui-block-card', { hasText: name });
+      await expect(
+        card.locator('xpath=preceding-sibling::details[contains(@class, "ui-block-insert")]')
+      ).toHaveCount(1);
+    }
+    await expect(page.locator('.item-blocks fieldset.native-block:visible')).toHaveCount(0);
+
+    // It still does what it says: a new block lands before the second heading.
+    const second = shown.nth(1);
+    await second.locator('summary').click();
+    await page.setViewportSize(NARROW);
+    await setTextSize(page, '200%');
+    await layoutGate(page, 'insert point in the writer', '.editor-card');
+    await setTextSize(page, '100%');
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await second.getByLabel('Soort').selectOption({ label: 'Kop' });
+    await second.getByRole('button', { name: 'Hier invoegen' }).click();
+    const fresh = page.locator('#block-new');
+    await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Kop');
+    await fresh.locator('[name$=".text.nl"]').fill('Nieuwe kop');
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/\?saved/);
+    const { revision } = await callApi<{
+      revision: { document: { blocks: { type: string; props: { text?: { nl?: string } } }[] } };
+    }>(request, 'content.item.get', { itemId: item.id });
+    expect(revision.document.blocks.map((b) => b.props.text?.nl ?? b.type)).toEqual([
+      'rich-text',
+      'Kop een',
+      'rich-text',
+      'Nieuwe kop',
+      'Kop twee',
+    ]);
+  });
+
   test('typing in an empty article saves and reopens with stable block identity', async ({
     page,
     request,
