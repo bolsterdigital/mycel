@@ -262,6 +262,25 @@ test.describe('blocks', () => {
 // and its published translations, published HTML is publicly cacheable with a strong ETag and a
 // 304, no cookie is set, and misses are `no-store`. Then the JSON read route of the API process
 // on the same seeded article.
+// Sends the edit form as it stands to the unsaved-document route, as the live-preview panel does.
+// An article has no panel yet (#11), so its specs post the unchanged native form themselves.
+async function postDraftPreview(page: Page, itemId: string) {
+  await page.locator('[data-live-preview-source]').evaluate((node, id) => {
+    const form = node as HTMLFormElement;
+    form.action = '/admin/probe/preview/draft';
+    for (const [name, value] of [
+      ['itemId', id],
+      ['previewLocale', 'nl'],
+    ]) {
+      const input = document.createElement('input');
+      input.name = name!;
+      input.value = value!;
+      form.append(input);
+    }
+    form.submit();
+  }, itemId);
+}
+
 test.describe('content-routes', () => {
   /** The canonical address form: the seed gives tenant probe this primary hostname. */
   const SITE = 'http://probe.localhost:4173';
@@ -482,20 +501,7 @@ test.describe('content-routes', () => {
       }
       await setTextSize(page, '100%');
       await page.setViewportSize({ width: 1280, height: 900 });
-      await page.locator('[data-live-preview-source]').evaluate((node, id) => {
-        const form = node as HTMLFormElement;
-        form.action = '/admin/probe/preview/draft';
-        for (const [name, value] of [
-          ['itemId', id],
-          ['previewLocale', 'nl'],
-        ]) {
-          const input = document.createElement('input');
-          input.name = name!;
-          input.value = value!;
-          form.append(input);
-        }
-        form.submit();
-      }, target.item.id);
+      await postDraftPreview(page, target.item.id);
       await expect(page.locator('main > .lead')).toHaveText('Een straat die ruimte maakt.');
       await expect(page.locator('main > figure.page-hero img')).toHaveAttribute(
         'alt',
@@ -588,14 +594,51 @@ test.describe('content-routes', () => {
       await setTextSize(page, size);
       await layoutGate(page, `cover header at ${size}`, 'main');
     }
-    await setTextSize(page, '100%');
+    // A word wider than the screen, in a browser or language without a hyphenation dictionary,
+    // wraps inside the cover. The cover clips, so the document does not overflow and the gate
+    // above cannot see it: compare every line of the title with the cover itself.
+    await page.reload();
+    await page.waitForLoadState('load');
+    await page.locator('.page-cover h1').evaluate((h1) => {
+      h1.style.hyphens = 'manual';
+      h1.querySelector('span')!.textContent = 'Woningbouwontwikkelingsplannen'.repeat(3);
+    });
+    for (const size of TEXT_SIZES) {
+      await setTextSize(page, size);
+      const fit = await page.locator('.page-cover').evaluate((cover) => {
+        const box = cover.getBoundingClientRect();
+        const lines = [...cover.querySelector('h1 span')!.getClientRects()];
+        return {
+          lines: lines.length,
+          past: lines.filter((l) => l.left < box.left - 1 || l.right > box.right + 1).length,
+        };
+      });
+      expect(fit.lines, `unbroken title wraps at ${size}`).toBeGreaterThan(1);
+      expect(fit.past, `unbroken title stays inside the cover at ${size}`).toBe(0);
+    }
+    await page.reload();
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.locator('.page-cover-arrow').focus();
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/#page-content$/);
 
-    // The choice sits in the editor of an article, and the live preview shows the same header.
+    // The choice sits in the editor of an article, and the preview of the unsaved form shows the
+    // same header, whole in a narrow frame; an article has no live-preview panel yet (#11), so
+    // this posts to the route that panel uses.
     await login(page, `/admin/probe/content/${target.item.id}`);
+    await expect(page.locator('#headerLayout')).toHaveValue('cover');
+    await page.setViewportSize(NARROW);
+    await postDraftPreview(page, target.item.id);
+    await expect(page.locator('main > header.page-cover h1 span')).toBeVisible();
+    await page.waitForLoadState('load');
+    await layoutGate(page, 'cover header in the draft preview', 'main');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`/admin/probe/content/${target.item.id}`);
+    await page.locator('#headerLayout').selectOption('standard');
+    await postDraftPreview(page, target.item.id);
+    await expect(page.locator('main > figure.page-hero img')).toBeVisible();
+    await expect(page.locator('main > header.page-cover')).toHaveCount(0);
+    await page.goto(`/admin/probe/content/${target.item.id}`);
     await expect(page.locator('#headerLayout')).toHaveValue('cover');
     await page.locator('#headerLayout').selectOption('standard');
     await page.getByRole('button', { name: 'Opslaan' }).first().click();
@@ -782,20 +825,7 @@ test.describe('grid-compositions', () => {
         // The article writer has no automatic live-preview panel yet. Exercise the real
         // unsaved-document route with the unchanged native metadata form; this proves the
         // renderer, not a missing writer interaction (which remains owned by #11).
-        await page.locator('[data-live-preview-source]').evaluate((node, id) => {
-          const form = node as HTMLFormElement;
-          form.action = '/admin/probe/preview/draft';
-          for (const [name, value] of [
-            ['itemId', id],
-            ['previewLocale', 'nl'],
-          ]) {
-            const input = document.createElement('input');
-            input.name = name!;
-            input.value = value!;
-            form.append(input);
-          }
-          form.submit();
-        }, saved.item.id);
+        await postDraftPreview(page, saved.item.id);
         await expect(page.locator('main h1')).toHaveText(entry.title);
         // Measured once the site's stylesheet applies: before \`load\` the prose has the 40rem of
         // the unstyled fallback (640px), which made this a load-timing flake (#66 PR 3).

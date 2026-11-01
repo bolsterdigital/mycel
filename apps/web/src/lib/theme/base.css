@@ -272,6 +272,8 @@
     --site-header-height: calc(2 * var(--space-2) + var(--tap) + 2px);
     position: relative;
     display: grid;
+    /* Not the implicit `auto` track: that grows to a long word's width, past what the cover shows. */
+    grid-template-columns: minmax(0, 1fr);
     align-content: end;
     justify-items: center;
     gap: var(--space-2);
@@ -298,7 +300,10 @@
   }
   .page-cover h1 {
     position: relative;
-    max-width: var(--title-width);
+    /* A centred grid item is at least as wide as its longest word, whatever the track says. */
+    max-width: min(var(--title-width), 100%);
+    /* Room for the span's padding: a line broken inside a word does not count it at its end. */
+    padding-inline: 0.4em;
     margin: 0;
     text-align: center;
     line-height: 1.4;
