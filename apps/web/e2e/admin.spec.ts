@@ -393,6 +393,10 @@ test.describe('admin', () => {
     const batch = JSON.stringify([{ type: 'csp-violation', url: 'https://x.example/', body: {} }]);
     expect((await post(batch)).status()).toBe(204);
     expect((await post(batch, undefined, 'probe.example.org')).status()).toBe(204);
+    // Resolve a registered tenant first: an unknown host never exercises the slug rewrite.
+    const tenantHost = 'probe.localhost:4173';
+    expect((await request.get('/signup', { headers: { host: tenantHost } })).status()).toBe(200);
+    expect((await post(batch, undefined, tenantHost)).status()).toBe(204);
     expect((await post(batch, 'application/json')).status()).toBe(415);
     expect((await post('{"type":"csp-violation"}')).status()).toBe(400);
     expect((await post('not json')).status()).toBe(400);

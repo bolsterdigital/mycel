@@ -16,6 +16,7 @@ import { RUNTIME_KEY } from '#lib/runtime-key.js';
 
 const hostAgnostic = (path: string) =>
   path === '/healthz' ||
+  path === '/_reports' ||
   path.startsWith('/internal/') ||
   path === '/admin' ||
   path.startsWith('/admin/');
