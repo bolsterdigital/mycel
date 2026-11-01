@@ -26,6 +26,14 @@ import {
   notFound,
   type Principal,
   UseCaseError,
+  API_CATALOG_LINK,
+  API_CATALOG_TYPE,
+  apiCatalog,
+  SECURITY_TXT_TYPE,
+  securityTxt,
+  WELL_KNOWN_API_CATALOG,
+  WELL_KNOWN_CACHE,
+  WELL_KNOWN_SECURITY_TXT,
 } from '@mycel/core';
 import {
   METRICS_CONTENT_TYPE,
@@ -55,6 +63,8 @@ export interface AppDeps {
   authenticate(authorization: string | undefined): Promise<Principal | null>;
   /** The platform API (TODO #16); absent without PLATFORM_API_TOKEN, and `/platform/*` is a 404. */
   platform?: PlatformDeps | undefined;
+  /** What the discovery documents state (ops/well-known.ts); what is unset is a 404. */
+  wellKnown?: { securityContact?: string; apiUrl?: string; now: () => Date };
   /** The public read route (ADR 012 rule 7, content-read.ts); without it `/v1/sites/*` is a 404. */
   contentRead?: ContentReadDeps | undefined;
   /** Logs, error reports, metrics and readiness; tests leave it out and get silence. */
@@ -108,6 +118,7 @@ export function createApp({
   platform,
   contentRead,
   observability,
+  wellKnown,
   trustProxy = false,
 }: AppDeps): Hono {
   const app = new Hono();
@@ -155,6 +166,24 @@ export function createApp({
     return c.body(obs.metrics.render(), 200, { 'content-type': METRICS_CONTENT_TYPE });
   });
   app.get('/openapi.json', (c) => c.json(openapi));
+  // The API's hostname is a host like any other (lib/server/http in the web front serves the sites).
+  app.get(WELL_KNOWN_SECURITY_TXT, (c) =>
+    wellKnown?.securityContact
+      ? c.body(securityTxt(wellKnown.securityContact, wellKnown.now()), 200, {
+          'content-type': SECURITY_TXT_TYPE,
+          'cache-control': WELL_KNOWN_CACHE,
+        })
+      : c.notFound()
+  );
+  app.get(WELL_KNOWN_API_CATALOG, (c) =>
+    wellKnown?.apiUrl
+      ? c.body(apiCatalog(wellKnown.apiUrl), 200, {
+          'content-type': API_CATALOG_TYPE,
+          'cache-control': WELL_KNOWN_CACHE,
+          link: API_CATALOG_LINK,
+        })
+      : c.notFound()
+  );
 
   app.get('/v1', (c) =>
     c.json({

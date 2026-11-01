@@ -58,6 +58,20 @@ The admin shows per custom domain when it was last checked and how many checks i
 
 Caddy issues certificates on demand and asks the application first: `GET /internal/hostnames/allowed?domain=<host>` answers `200` (empty body) for the platform origin, a platform hostname and a verified custom hostname, and `404` for everything else. There is no list endpoint and no authentication: the answer is one bit the certificate would reveal anyway. `/internal/*` must not be reachable from outside; [`docker/caddy/Caddyfile`](../../docker/caddy/Caddyfile), the proxy of [`compose.yml`](../../compose.yml), blocks it and sets the forwarded headers the web container trusts with `MYCEL_TRUST_PROXY=1`. CI proves both with a real Caddy (`scripts/compose-proof.sh`, certificates from Caddy's own CA); the installation is [`docs/self-hosting.md`](../self-hosting.md).
 
+## Well-known resources per host
+
+Two documents answer on every host of an installation, and only when the operator configured what they state (`packages/core/src/ops/well-known.ts`): `/.well-known/security.txt` (RFC 9116, `SECURITY_CONTACT`) and `/.well-known/api-catalog` (RFC 9727, `PUBLIC_API_URL`, which `compose.yml` derives from `API_HOST`).
+
+| Host                                                           | `security.txt`     | `api-catalog` anchors   | `Link` header                            |
+| -------------------------------------------------------------- | ------------------ | ----------------------- | ---------------------------------------- |
+| Primary hostname of a site, the development path form excepted | yes                | `<api>/v1/sites/<slug>` | on a 200 HTML page                       |
+| Other verified or platform hostname of a site                  | 301 to the primary | 301 to the primary      | none, it redirects                       |
+| Platform origin                                                | yes                | `<api>/v1`              | none: the admin has nothing to advertise |
+| API host                                                       | yes                | `<api>/v1`              | on the catalog itself                    |
+| Unknown hostname, unverified custom hostname                   | 404                | 404                     | none                                     |
+
+The slug in a site's catalog is no secret: the platform hostname `<slug>.<domain>` already redirects to the custom domain. An unset value makes its document a 404 and, for the catalog, removes the `Link` header too. The contact is the operator's, one per installation; `SECURITY.md` is the project's own address for vulnerabilities in the code.
+
 ## The API over HTTP and MCP
 
 The same four use cases are available to an API key or an agent with `tenant:admin` (which a key never has, so in practice: the admin UI): `tenant.hostname.list`, `tenant.hostname.add`, `tenant.hostname.verify`, `tenant.hostname.set_primary`, `tenant.hostname.remove`. The number of custom domains is an entitlement, `custom_domains.max` (ADR 015 rule 2).

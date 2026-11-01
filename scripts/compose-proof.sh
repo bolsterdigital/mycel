@@ -98,6 +98,53 @@ expect 'speculation rules file on a hostname' '200 application/speculationrules+
   "$(curl -sk -o /dev/null --max-time 10 --resolve "demo.example.test:$HTTPS_PORT:127.0.0.1" \
     -w '%{http_code} %{content_type}' "https://demo.example.test:$HTTPS_PORT/_speculation.json" || true)"
 
+# The discovery documents on each kind of host, through Caddy (a browser test covers the rest of the
+# table in docs/reference/hostnames.md). The last value says which address the catalog is about.
+resource() {
+  curl -sk -o /dev/null --max-time 10 --resolve "$1:$HTTPS_PORT:127.0.0.1" \
+    -w '%{http_code} %{content_type}' "https://$1:$HTTPS_PORT$2" || true
+}
+catalog_anchor() {
+  curl -sk --max-time 10 --resolve "$1:$HTTPS_PORT:127.0.0.1" \
+    "https://$1:$HTTPS_PORT/.well-known/api-catalog" |
+    sed -n 's/.*"anchor":"\([^"]*\)".*/\1/p' || true
+}
+for host in demo.example.test admin.example.test api.example.test; do
+  expect "security.txt on $host" '200 text/plain; charset=utf-8' \
+    "$(resource "$host" /.well-known/security.txt)"
+  expect "api-catalog on $host is a linkset" 200 \
+    "$(outside "$host" /.well-known/api-catalog)"
+done
+expect 'catalog of a site anchors its read route' 'https://api.example.test/v1/sites/demo' \
+  "$(catalog_anchor demo.example.test)"
+expect 'catalog of the platform origin anchors the API' 'https://api.example.test/v1' \
+  "$(catalog_anchor admin.example.test)"
+expect 'catalog of the API host anchors the API' 'https://api.example.test/v1' \
+  "$(catalog_anchor api.example.test)"
+
+# Files outside the application (adapter-node serves them before its handler), so only Caddy can
+# give them these (scripts/quality/spec-checklist.json names this block for font-loading and
+# cross-origin-isolation). A script keeps its name across releases: it must revalidate, with a 304.
+file_header() {
+  curl -sk -o /dev/null --max-time 10 --resolve "demo.example.test:$HTTPS_PORT:127.0.0.1" \
+    -w "%header{$2}" "https://demo.example.test:$HTTPS_PORT$1" || true
+}
+FONT=/fonts/inter/inter-latin-roman.woff2
+SCRIPT=/_form/proof.js
+expect 'font cached for a year' 'public, max-age=31536000, immutable' \
+  "$(file_header "$FONT" cache-control)"
+expect 'script revalidates' no-cache "$(file_header "$SCRIPT" cache-control)"
+for file in "$FONT" "$SCRIPT" /_admin/nav.js; do
+  expect "nosniff on $file" nosniff "$(file_header "$file" x-content-type-options)"
+  expect "resource policy on $file" same-origin \
+    "$(file_header "$file" cross-origin-resource-policy)"
+  expect "HSTS on $file" max-age=31536000 "$(file_header "$file" strict-transport-security)"
+done
+expect 'script answers a 304 on its ETag' 304 \
+  "$(curl -sk -o /dev/null --max-time 10 --resolve "demo.example.test:$HTTPS_PORT:127.0.0.1" \
+    -H "If-None-Match: $(file_header "$SCRIPT" etag)" -w '%{http_code}' \
+    "https://demo.example.test:$HTTPS_PORT$SCRIPT" || true)"
+
 # From inside the network: the ask route answers Caddy.
 inside() {
   dc exec -T caddy wget -q -O /dev/null "http://web:3000/internal/hostnames/allowed?domain=$1" &&

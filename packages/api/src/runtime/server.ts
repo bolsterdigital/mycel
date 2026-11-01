@@ -16,6 +16,13 @@ const app = createApp({
     access: (id) => runtime.identity.tenantAccess(id),
   },
   observability: runtime.http,
+  wellKnown: {
+    ...(runtime.config.SECURITY_CONTACT
+      ? { securityContact: runtime.config.SECURITY_CONTACT }
+      : {}),
+    ...(runtime.config.PUBLIC_API_URL ? { apiUrl: runtime.config.PUBLIC_API_URL } : {}),
+    now: () => runtime.clock.now(),
+  },
   trustProxy: runtime.config.MYCEL_TRUST_PROXY === '1',
 });
 const port = Number(process.env['PORT'] ?? 8787);

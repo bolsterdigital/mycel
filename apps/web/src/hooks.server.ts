@@ -34,13 +34,22 @@
 // `/_reports` takes the browser's reports on every hostname (lib/server/http/reports.ts).
 //
 // A served public page also gets the header that names its speculation rules
-// (lib/server/http/speculation.ts).
+// (lib/server/http/speculation.ts) and the one that names the API catalog (ops/well-known.ts).
+//
+// The discovery documents exist on the platform origin and on a site's hostname: the first is no
+// site but is a host a researcher looks at; the second passes the same decision as a page, so a
+// redirecting hostname redirects and an unknown or unverified one is a 404.
 //
 // Public responses then pass `conditional` (brief #8c § 9, lib/server/http/http-cache.ts): a matching
 // If-None-Match on a page with a strong ETag becomes a 304, and a 404 gets `no-store`.
 
 import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit/hooks';
-import { readSession } from '@mycel/core';
+import {
+  API_CATALOG_LINK,
+  readSession,
+  WELL_KNOWN_API_CATALOG,
+  WELL_KNOWN_SECURITY_TXT,
+} from '@mycel/core';
 import { requestIdFrom, runWithContext, setContext } from '@mycel/observability';
 import { SESSION_COOKIE } from '#lib/server/admin/admin.js';
 import { adminLanguage, onPlatformOrigin } from '#lib/server/admin/admin-paths.js';
@@ -58,6 +67,8 @@ import { applySpeculationRules } from '#lib/server/http/speculation.js';
 import { withItalicPreload } from '#lib/theme/tokens.js';
 
 const isAdmin = (path: string) => path === '/admin' || path.startsWith('/admin/');
+const isDiscovery = (path: string) =>
+  path === WELL_KNOWN_SECURITY_TXT || path === WELL_KNOWN_API_CATALOG;
 const isProbe = (path: string) => path === '/healthz' || path === '/readyz';
 const isInternal = (path: string) => isProbe(path) || path.startsWith('/internal/');
 const kindOf = (path: string): ResponseKind =>
@@ -86,6 +97,15 @@ export const handle: Handle = async (input) => {
     if (kind === 'admin' && !response.headers.has('vary'))
       response.headers.set('vary', 'cookie, accept-language');
     if (kind === 'public' && event.locals.site) applySpeculationRules(response, event.locals.site);
+    // A site's page only: the catalog is about what a visitor of that page could read by machine.
+    if (
+      kind === 'public' &&
+      event.locals.site &&
+      rt.config.PUBLIC_API_URL &&
+      response.status === 200 &&
+      response.headers.get('content-type')?.startsWith('text/html')
+    )
+      response.headers.append('link', API_CATALOG_LINK);
     if (kind === 'public') response = conditional(event.request, response);
     const liveDraft = /^\/admin\/[^/]+\/preview\/draft$/.test(event.url.pathname);
     if (liveDraft) {
@@ -140,6 +160,11 @@ const route: Handle = async ({ event, resolve }) => {
     );
     return render();
   }
+
+  // The hostname, not the origin the admin insists on: this is a question about a host, and no
+  // cookie or session is at stake.
+  if (isDiscovery(path) && event.url.hostname === new URL(rt.config.PUBLIC_BASE_URL).hostname)
+    return render();
 
   const decision = decideSite({
     hostname: event.url.hostname,

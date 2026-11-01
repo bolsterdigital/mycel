@@ -305,6 +305,41 @@ describe('HTTP observability', () => {
 // TODO #20c decision 3: one middleware, so a 200, a router 404, a problem and an internal error
 // all carry the same set. Negative: HSTS never over plain HTTP, and X-Forwarded-Proto counts only
 // behind a trusted proxy.
+describe('discovery documents on the API host', () => {
+  const build = (wellKnown?: Parameters<typeof createApp>[0]['wellKnown']) =>
+    createApp({
+      invoker: new Invoker(buildRegistry(), new MemoryUnitOfWork()),
+      authenticate: async () => null,
+      ...(wellKnown ? { wellKnown } : {}),
+    });
+  const now = () => new Date('2026-11-01T00:00:00.000Z');
+
+  it('are a 404 until the operator says what they state', async () => {
+    const app = build({ now });
+    expect((await app.request('/.well-known/security.txt')).status).toBe(404);
+    expect((await app.request('/.well-known/api-catalog')).status).toBe(404);
+  });
+
+  it('answer with their own type, and on HEAD', async () => {
+    const app = build({
+      now,
+      securityContact: 'mailto:security@example.org',
+      apiUrl: 'https://api.example.org',
+    });
+    const text = await app.request('/.well-known/security.txt');
+    expect(text.headers.get('content-type')).toBe('text/plain; charset=utf-8');
+    expect(await text.text()).toContain('Contact: mailto:security@example.org\n');
+    const catalog = await app.request('/.well-known/api-catalog');
+    expect(catalog.headers.get('content-type')).toMatch(/^application\/linkset\+json;/);
+    expect(catalog.headers.get('link')).toContain('rel="api-catalog"');
+    const body = (await catalog.json()) as { linkset: { anchor: string }[] };
+    expect(body.linkset[0]?.anchor).toBe('https://api.example.org/v1');
+    const head = await app.request('/.well-known/api-catalog', { method: 'HEAD' });
+    expect(head.status).toBe(200);
+    expect(head.headers.get('link')).toContain('rel="api-catalog"');
+  });
+});
+
 describe('security headers', () => {
   const expectApiSet = (res: Response) => {
     expect(res.headers.get('x-content-type-options')).toBe('nosniff');

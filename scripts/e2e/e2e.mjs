@@ -699,6 +699,8 @@ const env = {
   OIDC_ISSUER: `http://127.0.0.1:${OIDC_PORT}`,
   OIDC_CLIENT_ID: 'mycel-e2e',
   E2E_API_URL: `http://127.0.0.1:${API_PORT}`,
+  PUBLIC_API_URL: `http://127.0.0.1:${API_PORT}`,
+  SECURITY_CONTACT: 'mailto:security@probe.test',
 };
 // The mock is a public client; a secret from .env would make the token request differ.
 delete env.OIDC_CLIENT_SECRET;
