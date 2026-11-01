@@ -5,6 +5,7 @@ import { error } from '@sveltejs/kit';
 import { runtime } from '#lib/server/runtime.js';
 import { requireSite, siteTenant } from '#lib/server/site.js';
 import { brandPath, siteBrand } from '#lib/server/theme.js';
+import { shareable } from '#lib/server/http/security-headers.js';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ params, locals }) => {
@@ -19,11 +20,13 @@ export const GET: RequestHandler = async ({ params, locals }) => {
     (ctx) => ctx.brandAssets.get(kind)
   );
   if (!asset.asset || asset.version !== state.version) error(404, 'Not found');
-  return new Response(new Uint8Array(asset.asset.bytes), {
-    headers: {
-      'content-type': asset.asset.contentType,
-      'x-content-type-options': 'nosniff',
-      'cache-control': 'public, max-age=31536000, immutable',
-    },
-  });
+  return shareable(
+    new Response(new Uint8Array(asset.asset.bytes), {
+      headers: {
+        'content-type': asset.asset.contentType,
+        'x-content-type-options': 'nosniff',
+        'cache-control': 'public, max-age=31536000, immutable',
+      },
+    })
+  );
 };

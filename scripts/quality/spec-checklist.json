@@ -465,15 +465,16 @@
     "fetch-metadata": {
       "category": "security",
       "level": "recommended",
-      "status": "open",
-      "note": "SvelteKit refuses cross-site form posts by Origin and forms carry a signed token",
-      "gap": "Sec-Fetch-Site is not read; no resource isolation policy rejects cross-site requests"
+      "status": "covered",
+      "file": "apps/web/e2e/admin.spec.ts",
+      "note": "resource isolation on the admin: a real browser's subresource from another site is refused before the session is read, same-site included; public routes have nothing to isolate and SvelteKit refuses cross-site form posts by Origin"
     },
     "cross-origin-isolation": {
       "category": "security",
       "level": "recommended",
-      "status": "open",
-      "gap": "no Cross-Origin-Opener-Policy or Cross-Origin-Resource-Policy"
+      "status": "gate",
+      "rule": "cross-origin-isolation",
+      "note": "opener and resource policy on every response of the application; Cross-Origin-Embedder-Policy is left out because no route needs it and a managed embed would have to opt in; a public media file is cross-origin, for mail and other sites; files outside the application (`/fonts`, `/_admin`) are not covered"
     },
     "referrer-policy": {
       "category": "security",
@@ -520,8 +521,9 @@
     "clear-site-data": {
       "category": "security",
       "level": "optional",
-      "status": "open",
-      "gap": "logout does not send Clear-Site-Data"
+      "status": "covered",
+      "file": "apps/web/e2e/admin.spec.ts",
+      "note": "logout sends `\"cache\", \"storage\"`, measured to empty both storages in the browser; `\"cookies\"` would reach every address under the registered domain"
     },
     "caa-records": {
       "category": "security",
@@ -807,8 +809,9 @@
     "vary": {
       "category": "performance",
       "level": "recommended",
-      "status": "open",
-      "gap": "HTML responses do not state what they vary on"
+      "status": "gate",
+      "rule": "vary",
+      "note": "a content page has its language in the address and does not vary on it or on a cookie (the gate); a negotiated public page states Accept-Language and the admin Cookie and Accept-Language (e2e); Accept-Encoding is added by Caddy's `encode` and not measured"
     },
     "conditional-requests": {
       "category": "performance",

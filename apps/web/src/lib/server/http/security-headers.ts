@@ -7,6 +7,18 @@
 // HSTS has no `includeSubDomains` and no `preload`: a tenant's own apex domain has subdomains we
 // do not control, and a preload entry cannot be taken back. Rejected: a second CSP built here
 // next to the SvelteKit one, which would drift from it and lose the per-response nonce.
+//
+// Cross-origin isolation is the opener and resource half only. A page keeps no opener across
+// origins and no other origin may load a response as a subresource, except what a site publishes
+// for use elsewhere: a mail client or another site shows its images (`shareable`). Rejected:
+// Cross-Origin-Embedder-Policy, which nothing here needs and which would make every managed embed
+// (ADR 022) opt in.
+//
+// Fetch Metadata guards the admin alone: a public page has nothing to protect that its own URL
+// does not already give away, and its media may be hotlinked. A same-site request is refused
+// there too, because a tenant's address can be a sibling of the admin's and runs code the
+// operator did not write (ADR 022). Rejected: refusing a request without the header, which would
+// lock out older browsers and every API client for no gain, as those send no ambient cookies.
 
 export type ResponseKind = 'public' | 'admin' | 'internal';
 
@@ -18,8 +30,43 @@ export function securityHeaders(kind: ResponseKind, https: boolean): Record<stri
     'x-content-type-options': 'nosniff',
     'referrer-policy': kind === 'admin' ? 'same-origin' : 'strict-origin-when-cross-origin',
     'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+    'cross-origin-opener-policy': 'same-origin',
+    'cross-origin-resource-policy': 'same-origin',
     ...(https ? { 'strict-transport-security': HSTS } : {}),
   };
+}
+
+/**
+ * Marks a public file as usable from elsewhere; a restricted one (`private`) stays on its origin.
+ * Before `applySecurityHeaders`, which leaves a value a route chose.
+ */
+export function shareable(response: Response): Response {
+  if (response.headers.get('cache-control')?.startsWith('public'))
+    response.headers.set('cross-origin-resource-policy', 'cross-origin');
+  return response;
+}
+
+/**
+ * What logging out wipes in this browser, for this origin. Not `"cookies"`: that reaches every
+ * address under the registered domain, tenant sites included, and the session cookie is removed by
+ * name anyway. `"cache"` takes pages kept for the back button, and `"storage"` the tab's records
+ * of unsaved input and the sidebar's remembered state.
+ */
+export const CLEAR_ON_LOGOUT = '"cache", "storage"';
+
+/**
+ * A request to the admin that another site made: anything but the visitor following a link or a
+ * redirect to a whole page. A request without the header comes from a client without ambient
+ * authority or a browser too old to send it.
+ */
+export function refusedCrossSite(request: Request): boolean {
+  const site = request.headers.get('sec-fetch-site');
+  if (!site || site === 'same-origin' || site === 'none') return false;
+  const navigation =
+    request.headers.get('sec-fetch-mode') === 'navigate' &&
+    request.headers.get('sec-fetch-dest') === 'document' &&
+    (request.method === 'GET' || request.method === 'HEAD');
+  return !navigation;
 }
 
 /**

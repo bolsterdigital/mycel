@@ -20,11 +20,13 @@ export const csr = false;
 /** The route of every content path (`[[locale=locale]]/[...path]`). */
 const CONTENT_ROUTE = /\/\[\[locale=locale\]\]\/\[\.\.\.path\]$/;
 
-export const load: LayoutServerLoad = async ({ locals, request, params, route }) => {
+export const load: LayoutServerLoad = async ({ locals, request, params, route, setHeaders }) => {
   const site = locals.site;
   if (!site) return { credit: null, theme: null, chrome: null, locale: 'en' };
   const { hash, preload } = await siteTheme(site);
   const theme = { href: sitePath(site, themePath(hash)), preload };
+  // A content path has its language in the address; anything else depends on the visitor's.
+  if (!CONTENT_ROUTE.test(route.id ?? '')) setHeaders({ vary: 'accept-language' });
   const locale = CONTENT_ROUTE.test(route.id ?? '')
     ? (localeOf(params.locale, site.tenant) ?? site.tenant.defaultLocale)
     : negotiateLocale(

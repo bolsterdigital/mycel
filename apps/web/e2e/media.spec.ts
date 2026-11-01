@@ -172,6 +172,7 @@ test('an operator uploads, sees, edits, downloads and deletes an image', async (
 
   // The site serves a variant on its own hostname, immutable; never the original.
   const variant = await request.get(`${SITE}/media/${id}/w320.webp`);
+  expect(variant.headers()['cross-origin-resource-policy']).toBe('cross-origin');
   expect(variant.status()).toBe(200);
   expect(variant.headers()['cache-control']).toBe('public, max-age=31536000, immutable');
   expect((await request.get(`${SITE}/media/${id}/original.png`)).status()).toBe(404);

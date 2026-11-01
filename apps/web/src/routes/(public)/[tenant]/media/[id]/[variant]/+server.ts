@@ -4,18 +4,21 @@
 // `params.tenant` is never read (ADR 014). HEAD is answered from GET by SvelteKit.
 import { runtime } from '#lib/server/runtime.js';
 import { serveMedia } from '#lib/server/media.js';
+import { shareable } from '#lib/server/http/security-headers.js';
 import { requireSite, siteTenant } from '#lib/server/site.js';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ params, locals, url, request }) => {
   const rt = runtime();
   const tenant = siteTenant(requireSite(locals));
-  return serveMedia(
-    rt,
-    tenant,
-    params.id,
-    params.variant,
-    url,
-    request.headers.get('if-none-match')
+  return shareable(
+    await serveMedia(
+      rt,
+      tenant,
+      params.id,
+      params.variant,
+      url,
+      request.headers.get('if-none-match')
+    )
   );
 };
