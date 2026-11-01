@@ -250,11 +250,15 @@
     text-align: start;
   }
   /* Signing out is one of the menu's lines, not a button that outweighs them (#87-rest): in the
-     rail an outlined button was the heaviest thing on screen. */
+     rail an outlined button was the heaviest thing on screen. No border either, like the links
+     around it: the public button's transparent 2px border (base.css, there for forced colours)
+     put its label 2px to the right of theirs. Rejected: padding minus the border, which the
+     rail's centring padding would have to repeat. */
   .admin-sidebar-bottom .admin-logout {
     font-weight: inherit;
     color: inherit;
     background: none;
+    border: 0;
   }
   .admin-sidebar-bottom .admin-logout:hover {
     text-decoration: underline;

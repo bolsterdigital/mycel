@@ -58,6 +58,22 @@ test.describe('ui-gate', () => {
         });
     });
 
+  // The sign-out button is one of the menu's lines: its label starts where the links' labels
+  // start. A border from the public button rule once pushed it 2px to the right.
+  test('the sign-out line aligns with the menu links', async ({ page }) => {
+    onlyA11y('measures the layout with a script');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await login(page, ADMIN_ROUTES[0]!.path);
+    const [logout, link] = await page.evaluate(() =>
+      ['.admin-sidebar-bottom .admin-logout', '.admin-sidebar-bottom > a'].map((selector) => {
+        const range = document.createRange();
+        range.selectNodeContents(document.querySelector(selector)!);
+        return range.getBoundingClientRect().left;
+      })
+    );
+    expect(logout).toBe(link);
+  });
+
   test.describe('public routes', () => {
     test.use({ locale: 'nl-NL', extraHTTPHeaders: forwarded() });
     for (const text of TEXT_SIZES)
