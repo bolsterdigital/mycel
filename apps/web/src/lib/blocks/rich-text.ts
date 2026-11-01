@@ -9,6 +9,10 @@
 // this locale (`links`), otherwise plain text; an `href` was checked by `isSafeHref` on write and
 // is escaped here regardless. An unknown node or mark throws: the projection is validated, so
 // one here is a bug, not input to tolerate.
+//
+// `inert` is the same walk for a block at rest on the edit screen (MY-110 C1): no link that leaves
+// the unsaved form and no heading in the admin's outline, each marked `data-*` instead so the
+// screen can style it. Rejected: a second walker in the admin, which a new mark would miss.
 
 import type { Mark, RichTextDoc } from '@mycel/core';
 import { headingTag } from './headings.js';
@@ -37,6 +41,8 @@ export interface RichTextContext {
   idPrefix: string;
   footnotes: string;
   footnoteBack: string;
+  /** No `<a>`, no heading element and no footnote ids: see the top of this file. */
+  inert?: boolean;
 }
 
 type Node = RichTextDoc['content'][number] | { type: string; [k: string]: unknown };
@@ -66,14 +72,18 @@ export function richTextHtml(doc: RichTextDoc, ctx: RichTextContext): string {
         for (const type of ['code', 'italic', 'bold'] as const)
           if (marks.some((m) => m.type === type)) out = `<${TAG[type]}>${out}</${TAG[type]}>`;
         for (const m of marks) {
-          if (m.type === 'link') {
+          if (m.type === 'link' && ctx.inert) {
+            out = `<span data-link>${out}</span>`;
+          } else if (m.type === 'link') {
             const href = linkTarget(m, ctx.links);
             if (href !== null) out = `<a href="${escape(withBase(ctx.base, href))}">${out}</a>`;
           } else if (m.type === 'footnote_reference') {
             notes.push(m.attrs.text);
             const n = notes.length;
             const id = `${ctx.idPrefix}-${n}`;
-            note = `<sup><a href="#fn-${id}" id="fnref-${id}">${n}</a></sup>`;
+            note = ctx.inert
+              ? `<sup>${n}</sup>`
+              : `<sup><a href="#fn-${id}" id="fnref-${id}">${n}</a></sup>`;
           } else if (!(m.type in TAG)) throw new Error(`unknown mark ${(m as Mark).type}`);
         }
         return out + note;
@@ -86,6 +96,7 @@ export function richTextHtml(doc: RichTextDoc, ctx: RichTextContext): string {
         return `<p>${inline((node as { content?: Inline[] }).content)}</p>`;
       case 'heading': {
         const n = node as { attrs: { level: number }; content?: Inline[] };
+        if (ctx.inert) return `<p data-heading="${n.attrs.level}">${inline(n.content)}</p>`;
         const tag = headingTag(ctx.depth + n.attrs.level);
         return `<${tag}>${inline(n.content)}</${tag}>`;
       }
@@ -105,6 +116,8 @@ export function richTextHtml(doc: RichTextDoc, ctx: RichTextContext): string {
 
   const body = doc.content.map(block).join('');
   if (!notes.length) return body;
+  if (ctx.inert)
+    return `${body}<ol data-notes>${notes.map((text) => `<li>${escape(text)}</li>`).join('')}</ol>`;
   const list = notes
     .map((text, i) => {
       const id = `${ctx.idPrefix}-${i + 1}`;

@@ -40,6 +40,7 @@
     BlockCard,
     BlockImage,
     BlockSummary,
+    BlockText,
     Button,
     Checkbox,
     Choices,
@@ -450,6 +451,8 @@
       missing={fill(t('admin.block.image.missing'), { file: img.label })}
       replace={{ href: `#b-${b.id}-p-mediaId`, label: t('admin.block.image.replace') }}
     />
+  {:else if BLOCK_PRESENTATION[b.type].rest === 'text' && b.text}
+    <BlockText view={b.text} />
   {:else}
     {@const image = b.preview.mediaId
       ? data.media.find((m) => m.id === b.preview.mediaId && m.thumb)

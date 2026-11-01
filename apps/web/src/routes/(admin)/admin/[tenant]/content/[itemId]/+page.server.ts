@@ -73,6 +73,7 @@ import {
   imageRestOf,
   previewOf,
   summaryOf,
+  textRestOf,
 } from '#lib/server/content-blocks.js';
 import {
   NEW_BLOCK,
@@ -273,6 +274,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
       summary: summaryOf(b, read),
       preview: previewOf(b, read),
       image: imageRestOf(b, read, options.media),
+      text: textRestOf(b, read, blockPrefix(b.id)),
       duplicable: !SINGLE.has(b.type),
       // The other locales a text block has, to translate the shown one from (AI help).
       translatable:

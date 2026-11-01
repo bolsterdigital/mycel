@@ -2104,6 +2104,87 @@ test.describe('content-blocks', () => {
     await expectNoAxeViolations(page);
   });
 
+  test('a heading, a text and a quote rest as their words, and say what was typed when they close', async ({
+    page,
+  }) => {
+    await login(page, '/admin/probe');
+    const edit = await newPage(page, 'text-rest');
+    const heading = await insert(page, 'Kop', 'end');
+    await heading.getByLabel('Tekst', { exact: true }).fill('Wie wij zijn');
+    await add(page);
+    const text = await insert(page, 'Tekst', 'end');
+    await text
+      .getByLabel('Tekst', { exact: true })
+      .fill('## Tussenkop\n\nEen **vette** zin met [een link](https://example.org/weg).');
+    await add(page);
+    const quote = await insert(page, 'Citaat', 'end');
+    await quote.getByLabel('Tekst', { exact: true }).fill('Zo is het.');
+    await quote.getByLabel('Naam', { exact: true }).fill('Sam de Vries');
+    await add(page);
+
+    await page.goto(edit);
+    const rests = page.locator('[data-block-rest]');
+    await expect(rests.nth(0).locator('.ui-block-text-heading')).toHaveText('Wie wij zijn');
+    await expect(rests.nth(1).locator('strong')).toHaveText('vette');
+    await expect(rests.nth(1).locator('[data-heading]')).toHaveText('Tussenkop');
+    await expect(rests.nth(1).locator('[data-link]')).toHaveText('een link');
+    await expect(rests.nth(2).locator('blockquote > p')).toHaveText('Zo is het.');
+    await expect(rests.nth(2).locator('blockquote > footer')).toHaveText('Sam de Vries');
+    // The card's own title is the outline, and nothing at rest leaves the unsaved form.
+    await expect(rests.locator('h1, h2, h3, h4, h5, h6, a[href], [id]')).toHaveCount(0);
+
+    await page.setViewportSize(NARROW);
+    for (const size of TEXT_SIZES) {
+      await setTextSize(page, size);
+      await layoutGate(page, `text blocks at rest at ${size}`, '.item-blocks');
+    }
+    await setTextSize(page, '100%');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expectNoAxeViolations(page);
+
+    if (!isA11y()) return;
+    // With the script: a click on the words goes straight into the field, the rest view steps
+    // aside so the words stand there once, and closing shows what was typed, unsaved.
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    const folds = page.locator('details.block');
+    await rests.nth(0).click();
+    const headingField = folds.nth(0).getByLabel('Tekst', { exact: true });
+    await expect(headingField).toBeFocused();
+    await expect(rests.nth(0).locator('.ui-block-text')).toBeHidden();
+    await headingField.fill('Wie wij nu zijn');
+    await folds.nth(0).locator('[data-block-done] button').click();
+    await expect(rests.nth(0).locator('.ui-block-text-heading')).toHaveText('Wie wij nu zijn');
+
+    await rests.nth(2).click();
+    await folds.nth(2).getByLabel('Functie', { exact: true }).fill('Voorzitter');
+    await page.keyboard.press('Escape');
+    await expect(rests.nth(2).locator('footer')).toHaveText('Sam de Vries, Voorzitter');
+
+    // Opened and closed unchanged, the text keeps what the server set; typed into, it follows.
+    const editor = folds.nth(1).locator('.ProseMirror');
+    await rests.nth(1).click();
+    await expect(editor).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(folds.nth(1)).not.toHaveAttribute('open', '');
+    await expect(folds.nth(1).locator(':scope > summary')).toBeFocused();
+    await expect(rests.nth(1).locator('[data-heading]')).toHaveText('Tussenkop');
+    await rests.nth(1).click();
+    await expect(editor).toBeFocused();
+    await page.keyboard.type('Erbij. ');
+    await page.keyboard.press('Escape');
+    await expect(folds.nth(1)).not.toHaveAttribute('open', '');
+    await expect(rests.nth(1)).toContainText('Erbij.');
+    await expect(rests.nth(1).locator('strong')).toHaveText('vette');
+    await expect(rests.nth(1).locator('a[href]')).toHaveCount(0);
+
+    // All of it survives the save, marks and link included.
+    await page.getByRole('button', { name: 'Opslaan' }).first().click();
+    await expect(page.getByRole('status').first()).toContainText('Opgeslagen');
+    await expect(rests.nth(0).locator('.ui-block-text-heading')).toHaveText('Wie wij nu zijn');
+    await expect(rests.nth(1).locator('[data-link]')).toHaveText('een link');
+    await expect(rests.nth(2).locator('footer')).toHaveText('Sam de Vries, Voorzitter');
+  });
+
   test('an image block shows its picture with caption and credit at rest, its layout under Display', async ({
     page,
     request,
