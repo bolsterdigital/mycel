@@ -59,6 +59,7 @@ const NOT_IN_EXAMPLE: Record<string, string> = {
   E2E_API_PORT: 'test harness',
   E2E_OIDC_PORT: 'test harness',
   E2E_WORKER_PORT: 'test harness',
+  FONTCONFIG_FILE: 'test harness, pointed at apps/web/e2e/fonts by playwright.config.ts on Linux',
   CI: 'set by the CI runner',
   PATH: 'operating system, passed through by scripts/test-collect.mjs',
   HOME: 'operating system, passed through by scripts/test-collect.mjs',

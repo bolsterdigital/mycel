@@ -4,6 +4,20 @@
 // Rejected: running against `vite dev`, which serves different markup and assets than production.
 
 import { defineConfig } from '@playwright/test';
+import { fileURLToPath } from 'node:url';
+
+// One font for every run on Linux: the admin sets `system-ui`, which the CI runner
+// resolves to DejaVu Sans and a dev machine to whatever it has installed (Noto Sans on dev-server-1,
+// narrower), so a label or an ⓘ that fits locally overflowed in CI three times. Chromium on Linux
+// asks fontconfig, so pointing it at e2e/fonts/ (Latin subsets of DejaVu Sans and Sans Mono, the
+// CI fonts) makes every machine measure what CI measures. Set here, so the runner, its workers
+// and every browser they launch inherit it, also contexts a spec opens itself. macOS Chromium
+// does not use fontconfig and keeps the system font: CI stays the reference there.
+// Rejected: rewriting each stylesheet to a webfont through `context.route` (a context a spec
+// opens itself, or a persistent one, misses it, and the no-js project cannot wait for the load),
+// and the full system DejaVu (not on every machine, and not the same version).
+if (process.platform === 'linux')
+  process.env['FONTCONFIG_FILE'] = fileURLToPath(new URL('e2e/fonts/fonts.conf', import.meta.url));
 
 const port = 4173;
 const origin = `http://127.0.0.1:${port}`;
