@@ -8,5 +8,8 @@
   >{#if credit.work}{credit.work.title}, {credit.work
       .maker}{/if}{#if credit.work && credit.photographer}
     ·
-  {/if}{#if credit.photographer}{photographer.replace('{name}', credit.photographer)}{/if}</span
+  {/if}{#if credit.photographer}{photographer.replace(
+      '{name}',
+      () => credit.photographer ?? ''
+    )}{/if}</span
 >

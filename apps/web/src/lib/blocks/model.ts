@@ -48,7 +48,6 @@ export interface RenderImage {
   focal: { x: number; y: number };
 }
 
-/** The lead and hero image between an item's title and its blocks (#86). */
 /** An article's line under its header; each part is absent when the article has none. */
 export interface RenderMeta {
   date: { iso: string; label: string } | null;
@@ -56,6 +55,7 @@ export interface RenderMeta {
   section: string | null;
 }
 
+/** The lead and hero image between an item's title and its blocks (#86). */
 export interface RenderIntro {
   lead: string | null;
   hero: RenderImage | null;

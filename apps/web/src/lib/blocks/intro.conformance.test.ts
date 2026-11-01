@@ -18,6 +18,7 @@ import {
   type MediaView,
 } from '@mycel/core';
 import Page from '../../routes/(public)/[tenant]/[[locale=locale]]/[...path]/+page.svelte';
+import Credit from './Credit.svelte';
 import { renderMeta, resolveDocument, resolveIntro, type ResolveSource } from './resolve.js';
 
 const HERO = '01900000-0000-7000-8000-0000000086a1';
@@ -233,6 +234,16 @@ describe('the two article headers (#105)', () => {
       byline: 'door A',
       section: null,
     });
+  });
+
+  it('keeps a name as text: `$&` in it is no replacement pattern', () => {
+    const name = 'Sam $& $` Vries';
+    const meta = renderMeta({ publishedAt: null, authors: [name], section: null }, 'nl', 'UTC');
+    expect(meta?.byline).toBe(`door ${name}`);
+    const { body } = render(Credit, {
+      props: { credit: { work: null, photographer: name }, photographer: 'Foto: {name}' },
+    });
+    expect(body).toContain('Foto: Sam $&amp; $` Vries');
   });
 });
 
