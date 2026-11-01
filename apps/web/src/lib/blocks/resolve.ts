@@ -18,6 +18,7 @@
 
 import {
   type FormDefinition,
+  type ArticleHeader,
   type ProofChallenge,
   type Invoker,
   type MediaView,
@@ -184,7 +185,7 @@ export async function resolveIntro(
     lead: string | null;
     heroImageId: string | null;
     heroAlt: string | null;
-    header?: 'standard' | 'cover';
+    header?: ArticleHeader;
     meta?: RenderMeta | null;
   },
   locale: string

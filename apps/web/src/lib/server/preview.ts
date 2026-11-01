@@ -17,6 +17,7 @@ import {
   type ContentDocument,
   type TenantInfo,
   UseCaseError,
+  pick,
   useCases,
 } from '@mycel/core';
 import { renderMeta } from '../blocks/resolve.js';
@@ -86,12 +87,7 @@ export async function introOf(
       {
         publishedAt: publishedAt ?? new Date().toISOString(),
         authors,
-        section: section
-          ? (section.title[locale] ??
-            section.title[doc.defaultLocale] ??
-            Object.values(section.title)[0] ??
-            section.slug)
-          : null,
+        section: section ? (pick(section.title, locale, doc.defaultLocale) ?? section.slug) : null,
       },
       locale,
       timeZone
