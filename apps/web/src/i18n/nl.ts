@@ -777,6 +777,9 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.editor.useLatest': 'Nieuwste versie gebruiken',
   'admin.content.done.saved':
     'Opgeslagen als nieuwe revisie. Wat gepubliceerd is, is niet veranderd.',
+  'admin.content.recovered.body':
+    'Niet-opgeslagen invoer van vóór het opnieuw inloggen is teruggezet. Hij is nog niet opgeslagen.',
+  'admin.content.recovered.discard': 'Weggooien',
   'admin.content.conflict.title': 'Iemand anders heeft dit item intussen opgeslagen',
   'admin.content.conflict.body':
     '{who} sloeg om {when} een nieuwere revisie op. Je wijzigingen staan nog in het formulier hieronder en zijn niet opgeslagen. De tabel toont wat er veranderde sinds je de pagina opende. Controleer dat en sla opnieuw op om je wijzigingen eroverheen te zetten.',

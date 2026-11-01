@@ -2,7 +2,8 @@
      shows a button for someone who typed the address. After the post, or when no one is signed
      in, it lands on "You are logged out" as a system state and says what it did not do: the
      Dreamkit ID session stays (no RP-initiated logout, +page.server.ts), so logging in again may
-     not ask for a password. -->
+     not ask for a password. Logged out, session-restore.js removes any editor input this tab
+     kept for after a login. -->
 <script lang="ts">
   import { Button, SystemState } from '#lib/admin/ui/index.js';
   import { ui } from '../../../../i18n/index.js';
@@ -15,11 +16,12 @@
 
 <svelte:head>
   <title>{done ? t('admin.loggedOut.title') : t('admin.logout')} · {t('admin.title')}</title>
+  {#if done}<script type="module" src="/_admin/session-restore.js"></script>{/if}
 </svelte:head>
 
 {#if done}
   <SystemState kind="signed-out" title={t('admin.loggedOut.title')} page>
-    <p>{t('admin.loggedOut.body')}</p>
+    <p data-restore-clear>{t('admin.loggedOut.body')}</p>
     <p class="ui-hint">{t('admin.loggedOut.idp')}</p>
     {#snippet action()}
       <Button href="/admin/login">{t('admin.login.again')}</Button>

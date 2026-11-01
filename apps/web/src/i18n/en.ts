@@ -770,6 +770,9 @@ export const en = {
   'admin.editor.keepMine': 'Keep my text',
   'admin.editor.useLatest': 'Use newest version',
   'admin.content.done.saved': 'Saved as a new revision. What is published has not changed.',
+  'admin.content.recovered.body':
+    'Unsaved input from before you logged in again has been put back. It is not saved yet.',
+  'admin.content.recovered.discard': 'Discard',
   'admin.content.conflict.title': 'Someone else saved this item in the meantime',
   'admin.content.conflict.body':
     '{who} saved a newer revision at {when}. Your changes are still in the form below and have not been saved. The table shows what changed since you opened the page. Check it, then save again to put your changes on top.',

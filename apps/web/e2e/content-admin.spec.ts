@@ -1216,6 +1216,126 @@ test.describe('content-admin', () => {
     await expectNoAxeViolations(page);
   });
 
+  test.describe('session restore: input typed when the session expired comes back (#83)', () => {
+    /** Expire the session in the browser, the way it ends: the cookie is gone. */
+    const expire = async (page: Page) => {
+      const context = page.context();
+      const others = (await context.cookies()).filter((c) => c.name !== 'mycel_session');
+      await context.clearCookies();
+      await context.addCookies(others);
+    };
+    /** From the login page an admin post sent us to, through the mock IdP as `email`. */
+    const loginAgain = async (page: Page, email = ADMIN) => {
+      await page.locator('main a[href*="start=1"]').click();
+      await page.getByLabel('E-mail').fill(email);
+      await page.getByRole('button', { name: 'Sign in' }).click();
+    };
+    const title = (page: Page) => page.locator('input[name="title.nl"]');
+    const saveState = (page: Page) => page.locator('[data-save-state]');
+    const typeAndExpire = async (page: Page, edit: string, typed: string) => {
+      await page.goto(edit);
+      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+      await title(page).fill(typed);
+      await expect(page.locator('form#item-edit')).toHaveAttribute('data-has-unsaved', '');
+      await expire(page);
+      await page.locator('.ui-item-bar').getByRole('button', { name: 'Opslaan' }).click();
+      await expect(page.locator('main')).toContainText('of je sessie is verlopen');
+    };
+
+    test('the same operator gets it back, unsaved, and can discard it', async ({ page }) => {
+      onlyA11y('the restore needs JavaScript; without it the login page is the whole answer');
+      await login(page, '/admin/probe');
+      const edit = await newPage(page, slugFor('restore'), 'Herstel');
+      await typeAndExpire(page, edit, 'Herstel na inloggen');
+      await loginAgain(page);
+
+      const notice = page.getByText('Niet-opgeslagen invoer van vóór het opnieuw inloggen');
+      await expect(notice).toBeVisible();
+      await expect(page).toHaveURL(new RegExp(`${edit}\\?`));
+      await expect(title(page)).toHaveValue('Herstel na inloggen');
+      await expect(saveState(page)).toHaveAttribute('data-current', 'done');
+      await expect(saveState(page)).toContainText('Niet opgeslagen wijzigingen');
+      await expectNoAxeViolations(page);
+
+      // Nothing was saved, and Discard opens the stored item without asking to leave.
+      await page.getByRole('link', { name: 'Weggooien' }).click();
+      await expect(notice).toHaveCount(0);
+      await expect(title(page)).toHaveValue('Herstel');
+      // The record went with the restore: a reload brings nothing back.
+      await page.reload();
+      await expect(notice).toHaveCount(0);
+    });
+
+    test('saved after the restore, the input is the new revision', async ({ page }) => {
+      onlyA11y('the restore needs JavaScript');
+      await login(page, '/admin/probe');
+      const edit = await newPage(page, slugFor('restore-save'), 'Herstel');
+      await typeAndExpire(page, edit, 'Teruggezet en bewaard');
+      await loginAgain(page);
+      await expect(title(page)).toHaveValue('Teruggezet en bewaard');
+      await page.locator('.ui-item-bar').getByRole('button', { name: 'Opslaan' }).click();
+      await expect(page.getByRole('status').filter({ hasText: 'Opgeslagen' })).toBeVisible();
+      await page.goto(edit);
+      await expect(title(page)).toHaveValue('Teruggezet en bewaard');
+    });
+
+    test('someone saving in between makes it a conflict, with the input kept', async ({
+      page,
+      browser,
+    }) => {
+      onlyA11y('the restore needs JavaScript');
+      await login(page, '/admin/probe');
+      const edit = await newPage(page, slugFor('restore-conflict'), 'Herstel');
+      const before = await page.locator('input[name="baseRevisionId"]').inputValue();
+      await typeAndExpire(page, edit, 'Mijn versie');
+
+      const other = await browser.newContext();
+      const second = await other.newPage();
+      await login(second, edit);
+      await title(second).fill('Andermans versie');
+      await second.locator('.ui-item-bar').getByRole('button', { name: 'Opslaan' }).click();
+      await expect(second.getByRole('status').filter({ hasText: 'Opgeslagen' })).toBeVisible();
+      const newest = await second.locator('input[name="baseRevisionId"]').inputValue();
+      await other.close();
+      expect(newest).not.toBe(before);
+
+      await loginAgain(page);
+      await expect(
+        page.getByText('Iemand anders heeft dit item intussen opgeslagen')
+      ).toBeVisible();
+      await expect(
+        page.getByText('Niet-opgeslagen invoer van vóór het opnieuw inloggen')
+      ).toBeVisible();
+      await expect(title(page)).toHaveValue('Mijn versie');
+      // As after a conflict save: the form now carries the newest revision, saving is a choice.
+      await expect(page.locator('input[name="baseRevisionId"]')).toHaveValue(newest);
+    });
+
+    test('someone without access to the site gets nothing back', async ({ page }) => {
+      onlyA11y('the restore needs JavaScript');
+      await login(page, '/admin/probe');
+      const edit = await newPage(page, slugFor('restore-stranger'), 'Herstel');
+      await typeAndExpire(page, edit, 'Niet voor vreemden');
+      await loginAgain(page, `stranger-${Date.now()}@probe.test`);
+      await expect(page.locator('input[name="title.nl"]')).toHaveCount(0);
+      await expect(page.locator('main')).not.toContainText('Niet voor vreemden');
+    });
+
+    test('without JavaScript the login page says why and returns to the item', async ({ page }) => {
+      test.skip(isA11y(), 'the no-js project shows the path without the restore');
+      await login(page, '/admin/probe');
+      const edit = await newPage(page, slugFor('restore-nojs'), 'Herstel');
+      await title(page).fill('Zonder script');
+      await expire(page);
+      await page.locator('.ui-item-bar').getByRole('button', { name: 'Opslaan' }).click();
+      await expect(page.locator('main')).toContainText('of je sessie is verlopen');
+      await loginAgain(page);
+      await expect(page).toHaveURL(new RegExp(`${edit}\\?/save$`));
+      // No claim that the input survived: the post never reached the form action.
+      await expect(title(page)).toHaveValue('Herstel');
+    });
+  });
+
   test('a writer without content:publish sees the state, no buttons, and gets a 403', async ({
     page,
     context,
