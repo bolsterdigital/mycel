@@ -195,10 +195,25 @@ describe('textRestOf', () => {
     expect(hero).toHaveProperty('actions.0.from', 'b.b.p.actions.0.label.en');
   });
 
+  it("names an image's caption field and the file's words, so the script can follow the mode", () => {
+    const block = { ...example('image'), id: 'b' };
+    const media = [
+      {
+        id: (block.props as { mediaId: string }).mediaId,
+        label: 'a.jpg',
+        card: { file: 'w.webp', width: 4, height: 3, caption: { nl: 'Van het bestand' } },
+      },
+    ] as never;
+    expect(imageRestOf(block, 'nl', media)?.captionSource).toEqual({
+      from: 'b.b.p.caption.nl',
+      inherited: 'Van het bestand',
+    });
+  });
+
   it('gives a hero its picture without caption or credit, and none when it has no image', () => {
     expect(imageRestOf(example('hero'), 'nl', [])).toBe(null);
     const rest = imageRestOf(example('hero', 1), 'nl', []);
-    expect(rest).toMatchObject({ card: null, caption: null, credit: null });
+    expect(rest).toMatchObject({ card: null, caption: null, captionSource: null, credit: null });
     expect(rest?.mediaId).toEqual(expect.any(String));
     expect(imageRestOf(example('heading'), 'nl', [])).toBe(null);
   });

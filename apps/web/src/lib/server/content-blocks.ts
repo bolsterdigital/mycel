@@ -404,6 +404,11 @@ export interface ImageRest {
   label: string;
   card: { file: string; width: number; height: number } | null;
   caption: string | null;
+  /**
+   * The form field that holds the caption and the file's own words, so the screen's script can
+   * follow the caption's mode at close; null on a hero, whose picture has no caption here.
+   */
+  captionSource: { from: string; inherited: string } | null;
   credit: MediaCredit | null;
 }
 
@@ -429,11 +434,13 @@ export function imageRestOf(
         ? { file: asset.card.file, width: asset.card.width, height: asset.card.height }
         : null,
       caption: null,
+      captionSource: null,
       credit: null,
     };
   }
   const own = p.caption?.[locale];
-  const caption = own !== undefined ? own : (asset?.card?.caption[locale] ?? '');
+  const inherited = asset?.card?.caption[locale] ?? '';
+  const caption = own !== undefined ? own : inherited;
   const credit = p.credit ?? asset?.card?.credit ?? null;
   return {
     mediaId: p.mediaId,
@@ -442,6 +449,7 @@ export function imageRestOf(
       ? { file: asset.card.file, width: asset.card.width, height: asset.card.height }
       : null,
     caption: caption.trim() ? caption : null,
+    captionSource: { from: `b.${block.id}.p.caption.${locale}`, inherited },
     credit: credit && (credit.work || credit.photographer) ? credit : null,
   };
 }

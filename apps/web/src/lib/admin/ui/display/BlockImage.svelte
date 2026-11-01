@@ -4,7 +4,8 @@
      the open editor has the field. An image that cannot be shown (gone, unreadable, without a
      variant, or failing to load: the screen's script flips `data-broken`) says which file is
      missing and offers "Replace", which opens the block's media field; the stored reference stays
-     until the editor picks another. Rejected: a placeholder that looks like a working image, and
+     until the editor picks another. The caption stays in the markup while it is empty, because
+     the screen's script sets it at close by the field's mode, as a save would. Rejected: a placeholder that looks like a working image, and
      the filename or id in place of the picture. -->
 <script lang="ts">
   let {
@@ -12,6 +13,7 @@
     width,
     height,
     caption,
+    captionSource = null,
     credit,
     missing,
     replace,
@@ -22,6 +24,8 @@
     height: number;
     /** The caption the page shows in this locale (the block's own, else the file's), or null. */
     caption: string | null;
+    /** Where the script reads the caption from; null when it does not follow (a legacy hero). */
+    captionSource?: { from: string; inherited: string } | null;
     /** The credit line as the page words it, or null. */
     credit: string | null;
     /** What the card says when the image cannot be shown: "Image not available: <file>". */
@@ -39,9 +43,15 @@
     <p>{missing}</p>
     <a href={replace.href}>{replace.label}</a>
   </div>
-  {#if caption || credit}
-    <figcaption>
-      {#if caption}<span>{caption}</span>{/if}
+  {#if caption || credit || captionSource}
+    <figcaption hidden={!caption && !credit}>
+      {#if captionSource}
+        <span
+          hidden={!caption}
+          data-rest-caption={captionSource.from}
+          data-rest-inherited={captionSource.inherited}>{caption ?? ''}</span
+        >
+      {:else if caption}<span>{caption}</span>{/if}
       {#if credit}<span class="ui-block-image-credit">{credit}</span>{/if}
     </figcaption>
   {/if}

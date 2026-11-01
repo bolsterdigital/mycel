@@ -423,6 +423,19 @@ describe('BlockImage', () => {
     expect(out).toContain('Photo: Archief');
     expect(out).not.toMatch(/data-broken/);
   });
+  it('keeps an empty caption in the markup for the script, hidden, when it can follow', () => {
+    const captionSource = { from: 'b.1.p.caption.nl', inherited: 'From the file' };
+    const out = html(BlockImage, {
+      ...props,
+      src: '/v/w960.webp',
+      caption: null,
+      credit: null,
+      captionSource,
+    });
+    expect(out).toMatch(/<figcaption hidden/);
+    expect(out).toMatch(/<span hidden[^>]*data-rest-caption="b\.1\.p\.caption\.nl"/);
+    expect(out).toContain('data-rest-inherited="From the file"');
+  });
   it('says which file is missing and offers Replace, without an image', () => {
     const out = html(BlockImage, { ...props, src: null });
     expect(out).toContain('data-broken');

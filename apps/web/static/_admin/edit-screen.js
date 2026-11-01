@@ -290,6 +290,21 @@ if (form instanceof HTMLFormElement) {
           ? names.split(' ').map(valueOf).filter(Boolean).join(', ')
           : (served.get(names) ?? '');
       }
+      // A caption by its mode, as a save reads it: the file's words, none, or the block's own.
+      for (const line of rest.querySelectorAll('[data-rest-caption]')) {
+        const name = line.dataset.restCaption;
+        const mode = controlOf(`${name}.mode`)?.value;
+        const words =
+          mode === 'inherit'
+            ? (line.dataset.restInherited ?? '')
+            : mode === 'hide'
+              ? ''
+              : (controlOf(name)?.value ?? '');
+        line.textContent = words;
+        line.hidden = !words.trim();
+        const caption = line.closest('figcaption');
+        if (caption) caption.hidden = [...caption.children].every((child) => child.hidden);
+      }
       for (const note of rest.querySelectorAll('[data-rest-changed]')) {
         note.hidden = !typedInto(note.dataset.restChanged);
       }
