@@ -28,6 +28,9 @@
 // MYCEL_TRUST_PROXY=1 follows Caddy's X-Forwarded-Proto. The CSP is SvelteKit's (vite.config.ts);
 // on the admin its frame-ancestors is tightened to 'none', except the live draft route ('self').
 //
+// A served public page also gets the header that names its speculation rules
+// (lib/server/http/speculation.ts).
+//
 // Public responses then pass `conditional` (brief #8c § 9, lib/server/http/http-cache.ts): a matching
 // If-None-Match on a page with a strong ETag becomes a 304, and a 404 gets `no-store`.
 
@@ -41,6 +44,7 @@ import { decideSite } from '#lib/server/site.js';
 import { bodyLimit, boundedBody } from '#lib/server/http/body-limit.js';
 import { applySecurityHeaders, type ResponseKind } from '#lib/server/http/security-headers.js';
 import { conditional } from '#lib/server/http/http-cache.js';
+import { applySpeculationRules } from '#lib/server/http/speculation.js';
 import { withItalicPreload } from '#lib/theme/tokens.js';
 
 const isAdmin = (path: string) => path === '/admin' || path.startsWith('/admin/');
@@ -68,6 +72,7 @@ export const handle: Handle = async (input) => {
       response.headers.set('x-request-id', requestId);
     }
     const kind = kindOf(event.url.pathname);
+    if (kind === 'public' && event.locals.site) applySpeculationRules(response, event.locals.site);
     if (kind === 'public') response = conditional(event.request, response);
     const liveDraft = /^\/admin\/[^/]+\/preview\/draft$/.test(event.url.pathname);
     if (liveDraft) {

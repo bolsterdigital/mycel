@@ -22,6 +22,7 @@ import {
   tabStops,
 } from './lib/layout';
 import { bfcacheBrowser, bfcacheRestore } from './lib/bfcache';
+import { arrivesFetchedAhead } from './lib/speculation';
 import { type LocaleMetadata, localeMetadata, localeMetadataProblems } from './lib/metadata';
 import { login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
@@ -237,6 +238,53 @@ test.describe('quality corpus back/forward cache', () => {
     );
     expect(outcome.restored).toBe(false);
     expect(outcome.reasons).toContain('UnloadHandlerExistsInMainFrame');
+    await page.context().close();
+  });
+});
+
+// Every corpus page fetches a link ahead on hover, under the real Content-Security-Policy, in the
+// browser that keeps the cache (lib/speculation.ts); what must not be fetched ahead is not.
+test.describe('quality corpus speculation rules', () => {
+  let browser: Browser | undefined;
+  test.beforeAll(async () => {
+    onlyA11y('one browser of its own, measured once');
+    browser = await bfcacheBrowser();
+  });
+  test.afterAll(async () => {
+    await browser?.close();
+  });
+  const open = async (baseURL: string | undefined) => {
+    const context = await browser!.newContext({
+      ...(baseURL ? { baseURL } : {}),
+      extraHTTPHeaders: { 'x-forwarded-proto': 'http' },
+    });
+    return context.newPage();
+  };
+
+  for (const entry of entries)
+    test(`${entry.slug}: a held link is already there on click`, async ({ baseURL }) => {
+      const page = await open(baseURL);
+      const refused: string[] = [];
+      page.on('console', (message) => {
+        if (message.type() === 'error') refused.push(message.text());
+      });
+      const other = entries.find((candidate) => candidate !== entry)!;
+      for (const [locale, identity] of Object.entries(entry.locales)) {
+        const to = other.locales[locale as keyof typeof other.locales]!.path;
+        expect(await arrivesFetchedAhead(page, identity.path, to), locale).toBe(true);
+      }
+      expect(refused).toEqual([]);
+      await page.context().close();
+    });
+
+  test('a confirmation, a query or a nofollow link is not fetched ahead', async ({ baseURL }) => {
+    const page = await open(baseURL);
+    const [entry, other] = entries;
+    const from = Object.values(entry!.locales)[0]!.path;
+    const to = Object.values(other!.locales)[0]!.path;
+    for (const href of ['/probe/confirm', `${to}?page=2`])
+      expect(await arrivesFetchedAhead(page, from, href), href).toBe(false);
+    expect(await arrivesFetchedAhead(page, from, to, { rel: 'nofollow' }), 'nofollow').toBe(false);
     await page.context().close();
   });
 });
