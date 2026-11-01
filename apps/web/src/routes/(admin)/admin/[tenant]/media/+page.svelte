@@ -19,7 +19,7 @@
     Table,
   } from '#lib/admin/ui/index.js';
   import { formatBytes } from '#lib/admin/format.js';
-  import { THUMB, thumbPath } from '#lib/admin/thumb.js';
+  import { THUMB, thumbPath } from '#lib/admin/ui/thumb.js';
   import { fill, ui, type UiKey } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 

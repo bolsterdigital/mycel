@@ -34,7 +34,7 @@
   import Diff from '#lib/admin/Diff.svelte';
   import Inherited from '#lib/admin/Inherited.svelte';
   import { issueLabel } from '#lib/admin/issue-label.js';
-  import { thumbPath } from '#lib/admin/thumb.js';
+  import { thumbPath } from '#lib/admin/ui/thumb.js';
   import {
     Actions,
     Badge,

@@ -10,7 +10,7 @@
   import AdminScript from '../../trusted/AdminScript.svelte';
   import { ui } from '../../../../i18n/index.js';
   import type { MediaChoice } from '../../media-choice.js';
-  import { THUMB, thumbPath } from '../../thumb.js';
+  import { THUMB, thumbPath } from '../thumb.js';
   import Actions from '../display/Actions.svelte';
   import Dialog from '../feedback/Dialog.svelte';
   import HintButton from '../feedback/HintButton.svelte';

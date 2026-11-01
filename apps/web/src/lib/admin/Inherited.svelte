@@ -7,7 +7,7 @@
      component in lib/admin/ui (it knows the chain's sources, which are content's words). -->
 <script lang="ts">
   import { fill, ui, type UiKey } from '../../i18n/index.js';
-  import { THUMB } from './thumb.js';
+  import { THUMB } from './ui/thumb.js';
 
   let {
     id,
