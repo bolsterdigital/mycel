@@ -4,7 +4,7 @@
 // Rejected: accepting a 200 from an empty shell, redirect or unrelated seeded page as a sample.
 import AxeBuilder from '@axe-core/playwright';
 import { THEME_PRESETS, Theme, UseCaseError, systemPrincipal, useCases } from '@mycel/core';
-import { expect, test } from '@playwright/test';
+import { type Browser, expect, test } from '@playwright/test';
 import corpus from './quality-corpus.json' with { type: 'json' };
 import checklist from '../../../scripts/quality/spec-checklist.json' with { type: 'json' };
 import { type Sample, specFailures } from '../../../scripts/quality/spec-check.mjs';
@@ -21,6 +21,7 @@ import {
   setTextSpacing,
   tabStops,
 } from './lib/layout';
+import { bfcacheBrowser, bfcacheRestore } from './lib/bfcache';
 import { type LocaleMetadata, localeMetadata, localeMetadataProblems } from './lib/metadata';
 import { login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
@@ -188,6 +189,56 @@ test('locale metadata copied from another locale is a problem', () => {
       { ...en, description: 'About', ogDescription: 'About', alts: ['Protesters', null] },
     ])
   ).toEqual(['en: image 2 has no alt']);
+});
+
+// Every corpus page, in each locale, comes back from the back/forward cache (lib/bfcache.ts). Its
+// own browser, so one project is enough; a11y is the one with JavaScript, where an enhancement
+// could add the unload handler or connection that blocks the cache.
+test.describe('quality corpus back/forward cache', () => {
+  let browser: Browser | undefined;
+  test.beforeAll(async () => {
+    onlyA11y('one browser of its own, measured once');
+    browser = await bfcacheBrowser();
+  });
+  test.afterAll(async () => {
+    await browser?.close();
+  });
+  const open = async (baseURL: string | undefined) => {
+    const context = await browser!.newContext({
+      ...(baseURL ? { baseURL } : {}),
+      extraHTTPHeaders: { 'x-forwarded-proto': 'http' },
+    });
+    return context.newPage();
+  };
+
+  for (const entry of entries)
+    test(`${entry.slug}: back returns the page from the cache`, async ({ baseURL }) => {
+      const page = await open(baseURL);
+      const other = entries.find((candidate) => candidate !== entry)!;
+      for (const [locale, identity] of Object.entries(entry.locales)) {
+        const away = other.locales[locale as keyof typeof other.locales]!.path;
+        expect(await bfcacheRestore(page, identity.path, away), locale).toEqual({
+          restored: true,
+          reasons: [],
+        });
+      }
+      await page.context().close();
+    });
+
+  // The measurement must be able to fail: an unload handler is a reason every browser refuses.
+  test('a page with an unload handler is not restored', async ({ baseURL }) => {
+    const page = await open(baseURL);
+    await page.addInitScript(() => addEventListener('unload', () => {}));
+    const [entry, other] = entries;
+    const outcome = await bfcacheRestore(
+      page,
+      Object.values(entry!.locales)[0]!.path,
+      Object.values(other!.locales)[0]!.path
+    );
+    expect(outcome.restored).toBe(false);
+    expect(outcome.reasons).toContain('UnloadHandlerExistsInMainFrame');
+    await page.context().close();
+  });
 });
 
 test.describe('quality corpus reflow and text spacing', () => {
