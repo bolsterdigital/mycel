@@ -51,6 +51,8 @@ const page = (overrides = {}) => ({
     'referrer-policy': 'strict-origin-when-cross-origin',
     'permissions-policy': 'camera=(), microphone=()',
     'strict-transport-security': 'max-age=31536000',
+    'cross-origin-opener-policy': 'same-origin',
+    'cross-origin-resource-policy': 'same-origin',
     'cache-control': 'public, max-age=60',
   },
   body: `<!doctype html>
@@ -124,6 +126,10 @@ test('each rule fails on the defect it names', () => {
       },
     },
     'x-content-type-options': { headers: { ...page().headers, 'x-content-type-options': '' } },
+    'cross-origin-isolation': {
+      headers: { ...page().headers, 'cross-origin-resource-policy': 'cross-origin' },
+    },
+    vary: { headers: { ...page().headers, vary: 'accept-language' } },
     'frame-ancestors': {
       headers: { ...page().headers, 'content-security-policy': "default-src 'self'" },
     },

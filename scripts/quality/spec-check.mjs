@@ -195,6 +195,21 @@ export const RULES = {
         ? null
         : 'no X-Content-Type-Options: nosniff',
   },
+  'cross-origin-isolation': {
+    roles: ['page', 'missing'],
+    check: (s) =>
+      s.headers['cross-origin-opener-policy'] === 'same-origin' &&
+      s.headers['cross-origin-resource-policy'] === 'same-origin'
+        ? null
+        : 'no Cross-Origin-Opener-Policy and Cross-Origin-Resource-Policy: same-origin',
+  },
+  vary: {
+    roles: ['page'],
+    check: (s) =>
+      /accept-language|cookie/i.test(s.headers['vary'] ?? '')
+        ? `a content page has its language in the address but varies on ${s.headers['vary']}`
+        : null,
+  },
   'frame-ancestors': {
     roles: ['page'],
     check: (s) =>

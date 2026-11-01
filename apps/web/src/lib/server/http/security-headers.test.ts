@@ -2,7 +2,14 @@
 // over plain HTTP and never with includeSubDomains/preload; a route's own value is kept; the
 // admin's CSP loses only its frame-ancestors source list.
 import { describe, expect, it } from 'vitest';
-import { applySecurityHeaders, denyFraming, securityHeaders } from './security-headers.js';
+import {
+  applySecurityHeaders,
+  CLEAR_ON_LOGOUT,
+  denyFraming,
+  refusedCrossSite,
+  securityHeaders,
+  shareable,
+} from './security-headers.js';
 
 describe('securityHeaders', () => {
   it.each(['public', 'admin', 'internal'] as const)('%s: the fixed set', (kind) => {
@@ -25,6 +32,64 @@ describe('securityHeaders', () => {
     const hsts = securityHeaders('public', true)['strict-transport-security'];
     expect(hsts).toBe('max-age=31536000');
     expect(hsts).not.toMatch(/includeSubDomains|preload/i);
+  });
+});
+
+describe('cross-origin isolation', () => {
+  it.each(['public', 'admin', 'internal'] as const)('%s keeps to its own origin', (kind) => {
+    const h = securityHeaders(kind, true);
+    expect(h['cross-origin-opener-policy']).toBe('same-origin');
+    expect(h['cross-origin-resource-policy']).toBe('same-origin');
+  });
+
+  it('a public file may be used elsewhere, a restricted one may not', () => {
+    const file = (cache: string) =>
+      shareable(new Response(null, { headers: { 'cache-control': cache } })).headers;
+    const open = file('public, max-age=31536000, immutable');
+    applySecurityHeaders(open, 'public', true);
+    expect(open.get('cross-origin-resource-policy')).toBe('cross-origin');
+    const restricted = file('private, no-store');
+    applySecurityHeaders(restricted, 'public', true);
+    expect(restricted.get('cross-origin-resource-policy')).toBe('same-origin');
+  });
+});
+
+describe('refusedCrossSite', () => {
+  const request = (headers: Record<string, string>, method = 'GET') =>
+    new Request('http://x/admin', { method, headers });
+  const page = { 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' };
+
+  it.each([
+    ['no header at all', {}],
+    ['its own origin', { 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors' }],
+    ['a typed address', { 'sec-fetch-site': 'none', ...page }],
+    ['a link from a mail', { 'sec-fetch-site': 'cross-site', ...page }],
+    ['the redirect back from the login', { 'sec-fetch-site': 'same-site', ...page }],
+  ])('lets through %s', (_, headers) => {
+    expect(refusedCrossSite(request(headers))).toBe(false);
+  });
+
+  it.each(['cross-site', 'same-site'])('refuses a %s subresource, frame or post', (site) => {
+    const from = { 'sec-fetch-site': site };
+    expect(
+      refusedCrossSite(request({ ...from, 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty' }))
+    ).toBe(true);
+    expect(
+      refusedCrossSite(request({ ...from, 'sec-fetch-mode': 'no-cors', 'sec-fetch-dest': 'image' }))
+    ).toBe(true);
+    expect(
+      refusedCrossSite(
+        request({ ...from, 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'iframe' })
+      )
+    ).toBe(true);
+    expect(refusedCrossSite(request({ ...from, ...page }, 'POST'))).toBe(true);
+  });
+});
+
+describe('CLEAR_ON_LOGOUT', () => {
+  it('never reaches the cookies of the rest of the registered domain', () => {
+    expect(CLEAR_ON_LOGOUT).not.toContain('cookies');
+    expect(CLEAR_ON_LOGOUT).not.toContain('*');
   });
 });
 

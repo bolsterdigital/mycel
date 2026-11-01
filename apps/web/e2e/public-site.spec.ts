@@ -1436,6 +1436,7 @@ test.describe('site-settings', () => {
     expect(logoResponse.status()).toBe(200);
     expect(logoResponse.headers()['content-type']).toBe('image/webp');
     expect(logoResponse.headers()['x-content-type-options']).toBe('nosniff');
+    expect(logoResponse.headers()['cross-origin-resource-policy']).toBe('cross-origin');
     const previewLogo = await page.request.get(`/admin/${slug}/preview/_brand/logo/1.webp`);
     expect(previewLogo.status()).toBe(200);
     expect(previewLogo.headers()['cache-control']).toBe('no-store');

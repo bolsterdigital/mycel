@@ -28,6 +28,9 @@
 // MYCEL_TRUST_PROXY=1 follows Caddy's X-Forwarded-Proto. The CSP is SvelteKit's (vite.config.ts);
 // on the admin its frame-ancestors is tightened to 'none', except the live draft route ('self').
 //
+// A request to the admin that another site made is refused before the session is read
+// (security-headers.ts).
+//
 // A served public page also gets the header that names its speculation rules
 // (lib/server/http/speculation.ts).
 //
@@ -42,7 +45,11 @@ import { adminLanguage, onPlatformOrigin } from '#lib/server/admin/admin-paths.j
 import { runtime } from '#lib/server/runtime.js';
 import { decideSite } from '#lib/server/site.js';
 import { bodyLimit, boundedBody } from '#lib/server/http/body-limit.js';
-import { applySecurityHeaders, type ResponseKind } from '#lib/server/http/security-headers.js';
+import {
+  applySecurityHeaders,
+  refusedCrossSite,
+  type ResponseKind,
+} from '#lib/server/http/security-headers.js';
 import { conditional } from '#lib/server/http/http-cache.js';
 import { applySpeculationRules } from '#lib/server/http/speculation.js';
 import { withItalicPreload } from '#lib/theme/tokens.js';
@@ -72,6 +79,9 @@ export const handle: Handle = async (input) => {
       response.headers.set('x-request-id', requestId);
     }
     const kind = kindOf(event.url.pathname);
+    // What an operator sees depends on who they are and, before they chose one, their language.
+    if (kind === 'admin' && !response.headers.has('vary'))
+      response.headers.set('vary', 'cookie, accept-language');
     if (kind === 'public' && event.locals.site) applySpeculationRules(response, event.locals.site);
     if (kind === 'public') response = conditional(event.request, response);
     const liveDraft = /^\/admin\/[^/]+\/preview\/draft$/.test(event.url.pathname);
@@ -114,6 +124,7 @@ const route: Handle = async ({ event, resolve }) => {
   if (isAdmin(path)) {
     if (!onPlatformOrigin(event.url, rt.config.PUBLIC_BASE_URL))
       return new Response('Not found', { status: 404 });
+    if (refusedCrossSite(event.request)) return new Response('Forbidden', { status: 403 });
     event.locals.session =
       (await readSession(rt.signer, rt.clock, event.cookies.get(SESSION_COOKIE))) ?? undefined;
     event.locals.preferences = event.locals.session

@@ -13,6 +13,8 @@ import {
   systemPrincipal,
   useCases,
 } from '@mycel/core';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { FakeDns } from '@mycel/core/testing';
 import { type Database, uuidv7Ids } from '@mycel/db';
 import { asRole, testTenant } from '@mycel/db/testing';
@@ -266,6 +268,70 @@ test.describe('admin', () => {
     await expectNoAxeViolations(page);
   });
 
+  test('logging out empties what this origin kept in the browser', async ({ page }) => {
+    onlyA11y('reads the browser storage');
+    await login(page, '/admin?all');
+    await page.goto('/admin/logout');
+    await page.evaluate(() => {
+      localStorage.setItem('probe', '1');
+      sessionStorage.setItem('probe', '1');
+    });
+    const logout = page.waitForResponse(
+      (r) => r.request().method() === 'POST' && new URL(r.url()).pathname === '/admin/logout'
+    );
+    await page.getByRole('button', { name: 'Uitloggen' }).click();
+    const headers = await (await logout).allHeaders();
+    expect(headers['clear-site-data']).toBe('"cache", "storage"');
+    await expect(page.getByRole('heading', { level: 1, name: 'Je bent uitgelogd' })).toBeVisible();
+    expect(
+      await page.evaluate(() => [localStorage.getItem('probe'), sessionStorage.getItem('probe')])
+    ).toEqual([null, null]);
+  });
+
+  // `localhost` and 127.0.0.1 are two sites. The browser's own Fetch Metadata for a cross-site
+  // fetch is read at a small server and replayed with the session: Playwright's request context
+  // sends none, and the browser hides the admin's answer (Cross-Origin-Resource-Policy fails the
+  // request before any response event), so a 403 here is the refusal and not a missing login.
+  test('another site cannot use the admin, but can link to it', async ({ page, baseURL }) => {
+    onlyA11y('the other site acts with a script');
+    await login(page, '/admin/probe');
+    let metadata: Record<string, string> = {};
+    const other = createServer((req, res) => {
+      if (req.url === '/seen')
+        metadata = Object.fromEntries(
+          Object.entries(req.headers).filter(([name]) => name.startsWith('sec-fetch-'))
+        ) as Record<string, string>;
+      res.setHeader('content-type', 'text/html');
+      res.end('<!doctype html><title>other</title>');
+    });
+    await new Promise<void>((resolve) => other.listen(0, '127.0.0.1', resolve));
+    try {
+      const port = (other.address() as AddressInfo).port;
+      await page.goto(`http://localhost:${port}/`);
+      await page.evaluate(
+        (url) => fetch(url, { mode: 'no-cors', credentials: 'include' }),
+        `http://127.0.0.1:${port}/seen`
+      );
+      expect(metadata['sec-fetch-site']).toBe('cross-site');
+      const target = `${baseURL}/admin/probe`;
+      expect((await page.request.get(target, { headers: metadata })).status()).toBe(403);
+      expect((await page.request.get(target)).status()).toBe(200);
+
+      const followed = page.waitForResponse((r) => r.url() === target);
+      await page.evaluate((url) => {
+        const a = document.createElement('a');
+        a.href = url;
+        a.textContent = 'admin';
+        document.body.append(a);
+        a.click();
+      }, target);
+      expect((await followed).status()).toBe(200);
+      await expect(page).toHaveURL(target);
+    } finally {
+      other.close();
+    }
+  });
+
   test('the admin is not served on another origin', async ({ request }) => {
     const res = await request.get('/admin', { headers: { host: 'probe.example.org' } });
     expect(res.status()).toBe(404);
@@ -294,6 +360,7 @@ test.describe('admin', () => {
     expect(csp).toContain("default-src 'self'");
     expect(csp).not.toMatch(/unsafe-inline|unsafe-eval/);
     expect(response!.headers()['referrer-policy']).toBe('same-origin');
+    expect(response!.headers()['vary']).toBe('cookie, accept-language');
   });
 
   test('an admin action posted from another origin is refused', async ({ request, baseURL }) => {

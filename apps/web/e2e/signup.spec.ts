@@ -140,6 +140,7 @@ test('signup with double opt-in: too-fast post, thank-you page, confirmation pag
   expect(scanned.status()).toBe(200);
   expect(scanned.headers()['cache-control']).toBe('no-store');
   expect(scanned.headers()['referrer-policy']).toBe('strict-origin');
+  expect(scanned.headers()['vary']).toContain('accept-language');
   expect((await request.head(link)).status()).toBe(200);
 
   // (d) A post from another origin is refused before the action runs.
