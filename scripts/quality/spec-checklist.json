@@ -885,8 +885,9 @@
     "bfcache": {
       "category": "performance",
       "level": "recommended",
-      "status": "open",
-      "gap": "no measurement of back/forward cache eligibility"
+      "status": "covered",
+      "file": "apps/web/e2e/quality-corpus.spec.ts",
+      "note": "every corpus page in each locale comes back from the back/forward cache in full Chromium with no reason reported over the DevTools protocol; a page with an unload handler is refused (apps/web/e2e/lib/bfcache.ts)"
     },
     "visibility-aware-rendering": {
       "category": "performance",
