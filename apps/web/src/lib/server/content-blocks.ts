@@ -326,7 +326,7 @@ export const issueCopy = (message: string): UiKey =>
  */
 export function fieldIssues(e: UseCaseError, index: number): FieldIssue[] {
   // The document's path to the block (`blocks.<i>.props`), or the operation's input (`props` of
-  // set_props, `block.props` of insert).
+  // update, `block.props` of insert).
   const prefixes = [`blocks.${index}.props`, 'block.props', 'props'];
   return e.issues.map((i) => {
     const prefix = prefixes.find((p) => i.path.startsWith(`${p}.`));

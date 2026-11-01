@@ -113,7 +113,7 @@ describe('previewOf', () => {
 });
 
 describe('fieldIssues', () => {
-  it('maps paths in the document, in set_props and in insert onto form names', () => {
+  it('maps paths in the document, in update and in insert onto form names', () => {
     const e = new UseCaseError('invalid_input', 'x', [
       { path: 'blocks.3.props.title.nl', message: 'i18n.localized.empty' },
       { path: 'blocks.2.props.title.nl', message: 'i18n.localized.empty' },

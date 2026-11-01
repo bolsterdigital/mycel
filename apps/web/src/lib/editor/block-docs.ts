@@ -58,7 +58,7 @@ export function blockReference(): string {
     '',
     '<!-- Generated from the block registry by apps/web/src/lib/editor/block-docs.ts. Do not edit: run `npm run docs:blocks`. -->',
     '',
-    'Every block type a page or article can hold (ADR 004, ADR 013 rule 2, ADR 020), as `packages/core/src/content/block-types.ts` defines it: its props as the admin edits them, its enumerated values and its examples. A block is stored as `{ id, type, version, props }`; agents and the API write the same props through the block operations (`content.block.insert`, `move`, `remove`, `set_props`, `split_insert`). The JSON Schema of every type is in `/openapi.json` and the MCP tool list.',
+    'Every block type a page or article can hold (ADR 004, ADR 013 rule 2, ADR 020), as `packages/core/src/content/block-types.ts` defines it: its props as the admin edits them, its enumerated values and its examples. A block is stored as `{ id, type, version, props }`; agents and the API write the same props through the block operations (`content.block.insert`, `move`, `remove`, `update`, `split_insert`). The JSON Schema of every type is in `/openapi.json` and the MCP tool list.',
     '',
     'The **label** is the English admin copy; **presence** says whether a published block needs the field. A localised field holds one value per locale of the document; publishing a locale needs a value in it for every required field and every optional one that is filled in another locale.',
     '',
