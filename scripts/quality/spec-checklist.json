@@ -912,8 +912,9 @@
     "dynamic-viewport-units": {
       "category": "performance",
       "level": "recommended",
-      "status": "open",
-      "gap": "no check against 100vh; the admin styles still use it"
+      "status": "covered",
+      "file": "scripts/gates/web-rules.test.mjs",
+      "note": "the viewport-height rule allows no static vh in the web front's sources and stylesheets"
     },
     "compression-dictionary-transport": {
       "category": "performance",

@@ -303,7 +303,7 @@
     .admin-shell {
       display: grid;
       grid-template-columns: var(--nav-width) minmax(0, 1fr);
-      min-height: 100vh;
+      min-height: 100dvh;
     }
     .admin-workspace .page.admin {
       padding: var(--space-3);
@@ -399,7 +399,7 @@
     .admin-sidebar {
       position: sticky;
       inset-block-start: 0;
-      height: 100vh;
+      height: 100dvh;
       /* Four groups at 200% text are taller than a laptop screen. */
       overflow-y: auto;
       border-inline-end: var(--border-width) solid var(--color-border);

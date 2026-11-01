@@ -1307,11 +1307,11 @@
     .ui-edit[data-preview-open] > .ui-edit-preview {
       position: sticky;
       inset-block-start: calc(var(--item-bar-block-size, 0px) + var(--space-2));
-      max-block-size: calc(100vh - var(--item-bar-block-size, 0px) - 2 * var(--space-2));
+      max-block-size: calc(100dvh - var(--item-bar-block-size, 0px) - 2 * var(--space-2));
       overflow: auto;
     }
     .ui-edit[data-preview-open] > .ui-edit-preview iframe {
-      min-block-size: 70vh;
+      min-block-size: 70svh;
     }
   }
   /* The preview toggle exists once live-preview-parent.js has run; it then replaces the links to

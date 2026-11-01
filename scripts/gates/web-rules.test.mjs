@@ -2,7 +2,9 @@
 // its own (TODO #51): a route that catches `UseCaseError` itself maps `forbidden` to 400, a link
 // regex lets through what `isSafeHref` refuses. Until the sweep removes them, each kind of copy
 // only goes down, per file, against scripts/gates/web-rules.baseline.json; a rule at zero stays
-// at zero. Run by `npm run lint:infra`, offline.
+// at zero. One rule guards the stylesheets instead of a helper: a height in static `vh` is the
+// layout viewport, which a mobile browser's toolbar covers, so the theme uses `dvh` or `svh`.
+// Run by `npm run lint:infra`, offline.
 // Rejected: one-home.test.mjs (it allows no copy at all, and these have dozens until the sweep),
 // and one total per rule (a removed copy and a new one elsewhere cancel out silently).
 
@@ -46,6 +48,11 @@ export const RULES = {
     /\[0-9a-f\]\{8\}/gi,
     WEB,
   ],
+  'viewport-height': [
+    'a height in static vh (use dvh, or svh for a minimum that must not jump)',
+    /(?<![\w-])\d+(?:\.\d+)?vh\b/g,
+    WEB,
+  ],
 };
 
 /** `{ key: { path: count } }` of every copy in `files`, tests and comments left out. */
@@ -80,7 +87,7 @@ export function ratchet(counts, baseline, rules = RULES) {
   return { grew, shrank };
 }
 
-const sources = () => readAll(walk(WEB, { match: (p) => /\.(?:[cm]?[jt]s|svelte)$/.test(p) }));
+const sources = () => readAll(walk(WEB, { match: (p) => /\.(?:[cm]?[jt]s|svelte|css)$/.test(p) }));
 
 test('copies of core and helper rules in the web front only go down', () => {
   const files = sources();
@@ -108,6 +115,10 @@ test('each rule sees its copy, within its scope, and not in comments or tests', 
       },
       { path: view, text: '<script>if (/^(https?:\\/\\/|mailto:)/.test(h)) ok();</script>' },
       {
+        path: `${WEB}lib/x.css`,
+        text: '.a { min-height: 100vh; height: 100dvh; max-height: calc(50.5vh - 1rem); }\n/* 100vh */',
+      },
+      {
         path: lib,
         text: [
           'const t = title[locale] ?? Object.values(title)[0];',
@@ -128,6 +139,7 @@ test('each rule sees its copy, within its scope, and not in comments or tests', 
       'locale-fallback': { [lib]: 2 },
       'english-default': { [route]: 1 },
       'uuid-regex': { [route]: 1 },
+      'viewport-height': { [`${WEB}lib/x.css`]: 2 },
     }
   );
 });
