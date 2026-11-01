@@ -3081,9 +3081,7 @@ test.describe('article-writing', () => {
     await native.locator(':scope > summary').click();
     await native.getByLabel('Tekst', { exact: true }).fill('Native invoer voor het laden');
     release();
-    await page.waitForFunction(
-      () => !!document.head.querySelector('script[src="/_admin/tabs.js"]')
-    );
+    await expect(page.locator('form#item-edit[data-edit-screen]')).toHaveCount(1);
     await expect(page.locator('#title\\.nl')).toHaveValue('Voor de enhancement');
     await expect(native.getByLabel('Tekst', { exact: true })).toBeVisible();
     await expect(native.getByLabel('Tekst', { exact: true })).toHaveValue(
@@ -3279,6 +3277,33 @@ test.describe('article-writing', () => {
         await context.close();
       }
     }
+  });
+
+  test('pasted text keeps its paragraphs and marks, and no stray empty ones', async ({
+    page,
+    request,
+  }) => {
+    onlyA11y();
+    requireApi();
+    await login(page, await article(request));
+    const writing = page.locator('.writing-surface .ProseMirror');
+    await writing.locator('p').first().click();
+    const before = await writing.locator('p').count();
+    await writing.evaluate((element) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData(
+        'text/html',
+        '<p>Eerste <strong>alinea</strong>.</p>\n<script>window.pasted = 1</script>\n<p>Tweede alinea.</p>\n'
+      );
+      element.dispatchEvent(
+        new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData })
+      );
+    });
+    await expect(writing.locator('strong', { hasText: 'alinea' })).toBeVisible();
+    await expect(writing.locator('p', { hasText: 'Tweede alinea.' })).toHaveCount(1);
+    expect(await writing.locator('p').count()).toBeLessThanOrEqual(before + 2);
+    await expect(writing.locator('p:empty, p:has(> br:only-child)')).toHaveCount(0);
+    expect(await page.evaluate(() => 'pasted' in window)).toBe(false);
   });
 
   test('pasted blockquote becomes a structured quote card after attribution', async ({

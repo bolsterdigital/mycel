@@ -5,6 +5,7 @@
      readonly <input> (a token that does not fit scrolls out of view inside it at 320 CSS px) and
      a <dialog open> (not modal without a script, and the token belongs to the page that made it). -->
 <script lang="ts">
+  import AdminScript from '../../trusted/AdminScript.svelte';
   import type { Snippet } from 'svelte';
   import { ui } from '../../../../i18n/index.js';
 
@@ -27,7 +28,7 @@
   const t = $derived(ui(locale));
 </script>
 
-<svelte:head><script type="module" src="/_admin/copy.js"></script></svelte:head>
+<svelte:head><AdminScript src="/_admin/copy.js" /></svelte:head>
 
 <section class="ui-reveal" aria-labelledby="{id}-title">
   <h2 id="{id}-title">{title}</h2>

@@ -10,6 +10,12 @@
 // in hooks.server.ts; that is the only change made after SvelteKit. Rejected: `mode: 'hash'`
 // (everything is SSR; a nonce also shuts out inline scripts added later) and a policy built by
 // hand in `handle`, which would be a second source that drifts from this one.
+//
+// Trusted Types name every policy that may exist. Svelte and ProseMirror bring their own; ours
+// parse into an inert document (lib/editor/inert-html.ts, static/_admin/status-refresh.js) or carry
+// markup this application rendered itself (lib/admin/trusted/rendered-html.ts).
+// Rejected: a `default` policy, which would make every string sink pass again, and
+// report-only first, which has nobody to report while no site runs on this in production.
 import adapter from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
@@ -41,6 +47,16 @@ export default defineConfig({
           'base-uri': ['none'],
           'object-src': ['none'],
           'frame-ancestors': ['self'],
+          'require-trusted-types-for': ['script'],
+          'trusted-types': [
+            'svelte-trusted-html',
+            'ProseMirrorClipboard',
+            'mycel-inert-html',
+            'mycel-status-html',
+            'mycel-rendered-html',
+          ],
+          // The endpoint this name stands for: Reporting-Endpoints, security-headers.ts.
+          'report-to': ['default'],
         },
       },
     }),

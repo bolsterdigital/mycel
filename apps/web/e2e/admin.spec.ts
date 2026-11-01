@@ -332,6 +332,78 @@ test.describe('admin', () => {
     }
   });
 
+  // Both halves in a real browser: the string is refused at the sink, on a public page and in the
+  // admin, and the browser queues the report for this origin's collector. The queue is read over
+  // the DevTools protocol, because the browser sends a batch up to a minute later.
+  test('a string cannot reach a script sink, and the browser reports that here', async ({
+    page,
+  }) => {
+    onlyA11y('the sink is written to by a script');
+    await login(page, '/admin/probe');
+    const cdp = await page.context().newCDPSession(page);
+    const reports: { type: string; destination: string; body: Record<string, unknown> }[] = [];
+    cdp.on('Network.reportingApiReportAdded', ({ report }) => reports.push(report));
+    await cdp.send('Network.enableReportingApi', { enable: true });
+    for (const path of ['/admin/probe', '/probe/signup']) {
+      await page.goto(path);
+      const outcome = await page.evaluate(() => {
+        const refused = (act: () => unknown) => {
+          try {
+            act();
+            return 'allowed';
+          } catch (error) {
+            return (error as Error).name;
+          }
+        };
+        const types = (
+          window as unknown as {
+            trustedTypes: { createPolicy(name: string, rules: object): unknown };
+          }
+        ).trustedTypes;
+        return {
+          sink: refused(() => {
+            document.body.innerHTML = '<i>written</i>';
+          }),
+          policy: refused(() => types.createPolicy('someone-else', {})),
+        };
+      });
+      expect(outcome, path).toEqual({ sink: 'TypeError', policy: 'TypeError' });
+    }
+    await expect
+      .poll(
+        () =>
+          reports.filter(
+            (r) =>
+              r.type === 'csp-violation' &&
+              r.destination === 'default' &&
+              r.body['blockedURL'] === 'trusted-types-sink'
+          ).length
+      )
+      .toBeGreaterThanOrEqual(2);
+  });
+
+  test('the report collector takes a batch on any hostname and little else', async ({
+    request,
+  }) => {
+    const post = (data: string, type = 'application/reports+json', host?: string) =>
+      request.post('/_reports', {
+        data,
+        headers: { 'content-type': type, ...(host ? { host } : {}) },
+      });
+    const batch = JSON.stringify([{ type: 'csp-violation', url: 'https://x.example/', body: {} }]);
+    expect((await post(batch)).status()).toBe(204);
+    expect((await post(batch, undefined, 'probe.example.org')).status()).toBe(204);
+    // Resolve a registered tenant first: an unknown host never exercises the slug rewrite.
+    const tenantHost = 'probe.localhost:4173';
+    expect((await request.get('/signup', { headers: { host: tenantHost } })).status()).toBe(200);
+    expect((await post(batch, undefined, tenantHost)).status()).toBe(204);
+    expect((await post(batch, 'application/json')).status()).toBe(415);
+    expect((await post('{"type":"csp-violation"}')).status()).toBe(400);
+    expect((await post('not json')).status()).toBe(400);
+    expect((await post(`[${' '.repeat(64 * 1024)}]`)).status()).toBe(413);
+    expect((await request.get('/_reports')).status()).toBe(405);
+  });
+
   test('the admin is not served on another origin', async ({ request }) => {
     const res = await request.get('/admin', { headers: { host: 'probe.example.org' } });
     expect(res.status()).toBe(404);
@@ -536,6 +608,13 @@ test.describe('admin-shell', () => {
     await page.getByRole('link', { name: 'Back to your sites' }).click();
     await page.getByRole('main').getByRole('link', { name: 'Second editorial site' }).click();
     await checkShell(page, 'Second editorial site', 'Dashboard');
+    // That layout was mounted on a hydrated page: its script runs, and only once.
+    if (isA11y()) {
+      await page.locator('[data-nav-toggle]').click();
+      await expect(page.locator('html')).toHaveAttribute('data-admin-nav', 'rail');
+      await page.locator('[data-nav-toggle]').click();
+      await expect(page.locator('html')).toHaveAttribute('data-admin-nav', 'full');
+    }
     await page
       .getByRole('navigation', { name: 'Site navigation' })
       .getByRole('link', { name: 'Pages' })

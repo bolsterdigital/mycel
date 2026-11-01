@@ -38,6 +38,10 @@ if (live) {
     live.querySelector('details[open]') !== null ||
     live.contains(document.activeElement?.closest('form') ?? null);
 
+  // This origin's own page, parsed into a document that runs nothing (Trusted Types, vite.config.ts).
+  const policy = window.trustedTypes?.createPolicy('mycel-status-html', { createHTML: (s) => s });
+  const inert = (html) => policy?.createHTML(html) ?? html;
+
   const refresh = async () => {
     if (busy()) return;
     live.setAttribute('aria-busy', 'true');
@@ -49,7 +53,7 @@ if (live) {
       if (res.redirected || res.status === 401 || res.status === 403) return unknown('forbidden');
       if (!res.ok) return unknown('failed');
       const fresh = new DOMParser()
-        .parseFromString(await res.text(), 'text/html')
+        .parseFromString(inert(await res.text()), 'text/html')
         .querySelector('[data-status-live]');
       if (!fresh) return unknown('failed');
       if (busy()) return;

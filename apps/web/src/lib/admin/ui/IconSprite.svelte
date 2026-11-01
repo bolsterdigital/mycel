@@ -2,6 +2,7 @@
      can point at it with a local <use>. Hidden from assistive technology and from layout; the
      markup is the constant Lucide data of icons.ts, never input. -->
 <script lang="ts">
+  import { renderedHtml } from '../trusted/rendered-html.js';
   import { ICONS } from './icons.js';
 </script>
 
@@ -16,7 +17,7 @@
       stroke-linecap="round"
       stroke-linejoin="round"
     >
-      {@html body}
+      {@html renderedHtml(body)}
     </symbol>
   {/each}
 </svg>

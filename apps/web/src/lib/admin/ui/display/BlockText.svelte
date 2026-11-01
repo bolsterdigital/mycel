@@ -12,6 +12,7 @@
      closes with typed changes. Rejected: the public block components, which print `h2` and real
      links. -->
 <script lang="ts">
+  import { renderedHtml } from '../../trusted/rendered-html.js';
   type View =
     | { kind: 'heading'; text: string; from?: string }
     | {
@@ -93,7 +94,9 @@
 </script>
 
 {#snippet answer(entry: { html: string; proseFrom?: string })}
-  <div class="ui-block-text-prose" data-rest-prose={entry.proseFrom}>{@html entry.html}</div>
+  <div class="ui-block-text-prose" data-rest-prose={entry.proseFrom}>
+    {@html renderedHtml(entry.html)}
+  </div>
 {/snippet}
 
 <div class="ui-block-text">

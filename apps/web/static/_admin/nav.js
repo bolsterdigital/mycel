@@ -9,6 +9,8 @@
 (() => {
   const KEY = 'mycel.admin.nav';
   const root = document.documentElement;
+  // Already running in this document (AdminScript imports what a later mount needs).
+  if (root.dataset.adminNav) return;
   let stored = null;
   try {
     stored = localStorage.getItem(KEY);

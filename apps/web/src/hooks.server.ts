@@ -31,6 +31,8 @@
 // A request to the admin that another site made is refused before the session is read
 // (security-headers.ts).
 //
+// `/_reports` takes the browser's reports on every hostname (lib/server/http/reports.ts).
+//
 // A served public page also gets the header that names its speculation rules
 // (lib/server/http/speculation.ts).
 //
@@ -48,6 +50,7 @@ import { bodyLimit, boundedBody } from '#lib/server/http/body-limit.js';
 import {
   applySecurityHeaders,
   refusedCrossSite,
+  REPORTS_PATH,
   type ResponseKind,
 } from '#lib/server/http/security-headers.js';
 import { conditional } from '#lib/server/http/http-cache.js';
@@ -119,7 +122,8 @@ const route: Handle = async ({ event, resolve }) => {
       }
     );
 
-  if (isInternal(path)) return render();
+  // Reports arrive on whichever hostname the page had, so before any site is resolved.
+  if (isInternal(path) || path === REPORTS_PATH) return render();
 
   if (isAdmin(path)) {
     if (!onPlatformOrigin(event.url, rt.config.PUBLIC_BASE_URL))

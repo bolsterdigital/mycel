@@ -46,7 +46,9 @@ const page = (overrides = {}) => ({
   https: true,
   locale: 'nl',
   headers: {
-    'content-security-policy': "default-src 'self'; script-src 'self'; frame-ancestors 'self'",
+    'content-security-policy':
+      "default-src 'self'; script-src 'self'; frame-ancestors 'self'; require-trusted-types-for 'script'; trusted-types mycel; report-to default",
+    'reporting-endpoints': 'default="/_reports"',
     'x-content-type-options': 'nosniff',
     'referrer-policy': 'strict-origin-when-cross-origin',
     'permissions-policy': 'camera=(), microphone=()',
@@ -126,6 +128,15 @@ test('each rule fails on the defect it names', () => {
       },
     },
     'x-content-type-options': { headers: { ...page().headers, 'x-content-type-options': '' } },
+    'reporting-endpoints': {
+      headers: { ...page().headers, 'reporting-endpoints': 'csp="/_reports"' },
+    },
+    'trusted-types': {
+      headers: {
+        ...page().headers,
+        'content-security-policy': "script-src 'self'; frame-ancestors 'self'; report-to default",
+      },
+    },
     'cross-origin-isolation': {
       headers: { ...page().headers, 'cross-origin-resource-policy': 'cross-origin' },
     },

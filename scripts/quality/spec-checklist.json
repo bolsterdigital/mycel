@@ -441,8 +441,9 @@
     "reporting-endpoints": {
       "category": "security",
       "level": "recommended",
-      "status": "open",
-      "gap": "no CSP violation reporting endpoint"
+      "status": "gate",
+      "rule": "reporting-endpoints",
+      "note": "every application response names its origin's own collector and the policy reports to it; the collector logs short checked fields and no address, query or sample; files outside the application are not covered"
     },
     "security-txt": {
       "category": "security",
@@ -503,8 +504,9 @@
     "trusted-types": {
       "category": "security",
       "level": "recommended",
-      "status": "open",
-      "gap": "no require-trusted-types-for directive"
+      "status": "gate",
+      "rule": "trusted-types",
+      "note": "enforced on every page with a closed list of policies and no default policy; Svelte's, ProseMirror's and the application's own policies pass their input through, so what they carry stays a matter of who renders it; a fatal client error's static page is refused too"
     },
     "x-xss-protection": {
       "category": "security",

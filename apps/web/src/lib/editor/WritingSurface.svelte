@@ -6,6 +6,7 @@
   import { Editor, type JSONContent } from '@tiptap/core';
   import MarkdownIt from 'markdown-it';
   import { DOMParser as PMDOMParser } from '@tiptap/pm/model';
+  import { parseInert, withoutLineBreakNodes } from './inert-html.js';
   import { Actions, Button, MediaPicker } from '#lib/admin/ui/index.js';
   import type { MediaChoice } from '#lib/admin/media-choice.js';
   import { ui } from '../../i18n/index.js';
@@ -78,7 +79,7 @@
     if (!editor || (!html && !plain)) return false;
     const activeEditor = editor;
     const source = html || markdown.render(plain);
-    const parsed = new DOMParser().parseFromString(source, 'text/html');
+    const parsed = parseInert(source);
     parsed.querySelectorAll('script,style,iframe,object').forEach((node) => node.remove());
     parsed.querySelectorAll('a[href]').forEach((node) => {
       if (!isSafeHref(node.getAttribute('href') ?? '')) node.removeAttribute('href');
@@ -117,8 +118,10 @@
         if (!child.textContent?.trim()) return;
         const id = crypto.randomUUID();
         const wrapper = parsed.createElement('div');
-        wrapper.innerHTML = `<section data-mycel-prose data-block-id="${id}"></section>`;
-        wrapper.firstElementChild?.append(child.cloneNode(true));
+        const section = wrapper.appendChild(parsed.createElement('section'));
+        section.setAttribute('data-mycel-prose', '');
+        section.setAttribute('data-block-id', id);
+        section.append(child.cloneNode(true));
         const prose = PMDOMParser.fromSchema(activeEditor.schema).parse(wrapper).toJSON()
           .content?.[0];
         if (prose?.type === 'mycelProse')
@@ -153,9 +156,12 @@
       return true;
     }
     // TipTap parses only our configured schema; unsupported formatting has no storage route.
-    editor.commands.insertContent(parsed.body.innerHTML, {
-      parseOptions: { preserveWhitespace: 'full' },
-    });
+    // Parsed here, not by TipTap: a string would reach its own DOMParser, a Trusted Types sink.
+    editor.commands.insertContent(
+      PMDOMParser.fromSchema(editor.schema).parseSlice(withoutLineBreakNodes(parsed.body), {
+        preserveWhitespace: 'full',
+      }).content
+    );
     return true;
   }
 

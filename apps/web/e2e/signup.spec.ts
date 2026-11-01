@@ -259,6 +259,8 @@ const STRICT_CSP = [
   "base-uri 'none'",
   "object-src 'none'",
   "frame-ancestors 'self'",
+  "require-trusted-types-for 'script'",
+  'report-to default',
 ];
 
 /** Navigates to `path` and collects the CSP violations Chromium reports on the console. */

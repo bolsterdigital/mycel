@@ -12,6 +12,11 @@ import {
 } from './security-headers.js';
 
 describe('securityHeaders', () => {
+  it('names the collector on the own origin for every kind of response', () => {
+    for (const kind of ['public', 'admin', 'internal'] as const)
+      expect(securityHeaders(kind, true)['reporting-endpoints']).toBe('default="/_reports"');
+  });
+
   it.each(['public', 'admin', 'internal'] as const)('%s: the fixed set', (kind) => {
     const h = securityHeaders(kind, false);
     expect(h['x-content-type-options']).toBe('nosniff');

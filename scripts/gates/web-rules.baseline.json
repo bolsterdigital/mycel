@@ -63,5 +63,11 @@
     "apps/web/src/routes/(preview)/admin/[tenant]/preview/item/[itemId]/+page.server.ts": 1
   },
   "viewport-height": {},
-  "public-box-shadow": {}
+  "public-box-shadow": {},
+  "admin-script-tag": {
+    "apps/web/src/lib/admin/trusted/AdminScript.svelte": 1
+  },
+  "admin-route-script-tag": {},
+  "admin-raw-html": {},
+  "admin-route-raw-html": {}
 }

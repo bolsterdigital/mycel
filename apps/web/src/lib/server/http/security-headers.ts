@@ -20,9 +20,15 @@
 // operator did not write (ADR 022). Rejected: refusing a request without the header, which would
 // lock out older browsers and every API client for no gain, as those send no ambient cookies.
 
+// Reports go to this origin's own collector (reports.ts), so a tenant site tells no third party
+// what happens on its pages. Rejected: `report-uri`, which the Reporting API replaces.
+
 export type ResponseKind = 'public' | 'admin' | 'internal';
 
 export const HSTS = 'max-age=31536000';
+
+/** The path of the collector; a page resolves it against its own origin. */
+export const REPORTS_PATH = '/_reports';
 
 /** The headers for one kind of response; `https` is the scheme the request arrived over. */
 export function securityHeaders(kind: ResponseKind, https: boolean): Record<string, string> {
@@ -32,6 +38,7 @@ export function securityHeaders(kind: ResponseKind, https: boolean): Record<stri
     'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
     'cross-origin-opener-policy': 'same-origin',
     'cross-origin-resource-policy': 'same-origin',
+    'reporting-endpoints': `default="${REPORTS_PATH}"`,
     ...(https ? { 'strict-transport-security': HSTS } : {}),
   };
 }

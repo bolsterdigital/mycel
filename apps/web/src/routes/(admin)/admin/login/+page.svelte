@@ -8,6 +8,7 @@
      session-restore.js, which marks the editor input that post carried as not arrived, so the
      edit screen can put it back after the login. -->
 <script lang="ts">
+  import AdminScript from '#lib/admin/trusted/AdminScript.svelte';
   import { Button, SystemState } from '#lib/admin/ui/index.js';
   import { fill, ui } from '../../../../i18n/index.js';
   import type { PageProps } from './$types';
@@ -18,7 +19,7 @@
 
 <svelte:head>
   <title>{t('admin.login.title')} · {t('admin.title')}</title>
-  {#if data.sentHere}<script type="module" src="/_admin/session-restore.js"></script>{/if}
+  {#if data.sentHere}<AdminScript src="/_admin/session-restore.js" />{/if}
 </svelte:head>
 
 <SystemState kind="signed-out" title={t('admin.login.title')} page>

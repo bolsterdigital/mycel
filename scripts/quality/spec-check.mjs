@@ -188,6 +188,29 @@ export const RULES = {
         : null;
     },
   },
+  'reporting-endpoints': {
+    roles: ['page'],
+    check: (s) => {
+      const endpoint = (s.headers['reporting-endpoints'] ?? '').match(/\bdefault="([^"]+)"/)?.[1];
+      if (!endpoint) return 'no Reporting-Endpoints header with a default endpoint';
+      return directive(csp(s), 'report-to') === 'report-to default'
+        ? null
+        : 'the policy does not report to the default endpoint';
+    },
+  },
+  'trusted-types': {
+    roles: ['page'],
+    check: (s) => {
+      const policy = csp(s);
+      if (directive(policy, 'require-trusted-types-for') !== "require-trusted-types-for 'script'")
+        return "no require-trusted-types-for 'script'";
+      const names = directive(policy, 'trusted-types')?.replace(/^trusted-types\s*/i, '');
+      if (!names) return 'the policy does not name which Trusted Types policies may exist';
+      return /(^|\s)(\*|default|'allow-duplicates')(\s|$)/.test(names)
+        ? `the Trusted Types allowlist is open (${names})`
+        : null;
+    },
+  },
   'x-content-type-options': {
     roles: ['page', 'missing'],
     check: (s) =>

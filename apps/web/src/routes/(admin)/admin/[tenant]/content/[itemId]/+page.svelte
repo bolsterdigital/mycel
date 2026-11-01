@@ -75,10 +75,8 @@
         ? ['/_admin/live-preview-parent.js']
         : []),
     ]) {
-      const script = document.createElement('script');
-      script.type = 'module';
-      script.src = src;
-      document.head.append(script);
+      // Not a script element: its `src` takes a Trusted Type, and these are fixed addresses.
+      void import(/* @vite-ignore */ src);
     }
   });
   const early = earlyInput('item-edit');
