@@ -9,7 +9,7 @@ import corpus from './quality-corpus.json' with { type: 'json' };
 import checklist from '../../../scripts/quality/spec-checklist.json' with { type: 'json' };
 import { type Sample, specFailures } from '../../../scripts/quality/spec-check.mjs';
 import { themeCss } from '../src/lib/theme/tokens.js';
-import { WCAG, expectNoAxeViolations } from './lib/axe';
+import { WCAG, expectNoAxeViolations, nativeSemanticsProblems } from './lib/axe';
 import { mobileInputProblems } from './lib/forms';
 import { tenantId, withInvoker } from './lib/invoker';
 import {
@@ -112,6 +112,10 @@ for (const entry of entries)
             .toBeGreaterThan(0);
         }
       }
+      expect(await nativeSemanticsProblems(page)).toEqual({
+        redundantRoles: [],
+        nonnativeControls: [],
+      });
       if (isA11y()) {
         await page.evaluate(() => document.fonts.ready);
         expect(
@@ -470,9 +474,17 @@ test('admin corpus uses the populated shell, native editor and enhanced writer',
   await login(page, '/admin/probe/content', qualityAdmin);
   await expect(page.locator('#content-table tbody tr')).not.toHaveCount(0);
   await expect(page.locator('.admin-site-name')).toHaveText('Probe');
+  expect(await nativeSemanticsProblems(page)).toEqual({
+    redundantRoles: [],
+    nonnativeControls: [],
+  });
   await page.goto(`/admin/probe/content/${id}`);
   await expect(page.locator('#title\\.nl')).toHaveValue('De straat die ruimte maakt');
   await expect(page.locator('.admin-site-name')).toHaveText('Probe');
+  expect(await nativeSemanticsProblems(page)).toEqual({
+    redundantRoles: [],
+    nonnativeControls: [],
+  });
   const consoleErrors: string[] = [];
   page.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(message.text());
@@ -487,6 +499,10 @@ test('admin corpus uses the populated shell, native editor and enhanced writer',
   });
   await page.goto(`/admin/probe/content/${id}/write`);
   await expect(page.locator('.admin-site-name')).toHaveText('Probe');
+  expect(await nativeSemanticsProblems(page)).toEqual({
+    redundantRoles: [],
+    nonnativeControls: [],
+  });
   if (isA11y()) await expect(page.locator('.writing-surface .ProseMirror')).toBeVisible();
   else {
     await expect(page).toHaveURL(`/admin/probe/content/${id}#blocks`);
@@ -507,4 +523,53 @@ test('admin corpus uses the populated shell, native editor and enhanced writer',
     expect(consoleErrors).toEqual([]);
   }
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);
+});
+
+test('native semantics catches redundant roles and recreated simple controls', async ({ page }) => {
+  await page.setContent(`<!doctype html><html lang="en"><title>Controls</title><body>
+    <button id="redundant" role="button">Save</button>
+    <div id="custom" role="button" tabindex="0">Save</div>
+    <a id="fake-link" role="link" tabindex="0">Read</a>
+    <span id="fake-check" role="checkbox" aria-checked="false" tabindex="0">Yes</span>
+    <span id="fake-radio" role="radio" aria-checked="false" tabindex="0">One</span>
+    <div id="fake-slider" role="slider" tabindex="0" aria-valuenow="1">Volume</div>
+    <div id="fake-number" role="spinbutton" tabindex="0" aria-valuenow="1">Amount</div>
+    <input id="check" type="checkbox" role="checkbox">
+    <a id="link" href="/" role="link">Home</a>
+    <input id="radio" type="radio" role="radio">
+    <input id="slider" type="range" role="slider">
+    <input id="number" type="number" role="spinbutton">
+  </body></html>`);
+  expect(await nativeSemanticsProblems(page)).toEqual({
+    redundantRoles: [
+      'button#redundant: button',
+      'input#check: checkbox',
+      'a#link: link',
+      'input#radio: radio',
+      'input#slider: slider',
+      'input#number: spinbutton',
+    ],
+    nonnativeControls: [
+      'div#custom: button',
+      'a#fake-link: link',
+      'span#fake-check: checkbox',
+      'span#fake-radio: radio',
+      'div#fake-slider: slider',
+      'div#fake-number: spinbutton',
+    ],
+  });
+  await page.setContent(`<!doctype html><html lang="en"><title>Controls</title><body>
+    <button aria-expanded="false" aria-controls="more">More</button><div id="more" hidden></div>
+    <input type="button" value="Save"><input type="submit"><input type="reset">
+    <a href="/">Home</a><input type="checkbox"><input type="radio">
+    <input type="range"><input type="number"><details><summary>More</summary>Text</details>
+    <div role="status">Saved</div><button role="tab" aria-selected="true">One</button>
+    <div contenteditable="true" role="textbox" aria-multiline="true" aria-label="Article"></div>
+    <script type="application/json">{"example":"<div role='button'>"}</script>
+    <!-- <div role="button">Example</div> -->
+  </body></html>`);
+  expect(await nativeSemanticsProblems(page)).toEqual({
+    redundantRoles: [],
+    nonnativeControls: [],
+  });
 });
