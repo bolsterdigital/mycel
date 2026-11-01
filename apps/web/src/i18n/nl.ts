@@ -675,6 +675,9 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.field.heroImage': 'Hero-beeld',
   'admin.content.field.heroImageHint':
     'Het grote beeld bovenaan de pagina, onder de titel en de intro. Leeg: geen beeld boven het verhaal.',
+  'admin.content.field.heroAlt': 'Beschrijving van het hero-beeld (alt-tekst)',
+  'admin.content.field.heroDecorativeHint':
+    'Aangevinkt als het beeld niets toevoegt aan wat de titel en de intro zeggen. Vink uit om het te beschrijven voor wie het niet ziet.',
   'admin.content.field.featuredImage': 'Uitgelicht beeld',
   'admin.content.field.featuredImageHint':
     'Hoe dit item verschijnt waar het elders op de site staat: in een overzicht, een blok of een kaart. Leeg laten is goed: dan geldt wat eronder staat.',

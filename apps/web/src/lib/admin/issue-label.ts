@@ -11,6 +11,7 @@ const FIELD_LABELS: Record<string, string> = {
   'seo.description': 'admin.content.field.seoDescription',
   'seo.imageId': 'admin.content.field.shareImage',
   heroImageId: 'admin.content.field.heroImage',
+  heroAlt: 'admin.content.field.heroAlt',
   featuredImageId: 'admin.content.field.featuredImage',
   'featured.title': 'admin.content.field.featuredTitle',
   'featured.description': 'admin.content.field.featuredDescription',

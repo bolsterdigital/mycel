@@ -173,20 +173,20 @@ function renderImage(
 
 /**
  * What sits between an item's title and its blocks (#86): the lead in this locale and the hero
- * image. The hero has no alt of its own, like the featured and share image
- * (docs/reference/content-model.md), so it renders as decorative with the asset's caption and
- * credit; the title and lead above it carry the meaning.
+ * image. A hero with an alt in this locale describes the image (#99); without one it is
+ * decorative and the title and lead above it carry the meaning. Caption and credit are the
+ * asset's either way.
  */
 export async function resolveIntro(
   source: ResolveSource,
-  intro: { lead: string | null; heroImageId: string | null },
+  intro: { lead: string | null; heroImageId: string | null; heroAlt: string | null },
   locale: string
 ): Promise<RenderIntro> {
   const asset = intro.heroImageId ? await source.media(intro.heroImageId) : null;
-  return {
-    lead: intro.lead,
-    hero: renderImage(asset, { decorative: true, alt: null }, locale),
-  };
+  const use = intro.heroAlt
+    ? { decorative: false, alt: { [locale]: intro.heroAlt } }
+    : { decorative: true, alt: null };
+  return { lead: intro.lead, hero: renderImage(asset, use, locale) };
 }
 
 export async function resolveDocument(

@@ -435,6 +435,8 @@ const ISSUES: Record<string, UiKey> = {
   'content.access.marker-needs-one-paywall': 'admin.content.error.marker',
   'content.access.teaser-too-long': 'admin.content.error.teaserTooLong',
   'content.access.tier-ids-required': 'admin.content.error.tier',
+  'content.image.alt-required': 'admin.block.issue.altRequired',
+  'content.image.alt-empty': 'admin.block.issue.altRequired',
 };
 
 /** A refused save as admin copy, with the narrowed error; anything that is not a use-case

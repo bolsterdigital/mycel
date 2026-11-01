@@ -29,3 +29,4 @@ The contract the code is built against. How a decision gets here, and when one i
 | 022 | [Managed extensions and site integrations](022-managed-extensions-and-site-integrations.md)                                      | accepted |
 | 023 | [Configurable forms, notifications and actions are baseline capabilities](023-configurable-forms-and-actions.md)                 | accepted |
 | 024 | [Managed integrations and explicit external ownership](024-managed-integrations-and-external-ownership.md)                       | accepted |
+| 025 | [One document header above the blocks; legacy hero blocks stay valid](025-one-document-header.md)                                | accepted |

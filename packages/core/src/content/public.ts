@@ -45,6 +45,8 @@ export const PublishedItem = z.object({
   updatedAt: z.string().datetime({ offset: true }),
   /** The image on the item's own page; null without one. */
   heroImageId: z.string().guid().nullable(),
+  /** The hero's alt in this locale (#99); null: the hero is decorative. */
+  heroAlt: z.string().nullable(),
   /** The item's own image, for cards that link to it; null without one. */
   featuredImageId: z.string().guid().nullable(),
   /**
@@ -135,6 +137,7 @@ export const getPublished = defineUseCase({
       publishedAt: state.publishedAt!.toISOString(),
       updatedAt: revision.createdAt,
       heroImageId: doc.heroImageId ?? null,
+      heroAlt: doc.heroAlt?.[chosen] ?? null,
       featuredImageId: doc.featuredImageId ?? null,
       seo: {
         title: doc.seo.title?.[chosen] ?? null,
