@@ -37,6 +37,7 @@ export * from './content/ports.js';
 export * from './content/diff.js';
 export * from './content/service.js';
 export * from './content/operations.js';
+export * from './content/hero-conversion.js';
 export * from './content/entities.js';
 export * from './content/public.js';
 export * from './content/patterns.js';

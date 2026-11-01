@@ -1216,6 +1216,82 @@ test.describe('content-admin', () => {
     await expectNoAxeViolations(page);
   });
 
+  test('a legacy hero moves into the header, or says why not (ADR 025, MY-110 B4)', async ({
+    page,
+    request,
+  }) => {
+    const suffix = `${isA11y() ? 'a11y' : 'no-js'}-${Date.now()}`;
+    const create = async (slug: string, title: string, blocks: object[]) =>
+      callApi(request, 'content.item.create', {
+        slug: `e2e-hero-b4-${slug}-${suffix}`,
+        document: {
+          type: 'page',
+          defaultLocale: 'nl',
+          locales: ['nl'],
+          title: { nl: title },
+          blocks,
+        },
+      });
+    const hero = {
+      id: 'legacy-hero',
+      type: 'hero',
+      version: 1,
+      props: {
+        title: { nl: 'Schone lucht' },
+        body: { nl: 'Doe mee met de buurt.' },
+        actions: [
+          { label: { nl: 'Lees meer' }, target: { kind: 'url', url: 'https://example.org/' } },
+        ],
+      },
+    };
+    const rest = { id: 'rest', type: 'heading', version: 1, props: { text: { nl: 'Verder' } } };
+
+    // A conflict shows why, offers no action, and the block stays.
+    const blocked = await create('conflict', 'Iets anders', [hero, rest]);
+    await login(page, `/admin/probe/content/${blocked.item.id}`);
+    const notice = page.locator('.item-header .ui-notice');
+    await expect(notice).toContainText('Dit kan nog niet');
+    await expect(notice).toContainText('Schone lucht');
+    await expect(notice.getByRole('button')).toHaveCount(0);
+    await expect(page.locator('#block-legacy-hero')).toHaveCount(1);
+
+    // A match shows source and target, then one click makes one draft revision.
+    const { item, revision } = await create('ready', 'Schone lucht', [hero, rest]);
+    await page.goto(`/admin/probe/content/${item.id}`);
+    await expect(notice).toContainText('Gaat naar de kop');
+    await expect(notice).toContainText('Doe mee met de buurt.');
+    await expect(notice).toContainText('Lees meer');
+    if (isA11y()) {
+      await expectNoAxeViolations(page);
+      await page.setViewportSize(NARROW);
+      for (const size of TEXT_SIZES) {
+        await setTextSize(page, size);
+        await layoutGate(page, `hero conversion at ${size}`, '.item-header');
+      }
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.reload();
+    }
+    await notice.getByRole('button', { name: 'Verplaats naar de kop' }).click();
+    await expect(page.getByRole('status').first()).toContainText('De hero staat nu in de kop');
+    await expect(notice).toHaveCount(0);
+    await expect(page.locator('[name="lead.nl"]')).toHaveValue('Doe mee met de buurt.');
+    const after = await callApi(request, 'content.item.get', { itemId: item.id });
+    expect(after.revision.document.blocks.map((b: { type: string }) => b.type)).toEqual([
+      'cta',
+      'heading',
+    ]);
+    const before = await callApi(request, 'content.item.get', {
+      itemId: item.id,
+      revisionId: revision.id,
+    });
+    expect(before.revision.document.blocks[0].id).toBe('legacy-hero');
+
+    // New content gets no hero (ADR 025 rule 4): not in the choice, not through the address.
+    await expect(page.locator('select[name^="insertType"] option[value="hero"]')).toHaveCount(0);
+    await page.goto(`/admin/probe/content/${item.id}?insert=hero&place=end#block-new`);
+    await expect(page.locator('[data-pending-block], [name="new.type"]')).toHaveCount(0);
+  });
+
   test.describe('session restore: input typed when the session expired comes back (#83)', () => {
     /** Expire the session in the browser, the way it ends: the cookie is gone. */
     const expire = async (page: Page) => {

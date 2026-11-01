@@ -672,6 +672,43 @@ export const en = {
   'admin.content.field.heroImageHint':
     'The large image at the top of the page, below the title and the lead. Leave empty for no image above the story.',
   'admin.content.header.title': 'Header',
+  'admin.audit.op.content.hero.convert': 'Hero moved into the header',
+  'admin.content.heroConversion.title': 'This document still has an old hero block',
+  'admin.content.heroConversion.ready':
+    'You can move it into the header above. This saves your changes and makes one new draft; what is live stays until you publish.',
+  'admin.content.heroConversion.blocked':
+    'It cannot move yet, because something would be lost. The block keeps working as it is. Resolve these points in the block or the header, and save:',
+  'admin.content.heroConversion.action': 'Move into the header',
+  'admin.content.heroConversion.done':
+    'The hero is now in the header. Publish to show it on the site.',
+  'admin.content.heroConversion.moves': 'Goes to the header: {value}',
+  'admin.content.heroConversion.same': 'Already the same in the header: {value}',
+  'admin.content.heroConversion.differs': 'Block: {value}. Header: {header}',
+  'admin.content.heroConversion.field.title': 'Title',
+  'admin.content.heroConversion.field.lead': 'Lead',
+  'admin.content.heroConversion.field.image': 'Main image',
+  'admin.content.heroConversion.field.alt': 'Image description',
+  'admin.content.heroConversion.imageValue': "the block's image",
+  'admin.content.heroConversion.cta':
+    'The buttons ({labels}) become a separate call to action in the same place, with the same title.',
+  'admin.content.heroConversion.teaser':
+    'The teaser shows {to} block(s) instead of {from}, so the same content stays behind the line.',
+  'admin.content.heroConversion.layout':
+    "The block's own layout ({variant}) goes away: the header has its own.",
+  'admin.content.heroConversion.conflict.several-heroes':
+    'The document has more than one hero block; keep one.',
+  'admin.content.heroConversion.conflict.not-first':
+    'The hero is not the first block; move it to the top.',
+  'admin.content.heroConversion.conflict.title': "The title differs from the document's title.",
+  'admin.content.heroConversion.conflict.lead': 'The body text differs from the lead.',
+  'admin.content.heroConversion.conflict.lead-too-long':
+    'The body text is longer than a lead may be (1000 characters).',
+  'admin.content.heroConversion.conflict.image': 'The block has a different image from the header.',
+  'admin.content.heroConversion.conflict.alt': "The image description differs from the header's.",
+  'admin.content.heroConversion.conflict.caption':
+    "The block's image has its own caption; the header shows the caption of the image itself.",
+  'admin.content.heroConversion.conflict.credit':
+    "The block's image has its own credit; the header shows the credit of the image itself.",
   'admin.content.field.headerLayout': 'Header layout',
   'admin.content.field.headerLayoutHint': 'A cover needs a landscape main image.',
   'admin.content.headerLayout.standard': 'Standard',

@@ -21,6 +21,7 @@ const EFFECT_VERBS = ['publish', 'unpublish', 'schedule', 'unschedule', 'send', 
 const EDITORIAL_PREFIXES = [
   'content.item.',
   'content.block.',
+  'content.hero.',
   'content.revision.',
   'content.slug.',
   'content.translation.',
@@ -71,6 +72,8 @@ const VERBS = [
   // Suggestions (ADR 021), connections and intents (ADR 024), jobs (ops).
   ...['suggest', 'accept', 'dismiss', 'test', 'pause', 'resume', 'disconnect', 'replay', 'resolve'],
   ...['retry', 'close'],
+  // ADR 025 rule 5: a hero's move into the document header, and what it would do.
+  ...['convert', 'propose'],
   // A key, a hostname, a visitor's entry points, a theme report.
   ...['revoke', 'verify', 'upload', 'submit', 'confirm', 'check'],
 ];

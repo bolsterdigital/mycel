@@ -115,6 +115,8 @@ const Action = z
   })
   .strict();
 type Action = z.infer<typeof Action>;
+/** The action schema for what reports on a block's actions (hero conversion). */
+export const BlockAction = Action;
 
 /**
  * The use of one image: the media id plus what belongs to this use and not to the file (alt,
