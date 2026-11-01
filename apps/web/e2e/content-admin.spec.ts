@@ -1230,7 +1230,8 @@ test.describe('content-admin', () => {
       await page.getByLabel('E-mail').fill(email);
       await page.getByRole('button', { name: 'Sign in' }).click();
     };
-    const title = (page: Page) => page.locator('input[name="title.nl"]');
+    // Not the hidden copy session-restore.js posts to `recover` for a moment during the restore.
+    const title = (page: Page) => page.locator('input[name="title.nl"]:not([type="hidden"])');
     const saveState = (page: Page) => page.locator('[data-save-state]');
     const typeAndExpire = async (page: Page, edit: string, typed: string) => {
       await page.goto(edit);
@@ -1929,6 +1930,9 @@ test.describe('content-blocks', () => {
     await login(page, '/admin/probe');
     const edit = await newPage(page, 'enter');
     await page.goto(`${edit}?locale=en`);
+    // With the script, type only once edit-screen.js has started, or it misses the input.
+    if (isA11y())
+      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
     await page.locator('#title\\.en').fill('Saved with Enter');
     await page.locator('#title\\.en').press('Enter');
     await expect(page).toHaveURL(`${edit}?saved&locale=en`);
