@@ -27,6 +27,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { error, fail, redirect } from '@sveltejs/kit';
 import {
   pick,
+  proposeHeroConversion,
   BLOCK_DEFINITIONS,
   INSERTABLE_BLOCK_TYPES,
   UseCaseError,
@@ -361,6 +362,8 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     },
     corrections: doc.type === 'article' ? doc.corrections : [],
     values: valuesOf(doc),
+    // A legacy hero's way into the header (ADR 025 rule 5); only for who may save it.
+    heroConversion: canWrite ? proposeHeroConversion(doc) : null,
     // What every empty field inherits, per locale, with its source (#86): `Inherited` shows it.
     effective,
     locales,
@@ -388,6 +391,7 @@ const DONE: Record<string, UiKey> = {
   blockDuplicated: 'admin.block.done.duplicated',
   blockRemoved: 'admin.block.done.removed',
   blockRestored: 'admin.block.done.restored',
+  heroConverted: 'admin.content.heroConversion.done',
   publish: 'admin.content.publication.done.publish',
   unpublish: 'admin.content.publication.done.unpublish',
   schedule: 'admin.content.publication.done.schedule',
@@ -1018,6 +1022,29 @@ export const actions: Actions = {
         baseRevisionId: saved.revisionId,
         blockId,
       })
+    );
+  },
+  /**
+   * The hero into the header (ADR 025 rule 5), on the revision the save of the form made, so what
+   * was typed is kept and a field typed just now counts as the header's. A conflict that typing
+   * caused comes back as the refusal; nothing moved. Publishing stays a separate act.
+   */
+  convertHero: async (event) => {
+    const saved = await commit(event);
+    if ('failure' in saved) return saved.failure;
+    const itemId = event.params.itemId;
+    const blockId = text(saved.data, 'convertHero');
+    const refused = await blockTry(saved, itemId, async () => {
+      await runtime().invoker.run(useCases.convertHero, saved.principal, {
+        itemId,
+        baseRevisionId: saved.revisionId,
+        blockId,
+      });
+    });
+    if (refused) return refused;
+    redirect(
+      303,
+      itemPath(saved.tenant.slug, itemId, saved.editing, { done: 'heroConverted' }, 'item-header')
     );
   },
   /**

@@ -53,7 +53,7 @@ type Placement = z.infer<typeof Placement>;
 
 const Target = { itemId: ItemId, baseRevisionId: z.string().guid() };
 
-const OperationResult = ItemWithRevision.extend({
+export const OperationResult = ItemWithRevision.extend({
   /** Ids that did not exist in the base revision. */
   created: z.array(z.string()),
   /** Ids of the base revision that are gone, removed or merged away. */

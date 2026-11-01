@@ -678,6 +678,44 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.field.heroImageHint':
     'Het grote beeld bovenaan de pagina, onder de titel en de intro. Leeg: geen beeld boven het verhaal.',
   'admin.content.header.title': 'Kop',
+  'admin.audit.op.content.hero.convert': 'Hero naar de kop verplaatst',
+  'admin.content.heroConversion.title': 'Dit document heeft nog een oud hero-blok',
+  'admin.content.heroConversion.ready':
+    'Je kunt het naar de kop hierboven verplaatsen. Dat slaat je wijzigingen op en maakt één nieuw concept; wat live staat, blijft staan tot je publiceert.',
+  'admin.content.heroConversion.blocked':
+    'Dit kan nog niet, want er zou iets verloren gaan. Het blok blijft gewoon werken. Los deze punten op in het blok of de kop en sla op:',
+  'admin.content.heroConversion.action': 'Verplaats naar de kop',
+  'admin.content.heroConversion.done':
+    'De hero staat nu in de kop. Publiceer om dat op de site te tonen.',
+  'admin.content.heroConversion.moves': 'Gaat naar de kop: {value}',
+  'admin.content.heroConversion.same': 'Staat al zo in de kop: {value}',
+  'admin.content.heroConversion.differs': 'Blok: {value}. Kop: {header}',
+  'admin.content.heroConversion.field.title': 'Titel',
+  'admin.content.heroConversion.field.lead': 'Intro',
+  'admin.content.heroConversion.field.image': 'Hoofdbeeld',
+  'admin.content.heroConversion.field.alt': 'Beschrijving van het beeld',
+  'admin.content.heroConversion.imageValue': 'het beeld van het blok',
+  'admin.content.heroConversion.cta':
+    'De knoppen ({labels}) worden een losse oproep op dezelfde plek, met dezelfde titel.',
+  'admin.content.heroConversion.teaser':
+    'De teaser toont {to} blok(ken) in plaats van {from}, zodat dezelfde inhoud achter de grens blijft.',
+  'admin.content.heroConversion.layout':
+    'De eigen vorm van het blok ({variant}) vervalt: de kop heeft zijn eigen vorm.',
+  'admin.content.heroConversion.conflict.several-heroes':
+    'Het document heeft meer dan één hero-blok; houd er één over.',
+  'admin.content.heroConversion.conflict.not-first':
+    'De hero is niet het eerste blok; zet hem bovenaan.',
+  'admin.content.heroConversion.conflict.title': 'De titel wijkt af van de titel van het document.',
+  'admin.content.heroConversion.conflict.lead': 'De tekst wijkt af van de intro.',
+  'admin.content.heroConversion.conflict.lead-too-long':
+    'De tekst is langer dan een intro mag zijn (1000 tekens).',
+  'admin.content.heroConversion.conflict.image': 'Het blok heeft een ander beeld dan de kop.',
+  'admin.content.heroConversion.conflict.alt':
+    'De beschrijving van het beeld wijkt af van die in de kop.',
+  'admin.content.heroConversion.conflict.caption':
+    'Het beeld in het blok heeft een eigen bijschrift; de kop toont het bijschrift van het beeld zelf.',
+  'admin.content.heroConversion.conflict.credit':
+    'Het beeld in het blok heeft een eigen credit; de kop toont de credit van het beeld zelf.',
   'admin.content.field.headerLayout': 'Vorm van de kop',
   'admin.content.field.headerLayoutHint': 'Een cover vraagt een liggend hoofdbeeld.',
   'admin.content.headerLayout.standard': 'Standaard',

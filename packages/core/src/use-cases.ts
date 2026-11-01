@@ -51,6 +51,7 @@ import {
   setBlockProps,
   splitInsertBlock,
 } from './content/operations.js';
+import { convertHero, getHeroConversion } from './content/header/hero-conversion.js';
 import { getPublished } from './content/public.js';
 import {
   approveTranslation,
@@ -143,6 +144,8 @@ export const useCases = {
   removeBlock,
   setBlockProps,
   splitInsertBlock,
+  convertHero,
+  getHeroConversion,
   findItems,
   createAuthor,
   updateAuthor,

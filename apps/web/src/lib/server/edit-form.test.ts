@@ -74,6 +74,8 @@ describe('the one edit form', () => {
     });
     expect(pendingBlock('heading', 'before', 'gone', ids)).toBeNull();
     expect(pendingBlock('nope', 'end', null, ids)).toBeNull();
+    // New content gets no hero (ADR 025 rule 4): `?insert=hero` makes nothing.
+    expect(pendingBlock('hero', 'end', null, ids)).toBeNull();
     expect(pendingBlock('heading', 'middle', 'a', ids)).toBeNull();
     expect(pendingBlock(null, 'end', null, ids)).toBeNull();
   });

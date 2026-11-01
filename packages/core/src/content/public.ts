@@ -25,7 +25,7 @@ import { Locale } from '../i18n/locale.js';
 import { defineUseCase } from '../registry.js';
 import { Block, blockLocalized, projectBlock } from './blocks.js';
 import { ContentType, Slug, type ContentDocument } from './model.js';
-import { EffectiveView, effectiveOf } from './effective.js';
+import { EffectiveView, effectiveOf } from './header/effective.js';
 import { statusOf } from './lifecycle.js';
 import './ports.js';
 import '../theme/ports.js';

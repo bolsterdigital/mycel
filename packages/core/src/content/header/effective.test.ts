@@ -5,7 +5,7 @@
 
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { exampleId } from '../util/ids.js';
+import { exampleId } from '../../util/ids.js';
 import {
   SUMMARY_MAX,
   effectiveFeaturedTitle,
@@ -14,7 +14,7 @@ import {
   effectiveSeoDescription,
   effectiveSummary,
 } from './effective.js';
-import { ContentDocument } from './model.js';
+import { ContentDocument } from '../model.js';
 
 const L = 'nl';
 const id = (n: number) => exampleId(0x8600 + n);

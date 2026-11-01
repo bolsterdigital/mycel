@@ -20,9 +20,9 @@
 // image per placement (one image per role; the renderer picks the variant).
 
 import { z } from 'zod';
-import { allBlocks } from './blocks.js';
-import type { RichTextDoc } from './rich-text.js';
-import type { ContentDocument } from './model.js';
+import { allBlocks } from '../blocks.js';
+import type { RichTextDoc } from '../rich-text.js';
+import type { ContentDocument } from '../model.js';
 
 export type ImageSource = 'own' | 'featured' | 'hero' | 'site';
 export type TextSource = 'seo' | 'featured' | 'lead' | 'first-paragraph';

@@ -218,6 +218,57 @@ describe.skipIf(skip)('content operations conformance', () => {
     expect(latest.item.publication).toEqual(created.item.publication);
   });
 
+  it('converts a hero into the header: one revision, refs moved, live revision intact (ADR 025)', async () => {
+    const target = (await page('hero-target', [heading('t')])).item.id;
+    const { item, revision } = await page('hero-source', [
+      {
+        id: 'hero',
+        type: 'hero',
+        version: 1,
+        props: {
+          title: { nl: 'hero-source' },
+          body: { nl: 'Doe mee' },
+          actions: [{ label: { nl: 'Lees' }, target: { kind: 'item', itemId: target } }],
+        },
+      },
+      heading('rest'),
+    ]);
+    const admin = adminOf(tenantA);
+    await invoker.run(useCases.publishItem, admin, {
+      itemId: item.id,
+      revisionId: revision.id,
+      locale: 'nl',
+    });
+    const input = { itemId: item.id, baseRevisionId: revision.id, blockId: 'hero' };
+    // Another tenant cannot see the item, and writes nothing.
+    await expect(invoker.run(useCases.convertHero, adminOf(tenantB), input)).rejects.toMatchObject({
+      code: 'not_found',
+    });
+    const done = await invoker.run(useCases.convertHero, admin, input);
+    expect(done.retired).toEqual(['hero']);
+    expect(done.revision.document.lead).toEqual({ nl: 'Doe mee' });
+    expect(done.revision.document.blocks.map((b) => b.type)).toEqual(['cta', 'heading']);
+    // The action's reference now hangs on the CTA; the old revision keeps its own row.
+    expect((await refsOf(done.revision.id)).map((r) => [r.block_id, r.ref_id])).toEqual([
+      [done.created[0], target],
+    ]);
+    expect((await refsOf(revision.id)).map((r) => [r.block_id, r.ref_id])).toEqual([
+      ['hero', target],
+    ]);
+    const stored = await invoker.run(useCases.getItem, admin, {
+      itemId: item.id,
+      revisionId: revision.id,
+    });
+    expect(stored.revision.document.blocks.map((b) => b.type)).toEqual(['hero', 'heading']);
+    expect(done.item.publication[0]?.publishedRevisionId).toBe(revision.id);
+    // A second try on the old base is a typed conflict, and writes nothing.
+    await expect(invoker.run(useCases.convertHero, admin, input)).rejects.toMatchObject({
+      code: 'conflict',
+    });
+    const { revisions } = await invoker.run(useCases.listRevisions, admin, { itemId: item.id });
+    expect(revisions).toHaveLength(2);
+  });
+
   it('lets exactly one of eight concurrent operations on one base win, refs included', async () => {
     for (let round = 0; round < 3; round++) {
       const { item, revision } = await page(`race-op-${round}`, [
