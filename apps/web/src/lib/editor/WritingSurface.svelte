@@ -61,6 +61,9 @@
     decorative: boolean;
   };
   let pending = $state<Pending[]>([]);
+  // Reads pasted plain text, which was written elsewhere (ADR 020 rule 9). Rejected: core
+  // `fromMarkdown`, whose lossless grammar has no quote or image and turns every `_` and `**` into
+  // a toggle, so `snake_case_name` would lose its underscores.
   const markdown = new MarkdownIt({ html: false, linkify: false });
 
   function setLink() {
