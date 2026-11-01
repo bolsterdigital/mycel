@@ -127,8 +127,12 @@
   .ui-field-head > .ui-hint-toggle {
     margin-inline-start: 0;
   }
+  /* A 44px tap target in a flex row never gives up width to its neighbour: next to a long list
+     title in CI's wider font it shrank below 44px (#116). Rejected: wrapping alone, which only
+     moves the ⓘ once the title has already taken the line. */
   .ui-hint-toggle {
     display: inline-flex;
+    flex-shrink: 0;
     align-items: center;
     justify-content: center;
     inline-size: var(--tap);
@@ -1201,8 +1205,17 @@
   }
   .ui-overview-head {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0;
+    min-inline-size: 0;
+  }
+  /* As in a field head: the title gives up the space, so a wrapped ⓘ starts at the edge. */
+  .ui-overview-head > h2:has(+ .ui-hint-toggle) {
+    margin-inline-end: calc(var(--space-0) - (var(--tap) - 1.25em) / 2);
+  }
+  .ui-overview-head > .ui-hint-toggle {
+    margin-inline-start: 0;
   }
   .ui-overview-filters {
     margin-block: var(--space-2);
