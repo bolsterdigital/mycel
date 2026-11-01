@@ -11,7 +11,6 @@
 import { AuditActorKind, useCases } from '@mycel/core';
 import { loaded } from '#lib/server/admin/admin-actions.js';
 import { adminTimeZone } from '#lib/server/admin/admin.js';
-import { statusSubnav } from '#lib/server/admin/status-nav.js';
 import { fromLocalInput } from '#lib/server/content-admin-publication.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { PageServerLoad } from './$types';
@@ -34,7 +33,7 @@ function dayStart(day: string, zone: string, after = false): Date | null {
 }
 
 export const load: PageServerLoad = async ({ parent, locals, url }) => {
-  const { tenant, locale } = await parent();
+  await parent();
   const principal = locals.principal!;
   const { zone } = await adminTimeZone(locals);
 
@@ -75,7 +74,6 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
     : undefined;
 
   return {
-    subnav: statusSubnav(locale, `/admin/${tenant.slug}`, 'audit'),
     items: page.items,
     /** One moment for every relative time on the page, the same on server and client. */
     now: new Date().toISOString(),
