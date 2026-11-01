@@ -2298,6 +2298,168 @@ test.describe('content-blocks', () => {
     await expect(rests.locator('a[href]')).toHaveCount(0);
   });
 
+  test('a video and a form rest as what they are, and nothing there plays or posts', async ({
+    page,
+    request,
+  }) => {
+    const hosts: string[] = [];
+    page.on('request', (r) => {
+      if (/youtube|youtu\.be|vimeo/.test(r.url())) hosts.push(r.url());
+    });
+    const edit = await seededPage(request);
+    await login(page, edit);
+    const video = card(page, 11).locator('[data-block-rest]');
+    const form = card(page, 12).locator('[data-block-rest]');
+    const legacy = card(page, 2).locator('[data-block-rest]');
+    await expect(video.locator('.ui-block-text-title')).not.toBeEmpty();
+    await expect(video.locator('.ui-block-text-kind')).toHaveText(/YouTube|Vimeo/);
+    await expect(video.locator('iframe, img, video, a[href]')).toHaveCount(0);
+    for (const rest of [form, legacy]) {
+      await expect(rest.locator('.ui-block-text-kind')).toContainText('Inschrijfformulier');
+      await expect(rest.locator('.ui-block-text-input')).toBeVisible();
+      await expect(rest.locator('.ui-block-text-action')).not.toBeEmpty();
+      await expect(rest.locator('form, input, button, select, textarea, a[href]')).toHaveCount(0);
+    }
+    await page.setViewportSize(NARROW);
+    for (const size of TEXT_SIZES) {
+      await setTextSize(page, size);
+      await layoutGate(page, `video and form at rest at ${size}`, '.item-blocks');
+    }
+    await setTextSize(page, '100%');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expectNoAxeViolations(page);
+    expect(hosts).toEqual([]);
+
+    if (!isA11y()) return;
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    const url = page.url();
+    // A click on the preview's button goes to the block's first field: no post, no navigation.
+    const posts: string[] = [];
+    page.on('request', (r) => {
+      if (r.method() === 'POST') posts.push(r.url());
+    });
+    await form.locator('.ui-block-text-action').click();
+    const id = card(page, 12).getByLabel('Formulier-id');
+    await expect(id).toBeFocused();
+    expect(page.url()).toBe(url);
+    expect(posts).toEqual([]);
+    // The screen cannot look a new reference up, so it says so instead of showing the old form.
+    const changed = form.locator('.ui-block-text-changed');
+    await expect(changed).toBeHidden();
+    await id.fill('01a17235-f9c5-7c70-908a-7103f7f10566');
+    await page.keyboard.press('Escape');
+    await expect(changed).toBeVisible();
+    // A video follows its title and host when it closes.
+    await video.locator('.ui-block-text-title').click();
+    const fold = card(page, 11);
+    await expect(fold.getByLabel('Titel', { exact: true })).toBeFocused();
+    await fold.getByLabel('Titel', { exact: true }).fill('Een andere titel');
+    await page.keyboard.press('Escape');
+    await expect(video.locator('.ui-block-text-title')).toHaveText('Een andere titel');
+    expect(hosts).toEqual([]);
+  });
+
+  test('an FAQ rebuilt on the other locale keeps the words of its untouched fields', async ({
+    page,
+    request,
+  }) => {
+    test.skip(!isA11y(), 'closing a block changes the rest view only with the script');
+    const prose = (text: string) => ({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+    });
+    requireApi();
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `c2-fallback-${Date.now()}`,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl', 'en'],
+        title: { nl: 'Vragen', en: 'Questions' },
+        blocks: [
+          {
+            type: 'faq',
+            version: 2,
+            props: {
+              variant: 'list',
+              entries: [
+                { question: { nl: 'Vraag een?' }, answer: { nl: prose('Antwoord een.') } },
+                { question: { nl: 'Vraag twee?' }, answer: { nl: prose('Antwoord twee.') } },
+              ],
+            },
+          },
+          {
+            type: 'callout',
+            version: 1,
+            props: { variant: 'warning', body: { nl: prose('Pas op.') } },
+          },
+          {
+            type: 'callout',
+            version: 1,
+            props: { variant: 'note', body: { nl: prose('Ter info.') } },
+          },
+          {
+            type: 'cta',
+            version: 1,
+            props: {
+              variant: 'card',
+              title: { nl: 'Doe mee' },
+              actions: [
+                {
+                  label: { nl: 'Teken' },
+                  target: { kind: 'url', url: 'https://example.org/teken' },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+    const edit = `/admin/probe/content/${item.id}`;
+    await login(page, `${edit}?locale=en`);
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    const rest = page.locator('[data-block-rest]').first();
+    const fold = page.locator('details.block').first();
+    const faq = rest.locator('.ui-block-text-faq');
+    const open = async () => {
+      await fold.locator('> summary').click();
+      await expect(fold).toHaveAttribute('open', '');
+      await expect(fold.getByLabel('Vraag', { exact: true }).first()).toBeVisible();
+    };
+    const close = () => fold.locator('[data-block-done] button').click();
+
+    // Only the variant changes: every row keeps its fallback words, as a fold now.
+    await open();
+    await fold.locator('details.ui-block-group > summary').click();
+    await fold.getByLabel('Variant').selectOption('accordion');
+    await close();
+    await expect(faq).toHaveAttribute('data-variant', 'accordion');
+    await expect(rest.locator('summary')).toHaveText(['Vraag een?', 'Vraag twee?']);
+    await expectNoAxeViolations(page);
+
+    // One question translated: that row says the new words, the other keeps the fallback, and
+    // its answer stays the server's rendering.
+    await rest.locator('summary').first().click();
+    await open();
+    await fold.getByLabel('Vraag', { exact: true }).first().fill('Question one?');
+    await close();
+    await expect(rest.locator('summary')).toHaveText(['Question one?', 'Vraag twee?']);
+    await expect(rest.locator('.ui-block-text-prose').first()).toContainText('Antwoord een.');
+
+    // Emptied again, the field holds what it loaded: nothing typed, so the fallback, as the save
+    // will keep it.
+    await open();
+    await fold.getByLabel('Vraag', { exact: true }).first().fill('');
+    await close();
+    await expect(rest.locator('summary')).toHaveText(['Vraag een?', 'Vraag twee?']);
+
+    // A warning and a note in their boxes, and a CTA card, pass axe in their own colours.
+    await expect(page.locator('.ui-block-text-callout[data-variant="warning"]')).toBeVisible();
+    await expect(page.locator('.ui-block-text-callout[data-variant="note"]')).toBeVisible();
+    await expect(page.locator('.ui-block-text-cta[data-variant="card"]')).toBeVisible();
+    await expectNoAxeViolations(page);
+  });
+
   test('an image block shows its picture with caption and credit at rest, its layout under Display', async ({
     page,
     request,

@@ -1,6 +1,6 @@
 // The block summaries and the mapping of core's refusals onto block form fields (TODO #11 B).
 import { describe, expect, it } from 'vitest';
-import { BLOCK_DEFINITIONS, Block, UseCaseError } from '@mycel/core';
+import { BLOCK_DEFINITIONS, Block, FormDefinition, UseCaseError } from '@mycel/core';
 import { fieldIssues, previewOf, summaryOf, textRestOf } from './content-blocks.js';
 
 const example = (type: keyof typeof BLOCK_DEFINITIONS, n = 0) =>
@@ -126,8 +126,63 @@ describe('textRestOf', () => {
     expect(cta.actions[1]).toEqual({ label: '', from: 'b.b.p.actions.1.label.nl' });
   });
 
+  it('sets a video by its title and host', () => {
+    expect(textRestOf(example('video-embed'), 'nl', 'b.b.')).toMatchObject({
+      kind: 'video',
+      provider: 'youtube',
+      providerFrom: 'b.b.p.provider',
+      title: 'Verslag van de mars',
+      titleFrom: 'b.b.p.title.nl',
+      captionFrom: 'b.b.p.caption.nl',
+    });
+  });
+
+  it('reads a form from what its reference finds, and says when that is nothing', () => {
+    const block = example('form');
+    const definition = FormDefinition.parse({
+      id: (block.props as { formId: string }).formId,
+      kind: 'signup',
+      list: 'nieuwsbrief',
+      fields: [
+        { type: 'email', name: 'email', label: { nl: 'E-mail' }, required: true },
+        { type: 'consent', name: 'ok', label: { nl: 'Ik doe mee' }, required: true },
+      ],
+      submitLabel: { nl: 'Aanmelden' },
+      thankYou: { nl: 'Dank' },
+      consentTextVersion: 'v1',
+    });
+    const found = new Map([[definition.id, definition]]);
+    expect(textRestOf(block, 'nl', 'b.b.', found)).toEqual({
+      kind: 'form',
+      variant: 'default',
+      variantFrom: 'b.b.p.variant',
+      idFrom: 'b.b.p.formId',
+      form: {
+        list: 'nieuwsbrief',
+        fields: [
+          { type: 'email', label: 'E-mail' },
+          { type: 'consent', label: 'Ik doe mee' },
+        ],
+        submit: 'Aanmelden',
+      },
+    });
+    // Looked up and not there, against not looked up: a role without `forms:read`.
+    expect(textRestOf(block, 'nl', 'b.b.', new Map([[definition.id, null]]))).toEqual({
+      kind: 'form',
+      variant: 'default',
+      variantFrom: 'b.b.p.variant',
+      idFrom: 'b.b.p.formId',
+      form: null,
+    });
+    expect(textRestOf(block, 'nl', 'b.b.')).toMatchObject({ form: null, unread: true });
+    // The legacy type has the same view and no variant to follow.
+    const legacy = textRestOf(example('signup-form'), 'nl', 'b.b.', found);
+    expect(legacy).toMatchObject({ kind: 'form', variant: 'default' });
+    expect(legacy).not.toHaveProperty('variantFrom');
+  });
+
   it('has no view for a type that still shows the summary', () => {
-    expect(textRestOf(example('video-embed'), 'nl', 'b.b.')).toBe(null);
+    expect(textRestOf(example('paywall'), 'nl', 'b.b.')).toBe(null);
   });
 });
 

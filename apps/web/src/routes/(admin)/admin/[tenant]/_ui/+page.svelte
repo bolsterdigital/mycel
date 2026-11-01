@@ -325,6 +325,30 @@
           }}
         />
         <BlockText
+          kindLabel={t('admin.block.option.youtube')}
+          view={{
+            kind: 'video',
+            provider: 'youtube',
+            title: t('admin.ui.catalogue.blockCard.text'),
+            caption: '',
+          }}
+        />
+        <BlockText
+          kindLabel={t('admin.ui.catalogue.blockCard.q1')}
+          view={{
+            kind: 'form',
+            variant: 'card',
+            form: {
+              list: 'news',
+              fields: [
+                { type: 'email', label: t('admin.ui.catalogue.blockCard.q1') },
+                { type: 'consent', label: t('admin.ui.catalogue.blockCard.text') },
+              ],
+              submit: t('admin.ui.catalogue.blockCard.q1'),
+            },
+          }}
+        />
+        <BlockText
           view={{
             kind: 'cta',
             variant: 'band',

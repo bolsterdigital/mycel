@@ -23,7 +23,7 @@ import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { ADMIN, login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
-import { requireApi } from './lib/api';
+import { callApi, requireApi } from './lib/api';
 
 // Operator admin (TODO #7), the seed of the "publish" flow in testing.md: login through the mock
 // IdP as e2e-admin@probe.test (scripts/e2e/e2e.mjs seeds that admin and starts the IdP), access by
@@ -598,6 +598,38 @@ test.describe('admin-shell', () => {
     ).toBe(0);
     const refused = await page.goto('/admin/probe/beheer');
     expect(refused?.status()).toBe(403);
+  });
+
+  // MY-110 C3: an author edits a page with a form but has no `forms:read`. The screen opens, says
+  // the form is linked and keeps the reference, rather than failing or calling it missing.
+  test('an author opens a page with a form and sees that it is linked', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    const author = 'form-author@probe.test';
+    await withInvoker(async (invoker) => {
+      try {
+        await invoker.run(useCases.inviteMember, systemPrincipal(await tenantId(), 'e2e'), {
+          email: author,
+          capabilities: capabilitiesFor('author'),
+        });
+      } catch (e) {
+        if (!(e instanceof UseCaseError && e.code === 'conflict')) throw e;
+      }
+    });
+    const { items } = await callApi<{ items: { id: string }[] }>(request, 'content.item.list', {
+      type: 'page',
+      slug: `e2e-blokken-${test.info().project.name}`,
+    });
+    await login(page, `/admin/probe/content/${items[0]!.id}`, author);
+    const rests = page.locator('[data-block-rest] .ui-block-text-form');
+    await expect(rests).toHaveCount(2);
+    await expect(rests.first().locator('.ui-block-text-kind')).toContainText(
+      /Linked form|Gekoppeld/
+    );
+    await expect(rests.locator('[data-missing]')).toHaveCount(0);
+    await expect(rests.locator('.ui-block-text-input')).toHaveCount(0);
   });
 
   // #66 PR 4 (Jaap 2026-10-30, zoomed out): the workspace stands at one distance from the

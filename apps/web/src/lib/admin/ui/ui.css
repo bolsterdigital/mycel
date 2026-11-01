@@ -1652,6 +1652,73 @@
     color: var(--color-primary-bg);
     background: transparent;
   }
+  /* A video at rest: what it is and where it lives. The triangle only says "plays"; borders, so it
+     stays in forced colours. No poster: the host's images would be a request to the host. */
+  .ui-block-text-video {
+    display: flex;
+    gap: var(--space-1);
+    align-items: center;
+    padding: var(--space-1) var(--space-2);
+    overflow-wrap: anywhere;
+    background: var(--color-muted-bg);
+  }
+  .ui-block-text-video > div {
+    min-inline-size: 0;
+  }
+  .ui-block-text-video .ui-block-text-title {
+    margin-block: 0;
+  }
+  .ui-block-text-play {
+    flex: none;
+    border-block: 0.5em solid transparent;
+    border-inline-start: 0.8em solid currentColor;
+  }
+  /* A form at rest is the shape of its definition in spans, nothing here takes input. */
+  .ui-block-text-form {
+    display: grid;
+    gap: var(--space-0);
+    justify-items: start;
+    overflow-wrap: anywhere;
+  }
+  .ui-block-text-form[data-variant='card'] {
+    padding: var(--space-2);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius);
+  }
+  .ui-block-text-form .ui-block-text-kind[data-missing] {
+    color: var(--status-warning-fg);
+    background: var(--status-warning-bg);
+    padding: var(--space-0) var(--space-1);
+  }
+  .ui-block-text-field,
+  .ui-block-text-consent,
+  .ui-block-text-changed {
+    margin: 0;
+  }
+  .ui-block-text-field {
+    font-weight: 600;
+  }
+  .ui-block-text-input {
+    inline-size: min(20rem, 100%);
+    block-size: 2.25rem;
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius);
+  }
+  .ui-block-text-consent {
+    display: flex;
+    gap: var(--space-0);
+    align-items: baseline;
+  }
+  .ui-block-text-check {
+    flex: none;
+    inline-size: 1em;
+    block-size: 1em;
+    border: var(--border-width) solid var(--color-border);
+    border-radius: 2px;
+  }
+  .ui-block-text-changed {
+    font-style: italic;
+  }
   /* A link in words, not by colour alone, as the page has it; not one you can follow from here. */
   .ui-block-text-prose [data-link] {
     color: var(--color-link);

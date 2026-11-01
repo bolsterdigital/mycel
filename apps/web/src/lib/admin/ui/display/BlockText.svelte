@@ -4,7 +4,9 @@
      the page. No heading element (the card's own title is the outline), no link that leaves the
      unsaved form and no button that does anything: a CTA's actions are words styled like buttons;
      the one control here is an accordion's own summary, which folds the answer and never opens the
-     block. The `html` comes from the escaping walk in `lib/blocks/rich-text.ts`, in its inert mode.
+     block. A video is its title and host, with no player, poster or request to the host (ADR 009;
+     external images fall outside img-src 'self'). A form is the shape of its definition in spans:
+     no form, input or button exists here, so nothing can be submitted. The `html` comes from the escaping walk in `lib/blocks/rich-text.ts`, in its inert mode.
      The `data-rest-*` attributes are what the screen's script brings up to date when a block
      closes with typed changes. Rejected: the public block components, which print `h2` and real
      links. -->
@@ -49,15 +51,39 @@
         body: string;
         bodyFrom?: string;
         actions: readonly { label: string; from?: string }[];
+      }
+    | {
+        kind: 'video';
+        provider: string;
+        providerFrom?: string;
+        title: string;
+        titleFrom?: string;
+        caption: string;
+        captionFrom?: string;
+      }
+    | {
+        kind: 'form';
+        variant: string;
+        variantFrom?: string;
+        idFrom?: string;
+        unread?: true;
+        form: {
+          list: string;
+          fields: readonly { type: 'email' | 'consent'; label: string }[];
+          submit: string;
+        } | null;
       };
 
   let {
     view,
     kindLabel,
+    changedLabel,
   }: {
     view: View;
-    /** A callout's kind in words: its meaning is never colour alone. */
+    /** A callout's kind, a video's host or what a form is, in words: never colour alone. */
     kindLabel?: string | undefined;
+    /** Shown once a form's reference was edited: the screen cannot look it up before the save. */
+    changedLabel?: string | undefined;
   } = $props();
 </script>
 
@@ -121,6 +147,41 @@
           <span class="ui-block-text-action" data-rest-from={action.from}>{action.label}</span>
         {/each}
       </div>
+    </div>
+  {:else if view.kind === 'video'}
+    <div class="ui-block-text-video">
+      <span class="ui-block-text-play"></span>
+      <div>
+        <p class="ui-block-text-title" data-rest-from={view.titleFrom}>{view.title}</p>
+        <p class="ui-block-text-kind" data-rest-option={view.providerFrom}>{kindLabel}</p>
+        <p class="ui-block-text-body" data-rest-from={view.captionFrom}>{view.caption}</p>
+      </div>
+    </div>
+  {:else if view.kind === 'form'}
+    <div
+      class="ui-block-text-form"
+      data-variant={view.variant}
+      data-rest-variant={view.variantFrom}
+    >
+      <p class="ui-block-text-kind" data-missing={view.form || view.unread ? undefined : ''}>
+        {kindLabel}
+      </p>
+      {#if view.form}
+        {#each view.form.fields as field, i (i)}
+          {#if field.type === 'email'}
+            <p class="ui-block-text-field">{field.label}</p>
+            <span class="ui-block-text-input"></span>
+          {:else}
+            <p class="ui-block-text-consent">
+              <span class="ui-block-text-check"></span>{field.label}
+            </p>
+          {/if}
+        {/each}
+        <div class="ui-block-text-actions">
+          <span class="ui-block-text-action">{view.form.submit}</span>
+        </div>
+      {/if}
+      <p class="ui-block-text-changed" data-rest-changed={view.idFrom} hidden>{changedLabel}</p>
     </div>
   {:else}
     {@render answer(view)}

@@ -23,6 +23,7 @@ import {
   type Principal,
   type RichTextDoc,
   type UseCaseError,
+  type FormDefinition,
 } from '@mycel/core';
 import { runtime } from './runtime.js';
 import { withAssigned } from './content-admin.js';
@@ -190,7 +191,10 @@ export function previewOf(block: Block, locale: string): BlockPreview {
  * the form fields a text comes from, so the screen's script can bring a closed block up to date
  * with what was typed; each name is a field, `|` between alternatives. `html` is the escaping walk
  * in its inert mode, and `proseFrom` the editor that holds the same text. Null for a type without
- * this view, or when the block has nothing to say yet: the card's summary then says so.
+ * this view, or for a heading, text or quote with nothing to say yet: the card's summary then says
+ * so. A callout, FAQ, CTA, video or form always has a view, as their schemas require words or a
+ * reference. A form is `form: null` when its reference finds nothing, plus `unread` when it was not
+ * looked up; `forms` holds what the lookups found (a definition is read, never copied in).
  */
 export type TextRest =
   | { kind: 'heading'; text: string; from: string }
@@ -234,12 +238,41 @@ export type TextRest =
       bodyFrom: string;
       /** Always both places the form has, so one typed after opening has somewhere to show. */
       actions: readonly { label: string; from: string }[];
+    }
+  | {
+      kind: 'video';
+      provider: string;
+      providerFrom: string;
+      title: string;
+      titleFrom: string;
+      caption: string;
+      captionFrom: string;
+    }
+  | {
+      kind: 'form';
+      variant: string;
+      /** Absent on the legacy `signup-form`, which has no variant. */
+      variantFrom?: string;
+      /** The reference field: what the screen cannot resolve before the save. */
+      idFrom: string;
+      /** The reference was not looked up: this principal may not read form definitions. */
+      unread?: true;
+      form: {
+        list: string;
+        fields: readonly { type: 'email' | 'consent'; label: string }[];
+        submit: string;
+      } | null;
     };
 
 /** How many actions a CTA's form offers (`max` of its `actions` field). */
 const CTA_ACTION_ROWS = 2;
 
-export function textRestOf(block: Block, locale: string, prefix: string): TextRest | null {
+export function textRestOf(
+  block: Block,
+  locale: string,
+  prefix: string,
+  forms: ReadonlyMap<string, FormDefinition | null> = new Map()
+): TextRest | null {
   const local = (v: unknown): string => anyLocale<string>(v, locale) ?? '';
   const field = (path: string) => `${prefix}p.${path}`;
   const inert = (v: unknown, idPrefix: string): string => {
@@ -321,6 +354,34 @@ export function textRestOf(block: Block, locale: string, prefix: string): TextRe
         label: local(block.props.actions[i]?.label),
         from: field(`actions.${i}.label.${locale}`),
       })),
+    };
+  }
+  if (block.type === 'video-embed') {
+    return {
+      kind: 'video',
+      provider: block.props.provider,
+      providerFrom: field('provider'),
+      title: local(block.props.title),
+      titleFrom: field(`title.${locale}`),
+      caption: local(block.props.caption),
+      captionFrom: field(`caption.${locale}`),
+    };
+  }
+  if (block.type === 'form' || block.type === 'signup-form') {
+    const form = forms.get(block.props.formId);
+    return {
+      kind: 'form',
+      variant: block.type === 'form' ? block.props.variant : 'default',
+      ...(block.type === 'form' ? { variantFrom: field('variant') } : {}),
+      idFrom: field('formId'),
+      ...(forms.has(block.props.formId) ? {} : { unread: true as const }),
+      form: form
+        ? {
+            list: form.list,
+            fields: form.fields.map((f) => ({ type: f.type, label: local(f.label) })),
+            submit: local(form.submitLabel),
+          }
+        : null,
     };
   }
   return null;

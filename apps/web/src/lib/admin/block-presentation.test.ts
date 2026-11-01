@@ -35,6 +35,16 @@ describe('block presentation', () => {
     expect(groupOf('cta', 'actions')).toBe('content');
   });
 
+  it('shows a video and the forms at rest, with their looks under display', () => {
+    for (const type of ['video-embed', 'form', 'signup-form'] as const)
+      expect(BLOCK_PRESENTATION[type]).toMatchObject({ rest: 'text', stage: 'C3' });
+    expect(groupOf('video-embed', 'width')).toBe('display');
+    expect(groupOf('video-embed', 'provider')).toBe('content');
+    expect(groupOf('form', 'variant')).toBe('display');
+    expect(groupOf('form', 'formId')).toBe('content');
+    expect(groupOf('signup-form', 'formId')).toBe('content');
+  });
+
   it('shows the image pilot as a picture, with layout under display and credit as source', () => {
     expect(BLOCK_PRESENTATION.image).toMatchObject({ rest: 'image', stage: 'A' });
     expect(groupOf('image', 'layout')).toBe('display');
