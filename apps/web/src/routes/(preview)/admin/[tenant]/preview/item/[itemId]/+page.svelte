@@ -57,7 +57,6 @@
 </header>
 
 <main class="page" data-drop-cap={data.dropCap ? '' : undefined}>
-  <h1>{data.model.title}</h1>
   <Intro intro={data.intro} model={data.model} />
   <Blocks model={data.model} preview={data.formNote} eagerFirstImage={!data.intro.hero} />
 </main>

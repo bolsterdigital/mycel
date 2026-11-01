@@ -1,5 +1,5 @@
-<!-- A public page or article, or its thank-you page: the document title is the only h1 (ADR 004
-     rule 3), then the lead and the hero image (#86, in the order of the edit screen), then the
+<!-- A public page or article, or its thank-you page: the document header (`Intro`: title, the
+     only h1 per ADR 004 rule 3, lead and hero image, in the order of the edit screen), then the
      blocks from the resolved model (lib/blocks); a failed form post comes back as `form`. An
      article on a site with a drop cap carries `data-drop-cap`, which base.css reads (no style
      attribute under the CSP). The head carries the canonical URL, one alternate per published locale and
@@ -51,7 +51,6 @@
   </main>
 {:else}
   <main class="page" data-drop-cap={data.dropCap ? '' : undefined}>
-    <h1>{data.model.title}</h1>
     <Intro intro={data.intro} model={data.model} />
     <Blocks model={data.model} formState={form ?? null} eagerFirstImage={!data.intro.hero} />
   </main>

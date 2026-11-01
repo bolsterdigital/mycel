@@ -181,6 +181,10 @@ const HeroAlt = z
   .record(Locale, z.string().min(1).max(1000).regex(/\S/, 'content.image.alt-empty'))
   .refine((value) => Object.keys(value).length > 0, 'content.image.alt-required');
 
+/** The closed choice of article headers (ADR 025 rule 3). */
+export const ARTICLE_HEADERS = ['standard', 'cover'] as const;
+export type ArticleHeader = (typeof ARTICLE_HEADERS)[number];
+
 function documentSchemas<B extends typeof Block | typeof BlockInput>(block: B) {
   const base = {
     title: localized(z.string().min(1).max(200)),
@@ -222,6 +226,14 @@ function documentSchemas<B extends typeof Block | typeof BlockInput>(block: B) {
       tags: Tags.default([]),
       corrections: z.array(Correction).max(100).default([]),
       delivery: Delivery.prefault({}),
+      /**
+       * How this article's document header looks (ADR 025 rule 3); absent reads as `standard`, so
+       * old revisions need no conversion. Only on an article: a page's strict schema refuses it.
+       */
+      presentation: z
+        .object({ header: z.enum(ARTICLE_HEADERS).optional() })
+        .strict()
+        .optional(),
     })
     .strict();
   return z.discriminatedUnion('type', [page, article]).superRefine((doc, ctx) => {

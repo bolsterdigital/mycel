@@ -50,9 +50,12 @@ export const actions: Actions = {
     const locale = text(data, 'previewLocale');
     if (!UUID.test(itemId) || !UUID.test(revisionId)) error(400, 'Invalid document');
     const rt = runtime();
-    let revision;
+    let item, revision;
     try {
-      ({ revision } = await rt.invoker.run(useCases.getItem, principal, { itemId, revisionId }));
+      ({ item, revision } = await rt.invoker.run(useCases.getItem, principal, {
+        itemId,
+        revisionId,
+      }));
     } catch (e) {
       if (e instanceof UseCaseError && e.code === 'not_found') error(403, 'Forbidden');
       if (e instanceof UseCaseError && e.code === 'forbidden') error(403, 'Forbidden');
@@ -83,13 +86,14 @@ export const actions: Actions = {
       reader: siteReader(site),
       defaultLocale: tenant.defaultLocale,
     });
+    const live = item.publication.find((p) => p.locale === locale)?.publishedAt ?? null;
     const [model, intro, theme] = await Promise.all([
       resolveDocument(
         source,
         { locale, ...projectDocument(doc, locale) },
         { base, fallbackLocale: tenant.defaultLocale }
       ),
-      resolveIntro(source, introOf(doc, locale), locale),
+      introOf(principal, doc, locale, live).then((intro) => resolveIntro(source, intro, locale)),
       siteTheme(site),
     ]);
     const brand = await siteBrand(site);

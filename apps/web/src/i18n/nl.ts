@@ -622,6 +622,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'block.callout.note': 'Opmerking',
   'block.callout.warning': 'Waarschuwing',
   'block.credit.photographer': 'Foto: {name}',
+  'block.meta.by': 'door {names}',
+  'block.cover.toContent': 'Naar de inhoud',
   'block.video.on': 'Video op {provider}',
   'block.footnotes': 'Noten',
   'block.footnote.back': 'Terug naar de tekst',
@@ -676,6 +678,11 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.field.heroImageHint':
     'Het grote beeld bovenaan de pagina, onder de titel en de intro. Leeg: geen beeld boven het verhaal.',
   'admin.content.header.title': 'Kop',
+  'admin.content.field.headerLayout': 'Vorm van de kop',
+  'admin.content.field.headerLayoutHint': 'Een cover vraagt een liggend hoofdbeeld.',
+  'admin.content.headerLayout.standard': 'Standaard',
+  'admin.content.headerLayout.cover': 'Cover (beeld schermvullend)',
+  'admin.content.headerLayout.noImage': 'Een cover zonder hoofdbeeld toont de standaardkop.',
   'admin.content.field.heroAltFold': 'Beschrijving voor wie het beeld niet ziet',
   'admin.content.field.heroAlt': 'Beschrijving van het hoofdbeeld (alt-tekst)',
   'admin.content.field.heroDecorativeHint':

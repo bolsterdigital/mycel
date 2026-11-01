@@ -30,6 +30,7 @@
     width={image.width}
     height={image.height}
     loading={eager ? undefined : 'lazy'}
+    fetchpriority={eager ? 'high' : undefined}
     decoding={eager ? undefined : 'async'}
     class="fx-{image.focal.x} fy-{image.focal.y}"
   />

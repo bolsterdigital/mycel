@@ -59,7 +59,8 @@ export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) 
     { locale, ...projectDocument(doc, locale) },
     { base, fallbackLocale: tenant.defaultLocale }
   );
-  const intro = await resolveIntro(source, introOf(doc, locale), locale);
+  const live = item.publication.find((p) => p.locale === locale)?.publishedAt ?? null;
+  const intro = await resolveIntro(source, await introOf(principal, doc, locale, live), locale);
   const theme = await siteTheme(site);
   const brand = await siteBrand(site);
   const admin = locals.lang ?? 'en';

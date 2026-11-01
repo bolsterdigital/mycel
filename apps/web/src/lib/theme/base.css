@@ -229,6 +229,108 @@
   .page > .page-hero {
     margin-block-end: var(--space-3);
   }
+  /* The standard header (brief #105 rule 2, Dreamkit's compact header): a landscape band on the
+     wide rail, cut on the focal point; taller on a narrow container, where 21:9 is a sliver. */
+  .page-hero img {
+    aspect-ratio: 21 / 9;
+    height: auto;
+    object-fit: cover;
+    border-radius: var(--radius);
+  }
+  @container (max-width: 40rem) {
+    .page-hero img {
+      aspect-ratio: 16 / 9;
+    }
+  }
+  /* An article's line under its header (rule 3). */
+  .page > .page-meta {
+    margin-block: 0 var(--space-3);
+    text-align: center;
+    font-size: var(--step--1);
+    color: var(--color-muted-fg);
+  }
+  /* Without a hero image a thin line closes the header. */
+  .page > .page-rule {
+    margin-block: 0 var(--space-3);
+    border: 0;
+    border-block-start: 1px solid var(--color-surface-bg);
+  }
+
+  /* The cover header (rules 4 to 6), an article's option: the hero fills the screen under the site
+     header. The height is a minimum, so a long title at 200% text grows the header instead of
+     being clipped. `--site-header-height` is the plain header's height in CSS: a taller logo
+     pushes the arrow down by its difference, it never hides it. Rejected: measuring in a script,
+     which shifts the page after load. */
+  .page:has(> .page-cover) {
+    padding-block-start: 0;
+  }
+  .page > .page-cover {
+    width: 100%;
+    margin-block-end: var(--space-1);
+  }
+  .page-cover {
+    --site-header-height: calc(2 * var(--space-2) + var(--tap) + 2px);
+    position: relative;
+    display: grid;
+    align-content: end;
+    justify-items: center;
+    gap: var(--space-2);
+    min-height: calc(100svh - var(--site-header-height));
+    padding: var(--space-4) var(--gutter) var(--space-3);
+    overflow: hidden;
+  }
+  .page-cover img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform-origin: center;
+    animation: page-cover-zoom 25s ease-out forwards;
+  }
+  @keyframes page-cover-zoom {
+    from {
+      transform: scale(1);
+    }
+    to {
+      transform: scale(1.1);
+    }
+  }
+  .page-cover h1 {
+    position: relative;
+    max-width: var(--title-width);
+    margin: 0;
+    text-align: center;
+    line-height: 1.4;
+  }
+  .page-cover h1 span {
+    padding: 0.1em 0.4em;
+    border-radius: var(--radius);
+    color: var(--color-primary-fg);
+    background: var(--color-primary-bg);
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+  .page-cover-arrow {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: var(--tap);
+    height: var(--tap);
+    border-radius: 50%;
+    color: var(--color-primary-fg);
+    background: var(--color-primary-bg);
+  }
+  .page > .page-cover-caption {
+    width: 100%;
+    margin-block: 0 var(--space-3);
+    padding-inline: var(--gutter);
+    font-size: var(--step--1);
+    color: var(--color-muted-fg);
+  }
+  .page > #page-content {
+    margin-block-end: var(--space-3);
+  }
 
   /* An article's drop cap: the first letter of the first paragraph of the first text block, but
      only when that block starts with a paragraph. The link colour is the one brand colour the

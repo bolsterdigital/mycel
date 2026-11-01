@@ -9,7 +9,13 @@
 // path form); HTML prepends it, Markdown makes the path absolute through `siteUrl`. Rejected:
 // storing finished hrefs, which would make the Markdown of a dev request carry the dev prefix.
 
-import type { FormField, MediaCredit, ProofChallenge, RichTextDoc } from '@mycel/core';
+import type {
+  ArticleHeader,
+  FormField,
+  MediaCredit,
+  ProofChallenge,
+  RichTextDoc,
+} from '@mycel/core';
 
 /** UI text that does not come from the document (ADR 007), resolved for the model's locale. */
 export interface BlockCopy {
@@ -20,6 +26,8 @@ export interface BlockCopy {
   videoOn: string;
   footnotes: string;
   footnoteBack: string;
+  /** The cover header's arrow down to the content. */
+  toContent: string;
   honeypotLabel: string;
   summaryTitle: string;
 }
@@ -41,9 +49,19 @@ export interface RenderImage {
 }
 
 /** The lead and hero image between an item's title and its blocks (#86). */
+/** An article's line under its header; each part is absent when the article has none. */
+export interface RenderMeta {
+  date: { iso: string; label: string } | null;
+  byline: string | null;
+  section: string | null;
+}
+
 export interface RenderIntro {
   lead: string | null;
   hero: RenderImage | null;
+  /** `cover` only with a hero image to cover the screen with (brief #105 rule 8). */
+  header: ArticleHeader;
+  meta: RenderMeta | null;
 }
 
 export interface RenderAction {

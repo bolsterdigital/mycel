@@ -18,7 +18,7 @@ import {
   type MediaView,
 } from '@mycel/core';
 import Page from '../../routes/(public)/[tenant]/[[locale=locale]]/[...path]/+page.svelte';
-import { resolveDocument, resolveIntro, type ResolveSource } from './resolve.js';
+import { renderMeta, resolveDocument, resolveIntro, type ResolveSource } from './resolve.js';
 
 const HERO = '01900000-0000-7000-8000-0000000086a1';
 
@@ -97,7 +97,8 @@ const prettierConfig = await resolveConfig(fileURLToPath(import.meta.url));
 async function page(
   locale: 'nl' | 'en',
   theme: keyof typeof THEMES,
-  heroAlt: Partial<Record<string, string>> | undefined = undefined
+  heroAlt: Partial<Record<string, string>> | undefined = undefined,
+  head: { header?: 'standard' | 'cover'; hero?: boolean; meta?: boolean } = {}
 ) {
   const model = await resolveDocument(
     source,
@@ -108,8 +109,22 @@ async function page(
     source,
     {
       lead: article.lead?.[locale] ?? null,
-      heroImageId: effectiveImages(article).hero.mediaId,
+      heroImageId: head.hero === false ? null : effectiveImages(article).hero.mediaId,
       heroAlt: heroAlt?.[locale] ?? null,
+      ...(head.header ? { header: head.header } : {}),
+      ...(head.meta
+        ? {
+            meta: renderMeta(
+              {
+                publishedAt: '2026-10-30T23:30:00.000Z',
+                authors: ['Sam de Vries', 'Noor Aziz', 'Lena Bos'],
+                section: 'Wonen',
+              },
+              locale,
+              'Europe/Amsterdam'
+            ),
+          }
+        : {}),
     },
     locale
   );
@@ -153,6 +168,72 @@ describe('the public item page (#86)', () => {
         const other = locale === 'nl' ? /Three years|After three|square/ : /Drie jaar|plein/;
         expect(html).not.toMatch(other);
       });
+});
+
+describe('the two article headers (#105)', () => {
+  const at = (html: string, s: string) => html.indexOf(s);
+  for (const locale of ['nl', 'en'] as const) {
+    it(`standard in ${locale}: title, lead, hero, meta line, blocks`, async () => {
+      const html = await page(locale, 'default', undefined, { header: 'standard', meta: true });
+      await expect(html).toMatchFileSnapshot(`__snapshots__/item-intro-standard.${locale}.html`);
+      expect(at(html, '<h1')).toBeLessThan(at(html, 'class="lead"'));
+      expect(at(html, 'class="lead"')).toBeLessThan(at(html, 'page-hero'));
+      expect(at(html, 'page-hero')).toBeLessThan(at(html, 'page-meta'));
+      expect(at(html, 'page-meta')).toBeLessThan(at(html, 'rich-text'));
+      expect(html).not.toContain('page-rule');
+      expect(html).toContain('fetchpriority="high"');
+      // Past midnight in the site's zone: the date there, in the attribute as well.
+      expect(html).toContain('datetime="2026-10-31"');
+      expect(html).toContain(locale === 'nl' ? '31 oktober 2026' : 'October 31, 2026');
+      expect(html).toContain(
+        locale === 'nl'
+          ? 'door Sam de Vries, Noor Aziz en Lena Bos'
+          : 'by Sam de Vries, Noor Aziz, and Lena Bos'
+      );
+    });
+
+    it(`standard without a hero image in ${locale}: a thin line closes the header`, async () => {
+      const html = await page(locale, 'default', undefined, { hero: false });
+      await expect(html).toMatchFileSnapshot(
+        `__snapshots__/item-intro-standard-no-hero.${locale}.html`
+      );
+      expect(at(html, 'class="lead"')).toBeLessThan(at(html, 'page-rule'));
+      expect(at(html, 'page-rule')).toBeLessThan(at(html, 'rich-text'));
+      expect(html).not.toContain('page-meta');
+    });
+
+    it(`cover in ${locale}: one h1 in marked lines, a real image, an arrow link`, async () => {
+      const html = await page(locale, 'default', undefined, { header: 'cover', meta: true });
+      await expect(html).toMatchFileSnapshot(`__snapshots__/item-intro-cover.${locale}.html`);
+      expect(html.match(/<h1/g)).toHaveLength(1);
+      expect(html).toMatch(/<header class="page-cover">[\s\S]*<h1[^>]*>\s*<span>/);
+      expect(html).toContain('sizes="100vw"');
+      expect(html).toContain('fetchpriority="high"');
+      expect(html).toContain('href="#page-content"');
+      expect(html).toContain(
+        `aria-label="${locale === 'nl' ? 'Naar de inhoud' : 'To the content'}"`
+      );
+      expect(html).toContain('id="page-content"');
+      expect(at(html, 'page-cover-caption')).toBeLessThan(at(html, 'class="lead"'));
+      expect(at(html, 'class="lead"')).toBeLessThan(at(html, 'page-meta'));
+      expect(html).not.toMatch(/\sstyle=|<style|<script/);
+    });
+
+    it(`a cover without a hero image falls back to standard in ${locale}`, async () => {
+      const html = await page(locale, 'default', undefined, { header: 'cover', hero: false });
+      expect(html).not.toContain('page-cover');
+      expect(html).toContain('page-rule');
+    });
+  }
+
+  it('has no meta line without anything to say, and leaves out what is missing', () => {
+    expect(renderMeta({ publishedAt: null, authors: [], section: null }, 'nl', 'UTC')).toBeNull();
+    expect(renderMeta({ publishedAt: null, authors: ['A'], section: null }, 'nl', 'UTC')).toEqual({
+      date: null,
+      byline: 'door A',
+      section: null,
+    });
+  });
 });
 
 describe('the hero image alt (#99)', () => {

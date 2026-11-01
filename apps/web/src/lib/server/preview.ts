@@ -16,7 +16,12 @@ import {
   effectiveImages,
   type ContentDocument,
   type TenantInfo,
+  type Principal,
+  UseCaseError,
+  pick,
+  useCases,
 } from '@mycel/core';
+import { renderMeta } from '../blocks/resolve.js';
 import { runtime } from './runtime.js';
 import { siteTenant, type Site } from './site.js';
 
@@ -37,9 +42,55 @@ export async function previewSite(tenant: TenantInfo): Promise<Site> {
 export const siteReader = (site: Site) =>
   anonymousPrincipal(siteTenant(site), ['content:read', 'forms:read', 'media:read']);
 
-/** The lead and hero of a revision in one locale, as the public projection gives them (#86). */
-export const introOf = (doc: ContentDocument, locale: string) => ({
-  lead: doc.lead?.[locale] ?? null,
-  heroImageId: effectiveImages(doc).hero.mediaId,
-  heroAlt: doc.heroAlt?.[locale] ?? null,
-});
+/**
+ * The document header of a revision in one locale, as the public page gets it (#86, #105): lead,
+ * hero, an article's header choice and meta line. Authors and section are read as the editor
+ * looking at the preview, since those use cases are not open to the anonymous site reader; only
+ * the names reach the page, and one that no longer resolves is left out. The date is the live one, or today for what is not live yet: what the line would say if it were published now.
+ */
+export async function introOf(
+  reader: Principal,
+  doc: ContentDocument,
+  locale: string,
+  publishedAt: string | null
+) {
+  const header = {
+    lead: doc.lead?.[locale] ?? null,
+    heroImageId: effectiveImages(doc).hero.mediaId,
+    heroAlt: doc.heroAlt?.[locale] ?? null,
+  };
+  if (doc.type !== 'article') return header;
+  const { invoker } = runtime();
+  const found = async <T>(read: () => Promise<T>): Promise<T | null> => {
+    try {
+      return await read();
+    } catch (e) {
+      if (e instanceof UseCaseError && e.code === 'not_found') return null;
+      throw e;
+    }
+  };
+  const authors: string[] = [];
+  for (const authorId of doc.authorIds) {
+    const author = await found(() => invoker.run(useCases.getAuthor, reader, { authorId }));
+    if (author) authors.push(author.name);
+  }
+  const section = doc.sectionId
+    ? await found(() =>
+        invoker.run(useCases.getSection, reader, { sectionId: doc.sectionId as string })
+      )
+    : null;
+  const { timeZone } = (await invoker.run(useCases.getSiteGeneral, reader, {})).value;
+  return {
+    ...header,
+    header: doc.presentation?.header ?? ('standard' as const),
+    meta: renderMeta(
+      {
+        publishedAt: publishedAt ?? new Date().toISOString(),
+        authors,
+        section: section ? (pick(section.title, locale, doc.defaultLocale) ?? section.slug) : null,
+      },
+      locale,
+      timeZone
+    ),
+  };
+}

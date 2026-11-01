@@ -115,6 +115,7 @@ export function valuesOf(doc: ContentDocument): FormValues {
   v.teaser = typeof teaser === 'object' ? 'blocks' : teaser;
   v.teaserBlocks = typeof teaser === 'object' ? String(teaser.blocks) : '';
   if (doc.type === 'article') {
+    v.headerLayout = doc.presentation?.header ?? 'standard';
     v.authorIds = [...doc.authorIds];
     v.sectionId = doc.sectionId ?? '';
     v.tags = doc.tags.join(', ');
@@ -234,8 +235,14 @@ export function documentFrom(
     'correctionText',
     shown === undefined ? locales : shown ? [shown] : []
   );
+  // A form without the choice keeps it; the default is stored as absent, as on an older revision.
+  const { presentation: _presentation, ...article } = common as typeof common & {
+    presentation?: { header?: 'standard' | 'cover' };
+  };
+  const header = 'headerLayout' in v ? one(v, 'headerLayout') : doc.presentation?.header;
   return {
-    ...common,
+    ...article,
+    ...(header === 'cover' ? { presentation: { header } } : {}),
     type: 'article',
     authorIds: keepOrder(doc.authorIds, many(v, 'authorIds')),
     sectionId: one(v, 'sectionId') || null,
