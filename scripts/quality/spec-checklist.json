@@ -557,7 +557,7 @@
       "level": "recommended",
       "status": "gate",
       "rule": "well-known",
-      "note": "the resources this installation publishes answer at their registered address with their own type; resources of other items (#9, OAuth) are not built yet"
+      "note": "the resources this installation publishes answer at their registered address with their own type; resources of other checklist items are not built yet"
     },
     "change-password": {
       "category": "well-known",
