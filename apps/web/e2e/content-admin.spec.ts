@@ -3164,7 +3164,15 @@ test.describe('article-writing', () => {
         defaultLocale: 'nl',
         locales: ['nl'],
         title: { nl: 'Artikel met kaarten' },
-        blocks: [prose('Eerst'), heading('Kop een'), prose('Dan'), heading('Kop twee')],
+        access: { level: 'members', teaser: 'marker' },
+        blocks: [
+          prose('Eerst'),
+          heading('Kop een'),
+          prose('Dan'),
+          // A card without fields has no fold, and its "+" belongs above it all the same.
+          { type: 'paywall', version: 1, props: {} },
+          heading('Kop twee'),
+        ],
       },
     });
     const edit = `/admin/probe/content/${item.id}`;
@@ -3175,8 +3183,8 @@ test.describe('article-writing', () => {
 
     // One "+" per card, each directly above its card; none left under the writer.
     const shown = page.locator('details.ui-block-insert:visible');
-    await expect(shown).toHaveCount(2);
-    for (const name of ['Kop een', 'Kop twee']) {
+    await expect(shown).toHaveCount(3);
+    for (const name of ['Kop een', 'Betaalmuur', 'Kop twee']) {
       const card = surface.locator('section.ui-block-card', { hasText: name });
       await expect(
         card.locator('xpath=preceding-sibling::details[contains(@class, "ui-block-insert")]')
@@ -3184,7 +3192,7 @@ test.describe('article-writing', () => {
     }
     await expect(page.locator('.item-blocks fieldset.native-block:visible')).toHaveCount(0);
 
-    // It still does what it says: a new block lands before the second heading.
+    // It still does what it says: a new block lands before the card without fields.
     const second = shown.nth(1);
     await second.locator('summary').click();
     await page.setViewportSize(NARROW);
@@ -3207,6 +3215,7 @@ test.describe('article-writing', () => {
       'Kop een',
       'rich-text',
       'Nieuwe kop',
+      'paywall',
       'Kop twee',
     ]);
   });
