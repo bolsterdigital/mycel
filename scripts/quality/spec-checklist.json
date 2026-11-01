@@ -406,15 +406,15 @@
       "category": "security",
       "level": "required",
       "status": "covered",
-      "file": "docker/caddy/caddyfile.test.mjs",
-      "note": "Caddy terminates TLS with automatic certificates (ADR 014)"
+      "file": "scripts/compose-proof.sh",
+      "note": "Caddy terminates TLS with on-demand certificates (ADR 014); the compose proof requests every route over HTTPS"
     },
     "tls-configuration": {
       "category": "security",
       "level": "recommended",
       "status": "covered",
-      "file": "docker/caddy/caddyfile.test.mjs",
-      "note": "Caddy defaults: TLS 1.2 and 1.3 only, modern ciphers"
+      "file": "scripts/compose-proof.sh",
+      "note": "the compose proof sees TLS 1.3 accepted and TLS 1.1 refused"
     },
     "hsts": {
       "category": "security",
@@ -462,9 +462,9 @@
     "fetch-metadata": {
       "category": "security",
       "level": "recommended",
-      "status": "covered",
-      "file": "apps/web/src/hooks.server.ts",
-      "note": "SvelteKit rejects cross-site form posts by Origin; forms carry a signed token"
+      "status": "open",
+      "note": "SvelteKit refuses cross-site form posts by Origin and forms carry a signed token",
+      "gap": "Sec-Fetch-Site is not read; no resource isolation policy rejects cross-site requests"
     },
     "cross-origin-isolation": {
       "category": "security",
@@ -823,7 +823,8 @@
       "category": "performance",
       "level": "required",
       "status": "covered",
-      "file": "docker/caddy/caddyfile.test.mjs"
+      "file": "scripts/compose-proof.sh",
+      "note": "the compose proof gets a tenant page back zstd- and gzip-encoded"
     },
     "font-loading": {
       "category": "performance",
@@ -849,14 +850,16 @@
       "category": "performance",
       "level": "recommended",
       "status": "covered",
-      "file": "docker/caddy/caddyfile.test.mjs",
-      "note": "Caddy serves HTTP/2 and HTTP/3"
+      "file": "scripts/compose-proof.sh",
+      "note": "the compose proof sees HTTP/2 and an h3 Alt-Svc",
+      "gap": "an HTTP/3 connection is not dialled; CI publishes TCP only"
     },
     "http1-workarounds": {
       "category": "performance",
       "level": "avoid",
       "status": "covered",
-      "file": "docker/caddy/caddyfile.test.mjs"
+      "file": "scripts/compose-proof.sh",
+      "note": "pages are served over HTTP/2, so no domain sharding or sprite workarounds"
     },
     "speculation-rules": {
       "category": "performance",

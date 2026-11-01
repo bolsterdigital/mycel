@@ -67,6 +67,27 @@ expect 'no certificate for an unknown hostname' 000 "$(outside nope.example.test
 expect 'no certificate for an unverified custom hostname' 000 \
   "$(outside www.demo-site.test /healthz)"
 
+# What Caddy itself adds to a tenant page (scripts/quality/spec-checklist.json names these lines
+# for compression, http3, http1-workarounds, https-tls and tls-configuration): compressed HTML,
+# HTTP/2, HTTP/3 advertised, and no handshake below TLS 1.2. A missing path renders the full
+# tenant 404 page, which is long enough for `encode` to compress, so no content is needed.
+# HTTP/3 itself is not dialled: compose.ci.yml publishes TCP only.
+page() {
+  curl -sk -o /dev/null --max-time 10 --resolve "demo.example.test:$HTTPS_PORT:127.0.0.1" \
+    "$@" "https://demo.example.test:$HTTPS_PORT/compose-proof-page" || true
+}
+expect 'page compressed with zstd' zstd \
+  "$(page -H 'Accept-Encoding: zstd' -w '%header{content-encoding}')"
+expect 'page compressed with gzip' gzip \
+  "$(page -H 'Accept-Encoding: gzip' -w '%header{content-encoding}')"
+expect 'page over HTTP/2' 2 "$(page --http2 -w '%{http_version}')"
+case "$(page -w '%header{alt-svc}')" in
+  *h3=*) ok 'HTTP/3 advertised in Alt-Svc' ;;
+  *) fail 'HTTP/3 advertised in Alt-Svc: no h3 in Alt-Svc' ;;
+esac
+expect 'TLS 1.1 refused' 000 "$(page --tlsv1.0 --tls-max 1.1 -w '%{http_code}')"
+expect 'TLS 1.3 accepted' 404 "$(page --tlsv1.3 -w '%{http_code}')"
+
 # From inside the network: the ask route answers Caddy.
 inside() {
   dc exec -T caddy wget -q -O /dev/null "http://web:3000/internal/hostnames/allowed?domain=$1" &&
