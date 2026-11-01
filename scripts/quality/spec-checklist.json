@@ -1,0 +1,1110 @@
+{
+  "$comment": "Every item of the specification.website checklist with Mycel's status; scripts/quality/spec-check.mjs checks the gate items, spec-check.test.mjs keeps this file complete and honest.",
+  "source": "https://specification.website/checklist.md",
+  "licence": "CC BY 4.0",
+  "retrieved": "2026-11-01",
+  "items": {
+    "doctype": {
+      "category": "foundations",
+      "level": "required",
+      "status": "gate",
+      "rule": "doctype"
+    },
+    "html-lang": {
+      "category": "foundations",
+      "level": "required",
+      "status": "gate",
+      "rule": "html-lang"
+    },
+    "meta-charset": {
+      "category": "foundations",
+      "level": "required",
+      "status": "gate",
+      "rule": "meta-charset"
+    },
+    "meta-viewport": {
+      "category": "foundations",
+      "level": "required",
+      "status": "gate",
+      "rule": "meta-viewport"
+    },
+    "title": {
+      "category": "foundations",
+      "level": "required",
+      "status": "gate",
+      "rule": "title",
+      "gap": "the title repeats the h1; a site-name suffix or SEO title is not rendered yet"
+    },
+    "meta-description": {
+      "category": "foundations",
+      "level": "recommended",
+      "status": "gate",
+      "rule": "meta-description"
+    },
+    "canonical-url": {
+      "category": "foundations",
+      "level": "recommended",
+      "status": "gate",
+      "rule": "canonical-url"
+    },
+    "favicons": {
+      "category": "foundations",
+      "level": "recommended",
+      "status": "open",
+      "gap": "public pages carry the framework default icon; no tenant icon, /favicon.ico or touch icon"
+    },
+    "theme-color": {
+      "category": "foundations",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no theme-color derived from the tenant theme"
+    },
+    "color-scheme": {
+      "category": "foundations",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no color-scheme declaration matching the tenant theme"
+    },
+    "open-graph": {
+      "category": "foundations",
+      "level": "recommended",
+      "status": "gate",
+      "rule": "open-graph",
+      "gap": "og:image is not rendered yet"
+    },
+    "feed-discovery": {
+      "category": "foundations",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no feeds yet"
+    },
+    "feed-hygiene": {
+      "category": "foundations",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no feeds yet"
+    },
+    "popover-api": {
+      "category": "foundations",
+      "level": "recommended",
+      "status": "covered",
+      "file": "apps/web/src/lib/admin/ui/ui.test.ts",
+      "note": "the info hint uses the native popover"
+    },
+    "websub": {
+      "category": "foundations",
+      "level": "optional",
+      "status": "declined",
+      "reason": "push hubs are an external dependency; feeds stay pull-only until a tenant needs it"
+    },
+    "anchor-positioning": {
+      "category": "foundations",
+      "level": "recommended",
+      "status": "declined",
+      "reason": "progressive CSS technique, applied per component when it needs a tethered element; not a site property"
+    },
+    "text-wrap": {
+      "category": "foundations",
+      "level": "recommended",
+      "status": "declined",
+      "reason": "typographic choice of the theme, not a site property"
+    },
+    "container-queries": {
+      "category": "foundations",
+      "level": "recommended",
+      "status": "declined",
+      "reason": "layout technique of the theme, not a site property"
+    },
+    "invoker-commands": {
+      "category": "foundations",
+      "level": "optional",
+      "status": "declined",
+      "reason": "progressive enhancement per component; the public site works without JavaScript"
+    },
+    "for-sale-dns": {
+      "category": "foundations",
+      "level": "optional",
+      "status": "not-applicable",
+      "reason": "only for domains that are for sale"
+    },
+    "robots-txt": {
+      "category": "seo",
+      "level": "recommended",
+      "status": "open",
+      "gap": "robots.txt is the framework default for every host: no sitemap reference, no per-tenant file"
+    },
+    "xml-sitemaps": {
+      "category": "seo",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no sitemap yet"
+    },
+    "sitemap-index": {
+      "category": "seo",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no sitemap yet"
+    },
+    "image-sitemaps": {
+      "category": "seo",
+      "level": "optional",
+      "status": "declined",
+      "reason": "the image sitemap extension is deprecated by the largest consumer; images are found in the pages"
+    },
+    "url-structure": {
+      "category": "seo",
+      "level": "recommended",
+      "status": "covered",
+      "file": "packages/core/src/content/model.test.ts",
+      "note": "slugs are validated lowercase and hyphenated"
+    },
+    "redirects": {
+      "category": "seo",
+      "level": "required",
+      "status": "open",
+      "gap": "no redirects after a rename yet"
+    },
+    "server-side-rendering": {
+      "category": "seo",
+      "level": "recommended",
+      "status": "covered",
+      "file": "apps/web/playwright.config.ts",
+      "note": "the no-js project reads every public page without JavaScript"
+    },
+    "soft-404": {
+      "category": "seo",
+      "level": "avoid",
+      "status": "gate",
+      "rule": "soft-404"
+    },
+    "meta-robots": {
+      "category": "seo",
+      "level": "required",
+      "status": "gate",
+      "rule": "meta-robots",
+      "note": "public pages are indexable; admin and preview noindex is covered in apps/web/e2e/content-admin.spec.ts"
+    },
+    "heading-hierarchy": {
+      "category": "seo",
+      "level": "required",
+      "status": "gate",
+      "rule": "heading-hierarchy"
+    },
+    "internal-linking": {
+      "category": "seo",
+      "level": "recommended",
+      "status": "open",
+      "gap": "site navigation menus are not built yet"
+    },
+    "structured-data": {
+      "category": "seo",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no JSON-LD yet"
+    },
+    "breadcrumbs": {
+      "category": "seo",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no breadcrumbs yet"
+    },
+    "indexnow": {
+      "category": "seo",
+      "level": "optional",
+      "status": "declined",
+      "reason": "pings third parties on every publish; not without a tenant setting"
+    },
+    "color-contrast": {
+      "category": "accessibility",
+      "level": "required",
+      "status": "covered",
+      "file": "apps/web/e2e/lib/axe.ts"
+    },
+    "contrast-color": {
+      "category": "accessibility",
+      "level": "optional",
+      "status": "declined",
+      "reason": "the theme validator computes contrast at save time; no runtime colour derivation needed"
+    },
+    "forced-colors": {
+      "category": "accessibility",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no forced-colors fixture in the layout gate"
+    },
+    "image-alt": {
+      "category": "accessibility",
+      "level": "required",
+      "status": "gate",
+      "rule": "image-alt"
+    },
+    "form-labels": {
+      "category": "accessibility",
+      "level": "required",
+      "status": "covered",
+      "file": "apps/web/e2e/lib/axe.ts"
+    },
+    "keyboard-navigation": {
+      "category": "accessibility",
+      "level": "required",
+      "status": "covered",
+      "file": "apps/web/e2e/quality-corpus.spec.ts"
+    },
+    "focus-indicators": {
+      "category": "accessibility",
+      "level": "required",
+      "status": "covered",
+      "file": "apps/web/e2e/lib/axe.ts",
+      "note": "plus the manual release check in docs/architecture/frontend-quality.md"
+    },
+    "focus-not-obscured": {
+      "category": "accessibility",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no check that a sticky bar leaves the focused control visible"
+    },
+    "skip-links": {
+      "category": "accessibility",
+      "level": "required",
+      "status": "gate",
+      "rule": "skip-links"
+    },
+    "inert-attribute": {
+      "category": "accessibility",
+      "level": "recommended",
+      "status": "declined",
+      "reason": "native dialog makes the page behind it inert; no custom overlays on public pages"
+    },
+    "semantic-html": {
+      "category": "accessibility",
+      "level": "required",
+      "status": "gate",
+      "rule": "semantic-html"
+    },
+    "aria-usage": {
+      "category": "accessibility",
+      "level": "recommended",
+      "status": "open",
+      "gap": "native semantics first is a construction rule checked in review, not by a gate"
+    },
+    "link-text": {
+      "category": "accessibility",
+      "level": "required",
+      "status": "covered",
+      "file": "apps/web/e2e/lib/axe.ts",
+      "note": "plus the manual release check"
+    },
+    "empty-links-buttons": {
+      "category": "accessibility",
+      "level": "avoid",
+      "status": "covered",
+      "file": "apps/web/e2e/lib/axe.ts"
+    },
+    "form-errors": {
+      "category": "accessibility",
+      "level": "required",
+      "status": "covered",
+      "file": "apps/web/e2e/ui-gate.spec.ts",
+      "note": "errors tied to their field with aria-invalid and aria-describedby"
+    },
+    "status-messages": {
+      "category": "accessibility",
+      "level": "recommended",
+      "status": "covered",
+      "file": "apps/web/e2e/lib/axe.ts"
+    },
+    "accessible-authentication": {
+      "category": "accessibility",
+      "level": "recommended",
+      "status": "covered",
+      "file": "apps/web/e2e/signup.spec.ts",
+      "note": "readers and supporters use a magic link, no password or puzzle"
+    },
+    "redundant-entry": {
+      "category": "accessibility",
+      "level": "recommended",
+      "status": "declined",
+      "reason": "judged per form in review; not measurable as a site property"
+    },
+    "consistent-help": {
+      "category": "accessibility",
+      "level": "recommended",
+      "status": "declined",
+      "reason": "judged per site in review; not measurable as a site property"
+    },
+    "document-language": {
+      "category": "accessibility",
+      "level": "required",
+      "status": "gate",
+      "rule": "html-lang",
+      "note": "inline language parts are covered under lang-attribute"
+    },
+    "reduced-motion": {
+      "category": "accessibility",
+      "level": "required",
+      "status": "covered",
+      "file": "apps/web/e2e/public-site.spec.ts"
+    },
+    "accessibility-overlays": {
+      "category": "accessibility",
+      "level": "avoid",
+      "status": "covered",
+      "file": "apps/web/e2e/quality-corpus.spec.ts",
+      "note": "no third-party request on a corpus page; managed embeds need a reviewed manifest (ADR 022)"
+    },
+    "captions-and-transcripts": {
+      "category": "accessibility",
+      "level": "required",
+      "status": "open",
+      "gap": "no video or audio block yet; the media contract has no caption track"
+    },
+    "data-tables": {
+      "category": "accessibility",
+      "level": "required",
+      "status": "covered",
+      "file": "apps/web/e2e/lib/axe.ts"
+    },
+    "touch-target-size": {
+      "category": "accessibility",
+      "level": "required",
+      "status": "covered",
+      "file": "apps/web/e2e/lib/layout.ts",
+      "note": "Mycel requires 44 by 44 CSS px for action groups"
+    },
+    "dragging-movements": {
+      "category": "accessibility",
+      "level": "recommended",
+      "status": "covered",
+      "file": "apps/web/e2e/content-admin.spec.ts",
+      "note": "every block move has buttons; drag is an enhancement"
+    },
+    "hidden-until-found": {
+      "category": "accessibility",
+      "level": "recommended",
+      "status": "declined",
+      "reason": "collapsible public content uses details, which browsers already search"
+    },
+    "mobile-form-inputs": {
+      "category": "accessibility",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no rule checks type, inputmode, autocomplete and a 16 px input size on public forms"
+    },
+    "native-interactive-elements": {
+      "category": "accessibility",
+      "level": "recommended",
+      "status": "open",
+      "gap": "native elements first is a construction rule checked in review, not by a gate"
+    },
+    "css-state-selectors": {
+      "category": "accessibility",
+      "level": "recommended",
+      "status": "declined",
+      "reason": "CSS technique, not a site property"
+    },
+    "https-tls": {
+      "category": "security",
+      "level": "required",
+      "status": "covered",
+      "file": "docker/caddy/caddyfile.test.mjs",
+      "note": "Caddy terminates TLS with automatic certificates (ADR 014)"
+    },
+    "tls-configuration": {
+      "category": "security",
+      "level": "recommended",
+      "status": "covered",
+      "file": "docker/caddy/caddyfile.test.mjs",
+      "note": "Caddy defaults: TLS 1.2 and 1.3 only, modern ciphers"
+    },
+    "hsts": {
+      "category": "security",
+      "level": "required",
+      "status": "gate",
+      "rule": "hsts",
+      "deviation": "no includeSubDomains: a tenant apex domain has subdomains Mycel does not control"
+    },
+    "mixed-content": {
+      "category": "security",
+      "level": "recommended",
+      "status": "declined",
+      "reason": "default-src 'self' already blocks every cross-origin subresource; upgrade-insecure-requests adds nothing"
+    },
+    "content-security-policy": {
+      "category": "security",
+      "level": "recommended",
+      "status": "gate",
+      "rule": "content-security-policy"
+    },
+    "reporting-endpoints": {
+      "category": "security",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no CSP violation reporting endpoint"
+    },
+    "security-txt": {
+      "category": "security",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no /.well-known/security.txt per host; the project policy is in SECURITY.md"
+    },
+    "x-content-type-options": {
+      "category": "security",
+      "level": "required",
+      "status": "gate",
+      "rule": "x-content-type-options"
+    },
+    "frame-ancestors": {
+      "category": "security",
+      "level": "required",
+      "status": "gate",
+      "rule": "frame-ancestors"
+    },
+    "fetch-metadata": {
+      "category": "security",
+      "level": "recommended",
+      "status": "covered",
+      "file": "apps/web/src/hooks.server.ts",
+      "note": "SvelteKit rejects cross-site form posts by Origin; forms carry a signed token"
+    },
+    "cross-origin-isolation": {
+      "category": "security",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no Cross-Origin-Opener-Policy or Cross-Origin-Resource-Policy"
+    },
+    "referrer-policy": {
+      "category": "security",
+      "level": "recommended",
+      "status": "gate",
+      "rule": "referrer-policy"
+    },
+    "permissions-policy": {
+      "category": "security",
+      "level": "recommended",
+      "status": "gate",
+      "rule": "permissions-policy"
+    },
+    "subresource-integrity": {
+      "category": "security",
+      "level": "recommended",
+      "status": "not-applicable",
+      "reason": "public pages load no third-party script or stylesheet"
+    },
+    "digest-fields": {
+      "category": "security",
+      "level": "optional",
+      "status": "declined",
+      "reason": "no consumer for content digests"
+    },
+    "trusted-types": {
+      "category": "security",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no require-trusted-types-for directive"
+    },
+    "x-xss-protection": {
+      "category": "security",
+      "level": "avoid",
+      "status": "gate",
+      "rule": "x-xss-protection"
+    },
+    "cookie-attributes": {
+      "category": "security",
+      "level": "required",
+      "status": "gate",
+      "rule": "cookie-attributes"
+    },
+    "clear-site-data": {
+      "category": "security",
+      "level": "optional",
+      "status": "open",
+      "gap": "logout does not send Clear-Site-Data"
+    },
+    "caa-records": {
+      "category": "security",
+      "level": "recommended",
+      "status": "not-applicable",
+      "reason": "Mycel serves sites; the hosting operator controls DNS for the platform domain and each tenant for a custom domain"
+    },
+    "rpki": {
+      "category": "security",
+      "level": "recommended",
+      "status": "not-applicable",
+      "reason": "Mycel serves sites; the hosting operator controls DNS for the platform domain and each tenant for a custom domain"
+    },
+    "dnssec": {
+      "category": "security",
+      "level": "optional",
+      "status": "not-applicable",
+      "reason": "Mycel serves sites; the hosting operator controls DNS for the platform domain and each tenant for a custom domain"
+    },
+    "dane": {
+      "category": "security",
+      "level": "optional",
+      "status": "not-applicable",
+      "reason": "Mycel serves sites; the hosting operator controls DNS for the platform domain and each tenant for a custom domain"
+    },
+    "well-known-overview": {
+      "category": "well-known",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no /.well-known/ resources yet"
+    },
+    "change-password": {
+      "category": "well-known",
+      "level": "optional",
+      "status": "not-applicable",
+      "reason": "operators sign in through the identity provider; readers use a magic link without a password"
+    },
+    "webauthn": {
+      "category": "well-known",
+      "level": "optional",
+      "status": "not-applicable",
+      "reason": "no passkeys on tenant sites"
+    },
+    "openid-configuration": {
+      "category": "well-known",
+      "level": "optional",
+      "status": "not-applicable",
+      "reason": "Mycel is a client, not an identity provider"
+    },
+    "oauth-authorization-server": {
+      "category": "well-known",
+      "level": "optional",
+      "status": "not-applicable",
+      "reason": "Mycel is not an authorisation server"
+    },
+    "oauth-protected-resource": {
+      "category": "well-known",
+      "level": "optional",
+      "status": "open",
+      "gap": "the API and MCP server publish no protected-resource metadata"
+    },
+    "gpc-json": {
+      "category": "well-known",
+      "level": "optional",
+      "status": "open",
+      "gap": "Global Privacy Control is not read"
+    },
+    "api-catalog": {
+      "category": "well-known",
+      "level": "recommended",
+      "status": "open",
+      "gap": "the OpenAPI document is not linked from /.well-known/api-catalog"
+    },
+    "webfinger": {
+      "category": "well-known",
+      "level": "optional",
+      "status": "not-applicable",
+      "reason": "no federated identities"
+    },
+    "apple-app-site-association": {
+      "category": "well-known",
+      "level": "optional",
+      "status": "not-applicable",
+      "reason": "no native app"
+    },
+    "assetlinks-json": {
+      "category": "well-known",
+      "level": "optional",
+      "status": "not-applicable",
+      "reason": "no native app"
+    },
+    "nodeinfo": {
+      "category": "well-known",
+      "level": "optional",
+      "status": "not-applicable",
+      "reason": "not a federated platform"
+    },
+    "traffic-advice": {
+      "category": "well-known",
+      "level": "optional",
+      "status": "declined",
+      "reason": "no need to steer prefetch proxies"
+    },
+    "agent-readiness-overview": {
+      "category": "agent-readiness",
+      "level": "recommended",
+      "status": "open",
+      "gap": "see the individual items"
+    },
+    "llms-txt": {
+      "category": "agent-readiness",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no llms.txt yet"
+    },
+    "llms-full-txt": {
+      "category": "agent-readiness",
+      "level": "optional",
+      "status": "declined",
+      "reason": "per-page Markdown and llms.txt cover it without one unbounded file"
+    },
+    "markdown-source-endpoints": {
+      "category": "agent-readiness",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no Markdown representation of a page yet"
+    },
+    "robots-for-ai-crawlers": {
+      "category": "agent-readiness",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no per-tenant AI crawler choice in robots.txt"
+    },
+    "content-signals": {
+      "category": "agent-readiness",
+      "level": "optional",
+      "status": "open",
+      "gap": "no per-tenant content signal choice"
+    },
+    "tdmrep": {
+      "category": "agent-readiness",
+      "level": "optional",
+      "status": "open",
+      "gap": "no text-and-data-mining reservation"
+    },
+    "web-bot-auth": {
+      "category": "agent-readiness",
+      "level": "optional",
+      "status": "declined",
+      "reason": "no bot-specific access rules"
+    },
+    "auth-md": {
+      "category": "agent-readiness",
+      "level": "optional",
+      "status": "declined",
+      "reason": "API access is granted by an operator in the admin, not self-service"
+    },
+    "stable-urls": {
+      "category": "agent-readiness",
+      "level": "required",
+      "status": "open",
+      "gap": "a renamed page loses its old address until redirects exist"
+    },
+    "structured-data-for-agents": {
+      "category": "agent-readiness",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no JSON-LD yet"
+    },
+    "machine-readable-formats": {
+      "category": "agent-readiness",
+      "level": "recommended",
+      "status": "covered",
+      "file": "packages/api/src/content-read.test.ts",
+      "note": "published content has a JSON read route; feeds and Markdown are open"
+    },
+    "link-headers": {
+      "category": "agent-readiness",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no Link header advertising sitemap, feeds or the API"
+    },
+    "mcp-and-tool-discovery": {
+      "category": "agent-readiness",
+      "level": "optional",
+      "status": "covered",
+      "file": "packages/mcp/src/registry.conformance.test.ts",
+      "note": "every use case is an MCP tool (ADR 009); remote discovery is open"
+    },
+    "a2a-agent-cards": {
+      "category": "agent-readiness",
+      "level": "optional",
+      "status": "declined",
+      "reason": "no agent-to-agent endpoint"
+    },
+    "universal-commerce-protocol": {
+      "category": "agent-readiness",
+      "level": "optional",
+      "status": "not-applicable",
+      "reason": "no commerce"
+    },
+    "agent-skills-discovery": {
+      "category": "agent-readiness",
+      "level": "recommended",
+      "status": "declined",
+      "reason": "the repository ships its skills; tenant sites have none"
+    },
+    "dns-aid": {
+      "category": "agent-readiness",
+      "level": "optional",
+      "status": "not-applicable",
+      "reason": "Mycel serves sites; the hosting operator controls DNS for the platform domain and each tenant for a custom domain"
+    },
+    "agentic-resource-discovery": {
+      "category": "agent-readiness",
+      "level": "optional",
+      "status": "declined",
+      "reason": "draft without consumers"
+    },
+    "nlweb": {
+      "category": "agent-readiness",
+      "level": "optional",
+      "status": "declined",
+      "reason": "site search is planned as an ordinary route first"
+    },
+    "webmcp": {
+      "category": "agent-readiness",
+      "level": "optional",
+      "status": "declined",
+      "reason": "draft browser API"
+    },
+    "okf-bundle": {
+      "category": "agent-readiness",
+      "level": "optional",
+      "status": "declined",
+      "reason": "draft format without consumers"
+    },
+    "schemamap": {
+      "category": "agent-readiness",
+      "level": "optional",
+      "status": "declined",
+      "reason": "proposal of the checklist author without consumers"
+    },
+    "core-web-vitals": {
+      "category": "performance",
+      "level": "required",
+      "status": "covered",
+      "file": "scripts/quality/run.mjs",
+      "gap": "lab measurement only; field data is not-measured until traffic exists"
+    },
+    "image-optimization": {
+      "category": "performance",
+      "level": "required",
+      "status": "gate",
+      "rule": "image-optimization"
+    },
+    "lazy-loading": {
+      "category": "performance",
+      "level": "recommended",
+      "status": "covered",
+      "file": "scripts/quality/run.mjs",
+      "note": "Lighthouse fails a lazy LCP image"
+    },
+    "preload-prefetch-preconnect": {
+      "category": "performance",
+      "level": "recommended",
+      "status": "covered",
+      "file": "scripts/quality/run.mjs",
+      "note": "the body font is preloaded; no third-party origins"
+    },
+    "early-hints": {
+      "category": "performance",
+      "level": "optional",
+      "status": "declined",
+      "reason": "no measurable gain behind the cached read route"
+    },
+    "cache-control": {
+      "category": "performance",
+      "level": "required",
+      "status": "gate",
+      "rule": "cache-control"
+    },
+    "vary": {
+      "category": "performance",
+      "level": "recommended",
+      "status": "open",
+      "gap": "HTML responses do not state what they vary on"
+    },
+    "conditional-requests": {
+      "category": "performance",
+      "level": "recommended",
+      "status": "gate",
+      "rule": "conditional-requests"
+    },
+    "no-vary-search": {
+      "category": "performance",
+      "level": "recommended",
+      "status": "declined",
+      "reason": "no ignorable query parameters in use"
+    },
+    "compression": {
+      "category": "performance",
+      "level": "required",
+      "status": "covered",
+      "file": "docker/caddy/caddyfile.test.mjs"
+    },
+    "font-loading": {
+      "category": "performance",
+      "level": "recommended",
+      "status": "gate",
+      "rule": "font-loading",
+      "gap": "the self-hosted font files are served without Cache-Control"
+    },
+    "critical-css": {
+      "category": "performance",
+      "level": "recommended",
+      "status": "covered",
+      "file": "scripts/quality/run.mjs",
+      "note": "Lighthouse render-blocking audit at Performance 100"
+    },
+    "script-loading": {
+      "category": "performance",
+      "level": "recommended",
+      "status": "gate",
+      "rule": "script-loading"
+    },
+    "http3": {
+      "category": "performance",
+      "level": "recommended",
+      "status": "covered",
+      "file": "docker/caddy/caddyfile.test.mjs",
+      "note": "Caddy serves HTTP/2 and HTTP/3"
+    },
+    "http1-workarounds": {
+      "category": "performance",
+      "level": "avoid",
+      "status": "covered",
+      "file": "docker/caddy/caddyfile.test.mjs"
+    },
+    "speculation-rules": {
+      "category": "performance",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no speculation rules"
+    },
+    "resource-hints": {
+      "category": "performance",
+      "level": "recommended",
+      "status": "covered",
+      "file": "scripts/quality/run.mjs"
+    },
+    "view-transitions": {
+      "category": "performance",
+      "level": "optional",
+      "status": "declined",
+      "reason": "motion choice of the theme"
+    },
+    "bfcache": {
+      "category": "performance",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no measurement of back/forward cache eligibility"
+    },
+    "visibility-aware-rendering": {
+      "category": "performance",
+      "level": "optional",
+      "status": "declined",
+      "reason": "CSS technique, not a site property"
+    },
+    "css-containment": {
+      "category": "performance",
+      "level": "optional",
+      "status": "declined",
+      "reason": "CSS technique, not a site property"
+    },
+    "scroll-driven-animations": {
+      "category": "performance",
+      "level": "optional",
+      "status": "declined",
+      "reason": "motion choice of the theme"
+    },
+    "scrollbar-gutter": {
+      "category": "performance",
+      "level": "recommended",
+      "status": "declined",
+      "reason": "layout choice of the theme"
+    },
+    "dynamic-viewport-units": {
+      "category": "performance",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no check against 100vh; the admin styles still use it"
+    },
+    "compression-dictionary-transport": {
+      "category": "performance",
+      "level": "optional",
+      "status": "declined",
+      "reason": "no measurable gain at current page weights"
+    },
+    "server-timing": {
+      "category": "performance",
+      "level": "optional",
+      "status": "declined",
+      "reason": "would expose backend detail to every visitor"
+    },
+    "privacy-policy": {
+      "category": "privacy",
+      "level": "required",
+      "status": "open",
+      "gap": "a tenant privacy page is content, but no check that each site links one"
+    },
+    "cookie-consent": {
+      "category": "privacy",
+      "level": "required",
+      "status": "covered",
+      "file": "apps/web/e2e/public-site.spec.ts",
+      "note": "public pages set no cookie; managed tags wait for consent (ADR 022)"
+    },
+    "global-privacy-control": {
+      "category": "privacy",
+      "level": "recommended",
+      "status": "open",
+      "gap": "Global Privacy Control is not read"
+    },
+    "third-party-scripts": {
+      "category": "privacy",
+      "level": "recommended",
+      "status": "covered",
+      "file": "apps/web/e2e/quality-corpus.spec.ts",
+      "note": "per-route network allowlist: no third-party requests"
+    },
+    "storage-access-api": {
+      "category": "privacy",
+      "level": "optional",
+      "status": "not-applicable",
+      "reason": "no cross-site cookies"
+    },
+    "analytics-privacy": {
+      "category": "privacy",
+      "level": "recommended",
+      "status": "declined",
+      "reason": "no analytics in Mycel; a tenant brings its own through a managed tag"
+    },
+    "data-minimization": {
+      "category": "privacy",
+      "level": "recommended",
+      "status": "covered",
+      "file": "docs/adr/019-supporter-consistency-identity-and-retention.md",
+      "note": "retention settings and erasure (ADR 019)"
+    },
+    "error-pages": {
+      "category": "resilience",
+      "level": "required",
+      "status": "open",
+      "gap": "the tenant 404 is the framework default page: wrong language, no title, no site chrome"
+    },
+    "maintenance-pages": {
+      "category": "resilience",
+      "level": "recommended",
+      "status": "declined",
+      "reason": "deploys are rolling container restarts; no maintenance mode"
+    },
+    "graceful-degradation": {
+      "category": "resilience",
+      "level": "recommended",
+      "status": "covered",
+      "file": "apps/web/playwright.config.ts"
+    },
+    "offline-support": {
+      "category": "resilience",
+      "level": "optional",
+      "status": "declined",
+      "reason": "content sites; no offline use case"
+    },
+    "pwa-manifest": {
+      "category": "resilience",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no web app manifest"
+    },
+    "monitoring-uptime": {
+      "category": "resilience",
+      "level": "recommended",
+      "status": "covered",
+      "file": "docs/reference/observability.md",
+      "note": "readiness and metrics endpoints; the external monitor belongs to the operator"
+    },
+    "deprecation-and-sunset": {
+      "category": "resilience",
+      "level": "optional",
+      "status": "declined",
+      "reason": "no deprecated public routes yet"
+    },
+    "redirect-by": {
+      "category": "resilience",
+      "level": "recommended",
+      "status": "declined",
+      "reason": "names the software to every client; no diagnostic need"
+    },
+    "ipv6": {
+      "category": "resilience",
+      "level": "recommended",
+      "status": "not-applicable",
+      "reason": "Mycel serves sites; the hosting operator controls DNS for the platform domain and each tenant for a custom domain"
+    },
+    "international-url-structure": {
+      "category": "internationalisation",
+      "level": "recommended",
+      "status": "covered",
+      "file": "apps/web/src/lib/server/content-route.test.ts",
+      "note": "one subdirectory per non-default locale"
+    },
+    "hreflang": {
+      "category": "internationalisation",
+      "level": "recommended",
+      "status": "gate",
+      "rule": "hreflang"
+    },
+    "localised-metadata": {
+      "category": "internationalisation",
+      "level": "recommended",
+      "status": "covered",
+      "file": "apps/web/e2e/quality-corpus.spec.ts",
+      "note": "title per locale",
+      "gap": "description, Open Graph and alt per locale are not asserted"
+    },
+    "sitemap-hreflang": {
+      "category": "internationalisation",
+      "level": "optional",
+      "status": "open",
+      "gap": "no sitemap yet"
+    },
+    "avoid-auto-geo-redirects": {
+      "category": "internationalisation",
+      "level": "avoid",
+      "status": "gate",
+      "rule": "avoid-auto-geo-redirects"
+    },
+    "lang-attribute": {
+      "category": "internationalisation",
+      "level": "required",
+      "status": "open",
+      "gap": "rich text has no mark for a passage in another language"
+    },
+    "translate-attribute": {
+      "category": "internationalisation",
+      "level": "optional",
+      "status": "declined",
+      "reason": "editors have no use for it yet"
+    },
+    "language-switcher": {
+      "category": "internationalisation",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no language switcher on public pages"
+    },
+    "rtl-support": {
+      "category": "internationalisation",
+      "level": "recommended",
+      "status": "open",
+      "gap": "no right-to-left locale is offered; logical properties are not enforced"
+    },
+    "writing-modes": {
+      "category": "internationalisation",
+      "level": "optional",
+      "status": "not-applicable",
+      "reason": "no CJK or Thai locale is offered"
+    },
+    "locale-content": {
+      "category": "internationalisation",
+      "level": "recommended",
+      "status": "covered",
+      "file": "apps/web/src/lib/admin/format.test.ts",
+      "note": "dates through Intl"
+    },
+    "plural-rules": {
+      "category": "internationalisation",
+      "level": "recommended",
+      "status": "open",
+      "gap": "catalog strings have no plural categories"
+    },
+    "idn-support": {
+      "category": "internationalisation",
+      "level": "optional",
+      "status": "declined",
+      "reason": "hostnames are validated as ASCII; an IDN custom domain is entered in Punycode"
+    }
+  }
+}
