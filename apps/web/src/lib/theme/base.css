@@ -476,19 +476,23 @@
     min-height: var(--tap);
     min-width: var(--tap);
     max-width: 100%;
-    padding: 0.625rem min(1.25rem, 4vw);
+    padding: calc(0.625rem - 2px) calc(min(1.25rem, 4vw) - 2px);
+    /* The shape is the background, which forced colours (Windows High Contrast) paint as the
+       canvas; a transparent border is invisible here and gets the system's text colour there,
+       so the button keeps its outline. The padding gives back the border's width. */
+    border: 2px solid transparent;
     border-radius: var(--radius);
     font-weight: 600;
     text-align: center;
     text-decoration: none;
     color: var(--color-primary-fg);
     background: var(--color-primary-bg);
-    transition: box-shadow 0.15s;
   }
+  /* A border, not an inset shadow: forced colours drop every box-shadow. */
   .button.secondary {
     color: var(--color-body-fg);
     background: var(--color-body-bg);
-    box-shadow: inset 0 0 0 2px currentColor;
+    border-color: currentColor;
   }
   .button:hover {
     text-decoration: underline;
@@ -605,7 +609,9 @@
   .callout-note {
     color: var(--color-body-fg);
     background: var(--color-body-bg);
-    box-shadow: inset 0 0 0 1px currentColor;
+    /* An inset outline, not a shadow: forced colours keep outlines and drop shadows. */
+    outline: 1px solid currentColor;
+    outline-offset: -1px;
   }
   .callout-warning {
     color: var(--color-warning-fg);
@@ -866,8 +872,9 @@
     font: inherit;
     font-weight: 600;
     min-height: var(--tap);
-    padding: 0.75rem 1.25rem;
-    border: 0;
+    padding: calc(0.75rem - 2px) calc(1.25rem - 2px);
+    /* Transparent until forced colours give it the system's text colour, as on `.button`. */
+    border: 2px solid transparent;
     border-radius: var(--radius);
     color: var(--color-primary-fg);
     background: var(--color-primary-bg);

@@ -168,3 +168,65 @@ export function layoutProblems(page: Page, within = 'body'): Promise<string[]> {
 export async function layoutGate(page: Page, label?: string, within?: string) {
   expect(await layoutProblems(page, within), label).toEqual([]);
 }
+
+/** What a forced-colors user (Windows High Contrast) loses on the current page; the caller
+ *  emulates `forced-colors: active`. The browser then paints every background as the system
+ *  canvas, drops `box-shadow` and recolours borders and outlines, so an action whose shape was
+ *  its background or shadow becomes loose text, and a focus ring drawn as a shadow disappears.
+ *  Two checks: every visible button, button-styled link and text field keeps a border on all four
+ *  sides, and every tab stop in `within` shows an outline when focused from the keyboard.
+ *  Rejected: comparing screenshots with and without forced colours. It would flag every recoloured
+ *  pixel and say nothing about which control lost its shape. */
+export async function forcedColorsProblems(page: Page, within = 'body'): Promise<string[]> {
+  const out = await page.evaluate((scope) => {
+    const problems: string[] = [];
+    const label = (el: Element) =>
+      (el.textContent ?? '').trim().slice(0, 40) ||
+      el.getAttribute('name') ||
+      el.getAttribute('aria-label') ||
+      el.tagName.toLowerCase();
+    const shaped =
+      'button, a.button, .ui-button, input:not([type="hidden"], [type="checkbox"], [type="radio"]), select, textarea';
+    for (const root of document.querySelectorAll(scope))
+      for (const el of root.querySelectorAll(shaped)) {
+        if (el.getClientRects().length === 0 || el.closest('[aria-hidden="true"]')) continue;
+        const style = getComputedStyle(el);
+        if (style.forcedColorAdjust === 'none')
+          problems.push(`opts out of forced colours: ${label(el)}`);
+        const sides = ['Top', 'Right', 'Bottom', 'Left'] as const;
+        const bare = sides.filter(
+          (side) =>
+            style.getPropertyValue(`border-${side.toLowerCase()}-style`) === 'none' ||
+            parseFloat(style.getPropertyValue(`border-${side.toLowerCase()}-width`)) === 0
+        );
+        if (bare.length) problems.push(`no border in forced colours: ${label(el)}`);
+      }
+    return problems;
+  }, within);
+  // Walk the tab order from the top of the page; stop when focus leaves the scope's last stop or
+  // wraps around. A cap keeps a page with a focus trap from looping.
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  const seen = new Set<string>();
+  for (let i = 0; i < 80; i++) {
+    await page.keyboard.press('Tab');
+    const stop = await page.evaluate((scope) => {
+      const el = document.activeElement;
+      if (!el || el === document.body) return null;
+      const path = [...el.parentElement!.children].indexOf(el) + ':' + el.outerHTML.slice(0, 120);
+      if (!el.closest(scope)) return { path, outside: true };
+      const style = getComputedStyle(el);
+      const ring = style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0;
+      const name =
+        (el.textContent ?? '').trim().slice(0, 40) ||
+        el.getAttribute('name') ||
+        el.getAttribute('aria-label') ||
+        el.tagName.toLowerCase();
+      return { path, outside: false, ring, name };
+    }, within);
+    if (!stop || seen.has(stop.path)) break;
+    seen.add(stop.path);
+    if (!stop.outside && !stop.ring) out.push(`no focus outline in forced colours: ${stop.name}`);
+  }
+  if (seen.size === 0) out.push('no tab stop on the page');
+  return out;
+}

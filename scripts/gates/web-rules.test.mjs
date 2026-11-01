@@ -4,6 +4,8 @@
 // only goes down, per file, against scripts/gates/web-rules.baseline.json; a rule at zero stays
 // at zero. One rule guards the stylesheets instead of a helper: a height in static `vh` is the
 // layout viewport, which a mobile browser's toolbar covers, so the theme uses `dvh` or `svh`.
+// And the public theme draws no shape with a box-shadow: forced colours (Windows High Contrast)
+// drop every shadow, so a frame or a secondary button made of one disappears there.
 // Run by `npm run lint:infra`, offline.
 // Rejected: one-home.test.mjs (it allows no copy at all, and these have dozens until the sweep),
 // and one total per rule (a removed copy and a new one elsewhere cancel out silently).
@@ -52,6 +54,11 @@ export const RULES = {
     'a height in static vh (use dvh, or svh for a minimum that must not jump)',
     /(?<![\w-])\d+(?:\.\d+)?vh\b/g,
     WEB,
+  ],
+  'public-box-shadow': [
+    'a box-shadow in the public theme (forced colours drop it; draw a shape with a border or outline)',
+    /\bbox-shadow\s*:/g,
+    `${WEB}lib/theme/base.css`,
   ],
 };
 
@@ -128,6 +135,11 @@ test('each rule sees its copy, within its scope, and not in comments or tests', 
           'Object.values(value).every((v) => v === "");',
         ].join('\n'),
       },
+      {
+        path: `${WEB}lib/theme/base.css`,
+        text: '.a { box-shadow: inset 0 0 0 2px; transition: box-shadow 0.1s; }\n/* box-shadow: 0 */',
+      },
+      { path: `${WEB}lib/theme/admin.css`, text: '.b { box-shadow: 0 1px 2px; }' },
       { path: `${ROUTES}b/+page.server.ts`, text: "// e instanceof UseCaseError ?? 'en'" },
       { path: `${ROUTES}b/x.test.ts`, text: 'e instanceof UseCaseError' },
       { path: 'packages/core/src/x.ts', text: "e instanceof UseCaseError; x ?? 'en'" },
@@ -140,6 +152,7 @@ test('each rule sees its copy, within its scope, and not in comments or tests', 
       'english-default': { [route]: 1 },
       'uuid-regex': { [route]: 1 },
       'viewport-height': { [`${WEB}lib/x.css`]: 2 },
+      'public-box-shadow': { [`${WEB}lib/theme/base.css`]: 1 },
     }
   );
 });
