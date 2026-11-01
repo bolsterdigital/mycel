@@ -13,7 +13,7 @@
      with the moment it was checked, never in loose text. Rejected: cards per task (the reader
      scans a list, #82) and a confirmation above the page (it left the row it acts on). -->
 <script lang="ts">
-  import AdminScript from '#lib/admin/AdminScript.svelte';
+  import AdminScript from '#lib/admin/trusted/AdminScript.svelte';
   import {
     Actions,
     Button,

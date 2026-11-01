@@ -65,7 +65,7 @@
   "viewport-height": {},
   "public-box-shadow": {},
   "admin-script-tag": {
-    "apps/web/src/lib/admin/AdminScript.svelte": 1
+    "apps/web/src/lib/admin/trusted/AdminScript.svelte": 1
   },
   "admin-route-script-tag": {},
   "admin-raw-html": {},

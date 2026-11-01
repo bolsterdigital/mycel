@@ -12,7 +12,7 @@
      closes with typed changes. Rejected: the public block components, which print `h2` and real
      links. -->
 <script lang="ts">
-  import { renderedHtml } from '../../rendered-html.js';
+  import { renderedHtml } from '../../trusted/rendered-html.js';
   type View =
     | { kind: 'heading'; text: string; from?: string }
     | {

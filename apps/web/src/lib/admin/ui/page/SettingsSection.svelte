@@ -10,7 +10,7 @@
      second save at the top (two buttons for one form, and the top one is out of view as soon as
      the fields begin). -->
 <script lang="ts">
-  import AdminScript from '../../AdminScript.svelte';
+  import AdminScript from '../../trusted/AdminScript.svelte';
   import type { Snippet } from 'svelte';
   import Actions from '../display/Actions.svelte';
   import Button from '../display/Button.svelte';

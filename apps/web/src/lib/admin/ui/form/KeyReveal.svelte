@@ -5,7 +5,7 @@
      readonly <input> (a token that does not fit scrolls out of view inside it at 320 CSS px) and
      a <dialog open> (not modal without a script, and the token belongs to the page that made it). -->
 <script lang="ts">
-  import AdminScript from '../../AdminScript.svelte';
+  import AdminScript from '../../trusted/AdminScript.svelte';
   import type { Snippet } from 'svelte';
   import { ui } from '../../../../i18n/index.js';
 

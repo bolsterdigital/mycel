@@ -7,7 +7,7 @@
      fighting over a subtree. Rejected: a <select> of filenames (editor trial 2026-10-28) and a separate picker
      page, which loses what was typed in the form. -->
 <script lang="ts">
-  import AdminScript from '../../AdminScript.svelte';
+  import AdminScript from '../../trusted/AdminScript.svelte';
   import { ui } from '../../../../i18n/index.js';
   import type { MediaChoice } from '../../media-choice.js';
   import Actions from '../display/Actions.svelte';

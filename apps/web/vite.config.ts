@@ -13,7 +13,7 @@
 //
 // Trusted Types name every policy that may exist. Svelte and ProseMirror bring their own; ours
 // parse into an inert document (lib/editor/inert-html.ts, static/_admin/status-refresh.js) or carry
-// markup this application rendered itself (lib/admin/rendered-html.ts).
+// markup this application rendered itself (lib/admin/trusted/rendered-html.ts).
 // Rejected: a `default` policy, which would make every string sink pass again, and
 // report-only first, which has nobody to report while no site runs on this in production.
 import adapter from '@sveltejs/adapter-node';

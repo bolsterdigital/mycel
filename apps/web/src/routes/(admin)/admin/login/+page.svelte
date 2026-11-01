@@ -8,7 +8,7 @@
      session-restore.js, which marks the editor input that post carried as not arrived, so the
      edit screen can put it back after the login. -->
 <script lang="ts">
-  import AdminScript from '#lib/admin/AdminScript.svelte';
+  import AdminScript from '#lib/admin/trusted/AdminScript.svelte';
   import { Button, SystemState } from '#lib/admin/ui/index.js';
   import { fill, ui } from '../../../../i18n/index.js';
   import type { PageProps } from './$types';

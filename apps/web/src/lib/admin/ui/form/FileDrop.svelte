@@ -4,7 +4,7 @@
      chosen and to accept a drop. With `preview` and JavaScript a chosen image also shows as a thumbnail
      before upload (editor trial 2026-10-28, static/_admin/file-preview.js; the admin itself ships no client bundle). -->
 <script lang="ts">
-  import AdminScript from '../../AdminScript.svelte';
+  import AdminScript from '../../trusted/AdminScript.svelte';
   import { ui } from '../../../../i18n/index.js';
   import Field from './Field.svelte';
 

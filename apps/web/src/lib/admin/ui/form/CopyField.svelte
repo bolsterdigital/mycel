@@ -7,7 +7,7 @@
      out of view inside it) and an <output> (an implicit status role: one live region per record,
      and a second "status" next to the page's notice). -->
 <script lang="ts">
-  import AdminScript from '../../AdminScript.svelte';
+  import AdminScript from '../../trusted/AdminScript.svelte';
   import { ui } from '../../../../i18n/index.js';
 
   let {
