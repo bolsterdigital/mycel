@@ -176,6 +176,32 @@
   .admin-site-name:hover {
     text-decoration: underline;
   }
+  /* The site's name, then what is about you (#114, #118): the profile now, the notifications
+     bell before it later. The name takes the room and wraps; the icons keep their tap size. */
+  .admin-site-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-0);
+  }
+  .admin-site-row .admin-site-name {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .admin-profile {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    color: var(--color-muted-fg);
+    border-radius: var(--radius);
+  }
+  .admin-profile:hover,
+  .admin-profile[aria-current] {
+    color: var(--color-body-fg);
+    background: var(--color-body-bg);
+  }
   /* On a phone the navigation is one bar with ☰ (#66 PR 1), closed until opened. From 60rem the
      list is always shown whatever `open` says and the bar is gone: ::details-content is the slot
      a closed <details> hides. No script either way. */
@@ -295,7 +321,8 @@
     :root[data-admin-nav='rail'] .admin-sidebar {
       padding-inline: var(--space-0);
     }
-    :root[data-admin-nav='rail'] .admin-sidebar-top,
+    /* The profile stays, as one more icon of the rail. */
+    :root[data-admin-nav='rail'] :is(.admin-brand, .admin-site-name, .admin-content-locale),
     :root[data-admin-nav='rail'] .admin-sidebar-bottom > p,
     :root[data-admin-nav='rail'] .ui-navgroup-sub {
       display: none;
@@ -349,13 +376,20 @@
       border-radius: var(--radius-sm);
       box-shadow: var(--shadow-1);
     }
-    /* Menu labels determine the track; site names and account addresses wrap within it. */
-    .admin-sidebar-top,
-    .admin-sidebar-bottom {
+    /* Menu labels, the account lines and the locale switch determine the track (#114: "Back to
+       your sites" broke over three lines and the switch stacked); site names and account
+       addresses wrap within it. */
+    .admin-site-name,
+    .admin-sidebar-bottom > p {
       contain: inline-size;
     }
-    .admin-menu .ui-navgroup a {
+    .admin-menu .ui-navgroup a,
+    .admin-sidebar-bottom > a,
+    .admin-sidebar-bottom button {
       white-space: nowrap;
+    }
+    .admin-content-locale .ui-locale-switch {
+      flex-wrap: nowrap;
     }
     .admin-menu .ui-navgroup > ul > li > a {
       margin-inline: calc(-1 * var(--space-2));
@@ -473,7 +507,8 @@
     min-block-size: 28rem;
     border: 2px solid var(--color-muted);
   }
-  .live-preview[hidden] {
+  .live-preview[hidden],
+  .live-preview iframe[hidden] {
     display: none;
   }
   /* Inline padding follows the public `.button` (base.css): at 320 px and 200% text a fixed

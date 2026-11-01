@@ -22,7 +22,10 @@
      One locale at a time (#66 PR 4): every field shows the content locale only, without a locale
      in its label; the bar's LocaleSwitch saves and shows another locale with where each stands;
      the side column has that locale's status card and the other locales as one line each. A
-     locale the item lacks shows "start the translation" in place of the content. -->
+     locale the item lacks shows "start the translation" in place of the content.
+     After an expired session, the input a save carried comes back through the `recover` action
+     (static/_admin/session-restore.js, brief admin-entry): the same rendering as a refused save,
+     with a notice and Discard. -->
 <script lang="ts">
   import { onMount } from 'svelte';
   import { earlyInput } from '#lib/editor/early-input.js';
@@ -33,12 +36,14 @@
   import { issueLabel } from '#lib/admin/issue-label.js';
   import {
     Actions,
+    Badge,
     BlockCard,
     BlockImage,
     BlockSummary,
     Button,
     Checkbox,
     Choices,
+    DocumentOutline,
     EditPage,
     EmptyState,
     Field,
@@ -64,7 +69,7 @@
     // These modules change disclosure state; start them after hydration has claimed the form.
     for (const src of [
       '/_admin/tabs.js',
-      ...(data.canWrite ? ['/_admin/edit-screen.js'] : []),
+      ...(data.canWrite ? ['/_admin/edit-screen.js', '/_admin/session-restore.js'] : []),
       ...(!data.translating && data.item.type === 'page' && data.canWrite
         ? ['/_admin/live-preview-parent.js']
         : []),
@@ -80,6 +85,12 @@
     data.blocks.some((b) => b.type === 'rich-text' && name.startsWith(`b.${b.id}.`))
   );
   const posted = $derived(form && 'values' in form ? form.values : null);
+  /** Input kept through a login and put back by the `recover` action (session-restore.js). */
+  const recovered = $derived(!!(form && 'recovered' in form && form.recovered));
+  /** Discarding it is opening the item again, in the locale the screen shows. */
+  const discardHref = $derived(
+    `/admin/${data.tenant.slug}/content/${data.item.id}?${new URLSearchParams({ locale: data.workLocale })}`
+  );
   const values: Record<string, string | string[]> = $derived({
     ...(posted ?? data.values),
     ...early,
@@ -106,6 +117,20 @@
   const multi = $derived(data.translations.length > 1);
   const base = $derived(`/admin/${data.tenant.slug}`);
   const article = $derived(data.item.type === 'article');
+  /**
+   * From this many blocks a page gets its compact table of contents (#66 PR 6d): about two
+   * screens of closed cards. An article with JavaScript is one running editor, not cards.
+   */
+  const OUTLINE_FROM = 8;
+  const outline = $derived(
+    !article && data.blocks.length >= OUTLINE_FROM
+      ? data.blocks.map((b) => ({
+          href: `#block-${b.id}`,
+          kind: t(`admin.block.type.${b.type}` as UiKey),
+          text: b.preview.text || b.preview.entries[0] || '',
+        }))
+      : []
+  );
   const defaultLocale = $derived(data.item.defaultLocale);
   const title = $derived(
     (data.values[`title.${work}`] as string | undefined) ||
@@ -569,6 +594,13 @@
         <Button variant="secondary" formaction="?/pattern">{t('admin.content.new.pattern')}</Button>
       {/if}
     {/if}
+    {#if outline.length}
+      <DocumentOutline
+        label={t('admin.content.outline.title')}
+        count={fill(t('admin.content.outline.count'), { count: String(outline.length) })}
+        entries={outline}
+      />
+    {/if}
     {#each data.blocks as b, i (b.id)}
       {#if data.canWrite && !pending}{@render inserter(b)}{/if}
       {#if pending?.place === 'before' && pending.anchor === b.id}{@render pendingCard(
@@ -877,6 +909,8 @@
     method: 'post',
     action: '?/save',
     'data-live-preview-source': '',
+    'data-restore': data.restore ?? undefined,
+    'data-restore-operator': data.operatorId ?? undefined,
   }}
 >
   {#snippet bar()}
@@ -902,11 +936,13 @@
       tone={state?.tone}
       save={data.canWrite
         ? {
-            text: form
-              ? t('admin.content.save.refused')
-              : data.saved
-                ? t('admin.content.save.saved')
-                : '',
+            text: recovered
+              ? t('admin.content.save.unsaved')
+              : form
+                ? t('admin.content.save.refused')
+                : data.saved
+                  ? t('admin.content.save.saved')
+                  : '',
             unsaved: t('admin.content.save.unsaved'),
             saving: t('admin.content.save.saving'),
             refused: !!form,
@@ -953,7 +989,18 @@
   {/snippet}
 
   {#snippet notices()}
-    {#if form && !form.conflict}
+    {#if recovered}
+      <!-- Put back after logging in again (session-restore.js): nothing is saved until Save. -->
+      <Notice tone="warning">
+        <p class="item-undo">
+          <span>{t('admin.content.recovered.body')}</span>
+          <Button variant="secondary" href={discardHref} data-discard
+            >{t('admin.content.recovered.discard')}</Button
+          >
+        </p>
+      </Notice>
+    {/if}
+    {#if form && !form.conflict && !recovered}
       <Notice tone="error" title={t('error.summary.title')}>
         {#if issues.length}
           <p>{t(form.error as UiKey)}</p>
@@ -1030,6 +1077,19 @@
         aria-labelledby="live-preview-title"
       >
         <h2 id="live-preview-title">{t('admin.content.preview.live')}</h2>
+        <!-- What the preview shows, in words (#66 PR 6d): what is typed now, or an older image when
+             the newest input could not be shown. One status region, so the switch is announced. -->
+        <div class="ui-preview-shows" role="status" data-preview-state="current">
+          <p data-preview-shows="current">
+            <Badge tone="info">{t('admin.content.preview.kind.input')}</Badge>
+            {t('admin.content.preview.kind.inputHint')}
+          </p>
+          <div data-preview-shows="behind">
+            <Notice tone="warning" live={false} title={t('admin.content.preview.behind.title')}>
+              <p>{t('admin.content.preview.behind.body')}</p>
+            </Notice>
+          </div>
+        </div>
         <input type="hidden" value={work} data-live-preview-locale />
         <iframe
           name="mycel-live-preview"

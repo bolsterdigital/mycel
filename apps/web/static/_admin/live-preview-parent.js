@@ -10,6 +10,14 @@
 // and there is no dead button. A draft is only posted while the preview is open. Rejected: the
 // preview always open under the content, out of sight below a long page (Payload's live preview
 // is a toggle beside the fields too).
+//
+// Since #66 PR 6d a draft renders into a second, hidden frame, which takes the visible one's place
+// only once it rendered (`data-live-preview-rendered` in the draft page). A draft the server
+// refuses (a field it cannot read yet, an expired session) leaves the last good image in view and
+// says that it is behind (`data-preview-state` on the panel's status line), instead of replacing
+// the page with an error. The scroll position carries over to the frame that takes over. Rejected:
+// fetching the draft and writing it into the frame (the frame's own CSP and nonces would have to
+// be rebuilt) and re-posting the last good draft after a refusal (a flash of the error page).
 const source = document.querySelector('[data-live-preview-source]');
 const panel = document.querySelector('[data-live-preview]');
 const frame = panel?.querySelector('[data-live-preview-frame]');
@@ -25,12 +33,49 @@ if (
   toggle
 ) {
   document.documentElement.dataset.livePreviewReady = '';
+  const status = panel.querySelector('[data-preview-state]');
+  /** The frame in view, and the hidden one the next draft renders into. */
+  let shown = frame;
+  const spare = frame.cloneNode();
+  spare.name = `${frame.name}-next`;
+  spare.removeAttribute('data-live-preview-frame');
+  spare.hidden = true;
+  spare.tabIndex = -1;
+  spare.setAttribute('aria-hidden', 'true');
+  frame.after(spare);
+  let next = spare;
+  const say = (state) => {
+    if (status instanceof HTMLElement && status.dataset.previewState !== state)
+      status.dataset.previewState = state;
+  };
+  const landed = () => {
+    // A load of about:blank (the frame just inserted) is no answer to a draft. Read it through
+    // contentDocument, which is null for a page the editor cannot read (an expired session
+    // redirected to the unframeable login, a network error), so such a landing falls through to
+    // 'behind'; contentWindow.location.href would throw a SecurityError there instead.
+    if (next.contentDocument?.URL === 'about:blank') return;
+    if (!next.contentDocument?.querySelector('[data-live-preview-rendered]')) return say('behind');
+    const y = shown.contentWindow?.scrollY ?? 0;
+    shown.hidden = true;
+    shown.tabIndex = -1;
+    shown.setAttribute('aria-hidden', 'true');
+    shown.removeAttribute('data-live-preview-frame');
+    next.hidden = false;
+    next.removeAttribute('tabindex');
+    next.removeAttribute('aria-hidden');
+    next.setAttribute('data-live-preview-frame', '');
+    [shown, next] = [next, shown];
+    shown.contentWindow?.scrollTo(0, y);
+    say('current');
+  };
+  frame.addEventListener('load', () => frame === next && landed());
+  spare.addEventListener('load', () => spare === next && landed());
   let pending;
   const render = () => {
     const form = document.createElement('form');
     form.method = 'post';
     form.action = panel.dataset.previewAction;
-    form.target = frame.name;
+    form.target = next.name;
     form.hidden = true;
     const add = (name, value) => {
       if (typeof value !== 'string') return;
@@ -75,7 +120,7 @@ if (
   source.addEventListener('change', schedule);
   locale.addEventListener('change', schedule);
   window.addEventListener('message', (event) => {
-    if (event.origin !== window.location.origin || event.source !== frame.contentWindow) return;
+    if (event.origin !== window.location.origin || event.source !== shown.contentWindow) return;
     if (event.data?.type !== 'mycel:block-select') return;
     const id = event.data.blockId;
     if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/.test(id)) return;

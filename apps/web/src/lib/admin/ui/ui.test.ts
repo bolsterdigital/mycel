@@ -24,6 +24,7 @@ import {
   DashboardWidget,
   DetailPage,
   Dialog,
+  DocumentOutline,
   EditPage,
   EmptyState,
   Field,
@@ -259,6 +260,27 @@ describe('BlockSummary', () => {
     const image = html(BlockSummary, { text: 'Over two', thumb: '/t', empty: 'x' });
     expect(image).toContain('<img src="/t" alt=""');
     expect(image).not.toContain('Still empty');
+  });
+});
+
+describe('DocumentOutline', () => {
+  it('is a named, closed fold of numbered links to the cards, text only where there is some', () => {
+    const out = html(DocumentOutline, {
+      label: 'Contents',
+      count: '3 blocks',
+      entries: [
+        { href: '#block-a', kind: 'Heading', text: 'Chapter one' },
+        { href: '#block-b', kind: 'Image', text: '' },
+        { href: '#block-c', kind: 'Text', text: 'The street talks along' },
+      ],
+    });
+    expect(out).toMatch(/^<nav class="ui-outline" aria-label="Contents"><details><summary>/);
+    expect(out).toContain('<span class="ui-outline-count">3 blocks</span>');
+    expect(out.match(/<li>/g)).toHaveLength(3);
+    expect(out).toContain('<ol>');
+    expect(out).toContain('href="#block-b"><span class="ui-outline-kind">Image</span>');
+    expect(out.match(/class="ui-outline-text"/g)).toHaveLength(2);
+    expect(out).not.toContain('<details open');
   });
 });
 

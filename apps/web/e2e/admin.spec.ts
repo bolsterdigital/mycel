@@ -71,11 +71,11 @@ test.describe('admin', () => {
     expect(hours).toBeLessThanOrEqual(12);
 
     const name = `e2e-${test.info().project.name}-${Date.now()}`;
-    // Keys live under Settings, API access (#101): a section in the Settings menu, no longer a
+    // Keys live under API access (#101), one of the screens of Beheer since #114, no longer a
     // sentence on Team (#113).
     await expect(page.locator('main a[href$="section=api"]')).toHaveCount(0);
-    await page.getByRole('link', { name: 'Instellingen' }).click();
-    await page.getByRole('link', { name: 'API-toegang' }).click();
+    await page.getByRole('link', { name: 'Beheer', exact: true }).click();
+    await page.getByRole('main').getByRole('link', { name: 'API-toegang' }).click();
     await expect(page).toHaveURL(/\/admin\/probe\/site\?section=api$/);
     // Creating a key happens in a dialog, opened by a native invoker button (no script), with
     // the role picker without Administrator.
@@ -443,12 +443,18 @@ test.describe('admin-shell', () => {
       .getByRole('link', { name: 'Settings' })
       .click();
     await expect(page).toHaveURL(/\/admin\/probe\/site$/);
-    // The subjects of Settings sit under it in the sidebar (#81-rest), not as tabs on the page.
+    // The subjects of Settings sit under it in the sidebar (#81-rest), not as tabs on the page;
+    // since #114 the look only, API access, assistance and usage are under Manage.
     const sections = page
       .getByRole('navigation', { name: 'Site navigation' })
-      .locator('.ui-navgroup-sub');
-    // Seven since API access joined them (#101).
-    await expect(sections.getByRole('link')).toHaveCount(7);
+      .getByRole('link', { name: 'Settings' })
+      .locator('xpath=following-sibling::ul');
+    await expect(sections.getByRole('link')).toHaveText([
+      'General',
+      'Theme',
+      'Logo and wordmark',
+      'Menus and footer',
+    ]);
     await expect(sections.getByRole('link', { name: 'General' })).toHaveAttribute(
       'aria-current',
       'page'
@@ -498,11 +504,51 @@ test.describe('admin-shell', () => {
     for (const [group, links] of [
       ['Content', ['Pages', 'Articles']],
       ['Library', ['Media']],
-      // AI assistance is a section of Settings (#81 PR 3), not a menu item.
-      // Export is reached from Settings and Status (#116), not the menu.
-      ['Manage', ['Settings', 'Team', 'Domains', 'Connections', 'Status']],
     ] as const)
       await expect(nav.getByRole('list', { name: group }).getByRole('link')).toHaveText([...links]);
+    // #114 (Jaap 2026-10-31): Manage apart from Settings, Team its own line under Manage, the
+    // screens you set once (domains, status, export) only once you are inside Manage.
+    await expect(nav.locator('.ui-navgroup:last-child a')).toHaveText([
+      'Manage',
+      'Team',
+      'Settings',
+    ]);
+    await nav.getByRole('link', { name: 'Manage' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Manage' })).toBeVisible();
+    await expect(nav.getByRole('link', { name: 'Manage' })).toHaveAttribute('aria-current', 'page');
+    await expect(nav.locator('.ui-navgroup:last-child a')).toHaveText([
+      'Manage',
+      'Team',
+      'Domains',
+      'Connections',
+      'API access',
+      'AI assistance',
+      'Usage and limits',
+      'Status',
+      'Log',
+      'Export',
+      'Settings',
+    ]);
+    await expect(page.getByRole('main').getByRole('link')).toHaveText([
+      'Probe',
+      'Team',
+      'Domains',
+      'Connections',
+      'API access',
+      'AI assistance',
+      'Usage and limits',
+      'Status',
+      'Log',
+      'Export',
+    ]);
+    await page.getByRole('main').getByRole('link', { name: 'Domains' }).click();
+    await expect(nav.getByRole('link', { name: 'Domains' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
+    await expect(nav.getByRole('link', { name: 'Manage' })).toHaveAttribute('aria-current', 'true');
+    if (isA11y()) await expectNoAxeViolations(page, { dark: true });
+    await page.goto('/admin/probe');
     await expect(nav.getByRole('link', { name: 'Overview' })).toHaveCount(0);
     await expect(page.locator('.admin-site-name')).toHaveAttribute('href', '/admin/probe');
     if (isA11y()) await expectNoAxeViolations(page, { dark: true });
@@ -524,6 +570,34 @@ test.describe('admin-shell', () => {
       'page'
     );
     await expect(nav.getByRole('link', { name: 'Pages' })).not.toHaveAttribute('aria-current');
+  });
+
+  // #114: a member without an administrator's capabilities sees no Manage and no empty group,
+  // and the Manage page refuses them rather than listing nothing.
+  test('an author sees no Manage, and the Manage page refuses them', async ({ page }) => {
+    const author = 'shell-author@probe.test';
+    await withInvoker(async (invoker) => {
+      try {
+        await invoker.run(useCases.inviteMember, systemPrincipal(await tenantId(), 'e2e'), {
+          email: author,
+          capabilities: capabilitiesFor('author'),
+        });
+      } catch (e) {
+        if (!(e instanceof UseCaseError && e.code === 'conflict')) throw e;
+      }
+    });
+    await login(page, '/admin/probe', author);
+    const nav = page.getByRole('navigation', { name: 'Site navigation' });
+    await expect(nav.getByRole('link', { name: 'Pages' })).toBeVisible();
+    await expect(nav.getByRole('link', { name: 'Manage' })).toHaveCount(0);
+    await expect(nav.getByRole('link', { name: 'Team' })).toHaveCount(0);
+    expect(
+      await nav
+        .locator('.ui-navgroup')
+        .evaluateAll((groups) => groups.filter((g) => !g.querySelector('a')).length)
+    ).toBe(0);
+    const refused = await page.goto('/admin/probe/beheer');
+    expect(refused?.status()).toBe(403);
   });
 
   // #66 PR 4 (Jaap 2026-10-30, zoomed out): the workspace stands at one distance from the
@@ -586,24 +660,61 @@ test.describe('admin-shell', () => {
         await login(page, '/admin/probe/content?type=page', email, { 'accept-language': locale });
         await expect(page.locator('html')).toHaveAttribute('lang', locale);
         await page.setViewportSize({ width: 1280, height: 900 });
-        const metrics = await page.locator('.admin-sidebar').evaluate((sidebar) => {
-          const links = [...sidebar.querySelectorAll('.ui-navgroup > ul > li > a')];
-          const longest = Math.max(
-            ...links.map((link) => {
-              const range = document.createRange();
-              range.selectNodeContents(link.querySelector('span')!);
-              return range.getBoundingClientRect().width;
-            })
-          );
-          const active = sidebar.querySelector('[aria-current]')!.getBoundingClientRect();
-          return {
-            width: sidebar.getBoundingClientRect().width,
-            longest,
-            edge: sidebar.getBoundingClientRect().right - active.right,
-          };
-        });
+        // The menu's lines and the account lines below it set the column (#114: "Back to your
+        // sites" on one line), and every line is one line of text.
+        const measure = () =>
+          page.locator('.admin-sidebar').evaluate((sidebar) => {
+            const links = [
+              ...sidebar.querySelectorAll(
+                '.ui-navgroup a, .admin-sidebar-bottom > a, .admin-sidebar-bottom button'
+              ),
+            ].filter((link) => link.getClientRects().length);
+            // Lines of text per link: the distinct tops of its visible text (icons left out).
+            const lines = links.map((link) => {
+              const walker = document.createTreeWalker(link, NodeFilter.SHOW_TEXT);
+              const tops = new Set<number>();
+              for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                if (!node.textContent!.trim()) continue;
+                const range = document.createRange();
+                range.selectNodeContents(node);
+                for (const rect of range.getClientRects())
+                  if (rect.width) tops.add(Math.round(rect.top));
+              }
+              return tops.size;
+            });
+            const longest = Math.max(
+              ...links.map((link) => {
+                const range = document.createRange();
+                range.selectNodeContents(link.querySelector('span') ?? link);
+                return range.getBoundingClientRect().width;
+              })
+            );
+            const active = sidebar
+              .querySelector('.ui-navgroup [aria-current]')!
+              .getBoundingClientRect();
+            return {
+              width: sidebar.getBoundingClientRect().width,
+              longest,
+              edge: sidebar.getBoundingClientRect().right - active.right,
+              wrapped: lines.filter((n) => n > 1).length,
+              switchRows: new Set(
+                [...sidebar.querySelectorAll('.admin-content-locale button')].map((b) =>
+                  Math.round(b.getBoundingClientRect().top)
+                )
+              ).size,
+            };
+          });
+        const metrics = await measure();
         expect(metrics.width - metrics.longest).toBeLessThan(100);
         expect(metrics.edge).toBeLessThan(2);
+        expect(metrics.wrapped).toBe(0);
+        expect(metrics.switchRows).toBe(1);
+        // Manage open lists its screens; the column keeps its width and every label whole.
+        await page.goto('/admin/probe/beheer');
+        const open = await measure();
+        expect(open.wrapped).toBe(0);
+        expect(Math.abs(open.width - metrics.width)).toBeLessThan(1);
+        await page.goto('/admin/probe/content?type=page');
         await page.setViewportSize(NARROW);
         await setTextSize(page, '200%');
         await page.locator('.admin-menu > summary').click();
@@ -861,7 +972,8 @@ test.describe('status', () => {
     const ids = [await stuckJob(retried), await stuckJob(closed)];
     try {
       await login(page, '/admin/probe');
-      await page.getByRole('link', { name: 'Status', exact: true }).click();
+      await page.getByRole('link', { name: 'Beheer', exact: true }).click();
+      await page.getByRole('main').getByRole('link', { name: 'Status', exact: true }).click();
       await expect(page.getByRole('heading', { level: 1, name: 'Status' })).toBeVisible();
 
       // The verdict first, with its moment and a link to where the task can be recovered.

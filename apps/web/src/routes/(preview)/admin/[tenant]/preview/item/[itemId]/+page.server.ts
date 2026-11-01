@@ -82,6 +82,14 @@ export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) 
       when: when(revision.createdAt, (await adminTimeZone(locals)).zone),
       who: actorLabel(revision.actor),
       latest: revision.id === item.latestRevisionId,
+      // Which version this is (#66 PR 6d): what visitors see in this locale, the saved draft
+      // after it, or an older revision.
+      kind:
+        item.publication.find((p) => p.locale === locale)?.publishedRevisionId === revision.id
+          ? ('live' as const)
+          : revision.id === item.latestRevisionId
+            ? ('draft' as const)
+            : ('older' as const),
     },
     locale,
     edit: `/admin/${tenant.slug}/content/${item.id}`,

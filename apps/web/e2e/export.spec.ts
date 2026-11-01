@@ -42,7 +42,7 @@ test('an administrator asks for an archive and downloads it without JavaScript',
   page,
 }) => {
   test.setTimeout(120_000);
-  // Export is not in the main menu (#116): Settings and Status link to it.
+  // Status links to Export (#116); the route through Manage is in the admin-shell test (#114).
   await login(page, '/admin/probe/status');
   await page.getByRole('link', { name: 'Een export van deze site maken' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Export' })).toBeVisible();

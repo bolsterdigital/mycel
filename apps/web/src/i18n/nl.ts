@@ -91,7 +91,27 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.nav.domains': 'Domeinen',
   'admin.nav.connections': 'Koppelingen',
   'admin.nav.assist': 'AI-hulp',
+  'admin.nav.export': 'Exporteren',
   'admin.nav.status': 'Status',
+  'admin.nav.manage': 'Beheer',
+  'admin.nav.menus': "Menu's en footer",
+  'admin.manage.title': 'Beheer',
+  'admin.manage.lead':
+    'Wie aan deze site werkt, waaraan hij gekoppeld is en of alles loopt. Hoe de site eruitziet staat onder Instellingen.',
+  'admin.manage.hint.members': 'Mensen uitnodigen, aanpassen wat ze mogen of verwijderen.',
+  'admin.manage.hint.domains': 'De adressen koppelen waarop de site te vinden is.',
+  'admin.manage.hint.connections':
+    'De site aan andere diensten koppelen en controleren of dat nog werkt.',
+  'admin.manage.hint.api': 'Sleutels voor software die met de gegevens van deze site werkt.',
+  'admin.manage.hint.assist': 'AI-suggesties in de editor aan- of uitzetten.',
+  'admin.manage.hint.usage': 'Hoeveel van de limieten van de site in gebruik is.',
+  'admin.manage.hint.status': 'Of achtergrondwerk en mail lopen, en wat er vastzit.',
+  'admin.manage.hint.audit': 'Wie wat deed, en wanneer.',
+  'admin.manage.hint.export': 'Alles downloaden als één archief, om te verhuizen of te bewaren.',
+  'admin.manage.hint.general': 'Naam, talen en tijdzone.',
+  'admin.manage.hint.theme': 'Kleuren, letters en ruimte.',
+  'admin.manage.hint.brand': 'Logo, woordmerk en standaardbeeld.',
+  'admin.manage.hint.menus': 'Het publieke menu en de footer.',
   'admin.dashboard.title': 'Dashboard',
   'admin.dashboard.recent': 'Laatst bewerkt',
   'admin.dashboard.scheduled': 'Ingepland',
@@ -238,7 +258,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.error.forbidden': 'Je hebt daar de bevoegdheid niet voor.',
   'admin.domains.title': 'Domeinen',
   'admin.domains.intro':
-    'De site wordt geserveerd op de primaire hostnaam; elke andere hostnaam verwijst daarheen door. Voeg je eigen domein toe, zet de twee DNS-records, controleer ze en maak het domein primair.',
+    'De site wordt geserveerd op de primaire hostnaam, het adres van de site; elke andere hostnaam verwijst daarheen door. Voeg je eigen domein toe, zet de DNS-records, controleer ze en kies het adres.',
   'admin.domains.kind.platform': 'platform-hostnaam',
   'admin.domains.kind.custom': 'eigen domein',
   'admin.domains.primary': 'primair',
@@ -251,7 +271,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.domains.dns.value': 'Waarde',
   'admin.domains.dns.target': 'Wijst naar',
   'admin.domains.dns.apex':
-    'Een domein zonder subdomein (example.org zelf) kan bij de meeste providers geen CNAME krijgen: gebruik dan de A- en AAAA-records uit de documentatie van je hoster. Het TXT-record is altijd nodig.',
+    'Het kale domein kan geen CNAME krijgen: gebruik een ALIAS- of ANAME-record als je provider dat heeft, anders de A- en AAAA-records uit de documentatie van je hoster. Het TXT-record is altijd nodig.',
   'admin.domains.checks.none':
     'Wordt elke dag gecontroleerd; de eerste controle volgt binnen een dag.',
   'admin.domains.checks.ok': 'Laatst gecontroleerd {when}: het TXT-record is gevonden.',
@@ -267,9 +287,26 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.domains.removeConfirm': 'Ja, verwijderen',
   'admin.domains.add.title': 'Domein toevoegen',
   'admin.domains.add.hostname': 'Hostnaam',
-  'admin.domains.add.hint':
-    'Alleen de hostnaam, zonder https:// en zonder pad; met www als je site zo heet.',
-  'admin.domains.add.placeholder': 'www.voorbeeld.nl',
+  'admin.domains.add.hint': 'Alleen de hostnaam, zonder https:// en zonder pad.',
+  'admin.domains.add.placeholder': 'voorbeeld.nl',
+  'admin.domains.kind.main': 'hoofddomein, met www',
+  'admin.domains.pair.redirects': '{from} stuurt door naar {to}, het adres van de site.',
+  'admin.domains.pair.choose':
+    'Beide namen zijn geverifieerd. Kies welke het adres van de site wordt; de andere stuurt daar dan naar door.',
+  'admin.domains.pair.later':
+    'Zet de records voor beide namen. Zodra beide geverifieerd zijn, kies je welke het adres van de site wordt; de andere stuurt daar dan naar door.',
+  'admin.domains.pair.useAs': 'Als adres gebruiken',
+  'admin.domains.pair.removeQuestion':
+    'Beide namen worden verwijderd en de site is daarna niet meer op die namen te bereiken. Je kunt het domein later opnieuw toevoegen.',
+  'admin.domains.checkBoth': 'DNS van beide controleren',
+  'admin.domains.dns.alias': 'ALIAS- of ANAME-record',
+  'admin.domains.add.scope': 'Wat voor domein is het?',
+  'admin.domains.add.scope.main':
+    'Het eigen domein van je organisatie, zoals voorbeeld.nl: voorbeeld.nl en www.voorbeeld.nl worden allebei toegevoegd',
+  'admin.domains.add.scope.sub':
+    'Een los subdomein, zoals campagne.voorbeeld.nl: alleen die naam wordt toegevoegd',
+  'admin.domains.done.addedPair':
+    'Domeinen {hostname} en www.{hostname} toegevoegd. Zet de DNS-records en controleer ze daarna.',
   'admin.domains.add.submit': 'Domein toevoegen',
   'admin.domains.done.added':
     'Domein {hostname} toegevoegd. Zet de DNS-records en controleer ze daarna.',
@@ -765,6 +802,9 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.editor.useLatest': 'Nieuwste versie gebruiken',
   'admin.content.done.saved':
     'Opgeslagen als nieuwe revisie. Wat gepubliceerd is, is niet veranderd.',
+  'admin.content.recovered.body':
+    'Niet-opgeslagen invoer van vóór het opnieuw inloggen is teruggezet. Hij is nog niet opgeslagen.',
+  'admin.content.recovered.discard': 'Weggooien',
   'admin.content.conflict.title': 'Iemand anders heeft dit item intussen opgeslagen',
   'admin.content.conflict.body':
     '{who} sloeg om {when} een nieuwere revisie op. Je wijzigingen staan nog in het formulier hieronder en zijn niet opgeslagen. De tabel toont wat er veranderde sinds je de pagina opende. Controleer dat en sla opnieuw op om je wijzigingen eroverheen te zetten.',
@@ -791,11 +831,24 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.preview.issues': 'Nog niet klaar om in deze taal te publiceren:',
   'admin.content.preview.edit': 'Terug naar bewerken',
   'admin.content.preview.form': 'Het formulier werkt niet in het voorbeeld.',
-  'admin.content.preview.live': 'Live voorbeeld van niet-opgeslagen wijzigingen',
+  'admin.content.preview.live': 'Voorbeeld van je invoer',
   'admin.content.preview.saved': 'Opgeslagen versie in nieuw tabblad',
-  'admin.content.preview.locale': 'Taal van het live voorbeeld',
+  'admin.content.preview.locale': 'Taal van het voorbeeld',
   'admin.content.preview.keyboard':
     'Met het toetsenbord kun je elk blok via de bloklijst hieronder bewerken.',
+  'admin.content.preview.kind.input': 'Actuele invoer',
+  'admin.content.preview.kind.inputHint':
+    'Wat nu in het formulier staat, ook wat nog niet is opgeslagen.',
+  'admin.content.preview.kind.draft': 'Concept',
+  'admin.content.preview.kind.live': 'Live',
+  'admin.content.preview.kind.older': 'Eerdere revisie',
+  'admin.content.preview.liveRevision':
+    'De versie die bezoekers nu zien ({when}, door {who}) in {locale}.',
+  'admin.content.preview.behind.title': 'Dit voorbeeld loopt achter',
+  'admin.content.preview.behind.body':
+    'Je laatste invoer kon nog niet als voorbeeld worden getoond, bijvoorbeeld omdat een veld nog niet klopt. Je ziet de laatste versie die wel kon; Opslaan laat zien wat er mis is.',
+  'admin.content.outline.title': 'Inhoudsopgave',
+  'admin.content.outline.count': '{count} blokken',
   'admin.content.error.invalid':
     'Dit kon niet worden opgeslagen. Controleer de velden en probeer het opnieuw.',
   'admin.content.error.slugTaken': 'Er is al een item van deze soort met deze slug.',
@@ -1233,6 +1286,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.ui.catalogue.subnav.general': 'Algemeen',
   'admin.ui.catalogue.subnav.theme': 'Thema',
   'admin.ui.catalogue.subnav.domains': 'Domeinen',
+  'admin.ui.catalogue.outline': 'Inhoudsopgave van een document',
   'admin.ui.catalogue.confirm': 'Bevestigen in de rij, eenmalig tonen en kopiëren',
   'admin.ui.catalogue.dialog': 'Dialoogvenster',
   'admin.ui.catalogue.dialog.open': 'Op ware grootte bekijken',

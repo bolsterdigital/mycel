@@ -366,6 +366,12 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     authors,
     sections,
     saved: url.searchParams.has('saved'),
+    /**
+     * Where static/_admin/session-restore.js keeps unsaved input through a login: this site,
+     * this operator, this item, this locale. The operator is the signed-in one, never input.
+     */
+    restore: canWrite ? `${tenant.slug}:${locals.session!.operatorId}:${item.id}:${work}` : null,
+    operatorId: canWrite ? locals.session!.operatorId : null,
   };
 };
 
@@ -613,6 +619,8 @@ async function commit(
   let blocks: readonly { id: string }[] = [];
   let pending: PendingBlock | null = null;
   let revisionId = baseRevisionId;
+  // The address this save moved the item to, once that transaction stood (`moveSlug`).
+  let movedTo: string | null = null;
   try {
     const { item, revision } = await rt.invoker.run(useCases.getItem, principal, {
       itemId,
@@ -669,6 +677,7 @@ async function commit(
       return {
         failure: await refused(tenant, principal, itemId, values, null, moved),
       };
+    movedTo = slugChange(item, data);
     const untouched = formDocument(base, valuesOf(base), unposted, today, editing).document;
     if (opts.always || !isDeepStrictEqual(document, untouched))
       revisionId = (
@@ -692,8 +701,14 @@ async function commit(
     // A document field (canonical, tags, access, locales) is named too: it may sit on a tab
     // that is not shown, and the summary's link is the way to it.
     const onFields = e.code === 'invalid_input' ? documentFieldIssues(e) : [];
-    // A refused insert comes after a save that stood: the form now edits that revision.
-    const saved = { ...values, baseRevisionId: revisionId };
+    // A refused insert comes after a save that stood: the form now edits that revision. A moved
+    // address stood too (its own transaction), so the form is based on it, as `conflictValues`
+    // does; on the old one, moving the address back would read as untouched (#208 review, F2).
+    const saved = {
+      ...values,
+      baseRevisionId: revisionId,
+      ...(movedTo && 'baseSlug' in values ? { baseSlug: movedTo } : {}),
+    };
     if (e.code !== 'conflict')
       return {
         failure: await refused(tenant, principal, itemId, saved, pending, {
@@ -909,6 +924,49 @@ export const actions: Actions = {
         open.length ? `block-${open[0]}` : ''
       )
     );
+  },
+  /**
+   * Input kept through an expired session (static/_admin/session-restore.js) comes back as after a
+   * refused save: nothing is stored, the screen shows what was typed and says it was put back,
+   * and saving stays a deliberate click. Based on an older revision, or on an address the item
+   * no longer has, it is a conflict exactly like a save would get. Only for `content:write`.
+   */
+  recover: async (event) => {
+    const { tenant, principal } = await requireTenantPrincipal(
+      event.locals,
+      event.url,
+      event.params.tenant!
+    );
+    if (!can(principal, 'content:write'))
+      error(403, adminUi(event.locals)('admin.error.forbidden'));
+    const itemId = event.params.itemId!;
+    const { item } = await latest(principal, itemId);
+    const data = await event.request.formData();
+    const values = valuesFromForm(data);
+    const baseRevisionId = text(data, 'baseRevisionId');
+    // Not a revision id: nothing to compare it with, so the item opens as it is.
+    if (!UUID.test(baseRevisionId)) redirect(303, itemPath(tenant.slug, itemId, null));
+    const baseSlug = data.has('baseSlug') ? text(data, 'baseSlug') : undefined;
+    const stale =
+      item.latestRevisionId !== baseRevisionId ||
+      (baseSlug !== undefined && baseSlug !== item.slug);
+    const recovered = { error: 'admin.content.recovered.body' as UiKey, recovered: true };
+    if (!stale) return (await refused(tenant, principal, itemId, values, null, recovered)).data;
+    const { zone } = await adminTimeZone(event.locals);
+    const conflict = await conflictOf(principal, itemId, baseRevisionId, zone, baseSlug);
+    return (
+      await refused(
+        tenant,
+        principal,
+        itemId,
+        conflictValues(values, conflict.newest, conflict.slug),
+        null,
+        {
+          ...recovered,
+          conflict: { who: conflict.who, when: conflict.when, changes: conflict.changes },
+        }
+      )
+    ).data;
   },
   /** "Do not add": saves the rest of the form without the pending block. */
   discard: async (event) => {

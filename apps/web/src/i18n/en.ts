@@ -92,7 +92,27 @@ export const en = {
   'admin.nav.domains': 'Domains',
   'admin.nav.connections': 'Connections',
   'admin.nav.assist': 'AI assistance',
+  'admin.nav.export': 'Export',
   'admin.nav.status': 'Status',
+  'admin.nav.manage': 'Manage',
+  'admin.nav.menus': 'Menus and footer',
+  'admin.manage.title': 'Manage',
+  'admin.manage.lead':
+    'Who works on this site, what it is connected to and whether it runs. How the site looks is under Settings.',
+  'admin.manage.hint.members': 'Invite people, change what they may do, or remove them.',
+  'admin.manage.hint.domains': 'Connect the addresses the site is reached at.',
+  'admin.manage.hint.connections':
+    'Link the site to other services and check that the links still work.',
+  'admin.manage.hint.api': "Keys for software that works with this site's data.",
+  'admin.manage.hint.assist': 'Switch AI suggestions in the editor on or off.',
+  'admin.manage.hint.usage': "How much of the site's limits is in use.",
+  'admin.manage.hint.status': 'Whether background work and mail run, and what is stuck.',
+  'admin.manage.hint.audit': 'Who did what, and when.',
+  'admin.manage.hint.export': 'Download everything as one archive, to move or keep.',
+  'admin.manage.hint.general': 'Name, languages and time zone.',
+  'admin.manage.hint.theme': 'Colours, type and spacing.',
+  'admin.manage.hint.brand': 'Logo, wordmark and default image.',
+  'admin.manage.hint.menus': 'The public menu and footer.',
   'admin.dashboard.title': 'Dashboard',
   'admin.dashboard.recent': 'Recently edited',
   'admin.dashboard.scheduled': 'Scheduled',
@@ -239,7 +259,7 @@ export const en = {
   'admin.error.forbidden': 'You do not have the capability for this.',
   'admin.domains.title': 'Domains',
   'admin.domains.intro':
-    'The site is served on its primary hostname; every other hostname redirects there. Add your own domain, set its two DNS records, check them, and make it primary.',
+    'The site is served on its primary hostname, its address; every other hostname redirects there. Add your own domain, set its DNS records, check them, and choose the address.',
   'admin.domains.kind.platform': 'platform hostname',
   'admin.domains.kind.custom': 'custom domain',
   'admin.domains.primary': 'primary',
@@ -252,7 +272,7 @@ export const en = {
   'admin.domains.dns.value': 'Value',
   'admin.domains.dns.target': 'Points to',
   'admin.domains.dns.apex':
-    'A domain without a subdomain (example.org itself) cannot take a CNAME at most providers: use the A and AAAA records from your hosting documentation instead. The TXT record is always needed.',
+    'The bare domain cannot take a CNAME: use an ALIAS or ANAME record if your provider has one, otherwise the A and AAAA records from your hosting documentation. The TXT record is always needed.',
   'admin.domains.checks.none': 'Checked every day; the first check is within a day.',
   'admin.domains.checks.ok': 'Last checked {when}: the TXT record was found.',
   'admin.domains.checks.failing':
@@ -267,9 +287,26 @@ export const en = {
   'admin.domains.removeConfirm': 'Yes, remove',
   'admin.domains.add.title': 'Add a domain',
   'admin.domains.add.hostname': 'Hostname',
-  'admin.domains.add.hint':
-    'Only the hostname, without https:// or a path; with www if that is what your site is called.',
-  'admin.domains.add.placeholder': 'www.example.org',
+  'admin.domains.add.hint': 'Only the hostname, without https:// or a path.',
+  'admin.domains.add.placeholder': 'example.org',
+  'admin.domains.kind.main': 'main domain, with www',
+  'admin.domains.pair.redirects': '{from} redirects to {to}, the address of the site.',
+  'admin.domains.pair.choose':
+    'Both names are verified. Choose which one is the address of the site; the other then redirects to it.',
+  'admin.domains.pair.later':
+    'Set the records for both names. Once both are verified, you choose which one is the address of the site; the other then redirects to it.',
+  'admin.domains.pair.useAs': 'Use as the address',
+  'admin.domains.pair.removeQuestion':
+    'Both names are removed, and the site can no longer be reached on them. You can add the domain again later.',
+  'admin.domains.checkBoth': 'Check DNS for both',
+  'admin.domains.dns.alias': 'ALIAS or ANAME record',
+  'admin.domains.add.scope': 'What kind of domain is it?',
+  'admin.domains.add.scope.main':
+    "Your organisation's own domain, such as example.org: example.org and www.example.org are both added",
+  'admin.domains.add.scope.sub':
+    'A separate subdomain, such as campaign.example.org: only that name is added',
+  'admin.domains.done.addedPair':
+    'Domains {hostname} and www.{hostname} added. Set their DNS records, then check them.',
   'admin.domains.add.submit': 'Add domain',
   'admin.domains.done.added': 'Domain {hostname} added. Set its DNS records, then check them.',
   'admin.domains.done.verified': 'Domain {hostname} is verified.',
@@ -758,6 +795,9 @@ export const en = {
   'admin.editor.keepMine': 'Keep my text',
   'admin.editor.useLatest': 'Use newest version',
   'admin.content.done.saved': 'Saved as a new revision. What is published has not changed.',
+  'admin.content.recovered.body':
+    'Unsaved input from before you logged in again has been put back. It is not saved yet.',
+  'admin.content.recovered.discard': 'Discard',
   'admin.content.conflict.title': 'Someone else saved this item in the meantime',
   'admin.content.conflict.body':
     '{who} saved a newer revision at {when}. Your changes are still in the form below and have not been saved. The table shows what changed since you opened the page. Check it, then save again to put your changes on top.',
@@ -784,11 +824,24 @@ export const en = {
   'admin.content.preview.issues': 'Not ready to publish in this language yet:',
   'admin.content.preview.edit': 'Back to editing',
   'admin.content.preview.form': 'The form does not work in the preview.',
-  'admin.content.preview.live': 'Live preview of unsaved changes',
+  'admin.content.preview.live': 'Preview of your input',
   'admin.content.preview.saved': 'Saved version in a new tab',
-  'admin.content.preview.locale': 'Live preview language',
+  'admin.content.preview.locale': 'Preview language',
   'admin.content.preview.keyboard':
     'Use the block list below to edit every block with the keyboard.',
+  'admin.content.preview.kind.input': 'Current input',
+  'admin.content.preview.kind.inputHint':
+    'What the form holds now, including what is not saved yet.',
+  'admin.content.preview.kind.draft': 'Draft',
+  'admin.content.preview.kind.live': 'Live',
+  'admin.content.preview.kind.older': 'Earlier revision',
+  'admin.content.preview.liveRevision':
+    'The version visitors see now ({when}, by {who}) in {locale}.',
+  'admin.content.preview.behind.title': 'This preview is behind',
+  'admin.content.preview.behind.body':
+    'Your latest input could not be shown yet, for instance because a field is not right. You see the last version that could; Save shows what is wrong.',
+  'admin.content.outline.title': 'Contents',
+  'admin.content.outline.count': '{count} blocks',
   'admin.content.error.invalid': 'This could not be saved. Check the fields and try again.',
   'admin.content.error.slugTaken': 'There is already an item of this type with this slug.',
   'admin.content.error.slugReserved': 'The site uses this slug itself. Choose another.',
@@ -1221,6 +1274,7 @@ export const en = {
   'admin.ui.catalogue.subnav.general': 'General',
   'admin.ui.catalogue.subnav.theme': 'Theme',
   'admin.ui.catalogue.subnav.domains': 'Domains',
+  'admin.ui.catalogue.outline': 'Document outline',
   'admin.ui.catalogue.confirm': 'Confirm in the row, show once and copy',
   'admin.ui.catalogue.dialog': 'Dialog',
   'admin.ui.catalogue.dialog.open': 'View full size',

@@ -722,6 +722,63 @@
     border-block-end-color: var(--color-primary-bg);
   }
 
+  /* DocumentOutline: one line per block of a long document. The kind keeps its word; the text
+     after it ends in an ellipsis rather than wrapping (the link's name still carries all of it),
+     and goes to a line of its own when the kind leaves too little room (320px at 200% text). */
+  /* Its width is the column's, never its longest line's: an unwrapped text would otherwise widen
+     the column it sits in (the page scrolled sideways at 320px). */
+  .ui-outline {
+    contain: inline-size;
+    margin-block-end: var(--space-2);
+  }
+  .ui-outline summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 var(--space-1);
+    min-height: var(--tap);
+    font-weight: 600;
+    list-style: none;
+    cursor: pointer;
+  }
+  .ui-outline summary::-webkit-details-marker {
+    display: none;
+  }
+  .ui-outline [open] > summary svg {
+    transform: rotate(180deg);
+  }
+  .ui-outline-count {
+    font-weight: 400;
+    color: var(--color-muted-fg);
+  }
+  .ui-outline ol {
+    margin: 0;
+    padding-inline-start: 2.25em;
+    color: var(--color-muted-fg);
+  }
+  .ui-outline a {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 var(--space-1);
+    min-block-size: 1.75rem;
+    padding-block: 0.125rem;
+    color: var(--color-link);
+  }
+  .ui-outline-kind {
+    flex: none;
+    max-inline-size: 100%;
+    overflow-wrap: anywhere;
+  }
+  .ui-outline-text {
+    flex: 1 1 8rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-body-fg);
+  }
+
   /* A flex column whose body scrolls and shrinks: the head keeps its real height at any text
      size and a long name, so nothing reserves a guessed height for it (TODO #61). */
   .ui-dialog[open] {
@@ -1231,11 +1288,13 @@
       grid-template-columns: minmax(0, var(--read-width)) minmax(0, 1fr);
       grid-template-areas: 'main preview';
     }
-    /* Beside the text it previews, it stays in view while the column scrolls. */
+    /* Beside the text it previews, it stays in view while the column scrolls: below the item
+       bar while that stays in view too (`--item-bar-block-size`, 0 where the bar scrolls along),
+       never under it. */
     .ui-edit[data-preview-open] > .ui-edit-preview {
       position: sticky;
-      inset-block-start: var(--space-2);
-      max-block-size: calc(100vh - 2 * var(--space-2));
+      inset-block-start: calc(var(--item-bar-block-size, 0px) + var(--space-2));
+      max-block-size: calc(100vh - var(--item-bar-block-size, 0px) - 2 * var(--space-2));
       overflow: auto;
     }
     .ui-edit[data-preview-open] > .ui-edit-preview iframe {
@@ -1253,6 +1312,18 @@
   }
   :root[data-live-preview-ready] .ui-preview-toggle {
     display: inline-flex;
+  }
+  /* The preview's status line shows one of its two states (live-preview-parent.js). Without the
+     script there is no preview panel at all. */
+  .ui-preview-shows > [data-preview-shows] {
+    display: none;
+  }
+  .ui-preview-shows[data-preview-state='current'] > [data-preview-shows='current'],
+  .ui-preview-shows[data-preview-state='behind'] > [data-preview-shows='behind'] {
+    display: block;
+  }
+  .ui-preview-shows p {
+    margin-block: 0 var(--space-1);
   }
   .ui-preview-toggle > span {
     display: inline-flex;
@@ -1853,18 +1924,23 @@
   }
   /* With room for both, the bar stays in view while a long document scrolls (#66 PR 6c): Save
      and the save state are always one glance away. On a narrow or short screen, or at 200% text,
-     it wraps tall and would cover the text, so it scrolls with the page there. */
+     it wraps tall and would cover the text, so it scrolls with the page there.
+     `--item-bar-block-size` is the one measure of what the bar covers while it stays: a fragment
+     lands below it and the open preview starts below it. Here it is the bar on one line (a tap
+     target plus its padding and border); the screen's script (edit-screen.js) sets the measured
+     height when a long title wraps it. Rejected: a fixed offset per use, which drifted (the
+     preview went 73px under the bar in the #208 review). */
   @media (min-width: 48rem) and (min-height: 36rem) {
+    :root:has(.ui-item-bar) {
+      --item-bar-block-size: calc(var(--tap) + 2 * var(--space-1) + var(--border-width));
+      scroll-padding-block-start: calc(var(--item-bar-block-size) + var(--space-2));
+    }
     .ui-item-bar {
       position: sticky;
       inset-block-start: 0;
       z-index: 4;
       padding-block-start: var(--space-1);
       background: var(--color-bg);
-    }
-    /* A fragment (an issue link, a block after a save) lands below the bar, not under it. */
-    :root:has(.ui-item-bar) {
-      scroll-padding-block-start: 6rem;
     }
   }
   .ui-item-bar-where {
@@ -1892,10 +1968,12 @@
     min-height: var(--tap);
   }
   /* The host is a size container without an intrinsic width: it takes the rest of the line, and a
-     line of its own once less than 16rem is left. */
+     line of its own once less than 16rem is left. The bar's own padding and gap space it, so the
+     margin an action row has elsewhere would only make the bar that stays in view taller. */
   .ui-item-bar > .ui-actions-host {
     flex: 1 1 auto;
     min-width: min(100%, 16rem);
+    margin-block: 0;
   }
 
   /* StatusCard: one locale's state and actions in the side column. A size container, so a wide

@@ -7,8 +7,8 @@
      there is a use case to change it; its time zone, #88, with its own save), the look, AI assistance (moved from its own route) and
      usage, each subject shown only to a member who may open it. With JavaScript, a changed form
      says it is not saved yet and leaving asks first (static/_admin/unsaved.js).
-     The subjects are the page's `subnav` (#81-rest): the shell shows them under "Settings" in the
-     sidebar, so this screen draws no sub-navigation of its own. The brand subject also picks the
+     The subjects sit in the sidebar (#81-rest, #114: src/lib/admin/nav.ts), so this screen draws
+     no sub-navigation of its own and only names its subject. The brand subject also picks the
      default image items inherit (#81-rest), and the theme whether articles open with a drop cap.
      API access (#101) is the site's API keys, moved from Members (lib/admin/ApiAccess.svelte). -->
 <script lang="ts">
@@ -52,7 +52,7 @@
     measure: 'admin.site.unit.characters',
     radius: 'admin.site.unit.px',
   };
-  const subject = $derived(data.subnav.find((s) => s.current)?.label ?? '');
+  const subject = $derived(data.subject);
   const language = $derived(new Intl.DisplayNames([data.locale], { type: 'language' }));
   const named = (locale: string) => `${language.of(locale) ?? locale} (${locale})`;
   const action = (name: string) => `?section=${data.section}&/${name}`;

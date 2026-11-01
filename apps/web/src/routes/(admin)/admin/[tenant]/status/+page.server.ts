@@ -8,16 +8,14 @@
 // and a "send to support" button (it would send a text the administrator never read).
 import { useCases } from '@mycel/core';
 import { act, loaded, text } from '#lib/server/admin/admin-actions.js';
-import { statusSubnav } from '#lib/server/admin/status-nav.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { UiKey } from '../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ parent, locals }) => {
-  const { tenant, locale } = await parent();
+  await parent();
   const principal = locals.principal!;
   return {
-    subnav: statusSubnav(locale, `/admin/${tenant.slug}`, 'overview'),
     status: await loaded(runtime().invoker.run(useCases.getOpsStatus, principal, {})),
   };
 };
