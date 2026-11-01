@@ -19,6 +19,7 @@ import {
   layoutGate,
   setTextSize,
   setTextSpacing,
+  tabStops,
 } from './lib/layout';
 import { login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
@@ -189,6 +190,22 @@ test.describe('quality corpus reflow and text spacing', () => {
       document.body.append(bar);
     });
     expect((await focusObscuredProblems(page)).length).toBeGreaterThan(0);
+  });
+  // Both gates above trust the Tab walk to reach the end of the page. Two identical controls
+  // (the same call to action twice) once ended it at the second; a control after them must
+  // still be measured.
+  test('the tab walk reaches the last control past identical ones', async ({ page }) => {
+    onlyA11y('requires DOM measurements');
+    const [entry] = entries;
+    await page.goto(Object.values(entry!.locales)[0]!.path);
+    await page.evaluate(() => {
+      const twin = '<p><a href="#twin">Twin</a></p>';
+      document.body.insertAdjacentHTML('afterbegin', twin + twin);
+      document.body.insertAdjacentHTML('beforeend', '<p><button>Last control</button></p>');
+    });
+    const names = (await tabStops(page)).map((stop) => stop.name);
+    expect(names.filter((name) => name === 'Twin')).toHaveLength(2);
+    expect(names.at(-1)).toBe('Last control');
   });
 });
 

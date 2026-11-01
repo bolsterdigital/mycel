@@ -221,19 +221,26 @@ export interface TabStop {
 }
 
 /** Walk the tab order from the top of the page and measure each stop inside `within`. The walk
- *  ends when focus returns to the body or to a stop it saw before; a cap keeps a page with a
- *  focus trap from looping. Stops outside `within` move the walk on but are not returned. */
+ *  ends when focus returns to the body or to an element it focused before; a cap keeps a page
+ *  with a focus trap from looping. Stops outside `within` move the walk on but are not returned.
+ *  Repeats are recognised by element identity, kept in the page between Tabs. Rejected: a key
+ *  built from the markup, which two identical controls share (a page with the same call to
+ *  action twice ended the walk at the second one and left the rest of the page unmeasured). */
 export async function tabStops(page: Page, within = 'body'): Promise<TabStop[]> {
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-  const seen = new Set<string>();
+  await page.evaluate(() => {
+    (document.activeElement as HTMLElement | null)?.blur();
+    (window as unknown as { tabStopsSeen: WeakSet<Element> }).tabStopsSeen = new WeakSet();
+  });
   const stops: TabStop[] = [];
   for (let i = 0; i < 80; i++) {
     await page.keyboard.press('Tab');
     const stop = await page.evaluate((scope) => {
       const el = document.activeElement;
       if (!el || el === document.body) return null;
-      const path = [...el.parentElement!.children].indexOf(el) + ':' + el.outerHTML.slice(0, 120);
-      if (!el.closest(scope)) return { path, outside: true as const };
+      const seen = (window as unknown as { tabStopsSeen: WeakSet<Element> }).tabStopsSeen;
+      if (seen.has(el)) return null;
+      seen.add(el);
+      if (!el.closest(scope)) return { outside: true as const };
       const style = getComputedStyle(el);
       const ring = style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0;
       const name =
@@ -265,10 +272,9 @@ export async function tabStops(page: Page, within = 'body'): Promise<TabStop[]> 
         const top = document.elementFromPoint(x, y);
         return !!top && top !== el && !el.contains(top) && pinned(top);
       });
-      return { path, outside: false as const, ring, name, hidden };
+      return { outside: false as const, ring, name, hidden };
     }, within);
-    if (!stop || seen.has(stop.path)) break;
-    seen.add(stop.path);
+    if (!stop) break;
     if (!stop.outside) stops.push({ name: stop.name, ring: stop.ring, hidden: stop.hidden });
   }
   return stops;
