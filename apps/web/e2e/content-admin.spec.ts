@@ -2559,13 +2559,14 @@ test.describe('content-blocks', () => {
     await expect(middle.locator('[data-block-rest]')).toHaveText('Gewijzigd halverwege');
     await inView(middle);
 
-    // Another picture, opened and closed. Its rest keeps the saved caption until the save.
+    // Another picture, opened and closed: its rest shows the caption the save will keep.
     const last = card(page, 14);
     await last.locator('details.block > summary').click();
     await last
       .locator('input[name$=".p.caption.nl"], textarea[name$=".p.caption.nl"]')
       .fill('Onderaan gewijzigd');
     await page.keyboard.press('Escape');
+    await expect(last.locator('[data-block-rest] figcaption')).toContainText('Onderaan gewijzigd');
     await inView(last);
 
     // A move saves what was typed and lands at the block.
@@ -2679,6 +2680,61 @@ test.describe('content-blocks', () => {
     await expect(page.locator('.ui-block-card-title').nth(2)).toHaveText('3. Betaalmuur');
     await alert.getByRole('link', { name: 'Wat alle anderen zien' }).click();
     await expect(page.locator('#teaser')).toBeFocused();
+  });
+
+  test("a picture's caption at rest follows its mode, as the save will read it", async ({
+    page,
+    request,
+  }) => {
+    if (!isA11y()) return;
+    requireApi();
+    const { edit, itemId, mediaId } = await pictureAtBothEnds(page, request, 'c-caption');
+    const { caption: before } = await callApi<{ caption: Record<string, string> }>(
+      request,
+      'media.get',
+      { id: mediaId }
+    );
+    await callApi(request, 'media.update', { id: mediaId, caption: { nl: 'Van het bestand' } });
+    try {
+      await page.goto(edit);
+      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+      const pic = card(page, 1);
+      const caption = pic.locator('[data-block-rest] figcaption');
+      const set = async (mode: 'inherit' | 'hide' | 'own', words?: string) => {
+        await pic.locator('details.block > summary').click();
+        await pic.locator('select[name$=".p.caption.nl.mode"]').selectOption(mode);
+        if (words !== undefined)
+          await pic.locator('[name$=".p.caption.nl"]:not(select)').fill(words);
+        await page.keyboard.press('Escape');
+      };
+      await expect(caption).toContainText('Bovenaan');
+
+      await set('own', 'Eigen woorden');
+      await expect(caption).toContainText('Eigen woorden');
+      await set('inherit');
+      await expect(caption).toContainText('Van het bestand');
+      await set('hide');
+      await expect(pic.locator('[data-rest-caption]')).toBeHidden();
+      // Own, with no words: a save stores it empty, which hides the file's.
+      await set('own', '');
+      await expect(pic.locator('[data-rest-caption]')).toBeHidden();
+
+      // What the rest said is what comes back.
+      await set('inherit');
+      await expect(caption).toContainText('Van het bestand');
+      await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+      await expect(page).toHaveURL(/\?saved/);
+      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+      await expect(card(page, 1).locator('[data-block-rest] figcaption')).toContainText(
+        'Van het bestand'
+      );
+      const { revision } = await callApi<{
+        revision: { document: { blocks: { props: { caption?: unknown } }[] } };
+      }>(request, 'content.item.get', { itemId });
+      expect(revision.document.blocks[0]?.props.caption).toBeUndefined();
+    } finally {
+      await callApi(request, 'media.update', { id: mediaId, caption: before });
+    }
   });
 
   test('a picture that does not load says so, and its reference stays', async ({

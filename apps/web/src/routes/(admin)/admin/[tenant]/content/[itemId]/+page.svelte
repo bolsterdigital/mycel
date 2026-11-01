@@ -446,6 +446,7 @@
       width={img.card?.width ?? 4}
       height={img.card?.height ?? 3}
       caption={img.caption}
+      captionSource={img.captionSource}
       credit={img.credit ? creditLine(img.credit) : null}
       missing={fill(t('admin.block.image.missing'), { file: img.label })}
       replace={{ href: `#b-${b.id}-p-${field}`, label: t('admin.block.image.replace') }}
