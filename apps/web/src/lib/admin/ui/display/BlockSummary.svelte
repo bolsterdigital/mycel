@@ -1,7 +1,7 @@
-<!-- A block at rest in words (#66 PR 3; the interim rest view of MY-110 C): its thumbnail
-     beside its caption or first text, and the entries of a list one per line (the questions of an
-     FAQ), so a list of closed blocks still reads as the page. What each type shows once its own
-     rest view is built is in `lib/admin/block-presentation.ts`. -->
+<!-- A block at rest in words (#66 PR 3): its thumbnail beside its caption or first text, and the
+     entries of a list one per line. Since MY-110 C every type has its own rest view
+     (`lib/admin/block-presentation.ts`); this remains what a block without words says, "Still
+     empty", until something is typed. -->
 <script lang="ts">
   let {
     text,

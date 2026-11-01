@@ -1,7 +1,7 @@
 // The block summaries and the mapping of core's refusals onto block form fields (TODO #11 B).
 import { describe, expect, it } from 'vitest';
 import { BLOCK_DEFINITIONS, Block, FormDefinition, UseCaseError } from '@mycel/core';
-import { fieldIssues, previewOf, summaryOf, textRestOf } from './content-blocks.js';
+import { fieldIssues, imageRestOf, previewOf, summaryOf, textRestOf } from './content-blocks.js';
 
 const example = (type: keyof typeof BLOCK_DEFINITIONS, n = 0) =>
   Block.parse({
@@ -181,8 +181,26 @@ describe('textRestOf', () => {
     expect(legacy).not.toHaveProperty('variantFrom');
   });
 
-  it('has no view for a type that still shows the summary', () => {
-    expect(textRestOf(example('paywall'), 'nl', 'b.b.')).toBe(null);
+  it('marks a paywall, and sets a legacy hero in the words of a CTA', () => {
+    expect(textRestOf(example('paywall'), 'nl', 'b.b.')).toEqual({ kind: 'paywall' });
+    const hero = textRestOf(example('hero', 1), 'en', 'b.b.');
+    expect(hero).toMatchObject({
+      kind: 'cta',
+      variant: 'cover',
+      variantFrom: 'b.b.p.variant',
+      title: 'Clean air for everyone',
+      titleFrom: 'b.b.p.title.en',
+      bodyFrom: 'b.b.p.body.en',
+    });
+    expect(hero).toHaveProperty('actions.0.from', 'b.b.p.actions.0.label.en');
+  });
+
+  it('gives a hero its picture without caption or credit, and none when it has no image', () => {
+    expect(imageRestOf(example('hero'), 'nl', [])).toBe(null);
+    const rest = imageRestOf(example('hero', 1), 'nl', []);
+    expect(rest).toMatchObject({ card: null, caption: null, credit: null });
+    expect(rest?.mediaId).toEqual(expect.any(String));
+    expect(imageRestOf(example('heading'), 'nl', [])).toBe(null);
   });
 });
 

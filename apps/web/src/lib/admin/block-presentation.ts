@@ -11,10 +11,8 @@ import type { BlockType } from '@mycel/core';
 export type RestView =
   /** The picture itself at card scale, with the caption and credit the page shows. */
   | 'image'
-  /** The words as the page sets them (`BlockText`): a heading, a text, a quote, a callout, an FAQ, a CTA, a video's title, a form's shape. */
-  | 'text'
-  /** The first text and the entries of a list, beside a thumbnail: the interim view of PR 3. */
-  | 'summary';
+  /** The words as the page sets them (`BlockText`): a heading, a text, a quote, a callout, an FAQ, a CTA, a video's title, a form's shape, a paywall's boundary, a legacy hero's words under its picture. */
+  | 'text';
 
 export interface BlockPresentation {
   rest: RestView;
@@ -24,14 +22,11 @@ export interface BlockPresentation {
   source: readonly string[];
   /**
    * The MY-110 step that designed this entry: `A` is the image pilot, `C1` and `C2` the text
-   * blocks, `C3` the video and the forms; `C4` still shows the interim summary until it is built (brief
+   * blocks, `C3` the video and the forms, `C4` the paywall and the legacy hero (brief
    * block-editor-interactions § C).
    */
   stage: 'A' | 'C1' | 'C2' | 'C3' | 'C4';
 }
-
-const summary = (stage: BlockPresentation['stage'], display: readonly string[] = []) =>
-  ({ rest: 'summary', display, source: [], stage }) as const satisfies BlockPresentation;
 
 export const BLOCK_PRESENTATION: { readonly [T in BlockType]: BlockPresentation } = {
   image: { rest: 'image', display: ['layout'], source: ['credit'], stage: 'A' },
@@ -44,8 +39,8 @@ export const BLOCK_PRESENTATION: { readonly [T in BlockType]: BlockPresentation 
   'video-embed': { rest: 'text', display: ['width'], source: [], stage: 'C3' },
   form: { rest: 'text', display: ['variant', 'width'], source: [], stage: 'C3' },
   'signup-form': { rest: 'text', display: [], source: [], stage: 'C3' },
-  paywall: summary('C4'),
-  hero: summary('C4', ['variant', 'width', 'align']),
+  paywall: { rest: 'text', display: [], source: [], stage: 'C4' },
+  hero: { rest: 'text', display: ['variant', 'width', 'align'], source: [], stage: 'C4' },
 };
 
 /** Which group of the open editor a top-level field belongs to. */

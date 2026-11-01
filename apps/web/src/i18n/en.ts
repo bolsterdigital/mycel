@@ -969,6 +969,11 @@ export const en = {
   'admin.block.form.missing': 'This form was not found. Check the form id.',
   'admin.block.form.unread': 'Linked form. Your role cannot view forms.',
   'admin.block.form.changed': 'Form changed: the new one shows here after saving.',
+  'admin.block.paywall.boundary':
+    'Access boundary: readers without access see everything down to here.',
+  'admin.block.paywall.public': 'This page is public, so for now everyone reads on.',
+  'admin.block.hero.legacy': 'An older opening block. New pages use the page header.',
+  'admin.block.hero.move': 'Move it to the header',
   'admin.block.card.edit': 'Edit',
   'admin.block.card.done': 'Done',
   'admin.block.card.more': 'More actions',
