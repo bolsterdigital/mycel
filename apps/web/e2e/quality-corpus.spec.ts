@@ -528,7 +528,7 @@ test('admin corpus uses the populated shell, native editor and enhanced writer',
 test('native semantics catches redundant roles and recreated simple controls', async ({ page }) => {
   await page.setContent(`<!doctype html><html lang="en"><title>Controls</title><body>
     <button id="redundant" role="button">Save</button>
-    <div id="custom" role="button" tabindex="0">Save</div>
+    <div id="custom" role="button" tabindex="0" hidden>Save</div>
     <a id="fake-link" role="link" tabindex="0">Read</a>
     <span id="fake-check" role="checkbox" aria-checked="false" tabindex="0">Yes</span>
     <span id="fake-radio" role="radio" aria-checked="false" tabindex="0">One</span>

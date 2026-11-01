@@ -58,8 +58,8 @@ export async function nativeSemanticsProblems(page: Page) {
     };
     for (const node of document.querySelectorAll('[role]')) {
       const role = node.getAttribute('role')!.trim();
-      const selector = native[role];
-      if (!selector) continue;
+      if (!Object.hasOwn(native, role)) continue;
+      const selector = native[role]!;
       const problem = `${node.localName}${node.id ? `#${node.id}` : ''}: ${role}`;
       if (node.matches(selector)) redundantRoles.push(problem);
       else nonnativeControls.push(problem);
