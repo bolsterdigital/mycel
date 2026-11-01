@@ -605,6 +605,24 @@
         </div>
       </details>
     {/if}
+    {#if article}
+      <Select
+        id="headerLayout"
+        name="headerLayout"
+        label={t('admin.content.field.headerLayout')}
+        hint={t('admin.content.field.headerLayoutHint')}
+        locale={data.locale}
+        value={v('headerLayout') || 'standard'}
+        options={[
+          { value: 'standard', label: t('admin.content.headerLayout.standard') },
+          { value: 'cover', label: t('admin.content.headerLayout.cover') },
+        ]}
+      />
+      {#if v('headerLayout') === 'cover' && !v('heroImageId')}
+        <Notice tone="warning" live={false}><p>{t('admin.content.headerLayout.noImage')}</p></Notice
+        >
+      {/if}
+    {/if}
   </section>
 
   <section aria-labelledby="blocks" class="item-blocks">

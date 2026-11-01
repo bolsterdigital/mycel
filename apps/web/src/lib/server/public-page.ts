@@ -31,7 +31,7 @@ import {
   type TenantInfo,
 } from '@mycel/core';
 import type { RenderIntro, RenderModel } from '../blocks/model.js';
-import { resolveDocument, resolveIntro, runtimeSource } from '../blocks/resolve.js';
+import { renderMeta, resolveDocument, resolveIntro, runtimeSource } from '../blocks/resolve.js';
 import type { ContentRoute } from './content-route.js';
 import { runtime } from './runtime.js';
 import { sitePath, siteTenant, siteUrls, type Site } from './site.js';
@@ -85,7 +85,25 @@ export async function loadPublicItem(
   });
   const intro = await resolveIntro(
     source,
-    { lead: item.lead, heroImageId: item.effective.images.hero.mediaId, heroAlt: item.heroAlt },
+    {
+      lead: item.lead,
+      heroImageId: item.effective.images.hero.mediaId,
+      heroAlt: item.heroAlt,
+      ...(item.type === 'article'
+        ? {
+            header: item.presentation?.header ?? 'standard',
+            meta: renderMeta(
+              {
+                publishedAt: item.publishedAt,
+                authors: (item.authors ?? []).map((a) => a.name),
+                section: item.section?.name ?? null,
+              },
+              locale,
+              (await invoker.run(useCases.getSiteGeneral, reader, {})).value.timeZone
+            ),
+          }
+        : {}),
+    },
     locale
   );
   const theme = await siteTheme(site);

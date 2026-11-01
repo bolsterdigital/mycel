@@ -616,6 +616,8 @@ export const en = {
   'block.callout.note': 'Note',
   'block.callout.warning': 'Warning',
   'block.credit.photographer': 'Photo: {name}',
+  'block.meta.by': 'by {names}',
+  'block.cover.toContent': 'To the content',
   'block.video.on': 'Video on {provider}',
   'block.footnotes': 'Notes',
   'block.footnote.back': 'Back to the text',
@@ -670,6 +672,11 @@ export const en = {
   'admin.content.field.heroImageHint':
     'The large image at the top of the page, below the title and the lead. Leave empty for no image above the story.',
   'admin.content.header.title': 'Header',
+  'admin.content.field.headerLayout': 'Header layout',
+  'admin.content.field.headerLayoutHint': 'A cover needs a landscape main image.',
+  'admin.content.headerLayout.standard': 'Standard',
+  'admin.content.headerLayout.cover': 'Cover (full-screen image)',
+  'admin.content.headerLayout.noImage': 'A cover without a main image shows the standard header.',
   'admin.content.field.heroAltFold': 'Description for people who cannot see the image',
   'admin.content.field.heroAlt': 'Description of the main image (alt text)',
   'admin.content.field.heroDecorativeHint':

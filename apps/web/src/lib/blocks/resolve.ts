@@ -43,7 +43,7 @@ import type {
   RenderIntro,
   RenderModel,
 } from './model.js';
-import { videoUrl } from './model.js';
+import { videoUrl, type RenderMeta } from './model.js';
 
 /** Where the resolver reads tenant data; `runtimeSource` is the real one, tests may stub it. */
 export interface ResolveSource {
@@ -120,6 +120,7 @@ export function blockCopy(locale: string): BlockCopy {
     videoOn: t('block.video.on'),
     footnotes: t('block.footnotes'),
     footnoteBack: t('block.footnote.back'),
+    toContent: t('block.cover.toContent'),
     honeypotLabel: t('form.honeypot.label'),
     summaryTitle: t('error.summary.title'),
   };
@@ -179,14 +180,52 @@ function renderImage(
  */
 export async function resolveIntro(
   source: ResolveSource,
-  intro: { lead: string | null; heroImageId: string | null; heroAlt: string | null },
+  intro: {
+    lead: string | null;
+    heroImageId: string | null;
+    heroAlt: string | null;
+    header?: 'standard' | 'cover';
+    meta?: RenderMeta | null;
+  },
   locale: string
 ): Promise<RenderIntro> {
   const asset = intro.heroImageId ? await source.media(intro.heroImageId) : null;
   const use = intro.heroAlt
     ? { decorative: false, alt: { [locale]: intro.heroAlt } }
     : { decorative: true, alt: null };
-  return { lead: intro.lead, hero: renderImage(asset, use, locale) };
+  const hero = renderImage(asset, use, locale);
+  return {
+    lead: intro.lead,
+    hero,
+    header: hero && intro.header === 'cover' ? 'cover' : 'standard',
+    meta: intro.meta ?? null,
+  };
+}
+
+/**
+ * An article's line under its header (brief #105 rule 3): the date in the site's time zone, the
+ * authors, the section; null when there is nothing to say. Names stay plain text until author
+ * pages exist. Rejected: a date formatted in the browser, which needs a script and shifts the
+ * page after load.
+ */
+export function renderMeta(
+  meta: { publishedAt: string | null; authors: readonly string[]; section: string | null },
+  locale: string,
+  timeZone: string
+): RenderMeta | null {
+  const { publishedAt, authors, section } = meta;
+  if (!publishedAt && !authors.length && !section) return null;
+  const at = publishedAt ? new Date(publishedAt) : null;
+  const names = new Intl.ListFormat(locale, { type: 'conjunction' }).format(authors);
+  return {
+    date: at && {
+      // en-CA writes the ISO order; the attribute is a date in the same zone as the label.
+      iso: new Intl.DateTimeFormat('en-CA', { timeZone }).format(at),
+      label: new Intl.DateTimeFormat(locale, { timeZone, dateStyle: 'long' }).format(at),
+    },
+    byline: authors.length ? ui(locale)('block.meta.by').replace('{names}', names) : null,
+    section,
+  };
 }
 
 export async function resolveDocument(

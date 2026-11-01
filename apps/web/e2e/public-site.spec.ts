@@ -14,7 +14,7 @@ import { type APIRequestContext, type Page, chromium, expect, test } from '@play
 import sharp from 'sharp';
 import { expectNoAxeViolations } from './lib/axe';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
-import { NARROW, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
+import { NARROW, TEXT_SIZES, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
 import { login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { callApi, requireApi } from './lib/api';
@@ -512,6 +512,106 @@ test.describe('content-routes', () => {
         })
       ).toBe(true);
     }
+  });
+
+  test('an article chooses its header: cover fills the screen, standard stays (#105)', async ({
+    page,
+    request,
+  }) => {
+    const slug = `e2e-cover-105-${isA11y() ? 'a11y' : 'no-js'}`;
+    const { items } = await callApi(request, 'content.item.list', { type: 'article', slug });
+    let target = items[0]
+      ? await callApi(request, 'content.item.get', { itemId: items[0].id })
+      : null;
+    if (!target) {
+      const [source] = (
+        await callApi(request, 'content.item.list', { type: 'article', slug: 'quality-article-v3' })
+      ).items;
+      const { revision } = await callApi(request, 'content.item.get', { itemId: source.id });
+      const doc: ContentDocument = structuredClone(revision.document);
+      const image = doc.blocks.find((b) => b.type === 'image');
+      doc.lead = { nl: 'Een straat die ruimte maakt.', en: 'A street that makes room.' };
+      doc.heroImageId = (image!.props as { mediaId: string }).mediaId;
+      doc.heroAlt = { nl: 'Een straat met bomen.', en: 'A street with trees.' };
+      doc.locales = doc.locales.filter((l) => l === 'nl' || l === 'en');
+      (doc as { presentation?: { header: string } }).presentation = { header: 'cover' };
+      target = await callApi(request, 'content.item.create', { slug, document: doc });
+    }
+    const probe = await tenantId();
+    await withInvoker((invoker) =>
+      invoker.run(useCases.publishItem, systemPrincipal(probe, 'e2e'), {
+        itemId: target.item.id,
+        revisionId: target.revision.id,
+        locale: 'nl',
+      })
+    );
+    const path = `/probe/articles/${slug}`;
+
+    for (const size of [
+      { width: 1440, height: 900 },
+      { width: 375, height: 700 },
+    ]) {
+      await page.setViewportSize(size);
+      await page.goto(path);
+      await page.waitForLoadState('load');
+      const cover = page.locator('main > header.page-cover');
+      await expect(cover.locator('h1 span')).toBeVisible();
+      await expect(page.locator('h1')).toHaveCount(1);
+      await expect(cover.locator('img')).toHaveAttribute('fetchpriority', 'high');
+      await expect(cover.locator('img')).toHaveAttribute('alt', 'Een straat met bomen.');
+      // The screen under the site's header, whatever the viewport; the page keeps its width.
+      const boxes = await page.evaluate(() => ({
+        cover: document.querySelector('.page-cover')!.getBoundingClientRect().height,
+        header: document.querySelector('.site-header')!.getBoundingClientRect().height,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      }));
+      expect(boxes.overflow).toBeLessThanOrEqual(0);
+      expect(Math.abs(boxes.cover + boxes.header - size.height)).toBeLessThanOrEqual(24);
+      await expect(cover.getByRole('link', { name: 'Naar de inhoud' })).toHaveAttribute(
+        'href',
+        '#page-content'
+      );
+    }
+
+    if (!isA11y()) return;
+    await expectNoAxeViolations(page);
+    // The zoom runs, and reduced motion switches it off.
+    const zoom = () =>
+      page.locator('.page-cover img').evaluate((img) => getComputedStyle(img).animationName);
+    expect(await zoom()).toBe('page-cover-zoom');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    expect(await zoom()).toBe('none');
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    // Whole at 320 px and 200 % text, and the arrow is keyboard reachable.
+    await page.setViewportSize(NARROW);
+    for (const size of TEXT_SIZES) {
+      await setTextSize(page, size);
+      await layoutGate(page, `cover header at ${size}`, 'main');
+    }
+    await setTextSize(page, '100%');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.locator('.page-cover-arrow').focus();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/#page-content$/);
+
+    // The choice sits in the editor of an article, and the live preview shows the same header.
+    await login(page, `/admin/probe/content/${target.item.id}`);
+    await expect(page.locator('#headerLayout')).toHaveValue('cover');
+    await page.locator('#headerLayout').selectOption('standard');
+    await page.getByRole('button', { name: 'Opslaan' }).first().click();
+    await expect(page.getByRole('status').first()).toContainText('Opgeslagen');
+    await expect(page.locator('#headerLayout')).toHaveValue('standard');
+    const saved = await callApi(request, 'content.item.get', { itemId: target.item.id });
+    expect(saved.revision.document).not.toHaveProperty('presentation');
+    await callApi(request, 'content.item.update', {
+      itemId: target.item.id,
+      baseRevisionId: saved.revision.id,
+      document: { ...saved.revision.document, presentation: { header: 'cover' } },
+    });
+    // A page has no such choice.
+    const [ordinary] = (await callApi(request, 'content.item.list', { type: 'page' })).items;
+    await page.goto(`/admin/probe/content/${ordinary.id}`);
+    await expect(page.locator('#headerLayout')).toHaveCount(0);
   });
 
   test('the JSON read route serves the same article without a key', async ({ request }) => {

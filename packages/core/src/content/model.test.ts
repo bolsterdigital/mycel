@@ -211,6 +211,37 @@ describe('readiness per locale (ADR 018 rule 9)', () => {
   });
 });
 
+describe('the header layout (ADR 025 rule 3)', () => {
+  const article = {
+    type: 'article',
+    defaultLocale: 'nl',
+    locales: ['nl'],
+    title: { nl: 'Kop' },
+    blocks: [],
+  };
+  const page = { ...article, type: 'page' };
+
+  it('reads an article without one as absent, and takes a closed choice', () => {
+    expect(ContentDocument.parse(article)).not.toHaveProperty('presentation');
+    expect(ContentDocument.parse({ ...article, presentation: { header: 'cover' } })).toMatchObject({
+      presentation: { header: 'cover' },
+    });
+    expect(
+      ContentDocument.safeParse({ ...article, presentation: { header: 'poster' } }).success
+    ).toBe(false);
+    expect(
+      ContentDocument.safeParse({ ...article, presentation: { header: 'cover', zoom: 2 } }).success
+    ).toBe(false);
+  });
+
+  it('refuses the field on a page', () => {
+    expect(ContentDocument.safeParse(page).success).toBe(true);
+    expect(ContentDocument.safeParse({ ...page, presentation: { header: 'cover' } }).success).toBe(
+      false
+    );
+  });
+});
+
 describe('routes and tags (brief #8a § 2)', () => {
   it('turns a title into a valid slug, or nothing', () => {
     expect(slugFromTitle('  Wat we doen in 2026 ')).toBe('wat-we-doen-in-2026');

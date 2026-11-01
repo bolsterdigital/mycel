@@ -20,6 +20,8 @@ export interface BlockCopy {
   videoOn: string;
   footnotes: string;
   footnoteBack: string;
+  /** The cover header's arrow down to the content. */
+  toContent: string;
   honeypotLabel: string;
   summaryTitle: string;
 }
@@ -41,9 +43,19 @@ export interface RenderImage {
 }
 
 /** The lead and hero image between an item's title and its blocks (#86). */
+/** An article's line under its header; each part is absent when the article has none. */
+export interface RenderMeta {
+  date: { iso: string; label: string } | null;
+  byline: string | null;
+  section: string | null;
+}
+
 export interface RenderIntro {
   lead: string | null;
   hero: RenderImage | null;
+  /** `cover` only with a hero image to cover the screen with (brief #105 rule 8). */
+  header: 'standard' | 'cover';
+  meta: RenderMeta | null;
 }
 
 export interface RenderAction {

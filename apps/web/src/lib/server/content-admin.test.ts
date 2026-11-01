@@ -123,6 +123,24 @@ describe('documentFrom(valuesOf(doc))', () => {
     ).toEqual(described.heroAlt);
   });
 
+  it('reads the header layout of an article: cover stored, the default absent (#105)', () => {
+    const covered = ContentDocument.parse({ ...article, presentation: { header: 'cover' } });
+    expect(valuesOf(article).headerLayout).toBe('standard');
+    expect(valuesOf(covered).headerLayout).toBe('cover');
+    const chosen = { ...valuesOf(article), headerLayout: 'cover' };
+    expect(documentFrom(article, chosen, '2026-11-01')).toMatchObject({
+      presentation: { header: 'cover' },
+    });
+    const back = { ...valuesOf(covered), headerLayout: 'standard' };
+    expect(documentFrom(covered, back, '2026-11-01')).not.toHaveProperty('presentation');
+    // A form without the choice keeps it; a page has no such field.
+    const { headerLayout: _layout, ...without } = valuesOf(covered);
+    expect(documentFrom(covered, without, '2026-11-01')).toMatchObject({
+      presentation: { header: 'cover' },
+    });
+    expect(valuesOf(page)).not.toHaveProperty('headerLayout');
+  });
+
   it('takes both images from their pickers: an id, none, or kept when the form has no picker', () => {
     const photo = '01900000-0000-7000-8000-0000000000e3';
     const chosen = documentFrom(

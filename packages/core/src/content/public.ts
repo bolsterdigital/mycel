@@ -20,6 +20,7 @@
 
 import { z } from 'zod';
 import { notFound } from '../errors.js';
+import { ARTICLE_HEADERS } from './model.js';
 import { Locale } from '../i18n/locale.js';
 import { defineUseCase } from '../registry.js';
 import { Block, blockLocalized, projectBlock } from './blocks.js';
@@ -65,6 +66,8 @@ export const PublishedItem = z.object({
   corrections: z.array(z.object({ date: z.string().date(), text: z.string() })).optional(),
   authors: z.array(z.object({ id: z.string().guid(), slug: Slug, name: z.string() })).optional(),
   section: z.object({ slug: Slug, name: z.string() }).nullable().optional(),
+  /** An article's chosen header (ADR 025 rule 3); a renderer without a hero image shows `standard`. */
+  presentation: z.object({ header: z.enum(ARTICLE_HEADERS) }).optional(),
 });
 export type PublishedItem = z.infer<typeof PublishedItem>;
 
@@ -159,6 +162,7 @@ export const getPublished = defineUseCase({
     const section = doc.sectionId ? await ctx.sections.get(doc.sectionId) : null;
     return {
       ...base,
+      presentation: { header: doc.presentation?.header ?? 'standard' },
       corrections: doc.corrections.flatMap((c) => {
         const text = c.text[chosen];
         return text ? [{ date: c.date, text }] : [];
