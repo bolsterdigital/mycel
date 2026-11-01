@@ -126,6 +126,14 @@
       />
       <p class="ui-hint">{t('admin.site.general.fixed')}</p>
     </SettingsSection>
+    {#if data.capabilities.includes('tenant:admin')}
+      <!-- Export left the main menu (#116); until the settings navigation of #114 it is found
+           here and on Status, at its own unchanged address. -->
+      <SettingsSection id="site-export" title={t('admin.site.export.title')}>
+        <p>{t('admin.site.export.body')}</p>
+        <p><a href="{base}/export">{t('admin.site.export.link')}</a></p>
+      </SettingsSection>
+    {/if}
     <SettingsSection
       id="site-time-zone"
       title={t('admin.site.general.timeZone')}

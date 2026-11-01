@@ -433,8 +433,7 @@ export const en = {
   'admin.status.error.notFound':
     'That task no longer exists or was already handled. Reload the page.',
   'admin.status.mail.title': 'Mail with an uncertain outcome',
-  'admin.status.mail.intro':
-    'Unknown: we could not establish whether the mail arrived; the system keeps checking. Given up: after a day without certainty we stopped checking, so the mail is never sent twice. The recipient may or may not have it.',
+  'admin.status.mail.intro': 'Mail of which we do not know whether it arrived.',
   'admin.status.mail.none': 'No mail with an uncertain outcome.',
   'admin.status.mail.unknown': 'Unknown',
   'admin.status.mail.abandoned': 'Given up',
@@ -442,8 +441,7 @@ export const en = {
   'admin.status.mail.attempted': 'Attempted',
   'admin.status.mail.abandonedAt': 'Given up at',
   'admin.status.mailDays.title': 'Mail per day',
-  'admin.status.mailDays.intro':
-    "The last 14 days in the site's time zone. Bounces and refusals are not shown yet: Mycel does not receive them from the mail provider.",
+  'admin.status.mailDays.intro': 'The last 14 days in the site’s time zone.',
   'admin.status.mailDays.none': 'No mail was sent in the last 14 days.',
   'admin.status.mailDays.day': 'Day',
   'admin.status.mailDays.sent': 'Sent',
@@ -550,8 +548,7 @@ export const en = {
   'admin.audit.op.tenant.member.remove': 'Team member removed',
   'admin.audit.op.tenant.member.update': 'Role of a team member changed',
   'admin.status.diagnosis.title': 'Diagnosis to share',
-  'admin.status.diagnosis.intro':
-    'This is exactly what you would send to support: ids, counts, times and error texts with addresses removed. Nothing is sent automatically; copy it yourself if you want help.',
+  'admin.status.diagnosis.intro': 'What you would send to support, with addresses removed.',
   'admin.status.diagnosis.copy': 'Diagnosis, to select and copy',
   'admin.status.verdict.ok': 'Everything is running',
   'admin.status.verdict.one': '1 thing needs attention',
@@ -577,11 +574,20 @@ export const en = {
     'You no longer have access to this status. Sign in again to see it.',
   'admin.status.waiting.title': 'Waiting work',
   'admin.status.waiting.intro':
-    'Work that will get its turn. You do not need to do anything with it.',
+    'Work that will get its turn; you do not need to do anything with it.',
   'admin.status.waiting.none': 'Nothing is waiting.',
-  'admin.status.waiting.item': '{label}: {count}',
   'admin.status.waiting.next': 'next',
   'admin.status.waiting.mail': 'Mail waiting for confirmation',
+  'admin.status.waiting.state': '{count} waiting',
+  'admin.status.count.one': '1 task',
+  'admin.status.count.many': '{count} tasks',
+  'admin.status.mail.info':
+    'Unknown: we could not establish whether the mail arrived; the system keeps checking. Given up: after a day without certainty we stopped checking, so the mail is never sent twice. The recipient may or may not have it.',
+  'admin.status.mailDays.info':
+    'Bounces and refusals are not shown yet: Mycel does not receive them from the mail provider.',
+  'admin.status.diagnosis.info':
+    'Ids, counts, times and error texts. Nothing is sent automatically; copy it yourself if you want help.',
+  'admin.status.export': 'Create an export of this site',
   'admin.status.kind.content.publish': 'Scheduled publications',
   'admin.status.kind.mail.reconcile': 'Mail checks',
   'admin.status.kind.tenant.export': 'Exports',
@@ -1041,20 +1047,26 @@ export const en = {
   'admin.status.erasures.body':
     '{count} erasure(s) of this site are not in a backup yet; the oldest has waited since {time}. Until a backup holds them, a restore after losing the server would bring these people back. Ask whoever hosts this site to check the erasure backup.',
   'admin.export.title': 'Export',
-  'admin.export.request.title': 'Ask for an archive',
+  'admin.export.intro':
+    'Everything of this site in one archive, to keep or to move to another host.',
+  'admin.site.export.title': 'Export',
+  'admin.site.export.body':
+    'Everything of this site in one archive, to keep or to move to another host.',
+  'admin.site.export.link': 'Create an export',
+  'admin.export.request.title': 'Create export',
   'admin.export.intro.contents':
     'An archive holds everything of this site: pages and articles, media, forms and submissions, supporters, the team, API keys and the log of actions. Another host can import it with Mycel.',
   'admin.export.intro.lifetime':
     'It is built in the background, usually within minutes, and can be downloaded for {days} days; then it is deleted. It is also deleted when someone in it is erased.',
-  'admin.export.request.button': 'Ask for an archive',
+  'admin.export.request.button': 'Create export',
   'admin.export.done.requested':
-    'The archive is being built. Reload this page to see when it is ready.',
+    'Your export is being prepared. Reload this page to see when it is ready.',
   'admin.export.done.running':
-    'An archive is already being built; this request is that one. Reload this page to see when it is ready.',
+    'An export is already being prepared; this is that one. Reload this page to see when it is ready.',
   'admin.export.list.title': 'Archives',
-  'admin.export.list.none': 'No archive has been asked for yet.',
+  'admin.export.list.none': 'No export has been created yet.',
   'admin.export.field.status': 'Status',
-  'admin.export.field.by': 'Asked for by',
+  'admin.export.field.by': 'Created by',
   'admin.export.field.size': 'Size',
   'admin.export.field.expires': 'Can be downloaded until',
   'admin.export.field.sha256': 'Checksum (SHA-256)',
@@ -1062,28 +1074,28 @@ export const en = {
   'admin.export.status.queued': 'Waiting to be built',
   'admin.export.status.running': 'Being built',
   'admin.export.status.ready': 'Ready',
-  'admin.export.status.failed': 'Failed; ask for a new one',
+  'admin.export.status.failed': 'Failed; create a new export',
   'admin.export.status.expired': 'Deleted',
   'admin.export.download': 'Download archive',
-  'admin.export.expired': 'This archive has been deleted. Ask for a new one.',
+  'admin.export.expired': 'This archive has been deleted. Create a new export.',
   'admin.export.field.schema': 'Format version',
   'admin.export.until': 'downloadable until {time}',
-  'admin.export.building.title': 'An archive is being made',
+  'admin.export.building.title': 'Preparing your export',
   'admin.export.building.step': 'Step {step} of 3: {status}.',
-  'admin.export.building.asked': 'Asked for',
+  'admin.export.building.asked': 'Started',
   'admin.export.building.next':
-    'When it is ready it appears below with a download. Asking again now gives you this one.',
+    'When it is ready it appears below with a download. Creating one again now gives you this one.',
   'admin.export.refresh': 'Refresh',
   'admin.export.latest.title': 'Newest archive',
   'admin.export.latest.made': 'Made',
   'admin.export.details': 'Technical details',
-  'admin.export.col.asked': 'Asked for',
+  'admin.export.col.asked': 'Created',
   'admin.export.col.note': 'Note',
   'admin.suspended.export': 'Export your data',
   'admin.connections.title': 'External connections',
   'admin.connections.back': 'Back to site administration',
   'admin.connections.intro':
-    'Manage destinations, delivery health and external copy actions. Webhook tests contain synthetic data only.',
+    'Where what comes in on this site goes next, and how each delivery went.',
   'admin.connections.create.title': 'Add a webhook',
   'admin.connections.create.help':
     'The destination must resolve only to public addresses. Add a signing secret and resume before testing.',
@@ -1216,6 +1228,9 @@ export const en = {
     'The shared building blocks of the admin, with the longest labels in this language. Only available outside production.',
   'admin.ui.catalogue.buttons': 'Buttons and action groups',
   'admin.ui.catalogue.notices': 'Notices',
+  'admin.ui.catalogue.statusLines': 'Section and status lines',
+  'admin.ui.catalogue.statusLines.intro':
+    'A state in words with a mark per tone, inside an overview section.',
   'admin.ui.catalogue.notice.success': 'Details of campaign-poster.jpg saved.',
   'admin.ui.catalogue.notice.info':
     'This page is shown in English until a Dutch version is published.',
@@ -1348,8 +1363,9 @@ export const en = {
   'admin.connections.never': 'Nothing sent yet',
   'admin.connections.provider.webhook': 'Webhook',
   'admin.connections.empty.title': 'No connections yet',
-  'admin.connections.empty.body':
-    'A connection passes what comes in on this site, such as a sign-up, to a service outside Mycel: a webhook to your own system, later a mailing or CRM tool. Mycel keeps a record of every delivery, and you can pause a connection at any time. Which form feeds a connection is set on the form itself.',
+  'admin.connections.empty.body': 'Add a webhook to pass sign-ups to your own system.',
+  'admin.connections.info':
+    'A connection passes what comes in on this site, such as a sign-up, to a service outside Mycel: a webhook to your own system, later a mailing or CRM tool. Mycel keeps a record of every delivery, and you can pause a connection at any time. Which form feeds a connection is set on the form itself. A webhook test sends synthetic data only.',
   'admin.connections.created':
     'Webhook added and paused. Set a signing secret below, then resume delivery to start.',
   'admin.connections.switch.title': 'Delivery',

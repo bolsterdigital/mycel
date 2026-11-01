@@ -658,35 +658,17 @@
     background: var(--color-surface);
     color: var(--color-text);
   }
-  /* Status page rows (brief admin-operations-screens): one per stuck task or mail, what it is
-     and what to do first, the technical details folded under the actions. */
+  /* Status page (brief admin-operations-screens, #116): the sections space themselves
+     (Section), so their margins collapse in a block; a stuck task is a form in its row. */
   .admin .status-live {
-    display: grid;
-    gap: var(--space-3);
+    display: block;
+    max-inline-size: 60rem;
   }
-  .admin ul.status-rows,
-  .admin ul.status-waiting {
-    display: grid;
-    gap: var(--space-2);
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    overflow-wrap: anywhere;
-  }
-  .admin ul.status-waiting {
-    gap: var(--space-1);
-  }
-  .admin li.status-row,
-  .admin li.status-row > form {
+  .admin .status-job {
     display: grid;
     gap: var(--space-1);
   }
-  .admin li.status-row {
-    padding: var(--space-2);
-    border: var(--border-width) solid var(--color-border-strong);
-    border-radius: var(--radius-lg);
-  }
-  .admin li.status-row :is(h3, p) {
+  .admin .status-job > :is(h3, p) {
     margin: 0;
   }
   .admin .status-refresh {
@@ -694,10 +676,6 @@
     flex-wrap: wrap;
     align-items: center;
     gap: var(--space-1) var(--space-2);
-  }
-  .admin ol.audit {
-    padding-inline-start: 1.25rem;
-    overflow-wrap: anywhere;
   }
   /* Content admin (TODO #11 A1): multi-line fields and selects size like the text inputs; the
      diff table scrolls inside its own box on a narrow screen, never the page. */

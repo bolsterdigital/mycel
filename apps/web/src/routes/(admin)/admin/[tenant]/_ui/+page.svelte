@@ -25,6 +25,8 @@
     CopyField,
     Dialog,
     EmptyState,
+    Section,
+    StatusLine,
     Field,
     Fieldset,
     FileDrop,
@@ -118,6 +120,19 @@
       <p>{t('admin.ui.catalogue.notice.error')}</p>
     </Notice>
   </section>
+
+  <Section
+    id="ui-status-lines"
+    title={t('admin.ui.catalogue.statusLines')}
+    intro={t('admin.ui.catalogue.statusLines.intro')}
+    count="4"
+    locale={data.locale}
+  >
+    <StatusLine text={t('admin.status.jobs.none')} />
+    <StatusLine tone="none" text={t('admin.status.waiting.none')} />
+    <StatusLine tone="unknown" text={t('admin.status.verdict.unknown')} />
+    <StatusLine tone="attention" text={t('admin.status.verdict.one')} />
+  </Section>
 
   <section aria-labelledby="ui-badges">
     <h2 id="ui-badges">{t('admin.ui.catalogue.badges')}</h2>

@@ -438,8 +438,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.status.error.notFound':
     'Die taak bestaat niet meer of is al afgehandeld. Laad de pagina opnieuw.',
   'admin.status.mail.title': 'Mail met onzekere afloop',
-  'admin.status.mail.intro':
-    'Onbekend: we konden niet vaststellen of de mail aankwam; het systeem blijft controleren. Opgegeven: na een dag zonder zekerheid stopten we met controleren, zodat de mail nooit twee keer verstuurd wordt. De ontvanger heeft hem misschien wel, misschien niet.',
+  'admin.status.mail.intro': 'Mail waarvan we niet weten of hij aankwam.',
   'admin.status.mail.none': 'Geen mail met onzekere afloop.',
   'admin.status.mail.unknown': 'Onbekend',
   'admin.status.mail.abandoned': 'Opgegeven',
@@ -447,8 +446,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.status.mail.attempted': 'Geprobeerd',
   'admin.status.mail.abandonedAt': 'Opgegeven op',
   'admin.status.mailDays.title': 'Mail per dag',
-  'admin.status.mailDays.intro':
-    'De afgelopen 14 dagen, in de tijdzone van de site. Bounces en weigeringen staan hier nog niet: die krijgt Mycel nog niet van de mailprovider.',
+  'admin.status.mailDays.intro': 'De afgelopen 14 dagen, in de tijdzone van de site.',
   'admin.status.mailDays.none': 'De afgelopen 14 dagen is geen mail verstuurd.',
   'admin.status.mailDays.day': 'Dag',
   'admin.status.mailDays.sent': 'Verstuurd',
@@ -556,8 +554,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.tenant.member.remove': 'Teamlid verwijderd',
   'admin.audit.op.tenant.member.update': 'Rol van teamlid gewijzigd',
   'admin.status.diagnosis.title': 'Diagnose om te delen',
-  'admin.status.diagnosis.intro':
-    'Dit is precies wat je aan support zou sturen: id’s, aantallen, tijden en foutteksten zonder adressen. Er wordt niets automatisch verstuurd; kopieer het zelf als je hulp wilt.',
+  'admin.status.diagnosis.intro': 'Wat je aan support zou sturen, zonder adressen.',
   'admin.status.diagnosis.copy': 'Diagnose, om te selecteren en kopiëren',
   'admin.status.verdict.ok': 'Alles loopt',
   'admin.status.verdict.one': '1 ding vraagt aandacht',
@@ -582,11 +579,20 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.status.refresh.forbidden':
     'Je hebt geen toegang meer tot deze status. Log opnieuw in om hem te zien.',
   'admin.status.waiting.title': 'Wachtend werk',
-  'admin.status.waiting.intro': 'Werk dat nog aan de beurt komt. Hier hoef je niets mee te doen.',
+  'admin.status.waiting.intro': 'Werk dat nog aan de beurt komt; je hoeft er niets mee te doen.',
   'admin.status.waiting.none': 'Er wacht niets.',
-  'admin.status.waiting.item': '{label}: {count}',
   'admin.status.waiting.next': 'eerstvolgende',
   'admin.status.waiting.mail': 'Mail die op bevestiging wacht',
+  'admin.status.waiting.state': '{count} wachtend',
+  'admin.status.count.one': '1 taak',
+  'admin.status.count.many': '{count} taken',
+  'admin.status.mail.info':
+    'Onbekend: we konden niet vaststellen of de mail aankwam; het systeem blijft controleren. Opgegeven: na een dag zonder zekerheid stopten we met controleren, zodat de mail nooit twee keer verstuurd wordt. De ontvanger heeft hem misschien wel, misschien niet.',
+  'admin.status.mailDays.info':
+    'Bounces en weigeringen staan hier nog niet: die krijgt Mycel nog niet van de mailprovider.',
+  'admin.status.diagnosis.info':
+    'Id’s, aantallen, tijden en foutteksten. Er wordt niets automatisch verstuurd; kopieer het zelf als je hulp wilt.',
+  'admin.status.export': 'Een export van deze site maken',
   'admin.status.kind.content.publish': 'Ingeplande publicaties',
   'admin.status.kind.mail.reconcile': 'Mailcontroles',
   'admin.status.kind.tenant.export': 'Exports',
@@ -1052,20 +1058,26 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.status.erasures.body':
     '{count} wisactie(s) van deze site staan nog niet in een back-up; de oudste wacht sinds {time}. Tot een back-up ze bevat, haalt een herstel na verlies van de server deze mensen terug. Vraag wie deze site host de back-up van het wisregister na te kijken.',
   'admin.export.title': 'Export',
-  'admin.export.request.title': 'Archief aanvragen',
+  'admin.export.intro':
+    'Alles van deze site in één archief, om te bewaren of naar een andere hoster te verhuizen.',
+  'admin.site.export.title': 'Export',
+  'admin.site.export.body':
+    'Alles van deze site in één archief, om te bewaren of naar een andere hoster te verhuizen.',
+  'admin.site.export.link': 'Een export maken',
+  'admin.export.request.title': 'Export maken',
   'admin.export.intro.contents':
     "Een archief bevat alles van deze site: pagina's en artikelen, media, formulieren en inzendingen, supporters, het team, API-sleutels en het logboek van acties. Een andere hoster kan het met Mycel importeren.",
   'admin.export.intro.lifetime':
     'Het wordt op de achtergrond gemaakt, meestal binnen een paar minuten, en is {days} dagen te downloaden; daarna wordt het verwijderd. Het wordt ook verwijderd als iemand die erin staat gewist wordt.',
-  'admin.export.request.button': 'Archief aanvragen',
+  'admin.export.request.button': 'Export maken',
   'admin.export.done.requested':
-    'Het archief wordt gemaakt. Laad deze pagina opnieuw om te zien wanneer het klaar is.',
+    'De export wordt gemaakt. Laad deze pagina opnieuw om te zien wanneer hij klaar is.',
   'admin.export.done.running':
-    'Er wordt al een archief gemaakt; deze aanvraag is dat archief. Laad deze pagina opnieuw om te zien wanneer het klaar is.',
+    'Er wordt al een export gemaakt; dit is die export. Laad deze pagina opnieuw om te zien wanneer hij klaar is.',
   'admin.export.list.title': 'Archieven',
-  'admin.export.list.none': 'Er is nog geen archief aangevraagd.',
+  'admin.export.list.none': 'Er is nog geen export gemaakt.',
   'admin.export.field.status': 'Status',
-  'admin.export.field.by': 'Aangevraagd door',
+  'admin.export.field.by': 'Gemaakt door',
   'admin.export.field.size': 'Grootte',
   'admin.export.field.expires': 'Te downloaden tot',
   'admin.export.field.sha256': 'Controlegetal (SHA-256)',
@@ -1073,28 +1085,28 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.export.status.queued': 'Wacht op verwerking',
   'admin.export.status.running': 'Wordt gemaakt',
   'admin.export.status.ready': 'Klaar',
-  'admin.export.status.failed': 'Mislukt; vraag een nieuw archief aan',
+  'admin.export.status.failed': 'Mislukt; maak een nieuwe export',
   'admin.export.status.expired': 'Verwijderd',
   'admin.export.download': 'Archief downloaden',
-  'admin.export.expired': 'Dit archief is verwijderd. Vraag een nieuw archief aan.',
+  'admin.export.expired': 'Dit archief is verwijderd. Maak een nieuwe export.',
   'admin.export.field.schema': 'Formaatversie',
   'admin.export.until': 'te downloaden tot {time}',
-  'admin.export.building.title': 'Er wordt een archief gemaakt',
+  'admin.export.building.title': 'Export wordt gemaakt',
   'admin.export.building.step': 'Stap {step} van 3: {status}.',
-  'admin.export.building.asked': 'Aangevraagd',
+  'admin.export.building.asked': 'Gestart',
   'admin.export.building.next':
-    'Als het klaar is, staat het hieronder met een download. Nu opnieuw aanvragen geeft je dit archief.',
+    'Als hij klaar is, staat hij hieronder met een download. Nu opnieuw maken geeft je deze export.',
   'admin.export.refresh': 'Vernieuwen',
   'admin.export.latest.title': 'Nieuwste archief',
   'admin.export.latest.made': 'Gemaakt',
   'admin.export.details': 'Technische details',
-  'admin.export.col.asked': 'Aangevraagd',
+  'admin.export.col.asked': 'Gemaakt',
   'admin.export.col.note': 'Toelichting',
   'admin.suspended.export': 'Exporteer je gegevens',
   'admin.connections.title': 'Externe koppelingen',
   'admin.connections.back': 'Terug naar sitebeheer',
   'admin.connections.intro':
-    'Beheer bestemmingen, afleverstatus en acties voor externe kopieën. Webhookproeven bevatten alleen synthetische gegevens.',
+    'Waar wat op deze site binnenkomt naartoe gaat, en hoe elke levering afliep.',
   'admin.connections.create.title': 'Webhook toevoegen',
   'admin.connections.create.help':
     'De bestemming moet uitsluitend naar publieke adressen verwijzen. Voeg een ondertekeningssleutel toe en hervat de koppeling voor de proef.',
@@ -1229,6 +1241,9 @@ export const nl: Partial<Record<UiKey, string>> = {
     'De gedeelde bouwstenen van het beheer, met de langste labels in deze taal. Alleen beschikbaar buiten productie.',
   'admin.ui.catalogue.buttons': 'Knoppen en actiegroepen',
   'admin.ui.catalogue.notices': 'Meldingen',
+  'admin.ui.catalogue.statusLines': 'Sectie en statusregels',
+  'admin.ui.catalogue.statusLines.intro':
+    'Een stand in woorden met een teken per toon, in een overzichtssectie.',
   'admin.ui.catalogue.notice.success': 'Gegevens van campagne-poster.jpg opgeslagen.',
   'admin.ui.catalogue.notice.info':
     'Deze pagina wordt in het Engels getoond tot er een Nederlandse versie is gepubliceerd.',
@@ -1362,7 +1377,9 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.connections.provider.webhook': 'Webhook',
   'admin.connections.empty.title': 'Nog geen koppelingen',
   'admin.connections.empty.body':
-    'Een koppeling geeft door wat op deze site binnenkomt, zoals een aanmelding, aan een dienst buiten Mycel: een webhook naar je eigen systeem, later een mailing- of CRM-pakket. Mycel houdt van elke levering bij hoe die afliep, en je kunt een koppeling altijd pauzeren. Welk formulier een koppeling voedt, stel je in bij het formulier zelf.',
+    'Voeg een webhook toe om aanmeldingen door te geven aan je eigen systeem.',
+  'admin.connections.info':
+    'Een koppeling geeft door wat op deze site binnenkomt, zoals een aanmelding, aan een dienst buiten Mycel: een webhook naar je eigen systeem, later een mailing- of CRM-pakket. Mycel houdt van elke levering bij hoe die afliep, en je kunt een koppeling altijd pauzeren. Welk formulier een koppeling voedt, stel je in bij het formulier zelf. Een webhookproef verstuurt alleen synthetische gegevens.',
   'admin.connections.created':
     'Webhook toegevoegd en gepauzeerd. Stel hieronder een ondertekeningssleutel in en hervat de aflevering om te beginnen.',
   'admin.connections.switch.title': 'Aflevering',

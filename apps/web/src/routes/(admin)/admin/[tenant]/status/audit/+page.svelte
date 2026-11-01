@@ -87,7 +87,7 @@
   {/snippet}
 
   {#snippet filters()}
-    <form method="get" class="audit-filters" aria-label={t('admin.audit.filter.label')}>
+    <form method="get" class="ui-filter-bar" aria-label={t('admin.audit.filter.label')}>
       <Field
         id="audit-from"
         name="from"
@@ -141,6 +141,7 @@
     caption={t('admin.audit.list')}
     hideCaption
     stack
+    card
     columns={[
       { key: 'when', label: t('admin.audit.col.when') },
       { key: 'actor', label: t('admin.audit.col.actor') },

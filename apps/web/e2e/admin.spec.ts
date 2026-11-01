@@ -961,7 +961,7 @@ test.describe('status', () => {
   }
 
   /** A task's row; its technical type is in the folded details, so the row is found by it. */
-  const row = (page: Page, type: string) => page.locator('li.status-row', { hasText: type });
+  const row = (page: Page, type: string) => page.locator('#jobs li.ui-row', { hasText: type });
   const verdict = (page: Page) =>
     page.getByRole('region', { name: /aandacht|Alles loopt|onbekend/ });
 
@@ -1004,7 +1004,9 @@ test.describe('status', () => {
       );
 
       await row(page, retried).getByRole('button', { name: 'Opnieuw proberen' }).click();
-      await expect(page.getByRole('status')).toContainText('De taak draait opnieuw');
+      await expect(page.locator('.ui-notice[role="status"]')).toContainText(
+        'De taak draait opnieuw'
+      );
       await expect(row(page, retried)).toHaveCount(0);
 
       // Closing asks first, in the row; a disclosure, so it works without JS too.
@@ -1014,7 +1016,9 @@ test.describe('status', () => {
       await row(page, closed)
         .getByRole('button', { name: /Ja, sluit deze taak af/ })
         .click();
-      await expect(page.getByRole('status')).toContainText('De taak is afgesloten.');
+      await expect(page.locator('.ui-notice[role="status"]')).toContainText(
+        'De taak is afgesloten.'
+      );
       await expect(row(page, closed)).toHaveCount(0);
 
       // Both recoveries are in the latest actions.
