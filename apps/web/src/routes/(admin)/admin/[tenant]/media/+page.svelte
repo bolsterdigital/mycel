@@ -19,6 +19,7 @@
     Table,
   } from '#lib/admin/ui/index.js';
   import { formatBytes } from '#lib/admin/format.js';
+  import { THUMB, thumbPath } from '#lib/admin/ui/thumb.js';
   import { fill, ui, type UiKey } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -205,10 +206,10 @@
               {#if m.thumb}
                 <img
                   class="ui-thumb"
-                  src="{base}/media/{m.id}/thumb"
+                  src={thumbPath(base, m.id)}
                   alt=""
-                  width="48"
-                  height="48"
+                  width={THUMB.row.width}
+                  height={THUMB.row.height}
                   loading="lazy"
                 />
               {/if}
@@ -228,7 +229,13 @@
         <Card title={m.filename} href="{base}/media/{m.id}">
           {#snippet media()}
             {#if m.thumb}
-              <img src="{base}/media/{m.id}/thumb" alt="" width="320" height="240" loading="lazy" />
+              <img
+                src={thumbPath(base, m.id)}
+                alt=""
+                width={THUMB.card.width}
+                height={THUMB.card.height}
+                loading="lazy"
+              />
             {/if}
           {/snippet}
           <p class="muted">{[dimensions(m), size(m.sizeBytes)].filter(Boolean).join(' · ')}</p>

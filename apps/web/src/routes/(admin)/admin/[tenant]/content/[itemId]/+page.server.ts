@@ -42,6 +42,7 @@ import {
   type Principal,
   type Section,
   type TenantInfo,
+  MAX_PAGE_SIZE,
 } from '@mycel/core';
 import { formValues, posted, type Posted } from '#lib/editor/block-form.js';
 import { failureOf, text } from '#lib/server/admin/admin-actions.js';
@@ -132,7 +133,7 @@ async function relationshipChoices(
   });
   const [authors, sections] = article
     ? await Promise.all([
-        invoker.run(useCases.listAuthors, principal, { limit: 100 }).then(({ authors }) =>
+        invoker.run(useCases.listAuthors, principal, { limit: MAX_PAGE_SIZE }).then(({ authors }) =>
           withAssigned(
             authorIds,
             authors.map(author),
@@ -145,19 +146,21 @@ async function relationshipChoices(
             (id) => ({ id, name: id })
           )
         ),
-        invoker.run(useCases.listSections, principal, { limit: 100 }).then(({ sections }) =>
-          withAssigned(
-            sectionId ? [sectionId] : [],
-            sections.map(section),
-            async (sectionId) => {
-              const s = UUID.test(sectionId)
-                ? await orNull(invoker.run(useCases.getSection, principal, { sectionId }))
-                : null;
-              return s && section(s);
-            },
-            (id) => ({ id, title: id })
-          )
-        ),
+        invoker
+          .run(useCases.listSections, principal, { limit: MAX_PAGE_SIZE })
+          .then(({ sections }) =>
+            withAssigned(
+              sectionId ? [sectionId] : [],
+              sections.map(section),
+              async (sectionId) => {
+                const s = UUID.test(sectionId)
+                  ? await orNull(invoker.run(useCases.getSection, principal, { sectionId }))
+                  : null;
+                return s && section(s);
+              },
+              (id) => ({ id, title: id })
+            )
+          ),
       ])
     : [[], []];
   return { authors, sections };
@@ -274,7 +277,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     contentType: item.type,
     patterns: doc.blocks.length
       ? []
-      : (await invoker.run(useCases.listPatterns, principal, { limit: 100 })).patterns
+      : (await invoker.run(useCases.listPatterns, principal, { limit: MAX_PAGE_SIZE })).patterns
           .filter((p) => !p.intendedType || p.intendedType === item.type)
           .map((p) => ({ id: p.id, name: pick(p.name, work, tenant.defaultLocale) ?? p.id })),
     articleEditor: shown.length ? toArticleEditor(doc, work) : null,
