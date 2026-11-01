@@ -55,9 +55,19 @@ if (form instanceof HTMLFormElement) {
   };
   form.addEventListener('input', mark);
   form.addEventListener('change', mark);
+  /** The id of the block in view, unless the top of the first one still is: then the top is fine. */
+  const blockInView = () => {
+    const cards = [...form.querySelectorAll('[data-block-card]')];
+    const card = cards.find((c) => c.getBoundingClientRect().bottom > innerHeight / 4);
+    if (!card || (card === cards[0] && card.getBoundingClientRect().top > 0)) return '';
+    const target = card.querySelector(':scope > details.ui-block-card-fold') ?? card;
+    return target.id.replace(/^block-/, '');
+  };
   form.addEventListener('submit', (event) => {
     submitting = true;
     say('saving');
+    const near = form.elements.namedItem('nearBlock');
+    if (near instanceof HTMLInputElement) near.value = blockInView();
     // Another listener (the article writer with an unfinished card) may still stop the submit;
     // then the page stays and its changes are still unsaved.
     setTimeout(() => {
@@ -338,7 +348,8 @@ if (form instanceof HTMLFormElement) {
       target.focus();
       return;
     }
-    if (!target.matches('details.ui-block-card-fold')) return;
+    // A type without fields is its own card and target; it has only its actions to land on.
+    if (!target.matches('details.ui-block-card-fold, [data-block-card]')) return;
     const moved = new URLSearchParams(location.search).get('done') === 'blockMoved';
     const card = target.closest('[data-block-card]');
     const summary = moved

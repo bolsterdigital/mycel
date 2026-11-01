@@ -200,14 +200,35 @@ const DOCUMENT_FIELDS: [RegExp, string][] = [
   [/^document\.corrections\.\d+\.date$/, 'correctionDate'],
 ];
 
-/** The issues of a refused save that name a document field, as `{ name, message }`. */
+/**
+ * The issues of a refused save that name a document field, as `{ name, message }`. A save's input
+ * nests the document (`document.access.teaser`); a block action validates the stored document,
+ * whose paths start at its root (`access.teaser`).
+ */
 export function documentFieldIssues(e: UseCaseError): { name: string; message: string }[] {
   return e.issues
-    .map((i) => ({
-      name: DOCUMENT_FIELDS.find(([re]) => re.test(i.path))?.[1] ?? '',
-      message: i.message,
-    }))
+    .map((i) => {
+      const path = i.path.startsWith('document.') ? i.path : `document.${i.path}`;
+      return { name: DOCUMENT_FIELDS.find(([re]) => re.test(path))?.[1] ?? '', message: i.message };
+    })
     .filter((i) => i.name);
+}
+
+/**
+ * The control a block issue points at. Core refuses a localised field as a whole when none of its
+ * locales has words (`b.<id>.p.text`), but the form only has a control per locale: without this
+ * the summary's link leads nowhere and the field is not marked. The first locale the form carried
+ * is the one on screen. Rejected: an id on a wrapper around the locales, which the link reaches
+ * but cannot focus.
+ */
+export function formFieldOf(name: string, values: Readonly<Record<string, unknown>>): string {
+  if (name in values) return name;
+  const prefix = `${name}.`;
+  return (
+    Object.keys(values).find(
+      (k) => k.startsWith(prefix) && !k.slice(prefix.length).includes('.')
+    ) ?? name
+  );
 }
 
 /**
