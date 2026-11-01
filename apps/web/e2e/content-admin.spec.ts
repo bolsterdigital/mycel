@@ -3376,6 +3376,30 @@ test.describe('article-writing', () => {
     );
   });
 
+  test('pasted plain text is read as text written elsewhere', async ({ page, request }) => {
+    onlyA11y();
+    requireApi();
+    await login(page, await article(request));
+    const writing = page.locator('.writing-surface .ProseMirror');
+    const paste = (text: string) =>
+      writing.evaluate((element, source) => {
+        const clipboardData = new DataTransfer();
+        clipboardData.setData('text/plain', source);
+        element.dispatchEvent(
+          new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData })
+        );
+      }, text);
+    await writing.locator('p').first().click();
+    // The characters stay what they are: no toggle swallows them.
+    await paste('snake_case_naam en **open');
+    await expect(writing.locator('p', { hasText: 'snake_case_naam en **open' })).toHaveCount(1);
+    // And what is recognised takes the same route as pasted HTML.
+    await paste('# Kop van elders');
+    await expect(writing.getByRole('heading', { name: 'Kop van elders' })).toBeVisible();
+    await paste('> Een stem uit de buurt.');
+    await expect(page.getByRole('heading', { name: 'Geplakt citaat' })).toBeVisible();
+  });
+
   test('pasted image waits for media and alternative text before saving', async ({
     page,
     request,

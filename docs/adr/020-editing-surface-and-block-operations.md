@@ -7,6 +7,7 @@
 - **Builds on**: ADR 007 (localisation), ADR 009 (HTML first and one registry), ADR 013 (bounded customisation), ADR 018 (revisions, capabilities and publication)
 - **Managed extension scope**: 2026-10-24 [ADR 022](022-managed-extensions-and-site-integrations.md) allows reviewed style parts, slots and type profiles within the same bounded block tree. The free canvas and arbitrary layout code rejected below remain rejected.
 - **Rule 5 refined**: 2026-10-30. "Forms per block" is a fieldset per block inside one document form: the document's fields and every block's fields are saved together as one `content.item.update`, and every block action (insert, move, remove) is a button of that form that saves what was typed first and then runs its own operation of rule 6. Separate forms lost what was typed in one block when another was moved or inserted (editor trial of 2026-10-28). The model, the operations and their authorization are unchanged.
+- **Rule 9 refined**: 2026-11-01. Pasted plain text is read as CommonMark by `markdown-it` with HTML off, and the result takes the same conversion path as pasted HTML. Core `fromMarkdown` stays the grammar of the block forms and the assist worker, where the round trip must be lossless. It is not a reader for text written elsewhere: it has no quote or image, and it treats every `_` and `**` as a toggle, so `snake_case_name` would lose its underscores. Both readers end in the same schema, so a difference between them can change how a paste is interpreted but cannot store anything the schema refuses.
 
 ## Context
 
