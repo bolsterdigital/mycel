@@ -11,6 +11,9 @@ import type { Page } from '@playwright/test';
 // link has had its chance when the click comes.
 const HOLD_MS = 800;
 
+// Chromium reports it; TypeScript's DOM types do not have the field yet.
+type DeliveredNavigation = PerformanceNavigationTiming & { deliveryType?: string };
+
 /** Open `from`, hold the pointer on a link to `href`, click, report if it was fetched ahead. */
 export async function arrivesFetchedAhead(
   page: Page,
@@ -39,7 +42,7 @@ export async function arrivesFetchedAhead(
   await page.waitForURL((url) => url.href.endsWith(href));
   return page.evaluate(
     () =>
-      (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming)
-        .deliveryType === 'navigational-prefetch'
+      (performance.getEntriesByType('navigation')[0] as DeliveredNavigation).deliveryType ===
+      'navigational-prefetch'
   );
 }

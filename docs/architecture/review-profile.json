@@ -39,6 +39,7 @@
         "apps/web/src/lib/server/admin/roles*",
         "apps/web/src/lib/server/http/security-headers*",
         "apps/web/src/lib/server/http/body-limit*",
+        "apps/web/src/lib/server/http/speculation*",
         "docker/backup/**",
         "docker/caddy/**",
         ".gitleaks.toml",
