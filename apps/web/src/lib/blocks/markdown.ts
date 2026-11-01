@@ -89,7 +89,7 @@ export function renderMarkdown(model: RenderModel, options: MarkdownOptions): st
   const credit = (c: MediaCredit) =>
     [
       c.work ? `${c.work.title}, ${c.work.maker}` : null,
-      c.photographer ? model.copy.photographer.replace('{name}', c.photographer) : null,
+      c.photographer ? model.copy.photographer.replace('{name}', () => c.photographer ?? '') : null,
     ]
       .filter(Boolean)
       .join(' · ');

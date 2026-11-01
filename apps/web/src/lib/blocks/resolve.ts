@@ -224,7 +224,8 @@ export function renderMeta(
       iso: new Intl.DateTimeFormat('en-CA', { timeZone }).format(at),
       label: new Intl.DateTimeFormat(locale, { timeZone, dateStyle: 'long' }).format(at),
     },
-    byline: authors.length ? ui(locale)('block.meta.by').replace('{names}', names) : null,
+    // A function, so `$&` in a name stays text instead of a replacement pattern.
+    byline: authors.length ? ui(locale)('block.meta.by').replace('{names}', () => names) : null,
     section,
   };
 }

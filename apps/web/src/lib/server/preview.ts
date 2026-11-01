@@ -46,7 +46,8 @@ export const siteReader = (site: Site) =>
  * The document header of a revision in one locale, as the public page gets it (#86, #105): lead,
  * hero, an article's header choice and meta line. Authors and section are read as the editor
  * looking at the preview, since those use cases are not open to the anonymous site reader; only
- * the names reach the page, and one that no longer resolves is left out. The date is the live one, or today for what is not live yet: what the line would say if it were published now.
+ * the names reach the page, and one that no longer resolves is left out. The date is the live one,
+ * or today for what is not live yet: what the line would say if it were published now.
  */
 export async function introOf(
   reader: Principal,
