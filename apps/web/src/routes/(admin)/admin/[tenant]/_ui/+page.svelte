@@ -10,6 +10,7 @@
     Badge,
     BlockCard,
     BlockSummary,
+    BlockText,
     Button,
     DocumentOutline,
     ItemBar,
@@ -293,6 +294,27 @@
     >
       {#snippet rest()}
         <BlockSummary text="" empty={t('admin.block.emptySummary')} />
+      {/snippet}
+      <p>{t('admin.ui.catalogue.panel.body')}</p>
+    </BlockCard>
+    <BlockCard
+      id="ui-block-card-quote"
+      title="5. {t('admin.block.type.quote')}"
+      labels={{
+        edit: t('admin.block.card.edit'),
+        done: t('admin.block.card.done'),
+        more: t('admin.block.card.more'),
+      }}
+    >
+      {#snippet rest()}
+        <BlockText
+          view={{
+            kind: 'quote',
+            text: t('admin.ui.catalogue.blockCard.text'),
+            by: t('admin.ui.catalogue.blockCard.q1'),
+            variant: 'blockquote',
+          }}
+        />
       {/snippet}
       <p>{t('admin.ui.catalogue.panel.body')}</p>
     </BlockCard>

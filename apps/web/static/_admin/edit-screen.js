@@ -9,7 +9,7 @@
 // - Escape closes the innermost open block fold, "More actions" or confirmation and gives focus
 //   back to its summary; it never touches what was typed;
 // - a "Done" under a block's fields that closes it like its summary does, and a click on the
-//   block at rest that opens it;
+//   block at rest that opens it, with a text block's words brought up to date when it closes;
 // - focus after a round trip lands where the action was: the moved block's "More actions", the
 //   copy's or neighbour's "Edit", the first field of a new block;
 // - a link or a refused control inside a closed fold opens that fold first (the tabs script
@@ -80,10 +80,12 @@ if (form instanceof HTMLFormElement) {
       if (saveButton instanceof HTMLButtonElement && !submitting) form.requestSubmit(saveButton);
       return;
     }
-    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    if (event.key !== 'Escape') return;
     const target = event.target instanceof Element ? event.target : null;
-    // A dialog (the media picker) closes itself; an open menu of the prose editor goes first.
+    // ProseMirror marks every Escape as handled without doing anything with it, so only there a
+    // prevented one still closes the block. A dialog (the media picker) closes itself.
     if (!target || target.closest('dialog')) return;
+    if (event.defaultPrevented && !target.closest('.ProseMirror')) return;
     const fold = target.closest(
       'details.ui-confirm[open], details.ui-block-card-more[open], details.ui-block-card-fold[open], details.ui-block-insert[open], details[data-shortcuts][open]'
     );
@@ -114,8 +116,70 @@ if (form instanceof HTMLFormElement) {
     const fold = rest.parentElement?.querySelector(':scope > details.ui-block-card-fold');
     if (!fold || fold.open) return;
     fold.open = true;
-    fold.querySelector(':scope > summary')?.focus();
+    // A click on the words is a wish to write them: into the editor, else the first field.
+    const field = rest.querySelector('.ui-block-text')
+      ? [...fold.querySelectorAll('.ProseMirror, input:not([type="hidden"]), textarea')].find(
+          (control) => control.getClientRects().length
+        )
+      : null;
+    (field ?? fold.querySelector(':scope > summary'))?.focus();
   });
+
+  // A closed block says what its fields say now, not what was last saved (MY-110 C1). Without
+  // JavaScript the rest view stays the saved text until the save; the fields keep what was typed.
+  const valueOf = (names) => {
+    for (const name of names.split('|')) {
+      const control = form.elements.namedItem(name);
+      if (control?.value) return control.value;
+    }
+    return '';
+  };
+  const PROSE_TAGS = new Set(['P', 'STRONG', 'EM', 'CODE', 'UL', 'OL', 'LI', 'BR', 'SUP']);
+  /** The editor's words as the inert markup of `rich-text.ts`, built from its nodes, no copies. */
+  const inertCopy = (source, target) => {
+    for (const node of source.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE) target.append(node.textContent ?? '');
+      if (!(node instanceof Element)) continue;
+      let copy = null;
+      if (/^H[1-6]$/.test(node.tagName)) {
+        copy = document.createElement('p');
+        copy.dataset.heading = node.tagName.slice(1);
+      } else if (node.tagName === 'A') {
+        copy = document.createElement('span');
+        copy.dataset.link = '';
+      } else if (PROSE_TAGS.has(node.tagName)) {
+        copy = document.createElement(node.tagName);
+      }
+      if (copy) target.append(copy);
+      inertCopy(node, copy ?? target);
+    }
+  };
+  /** What a fold's editor held when it opened: an unchanged one keeps the server's rendering. */
+  const opened = new WeakMap();
+  form.addEventListener(
+    'toggle',
+    (event) => {
+      const fold = event.target;
+      if (!(fold instanceof HTMLDetailsElement) || !fold.matches('.ui-block-card-fold')) return;
+      const editor = fold.querySelector('.ProseMirror');
+      if (fold.open) {
+        opened.set(fold, editor?.innerHTML);
+        return;
+      }
+      const rest = fold.parentElement?.querySelector(':scope > [data-block-rest]');
+      if (!rest) return;
+      for (const line of rest.querySelectorAll('[data-rest-from]')) {
+        const parts = line.dataset.restFrom.split(' ').map(valueOf).filter(Boolean);
+        if (parts.length) line.textContent = parts.join(', ');
+      }
+      const prose = rest.querySelector('[data-rest-prose]');
+      if (prose && editor && editor.innerHTML !== opened.get(fold)) {
+        prose.replaceChildren();
+        inertCopy(editor, prose);
+      }
+    },
+    true
+  );
 
   /** Opens every closed fold around an element, so it can be shown and focused. */
   const reveal = (element) => {

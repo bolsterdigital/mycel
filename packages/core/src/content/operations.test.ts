@@ -164,7 +164,7 @@ describe('block operations', () => {
     });
   });
 
-  it('keeps id and type on set_props and validates the props against that block type', async () => {
+  it('keeps id and type on update and validates the props against that block type', async () => {
     const { item, revision } = await create();
     const out = await invoker.run(useCases.setBlockProps, admin, {
       itemId: item.id,

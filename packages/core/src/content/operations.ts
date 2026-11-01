@@ -1,5 +1,5 @@
 // Small block edits on a revisioned item (ADR 020 rules 4 and 6) and block discovery (rule 7).
-// Insert, move, remove, set_props and split_insert address blocks by id, never by array index,
+// Insert, move, remove, update and split_insert address blocks by id, never by array index,
 // and each one is a whole save: item lock, `baseRevisionId` check, full document validation,
 // reference and entitlement checks, one new revision. They are what no-JS form actions, keyboard
 // commands and MCP call; there is no second agent API.
@@ -7,7 +7,7 @@
 // Every operation runs through `mutate`, so the lock, the conflict check and the write are the
 // same code as `content.item.update` (`writeRevision`). An unknown id or anchor is
 // `invalid_input`: the item exists, the request does not fit its content. Only move and remove
-// normalise; insert and set_props cannot newly join two `rich-text` blocks, and an insert that
+// normalise; insert and update cannot newly join two `rich-text` blocks, and an insert that
 // would is refused like an update (`content.blocks.adjacent-rich-text`). Rejected: JSON Patch
 // over the document (array indexes shift under concurrent edits) and normalising in `update`
 // (whoever sends the whole document sends it canonical).

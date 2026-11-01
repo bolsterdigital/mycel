@@ -1493,6 +1493,54 @@
   .ui-block-card-empty {
     color: var(--color-muted-fg);
   }
+  /* A text block at rest: the words as the page sets them, at reading width. While the block is
+     open its fields show the same words, so the rest view steps aside instead of doubling them. */
+  .ui-block-text {
+    max-inline-size: 70ch;
+  }
+  .ui-block-card:has(> .ui-block-card-fold[open]) .ui-block-text {
+    display: none;
+  }
+  .ui-block-text-heading {
+    margin: 0;
+    font-size: var(--step-2);
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  .ui-block-text-quote {
+    margin: 0;
+    padding-inline-start: var(--space-2);
+    border-inline-start: 3px solid var(--color-border);
+  }
+  .ui-block-text-quote > p {
+    margin: 0;
+    white-space: pre-line;
+  }
+  .ui-block-text-quote[data-variant='pullquote'] > p {
+    font-size: var(--step-2);
+    line-height: 1.3;
+  }
+  .ui-block-text-quote > footer {
+    margin-block-start: var(--space-1);
+    font-size: var(--step--1, 0.875em);
+    color: var(--color-muted-fg);
+  }
+  .ui-block-text-prose > :first-child {
+    margin-block-start: 0;
+  }
+  .ui-block-text-prose > :last-child {
+    margin-block-end: 0;
+  }
+  .ui-block-text-prose [data-heading] {
+    font-size: var(--step-1);
+    font-weight: 700;
+    line-height: 1.25;
+  }
+  /* A link in words, not by colour alone, as the page has it; not one you can follow from here. */
+  .ui-block-text-prose [data-link] {
+    color: var(--color-link);
+    text-decoration: underline;
+  }
   /* An image block at rest: the photo at card scale in its own ratio, its caption on the image's
      edge as the page prints it; a picture that cannot be shown is a framed note with "Replace". */
   .ui-block-image {

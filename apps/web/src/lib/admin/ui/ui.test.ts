@@ -10,6 +10,7 @@ import {
   Actions,
   Badge,
   BlockCard,
+  BlockText,
   BlockImage,
   BlockSummary,
   Breadcrumb,
@@ -232,6 +233,25 @@ describe('BlockCard', () => {
     expect(summary).toContain('aria-describedby="block-1-title"');
     expect(out).toContain('<span>FIELDS</span>');
     expect(out).toMatch(/data-block-done="" hidden/);
+  });
+  it('shows a text block without a heading element or a link (MY-110 C1)', () => {
+    const heading = html(BlockText, {
+      view: { kind: 'heading', text: 'Wie <wij> zijn', from: 'x' },
+    });
+    expect(heading).toContain('data-rest-from="x"');
+    expect(heading).toContain('Wie &lt;wij> zijn');
+    expect(heading).not.toMatch(/<h[1-6]/);
+    const quote = html(BlockText, {
+      view: {
+        kind: 'quote',
+        text: 'Zo is het',
+        by: 'Sam',
+        variant: 'pullquote',
+        byFrom: ['a', 'b|c'],
+      },
+    });
+    expect(quote).toContain('<blockquote class="ui-block-text-quote" data-variant="pullquote"');
+    expect(quote).toContain('data-rest-from="a b|c"');
   });
   it('opens when asked, and has no More actions without actions', () => {
     const out = html(BlockCard, {

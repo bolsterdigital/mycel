@@ -18,6 +18,14 @@ describe('block presentation', () => {
     expect(keys.some((k) => groupOf(type, k) === 'content') || keys.length === 0).toBe(true);
   });
 
+  it('shows the text blocks as their words, with the look of a quote under display', () => {
+    for (const type of ['heading', 'rich-text', 'quote'] as const)
+      expect(BLOCK_PRESENTATION[type]).toMatchObject({ rest: 'text', stage: 'C1' });
+    expect(groupOf('quote', 'variant')).toBe('display');
+    expect(groupOf('quote', 'width')).toBe('display');
+    expect(groupOf('quote', 'attribution')).toBe('content');
+  });
+
   it('shows the image pilot as a picture, with layout under display and credit as source', () => {
     expect(BLOCK_PRESENTATION.image).toMatchObject({ rest: 'image', stage: 'A' });
     expect(groupOf('image', 'layout')).toBe('display');

@@ -21,11 +21,13 @@ import {
   type BlockType,
   type MediaCredit,
   type Principal,
+  type RichTextDoc,
   type UseCaseError,
 } from '@mycel/core';
 import { runtime } from './runtime.js';
 import { withAssigned } from './content-admin.js';
 import { mediaChoice } from './admin/media-choices.js';
+import { richTextHtml } from '../blocks/rich-text.js';
 import type { UiKey } from '../../i18n/index.js';
 import type { MediaChoice } from '../admin/media-choice.js';
 
@@ -120,6 +122,13 @@ function firstText(
   return null;
 }
 
+/** A localised value in `locale`, else in any locale that has one: a card shows what there is. */
+function anyLocale<T>(v: unknown, locale: string): T | undefined {
+  if (!v || typeof v !== 'object') return undefined;
+  const map = v as Record<string, T | null | undefined>;
+  return map[locale] || Object.values(map).find(Boolean) || undefined;
+}
+
 /** One line that says which block this is: its first localised text in `locale`. */
 export function summaryOf(block: Block, locale: string): string {
   const text = firstText(
@@ -145,11 +154,7 @@ export interface BlockPreview {
 export function previewOf(block: Block, locale: string): BlockPreview {
   const fields = BLOCK_DEFINITIONS[block.type as BlockType].fields;
   const props = block.props as Record<string, unknown>;
-  const local = (v: unknown): string => {
-    if (!v || typeof v !== 'object') return '';
-    const map = v as Record<string, string | null | undefined>;
-    return map[locale] || Object.values(map).find((x) => typeof x === 'string' && x) || '';
-  };
+  const local = (v: unknown): string => anyLocale<string>(v, locale) ?? '';
   const media = (fs: readonly BlockField[], ps: Record<string, unknown>): string | null => {
     for (const f of fs) {
       const v = ps[f.key];
@@ -178,6 +183,65 @@ export function previewOf(block: Block, locale: string): BlockPreview {
     ) ||
     (list ? '' : summaryOf(block, locale));
   return { text: clip(text), mediaId: media(fields, props), entries: entries.filter(Boolean) };
+}
+
+/**
+ * A text block at rest (MY-110 C1): what the page says, as the page sets it. `from` names the form
+ * fields the text comes from, so the screen's script can bring a closed block up to date with what
+ * was typed; each name is a field, `|` between alternatives. Null for a type without this view, or
+ * when the block has nothing to say yet: the card's summary then says so.
+ */
+export type TextRest =
+  | { kind: 'heading'; text: string; from: string }
+  | {
+      kind: 'quote';
+      text: string;
+      by: string;
+      variant: string;
+      from: string;
+      byFrom: readonly string[];
+    }
+  | { kind: 'rich-text'; html: string };
+
+export function textRestOf(block: Block, locale: string, prefix: string): TextRest | null {
+  const local = (v: unknown): string => anyLocale<string>(v, locale) ?? '';
+  const field = (path: string) => `${prefix}p.${path}`;
+  if (block.type === 'heading') {
+    const text = local(block.props.text);
+    return text ? { kind: 'heading', text, from: field(`text.${locale}`) } : null;
+  }
+  if (block.type === 'quote') {
+    const { text, attribution: by, variant } = block.props;
+    return {
+      kind: 'quote',
+      text: local(text),
+      // As the page prints it (`Quote.svelte`): the source, else the bare address.
+      by: [by.name, local(by.role), local(by.source) || by.url].filter(Boolean).join(', '),
+      variant,
+      from: field(`text.${locale}`),
+      byFrom: [
+        field('attribution.name'),
+        field(`attribution.role.${locale}`),
+        `${field(`attribution.source.${locale}`)}|${field('attribution.url')}`,
+      ],
+    };
+  }
+  if (block.type === 'rich-text') {
+    const doc = anyLocale<RichTextDoc>(block.props.content, locale);
+    const html =
+      doc &&
+      richTextHtml(doc, {
+        depth: 1,
+        links: {},
+        base: '',
+        idPrefix: block.id,
+        footnotes: '',
+        footnoteBack: '',
+        inert: true,
+      });
+    return html && textOf(doc) ? { kind: 'rich-text', html } : null;
+  }
+  return null;
 }
 
 /**
@@ -262,7 +326,7 @@ export const issueCopy = (message: string): UiKey =>
  */
 export function fieldIssues(e: UseCaseError, index: number): FieldIssue[] {
   // The document's path to the block (`blocks.<i>.props`), or the operation's input (`props` of
-  // set_props, `block.props` of insert).
+  // update, `block.props` of insert).
   const prefixes = [`blocks.${index}.props`, 'block.props', 'props'];
   return e.issues.map((i) => {
     const prefix = prefixes.find((p) => i.path.startsWith(`${p}.`));
