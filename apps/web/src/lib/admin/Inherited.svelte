@@ -7,6 +7,7 @@
      component in lib/admin/ui (it knows the chain's sources, which are content's words). -->
 <script lang="ts">
   import { fill, ui, type UiKey } from '../../i18n/index.js';
+  import { THUMB } from './thumb.js';
 
   let {
     id,
@@ -30,7 +31,7 @@
 </script>
 
 <p class="ui-inherited" {id}>
-  {#if thumb}<img src={thumb} alt="" width="48" height="48" />{/if}
+  {#if thumb}<img src={thumb} alt="" width={THUMB.row.width} height={THUMB.row.height} />{/if}
   <span
     >{source
       ? fill(t('admin.content.inherited'), {

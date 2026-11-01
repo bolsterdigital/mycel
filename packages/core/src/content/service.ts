@@ -17,6 +17,7 @@ import type { JobOutcome } from '../jobs/ports.js';
 import { jobKey, type JobPayload } from '../jobs/types.js';
 import type { TransactionContext } from '../ports.js';
 import { defineUseCase } from '../registry.js';
+import { MAX_PAGE_SIZE } from '../util/page-size.js';
 import {
   allBlocks,
   assignBlockIds,
@@ -60,7 +61,7 @@ import { exampleId } from '../util/ids.js';
 export const DEFAULT_PAGE_SIZE = 20;
 /** How long a scheduled publication of a suspended site waits before it looks again. */
 export const SUSPENDED_RETRY_MS = 24 * 60 * 60 * 1000;
-const Limit = z.number().int().min(1).max(100).optional();
+const Limit = z.number().int().min(1).max(MAX_PAGE_SIZE).optional();
 const ItemId = z.string().guid();
 
 export function toContentItem(r: ItemRecord): ContentItem {

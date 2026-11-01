@@ -33,6 +33,7 @@ import {
   type TenantRef,
   type UnitOfWork,
 } from '@mycel/core';
+import { NO_STORE, PRIVATE_NO_STORE } from './http/http-cache.js';
 
 export interface MediaDeliveryDeps {
   uow: UnitOfWork;
@@ -47,7 +48,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** What a variant file may be called; `original.*` never matches. */
 const FILE = /^(w\d{1,5}|thumb|file)\.(avif|webp|gif|pdf)$/;
 
-const status = (code: number, cache = 'no-store') =>
+const status = (code: number, cache = NO_STORE) =>
   new Response(null, {
     status: code,
     headers: { 'cache-control': cache, 'x-content-type-options': 'nosniff' },
@@ -88,13 +89,13 @@ export async function serveMedia(
       deps.clock.now()
     ))
   )
-    return status(403, 'private, no-store');
+    return status(403, PRIVATE_NO_STORE);
 
   const etag = `"${media.checksum}:${variant.name}.${variant.format}"`;
   const headers: Record<string, string> = {
     'content-type': CONTENT_TYPE_OF[variant.format],
     etag,
-    'cache-control': restricted ? 'private, no-store' : 'public, max-age=31536000, immutable',
+    'cache-control': restricted ? PRIVATE_NO_STORE : 'public, max-age=31536000, immutable',
     'x-content-type-options': 'nosniff',
     ...(media.kind === 'document' ? { 'content-disposition': disposition(media.filename) } : {}),
   };
@@ -168,7 +169,7 @@ export async function serveAdminMedia(
   which: 'original' | (string & {}),
   url: URL
 ): Promise<Response> {
-  if (!principal || !can(principal, 'media:read')) return status(403, 'private, no-store');
+  if (!principal || !can(principal, 'media:read')) return status(403, PRIVATE_NO_STORE);
   if (!UUID.test(id)) return status(404);
   const original = which === 'original';
   if (!original && !PREVIEW.test(which)) return status(404);
@@ -187,7 +188,7 @@ export async function serveAdminMedia(
       deps.clock.now()
     ))
   )
-    return status(403, 'private, no-store');
+    return status(403, PRIVATE_NO_STORE);
   if (!original && !media.variants.some((v) => variantFile(v) === file)) return status(404);
 
   const bytes = await deps.blobs.get(mediaKey(principal.tenantId, id, file));
@@ -201,7 +202,7 @@ export async function serveAdminMedia(
     headers: {
       'content-type': CONTENT_TYPE_OF[format ?? 'png'],
       'content-length': String(bytes.length),
-      'cache-control': original ? 'private, no-store' : 'private, max-age=300',
+      'cache-control': original ? PRIVATE_NO_STORE : 'private, max-age=300',
       'x-content-type-options': 'nosniff',
       ...(original ? { 'content-disposition': disposition(media.filename, 'attachment') } : {}),
     },

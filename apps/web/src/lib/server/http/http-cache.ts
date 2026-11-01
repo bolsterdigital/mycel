@@ -24,6 +24,8 @@ import { ifNoneMatch } from '@mycel/api/conditional';
 /** Content items: one minute fresh, ten more minutes served stale while revalidating. */
 export const PUBLIC_CACHE = 'public, max-age=60, stale-while-revalidate=600';
 export const NO_STORE = 'no-store';
+/** What only this signed-in person or signed link may see; no cache may keep it either. */
+export const PRIVATE_NO_STORE = 'private, no-store';
 
 export function conditional(request: Request, response: Response): Response {
   if (response.status === 404 && !response.headers.has('cache-control')) {

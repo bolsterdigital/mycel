@@ -1,6 +1,7 @@
 // Preview assets use the same safe bytes as public delivery but require site membership.
 import { error } from '@sveltejs/kit';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
+import { NO_STORE } from '#lib/server/http/http-cache.js';
 import { PREVIEW_HEADERS } from '#lib/server/preview.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { RequestHandler } from './$types';
@@ -17,7 +18,7 @@ export const GET: RequestHandler = async ({ params, locals, url }) => {
       ...PREVIEW_HEADERS,
       'content-type': state.asset.contentType,
       'x-content-type-options': 'nosniff',
-      'cache-control': 'no-store',
+      'cache-control': NO_STORE,
     },
   });
 };

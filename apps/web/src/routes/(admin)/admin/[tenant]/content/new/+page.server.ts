@@ -3,7 +3,13 @@
 // starts as a draft with its first revision; the answer is a 303 to its edit page. A refusal
 // re-renders the form with what was typed.
 import { fail, redirect } from '@sveltejs/kit';
-import { ContentType, UseCaseError, useCases, type ContentDocumentInput } from '@mycel/core';
+import {
+  ContentType,
+  MAX_PAGE_SIZE,
+  UseCaseError,
+  useCases,
+  type ContentDocumentInput,
+} from '@mycel/core';
 import { failureOf } from '#lib/server/admin/admin-actions.js';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { valuesFromForm } from '#lib/server/content-admin.js';
@@ -14,7 +20,7 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ parent, locals, url }) => {
   await parent();
   const { patterns } = await runtime().invoker.run(useCases.listPatterns, locals.principal!, {
-    limit: 100,
+    limit: MAX_PAGE_SIZE,
   });
   const type = ContentType.safeParse(url.searchParams.get('type')).data ?? 'page';
   return {

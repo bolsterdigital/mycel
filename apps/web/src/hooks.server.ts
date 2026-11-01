@@ -62,7 +62,7 @@ import {
   REPORTS_PATH,
   type ResponseKind,
 } from '#lib/server/http/security-headers.js';
-import { conditional } from '#lib/server/http/http-cache.js';
+import { PRIVATE_NO_STORE, conditional } from '#lib/server/http/http-cache.js';
 import { applySpeculationRules } from '#lib/server/http/speculation.js';
 import { withItalicPreload } from '#lib/theme/tokens.js';
 
@@ -109,7 +109,7 @@ export const handle: Handle = async (input) => {
     if (kind === 'public') response = conditional(event.request, response);
     const liveDraft = /^\/admin\/[^/]+\/preview\/draft$/.test(event.url.pathname);
     if (liveDraft) {
-      response.headers.set('cache-control', 'private, no-store');
+      response.headers.set('cache-control', PRIVATE_NO_STORE);
       response.headers.set('x-robots-tag', 'noindex');
     }
     applySecurityHeaders(response.headers, kind, event.url.protocol === 'https:', liveDraft);

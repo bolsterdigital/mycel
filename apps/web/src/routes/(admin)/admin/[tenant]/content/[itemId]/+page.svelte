@@ -34,6 +34,7 @@
   import Diff from '#lib/admin/Diff.svelte';
   import Inherited from '#lib/admin/Inherited.svelte';
   import { issueLabel } from '#lib/admin/issue-label.js';
+  import { thumbPath } from '#lib/admin/thumb.js';
   import {
     Actions,
     Badge,
@@ -252,7 +253,7 @@
   /** Whether a field is empty both as typed and as stored, so what it inherits applies. */
   const empty = (name: string) => !v(name).trim() && !data.values[name];
   const thumbOf = (id: string | null) =>
-    id && data.media.some((m) => m.id === id && m.thumb) ? `${base}/media/${id}/thumb` : null;
+    id && data.media.some((m) => m.id === id && m.thumb) ? thumbPath(base, id) : null;
   const cardLabels = $derived({
     edit: t('admin.block.card.edit'),
     done: t('admin.block.card.done'),
@@ -489,7 +490,7 @@
       : undefined}
     <BlockSummary
       text={b.preview.text}
-      thumb={image ? `${base}/media/${image.id}/thumb` : null}
+      thumb={image ? thumbPath(base, image.id) : null}
       entries={b.preview.entries}
       empty={t('admin.block.emptySummary')}
     />
