@@ -239,6 +239,8 @@ export type TextRest =
       /** Always both places the form has, so one typed after opening has somewhere to show. */
       actions: readonly { label: string; from: string }[];
     }
+  /** A paywall has no words of its own: the screen says what the boundary does. */
+  | { kind: 'paywall' }
   | {
       kind: 'video';
       provider: string;
@@ -341,7 +343,9 @@ export function textRestOf(
       })),
     };
   }
-  if (block.type === 'cta') {
+  // A legacy hero's words are a CTA's: a title, a text and up to two actions. Its picture stands
+  // above them on the screen (`imageRestOf`).
+  if (block.type === 'cta' || block.type === 'hero') {
     return {
       kind: 'cta',
       variant: block.props.variant,
@@ -356,6 +360,7 @@ export function textRestOf(
       })),
     };
   }
+  if (block.type === 'paywall') return { kind: 'paywall' };
   if (block.type === 'video-embed') {
     return {
       kind: 'video',
@@ -407,13 +412,26 @@ export function imageRestOf(
   locale: string,
   media: readonly MediaChoice[]
 ): ImageRest | null {
-  if (block.type !== 'image') return null;
-  const p = block.props as {
+  // A legacy hero shows its picture, not its caption or credit: the page does not set them there.
+  const onPage = block.type === 'image';
+  if (!onPage && !(block.type === 'hero' && block.props.image)) return null;
+  const p = (onPage ? block.props : block.props.image) as {
     mediaId: string;
     caption?: Partial<Record<string, string>>;
     credit?: MediaCredit;
   };
   const asset = media.find((m) => m.id === p.mediaId);
+  if (!onPage) {
+    return {
+      mediaId: p.mediaId,
+      label: asset?.label ?? p.mediaId,
+      card: asset?.card
+        ? { file: asset.card.file, width: asset.card.width, height: asset.card.height }
+        : null,
+      caption: null,
+      credit: null,
+    };
+  }
   const own = p.caption?.[locale];
   const caption = own !== undefined ? own : (asset?.card?.caption[locale] ?? '');
   const credit = p.credit ?? asset?.card?.credit ?? null;

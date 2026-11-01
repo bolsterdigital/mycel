@@ -440,8 +440,7 @@
 {/snippet}
 
 {#snippet blockRest(b: (typeof data.blocks)[number])}
-  {#if BLOCK_PRESENTATION[b.type].rest === 'image' && b.image}
-    {@const img = b.image}
+  {#snippet picture(img: NonNullable<typeof b.image>, field: string)}
     <BlockImage
       src={img.card ? `${base}/media/${img.mediaId}/variant/${img.card.file}` : null}
       width={img.card?.width ?? 4}
@@ -449,9 +448,13 @@
       caption={img.caption}
       credit={img.credit ? creditLine(img.credit) : null}
       missing={fill(t('admin.block.image.missing'), { file: img.label })}
-      replace={{ href: `#b-${b.id}-p-mediaId`, label: t('admin.block.image.replace') }}
+      replace={{ href: `#b-${b.id}-p-${field}`, label: t('admin.block.image.replace') }}
     />
+  {/snippet}
+  {#if BLOCK_PRESENTATION[b.type].rest === 'image' && b.image}
+    {@render picture(b.image, 'mediaId')}
   {:else if BLOCK_PRESENTATION[b.type].rest === 'text' && b.text}
+    {#if b.type === 'hero' && b.image}{@render picture(b.image, 'image-mediaId')}{/if}
     <BlockText
       view={b.text}
       kindLabel={b.text.kind === 'callout'
@@ -464,9 +467,23 @@
               : b.text.unread
                 ? t('admin.block.form.unread')
                 : t('admin.block.form.missing')
-            : undefined}
-      changedLabel={t('admin.block.form.changed')}
+            : b.text.kind === 'paywall'
+              ? t('admin.block.paywall.boundary')
+              : undefined}
+      noteLabel={b.text.kind === 'paywall'
+        ? data.restricted
+          ? undefined
+          : t('admin.block.paywall.public')
+        : t('admin.block.form.changed')}
     />
+    {#if b.type === 'hero'}
+      <p class="ui-hint">
+        {t('admin.block.hero.legacy')}
+        {#if data.heroConversion?.heroId === b.id}
+          <a href="#hero-conversion">{t('admin.block.hero.move')}</a>
+        {/if}
+      </p>
+    {/if}
   {:else}
     {@const image = b.preview.mediaId
       ? data.media.find((m) => m.id === b.preview.mediaId && m.thumb)
@@ -488,6 +505,7 @@
     id="block-{b.id}"
     class="block"
     title="{i + 1}. {t(`admin.block.type.${b.type}` as UiKey)}"
+    editable={BLOCK_DEFINITIONS[b.type].fields.length > 0}
     open={refused ||
       data.openBlocks.includes(b.id) ||
       (Array.isArray(early.$openBlocks) && early.$openBlocks.includes(b.id))}
@@ -707,7 +725,7 @@
       {/if}
     {/if}
     {#if data.heroConversion}
-      {@render heroConversion(data.heroConversion)}
+      <div id="hero-conversion">{@render heroConversion(data.heroConversion)}</div>
     {/if}
   </section>
 
