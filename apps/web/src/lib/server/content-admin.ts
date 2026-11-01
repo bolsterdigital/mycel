@@ -103,6 +103,9 @@ export function valuesOf(doc: ContentDocument): FormValues {
   v.canonical = doc.seo.canonical ?? '';
   put('lead', doc.lead);
   v.heroImageId = doc.heroImageId ?? '';
+  // Without an alt the hero is decorative (#99); the box is ticked, as for a new image.
+  if (!doc.heroAlt) v.heroDecorative = 'on';
+  put('heroAlt', doc.heroAlt);
   v.featuredImageId = doc.featuredImageId ?? '';
   put('featuredTitle', doc.featured?.title);
   put('featuredDescription', doc.featured?.description);
@@ -153,6 +156,16 @@ export function documentFrom(
   const shareImage = image(v, 'shareImageId', doc.seo.imageId);
   if (shareImage) seo.imageId = shareImage;
   const heroImageId = image(v, 'heroImageId', doc.heroImageId);
+  // The alt belongs to the hero (#99): read where the form showed it (`heroAltShown`, the box only
+  // shows once there is an image), kept otherwise, gone with the image. An unticked box with no
+  // text in any locale is sent as `{}`, which core refuses.
+  const heroAlt = !heroImageId
+    ? undefined
+    : 'heroAltShown' in v
+      ? one(v, 'heroDecorative') === 'on'
+        ? undefined
+        : pick('heroAlt', doc.heroAlt)
+      : doc.heroAlt;
   const featuredImageId = image(v, 'featuredImageId', doc.featuredImageId);
   const featured = {
     title: optional(pick('featuredTitle', doc.featured?.title)),
@@ -161,6 +174,7 @@ export function documentFrom(
   const tierIds = (level || doc.access.level) === 'tier' ? doc.access.tierIds : undefined;
   const {
     heroImageId: _hero,
+    heroAlt: _heroAlt,
     featuredImageId: _featured,
     featured: _featuredTexts,
     lead: _lead,
@@ -170,6 +184,7 @@ export function documentFrom(
   const common = {
     ...rest,
     ...(heroImageId ? { heroImageId } : {}),
+    ...(heroAlt ? { heroAlt } : {}),
     ...(featuredImageId ? { featuredImageId } : {}),
     // Absent rather than `{}` when both are empty: a stored document parses byte for byte.
     ...(featured.title || featured.description

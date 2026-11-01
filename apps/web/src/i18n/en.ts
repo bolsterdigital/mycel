@@ -663,6 +663,9 @@ export const en = {
   'admin.content.field.heroImage': 'Hero image',
   'admin.content.field.heroImageHint':
     'The large image at the top of the page, below the title and the lead. Leave empty for no image above the story.',
+  'admin.content.field.heroAlt': 'Description of the hero image (alt text)',
+  'admin.content.field.heroDecorativeHint':
+    'Tick when the image adds nothing the title and lead do not say. Untick to describe it for people who cannot see it.',
   'admin.content.field.featuredImage': 'Featured image',
   'admin.content.field.featuredImageHint':
     'How this item appears where it is shown elsewhere on the site: in a list, a block or a card. Leaving it empty is fine: what is shown below applies.',

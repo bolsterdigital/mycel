@@ -194,6 +194,7 @@
     locales: 'admin.content.new.locales',
     correctionDate: 'admin.content.edit.correctionDate',
     slug: 'admin.content.slug',
+    heroAlt: 'admin.content.field.heroAlt',
   };
   /** Whether a refused save named this field. */
   const flagged = (name: string) => issues.some((i) => i.name === name);
@@ -564,6 +565,33 @@
     {base}
     upload={data.upload}
   />
+  {#if v('heroImageId')}
+    <!-- #99: the hero's use, like an image block's: decorative, or described per locale. The
+         screen's script hides the empty alt while the box is ticked (data-alt-of). The marker
+         tells the server the box was on the form, so an unticked box is not a box never shown. -->
+    <input type="hidden" name="heroAltShown" value="1" />
+    <Checkbox
+      id="heroDecorative"
+      name="heroDecorative"
+      label={t('admin.block.field.decorative')}
+      hint={t('admin.content.field.heroDecorativeHint')}
+      checked={v('heroDecorative') === 'on'}
+    />
+    <div class="ui-block-alt" data-alt-of="heroDecorative">
+      <Field
+        id="heroAlt"
+        label={t('admin.content.field.heroAlt')}
+        locale={data.locale}
+        invalid={flagged('heroAlt')}
+      >
+        {#snippet control(attributes)}
+          <textarea name="heroAlt.{work}" maxlength="1000" rows="2" lang={work} {...attributes}
+            >{v(`heroAlt.${work}`)}</textarea
+          >
+        {/snippet}
+      </Field>
+    </div>
+  {/if}
 
   <section aria-labelledby="blocks" class="item-blocks">
     <h3 id="blocks">{t('admin.block.title')}</h3>

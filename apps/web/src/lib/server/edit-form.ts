@@ -194,6 +194,7 @@ const DOCUMENT_FIELDS: [RegExp, string][] = [
   [/^document\.access\.teaser\.blocks$/, 'teaserBlocks'],
   [/^document\.access\.teaser$/, 'teaser'],
   [/^document\.defaultLocale$/, 'locales'],
+  [/^document\.heroAlt(\.[\w-]+)?$/, 'heroAlt'],
   // Only the newest correction comes from the form; the stored ones are read-only.
   [/^document\.corrections\.\d+\.date$/, 'correctionDate'],
 ];

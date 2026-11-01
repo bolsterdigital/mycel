@@ -42,6 +42,7 @@ describe('fieldOf', () => {
     expect(fieldOf('lead', 'nl')).toBe('lead.nl');
     expect(fieldOf('featuredImageId', 'nl')).toBe('featuredImageId');
     expect(fieldOf('heroImageId', 'nl')).toBe('heroImageId');
+    expect(fieldOf('heroAlt', 'nl')).toBe('heroAlt');
     expect(fieldOf('featured.title.en', 'en')).toBe('featuredTitle.en');
     expect(fieldOf('featured.description', 'nl')).toBe('featuredDescription.nl');
     expect(fieldOf('seo.imageId', 'nl')).toBe('shareImageId');

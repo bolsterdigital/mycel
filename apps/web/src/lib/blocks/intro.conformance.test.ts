@@ -94,7 +94,11 @@ const THEMES = {
 
 const prettierConfig = await resolveConfig(fileURLToPath(import.meta.url));
 
-async function page(locale: 'nl' | 'en', theme: keyof typeof THEMES) {
+async function page(
+  locale: 'nl' | 'en',
+  theme: keyof typeof THEMES,
+  heroAlt: Partial<Record<string, string>> | undefined = undefined
+) {
   const model = await resolveDocument(
     source,
     { locale, ...projectDocument(article, locale) },
@@ -102,7 +106,11 @@ async function page(locale: 'nl' | 'en', theme: keyof typeof THEMES) {
   );
   const intro = await resolveIntro(
     source,
-    { lead: article.lead?.[locale] ?? null, heroImageId: effectiveImages(article).hero.mediaId },
+    {
+      lead: article.lead?.[locale] ?? null,
+      heroImageId: effectiveImages(article).hero.mediaId,
+      heroAlt: heroAlt?.[locale] ?? null,
+    },
     locale
   );
   const data = {
@@ -145,4 +153,14 @@ describe('the public item page (#86)', () => {
         const other = locale === 'nl' ? /Three years|After three|square/ : /Drie jaar|plein/;
         expect(html).not.toMatch(other);
       });
+});
+
+describe('the hero image alt (#99)', () => {
+  const described = { nl: 'Demonstranten op het plein', en: 'Protesters on the square' };
+  for (const locale of ['nl', 'en'] as const)
+    it(`describes a described hero in ${locale} and leaves a decorative one empty`, async () => {
+      const img = (html: string) => /<img[^>]*>/.exec(html)?.[0] ?? '';
+      expect(img(await page(locale, 'default', described))).toContain(`alt="${described[locale]}"`);
+      expect(img(await page(locale, 'default'))).toContain('alt=""');
+    });
 });

@@ -28,6 +28,7 @@ CI runs `verify` plus a DCO check (`.github/workflows/verify.yml`). Commits are 
 - **Forms and mailing are available natively; ordinary forms include typed conditional fields, multiple per-form notifications and connector actions; delivery and spam defence follow the `formulieren-en-mail` checklist** (ADRs 010, 023, 024).
 - **Background work crosses tenants only through a dedicated role and the outbox** (ADR 011).
 - **Two content types, `page` and `article`, one block tree; authors and sections are entities; status plus revisions; a newsletter issue is an article with e-mail delivery; rich text is constrained ProseMirror JSON; published content has a cached read route** (ADR 012).
+- **Title, lead and hero image are one document header above the blocks; the hero's alt is per locale; the `hero` block stays valid for existing content but is not offered for new content; moving one into the header is an explicit per-document conversion that never rewrites old revisions** (ADR 025).
 - **Customisation ladder: validated theme values, block variants, patterns and composed blocks; platform-maintainer-installed packages may serve selected sites without compulsory upstream inclusion; no arbitrary tenant CSS/code uploads** (ADRs 013, 022).
 - **Managed CMP, tags and embeds require route, consent, preview and fallback controls; selective loading does not isolate server code** (ADR 022).
 - **External CRM, ESP and subscription ownership are supported tenant choices; connectors and one-off relays are inventoried and reconciled, with one owner per scope** (ADR 024).

@@ -85,7 +85,7 @@ export async function loadPublicItem(
   });
   const intro = await resolveIntro(
     source,
-    { lead: item.lead, heroImageId: item.effective.images.hero.mediaId },
+    { lead: item.lead, heroImageId: item.effective.images.hero.mediaId, heroAlt: item.heroAlt },
     locale
   );
   const theme = await siteTheme(site);

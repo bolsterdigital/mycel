@@ -395,7 +395,7 @@ test.describe('content-routes', () => {
     // A copy of the quality article with a lead and its first block image as hero: synthetic
     // assets that are already public and ready, never an upload.
     // One item per project: two creates of one slug at once answer 500 instead of 409.
-    const slug = `e2e-intro-86-${isA11y() ? 'a11y' : 'no-js'}`;
+    const slug = `e2e-intro-99-${isA11y() ? 'a11y' : 'no-js'}`;
     const { items } = await callApi(request, 'content.item.list', { type: 'article', slug });
     let target = items[0]
       ? await callApi(request, 'content.item.get', { itemId: items[0].id })
@@ -410,6 +410,8 @@ test.describe('content-routes', () => {
       expect(image, 'the quality article has an image block').toBeTruthy();
       doc.lead = { nl: 'Een straat die ruimte maakt.', en: 'A street that makes room.' };
       doc.heroImageId = (image!.props as { mediaId: string }).mediaId;
+      // A described hero (#99): its alt in the locale on screen.
+      doc.heroAlt = { nl: 'Een straat met bomen.', en: 'A street with trees.' };
       // The quality article's text opens with a heading, which by design gets no drop cap.
       const paragraph = (text: string) => ({
         type: 'doc' as const,
@@ -434,9 +436,9 @@ test.describe('content-routes', () => {
         });
     });
 
-    for (const [path, lead] of [
-      [`/probe/articles/${slug}`, 'Een straat die ruimte maakt.'],
-      [`/probe/en/articles/${slug}`, 'A street that makes room.'],
+    for (const [path, lead, alt] of [
+      [`/probe/articles/${slug}`, 'Een straat die ruimte maakt.', 'Een straat met bomen.'],
+      [`/probe/en/articles/${slug}`, 'A street that makes room.', 'A street with trees.'],
     ] as const) {
       await page.setViewportSize({ width: 1280, height: 900 });
       await page.goto(path);
@@ -444,6 +446,7 @@ test.describe('content-routes', () => {
       const hero = page.locator('main > figure.page-hero img');
       await expect(hero).toHaveAttribute('width', /\d+/);
       await expect(hero).not.toHaveAttribute('loading', 'lazy');
+      await expect(hero).toHaveAttribute('alt', alt);
       // The drop cap is the theme's default for articles and only on the first text block.
       expect(
         await page.evaluate(() => {
@@ -468,6 +471,17 @@ test.describe('content-routes', () => {
     if (isA11y()) {
       await page.setViewportSize({ width: 1280, height: 900 });
       await login(page, `/admin/probe/content/${target.item.id}`);
+      // The edit screen shows the hero as described, with the alt of the locale on screen.
+      await expect(page.locator('#heroDecorative')).not.toBeChecked();
+      await expect(page.locator('#heroAlt')).toHaveValue('Een straat met bomen.');
+      await expectNoAxeViolations(page);
+      await page.setViewportSize(NARROW);
+      for (const size of ['100%', '200%'] as const) {
+        await setTextSize(page, size);
+        await layoutGate(page, `edit screen with a described hero at ${size}`, '#heroAlt');
+      }
+      await setTextSize(page, '100%');
+      await page.setViewportSize({ width: 1280, height: 900 });
       await page.locator('[data-live-preview-source]').evaluate((node, id) => {
         const form = node as HTMLFormElement;
         form.action = '/admin/probe/preview/draft';
@@ -483,6 +497,10 @@ test.describe('content-routes', () => {
         form.submit();
       }, target.item.id);
       await expect(page.locator('main > .lead')).toHaveText('Een straat die ruimte maakt.');
+      await expect(page.locator('main > figure.page-hero img')).toHaveAttribute(
+        'alt',
+        'Een straat met bomen.'
+      );
       await page.waitForLoadState('load');
       expect(
         await page.evaluate(() => {

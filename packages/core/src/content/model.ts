@@ -176,6 +176,11 @@ const LocaleList = z
   .max(10)
   .refine((l) => new Set(l).size === l.length, 'i18n.locales.duplicate');
 
+/** An empty map is "describes the image" without a description: the image block's refusal. */
+const HeroAlt = z
+  .record(Locale, z.string().min(1).max(1000).regex(/\S/, 'content.image.alt-empty'))
+  .refine((value) => Object.keys(value).length > 0, 'content.image.alt-required');
+
 function documentSchemas<B extends typeof Block | typeof BlockInput>(block: B) {
   const base = {
     title: localized(z.string().min(1).max(200)),
@@ -185,6 +190,12 @@ function documentSchemas<B extends typeof Block | typeof BlockInput>(block: B) {
     machineTranslation: z.record(Locale, z.array(z.string().min(1))).optional(),
     /** The image on the item's own page, after title and lead (#86); nothing inherits into it. */
     heroImageId: z.string().guid().optional(),
+    /**
+     * What the hero image says, per locale (#99), like an image block's alt. Absent: the image is
+     * decorative and the title and lead carry the meaning. Present: it describes the image, so
+     * every published locale needs one; only with a hero image.
+     */
+    heroAlt: HeroAlt.optional(),
     /**
      * Where the item is featured elsewhere (cards, grids, collections): its own image, title and
      * description. Each falls back along the chain in `effective.ts` when absent.
@@ -248,6 +259,8 @@ export function localizedFields(
     });
   // A lead given in one locale is part of the visible item in every published locale.
   if (doc.lead) fields.push({ path: ['lead'], value: doc.lead, required: true });
+  // A described hero is described in every published locale, as an image block's alt is.
+  if (doc.heroAlt) fields.push({ path: ['heroAlt'], value: doc.heroAlt, required: true });
   allBlocks(doc.blocks).forEach((b, i) => {
     for (const f of blockLocalized(b)) fields.push({ ...f, path: ['blocks', i, ...f.path] });
   });
@@ -275,6 +288,8 @@ function documentIssues(doc: DocumentShape): { path: (string | number)[]; messag
     for (const key of Object.keys(field.value))
       if (!doc.locales.includes(key))
         issues.push({ path: [...field.path, key], message: 'i18n.locale-not-in-document' });
+  if (doc.heroAlt && !doc.heroImageId)
+    issues.push({ path: ['heroAlt'], message: 'content.hero.alt-without-image' });
   for (const issue of blockTreeIssues(doc.blocks))
     issues.push({ path: ['blocks', ...issue.path], message: issue.message });
   issues.push(...accessIssues(doc));

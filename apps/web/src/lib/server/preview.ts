@@ -41,4 +41,5 @@ export const siteReader = (site: Site) =>
 export const introOf = (doc: ContentDocument, locale: string) => ({
   lead: doc.lead?.[locale] ?? null,
   heroImageId: effectiveImages(doc).hero.mediaId,
+  heroAlt: doc.heroAlt?.[locale] ?? null,
 });

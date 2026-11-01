@@ -75,6 +75,34 @@ describe('documentFrom(valuesOf(doc))', () => {
     expect(out.blocks).toEqual(article.blocks);
   });
 
+  it('reads the hero alt where the form showed it, per locale, and drops it with the image (#99)', () => {
+    const shown: FormValues = { ...valuesOf(featuredPage), heroAltShown: '1' };
+    expect(shown.heroDecorative).toBe('on');
+    // Ticked: decorative, whatever the field holds.
+    expect(
+      documentFrom(featuredPage, { ...shown, 'heroAlt.nl': 'Het team' }, '2026-11-01', 'nl').heroAlt
+    ).toBeUndefined();
+    // Unticked: the shown locale from the form, the other kept.
+    const described = { ...featuredPage, heroAlt: { en: 'The team' } };
+    const v: FormValues = { ...valuesOf(described), heroAltShown: '1', 'heroAlt.nl': 'Het team' };
+    expect(v.heroDecorative).toBeUndefined();
+    expect(documentFrom(described, v, '2026-11-01', 'nl').heroAlt).toEqual({
+      nl: 'Het team',
+      en: 'The team',
+    });
+    // Unticked with no text anywhere: `{}`, for core to refuse rather than a silent decorative.
+    expect(
+      documentFrom(featuredPage, { ...shown, heroDecorative: '' }, '2026-11-01', 'nl').heroAlt
+    ).toEqual({});
+    // A form without the fields keeps the alt; no image, no alt.
+    expect(documentFrom(described, valuesOf(described), '2026-11-01').heroAlt).toEqual(
+      described.heroAlt
+    );
+    expect(
+      'heroAlt' in documentFrom(described, { ...v, heroImageId: '' }, '2026-11-01', 'nl')
+    ).toBe(false);
+  });
+
   it('takes both images from their pickers: an id, none, or kept when the form has no picker', () => {
     const photo = '01900000-0000-7000-8000-0000000000e3';
     const chosen = documentFrom(

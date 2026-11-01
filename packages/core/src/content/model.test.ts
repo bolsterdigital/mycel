@@ -170,6 +170,28 @@ describe('readiness per locale (ADR 018 rule 9)', () => {
     });
   });
 
+  it('needs a described hero described in every published locale; a decorative one never (#99)', () => {
+    const image = '01900000-0000-7000-8000-0000000099a1';
+    expect(readinessIssues(doc({ heroImageId: image }), 'en')).toEqual([]);
+    const described = doc({ heroImageId: image, heroAlt: { nl: 'Het plein' } });
+    expect(readinessIssues(described, 'nl')).toEqual([]);
+    expect(readinessIssues(described, 'en').map((i) => i.path)).toEqual(['heroAlt']);
+  });
+
+  it('refuses a hero alt that is empty, blank or without a hero (#99)', () => {
+    const image = '01900000-0000-7000-8000-0000000099a1';
+    const refused = (fields: Record<string, unknown>) =>
+      ContentDocument.safeParse(article(fields)).error?.issues.map((i) => i.message) ?? [];
+    expect(refused({ heroImageId: image, heroAlt: {} })).toContain('content.image.alt-required');
+    expect(refused({ heroImageId: image, heroAlt: { nl: '  ' } })).toContain(
+      'content.image.alt-empty'
+    );
+    expect(refused({ heroAlt: { nl: 'Het plein' } })).toContain('content.hero.alt-without-image');
+    expect(refused({ heroImageId: image, heroAlt: { de: 'Der Platz' } })).toContain(
+      'i18n.locale-not-in-document'
+    );
+  });
+
   it('fails closed on tier access until tiers can be verified (#19)', () => {
     const d = doc({ access: { level: 'tier', tierIds: ['01900000-0000-7000-8000-00000000c001'] } });
     expect(readinessIssues(d, 'nl')).toContainEqual({
