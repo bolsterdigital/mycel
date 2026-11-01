@@ -210,9 +210,13 @@
     } catch {
       return;
     }
+    // The `block-<id>` target is a card's fold, or the card itself when a type has no fields (a
+    // paywall) and so no fold. Rejected: the folds alone, which left such a card without its "+".
     const cards = new Map(
       Array.from(
-        host.closest('form')?.querySelectorAll<HTMLDetailsElement>('details.block') ?? []
+        host
+          .closest('form')
+          ?.querySelectorAll<HTMLElement>('details.block, .ui-block-card[id^="block-"]') ?? []
       ).map((card) => [card.id.replace('block-', ''), card.closest('.ui-block-card') ?? card])
     );
     // A card's "+" stands above it, in the fieldset's place: both move into the writer together,
