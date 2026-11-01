@@ -1049,8 +1049,7 @@
       "level": "recommended",
       "status": "covered",
       "file": "apps/web/e2e/quality-corpus.spec.ts",
-      "note": "title per locale",
-      "gap": "description, Open Graph and alt per locale are not asserted"
+      "note": "every corpus page in each locale: title, description, og:title, og:description, og:url, hreflang and the alt of every image are its own, compared across locales so a copied value fails (apps/web/e2e/lib/metadata.ts)"
     },
     "sitemap-hreflang": {
       "category": "internationalisation",

@@ -21,6 +21,7 @@ import {
   setTextSpacing,
   tabStops,
 } from './lib/layout';
+import { type LocaleMetadata, localeMetadata, localeMetadataProblems } from './lib/metadata';
 import { login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { callApi, requireApi } from './lib/api';
@@ -136,6 +137,58 @@ for (const entry of entries)
       expect(failed).toEqual([]);
       expect(foreign).toEqual([]);
     });
+
+// Every locale of a page carries its own description, Open Graph tags and image alts, compared
+// across the locales so a value copied from the other language fails (lib/metadata.ts).
+for (const entry of entries)
+  test(`${entry.slug}: description, Open Graph and alt per locale`, async ({ page }) => {
+    const pages: LocaleMetadata[] = [];
+    for (const [locale, identity] of Object.entries(entry.locales)) {
+      await page.goto(identity.path);
+      pages.push(await localeMetadata(page, locale, identity.title));
+    }
+    expect(pages.length).toBeGreaterThan(1);
+    expect(localeMetadataProblems(pages)).toEqual([]);
+  });
+
+// The comparison is the gate, so it must fire on what a presence check lets through.
+test('locale metadata copied from another locale is a problem', () => {
+  const nl: LocaleMetadata = {
+    locale: 'nl',
+    title: 'Schone lucht',
+    description: 'Over ons werk',
+    ogTitle: 'Schone lucht',
+    ogDescription: 'Over ons werk',
+    ogUrl: 'https://example.test/a',
+    canonical: 'https://example.test/a',
+    hreflang: ['nl', 'en', 'x-default'],
+    alts: ['Demonstranten', ''],
+  };
+  const en: LocaleMetadata = {
+    ...nl,
+    locale: 'en',
+    title: 'Clean air',
+    ogTitle: 'Clean air',
+    ogUrl: 'https://example.test/en/a',
+    canonical: 'https://example.test/en/a',
+  };
+  expect(
+    localeMetadataProblems([
+      nl,
+      { ...en, description: 'About', ogDescription: 'About', alts: ['Protesters', ''] },
+    ])
+  ).toEqual([]);
+  expect(localeMetadataProblems([nl, en])).toEqual([
+    'nl/en: same description',
+    'nl/en: image 1 same alt',
+  ]);
+  expect(
+    localeMetadataProblems([
+      nl,
+      { ...en, description: 'About', ogDescription: 'About', alts: ['Protesters', null] },
+    ])
+  ).toEqual(['en: image 2 has no alt']);
+});
 
 test.describe('quality corpus reflow and text spacing', () => {
   test.use({ viewport: NARROW });
