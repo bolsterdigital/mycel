@@ -36,6 +36,25 @@ https:// {
 
 	encode zstd gzip
 
+	# Files the application never sees (adapter-node serves them before its handler) get here what
+	# a response of the application gets from security-headers.ts and applies to a file. `?` keeps
+	# what the application set, so a public media file stays `cross-origin`. Not COOP, CSP or
+	# Reporting-Endpoints: those belong to documents, and no document is served this way.
+	header {
+		?X-Content-Type-Options nosniff
+		?Cross-Origin-Resource-Policy same-origin
+		?Strict-Transport-Security max-age=31536000
+	}
+
+	# A font keeps its name for as long as its content: replacing one means a new file name
+	# (lib/theme/tokens.ts names them). The scripts keep their names across releases, so a browser
+	# asks every time and a 304 answers. Rejected: a lifetime on the scripts, which would run an old
+	# script against a new page for as long as it lasts.
+	@fonts path /fonts/*
+	header @fonts ?Cache-Control "public, max-age=31536000, immutable"
+	@scripts path /_admin/* /_form/*
+	header @scripts ?Cache-Control no-cache
+
 	# The web app handles every path, including /healthz. /internal/*, /readyz and /metrics are
 	# for Caddy and the orchestrator only: never route them from the outside (TODO #17a).
 	@internal path /internal/* /readyz /metrics

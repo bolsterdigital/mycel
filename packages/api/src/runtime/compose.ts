@@ -121,6 +121,19 @@ const Config = z
     AUTH_DATABASE_URL: z.string().url(),
     SIGNING_SECRET: z.string().min(16),
     PUBLIC_BASE_URL: z.string().url(),
+    /**
+     * Where this installation's HTTP API is reached from outside. Names it in
+     * /.well-known/api-catalog and in the Link header of a public page; unset, neither exists.
+     */
+    PUBLIC_API_URL: z.string().url().optional(),
+    /**
+     * Who hears about a vulnerability in this installation: a `mailto:`, `https:` or `tel:` URI.
+     * Unset, /.well-known/security.txt is a 404: the project's own address is not the operator's.
+     */
+    SECURITY_CONTACT: z
+      .string()
+      .regex(/^(mailto:|https:\/\/|tel:)\S+$/, 'a mailto:, https: or tel: URI')
+      .optional(),
     MAIL_FROM: z.string().min(3),
     MAILER: z.enum(['console', 'tem']).default('console'),
     /** Console mailer only: also write each message as JSON here (the e2e flow reads it). */
@@ -312,6 +325,9 @@ const Config = z
   })
   .refine((c) => !(c.NODE_ENV === 'production' && c.OIDC_ISSUER && !isHttps(c.PUBLIC_BASE_URL)), {
     message: 'PUBLIC_BASE_URL must be https in production when operator login is configured',
+  })
+  .refine((c) => !(c.NODE_ENV === 'production' && c.PUBLIC_API_URL && !isHttps(c.PUBLIC_API_URL)), {
+    message: 'PUBLIC_API_URL must be https in production',
   });
 export type RuntimeConfig = z.infer<typeof Config>;
 

@@ -9,7 +9,7 @@
 // dependency (the checks are about a handful of head elements and headers).
 
 /**
- * @typedef {'page' | 'missing' | 'revalidation' | 'asset' | 'font' | 'negotiation'} Role
+ * @typedef {'page' | 'missing' | 'revalidation' | 'asset' | 'font' | 'negotiation' | 'security-txt' | 'api-catalog'} Role
  * @typedef {{ role: Role, path: string, status: number, headers: Record<string, string>, body: string, https?: boolean, locale?: string }} Sample
  * @typedef {{ roles: Role[], check: (sample: Sample) => string | null }} Rule
  */
@@ -187,6 +187,57 @@ export const RULES = {
         ? `scripts are not restricted (${scripts})`
         : null;
     },
+  },
+  'security-txt': {
+    roles: ['security-txt'],
+    check: (s) => {
+      if (s.status !== 200) return `${s.path} answers ${s.status}`;
+      if (s.headers['content-type'] !== 'text/plain; charset=utf-8')
+        return `${s.path} is ${s.headers['content-type']}, not UTF-8 plain text`;
+      if (!/^Contact: (mailto:|https:\/\/|tel:)\S+$/m.test(s.body)) return 'no Contact field';
+      const expires = Date.parse(s.body.match(/^Expires: (.+)$/m)?.[1] ?? '');
+      const left = expires - Date.now();
+      return left > 0 && left < 366 * 24 * 60 * 60 * 1000
+        ? null
+        : 'no Expires field in the coming year';
+    },
+  },
+  'api-catalog': {
+    roles: ['api-catalog'],
+    check: (s) => {
+      if (s.status !== 200) return `${s.path} answers ${s.status}`;
+      if (!/^application\/linkset\+json\b/.test(s.headers['content-type'] ?? ''))
+        return `${s.path} is ${s.headers['content-type']}, not a linkset`;
+      if (!/rel="api-catalog"/.test(s.headers['link'] ?? ''))
+        return `${s.path} does not name itself in a Link header`;
+      let linkset;
+      try {
+        linkset = JSON.parse(s.body).linkset;
+      } catch {
+        return `${s.path} is not JSON`;
+      }
+      return Array.isArray(linkset) &&
+        linkset.length > 0 &&
+        linkset.every((e) => absolute(e.anchor) && absolute(e['service-desc']?.[0]?.href))
+        ? null
+        : 'a linkset entry has no absolute anchor and service description';
+    },
+  },
+  'well-known': {
+    roles: ['security-txt', 'api-catalog'],
+    check: (s) =>
+      s.path.startsWith('/.well-known/') &&
+      s.status === 200 &&
+      !/text\/html/.test(s.headers['content-type'] ?? '')
+        ? null
+        : `${s.path} is no document of its own at its well-known address (${s.status})`,
+  },
+  'link-headers': {
+    roles: ['page'],
+    check: (s) =>
+      /<\/\.well-known\/api-catalog>;[^,]*rel="api-catalog"/.test(s.headers['link'] ?? '')
+        ? null
+        : `${s.path} does not name the API catalog in a Link header`,
   },
   'reporting-endpoints': {
     roles: ['page'],

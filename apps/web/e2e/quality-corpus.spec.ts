@@ -451,6 +451,8 @@ test('public pages meet the gated items of the modern web checklist', async ({ r
   if (asset)
     samples.push(await sample('asset', new URL(asset, `http://x${samples[0]?.path}`).pathname));
   if (font) samples.push(await sample('font', font));
+  samples.push(await sample('security-txt', '/.well-known/security.txt'));
+  samples.push(await sample('api-catalog', '/.well-known/api-catalog'));
   expect(specFailures(checklist, samples)).toEqual([]);
 });
 

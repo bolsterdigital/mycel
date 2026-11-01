@@ -443,13 +443,14 @@
       "level": "recommended",
       "status": "gate",
       "rule": "reporting-endpoints",
-      "note": "every application response names its origin's own collector and the policy reports to it; the collector logs short checked fields and no address, query or sample; files outside the application are not covered"
+      "note": "every application response names its origin's own collector and the policy reports to it; the collector logs short checked fields and no address, query or sample; files outside the application are no documents and report nothing"
     },
     "security-txt": {
       "category": "security",
       "level": "recommended",
-      "status": "open",
-      "gap": "no /.well-known/security.txt per host; the project policy is in SECURITY.md"
+      "status": "gate",
+      "rule": "security-txt",
+      "note": "on every site hostname, the platform origin and the API host once the operator sets SECURITY_CONTACT; unset it is a 404, and the installation then has no contact to publish; `Expires` is rolled at read time; an unknown or unverified hostname gets a 404"
     },
     "x-content-type-options": {
       "category": "security",
@@ -475,7 +476,7 @@
       "level": "recommended",
       "status": "gate",
       "rule": "cross-origin-isolation",
-      "note": "opener and resource policy on every response of the application; Cross-Origin-Embedder-Policy is left out because no route needs it and a managed embed would have to opt in; a public media file is cross-origin, for mail and other sites; files outside the application (`/fonts`, `/_admin`) are not covered"
+      "note": "opener and resource policy on every response of the application; Cross-Origin-Embedder-Policy is left out because no route needs it and a managed embed would have to opt in; a public media file is cross-origin, for mail and other sites; files outside the application (`/fonts`, `/_admin`, `/_form`) get CORP, nosniff and HSTS from Caddy (scripts/compose-proof.sh); COOP belongs to documents and none is served that way"
     },
     "referrer-policy": {
       "category": "security",
@@ -554,8 +555,9 @@
     "well-known-overview": {
       "category": "well-known",
       "level": "recommended",
-      "status": "open",
-      "gap": "no /.well-known/ resources yet"
+      "status": "gate",
+      "rule": "well-known",
+      "note": "the resources this installation publishes answer at their registered address with their own type; resources of other checklist items are not built yet"
     },
     "change-password": {
       "category": "well-known",
@@ -596,8 +598,9 @@
     "api-catalog": {
       "category": "well-known",
       "level": "recommended",
-      "status": "open",
-      "gap": "the OpenAPI document is not linked from /.well-known/api-catalog"
+      "status": "gate",
+      "rule": "api-catalog",
+      "note": "on the same hosts once PUBLIC_API_URL is set, which compose.yml derives from API_HOST; on a site it anchors that site's read route; the slug is visible there, which the platform hostname's redirect already gives away"
     },
     "webfinger": {
       "category": "well-known",
@@ -705,8 +708,9 @@
     "link-headers": {
       "category": "agent-readiness",
       "level": "recommended",
-      "status": "open",
-      "gap": "no Link header advertising sitemap, feeds or the API"
+      "status": "gate",
+      "rule": "link-headers",
+      "note": "a site's 200 HTML page names the API catalog; sitemap and feeds are added when they exist"
     },
     "mcp-and-tool-discovery": {
       "category": "agent-readiness",
@@ -839,7 +843,7 @@
       "level": "recommended",
       "status": "gate",
       "rule": "font-loading",
-      "gap": "the self-hosted font files are served without Cache-Control"
+      "note": "the preload and type are gated here; the year-long Cache-Control comes from Caddy, because adapter-node serves the file before the application, so scripts/compose-proof.sh checks it and a run without Caddy has none"
     },
     "critical-css": {
       "category": "performance",

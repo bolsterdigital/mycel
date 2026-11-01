@@ -39,3 +39,7 @@ The OFL allows modification and redistribution with the licence text, which sits
 ## Loading
 
 `themeCss` (`apps/web/src/lib/theme/tokens.ts`) declares `@font-face` with `font-display: swap` and the same Latin `unicode-range`, only for the pair the theme chooses: `inter` never loads Source Serif. The public layout preloads the roman files of the pair. A rendered page whose body has an element that is italic by default (`em`, `i`, `cite`, `dfn`, `var`, `address`) also preloads the Inter italic, at low priority (`withItalicPreload`, applied in the server hook): discovered during layout it would be fetched at the highest priority, which Lighthouse counts as render-blocking although `font-display: swap` paints text before it arrives. Pages without italic text never fetch it. A new family is a product change (ADR 013 rule 5): files, licence, this table and a `FONT_PAIRS` entry together.
+
+## Caching
+
+Caddy serves `/fonts/*` for a year as immutable (`docker/caddy/Caddyfile`), because the application never sees these files. A file keeps its name for as long as its content: new font content means a new file name, or a returning visitor keeps the old file until the year is over.

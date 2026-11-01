@@ -130,6 +130,49 @@ test('unknown hosts, the admin on a tenant hostname, and the allowed question', 
 
 // TODO #20c decision 5: without MYCEL_TRUST_PROXY (the e2e server sets no HOST_HEADER) a
 // forwarded host is just a header. It neither picks another site nor reaches the admin.
+// The table in docs/reference/hostnames.md. An address that answers on the site and the platform
+// origin makes the refusal below it mean something.
+test('the discovery documents answer per kind of host', async ({ request }) => {
+  onlyA11y('reads raw HTTP responses, so one project is enough');
+  const get = (host: string, path: string) =>
+    request.get(path, { headers: { host }, maxRedirects: 0 });
+  const CONTACT = 'Contact: mailto:security@probe.test';
+  const SECURITY = '/.well-known/security.txt';
+  const CATALOG = '/.well-known/api-catalog';
+  const anchor = async (host: string) => {
+    const body = (await (await get(host, CATALOG)).json()) as { linkset: { anchor: string }[] };
+    return new URL(body.linkset[0]?.anchor ?? '').pathname;
+  };
+
+  // A registered site first: the reroute hook only rewrites for a host it resolves.
+  const site = 'probe.localhost:4173';
+  expect(await (await get(site, SECURITY)).text()).toContain(CONTACT);
+  expect(await anchor(site)).toBe('/v1/sites/probe');
+
+  const origin = new URL(test.info().project.use.baseURL ?? '').host;
+  expect(await (await get(origin, SECURITY)).text()).toContain(CONTACT);
+  expect(await anchor(origin)).toBe('/v1');
+
+  for (const path of [SECURITY, CATALOG]) {
+    expect((await get('nope.example.org', path)).status(), `unknown host: ${path}`).toBe(404);
+    expect((await get(site, `/probe${path}`)).status(), `under a slug: ${path}`).toBe(404);
+  }
+
+  // A verified, non-primary hostname takes the same decision as a page.
+  const alias = await get('e2e-alias.example', SECURITY);
+  expect(alias.status()).toBe(301);
+  expect(alias.headers()['location']).toBe(`${SITE}${SECURITY}`);
+
+  const page = await get(site, '/signup');
+  expect(page.status()).toBe(200);
+  expect(page.headers()['link']).toContain('</.well-known/api-catalog>; rel="api-catalog"');
+  // What an agent sees of a page it only asked the headers of.
+  const head = await request.head('/signup', { headers: { host: site }, maxRedirects: 0 });
+  expect(head.headers()['link']).toContain('rel="api-catalog"');
+  const admin = await request.get('/admin/login', { headers: { host: origin }, maxRedirects: 0 });
+  expect(admin.headers()['link'] ?? '').not.toContain('api-catalog');
+});
+
 test('X-Forwarded-Host does not choose the site or open the admin', async ({ request }) => {
   const viaPlatform = await request.get('/signup', {
     headers: { 'x-forwarded-host': 'probe.localhost:4173' },

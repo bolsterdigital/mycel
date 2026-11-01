@@ -1,7 +1,15 @@
 // Types for spec-check.mjs, so the e2e spec that runs the rules is typechecked
 // (apps/web/e2e/tsconfig.json). Rejected: allowJs over scripts/, which would typecheck every
 // quality script under the stricter workspace rules at once.
-export type Role = 'page' | 'missing' | 'revalidation' | 'asset' | 'font' | 'negotiation';
+export type Role =
+  | 'page'
+  | 'missing'
+  | 'revalidation'
+  | 'asset'
+  | 'font'
+  | 'negotiation'
+  | 'security-txt'
+  | 'api-catalog';
 export interface Sample {
   role: Role;
   path: string;

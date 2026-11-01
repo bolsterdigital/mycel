@@ -50,13 +50,27 @@ test('the paths that must stay closed from outside answer 404', () => {
   assert.equal(lines.filter((l) => l === 'respond @internal 404').length, 2);
 });
 
+test('files outside the application get their headers from the sites block alone', () => {
+  const lines = directives(production);
+  for (const line of [
+    '?X-Content-Type-Options nosniff',
+    '?Cross-Origin-Resource-Policy same-origin',
+    '?Strict-Transport-Security max-age=31536000',
+    '@fonts path /fonts/*',
+    'header @fonts ?Cache-Control "public, max-age=31536000, immutable"',
+    '@scripts path /_admin/* /_form/*',
+    'header @scripts ?Cache-Control no-cache',
+  ])
+    assert.equal(lines.filter((l) => l === line).length, 1, line);
+});
+
 test('a routing change in only one file is caught', () => {
   const opened = ci.replace(
     '@internal path /internal/* /readyz /metrics',
     '@internal path /readyz'
   );
   assert.deepEqual(routingDiff(production, opened), [
-    'line 10: @internal path /internal/* /readyz /metrics | @internal path /readyz',
+    'line 19: @internal path /internal/* /readyz /metrics | @internal path /readyz',
   ]);
   assert.notDeepEqual(
     routingDiff(production, ci.replace('reverse_proxy web:3000', 'reverse_proxy api:3000')),

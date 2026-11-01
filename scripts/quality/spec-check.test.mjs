@@ -56,6 +56,7 @@ const page = (overrides = {}) => ({
     'cross-origin-opener-policy': 'same-origin',
     'cross-origin-resource-policy': 'same-origin',
     'cache-control': 'public, max-age=60',
+    link: '</.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json"',
   },
   body: `<!doctype html>
 <html lang="nl"><head><meta charset="utf-8" />
@@ -74,8 +75,36 @@ const page = (overrides = {}) => ({
 <img src="/m/1/w960.webp" alt="" width="960" height="540" /></main><footer></footer></body></html>`,
   ...overrides,
 });
+const inAMonth = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+const securityTxtSample = {
+  role: 'security-txt',
+  path: '/.well-known/security.txt',
+  status: 200,
+  headers: { 'content-type': 'text/plain; charset=utf-8' },
+  body: `Contact: mailto:security@probe.test\nExpires: ${inAMonth}\n`,
+};
+const apiCatalogSample = {
+  role: 'api-catalog',
+  path: '/.well-known/api-catalog',
+  status: 200,
+  headers: {
+    'content-type': 'application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"',
+    link: '</.well-known/api-catalog>; rel="api-catalog"',
+  },
+  body: JSON.stringify({
+    linkset: [
+      {
+        anchor: 'https://api.example/v1',
+        'service-desc': [{ href: 'https://api.example/openapi.json' }],
+      },
+    ],
+  }),
+};
+
 const samples = (p = page()) => [
   p,
+  securityTxtSample,
+  apiCatalogSample,
   { ...page(), role: 'missing', path: '/probe/nope', status: 404, locale: undefined },
   { ...page(), role: 'revalidation', status: 304, body: '' },
   {
@@ -128,6 +157,7 @@ test('each rule fails on the defect it names', () => {
       },
     },
     'x-content-type-options': { headers: { ...page().headers, 'x-content-type-options': '' } },
+    'link-headers': { headers: { ...page().headers, link: '</app.css>; rel="preload"' } },
     'reporting-endpoints': {
       headers: { ...page().headers, 'reporting-endpoints': 'csp="/_reports"' },
     },
@@ -179,6 +209,31 @@ test('each rule fails on the defect it names', () => {
       f.startsWith('avoid-auto-geo-redirects')
     )
   );
+  const changes = [
+    ['security-txt', 'security-txt', { status: 404 }],
+    ['security-txt', 'security-txt', { body: `Expires: ${inAMonth}\n` }],
+    [
+      'security-txt',
+      'security-txt',
+      { body: 'Contact: mailto:a@b.test\nExpires: 2020-01-01T00:00:00Z' },
+    ],
+    ['security-txt', 'security-txt', { headers: { 'content-type': 'text/plain' } }],
+    ['api-catalog', 'api-catalog', { headers: { 'content-type': 'application/json' } }],
+    ['api-catalog', 'api-catalog', { body: JSON.stringify({ linkset: [{ anchor: '/v1' }] }) }],
+    ['api-catalog', 'api-catalog', { body: '<html>' }],
+    [
+      'api-catalog',
+      'api-catalog',
+      { headers: { 'content-type': apiCatalogSample.headers['content-type'] } },
+    ],
+    ['security-txt', 'well-known', { headers: { 'content-type': 'text/html' } }],
+    ['api-catalog', 'well-known', { path: '/api-catalog' }],
+  ];
+  for (const [role, rule, change] of changes)
+    assert.ok(
+      specFailures(checklist, by(role, change)).some((f) => f.startsWith(`${rule} `)),
+      `${rule} did not fail on ${JSON.stringify(change)}`
+    );
   assert.ok(
     specFailures(checklist, by('asset', { headers: { 'cache-control': 'max-age=60' } })).some((f) =>
       f.startsWith('cache-control')

@@ -46,6 +46,8 @@ Neither `api` nor `web` has the owner's `DATABASE_URL`; a flaw in either cannot 
 
 Caddy gets a certificate the first time a name is requested, after asking `web` whether the name belongs to this installation: the platform origin, a platform hostname or a verified custom domain. A name nobody added never gets one. A custom domain is added with `mycel setup --hostname` or in the admin under the site's domains, and is verified through a TXT record; how that works, what an apex domain needs and how a domain is withdrawn: [`docs/reference/hostnames.md`](reference/hostnames.md). The API host gets an ordinary certificate at start.
 
+Set `SECURITY_CONTACT` in `.env` to a `mailto:`, `https:` or `tel:` address you read: it becomes `/.well-known/security.txt` on every host, and without it that address is a 404. `docs/reference/hostnames.md` has the table per host.
+
 ## Storage
 
 Media go to the bucket in `BLOB_S3_*`; the database holds only their metadata. For a single box without a provider, the `local-s3` profile runs an S3-compatible store (RustFS) next to the rest:
