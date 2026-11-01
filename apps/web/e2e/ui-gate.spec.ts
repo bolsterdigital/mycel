@@ -323,7 +323,8 @@ test.describe('blocks-registry', () => {
         await expect(page.locator('html')).toHaveAttribute('lang', locale);
         // Only a form's own proof-of-work module (brief form-intake § D2.3).
         expect(await page.locator('script:not([src="/_form/proof.js"])').count()).toBe(0);
-        const rendered = await page.locator('main > :not(h1)').count();
+        // The header is the title and, without a hero image, its closing line (#105).
+        const rendered = await page.locator('main > :not(h1, hr.page-rule)').count();
         if (name in INVISIBLE) expect(rendered, INVISIBLE[name]).toBe(0);
         else expect(rendered, `${name} rendered nothing`).toBeGreaterThan(0);
         await expectNoAxeViolations(page);

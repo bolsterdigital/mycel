@@ -93,7 +93,7 @@ export const actions: Actions = {
         { locale, ...projectDocument(doc, locale) },
         { base, fallbackLocale: tenant.defaultLocale }
       ),
-      introOf(site, doc, locale, live).then((intro) => resolveIntro(source, intro, locale)),
+      introOf(principal, doc, locale, live).then((intro) => resolveIntro(source, intro, locale)),
       siteTheme(site),
     ]);
     const brand = await siteBrand(site);
