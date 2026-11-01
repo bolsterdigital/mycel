@@ -234,6 +234,42 @@ describe('BlockCard', () => {
     expect(out).toContain('<span>FIELDS</span>');
     expect(out).toMatch(/data-block-done="" hidden/);
   });
+  it('shows a video without a player and a form without anything to submit (MY-110 C3)', () => {
+    const video = html(BlockText, {
+      kindLabel: 'YouTube',
+      view: { kind: 'video', provider: 'youtube', title: 'Mars <1>', caption: '' },
+    });
+    expect(video).toContain('Mars &lt;1>');
+    expect(video).toContain('YouTube');
+    expect(video).not.toMatch(/<(iframe|img|a|video|script)\b/);
+    const form = html(BlockText, {
+      kindLabel: 'Signup form for list news',
+      changedLabel: 'Changed',
+      view: {
+        kind: 'form',
+        variant: 'card',
+        idFrom: 'x.formId',
+        form: {
+          list: 'news',
+          fields: [
+            { type: 'email', label: 'E-mail <x>' },
+            { type: 'consent', label: 'Yes' },
+          ],
+          submit: 'Join',
+        },
+      },
+    });
+    expect(form).toContain('E-mail &lt;x>');
+    expect(form).toContain('Join');
+    expect(form).toContain('data-rest-changed="x.formId"');
+    expect(form).not.toMatch(/<(form|input|button|select|textarea|a)\b/);
+    const missing = html(BlockText, {
+      kindLabel: 'Not found',
+      view: { kind: 'form', variant: 'default', form: null },
+    });
+    expect(missing).toContain('data-missing');
+    expect(missing).not.toContain('ui-block-text-input');
+  });
   it('shows a text block without a heading element or a link (MY-110 C1)', () => {
     const heading = html(BlockText, {
       view: { kind: 'heading', text: 'Wie <wij> zijn', from: 'x' },

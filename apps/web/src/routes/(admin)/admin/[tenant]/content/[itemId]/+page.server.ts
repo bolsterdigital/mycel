@@ -38,6 +38,7 @@ import {
   useCases,
   type BlockInput,
   type ContentDocument,
+  type FormDefinition,
   type Principal,
   type Section,
   type TenantInfo,
@@ -258,6 +259,16 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     principal.entitlements['ai.assist'] &&
     (doc.access.level === 'public' || assistSettings.allowRestricted)
   );
+  // What each form reference finds, for the rest view: read here, never copied into the block.
+  // An author may edit a page with a form but has no `forms:read`: that is no failure of the
+  // screen, the reference stays unread and the rest view says so.
+  const forms = new Map<string, FormDefinition | null>();
+  for (const b of doc.blocks) {
+    if ((b.type !== 'form' && b.type !== 'signup-form') || forms.has(b.props.formId)) continue;
+    if (!can(principal, 'forms:read')) continue;
+    const found = await orNull(invoker.run(useCases.getForm, principal, { id: b.props.formId }));
+    forms.set(b.props.formId, found?.form ?? null);
+  }
   return {
     contentType: item.type,
     patterns: doc.blocks.length
@@ -274,7 +285,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
       summary: summaryOf(b, read),
       preview: previewOf(b, read),
       image: imageRestOf(b, read, options.media),
-      text: textRestOf(b, read, blockPrefix(b.id)),
+      text: textRestOf(b, read, blockPrefix(b.id), forms),
       duplicable: !SINGLE.has(b.type),
       // The other locales a text block has, to translate the shown one from (AI help).
       translatable:

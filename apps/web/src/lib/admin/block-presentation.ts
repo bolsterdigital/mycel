@@ -11,7 +11,7 @@ import type { BlockType } from '@mycel/core';
 export type RestView =
   /** The picture itself at card scale, with the caption and credit the page shows. */
   | 'image'
-  /** The words as the page sets them (`BlockText`): a heading, a text, a quote, a callout, an FAQ, a CTA. */
+  /** The words as the page sets them (`BlockText`): a heading, a text, a quote, a callout, an FAQ, a CTA, a video's title, a form's shape. */
   | 'text'
   /** The first text and the entries of a list, beside a thumbnail: the interim view of PR 3. */
   | 'summary';
@@ -24,7 +24,7 @@ export interface BlockPresentation {
   source: readonly string[];
   /**
    * The MY-110 step that designed this entry: `A` is the image pilot, `C1` and `C2` the text
-   * blocks; `C3` and `C4` still show the interim summary until their group is built (brief
+   * blocks, `C3` the video and the forms; `C4` still shows the interim summary until it is built (brief
    * block-editor-interactions § C).
    */
   stage: 'A' | 'C1' | 'C2' | 'C3' | 'C4';
@@ -41,9 +41,9 @@ export const BLOCK_PRESENTATION: { readonly [T in BlockType]: BlockPresentation 
   callout: { rest: 'text', display: ['variant'], source: [], stage: 'C2' },
   faq: { rest: 'text', display: ['variant', 'width'], source: [], stage: 'C2' },
   cta: { rest: 'text', display: ['variant', 'width', 'align'], source: [], stage: 'C2' },
-  'video-embed': summary('C3', ['width']),
-  form: summary('C3', ['variant', 'width']),
-  'signup-form': summary('C3'),
+  'video-embed': { rest: 'text', display: ['width'], source: [], stage: 'C3' },
+  form: { rest: 'text', display: ['variant', 'width'], source: [], stage: 'C3' },
+  'signup-form': { rest: 'text', display: [], source: [], stage: 'C3' },
   paywall: summary('C4'),
   hero: summary('C4', ['variant', 'width', 'align']),
 };

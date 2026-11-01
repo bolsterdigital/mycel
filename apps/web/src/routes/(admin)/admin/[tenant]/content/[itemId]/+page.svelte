@@ -456,7 +456,16 @@
       view={b.text}
       kindLabel={b.text.kind === 'callout'
         ? t(`admin.block.option.${b.text.variant}` as UiKey)
-        : undefined}
+        : b.text.kind === 'video'
+          ? t(`admin.block.option.${b.text.provider}` as UiKey)
+          : b.text.kind === 'form'
+            ? b.text.form
+              ? fill(t('admin.block.form.signup'), { list: b.text.form.list })
+              : b.text.unread
+                ? t('admin.block.form.unread')
+                : t('admin.block.form.missing')
+            : undefined}
+      changedLabel={t('admin.block.form.changed')}
     />
   {:else}
     {@const image = b.preview.mediaId

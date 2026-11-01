@@ -178,8 +178,16 @@ if (form instanceof HTMLFormElement) {
   };
   /** What each editor held when its fold opened: an unchanged one keeps the server's rendering. */
   const opened = new WeakMap();
-  /** The words the server set on a line: what stays while its fields are as they were loaded. */
-  const served = new WeakMap();
+  /**
+   * The words the server set per source: what stays while its fields are as they were loaded,
+   * which may be another locale's fallback. By source, since an FAQ's rows are set anew.
+   */
+  const served = new Map(
+    [...form.querySelectorAll('[data-rest-from]')].map((line) => [
+      line.dataset.restFrom,
+      line.textContent,
+    ])
+  );
   const fieldsOf = (fold) =>
     [...fold.querySelectorAll('input:not([type="hidden"]), textarea, select')]
       .map((control) => control.value)
@@ -195,16 +203,21 @@ if (form instanceof HTMLFormElement) {
     for (let i = 0; i < Number(controlOf(`${list}.rows`)?.value ?? 0); i++) {
       const from = `${list}.${i}.question.${locale}`;
       const proseFrom = `${list}.${i}.answer.${locale}.editor`;
-      const question = valueOf(from);
+      const question = typedInto(from) ? valueOf(from) : (served.get(from) ?? '');
       const editor = editorOf(proseFrom);
-      const native = controlOf(proseFrom.replace(/\.editor$/, ''))?.value ?? '';
-      const words = editor ? (editor.textContent ?? '') : native;
-      if (!question && !words.trim()) continue;
+      const nativeName = proseFrom.replace(/\.editor$/, '');
+      const native = controlOf(nativeName)?.value ?? '';
+      // An answer nobody touched keeps what the server set, which may be a fallback.
+      const kept = previous.get(proseFrom);
+      const untouched = editor
+        ? editor.innerHTML === opened.get(editor)
+        : native === loaded.get(nativeName);
+      const words = kept && untouched ? kept.textContent : editor ? editor.textContent : native;
+      if (!question && !words?.trim()) continue;
       const answer = document.createElement('div');
       answer.className = 'ui-block-text-prose';
       answer.dataset.restProse = proseFrom;
-      const kept = previous.get(proseFrom);
-      if (kept && editor && editor.innerHTML === opened.get(editor)) {
+      if (kept && untouched) {
         answer.append(...kept.childNodes);
       } else if (editor) {
         inertCopy(editor, answer);
@@ -261,12 +274,14 @@ if (form instanceof HTMLFormElement) {
       for (const line of rest.querySelectorAll('[data-rest-from]')) {
         const names = line.dataset.restFrom;
         if (!names) continue;
-        if (!served.has(line)) served.set(line, line.textContent);
         // Untouched fields keep the server's words, which may be another locale's fallback; an
         // emptied one is empty, as the save will make it.
         line.textContent = typedInto(names)
           ? names.split(' ').map(valueOf).filter(Boolean).join(', ')
-          : served.get(line);
+          : (served.get(names) ?? '');
+      }
+      for (const note of rest.querySelectorAll('[data-rest-changed]')) {
+        note.hidden = !typedInto(note.dataset.restChanged);
       }
       for (const box of rest.querySelectorAll('[data-rest-variant]')) {
         const value = controlOf(box.dataset.restVariant)?.value;
