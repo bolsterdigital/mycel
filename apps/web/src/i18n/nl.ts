@@ -672,10 +672,12 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.field.seoDescription': 'Beschrijving in zoekresultaten',
   'admin.content.field.noindex': 'Verbergen voor zoekmachines',
   'admin.content.field.canonical': 'Canoniek adres (optioneel, begint met https://)',
-  'admin.content.field.heroImage': 'Hero-beeld',
+  'admin.content.field.heroImage': 'Hoofdbeeld',
   'admin.content.field.heroImageHint':
     'Het grote beeld bovenaan de pagina, onder de titel en de intro. Leeg: geen beeld boven het verhaal.',
-  'admin.content.field.heroAlt': 'Beschrijving van het hero-beeld (alt-tekst)',
+  'admin.content.header.title': 'Kop',
+  'admin.content.field.heroAltFold': 'Beschrijving voor wie het beeld niet ziet',
+  'admin.content.field.heroAlt': 'Beschrijving van het hoofdbeeld (alt-tekst)',
   'admin.content.field.heroDecorativeHint':
     'Aangevinkt als het beeld niets toevoegt aan wat de titel en de intro zeggen. Vink uit om het te beschrijven voor wie het niet ziet.',
   'admin.content.field.featuredImage': 'Uitgelicht beeld',
@@ -687,7 +689,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.inherited': 'Standaard: {source}',
   'admin.content.inherited.empty': 'Standaard: leeg',
   'admin.content.inherited.image.featured': 'het uitgelichte beeld',
-  'admin.content.inherited.image.hero': 'het hero-beeld',
+  'admin.content.inherited.image.hero': 'het hoofdbeeld',
   'admin.content.inherited.image.site': 'het standaardbeeld van de site',
   'admin.content.inherited.text.title': 'de titel',
   'admin.content.inherited.text.featured': 'de beschrijving in overzichten',

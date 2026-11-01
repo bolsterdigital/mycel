@@ -25,6 +25,15 @@ export const BlockId = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/, 'content.block-
 type Definitions = typeof BLOCK_DEFINITIONS;
 export type BlockType = keyof Definitions;
 export const BLOCK_TYPES = Object.keys(BLOCK_DEFINITIONS) as BlockType[];
+/**
+ * The types an editor or pattern may add to new content (ADR 025 rule 4). `hero` stays registered
+ * so stored revisions keep parsing, editing and rendering, but the document header (title, lead,
+ * hero image) is the only header new content gets. Rejected: dropping `hero` from the registry,
+ * which would stop old revisions from parsing (ADR 004 rule 5).
+ */
+export const INSERTABLE_BLOCK_TYPES: readonly BlockType[] = BLOCK_TYPES.filter(
+  (type) => type !== 'hero'
+);
 
 /** The props of one type as stored (defaults applied) and as a caller may send them. */
 export type BlockProps<K extends BlockType> = z.infer<Definitions[K]['props']>;

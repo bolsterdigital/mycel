@@ -2100,15 +2100,16 @@ test.describe('content-blocks', () => {
         await setTextSize(page, text);
         await expect(page).toHaveURL(new RegExp(`${edit}$`));
         await layoutGate(page, edit);
-        // The block with the most fields, chosen but not stored, at its place.
+        // A block with many fields, chosen but not stored, at its place. Not the hero: new content
+        // gets no hero block (ADR 025 rule 4).
         await page.goto(edit);
-        await insert(page, 'Opening', 'after', 7);
+        await insert(page, 'Oproep', 'after', 7);
         await expect(form.locator('.ui-tabs')).toHaveAttribute('data-tabs', '');
         await expect(
           page.locator('#block-new').getByLabel('Titel', { exact: true }).first()
         ).toBeVisible();
         await setTextSize(page, text);
-        await layoutGate(page, 'new hero');
+        await layoutGate(page, 'new cta');
       });
   });
 });

@@ -28,7 +28,7 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import {
   pick,
   BLOCK_DEFINITIONS,
-  BLOCK_TYPES,
+  INSERTABLE_BLOCK_TYPES,
   UseCaseError,
   can,
   contentPath,
@@ -286,7 +286,8 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
       ),
     })),
     openBlocks: (url.searchParams.get('block') ?? '').split(','),
-    blockTypes: BLOCK_TYPES,
+    /** No `hero`: the document header is the only header new content gets (ADR 025). */
+    blockTypes: INSERTABLE_BLOCK_TYPES,
     pending: canWrite && pending && shown.length ? pendingView(pending, shown) : null,
     docLocales: doc.locales,
     /** The one locale the screen shows and saves (#66 PR 4). */

@@ -342,7 +342,7 @@ describe('media references of blocks', () => {
         { mediaId: photo, decorative: false, alt: { nl: 'Plein', en: 'Square' } },
         { mediaId: photo2, decorative: true, alt: null, caption: { nl: 'Later', en: 'Later' } },
       ]);
-      expect(story.blocks.map((b) => b.type)).toEqual(['hero', 'rich-text', 'image', 'rich-text']);
+      expect(story.blocks.map((b) => b.type)).toEqual(['image', 'rich-text', 'image', 'rich-text']);
       const storyPattern = await invoker.run(useCases.createPattern, system, story);
       expect(usages(photo2)).toEqual([`pattern:${storyPattern.id} ${storyPattern.blocks[2]!.id}`]);
       // The tenant check runs at save: another tenant's photo is unknown.

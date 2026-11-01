@@ -103,6 +103,26 @@ describe('documentFrom(valuesOf(doc))', () => {
     ).toBe(false);
   });
 
+  it('keeps no stored hero alt for a different image, only text typed over it (MY-110 B3)', () => {
+    const other = '01900000-0000-7000-8000-0000000000e5';
+    const described = { ...featuredPage, heroAlt: { nl: 'Het team', en: 'The team' } };
+    const v: FormValues = { ...valuesOf(described), heroAltShown: '1', heroImageId: other };
+    // Untouched text described the old picture: the new one is decorative until described.
+    expect(documentFrom(described, v, '2026-11-01', 'nl').heroAlt).toBeUndefined();
+    // Typed over in the locale on screen: that locale only, the other has to be described again.
+    expect(
+      documentFrom(described, { ...v, 'heroAlt.nl': 'Het plein' }, '2026-11-01', 'nl').heroAlt
+    ).toEqual({ nl: 'Het plein' });
+    // A form without the box (no JavaScript, the image just chosen) keeps nothing either.
+    const { heroAltShown: _shown, ...bare } = v;
+    expect(documentFrom(described, bare, '2026-11-01', 'nl').heroAlt).toBeUndefined();
+    // The same image keeps its description.
+    expect(
+      documentFrom(described, { ...v, heroImageId: described.heroImageId! }, '2026-11-01', 'nl')
+        .heroAlt
+    ).toEqual(described.heroAlt);
+  });
+
   it('takes both images from their pickers: an id, none, or kept when the form has no picker', () => {
     const photo = '01900000-0000-7000-8000-0000000000e3';
     const chosen = documentFrom(
