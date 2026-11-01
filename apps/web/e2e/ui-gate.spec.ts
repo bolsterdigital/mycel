@@ -40,6 +40,39 @@ test.describe('ui-gate', () => {
       route.path
     ).toHaveCount(0);
     await setTextSize(page, text);
+    if (route.path.endsWith('/connections')) {
+      const { execSync } = await import('node:child_process');
+      console.log(
+        'DIAG fc',
+        execSync(
+          'fc-match sans-serif; fc-match system-ui; fc-match sans-serif:bold; fc-list : family | sort -u | head -30'
+        ).toString()
+      );
+      console.log(
+        'DIAG',
+        text,
+        JSON.stringify(
+          await page.evaluate(() => {
+            const h = document.querySelector('#ui-overview-title')!;
+            const t = document.querySelector('.ui-overview-head .ui-hint-toggle');
+            const r = (e: Element | null | undefined) =>
+              e && JSON.stringify(e.getBoundingClientRect());
+            return {
+              font: getComputedStyle(h).fontFamily,
+              size: getComputedStyle(h).fontSize,
+              h: r(h),
+              t: r(t),
+              head: r(h.parentElement),
+              bar: r(h.parentElement?.parentElement),
+              toggles: [...document.querySelectorAll('.ui-hint-toggle')].map(
+                (e) =>
+                  `${e.closest('[class]')?.parentElement?.className}:${e.getBoundingClientRect().width}x${e.getBoundingClientRect().height}`
+              ),
+            };
+          })
+        )
+      );
+    }
     await layoutGate(page, `${route.path} at ${text}`, route.within);
     if (text === '100%') await expectNoAxeViolations(page, { label: route.path });
   };

@@ -132,7 +132,6 @@
      moves the ⓘ once the title has already taken the line. */
   .ui-hint-toggle {
     display: inline-flex;
-    flex-shrink: 0;
     align-items: center;
     justify-content: center;
     inline-size: var(--tap);
