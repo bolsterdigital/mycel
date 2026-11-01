@@ -867,8 +867,9 @@
     "speculation-rules": {
       "category": "performance",
       "level": "recommended",
-      "status": "open",
-      "gap": "no speculation rules"
+      "status": "covered",
+      "file": "apps/web/e2e/quality-corpus.spec.ts",
+      "note": "prefetch on hover through a Speculation-Rules header, no policy change; every corpus page in each locale hands a held link over as navigational-prefetch, and a token, query or nofollow link is not fetched ahead (apps/web/src/lib/server/http/speculation.ts)"
     },
     "resource-hints": {
       "category": "performance",

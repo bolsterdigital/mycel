@@ -91,6 +91,13 @@ expect 'TLS 1.1 refused' 000 \
   "$(page --tlsv1.0 --tls-max 1.1 --ciphers 'DEFAULT@SECLEVEL=0' -w '%{http_code}')"
 expect 'TLS 1.3 accepted' 404 "$(page --tlsv1.3 -w '%{http_code}')"
 
+# The address the Speculation-Rules header names on a hostname site, through Caddy. A development
+# site reaches it under its slug, which is the form the browser tests see. The header itself is
+# not checked here: the only page in this proof is the 404 above, and a 404 carries none.
+expect 'speculation rules file on a hostname' '200 application/speculationrules+json' \
+  "$(curl -sk -o /dev/null --max-time 10 --resolve "demo.example.test:$HTTPS_PORT:127.0.0.1" \
+    -w '%{http_code} %{content_type}' "https://demo.example.test:$HTTPS_PORT/_speculation.json" || true)"
+
 # From inside the network: the ask route answers Caddy.
 inside() {
   dc exec -T caddy wget -q -O /dev/null "http://web:3000/internal/hostnames/allowed?domain=$1" &&
