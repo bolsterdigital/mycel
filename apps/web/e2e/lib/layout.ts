@@ -203,17 +203,44 @@ export async function forcedColorsProblems(page: Page, within = 'body'): Promise
       }
     return problems;
   }, within);
-  // Walk the tab order from the top of the page; stop when focus leaves the scope's last stop or
-  // wraps around. A cap keeps a page with a focus trap from looping.
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-  const seen = new Set<string>();
+  const stops = await tabStops(page, within);
+  for (const stop of stops)
+    if (!stop.ring) out.push(`no focus outline in forced colours: ${stop.name}`);
+  if (stops.length === 0) out.push('no tab stop on the page');
+  return out;
+}
+
+/** One keyboard focus stop, measured right after the Tab that reached it. */
+export interface TabStop {
+  name: string;
+  /** An outline is drawn: style not `none` and a width above zero. */
+  ring: boolean;
+  /** Every sampled point of the control is outside the viewport or under a fixed or sticky
+   *  element that is not the control's own ancestor: WCAG 2.4.11, focus not obscured. */
+  hidden: boolean;
+}
+
+/** Walk the tab order from the top of the page and measure each stop inside `within`. The walk
+ *  ends when focus returns to the body or to an element it focused before; a cap keeps a page
+ *  with a focus trap from looping. Stops outside `within` move the walk on but are not returned.
+ *  Repeats are recognised by element identity, kept in the page between Tabs. Rejected: a key
+ *  built from the markup, which two identical controls share (a page with the same call to
+ *  action twice ended the walk at the second one and left the rest of the page unmeasured). */
+export async function tabStops(page: Page, within = 'body'): Promise<TabStop[]> {
+  await page.evaluate(() => {
+    (document.activeElement as HTMLElement | null)?.blur();
+    (window as unknown as { tabStopsSeen: WeakSet<Element> }).tabStopsSeen = new WeakSet();
+  });
+  const stops: TabStop[] = [];
   for (let i = 0; i < 80; i++) {
     await page.keyboard.press('Tab');
     const stop = await page.evaluate((scope) => {
       const el = document.activeElement;
       if (!el || el === document.body) return null;
-      const path = [...el.parentElement!.children].indexOf(el) + ':' + el.outerHTML.slice(0, 120);
-      if (!el.closest(scope)) return { path, outside: true };
+      const seen = (window as unknown as { tabStopsSeen: WeakSet<Element> }).tabStopsSeen;
+      if (seen.has(el)) return null;
+      seen.add(el);
+      if (!el.closest(scope)) return { outside: true as const };
       const style = getComputedStyle(el);
       const ring = style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0;
       const name =
@@ -221,12 +248,42 @@ export async function forcedColorsProblems(page: Page, within = 'body'): Promise
         el.getAttribute('name') ||
         el.getAttribute('aria-label') ||
         el.tagName.toLowerCase();
-      return { path, outside: false, ring, name };
+      // The centre and four points just inside the corners. A point counts as hidden when it is
+      // off screen or the top element there is not the control and sits in a fixed or sticky box.
+      const r = el.getBoundingClientRect();
+      const inset = Math.min(2, r.width / 4, r.height / 4);
+      const points = [
+        [r.left + r.width / 2, r.top + r.height / 2],
+        [r.left + inset, r.top + inset],
+        [r.right - inset, r.top + inset],
+        [r.left + inset, r.bottom - inset],
+        [r.right - inset, r.bottom - inset],
+      ] as const;
+      const pinned = (node: Element | null) => {
+        for (let n = node; n && n !== el; n = n.parentElement) {
+          if (n.contains(el)) return false;
+          const position = getComputedStyle(n).position;
+          if (position === 'fixed' || position === 'sticky') return true;
+        }
+        return false;
+      };
+      const hidden = points.every(([x, y]) => {
+        if (x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) return true;
+        const top = document.elementFromPoint(x, y);
+        return !!top && top !== el && !el.contains(top) && pinned(top);
+      });
+      return { outside: false as const, ring, name, hidden };
     }, within);
-    if (!stop || seen.has(stop.path)) break;
-    seen.add(stop.path);
-    if (!stop.outside && !stop.ring) out.push(`no focus outline in forced colours: ${stop.name}`);
+    if (!stop) break;
+    if (!stop.outside) stops.push({ name: stop.name, ring: stop.ring, hidden: stop.hidden });
   }
-  if (seen.size === 0) out.push('no tab stop on the page');
+  return stops;
+}
+
+/** Each tab stop in `within` that a fixed or sticky bar covers completely when it has focus. */
+export async function focusObscuredProblems(page: Page, within = 'body'): Promise<string[]> {
+  const stops = await tabStops(page, within);
+  const out = stops.filter((stop) => stop.hidden).map((stop) => `focus obscured: ${stop.name}`);
+  if (stops.length === 0) out.push('no tab stop on the page');
   return out;
 }

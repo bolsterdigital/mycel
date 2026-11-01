@@ -14,10 +14,12 @@ import { mobileInputProblems } from './lib/forms';
 import { tenantId, withInvoker } from './lib/invoker';
 import {
   NARROW,
+  focusObscuredProblems,
   forcedColorsProblems,
   layoutGate,
   setTextSize,
   setTextSpacing,
+  tabStops,
 } from './lib/layout';
 import { login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
@@ -162,6 +164,49 @@ test.describe('quality corpus reflow and text spacing', () => {
         await layoutGate(page, `${entry.slug} ${locale} in forced colours`);
         expect(await forcedColorsProblems(page)).toEqual([]);
       });
+  for (const entry of entries)
+    for (const [locale, identity] of Object.entries(entry.locales))
+      test(`${entry.slug} ${locale}: no bar hides the keyboard focus`, async ({ page }) => {
+        onlyA11y('requires DOM measurements');
+        await page.goto(identity.path);
+        await setTextSize(page, '200%');
+        expect(await focusObscuredProblems(page)).toEqual([]);
+      });
+  // The public theme has no fixed or sticky bar yet, so the test above would also pass if it
+  // measured nothing. A bar over the lower half of the viewport, the place a consent banner
+  // takes, must hide the stops the Tab walk scrolls into view at the bottom edge.
+  test('a fixed bar over the focus is caught', async ({ page }) => {
+    onlyA11y('requires DOM measurements');
+    const [entry] = entries;
+    await page.goto(Object.values(entry!.locales)[0]!.path);
+    await page.evaluate(() => {
+      const bar = document.createElement('div');
+      Object.assign(bar.style, {
+        position: 'fixed',
+        insetInline: '0',
+        bottom: '0',
+        height: '50vh',
+      });
+      document.body.append(bar);
+    });
+    expect((await focusObscuredProblems(page)).length).toBeGreaterThan(0);
+  });
+  // Both gates above trust the Tab walk to reach the end of the page. Two identical controls
+  // (the same call to action twice) once ended it at the second; a control after them must
+  // still be measured.
+  test('the tab walk reaches the last control past identical ones', async ({ page }) => {
+    onlyA11y('requires DOM measurements');
+    const [entry] = entries;
+    await page.goto(Object.values(entry!.locales)[0]!.path);
+    await page.evaluate(() => {
+      const twin = '<p><a href="#twin">Twin</a></p>';
+      document.body.insertAdjacentHTML('afterbegin', twin + twin);
+      document.body.insertAdjacentHTML('beforeend', '<p><button>Last control</button></p>');
+    });
+    const names = (await tabStops(page)).map((stop) => stop.name);
+    expect(names.filter((name) => name === 'Twin')).toHaveLength(2);
+    expect(names.at(-1)).toBe('Last control');
+  });
 });
 
 test.describe('validated demanding theme simulation', () => {
