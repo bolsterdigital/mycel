@@ -10,6 +10,7 @@ import checklist from '../../../scripts/quality/spec-checklist.json' with { type
 import { type Sample, specFailures } from '../../../scripts/quality/spec-check.mjs';
 import { themeCss } from '../src/lib/theme/tokens.js';
 import { WCAG, expectNoAxeViolations } from './lib/axe';
+import { mobileInputProblems } from './lib/forms';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
 import { login } from './lib/login';
@@ -138,6 +139,13 @@ test.describe('quality corpus reflow and text spacing', () => {
         await setTextSpacing(page);
         await setTextSize(page, '200%');
         await layoutGate(page, `${entry.slug} ${locale} with WCAG text spacing`);
+      });
+  for (const entry of entries.filter((e) => (e.expected as { form?: boolean }).form))
+    for (const [locale, identity] of Object.entries(entry.locales))
+      test(`${entry.slug} ${locale}: form fields fit a phone keyboard`, async ({ page }) => {
+        onlyA11y('requires DOM measurements');
+        await page.goto(identity.path);
+        expect(await mobileInputProblems(page)).toEqual([]);
       });
 });
 
