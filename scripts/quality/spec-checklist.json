@@ -387,8 +387,9 @@
     "mobile-form-inputs": {
       "category": "accessibility",
       "level": "recommended",
-      "status": "open",
-      "gap": "no rule checks type, inputmode, autocomplete and a 16 px input size on public forms"
+      "status": "covered",
+      "file": "apps/web/e2e/quality-corpus.spec.ts",
+      "note": "every text entry field of a public corpus form is 16 px or more, has an autocomplete token and the type that token asks for (apps/web/e2e/lib/forms.ts)"
     },
     "native-interactive-elements": {
       "category": "accessibility",
