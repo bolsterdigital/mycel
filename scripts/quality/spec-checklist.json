@@ -261,8 +261,9 @@
     "focus-not-obscured": {
       "category": "accessibility",
       "level": "recommended",
-      "status": "open",
-      "gap": "no check that a sticky bar leaves the focused control visible"
+      "status": "covered",
+      "file": "apps/web/e2e/quality-corpus.spec.ts",
+      "note": "every corpus page at 320 CSS px and 200% text: no tab stop is wholly off screen or under a fixed or sticky box (apps/web/e2e/lib/layout.ts), and an injected fixed bar is caught"
     },
     "skip-links": {
       "category": "accessibility",
