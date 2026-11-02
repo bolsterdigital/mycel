@@ -5,6 +5,11 @@
 // Rejected: `error(status, { key })` with an extended App.Error (the page would still have to
 // handle the framework's own errors, which carry no key) and a helper per status (five names for
 // one table).
+//
+// `refusalOf` is the other half: what a catch has when a use case said no. Anything else is a real
+// failure and goes on to `handleError`, so no route writes that test itself. Rejected: `act` for
+// every catch (an action that re-renders its own form or answers JSON has no use for its shape).
+import { UseCaseError } from '@mycel/core';
 import { error } from '@sveltejs/kit';
 
 const CODES = {
@@ -18,4 +23,10 @@ const CODES = {
 /** Stop this request with `status`; the error page says it in the visitor's language. */
 export function refuse(status: keyof typeof CODES): never {
   error(status, CODES[status]);
+}
+
+/** The use case's refusal in a catch; anything else is rethrown as it was. */
+export function refusalOf(e: unknown): UseCaseError {
+  if (e instanceof UseCaseError) return e;
+  throw e;
 }

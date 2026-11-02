@@ -12,6 +12,7 @@
 import { error, fail, type ActionFailure } from '@sveltejs/kit';
 import { UseCaseError, type Principal, type UseCaseErrorCode } from '@mycel/core';
 import { requireTenantPrincipal } from './admin.js';
+import { refusalOf } from '../http/refuse.js';
 import type { UiKey } from '../../../i18n/index.js';
 
 export type Failure = ActionFailure<{
@@ -93,14 +94,14 @@ export async function act<T>(
   try {
     return await fn(principal, data);
   } catch (e) {
-    if (!(e instanceof UseCaseError)) throw e;
+    const refusal = refusalOf(e);
     const extra = {
       email: text(data, 'email'),
       hostname: text(data, 'hostname'),
       id: text(data, 'id'),
-      ...(details ? await details(e, principal, data) : {}),
+      ...(details ? await details(refusal, principal, data) : {}),
     };
-    const { status, body } = failureOf(e, action, copy);
+    const { status, body } = failureOf(refusal, action, copy);
     return fail(status, { ...body, ...extra });
   }
 }
@@ -148,5 +149,15 @@ export async function loaded<T>(result: Promise<T>): Promise<T> {
     const status = e instanceof UseCaseError ? LOAD_STATUS[e.code] : undefined;
     if (status === undefined) throw e;
     error(status, (e as UseCaseError).code);
+  }
+}
+
+/** A lookup's result, or `null` when it is not there; any other error stays an error. */
+export async function orNull<T>(run: Promise<T>): Promise<T | null> {
+  try {
+    return await run;
+  } catch (e) {
+    if (refusalOf(e).code === 'not_found') return null;
+    throw e;
   }
 }

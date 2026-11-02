@@ -10,7 +10,8 @@
 // site's own with 403 (`kit.csrf`, untouched); the e2e suite proves it.
 
 import { fail, redirect } from '@sveltejs/kit';
-import { UseCaseError, anonymousPrincipal, useCases, type ConfirmPreview } from '@mycel/core';
+import { refusalOf } from '#lib/server/http/refuse.js';
+import { anonymousPrincipal, useCases, type ConfirmPreview } from '@mycel/core';
 import { ui } from '../../../../i18n/index.js';
 import { CONFIRM_HEADERS, OUTCOME_COPY, answerLocale, outcomePath } from '#lib/server/confirm.js';
 import { runtime } from '#lib/server/runtime.js';
@@ -61,7 +62,7 @@ export const actions: Actions = {
       );
     } catch (e) {
       // Suspended between opening the page and pressing the button: the same answer as above.
-      if (!(e instanceof UseCaseError && e.code === 'suspended')) throw e;
+      if (refusalOf(e).code !== 'suspended') throw e;
       const t = ui(answerLocale(site, request, null));
       return fail(403, { title: t('site.suspended.title'), body: t('site.suspended.body') });
     }

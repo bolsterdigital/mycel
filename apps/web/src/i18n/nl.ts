@@ -185,6 +185,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.error.badRequest':
     'Het adres van deze pagina bevat een waarde die niet te gebruiken is. Ga terug en probeer het opnieuw.',
   'admin.error.title': 'Er ging iets mis',
+  'admin.preview.error.invalid':
+    'Dit voorbeeld kon niet worden getoond. Controleer de velden en probeer het opnieuw.',
   'admin.error.body': 'Deze pagina kon niet worden getoond. Probeer het zo nog eens.',
   'admin.back': 'Terug naar je sites',
   'admin.members.title': 'Team',

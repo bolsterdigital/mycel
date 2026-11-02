@@ -269,6 +269,52 @@ test.describe('admin', () => {
       });
     });
 
+  // #51: a refused settings save says what happened; `suspended` was called "check the fields".
+  test('a refused settings save names a conflict and a suspension', async ({ page }) => {
+    const project = test.info().project.name;
+    const slug = `site-refusals-${project}`;
+    const email = `site-refusals-${project}@probe.test`;
+    const tenant = await asOwner((owner) =>
+      testTenant(owner, slug, {
+        name: 'Refused settings',
+        locales: ['nl', 'en'],
+        platformDomain: process.env['PLATFORM_DOMAIN']!,
+        reuse: true,
+      })
+    );
+    const status = (value: 'active' | 'suspended') =>
+      asOwner((owner) =>
+        owner.updateTable('tenants').set({ status: value }).where('id', '=', tenant.id).execute()
+      );
+    await status('active');
+    await withInvoker(async (invoker) => {
+      try {
+        await invoker.run(useCases.inviteMember, systemPrincipal(tenant.id, 'e2e'), {
+          email,
+          capabilities: ['tenant:admin'],
+        });
+      } catch (e) {
+        if (!(e instanceof UseCaseError && e.code === 'conflict')) throw e;
+      }
+    });
+    await login(page, `/admin/${slug}/site`, email);
+    const save = (on: Page) => on.getByRole('button', { name: 'Tijdzone opslaan' }).click();
+    const other = await page.context().newPage();
+    await other.goto(`/admin/${slug}/site`);
+    await save(other);
+    await other.close();
+    await save(page);
+    await expect(page.getByText('Deze instellingen zijn elders gewijzigd')).toBeVisible();
+    try {
+      await status('suspended');
+      await page.goto(`/admin/${slug}/site`);
+      await save(page);
+      await expect(page.getByText('Deze site is opgeschort')).toBeVisible();
+    } finally {
+      await status('active');
+    }
+  });
+
   // Brief admin-entry § 1, 7: a page before the IdP, and what the IdP answered in words.
   test('the login page names the way in, and a refused login says so', async ({ page }) => {
     await page.goto('/admin/login');

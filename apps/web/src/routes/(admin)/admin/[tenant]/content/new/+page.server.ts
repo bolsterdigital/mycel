@@ -3,14 +3,9 @@
 // starts as a draft with its first revision; the answer is a 303 to its edit page. A refusal
 // re-renders the form with what was typed.
 import { fail, redirect } from '@sveltejs/kit';
-import {
-  ContentType,
-  MAX_PAGE_SIZE,
-  UseCaseError,
-  useCases,
-  type ContentDocumentInput,
-} from '@mycel/core';
+import { ContentType, MAX_PAGE_SIZE, useCases, type ContentDocumentInput } from '@mycel/core';
 import { failureOf } from '#lib/server/admin/admin-actions.js';
+import { refusalOf } from '#lib/server/http/refuse.js';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { valuesFromForm } from '#lib/server/content-admin.js';
 import { runtime } from '#lib/server/runtime.js';
@@ -65,8 +60,7 @@ export const actions: Actions = {
       });
       id = r.item.id;
     } catch (e) {
-      if (!(e instanceof UseCaseError)) throw e;
-      const { status, body } = failureOf(e, 'create', {
+      const { status, body } = failureOf(refusalOf(e), 'create', {
         conflict: 'admin.content.error.slugTaken',
         invalid: 'admin.content.error.invalid',
         issues: ISSUES,

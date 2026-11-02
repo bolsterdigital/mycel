@@ -7,18 +7,20 @@ import { contentLocale } from '#lib/server/content-locale.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { Actions, PageServerLoad } from './$types';
 import { langOf, ui } from '../../../../../../../i18n/index.js';
-import { refuse } from '#lib/server/http/refuse.js';
+import { refuse, refusalOf } from '#lib/server/http/refuse.js';
 
 const read = async <T>(locals: App.Locals, query: () => Promise<T>): Promise<T> => {
   try {
     return await query();
   } catch (e) {
-    if (!(e instanceof UseCaseError)) throw e;
-    const { status, problem } = failure(e);
+    const refusal = refusalOf(e);
+    const { status, problem } = failure(refusal);
     error(
       status,
       ui(langOf(locals))(
-        e.code === 'not_found' ? 'admin.assist.error.not_found' : `admin.assist.error.${problem}`
+        refusal.code === 'not_found'
+          ? 'admin.assist.error.not_found'
+          : `admin.assist.error.${problem}`
       )
     );
   }
@@ -192,8 +194,7 @@ export const actions: Actions = {
             });
       redirect(303, urlOf(event.url, result.suggestionId));
     } catch (e) {
-      if (!(e instanceof UseCaseError)) throw e;
-      const { status, problem } = failure(e);
+      const { status, problem } = failure(refusalOf(e));
       return fail(status, { problem });
     }
   },
@@ -223,8 +224,7 @@ export const actions: Actions = {
       const shown = locale !== contentLocale(event.cookies, c.tenant) ? `&locale=${locale}` : '';
       redirect(303, `/admin/${c.tenant.slug}/content/${c.item.id}?saved=1${shown}`);
     } catch (e) {
-      if (!(e instanceof UseCaseError)) throw e;
-      const { status, problem } = failure(e);
+      const { status, problem } = failure(refusalOf(e));
       return fail(status, { problem, value: field(data, 'value') });
     }
   },
@@ -242,8 +242,7 @@ export const actions: Actions = {
       await c.rt.invoker.run(useCases.dismissSuggestion, c.principal, { suggestionId });
       redirect(303, urlOf(event.url));
     } catch (e) {
-      if (!(e instanceof UseCaseError)) throw e;
-      const { status, problem } = failure(e);
+      const { status, problem } = failure(refusalOf(e));
       return fail(status, { problem });
     }
   },

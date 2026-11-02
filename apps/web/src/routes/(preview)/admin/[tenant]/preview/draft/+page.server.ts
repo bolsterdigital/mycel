@@ -4,7 +4,6 @@
 // trust boundary. Membership and content:write are checked for every POST, including iframe posts.
 import {
   ContentDocumentInput,
-  UseCaseError,
   can,
   projectDocument,
   readinessIssues,
@@ -15,6 +14,7 @@ import {
 import { resolveDocument, resolveIntro, runtimeSource } from '#lib/blocks/resolve.js';
 import { posted } from '#lib/editor/block-form.js';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
+import { error } from '@sveltejs/kit';
 import { text } from '#lib/server/admin/admin-actions.js';
 import { valuesFromForm } from '#lib/server/content-admin.js';
 import { formDocument } from '#lib/server/edit-form.js';
@@ -29,7 +29,7 @@ import { runtime } from '#lib/server/runtime.js';
 import { siteBrand, siteTheme } from '#lib/server/theme.js';
 import { langOf, ui } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
-import { refuse } from '#lib/server/http/refuse.js';
+import { refuse, refusalOf } from '#lib/server/http/refuse.js';
 
 export const csr = false;
 
@@ -56,8 +56,8 @@ export const actions: Actions = {
         revisionId,
       }));
     } catch (e) {
-      if (e instanceof UseCaseError && e.code === 'not_found') refuse(403);
-      if (e instanceof UseCaseError && e.code === 'forbidden') refuse(403);
+      const { code } = refusalOf(e);
+      if (code === 'not_found' || code === 'forbidden') refuse(403);
       throw e;
     }
     // The edit form carries every block's fields (#66 PR 2) in the one locale it shows (PR 4);
@@ -70,12 +70,13 @@ export const actions: Actions = {
       new Date().toISOString().slice(0, 10),
       data.has('editLocale') ? text(data, 'editLocale') || null : undefined
     );
-    if (read.errors.length) refuse(400);
+    const invalid = () => error(400, ui(langOf(locals))('admin.preview.error.invalid'));
+    if (read.errors.length) invalid();
     const input = read.document;
     const parsed = ContentDocumentInput.safeParse(input);
-    if (!parsed.success) refuse(400);
+    if (!parsed.success) invalid();
     const doc = parsed.data as ContentDocument;
-    if (!doc.locales.includes(locale)) refuse(400);
+    if (!doc.locales.includes(locale)) invalid();
 
     const site = await previewSite(tenant);
     const base = previewBase(tenant.slug);

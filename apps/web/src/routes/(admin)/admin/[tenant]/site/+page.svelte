@@ -102,11 +102,15 @@
     {#if form?.problem}
       <Notice tone="error" title={t('error.summary.title')}>
         <p>
-          {data.section === 'assist'
-            ? t(`admin.assist.error.${form.problem}` as UiKey)
-            : form.problem === 'conflict'
-              ? t('admin.site.conflict')
-              : t('admin.site.invalid')}
+          {t(`admin.assist.error.${form.problem}` as UiKey)}
+        </p>
+      </Notice>
+    {:else if form?.error && data.section !== 'api'}
+      <Notice tone="error" title={t('error.summary.title')}>
+        <p>
+          {'what' in form && form.what
+            ? fill(t(form.error as UiKey), { what: t(form.what as UiKey) })
+            : t(form.error as UiKey)}
         </p>
       </Notice>
     {/if}
