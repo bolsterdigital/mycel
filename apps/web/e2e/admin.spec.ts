@@ -1213,6 +1213,9 @@ test.describe('preferences', () => {
     await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
     const edit = new URL(page.url()).pathname;
     const nl = page.locator('#publication-nl');
+    // Hydration restores the server's closed fold; interact only after the editor owns it.
+    if (isA11y())
+      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
     await nl.locator('details', { hasText: 'Inplannen' }).locator('summary').click();
     await expect(nl.getByText('Tijd in Asia/Tokyo')).toBeAttached();
     await nl.getByLabel('Publiceren op').fill('2030-01-04T17:00');
