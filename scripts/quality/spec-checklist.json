@@ -992,8 +992,9 @@
     "error-pages": {
       "category": "resilience",
       "level": "required",
-      "status": "open",
-      "gap": "the tenant 404 is the framework default page: wrong language, no title, no site chrome"
+      "status": "covered",
+      "file": "apps/web/src/routes/(public)/+error.svelte",
+      "note": "a tenant 404 or failure in the page's language, with a title and the site's chrome; asserted in e2e/public-site.spec.ts"
     },
     "maintenance-pages": {
       "category": "resilience",

@@ -35,6 +35,7 @@ import { timeZoneOptions } from '#lib/server/admin/time-zones.js';
 import { mediaChoices } from '#lib/server/content-blocks.js';
 import type { Actions, PageServerLoad } from './$types';
 import { langOf, ui, type UiKey } from '../../../../../i18n/index.js';
+import { refuse } from '#lib/server/http/refuse.js';
 
 const text = (data: FormData, key: string) => String(data.get(key) ?? '').trim();
 const baseVersion = (data: FormData) => {
@@ -72,13 +73,7 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
   const asked = url.searchParams.get('section');
   const section: SiteSection = SECTIONS.find((s) => s === asked) ?? 'general';
   const principal = locals.principal!;
-  if (!can(principal, NEEDS[section]))
-    error(
-      403,
-      NEEDS[section] === 'content:write'
-        ? 'content:write'
-        : ui(langOf(locals))('admin.assist.error.forbidden')
-    );
+  if (!can(principal, NEEDS[section])) refuse(403);
   const [general, theme, chrome, logo, font] = await Promise.all([
     runtime().invoker.run(useCases.getSiteGeneral, principal, {}),
     runtime().invoker.run(useCases.getSiteTheme, principal, {}),
@@ -159,7 +154,7 @@ export const actions: Actions = {
   general: async ({ request, locals, url, params }) => {
     const data = await request.formData();
     const { principal } = await requireTenantPrincipal(locals, url, params.tenant);
-    if (!can(principal, 'content:write')) error(403, 'content:write');
+    if (!can(principal, 'content:write')) refuse(403);
     try {
       const result = await runtime().invoker.run(useCases.updateSiteGeneral, principal, {
         baseVersion: baseVersion(data),
@@ -177,7 +172,7 @@ export const actions: Actions = {
   brand: async ({ request, locals, url, params }) => {
     const data = await request.formData();
     const { principal } = await requireTenantPrincipal(locals, url, params.tenant);
-    if (!can(principal, 'content:write')) error(403, 'content:write');
+    if (!can(principal, 'content:write')) refuse(403);
     const kind = text(data, 'kind');
     if (kind !== 'logo' && kind !== 'font')
       return fail(400, { action: 'brand', problem: 'invalid' });
@@ -211,7 +206,7 @@ export const actions: Actions = {
   theme: async ({ request, locals, url, params }) => {
     const data = await request.formData();
     const { principal } = await requireTenantPrincipal(locals, url, params.tenant);
-    if (!can(principal, 'content:write')) error(403, 'content:write');
+    if (!can(principal, 'content:write')) refuse(403);
     const palettes: Record<string, Record<string, unknown>> = {};
     for (const mode of ['light', 'dark']) {
       const palette: Record<string, unknown> = {};
@@ -254,7 +249,7 @@ export const actions: Actions = {
   images: async ({ request, locals, url, params }) => {
     const data = await request.formData();
     const { principal } = await requireTenantPrincipal(locals, url, params.tenant);
-    if (!can(principal, 'content:write')) error(403, 'content:write');
+    if (!can(principal, 'content:write')) refuse(403);
     try {
       const result = await runtime().invoker.run(useCases.updateSiteImages, principal, {
         baseVersion: baseVersion(data),
@@ -272,7 +267,7 @@ export const actions: Actions = {
   chrome: async ({ request, locals, url, params }) => {
     const data = await request.formData();
     const { principal, tenant } = await requireTenantPrincipal(locals, url, params.tenant);
-    if (!can(principal, 'content:write')) error(403, 'content:write');
+    if (!can(principal, 'content:write')) refuse(403);
     try {
       const current = await runtime().invoker.run(useCases.getSiteChrome, principal, {});
       if (current.version !== baseVersion(data))
@@ -310,8 +305,7 @@ export const actions: Actions = {
   },
   assist: async ({ request, locals, url, params }) => {
     const { principal, tenant } = await requireTenantPrincipal(locals, url, params.tenant);
-    if (!can(principal, 'tenant:admin'))
-      error(403, ui(langOf(locals))('admin.assist.error.forbidden'));
+    if (!can(principal, 'tenant:admin')) refuse(403);
     const data = await request.formData();
     const failure = await saveAssistSettings(runtime().invoker, principal, data);
     if (failure) {

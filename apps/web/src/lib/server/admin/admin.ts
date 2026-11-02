@@ -14,6 +14,7 @@ import {
 import { error, redirect, type Cookies } from '@sveltejs/kit';
 import { adminCookieOptions, loginLimiter } from './admin-paths.js';
 import { runtime } from '../runtime.js';
+import { refuse } from '#lib/server/http/refuse.js';
 
 export const SESSION_COOKIE = 'mycel_session';
 
@@ -49,9 +50,9 @@ export async function requireTenantPrincipal(
   const session = requireSession(locals, url);
   const rt = runtime();
   const tenant = await rt.tenants.findBySlug(slug);
-  if (!tenant) error(404, 'Not found');
+  if (!tenant) refuse(404);
   const principal = await operatorPrincipal(rt.identity, session, tenant.id);
-  if (!principal) error(403, 'Not a member of this site');
+  if (!principal) error(403, 'not_a_member');
   locals.principal = principal;
   return { tenant, principal, session };
 }

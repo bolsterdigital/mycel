@@ -23,13 +23,14 @@ import { loadPublicItem } from '#lib/server/public-page.js';
 import { runtime } from '#lib/server/runtime.js';
 import { absoluteSiteUrl, requireSite, sitePath, siteTenant } from '#lib/server/site.js';
 import type { Actions, PageServerLoad } from './$types';
+import { refuse } from '#lib/server/http/refuse.js';
 
 /** The site, the item route and the locale of a request, or a 404. */
 function target(locals: App.Locals, params: { locale?: string; path: string }) {
   const site = requireSite(locals);
   const route = parseContentPath(params.path);
   const locale = localeOf(params.locale, site.tenant);
-  if (!route || !locale) error(404, 'Not found');
+  if (!route || !locale) refuse(404);
   return { site, route, locale };
 }
 
@@ -79,7 +80,7 @@ export const actions: Actions = {
   default: async ({ params, request, locals, getClientAddress }) => {
     const rt = runtime();
     const { site, route, locale } = target(locals, params);
-    if (route.thanks) error(404, 'Not found');
+    if (route.thanks) refuse(404);
     const { tenant } = site;
     const data = await request.formData();
     const formId = text(data, 'formId');

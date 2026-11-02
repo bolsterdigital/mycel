@@ -229,6 +229,46 @@ test.describe('admin', () => {
     }
   });
 
+  // #51: a route's refusal is a code, the page says it in the operator's language; the preview
+  // routes have no admin layout of their own and show the same page.
+  for (const [language, header, notFound, noAccess] of [
+    ['nl', 'nl-NL', 'Pagina niet gevonden', 'Geen toegang tot deze pagina'],
+    ['en', 'en-GB', 'Page not found', 'No access to this page'],
+  ] as const)
+    test.describe(`in ${language}`, () => {
+      test.use({ locale: header });
+
+      test('a refusal reads the same on the admin and on its preview', async ({ page }) => {
+        await login(page, '/admin/probe/status');
+        for (const path of ['content/not-an-id', 'preview/item/not-an-id']) {
+          expect((await page.goto(`/admin/probe/${path}`))?.status(), path).toBe(404);
+          await expect(page.getByRole('heading', { level: 1, name: notFound }), path).toBeVisible();
+          await expect(page.locator('html'), path).toHaveAttribute('lang', language);
+          await expect(page.locator('main'), path).not.toContainText('not_found');
+        }
+        await expectNoAxeViolations(page);
+        const email = `refusal-${language}-${test.info().project.name}-${Date.now()}@probe.test`;
+        const system = systemPrincipal(await tenantId(), 'e2e');
+        const member = await withInvoker((invoker) =>
+          invoker.run(useCases.inviteMember, system, {
+            email,
+            capabilities: capabilitiesFor('editor'),
+          })
+        );
+        try {
+          await page.context().clearCookies();
+          await login(page, '/admin/probe/content?type=page', email);
+          // A check written in the route itself, not a refusal by a use case.
+          expect((await page.goto('/admin/probe/site?section=assist'))?.status()).toBe(403);
+          await expect(page.getByRole('heading', { level: 1, name: noAccess })).toBeVisible();
+        } finally {
+          await withInvoker((invoker) =>
+            invoker.run(useCases.removeMember, system, { operatorId: member.operatorId })
+          );
+        }
+      });
+    });
+
   // Brief admin-entry § 1, 7: a page before the IdP, and what the IdP answered in words.
   test('the login page names the way in, and a refused login says so', async ({ page }) => {
     await page.goto('/admin/login');

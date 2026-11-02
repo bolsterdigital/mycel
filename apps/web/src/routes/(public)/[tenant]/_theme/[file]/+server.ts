@@ -3,16 +3,16 @@
 // hash redirects without caching; malformed hashes are 404. Never serve new CSS under an old key.
 // `_theme` cannot collide with a page: a `Slug` starts with `[a-z0-9]`.
 
-import { error } from '@sveltejs/kit';
 import { NO_STORE } from '#lib/server/http/http-cache.js';
 import { requireSite, sitePath } from '#lib/server/site.js';
 import { siteTheme, themePath } from '#lib/server/theme.js';
 import type { RequestHandler } from './$types';
+import { refuse } from '#lib/server/http/refuse.js';
 
 export const GET: RequestHandler = async ({ params, locals }) => {
   const site = requireSite(locals);
   const theme = await siteTheme(site);
-  if (!/^[0-9a-f]{16}\.css$/.test(params.file)) error(404, 'Not found');
+  if (!/^[0-9a-f]{16}\.css$/.test(params.file)) refuse(404);
   // Cached HTML may still reference the preceding immutable hash after an editor saves a theme.
   // Redirect to the new hash without caching the redirect; never serve new CSS under an old hash.
   if (params.file !== `${theme.hash}.css`)

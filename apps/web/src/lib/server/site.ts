@@ -11,7 +11,6 @@
 // origin only, hooks.server.ts). Rejected: serving an unverified custom hostname "because DNS
 // already points here": that is exactly the state in which a stranger's DNS could point at us.
 
-import { error } from '@sveltejs/kit';
 import {
   anonymousPrincipal,
   siteUrl,
@@ -23,6 +22,7 @@ import {
   type TenantRef,
 } from '@mycel/core';
 import { runtime } from './runtime.js';
+import { refuse } from '#lib/server/http/refuse.js';
 
 /** The site of the current request, on `locals.site` (and its tenant on `locals.tenant`). */
 export interface Site {
@@ -132,6 +132,6 @@ export async function absoluteSiteUrl(site: Site, path: string): Promise<string>
 
 /** The site of a request as the hooks established it; a route without one is a 404. */
 export function requireSite(locals: App.Locals): Site {
-  if (!locals.site) error(404, 'Not found');
+  if (!locals.site) refuse(404);
   return locals.site;
 }

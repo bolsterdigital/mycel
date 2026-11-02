@@ -34,6 +34,8 @@ export const load: LayoutServerLoad = async ({ locals, request, params, route, s
         site.tenant.locales,
         site.tenant.defaultLocale
       );
+  // A page that loads sets this itself; one that fails still gets `lang` from here.
+  locals.lang ??= locale;
   const chrome = await siteChrome(site);
   const brand = await siteBrand(site);
   const link = (item: { label: Record<string, string>; href: string }) => ({
