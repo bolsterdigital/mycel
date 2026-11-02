@@ -3278,6 +3278,18 @@ test.describe('content-blocks', () => {
 test.describe('article-writing', () => {
   test.use({ locale: 'nl-NL' });
 
+  // ProseMirror reads the selection a moment later: a Backspace before that takes one letter, and
+  // the block keeps its words. Rejected: select all, which takes the cards too (#149).
+  async function emptyProse(page: Page) {
+    const prose = page.locator('.writing-surface .editor-prose').first();
+    await expect(prose).toBeVisible();
+    await expect(async () => {
+      await prose.locator('p').first().selectText();
+      await page.keyboard.press('Backspace');
+      await expect(prose).toHaveText('', { timeout: 1000 });
+    }).toPass();
+  }
+
   async function article(request: APIRequestContext) {
     const slug = `writer-${test.info().project.name}-${Date.now()}`;
     const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
@@ -3309,6 +3321,230 @@ test.describe('article-writing', () => {
     });
     return `/admin/probe/content/${item.id}`;
   }
+
+  // #142: an empty line in the writer is ordinary writing. With words in another locale the block
+  // loses this one and shows the other beside it; in the only locale the block goes and it publishes.
+  test('prose emptied in the writer falls back or goes, and nothing blocks the save', async ({
+    page,
+    request,
+  }, info) => {
+    test.skip(!isA11y(), 'the writer needs JavaScript; the native route is the #130 test');
+    const line = (text: string) => ({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+    });
+    const create = async (locales: string[], content: Record<string, unknown>) => {
+      const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+        slug: `writer-empty-${info.project.name}-${locales.length}-${Date.now()}`,
+        document: {
+          type: 'article',
+          defaultLocale: 'nl',
+          locales,
+          title: Object.fromEntries(locales.map((l) => [l, 'Leeg'])),
+          blocks: [
+            { type: 'rich-text', version: 1, props: { content } },
+            {
+              type: 'quote',
+              version: 1,
+              props: {
+                text: Object.fromEntries(locales.map((l) => [l, 'Citaat'])),
+                attribution: { name: 'Bron' },
+              },
+            },
+          ],
+        },
+      });
+      return item.id;
+    };
+    const blocksOf = async (itemId: string) =>
+      (
+        await callApi<{
+          revision: { id: string; document: { blocks: { type: string; props: any }[] } };
+        }>(request, 'content.item.get', { itemId })
+      ).revision;
+    const empty = async () => {
+      await emptyProse(page);
+      await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+      await expect(page).toHaveURL(/saved/);
+    };
+
+    const translated = await create(['nl', 'en'], { nl: line('Nederlands'), en: line('English') });
+    await login(page, `/admin/probe/content/${translated}?locale=en`);
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    await empty();
+    expect((await blocksOf(translated)).document.blocks[0]!.props.content).toEqual({
+      nl: line('Nederlands'),
+    });
+    const shown = page.locator('.writing-surface .editor-prose').first();
+    await expect(shown).toHaveAttribute('data-through', 'Nederlands');
+    await expect(shown).toHaveText('');
+    await expectNoAxeViolations(page);
+    // The hint is no value: another save leaves the locale absent, and typing replaces the hint.
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/saved/);
+    expect((await blocksOf(translated)).document.blocks[0]!.props.content).toEqual({
+      nl: line('Nederlands'),
+    });
+    await shown.locator('p').first().click();
+    await page.keyboard.type('Eigen');
+    await expect(shown).not.toHaveAttribute('data-through');
+
+    const only = await create(['nl'], { nl: line('Wordt leeg') });
+    await page.goto(`/admin/probe/content/${only}`);
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    await empty();
+    const revision = await blocksOf(only);
+    expect(revision.document.blocks.map((b) => b.type)).toEqual(['quote']);
+    const probe = await tenantId();
+    await withInvoker((invoker) =>
+      invoker.run(useCases.publishItem, systemPrincipal(probe, 'e2e'), {
+        itemId: only,
+        revisionId: revision.id,
+        locale: 'nl',
+      })
+    );
+  });
+
+  // #142 review: a block that goes shortens the list, so what follows reads the document that was
+  // saved, by id, and not the one the form was opened on.
+  test.describe('after a prose block went', () => {
+    test.skip(() => !isA11y(), 'the writer needs JavaScript');
+
+    const line = (text: string) => ({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+    });
+    const quote = (text: string) => ({
+      type: 'quote',
+      version: 1,
+      props: { text: { nl: text }, attribution: { name: 'Bron' } },
+    });
+    const stored = async (request: APIRequestContext, itemId: string) =>
+      (
+        await callApi<{
+          revision: {
+            document: {
+              blocks: { id: string; type: string; props: { text?: { nl?: string } } }[];
+            };
+          };
+        }>(request, 'content.item.get', { itemId })
+      ).revision.document.blocks;
+    const open = async (
+      page: Page,
+      request: APIRequestContext,
+      blocks: unknown[]
+    ): Promise<string> => {
+      const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+        slug: `writer-gone-${test.info().project.name}-${test.info().title.length}-${Date.now()}`,
+        document: {
+          type: 'article',
+          defaultLocale: 'nl',
+          locales: ['nl'],
+          title: { nl: 'Leeg' },
+          blocks,
+        },
+      });
+      await login(page, `/admin/probe/content/${item.id}`);
+      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+      return item.id;
+    };
+    const prose = { type: 'rich-text', version: 1, props: { content: { nl: line('Wordt leeg') } } };
+    // A field in a folded card: the fold hides it from `fill`.
+    const setField = (page: Page, name: string, value: string) =>
+      page.locator(`[name="${name}"]`).evaluate((field, text) => {
+        (field as HTMLTextAreaElement).value = text as string;
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+      }, value);
+    const save = (page: Page) => page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+
+    test('a refused insert keeps what was typed, and the next save stands', async ({
+      page,
+      request,
+    }) => {
+      const itemId = await open(page, request, [prose, quote('Bestaand')]);
+      const fold = page.locator('.writing-surface details.ui-block-insert:visible').first();
+      await fold.locator('summary').click();
+      await fold.getByLabel('Soort').selectOption({ label: 'Citaat' });
+      await fold.getByRole('button', { name: 'Hier invoegen' }).click();
+      const fresh = page.locator('#block-new');
+      await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Citaat');
+      await fresh.locator('[name$=".text.nl"]').fill('Nieuw citaat');
+
+      await emptyProse(page);
+      await save(page);
+      await expect(page.getByRole('alert')).toBeVisible();
+      expect((await stored(request, itemId)).map((b) => b.type)).toEqual(['quote']);
+      await expect(fresh.locator('[name$=".text.nl"]')).toHaveValue('Nieuw citaat');
+
+      await fresh.locator('[name="new.p.attribution.name"]').fill('Bron twee');
+      await save(page);
+      await expect(page).toHaveURL(/\?saved/);
+      expect((await stored(request, itemId)).map((b) => b.props.text?.nl)).toEqual([
+        'Nieuw citaat',
+        'Bestaand',
+      ]);
+    });
+
+    test('a refusal names the block it is about, and only what changed reopens', async ({
+      page,
+      request,
+    }) => {
+      const itemId = await open(page, request, [prose, quote('Een'), quote('Twee')]);
+      const before = await stored(request, itemId);
+      const [a, b] = [before[1]!.id, before[2]!.id];
+
+      await emptyProse(page);
+      await setField(page, `b.${b}.p.text.nl`, '');
+      await save(page);
+      const alert = page.getByRole('alert');
+      await expect(alert).toBeVisible();
+      await expect(page.locator(`[name="b.${b}.p.text.nl"]`)).toHaveAttribute(
+        'aria-invalid',
+        'true'
+      );
+      await expect(page.locator(`[name="b.${a}.p.text.nl"]`)).not.toHaveAttribute(
+        'aria-invalid',
+        'true'
+      );
+      await expect(alert.locator('a').first()).toHaveAttribute(
+        'href',
+        new RegExp(`^#b-${b}-p-text-nl$`)
+      );
+
+      await setField(page, `b.${b}.p.text.nl`, 'Twee en een half');
+      await save(page);
+      await expect(page).toHaveURL(new RegExp(`[?&]block=${b}(#|$)`));
+      expect((await stored(request, itemId)).map((x) => x.props.text?.nl)).toEqual([
+        'Een',
+        'Twee en een half',
+      ]);
+    });
+
+    for (const action of ['move', 'remove'] as const)
+      test(`${action} on a card goes through with the block gone`, async ({ page, request }) => {
+        const itemId = await open(page, request, [prose, quote('Een'), quote('Twee')]);
+        const before = await stored(request, itemId);
+        const [a, b] = [before[1]!.id, before[2]!.id];
+
+        await emptyProse(page);
+        await page
+          .locator(
+            action === 'move'
+              ? `button[name="move"][value="${b}:up"]`
+              : `button[name="remove"][value="${a}"]`
+          )
+          .evaluate((button) => (button as HTMLButtonElement).click());
+        await expect(page).toHaveURL(action === 'move' ? /done=blockMoved/ : /done=blockRemoved/);
+        const after = action === 'move' ? ['Twee', 'Een'] : ['Twee'];
+        expect((await stored(request, itemId)).map((x) => x.props.text?.nl)).toEqual(after);
+
+        // The screen is on the new revision: a further save of it stands and changes nothing.
+        await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+        await save(page);
+        await expect(page).toHaveURL(/\?saved/);
+        expect((await stored(request, itemId)).map((x) => x.props.text?.nl)).toEqual(after);
+      });
+  });
 
   test('article prose and title save together, while the native form and other locale remain lossless', async ({
     page,

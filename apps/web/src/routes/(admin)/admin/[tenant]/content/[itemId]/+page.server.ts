@@ -629,6 +629,8 @@ async function commit(
   let blocks: readonly { id: string }[] = [];
   let pending: PendingBlock | null = null;
   let revisionId = baseRevisionId;
+  // The document this post saved, once that transaction stood; a later refusal reopens on it.
+  let stood: ContentDocument | null = null;
   // The address this save moved the item to, once that transaction stood (`moveSlug`).
   let movedTo: string | null = null;
   try {
@@ -672,7 +674,11 @@ async function commit(
           fieldIssues: unread.map((e) => ({ name: e.name, copy: blockIssueCopy(e.message) })),
         }),
       };
-    changed = read.blocks.filter((b, i) => !isDeepStrictEqual(b, base.blocks[i])).map((b) => b.id);
+    // By id, against what this post made: a prose block the writer dropped shortens the list, so
+    // an index would open every card behind it and put a refusal on the wrong one (#142).
+    blocks = read.blocks;
+    const before = new Map(base.blocks.map((b) => [b.id, b]));
+    changed = read.blocks.filter((b) => !isDeepStrictEqual(b, before.get(b.id))).map((b) => b.id);
     const document = read.document;
     if (opts.pattern) {
       if (base.blocks.length || read.blocks.length)
@@ -689,10 +695,15 @@ async function commit(
       };
     movedTo = slugChange(item, data);
     const untouched = formDocument(base, valuesOf(base), unposted, today, editing).document;
-    if (opts.always || !isDeepStrictEqual(document, untouched))
-      revisionId = (
-        await rt.invoker.run(useCases.updateItem, principal, { itemId, baseRevisionId, document })
-      ).revision.id;
+    if (opts.always || !isDeepStrictEqual(document, untouched)) {
+      const { revision: made } = await rt.invoker.run(useCases.updateItem, principal, {
+        itemId,
+        baseRevisionId,
+        document,
+      });
+      revisionId = made.id;
+      stood = made.document;
+    }
     if (!pending || !added) return done(revisionId);
     const result = await rt.invoker.run(useCases.insertBlock, principal, {
       itemId,
@@ -714,9 +725,14 @@ async function commit(
     // A refused insert comes after a save that stood: the form now edits that revision. A moved
     // address stood too (its own transaction), so the form is based on it, as `conflictValues`
     // does; on the old one, moving the address back would read as untouched (#208 review, F2).
+    // The writer reopens on it as well: its posted nodes still hold a block that save dropped,
+    // and that id no longer resolves on the next save (#142 review, F1).
     const saved = {
       ...values,
       baseRevisionId: revisionId,
+      ...(stood && editing && values.articleEditor
+        ? { articleEditor: JSON.stringify(toArticleEditor(stood, editing)) }
+        : {}),
       ...(movedTo && 'baseSlug' in values ? { baseSlug: movedTo } : {}),
     };
     if (e.code !== 'conflict')

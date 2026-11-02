@@ -2,7 +2,13 @@
 // article editor lossy for its props, variants, ids or translations (ADR 020.5).
 import { describe, expect, it } from 'vitest';
 import { getSchema } from '@tiptap/core';
-import { BLOCK_DEFINITIONS, BLOCK_TYPES, Block, ContentDocument } from '@mycel/core';
+import {
+  BLOCK_DEFINITIONS,
+  BLOCK_TYPES,
+  Block,
+  ContentDocument,
+  readinessIssues,
+} from '@mycel/core';
 import { fromArticleEditor, toArticleEditor, toTiptap, fromTiptap } from './article-document.js';
 import { articleExtensions, proseExtensions } from './article-extensions.js';
 
@@ -181,5 +187,111 @@ describe('article editor document', () => {
     ]);
     expect(saved.blocks[0]).toEqual(document.blocks[0]);
     expect(saved.blocks[2]?.type).toBe('rich-text');
+  });
+
+  // #142: an emptied block. Readiness is the third regression: the two cases that used to end in a
+  // blank document or a refused publish.
+  describe('an emptied prose block', () => {
+    const words = (text: string) => ({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+    });
+    const blankNode = [{ type: 'paragraph' }];
+    const quote = (id: string) =>
+      Block.parse({
+        id,
+        type: 'quote',
+        version: 1,
+        props: { text: { nl: 'Citaat' }, attribution: { name: 'Bron' } },
+      });
+    const article = (blocks: unknown[], locales = ['nl', 'en']) =>
+      ContentDocument.parse({
+        type: 'article',
+        defaultLocale: 'nl',
+        locales,
+        title: Object.fromEntries(locales.map((l) => [l, 'Artikel'])),
+        blocks,
+        seo: {},
+        access: { level: 'public' },
+      });
+    const prose = (content: Record<string, unknown>) =>
+      Block.parse({ id: 'prose', type: 'rich-text', version: 1, props: { content } });
+    const emptied = (document: ContentDocument, locale: string) => {
+      const editor = toArticleEditor(document, locale);
+      for (const node of editor.content)
+        if (node.type === 'mycelProse') node.content = blankNode as never;
+      return fromArticleEditor(document, locale, editor);
+    };
+
+    it('loses its locale while another has words, so that locale shows through', () => {
+      const document = article([prose({ nl: words('Nederlands'), en: words('English') })]);
+      const saved = emptied(document, 'en');
+      const content = (saved.blocks[0]!.props as { content: Record<string, unknown> }).content;
+      expect(content).toEqual({ nl: words('Nederlands') });
+      expect(readinessIssues(saved, 'nl')).toEqual([]);
+      expect(readinessIssues(saved, 'en').map((i) => i.message)).toEqual([
+        'content.publish.missing-translation',
+      ]);
+      const reopened = toArticleEditor(saved, 'en').content[0]!;
+      expect(reopened.attrs.showThrough).toEqual({ locale: 'nl', text: 'Nederlands' });
+      // The hint is not the value: the editor holds nothing and saving it again changes nothing.
+      expect(reopened.content).toEqual(blankNode);
+      expect(fromArticleEditor(saved, 'en', toArticleEditor(saved, 'en'))).toEqual(saved);
+    });
+
+    it('goes in the only locale it has, and that article publishes', () => {
+      const document = article(
+        [quote('one'), prose({ nl: words('Wordt leeg') }), quote('two')],
+        ['nl']
+      );
+      const saved = emptied(document, 'nl');
+      expect(saved.blocks.map((block) => block.id)).toEqual(['one', 'two']);
+      expect(readinessIssues(saved, 'nl')).toEqual([]);
+    });
+
+    it('goes when only blank documents are left, so an old blank cannot hold it', () => {
+      const document = article([
+        prose({ nl: { type: 'doc', content: blankNode }, en: words('x') }),
+      ]);
+      expect(emptied(document, 'en').blocks).toEqual([]);
+    });
+
+    it('a new block nobody wrote in is not stored', () => {
+      const document = article([quote('one')]);
+      const editor = toArticleEditor(document, 'nl');
+      editor.content.push({
+        type: 'mycelProse',
+        attrs: {
+          blockId: 'typed',
+          newBlock: { id: 'typed', type: 'rich-text', version: 1, props: { content: {} } },
+        },
+        content: blankNode as never,
+      });
+      expect(fromArticleEditor(document, 'nl', editor).blocks.map((b) => b.id)).toEqual(['one']);
+    });
+
+    it('keeps the empty lines inside a block with words', () => {
+      const content = {
+        type: 'doc',
+        content: [...words('Een').content, { type: 'paragraph' }, ...words('Twee').content],
+      };
+      const document = article([prose({ nl: words('Oud') })], ['nl']);
+      const editor = toArticleEditor(document, 'nl');
+      editor.content[0]!.content = content.content as never;
+      const saved = fromArticleEditor(document, 'nl', editor);
+      expect((saved.blocks[0]!.props as { content: unknown }).content).toEqual({ nl: content });
+    });
+
+    it('shows the default locale first, and shortens what it shows', () => {
+      const long = 'woord '.repeat(100).trim();
+      const document = article(
+        [prose({ de: words('Deutsch'), nl: words(long) })],
+        ['nl', 'en', 'de']
+      );
+      const through = toArticleEditor(document, 'en').content[0]!.attrs.showThrough!;
+      expect(through.locale).toBe('nl');
+      expect(through.text.length).toBeLessThanOrEqual(201);
+      expect(through.text.endsWith('…')).toBe(true);
+    });
   });
 });
