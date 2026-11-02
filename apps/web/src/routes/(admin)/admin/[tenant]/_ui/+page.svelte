@@ -31,6 +31,7 @@
     Field,
     Fieldset,
     FileDrop,
+    UploadDropZone,
     Icon,
     KeyReveal,
     MetaList,
@@ -207,6 +208,11 @@
           value="#1d4ed8"
           label={t('admin.site.role.primary')}
           locale={data.locale}
+        />
+        <UploadDropZone
+          url="/admin/{data.tenant.slug}/media/upload"
+          locale={data.locale}
+          hint={t('admin.media.upload.hint')}
         />
         <FileDrop
           id="ui-file"

@@ -367,6 +367,11 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.media.title': 'Media',
   'admin.media.back': 'Terug naar {name}',
   'admin.media.storage': 'Opslag in gebruik: {used} van {max}.',
+  'admin.media.upload.add': 'Bestand uploaden',
+  'admin.media.upload.drop': 'Laat los om te uploaden',
+  'admin.media.upload.dismiss': 'Uploadresultaten sluiten',
+  'admin.media.upload.refresh':
+    'De uploads zijn klaar, maar de bibliotheek kon niet worden vernieuwd. Herlaad de pagina om ze te zien.',
   'admin.media.upload.title': 'Bestand uploaden',
   'admin.media.upload.file': 'Bestand',
   'admin.media.upload.hint':

@@ -1,8 +1,7 @@
-<!-- The media library of a site (TODO #10b, brief #56 § C1) on the overview pattern: upload of
-     one or more files at the top, a search, the library as a grid of thumbnails or as a table,
-     each asset a link to its own page with preview, details, edit and delete. Every action is a
-     native form post or a link, so nothing needs JavaScript (the upload's thumbnails are an
-     optional script); e2e/media.spec.ts checks 320 CSS px and 200% text. -->
+<!-- The media library starts with its assets, not a full-page upload form (#80A). A compact
+     button opens the native upload dialog; a window-wide drop enhancement reports progress and
+     per-file failures, then refreshes the server-rendered library. The dialog, search, views and
+     asset links remain usable without JavaScript; media.spec.ts checks both paths and reflow. -->
 <script lang="ts">
   import {
     Actions,
@@ -13,6 +12,8 @@
     Choices,
     Field,
     FileDrop,
+    Dialog,
+    UploadDropZone,
     Fieldset,
     Notice,
     OverviewPage,
@@ -75,13 +76,7 @@
   title={t('admin.media.title')}
   locale={data.locale}
   breadcrumb={[{ label: data.tenant.name, href: base }, { label: t('admin.media.title') }]}
-  description={data.storage
-    ? fill(t('admin.media.storage'), {
-        used: size(data.storage.usedBytes),
-        max: size(data.storage.maxBytes),
-      })
-    : undefined}
-  listTitle={t('admin.media.library')}
+  listTitle={t('admin.media.title')}
   views={{
     label: t('admin.media.view.label'),
     items: [
@@ -136,34 +131,54 @@
   {/snippet}
 
   {#snippet intro()}
-    <form method="post" action="?/upload" enctype="multipart/form-data">
-      <Fieldset legend={t('admin.media.upload.title')}>
-        <FileDrop
-          id="upload-file"
-          name="file"
-          label={t('admin.media.upload.files')}
-          multiple
-          locale={data.locale}
-          accept="image/jpeg,image/png,image/webp,image/avif,image/gif,application/pdf"
-          hint={fill(t('admin.media.upload.hint'), { max: size(data.maxUploadBytes) })}
-          required
-          preview
-        />
-        <Choices
-          id="upload"
-          name="access"
-          type="checkbox"
-          legend={t('admin.media.access')}
-          locale={data.locale}
-          options={[{ value: 'restricted', label: t('admin.media.upload.restricted') }]}
-        />
-        <Actions><Button>{t('admin.media.upload.submit')}</Button></Actions>
-      </Fieldset>
-    </form>
+    <Dialog
+      id="media-upload"
+      title={t('admin.media.upload.title')}
+      trigger={t('admin.media.upload.add')}
+      locale={data.locale}
+    >
+      <form method="post" action="?/upload" enctype="multipart/form-data">
+        <Fieldset legend={t('admin.media.upload.title')}>
+          <FileDrop
+            id="upload-file"
+            name="file"
+            label={t('admin.media.upload.files')}
+            multiple
+            locale={data.locale}
+            accept="image/jpeg,image/png,image/webp,image/avif,image/gif,application/pdf"
+            hint={fill(t('admin.media.upload.hint'), { max: size(data.maxUploadBytes) })}
+            required
+            preview
+          />
+          <Choices
+            id="upload"
+            name="access"
+            type="checkbox"
+            legend={t('admin.media.access')}
+            locale={data.locale}
+            options={[{ value: 'restricted', label: t('admin.media.upload.restricted') }]}
+          />
+          <Actions><Button>{t('admin.media.upload.submit')}</Button></Actions>
+        </Fieldset>
+      </form>
+    </Dialog>
+    <UploadDropZone
+      url="{base}/media/upload"
+      locale={data.locale}
+      hint={fill(t('admin.media.upload.hint'), { max: size(data.maxUploadBytes) })}
+    />
+    {#if data.storage}
+      <p class="ui-hint" data-media-storage>
+        {fill(t('admin.media.storage'), {
+          used: size(data.storage.usedBytes),
+          max: size(data.storage.maxBytes),
+        })}
+      </p>
+    {/if}
   {/snippet}
 
   {#snippet filters()}
-    <form method="get" role="search">
+    <form method="get" role="search" class="ui-library-search">
       {#if data.view === 'list'}<input type="hidden" name="view" value="list" />{/if}
       <Field
         id="media-search"
@@ -173,14 +188,14 @@
         label={t('admin.media.search.label')}
         locale={data.locale}
       />
-      <Actions>
+      <div class="ui-actions">
         <Button variant="secondary">{t('admin.media.search.submit')}</Button>
         {#if data.q}
           <Button variant="link" href={data.view === 'list' ? '?view=list' : '?'}
             >{t('admin.media.search.clear')}</Button
           >
         {/if}
-      </Actions>
+      </div>
     </form>
   {/snippet}
 

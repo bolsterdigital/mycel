@@ -990,6 +990,51 @@
     font-size: var(--step--1);
     overflow-wrap: anywhere;
   }
+  /* A library keeps its content in view; file drops briefly cover the whole browser. */
+  .ui-library-search {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: var(--space-1);
+    max-inline-size: 42rem;
+  }
+  .ui-library-search .ui-field {
+    flex: 1 1 15rem;
+    min-inline-size: 0;
+    margin: 0;
+  }
+  .ui-library-search .ui-actions {
+    flex: 0 0 auto;
+    max-inline-size: 100%;
+    margin: 0;
+  }
+  .ui-upload-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    padding: var(--space-2);
+    background: var(--color-surface-bg);
+    color: var(--color-surface-fg);
+    border: 4px dashed var(--color-link);
+    pointer-events: none;
+  }
+  .ui-upload-overlay[hidden],
+  [data-upload-results][hidden] {
+    display: none;
+  }
+  .ui-upload-prompt {
+    max-inline-size: 36rem;
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+  .ui-upload-prompt strong {
+    font-size: var(--step-2);
+  }
+  [data-upload-results] {
+    margin-block: var(--space-1);
+  }
   .ui-media-uploads {
     display: grid;
     gap: var(--space-0);
