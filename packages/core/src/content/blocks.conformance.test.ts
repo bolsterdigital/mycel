@@ -278,6 +278,21 @@ describe('readiness of nested and optional fields', () => {
     ]);
   });
 
+  it('a blank rich-text document is no translation: publishing that locale may not (#130)', () => {
+    const blank = { type: 'doc', content: [{ type: 'paragraph' }] };
+    const words = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Tekst' }] }],
+    };
+    const doc = docOf([
+      { id: 'b', type: 'rich-text', version: 1, props: { content: { nl: words, en: blank } } },
+    ]);
+    expect(readinessIssues(doc, 'nl')).toEqual([]);
+    expect(readinessIssues(doc, 'en')).toEqual([
+      { path: 'blocks.0.props.content', message: 'content.publish.missing-translation' },
+    ]);
+  });
+
   it('a decorative image asks for no alt text in any locale', () => {
     const e = examples.find((x) => x.name === 'image-full-decorative')!;
     const doc = docOf([e.input]);

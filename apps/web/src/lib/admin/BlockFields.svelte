@@ -76,6 +76,20 @@
     const read = fromMarkdown(value);
     return read.ok ? toTiptap(read.doc) : null;
   };
+  /**
+   * What the editor opens with: after a refused save its own posted document, because the textarea
+   * behind it still holds the words it loaded (#130). Rejected: writing every keystroke back into
+   * the textarea, which would run Markdown over a document on each change.
+   */
+  const surfaceContent = (name: string) => {
+    const posted = v(`${name}.editor`);
+    if (!posted) return prose(v(name));
+    try {
+      return JSON.parse(posted) as ReturnType<typeof prose>;
+    } catch {
+      return prose(v(name));
+    }
+  };
   /** The file a caption field's image points at, for the caption it inherits. */
   const assetOf = (captionName: string) =>
     media.find((m) => m.id === v(captionName.replace(/caption$/, 'mediaId')));
@@ -152,9 +166,9 @@
     {/each}
   {:else if f.kind === 'rich-text'}
     {#each locales as l (l)}
-      {#if prefix !== 'new.' && prose(v(`${name}.${l}`))}
+      {#if prefix !== 'new.' && surfaceContent(`${name}.${l}`)}
         <WritingSurface
-          content={prose(v(`${name}.${l}`))}
+          content={surfaceContent(`${name}.${l}`)}
           name="{name}.{l}.editor"
           {locale}
           contentLocale={l}

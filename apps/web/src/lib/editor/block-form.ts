@@ -14,7 +14,7 @@
 // walk that derives the form from the schema (unions and refinements make it guesswork, see
 // block-types.ts) and per-type Svelte forms (a new type would need a form before it is editable).
 
-import { RichTextDoc, type BlockField } from '@mycel/core';
+import { RichTextDoc, isBlankDoc, type BlockField } from '@mycel/core';
 import { fromTiptap } from './article-document.js';
 import { fromMarkdown, toMarkdown, type MarkdownError } from './markdown.js';
 
@@ -75,7 +75,8 @@ function fieldValues(
     case 'rich-text':
       for (const l of locales) {
         const doc = asRecord(value)[l];
-        out[join(name, l)] = doc ? toMarkdown(doc as never) : '';
+        // A blank document from an old revision shows as what it is: nothing typed.
+        out[join(name, l)] = doc && !isBlankDoc(doc) ? toMarkdown(doc as never) : '';
       }
       return;
     case 'media':
@@ -167,6 +168,43 @@ function localesIn(form: Posted, name: string): Record<string, true> {
   return found;
 }
 
+/** One locale of a rich-text field: the enhanced editor's document, else the Markdown. */
+function richTextFrom(
+  form: Posted,
+  name: string,
+  v: string,
+  l: string,
+  before: unknown,
+  errors: FieldError[]
+): unknown {
+  const enhanced = form.get(`${join(name, l)}.editor`);
+  if (enhanced) {
+    try {
+      return RichTextDoc.parse(fromTiptap(JSON.parse(enhanced)));
+    } catch {
+      errors.push({ name: join(name, l), message: 'editor.markdown.invalid', line: 1 });
+      return before;
+    }
+  }
+  if (isEmpty(v)) return undefined;
+  // Unchanged text keeps the stored document exactly.
+  if (before && toMarkdown(before as never) === v.replace(/\r\n?/g, '\n')) return before;
+  const read = fromMarkdown(v);
+  if (read.ok) return read.doc;
+  errors.push({ name: join(name, l), ...read.error });
+  return before;
+}
+
+/** Whether a posted field is an enhanced editor with no words in it: nothing typed in a row. */
+function blankEditor(name: string, value: string | null): boolean {
+  if (!name.endsWith('.editor') || !value) return false;
+  try {
+    return isBlankDoc(fromTiptap(JSON.parse(value)));
+  } catch {
+    return false;
+  }
+}
+
 function reader(form: Posted, errors: FieldError[]): Read {
   /** A localised value under `name` with a locale the form does not carry (#66 PR 4). */
   const untouched = (value: unknown, name: string) =>
@@ -231,22 +269,10 @@ function reader(form: Posted, errors: FieldError[]): Read {
         );
       case 'rich-text':
         return localizedFrom(form, base, name, (v, l, before) => {
-          const enhanced = form.get(`${join(name, l)}.editor`);
-          if (enhanced) {
-            try {
-              return RichTextDoc.parse(fromTiptap(JSON.parse(enhanced)));
-            } catch {
-              errors.push({ name: join(name, l), message: 'editor.markdown.invalid', line: 1 });
-              return before;
-            }
-          }
-          if (isEmpty(v)) return undefined;
-          // Unchanged text keeps the stored document exactly.
-          if (before && toMarkdown(before as never) === v.replace(/\r\n?/g, '\n')) return before;
-          const read = fromMarkdown(v);
-          if (read.ok) return read.doc;
-          errors.push({ name: join(name, l), ...read.error });
-          return before;
+          const doc = richTextFrom(form, name, v, l, before, errors);
+          // Emptied is absent, as for a text field: the other locale shows through, and readiness
+          // sees a missing translation.
+          return isBlankDoc(doc) ? undefined : doc;
         });
       case 'media':
       case 'reference':
@@ -297,7 +323,15 @@ function reader(form: Posted, errors: FieldError[]): Read {
           const typed = form
             .names()
             .filter((n) => n.startsWith(`${row}.`))
-            .some((n) => !isEmpty(form.get(n)) && !n.endsWith('.mode'));
+            .some(
+              (n) =>
+                !isEmpty(form.get(n)) &&
+                !n.endsWith('.mode') &&
+                !blankEditor(n, form.get(n)) &&
+                // An editor that posts a document overrides its textarea, which still holds the
+                // words it loaded. An untouched editor posts nothing: the textarea is the value.
+                isEmpty(form.get(`${n}.editor`))
+            );
           if (!typed && !elsewhere(field.fields, before[i], row)) continue;
           out.push(groupFrom(field.fields, asRecord(before[i]), row, read));
         }

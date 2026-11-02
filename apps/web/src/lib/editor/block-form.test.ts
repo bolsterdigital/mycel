@@ -48,6 +48,103 @@ describe('block forms', () => {
     for (const l of LOCALES) expect(entries[0]!.answer[l]).toBe(withDe.entries[0]!.answer[l]);
   });
 
+  describe('an emptied rich-text field (#130)', () => {
+    const blank = { type: 'doc', content: [{ type: 'paragraph' }] };
+    const faq = examples.find((e) => e.name === 'faq-list')!;
+    const answers = (props: Record<string, unknown>) =>
+      (props['entries'] as { answer: Record<string, unknown> }[]).map((e) => e.answer);
+
+    it('is absent with the editor as without it, and the other locale stays', () => {
+      const typed = formValues(faq.fields, faq.props, LOCALES);
+      const noScript = { ...typed, 'p.entries.0.answer.en': '' };
+      const script = { ...typed, 'p.entries.0.answer.en.editor': JSON.stringify(blank) };
+      for (const values of [noScript, script]) {
+        const { props, errors } = propsFromForm(faq.fields, postedValues(values), faq.props);
+        expect(errors).toEqual([]);
+        expect(answers(props)[0]).toEqual({ nl: answers(faq.props)[0]!['nl'] });
+      }
+    });
+
+    it('counts spaces, a bare break and an empty list item as no words', () => {
+      const docs = [
+        { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '  ' }] }] },
+        { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'hard_break' }] }] },
+        {
+          type: 'doc',
+          content: [
+            {
+              type: 'bullet_list',
+              content: [{ type: 'list_item', content: [{ type: 'paragraph' }] }],
+            },
+          ],
+        },
+      ];
+      const typed = formValues(faq.fields, faq.props, LOCALES);
+      for (const doc of docs) {
+        const values = { ...typed, 'p.entries.0.answer.en.editor': JSON.stringify(doc) };
+        expect(
+          answers(propsFromForm(faq.fields, postedValues(values), faq.props).props)[0]
+        ).toEqual({ nl: answers(faq.props)[0]!['nl'] });
+      }
+    });
+
+    it('drops a row cleared with the editor on it, as without it', () => {
+      const typed = formValues(faq.fields, faq.props, LOCALES);
+      const values = {
+        ...typed,
+        'p.entries.1.question.nl': '',
+        'p.entries.1.question.en': '',
+        // The hidden textareas keep the words they loaded; the editors say they are gone.
+        'p.entries.1.answer.nl.editor': JSON.stringify(blank),
+        'p.entries.1.answer.en.editor': JSON.stringify(blank),
+      };
+      const { props } = propsFromForm(faq.fields, postedValues(values));
+      expect(answers(props)).toHaveLength(answers(faq.props).length - 1);
+    });
+
+    it('keeps a row whose question is cleared while its editors are untouched, for core to refuse', () => {
+      const typed = formValues(faq.fields, faq.props, LOCALES);
+      const values = {
+        ...typed,
+        'p.entries.1.question.nl': '',
+        'p.entries.1.question.en': '',
+        // An untouched editor posts nothing: its textarea holds the only copy of the answer.
+        'p.entries.1.answer.nl.editor': '',
+        'p.entries.1.answer.en.editor': '',
+      };
+      const { props, errors } = propsFromForm(faq.fields, postedValues(values), faq.props);
+      expect(errors).toEqual([]);
+      expect(answers(props)).toEqual(answers(faq.props));
+      expect(
+        Block.safeParse({ id: 'x', type: 'faq', version: 2, props }).error?.issues[0]?.message
+      ).toBe('i18n.localized.empty');
+    });
+
+    it('reads a blank document of an old revision as nothing typed, and a save removes it', () => {
+      const rich = examples.find((e) => e.name === 'rich-text')!;
+      const old = { content: { nl: (rich.props['content'] as { nl: unknown }).nl, en: blank } };
+      const values = formValues(rich.fields, old, LOCALES);
+      expect(values['p.content.en']).toBe('');
+      const { props, errors } = propsFromForm(rich.fields, postedValues(values), old);
+      expect(errors).toEqual([]);
+      expect(props['content']).toEqual({ nl: old.content.nl });
+    });
+
+    it('leaves an only locale with nothing, which core refuses', () => {
+      const rich = examples.find((e) => e.name === 'rich-text')!;
+      const stored = { content: { nl: (rich.props['content'] as { nl: unknown }).nl } };
+      const values = {
+        ...formValues(rich.fields, stored, ['nl']),
+        'p.content.nl.editor': JSON.stringify(blank),
+      };
+      const { props } = propsFromForm(rich.fields, postedValues(values), stored);
+      expect(props['content']).toEqual({});
+      expect(
+        Block.safeParse({ id: 'x', type: 'rich-text', version: 1, props }).error?.issues[0]?.message
+      ).toBe('i18n.localized.empty');
+    });
+  });
+
   it('removes a locale that is emptied, a list row that is cleared, and adds a typed row', () => {
     const faq = examples.find((e) => e.name === 'faq-list')!;
     const values = formValues(faq.fields, faq.props, LOCALES);

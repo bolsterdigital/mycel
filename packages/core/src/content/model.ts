@@ -10,6 +10,7 @@
 import { z } from 'zod';
 import { Actor } from '../principal.js';
 import { Locale, localized } from '../i18n/locale.js';
+import { isBlankDoc } from './rich-text.js';
 import {
   Block,
   BlockInput,
@@ -348,7 +349,7 @@ export function readinessIssues(
   if (!doc.locales.includes(locale))
     return [{ path: 'locale', message: 'content.publish.locale-not-in-document' }];
   for (const field of localizedFields(doc))
-    if (field.required && field.value[locale] === undefined)
+    if (field.required && (field.value[locale] === undefined || isBlankDoc(field.value[locale])))
       issues.push({ path: field.path.join('.'), message: 'content.publish.missing-translation' });
   if (doc.type === 'article') {
     if (doc.access.level !== 'public' && doc.access.teaser === 'lead' && !doc.lead)

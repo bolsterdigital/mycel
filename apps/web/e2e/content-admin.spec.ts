@@ -2642,6 +2642,146 @@ test.describe('content-blocks', () => {
     await expectNoAxeViolations(page);
   });
 
+  // #130: an emptied rich-text field is absent on both routes. The editor empties it with the
+  // script, the textarea without.
+  async function emptyProse(fold: Locator) {
+    if (isA11y()) {
+      await fold.locator('.ProseMirror').first().click();
+      await fold.page().keyboard.press('ControlOrMeta+a');
+      await fold.page().keyboard.press('Delete');
+    } else await fold.getByRole('textbox').last().fill('');
+  }
+  const prose = (text: string) => ({
+    type: 'doc',
+    content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+  });
+
+  test('a rich-text field emptied in one locale falls back, and that locale cannot publish', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `c-blank-${isA11y() ? 'a11y' : 'no-js'}-${Date.now()}`,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl', 'en'],
+        title: { nl: 'Leeg', en: 'Blank' },
+        blocks: [
+          {
+            type: 'rich-text',
+            version: 1,
+            props: { content: { nl: prose('Nederlandse woorden'), en: prose('English words') } },
+          },
+        ],
+      },
+    });
+    await login(page, `/admin/probe/content/${item.id}?locale=en`);
+    const fold = card(page, 1).locator('details.block');
+    await fold.locator('> summary').click();
+    await emptyProse(fold);
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page.getByRole('alert')).toHaveCount(0);
+
+    const { revision } = await callApi<{
+      revision: { id: string; document: { blocks: { props: { content: object } }[] } };
+    }>(request, 'content.item.get', { itemId: item.id });
+    expect(revision.document.blocks[0]!.props.content).toEqual({
+      nl: prose('Nederlandse woorden'),
+    });
+    // On the edit screen the other locale's words stand in, as for a text field.
+    await expect(card(page, 1)).toContainText('Nederlandse woorden');
+    // Publicly there is no fallback (ADR 018): the locale is refused, nothing blank goes out.
+    const probe = await tenantId();
+    const refusal = await withInvoker((invoker) =>
+      invoker
+        .run(useCases.publishItem, systemPrincipal(probe, 'e2e'), {
+          itemId: item.id,
+          revisionId: revision.id,
+          locale: 'en',
+        })
+        .then(
+          () => null,
+          (e: UseCaseError) => e
+        )
+    );
+    expect(refusal?.issues).toContainEqual(
+      expect.objectContaining({ message: 'content.publish.missing-translation' })
+    );
+  });
+
+  test('a rich-text block with no words in any locale is refused, and the summary reaches it', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `c-noword-${isA11y() ? 'a11y' : 'no-js'}-${Date.now()}`,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: 'Geen woorden' },
+        blocks: [
+          { type: 'rich-text', version: 1, props: { content: { nl: prose('Wordt leeg') } } },
+        ],
+      },
+    });
+    await login(page, `/admin/probe/content/${item.id}`);
+    const fold = card(page, 1).locator('details.block');
+    await fold.locator('> summary').click();
+    await emptyProse(fold);
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    const alert = page.getByRole('alert');
+    await expect(alert).toContainText('Het blok kon niet worden opgeslagen');
+    // The field holds what was typed: nothing, not the words it loaded.
+    if (isA11y()) await expect(card(page, 1).locator('.ProseMirror')).toHaveText('');
+    else await expect(card(page, 1).getByRole('textbox').first()).toHaveValue('');
+    const link = alert.getByRole('link').first();
+    await link.focus();
+    await page.keyboard.press('Enter');
+    await expect(card(page, 1).getByRole('textbox').first()).toBeFocused();
+    await expectNoAxeViolations(page);
+  });
+
+  test('a question cleared above an untouched answer is refused, and the answer stays', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    const entries = [
+      { question: { nl: 'Vraag een?' }, answer: { nl: prose('Antwoord een.') } },
+      { question: { nl: 'Vraag twee?' }, answer: { nl: prose('Antwoord twee.') } },
+    ];
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `c-question-${isA11y() ? 'a11y' : 'no-js'}-${Date.now()}`,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: 'Vragen' },
+        blocks: [{ type: 'faq', version: 2, props: { variant: 'list', entries } }],
+      },
+    });
+    await login(page, `/admin/probe/content/${item.id}`);
+    const fold = card(page, 1).locator('details.block');
+    await fold.locator('> summary').click();
+    await fold.getByLabel('Vraag', { exact: true }).first().fill('');
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page.getByRole('alert')).toContainText('Het blok kon niet worden opgeslagen');
+
+    // Nothing was dropped: neither on the screen nor in the stored revision.
+    const answer = card(page, 1).locator('textarea[name$="entries.0.answer.nl"]');
+    await expect(answer).toHaveValue('Antwoord een.');
+    if (isA11y())
+      await expect(card(page, 1).locator('.ProseMirror').first()).toHaveText('Antwoord een.');
+    const { revision } = await callApi<{
+      revision: { document: { blocks: { props: { entries: object[] } }[] } };
+    }>(request, 'content.item.get', { itemId: item.id });
+    expect(revision.document.blocks[0]!.props.entries).toEqual(entries);
+  });
+
   test('a paywall lands on its actions after a move, and its removal says why it cannot go', async ({
     page,
     request,
