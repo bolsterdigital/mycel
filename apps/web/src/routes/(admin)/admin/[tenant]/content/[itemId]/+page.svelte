@@ -1325,6 +1325,7 @@
             id="author"
             name="authorIds"
             type="checkbox"
+            searchable
             legend={t('admin.content.field.authors')}
             locale={data.locale}
             hint={authors.length === 0 ? t('admin.content.edit.noAuthors') : undefined}

@@ -227,6 +227,19 @@
             { value: 'feed', label: t('admin.ui.catalogue.form.feed') },
           ]}
         />
+        <Choices
+          id="ui-long"
+          name="long"
+          type="checkbox"
+          searchable
+          legend={t('admin.content.field.authors')}
+          locale={data.locale}
+          selected={['12']}
+          options={Array.from({ length: 12 }, (_, i) => ({
+            value: String(i + 1),
+            label: `${t('admin.content.field.authors')} ${i + 1}`,
+          }))}
+        />
         <Checkbox
           id="ui-noindex"
           name="noindex"

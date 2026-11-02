@@ -157,9 +157,12 @@ test.describe('admin-ui', () => {
       )
     ).toEqual([]);
     if (!isA11y()) {
-      // The catalogue holds what screens will hold: no script but KeyReveal's copy enhancement.
+      // The catalogue holds what screens will hold: no script but KeyReveal's copy enhancement, the
+      // navigation's and a long Choices list's search.
       await expect(
-        page.locator('script:not([src="/_admin/copy.js"], [src="/_admin/nav.js"])')
+        page.locator(
+          'script:not([src="/_admin/copy.js"], [src="/_admin/nav.js"], [src="/_admin/choices.js"])'
+        )
       ).toHaveCount(0);
       return;
     }

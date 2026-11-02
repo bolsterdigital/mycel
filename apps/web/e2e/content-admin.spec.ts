@@ -838,6 +838,83 @@ test.describe('content-admin', () => {
     expect(after.sectionId).toBeNull();
   });
 
+  // A redaction with a hundred authors (the seed has that many): the list is a box, the chosen stand
+  // first, and what follows it in the column stays on the screen. Without a script it is the same
+  // box without the search.
+  test('a long author list stays one screen, with the chosen first and a search', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    const run = slugFor('authors');
+    const author = (name: string) =>
+      callApi<{ id: string }>(request, 'content.author.create', {
+        slug: `${run}-${name.toLowerCase().replace(/\W+/g, '-')}`,
+        name: `${name} ${run}`,
+      });
+    const old = await bySlug<{ id: string }>(
+      request,
+      'content.author.list',
+      'authors',
+      'e2e-ver-auteur'
+    );
+    const fresh = await author('Müller');
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: run,
+      document: {
+        type: 'article',
+        title: { nl: 'Veel auteurs' },
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        blocks: [],
+        authorIds: [old.id],
+      },
+    });
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await login(page, `/admin/probe/content/${item.id}`);
+
+    const authors = page.locator('#authors');
+    await expect(authors.locator('.ui-choice').first()).toContainText('Ver Weg');
+    expect(await authors.locator('.ui-choice').count()).toBeGreaterThan(100);
+    const top = (await authors.boundingBox())!.y;
+    const section = (await page.getByLabel('Rubriek').boundingBox())!;
+    expect(section.y + section.height - top).toBeLessThan(720);
+
+    const search = authors.getByRole('searchbox', { name: 'Zoeken' });
+    const name = `Müller ${run}`;
+    if (isA11y()) {
+      await expect(authors.getByText('Gekozen: Ver Weg')).toBeVisible();
+      await search.fill(`muller ${run}`);
+      await expect(authors.locator('.ui-choice:visible')).toHaveCount(1);
+      await expect(authors.getByRole('status')).toContainText('1 van ');
+      await search.press('Enter');
+      await expect(page).not.toHaveURL(/saved/);
+      await authors.getByLabel(name).check();
+      await expect(authors.getByText(`Gekozen: Ver Weg, ${name}`)).toBeVisible();
+      await search.press('Escape');
+      await expect(search).toHaveValue('');
+      expect(await authors.locator('.ui-choice:visible').count()).toBeGreaterThan(100);
+    } else {
+      await expect(search).toBeHidden();
+      await authors.getByLabel(name).check();
+    }
+
+    await expectNoAxeViolations(page);
+    await page.setViewportSize(NARROW);
+    await setTextSize(page, '200%');
+    await layoutGate(page, 'author list', '#authors');
+    await authors.screenshot({ path: test.info().outputPath('authors-320-200.png') });
+
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(page).toHaveURL(new RegExp(`${item.id}\\?saved$`));
+    const { revision } = await callApi<{ revision: { document: { authorIds: string[] } } }>(
+      request,
+      'content.item.get',
+      { itemId: item.id }
+    );
+    expect(revision.document.authorIds).toEqual([old.id, fresh.id]);
+  });
+
   test('a reserved slug comes back as a message with what was typed', async ({ page }) => {
     await login(page, '/admin/probe/content/new');
     await page.getByLabel('Slug').fill('admin');
