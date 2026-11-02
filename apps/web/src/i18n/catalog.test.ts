@@ -30,11 +30,18 @@ describe('refusalCopy', () => {
 
   it('names what a limit refused, so no placeholder reaches the operator', () => {
     const copy = refusalCopy(t, {
-      error: 'admin.limit.featureOff',
+      error: 'admin.limit.reached',
       what: 'admin.limit.what.other',
     });
     expect(copy).toContain(en['admin.limit.what.other']);
     expect(copy).not.toContain('{');
+  });
+
+  // #140: the sentence for a refusal of "something" has no slot, so it reads in both languages.
+  it.each(['nl', 'en'])('reads a switched-off feature without a name in %s', (locale) => {
+    const text = refusalCopy(ui(locale), { error: 'admin.limit.featureOff.other' });
+    expect(text).not.toMatch(/\{|geen dit|include this\./);
+    expect(text).toMatch(locale === 'nl' ? /^Dit onderdeel hoort niet/ : /include this feature\./);
   });
 
   it('shows a plain refusal as it is, and fills what the page adds', () => {

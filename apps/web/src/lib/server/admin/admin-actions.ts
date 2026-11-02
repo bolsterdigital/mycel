@@ -10,7 +10,7 @@
 // before it runs) and wrapping each whole load (the generated `$types` proxy only types a load
 // that is a function literal).
 import { error, fail, type ActionFailure } from '@sveltejs/kit';
-import { UseCaseError, type Principal, type UseCaseErrorCode } from '@mycel/core';
+import { BLOCK_TYPES, UseCaseError, type Principal, type UseCaseErrorCode } from '@mycel/core';
 import { requireTenantPrincipal } from './admin.js';
 import { refusalOf } from '../http/refuse.js';
 import type { UiKey } from '../../../i18n/index.js';
@@ -62,10 +62,25 @@ const FEATURE_WHAT: Record<string, UiKey> = {
   addHostname: 'admin.limit.what.customDomains',
 };
 
-function limitFailure(e: UseCaseError, action: string): { error: UiKey; what: UiKey } {
+/**
+ * A switched-off feature in a sentence that reads for each: a block type core named, or what this
+ * action is about. Without either the sentence has no `{what}` at all, because Dutch "geen" cannot
+ * take a "dit onderdeel" (#140). Rejected: one `{what}` for all, which is how it read "Deze site
+ * heeft geen dit onderdeel".
+ */
+function featureOff(e: UseCaseError, action: string): { error: UiKey; what?: UiKey } {
+  const block = BLOCK_TYPES.find((type) => type === e.issues[0]?.params?.['blockType']);
+  if (block) return { error: 'admin.limit.featureOff.block', what: `admin.block.type.${block}` };
+  const what = FEATURE_WHAT[action];
+  return what
+    ? { error: 'admin.limit.featureOff', what }
+    : { error: 'admin.limit.featureOff.other' };
+}
+
+function limitFailure(e: UseCaseError, action: string): { error: UiKey; what?: UiKey } {
   const key = e.issues[0]?.message ?? '';
   return key === 'entitlements.feature-off'
-    ? { error: 'admin.limit.featureOff', what: FEATURE_WHAT[action] ?? 'admin.limit.what.other' }
+    ? featureOff(e, action)
     : { error: 'admin.limit.reached', what: LIMIT_WHAT[key] ?? 'admin.limit.what.other' };
 }
 

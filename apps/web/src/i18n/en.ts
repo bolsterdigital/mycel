@@ -347,12 +347,16 @@ export const en = {
   'admin.suspended':
     'Your host has suspended this site. Visitors can still read it and you can export your data; nothing else can be changed.',
   'admin.limit.reached': 'This site has reached the limit for {what}. Ask your host to raise it.',
-  'admin.limit.featureOff': 'This site does not include {what}. Ask your host to switch it on.',
+  'admin.limit.featureOff': 'This site does not include {what}. Ask your host to switch this on.',
+  'admin.limit.featureOff.block':
+    'This site does not include the block type "{what}". Ask your host to switch it on.',
+  'admin.limit.featureOff.other':
+    'This site does not include this feature. Ask your host to switch it on.',
   'admin.limit.what.supporters': 'supporters',
   'admin.limit.what.operators': 'team members',
   'admin.limit.what.customDomains': 'custom domains',
   'admin.limit.what.apiKeys': 'API keys',
-  'admin.limit.what.other': 'this',
+  'admin.limit.what.other': 'this feature',
   'admin.error.suspended': 'This site is suspended; only reading and export work.',
   'admin.limit.what.storage': 'storage',
   'admin.media.title': 'Media',
