@@ -1489,7 +1489,7 @@ test.describe('content-admin', () => {
       await page.locator('.ui-item-bar').getByRole('button', { name: 'Opslaan' }).click();
       await expect(page.locator('main')).toContainText('of je sessie is verlopen');
       await loginAgain(page);
-      await expect(page).toHaveURL(new RegExp(`${edit}\\?/save$`));
+      await expect(page).toHaveURL(new RegExp(`${edit}\\?/save&locale=nl$`));
       // No claim that the input survived: the post never reached the form action.
       await expect(title(page)).toHaveValue('Herstel');
     });
