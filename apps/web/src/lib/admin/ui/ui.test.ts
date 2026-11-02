@@ -517,6 +517,45 @@ describe('Choices', () => {
     expect(out).toMatch(/type="checkbox" id="cap-content:write" name="capabilities"/);
     expect(out).toContain('<label for="cap-content:write"><span>content:<wbr>write</span></label>');
   });
+
+  describe('searchable', () => {
+    const options = Array.from({ length: 9 }, (_, i) => ({ value: `a${i}`, label: `Naam ${i}` }));
+    const props = {
+      id: 'author',
+      name: 'authorIds',
+      legend: 'Auteurs',
+      locale: 'nl',
+      type: 'checkbox' as const,
+      searchable: true,
+    };
+    // Not `html`: a long list carries the external script tag, which `html` refuses for all.
+    const long = (props: Record<string, unknown>) =>
+      render(Choices as Component<Record<string, unknown>>, { props }).body.replace(
+        /<!--[^]*?-->/g,
+        ''
+      );
+    const order = (out: string) => [...out.matchAll(/value="(a\d)"/g)].map((m) => m[1]);
+
+    it('leaves a short list as it is', () => {
+      const out = html(Choices, { ...props, options: options.slice(0, 8), selected: ['a7'] });
+      expect(out).not.toContain('data-choice-picker');
+      expect(order(out)[0]).toBe('a0');
+    });
+
+    it('puts the chosen first, keeping the order within both parts', () => {
+      const out = long({ ...props, options, selected: ['a5', 'a2'] });
+      expect(order(out)).toEqual(['a2', 'a5', 'a0', 'a1', 'a3', 'a4', 'a6', 'a7', 'a8']);
+      expect(out).toMatch(/value="a2" checked/);
+    });
+
+    it('shows no search before the script does, and the search is never posted', () => {
+      const out = long({ ...props, options });
+      expect(out).toMatch(/data-choice-tools[^>]* hidden/);
+      const search = /<input[^>]*type="search"[^>]*>/.exec(out)?.[0];
+      expect(search).toContain('data-choice-search');
+      expect(search).not.toContain('name=');
+    });
+  });
 });
 
 describe('FileDrop', () => {

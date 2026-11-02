@@ -383,6 +383,34 @@
     grid-column: 2;
     margin: 0;
   }
+  /* A long list (#133): a box of a fixed height, so what stands below it stays within reach. The
+     padding keeps a focus ring inside the box, which clips what passes its edge. */
+  .ui-choice-picker,
+  .ui-choice-tools {
+    display: grid;
+    gap: var(--space-1);
+  }
+  .ui-choice-tools[hidden],
+  .ui-choice[hidden] {
+    display: none;
+  }
+  .ui-choice-list > .ui-choice + .ui-choice {
+    margin-block-start: var(--space-0);
+  }
+  .ui-choice-chosen {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+  .ui-choice-tools .ui-hint:empty {
+    display: none;
+  }
+  .ui-choice-list {
+    max-block-size: 16rem;
+    overflow-y: auto;
+    padding: var(--space-0);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius);
+  }
 
   .ui-notice {
     margin-block: var(--space-2);
