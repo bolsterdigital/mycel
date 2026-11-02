@@ -8,6 +8,8 @@
 // drop every shadow, so a frame or a secondary button made of one disappears there.
 // And the admin's own markup reaches the browser through two helpers, because a hydrated page can
 // mount it later, where Trusted Types refuse a copied script tag and a plain string.
+// And a catalog key that is written out or built from a closed union is proven by the type, so
+// `as UiKey` is left for a key that comes from data (a block's field name, a server's table).
 // Run by `npm run lint:infra`, offline.
 // Rejected: one-home.test.mjs (it allows no copy at all, and these have dozens until the sweep),
 // and one total per rule (a removed copy and a new one elsewhere cancel out silently).
@@ -70,6 +72,11 @@ export const RULES = {
   'uuid-regex': [
     'a UUID pattern written by hand (use isUuid from @mycel/core)',
     /\[0-9a-f\]\{8\}/gi,
+    WEB,
+  ],
+  'ui-key-cast': [
+    'a catalog key cast by hand (a key the type can prove takes `as const`, a refusal `refusalCopy`)',
+    /\bas UiKey\b/g,
     WEB,
   ],
   'viewport-height': [
@@ -172,6 +179,7 @@ test('each rule sees its copy, within its scope, and not in comments or tests', 
       },
       { path: `${ROUTES}b/+page.server.ts`, text: "// e instanceof UseCaseError ?? 'en'" },
       { path: `${ROUTES}b/x.test.ts`, text: 'e instanceof UseCaseError' },
+      { path: `${WEB}lib/k.ts`, text: 't(`a.${b}` as UiKey); t(c as const)' },
       { path: 'packages/core/src/x.ts', text: "e instanceof UseCaseError; x ?? 'en'" },
     ]),
     {
@@ -185,6 +193,7 @@ test('each rule sees its copy, within its scope, and not in comments or tests', 
       'locale-fallback': { [lib]: 2 },
       'english-default': { [route]: 1 },
       'uuid-regex': { [route]: 1 },
+      'ui-key-cast': { [`${WEB}lib/k.ts`]: 1 },
       'viewport-height': { [`${WEB}lib/x.css`]: 2 },
       'public-box-shadow': { [`${WEB}lib/theme/base.css`]: 1 },
     }

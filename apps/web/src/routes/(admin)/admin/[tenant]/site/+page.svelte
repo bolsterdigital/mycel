@@ -31,7 +31,7 @@
   } from '#lib/admin/ui/index.js';
   import ApiAccess from '#lib/admin/ApiAccess.svelte';
   import UsageList from '#lib/admin/UsageList.svelte';
-  import { fill, ui, type UiKey } from '../../../../../i18n/index.js';
+  import { fill, ui, type UiKey, refusalCopy } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -108,9 +108,7 @@
     {:else if form?.error && data.section !== 'api'}
       <Notice tone="error" title={t('error.summary.title')}>
         <p>
-          {'what' in form && form.what
-            ? fill(t(form.error as UiKey), { what: t(form.what as UiKey) })
-            : t(form.error as UiKey)}
+          {refusalCopy(t, form)}
         </p>
       </Notice>
     {/if}

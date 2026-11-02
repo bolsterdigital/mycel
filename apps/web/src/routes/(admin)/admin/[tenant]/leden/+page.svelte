@@ -25,20 +25,20 @@
     RolePicker,
     Table,
   } from '#lib/admin/ui/index.js';
-  import { fill, ui, type UiKey } from '../../../../../i18n/index.js';
+  import { fill, ui, refusalCopy } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
   const t = $derived(ui(data.locale));
 
   const failed = $derived(form && 'error' in form ? form : null);
-  const done = $derived(form && 'done' in form ? form : null);
+  const done = $derived(form && 'done' in form && form.done ? form : null);
   const vars = (f: Record<string, unknown>) => ({
     email: typeof f.email === 'string' ? f.email : '',
   });
   const active = $derived(data.members.filter((m) => !m.pending));
   const pending = $derived(data.members.filter((m) => m.pending));
-  const roleName = (role: Role) => t(`admin.role.${role}` as UiKey);
+  const roleName = (role: Role) => t(`admin.role.${role}` as const);
   const columns = $derived([
     { key: 'name', label: t('admin.members.column.name') },
     { key: 'role', label: t('admin.members.column.role') },
@@ -116,15 +116,13 @@
   {#if failed}
     <Notice tone="error" title={t('error.summary.title')}>
       <p>
-        {'what' in failed && failed.what
-          ? fill(t(failed.error as UiKey), { what: t(failed.what as UiKey) })
-          : t(failed.error as UiKey)}
+        {refusalCopy(t, failed)}
       </p>
     </Notice>
   {/if}
   {#if done}
     <Notice tone="success">
-      <p>{fill(t(done.done as UiKey), vars(done))}</p>
+      <p>{fill(t(done.done), vars(done))}</p>
       {#if 'revokedKeys' in done && Number(done.revokedKeys) > 0}
         <p>{fill(t('admin.done.revokedKeys'), { n: Number(done.revokedKeys) })}</p>
       {/if}

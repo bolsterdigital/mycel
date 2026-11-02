@@ -7,7 +7,7 @@
 <script lang="ts">
   import type { OperatorPreferences, Role } from '@mycel/core';
   import { FormPage, MetaList, Notice, Select } from '#lib/admin/ui/index.js';
-  import { ui, type UiKey } from '../../i18n/index.js';
+  import { ui } from '../../i18n/index.js';
 
   type Props = {
     locale: string;
@@ -63,7 +63,7 @@
         <ul>
           {#each data.sites as site (site.slug)}
             <li>
-              <a href="/admin/{site.slug}">{site.name}</a>: {t(`admin.role.${site.role}` as UiKey)}
+              <a href="/admin/{site.slug}">{site.name}</a>: {t(`admin.role.${site.role}` as const)}
             </li>
           {/each}
         </ul>

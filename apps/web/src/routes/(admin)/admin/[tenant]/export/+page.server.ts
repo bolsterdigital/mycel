@@ -10,7 +10,6 @@
 import { EXPORT_LINK_TTL_MS, signExportDownload, useCases } from '@mycel/core';
 import { act, loaded } from '#lib/server/admin/admin-actions.js';
 import { runtime } from '#lib/server/runtime.js';
-import type { UiKey } from '../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ parent, locals, params }) => {
@@ -52,7 +51,9 @@ export const actions: Actions = {
       const { created } = await runtime().invoker.run(useCases.requestExport, principal, {});
       return {
         action: 'request',
-        done: (created ? 'admin.export.done.requested' : 'admin.export.done.running') as UiKey,
+        done: created
+          ? ('admin.export.done.requested' as const)
+          : ('admin.export.done.running' as const),
       };
     }),
 };

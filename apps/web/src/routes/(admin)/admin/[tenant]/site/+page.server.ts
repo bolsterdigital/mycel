@@ -311,6 +311,6 @@ export const actions: Actions = {
   revokeKey: (event) =>
     act(event, 'revokeKey', { conflict: 'admin.error.notFound' }, async (principal, data) => {
       await runtime().invoker.run(useCases.revokeKey, principal, { id: field(data, 'id') });
-      return { action: 'revokeKey', done: 'admin.done.revoked' as UiKey };
+      return { action: 'revokeKey', done: 'admin.done.revoked' as const };
     }),
 };

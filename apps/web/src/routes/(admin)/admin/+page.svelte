@@ -14,7 +14,7 @@
     Field,
     PageHeader,
   } from '#lib/admin/ui/index.js';
-  import { fill, ui, type UiKey } from '../../../i18n/index.js';
+  import { fill, ui } from '../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data }: PageProps = $props();
@@ -52,7 +52,7 @@
     <CardGrid items={data.sites} key={(site) => site.slug} label={t('admin.sites.title')}>
       {#snippet card(site)}
         <Card title={site.name} href="/admin/{site.slug}" level={2}>
-          <p>{t(`admin.role.${site.role}` as UiKey)}</p>
+          <p>{t(`admin.role.${site.role}` as const)}</p>
         </Card>
       {/snippet}
     </CardGrid>

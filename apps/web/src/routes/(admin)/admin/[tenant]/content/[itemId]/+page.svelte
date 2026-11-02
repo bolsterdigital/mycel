@@ -62,7 +62,7 @@
   } from '#lib/admin/ui/index.js';
   import { BLOCK_PRESENTATION } from '#lib/admin/block-presentation.js';
   import { pickAny, BLOCK_DEFINITIONS, pick, type BlockType, type MediaCredit } from '@mycel/core';
-  import { fill, ui, type UiKey } from '../../../../../../i18n/index.js';
+  import { fill, ui, type UiKey, refusalCopy } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -126,7 +126,7 @@
     !article && data.blocks.length >= OUTLINE_FROM
       ? data.blocks.map((b) => ({
           href: `#block-${b.id}`,
-          kind: t(`admin.block.type.${b.type}` as UiKey),
+          kind: t(`admin.block.type.${b.type}` as const),
           text: b.preview.text || b.preview.entries[0] || '',
         }))
       : []
@@ -137,7 +137,7 @@
       (data.values[`title.${defaultLocale}`] as string | undefined) ||
       t('admin.content.untitled')
   );
-  const typeName = $derived(t(`admin.content.type.${data.item.type}` as UiKey));
+  const typeName = $derived(t(`admin.content.type.${data.item.type}` as const));
   const baseRevision = $derived(v('baseRevisionId') || data.revision.id);
   /** Folded groups open after a failed save, so a field the summary links to is in view. */
   const folded = $derived(!form);
@@ -274,7 +274,7 @@
   const blockTypeOptions = $derived(
     data.blockTypes.map((type) => ({
       value: type,
-      label: t(`admin.block.type.${type}` as UiKey),
+      label: t(`admin.block.type.${type}` as const),
     }))
   );
 </script>
@@ -343,7 +343,7 @@
             (f) => f.field === conflict.code && f.locale === conflict.locale
           )}
           <li>
-            {t(`admin.content.heroConversion.conflict.${conflict.code}` as UiKey)}
+            {t(`admin.content.heroConversion.conflict.${conflict.code}` as const)}
             {#if conflict.locale}({conflict.locale}){/if}
             {#if row && row.field !== 'image'}
               {fill(t('admin.content.heroConversion.differs'), {
@@ -405,7 +405,7 @@
 {#snippet pendingCard(p: NonNullable<typeof pending>)}
   <section id="block-new" class="ui-panel pending" aria-labelledby="block-new-title">
     <h4 id="block-new-title">
-      {fill(t('admin.block.new'), { type: t(`admin.block.type.${p.type}` as UiKey) })}
+      {fill(t('admin.block.new'), { type: t(`admin.block.type.${p.type}` as const) })}
     </h4>
     <p class="ui-hint">{t('admin.block.new.hint')}</p>
     {#each Object.entries(p.hidden) as [name, value] (name)}
@@ -504,7 +504,7 @@
   <BlockCard
     id="block-{b.id}"
     class="block"
-    title="{i + 1}. {t(`admin.block.type.${b.type}` as UiKey)}"
+    title="{i + 1}. {t(`admin.block.type.${b.type}` as const)}"
     editable={BLOCK_DEFINITIONS[b.type].fields.length > 0}
     open={refused ||
       data.openBlocks.includes(b.id) ||
@@ -776,7 +776,7 @@
         data-native-prose={article && b.type === 'rich-text' ? '' : undefined}
         class="native-block"
       >
-        <legend class="ui-visually-hidden">{t(`admin.block.type.${b.type}` as UiKey)}</legend>
+        <legend class="ui-visually-hidden">{t(`admin.block.type.${b.type}` as const)}</legend>
         {@render blockCard(b, i)}
       </fieldset>
       {#if pending?.place === 'after' && pending.anchor === b.id}{@render pendingCard(pending)}{/if}
@@ -1169,7 +1169,7 @@
     {#if form && !form.conflict && !recovered}
       <Notice tone="error" title={t('error.summary.title')}>
         {#if issues.length}
-          <p>{t(form.error as UiKey)}</p>
+          <p>{refusalCopy(t, form)}</p>
           <ul>
             {#each issues as i (i.name + i.copy)}
               <li>
@@ -1184,7 +1184,7 @@
           </p>
           {@render issueList(form.issues ?? [])}
         {:else}
-          <p>{t(form.error as UiKey)}</p>
+          <p>{refusalCopy(t, form)}</p>
         {/if}
       </Notice>
     {/if}

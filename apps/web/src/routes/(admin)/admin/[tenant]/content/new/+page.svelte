@@ -5,7 +5,7 @@
 <script lang="ts">
   import { pickAny } from '@mycel/core';
   import { Choices, Field, Fieldset, FormPage, Notice } from '#lib/admin/ui/index.js';
-  import { ui, type UiKey } from '../../../../../../i18n/index.js';
+  import { ui, refusalCopy } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -47,7 +47,7 @@
 >
   {#snippet notices()}
     {#if form}
-      <Notice tone="error" title={t('error.summary.title')}><p>{t(form.error as UiKey)}</p></Notice>
+      <Notice tone="error" title={t('error.summary.title')}><p>{refusalCopy(t, form)}</p></Notice>
     {/if}
   {/snippet}
 

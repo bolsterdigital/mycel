@@ -9,7 +9,6 @@
 import { useCases } from '@mycel/core';
 import { act, loaded, text } from '#lib/server/admin/admin-actions.js';
 import { runtime } from '#lib/server/runtime.js';
-import type { UiKey } from '../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ parent, locals }) => {
@@ -29,12 +28,12 @@ export const actions: Actions = {
   retry: (event) =>
     act(event, 'retry', COPY, async (principal, data) => {
       await runtime().invoker.run(useCases.retryJob, principal, { id: text(data, 'id') });
-      return { action: 'retry', done: 'admin.status.done.retried' as UiKey };
+      return { action: 'retry', done: 'admin.status.done.retried' as const };
     }),
   close: (event) =>
     act(event, 'close', COPY, async (principal, data) => {
       if (text(data, 'confirm') !== 'yes') return { action: 'close' };
       await runtime().invoker.run(useCases.closeJob, principal, { id: text(data, 'id') });
-      return { action: 'close', done: 'admin.status.done.closed' as UiKey };
+      return { action: 'close', done: 'admin.status.done.closed' as const };
     }),
 };
