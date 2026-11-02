@@ -87,7 +87,9 @@
     /* The widest a dialog grows (the media library); the workspace itself has no cap. */
     --admin-width: 72rem;
     --form-width: var(--read-width);
-    --nav-width: max-content;
+    /* A small stable floor prevents closed disclosures shifting the workspace when opened;
+       longer localized labels may still widen the track. */
+    --nav-width: minmax(13rem, max-content);
     --rail-width: 3.5rem;
   }
   @media (prefers-color-scheme: dark) {
@@ -151,22 +153,36 @@
     background: var(--color-surface);
     border-block-end: var(--border-width) solid var(--color-border);
   }
-  .admin-sidebar-top p,
-  .admin-sidebar-bottom p {
+  .admin-sidebar .ui-icon {
+    width: 1.125em;
+    height: 1.125em;
+  }
+  .admin-sidebar-top {
+    display: grid;
+    gap: var(--space-0);
+  }
+  .admin-sidebar-top p {
     margin: 0;
-    overflow-wrap: anywhere;
+  }
+  .admin-product-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-0) var(--space-1);
   }
   .admin-brand {
     display: inline-flex;
     align-items: center;
     min-height: 44px;
-    font-weight: 700;
+    min-width: 44px;
+    font-size: var(--step--1);
+    font-weight: 600;
+    color: var(--color-muted-fg);
   }
   .admin-site-name {
     display: flex;
     align-items: center;
     min-height: 44px;
-    margin: 0;
     font-size: var(--step-1);
     font-weight: 700;
     color: var(--color-body-fg);
@@ -176,31 +192,49 @@
   .admin-site-name:hover {
     text-decoration: underline;
   }
-  /* The site's name, then what is about you (#114, #118): the profile now, the notifications
-     bell before it later. The name takes the room and wraps; the icons keep their tap size. */
-  .admin-site-row {
+  .admin-account > summary {
     display: flex;
     align-items: center;
-    gap: var(--space-0);
-  }
-  .admin-site-row .admin-site-name {
-    flex: 1 1 0;
-    min-width: 0;
-  }
-  .admin-profile {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    justify-content: center;
-    min-width: 44px;
+    gap: 0.5rem;
     min-height: 44px;
+    padding: 0.5rem;
     color: var(--color-muted-fg);
+    cursor: pointer;
+    list-style: none;
     border-radius: var(--radius);
   }
-  .admin-profile:hover,
-  .admin-profile[aria-current] {
-    color: var(--color-body-fg);
-    background: var(--color-body-bg);
+  .admin-account > summary::-webkit-details-marker {
+    display: none;
+  }
+  .admin-account > summary > .ui-icon:last-child {
+    margin-inline-start: auto;
+  }
+  .admin-account[open] > summary > .ui-icon:last-child {
+    transform: rotate(180deg);
+  }
+  .admin-account > summary:hover {
+    background: var(--color-muted-bg);
+  }
+  .admin-account-actions {
+    display: grid;
+    gap: 0.125rem;
+    padding-block: var(--space-0);
+    border-block-end: var(--border-width) solid var(--color-border);
+  }
+  .admin-account-actions > p {
+    padding: var(--space-0) 0.5rem;
+    overflow-wrap: anywhere;
+    font-size: var(--step--1);
+    color: var(--color-muted-fg);
+  }
+  .admin-content-locale {
+    display: grid;
+    gap: var(--space-0);
+    padding-block: var(--space-1);
+  }
+  .admin-content-locale-label {
+    font-size: var(--step--1);
+    color: var(--color-muted-fg);
   }
   /* On a phone the navigation is one bar with ☰ (#66 PR 1), closed until opened. From 60rem the
      list is always shown whatever `open` says and the bar is gone: ::details-content is the slot
@@ -227,51 +261,37 @@
     display: grid;
     gap: var(--space-2);
   }
-  .admin-sidebar-bottom > a,
-  .admin-sidebar-bottom button {
+  .admin-account-actions > a,
+  .admin-account-actions button,
+  .admin-collapse {
     display: flex;
     align-items: center;
     gap: 0.625rem;
     min-height: 44px;
-    min-width: 0;
-    padding: 0.5rem 0.75rem;
-    overflow-wrap: anywhere;
+    min-width: 44px;
+    padding: 0.5rem;
     border-radius: var(--radius);
-  }
-  .admin-sidebar-bottom {
-    display: grid;
-    gap: 0.25rem;
-    margin-block-start: var(--space-2);
-    border-block-start: var(--border-width) solid var(--color-border);
-    padding-block-start: var(--space-1);
-  }
-  .admin-sidebar-bottom button {
-    width: 100%;
     text-align: start;
+    font: inherit;
   }
-  /* Signing out is one of the menu's lines, not a button that outweighs them (#87-rest): in the
-     rail an outlined button was the heaviest thing on screen. No border either, like the links
-     around it: the public button's transparent 2px border (base.css, there for forced colours)
-     put its label 2px to the right of theirs. Rejected: padding minus the border, which the
-     rail's centring padding would have to repeat. */
-  .admin-sidebar-bottom .admin-logout {
-    font-weight: inherit;
+  .admin-account-actions button {
+    width: 100%;
+  }
+  .admin-account-actions .admin-logout,
+  .admin-collapse {
     color: inherit;
     background: none;
     border: 0;
+    cursor: pointer;
   }
-  .admin-sidebar-bottom .admin-logout:hover {
+  .admin-account-actions .admin-logout:hover {
     text-decoration: underline;
   }
-  /* The collapse button (#87): absent until static/_admin/nav.js has run, and only from 60rem,
-     where the menu is a sidebar; it shows the label of what it will do. */
-  .admin-sidebar-bottom .admin-collapse {
+  /* Hidden without the enhancement; every navigation and account destination stays native. */
+  .admin-collapse {
     display: none;
     color: var(--color-muted-fg);
-    background: none;
-    border: 0;
-    font: inherit;
-    cursor: pointer;
+    font-size: var(--step--1);
   }
   .admin-collapse > span {
     display: flex;
@@ -312,23 +332,21 @@
     .admin-workspace .page.admin {
       padding: var(--space-3);
     }
-    :root[data-admin-nav] .admin-sidebar-bottom .admin-collapse {
+    :root[data-admin-nav] .admin-collapse {
       display: flex;
     }
-    /* The rail: icons only, each label still the link's name (visually hidden) and shown beside
-       the icon as a tooltip on hover and on keyboard focus; group names become a line, the
-       sections of the current screen and the site's name step aside. position: fixed without
-       offsets keeps the tooltip at its own place yet outside the sidebar's scroll clip. */
+    /* The rail keeps named native links and disclosures. Opening a disclosure expands the
+       sidebar first (nav.js), so its children never become a clipped floating panel. */
     :root[data-admin-nav='rail'] .admin-shell {
       grid-template-columns: var(--rail-width) minmax(0, 1fr);
     }
     :root[data-admin-nav='rail'] .admin-sidebar {
       padding-inline: var(--space-0);
     }
-    /* The profile stays, as one more icon of the rail. */
     :root[data-admin-nav='rail'] :is(.admin-brand, .admin-site-name, .admin-content-locale),
-    :root[data-admin-nav='rail'] .admin-sidebar-bottom > p,
-    :root[data-admin-nav='rail'] .ui-navgroup-sub {
+    :root[data-admin-nav='rail'] .admin-account-actions,
+    :root[data-admin-nav='rail'] .ui-navgroup-sub,
+    :root[data-admin-nav='rail'] summary > .ui-icon:last-child {
       display: none;
     }
     :root[data-admin-nav='rail'] .ui-navgroup-label {
@@ -344,14 +362,24 @@
       border-block-start: var(--border-width) solid var(--color-border);
     }
     :root[data-admin-nav='rail']
-      :is(.ui-navgroup a, .admin-sidebar-bottom > a, .admin-sidebar-bottom button) {
-      /* The icon centred by padding, not by justify-content: a centred flex line would centre
-         the tooltip's static position too. */
+      :is(
+        .ui-navgroup > ul > li > a,
+        .ui-navgroup summary,
+        .admin-account > summary,
+        .admin-collapse
+      ) {
       justify-content: flex-start;
+      margin-inline: 0;
+      border-radius: var(--radius);
       padding-inline: calc((var(--rail-width) - 2 * var(--space-0) - 1.125em) / 2);
     }
     :root[data-admin-nav='rail']
-      :is(.ui-navgroup a, .admin-sidebar-bottom > a, .admin-sidebar-bottom button)
+      :is(
+        .ui-navgroup > ul > li > a,
+        .ui-navgroup summary,
+        .admin-account > summary,
+        .admin-collapse
+      )
       span:not(:has(svg)) {
       position: fixed;
       z-index: 5;
@@ -362,10 +390,12 @@
       white-space: nowrap;
     }
     :root[data-admin-nav='rail']
-      :is(.ui-navgroup a, .admin-sidebar-bottom > a, .admin-sidebar-bottom button):is(
-        :hover,
-        :focus-visible
-      )
+      :is(
+        .ui-navgroup > ul > li > a,
+        .ui-navgroup summary,
+        .admin-account > summary,
+        .admin-collapse
+      ):is(:hover, :focus-visible)
       span:not(:has(svg)) {
       width: auto;
       height: auto;
@@ -380,22 +410,21 @@
       border-radius: var(--radius-sm);
       box-shadow: var(--shadow-1);
     }
-    /* Menu labels, the account lines and the locale switch determine the track (#114: "Back to
-       your sites" broke over three lines and the switch stacked); site names and account
-       addresses wrap within it. */
+    /* Account addresses and site names do not set the column width. All action labels do. */
     .admin-site-name,
-    .admin-sidebar-bottom > p {
+    .admin-account-actions > p {
       contain: inline-size;
     }
-    .admin-menu .ui-navgroup a,
-    .admin-sidebar-bottom > a,
-    .admin-sidebar-bottom button {
+    .admin-menu :is(.ui-navgroup a, .ui-navgroup summary),
+    .admin-account-actions > a,
+    .admin-account-actions button {
       white-space: nowrap;
     }
     .admin-content-locale .ui-locale-switch {
       flex-wrap: nowrap;
     }
-    .admin-menu .ui-navgroup > ul > li > a {
+    .admin-menu .ui-navgroup > ul > li > a,
+    .admin-menu .ui-navgroup > ul > li > details > summary {
       margin-inline: calc(-1 * var(--space-2));
       padding-inline: var(--space-2);
       border-radius: 0;
