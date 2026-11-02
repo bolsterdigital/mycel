@@ -3305,6 +3305,92 @@ test.describe('article-writing', () => {
     return `/admin/probe/content/${item.id}`;
   }
 
+  // #142: an empty line in the writer is ordinary writing. With words in another locale the block
+  // loses this one and shows the other beside it; in the only locale the block goes and it publishes.
+  test('prose emptied in the writer falls back or goes, and nothing blocks the save', async ({
+    page,
+    request,
+  }, info) => {
+    test.skip(!isA11y(), 'the writer needs JavaScript; the native route is the #130 test');
+    const line = (text: string) => ({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+    });
+    const create = async (locales: string[], content: Record<string, unknown>) => {
+      const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+        slug: `writer-empty-${info.project.name}-${locales.length}-${Date.now()}`,
+        document: {
+          type: 'article',
+          defaultLocale: 'nl',
+          locales,
+          title: Object.fromEntries(locales.map((l) => [l, 'Leeg'])),
+          blocks: [
+            { type: 'rich-text', version: 1, props: { content } },
+            {
+              type: 'quote',
+              version: 1,
+              props: {
+                text: Object.fromEntries(locales.map((l) => [l, 'Citaat'])),
+                attribution: { name: 'Bron' },
+              },
+            },
+          ],
+        },
+      });
+      return item.id;
+    };
+    const blocksOf = async (itemId: string) =>
+      (
+        await callApi<{
+          revision: { id: string; document: { blocks: { type: string; props: any }[] } };
+        }>(request, 'content.item.get', { itemId })
+      ).revision;
+    const empty = async () => {
+      const prose = page.locator('.writing-surface .editor-prose').first();
+      await expect(prose).toBeVisible();
+      await prose.locator('p').first().selectText();
+      await page.keyboard.press('Backspace');
+      await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+      await expect(page).toHaveURL(/saved/);
+    };
+
+    const translated = await create(['nl', 'en'], { nl: line('Nederlands'), en: line('English') });
+    await login(page, `/admin/probe/content/${translated}?locale=en`);
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    await empty();
+    expect((await blocksOf(translated)).document.blocks[0]!.props.content).toEqual({
+      nl: line('Nederlands'),
+    });
+    const shown = page.locator('.writing-surface .editor-prose').first();
+    await expect(shown).toHaveAttribute('data-through', 'Nederlands');
+    await expect(shown).toHaveText('');
+    await expectNoAxeViolations(page);
+    // The hint is no value: another save leaves the locale absent, and typing replaces the hint.
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/saved/);
+    expect((await blocksOf(translated)).document.blocks[0]!.props.content).toEqual({
+      nl: line('Nederlands'),
+    });
+    await shown.locator('p').first().click();
+    await page.keyboard.type('Eigen');
+    await expect(shown).not.toHaveAttribute('data-through');
+
+    const only = await create(['nl'], { nl: line('Wordt leeg') });
+    await page.goto(`/admin/probe/content/${only}`);
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    await empty();
+    const revision = await blocksOf(only);
+    expect(revision.document.blocks.map((b) => b.type)).toEqual(['quote']);
+    const probe = await tenantId();
+    await withInvoker((invoker) =>
+      invoker.run(useCases.publishItem, systemPrincipal(probe, 'e2e'), {
+        itemId: only,
+        revisionId: revision.id,
+        locale: 'nl',
+      })
+    );
+  });
+
   test('article prose and title save together, while the native form and other locale remain lossless', async ({
     page,
     request,

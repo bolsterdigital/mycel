@@ -423,6 +423,14 @@
     overflow-wrap: anywhere;
     outline-offset: 0.25rem;
   }
+  .writing-surface :global(.editor-prose[data-through])::before {
+    content: attr(data-through-locale) ': ' attr(data-through);
+    display: block;
+    color: var(--color-muted);
+    font-style: italic;
+    pointer-events: none;
+    user-select: none;
+  }
   .writing-surface :global(.editor-prose) {
     margin-block: 1rem;
   }
