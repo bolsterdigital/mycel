@@ -84,6 +84,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.title': 'Mycel-beheer',
   'admin.shell.skip': 'Ga naar hoofdinhoud',
   'admin.shell.navigation': 'Sitenavigatie',
+  'admin.shell.brand': 'Mycel',
+  'admin.shell.account': 'Je account',
   'admin.shell.menu': 'Menu',
   'admin.shell.collapse': 'Menu inklappen',
   'admin.shell.expand': 'Menu uitklappen',

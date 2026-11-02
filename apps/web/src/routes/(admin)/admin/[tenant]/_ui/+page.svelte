@@ -571,6 +571,17 @@
           { href: `${base}/assist`, label: t('admin.nav.assist'), icon: 'sparkles' },
         ]}
       />
+      <NavGroup
+        id="ui-nav-closed"
+        items={[
+          {
+            href: `${base}/beheer`,
+            label: t('admin.nav.manage'),
+            icon: 'shield',
+            children: [{ href: `${base}/leden`, label: t('admin.nav.members') }],
+          },
+        ]}
+      />
     </nav>
   </section>
 

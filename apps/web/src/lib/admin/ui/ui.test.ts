@@ -1217,13 +1217,33 @@ describe('NavGroup', () => {
         { href: '/leden', label: 'Members', icon: 'users' as const },
       ],
     });
+    expect(out).toMatch(/<details class="ui-navgroup-disclosure" open="">/);
+    expect(out).toMatch(/<summary data-nav-expand="" aria-current="true">/);
     expect(out).toMatch(/<a href="\/site" aria-current="true">/);
     expect(out).toContain(
-      '<ul class="ui-navgroup-sub"><li><a href="/site?s=general" aria-current="page">General</a></li><li><a href="/site?s=brand">Brand</a></li></ul>'
+      '<ul class="ui-navgroup-sub"><li><a href="/site" aria-current="true">Settings</a></li> <li><a href="/site?s=general" aria-current="page">General</a></li><li><a href="/site?s=brand">Brand</a></li></ul>'
     );
     expect(out.match(/aria-current="page"/g)).toHaveLength(1);
     // An item without sections has no sub-list.
     expect(out.match(/ui-navgroup-sub/g)).toHaveLength(1);
+  });
+  it('keeps every destination inside a closed native group until its summary is opened', () => {
+    const out = html(NavGroup, {
+      id: 'g',
+      items: [
+        {
+          href: '/manage',
+          label: 'Manage',
+          icon: 'shield',
+          children: [{ href: '/team', label: 'Team' }],
+        },
+      ],
+    });
+    expect(out).toContain('<details class="ui-navgroup-disclosure">');
+    expect(out).toMatch(/<summary data-nav-expand="">/);
+    expect(out).toContain('<a href="/manage">Manage</a>');
+    expect(out).toContain('<a href="/team">Team</a>');
+    expect(out).not.toMatch(/aria-expanded|onclick|<button/);
   });
   it('has no label when none is given, and renders nothing without items', () => {
     expect(html(NavGroup, { id: 'g', items })).not.toContain('aria-labelledby');

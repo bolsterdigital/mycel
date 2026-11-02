@@ -56,11 +56,12 @@ test.describe('admin', () => {
   }) => {
     await login(page, '/admin/probe/leden');
     await expect(page.getByRole('heading', { level: 1, name: 'Team' })).toBeVisible();
+    await page.locator('.admin-account > summary').click();
     await expect(
-      page.locator('.admin-sidebar-bottom').getByText('e2e-admin@probe.test')
+      page.locator('.admin-account-actions').getByText('e2e-admin@probe.test')
     ).toBeVisible();
     await expect(
-      page.locator('.admin-sidebar-bottom').getByRole('button', { name: 'Uitloggen' })
+      page.locator('.admin-account-actions').getByRole('button', { name: 'Uitloggen' })
     ).toBeVisible();
     // The shell's one script is the menu's collapse button (#87); the screen itself has none.
     expect(await page.locator('script:not([src="/_admin/nav.js"])').count()).toBe(0);
@@ -112,6 +113,7 @@ test.describe('admin', () => {
 
     // Logging out ends the session: the admin sends you to the login page, which says why and
     // returns you to the page you asked for.
+    await page.locator('.admin-account > summary').click();
     await page.getByRole('button', { name: 'Uitloggen' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Je bent uitgelogd' })).toBeVisible();
     await expectNoAxeViolations(page);
@@ -672,6 +674,54 @@ test.describe('admin-shell', () => {
     });
   });
 
+  test('navigation groups open and close without navigating, including without scripts', async ({
+    page,
+  }) => {
+    await login(page, '/admin/probe/content?type=page', email);
+    const nav = page.getByRole('navigation', { name: 'Site navigation' });
+    const manage = nav
+      .locator('details')
+      .filter({ has: page.locator('summary', { hasText: /^Manage$/ }) });
+    await expect(nav.getByRole('link', { name: 'Team', exact: true })).toBeHidden();
+    const summary = manage.locator(':scope > summary');
+    await summary.click();
+    await expect(manage).toHaveAttribute('open');
+    await expect(page).toHaveURL(/\/content\?type=page$/);
+    await expect(nav.getByRole('link', { name: 'Team', exact: true })).toBeVisible();
+    await summary.click();
+    await expect(manage).not.toHaveAttribute('open');
+    await expect(nav.getByRole('link', { name: 'Team', exact: true })).toBeHidden();
+    await summary.focus();
+    await page.keyboard.press('Enter');
+    await expect(manage).toHaveAttribute('open');
+    await page.keyboard.press('Space');
+    await expect(manage).not.toHaveAttribute('open');
+    await page.keyboard.press('Enter');
+    if (isA11y()) {
+      await page.locator('[data-nav-toggle]').click();
+      await expect(page.locator('html')).toHaveAttribute('data-admin-nav', 'rail');
+      await page.screenshot({ path: '../../.scratch/sidebar-rail.png' });
+      await summary.click();
+      await expect(page.locator('html')).toHaveAttribute('data-admin-nav', 'full');
+      await expect(manage).toHaveAttribute('open');
+      await page.locator('[data-nav-toggle]').click();
+      await page.locator('.admin-account > summary').click();
+      await expect(page.locator('html')).toHaveAttribute('data-admin-nav', 'full');
+      await expect(page.locator('.admin-account')).toHaveAttribute('open');
+      await expect(page.getByRole('link', { name: 'Profile', exact: true })).toBeVisible();
+      await expectNoAxeViolations(page);
+    }
+    await nav.getByRole('link', { name: 'Team', exact: true }).click();
+    await expect(page).toHaveURL(/\/leden$/);
+    await expect(nav.getByRole('link', { name: 'Team', exact: true })).toHaveAttribute(
+      'aria-current',
+      'page'
+    );
+    await expect(manage).toHaveAttribute('open');
+    await manage.locator(':scope > summary').click();
+    await expect(manage).not.toHaveAttribute('open');
+  });
+
   /** At 320 CSS px the navigation is one ☰ bar, closed on every page load (#66 PR 1). */
   async function openMenu(page: Page) {
     const summary = page.locator('.admin-menu > summary');
@@ -742,17 +792,22 @@ test.describe('admin-shell', () => {
       .click();
     await checkShell(page, 'Probe', 'Media');
     await page
+      .locator('.ui-navgroup-disclosure > summary')
+      .filter({ hasText: /^Settings$/ })
+      .click();
+    await page
       .getByRole('navigation', { name: 'Site navigation' })
-      .getByRole('link', { name: 'Settings' })
+      .getByRole('link', { name: 'Settings', exact: true })
       .click();
     await expect(page).toHaveURL(/\/admin\/probe\/site$/);
     // The subjects of Settings sit under it in the sidebar (#81-rest), not as tabs on the page;
     // since #114 the look only, API access, assistance and usage are under Manage.
     const sections = page
-      .getByRole('navigation', { name: 'Site navigation' })
-      .getByRole('link', { name: 'Settings' })
-      .locator('xpath=following-sibling::ul');
+      .locator('.ui-navgroup-disclosure')
+      .filter({ has: page.locator('summary', { hasText: /^Settings$/ }) })
+      .locator('.ui-navgroup-sub');
     await expect(sections.getByRole('link')).toHaveText([
+      'Settings',
       'General',
       'Theme',
       'Logo and wordmark',
@@ -769,6 +824,7 @@ test.describe('admin-shell', () => {
       'aria-current',
       'page'
     );
+    await page.locator('.admin-account > summary').click();
     await page.getByRole('link', { name: 'Back to your sites' }).click();
     await page.getByRole('main').getByRole('link', { name: 'Second editorial site' }).click();
     await checkShell(page, 'Second editorial site', 'Dashboard');
@@ -817,28 +873,18 @@ test.describe('admin-shell', () => {
     ] as const)
       await expect(nav.getByRole('list', { name: group }).getByRole('link')).toHaveText([...links]);
     // #114 (Jaap 2026-10-31): Manage apart from Settings, Team its own line under Manage, the
-    // screens you set once (domains, status, export) only once you are inside Manage.
-    await expect(nav.locator('.ui-navgroup:last-child a')).toHaveText([
-      'Manage',
-      'Team',
-      'Settings',
-    ]);
+    // screens you set once (domains, status, export) within its native disclosure.
+    await expect(nav.locator('.ui-navgroup:last-child summary')).toHaveText(['Manage', 'Settings']);
+    await expect(nav.getByRole('link', { name: 'Team', exact: true })).toBeHidden();
+    await nav
+      .locator('summary')
+      .filter({ hasText: /^Manage$/ })
+      .click();
     await nav.getByRole('link', { name: 'Manage' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Manage' })).toBeVisible();
     await expect(nav.getByRole('link', { name: 'Manage' })).toHaveAttribute('aria-current', 'page');
-    await expect(nav.locator('.ui-navgroup:last-child a')).toHaveText([
-      'Manage',
-      'Team',
-      'Domains',
-      'Connections',
-      'API access',
-      'AI assistance',
-      'Usage and limits',
-      'Status',
-      'Log',
-      'Export',
-      'Settings',
-    ]);
+    await expect(nav.getByRole('link', { name: 'Team', exact: true })).toBeVisible();
+    await expect(nav.locator('summary').filter({ hasText: /^Settings$/ })).toBeVisible();
     await expect(page.getByRole('main').getByRole('link')).toHaveText([
       'Probe',
       'Team',
@@ -998,17 +1044,40 @@ test.describe('admin-shell', () => {
   for (const locale of ['nl', 'en']) {
     test.describe(`sidebar language ${locale}`, () => {
       test.use({ locale });
+      const layoutEmail = `shell-layout-${locale}@probe.test`;
+      test.beforeAll(async () => {
+        await withInvoker(async (invoker) => {
+          try {
+            await invoker.run(useCases.inviteMember, systemPrincipal(await tenantId(), 'e2e'), {
+              email: layoutEmail,
+              capabilities: ['tenant:admin'],
+            });
+          } catch (e) {
+            if (!(e instanceof UseCaseError && e.code === 'conflict')) throw e;
+          }
+        });
+        await asOwner((owner) =>
+          owner
+            .updateTable('operators')
+            .set({ ui_locale: locale })
+            .where('email', '=', layoutEmail)
+            .execute()
+        );
+      });
       test(`sidebar follows its longest label and reflows in ${locale}`, async ({ page }) => {
-        await login(page, '/admin/probe/content?type=page', email, { 'accept-language': locale });
+        await login(page, '/admin/probe/content?type=page', layoutEmail, {
+          'accept-language': locale,
+        });
         await expect(page.locator('html')).toHaveAttribute('lang', locale);
         await page.setViewportSize({ width: 1280, height: 900 });
-        // The menu's lines and the account lines below it set the column (#114: "Back to your
+        await page.locator('.admin-account > summary').click();
+        // The menu's lines and the account lines above it set the column (#114: "Back to your
         // sites" on one line), and every line is one line of text.
         const measure = () =>
           page.locator('.admin-sidebar').evaluate((sidebar) => {
             const links = [
               ...sidebar.querySelectorAll(
-                '.ui-navgroup a, .admin-sidebar-bottom > a, .admin-sidebar-bottom button'
+                '.ui-navgroup a, .ui-navgroup summary, .admin-account > summary, .admin-account-actions > a, .admin-account-actions button, .admin-collapse'
               ),
             ].filter((link) => link.getClientRects().length);
             // Lines of text per link: the distinct tops of its visible text (icons left out).
@@ -1052,18 +1121,29 @@ test.describe('admin-shell', () => {
         expect(metrics.wrapped).toBe(0);
         expect(metrics.switchRows).toBe(1);
         // Manage open lists its screens; the column keeps its width and every label whole.
-        await page.goto('/admin/probe/beheer');
+        await page
+          .locator('.ui-navgroup-disclosure > summary')
+          .filter({ hasText: locale === 'nl' ? /^Beheer$/ : /^Manage$/ })
+          .click();
         const open = await measure();
         expect(open.wrapped).toBe(0);
         expect(Math.abs(open.width - metrics.width)).toBeLessThan(1);
+        if (isA11y()) await expectNoAxeViolations(page);
+        await page.screenshot({
+          path: `../../.scratch/sidebar-${locale}-wide-${test.info().project.name}.png`,
+          fullPage: false,
+        });
         await page.goto('/admin/probe/content?type=page');
         await page.setViewportSize(NARROW);
         await setTextSize(page, '200%');
         await page.locator('.admin-menu > summary').click();
+        await page.locator('.admin-account > summary').click();
+        for (const summary of await page.locator('.ui-navgroup-disclosure > summary').all())
+          await summary.click();
         await layoutGate(page, `sidebar ${locale}`, '.admin-sidebar');
         await page.screenshot({
-          path: test.info().outputPath(`sidebar-${locale}-320-200.png`),
-          fullPage: true,
+          path: `../../.scratch/sidebar-${locale}-320-200-${test.info().project.name}.png`,
+          fullPage: false,
         });
       });
     });
@@ -1187,7 +1267,8 @@ test.describe('preferences', () => {
     const nav = (name: string) => page.getByRole('navigation', { name });
     await expect(nav('Site navigation').getByRole('link', { name: 'Pages' })).toBeAttached();
 
-    await page.getByRole('link', { name: 'Profile' }).click();
+    await page.locator('.admin-account > summary').click();
+    await page.getByRole('link', { name: 'Profile', exact: true }).click();
     await expect(
       page.getByRole('heading', { level: 1, name: 'Profile and preferences' })
     ).toBeVisible();
@@ -1317,6 +1398,10 @@ test.describe('status', () => {
     const ids = [await stuckJob(retried), await stuckJob(closed)];
     try {
       await login(page, '/admin/probe');
+      await page
+        .locator('.ui-navgroup-disclosure > summary')
+        .filter({ hasText: /^Beheer$/ })
+        .click();
       await page.getByRole('link', { name: 'Beheer', exact: true }).click();
       await page.getByRole('main').getByRole('link', { name: 'Status', exact: true }).click();
       await expect(page.getByRole('heading', { level: 1, name: 'Status' })).toBeVisible();

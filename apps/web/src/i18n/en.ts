@@ -85,6 +85,8 @@ export const en = {
   'admin.title': 'Mycel admin',
   'admin.shell.skip': 'Skip to main content',
   'admin.shell.navigation': 'Site navigation',
+  'admin.shell.brand': 'Mycel',
+  'admin.shell.account': 'Your account',
   'admin.shell.menu': 'Menu',
   'admin.shell.collapse': 'Collapse menu',
   'admin.shell.expand': 'Expand menu',

@@ -2088,7 +2088,8 @@
   }
   /* Labels are short words that stay whole: at 320 CSS px and 200% text the icon, gap and padding
      leave room for "Connections", never "Connectio|ns". */
-  .ui-navgroup a {
+  .ui-navgroup a,
+  .ui-navgroup summary {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -2101,14 +2102,29 @@
     hyphens: manual;
     border-radius: var(--radius);
   }
-  .ui-navgroup a:hover {
+  .ui-navgroup a:hover,
+  .ui-navgroup summary:hover {
     background: var(--color-muted-bg);
   }
   .ui-navgroup a[aria-current='page'],
-  .ui-navgroup a[aria-current='true'] {
+  .ui-navgroup a[aria-current='true'],
+  .ui-navgroup summary[aria-current='true'] {
     color: var(--color-selected-fg);
     background: var(--color-selected-bg);
     font-weight: 700;
+  }
+  .ui-navgroup summary {
+    cursor: pointer;
+    list-style: none;
+  }
+  .ui-navgroup summary::-webkit-details-marker {
+    display: none;
+  }
+  .ui-navgroup summary > .ui-icon:last-child {
+    margin-inline-start: auto;
+  }
+  .ui-navgroup details[open] > summary > .ui-icon:last-child {
+    transform: rotate(180deg);
   }
   /* A screen's sections under its item (#87): indented to the item's label, the current one
      marked by a bar and weight, so it reads apart from the filled item above it. */

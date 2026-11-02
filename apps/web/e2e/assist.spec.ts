@@ -41,9 +41,9 @@ async function signInToFreshSite(page: Page) {
     })
   );
   await login(page, `${base(page)}/site?section=assist`, email);
-  // Signed in as this member; at 320 CSS px the address sits in the closed ☰ menu (#66 PR 1).
+  // Signed in as this member; the account disclosure retains the identity at every width.
   await expect(
-    page.locator('.admin-sidebar-bottom').getByText(email, { exact: true })
+    page.locator('.admin-account-actions').getByText(email, { exact: true })
   ).toBeAttached();
 }
 

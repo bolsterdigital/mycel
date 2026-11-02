@@ -18,14 +18,26 @@
     // Storage blocked (private mode, a policy): the button still works for this page.
   }
   root.dataset.adminNav = stored === 'rail' ? 'rail' : 'full';
-  document.addEventListener('click', (event) => {
-    if (!(event.target instanceof Element) || !event.target.closest('[data-nav-toggle]')) return;
-    const next = root.dataset.adminNav === 'rail' ? 'full' : 'rail';
+  const setView = (next) => {
     root.dataset.adminNav = next;
     try {
       localStorage.setItem(KEY, next);
     } catch {
       // As above: the choice holds until the next page.
+    }
+  };
+  document.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element)) return;
+    if (event.target.closest('[data-nav-toggle]')) {
+      setView(root.dataset.adminNav === 'rail' ? 'full' : 'rail');
+      return;
+    }
+    const summary = event.target.closest('summary[data-nav-expand]');
+    if (summary && root.dataset.adminNav === 'rail' && matchMedia('(min-width: 60rem)').matches) {
+      // A rail has no room for a child panel. Expand it, then let the native disclosure open;
+      // an already-open group must stay open rather than closing on this first rail click.
+      setView('full');
+      summary.parentElement.open = false;
     }
   });
 })();
