@@ -21,15 +21,26 @@ function overlay(show) {
   if (!show) zone.querySelector('[data-upload-announcement]').textContent = '';
 }
 
+// An open upload dialog owns its access choice. Keep drops on its native input native,
+// and suppress file navigation elsewhere rather than silently uploading as public.
+function nativeDialog(event) {
+  if (!document.querySelector('dialog[open]')) return false;
+  if (!(event.target instanceof HTMLInputElement && event.target.type === 'file'))
+    event.preventDefault();
+  depth = 0;
+  overlay(false);
+  return true;
+}
+
 // Count nested enters/leaves so moving across cards does not flicker the overlay.
 document.addEventListener('dragenter', (event) => {
-  if (!host() || !isFileDrag(event)) return;
+  if (!host() || !isFileDrag(event) || nativeDialog(event)) return;
   event.preventDefault();
   depth++;
   if (!suppressed) overlay(true);
 });
 document.addEventListener('dragover', (event) => {
-  if (!host() || !isFileDrag(event)) return;
+  if (!host() || !isFileDrag(event) || nativeDialog(event)) return;
   event.preventDefault();
   event.dataTransfer.dropEffect = 'copy';
 });
@@ -63,7 +74,7 @@ document.addEventListener('click', (event) => {
 });
 document.addEventListener('drop', (event) => {
   const zone = host();
-  if (!zone || !isFileDrag(event)) return;
+  if (!zone || !isFileDrag(event) || nativeDialog(event)) return;
   event.preventDefault(); // Never navigate the browser to a dropped file, including on failure.
   depth = 0;
   suppressed = false;

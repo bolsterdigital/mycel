@@ -757,6 +757,20 @@ test('the library opens as a grid and accepts window-wide drops with per-file re
   await expect(results).toBeHidden();
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(originalUrl);
+  // A restricted upload dialog retains the native file drop path. Never publish a file
+  // dropped behind that dialog via the public quick-upload endpoint.
+  await page.getByRole('button', { name: 'Bestand uploaden', exact: true }).click();
+  await page.getByLabel('Afgeschermd: alleen lezers met toegang zien dit bestand').check();
+  const uploads: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().endsWith('/media/upload'))
+      uploads.push(request.url());
+  });
+  await drop([{ name: 'restricted.png', type: 'image/png', bytes: [...png(10, 10)] }]);
+  await expect(overlay).toBeHidden();
+  await expect(page.getByLabel('Bestanden (verplicht)', { exact: true })).toBeVisible();
+  expect(uploads).toEqual([]);
+  await page.keyboard.press('Escape');
   const bounds = await item(page, filename).boundingBox();
   expect(bounds!.y).toBeLessThan(700);
   await page.screenshot({ path: '.scratch/media-grid-desktop.png' });
