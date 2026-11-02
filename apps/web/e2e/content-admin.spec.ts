@@ -4,6 +4,7 @@
 // suite to its budget (testing.md § End-to-end flows); each keeps its own fixtures.
 
 import { createApp } from '@mycel/api';
+import { randomUUID } from 'node:crypto';
 import { UseCaseError, systemPrincipal, useCases } from '@mycel/core';
 import {
   type APIRequestContext,
@@ -79,7 +80,7 @@ test.describe('content-admin', () => {
     });
 
   const slugFor = (what: string) =>
-    `a1-${what}-${test.info().project.name}-${Date.now()}`.toLowerCase();
+    `a1-${what}-${test.info().project.name}-${randomUUID()}`.toLowerCase();
 
   /** Make a page in nl and en through the "new" form; returns its edit URL. */
   /** With JavaScript the edit screen's sections are tabs (#66 PR 3): show the one named. */
@@ -604,6 +605,10 @@ test.describe('content-admin', () => {
   }) => {
     const edit = await longPage(request);
     await login(page, edit);
+    // Hydration restores the outline's closed default. Click only once it has claimed the
+    // form, as in the Enter-save test; the no-script project uses the native fold directly.
+    if (isA11y())
+      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
     const outline = page.getByRole('navigation', { name: 'Inhoudsopgave' });
     await expect(outline.locator('summary')).toHaveText('Inhoudsopgave 24 blokken');
     await outline.locator('summary').click();
@@ -1784,7 +1789,7 @@ test.describe('content-blocks', () => {
 
   /** Make a page through the "new" form; returns its edit URL. */
   async function newPage(page: Page, what: string): Promise<string> {
-    const slug = `b-${what}-${test.info().project.name}-${Date.now()}`;
+    const slug = `b-${what}-${test.info().project.name}-${randomUUID()}`;
     await page.goto('/admin/probe/content/new?type=page');
     await page.getByLabel('Slug').fill(slug);
     await page.getByLabel('Titel (nl)').fill('Blokkenproef');
