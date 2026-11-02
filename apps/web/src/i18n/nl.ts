@@ -352,7 +352,11 @@ export const nl: Partial<Record<UiKey, string>> = {
     'Je hoster heeft deze site opgeschort. Bezoekers kunnen hem nog lezen en jij kunt je gegevens exporteren; verder kan er niets veranderen.',
   'admin.limit.reached':
     'Deze site heeft de limiet voor {what} bereikt. Vraag je hoster om hem te verhogen.',
-  'admin.limit.featureOff': 'Deze site heeft geen {what}. Vraag je hoster om het aan te zetten.',
+  'admin.limit.featureOff': 'Deze site heeft geen {what}. Vraag je hoster om dit aan te zetten.',
+  'admin.limit.featureOff.block':
+    'Het bloktype "{what}" hoort niet bij deze site. Vraag je hoster om het aan te zetten.',
+  'admin.limit.featureOff.other':
+    'Dit onderdeel hoort niet bij deze site. Vraag je hoster om het aan te zetten.',
   'admin.limit.what.supporters': 'supporters',
   'admin.limit.what.operators': 'teamleden',
   'admin.limit.what.customDomains': 'eigen domeinen',

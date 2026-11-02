@@ -106,8 +106,16 @@ export function requireBlockTypes(
   blocks: readonly { type: string }[]
 ): void {
   for (const type of new Set(allBlocks(blocks).map((b) => b.type)))
-    requireEntitled(ctx.principal, `blocks.${type}`);
+    requireEntitled(ctx.principal, `blocks.${type}`, undefined, { blockType: type });
 }
+
+/** The `detail` an API or MCP client reads: "an article", not "a article" (#140). */
+const slugTaken = (type: ContentType, slug: string) =>
+  new UseCaseError(
+    'conflict',
+    `${type === 'article' ? 'an article' : 'a page'} with slug "${slug}" already exists`,
+    [{ path: 'slug', message: 'content.slug.taken' }]
+  );
 
 /** The document as stored: ids for new blocks, the full schema (defaults, invariants) re-checked. */
 export function finalize(
@@ -412,10 +420,7 @@ export const createItem = defineUseCase({
       throw new UseCaseError('invalid_input', `"${slug}" is reserved`, [
         { path: 'slug', message: 'content.slug.reserved' },
       ]);
-    const taken = () =>
-      new UseCaseError('conflict', `a ${document.type} with slug "${slug}" already exists`, [
-        { path: 'slug', message: 'content.slug.taken' },
-      ]);
+    const taken = () => slugTaken(document.type, slug);
     if (await ctx.content.findBySlug(document.type, slug)) throw taken();
     let blocks: readonly BlockInput[] = document.blocks;
     if (patternId) {
@@ -526,10 +531,7 @@ export const updateSlug = defineUseCase({
       ]);
     // The write decides, not a read before it: two renames to one free slug cannot both win.
     const now = ctx.clock.now();
-    if (!(await ctx.content.setSlug(itemId, slug, now)))
-      throw new UseCaseError('conflict', `a ${item.type} with slug "${slug}" already exists`, [
-        { path: 'slug', message: 'content.slug.taken' },
-      ]);
+    if (!(await ctx.content.setSlug(itemId, slug, now))) throw slugTaken(item.type, slug);
     return toContentItem({ ...item, slug, updatedAt: now });
   },
 });

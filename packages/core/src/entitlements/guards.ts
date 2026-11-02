@@ -18,15 +18,17 @@ export function entitled(principal: Principal, feature: FeatureName): boolean {
 /**
  * `issue` replaces the generic key where a module has its own wording for the editor (assist
  * says "assistance is not available" rather than naming the entitlement); the check is the same.
+ * `params` says which thing was refused, for a front that names it (a block's type).
  */
 export function requireEntitled(
   principal: Principal,
   feature: FeatureName,
-  issue = 'entitlements.feature-off'
+  issue = 'entitlements.feature-off',
+  params?: Record<string, string>
 ): void {
   if (!entitled(principal, feature))
     throw new UseCaseError('limit_exceeded', `this site is not entitled to ${feature}`, [
-      { path: '', message: issue },
+      { path: '', message: issue, ...(params ? { params } : {}) },
     ]);
 }
 

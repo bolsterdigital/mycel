@@ -269,6 +269,79 @@ test.describe('admin', () => {
       });
     });
 
+  // #140: a save on a block type the site no longer has says which type, in the words of the screen.
+  test('a save refused on a switched-off block type names that type', async ({ page }) => {
+    const project = test.info().project.name;
+    const slug = `block-off-${project}`;
+    const email = `block-off-${project}@probe.test`;
+    const tenant = await asOwner((owner) =>
+      testTenant(owner, slug, {
+        name: 'Switched-off block',
+        locales: ['nl'],
+        platformDomain: process.env['PLATFORM_DOMAIN']!,
+        reuse: true,
+      })
+    );
+    const blocks = (off: Record<string, boolean>) =>
+      asOwner((owner) =>
+        owner
+          .updateTable('tenants')
+          .set({ entitlements: JSON.stringify({ blocks: off }) })
+          .where('id', '=', tenant.id)
+          .execute()
+      );
+    const uiLocale = (value: 'en' | null) =>
+      asOwner((owner) =>
+        owner
+          .updateTable('operators')
+          .set({ ui_locale: value })
+          .where('email', '=', email)
+          .execute()
+      );
+    await blocks({});
+    const itemId = await withInvoker(async (invoker) => {
+      const admin = systemPrincipal(tenant.id, 'e2e');
+      try {
+        await invoker.run(useCases.inviteMember, admin, {
+          email,
+          capabilities: ['tenant:admin'],
+        });
+      } catch (e) {
+        if (!(e instanceof UseCaseError && e.code === 'conflict')) throw e;
+      }
+      const { item } = await invoker.run(useCases.createItem, admin, {
+        slug: `heading-${Date.now()}`,
+        document: {
+          type: 'page',
+          defaultLocale: 'nl',
+          locales: ['nl'],
+          title: { nl: 'Met een kop' },
+          blocks: [{ type: 'heading', version: 1, props: { text: { nl: 'Kop' } } }],
+        },
+      });
+      return item.id;
+    });
+    const edit = `/admin/${slug}/content/${itemId}`;
+    await login(page, edit, email, { 'accept-language': 'nl-NL' });
+    await blocks({ heading: false });
+    try {
+      await page.reload();
+      await page.getByRole('button', { name: 'Opslaan', exact: true }).first().click();
+      await expect(
+        page.getByText('Het bloktype "Kop" hoort niet bij deze site.', { exact: false })
+      ).toBeVisible();
+      await uiLocale('en');
+      await page.goto(edit);
+      await page.getByRole('button', { name: 'Save', exact: true }).first().click();
+      await expect(
+        page.getByText('This site does not include the block type "Heading".', { exact: false })
+      ).toBeVisible();
+    } finally {
+      await blocks({});
+      await uiLocale(null);
+    }
+  });
+
   // #51: a refused settings save says what happened; `suspended` was called "check the fields".
   test('a refused settings save names a conflict and a suspension', async ({ page }) => {
     const project = test.info().project.name;

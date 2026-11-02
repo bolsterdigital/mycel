@@ -551,7 +551,10 @@ describe('entitlements', () => {
       status: 'active',
     });
     const block = examples.find((e) => e.type === type)!.input;
-    const refused = { code: 'limit_exceeded', issues: [{ message: 'entitlements.feature-off' }] };
+    const refused = {
+      code: 'limit_exceeded',
+      issues: [{ message: 'entitlements.feature-off', params: { blockType: type } }],
+    };
     await expect(
       invoker.run(useCases.createItem, off, {
         slug: `off-${type}`,
