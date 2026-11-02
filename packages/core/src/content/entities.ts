@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { notFound, UseCaseError } from '../errors.js';
 import type { TransactionContext } from '../ports.js';
 import { defineUseCase } from '../registry.js';
+import { MAX_PAGE_SIZE } from '../util/page-size.js';
 import { assignBlockIds, type BlockInput } from './blocks.js';
 import {
   Author,
@@ -31,7 +32,7 @@ import {
 import './ports.js';
 import { exampleId } from '../util/ids.js';
 
-const Limit = z.number().int().min(1).max(100).optional();
+const Limit = z.number().int().min(1).max(MAX_PAGE_SIZE).optional();
 
 async function assertFreeSlug<T extends { id: string; slug: string }>(
   repo: SluggedRepository<T>,

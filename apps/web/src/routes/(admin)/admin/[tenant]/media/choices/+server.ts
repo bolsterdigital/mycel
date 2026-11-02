@@ -5,6 +5,7 @@ import { json } from '@sveltejs/kit';
 import { UseCaseError, useCases } from '@mycel/core';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { mediaChoice } from '#lib/server/admin/media-choices.js';
+import { PRIVATE_NO_STORE } from '#lib/server/http/http-cache.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { RequestHandler } from './$types';
 
@@ -24,7 +25,7 @@ export const GET: RequestHandler = async ({ locals, url, params }) => {
     });
     return json(
       { items: list.items.map(mediaChoice), nextCursor: list.nextCursor },
-      { headers: { 'cache-control': 'private, no-store' } }
+      { headers: { 'cache-control': PRIVATE_NO_STORE } }
     );
   } catch (e) {
     if (e instanceof UseCaseError && e.code === 'forbidden')

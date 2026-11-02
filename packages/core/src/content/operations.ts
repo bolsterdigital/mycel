@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { notFound, UseCaseError } from '../errors.js';
 import type { TransactionContext } from '../ports.js';
 import { defineUseCase } from '../registry.js';
+import { MAX_PAGE_SIZE } from '../util/page-size.js';
 import {
   BLOCK_TYPES,
   BlockId,
@@ -41,7 +42,7 @@ import './ports.js';
 import { exampleId } from '../util/ids.js';
 
 const ItemId = z.string().guid();
-const Limit = z.number().int().min(1).max(100).optional();
+const Limit = z.number().int().min(1).max(MAX_PAGE_SIZE).optional();
 
 /** Where a block goes: next to an id, or at the start or end of the document's block list. */
 const Placement = z.union([

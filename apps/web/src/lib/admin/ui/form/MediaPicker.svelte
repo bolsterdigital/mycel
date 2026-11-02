@@ -10,6 +10,7 @@
   import AdminScript from '../../trusted/AdminScript.svelte';
   import { ui } from '../../../../i18n/index.js';
   import type { MediaChoice } from '../../media-choice.js';
+  import { THUMB, thumbPath } from '../thumb.js';
   import Actions from '../display/Actions.svelte';
   import Dialog from '../feedback/Dialog.svelte';
   import HintButton from '../feedback/HintButton.svelte';
@@ -45,7 +46,7 @@
   } = $props();
 
   const t = $derived(ui(locale));
-  const thumb = (o: MediaChoice) => (o.thumb ? `${base}/media/${o.id}/thumb` : '');
+  const thumb = (o: MediaChoice) => (o.thumb ? thumbPath(base, o.id) : '');
   // A choice the script added (a search result or an upload) is not in `options`; remember it
   // so a hydrated page still shows its name.
   let added = $state<MediaChoice | null>(null);
@@ -93,7 +94,13 @@
         data-thumb={thumb(o)}
       />
       {#if o.thumb}
-        <img src={thumb(o)} alt="" width="160" height="120" loading="lazy" />
+        <img
+          src={thumb(o)}
+          alt=""
+          width={THUMB.choice.width}
+          height={THUMB.choice.height}
+          loading="lazy"
+        />
       {:else}
         <span class="ui-media-option-blank"></span>
       {/if}
@@ -128,8 +135,8 @@
       src={chosen?.thumb ? thumb(chosen) : undefined}
       hidden={!chosen?.thumb}
       alt=""
-      width="160"
-      height="120"
+      width={THUMB.choice.width}
+      height={THUMB.choice.height}
     />
     <span data-picker-name class={[!chosen && value === '' && 'muted']}
       >{chosen?.label ?? (value || t('admin.media.picker.none'))}</span

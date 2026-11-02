@@ -579,33 +579,6 @@
     min-width: 0;
     overflow-wrap: anywhere;
   }
-  /* Media library (TODO #10b): thumbnail beside the facts when there is room, above them
-     otherwise; the edit form folds away in a native <details>. */
-  .media-head {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    align-items: start;
-  }
-  .media-head > div {
-    flex: 1 1 12rem;
-    min-width: 0;
-  }
-  .media-head img {
-    max-width: 100%;
-    height: auto;
-    border: var(--border-width) solid var(--color-border);
-    border-radius: var(--radius);
-    background: var(--color-bg);
-  }
-  .media-item summary {
-    min-height: 44px;
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-    font-weight: 600;
-    color: var(--color-accent);
-  }
   /* A checkbox or radio in a .check field keeps its size: `.admin .field input` stretches text
      inputs to 100%, which squeezed a radio next to a long label at 200% text. */
   .admin .check {
@@ -618,15 +591,6 @@
   .admin .check label {
     hyphens: auto;
     overflow-wrap: anywhere;
-  }
-  .media-item .edit {
-    display: grid;
-    gap: var(--space-2);
-    padding-block-start: var(--space-1);
-  }
-  .media-item .edit fieldset {
-    display: grid;
-    gap: var(--space-1);
   }
   .field input[type='number'],
   .field input[type='file'] {
@@ -699,7 +663,6 @@
     min-height: var(--tap);
   }
   .admin .filter,
-  .admin .content-list,
   .admin .revisions {
     padding: 0;
     list-style: none;

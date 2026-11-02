@@ -30,7 +30,7 @@
   "apps/web/src/lib/server/media.test.ts": 2,
   "apps/web/src/lib/server/media.ts": 2,
   "apps/web/src/lib/server/preview.ts": 1,
-  "apps/web/src/lib/theme/admin.css": 3,
+  "apps/web/src/lib/theme/admin.css": 2,
   "apps/web/src/lib/theme/preview.css": 1,
   "apps/web/src/routes/(admin)/+layout.server.ts": 2,
   "apps/web/src/routes/(admin)/admin/[tenant]/content/+page.server.ts": 1,

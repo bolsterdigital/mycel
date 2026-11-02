@@ -13,6 +13,7 @@ import {
   type Principal,
   type UnitOfWork,
 } from '@mycel/core';
+import { PRIVATE_NO_STORE } from '../http/http-cache.js';
 
 export interface ExportDownloadDeps {
   uow: UnitOfWork;
@@ -22,7 +23,7 @@ export interface ExportDownloadDeps {
 const notFound = () =>
   new Response('Not found', {
     status: 404,
-    headers: { 'cache-control': 'private, no-store', 'content-type': 'text/plain; charset=utf-8' },
+    headers: { 'cache-control': PRIVATE_NO_STORE, 'content-type': 'text/plain; charset=utf-8' },
   });
 
 /** An async iterable of chunks as a web stream, pulled one chunk at a time. */
@@ -63,7 +64,7 @@ export async function serveExportDownload(
   const headers: Record<string, string> = {
     'content-type': 'application/x-tar',
     'content-disposition': `attachment; filename="${exportFilename(slug, download.record)}"`,
-    'cache-control': 'private, no-store',
+    'cache-control': PRIVATE_NO_STORE,
     'x-content-type-options': 'nosniff',
   };
   if (download.record.sizeBytes !== null)

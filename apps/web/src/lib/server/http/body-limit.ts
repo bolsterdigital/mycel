@@ -3,11 +3,16 @@
 // when media uploads raise adapter-node's process-wide ceiling. Buffering is bounded by the
 // route's limit. Stop reading on overflow; adapter-node drains the remainder after sending 413.
 // Cancelling here destroys its socket before the client can receive that response.
+import { BRAND_LIMITS, MAX_UPLOAD_BYTES } from '@mycel/core';
 import { REPORTS_PATH } from './security-headers.js';
 
 export const SMALL_BODY = 512 * 1024;
 /** A batch of browser reports; anyone may post here, so far less than a form. */
 export const REPORTS_BODY = 64 * 1024;
+/** One media file plus its multipart headers; equal to BODY_SIZE_LIMIT in docker/entrypoint.sh. */
+const MEDIA_UPLOAD_BODY = MAX_UPLOAD_BYTES + 1024 * 1024;
+/** One logo, the largest brand file, plus 64 KiB for multipart headers and fields. */
+const BRAND_UPLOAD_BODY = BRAND_LIMITS.logo + 64 * 1024;
 
 export function bodyLimit(request: Request, url: URL): number {
   if (url.pathname === REPORTS_PATH) return REPORTS_BODY;
@@ -17,14 +22,13 @@ export function bodyLimit(request: Request, url: URL): number {
     request.headers.get('content-type')?.split(';')[0]?.trim() === 'multipart/form-data';
   if (!multipartPost) return SMALL_BODY;
   if (/^\/admin\/[^/]+\/media\/?$/.test(url.pathname) && action === '/upload')
-    return 26 * 1024 * 1024;
+    return MEDIA_UPLOAD_BODY;
   // The media picker's upload (brief media-picker): one file per request, the same ceiling.
   if (/^\/admin\/[^/]+\/media\/upload\/?$/.test(url.pathname) && action === undefined)
-    return 26 * 1024 * 1024;
-  // One brand file per native form: at most a 2 MiB logo (or 1 MiB font), plus 64 KiB
-  // for multipart headers and fields. File-specific validation stays in the action/core.
+    return MEDIA_UPLOAD_BODY;
+  // One brand file per native form. File-specific validation stays in the action/core.
   if (/^\/admin\/[^/]+\/site\/?$/.test(url.pathname) && action === '/brand')
-    return 2 * 1024 * 1024 + 64 * 1024;
+    return BRAND_UPLOAD_BODY;
   return SMALL_BODY;
 }
 

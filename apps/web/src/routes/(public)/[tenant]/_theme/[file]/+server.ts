@@ -4,6 +4,7 @@
 // `_theme` cannot collide with a page: a `Slug` starts with `[a-z0-9]`.
 
 import { error } from '@sveltejs/kit';
+import { NO_STORE } from '#lib/server/http/http-cache.js';
 import { requireSite, sitePath } from '#lib/server/site.js';
 import { siteTheme, themePath } from '#lib/server/theme.js';
 import type { RequestHandler } from './$types';
@@ -17,7 +18,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
   if (params.file !== `${theme.hash}.css`)
     return new Response(null, {
       status: 302,
-      headers: { location: sitePath(site, themePath(theme.hash)), 'cache-control': 'no-store' },
+      headers: { location: sitePath(site, themePath(theme.hash)), 'cache-control': NO_STORE },
     });
   return new Response(theme.css, {
     headers: {

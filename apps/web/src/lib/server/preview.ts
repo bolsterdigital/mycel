@@ -22,12 +22,13 @@ import {
   useCases,
 } from '@mycel/core';
 import { renderMeta } from '../blocks/resolve.js';
+import { PRIVATE_NO_STORE } from './http/http-cache.js';
 import { runtime } from './runtime.js';
 import { siteTenant, type Site } from './site.js';
 
 /** The response headers of every preview route: never cached, never indexed. */
 export const PREVIEW_HEADERS = {
-  'cache-control': 'private, no-store',
+  'cache-control': PRIVATE_NO_STORE,
   'x-robots-tag': 'noindex',
 } as const;
 

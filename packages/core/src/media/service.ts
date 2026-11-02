@@ -18,6 +18,7 @@ import { defineUseCase } from '../registry.js';
 import { base64ToBytes } from '../util/bytes.js';
 import { sha256HexOfBytes } from '../util/digest.js';
 import { errorFields } from '../util/log.js';
+import { MAX_PAGE_SIZE } from '../util/page-size.js';
 import {
   CENTRE,
   CONTENT_TYPE_OF,
@@ -363,7 +364,7 @@ export const listMedia = defineUseCase({
       q: z.string().trim().min(1).max(100).optional(),
       cursor: MediaId.optional(),
       /** Default 50. */
-      limit: z.number().int().min(1).max(100).optional(),
+      limit: z.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
     })
     .strict(),
   output: z.object({ items: z.array(MediaView), nextCursor: MediaId.nullable() }),

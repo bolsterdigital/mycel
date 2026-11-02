@@ -24,6 +24,7 @@ import {
   type RichTextDoc,
   type UseCaseError,
   type FormDefinition,
+  MAX_PAGE_SIZE,
 } from '@mycel/core';
 import { runtime } from './runtime.js';
 import { withAssigned } from './content-admin.js';
@@ -50,7 +51,7 @@ export async function pickerOptions(
   const orNull = <T>(p: Promise<T>) => p.catch(() => null);
   const [media, items] = await Promise.all([
     mediaChoices(principal, [...new Set([...used.media, ...alsoChosen])]),
-    invoker.run(useCases.listItems, principal, { limit: 100 }).then(({ items }) => {
+    invoker.run(useCases.listItems, principal, { limit: MAX_PAGE_SIZE }).then(({ items }) => {
       const label = (i: { slug: string; title: Record<string, string | undefined> }) =>
         `${i.title[locale] ?? Object.values(i.title)[0] ?? i.slug} (/${i.slug})`;
       return withAssigned(
@@ -78,7 +79,10 @@ export async function mediaChoices(
   const { invoker } = runtime();
   const missing = (id: string): MediaChoice => ({ id, label: id, thumb: false });
   if (!can(principal, 'media:read')) return chosen.map(missing);
-  const { items } = await invoker.run(useCases.listMedia, principal, { kind: 'image', limit: 100 });
+  const { items } = await invoker.run(useCases.listMedia, principal, {
+    kind: 'image',
+    limit: MAX_PAGE_SIZE,
+  });
   return withAssigned(
     chosen,
     items.map(mediaChoice),
