@@ -484,6 +484,8 @@ test.describe('content-admin', () => {
     const context = await freshContext(browser);
     const other = await context.newPage();
     await login(other, edit);
+    // Hydration resets native disclosures opened before the editor has mounted.
+    if (isA11y()) await expect(other.locator('form#item-edit[data-edit-screen]')).toBeVisible();
     const moved = slugFor('stale-to');
     const theirs = other.locator('section[aria-labelledby="this-item"]');
     await theirs.locator('details', { hasText: 'Adres wijzigen' }).locator('summary').click();
