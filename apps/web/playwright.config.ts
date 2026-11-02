@@ -29,7 +29,7 @@ export default defineConfig({
   testDir: 'e2e',
   fullyParallel: false,
   reporter: process.env['CI'] ? 'github' : 'list',
-  use: { baseURL: origin },
+  use: { baseURL: origin, screenshot: 'only-on-failure' },
   // Assertions wait up to 15 s instead of Playwright's 5. In a full `verify` the e2e run shares
   // the machine with the build and the database suites, and the first hop through the mock IdP
   // (OIDC discovery, a redirect, a cold page) went past 5 s: the `Mock IdP` heading in
