@@ -2,7 +2,8 @@
 // filename or caption, for `static/_admin/media-picker.js`. The picker works without it; the
 // server-rendered grid is the no-script path. Same use case and authorization as the media page.
 import { json } from '@sveltejs/kit';
-import { isUuid, UseCaseError, useCases } from '@mycel/core';
+import { isUuid, useCases } from '@mycel/core';
+import { refusalOf } from '#lib/server/http/refuse.js';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { mediaChoice } from '#lib/server/admin/media-choices.js';
 import { PRIVATE_NO_STORE } from '#lib/server/http/http-cache.js';
@@ -27,7 +28,7 @@ export const GET: RequestHandler = async ({ locals, url, params }) => {
       { headers: { 'cache-control': PRIVATE_NO_STORE } }
     );
   } catch (e) {
-    if (e instanceof UseCaseError && e.code === 'forbidden')
+    if (refusalOf(e).code === 'forbidden')
       return json({ items: [], nextCursor: null }, { status: 403 });
     throw e;
   }

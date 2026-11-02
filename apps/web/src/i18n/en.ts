@@ -186,6 +186,7 @@ export const en = {
   'admin.error.badRequest':
     'The address of this page holds a value that cannot be used. Go back and try again.',
   'admin.error.title': 'Something went wrong',
+  'admin.preview.error.invalid': 'This preview could not be shown. Check the fields and try again.',
   'admin.error.body': 'This page could not be shown. Try again in a moment.',
   'admin.back': 'Back to your sites',
   'admin.members.title': 'Team',

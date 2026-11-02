@@ -47,7 +47,7 @@ import {
   pickAny,
 } from '@mycel/core';
 import { formValues, posted, type Posted } from '#lib/editor/block-form.js';
-import { failureOf, text } from '#lib/server/admin/admin-actions.js';
+import { failureOf, loaded, orNull, text } from '#lib/server/admin/admin-actions.js';
 import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import {
   actorLabel,
@@ -95,27 +95,12 @@ import { runtime } from '#lib/server/runtime.js';
 import { adminSiteUrls } from '#lib/server/site.js';
 import { langOf, ui, type UiKey } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
-import { refuse } from '#lib/server/http/refuse.js';
-
-/** A lookup's result, or `null` when it is not there (any other error stays an error). */
-async function orNull<T>(run: Promise<T>): Promise<T | null> {
-  try {
-    return await run;
-  } catch (e) {
-    if (e instanceof UseCaseError && e.code === 'not_found') return null;
-    throw e;
-  }
-}
+import { refuse, refusalOf } from '#lib/server/http/refuse.js';
 
 /** The item with its latest revision, or a 404 for an unknown id or another site's. */
 async function latest(principal: Principal, itemId: string) {
   if (!isUuid(itemId)) refuse(404);
-  try {
-    return await runtime().invoker.run(useCases.getItem, principal, { itemId });
-  } catch (e) {
-    if (e instanceof UseCaseError && e.code === 'not_found') refuse(404);
-    throw e;
-  }
+  return loaded(runtime().invoker.run(useCases.getItem, principal, { itemId }));
 }
 
 /** Resolve picker choices under the operator's tenant, including a failed post's selections. */
@@ -465,13 +450,13 @@ const ISSUES: Record<string, UiKey> = {
 /** A refused save as admin copy, with the narrowed error; anything that is not a use-case
  *  refusal is rethrown. Shared by the form's save and the translation start. */
 function saveFailure(e: unknown) {
-  if (!(e instanceof UseCaseError)) throw e;
-  const { status, body } = failureOf(e, 'save', {
+  const error = refusalOf(e);
+  const { status, body } = failureOf(error, 'save', {
     conflict: 'admin.content.conflict.title',
     invalid: 'admin.content.error.invalid',
     issues: ISSUES,
   });
-  return { error: e, status, body };
+  return { error, status, body };
 }
 
 /**
@@ -841,8 +826,8 @@ async function publication(
       at: text(data, `at.${locale}`),
     });
   } catch (e) {
-    if (!(e instanceof UseCaseError)) throw e;
-    const { status, body } = failureOf(e, action, {
+    const refusal = refusalOf(e);
+    const { status, body } = failureOf(refusal, action, {
       conflict: 'admin.content.error.invalid',
       invalid: 'admin.content.publication.error.refused',
       issues: { 'content.schedule.not-in-future': 'admin.content.issue.notInFuture' },
@@ -851,8 +836,8 @@ async function publication(
       ...body,
       locale,
       issues:
-        e.code === 'invalid_input'
-          ? e.issues.map((i) => ({
+        refusal.code === 'invalid_input'
+          ? refusal.issues.map((i) => ({
               path: issuePath(i.path, i.message, locale),
               field: fieldOf(i.path, locale),
               copy: issueCopy(i.message),
@@ -873,17 +858,17 @@ async function blockTry(saved: Committed, itemId: string, run: () => Promise<voi
     await run();
     return null;
   } catch (e) {
-    if (!(e instanceof UseCaseError)) throw e;
+    const refusal = refusalOf(e);
     // The reason can sit on the document, not the block: the only paywall of a marker teaser cannot
     // go. Without a named field the message has to stand alone, so it is not the sentence that
     // ends in a colon.
-    const onFields = e.code === 'invalid_input' ? documentFieldIssues(e) : [];
-    const { status, body } = failureOf(e, 'block', {
+    const onFields = refusal.code === 'invalid_input' ? documentFieldIssues(refusal) : [];
+    const { status, body } = failureOf(refusal, 'block', {
       conflict: 'admin.content.conflict.title',
       invalid: onFields.length ? 'admin.block.error.invalid' : 'admin.content.error.invalid',
     });
     const conflict =
-      e.code === 'conflict' ? await conflictOf(principal, itemId, revisionId, zone) : null;
+      refusal.code === 'conflict' ? await conflictOf(principal, itemId, revisionId, zone) : null;
     return fail(status, {
       ...body,
       fieldIssues: onFields.map((i) => ({ name: i.name, copy: ISSUES[i.message] ?? body.error })),
@@ -1209,13 +1194,11 @@ export const actions: Actions = {
         baseRevisionId: saved.revisionId,
       });
     } catch (e) {
-      if (!(e instanceof UseCaseError)) throw e;
-      return fail(e.code === 'conflict' ? 409 : 400, {
-        action: 'approveTranslation',
-        error: (e.code === 'conflict'
-          ? 'admin.assist.error.conflict'
-          : 'admin.assist.error.invalid_input') as UiKey,
+      const { status, body } = failureOf(refusalOf(e), 'approveTranslation', {
+        conflict: 'admin.assist.error.conflict',
+        invalid: 'admin.assist.error.invalid_input',
       });
+      return fail(status, body);
     }
     redirect(
       303,

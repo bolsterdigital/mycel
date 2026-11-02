@@ -15,7 +15,7 @@ import {
   isUuid,
 } from '@mycel/core';
 import { redirect } from '@sveltejs/kit';
-import { act, text } from '#lib/server/admin/admin-actions.js';
+import { act, loaded, text } from '#lib/server/admin/admin-actions.js';
 import { ORIGINAL_TTL_MS, signedOriginalPath } from '#lib/server/media.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { UiKey } from '../../../../../../i18n/index.js';
@@ -45,13 +45,9 @@ export const load: PageServerLoad = async ({ parent, locals, params }) => {
   if (!isUuid(params.id)) refuse(404);
   const principal = locals.principal!;
   const rt = runtime();
-  let m: MediaView;
-  try {
-    m = await rt.invoker.run(useCases.getMedia, principal, { id: params.id });
-  } catch (e) {
-    if (e instanceof UseCaseError && e.code === 'not_found') refuse(404);
-    throw e;
-  }
+  const m: MediaView = await loaded(
+    rt.invoker.run(useCases.getMedia, principal, { id: params.id })
+  );
   const [usedIn, info] = await Promise.all([
     can(principal, 'content:read')
       ? rt.invoker.run(useCases.findItems, principal, {

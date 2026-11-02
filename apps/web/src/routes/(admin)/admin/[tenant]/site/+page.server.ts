@@ -22,11 +22,10 @@ import {
   Theme,
   SiteChrome,
   useCases,
-  UseCaseError,
   type Capability,
 } from '@mycel/core';
-import { error, fail, redirect } from '@sveltejs/kit';
-import { act, text as field } from '#lib/server/admin/admin-actions.js';
+import { fail, redirect } from '@sveltejs/kit';
+import { act, failureOf, text as field } from '#lib/server/admin/admin-actions.js';
 import { postedCapabilities } from '#lib/server/admin/roles.js';
 import { runtime } from '#lib/server/runtime.js';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
@@ -35,16 +34,21 @@ import { timeZoneOptions } from '#lib/server/admin/time-zones.js';
 import { mediaChoices } from '#lib/server/content-blocks.js';
 import type { Actions, PageServerLoad } from './$types';
 import { langOf, ui, type UiKey } from '../../../../../i18n/index.js';
-import { refuse } from '#lib/server/http/refuse.js';
+import { refuse, refusalOf } from '#lib/server/http/refuse.js';
 
 const text = (data: FormData, key: string) => String(data.get(key) ?? '').trim();
 const baseVersion = (data: FormData) => {
   const raw = text(data, 'baseVersion');
   return raw ? Number(raw) : Number.NaN;
 };
-const report = (e: unknown) => {
-  if (!(e instanceof UseCaseError)) throw e;
-  return e.code === 'conflict' ? 'conflict' : 'invalid';
+/** A refused save as a form failure: another save came first, or the same mapping as every page. */
+const refused = (e: unknown, action: string, values?: FormData) => {
+  const { status, body } = failureOf(refusalOf(e), action, {
+    conflict: 'admin.site.conflict',
+    invalid: 'admin.site.invalid',
+    notFound: 'admin.site.invalid',
+  });
+  return fail(status, { ...body, ...(values ? { values: Object.fromEntries(values) } : {}) });
 };
 /** The settings subjects, each its own URL (brief #56 § B); the first is the default. */
 const SECTIONS = ['general', 'theme', 'brand', 'chrome', 'assist', 'api', 'usage'] as const;
@@ -162,11 +166,7 @@ export const actions: Actions = {
       });
       return { saved: 'general', version: result.version };
     } catch (e) {
-      return fail(e instanceof UseCaseError && e.code === 'conflict' ? 409 : 400, {
-        action: 'general',
-        problem: report(e),
-        values: Object.fromEntries(data),
-      });
+      return refused(e, 'general', data);
     }
   },
   brand: async ({ request, locals, url, params }) => {
@@ -175,7 +175,7 @@ export const actions: Actions = {
     if (!can(principal, 'content:write')) refuse(403);
     const kind = text(data, 'kind');
     if (kind !== 'logo' && kind !== 'font')
-      return fail(400, { action: 'brand', problem: 'invalid' });
+      return fail(400, { action: 'brand', error: 'admin.site.invalid' as const });
     try {
       const version = baseVersion(data);
       if (text(data, 'intent') === 'remove') {
@@ -186,7 +186,7 @@ export const actions: Actions = {
       } else {
         const file = data.get('file');
         if (!(file instanceof File) || file.size === 0 || file.size > BRAND_LIMITS[kind])
-          return fail(400, { action: 'brand', problem: 'invalid' });
+          return fail(400, { action: 'brand', error: 'admin.site.invalid' as const });
         await runtime().invoker.run(useCases.putBrandAsset, principal, {
           kind,
           baseVersion: version,
@@ -197,10 +197,7 @@ export const actions: Actions = {
       }
       return { saved: 'brand', kind };
     } catch (e) {
-      return fail(e instanceof UseCaseError && e.code === 'conflict' ? 409 : 400, {
-        action: 'brand',
-        problem: report(e),
-      });
+      return refused(e, 'brand');
     }
   },
   theme: async ({ request, locals, url, params }) => {
@@ -239,11 +236,7 @@ export const actions: Actions = {
       });
       return { saved: 'theme', version: result.version };
     } catch (e) {
-      return fail(e instanceof UseCaseError && e.code === 'conflict' ? 409 : 400, {
-        action: 'theme',
-        problem: report(e),
-        values: Object.fromEntries(data),
-      });
+      return refused(e, 'theme', data);
     }
   },
   images: async ({ request, locals, url, params }) => {
@@ -257,11 +250,7 @@ export const actions: Actions = {
       });
       return { saved: 'images', version: result.version };
     } catch (e) {
-      return fail(e instanceof UseCaseError && e.code === 'conflict' ? 409 : 400, {
-        action: 'images',
-        problem: report(e),
-        values: Object.fromEntries(data),
-      });
+      return refused(e, 'images', data);
     }
   },
   chrome: async ({ request, locals, url, params }) => {
@@ -273,7 +262,7 @@ export const actions: Actions = {
       if (current.version !== baseVersion(data))
         return fail(409, {
           action: 'chrome',
-          problem: 'conflict',
+          error: 'admin.site.conflict' as const,
           values: Object.fromEntries(data),
         });
       const optional = (name: 'support' | 'help') =>
@@ -296,11 +285,7 @@ export const actions: Actions = {
       });
       return { saved: 'chrome', version: result.version };
     } catch (e) {
-      return fail(e instanceof UseCaseError && e.code === 'conflict' ? 409 : 400, {
-        action: 'chrome',
-        problem: report(e),
-        values: Object.fromEntries(data),
-      });
+      return refused(e, 'chrome', data);
     }
   },
   assist: async ({ request, locals, url, params }) => {

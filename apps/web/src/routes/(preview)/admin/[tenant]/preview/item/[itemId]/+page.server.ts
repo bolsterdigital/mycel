@@ -2,7 +2,8 @@
 // operator needs `content:read` on this site; an unknown item, revision or locale is a 404. The
 // locale's readiness issues (ADR 018 rule 9) are listed above the page, and a block that has no
 // value in this locale yet is left out of it (`projectDocument`).
-import { isUuid, UseCaseError, projectDocument, readinessIssues, useCases } from '@mycel/core';
+import { isUuid, projectDocument, readinessIssues, useCases } from '@mycel/core';
+import { loaded } from '#lib/server/admin/admin-actions.js';
 import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { actorLabel, when } from '#lib/server/content-admin.js';
 import {
@@ -27,18 +28,12 @@ export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) 
   const revisionId = url.searchParams.get('revision');
   if (!isUuid(params.itemId) || (revisionId !== null && !isUuid(revisionId))) refuse(404);
   const rt = runtime();
-  let got;
-  try {
-    got = await rt.invoker.run(useCases.getItem, principal, {
+  const { item, revision } = await loaded(
+    rt.invoker.run(useCases.getItem, principal, {
       itemId: params.itemId,
       ...(revisionId ? { revisionId } : {}),
-    });
-  } catch (e) {
-    if (e instanceof UseCaseError && e.code === 'not_found') refuse(404);
-    if (e instanceof UseCaseError && e.code === 'forbidden') refuse(403);
-    throw e;
-  }
-  const { item, revision } = got;
+    })
+  );
   const doc = revision.document;
   const locale = url.searchParams.get('locale') ?? doc.defaultLocale;
   if (!doc.locales.includes(locale)) refuse(404);

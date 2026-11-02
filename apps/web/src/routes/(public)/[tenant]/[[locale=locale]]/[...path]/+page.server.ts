@@ -12,7 +12,7 @@
 // gets a fresh timing token (public-page.ts); a form post's answer and the thank-you page are
 // `no-store`. No cookie is read or set.
 
-import { error, fail, redirect } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 import { anonymousPrincipal, contentPath, translate, useCases } from '@mycel/core';
 import { currentContext } from '@mycel/observability';
 import { ui } from '../../../../../i18n/index.js';

@@ -1,16 +1,5 @@
 {
-  "use-case-catch": {
-    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.server.ts": 6,
-    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/assist/+page.server.ts": 4,
-    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/revisions/+page.server.ts": 1,
-    "apps/web/src/routes/(admin)/admin/[tenant]/content/new/+page.server.ts": 1,
-    "apps/web/src/routes/(admin)/admin/[tenant]/media/[id]/+page.server.ts": 1,
-    "apps/web/src/routes/(admin)/admin/[tenant]/media/choices/+server.ts": 1,
-    "apps/web/src/routes/(admin)/admin/[tenant]/site/+page.server.ts": 6,
-    "apps/web/src/routes/(preview)/admin/[tenant]/preview/draft/+page.server.ts": 2,
-    "apps/web/src/routes/(preview)/admin/[tenant]/preview/item/[itemId]/+page.server.ts": 2,
-    "apps/web/src/routes/(public)/[tenant]/confirm/+page.server.ts": 1
-  },
+  "use-case-catch": {},
   "error-copy": {},
   "link-regex": {},
   "locale-fallback": {},
