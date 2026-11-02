@@ -11,9 +11,9 @@
 // public referrer policy only when the route set none, so this one wins (the e2e suite proves it).
 
 import { negotiateLocale, type ConfirmResult } from '@mycel/core';
-import type { UiKey } from '../../i18n/index.js';
-import { NO_STORE } from './http/http-cache.js';
-import { sitePath, type Site } from './site.js';
+import type { UiKey } from '../../../i18n/index.js';
+import { NO_STORE } from '../http/http-cache.js';
+import { sitePath, type Site } from '../site.js';
 
 export const CONFIRM_HEADERS = { 'cache-control': NO_STORE, 'referrer-policy': 'strict-origin' };
 

@@ -16,17 +16,17 @@ import { posted } from '#lib/editor/block-form.js';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { error } from '@sveltejs/kit';
 import { text } from '#lib/server/admin/admin-actions.js';
-import { valuesFromForm } from '#lib/server/content-admin.js';
-import { formDocument } from '#lib/server/edit-form.js';
+import { valuesFromForm } from '#lib/server/content/content-admin.js';
+import { formDocument } from '#lib/server/content/edit-form.js';
 import {
   PREVIEW_HEADERS,
   previewBase,
   previewSite,
   siteReader,
   introOf,
-} from '#lib/server/preview.js';
+} from '#lib/server/content/preview.js';
 import { runtime } from '#lib/server/runtime.js';
-import { siteBrand, siteTheme } from '#lib/server/theme.js';
+import { siteBrand, siteTheme } from '#lib/server/public/theme.js';
 import { langOf, ui } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
 import { refuse, refusalOf } from '#lib/server/http/refuse.js';

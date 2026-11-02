@@ -21,10 +21,10 @@ import {
   pick,
   useCases,
 } from '@mycel/core';
-import { renderMeta } from '../blocks/resolve.js';
-import { PRIVATE_NO_STORE } from './http/http-cache.js';
-import { runtime } from './runtime.js';
-import { siteTenant, type Site } from './site.js';
+import { renderMeta } from '../../blocks/resolve.js';
+import { PRIVATE_NO_STORE } from '../http/http-cache.js';
+import { runtime } from '../runtime.js';
+import { siteTenant, type Site } from '../site.js';
 
 /** The response headers of every preview route: never cached, never indexed. */
 export const PREVIEW_HEADERS = {
@@ -39,7 +39,7 @@ export async function previewSite(tenant: TenantInfo): Promise<Site> {
   return { tenant, form: 'path', access: await runtime().identity.tenantAccess(tenant.id) };
 }
 
-/** The visitor a published page is read as (lib/server/public-page.ts). */
+/** The visitor a published page is read as (lib/server/public/public-page.ts). */
 export const siteReader = (site: Site) =>
   anonymousPrincipal(siteTenant(site), ['content:read', 'forms:read', 'media:read']);
 

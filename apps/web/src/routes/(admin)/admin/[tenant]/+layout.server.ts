@@ -4,7 +4,7 @@
 // does the content locale every list and edit screen follows (#66 PR 4).
 import { DEFAULT_OPERATOR_PREFERENCES } from '@mycel/core';
 import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin/admin.js';
-import { contentLocale } from '#lib/server/content-locale.js';
+import { contentLocale } from '#lib/server/content/content-locale.js';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async ({ locals, url, params, cookies }) => {

@@ -1,5 +1,5 @@
 // The edit screen of one item (TODO #66 PR 2, brief edit-screen § 6): one form for the whole
-// document. Its fields, every block's fields (`lib/server/edit-form.ts`) and a block chosen but
+// document. Its fields, every block's fields (`lib/server/content/edit-form.ts`) and a block chosen but
 // not stored yet are saved together as one `content.item.update` with the revision the form was
 // opened on as `baseRevisionId` (ADR 018 rule 2); every other action of the screen (publish,
 // schedule, move, remove, insert, duplicate) is a button of the same form that saves first and
@@ -58,19 +58,19 @@ import {
   withLocale,
   valuesOf,
   when,
-} from '#lib/server/content-admin.js';
+} from '#lib/server/content/content-admin.js';
 import {
   chooseContentLocale,
   contentLocale,
   translationState,
-} from '#lib/server/content-locale.js';
+} from '#lib/server/content/content-locale.js';
 import {
   fieldOf,
   fromLocalInput,
   issuePath,
   localInput,
   localLabel,
-} from '#lib/server/content-admin-publication.js';
+} from '#lib/server/content/content-admin-publication.js';
 import {
   issueCopy as blockIssueCopy,
   pickerOptions,
@@ -78,7 +78,7 @@ import {
   previewOf,
   summaryOf,
   textRestOf,
-} from '#lib/server/content-blocks.js';
+} from '#lib/server/content/content-blocks.js';
 import {
   NEW_BLOCK,
   blockIssues,
@@ -90,7 +90,7 @@ import {
   pendingProps,
   pendingView,
   type PendingBlock,
-} from '#lib/server/edit-form.js';
+} from '#lib/server/content/edit-form.js';
 import { runtime } from '#lib/server/runtime.js';
 import { adminSiteUrls } from '#lib/server/site.js';
 import { langOf, ui, type UiKey } from '../../../../../../i18n/index.js';

@@ -10,9 +10,9 @@ import {
   type ResolvedTheme,
   type SiteChrome,
 } from '@mycel/core';
-import { preloadFonts, themeCss, themeHash } from '../theme/tokens.js';
-import { runtime } from './runtime.js';
-import { siteTenant, type Site } from './site.js';
+import { preloadFonts, themeCss, themeHash } from '../../theme/tokens.js';
+import { runtime } from '../runtime.js';
+import { siteTenant, type Site } from '../site.js';
 
 export interface SiteTheme {
   css: string;

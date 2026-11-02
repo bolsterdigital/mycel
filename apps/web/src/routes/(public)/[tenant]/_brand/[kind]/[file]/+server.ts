@@ -3,7 +3,7 @@
 import { anonymousPrincipal } from '@mycel/core';
 import { runtime } from '#lib/server/runtime.js';
 import { requireSite, siteTenant } from '#lib/server/site.js';
-import { brandPath, siteBrand } from '#lib/server/theme.js';
+import { brandPath, siteBrand } from '#lib/server/public/theme.js';
 import { shareable } from '#lib/server/http/security-headers.js';
 import type { RequestHandler } from './$types';
 import { refuse } from '#lib/server/http/refuse.js';

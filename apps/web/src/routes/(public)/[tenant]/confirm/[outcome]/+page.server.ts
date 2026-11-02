@@ -3,7 +3,12 @@
 // so a refresh or a shared link is harmless; any other segment is a 404.
 
 import { ui } from '../../../../../i18n/index.js';
-import { CONFIRM_HEADERS, OUTCOME_COPY, answerLocale, outcomeOf } from '#lib/server/confirm.js';
+import {
+  CONFIRM_HEADERS,
+  OUTCOME_COPY,
+  answerLocale,
+  outcomeOf,
+} from '#lib/server/public/confirm.js';
 import { requireSite } from '#lib/server/site.js';
 import type { PageServerLoad } from './$types';
 import { refuse } from '#lib/server/http/refuse.js';
