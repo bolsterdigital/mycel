@@ -3322,6 +3322,66 @@ test.describe('article-writing', () => {
     return `/admin/probe/content/${item.id}`;
   }
 
+  test('a refused save from a direct locale link keeps English through the next post', async ({
+    page,
+    request,
+  }) => {
+    const edit = await article(request);
+    await login(page, edit);
+    await page.context().clearCookies({ name: 'mycel-content-locale' });
+    await page.goto(`${edit}?locale=en`);
+    if (isA11y())
+      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    const fold = page.getByRole('group', { name: 'Blok toevoegen', exact: true });
+    await fold.getByLabel('Soort').selectOption({ label: 'Citaat' });
+    await fold.getByRole('button', { name: 'Toevoegen', exact: true }).click();
+    const fresh = page.locator('#block-new');
+    await fresh.locator('[name="new.p.text.en"]').fill('Incomplete quote');
+    if (isA11y()) {
+      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+      await page.locator('.writing-surface .editor-prose p').first().fill('English edited');
+    } else {
+      const prose = page.locator('details.block').first();
+      await prose.locator(':scope > summary').click();
+      await prose.getByLabel('Tekst', { exact: true }).fill('English edited');
+    }
+    await page.locator('[name="title.en"]').fill('English title edited');
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page.getByRole('alert')).toBeVisible();
+    await expect(page.locator('[name="editLocale"]')).toHaveValue('en');
+    await expect(page.locator('[name="title.en"]')).toHaveValue('English title edited');
+    // Every named action, including publication and the locale switch, must reload this language
+    // when refused. Check the native addresses too, rather than only the enhanced Save route.
+    const targets = await page
+      .locator('main [formaction], form#item-edit')
+      .evaluateAll((nodes) =>
+        nodes.map((node) => node.getAttribute('formaction') ?? node.getAttribute('action'))
+      );
+    for (const target of targets)
+      expect(new URL(target!, 'http://admin.invalid').searchParams.get('locale')).toBe('en');
+    if (isA11y()) {
+      await expectNoAxeViolations(page);
+      await page.setViewportSize({ width: 320, height: 900 });
+      await setTextSize(page, '200%');
+      await layoutGate(page, 'refused English save');
+      await page.screenshot({ path: test.info().outputPath('refused-save-en-320-200.png') });
+    }
+    await fresh.getByRole('button', { name: 'Niet toevoegen' }).click();
+    await expect(page.locator('#block-new')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/saved/);
+    const { revision } = await callApi(request, 'content.item.get', {
+      itemId: edit.split('/').at(-1)!,
+    });
+    expect(revision.document.title).toEqual({ nl: 'Een artikel', en: 'English title edited' });
+    const content = revision.document.blocks[0].props.content;
+    expect(content.nl.content[0].content[0].text).toBe('Oude tekst');
+    expect(content.en.content[0].content[0].text).toBe('English edited');
+    expect((await page.context().cookies()).some((c) => c.name === 'mycel-content-locale')).toBe(
+      false
+    );
+  });
+
   // #142: an empty line in the writer is ordinary writing. With words in another locale the block
   // loses this one and shows the other beside it; in the only locale the block goes and it publishes.
   test('prose emptied in the writer falls back or goes, and nothing blocks the save', async ({

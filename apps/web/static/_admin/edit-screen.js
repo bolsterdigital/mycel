@@ -26,7 +26,7 @@ const form = document.getElementById('item-edit');
 
 if (form instanceof HTMLFormElement) {
   const state = document.querySelector('[data-save-state]');
-  const saveButton = document.querySelector('button[form="item-edit"][formaction="?/save"]');
+  const saveButton = document.querySelector('button[form="item-edit"][formaction^="?/save&"]');
   /** Controls that choose an action rather than change the document. */
   const IGNORED = /^(insertType\.|at\.|patternId$)/;
   // A refused save comes back with what was typed, still unsaved: leaving asks from the start.
@@ -405,7 +405,7 @@ if (form instanceof HTMLFormElement) {
   for (const search of form.querySelectorAll('[data-type-search]')) {
     const input = search.querySelector('input');
     const select = search.parentElement?.querySelector('select');
-    const button = search.parentElement?.querySelector('button[formaction="?/insert"]');
+    const button = search.parentElement?.querySelector('button[formaction^="?/insert&"]');
     if (!(input instanceof HTMLInputElement) || !(select instanceof HTMLSelectElement)) continue;
     search.hidden = false;
     const all = [...select.options].map((o) => o.cloneNode(true));
