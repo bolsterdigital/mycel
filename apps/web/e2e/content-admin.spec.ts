@@ -2126,6 +2126,70 @@ test.describe('content-blocks', () => {
     await expect(state).toHaveAttribute('data-current', 'done');
   });
 
+  // The router must not carry a click from the editor to another admin page: that page ships no
+  // client code by design, and the editor's scripts run once per document, so coming back left a
+  // screen that no longer knew it had changes (#145). Back and by link, as both are common.
+  test('leaving for Revisions warns about unsaved changes, and coming back the scripts still run', async ({
+    page,
+    request,
+  }) => {
+    onlyA11y('the save state, the leave warning and the search are the scripts');
+    requireApi();
+    const run = `a1-return-${Date.now()}`;
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: run,
+      document: {
+        type: 'article',
+        title: { nl: 'Heen en terug' },
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        blocks: [],
+        authorIds: [],
+      },
+    });
+    const edit = `/admin/probe/content/${item.id}`;
+    await login(page, edit);
+    const state = page.locator('[data-save-state]');
+    const revisions = page.locator(`a[href$="${edit}/revisions"]`);
+    const stillWorks = async () => {
+      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+      await expect(
+        page.locator('#authors').getByRole('searchbox', { name: 'Zoeken' })
+      ).toBeVisible();
+      await expect(state).not.toHaveAttribute('data-current', 'unsaved');
+      await page.locator('#title\\.nl').fill(`Gewijzigd ${Date.now()}`);
+      await expect(state).toHaveAttribute('data-current', 'unsaved');
+    };
+
+    // Unsaved: the link asks first, and staying keeps what was typed.
+    await stillWorks();
+    const typed = await page.locator('#title\\.nl').inputValue();
+    let asked = false;
+    page.once('dialog', (dialog) => {
+      asked = dialog.type() === 'beforeunload';
+      void dialog.dismiss();
+    });
+    await revisions.click();
+    await expect.poll(() => asked).toBe(true);
+    await expect(page.locator('#title\\.nl')).toHaveValue(typed);
+    await page.locator('#title\\.nl').press('ControlOrMeta+s');
+    await expect(page).toHaveURL(new RegExp(`${edit}\\?saved$`));
+
+    // Nothing unsaved: there and back with the browser, then there and back by link.
+    await revisions.click();
+    await expect(page).toHaveURL(new RegExp(`${edit}/revisions$`));
+    await page.goBack();
+    await expect(page).toHaveURL(new RegExp(`${edit}\\?saved$`));
+    await stillWorks();
+    await page.locator('#title\\.nl').press('ControlOrMeta+s');
+    await expect(state).toHaveAttribute('data-current', 'done');
+    await revisions.click();
+    await expect(page).toHaveURL(new RegExp(`${edit}/revisions$`));
+    await page.locator(`a[href$="${edit}"]`).first().click();
+    await expect(page).toHaveURL(new RegExp(`${edit}$`));
+    await stillWorks();
+  });
+
   test('a block rests until Edit, Escape and Done close it with what was typed, and focus follows actions', async ({
     page,
   }) => {

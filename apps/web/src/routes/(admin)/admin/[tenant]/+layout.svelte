@@ -15,7 +15,12 @@
      about you and what asks for you, above the menu and visible on a phone too.
      Under the site's name, a site with more than one locale has the content locale switch (#66
      PR 4): a form that stores the choice and comes back here. An edit screen says `itemLocale`
-     in its page data and switches in its own bar instead, where it saves what was typed first. -->
+     in its page data and switches in its own bar instead, where it saves what was typed first.
+     `data-sveltekit-reload`: every link in the shell is a real navigation, also on the two hydrated
+     screens. The admin's scripts run once per document and the leave warning is `beforeunload`, so
+     a router carrying a click off the editor left a screen that no longer noticed changes (#145).
+     Rejected: re-initialising each script per mount, which would need every script to undo its
+     document listeners, for a transition this admin does not want. -->
 <script lang="ts">
   import AdminScript from '#lib/admin/trusted/AdminScript.svelte';
   import { page } from '$app/state';
@@ -89,7 +94,7 @@
 
 <IconSprite />
 <a class="admin-skip" href="#admin-main">{t('admin.shell.skip')}</a>
-<div class="admin-shell">
+<div class="admin-shell" data-sveltekit-reload>
   <aside class="admin-sidebar" aria-label={t('admin.shell.navigation')}>
     <div class="admin-sidebar-top">
       <a class="admin-brand" href="/admin?all">{t('admin.title')}</a>
