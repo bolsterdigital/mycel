@@ -3,7 +3,7 @@
 import { can, decodeTranslation, translationValue, useCases, UseCaseError } from '@mycel/core';
 import { error, fail, redirect } from '@sveltejs/kit';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
-import { contentLocale } from '#lib/server/content-locale.js';
+import { contentLocale } from '#lib/server/content/content-locale.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { Actions, PageServerLoad } from './$types';
 import { langOf, ui } from '../../../../../../../i18n/index.js';

@@ -9,10 +9,16 @@
 // like the page itself.
 import { pickAny, anonymousPrincipal, entitled, negotiateLocale } from '@mycel/core';
 import { ui } from '../../i18n/index.js';
-import { localeOf } from '#lib/server/content-route.js';
+import { localeOf } from '#lib/server/public/content-route.js';
 import { runtime } from '#lib/server/runtime.js';
 import { sitePath, siteTenant } from '#lib/server/site.js';
-import { brandPath, siteBrand, siteChrome, siteTheme, themePath } from '#lib/server/theme.js';
+import {
+  brandPath,
+  siteBrand,
+  siteChrome,
+  siteTheme,
+  themePath,
+} from '#lib/server/public/theme.js';
 import type { LayoutServerLoad } from './$types';
 
 export const csr = false;

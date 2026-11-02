@@ -1,7 +1,7 @@
 // Preview assets use the same safe bytes as public delivery but require site membership.
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { NO_STORE } from '#lib/server/http/http-cache.js';
-import { PREVIEW_HEADERS } from '#lib/server/preview.js';
+import { PREVIEW_HEADERS } from '#lib/server/content/preview.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { RequestHandler } from './$types';
 import { refuse } from '#lib/server/http/refuse.js';

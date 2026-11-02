@@ -1049,7 +1049,7 @@
       "category": "internationalisation",
       "level": "recommended",
       "status": "covered",
-      "file": "apps/web/src/lib/server/content-route.test.ts",
+      "file": "apps/web/src/lib/server/public/content-route.test.ts",
       "note": "one subdirectory per non-default locale"
     },
     "hreflang": {

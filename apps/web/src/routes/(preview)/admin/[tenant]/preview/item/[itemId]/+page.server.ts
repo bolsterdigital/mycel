@@ -1,20 +1,20 @@
-// One revision of an item in one locale, as the site will show it (lib/server/preview.ts). The
+// One revision of an item in one locale, as the site will show it (lib/server/content/preview.ts). The
 // operator needs `content:read` on this site; an unknown item, revision or locale is a 404. The
 // locale's readiness issues (ADR 018 rule 9) are listed above the page, and a block that has no
 // value in this locale yet is left out of it (`projectDocument`).
 import { isUuid, projectDocument, readinessIssues, useCases } from '@mycel/core';
 import { loaded } from '#lib/server/admin/admin-actions.js';
 import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin/admin.js';
-import { actorLabel, when } from '#lib/server/content-admin.js';
+import { actorLabel, when } from '#lib/server/content/content-admin.js';
 import {
   PREVIEW_HEADERS,
   previewBase,
   previewSite,
   siteReader,
   introOf,
-} from '#lib/server/preview.js';
+} from '#lib/server/content/preview.js';
 import { runtime } from '#lib/server/runtime.js';
-import { siteBrand, siteTheme } from '#lib/server/theme.js';
+import { siteBrand, siteTheme } from '#lib/server/public/theme.js';
 import { resolveDocument, resolveIntro, runtimeSource } from '#lib/blocks/resolve.js';
 import { langOf, ui } from '../../../../../../../i18n/index.js';
 import type { PageServerLoad } from './$types';

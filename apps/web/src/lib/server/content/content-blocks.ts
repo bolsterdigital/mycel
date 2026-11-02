@@ -27,12 +27,12 @@ import {
   MAX_PAGE_SIZE,
   pickAny,
 } from '@mycel/core';
-import { runtime } from './runtime.js';
+import { runtime } from '../runtime.js';
 import { withAssigned } from './content-admin.js';
-import { mediaChoice } from './admin/media-choices.js';
-import { richTextHtml } from '../blocks/rich-text.js';
-import type { UiKey } from '../../i18n/index.js';
-import type { MediaChoice } from '../admin/media-choice.js';
+import { mediaChoice } from '../admin/media-choices.js';
+import { richTextHtml } from '../../blocks/rich-text.js';
+import type { UiKey } from '../../../i18n/index.js';
+import type { MediaChoice } from '../../admin/media-choice.js';
 
 export interface Option {
   id: string;

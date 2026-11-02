@@ -11,7 +11,7 @@
 import { AuditActorKind, useCases } from '@mycel/core';
 import { loaded } from '#lib/server/admin/admin-actions.js';
 import { adminTimeZone } from '#lib/server/admin/admin.js';
-import { fromLocalInput } from '#lib/server/content-admin-publication.js';
+import { fromLocalInput } from '#lib/server/content/content-admin-publication.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { PageServerLoad } from './$types';
 

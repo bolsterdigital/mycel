@@ -1,6 +1,6 @@
 // Every content path of a site (brief #8c § 8): pages, the homepage, articles and the thank-you
 // page after a form post, with the locale prefix for a non-default locale. The grammar is
-// `parseContentPath` (lib/server/content-route.ts); this file only turns it into a response, and
+// `parseContentPath` (lib/server/public/content-route.ts); this file only turns it into a response, and
 // runs the native form post of a page's form (ADR 009: works without JavaScript; validation
 // happens on the server, in the core use case). The tenant is `locals.site` (hooks.server.ts):
 // the hostname, or the dev path form; `params.tenant` is the slug the reroute hook put there and
@@ -16,10 +16,10 @@ import { fail, redirect } from '@sveltejs/kit';
 import { anonymousPrincipal, contentPath, translate, useCases } from '@mycel/core';
 import { currentContext } from '@mycel/observability';
 import { ui } from '../../../../../i18n/index.js';
-import { localeOf, parseContentPath, thanksPath } from '#lib/server/content-route.js';
-import { failureFor } from '#lib/server/form-post.js';
+import { localeOf, parseContentPath, thanksPath } from '#lib/server/public/content-route.js';
+import { failureFor } from '#lib/server/public/form-post.js';
 import { NO_STORE, PUBLIC_CACHE } from '#lib/server/http/http-cache.js';
-import { loadPublicItem } from '#lib/server/public-page.js';
+import { loadPublicItem } from '#lib/server/public/public-page.js';
 import { runtime } from '#lib/server/runtime.js';
 import { absoluteSiteUrl, requireSite, sitePath, siteTenant } from '#lib/server/site.js';
 import type { Actions, PageServerLoad } from './$types';

@@ -6,7 +6,7 @@
 // have changes nothing: only a forged form can post one, and the operator just lands back.
 import { redirect } from '@sveltejs/kit';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
-import { chooseContentLocale, returnPath } from '#lib/server/content-locale.js';
+import { chooseContentLocale, returnPath } from '#lib/server/content/content-locale.js';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ locals, url, params, request, cookies }) => {

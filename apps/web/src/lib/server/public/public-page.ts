@@ -29,12 +29,12 @@ import {
   type PublishedItem,
   type TenantInfo,
 } from '@mycel/core';
-import type { RenderIntro, RenderModel } from '../blocks/model.js';
-import { renderMeta, resolveDocument, resolveIntro, runtimeSource } from '../blocks/resolve.js';
+import type { RenderIntro, RenderModel } from '../../blocks/model.js';
+import { renderMeta, resolveDocument, resolveIntro, runtimeSource } from '../../blocks/resolve.js';
 import type { ContentRoute } from './content-route.js';
-import { runtime } from './runtime.js';
+import { runtime } from '../runtime.js';
 import { ogLocales } from './share-locale.js';
-import { sitePath, siteTenant, siteUrls, type Site } from './site.js';
+import { sitePath, siteTenant, siteUrls, type Site } from '../site.js';
 import { siteBrand, siteChrome, siteTheme } from './theme.js';
 import { refuse } from '#lib/server/http/refuse.js';
 

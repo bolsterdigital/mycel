@@ -48,7 +48,7 @@ The public `reason` is coarser than the log: honeypot, token and proof failures 
 
 ## The public route
 
-`apps/web/src/routes/(public)/[tenant]/[[locale=locale]]/[...path]/+page.server.ts` handles the native form post of a page (no JavaScript required). The tenant comes from the site being visited and the locale from the path; nothing in the body chooses either. The visitor is an anonymous principal with `forms:write` and a keyed hash of the client address. The form posts `formId`, the fields by name, the honeypot `website`, `_started` and `_proof`. A thrown error maps to 403 (site closed: limit reached or suspended), 400 (unknown or malformed form) or 503 with the request id (`apps/web/src/lib/server/form-post.ts`). A page with a form is served `no-store`, so every visitor gets a fresh timing token.
+`apps/web/src/routes/(public)/[tenant]/[[locale=locale]]/[...path]/+page.server.ts` handles the native form post of a page (no JavaScript required). The tenant comes from the site being visited and the locale from the path; nothing in the body chooses either. The visitor is an anonymous principal with `forms:write` and a keyed hash of the client address. The form posts `formId`, the fields by name, the honeypot `website`, `_started` and `_proof`. A thrown error maps to 403 (site closed: limit reached or suspended), 400 (unknown or malformed form) or 503 with the request id (`apps/web/src/lib/server/public/form-post.ts`). A page with a form is served `no-store`, so every visitor gets a fresh timing token.
 
 ## From submission to supporter
 
