@@ -340,6 +340,20 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
         'form-card-wide',
       ],
     },
+    // Its own title for search results and a described hero, which is also its share image.
+    [qualityCorpus.share.slug]: {
+      title: Object.fromEntries(
+        Object.entries(qualityCorpus.share.locales).map(([l, entry]) => [l, entry.title])
+      ),
+      lead: { nl: 'Wat een deelvoorbeeld laat zien.', en: 'What a share preview shows.' },
+      seo: {
+        title: Object.fromEntries(
+          Object.entries(qualityCorpus.share.locales).map(([l, entry]) => [l, entry.seoTitle])
+        ),
+      },
+      heroAlt: { nl: 'Het Malieveld vol mensen', en: 'The Malieveld full of people' },
+      blocks: ['article-text'],
+    },
     artikel: {
       title: { nl: 'Een straat vol bomen', en: 'A street full of trees' },
       blocks: [
@@ -585,6 +599,8 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
           title: pages[slug].title,
           blocks,
           ...(pages[slug].lead && { lead: pages[slug].lead }),
+          ...(pages[slug].seo && { seo: pages[slug].seo }),
+          ...(pages[slug].heroAlt && { heroImageId: landscape.id, heroAlt: pages[slug].heroAlt }),
           ...(pages[slug].type === 'article' && {
             authorIds: [qualityAuthor.id],
             sectionId: qualitySection.id,

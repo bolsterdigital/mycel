@@ -115,6 +115,22 @@
       }
     }
   },
+  "share": {
+    "slug": "quality-share-v1",
+    "describedShare": true,
+    "locales": {
+      "nl": {
+        "path": "/probe/quality-share-v1",
+        "title": "Delen en vinden",
+        "seoTitle": "Zo verschijnt een pagina in zoekresultaten"
+      },
+      "en": {
+        "path": "/probe/en/quality-share-v1",
+        "title": "Sharing and finding",
+        "seoTitle": "How a page appears in search results"
+      }
+    }
+  },
   "admin": {
     "auth": "synthetic mock IdP operator",
     "routes": [

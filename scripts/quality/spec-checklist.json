@@ -1063,7 +1063,7 @@
       "level": "recommended",
       "status": "covered",
       "file": "apps/web/e2e/quality-corpus.spec.ts",
-      "note": "every corpus page in each locale: title, description, og:title, og:description, og:url, hreflang and the alt of every image are its own, compared across locales so a copied value fails (apps/web/e2e/lib/metadata.ts)"
+      "note": "every corpus page in each locale: title, description, og:title, og:description, og:url, og:locale, hreflang, og:image:alt and the alt of every image are its own, compared across locales so a copied value fails (apps/web/e2e/lib/metadata.ts)"
     },
     "sitemap-hreflang": {
       "category": "internationalisation",

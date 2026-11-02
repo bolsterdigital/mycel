@@ -146,12 +146,27 @@ for (const entry of entries)
 
 // Every locale of a page carries its own description, Open Graph tags and image alts, compared
 // across the locales so a value copied from the other language fails (lib/metadata.ts).
-for (const entry of entries)
+// `corpus.share` is the page that also has a title for search results and a described share image.
+// It is apart from `public` because those pages are measured under a fixture version: a hero added
+// to one would change what the measurement sees.
+const metadataPages: {
+  slug: string;
+  describedShare?: boolean;
+  locales: Record<string, { path: string; title: string; seoTitle?: string }>;
+}[] = [...entries, corpus.share];
+for (const entry of metadataPages)
   test(`${entry.slug}: description, Open Graph and alt per locale`, async ({ page }) => {
     const pages: LocaleMetadata[] = [];
     for (const [locale, identity] of Object.entries(entry.locales)) {
       await page.goto(identity.path);
-      pages.push(await localeMetadata(page, locale, identity.title));
+      pages.push(
+        await localeMetadata(
+          page,
+          locale,
+          identity.seoTitle ?? identity.title,
+          entry.describedShare
+        )
+      );
     }
     expect(pages.length).toBeGreaterThan(1);
     expect(localeMetadataProblems(pages)).toEqual([]);
@@ -162,10 +177,15 @@ test('locale metadata copied from another locale is a problem', () => {
   const nl: LocaleMetadata = {
     locale: 'nl',
     title: 'Schone lucht',
+    documentTitle: 'Schone lucht',
     description: 'Over ons werk',
     ogTitle: 'Schone lucht',
     ogDescription: 'Over ons werk',
     ogUrl: 'https://example.test/a',
+    ogLocale: 'nl_NL',
+    ogLocaleAlternates: ['en_US'],
+    ogImage: null,
+    ogImageAlt: null,
     canonical: 'https://example.test/a',
     hreflang: ['nl', 'en', 'x-default'],
     alts: ['Demonstranten', ''],
@@ -174,8 +194,11 @@ test('locale metadata copied from another locale is a problem', () => {
     ...nl,
     locale: 'en',
     title: 'Clean air',
+    documentTitle: 'Clean air',
     ogTitle: 'Clean air',
     ogUrl: 'https://example.test/en/a',
+    ogLocale: 'en_US',
+    ogLocaleAlternates: ['nl_NL'],
     canonical: 'https://example.test/en/a',
   };
   expect(
@@ -194,6 +217,28 @@ test('locale metadata copied from another locale is a problem', () => {
       { ...en, description: 'About', ogDescription: 'About', alts: ['Protesters', null] },
     ])
   ).toEqual(['en: image 2 has no alt']);
+  const fine = { ...en, description: 'About', ogDescription: 'About', alts: ['Protesters', ''] };
+  const shared = { ogImage: 'https://example.test/m.webp', describedShare: true };
+  expect(localeMetadataProblems([{ ...nl, documentTitle: 'Ander' }, fine])).toEqual([
+    'nl: <title> is not the title',
+  ]);
+  expect(localeMetadataProblems([{ ...nl, ogLocale: 'en_US' }, fine])).toEqual([
+    'nl: og:locale is not this locale',
+    'nl: og:locale:alternate names this locale',
+    'en: no og:locale:alternate en_US',
+  ]);
+  expect(
+    localeMetadataProblems([
+      { ...nl, ...shared, ogImageAlt: 'Plein' },
+      { ...fine, ...shared, ogImageAlt: 'Plein' },
+    ])
+  ).toEqual(['nl/en: same og:image:alt']);
+  expect(
+    localeMetadataProblems([
+      { ...nl, ...shared, ogImageAlt: 'Plein' },
+      { ...fine, ...shared },
+    ])
+  ).toEqual(['en: no og:image:alt', 'nl/en: og:image:alt in one locale only']);
 });
 
 // Every corpus page, in each locale, comes back from the back/forward cache (lib/bfcache.ts). Its

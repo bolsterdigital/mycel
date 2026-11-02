@@ -18,14 +18,18 @@
   {#if data.view === 'thanks'}
     <title>{data.title}</title>
   {:else}
-    <title>{hasProblem ? `${data.errorPrefix} ` : ''}{data.model.title}</title>
+    <title>{hasProblem ? `${data.errorPrefix} ` : ''}{data.head.title}</title>
     {#if data.head.description}<meta name="description" content={data.head.description} />{/if}
     <link rel="canonical" href={data.head.canonical} />
     {#each data.head.alternates as alt (alt.hreflang)}
       <link rel="alternate" hreflang={alt.hreflang} href={alt.href} />
     {/each}
     <meta property="og:type" content={data.head.share.type} />
-    <meta property="og:title" content={data.head.share.title} />
+    <meta property="og:title" content={data.head.title} />
+    <meta property="og:locale" content={data.head.share.locale} />
+    {#each data.head.share.alternateLocales as alternate (alternate)}
+      <meta property="og:locale:alternate" content={alternate} />
+    {/each}
     <meta property="og:url" content={data.head.canonical} />
     {#if data.head.description}<meta
         property="og:description"
@@ -36,6 +40,7 @@
       <meta property="og:image:type" content={data.head.image.type} />
       <meta property="og:image:width" content={String(data.head.image.width)} />
       <meta property="og:image:height" content={String(data.head.image.height)} />
+      {#if data.head.image.alt}<meta property="og:image:alt" content={data.head.image.alt} />{/if}
       <meta name="twitter:card" content="summary_large_image" />
     {:else}
       <meta name="twitter:card" content="summary" />
