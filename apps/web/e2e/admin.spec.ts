@@ -678,6 +678,8 @@ test.describe('admin-shell', () => {
     page,
   }) => {
     await login(page, '/admin/probe/content?type=page', email);
+    await expect(page.locator('.admin-sidebar-top [data-nav-toggle]')).toHaveCount(1);
+    await expect(page.locator('.admin-sidebar-bottom')).toHaveCount(0);
     const nav = page.getByRole('navigation', { name: 'Site navigation' });
     const manage = nav
       .locator('details')

@@ -81,7 +81,7 @@ export function layoutProblems(page: Page, within = 'body'): Promise<string[]> {
       '.ui-fold > summary',
       '.ui-choice',
       '.admin-sidebar a',
-      '.admin-menu > summary',
+      '.admin-sidebar summary',
     ];
     for (const root of document.querySelectorAll(scope))
       for (const b of root.querySelectorAll(actions.join(', '))) {
@@ -104,8 +104,12 @@ export function layoutProblems(page: Page, within = 'body'): Promise<string[]> {
         // visible hyphen on purpose. A main navigation label is a word or two and keeps them whole
         // without that exemption: it inherited `hyphens: auto`, so the rule never fired and
         // "Dashboar|d" at 320 CSS px and 200% text passed (#66 PR 2).
-        if (!b.matches('button, .ui-button, .ui-navgroup a')) continue;
-        if (!b.matches('.ui-navgroup a') && getComputedStyle(b).hyphens === 'auto') continue;
+        if (!b.matches('button, .ui-button, .ui-navgroup a, .ui-navgroup summary')) continue;
+        if (
+          !b.matches('.ui-navgroup a, .ui-navgroup summary') &&
+          getComputedStyle(b).hyphens === 'auto'
+        )
+          continue;
         const walker = document.createTreeWalker(b, NodeFilter.SHOW_TEXT);
         for (let node = walker.nextNode(); node; node = walker.nextNode())
           for (const match of (node.textContent ?? '').matchAll(/[^\s-]+/g)) {
