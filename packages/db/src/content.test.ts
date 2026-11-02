@@ -379,6 +379,41 @@ describe.skipIf(skip)('content conformance', () => {
     expect(revisions).toHaveLength(2);
   });
 
+  it('lets one of concurrent creates with one slug win and refuses the rest as a conflict', async () => {
+    // Eight at once, three rounds: the race needs two requests past the check before either
+    // inserts, and two alone tend to serialise on connection checkout.
+    const p = adminOf(tenantA);
+    const races: [string, (slug: string) => Promise<unknown>][] = [
+      ['item', (slug) => invoker.run(useCases.createItem, p, { slug, document: doc('race') })],
+      ['author', (slug) => invoker.run(useCases.createAuthor, p, { slug, name: 'Race' })],
+      [
+        'section',
+        (slug) => invoker.run(useCases.createSection, p, { slug, title: { nl: 'Race' } }),
+      ],
+    ];
+    for (const [what, create] of races)
+      for (let round = 0; round < 3; round++) {
+        const slug = `race-${what}-${round}-${run}`;
+        const results = await Promise.allSettled(Array.from({ length: 8 }, () => create(slug)));
+        const lost = results.filter((r) => r.status === 'rejected') as PromiseRejectedResult[];
+        expect(results.length - lost.length, what).toBe(1);
+        for (const r of lost) expect(r.reason, what).toMatchObject({ code: 'conflict' });
+      }
+    // The losers left nothing behind: one item, with its one revision.
+    const items = await withTenant(appDb, p, (trx) =>
+      trx
+        .selectFrom('content_items')
+        .select('id')
+        .where('slug', '=', `race-item-0-${run}`)
+        .execute()
+    );
+    expect(items).toHaveLength(1);
+    const revisions = await withTenant(appDb, p, (trx) =>
+      trx.selectFrom('content_revisions').select('id').where('item_id', '=', items[0]!.id).execute()
+    );
+    expect(revisions).toHaveLength(1);
+  });
+
   it('lets exactly one of concurrent saves on one base win, with no orphan revision', async () => {
     // Eight at once: two alone tend to serialise on connection checkout and would pass without
     // the lock too.

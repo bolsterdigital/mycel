@@ -412,8 +412,11 @@ export const createItem = defineUseCase({
       throw new UseCaseError('invalid_input', `"${slug}" is reserved`, [
         { path: 'slug', message: 'content.slug.reserved' },
       ]);
-    if (await ctx.content.findBySlug(document.type, slug))
-      throw new UseCaseError('conflict', `a ${document.type} with slug "${slug}" already exists`);
+    const taken = () =>
+      new UseCaseError('conflict', `a ${document.type} with slug "${slug}" already exists`, [
+        { path: 'slug', message: 'content.slug.taken' },
+      ]);
+    if (await ctx.content.findBySlug(document.type, slug)) throw taken();
     let blocks: readonly BlockInput[] = document.blocks;
     if (patternId) {
       const pattern = await ctx.patterns.get(patternId);
@@ -442,7 +445,7 @@ export const createItem = defineUseCase({
       updatedAt: now,
       publication: doc.locales.map(draftLocale),
     };
-    await ctx.content.insert(item, revision);
+    if (!(await ctx.content.insert(item, revision))) throw taken();
     await recordRevisionUsages(ctx, revision);
     return { item: toContentItem(item), revision };
   },
