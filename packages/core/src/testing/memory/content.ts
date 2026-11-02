@@ -29,8 +29,11 @@ export function memoryContent(s: TenantStore): ContentRepository {
         limit
       ),
     async insert(item, first) {
+      const taken = [...s.items.values()].some((i) => i.type === item.type && i.slug === item.slug);
+      if (taken) return false;
       s.items.set(item.id, structuredClone(item));
       insertRevision(first);
+      return true;
     },
     save: async (item) => void s.items.set(item.id, structuredClone(item)),
     async setSlug(itemId, slug, at) {

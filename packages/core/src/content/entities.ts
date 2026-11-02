@@ -34,13 +34,15 @@ import { exampleId } from '../util/ids.js';
 
 const Limit = z.number().int().min(1).max(MAX_PAGE_SIZE).optional();
 
+const slugTaken = (what: string, slug: string) =>
+  new UseCaseError('conflict', `${what} with slug "${slug}" already exists`);
+
 async function assertFreeSlug<T extends { id: string; slug: string }>(
   repo: SluggedRepository<T>,
   slug: string,
   what: string
 ): Promise<void> {
-  if (await repo.findBySlug(slug))
-    throw new UseCaseError('conflict', `an ${what} with slug "${slug}" already exists`);
+  if (await repo.findBySlug(slug)) throw slugTaken(what, slug);
 }
 
 const stamp = (ctx: TransactionContext) => ctx.clock.now().toISOString();
@@ -58,10 +60,10 @@ export const createAuthor = defineUseCase({
     { input: { slug: 'sam-de-vries', name: 'Sam de Vries', bio: { nl: 'Verslaggever.' } } },
   ],
   async handler(ctx, { slug, ...fields }) {
-    await assertFreeSlug(ctx.authors, slug, 'author');
+    await assertFreeSlug(ctx.authors, slug, 'an author');
     const now = stamp(ctx);
     const author: Author = { ...fields, id: ctx.ids.next(), slug, createdAt: now, updatedAt: now };
-    await ctx.authors.insert(author);
+    if (!(await ctx.authors.insert(author))) throw slugTaken('an author', slug);
     return author;
   },
 });
@@ -130,7 +132,7 @@ export const createSection = defineUseCase({
   output: Section,
   examples: [{ input: { slug: 'politiek', title: { nl: 'Politiek', en: 'Politics' } } }],
   async handler(ctx, { slug, ...fields }) {
-    await assertFreeSlug(ctx.sections, slug, 'section');
+    await assertFreeSlug(ctx.sections, slug, 'a section');
     const now = stamp(ctx);
     const section: Section = {
       ...fields,
@@ -139,7 +141,7 @@ export const createSection = defineUseCase({
       createdAt: now,
       updatedAt: now,
     };
-    await ctx.sections.insert(section);
+    if (!(await ctx.sections.insert(section))) throw slugTaken('a section', slug);
     return section;
   },
 });

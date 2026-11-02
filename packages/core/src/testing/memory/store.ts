@@ -261,6 +261,11 @@ export function sluggedRepository<T extends { id: string; slug: string }>(
 ): SluggedRepository<T> {
   return {
     ...entityRepository(rows),
+    async insert(e) {
+      if ([...rows.values()].some((r) => r.slug === e.slug)) return false;
+      rows.set(e.id, structuredClone(e));
+      return true;
+    },
     findBySlug: async (slug) =>
       structuredClone([...rows.values()].find((r) => r.slug === slug) ?? null),
   };

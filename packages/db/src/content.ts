@@ -50,6 +50,28 @@ const toLocale = (r: LocaleRow): LocaleState => ({
   scheduleId: r.schedule_id,
 });
 
+/** Whether `e` is Postgres refusing a row on this unique key, and not any other failure. */
+function hitKey(e: unknown, constraint: string): boolean {
+  const pg = e as { code?: string; constraint?: string };
+  return pg.code === '23505' && pg.constraint === constraint;
+}
+
+/**
+ * Run an insert whose slug the use case checked just before: a second request can pass that check
+ * too, and then the unique key decides. False says the slug is taken; core words the refusal, and
+ * throwing it ends the transaction this failed statement has already aborted. Rejected: a lock
+ * around check and insert (it would serialise every create of a tenant for a rare race).
+ */
+async function insertedUnlessTaken(constraint: string, insert: () => Promise<void>) {
+  try {
+    await insert();
+    return true;
+  } catch (e) {
+    if (hitKey(e, constraint)) return false;
+    throw e;
+  }
+}
+
 export function contentRepository(trx: Trx, tenantId: string): ContentRepository {
   /** Items with their locale rows, in the item's locale order. */
   async function withLocales(rows: ItemRow[]): Promise<ItemRecord[]> {
@@ -164,23 +186,30 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
       return { rows: await withLocales(page.rows), next: page.next };
     },
     async insert(item, first) {
-      await trx
-        .insertInto('content_items')
-        .values({
-          id: item.id,
-          tenant_id: tenantId,
-          type: item.type,
-          slug: item.slug,
-          title: JSON.stringify(item.title),
-          default_locale: item.defaultLocale,
-          locales: item.locales,
-          latest_revision_id: item.latestRevisionId,
-          created_at: item.createdAt,
-          updated_at: item.updatedAt,
-        })
-        .execute();
+      const inserted = await insertedUnlessTaken(
+        'content_items_tenant_id_type_slug_key',
+        async () => {
+          await trx
+            .insertInto('content_items')
+            .values({
+              id: item.id,
+              tenant_id: tenantId,
+              type: item.type,
+              slug: item.slug,
+              title: JSON.stringify(item.title),
+              default_locale: item.defaultLocale,
+              locales: item.locales,
+              latest_revision_id: item.latestRevisionId,
+              created_at: item.createdAt,
+              updated_at: item.updatedAt,
+            })
+            .execute();
+        }
+      );
+      if (!inserted) return false;
       await insertRevision(first);
       await writeLocales(item);
+      return true;
     },
     async save(item) {
       await trx
@@ -206,9 +235,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
         return true;
       } catch (e) {
         // Only the slug key; any other failure is not a taken slug.
-        const pg = e as { code?: string; constraint?: string };
-        if (pg.code === '23505' && pg.constraint === 'content_items_tenant_id_type_slug_key')
-          return false;
+        if (hitKey(e, 'content_items_tenant_id_type_slug_key')) return false;
         throw e;
       }
     },
@@ -360,16 +387,18 @@ export function authorRepository(trx: Trx, tenantId: string): SluggedRepository<
       );
     },
     async insert(a) {
-      await trx
-        .insertInto('authors')
-        .values({
-          id: a.id,
-          tenant_id: tenantId,
-          slug: a.slug,
-          created_at: a.createdAt,
-          ...fields(a),
-        })
-        .execute();
+      return insertedUnlessTaken('authors_tenant_id_slug_key', async () => {
+        await trx
+          .insertInto('authors')
+          .values({
+            id: a.id,
+            tenant_id: tenantId,
+            slug: a.slug,
+            created_at: a.createdAt,
+            ...fields(a),
+          })
+          .execute();
+      });
     },
     async update(a) {
       await trx.updateTable('authors').set(fields(a)).where('id', '=', a.id).execute();
@@ -418,16 +447,18 @@ export function sectionRepository(trx: Trx, tenantId: string): SluggedRepository
       );
     },
     async insert(s) {
-      await trx
-        .insertInto('sections')
-        .values({
-          id: s.id,
-          tenant_id: tenantId,
-          slug: s.slug,
-          created_at: s.createdAt,
-          ...fields(s),
-        })
-        .execute();
+      return insertedUnlessTaken('sections_tenant_id_slug_key', async () => {
+        await trx
+          .insertInto('sections')
+          .values({
+            id: s.id,
+            tenant_id: tenantId,
+            slug: s.slug,
+            created_at: s.createdAt,
+            ...fields(s),
+          })
+          .execute();
+      });
     },
     async update(s) {
       await trx.updateTable('sections').set(fields(s)).where('id', '=', s.id).execute();

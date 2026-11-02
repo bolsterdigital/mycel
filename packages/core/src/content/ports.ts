@@ -53,8 +53,12 @@ export interface ContentRepository {
     after: string | null,
     limit: number
   ): Promise<Paged<ItemRecord>>;
-  /** A new item with its first revision (inserted in the same transaction, refs included). */
-  insert(item: ItemRecord, first: Revision): Promise<void>;
+  /**
+   * A new item with its first revision (inserted in the same transaction, refs included). False:
+   * the slug is taken, by a request that passed the same check first. As with `setSlug`, the
+   * transaction may be unusable after false: the caller refuses, it does not go on.
+   */
+  insert(item: ItemRecord, first: Revision): Promise<boolean>;
   /** Item columns and the complete set of publication rows; rows not in the list are removed. */
   save(item: ItemRecord): Promise<void>;
   /**
@@ -84,9 +88,12 @@ export interface EntityRepository<T extends { id: string }> {
   update(entity: T): Promise<void>;
 }
 
-export interface SluggedRepository<
-  T extends { id: string; slug: string },
-> extends EntityRepository<T> {
+export interface SluggedRepository<T extends { id: string; slug: string }> extends Omit<
+  EntityRepository<T>,
+  'insert'
+> {
+  /** False: the slug is taken; the caller refuses, as with `ContentRepository.insert`. */
+  insert(entity: T): Promise<boolean>;
   findBySlug(slug: string): Promise<T | null>;
 }
 
