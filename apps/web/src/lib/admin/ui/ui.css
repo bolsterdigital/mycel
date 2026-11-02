@@ -2080,6 +2080,7 @@
     letter-spacing: 0.04em;
   }
   .ui-navgroup ul {
+    min-width: 0;
     display: grid;
     gap: 0.125rem;
     margin: 0;
@@ -2114,8 +2115,17 @@
     font-weight: 700;
   }
   .ui-navgroup summary {
+    flex-wrap: wrap;
     cursor: pointer;
     list-style: none;
+  }
+  /* Keep closed children's intrinsic width in the column calculation. Visibility and clipping
+     keep them unavailable until the native disclosure opens, without a width jump on opening. */
+  .ui-navgroup details:not([open])::details-content {
+    content-visibility: visible;
+    block-size: 0;
+    overflow: clip;
+    visibility: hidden;
   }
   .ui-navgroup summary::-webkit-details-marker {
     display: none;

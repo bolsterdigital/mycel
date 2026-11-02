@@ -1122,14 +1122,20 @@ test.describe('admin-shell', () => {
         expect(metrics.edge).toBeLessThan(2);
         expect(metrics.wrapped).toBe(0);
         expect(metrics.switchRows).toBe(1);
-        // Manage open lists its screens; the column keeps its width and every label whole.
-        await page
-          .locator('.ui-navgroup-disclosure > summary')
-          .filter({ hasText: locale === 'nl' ? /^Beheer$/ : /^Manage$/ })
-          .click();
-        const open = await measure();
-        expect(open.wrapped).toBe(0);
-        expect(Math.abs(open.width - metrics.width)).toBeLessThan(1);
+        // Closed children still reserve their intrinsic width: opening either group must not
+        // move the workspace. Closing it again keeps the same width and hides its destinations.
+        for (const label of locale === 'nl' ? ['Beheer', 'Instellingen'] : ['Manage', 'Settings']) {
+          const summary = page
+            .locator('.ui-navgroup-disclosure > summary')
+            .filter({ hasText: new RegExp(`^${label}$`) });
+          await summary.click();
+          const open = await measure();
+          expect(open.wrapped).toBe(0);
+          expect(Math.abs(open.width - metrics.width)).toBeLessThan(1);
+          await summary.click();
+          await expect(summary.locator('..').getByRole('link').first()).toBeHidden();
+          expect(Math.abs((await measure()).width - metrics.width)).toBeLessThan(1);
+        }
         if (isA11y()) await expectNoAxeViolations(page);
         await page.screenshot({
           path: `../../.scratch/sidebar-${locale}-wide-${test.info().project.name}.png`,
