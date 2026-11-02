@@ -1,4 +1,4 @@
-<!-- The media library starts with its assets, not a full-page upload form (#80A). A compact
+<!-- The media library starts with its assets, not a full-page upload form (TODO #10b). A compact
      button opens the native upload dialog; a window-wide drop enhancement reports progress and
      per-file failures, then refreshes the server-rendered library. The dialog, search, views and
      asset links remain usable without JavaScript; media.spec.ts checks both paths and reflow. -->
