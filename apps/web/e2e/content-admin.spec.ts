@@ -3273,6 +3273,18 @@ test.describe('content-blocks', () => {
 test.describe('article-writing', () => {
   test.use({ locale: 'nl-NL' });
 
+  // ProseMirror reads the selection a moment later: a Backspace before that takes one letter, and
+  // the block keeps its words. Rejected: select all, which takes the cards too (#149).
+  async function emptyProse(page: Page) {
+    const prose = page.locator('.writing-surface .editor-prose').first();
+    await expect(prose).toBeVisible();
+    await expect(async () => {
+      await prose.locator('p').first().selectText();
+      await page.keyboard.press('Backspace');
+      await expect(prose).toHaveText('', { timeout: 1000 });
+    }).toPass();
+  }
+
   async function article(request: APIRequestContext) {
     const slug = `writer-${test.info().project.name}-${Date.now()}`;
     const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
@@ -3346,10 +3358,7 @@ test.describe('article-writing', () => {
         }>(request, 'content.item.get', { itemId })
       ).revision;
     const empty = async () => {
-      const prose = page.locator('.writing-surface .editor-prose').first();
-      await expect(prose).toBeVisible();
-      await prose.locator('p').first().selectText();
-      await page.keyboard.press('Backspace');
+      await emptyProse(page);
       await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
       await expect(page).toHaveURL(/saved/);
     };
@@ -3389,6 +3398,147 @@ test.describe('article-writing', () => {
         locale: 'nl',
       })
     );
+  });
+
+  // #142 review: a block that goes shortens the list, so what follows reads the document that was
+  // saved, by id, and not the one the form was opened on.
+  test.describe('after a prose block went', () => {
+    test.skip(() => !isA11y(), 'the writer needs JavaScript');
+
+    const line = (text: string) => ({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+    });
+    const quote = (text: string) => ({
+      type: 'quote',
+      version: 1,
+      props: { text: { nl: text }, attribution: { name: 'Bron' } },
+    });
+    const stored = async (request: APIRequestContext, itemId: string) =>
+      (
+        await callApi<{
+          revision: {
+            document: {
+              blocks: { id: string; type: string; props: { text?: { nl?: string } } }[];
+            };
+          };
+        }>(request, 'content.item.get', { itemId })
+      ).revision.document.blocks;
+    const open = async (
+      page: Page,
+      request: APIRequestContext,
+      blocks: unknown[]
+    ): Promise<string> => {
+      const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+        slug: `writer-gone-${test.info().project.name}-${test.info().title.length}-${Date.now()}`,
+        document: {
+          type: 'article',
+          defaultLocale: 'nl',
+          locales: ['nl'],
+          title: { nl: 'Leeg' },
+          blocks,
+        },
+      });
+      await login(page, `/admin/probe/content/${item.id}`);
+      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+      return item.id;
+    };
+    const prose = { type: 'rich-text', version: 1, props: { content: { nl: line('Wordt leeg') } } };
+    // A field in a folded card: the fold hides it from `fill`.
+    const setField = (page: Page, name: string, value: string) =>
+      page.locator(`[name="${name}"]`).evaluate((field, text) => {
+        (field as HTMLTextAreaElement).value = text as string;
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+      }, value);
+    const save = (page: Page) => page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+
+    test('a refused insert keeps what was typed, and the next save stands', async ({
+      page,
+      request,
+    }) => {
+      const itemId = await open(page, request, [prose, quote('Bestaand')]);
+      const fold = page.locator('.writing-surface details.ui-block-insert:visible').first();
+      await fold.locator('summary').click();
+      await fold.getByLabel('Soort').selectOption({ label: 'Citaat' });
+      await fold.getByRole('button', { name: 'Hier invoegen' }).click();
+      const fresh = page.locator('#block-new');
+      await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Citaat');
+      await fresh.locator('[name$=".text.nl"]').fill('Nieuw citaat');
+
+      await emptyProse(page);
+      await save(page);
+      await expect(page.getByRole('alert')).toBeVisible();
+      expect((await stored(request, itemId)).map((b) => b.type)).toEqual(['quote']);
+      await expect(fresh.locator('[name$=".text.nl"]')).toHaveValue('Nieuw citaat');
+
+      await fresh.locator('[name="new.p.attribution.name"]').fill('Bron twee');
+      await save(page);
+      await expect(page).toHaveURL(/\?saved/);
+      expect((await stored(request, itemId)).map((b) => b.props.text?.nl)).toEqual([
+        'Nieuw citaat',
+        'Bestaand',
+      ]);
+    });
+
+    test('a refusal names the block it is about, and only what changed reopens', async ({
+      page,
+      request,
+    }) => {
+      const itemId = await open(page, request, [prose, quote('Een'), quote('Twee')]);
+      const before = await stored(request, itemId);
+      const [a, b] = [before[1]!.id, before[2]!.id];
+
+      await emptyProse(page);
+      await setField(page, `b.${b}.p.text.nl`, '');
+      await save(page);
+      const alert = page.getByRole('alert');
+      await expect(alert).toBeVisible();
+      await expect(page.locator(`[name="b.${b}.p.text.nl"]`)).toHaveAttribute(
+        'aria-invalid',
+        'true'
+      );
+      await expect(page.locator(`[name="b.${a}.p.text.nl"]`)).not.toHaveAttribute(
+        'aria-invalid',
+        'true'
+      );
+      await expect(alert.locator('a').first()).toHaveAttribute(
+        'href',
+        new RegExp(`^#b-${b}-p-text-nl$`)
+      );
+
+      await setField(page, `b.${b}.p.text.nl`, 'Twee en een half');
+      await save(page);
+      await expect(page).toHaveURL(new RegExp(`[?&]block=${b}(#|$)`));
+      expect((await stored(request, itemId)).map((x) => x.props.text?.nl)).toEqual([
+        'Een',
+        'Twee en een half',
+      ]);
+    });
+
+    for (const action of ['move', 'remove'] as const)
+      test(`${action} on a card goes through with the block gone`, async ({ page, request }) => {
+        const itemId = await open(page, request, [prose, quote('Een'), quote('Twee')]);
+        const before = await stored(request, itemId);
+        const [a, b] = [before[1]!.id, before[2]!.id];
+
+        await emptyProse(page);
+        await page
+          .locator(
+            action === 'move'
+              ? `button[name="move"][value="${b}:up"]`
+              : `button[name="remove"][value="${a}"]`
+          )
+          .evaluate((button) => (button as HTMLButtonElement).click());
+        await expect(page).toHaveURL(action === 'move' ? /done=blockMoved/ : /done=blockRemoved/);
+        const after = action === 'move' ? ['Twee', 'Een'] : ['Twee'];
+        expect((await stored(request, itemId)).map((x) => x.props.text?.nl)).toEqual(after);
+
+        // The screen is on the new revision: a further save of it stands and changes nothing.
+        await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+        await save(page);
+        await expect(page).toHaveURL(/\?saved/);
+        expect((await stored(request, itemId)).map((x) => x.props.text?.nl)).toEqual(after);
+      });
   });
 
   test('article prose and title save together, while the native form and other locale remain lossless', async ({
