@@ -172,6 +172,21 @@ export const RichTextDoc = z
   });
 export type RichTextDoc = z.infer<typeof RichTextDoc>;
 
+/**
+ * Whether a document holds no words: what an emptied editor posts is a valid document with one bare
+ * paragraph, and it must not count as a value, or it hides the other locale and passes readiness
+ * as a translation. Rejected: refusing it in the schema, which old revisions must keep passing.
+ */
+export function isBlankDoc(value: unknown): boolean {
+  if ((value as { type?: unknown } | null | undefined)?.type !== 'doc') return false;
+  const hasWords = (node: unknown): boolean => {
+    const n = node as { text?: unknown; content?: unknown };
+    if (typeof n.text === 'string' && n.text.trim() !== '') return true;
+    return Array.isArray(n.content) && n.content.some(hasWords);
+  };
+  return !hasWords(value);
+}
+
 /** The content item ids a document links to, for tenant-scoped reference checks. */
 export function linkedItemIds(doc: RichTextDoc): string[] {
   const found: string[] = [];

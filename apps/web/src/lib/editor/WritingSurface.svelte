@@ -296,6 +296,14 @@
       const native = document.getElementById(nativeId);
       if (native) native.hidden = true;
     }
+    // A link in a refusal summary names the hidden textarea, which takes no focus: the editor does
+    // (#130). Rejected: moving the id here, which unlabels the textarea that still posts the field.
+    const toField = (event: MouseEvent) => {
+      if (!nativeId || !(event.target instanceof Element)) return;
+      const link = event.target.closest(`a[href="#${CSS.escape(nativeId)}"]`);
+      if (link) instance.commands.focus();
+    };
+    document.addEventListener('click', toField);
     // Preserve untouched documents byte-for-byte. Only onUpdate activates the posted JSON.
     payload = value;
     active = true;
@@ -309,6 +317,7 @@
     form?.addEventListener('submit', check);
     return () => {
       form?.removeEventListener('submit', check);
+      document.removeEventListener('click', toField);
       instance.destroy();
     };
   });
