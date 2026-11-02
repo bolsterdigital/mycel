@@ -7,11 +7,41 @@ import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { runInNewContext } from 'node:vm';
 import { protectReports } from './protect.mjs';
 import { compareBaseline } from './baseline.mjs';
 import { IdentityGatherer, IdentityAudit } from './gatherer.mjs';
 import { matrix } from './matrix.mjs';
 import { status as qualityStatus } from './status.mjs';
+
+test('full observations survive same-ref pushes and dispatches; ordinary runs supersede by ref', () => {
+  const workflow = readFileSync(
+    new URL('../../.github/workflows/frontend-quality.yml', import.meta.url),
+    'utf8'
+  );
+  const concurrency = /^concurrency:\n([\s\S]*?)(?=^\S)/m.exec(workflow)?.[1];
+  assert.ok(concurrency);
+  assert.match(concurrency, /^  cancel-in-progress: true$/m);
+  const template = /^  group: (.+)$/m.exec(concurrency)?.[1];
+  assert.ok(template);
+  // This workflow uses only JS-compatible property access, equality and boolean operators.
+  // Evaluate the actual source expression, rather than duplicating its event classification.
+  const group = (event_name, run_id, ref = 'refs/heads/main') =>
+    template.replace(/\$\{\{(.*?)\}\}/g, (_, expression) =>
+      String(runInNewContext(expression, { github: { event_name, run_id, ref } }))
+    );
+  const ordinary = ['push', 'pull_request', 'merge_group'];
+  const full = ['schedule', 'workflow_dispatch'].flatMap((event, index) =>
+    [100, 101].map((id) => group(event, id + index * 2))
+  );
+  assert.equal(new Set(full).size, full.length, 'each full observation has its own group');
+  for (const event of ordinary) {
+    assert.equal(group(event, '200'), group(event, '201'), `${event}: cancel stale runs`);
+    assert.notEqual(group(event, '200'), group(event, '201', 'refs/heads/other'));
+    for (const observation of full)
+      assert.notEqual(observation, group(event, '200'), `${event}: preserve full observation`);
+  }
+});
 
 test('PR set covers both public profiles; scheduled/manual expand locale, cache and admin', () => {
   const pr = matrix('pull_request').include;

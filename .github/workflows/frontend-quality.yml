@@ -18,7 +18,9 @@ permissions:
   actions: read
 
 concurrency:
-  group: frontend-quality-${{ github.ref }}
+  # Full observations must finish even when main advances or another full run starts.
+  # Ref-only grouping cancels the rare weekly matrix on an ordinary main push.
+  group: frontend-quality-${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.run_id || github.ref }}
   cancel-in-progress: true
 
 jobs:
