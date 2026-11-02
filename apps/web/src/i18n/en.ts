@@ -362,6 +362,11 @@ export const en = {
   'admin.media.title': 'Media',
   'admin.media.back': 'Back to {name}',
   'admin.media.storage': 'Storage in use: {used} of {max}.',
+  'admin.media.upload.add': 'Upload file',
+  'admin.media.upload.drop': 'Drop files to upload',
+  'admin.media.upload.dismiss': 'Dismiss upload results',
+  'admin.media.upload.refresh':
+    'Uploads finished, but the library could not be refreshed. Reload the page to see them.',
   'admin.media.upload.title': 'Upload a file',
   'admin.media.upload.file': 'File',
   'admin.media.upload.hint':

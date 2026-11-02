@@ -713,7 +713,12 @@ test.describe('admin-shell', () => {
         expect(all.filter(picker).every((s) => s.type === 'module')).toBe(true);
       }
       expect(scripts).toEqual(
-        /\/media$/.test(path) ? [{ src: '/_admin/file-preview.js', type: 'module' }] : []
+        /\/media$/.test(path)
+          ? [
+              { src: '/_admin/file-preview.js', type: 'module' },
+              { src: '/_admin/drop-upload.js', type: 'module' },
+            ]
+          : []
       );
     }
   }

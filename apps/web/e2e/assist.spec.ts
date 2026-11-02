@@ -110,6 +110,7 @@ async function ready(page: Page) {
 
 async function imagePage(page: Page, project: string) {
   await page.goto(`${base(page)}/media`);
+  await page.getByRole('button', { name: /^(Bestand uploaden|Upload file)$/, exact: true }).click();
   const example = useCases.uploadMedia.examples[0]!.input;
   await page.getByLabel(/^(Bestanden \(verplicht\)|Files \(required\))$/).setInputFiles({
     name: 'assist.png',

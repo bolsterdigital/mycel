@@ -161,7 +161,7 @@ test.describe('admin-ui', () => {
       // navigation's and a long Choices list's search.
       await expect(
         page.locator(
-          'script:not([src="/_admin/copy.js"], [src="/_admin/nav.js"], [src="/_admin/choices.js"])'
+          'script:not([src="/_admin/copy.js"], [src="/_admin/nav.js"], [src="/_admin/choices.js"], [src="/_admin/drop-upload.js"])'
         )
       ).toHaveCount(0);
       return;

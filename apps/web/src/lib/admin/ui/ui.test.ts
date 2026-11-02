@@ -31,6 +31,7 @@ import {
   Field,
   Fieldset,
   FileDrop,
+  UploadDropZone,
   FormPage,
   ICONS,
   Icon,
@@ -1437,5 +1438,23 @@ describe('StatusCard', () => {
     expect(out).toContain('<h3 id="p-en-title" class="ui-status-card-title">Language en</h3>');
     expect(out).toContain('<span class="ui-badge success">Published on 28 October 2026</span>');
     expect(out).not.toContain('ui-actions');
+  });
+});
+
+describe('UploadDropZone', () => {
+  it('keeps the overlay hidden and a live region ready before a file enters', () => {
+    const out = render(UploadDropZone, {
+      props: {
+        url: '/admin/probe/media/upload',
+        locale: 'en',
+        hint: 'JPEG, at most 25 MB.',
+      },
+    });
+    expect(out.body).toContain('data-upload-overlay="" hidden=""');
+    expect(out.body).toContain('aria-live="polite"');
+    expect(out.body).toContain('Drop files to upload');
+    expect(out.body).toContain('JPEG, at most 25 MB.');
+    expect(out.body).not.toContain('type="file"');
+    expect(out.body + out.head).toContain('src="/_admin/drop-upload.js"');
   });
 });
