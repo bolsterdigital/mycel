@@ -25,7 +25,11 @@ import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { ADMIN, login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
+import { settingsEvidence } from './lib/settings-evidence';
 import { callApi, requireApi } from './lib/api';
+
+// A worker-scoped option on a separate test type keeps timeout-safe tracing on this flow only.
+const settingsTest = test.extend({ trace: ['retain-on-failure', { scope: 'worker' }] });
 
 // Operator admin (TODO #7), the seed of the "publish" flow in testing.md: login through the mock
 // IdP as e2e-admin@probe.test (scripts/e2e/e2e.mjs seeds that admin and starts the IdP), access by
@@ -343,7 +347,7 @@ test.describe('admin', () => {
   });
 
   // #51: a refused settings save says what happened; `suspended` was called "check the fields".
-  test('a refused settings save names a conflict and a suspension', async ({ page }) => {
+  settingsTest('a refused settings save names a conflict and a suspension', async ({ page }) => {
     const project = test.info().project.name;
     const slug = `site-refusals-${project}`;
     const email = `site-refusals-${project}@probe.test`;
@@ -370,21 +374,32 @@ test.describe('admin', () => {
         if (!(e instanceof UseCaseError && e.code === 'conflict')) throw e;
       }
     });
-    await login(page, `/admin/${slug}/site`, email);
+    const evidence = settingsEvidence(test.info());
+    evidence.watch('A', page);
     const save = (on: Page) => on.getByRole('button', { name: 'Tijdzone opslaan' }).click();
-    const other = await page.context().newPage();
-    await other.goto(`/admin/${slug}/site`);
-    await save(other);
-    await other.close();
-    await save(page);
-    await expect(page.getByText('Deze instellingen zijn elders gewijzigd')).toBeVisible();
     try {
-      await status('suspended');
-      await page.goto(`/admin/${slug}/site`);
-      await save(page);
-      await expect(page.getByText('Deze site is opgeschort')).toBeVisible();
+      await evidence.step('A: log in to settings', () => login(page, `/admin/${slug}/site`, email));
+      const other = await evidence.step('B: open tab', () => page.context().newPage());
+      evidence.watch('B', other);
+      await evidence.step('B: load settings', () => other.goto(`/admin/${slug}/site`));
+      await evidence.step('B: save settings', () => save(other));
+      await evidence.step('B: close tab', () => other.close());
+      await evidence.step('A: save stale settings', () => save(page));
+      await evidence.step('A: conflict message', () =>
+        expect(page.getByText('Deze instellingen zijn elders gewijzigd')).toBeVisible()
+      );
+      try {
+        await evidence.step('suspend tenant', () => status('suspended'));
+        await evidence.step('A: reload suspended settings', () => page.goto(`/admin/${slug}/site`));
+        await evidence.step('A: save suspended settings', () => save(page));
+        await evidence.step('A: suspension message', () =>
+          expect(page.getByText('Deze site is opgeschort')).toBeVisible()
+        );
+      } finally {
+        await evidence.step('restore active tenant', () => status('active'));
+      }
     } finally {
-      await status('active');
+      await evidence.attach();
     }
   });
 
