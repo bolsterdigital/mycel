@@ -286,8 +286,9 @@
     "aria-usage": {
       "category": "accessibility",
       "level": "recommended",
-      "status": "open",
-      "gap": "native semantics first is a construction rule checked in review, not by a gate"
+      "status": "covered",
+      "file": "apps/web/e2e/lib/axe.ts",
+      "note": "Live DOM in both browser projects: redundant button/link/checkbox/radio/slider/spinbutton roles fail; WCAG axe checks ARIA validity. Other roles, fallback role lists, unnecessary aria-* and assistive-technology behaviour require manual review."
     },
     "link-text": {
       "category": "accessibility",
@@ -396,8 +397,9 @@
     "native-interactive-elements": {
       "category": "accessibility",
       "level": "recommended",
-      "status": "open",
-      "gap": "native elements first is a construction rule checked in review, not by a gate"
+      "status": "covered",
+      "file": "apps/web/e2e/lib/axe.ts",
+      "note": "Live DOM in both browser projects: button/link/checkbox/radio/slider/spinbutton roles require their native HTML control. Click handlers without a role, other widgets and whether an action should be navigation require manual review."
     },
     "css-state-selectors": {
       "category": "accessibility",
