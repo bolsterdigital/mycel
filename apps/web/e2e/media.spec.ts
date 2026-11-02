@@ -555,6 +555,8 @@ test('a page gets its featured image from the picker, and shares it when publish
   const meta = (key: string) =>
     new RegExp(`<meta (?:property|name)="${key}" content="([^"]*)"`).exec(html)?.[1];
   expect(meta('og:image')).toBe(`${SITE}/media/${id}/w400.webp`);
+  // A featured image has no alt to give: alt text belongs to a use, and this use has none.
+  expect(meta('og:image:alt')).toBeUndefined();
   expect([meta('og:image:width'), meta('og:image:height')]).toEqual(['400', '300']);
   expect(meta('og:title')).toBe(`Uitgelicht ${stamp}`);
   expect(meta('og:url')).toBe(`${SITE}/${slug}`);

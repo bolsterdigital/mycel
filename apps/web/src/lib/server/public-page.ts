@@ -33,6 +33,7 @@ import type { RenderIntro, RenderModel } from '../blocks/model.js';
 import { renderMeta, resolveDocument, resolveIntro, runtimeSource } from '../blocks/resolve.js';
 import type { ContentRoute } from './content-route.js';
 import { runtime } from './runtime.js';
+import { ogLocales } from './share-locale.js';
 import { sitePath, siteTenant, siteUrls, type Site } from './site.js';
 import { siteBrand, siteChrome, siteTheme } from './theme.js';
 import { refuse } from '#lib/server/http/refuse.js';
@@ -42,10 +43,16 @@ export interface PublicHead {
   /** One per published locale, then `x-default`. */
   alternates: { hreflang: string; href: string }[];
   description: string | null;
-  /** Open Graph: the explicit share title or the document title, and the page kind. */
-  share: { title: string; type: 'website' | 'article' };
-  /** The share image as an absolute URL of one of its variants, or null. */
-  image: { src: string; width: number; height: number; type: string } | null;
+  /** `<title>` and `og:title`: the editor's title for search results, else the document title. */
+  title: string;
+  /** Open Graph: the page kind, and this locale and the other published ones. */
+  share: { type: 'website' | 'article'; locale: string; alternateLocales: string[] };
+  /**
+   * The share image as an absolute URL of one of its variants, or null. An alt only where the
+   * document has one for this image: alt text belongs to a use, not to the file (media/model.ts),
+   * and of the uses the share chain can land on only the hero carries one.
+   */
+  image: { src: string; width: number; height: number; type: string; alt: string | null } | null;
 }
 
 export interface PublicItem {
@@ -114,6 +121,8 @@ export async function loadPublicItem(
   const fallback = item.locales.includes(tenant.defaultLocale)
     ? tenant.defaultLocale
     : item.locales[0]!;
+  const { images } = item.effective;
+  const shared = ogLocales(locale, item.locales);
   const head: PublicHead = {
     canonical: href(locale),
     alternates: [
@@ -122,11 +131,18 @@ export async function loadPublicItem(
     ],
     // The chain in core (effective.ts): own SEO description, featured description, lead, body.
     description: item.effective.seoDescription.text,
+    title: item.seo.title ?? item.title,
     share: {
-      title: item.seo.title ?? item.title,
       type: item.type === 'article' ? 'article' : 'website',
+      locale: shared.locale,
+      alternateLocales: shared.alternates,
     },
-    image: await shareImage(item.effective.images.share.mediaId, reader, url),
+    image: await shareImage(
+      images.share.mediaId,
+      images.share.mediaId === images.hero.mediaId ? item.heroAlt : null,
+      reader,
+      url
+    ),
   };
 
   const page = { tenant, item, locale, model, intro, dropCap, head };
@@ -153,6 +169,7 @@ const SHARE_WIDTH = 1280;
  */
 async function shareImage(
   id: string | null,
+  alt: string | null,
   reader: Principal,
   url: (path: string) => string
 ): Promise<PublicHead['image']> {
@@ -170,7 +187,13 @@ async function shareImage(
     .sort((a, b) => a.width! - b.width!);
   const best = [...sized].reverse().find((v) => v.width! <= SHARE_WIDTH) ?? sized[0];
   if (!best) return null;
-  return { src: url(best.path), width: best.width!, height: best.height!, type: 'image/webp' };
+  return {
+    src: url(best.path),
+    width: best.width!,
+    height: best.height!,
+    type: 'image/webp',
+    alt,
+  };
 }
 
 /**
