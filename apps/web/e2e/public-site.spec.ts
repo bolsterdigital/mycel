@@ -1308,6 +1308,7 @@ test.describe('site-settings', () => {
     const principal = systemPrincipal(tenantId, 'e2e');
     const filename = `default-${Date.now()}.png`;
     await login(page, `/admin/${slug}/media`, `site-editor-${slug}@probe.test`);
+    await page.getByRole('button', { name: 'Upload file', exact: true }).click();
     await page.getByLabel('Files (required)', { exact: true }).setInputFiles({
       name: filename,
       mimeType: 'image/png',
