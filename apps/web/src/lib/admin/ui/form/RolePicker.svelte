@@ -32,7 +32,7 @@
 
   const t = $derived(ui(locale));
   const roleOptions = $derived(
-    roles.map((r) => ({ value: r, label: t(`admin.role.${r}` as UiKey) }))
+    roles.map((r) => ({ value: r, label: t(`admin.role.${r}` as const) }))
   );
   const parts = (capability: string) => capability.split(':');
 </script>

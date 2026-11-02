@@ -5,6 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { en } from './en.js';
+import { refusalCopy, ui } from './index.js';
 import { nl } from './nl.js';
 
 const placeholders = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
@@ -21,5 +22,29 @@ describe('web UI catalogs', () => {
         JSON.stringify(placeholders(en[key as keyof typeof en]))
     );
     expect(differ.map(([key]) => key)).toEqual([]);
+  });
+});
+
+describe('refusalCopy', () => {
+  const t = ui('en');
+
+  it('names what a limit refused, so no placeholder reaches the operator', () => {
+    const copy = refusalCopy(t, {
+      error: 'admin.limit.featureOff',
+      what: 'admin.limit.what.other',
+    });
+    expect(copy).toContain(en['admin.limit.what.other']);
+    expect(copy).not.toContain('{');
+  });
+
+  it('shows a plain refusal as it is, and fills what the page adds', () => {
+    expect(refusalCopy(t, { error: 'admin.error.suspended' })).toBe(en['admin.error.suspended']);
+    expect(
+      refusalCopy(
+        t,
+        { error: 'admin.media.error.inUse.other', what: undefined },
+        { n: 3, filename: 'a.jpg' }
+      )
+    ).not.toContain('{n}');
   });
 });

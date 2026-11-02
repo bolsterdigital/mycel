@@ -16,6 +16,21 @@ export const FALLBACK_LANG = 'en';
 /** The UI language of this request. */
 export const langOf = (locals: { lang?: string }): string => locals.lang ?? FALLBACK_LANG;
 
+/**
+ * A refusal a route handed its page (`failureOf`) in words. A limit names what it refused, so the
+ * key has a `{what}` that is filled here and not by each page. The key crossed a form result, so
+ * the type cannot prove it: this is the one cast for that. Rejected: a typed `form` per page
+ * (SvelteKit widens the union of a page's actions, and half of them end in `unknown`).
+ */
+export function refusalCopy(
+  t: (key: UiKey) => string,
+  failed: { error?: unknown; what?: unknown },
+  vars: Record<string, string | number> = {}
+): string {
+  const named = typeof failed.what === 'string' ? { what: t(failed.what as UiKey), ...vars } : vars;
+  return fill(t(failed.error as UiKey), named);
+}
+
 /** Fills `{name}` placeholders: `fill(t('admin.signedInAs'), { email })`. */
 export function fill(text: string, vars: Record<string, string | number>): string {
   return text.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));

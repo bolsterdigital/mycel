@@ -16,7 +16,6 @@ import { loaded, text } from '#lib/server/admin/admin-actions.js';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { uploadFile } from '#lib/server/admin/media-choices.js';
 import { runtime } from '#lib/server/runtime.js';
-import type { UiKey } from '../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ parent, locals, url }) => {
@@ -49,7 +48,7 @@ export const actions: Actions = {
     const data = await request.formData();
     const files = data.getAll('file').filter((f): f is File => f instanceof File && f.size > 0);
     if (files.length === 0)
-      return fail(400, { action: 'upload', error: 'admin.media.error.noFile' as UiKey });
+      return fail(400, { action: 'upload', error: 'admin.media.error.noFile' as const });
     const access = text(data, 'access') === 'restricted' ? 'restricted' : 'public';
     // One at a time: each upload takes the tenant's media lock for the storage cap anyway.
     const outcomes = [];
@@ -69,9 +68,10 @@ export const actions: Actions = {
       });
     return {
       action: 'upload',
-      done: (uploaded.length === 1
-        ? 'admin.media.done.uploaded'
-        : 'admin.media.done.uploadedMany') as UiKey,
+      done:
+        uploaded.length === 1
+          ? ('admin.media.done.uploaded' as const)
+          : ('admin.media.done.uploadedMany' as const),
       filename: uploaded[0]!.label,
       n: uploaded.length,
       id: uploaded.length === 1 ? uploaded[0]!.id : undefined,

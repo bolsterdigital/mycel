@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ui, type UiKey } from '../../../../../../../i18n/index.js';
+  import { ui } from '../../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
   let { data, form }: PageProps = $props();
   const t = $derived(ui(data.adminLocale));
@@ -14,7 +14,7 @@
   <h1>{data.task === 'alt' ? t('admin.assist.alt') : t('admin.assist.translate')}</h1>
   <p>{t('admin.assist.source')} ({data.task === 'alt' ? data.locale : data.from})</p>
   <blockquote>{data.source}</blockquote>
-  {#if form?.problem}<p role="alert">{t(`admin.assist.error.${form.problem}` as UiKey)}</p>{/if}
+  {#if form?.problem}<p role="alert">{t(`admin.assist.error.${form.problem}` as const)}</p>{/if}
   {#if data.stale || form?.problem === 'conflict'}
     <p role="alert">{t('admin.assist.stale')}</p>
   {/if}

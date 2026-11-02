@@ -20,7 +20,7 @@
   } from '#lib/admin/ui/index.js';
   import { formatBytes } from '#lib/admin/format.js';
   import { THUMB, thumbPath } from '#lib/admin/ui/thumb.js';
-  import { fill, ui, type UiKey } from '../../../../../i18n/index.js';
+  import { fill, ui, refusalCopy } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -29,13 +29,12 @@
   const size = (n: number) => formatBytes(n, data.locale);
 
   const failed = $derived(form && 'error' in form ? form : null);
-  const done = $derived(form && 'done' in form ? form : null);
+  const done = $derived(form && 'done' in form && form.done ? form : null);
   const filenameOf = (f: Record<string, unknown>) =>
     typeof f.filename === 'string' ? f.filename : '';
   const failure = $derived(
     failed
-      ? fill(t(failed.error as UiKey), {
-          what: 'what' in failed && failed.what ? t(failed.what as UiKey) : '',
+      ? refusalCopy(t, failed, {
           filename: filenameOf(failed),
           max: size(data.maxUploadBytes),
         })
@@ -46,8 +45,7 @@
       ? (f.refused as { filename: string; error: string; what?: string }[])
       : [];
   const refusal = (r: { filename: string; error: string; what?: string }) =>
-    `${r.filename}: ${fill(t(r.error as UiKey), {
-      what: r.what ? t(r.what as UiKey) : '',
+    `${r.filename}: ${refusalCopy(t, r, {
       filename: r.filename,
       max: size(data.maxUploadBytes),
     })}`;
@@ -119,7 +117,7 @@
     {#if done}
       <Notice tone="success">
         <p>
-          {fill(t(done.done as UiKey), {
+          {fill(t(done.done), {
             filename: filenameOf(done),
             n: 'n' in done ? String(done.n) : '',
           })}

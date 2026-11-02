@@ -9,7 +9,6 @@ import { Capability, Role, useCases } from '@mycel/core';
 import { act, loaded, text } from '#lib/server/admin/admin-actions.js';
 import { postedCapabilities } from '#lib/server/admin/roles.js';
 import { runtime } from '#lib/server/runtime.js';
-import type { UiKey } from '../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ parent, locals }) => {
@@ -31,7 +30,7 @@ export const actions: Actions = {
         email: text(data, 'email'),
         capabilities: postedCapabilities(data) as Capability[],
       });
-      return { action: 'invite', done: 'admin.done.invited' as UiKey, email: member.email };
+      return { action: 'invite', done: 'admin.done.invited' as const, email: member.email };
     }),
   update: (event) =>
     act(event, 'update', { conflict: 'admin.error.lastAdmin' }, async (principal, data) => {
@@ -39,13 +38,13 @@ export const actions: Actions = {
         operatorId: text(data, 'operatorId'),
         capabilities: postedCapabilities(data) as Capability[],
       });
-      return { action: 'update', done: 'admin.done.updated' as UiKey, revokedKeys: r.revokedKeys };
+      return { action: 'update', done: 'admin.done.updated' as const, revokedKeys: r.revokedKeys };
     }),
   remove: (event) =>
     act(event, 'remove', { conflict: 'admin.error.lastAdmin' }, async (principal, data) => {
       const r = await runtime().invoker.run(useCases.removeMember, principal, {
         operatorId: text(data, 'operatorId'),
       });
-      return { action: 'remove', done: 'admin.done.removed' as UiKey, revokedKeys: r.revokedKeys };
+      return { action: 'remove', done: 'admin.done.removed' as const, revokedKeys: r.revokedKeys };
     }),
 };

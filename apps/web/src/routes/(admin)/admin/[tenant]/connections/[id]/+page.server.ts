@@ -51,7 +51,7 @@ export const actions: Actions = {
             .filter(Boolean),
         },
       });
-      return { action: 'update', done: 'admin.connections.done.saved' };
+      return { action: 'update', done: 'admin.connections.done.saved' as const };
     }),
   credential: (event) =>
     act(event, 'credential', copy, async (principal, data) => {
@@ -60,7 +60,7 @@ export const actions: Actions = {
         baseVersion: version(data),
         secret: text(data, 'secret'),
       });
-      return { action: 'credential', done: 'admin.connections.done.credential' };
+      return { action: 'credential', done: 'admin.connections.done.credential' as const };
     }),
   pause: (event) =>
     act(event, 'pause', copy, async (principal, data) => {
@@ -68,7 +68,7 @@ export const actions: Actions = {
         id: event.params.id,
         baseVersion: version(data),
       });
-      return { action: 'pause', done: 'admin.connections.done.paused' };
+      return { action: 'pause', done: 'admin.connections.done.paused' as const };
     }),
   resume: (event) =>
     act(event, 'resume', copy, async (principal, data) => {
@@ -76,7 +76,7 @@ export const actions: Actions = {
         id: event.params.id,
         baseVersion: version(data),
       });
-      return { action: 'resume', done: 'admin.connections.done.resumed' };
+      return { action: 'resume', done: 'admin.connections.done.resumed' as const };
     }),
   disconnect: (event) =>
     act(event, 'disconnect', copy, async (principal, data) => {
@@ -89,25 +89,25 @@ export const actions: Actions = {
         id: event.params.id,
         baseVersion: version(data),
       });
-      return { action: 'disconnect', done: 'admin.connections.done.disconnected' };
+      return { action: 'disconnect', done: 'admin.connections.done.disconnected' as const };
     }),
   test: (event) =>
     act(event, 'test', copy, async (principal, data) => {
       await runtime().invoker.run(useCases.testConnection, principal, { id: event.params.id });
-      return { action: 'test', done: 'admin.connections.done.test' };
+      return { action: 'test', done: 'admin.connections.done.test' as const };
     }),
   replay: (event) =>
     act(event, 'replay', copy, async (principal, data) => {
       await runtime().invoker.run(useCases.replayConnectionIntent, principal, {
         id: text(data, 'id'),
       });
-      return { action: 'replay', done: 'admin.connections.done.replay' };
+      return { action: 'replay', done: 'admin.connections.done.replay' as const };
     }),
   resolve: (event) =>
     act(event, 'resolve', copy, async (principal, data) => {
       await runtime().invoker.run(useCases.resolveConnectionIntent, principal, {
         id: text(data, 'id'),
       });
-      return { action: 'resolve', done: 'admin.connections.done.resolve' };
+      return { action: 'resolve', done: 'admin.connections.done.resolve' as const };
     }),
 };

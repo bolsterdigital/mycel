@@ -65,7 +65,7 @@ export function blockReference(): string {
   ];
   for (const type of BLOCK_TYPES) {
     const d = BLOCK_DEFINITIONS[type];
-    out.push(`## \`${type}\` (${en[`admin.block.type.${type}` as UiKey]})`, '');
+    out.push(`## \`${type}\` (${en[`admin.block.type.${type}` as const]})`, '');
     out.push(`Version ${d.version}.`, '');
     if (d.fields.length) {
       out.push('| Prop | Label | Kind | Presence |', '| --- | --- | --- | --- |');

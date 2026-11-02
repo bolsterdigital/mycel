@@ -19,7 +19,7 @@
   } from '#lib/admin/ui/index.js';
   import { formatWhen } from '#lib/admin/format.js';
   import { STAND_TONE, lastActivity, standOf } from '#lib/admin/connection-stand.js';
-  import { ui, type UiKey } from '../../../../../i18n/index.js';
+  import { ui, type UiKey, refusalCopy } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -74,7 +74,7 @@
   {#snippet notices()}
     {#if failed}
       <Notice tone="error" title={t('error.summary.title')}>
-        <p>{t(failed.error as UiKey)}</p>
+        <p>{refusalCopy(t, failed)}</p>
       </Notice>
     {/if}
   {/snippet}
@@ -105,7 +105,7 @@
           <td data-label={t('admin.connections.provider')}>{provider(row.connection.provider)}</td>
           <td data-label={t('admin.connections.col.stand')}
             ><Badge tone={STAND_TONE[row.stand]}
-              >{t(`admin.connections.stand.${row.stand}` as UiKey)}</Badge
+              >{t(`admin.connections.stand.${row.stand}` as const)}</Badge
             ></td
           >
           <td data-label={t('admin.connections.col.last')}>

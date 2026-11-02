@@ -22,7 +22,7 @@
   import { page } from '$app/state';
   import { formatWhen } from '#lib/admin/format.js';
   import { STAND_TONE, standOf } from '#lib/admin/connection-stand.js';
-  import { ui, type UiKey } from '../../../../../../i18n/index.js';
+  import { ui, refusalCopy } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -33,7 +33,7 @@
     data.capabilities.includes(capability as (typeof data.capabilities)[number]) ||
     data.capabilities.includes('tenant:admin');
   const failed = $derived(form && 'error' in form ? form : null);
-  const done = $derived(form && 'done' in form ? form : null);
+  const done = $derived(form && 'done' in form && form.done ? form : null);
   const confirming = $derived(form && 'confirm' in form ? form.confirm : null);
   const created = $derived(!form && page.url.searchParams.has('created'));
 
@@ -50,7 +50,7 @@
   const facts = $derived([
     {
       term: t('admin.connections.provider'),
-      value: t(`admin.connections.provider.${c.provider}` as UiKey),
+      value: t(`admin.connections.provider.${c.provider}` as const),
     },
     { term: t('admin.connections.owner'), value: c.externalOwner },
     { term: t('admin.connections.maintainer'), value: c.maintainer },
@@ -74,14 +74,14 @@
     ]}
   />
   <p>
-    <Badge tone={STAND_TONE[stand]}>{t(`admin.connections.stand.${stand}` as UiKey)}</Badge>
+    <Badge tone={STAND_TONE[stand]}>{t(`admin.connections.stand.${stand}` as const)}</Badge>
   </p>
 
   {#if failed}
-    <Notice tone="error" title={t('error.summary.title')}><p>{t(failed.error as UiKey)}</p></Notice>
+    <Notice tone="error" title={t('error.summary.title')}><p>{refusalCopy(t, failed)}</p></Notice>
   {/if}
   {#if done}
-    <Notice tone="success"><p>{t(done.done as UiKey)}</p></Notice>
+    <Notice tone="success"><p>{t(done.done)}</p></Notice>
   {/if}
   {#if created}
     <Notice tone="success"><p>{t('admin.connections.created')}</p></Notice>
@@ -155,7 +155,7 @@
                 ><time datetime={at.iso} title={at.full}>{at.text}</time></td
               >
               <td data-label={t('admin.connections.attempts.outcome')}>
-                {t(`admin.connections.delivery.${intent.state}` as UiKey)}{intent.failure
+                {t(`admin.connections.delivery.${intent.state}` as const)}{intent.failure
                   ? ` · ${intent.failure}`
                   : ''}
                 {#if intent.operatorAction === 'resolve'}
@@ -165,7 +165,7 @@
               <td data-label={t('admin.connections.attempts.copy')}
                 >{intent.externalCopyAction === null
                   ? t('admin.connections.synthetic')
-                  : t(`admin.connections.copy.${intent.externalCopyAction}` as UiKey)}</td
+                  : t(`admin.connections.copy.${intent.externalCopyAction}` as const)}</td
               >
               <td data-label={t('admin.connections.attempts.tries')} class="numeric"
                 >{intent.attempts}</td
@@ -175,7 +175,7 @@
                   <form method="post" action="?/{intent.operatorAction}">
                     <input type="hidden" name="id" value={intent.id} />
                     <Button variant="secondary"
-                      >{t(`admin.connections.${intent.operatorAction}` as UiKey)}</Button
+                      >{t(`admin.connections.${intent.operatorAction}` as const)}</Button
                     >
                   </form>
                 {/if}

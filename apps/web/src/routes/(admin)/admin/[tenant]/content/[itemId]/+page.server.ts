@@ -724,9 +724,9 @@ async function commit(
         failure: await refused(tenant, principal, itemId, saved, pending, {
           ...body,
           ...(onFields.length
-            ? { error: 'admin.content.error.invalid' as UiKey }
+            ? { error: 'admin.content.error.invalid' as const }
             : onBlocks.length
-              ? { error: 'admin.block.error.invalid' as UiKey }
+              ? { error: 'admin.block.error.invalid' as const }
               : {}),
           fieldIssues: [
             ...onFields.map((i) => ({ name: i.name, copy: ISSUES[i.message] ?? body.error })),
@@ -971,7 +971,7 @@ export const actions: Actions = {
     const stale =
       item.latestRevisionId !== baseRevisionId ||
       (baseSlug !== undefined && baseSlug !== item.slug);
-    const recovered = { error: 'admin.content.recovered.body' as UiKey, recovered: true };
+    const recovered = { error: 'admin.content.recovered.body' as const, recovered: true };
     if (!stale) return (await refused(tenant, principal, itemId, values, null, recovered)).data;
     const { zone } = await adminTimeZone(event.locals);
     const conflict = await conflictOf(principal, itemId, baseRevisionId, zone, baseSlug);

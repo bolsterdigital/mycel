@@ -5,6 +5,18 @@
   "locale-fallback": {},
   "english-default": {},
   "uuid-regex": {},
+  "ui-key-cast": {
+    "apps/web/src/i18n/index.ts": 2,
+    "apps/web/src/lib/admin/BlockFields.svelte": 4,
+    "apps/web/src/lib/admin/Inherited.svelte": 1,
+    "apps/web/src/lib/admin/ui/form/RolePicker.svelte": 1,
+    "apps/web/src/lib/editor/block-docs.ts": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/connections/+page.svelte": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/+page.svelte": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.svelte": 9,
+    "apps/web/src/routes/(admin)/admin/[tenant]/site/+page.svelte": 1,
+    "apps/web/src/routes/(admin)/admin/[tenant]/status/+page.svelte": 3
+  },
   "viewport-height": {},
   "public-box-shadow": {},
   "admin-script-tag": {

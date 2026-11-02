@@ -16,7 +16,7 @@
     Notice,
   } from '#lib/admin/ui/index.js';
   import { formatBytes } from '#lib/admin/format.js';
-  import { fill, ui, type UiKey } from '../../../../../../i18n/index.js';
+  import { fill, ui, refusalCopy } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -27,21 +27,16 @@
   const pct = (v: number) => Math.round(v * 100);
 
   const failed = $derived(form && 'error' in form ? form : null);
-  const done = $derived(form && 'done' in form ? form : null);
+  const done = $derived(form && 'done' in form && form.done ? form : null);
   const failure = $derived.by(() => {
     if (!failed) return '';
     const n = 'n' in failed ? Number(failed.n) : 0;
     // One key per plural form; the server names the "other" form.
-    const key = (
+    const error =
       n === 1 && failed.error === 'admin.media.error.inUse.other'
         ? 'admin.media.error.inUse.one'
-        : failed.error
-    ) as UiKey;
-    return fill(t(key), {
-      what: 'what' in failed && failed.what ? t(failed.what as UiKey) : '',
-      n,
-      filename: m.filename,
-    });
+        : failed.error;
+    return refusalCopy(t, { ...failed, error }, { n, filename: m.filename });
   });
   const titleOf = (item: { title: Record<string, string>; def: string }) =>
     pickAny(item.title, data.locale, item.def) ?? '';
@@ -110,7 +105,7 @@
     {/if}
     {#if done}
       <Notice tone="success">
-        <p>{fill(t(done.done as UiKey), { filename: m.filename })}</p>
+        <p>{fill(t(done.done), { filename: m.filename })}</p>
       </Notice>
     {/if}
   {/snippet}

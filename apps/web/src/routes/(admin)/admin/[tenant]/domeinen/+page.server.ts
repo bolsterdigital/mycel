@@ -12,7 +12,6 @@ import { act, text } from '#lib/server/admin/admin-actions.js';
 import { pastedHostname } from '#lib/server/admin/hostname.js';
 import { domainEntries, mainDomainNames } from '#lib/admin/domain-pairs.js';
 import { runtime } from '#lib/server/runtime.js';
-import type { UiKey } from '../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ parent, locals }) => {
@@ -39,7 +38,7 @@ export const actions: Actions = {
           const added = await add(principal, typed);
           return {
             action: 'addHostname',
-            done: 'admin.domains.done.added' as UiKey,
+            done: 'admin.domains.done.added' as const,
             hostname: added,
           };
         }
@@ -57,7 +56,7 @@ export const actions: Actions = {
         }
         return {
           action: 'addHostname',
-          done: 'admin.domains.done.addedPair' as UiKey,
+          done: 'admin.domains.done.addedPair' as const,
           hostname: added,
         };
       },
@@ -95,7 +94,7 @@ export const actions: Actions = {
         rt.sites.invalidate();
         return {
           action: 'setPrimaryHostname',
-          done: 'admin.domains.done.primary' as UiKey,
+          done: 'admin.domains.done.primary' as const,
           hostname: h.hostname,
         };
       }
@@ -117,7 +116,7 @@ export const actions: Actions = {
         }
         return {
           action: 'removeHostname',
-          done: 'admin.domains.done.removed' as UiKey,
+          done: 'admin.domains.done.removed' as const,
           hostname: removed.join(', '),
         };
       }

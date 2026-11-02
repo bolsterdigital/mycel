@@ -30,7 +30,7 @@
     Notice,
     PageHeader,
   } from '#lib/admin/ui/index.js';
-  import { fill, ui, type UiKey } from '../../../../../i18n/index.js';
+  import { fill, ui, refusalCopy } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -38,7 +38,7 @@
 
   const when = (iso: string | null) => (iso ? `${iso.slice(0, 16).replace('T', ' ')} UTC` : null);
   const failed = $derived(form && 'error' in form ? form : null);
-  const done = $derived(form && 'done' in form ? form : null);
+  const done = $derived(form && 'done' in form && form.done ? form : null);
   const verifies = $derived(form && 'verifies' in form ? form.verifies : []);
   type Entry = (typeof data.entries)[number];
   type Name = Extract<Entry, { kind: 'single' }>['hostname'];
@@ -63,15 +63,13 @@
   {#if failed}
     <Notice tone="error" title={t('error.summary.title')}>
       <p>
-        {'what' in failed && failed.what
-          ? fill(t(failed.error as UiKey), { what: t(failed.what as UiKey) })
-          : t(failed.error as UiKey)}
+        {refusalCopy(t, failed)}
       </p>
     </Notice>
   {/if}
   {#if done}
     <Notice tone="success">
-      <p>{fill(t(done.done as UiKey), vars(done))}</p>
+      <p>{fill(t(done.done), vars(done))}</p>
     </Notice>
   {/if}
   {#each verifies as verify (verify.hostname)}

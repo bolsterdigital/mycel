@@ -29,7 +29,7 @@
   } from '#lib/admin/ui/index.js';
   import { formatWhen } from '#lib/admin/format.js';
   import { actorLabel, operationKey, resultKey } from '#lib/admin/audit-words.js';
-  import { fill, ui, type UiKey } from '../../../../../i18n/index.js';
+  import { fill, ui, type UiKey, refusalCopy } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
@@ -38,7 +38,7 @@
   const status = $derived(data.status);
 
   const failed = $derived(form && 'error' in form ? form : null);
-  const done = $derived(form && 'done' in form ? form : null);
+  const done = $derived(form && 'done' in form && form.done ? form : null);
 
   const now = $derived(new Date(status.verdict.checkedAt));
   const when = (iso: string) =>
@@ -68,7 +68,7 @@
   const attention = $derived(
     status.verdict.attention.map(({ kind, count: n }) => ({
       label: count(`admin.status.attention.${kind}`, n),
-      action: t(`admin.status.attention.${kind}.action` as UiKey),
+      action: t(`admin.status.attention.${kind}.action` as const),
       href: ANCHOR[kind],
     }))
   );
@@ -163,10 +163,10 @@
   />
 
   {#if failed}
-    <Notice tone="error" title={t('error.summary.title')}><p>{t(failed.error as UiKey)}</p></Notice>
+    <Notice tone="error" title={t('error.summary.title')}><p>{refusalCopy(t, failed)}</p></Notice>
   {/if}
   {#if done}
-    <Notice tone="success"><p>{t(done.done as UiKey)}</p></Notice>
+    <Notice tone="success"><p>{t(done.done)}</p></Notice>
   {/if}
 
   <div class="status-live" data-status-live data-unknown={t('admin.status.verdict.unknown')}>

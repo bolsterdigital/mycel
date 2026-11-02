@@ -18,7 +18,6 @@ import { redirect } from '@sveltejs/kit';
 import { act, loaded, text } from '#lib/server/admin/admin-actions.js';
 import { ORIGINAL_TTL_MS, signedOriginalPath } from '#lib/server/media.js';
 import { runtime } from '#lib/server/runtime.js';
-import type { UiKey } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
 import { refuse } from '#lib/server/http/refuse.js';
 
@@ -122,7 +121,7 @@ export const actions: Actions = {
         });
         return {
           action: 'update',
-          done: 'admin.media.done.updated' as UiKey,
+          done: 'admin.media.done.updated' as const,
           filename: m.filename,
         };
       }

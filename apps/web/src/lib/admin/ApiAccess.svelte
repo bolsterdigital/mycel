@@ -19,7 +19,7 @@
     RolePicker,
     SettingsSection,
   } from '#lib/admin/ui/index.js';
-  import { fill, ui, type UiKey } from '../../i18n/index.js';
+  import { fill, ui, refusalCopy } from '../../i18n/index.js';
 
   let {
     keys,
@@ -49,9 +49,7 @@
 {#if failed}
   <Notice tone="error" title={t('error.summary.title')}>
     <p>
-      {typeof failed.what === 'string'
-        ? fill(t(failed.error as UiKey), { what: t(failed.what as UiKey) })
-        : t(failed.error as UiKey)}
+      {refusalCopy(t, failed)}
     </p>
   </Notice>
 {/if}
@@ -116,7 +114,7 @@
               <dd>
                 {key.role === 'custom'
                   ? fill(t('admin.role.customSet'), { list: key.capabilities.join(', ') })
-                  : t(`admin.role.${key.role}` as UiKey)}
+                  : t(`admin.role.${key.role}` as const)}
               </dd>
             </div>
             <div>
