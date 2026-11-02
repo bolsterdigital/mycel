@@ -2,14 +2,13 @@
 // filename or caption, for `static/_admin/media-picker.js`. The picker works without it; the
 // server-rendered grid is the no-script path. Same use case and authorization as the media page.
 import { json } from '@sveltejs/kit';
-import { UseCaseError, useCases } from '@mycel/core';
+import { isUuid, UseCaseError, useCases } from '@mycel/core';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { mediaChoice } from '#lib/server/admin/media-choices.js';
 import { PRIVATE_NO_STORE } from '#lib/server/http/http-cache.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { RequestHandler } from './$types';
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const PAGE = 48;
 
 export const GET: RequestHandler = async ({ locals, url, params }) => {
@@ -20,7 +19,7 @@ export const GET: RequestHandler = async ({ locals, url, params }) => {
     const list = await runtime().invoker.run(useCases.listMedia, principal, {
       kind: 'image',
       q,
-      cursor: UUID.test(cursor) ? cursor : undefined,
+      cursor: isUuid(cursor) ? cursor : undefined,
       limit: PAGE,
     });
     return json(

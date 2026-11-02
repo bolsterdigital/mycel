@@ -49,6 +49,7 @@ export * from './theme/service.js';
 export * from './theme/settings.js';
 export * from './theme/assets.js';
 export * from './util/page-size.js';
+export { isUuid } from './util/ids.js';
 export * from './forms/model.js';
 export * from './forms/ports.js';
 export * from './forms/events.js';

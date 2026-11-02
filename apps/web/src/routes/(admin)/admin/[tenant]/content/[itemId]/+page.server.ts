@@ -43,6 +43,8 @@ import {
   type Section,
   type TenantInfo,
   MAX_PAGE_SIZE,
+  isUuid,
+  pickAny,
 } from '@mycel/core';
 import { formValues, posted, type Posted } from '#lib/editor/block-form.js';
 import { failureOf, text } from '#lib/server/admin/admin-actions.js';
@@ -91,10 +93,8 @@ import {
 } from '#lib/server/edit-form.js';
 import { runtime } from '#lib/server/runtime.js';
 import { adminSiteUrls } from '#lib/server/site.js';
-import { ui, type UiKey } from '../../../../../../i18n/index.js';
+import { langOf, ui, type UiKey } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** A lookup's result, or `null` when it is not there (any other error stays an error). */
 async function orNull<T>(run: Promise<T>): Promise<T | null> {
@@ -108,7 +108,7 @@ async function orNull<T>(run: Promise<T>): Promise<T | null> {
 
 /** The item with its latest revision, or a 404 for an unknown id or another site's. */
 async function latest(principal: Principal, itemId: string) {
-  if (!UUID.test(itemId)) error(404, 'Not found');
+  if (!isUuid(itemId)) error(404, 'Not found');
   try {
     return await runtime().invoker.run(useCases.getItem, principal, { itemId });
   } catch (e) {
@@ -129,7 +129,7 @@ async function relationshipChoices(
   const author = (a: { id: string; name: string }) => ({ id: a.id, name: a.name });
   const section = (s: Section) => ({
     id: s.id,
-    title: s.title[defaultLocale] ?? Object.values(s.title)[0] ?? s.slug,
+    title: pickAny(s.title, defaultLocale) ?? s.slug,
   });
   const [authors, sections] = article
     ? await Promise.all([
@@ -138,7 +138,7 @@ async function relationshipChoices(
             authorIds,
             authors.map(author),
             async (authorId) => {
-              const a = UUID.test(authorId)
+              const a = isUuid(authorId)
                 ? await orNull(invoker.run(useCases.getAuthor, principal, { authorId }))
                 : null;
               return a && author(a);
@@ -153,7 +153,7 @@ async function relationshipChoices(
               sectionId ? [sectionId] : [],
               sections.map(section),
               async (sectionId) => {
-                const s = UUID.test(sectionId)
+                const s = isUuid(sectionId)
                   ? await orNull(invoker.run(useCases.getSection, principal, { sectionId }))
                   : null;
                 return s && section(s);
@@ -447,7 +447,7 @@ function instant(at: string, zone: string): string {
 }
 
 /** The operator's admin language; the admin hook always sets it, English only as a last resort. */
-const adminUi = (locals: App.Locals) => ui(locals.lang ?? 'en');
+const adminUi = (locals: App.Locals) => ui(langOf(locals));
 
 /** Core's issue keys on a save, as admin copy; anything else is the generic invalid message. */
 const ISSUES: Record<string, UiKey> = {
@@ -980,7 +980,7 @@ export const actions: Actions = {
     const values = valuesFromForm(data);
     const baseRevisionId = text(data, 'baseRevisionId');
     // Not a revision id: nothing to compare it with, so the item opens as it is.
-    if (!UUID.test(baseRevisionId)) redirect(303, itemPath(tenant.slug, itemId, null));
+    if (!isUuid(baseRevisionId)) redirect(303, itemPath(tenant.slug, itemId, null));
     const baseSlug = data.has('baseSlug') ? text(data, 'baseSlug') : undefined;
     const stale =
       item.latestRevisionId !== baseRevisionId ||

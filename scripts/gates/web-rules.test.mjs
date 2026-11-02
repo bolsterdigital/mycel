@@ -58,17 +58,17 @@ export const RULES = {
     WEB,
   ],
   'locale-fallback': [
-    'a localised value picked by hand (use pick from @mycel/core)',
+    'a localised value picked by hand (use pick or pickAny from @mycel/core)',
     /Object\.values\([^()]*\)\s*(?:\[0\]|\.find\()/g,
     WEB,
   ],
   'english-default': [
-    'a fallback to English written by hand (one lang() helper)',
+    'a fallback to English written by hand (use langOf from i18n)',
     /\?\?\s*['"]en['"]/g,
     WEB,
   ],
   'uuid-regex': [
-    'a UUID pattern written by hand (one matcher in src/params/)',
+    'a UUID pattern written by hand (use isUuid from @mycel/core)',
     /\[0-9a-f\]\{8\}/gi,
     WEB,
   ],

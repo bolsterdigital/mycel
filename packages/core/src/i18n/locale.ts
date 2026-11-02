@@ -23,6 +23,19 @@ export function pick<T>(value: Localized<T>, locale: string, fallback: string): 
 }
 
 /**
+ * The value in the first of `locales` that has one, else in any locale at all: a screen that must
+ * name a thing shows what there is. Rejected: a fallback written at each call site, which had
+ * grown to eleven copies with different orders.
+ */
+export function pickAny<T>(value: Localized<T>, ...locales: string[]): T | undefined {
+  for (const locale of locales) {
+    const found = value[locale];
+    if (found !== undefined && found !== null) return found;
+  }
+  return Object.values(value).find((found) => found !== undefined && found !== null);
+}
+
+/**
  * Picks the best of `available` for an `Accept-Language` header. Primary-tag match is enough for
  * now (`nl-BE` gets `nl`); quality values are honoured, everything else falls back.
  */

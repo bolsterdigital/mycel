@@ -3,6 +3,7 @@
      title when left empty, the languages and a pattern. The type comes from the menu item the
      editor came from. One native form; a failed post comes back with what was typed. -->
 <script lang="ts">
+  import { pickAny } from '@mycel/core';
   import { Choices, Field, Fieldset, FormPage, Notice } from '#lib/admin/ui/index.js';
   import { ui, type UiKey } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
@@ -24,7 +25,7 @@
     values ? ((values.locales as string[] | undefined) ?? []) : data.tenant.locales
   );
   const name = (p: { name: Partial<Record<string, string>> }) =>
-    p.name[data.locale] ?? p.name[data.tenant.defaultLocale] ?? Object.values(p.name)[0] ?? '';
+    pickAny(p.name, data.locale, data.tenant.defaultLocale) ?? '';
 </script>
 
 <svelte:head>

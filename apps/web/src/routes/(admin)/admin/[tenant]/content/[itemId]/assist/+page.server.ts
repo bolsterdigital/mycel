@@ -6,7 +6,7 @@ import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { contentLocale } from '#lib/server/content-locale.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { Actions, PageServerLoad } from './$types';
-import { ui } from '../../../../../../../i18n/index.js';
+import { langOf, ui } from '../../../../../../../i18n/index.js';
 
 const read = async <T>(locals: App.Locals, query: () => Promise<T>): Promise<T> => {
   try {
@@ -16,7 +16,7 @@ const read = async <T>(locals: App.Locals, query: () => Promise<T>): Promise<T> 
     const { status, problem } = failure(e);
     error(
       status,
-      ui(locals.lang ?? 'en')(
+      ui(langOf(locals))(
         e.code === 'not_found' ? 'admin.assist.error.not_found' : `admin.assist.error.${problem}`
       )
     );
@@ -34,7 +34,7 @@ const context = async (event: {
     event.url,
     event.params.tenant
   );
-  const t = ui(event.locals.lang ?? 'en');
+  const t = ui(langOf(event.locals));
   if (!can(principal, 'ai:assist') || !can(principal, 'content:write'))
     error(403, t('admin.assist.error.forbidden'));
   const rt = runtime();
@@ -139,7 +139,7 @@ export const load: PageServerLoad = async (event) => {
       )
     : null;
   if (suggestion && !matches(c, suggestion))
-    error(404, ui(event.locals.lang ?? 'en')('admin.assist.error.not_found'));
+    error(404, ui(langOf(event.locals))('admin.assist.error.not_found'));
   const translated =
     suggestion?.value && c.task === 'translate'
       ? (() => {
@@ -208,7 +208,7 @@ export const actions: Actions = {
       })
     );
     if (!matches(c, suggestion))
-      error(404, ui(event.locals.lang ?? 'en')('admin.assist.error.not_found'));
+      error(404, ui(langOf(event.locals))('admin.assist.error.not_found'));
     const value =
       c.task === 'translate'
         ? JSON.stringify({ values: { [c.target]: field(data, 'value') } })
@@ -240,7 +240,7 @@ export const actions: Actions = {
       })
     );
     if (!matches(c, suggestion))
-      error(404, ui(event.locals.lang ?? 'en')('admin.assist.error.not_found'));
+      error(404, ui(langOf(event.locals))('admin.assist.error.not_found'));
     try {
       await c.rt.invoker.run(useCases.dismissSuggestion, c.principal, { suggestionId });
       redirect(303, urlOf(event.url));

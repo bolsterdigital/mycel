@@ -10,9 +10,9 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { Button, SystemState } from '#lib/admin/ui/index.js';
-  import { fill, ui, type UiKey } from '../../i18n/index.js';
+  import { FALLBACK_LANG, fill, ui, type UiKey } from '../../i18n/index.js';
 
-  const t = $derived(ui(String(page.data['locale'] ?? 'en')));
+  const t = $derived(ui(String(page.data['locale'] ?? FALLBACK_LANG)));
   const email = $derived(String(page.data['email'] ?? ''));
   /** 400, 429 and 503 at the login are about logging in; elsewhere they are not. */
   const atLogin = $derived(/^\/admin\/(login|callback)(\/|$)/.test(page.url.pathname));

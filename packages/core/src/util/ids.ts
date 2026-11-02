@@ -8,6 +8,14 @@ import { z } from 'zod';
 
 export const Uuid = z.string().guid();
 
+/**
+ * Whether a route segment or query value is an id in its one spelling: lowercase, as ids are
+ * stored and linked. Stricter than `Uuid` on purpose, so one thing has one address and a storage
+ * key built from it cannot differ by case.
+ */
+export const isUuid = (value: string): boolean =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value);
+
 /** The made-up id number `n` (hex digits in the last group), e.g. `exampleId(0xd001)`. */
 export const exampleId = (n: number): string =>
   `01900000-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;

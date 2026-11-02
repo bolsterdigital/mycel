@@ -34,7 +34,7 @@ import { saveAssistSettings } from '#lib/server/admin/assist-settings.js';
 import { timeZoneOptions } from '#lib/server/admin/time-zones.js';
 import { mediaChoices } from '#lib/server/content-blocks.js';
 import type { Actions, PageServerLoad } from './$types';
-import { ui, type UiKey } from '../../../../../i18n/index.js';
+import { langOf, ui, type UiKey } from '../../../../../i18n/index.js';
 
 const text = (data: FormData, key: string) => String(data.get(key) ?? '').trim();
 const baseVersion = (data: FormData) => {
@@ -77,7 +77,7 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
       403,
       NEEDS[section] === 'content:write'
         ? 'content:write'
-        : ui(locals.lang ?? 'en')('admin.assist.error.forbidden')
+        : ui(langOf(locals))('admin.assist.error.forbidden')
     );
   const [general, theme, chrome, logo, font] = await Promise.all([
     runtime().invoker.run(useCases.getSiteGeneral, principal, {}),
@@ -97,12 +97,12 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
   const images =
     section === 'brand' ? await runtime().invoker.run(useCases.getSiteImages, principal, {}) : null;
   const chosen = images?.value.defaultImageId;
-  const t = ui(locals.lang ?? 'en');
+  const t = ui(langOf(locals));
   return {
     section,
     subject: t(SUBJECT[section]),
     general,
-    zones: section === 'general' ? timeZoneOptions(locals.lang ?? 'en') : [],
+    zones: section === 'general' ? timeZoneOptions(langOf(locals)) : [],
     theme,
     chrome,
     logo,
@@ -311,7 +311,7 @@ export const actions: Actions = {
   assist: async ({ request, locals, url, params }) => {
     const { principal, tenant } = await requireTenantPrincipal(locals, url, params.tenant);
     if (!can(principal, 'tenant:admin'))
-      error(403, ui(locals.lang ?? 'en')('admin.assist.error.forbidden'));
+      error(403, ui(langOf(locals))('admin.assist.error.forbidden'));
     const data = await request.formData();
     const failure = await saveAssistSettings(runtime().invoker, principal, data);
     if (failure) {

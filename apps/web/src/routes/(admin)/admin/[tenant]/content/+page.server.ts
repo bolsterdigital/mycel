@@ -11,7 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { redirect } from '@sveltejs/kit';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { act } from '#lib/server/admin/admin-actions.js';
-import { ContentType, useCases } from '@mycel/core';
+import { pickAny, ContentType, useCases } from '@mycel/core';
 import { translationState } from '#lib/server/content-locale.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { Actions, PageServerLoad } from './$types';
@@ -42,7 +42,7 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
         return {
           id: i.id,
           slug: i.slug,
-          title: own ?? i.title[i.defaultLocale] ?? Object.values(i.title)[0] ?? '',
+          title: pickAny(i.title, work, i.defaultLocale) ?? '',
           // The title shown is another locale's: it carries that language.
           titleLocale: own ? work : i.title[i.defaultLocale] ? i.defaultLocale : null,
           updated: i.updatedAt,

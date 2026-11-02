@@ -32,6 +32,7 @@ import {
   type Signer,
   type TenantRef,
   type UnitOfWork,
+  isUuid,
 } from '@mycel/core';
 import { NO_STORE, PRIVATE_NO_STORE } from './http/http-cache.js';
 
@@ -44,7 +45,6 @@ export interface MediaDeliveryDeps {
   log?: Logger;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** What a variant file may be called; `original.*` never matches. */
 const FILE = /^(w\d{1,5}|thumb|file)\.(avif|webp|gif|pdf)$/;
 
@@ -71,7 +71,7 @@ export async function serveMedia(
   url: URL,
   ifNoneMatch: string | null = null
 ): Promise<Response> {
-  if (!UUID.test(id) || !FILE.test(file)) return status(404);
+  if (!isUuid(id) || !FILE.test(file)) return status(404);
   const visitor = anonymousPrincipal(tenant, ['media:read']);
   const media = await deps.uow.run(visitor, (ctx) => ctx.media.get(id));
   const variant = media?.variants.find((v) => variantFile(v) === file);
@@ -170,7 +170,7 @@ export async function serveAdminMedia(
   url: URL
 ): Promise<Response> {
   if (!principal || !can(principal, 'media:read')) return status(403, PRIVATE_NO_STORE);
-  if (!UUID.test(id)) return status(404);
+  if (!isUuid(id)) return status(404);
   const original = which === 'original';
   if (!original && !PREVIEW.test(which)) return status(404);
   const media = await deps.uow.run(principal, (ctx) => ctx.media.get(id));

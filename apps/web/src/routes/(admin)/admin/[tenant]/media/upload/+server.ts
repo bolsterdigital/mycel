@@ -8,12 +8,12 @@ import { MAX_UPLOAD_BYTES } from '@mycel/core';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { uploadFile } from '#lib/server/admin/media-choices.js';
 import { formatBytes } from '#lib/admin/format.js';
-import { fill, ui } from '../../../../../../i18n/index.js';
+import { langOf, fill, ui } from '../../../../../../i18n/index.js';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ locals, url, params, request }) => {
   const { principal } = await requireTenantPrincipal(locals, url, params.tenant);
-  const locale = locals.lang ?? 'en';
+  const locale = langOf(locals);
   const t = ui(locale);
   const file = (await request.formData()).get('file');
   if (!(file instanceof File))

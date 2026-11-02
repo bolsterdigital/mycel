@@ -7,7 +7,7 @@
 // the fonts to preload. On a content path the credit's language is the path's locale (brief #8c
 // § 8), so a cached page never depends on Accept-Language; elsewhere (`confirm`) it is negotiated
 // like the page itself.
-import { anonymousPrincipal, entitled, negotiateLocale } from '@mycel/core';
+import { pickAny, anonymousPrincipal, entitled, negotiateLocale } from '@mycel/core';
 import { ui } from '../../i18n/index.js';
 import { localeOf } from '#lib/server/content-route.js';
 import { runtime } from '#lib/server/runtime.js';
@@ -37,11 +37,7 @@ export const load: LayoutServerLoad = async ({ locals, request, params, route, s
   const chrome = await siteChrome(site);
   const brand = await siteBrand(site);
   const link = (item: { label: Record<string, string>; href: string }) => ({
-    label:
-      item.label[locale] ??
-      item.label[site.tenant.defaultLocale] ??
-      Object.values(item.label)[0] ??
-      '',
+    label: pickAny(item.label, locale, site.tenant.defaultLocale) ?? '',
     href: item.href.startsWith('/') ? sitePath(site, item.href) : item.href,
   });
   const publicChrome = {
