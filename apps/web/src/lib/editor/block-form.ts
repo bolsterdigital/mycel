@@ -328,8 +328,9 @@ function reader(form: Posted, errors: FieldError[]): Read {
                 !isEmpty(form.get(n)) &&
                 !n.endsWith('.mode') &&
                 !blankEditor(n, form.get(n)) &&
-                // With an editor on it, the textarea still holds the words it loaded.
-                form.get(`${n}.editor`) === null
+                // An editor that posts a document overrides its textarea, which still holds the
+                // words it loaded. An untouched editor posts nothing: the textarea is the value.
+                isEmpty(form.get(`${n}.editor`))
             );
           if (!typed && !elsewhere(field.fields, before[i], row)) continue;
           out.push(groupFrom(field.fields, asRecord(before[i]), row, read));

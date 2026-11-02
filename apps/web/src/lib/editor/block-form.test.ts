@@ -102,6 +102,24 @@ describe('block forms', () => {
       expect(answers(props)).toHaveLength(answers(faq.props).length - 1);
     });
 
+    it('keeps a row whose question is cleared while its editors are untouched, for core to refuse', () => {
+      const typed = formValues(faq.fields, faq.props, LOCALES);
+      const values = {
+        ...typed,
+        'p.entries.1.question.nl': '',
+        'p.entries.1.question.en': '',
+        // An untouched editor posts nothing: its textarea holds the only copy of the answer.
+        'p.entries.1.answer.nl.editor': '',
+        'p.entries.1.answer.en.editor': '',
+      };
+      const { props, errors } = propsFromForm(faq.fields, postedValues(values), faq.props);
+      expect(errors).toEqual([]);
+      expect(answers(props)).toEqual(answers(faq.props));
+      expect(
+        Block.safeParse({ id: 'x', type: 'faq', version: 2, props }).error?.issues[0]?.message
+      ).toBe('i18n.localized.empty');
+    });
+
     it('reads a blank document of an old revision as nothing typed, and a save removes it', () => {
       const rich = examples.find((e) => e.name === 'rich-text')!;
       const old = { content: { nl: (rich.props['content'] as { nl: unknown }).nl, en: blank } };

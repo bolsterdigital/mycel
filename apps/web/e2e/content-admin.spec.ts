@@ -2745,6 +2745,43 @@ test.describe('content-blocks', () => {
     await expectNoAxeViolations(page);
   });
 
+  test('a question cleared above an untouched answer is refused, and the answer stays', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    const entries = [
+      { question: { nl: 'Vraag een?' }, answer: { nl: prose('Antwoord een.') } },
+      { question: { nl: 'Vraag twee?' }, answer: { nl: prose('Antwoord twee.') } },
+    ];
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `c-question-${isA11y() ? 'a11y' : 'no-js'}-${Date.now()}`,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: 'Vragen' },
+        blocks: [{ type: 'faq', version: 2, props: { variant: 'list', entries } }],
+      },
+    });
+    await login(page, `/admin/probe/content/${item.id}`);
+    const fold = card(page, 1).locator('details.block');
+    await fold.locator('> summary').click();
+    await fold.getByLabel('Vraag', { exact: true }).first().fill('');
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page.getByRole('alert')).toContainText('Het blok kon niet worden opgeslagen');
+
+    // Nothing was dropped: neither on the screen nor in the stored revision.
+    const answer = card(page, 1).locator('textarea[name$="entries.0.answer.nl"]');
+    await expect(answer).toHaveValue('Antwoord een.');
+    if (isA11y())
+      await expect(card(page, 1).locator('.ProseMirror').first()).toHaveText('Antwoord een.');
+    const { revision } = await callApi<{
+      revision: { document: { blocks: { props: { entries: object[] } }[] } };
+    }>(request, 'content.item.get', { itemId: item.id });
+    expect(revision.document.blocks[0]!.props.entries).toEqual(entries);
+  });
+
   test('a paywall lands on its actions after a move, and its removal says why it cannot go', async ({
     page,
     request,
