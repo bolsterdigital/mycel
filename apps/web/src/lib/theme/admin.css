@@ -369,6 +369,8 @@
         .admin-collapse
       ) {
       justify-content: flex-start;
+      margin-inline: 0;
+      border-radius: var(--radius);
       padding-inline: calc((var(--rail-width) - 2 * var(--space-0) - 1.125em) / 2);
     }
     :root[data-admin-nav='rail']

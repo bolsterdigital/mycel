@@ -251,6 +251,19 @@ test.describe('admin-ui', () => {
     await expect(page.locator('html')).toHaveAttribute('data-admin-nav', 'rail');
     expect((await sidebar.boundingBox())!.width).toBeLessThan(80);
     await expect(media).toBeVisible();
+    const iconOffsets = await sidebar.evaluate((side) => {
+      const box = side.getBoundingClientRect();
+      return [
+        ...side.querySelectorAll(
+          '.ui-navgroup > ul > li > a > svg, .ui-navgroup summary > svg:first-child, .admin-account > summary > svg:first-child, .admin-collapse svg'
+        ),
+      ]
+        .map((icon) => icon.getBoundingClientRect())
+        .filter((icon) => icon.width && icon.height)
+        .map((icon) => Math.abs(icon.left + icon.width / 2 - (box.left + box.width / 2)));
+    });
+    expect(iconOffsets.length).toBeGreaterThan(5);
+    expect(Math.max(...iconOffsets)).toBeLessThanOrEqual(1);
     for (const children of await sidebar.locator('.ui-navgroup-sub').all())
       await expect(children).toBeHidden();
     await media.hover();
