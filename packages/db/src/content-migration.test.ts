@@ -88,6 +88,11 @@ describe.skipIf(skip)('migration 0011 backfill', () => {
   }
 
   async function fill(pages: Parameters<typeof prepare>[0]) {
+    // Shared role locks first, before table locks or tenant rows (including rolled-back DDL).
+    const role = `mig_app_${run}`;
+    await client.query(`create role ${role} nologin in role mycel_app`);
+    // A non-superuser with CREATEROLE administers the new role but is not yet a member (16+).
+    await client.query(`grant ${role} to current_user`);
     await client.query(PAGES_0002);
     for (const [key, id] of Object.entries(tenant))
       await client.query(
@@ -97,10 +102,6 @@ describe.skipIf(skip)('migration 0011 backfill', () => {
     // The backfill walks `tenants`, which mycel_app reads only through `tenant_directory` (0008):
     // a throwaway member of mycel_app, bound by its policies and holding its grants, gets that
     // one read on top. Rolled back with the rest.
-    const role = `mig_app_${run}`;
-    await client.query(`create role ${role} nologin in role mycel_app`);
-    // A non-superuser with CREATEROLE administers the new role but is not yet a member (16+).
-    await client.query(`grant ${role} to current_user`);
     await client.query(`grant select on tenants to ${role}`);
     await client.query(`grant select, insert on pages to ${role}`);
     await client.query(`set local role ${role}`);
