@@ -14,12 +14,13 @@ import {
   type MediaView,
   isUuid,
 } from '@mycel/core';
-import { error, redirect } from '@sveltejs/kit';
+import { redirect } from '@sveltejs/kit';
 import { act, text } from '#lib/server/admin/admin-actions.js';
 import { ORIGINAL_TTL_MS, signedOriginalPath } from '#lib/server/media.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { UiKey } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
+import { refuse } from '#lib/server/http/refuse.js';
 
 /** How many pages the usage list names before "and n more". */
 const USAGE_LINKS = 20;
@@ -41,14 +42,14 @@ function previewFiles(m: Pick<MediaView, 'variants'>): { preview: string; full: 
 
 export const load: PageServerLoad = async ({ parent, locals, params }) => {
   const { tenant } = await parent();
-  if (!isUuid(params.id)) error(404, 'Not found');
+  if (!isUuid(params.id)) refuse(404);
   const principal = locals.principal!;
   const rt = runtime();
   let m: MediaView;
   try {
     m = await rt.invoker.run(useCases.getMedia, principal, { id: params.id });
   } catch (e) {
-    if (e instanceof UseCaseError && e.code === 'not_found') error(404, 'Not found');
+    if (e instanceof UseCaseError && e.code === 'not_found') refuse(404);
     throw e;
   }
   const [usedIn, info] = await Promise.all([

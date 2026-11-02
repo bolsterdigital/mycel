@@ -2,7 +2,6 @@
 // operator needs `content:read` on this site; an unknown item, revision or locale is a 404. The
 // locale's readiness issues (ADR 018 rule 9) are listed above the page, and a block that has no
 // value in this locale yet is left out of it (`projectDocument`).
-import { error } from '@sveltejs/kit';
 import { isUuid, UseCaseError, projectDocument, readinessIssues, useCases } from '@mycel/core';
 import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { actorLabel, when } from '#lib/server/content-admin.js';
@@ -18,6 +17,7 @@ import { siteBrand, siteTheme } from '#lib/server/theme.js';
 import { resolveDocument, resolveIntro, runtimeSource } from '#lib/blocks/resolve.js';
 import { langOf, ui } from '../../../../../../../i18n/index.js';
 import type { PageServerLoad } from './$types';
+import { refuse } from '#lib/server/http/refuse.js';
 
 export const csr = false;
 
@@ -25,8 +25,7 @@ export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) 
   setHeaders(PREVIEW_HEADERS);
   const { tenant, principal } = await requireTenantPrincipal(locals, url, params.tenant);
   const revisionId = url.searchParams.get('revision');
-  if (!isUuid(params.itemId) || (revisionId !== null && !isUuid(revisionId)))
-    error(404, 'Not found');
+  if (!isUuid(params.itemId) || (revisionId !== null && !isUuid(revisionId))) refuse(404);
   const rt = runtime();
   let got;
   try {
@@ -35,14 +34,14 @@ export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) 
       ...(revisionId ? { revisionId } : {}),
     });
   } catch (e) {
-    if (e instanceof UseCaseError && e.code === 'not_found') error(404, 'Not found');
-    if (e instanceof UseCaseError && e.code === 'forbidden') error(403, 'Forbidden');
+    if (e instanceof UseCaseError && e.code === 'not_found') refuse(404);
+    if (e instanceof UseCaseError && e.code === 'forbidden') refuse(403);
     throw e;
   }
   const { item, revision } = got;
   const doc = revision.document;
   const locale = url.searchParams.get('locale') ?? doc.defaultLocale;
-  if (!doc.locales.includes(locale)) error(404, 'Not found');
+  if (!doc.locales.includes(locale)) refuse(404);
 
   const site = await previewSite(tenant);
   const base = previewBase(tenant.slug);

@@ -69,6 +69,12 @@ export const en = {
   'admin.site.help': 'Help link',
   'admin.site.linkHint':
     'One link per line: URL|{locales}. Enter labels in the listed locale order. Use a site path or an HTTPS URL.',
+  'public.notFound.title': 'Page not found',
+  'public.notFound.body':
+    'This page does not exist, or it has moved. Check the address or go to the home page.',
+  'public.error.title': 'Something went wrong',
+  'public.error.body': 'This page could not be shown. Try again in a moment.',
+  'public.home': 'Go to the home page',
   'public.skip': 'Skip to content',
   'public.navigation': 'Main navigation',
   'public.footerNavigation': 'Footer',
@@ -180,6 +186,7 @@ export const en = {
   'admin.error.badRequest':
     'The address of this page holds a value that cannot be used. Go back and try again.',
   'admin.error.title': 'Something went wrong',
+  'admin.error.body': 'This page could not be shown. Try again in a moment.',
   'admin.back': 'Back to your sites',
   'admin.members.title': 'Team',
   'admin.members.pending': 'has not logged in yet',

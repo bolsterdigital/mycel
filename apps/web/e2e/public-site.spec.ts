@@ -348,6 +348,23 @@ test.describe('content-routes', () => {
     }
   });
 
+  test('a missing page says so in the language of its address, inside the site', async ({
+    page,
+  }) => {
+    for (const [path, lang, title, home] of [
+      ['/probe/nothing-here', 'nl', 'Pagina niet gevonden', 'Naar de homepage'],
+      ['/probe/en/nothing-here', 'en', 'Page not found', 'Go to the home page'],
+    ] as const) {
+      expect((await page.goto(path))?.status(), path).toBe(404);
+      await expect(page.locator('html'), path).toHaveAttribute('lang', lang);
+      await expect(page.getByRole('heading', { level: 1, name: title }), path).toBeVisible();
+      await expect(page, path).toHaveTitle(new RegExp(`^${title} · `));
+      await expect(page.locator('.site-header'), path).toBeVisible();
+      await expect(page.getByRole('main').getByRole('link', { name: home }), path).toBeVisible();
+      await expectNoAxeViolations(page);
+    }
+  });
+
   test('published HTML is publicly cacheable, revalidates to a 304 and sets no cookie', async ({
     request,
   }) => {

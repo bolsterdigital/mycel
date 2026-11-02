@@ -4,9 +4,10 @@
      answered (brief admin-entry § 7): the callback URL carries the OAuth `error` code, which this
      page reads, so the callback itself stays as it is. Rejected: mapping the codes in the
      callback (it is the auth boundary and would need its own security review for copy).
-     A refusal in a page load (`loaded` in lib/server/admin/admin-actions.ts) arrives as 403, 404 or 400 with the use-case
-     code as its message; such a code gets its copy from the catalog, any other message (a route's
-     own catalog text) is shown as it is. -->
+     A refusal (`refuse`, or `loaded` in lib/server/admin/admin-actions.ts) arrives with a code as
+     its message, and a framework error with English; both get their copy from the catalog here. A
+     400, 403 or 409 with any other message carries a route's own catalog text, shown as it is.
+     The preview routes render this page too. -->
 <script lang="ts">
   import { page } from '$app/state';
   import { Button, SystemState } from '#lib/admin/ui/index.js';
@@ -19,15 +20,17 @@
   const status = $derived(
     !atLogin && (page.status === 429 || page.status === 503) ? 500 : page.status
   );
-  /** The catalog copy for a use-case code from `loaded`, or null for a route's own message. */
+  /** The catalog copy for a status or code, or null for a route's own message. */
   const refusal = $derived.by((): UiKey | null => {
-    const message = page.error?.message;
-    if (status === 404 && message === 'not_found') return 'admin.notFound.body';
-    if (status === 400 && message === 'invalid_input') return 'admin.error.badRequest';
+    if (atLogin) return null;
+    if (status === 404) return 'admin.notFound.body';
+    if (status >= 500) return 'admin.error.body';
+    if (status === 400 && page.error?.message === 'invalid_input') return 'admin.error.badRequest';
+    if (status === 403 && page.error?.message === 'forbidden') return 'admin.forbidden.capability';
     return null;
   });
-  /** A member whose role lacks a capability, as opposed to someone who is not a member. */
-  const lacksCapability = $derived(status === 403 && page.error?.message === 'forbidden');
+  /** Someone who is not on this site at all, as opposed to a member whose role does not reach. */
+  const notMember = $derived(status === 403 && page.error?.message === 'not_a_member');
   const loginError = $derived(atLogin && (status === 400 || status === 429 || status === 503));
   /** What the IdP said: refused or cancelled, another code, or nothing (a stale attempt). */
   const loginFailure = $derived.by((): UiKey => {
@@ -37,10 +40,10 @@
     return 'admin.loginFailed.body';
   });
   const title = $derived(
-    lacksCapability
-      ? t('admin.forbidden.pageTitle')
+    notMember
+      ? t('admin.forbidden.title')
       : status === 403
-        ? t('admin.forbidden.title')
+        ? t('admin.forbidden.pageTitle')
         : status === 404
           ? t('admin.notFound.title')
           : loginError
@@ -54,9 +57,7 @@
 </svelte:head>
 
 <SystemState kind={status === 403 ? 'forbidden' : 'error'} {title} page>
-  {#if lacksCapability}
-    <p>{t('admin.forbidden.capability')}</p>
-  {:else if status === 403}
+  {#if notMember}
     <p>{fill(t('admin.forbidden.body'), { email })}</p>
   {:else if refusal}
     <p>{t(refusal)}</p>

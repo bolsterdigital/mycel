@@ -20,7 +20,6 @@
 // validator that knows the token's age (a 304 still cannot replace the token).
 
 import { createHash } from 'node:crypto';
-import { error } from '@sveltejs/kit';
 import {
   UseCaseError,
   anonymousPrincipal,
@@ -36,6 +35,7 @@ import type { ContentRoute } from './content-route.js';
 import { runtime } from './runtime.js';
 import { sitePath, siteTenant, siteUrls, type Site } from './site.js';
 import { siteBrand, siteChrome, siteTheme } from './theme.js';
+import { refuse } from '#lib/server/http/refuse.js';
 
 export interface PublicHead {
   canonical: string;
@@ -75,7 +75,7 @@ export async function loadPublicItem(
   try {
     item = await invoker.run(useCases.getPublished, reader, { ...route, locale });
   } catch (e) {
-    if (e instanceof UseCaseError && e.code === 'not_found') error(404, 'Not found');
+    if (e instanceof UseCaseError && e.code === 'not_found') refuse(404);
     throw e;
   }
   const source = runtimeSource({ invoker, uow, reader, defaultLocale: tenant.defaultLocale });

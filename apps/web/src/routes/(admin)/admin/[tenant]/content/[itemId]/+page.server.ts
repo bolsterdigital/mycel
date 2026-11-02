@@ -95,6 +95,7 @@ import { runtime } from '#lib/server/runtime.js';
 import { adminSiteUrls } from '#lib/server/site.js';
 import { langOf, ui, type UiKey } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
+import { refuse } from '#lib/server/http/refuse.js';
 
 /** A lookup's result, or `null` when it is not there (any other error stays an error). */
 async function orNull<T>(run: Promise<T>): Promise<T | null> {
@@ -108,11 +109,11 @@ async function orNull<T>(run: Promise<T>): Promise<T | null> {
 
 /** The item with its latest revision, or a 404 for an unknown id or another site's. */
 async function latest(principal: Principal, itemId: string) {
-  if (!isUuid(itemId)) error(404, 'Not found');
+  if (!isUuid(itemId)) refuse(404);
   try {
     return await runtime().invoker.run(useCases.getItem, principal, { itemId });
   } catch (e) {
-    if (e instanceof UseCaseError && e.code === 'not_found') error(404, 'Not found');
+    if (e instanceof UseCaseError && e.code === 'not_found') refuse(404);
     throw e;
   }
 }
@@ -618,7 +619,7 @@ async function commit(
     event.url,
     event.params.tenant!
   );
-  if (opts.publication && !can(principal, 'content:publish')) error(403, 'Forbidden');
+  if (opts.publication && !can(principal, 'content:publish')) refuse(403);
   const { zone } = await adminTimeZone(event.locals);
   const data = await event.request.formData();
   const itemId = event.params.itemId!;
@@ -913,7 +914,7 @@ async function blockStep(
       revisionId,
     });
     const index = revision.document.blocks.findIndex((b) => b.id === blockId);
-    if (index < 0) error(404, 'Not found');
+    if (index < 0) refuse(404);
     const blocks = revision.document.blocks;
     neighbour = (blocks[index + 1] ?? blocks[index - 1])?.id ?? null;
     const made = await run(revision.document.blocks, index);

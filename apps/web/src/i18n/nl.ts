@@ -68,6 +68,12 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.site.help': 'Helplink',
   'admin.site.linkHint':
     'Eén link per regel: URL|{locales}. Vul labels in die taalvolgorde in. Gebruik een sitepad of HTTPS-URL.',
+  'public.notFound.title': 'Pagina niet gevonden',
+  'public.notFound.body':
+    'Deze pagina bestaat niet of is verhuisd. Controleer het adres of ga naar de homepage.',
+  'public.error.title': 'Er ging iets mis',
+  'public.error.body': 'Deze pagina kon niet worden getoond. Probeer het zo nog eens.',
+  'public.home': 'Naar de homepage',
   'public.skip': 'Ga naar inhoud',
   'public.navigation': 'Hoofdnavigatie',
   'public.footerNavigation': 'Voettekst',
@@ -179,6 +185,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.error.badRequest':
     'Het adres van deze pagina bevat een waarde die niet te gebruiken is. Ga terug en probeer het opnieuw.',
   'admin.error.title': 'Er ging iets mis',
+  'admin.error.body': 'Deze pagina kon niet worden getoond. Probeer het zo nog eens.',
   'admin.back': 'Terug naar je sites',
   'admin.members.title': 'Team',
   'admin.members.pending': 'heeft nog niet ingelogd',

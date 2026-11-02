@@ -2,7 +2,6 @@
 // public resolver as saved preview are used, but no content write occurs. Rejected: persisting a
 // temporary revision or rendering client HTML, either of which would change the publication or
 // trust boundary. Membership and content:write are checked for every POST, including iframe posts.
-import { error } from '@sveltejs/kit';
 import {
   ContentDocumentInput,
   UseCaseError,
@@ -30,6 +29,7 @@ import { runtime } from '#lib/server/runtime.js';
 import { siteBrand, siteTheme } from '#lib/server/theme.js';
 import { langOf, ui } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
+import { refuse } from '#lib/server/http/refuse.js';
 
 export const csr = false;
 
@@ -42,12 +42,12 @@ export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) 
 export const actions: Actions = {
   default: async ({ locals, url, params, request }) => {
     const { tenant, principal } = await requireTenantPrincipal(locals, url, params.tenant);
-    if (!can(principal, 'content:write')) error(403, 'Forbidden');
+    if (!can(principal, 'content:write')) refuse(403);
     const data = await request.formData();
     const itemId = text(data, 'itemId');
     const revisionId = text(data, 'baseRevisionId');
     const locale = text(data, 'previewLocale');
-    if (!isUuid(itemId) || !isUuid(revisionId)) error(400, 'Invalid document');
+    if (!isUuid(itemId) || !isUuid(revisionId)) refuse(400);
     const rt = runtime();
     let item, revision;
     try {
@@ -56,8 +56,8 @@ export const actions: Actions = {
         revisionId,
       }));
     } catch (e) {
-      if (e instanceof UseCaseError && e.code === 'not_found') error(403, 'Forbidden');
-      if (e instanceof UseCaseError && e.code === 'forbidden') error(403, 'Forbidden');
+      if (e instanceof UseCaseError && e.code === 'not_found') refuse(403);
+      if (e instanceof UseCaseError && e.code === 'forbidden') refuse(403);
       throw e;
     }
     // The edit form carries every block's fields (#66 PR 2) in the one locale it shows (PR 4);
@@ -70,12 +70,12 @@ export const actions: Actions = {
       new Date().toISOString().slice(0, 10),
       data.has('editLocale') ? text(data, 'editLocale') || null : undefined
     );
-    if (read.errors.length) error(400, 'Invalid block');
+    if (read.errors.length) refuse(400);
     const input = read.document;
     const parsed = ContentDocumentInput.safeParse(input);
-    if (!parsed.success) error(400, 'Invalid document');
+    if (!parsed.success) refuse(400);
     const doc = parsed.data as ContentDocument;
-    if (!doc.locales.includes(locale)) error(400, 'Invalid locale');
+    if (!doc.locales.includes(locale)) refuse(400);
 
     const site = await previewSite(tenant);
     const base = previewBase(tenant.slug);

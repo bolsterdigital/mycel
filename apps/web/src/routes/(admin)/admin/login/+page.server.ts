@@ -5,7 +5,7 @@
 // issuer is configured, so a site without operator login still serves its public pages.
 // Rejected: an automatic redirect (the operator never learns why they had to log in, or with
 // which account) and a form (CSP `form-action 'self'` blocks the redirect to the IdP after it).
-import { error, redirect } from '@sveltejs/kit';
+import { redirect } from '@sveltejs/kit';
 import { allowLoginAttempt, cookieOptions } from '#lib/server/admin/admin.js';
 import { safeReturn } from '#lib/server/admin/admin-paths.js';
 import {
@@ -16,16 +16,16 @@ import {
 } from '#lib/server/admin/oidc.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { PageServerLoad } from './$types';
+import { refuse } from '#lib/server/http/refuse.js';
 
 export const load: PageServerLoad = async ({ url, cookies, getClientAddress }) => {
   if (!url.searchParams.has('start')) return landing(url);
-  if (!(await allowLoginAttempt(runtime().signer.hashIp(getClientAddress()))))
-    error(429, 'Too many login attempts; try again in a few minutes.');
+  if (!(await allowLoginAttempt(runtime().signer.hashIp(getClientAddress())))) refuse(429);
   let started;
   try {
     started = await startLogin(safeReturn(url.searchParams.get('return')));
   } catch (e) {
-    if (e instanceof LoginNotConfigured) error(503, 'Operator login is not configured.');
+    if (e instanceof LoginNotConfigured) refuse(503);
     throw e;
   }
   cookies.set(OIDC_COOKIE, started.cookie, cookieOptions(OIDC_COOKIE_TTL_MS / 1000));
