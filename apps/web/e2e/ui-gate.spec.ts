@@ -29,10 +29,8 @@ test.describe('ui-gate', () => {
       await page.locator('.admin-menu > summary').click();
       for (const summary of await page.locator('.admin-account:not([open]) > summary').all())
         await summary.click();
-      for (const summary of await page
-        .locator('.ui-navgroup-disclosure:not([open]) > summary')
-        .all())
-        await summary.click();
+      const closedGroups = page.locator('.ui-navgroup-disclosure:not([open]) > summary');
+      while (await closedGroups.count()) await closedGroups.first().click();
     }
     if (route.folds) {
       const folds = page.locator('.ui-fold > summary');
