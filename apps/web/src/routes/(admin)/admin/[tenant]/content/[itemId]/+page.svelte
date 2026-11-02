@@ -61,7 +61,7 @@
     Tabs,
   } from '#lib/admin/ui/index.js';
   import { BLOCK_PRESENTATION } from '#lib/admin/block-presentation.js';
-  import { BLOCK_DEFINITIONS, pick, type BlockType, type MediaCredit } from '@mycel/core';
+  import { pickAny, BLOCK_DEFINITIONS, pick, type BlockType, type MediaCredit } from '@mycel/core';
   import { fill, ui, type UiKey } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -933,7 +933,7 @@
   {#if article}
     <Fieldset legend={t('admin.content.field.corrections')} collapsed={folded}>
       {#each data.corrections as c, i (i)}
-        <p>{c.date}: {c.text[work] ?? c.text[defaultLocale] ?? Object.values(c.text)[0]}</p>
+        <p>{c.date}: {pickAny(c.text, work, defaultLocale)}</p>
       {/each}
       <Field
         id="correctionDate"

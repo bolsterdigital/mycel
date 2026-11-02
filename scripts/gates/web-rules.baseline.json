@@ -31,37 +31,9 @@
     "apps/web/src/routes/(public)/[tenant]/confirm/[outcome]/+page.server.ts": 1
   },
   "link-regex": {},
-  "locale-fallback": {
-    "apps/web/src/lib/server/content-blocks.ts": 4,
-    "apps/web/src/routes/(admin)/admin/[tenant]/content/+page.server.ts": 1,
-    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.server.ts": 1,
-    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.svelte": 1,
-    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/revisions/+page.server.ts": 1,
-    "apps/web/src/routes/(admin)/admin/[tenant]/content/new/+page.svelte": 1,
-    "apps/web/src/routes/(admin)/admin/[tenant]/media/[id]/+page.svelte": 1,
-    "apps/web/src/routes/(public)/+layout.server.ts": 1
-  },
-  "english-default": {
-    "apps/web/src/hooks.server.ts": 1,
-    "apps/web/src/lib/server/admin/profile.ts": 1,
-    "apps/web/src/routes/(admin)/+error.svelte": 1,
-    "apps/web/src/routes/(admin)/+layout.server.ts": 1,
-    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.server.ts": 1,
-    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/assist/+page.server.ts": 5,
-    "apps/web/src/routes/(admin)/admin/[tenant]/media/upload/+server.ts": 1,
-    "apps/web/src/routes/(admin)/admin/[tenant]/site/+page.server.ts": 4,
-    "apps/web/src/routes/(preview)/admin/[tenant]/preview/draft/+page.server.ts": 2,
-    "apps/web/src/routes/(preview)/admin/[tenant]/preview/item/[itemId]/+page.server.ts": 1
-  },
-  "uuid-regex": {
-    "apps/web/src/lib/server/media.ts": 1,
-    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.server.ts": 1,
-    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/revisions/+page.server.ts": 1,
-    "apps/web/src/routes/(admin)/admin/[tenant]/media/[id]/+page.server.ts": 1,
-    "apps/web/src/routes/(admin)/admin/[tenant]/media/choices/+server.ts": 1,
-    "apps/web/src/routes/(preview)/admin/[tenant]/preview/draft/+page.server.ts": 1,
-    "apps/web/src/routes/(preview)/admin/[tenant]/preview/item/[itemId]/+page.server.ts": 1
-  },
+  "locale-fallback": {},
+  "english-default": {},
+  "uuid-regex": {},
   "viewport-height": {},
   "public-box-shadow": {},
   "admin-script-tag": {

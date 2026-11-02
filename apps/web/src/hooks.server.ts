@@ -43,6 +43,7 @@
 // Public responses then pass `conditional` (brief #8c § 9, lib/server/http/http-cache.ts): a matching
 // If-None-Match on a page with a strong ETag becomes a 304, and a 404 gets `no-store`.
 
+import { langOf } from './i18n/index.js';
 import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit/hooks';
 import {
   API_CATALOG_LINK,
@@ -138,7 +139,7 @@ const route: Handle = async ({ event, resolve }) => {
       { ...event, request },
       {
         transformPageChunk: ({ html }) =>
-          withItalicPreload(html.replace('%lang%', event.locals.lang ?? 'en')),
+          withItalicPreload(html.replace('%lang%', langOf(event.locals))),
       }
     );
 

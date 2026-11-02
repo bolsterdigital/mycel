@@ -12,6 +12,7 @@ import {
   type MediaAccess,
   type MediaCredit,
   type MediaView,
+  isUuid,
 } from '@mycel/core';
 import { error, redirect } from '@sveltejs/kit';
 import { act, text } from '#lib/server/admin/admin-actions.js';
@@ -20,7 +21,6 @@ import { runtime } from '#lib/server/runtime.js';
 import type { UiKey } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** How many pages the usage list names before "and n more". */
 const USAGE_LINKS = 20;
 /** The preview's width: sharp in the detail column, light enough for the first paint. */
@@ -41,7 +41,7 @@ function previewFiles(m: Pick<MediaView, 'variants'>): { preview: string; full: 
 
 export const load: PageServerLoad = async ({ parent, locals, params }) => {
   const { tenant } = await parent();
-  if (!UUID.test(params.id)) error(404, 'Not found');
+  if (!isUuid(params.id)) error(404, 'Not found');
   const principal = locals.principal!;
   const rt = runtime();
   let m: MediaView;

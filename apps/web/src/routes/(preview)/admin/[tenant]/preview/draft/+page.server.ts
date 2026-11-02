@@ -11,6 +11,7 @@ import {
   readinessIssues,
   useCases,
   type ContentDocument,
+  isUuid,
 } from '@mycel/core';
 import { resolveDocument, resolveIntro, runtimeSource } from '#lib/blocks/resolve.js';
 import { posted } from '#lib/editor/block-form.js';
@@ -27,17 +28,15 @@ import {
 } from '#lib/server/preview.js';
 import { runtime } from '#lib/server/runtime.js';
 import { siteBrand, siteTheme } from '#lib/server/theme.js';
-import { ui } from '../../../../../../i18n/index.js';
+import { langOf, ui } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export const csr = false;
 
 export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) => {
   setHeaders(PREVIEW_HEADERS);
   await requireTenantPrincipal(locals, url, params.tenant);
-  return { admin: locals.lang ?? 'en' };
+  return { admin: langOf(locals) };
 };
 
 export const actions: Actions = {
@@ -48,7 +47,7 @@ export const actions: Actions = {
     const itemId = text(data, 'itemId');
     const revisionId = text(data, 'baseRevisionId');
     const locale = text(data, 'previewLocale');
-    if (!UUID.test(itemId) || !UUID.test(revisionId)) error(400, 'Invalid document');
+    if (!isUuid(itemId) || !isUuid(revisionId)) error(400, 'Invalid document');
     const rt = runtime();
     let item, revision;
     try {
@@ -97,7 +96,7 @@ export const actions: Actions = {
       siteTheme(site),
     ]);
     const brand = await siteBrand(site);
-    const admin = locals.lang ?? 'en';
+    const admin = langOf(locals);
     locals.lang = locale;
     return {
       admin,

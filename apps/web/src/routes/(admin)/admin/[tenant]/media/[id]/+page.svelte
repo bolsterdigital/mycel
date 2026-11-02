@@ -3,6 +3,7 @@
      the order a visitor meets them (caption, the work shown, its origin; the focal point folded
      away, skill cms-inrichting) and download and delete as one action group at the end. -->
 <script lang="ts">
+  import { pickAny } from '@mycel/core';
   import {
     Actions,
     Button,
@@ -43,7 +44,7 @@
     });
   });
   const titleOf = (item: { title: Record<string, string>; def: string }) =>
-    item.title[data.locale] ?? item.title[item.def] ?? Object.values(item.title)[0] ?? '';
+    pickAny(item.title, data.locale, item.def) ?? '';
   const facts = $derived([
     { term: t('admin.media.filename'), value: m.filename },
     { term: t('admin.media.type'), value: m.contentType },

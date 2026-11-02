@@ -25,6 +25,7 @@ import {
   type UseCaseError,
   type FormDefinition,
   MAX_PAGE_SIZE,
+  pickAny,
 } from '@mycel/core';
 import { runtime } from './runtime.js';
 import { withAssigned } from './content-admin.js';
@@ -53,7 +54,7 @@ export async function pickerOptions(
     mediaChoices(principal, [...new Set([...used.media, ...alsoChosen])]),
     invoker.run(useCases.listItems, principal, { limit: MAX_PAGE_SIZE }).then(({ items }) => {
       const label = (i: { slug: string; title: Record<string, string | undefined> }) =>
-        `${i.title[locale] ?? Object.values(i.title)[0] ?? i.slug} (/${i.slug})`;
+        `${pickAny(i.title, locale) ?? i.slug} (/${i.slug})`;
       return withAssigned(
         used.items,
         items.map((i) => ({ id: i.id, label: label(i) })),
@@ -109,8 +110,7 @@ function firstText(
   for (const f of fields) {
     const v = props[f.key];
     if (f.kind === 'text' && f.localized && v && typeof v === 'object') {
-      const map = v as Record<string, string>;
-      const text = map[locale] ?? Object.values(map)[0];
+      const text = pickAny(v as Record<string, string>, locale);
       if (text) return text;
     }
     if (f.kind === 'list' && Array.isArray(v) && v[0]) {
@@ -118,8 +118,7 @@ function firstText(
       if (inner) return inner;
     }
     if (f.kind === 'rich-text' && v && typeof v === 'object') {
-      const doc = ((v as Record<string, unknown>)[locale] ?? Object.values(v)[0]) as
-        { content?: unknown[] } | undefined;
+      const doc = pickAny(v as Record<string, { content?: unknown[] }>, locale);
       const text = textOf(doc?.content?.[0]);
       if (text) return text;
     }
@@ -130,8 +129,8 @@ function firstText(
 /** A localised value in `locale`, else in any locale that has one: a card shows what there is. */
 function anyLocale<T>(v: unknown, locale: string): T | undefined {
   if (!v || typeof v !== 'object') return undefined;
-  const map = v as Record<string, T | null | undefined>;
-  return map[locale] || Object.values(map).find(Boolean) || undefined;
+  const filled = Object.entries(v as Record<string, T | null | undefined>).filter(([, x]) => x);
+  return pickAny(Object.fromEntries(filled) as Record<string, T>, locale);
 }
 
 /** One line that says which block this is: its first localised text in `locale`. */

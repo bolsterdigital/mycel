@@ -3,7 +3,7 @@
 // locale's readiness issues (ADR 018 rule 9) are listed above the page, and a block that has no
 // value in this locale yet is left out of it (`projectDocument`).
 import { error } from '@sveltejs/kit';
-import { UseCaseError, projectDocument, readinessIssues, useCases } from '@mycel/core';
+import { isUuid, UseCaseError, projectDocument, readinessIssues, useCases } from '@mycel/core';
 import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { actorLabel, when } from '#lib/server/content-admin.js';
 import {
@@ -16,18 +16,16 @@ import {
 import { runtime } from '#lib/server/runtime.js';
 import { siteBrand, siteTheme } from '#lib/server/theme.js';
 import { resolveDocument, resolveIntro, runtimeSource } from '#lib/blocks/resolve.js';
-import { ui } from '../../../../../../../i18n/index.js';
+import { langOf, ui } from '../../../../../../../i18n/index.js';
 import type { PageServerLoad } from './$types';
 
 export const csr = false;
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) => {
   setHeaders(PREVIEW_HEADERS);
   const { tenant, principal } = await requireTenantPrincipal(locals, url, params.tenant);
   const revisionId = url.searchParams.get('revision');
-  if (!UUID.test(params.itemId) || (revisionId !== null && !UUID.test(revisionId)))
+  if (!isUuid(params.itemId) || (revisionId !== null && !isUuid(revisionId)))
     error(404, 'Not found');
   const rt = runtime();
   let got;
@@ -63,7 +61,7 @@ export const load: PageServerLoad = async ({ locals, url, params, setHeaders }) 
   const intro = await resolveIntro(source, await introOf(principal, doc, locale, live), locale);
   const theme = await siteTheme(site);
   const brand = await siteBrand(site);
-  const admin = locals.lang ?? 'en';
+  const admin = langOf(locals);
   locals.lang = locale;
   return {
     admin,

@@ -5,6 +5,7 @@
 // Rejected: one address with a `return` parameter that renders the shell of the site it names
 // (the shell's layout load checks membership per tenant route; a page outside `[tenant]` would
 // have to repeat that check and the navigation data by hand).
+import { langOf } from '../../../i18n/index.js';
 import {
   DEFAULT_OPERATOR_PREFERENCES,
   OperatorPreferences,
@@ -28,7 +29,7 @@ export async function profileData(locals: App.Locals, session: OperatorSession) 
       role: roleFor(m.capabilities),
     })),
     preferences: locals.preferences ?? DEFAULT_OPERATOR_PREFERENCES,
-    zones: timeZoneOptions(locals.lang ?? 'en'),
+    zones: timeZoneOptions(langOf(locals)),
   };
 }
 
