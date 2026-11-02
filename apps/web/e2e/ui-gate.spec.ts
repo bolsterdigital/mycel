@@ -255,6 +255,8 @@ test.describe('admin-ui', () => {
       await expect(children).toBeHidden();
     await media.hover();
     expect((await media.locator('span').boundingBox())!.width).toBeGreaterThan(20);
+    await page.locator('main .ui-navgroup-disclosure:not([open]) > summary').first().click();
+    await expect(page.locator('html')).toHaveAttribute('data-admin-nav', 'rail');
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('data-admin-nav', 'rail');
     await page.getByRole('button', { name: 'Expand menu' }).click();

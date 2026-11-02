@@ -1143,8 +1143,14 @@ test.describe('admin-shell', () => {
         for (const summary of await page.locator('.ui-navgroup-disclosure > summary').all())
           await summary.click();
         await layoutGate(page, `sidebar ${locale}`, '.admin-sidebar');
+        await page.evaluate(() => window.scrollTo(0, 0));
         await page.screenshot({
           path: `../../.scratch/sidebar-${locale}-320-200-${test.info().project.name}.png`,
+          fullPage: false,
+        });
+        await page.locator('.ui-navgroup-disclosure > summary').first().scrollIntoViewIfNeeded();
+        await page.screenshot({
+          path: `../../.scratch/sidebar-${locale}-groups-320-200-${test.info().project.name}.png`,
           fullPage: false,
         });
       });

@@ -32,7 +32,7 @@
       setView(root.dataset.adminNav === 'rail' ? 'full' : 'rail');
       return;
     }
-    const summary = event.target.closest('summary[data-nav-expand]');
+    const summary = event.target.closest('.admin-sidebar summary[data-nav-expand]');
     if (summary && root.dataset.adminNav === 'rail' && matchMedia('(min-width: 60rem)').matches) {
       // A rail has no room for a child panel. Expand it, then let the native disclosure open;
       // an already-open group must stay open rather than closing on this first rail click.
