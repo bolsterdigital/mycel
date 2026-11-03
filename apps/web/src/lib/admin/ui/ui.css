@@ -1969,6 +1969,7 @@
     min-width: 0;
   }
   .ui-block-picker {
+    container-type: inline-size;
     display: grid;
     gap: var(--space-1);
     min-width: 0;
@@ -1994,6 +1995,9 @@
     min-inline-size: var(--tap);
     max-inline-size: 100%;
     padding: var(--space-1);
+    /* The end chooser can already sit inside a padded fieldset. Its own inline inset follows
+       the remaining space, so whole words retain their width at 320 px and 200% text. */
+    padding-inline: min(var(--space-1), 2cqi);
     border: var(--border-width) solid var(--color-control-border);
     border-radius: var(--radius);
     color: var(--color-surface-fg);
@@ -2043,6 +2047,9 @@
   }
 
   @container (max-width: 24rem) {
+    /* A sheet can be inside a block body and a fieldset. Neither its words nor its toolbar
+       add another inline inset to those groups when their available width is narrow. */
+    .ui-writing-sheet-toolbar,
     .ui-writing-sheet-content {
       padding-inline: 0;
     }
