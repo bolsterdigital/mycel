@@ -6,9 +6,9 @@
      explained alt text as a toggle label (feedback 2026-11-03), and an always-open field, which
      hides nothing but costs every item four lines. -->
 <script lang="ts">
-  import { fill, ui } from '../../i18n/index.js';
+  import { fill, ui } from '../../../i18n/index.js';
   import { heroAltView } from './hero-alt.js';
-  import { Checkbox, Field, Icon } from './ui/index.js';
+  import { Checkbox, Field, Icon } from '../ui/index.js';
 
   let {
     locale,
@@ -74,6 +74,7 @@
     <span class="status">
       <span data-hero-alt-state="described" hidden={view.state !== 'described'}>
         <span class="icon ok"><Icon name="circle-check" /></span>
+        <span class="icon err"><Icon name="circle-alert" /></span>
         <span class="head"
           >{t('admin.content.heroAlt.described')}{#if multi}<span class="tag"
               >{` · ${nameOf(work)}`}</span
@@ -242,6 +243,7 @@
   }
   /* One word-and-icon pair per tone: the same state is a warning until a refusal names it. */
   [data-tone='err'] .icon.warn,
+  [data-tone='err'] .icon.ok,
   :not([data-tone='err']) > summary .icon.err {
     display: none;
   }

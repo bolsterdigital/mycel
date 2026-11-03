@@ -745,6 +745,15 @@ test.describe('content-routes', () => {
     await expect(page.locator('.ui-edit-side #headerLayout')).toHaveCount(1);
     await expect(page.locator('.item-header #headerLayout')).toHaveCount(0);
 
+    // The error tone on text carries no green check. Set by hand: no screen reaches it yet, because
+    // publishing saves first and the panel offers only the language on screen.
+    if (isA11y()) {
+      await line.evaluate((el: HTMLElement) => (el.dataset.tone = 'err'));
+      const described = line.locator('[data-hero-alt-state="described"]');
+      await expect(described.locator('.icon.err')).toBeVisible();
+      await expect(described.locator('.icon.ok')).toBeHidden();
+    }
+
     // Missing on screen, with another language as reference: the refusal becomes an error.
     await page.goto(`${edit}?locale=en`);
     await expect(summary).toContainText('Beschrijving ontbreekt in het Engels', {

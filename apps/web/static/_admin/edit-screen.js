@@ -404,8 +404,8 @@ if (form instanceof HTMLFormElement) {
     sync();
   }
 
-  // The hero's description line, live (#158). The same order as `lib/admin/hero-alt.ts`, which the
-  // server renders with; every state's words are in the markup, so this only chooses.
+  // The hero's description line, live (#158). The same order as `lib/admin/hero-alt/hero-alt.ts`,
+  // which the server renders with; every state's words are in the markup, so this only chooses.
   const heroAlt = form.querySelector('details[data-hero-alt]');
   const heroText = heroAlt?.querySelector('textarea');
   if (heroAlt instanceof HTMLDetailsElement && heroText instanceof HTMLTextAreaElement) {
