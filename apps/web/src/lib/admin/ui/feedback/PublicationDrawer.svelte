@@ -65,7 +65,7 @@
     open
     class="ui-dialog ui-publication-drawer"
     aria-labelledby="{id}-heading"
-    closedby="any"
+    closedby={enhanced ? 'any' : 'none'}
   >
     <div class="ui-dialog-head">
       <h2 id="{id}-heading">{title}</h2>

@@ -1216,7 +1216,7 @@
             ><Icon name="external-link" />{t('admin.content.edit.previewShort')}</Button
           >
         {/if}
-        {#if mainPublication}<Button href="#publication-panel"
+        {#if mainPublication || others.length}<Button href="#publication-panel"
             >{t('admin.content.action.openPublication')}</Button
           >{/if}
       {/snippet}
@@ -1324,7 +1324,7 @@
   {/snippet}
 
   {#snippet aside()}
-    {#if mainPublication}
+    {#if mainPublication || others.length}
       <PublicationDrawer
         id="publication-panel"
         title={t('admin.content.publication.title')}
@@ -1332,7 +1332,10 @@
         refused={!!(form && 'locale' in form && !form.conflict)}
       >
         {#if form && 'locale' in form && !form.conflict}{@render refusalNotice()}{/if}
-        {@render statusCard(mainPublication)}
+        {#if mainPublication}{@render statusCard(mainPublication)}{:else}<h3>
+            {languageName(work)}
+          </h3>
+          <p>{fill(t('admin.locale.translate.title'), { locale: work })}</p>{/if}
         {#if multi && others.length}
           <section aria-labelledby="other-locales" class="item-locales">
             <h3 id="other-locales">{t('admin.content.item.locales')}</h3>

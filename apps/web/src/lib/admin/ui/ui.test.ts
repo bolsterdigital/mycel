@@ -1595,6 +1595,7 @@ describe('PublicationDrawer', () => {
     expect(out).toContain('<summary>Publication</summary>');
     expect(out).toContain('<dialog');
     expect(out).toContain('aria-labelledby="publication-heading"');
+    expect(out).toContain('closedby="none"');
     expect(out).toContain('name="at.nl"');
     expect(out).not.toContain('<form');
   });

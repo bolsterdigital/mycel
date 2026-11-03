@@ -1824,6 +1824,7 @@ test.describe('content-blocks', () => {
       // Closed again, the side column with the publish button comes back.
       await page.getByRole('button', { name: 'Voorbeeld', exact: true }).click();
     }
+    await openPublication(page);
     await page.getByRole('button', { name: /^(Wijzigingen )?publiceren$/i }).click();
     await page.goto(`/probe/e2e-blokken-${test.info().project.name}`);
     await expect(page.locator('main .faq.width-wide')).toContainText(`Wat? ${stamp}`);
@@ -2082,6 +2083,7 @@ test.describe('content-blocks', () => {
         locale === 'nl' ? 'Waarom is dit belangrijk?' : 'Why does this matter?'
       );
       await page.goto(`${edit}?locale=${locale}`);
+      await openPublication(page);
       await page.getByRole('button', { name: 'Publiceren', exact: true }).click();
       await expect(page.getByRole('status')).toContainText(`Gepubliceerd in ${locale}.`);
     }
