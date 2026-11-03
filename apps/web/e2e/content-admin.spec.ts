@@ -31,6 +31,7 @@ import { expectPixels } from './lib/images';
 import { settingsEvidence } from './lib/settings-evidence';
 import {
   openPublication,
+  takeOffline,
   closePublication,
   exercisePublicationDrawer,
   fourActions,
@@ -1088,7 +1089,7 @@ test.describe('content-admin', () => {
     // Offline again: the address is gone, the card says it was live once.
     await page.goto(edit);
     await openPublication(page);
-    await card(page, 'nl').getByRole('button', { name: 'Offline halen', exact: true }).click();
+    await takeOffline(page, 'nl', 'Offline halen');
     await expect(page.getByRole('status')).toContainText('Offline gehaald in nl.');
     await openPublication(page);
     await expect(card(page, 'nl')).toContainText('Offline gehaald');

@@ -171,6 +171,9 @@
     })
   );
 
+  const languageName = (locale: string) =>
+    new Intl.DisplayNames([locale], { type: 'language' }).of(locale) ?? locale;
+
   type Publication = (typeof data.item.publication)[number];
   type Tone = 'neutral' | 'info' | 'success' | 'warning';
   /** A locale's state in words (brief edit-screen table stake 8). */
@@ -987,7 +990,8 @@
   {@const state = stateOf(p)}
   <StatusCard
     id="publication-{p.locale}"
-    title={p.locale.toUpperCase()}
+    title={languageName(p.locale)}
+    variant="panel"
     state={state.text}
     tone={state.tone}
     level={3}
@@ -1050,15 +1054,13 @@
           >{t('admin.content.action.unschedule')}</Button
         >
       {/if}
-      {#if data.canPublish && p.live}
-        <Button variant="secondary" formaction={action('unpublish')} name="locale" value={p.locale}
-          >{t('admin.content.action.unpublish')}</Button
-        >
-      {/if}
     {/snippet}
     {#snippet more()}
       {#if data.canPublish}
-        <details class="ui-fold" open={form && 'locale' in form && form.locale === p.locale}>
+        <details
+          class="ui-fold ui-publication-option"
+          open={form && 'locale' in form && form.locale === p.locale}
+        >
           <summary>{t('admin.content.action.scheduleFold')}</summary>
           <Field
             id="at.{p.locale}"
@@ -1079,6 +1081,18 @@
               value={p.locale}>{t('admin.content.action.schedule')}</Button
             >
           </Actions>
+        </details>
+      {/if}
+      {#if data.canPublish && p.live}
+        <details class="ui-fold ui-publication-option">
+          <summary>{t('admin.content.action.unpublish')}</summary>
+          <p class="ui-hint">{t('admin.content.publication.offlineHint')}</p>
+          <Button
+            variant="secondary"
+            formaction={action('unpublish')}
+            name="locale"
+            value={p.locale}>{t('admin.content.action.unpublish')}</Button
+          >
         </details>
       {/if}
     {/snippet}
@@ -1313,7 +1327,7 @@
     {#if mainPublication}
       <PublicationDrawer
         id="publication-panel"
-        title={t('admin.content.edit.side')}
+        title={t('admin.content.publication.title')}
         locale={data.locale}
         refused={!!(form && 'locale' in form && !form.conflict)}
       >
@@ -1324,18 +1338,22 @@
             <h3 id="other-locales">{t('admin.content.item.locales')}</h3>
             {#each others as o (o.locale)}
               <div class="ui-publication-locale">
+                <div>
+                  <strong>{languageName(o.locale)}</strong>
+                  {#if o.publication}<span>{stateOf(o.publication).text}</span>{/if}
+                  {#if o.state !== 'ok'}<span class="ui-hint">{stateWords(o.state)}</span>{/if}
+                </div>
                 <Button
-                  variant="link"
+                  variant="secondary"
                   formaction={action('switchLocale')}
                   name="to"
-                  value={o.locale}>{o.locale}</Button
+                  value={o.locale}>{t('admin.block.card.edit')}</Button
                 >
-                {#if o.publication}<span>{stateOf(o.publication).text}</span>{/if}
-                {#if o.state !== 'ok'}<span class="ui-hint">{stateWords(o.state)}</span>{/if}
               </div>
             {/each}
           </section>
         {/if}
+        <p class="ui-hint">{t('admin.content.publication.chosenLocale')}</p>
       </PublicationDrawer>
     {/if}
 

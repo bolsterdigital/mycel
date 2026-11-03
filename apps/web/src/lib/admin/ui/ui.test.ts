@@ -1476,6 +1476,21 @@ describe('Section (#116)', () => {
 });
 
 describe('StatusCard', () => {
+  it('supports an unboxed panel while retaining the same state and action semantics', () => {
+    const out = html(StatusCard, {
+      id: 'panel-state',
+      title: 'English',
+      state: 'Draft',
+      variant: 'panel',
+      level: 3,
+      actions: text('<button>Publish</button>'),
+    });
+    expect(out).toContain('ui-status-card panel');
+    expect(out).toContain('<h3 id="panel-state-title"');
+    expect(out).toContain('Draft');
+    expect(out).toContain('<button>Publish</button>');
+  });
+
   it('is a region named by its heading: the state, then notes, then the actions, then more', () => {
     const out = html(StatusCard, {
       id: 'publication-nl',

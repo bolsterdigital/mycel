@@ -645,11 +645,19 @@
     </ItemBar>
     <PublicationDrawer
       id="catalogue-publication"
-      title={t('admin.content.edit.side')}
+      title={t('admin.content.publication.title')}
       locale={data.locale}
     >
-      <p>{t('admin.content.state.changed')}</p>
-      <Button type="button">{t('admin.content.action.publishChanges')}</Button>
+      <StatusCard
+        id="catalogue-publication-state"
+        title="Nederlands"
+        variant="panel"
+        state={t('admin.content.state.changed')}
+        level={3}
+      >
+        {#snippet actions()}<Button type="button">{t('admin.content.action.publishChanges')}</Button
+          >{/snippet}
+      </StatusCard>
     </PublicationDrawer>
   </section>
 

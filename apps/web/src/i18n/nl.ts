@@ -805,6 +805,9 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.state.changed': 'Gepubliceerd, sindsdien gewijzigd',
   'admin.content.state.pinned': 'Ingepland voor {at}',
   'admin.content.state.pinnedOlder': 'Ingepland voor {at}; je bewerkt een nieuwere versie',
+  'admin.content.publication.offlineHint':
+    'Deze taalversie verdwijnt van de site. Je opgeslagen inhoud blijft bewaard.',
+  'admin.content.publication.chosenLocale': 'Publiceren geldt alleen voor de gekozen taal.',
   'admin.content.action.openPublication': 'Publiceren…',
   'admin.content.action.publish': 'Publiceren',
   'admin.content.action.publishChanges': 'Wijzigingen publiceren',
@@ -1505,7 +1508,7 @@ export const nl: Partial<Record<UiKey, string>> = {
     'Het beheer plant en toont tijden in deze zone, tenzij iemand onder Voorkeuren een eigen zone koos.',
   'admin.site.general.save': 'Tijdzone opslaan',
   'admin.content.state.short.live': 'Gepubliceerd',
-  'admin.content.state.short.changed': 'Gepubliceerd · conceptwijzigingen',
+  'admin.content.state.short.changed': 'Gepubliceerd · ongepubliceerde wijzigingen',
   'admin.content.state.short.pinned': 'Ingepland',
   'admin.block.insert.location.before': 'Vóór blok {n}',
   'admin.block.insert.end': 'Aan het einde',

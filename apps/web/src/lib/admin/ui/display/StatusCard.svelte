@@ -15,6 +15,7 @@
     state,
     tone = 'neutral',
     level = 2,
+    variant = 'card',
     children,
     actions,
     more,
@@ -25,6 +26,7 @@
     state: string;
     tone?: 'neutral' | 'info' | 'success' | 'warning' | 'error';
     level?: 2 | 3;
+    variant?: 'card' | 'panel';
     /** Notes and issues, read before any action. */
     children?: Snippet;
     /** The main action first, then the others. */
@@ -34,7 +36,7 @@
   } = $props();
 </script>
 
-<section class="ui-status-card" {id} aria-labelledby="{id}-title">
+<section class="ui-status-card" class:panel={variant === 'panel'} {id} aria-labelledby="{id}-title">
   <svelte:element this={`h${level}`} id="{id}-title" class="ui-status-card-title"
     >{title}</svelte:element
   >

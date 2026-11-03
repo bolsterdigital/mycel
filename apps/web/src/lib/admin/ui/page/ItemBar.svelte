@@ -88,10 +88,11 @@
         class={compact ? 'ui-visually-hidden' : 'ui-item-bar-title'}>{title}</svelte:element
       >
       <div class="ui-item-bar-context">
+        {#if compact && locales}{@render locales()}{/if}
         {#if state && stateHref}<a class="ui-item-bar-state" href={stateHref} title={stateDetail}
             ><Badge {tone}>{state}</Badge></a
           >{:else if state}<Badge {tone}>{state}</Badge>{/if}
-        {#if locales}{@render locales()}{/if}
+        {#if !compact && locales}{@render locales()}{/if}
         {#if compact}{@render saveState()}{/if}
       </div>
     </div>

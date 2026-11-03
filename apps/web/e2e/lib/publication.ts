@@ -63,7 +63,11 @@ export async function fourActions(page: Page, locale: string) {
   await openPublication(page);
   await card.getByRole('button', { name: nl ? 'Publiceren' : 'Publish', exact: true }).click();
   await openPublication(page);
-  await card.locator('details > summary').click();
+  await card
+    .locator('details')
+    .filter({ has: page.locator('summary', { hasText: nl ? /^Inplannen$/ : /^Schedule$/ }) })
+    .locator('summary')
+    .click();
   await card.locator('input[type="datetime-local"]').fill('2030-01-04T09:00');
   await openPublication(page);
   await card.getByRole('button', { name: nl ? 'Inplannen' : 'Schedule', exact: true }).click();
@@ -82,4 +86,16 @@ export async function newPageIn(page: Page, locale: string, slug: string): Promi
   await page.getByRole('button', { name: nl ? 'Concept maken' : 'Create draft' }).click();
   await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
   return new URL(page.url()).pathname;
+}
+
+/** Secondary destructive action stays folded until the operator asks for it. */
+export async function takeOffline(page: Page, locale: string, label: string) {
+  await openPublication(page);
+  const card = page.locator(`#publication-${locale}`);
+  await card
+    .locator('details')
+    .filter({ has: page.locator('summary', { hasText: label }) })
+    .locator('summary')
+    .click();
+  await card.getByRole('button', { name: label, exact: true }).click();
 }
