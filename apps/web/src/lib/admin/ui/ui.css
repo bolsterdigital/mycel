@@ -2849,3 +2849,61 @@
     margin-block: 0;
   }
 }
+
+/* Compact editor context shares a line with its actions until whole groups need to wrap. */
+.ui-item-bar.compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.ui-item-bar.compact .ui-item-bar-main {
+  flex: 1 1 30rem;
+  align-items: center;
+}
+.ui-item-bar.compact .ui-item-bar-where {
+  flex: 1 1 14rem;
+}
+.ui-item-bar.compact .ui-item-bar-tools {
+  display: block;
+  flex: 1 1 20rem;
+}
+.ui-publication-disclosure > summary {
+  min-block-size: var(--tap);
+  cursor: pointer;
+}
+.ui-publication-disclosure.enhanced > summary {
+  display: none;
+}
+.ui-publication-disclosure:not(.enhanced) .ui-publication-drawer {
+  position: static;
+  margin: 0;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  max-block-size: none;
+}
+.ui-publication-drawer:modal {
+  inset: 0 0 0 auto;
+  margin: 0;
+  block-size: 100dvh;
+  max-block-size: 100dvh;
+  inline-size: min(100%, 30rem);
+  max-inline-size: 100%;
+  border-radius: 0;
+}
+.ui-publication-locale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  border-block-start: 1px solid var(--color-border);
+}
+
+/* A top-layer publication modal remains available while live preview replaces the sidebar. */
+.ui-edit[data-preview-open] > .ui-edit-side:has(.ui-publication-drawer:modal) {
+  display: contents;
+}
+.ui-edit[data-preview-open]
+  > .ui-edit-side:has(.ui-publication-drawer:modal)
+  > :not(.ui-publication-disclosure) {
+  display: none;
+}

@@ -1,3 +1,4 @@
+import { openPublication, closePublication } from './lib/publication';
 // flow: publish
 // What a visitor gets from a published site: composed block pages, the route grammar with its
 // head and caching, grid compositions, and a site's chrome and theme from its settings. Each part
@@ -1265,6 +1266,12 @@ test.describe('grid-compositions', () => {
         path: test.info().outputPath('editor-browser-zoom-200.png'),
         fullPage: true,
       });
+      await openPublication(page);
+      await layoutGate(page, 'publication at real 200% browser zoom', '#publication-panel');
+      await expectNoAxeViolations(page);
+      await page.screenshot({ path: test.info().outputPath('publication-browser-zoom-200.png') });
+      await closePublication(page);
+      await expect(page.locator('a[href="#publication-panel"]')).toBeFocused();
     } finally {
       await context?.close();
       await rm(directory, { recursive: true, force: true });

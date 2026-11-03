@@ -1,3 +1,4 @@
+import { openPublication } from './lib/publication';
 // flow: access
 // Who may administer a site, and what the admin shows them: sign-in, membership, API keys, the
 // tenant shell across sites, the status page and managed connections. Each part below was a spec
@@ -1331,6 +1332,7 @@ test.describe('preferences', () => {
     // Hydration restores the server's closed fold; interact only after the editor owns it.
     if (isA11y())
       await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    await openPublication(page);
     await nl.locator('details', { hasText: 'Inplannen' }).locator('summary').click();
     await expect(nl.getByText('Tijd in Asia/Tokyo')).toBeAttached();
     await nl.getByLabel('Publiceren op').fill('2030-01-04T17:00');

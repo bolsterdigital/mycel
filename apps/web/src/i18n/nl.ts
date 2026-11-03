@@ -805,6 +805,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.state.changed': 'Gepubliceerd, sindsdien gewijzigd',
   'admin.content.state.pinned': 'Ingepland voor {at}',
   'admin.content.state.pinnedOlder': 'Ingepland voor {at}; je bewerkt een nieuwere versie',
+  'admin.content.action.openPublication': 'Publiceren…',
   'admin.content.action.publish': 'Publiceren',
   'admin.content.action.publishChanges': 'Wijzigingen publiceren',
   'admin.content.action.view': 'Bekijk op de site',

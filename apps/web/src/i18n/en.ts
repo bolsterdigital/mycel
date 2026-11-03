@@ -797,6 +797,7 @@ export const en = {
   'admin.content.state.changed': 'Published, changed since',
   'admin.content.state.pinned': 'Scheduled for {at}',
   'admin.content.state.pinnedOlder': 'Scheduled for {at}; you are editing a newer version',
+  'admin.content.action.openPublication': 'Publish…',
   'admin.content.action.publish': 'Publish',
   'admin.content.action.publishChanges': 'Publish changes',
   'admin.content.action.view': 'View on the site',

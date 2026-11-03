@@ -20,6 +20,7 @@
   let {
     back,
     title,
+    compact = false,
     locale,
     breadcrumbLabel,
     state,
@@ -34,6 +35,7 @@
     /** The list this item belongs to. */
     back: { href: string; label: string };
     title: string;
+    compact?: boolean;
     locale: string;
     /** A contextual navigation name when another breadcrumb appears on the same page. */
     breadcrumbLabel?: string;
@@ -58,36 +60,43 @@
   const t = $derived(ui(locale));
 </script>
 
-<header class="ui-item-bar">
+{#snippet saveState()}
+  {#if save}
+    <span
+      class="ui-item-bar-save"
+      data-save-state
+      data-current={save.text ? 'done' : 'none'}
+      data-refused={save.refused ? '' : undefined}
+    >
+      <span class="ui-item-bar-save-words" aria-hidden="true">
+        <span data-state="unsaved">{save.unsaved}</span>
+        <span data-state="saving">{save.saving}</span>
+        <span data-state="done">{save.text}</span>
+      </span>
+      <span class="ui-visually-hidden" aria-live="polite" data-save-live>{save.text}</span>
+    </span>
+  {/if}
+{/snippet}
+<header class="ui-item-bar" class:compact>
   <nav class="ui-item-bar-breadcrumb" aria-label={breadcrumbLabel ?? t('admin.ui.breadcrumb')}>
     <a class="ui-item-bar-back" href={back.href}><Icon name="arrow-left" />{back.label}</a>
   </nav>
   <div class="ui-item-bar-main">
     <div class="ui-item-bar-where">
-      <svelte:element this={`h${level}`} class="ui-item-bar-title">{title}</svelte:element>
+      <svelte:element
+        this={`h${level}`}
+        class={compact ? 'ui-visually-hidden' : 'ui-item-bar-title'}>{title}</svelte:element
+      >
       <div class="ui-item-bar-context">
         {#if state && stateHref}<a class="ui-item-bar-state" href={stateHref} title={stateDetail}
             ><Badge {tone}>{state}</Badge></a
           >{:else if state}<Badge {tone}>{state}</Badge>{/if}
         {#if locales}{@render locales()}{/if}
+        {#if compact}{@render saveState()}{/if}
       </div>
     </div>
     <div class="ui-item-bar-tools">
-      {#if save}
-        <span
-          class="ui-item-bar-save"
-          data-save-state
-          data-current={save.text ? 'done' : 'none'}
-          data-refused={save.refused ? '' : undefined}
-        >
-          <span class="ui-item-bar-save-words" aria-hidden="true">
-            <span data-state="unsaved">{save.unsaved}</span>
-            <span data-state="saving">{save.saving}</span>
-            <span data-state="done">{save.text}</span>
-          </span>
-          <span class="ui-visually-hidden" aria-live="polite" data-save-live>{save.text}</span>
-        </span>
-      {/if}
+      {#if !compact}{@render saveState()}{/if}
       {#if actions}
         <div class="ui-actions-host">
           <div class="ui-actions end">{@render actions()}</div>
