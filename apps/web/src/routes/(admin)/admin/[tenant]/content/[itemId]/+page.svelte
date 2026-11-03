@@ -29,6 +29,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { earlyInput } from '#lib/editor/early-input.js';
+  import PublicationDrawer from '#lib/admin/ui/feedback/PublicationDrawer.svelte';
   import WritingSurface from '#lib/editor/WritingSurface.svelte';
   import BlockFields from '#lib/admin/BlockFields.svelte';
   import Diff from '#lib/admin/Diff.svelte';
@@ -169,6 +170,9 @@
       timeZone: data.timeZone,
     })
   );
+
+  const languageName = (locale: string) =>
+    new Intl.DisplayNames([locale], { type: 'language' }).of(locale) ?? locale;
 
   type Publication = (typeof data.item.publication)[number];
   type Tone = 'neutral' | 'info' | 'success' | 'warning';
@@ -986,10 +990,11 @@
   {@const state = stateOf(p)}
   <StatusCard
     id="publication-{p.locale}"
-    title={t('admin.content.edit.side')}
+    title={languageName(p.locale)}
+    variant="panel"
     state={state.text}
     tone={state.tone}
-    level={2}
+    level={3}
   >
     {#if data.restricted}
       <Notice tone="warning" live={false}><p>{t('admin.content.publication.restricted')}</p></Notice
@@ -1035,11 +1040,8 @@
         >
       {/if}
       {#if p.href}
-        <Button
-          variant={p.live && !p.changes ? 'primary' : 'secondary'}
-          href={p.href}
-          aria-describedby="new-tab"
-          target="_blank">{t('admin.content.action.view')}</Button
+        <Button variant="link" href={p.href} aria-describedby="new-tab" target="_blank"
+          ><Icon name="external-link" />{t('admin.content.action.view')}</Button
         >
       {/if}
       {#if data.canPublish && p.pin && !p.pin.revision.latest}
@@ -1052,15 +1054,13 @@
           >{t('admin.content.action.unschedule')}</Button
         >
       {/if}
-      {#if data.canPublish && p.live}
-        <Button variant="secondary" formaction={action('unpublish')} name="locale" value={p.locale}
-          >{t('admin.content.action.unpublish')}</Button
-        >
-      {/if}
     {/snippet}
     {#snippet more()}
       {#if data.canPublish}
-        <details class="ui-fold" open={form && 'locale' in form && form.locale === p.locale}>
+        <details
+          class="ui-fold ui-publication-option"
+          open={form && 'locale' in form && form.locale === p.locale}
+        >
           <summary>{t('admin.content.action.scheduleFold')}</summary>
           <Field
             id="at.{p.locale}"
@@ -1083,8 +1083,45 @@
           </Actions>
         </details>
       {/if}
+      {#if data.canPublish && p.live}
+        <details class="ui-fold ui-publication-option">
+          <summary>{t('admin.content.action.unpublish')}</summary>
+          <p class="ui-hint">{t('admin.content.publication.offlineHint')}</p>
+          <Button
+            variant="secondary"
+            formaction={action('unpublish')}
+            name="locale"
+            value={p.locale}>{t('admin.content.action.unpublish')}</Button
+          >
+        </details>
+      {/if}
     {/snippet}
   </StatusCard>
+{/snippet}
+
+{#snippet refusalNotice()}
+  {#if form && !form.conflict && !recovered}
+    <Notice tone="error" title={t('error.summary.title')}>
+      {#if issues.length}
+        <p>{refusalCopy(t, form)}</p>
+        <ul>
+          {#each issues as i (i.name + i.copy)}
+            <li>
+              {#if i.name}<a href="#{fieldId(i.name)}">{fieldLabel(i.name)}</a>:
+              {/if}{t(i.copy as UiKey)}
+            </li>
+          {/each}
+        </ul>
+      {:else if 'issues' in form && form.issues?.length}
+        <p>
+          {fill(t('admin.content.publication.error.refused'), { locale: form.locale ?? '' })}
+        </p>
+        {@render issueList(form.issues ?? [])}
+      {:else}
+        <p>{refusalCopy(t, form)}</p>
+      {/if}
+    </Notice>
+  {/if}
 {/snippet}
 
 <EditPage
@@ -1112,6 +1149,7 @@
       aria-hidden="true">{t('admin.content.edit.save')}</button
     >
     <ItemBar
+      compact
       locale={data.locale}
       back={{
         href: `${base}/content?type=${data.item.type}`,
@@ -1124,7 +1162,6 @@
           ? fill(t('admin.locale.translate.title'), { locale: work })
           : undefined}
       stateDetail={state?.text}
-      stateHref={mainPublication ? `#publication-${mainPublication.locale}` : undefined}
       tone={state?.tone}
       save={data.canWrite
         ? {
@@ -1153,6 +1190,9 @@
         {/if}
       {/snippet}
       {#snippet actions()}
+        <Button variant="secondary" form="item-edit" formaction={action('save')}
+          >{t('admin.content.edit.save')}</Button
+        >
         {#if livePreview}
           <button
             type="button"
@@ -1172,10 +1212,13 @@
             href={previewHref(work)}
             target="_blank"
             aria-describedby="new-tab"
-            data-preview-link={work}>{t('admin.content.edit.previewShort')}</Button
+            data-preview-link={work}
+            ><Icon name="external-link" />{t('admin.content.edit.previewShort')}</Button
           >
         {/if}
-        <Button form="item-edit" formaction={action('save')}>{t('admin.content.edit.save')}</Button>
+        {#if mainPublication || others.length}<Button href="#publication-panel"
+            >{t('admin.content.action.openPublication')}</Button
+          >{/if}
       {/snippet}
     </ItemBar>
   {/snippet}
@@ -1195,28 +1238,7 @@
         </p>
       </Notice>
     {/if}
-    {#if form && !form.conflict && !recovered}
-      <Notice tone="error" title={t('error.summary.title')}>
-        {#if issues.length}
-          <p>{refusalCopy(t, form)}</p>
-          <ul>
-            {#each issues as i (i.name + i.copy)}
-              <li>
-                {#if i.name}<a href="#{fieldId(i.name)}">{fieldLabel(i.name)}</a>:
-                {/if}{t(i.copy as UiKey)}
-              </li>
-            {/each}
-          </ul>
-        {:else if 'issues' in form && form.issues?.length}
-          <p>
-            {fill(t('admin.content.publication.error.refused'), { locale: form.locale ?? '' })}
-          </p>
-          {@render issueList(form.issues ?? [])}
-        {:else}
-          <p>{refusalCopy(t, form)}</p>
-        {/if}
-      </Notice>
-    {/if}
+    {#if !(form && 'locale' in form && !form.conflict)}{@render refusalNotice()}{/if}
     {#if form?.conflict}
       <Notice tone="error" title={t('admin.content.conflict.title')}>
         <p>
@@ -1302,22 +1324,40 @@
   {/snippet}
 
   {#snippet aside()}
-    {#if mainPublication}{@render statusCard(mainPublication)}{/if}
-    {#if multi && others.length}
-      <section aria-labelledby="other-locales" class="item-locales">
-        <h2 id="other-locales">{t('admin.content.item.locales')}</h2>
-        <ul>
-          {#each others as o (o.locale)}
-            <li>
-              <Button variant="link" formaction={action('switchLocale')} name="to" value={o.locale}
-                >{o.locale}</Button
-              >
-              {#if o.publication}<span>{stateOf(o.publication).text}</span>{/if}
-              {#if o.state !== 'ok'}<span class="ui-hint">{stateWords(o.state)}</span>{/if}
-            </li>
-          {/each}
-        </ul>
-      </section>
+    {#if mainPublication || others.length}
+      <PublicationDrawer
+        id="publication-panel"
+        title={t('admin.content.publication.title')}
+        locale={data.locale}
+        refused={!!(form && 'locale' in form && !form.conflict)}
+      >
+        {#if form && 'locale' in form && !form.conflict}{@render refusalNotice()}{/if}
+        {#if mainPublication}{@render statusCard(mainPublication)}{:else}<h3>
+            {languageName(work)}
+          </h3>
+          <p>{fill(t('admin.locale.translate.title'), { locale: work })}</p>{/if}
+        {#if multi && others.length}
+          <section aria-labelledby="other-locales" class="item-locales">
+            <h3 id="other-locales">{t('admin.content.item.locales')}</h3>
+            {#each others as o (o.locale)}
+              <div class="ui-publication-locale">
+                <div>
+                  <strong>{languageName(o.locale)}</strong>
+                  {#if o.publication}<span>{stateOf(o.publication).text}</span>{/if}
+                  {#if o.state !== 'ok'}<span class="ui-hint">{stateWords(o.state)}</span>{/if}
+                </div>
+                <Button
+                  variant="secondary"
+                  formaction={action('switchLocale')}
+                  name="to"
+                  value={o.locale}>{t('admin.block.card.edit')}</Button
+                >
+              </div>
+            {/each}
+          </section>
+        {/if}
+        <p class="ui-hint">{t('admin.content.publication.chosenLocale')}</p>
+      </PublicationDrawer>
     {/if}
 
     <section aria-labelledby="this-item">

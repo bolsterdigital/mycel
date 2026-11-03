@@ -29,6 +29,14 @@ import {
 } from './lib/api';
 import { expectPixels } from './lib/images';
 import { settingsEvidence } from './lib/settings-evidence';
+import {
+  openPublication,
+  takeOffline,
+  closePublication,
+  exercisePublicationDrawer,
+  fourActions,
+  newPageIn,
+} from './lib/publication';
 
 // Keep the unfinished locale-edit action on timeout without tracing every content flow.
 // Rejected: a guessed readiness wait, which would change the timing being investigated.
@@ -155,8 +163,7 @@ test.describe('content-admin', () => {
     await login(page, '/admin/probe');
     await page.getByRole('link', { name: 'Pagina’s' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Pagina’s' })).toBeVisible();
-    // One visible "Pagina's" (#87): the list heading and the table caption repeat the title for
-    // screen readers only.
+    // The list heading is the sole visible title (#87).
     expect(
       await page
         .locator('main :is(h1, h2, caption)', { hasText: 'Pagina’s' })
@@ -369,12 +376,13 @@ test.describe('content-admin', () => {
       panel.getByRole('link', { name: 'Opgeslagen versie in nieuw tabblad' })
     ).toBeVisible();
     await expectNoAxeViolations(page);
-    // The state in the bar points into the side column: following it closes the preview.
-    await page.locator('.ui-item-bar-state').click();
-    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
-    await expect(side).toBeVisible();
+    // Publication is independent of the live preview and closes back to its opener.
+    await openPublication(page);
+    await expect(page.locator('#publication-panel')).toBeVisible();
+    await closePublication(page);
+    await expect(page.locator('a[href="#publication-panel"]')).toBeFocused();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
     // The browser remembers the choice.
-    await toggle.click();
     await page.reload();
     await expect(toggle).toHaveAttribute('aria-pressed', 'true');
     await page.setViewportSize({ width: 1280, height: 720 });
@@ -947,12 +955,11 @@ test.describe('content-admin', () => {
     await expectNoAxeViolations(page);
   });
 
-  // Publication per locale (brief content-editor § A2, edit-screen § 4): core decides, the
-  // status card of each locale shows what it decided, its state in words. Every action is a
-  // button of the one edit form.
+  // Publication per locale stays in the one edit form (brief content-editor § A2).
   const card = (page: Page, locale: string) => page.locator(`#publication-${locale}`);
   /** The schedule fold of a card, opened. */
   const scheduleFold = async (page: Page, locale: string) => {
+    await openPublication(page);
     const fold = card(page, locale).locator('details', { hasText: 'Inplannen' });
     if ((await fold.getAttribute('open')) === null) await fold.locator('summary').click();
     return fold;
@@ -988,6 +995,7 @@ test.describe('content-admin', () => {
     await page.setViewportSize({ width: 1280, height: 900 });
 
     // Taken: nothing is saved, the field says why and keeps what was typed.
+    await closePublication(page);
     await page.locator('#title\\.nl').fill('Verhuizing gepland');
     await field.fill(taken);
     await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
@@ -1014,6 +1022,7 @@ test.describe('content-admin', () => {
     expect(await conflict.json()).toMatchObject({ code: 'conflict' });
 
     // Live once: the address stays, also over the API.
+    await openPublication(page);
     await card(page, 'nl').getByRole('button', { name: 'Publiceren', exact: true }).click();
     await expect(page).toHaveURL(`${edit}?done=publish&locale=nl`);
     await expect(side.locator('details', { hasText: 'Adres wijzigen' })).toHaveCount(0);
@@ -1036,11 +1045,13 @@ test.describe('content-admin', () => {
     await login(page, '/admin/probe');
     const slug = slugFor('publish');
     const edit = await newPage(page, slug, 'Buurtfeest');
+    await openPublication(page);
     await expect(card(page, 'nl')).toContainText('Concept');
     await expect(card(page, 'nl').getByRole('list')).toHaveCount(0);
     await card(page, 'nl').getByRole('button', { name: 'Publiceren', exact: true }).click();
     await expect(page).toHaveURL(`${edit}?done=publish&locale=nl`);
     await expect(page.getByRole('status')).toContainText('Gepubliceerd in nl.');
+    await openPublication(page);
     await expect(card(page, 'nl')).toContainText(/Gepubliceerd op \d+ \w+ \d{4}/);
     await expect(card(page, 'nl').getByRole('button', { name: /publiceren/i })).toHaveCount(0);
     await expect(card(page, 'nl').getByRole('link', { name: /Bekijk op de site/ })).toHaveAttribute(
@@ -1058,9 +1069,11 @@ test.describe('content-admin', () => {
     await page.goto(edit);
 
     // A new revision: the site keeps the old title until it is published.
+    await closePublication(page);
     await page.locator('#title\\.nl').fill('Buurtfeest verplaatst');
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await expect(page).toHaveURL(`${edit}?saved`);
+    await openPublication(page);
     await expect(card(page, 'nl')).toContainText('Gepubliceerd, sindsdien gewijzigd');
     await expect(
       card(page, 'nl').getByRole('button', { name: 'Wijzigingen publiceren', exact: true })
@@ -1075,8 +1088,10 @@ test.describe('content-admin', () => {
 
     // Offline again: the address is gone, the card says it was live once.
     await page.goto(edit);
-    await card(page, 'nl').getByRole('button', { name: 'Offline halen', exact: true }).click();
+    await openPublication(page);
+    await takeOffline(page, 'nl', 'Offline halen');
     await expect(page.getByRole('status')).toContainText('Offline gehaald in nl.');
+    await openPublication(page);
     await expect(card(page, 'nl')).toContainText('Offline gehaald');
     expect((await request.get(`${SITE}/${slug}`)).status()).toBe(404);
   });
@@ -1107,21 +1122,26 @@ test.describe('content-admin', () => {
     await expectNoAxeViolations(page);
 
     // The switch saves what was typed first, then shows English.
+    await closePublication(page);
     await page.locator('#title\\.nl').fill(`${title}!`);
     await switchTo('en').click();
     await expect(page).toHaveURL(`${edit}?locale=en`);
     await expect(switchTo('en')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('[name="title.nl"]')).toHaveCount(0);
+    await openPublication(page);
     const en = card(page, 'en');
     await expect(en).toContainText('Titel (en): de vertaling ontbreekt');
     await expect(en.getByRole('link', { name: 'Titel (en)' })).toHaveAttribute('href', '#title.en');
+    await openPublication(page);
     await en.getByRole('button', { name: 'Publiceren', exact: true }).click();
     const alert = page.getByRole('alert');
     await expect(alert).toContainText('Dit kan in en nog niet:');
     await expect(alert).toContainText('Titel (en): de vertaling ontbreekt');
 
     // Typed but not saved: the publish button saves it first; Dutch stays as it was saved.
+    await closePublication(page);
     await page.locator('#title\\.en').fill('Only Dutch, now English');
+    await openPublication(page);
     await card(page, 'en').getByRole('button', { name: 'Publiceren', exact: true }).click();
     await expect(page).toHaveURL(`${edit}?done=publish&locale=en`);
     expect((await request.get(`${SITE}/en/${slug}`)).status()).toBe(200);
@@ -1169,6 +1189,7 @@ test.describe('content-admin', () => {
     await layoutGate(page, 'start the translation', '#translate');
     await layoutGate(page, 'locale switch', '.ui-item-bar');
     await setTextSize(page, '100%');
+    await openPublication(page);
     await page.locator('.ui-edit-side button[name="to"][value="nl"]').click();
     await expect(page).toHaveURL(`${edit}?locale=nl`);
     await expect(page.locator('#title\\.nl')).toHaveValue(title);
@@ -1178,11 +1199,22 @@ test.describe('content-admin', () => {
     await expect(page).toHaveURL(`${edit}?saved&locale=en`);
     await expect(page.locator('#title\\.en')).toHaveValue(title);
     await expect(page.locator('#lead\\.en')).toHaveValue('Een korte kern.');
+    await closePublication(page);
     await page.locator('#title\\.en').fill('Start from Dutch');
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await page.goto(`${edit}?locale=nl`);
     await expect(page.locator('#title\\.nl')).toHaveValue(title);
     await expect(page.locator('#lead\\.nl')).toHaveValue('Een korte kern.');
+  });
+
+  test('publication opens without saving or moving the editor and restores focus on close', async ({
+    page,
+  }) => {
+    onlyA11y('checks the enhanced modal, focus and stored navigation choice');
+    await login(page, '/admin/probe');
+    await page.evaluate(() => localStorage.removeItem('mycel.admin.nav'));
+    const edit = await newPage(page, slugFor('drawer'), 'Paneel');
+    await exercisePublicationDrawer(page, edit);
   });
 
   test('a schedule pins a revision; a newer one can take its place', async ({ page }) => {
@@ -1192,34 +1224,44 @@ test.describe('content-admin', () => {
     // Scheduling is folded away until asked for: no date field in view by default.
     await expect(nl.getByLabel('Publiceren op')).toBeHidden();
     await (await scheduleFold(page, 'nl')).getByLabel('Publiceren op').fill('2030-01-04T09:00');
+    await openPublication(page);
     await nl.getByRole('button', { name: 'Inplannen', exact: true }).click();
     await expect(page).toHaveURL(`${edit}?done=schedule&locale=nl`);
+    await openPublication(page);
     await expect(nl).toContainText('Ingepland voor 2030-01-04 09:00');
 
     // Edited after planning: the pin stays on the old revision until the editor moves it.
+    await closePublication(page);
     await page.locator('#title\\.nl').fill('Op vrijdagochtend');
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await expect(page).toHaveURL(`${edit}?saved`);
+    await openPublication(page);
     await expect(nl).toContainText('Ingepland voor 2030-01-04 09:00');
+    await openPublication(page);
     await expect(nl).toContainText('Je bewerkt een nieuwere revisie');
     await expectNoAxeViolations(page);
+    await openPublication(page);
     await nl
       .getByRole('button', { name: 'Deze versie op dat moment publiceren', exact: true })
       .click();
     await expect(page).toHaveURL(`${edit}?done=repin&locale=nl`);
+    await openPublication(page);
     await expect(nl).toContainText('Ingepland voor 2030-01-04 09:00');
     await expect(nl).not.toContainText('Je bewerkt een nieuwere revisie');
 
     // A time in the past is core's refusal, worded in the panel's terms.
     await (await scheduleFold(page, 'nl')).getByLabel('Publiceren op').fill('2020-01-01T09:00');
+    await openPublication(page);
     await nl.getByRole('button', { name: 'Inplannen', exact: true }).click();
     await expect(page.getByRole('alert')).toContainText(
       'Publiceren op: de tijd ligt niet in de toekomst'
     );
 
     await page.goto(edit);
+    await openPublication(page);
     await nl.getByRole('button', { name: 'Planning intrekken', exact: true }).click();
     await expect(page.getByRole('status')).toContainText('Planning ingetrokken in nl.');
+    await openPublication(page);
     await expect(nl).toContainText('Concept');
   });
 
@@ -1264,10 +1306,12 @@ test.describe('content-admin', () => {
         });
 
         await page.goto(edit);
+        await closePublication(page);
         await page.locator('#title\\.nl').fill(`Updated ${label}`);
         await page.getByRole('button', { name: 'Opslaan' }).click();
         const newRevisionId = await page.locator('input[name="baseRevisionId"]').inputValue();
         expect(newRevisionId).not.toBe(oldRevisionId);
+        await openPublication(page);
         await card(page, 'nl')
           .getByRole('button', { name: 'Deze versie op dat moment publiceren', exact: true })
           .click();
@@ -1304,6 +1348,7 @@ test.describe('content-admin', () => {
     });
     await page.goto(edit);
     await expect(page.getByLabel('Wie het mag lezen')).toHaveValue('members');
+    await openPublication(page);
     const notice = card(page, 'nl').getByText('Bezoekers zonder account zien dit item niet');
     await expect(notice).toBeVisible();
     // Before the first button in document order, and no button closes it.
@@ -1530,7 +1575,9 @@ test.describe('content-admin', () => {
     try {
       await context.clearCookies();
       await login(page, edit, email);
+      await openPublication(page);
       await expect(card(page, 'nl')).toContainText('Concept');
+      await openPublication(page);
       await expect(
         card(page, 'nl').getByText('vragen de bevoegdheid content:publish')
       ).toBeVisible();
@@ -1618,34 +1665,23 @@ test.describe('content-admin', () => {
             await page.goto(path);
             await setTextSize(page, text);
             await layoutGate(page, path);
+            if (path === edit) {
+              await page.screenshot({
+                path: test.info().outputPath(`editor-${locale}-${text}.png`),
+                fullPage: true,
+              });
+              await openPublication(page);
+              await layoutGate(page, 'publication drawer', '#publication-panel');
+              await expectNoAxeViolations(page);
+              await page.screenshot({
+                path: test.info().outputPath(`publication-${locale}-${text}.png`),
+              });
+              await closePublication(page);
+            }
           }
           await context.close();
         });
   });
-
-  /** Live, pinned to an older revision: all four actions of the nl card, plus the schedule. */
-  async function fourActions(page: Page, locale: string) {
-    const nl = locale.startsWith('nl');
-    const card = page.locator('#publication-nl');
-    await card.getByRole('button', { name: nl ? 'Publiceren' : 'Publish', exact: true }).click();
-    await card.locator('details > summary').click();
-    await card.locator('input[type="datetime-local"]').fill('2030-01-04T09:00');
-    await card.getByRole('button', { name: nl ? 'Inplannen' : 'Schedule', exact: true }).click();
-    await page.locator('#title\\.nl').fill('Poort 2');
-    await page.getByRole('button', { name: nl ? 'Opslaan' : 'Save' }).click();
-    await expect(page).toHaveURL(/\?saved$/);
-  }
-
-  /** `newPage` in either admin language. */
-  async function newPageIn(page: Page, locale: string, slug: string): Promise<string> {
-    const nl = locale.startsWith('nl');
-    await page.goto('/admin/probe/content/new?type=page');
-    await page.getByLabel('Slug').fill(slug);
-    await page.getByLabel(nl ? 'Titel (nl)' : 'Title (nl)').fill('Poort');
-    await page.getByRole('button', { name: nl ? 'Concept maken' : 'Create draft' }).click();
-    await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
-    return new URL(page.url()).pathname;
-  }
 });
 
 // Block forms of the content admin (TODO #11, brief content-editor § B): every block type is
@@ -1788,6 +1824,7 @@ test.describe('content-blocks', () => {
       // Closed again, the side column with the publish button comes back.
       await page.getByRole('button', { name: 'Voorbeeld', exact: true }).click();
     }
+    await openPublication(page);
     await page.getByRole('button', { name: /^(Wijzigingen )?publiceren$/i }).click();
     await page.goto(`/probe/e2e-blokken-${test.info().project.name}`);
     await expect(page.locator('main .faq.width-wide')).toContainText(`Wat? ${stamp}`);
@@ -2046,6 +2083,7 @@ test.describe('content-blocks', () => {
         locale === 'nl' ? 'Waarom is dit belangrijk?' : 'Why does this matter?'
       );
       await page.goto(`${edit}?locale=${locale}`);
+      await openPublication(page);
       await page.getByRole('button', { name: 'Publiceren', exact: true }).click();
       await expect(page.getByRole('status')).toContainText(`Gepubliceerd in ${locale}.`);
     }

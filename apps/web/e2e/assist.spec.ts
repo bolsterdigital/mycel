@@ -9,6 +9,7 @@ import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { NARROW, layoutGate, setTextSize } from './lib/layout';
 import { login } from './lib/login';
 import { isA11y } from './lib/project';
+import { openPublication } from './lib/publication';
 
 test.use({
   locale: 'nl-NL',
@@ -291,6 +292,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
         .fill('Edited English heading');
       await acceptWithKeyboard(page);
       await expect(page).toHaveURL(`${edit}?saved=1&locale=en`);
+      await openPublication(page);
       const publication = page.locator('#publication-en');
       await expect(page.locator('details.block')).toHaveCount(0);
       await expect(publication).toContainText(/Machinevertaling|Machine translation/);
@@ -322,6 +324,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
       expect(denied.status()).toBe(403);
       await permissions(page, ['tenant:admin']);
       await page.reload();
+      await openPublication(page);
       await page
         .locator('#publication-en')
         .getByRole('button', { name: /Vertaling in en goedkeuren|Approve translation in en/ })
@@ -474,6 +477,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
       });
       await page.reload();
       await expect(page.locator('details.block')).toHaveCount(0);
+      await openPublication(page);
       const publication = page.locator('#publication-en');
       await expect(publication).toContainText(/Machinevertaling|Machine translation/);
       await expect(publication.locator('a[href="#publication-en"]')).toHaveCount(1);

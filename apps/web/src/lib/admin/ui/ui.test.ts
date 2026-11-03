@@ -38,6 +38,7 @@ import {
   Icon,
   IconSprite,
   ItemBar,
+  PublicationDrawer,
   WritingSheet,
   KeyReveal,
   MetaList,
@@ -1347,6 +1348,21 @@ describe('ItemBar', () => {
     );
     expect(out).toContain('<div class="ui-actions end"><span><button>Save</button></span></div>');
   });
+  it('keeps a semantic title and one compact context line without a status action', () => {
+    const out = html(ItemBar, {
+      locale: 'en',
+      compact: true,
+      back: { href: '/content', label: 'Articles' },
+      title: 'Edit article',
+      state: 'Published · draft changes',
+      save: { text: 'Saved', unsaved: 'Unsaved changes', saving: 'Saving…' },
+    });
+    expect(out).toContain('<h1 class="ui-visually-hidden">Edit article</h1>');
+    expect(out).not.toContain('ui-item-bar-state');
+    const context = out.slice(out.indexOf('ui-item-bar-context'), out.indexOf('ui-item-bar-tools'));
+    expect(context).toContain('Published · draft changes');
+    expect(context).toContain('data-save-state');
+  });
   it('shows the state without a link, and no action group without actions', () => {
     const out = html(ItemBar, {
       locale: 'en',
@@ -1460,6 +1476,21 @@ describe('Section (#116)', () => {
 });
 
 describe('StatusCard', () => {
+  it('supports an unboxed panel while retaining the same state and action semantics', () => {
+    const out = html(StatusCard, {
+      id: 'panel-state',
+      title: 'English',
+      state: 'Draft',
+      variant: 'panel',
+      level: 3,
+      actions: text('<button>Publish</button>'),
+    });
+    expect(out).toContain('ui-status-card panel');
+    expect(out).toContain('<h3 id="panel-state-title"');
+    expect(out).toContain('Draft');
+    expect(out).toContain('<button>Publish</button>');
+  });
+
   it('is a region named by its heading: the state, then notes, then the actions, then more', () => {
     const out = html(StatusCard, {
       id: 'publication-nl',
@@ -1548,5 +1579,24 @@ describe('WritingSheet', () => {
     );
     expect(out).toContain('The article words');
     expect(out).not.toContain('role="application"');
+  });
+});
+
+describe('PublicationDrawer', () => {
+  it('keeps native disclosure and publication fields available without scripts or nested forms', () => {
+    const out = html(PublicationDrawer, {
+      id: 'publication',
+      title: 'Publication',
+      locale: 'en',
+      children: text(
+        '<input name="at.nl" type="datetime-local"><button type="submit" name="locale" value="nl">Publish</button>'
+      ),
+    });
+    expect(out).toContain('<summary>Publication</summary>');
+    expect(out).toContain('<dialog');
+    expect(out).toContain('aria-labelledby="publication-heading"');
+    expect(out).toContain('closedby="none"');
+    expect(out).toContain('name="at.nl"');
+    expect(out).not.toContain('<form');
   });
 });

@@ -4,6 +4,7 @@
 // below was a spec of its own until TODO #50 folded the suite to its budget (testing.md
 // § End-to-end flows); each keeps its own fixtures.
 
+import { openPublication, closePublication } from './lib/publication';
 import { randomBytes } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -1265,6 +1266,12 @@ test.describe('grid-compositions', () => {
         path: test.info().outputPath('editor-browser-zoom-200.png'),
         fullPage: true,
       });
+      await openPublication(page);
+      await layoutGate(page, 'publication at real 200% browser zoom', '#publication-panel');
+      await expectNoAxeViolations(page);
+      await page.screenshot({ path: test.info().outputPath('publication-browser-zoom-200.png') });
+      await closePublication(page);
+      await expect(page.locator('a[href="#publication-panel"]')).toBeFocused();
     } finally {
       await context?.close();
       await rm(directory, { recursive: true, force: true });

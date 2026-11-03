@@ -60,3 +60,5 @@ export { ICONS, type IconName } from './icons.js';
 export { default as UploadDropZone } from './form/UploadDropZone.svelte';
 export { default as BlockInserter } from './form/BlockInserter.svelte';
 export { default as WritingSheet } from './display/WritingSheet.svelte';
+
+export { default as PublicationDrawer } from './feedback/PublicationDrawer.svelte';

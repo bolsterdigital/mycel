@@ -4,6 +4,7 @@
 // of its own until TODO #50 folded the suite to its budget (testing.md § End-to-end flows); each
 // keeps its own fixtures in its own describe.
 
+import { openPublication } from './lib/publication';
 import {
   Invoker,
   SYNTHETIC_SCOPE,
@@ -1331,6 +1332,7 @@ test.describe('preferences', () => {
     // Hydration restores the server's closed fold; interact only after the editor owns it.
     if (isA11y())
       await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    await openPublication(page);
     await nl.locator('details', { hasText: 'Inplannen' }).locator('summary').click();
     await expect(nl.getByText('Tijd in Asia/Tokyo')).toBeAttached();
     await nl.getByLabel('Publiceren op').fill('2030-01-04T17:00');

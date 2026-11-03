@@ -16,6 +16,7 @@
     Button,
     DocumentOutline,
     ItemBar,
+    PublicationDrawer,
     LocaleSwitch,
     StatusCard,
     Card,
@@ -616,12 +617,12 @@
     <h2 id="ui-item-bar">{t('admin.ui.catalogue.itemBar')}</h2>
     <p>{t('admin.ui.catalogue.itemBar.intro')}</p>
     <ItemBar
+      compact
       breadcrumbLabel={t('admin.ui.catalogue.itemBar')}
       locale={data.locale}
       back={{ href: '#ui-item-bar', label: t('admin.content.filter.page') }}
       title={fill(t('admin.content.edit.title'), { type: t('admin.content.type.page') })}
       state={t('admin.content.state.changed')}
-      stateHref="#ui-status-card"
       tone="warning"
       level={3}
     >
@@ -638,9 +639,26 @@
       {/snippet}
       {#snippet actions()}
         <Button variant="secondary" type="button">{t('admin.content.edit.previewShort')}</Button>
-        <Button type="button">{t('admin.content.edit.save')}</Button>
+        <Button variant="secondary" type="button">{t('admin.content.edit.save')}</Button>
+        <Button href="#catalogue-publication">{t('admin.content.action.openPublication')}</Button>
       {/snippet}
     </ItemBar>
+    <PublicationDrawer
+      id="catalogue-publication"
+      title={t('admin.content.publication.title')}
+      locale={data.locale}
+    >
+      <StatusCard
+        id="catalogue-publication-state"
+        title="Nederlands"
+        variant="panel"
+        state={t('admin.content.state.changed')}
+        level={3}
+      >
+        {#snippet actions()}<Button type="button">{t('admin.content.action.publishChanges')}</Button
+          >{/snippet}
+      </StatusCard>
+    </PublicationDrawer>
   </section>
 
   <section aria-labelledby="ui-block-picker">

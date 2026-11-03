@@ -19,6 +19,7 @@ import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { forwarded, login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
+import { openPublication } from './lib/publication';
 
 const SITE = 'http://probe.localhost:4173';
 
@@ -559,6 +560,7 @@ test('a page gets its featured image from the picker, and shares it when publish
   await dialog.getByRole('radio', { name: filename }).check();
   await dialog.getByRole('button', { name: 'Klaar' }).click();
   // Publishing from the same form saves the choice first (editor trial 2026-10-28).
+  await openPublication(page);
   await page.getByRole('button', { name: 'Publiceren', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Gepubliceerd in nl.');
   // Back on the first tab after the redirect: the picker is there, a tab away with JavaScript.
