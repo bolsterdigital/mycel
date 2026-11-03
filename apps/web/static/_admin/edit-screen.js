@@ -20,7 +20,8 @@
 // - an image block's alt text hides while the image is decorative and the field is empty, and a
 //   picture that fails to load turns its card into the "not available" state;
 // - collapsing a block card and every card, remembered per browser and item, without leaving the
-//   form: a collapsed block's fields still save, and one that a refusal or link needs opens itself;
+//   form: a collapsed block's fields still save, and one that a refusal or link needs opens itself,
+//   with focus on the refused field;
 // - "Insert a block below" opening the chooser it points at, and one open "More actions" at a time;
 // - a search field over each block type list that narrows it, Enter adding the first match;
 // - a shortcuts panel that `?` opens (outside text fields).
@@ -539,6 +540,16 @@ if (form instanceof HTMLFormElement) {
     summary?.focus({ preventScroll: true });
   };
   land();
+
+  // A refused save comes back without a hash: the words are in the summary and at the field, and
+  // the block they concern is open (#159). The first refused field that can take focus gets it; a
+  // text kept in a hidden field for its editor falls back to that block's summary.
+  if (state?.hasAttribute('data-refused') && !location.hash) {
+    const refused = [...form.querySelectorAll('[data-block-card] [aria-invalid="true"]')];
+    const field = refused.find(shown);
+    const fold = refused[0]?.closest('details.ui-block-card-fold');
+    (field ?? fold?.querySelector(':scope > summary'))?.focus();
+  }
 
   // An image's alt text only applies while it is not decorative; a filled one stays in view, so
   // the refusal a save would give is never about a field nobody can see.
