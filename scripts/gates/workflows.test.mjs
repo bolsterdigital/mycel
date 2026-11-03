@@ -6,7 +6,11 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readAll, walk } from '../lib/repo.mjs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { readAll, readJson, walk } from '../lib/repo.mjs';
 
 /** `[{ path, text }]` for every workflow, `path` as `<name>.yml`. */
 const workflows = () =>
@@ -27,21 +31,228 @@ test('every `uses:` is pinned to a commit sha with a version comment', () => {
   assert.deepEqual(unpinned, []);
 });
 
-test('only the non-production verify job selects the fake assist provider', () => {
-  const all = workflows();
-  const workflow = all.find((w) => w.path === 'verify.yml').text;
-  const verifyJob = workflow.split(/^  verify:\n/m)[1]?.split(/^  [\w-]+:\n/m)[0];
-  assert.ok(verifyJob, 'verify job must exist');
-  const jobEnv = /^    env:\n([\s\S]*?)(?=^    steps:)/m.exec(verifyJob)?.[1];
-  assert.ok(jobEnv, 'provider must be inherited by all verify steps');
-  assert.match(jobEnv, /^      ASSIST_PROVIDER: fake$/m);
-  assert.doesNotMatch(verifyJob, /NODE_ENV:\s*['"]?production/);
+// These workflows use a deliberately small YAML shape: two-space jobs and literal run blocks.
+// Execute the actual aggregator shell with dependency substitutions, rather than duplicating
+// its decision in a JavaScript predicate that could pass while GitHub turns a missing job green.
+const verifyWorkflow = () => workflows().find((w) => w.path === 'verify.yml').text;
+const jobsOf = (text) =>
+  Object.fromEntries(
+    [
+      ...text
+        .split(/^jobs:\n/m)[1]
+        .matchAll(/^  ([\w-]+):\n([\s\S]*?)(?=^  [\w-]+:\n|$(?![\s\S]))/gm),
+    ].map(([, name, body]) => [name, body])
+  );
+const runBlock = (step) => {
+  const body = /        run: \|\n((?:          .*\n|\n)+)/.exec(step)?.[1];
+  assert.ok(body, 'literal executable run block');
+  return body.replace(/^          /gm, '');
+};
+const stepsOf = (job) => job.split(/(?=^      - (?:name|uses|run):)/m).slice(1);
 
-  // Image/compose/release use the production default, never the browser fixture provider.
-  for (const { path: file, text: contents } of all) {
-    const otherJobs = file === 'verify.yml' ? contents.replace(verifyJob, '') : contents;
-    assert.doesNotMatch(otherJobs, /ASSIST_PROVIDER/, `${file}: provider outside verify job`);
+test('only explicitly allowed non-production jobs select the fake assist provider', () => {
+  const allowed = ['checks', 'browsers'];
+  for (const { path, text } of workflows()) {
+    let outsideFixtures = text;
+    for (const [name, job] of Object.entries(jobsOf(text))) {
+      if (path === 'verify.yml' && allowed.includes(name)) {
+        outsideFixtures = outsideFixtures.replace(job, '');
+        const env = /^    env:\n([\s\S]*?)(?=^    steps:)/m.exec(job)?.[1];
+        assert.ok(env, `${name}: job-level fixtures`);
+        assert.match(env, /^      ASSIST_PROVIDER: fake$/m);
+        assert.match(env, /^      E2E_REQUIRED: '1'$/m);
+        assert.doesNotMatch(job, /NODE_ENV:\s*['"]?production/);
+      } else assert.doesNotMatch(job, /ASSIST_PROVIDER/, `${path}/${name}: production default`);
+    }
+    assert.doesNotMatch(outsideFixtures, /ASSIST_PROVIDER/, `${path}: no inherited fake provider`);
   }
+});
+
+test('local verify and CI cover every original command and both existing browser projects', () => {
+  const { scripts } = readJson('package.json');
+  const commands = [
+    'format:check',
+    'lint:deps',
+    'lint:infra',
+    'typecheck',
+    'test:collect',
+    'test',
+    'build',
+  ];
+  assert.equal(scripts['verify:checks'], commands.map((name) => `npm run ${name}`).join(' && '));
+  assert.equal(scripts.verify, 'npm run verify:checks && npm run test:e2e');
+  assert.equal(scripts['test:e2e'], 'node scripts/e2e/e2e.mjs');
+  const jobs = jobsOf(verifyWorkflow());
+  const checks = runBlock(stepsOf(jobs.checks).find((s) => /Static, adapter/.test(s)));
+  assert.deepEqual(
+    checks.split('\n').filter((line) => /^(npm|npx) /.test(line)),
+    [
+      'npm ci',
+      'npx playwright install --with-deps chromium',
+      'npm run migrate -w @mycel/db',
+      'npm run verify:checks',
+    ]
+  );
+  assert.doesNotMatch(jobs.checks, /npm run test:e2e/);
+  assert.match(jobs.checks, /Signed-off-by on every commit/);
+  assert.match(jobs.checks, /Merged migrations are unchanged/);
+  const projects = /project: \[([^\]]+)\]/.exec(jobs.browsers)[1].split(', ');
+  const config = readAll(['apps/web/playwright.config.ts'])[0].text;
+  assert.deepEqual(
+    projects.sort(),
+    [...config.matchAll(/name: '([^']+)'/g)].map((m) => m[1]).sort()
+  );
+  assert.deepEqual(projects, ['a11y', 'no-js']);
+  assert.match(jobs.browsers, /fail-fast: false/);
+  const browser = runBlock(stepsOf(jobs.browsers).find((s) => /Build and run browser/.test(s)));
+  assert.deepEqual(
+    browser.split('\n').filter((line) => /^(npm|npx) /.test(line)),
+    [
+      'npm ci',
+      'npx playwright install --with-deps chromium',
+      'npm run migrate -w @mycel/db',
+      'npm run build',
+      'npm run test:e2e -- --project=${{ matrix.project }} --reporter=list',
+    ]
+  );
+});
+
+test('checks install their measured-DOM runtime before running infrastructure gates', () => {
+  const job = jobsOf(verifyWorkflow()).checks;
+  const execution = stepsOf(job).find((s) => /timeout-minutes: 12/.test(s));
+  const shell = runBlock(execution);
+  // Model a fresh runner, not this machine's warm Playwright cache. Execute the real step
+  // with external command stand-ins: npm ci clears the runtime, installation provisions it,
+  // and verify needs it. A missing/late/failed install must never reach a green verification.
+  const commands = `
+    npm() {
+      case "$*" in
+        ci) rm -f chromium-ready ;;
+        'run migrate -w @mycel/db') : ;;
+        'run verify:checks') touch verify-ran; test -f chromium-ready || return 42 ;;
+        *) return 43 ;;
+      esac
+    }
+    npx() {
+      test "$*" = 'playwright install --with-deps chromium' || return 44
+      touch chromium-ready
+    }
+  `;
+  const install = 'npx playwright install --with-deps chromium';
+  for (const [name, body, status] of [
+    ['provisioned', shell, 0],
+    ['missing', shell.replace(install, ':'), 42],
+    ['late', shell.replace(install, ':') + '\n' + install, 42],
+    ['failed', shell.replace(install, 'false'), 1],
+  ]) {
+    const dir = mkdtempSync(join(tmpdir(), 'mycel-ci-runtime-'));
+    try {
+      const result = spawnSync(
+        'bash',
+        ['--noprofile', '--norc', '-e', '-o', 'pipefail', '-c', commands + body],
+        { cwd: dir }
+      );
+      assert.equal(result.status, status, name);
+      if (name === 'failed')
+        assert.equal(spawnSync('test', ['-f', join(dir, 'verify-ran')]).status, 1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});
+
+test('protected verify rejects failure, cancellation, skipping and missing dependency results', () => {
+  const jobs = jobsOf(verifyWorkflow());
+  const required = ['checks', 'browsers', 'security', 'image', 'compose'];
+  assert.match(jobs.verify, /^    if: always\(\)$/m);
+  const needs = /needs: \[([^\]]+)\]/.exec(jobs.verify)[1].split(', ');
+  assert.deepEqual(needs.sort(), [...required].sort());
+  assert.deepEqual(Object.keys(jobs).sort(), [...required, 'verify'].sort());
+  const shell = runBlock(jobs.verify);
+  const execute = (results) =>
+    spawnSync('bash', [
+      '--noprofile',
+      '--norc',
+      '-e',
+      '-o',
+      'pipefail',
+      '-c',
+      shell.replace(/\$\{\{ needs\.([\w-]+)\.result \}\}/g, (_, name) => results[name] ?? ''),
+    ]).status;
+  const green = Object.fromEntries(required.map((name) => [name, 'success']));
+  assert.equal(execute(green), 0);
+  for (const name of required) {
+    for (const result of ['failure', 'cancelled', 'skipped', '', undefined]) {
+      assert.notEqual(execute({ ...green, [name]: result }), 0, `${name}: ${result}`);
+    }
+  }
+});
+
+test('layer jobs own services and reserve time for unconditional, distinct retained evidence', () => {
+  const jobs = jobsOf(verifyWorkflow());
+  assert.match(jobs.checks, /image: rustfs\/rustfs:1\.0\.1/);
+  assert.doesNotMatch(jobs.browsers, /rustfs|BLOB_S3/);
+  for (const key of [
+    'ENDPOINT',
+    'REGION',
+    'BUCKET',
+    'ACCESS_KEY_ID',
+    'SECRET_ACCESS_KEY',
+    'FORCE_PATH_STYLE',
+  ])
+    assert.match(jobs.checks, new RegExp(`^      BLOB_S3_${key}: .+$`, 'm'));
+  for (const name of ['checks', 'browsers']) {
+    assert.match(
+      jobs[name],
+      /^      DATABASE_URL: postgres:\/\/mycel:mycel@localhost:5432\/mycel$/m
+    );
+    assert.match(jobs[name], /^      APP_DATABASE_URL: postgres:\/\/mycel_app:/m);
+    assert.match(jobs[name], /^      AUTH_DATABASE_URL: postgres:\/\/mycel_authenticator:/m);
+  }
+  const names = [];
+  for (const name of ['checks', 'browsers']) {
+    const job = jobs[name];
+    assert.match(job, /^    runs-on: ubuntu-latest$/m);
+    assert.match(job, /^    timeout-minutes: 15$/m);
+    assert.match(job, /^    services:\n      postgres:\n        image: postgres:16\.15-alpine/m);
+    assert.doesNotMatch(job, /container:|environment:|needs:|continue-on-error/);
+    const steps = stepsOf(job);
+    const execution = steps.find((s) => /timeout-minutes: 12/.test(s));
+    assert.ok(execution, `${name}: bounded execution includes install, migration and test`);
+    const upload = steps.find((s) => /uses: actions\/upload-artifact@/.test(s));
+    assert.match(upload, /if: always\(\)/);
+    assert.match(upload, /timeout-minutes: 1/);
+    assert.match(upload, /retention-days: 7/);
+    assert.match(upload, /include-hidden-files: true/);
+    assert.match(upload, /if-no-files-found: error/);
+    assert.match(upload, /\.scratch\/ci\//);
+    if (name === 'browsers') assert.match(upload, /apps\/web\/test-results\//);
+    names.push(/          name: (.+)/.exec(upload)[1]);
+    // A controlled command failure exercises the workflow's real logging/trap. The uploader
+    // includes that directory even when Playwright never reaches its final reporter callback.
+    const dir = mkdtempSync(join(tmpdir(), 'mycel-ci-evidence-'));
+    try {
+      const shell = runBlock(execution)
+        .replaceAll('${{ matrix.project }}', 'a11y')
+        .replace(/^npm ci$/m, "printf 'controlled dependency failure\\n'; exit 23");
+      const result = spawnSync(
+        'bash',
+        ['--noprofile', '--norc', '-e', '-o', 'pipefail', '-c', shell],
+        { cwd: dir }
+      );
+      assert.equal(result.status, 23);
+      const log = readFileSync(
+        join(dir, '.scratch/ci', name === 'checks' ? 'checks.log' : 'browser-a11y.log'),
+        'utf8'
+      );
+      assert.match(log, /controlled dependency failure/);
+      assert.match(log, /\d{4}-\d{2}-\d{2}T.*exit=23/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+  assert.equal(new Set(names).size, 2);
+  assert.ok(names.some((name) => name.includes('${{ matrix.project }}')));
 });
 
 test('verify.yml runs with a read-only token and every job has a timeout', () => {
