@@ -194,7 +194,7 @@
   }
   .image figcaption,
   .video figcaption {
-    margin-block-start: var(--space-1);
+    margin-block-start: 4px;
     padding-inline: var(--caption-inset);
     text-align: start;
     font-size: var(--step--1);
@@ -266,7 +266,7 @@
   }
   .page > .page-cover {
     width: 100%;
-    margin-block-end: var(--space-1);
+    margin-block-end: 4px;
   }
   .page-cover {
     --site-header-height: calc(2 * var(--space-2) + var(--tap) + 2px);
@@ -328,7 +328,7 @@
   }
   .page > .page-cover-caption {
     width: 100%;
-    margin-block: 0 var(--space-3);
+    margin-block: 4px var(--space-3);
     padding-inline: var(--gutter);
     font-size: var(--step--1);
     color: var(--color-muted-fg);
@@ -499,8 +499,27 @@
     background: var(--color-body-bg);
     border-color: currentColor;
   }
-  .button:hover {
-    text-decoration: underline;
+  /* Scope the public interaction to content, since the admin imports this base too. The
+     inset focus ring uses the pair's foreground, whose contrast also holds on the active fill. */
+  .page:not(.admin) .button {
+    --action-fg: var(--color-primary-active-fg);
+    --action-bg: var(--color-primary-active-bg);
+    transition:
+      color 150ms ease-out,
+      background-color 150ms ease-out;
+  }
+  .page:not(.admin) .button.secondary {
+    --action-fg: var(--color-body-active-fg);
+    --action-bg: var(--color-body-active-bg);
+  }
+  .page:not(.admin) .button:is(:hover, :focus-visible) {
+    color: var(--action-fg);
+    background-color: var(--action-bg);
+    text-decoration: none;
+  }
+  .page:not(.admin) .button:focus-visible {
+    outline-color: currentColor;
+    outline-offset: -0.25rem;
   }
 
   /* Hero. `cover`: an opaque surface panel over the image, never text on the photo. */
@@ -574,6 +593,10 @@
     color: var(--color-primary-fg);
     background: var(--color-primary-bg);
   }
+  .page:not(.admin) .cta-band .button:not(.secondary) {
+    --action-fg: var(--color-accent-active-fg);
+    --action-bg: var(--color-accent-active-bg);
+  }
   .cta-band .button {
     color: var(--color-accent-fg);
     background: var(--color-accent-bg);
@@ -640,11 +663,10 @@
     margin-block: var(--space-3) var(--space-1);
   }
   /* The accordion reads as the Dreamkit FAQ: every item a card, the question a bar in the
-     primary pair that turns to the surface pair on hover and when open, a plus of two bars that
-     turns into a minus, the answer on the surface pair. Only validated pairs, no script.
-     The pairs swap at once: a fade between them passes through colours no check measured, and
-     axe caught the question failing contrast mid-fade. Only the icon, which carries no text,
-     moves.
+     primary pair with a subtle active pair on hover, focus and when open, a plus of two bars
+     that turns into a minus, the answer on the surface pair. The active tokens preserve colour
+     polarity and are contrast-checked through their fade, unlike a primary/surface inversion.
+     Browser fixtures also sample the actual transition, rather than checking endpoints only.
      Rejected: drawing the bars with gradients, which forced colours would erase; borders keep
      the icon visible there. */
   .faq-accordion details {
@@ -665,23 +687,29 @@
     cursor: pointer;
     color: var(--color-primary-fg);
     background: var(--color-primary-bg);
+    transition:
+      color 150ms ease-out,
+      background-color 150ms ease-out;
   }
   .faq-accordion summary::-webkit-details-marker {
     display: none;
   }
   .faq-accordion details[open] > summary {
-    color: var(--color-surface-fg);
-    background: var(--color-surface-bg);
+    color: var(--color-primary-active-fg);
+    background: var(--color-primary-active-bg);
   }
   @media (hover: hover) {
     .faq-accordion summary:hover {
-      color: var(--color-surface-fg);
-      background: var(--color-surface-bg);
+      color: var(--color-primary-active-fg);
+      background: var(--color-primary-active-bg);
     }
   }
-  /* The card clips its corners, which would clip an outline outside the bar too: draw it just
-     inside. The theme check measures the focus colour 3:1 on every role background. */
+  /* The card clips an outside outline: draw it inside, using the active foreground whose
+     contrast against this background is at least 4.5:1. */
   .faq-accordion summary:focus-visible {
+    color: var(--color-primary-active-fg);
+    background: var(--color-primary-active-bg);
+    outline-color: currentColor;
     outline-offset: -0.25rem;
   }
   .faq-accordion summary > :is(h2, h3) {
