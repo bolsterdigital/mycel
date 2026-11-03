@@ -19,6 +19,14 @@
   initial-value: 640px;
 }
 
+/* Animate interaction progress, not theme colours: a palette or stylesheet change must apply
+   atomically, rather than interpolating between opposite foreground/background polarities. */
+@property --action-progress {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+
 @layer tokens {
   :root {
     --space-1: calc(0.5rem * var(--density));
@@ -499,22 +507,38 @@
     background: var(--color-body-bg);
     border-color: currentColor;
   }
-  /* Scope the public interaction to content, since the admin imports this base too. The
-     inset focus ring uses the pair's foreground, whose contrast also holds on the active fill. */
-  .page:not(.admin) .button {
+  /* Public buttons and FAQ bars share one checked sRGB path. Only pointer/keyboard/open
+     progress animates; theme changes and initial stylesheet application set their pairs at once.
+     Without registered-property animation support the feedback changes immediately. */
+  .page:not(.admin) .button,
+  .faq-accordion summary {
+    --action-progress: 0;
+    --action-base-fg: var(--color-primary-fg);
+    --action-base-bg: var(--color-primary-bg);
     --action-fg: var(--color-primary-active-fg);
     --action-bg: var(--color-primary-active-bg);
-    transition:
-      color 150ms ease-out,
-      background-color 150ms ease-out;
+    color: var(--action-base-fg);
+    background-color: var(--action-base-bg);
+    color: color-mix(
+      in srgb,
+      var(--action-base-fg) calc((1 - var(--action-progress)) * 100%),
+      var(--action-fg)
+    );
+    background-color: color-mix(
+      in srgb,
+      var(--action-base-bg) calc((1 - var(--action-progress)) * 100%),
+      var(--action-bg)
+    );
+    transition: --action-progress 150ms ease-out;
   }
   .page:not(.admin) .button.secondary {
+    --action-base-fg: var(--color-body-fg);
+    --action-base-bg: var(--color-body-bg);
     --action-fg: var(--color-body-active-fg);
     --action-bg: var(--color-body-active-bg);
   }
   .page:not(.admin) .button:is(:hover, :focus-visible) {
-    color: var(--action-fg);
-    background-color: var(--action-bg);
+    --action-progress: 1;
     text-decoration: none;
   }
   .page:not(.admin) .button:focus-visible {
@@ -594,6 +618,8 @@
     background: var(--color-primary-bg);
   }
   .page:not(.admin) .cta-band .button:not(.secondary) {
+    --action-base-fg: var(--color-accent-fg);
+    --action-base-bg: var(--color-accent-bg);
     --action-fg: var(--color-accent-active-fg);
     --action-bg: var(--color-accent-active-bg);
   }
@@ -685,30 +711,22 @@
     padding: var(--space-2) var(--inset);
     list-style: none;
     cursor: pointer;
-    color: var(--color-primary-fg);
-    background: var(--color-primary-bg);
-    transition:
-      color 150ms ease-out,
-      background-color 150ms ease-out;
   }
   .faq-accordion summary::-webkit-details-marker {
     display: none;
   }
   .faq-accordion details[open] > summary {
-    color: var(--color-primary-active-fg);
-    background: var(--color-primary-active-bg);
+    --action-progress: 1;
   }
   @media (hover: hover) {
     .faq-accordion summary:hover {
-      color: var(--color-primary-active-fg);
-      background: var(--color-primary-active-bg);
+      --action-progress: 1;
     }
   }
   /* The card clips an outside outline: draw it inside, using the active foreground whose
      contrast against this background is at least 4.5:1. */
   .faq-accordion summary:focus-visible {
-    color: var(--color-primary-active-fg);
-    background: var(--color-primary-active-bg);
+    --action-progress: 1;
     outline-color: currentColor;
     outline-offset: -0.25rem;
   }

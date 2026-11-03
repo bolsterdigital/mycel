@@ -221,13 +221,6 @@ test.describe('blocks', () => {
           }) => {
             onlyA11y('computed colours and actual CSS transitions');
             await page.setViewportSize(NARROW);
-            const hex = (rgb: string) =>
-              '#' +
-              rgb
-                .match(/[\d.]+/g)!
-                .slice(0, 3)
-                .map((n) => Math.round(Number(n)).toString(16).padStart(2, '0'))
-                .join('');
             await open(
               page,
               `/probe/${locale === 'en' ? 'en/' : ''}${variant === 'card' ? 'campagne' : 'blok-cta-band'}`
@@ -272,6 +265,20 @@ test.describe('blocks', () => {
                   const animations = el.getAnimations();
                   await Promise.all(animations.map((a) => a.ready));
                   for (const a of animations) a.pause();
+                  const canvas = document.createElement('canvas');
+                  canvas.width = canvas.height = 1;
+                  const ctx = canvas.getContext('2d')!;
+                  const hex = (colour: string) => {
+                    ctx.fillStyle = colour;
+                    ctx.fillRect(0, 0, 1, 1);
+                    return (
+                      '#' +
+                      [...ctx.getImageData(0, 0, 1, 1).data]
+                        .slice(0, 3)
+                        .map((n) => n.toString(16).padStart(2, '0'))
+                        .join('')
+                    );
+                  };
                   return [0, 0.25, 0.5, 0.75, 1].map((fraction) => {
                     for (const a of animations)
                       a.currentTime = Number(a.effect!.getTiming().duration) * fraction;
@@ -279,16 +286,18 @@ test.describe('blocks', () => {
                     return {
                       fg: css.color,
                       bg: css.backgroundColor,
+                      fgHex: hex(css.color),
+                      bgHex: hex(css.backgroundColor),
                       decoration: css.textDecorationLine,
                       animations: animations.length,
                     };
                   });
                 });
-                expect(samples[0]!.animations, `${name}/${colorScheme}/${selector}`).toBe(2);
+                expect(samples[0]!.animations, `${name}/${colorScheme}/${selector}`).toBe(1);
                 expect([samples[4]!.fg, samples[4]!.bg]).not.toEqual(before);
                 for (const sample of samples) {
                   expect(
-                    contrastRatio(hex(sample.fg), hex(sample.bg)),
+                    contrastRatio(sample.fgHex, sample.bgHex),
                     `${name}/${colorScheme}/${selector}`
                   ).toBeGreaterThanOrEqual(4.5);
                   if (selector.includes('button')) expect(sample.decoration).toBe('none');
