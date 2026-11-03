@@ -1,10 +1,10 @@
-import { openPublication } from './lib/publication';
 // flow: access
 // Who may administer a site, and what the admin shows them: sign-in, membership, API keys, the
 // tenant shell across sites, the status page and managed connections. Each part below was a spec
 // of its own until TODO #50 folded the suite to its budget (testing.md § End-to-end flows); each
 // keeps its own fixtures in its own describe.
 
+import { openPublication } from './lib/publication';
 import {
   Invoker,
   SYNTHETIC_SCOPE,

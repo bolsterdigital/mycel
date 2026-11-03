@@ -1,10 +1,10 @@
-import { openPublication, closePublication } from './lib/publication';
 // flow: publish
 // What a visitor gets from a published site: composed block pages, the route grammar with its
 // head and caching, grid compositions, and a site's chrome and theme from its settings. Each part
 // below was a spec of its own until TODO #50 folded the suite to its budget (testing.md
 // § End-to-end flows); each keeps its own fixtures.
 
+import { openPublication, closePublication } from './lib/publication';
 import { randomBytes } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
