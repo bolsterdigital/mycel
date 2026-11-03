@@ -228,27 +228,52 @@ test('layer jobs own services and reserve time for unconditional, distinct retai
     assert.match(upload, /\.scratch\/ci\//);
     if (name === 'browsers') assert.match(upload, /apps\/web\/test-results\//);
     names.push(/          name: (.+)/.exec(upload)[1]);
-    // A controlled command failure exercises the workflow's real logging/trap. The uploader
-    // includes that directory even when Playwright never reaches its final reporter callback.
-    const dir = mkdtempSync(join(tmpdir(), 'mycel-ci-evidence-'));
-    try {
-      const shell = runBlock(execution)
-        .replaceAll('${{ matrix.project }}', 'a11y')
-        .replace(/^npm ci$/m, "printf 'controlled dependency failure\\n'; exit 23");
-      const result = spawnSync(
-        'bash',
-        ['--noprofile', '--norc', '-e', '-o', 'pipefail', '-c', shell],
-        { cwd: dir }
-      );
-      assert.equal(result.status, 23);
-      const log = readFileSync(
-        join(dir, '.scratch/ci', name === 'checks' ? 'checks.log' : 'browser-a11y.log'),
-        'utf8'
-      );
-      assert.match(log, /controlled dependency failure/);
-      assert.match(log, /\d{4}-\d{2}-\d{2}T.*exit=23/);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
+    // Run the actual blocks under the selected Bash, including dynamic PS4, xtrace and
+    // errexit. Only external dependency commands are inert: a local warm cache must not be
+    // needed to exercise success, explicit exit and implicit command failure on each platform.
+    const shell = runBlock(execution).replaceAll('${{ matrix.project }}', 'a11y');
+    assert.match(shell, /^PS4='\+ \$\(date -u \+%FT%TZ\) '$/m);
+    assert.match(shell, /^set -x$/m);
+    const commands = [...shell.matchAll(/^(?:npm|npx) .+$/gm)].map(([command]) => command);
+    assert.ok(commands.length > 0);
+    for (const [status, failure] of [
+      [0, ''],
+      [23, 'exit 23'],
+      [1, 'false'],
+    ]) {
+      const dir = mkdtempSync(join(tmpdir(), 'mycel-ci-evidence-'));
+      try {
+        let commandIndex = 0;
+        const probe = shell.replace(/^(?:npm|npx) .+$/gm, (command) => {
+          const printed = `printf '%s\\n' '${command.replaceAll("'", "'\\''")}'`;
+          return commandIndex++ === 0 && failure
+            ? `${printed}; printf 'controlled dependency failure\\n'; ${failure}`
+            : printed;
+        });
+        const result = spawnSync(
+          'bash',
+          ['--noprofile', '--norc', '-e', '-o', 'pipefail', '-c', probe],
+          { cwd: dir, encoding: 'utf8' }
+        );
+        assert.equal(result.status, status, `${name}: ${failure || 'success'}`);
+        const log = readFileSync(
+          join(dir, '.scratch/ci', name === 'checks' ? 'checks.log' : 'browser-a11y.log'),
+          'utf8'
+        );
+        assert.equal(log, result.stdout, 'uploader retains the exact complete execution output');
+        assert.equal(result.stderr, '', 'all tracing and errors are captured in the retained log');
+        assert.match(log, /\+ \d{4}-\d{2}-\d{2}T.* printf/);
+        for (const command of status === 0 ? commands : commands.slice(0, 1))
+          assert.ok(log.includes(`\n${command}\n`), `${name}: retained command ${command}`);
+        if (status !== 0) assert.match(log, /controlled dependency failure/);
+        const label = name === 'checks' ? 'checks' : 'browser';
+        assert.match(
+          log,
+          new RegExp(`\\n\\d{4}-\\d{2}-\\d{2}T[^\\n]+ ${label} exit=${status}\\n$`)
+        );
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
     }
   }
   assert.equal(new Set(names).size, 2);

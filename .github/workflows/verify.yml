@@ -116,7 +116,9 @@ jobs:
           exec > >(tee .scratch/ci/checks.log) 2>&1
           PS4='+ $(date -u +%FT%TZ) '
           set -x
-          trap 'status=$?; echo "$(date -u +%FT%TZ) checks exit=$status"' EXIT
+          # Capture the status before timestamp expansion, including on Bash 3.2 with -ex.
+          log_exit() { printf '%s checks exit=%s\n' "$(date -u +%FT%TZ)" "$1"; }
+          trap 'log_exit "$?"' EXIT
           npm ci
           # Infrastructure gates measure writer DOM with the lockfile-pinned Playwright browser.
           npx playwright install --with-deps chromium
@@ -185,7 +187,9 @@ jobs:
           exec > >(tee .scratch/ci/browser-${{ matrix.project }}.log) 2>&1
           PS4='+ $(date -u +%FT%TZ) '
           set -x
-          trap 'status=$?; echo "$(date -u +%FT%TZ) browser exit=$status"' EXIT
+          # Capture the status before timestamp expansion, including on Bash 3.2 with -ex.
+          log_exit() { printf '%s browser exit=%s\n' "$(date -u +%FT%TZ)" "$1"; }
+          trap 'log_exit "$?"' EXIT
           npm ci
           npx playwright install --with-deps chromium
           npm run migrate -w @mycel/db
