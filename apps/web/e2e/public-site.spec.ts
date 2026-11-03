@@ -256,6 +256,17 @@ test.describe('blocks', () => {
                   const css = getComputedStyle(el);
                   return [css.color, css.backgroundColor];
                 });
+                // Pause at transition start, so a busy runner cannot finish the 150 ms fade
+                // before the test reads it. No product duration or wall-clock wait is changed.
+                await action.evaluate((el) =>
+                  el.addEventListener(
+                    'transitionrun',
+                    () => {
+                      for (const animation of el.getAnimations()) animation.pause();
+                    },
+                    { once: true }
+                  )
+                );
                 await action.hover();
                 const samples = await action.evaluate(async (el) => {
                   const animations = el.getAnimations();
