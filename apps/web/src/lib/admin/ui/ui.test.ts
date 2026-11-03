@@ -12,6 +12,7 @@ import {
   BlockCard,
   BlockText,
   BlockImage,
+  BlockInserter,
   BlockSummary,
   Breadcrumb,
   Button,
@@ -37,6 +38,7 @@ import {
   Icon,
   IconSprite,
   ItemBar,
+  WritingSheet,
   KeyReveal,
   MetaList,
   NavGroup,
@@ -436,6 +438,36 @@ describe('BlockImage', () => {
     expect(out).toMatch(/<figcaption hidden/);
     expect(out).toMatch(/<span hidden[^>]*data-rest-caption="b\.1\.p\.caption\.nl"/);
     expect(out).toContain('data-rest-inherited="From the file"');
+  });
+  it('keeps full metadata and an explicit larger preview beside its thumbnail', () => {
+    const alt = {
+      text: 'The complete description of the picture',
+      decorative: false,
+      from: 'b.1.p.alt.en',
+      decorativeFrom: 'b.1.p.decorative',
+      label: 'Description',
+      decorativeLabel: 'Decorative',
+      missingLabel: 'Description missing',
+    };
+    const out = html(BlockImage, {
+      ...props,
+      src: '/v/w960.webp',
+      thumbSrc: '/v/thumb.webp',
+      previewLabel: 'Larger preview',
+      alt,
+    });
+    expect(out).toContain('src="/v/thumb.webp"');
+    expect(out).toContain('<summary>Larger preview</summary>');
+    expect(out).toContain('data-rest-alt="b.1.p.alt.en"');
+    expect(out).toContain('The complete description of the picture');
+    expect(out).toMatch(/data-rest-alt-decorative="" hidden/);
+    const decorative = html(BlockImage, {
+      ...props,
+      src: '/v/w960.webp',
+      alt: { ...alt, decorative: true },
+    });
+    expect(decorative).toMatch(/data-rest-alt-text="" hidden/);
+    expect(decorative).toContain('data-rest-alt-decorative="">Decorative');
   });
   it('says which file is missing and offers Replace, without an image', () => {
     const out = html(BlockImage, { ...props, src: null });
@@ -1299,6 +1331,7 @@ describe('DashboardWidget', () => {
 describe('ItemBar', () => {
   it('has the back link, the one <h1>, the state linked to its card, and the actions', () => {
     const out = html(ItemBar, {
+      locale: 'en',
       back: { href: '/admin/probe/content?type=page', label: 'Pages' },
       title: 'Edit page',
       state: 'Draft',
@@ -1316,6 +1349,7 @@ describe('ItemBar', () => {
   });
   it('shows the state without a link, and no action group without actions', () => {
     const out = html(ItemBar, {
+      locale: 'en',
       back: { href: '/x', label: 'Articles' },
       title: 'Edit article',
       state: 'Published, changed since',
@@ -1476,5 +1510,43 @@ describe('UploadDropZone', () => {
     expect(out.body).toContain('JPEG, at most 25 MB.');
     expect(out.body).not.toContain('type="file"');
     expect(out.body + out.head).toContain('src="/_admin/drop-upload.js"');
+  });
+});
+
+describe('BlockInserter', () => {
+  it('uses named native choices at one explicit location without a second select or ARIA grid', () => {
+    const out = html(BlockInserter, {
+      id: 'middle',
+      place: 'before:block-a',
+      label: 'Before block 2',
+      locale: 'en',
+      action: '?/insert&locale=en',
+      options: [
+        { value: 'image', label: 'Image', icon: 'image' },
+        { value: 'quote', label: 'Quote', icon: 'newspaper' },
+      ],
+    });
+    expect(out).toContain('name="insert" value="image|before:block-a"');
+    expect(out).toContain('name="insert" value="quote|before:block-a"');
+    expect(out).toContain('formaction="?/insert&amp;locale=en"');
+    expect(out).toContain('aria-describedby="insert-place-middle"');
+    expect(out).toContain('Before block 2');
+    expect(out).toContain('<span>Image</span>');
+    expect(out).not.toMatch(/role="grid"|<select|tabindex=/);
+    expect(out).toMatch(/data-type-search[^>]*hidden/);
+  });
+});
+
+describe('WritingSheet', () => {
+  it('keeps tools before content and leaves native content in the same document', () => {
+    const out = html(WritingSheet, {
+      toolbar: text('Formatting'),
+      children: text('The article words'),
+    });
+    expect(out.indexOf('ui-writing-sheet-toolbar')).toBeLessThan(
+      out.indexOf('ui-writing-sheet-content')
+    );
+    expect(out).toContain('The article words');
+    expect(out).not.toContain('role="application"');
   });
 });

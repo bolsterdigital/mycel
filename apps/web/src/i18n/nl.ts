@@ -694,7 +694,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.field.seoDescription': 'Beschrijving in zoekresultaten',
   'admin.content.field.noindex': 'Verbergen voor zoekmachines',
   'admin.content.field.canonical': 'Canoniek adres (optioneel, begint met https://)',
-  'admin.content.field.heroImage': 'Hoofdbeeld',
+  'admin.content.field.heroImage': 'Hero-afbeelding',
   'admin.content.field.heroImageHint':
     'Het grote beeld bovenaan de pagina, onder de titel en de intro. Leeg: geen beeld boven het verhaal.',
   'admin.content.header.title': 'Kop',
@@ -1401,7 +1401,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.media.search.clear': 'Alles tonen',
   'admin.media.search.none': 'Niets gevonden voor “{q}”.',
   'admin.media.picker.choose': 'Beeld kiezen',
-  'admin.media.picker.change': 'Ander beeld kiezen',
+  'admin.media.picker.change': 'Vervangen',
   'admin.media.picker.title': 'Beeld kiezen',
   'admin.media.picker.none': 'Nog geen beeld gekozen',
   'admin.media.picker.noImage': 'Geen beeld',
@@ -1503,4 +1503,20 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.site.general.timeZone.hint':
     'Het beheer plant en toont tijden in deze zone, tenzij iemand onder Voorkeuren een eigen zone koos.',
   'admin.site.general.save': 'Tijdzone opslaan',
+  'admin.content.state.short.live': 'Gepubliceerd',
+  'admin.content.state.short.changed': 'Gepubliceerd · conceptwijzigingen',
+  'admin.content.state.short.pinned': 'Ingepland',
+  'admin.block.insert.location.before': 'Vóór blok {n}',
+  'admin.block.insert.end': 'Aan het einde',
+  'admin.block.insert.invalid':
+    'Dit bloktype of invoegpunt is niet meer beschikbaar. Kies een ander blok.',
+  'admin.block.image.preview': 'Groter voorbeeld',
+  'admin.block.image.decorative': 'Bewust decoratief',
+  'admin.block.image.altMissing': 'Beschrijving ontbreekt',
+  'admin.ui.catalogue.blockInserter': 'Blokkeuze',
+  'admin.ui.catalogue.blockInserter.intro':
+    'Dezelfde native keuzes vóór een blok en aan het einde. Zoeken is een hulpmiddel.',
+  'admin.ui.catalogue.writingSheet': 'Schrijfvlak',
+  'admin.ui.catalogue.writingSheet.intro':
+    'Bediening en labels staan buiten de woorden; het vlak volgt het kleurenschema.',
 };

@@ -1,7 +1,7 @@
-<!-- An image block at rest (MY-110 A, the image pilot): the picture at card scale in its own
-     aspect ratio, with the caption and credit the page shows under it, the way an editor
-     recognises the photo. The alt text is not shown in its place: the picture says more, and
-     the open editor has the field. An image that cannot be shown (gone, unreadable, without a
+<!-- An image block at rest: a compact thumbnail beside the complete caption, alt/decorative
+     state and credit. A native disclosure offers the larger image in its own ratio only when
+     requested; long words stay available rather than being clipped to the thumbnail's height.
+     An image that cannot be shown (gone, unreadable, without a
      variant, or failing to load: the screen's script flips `data-broken`) says which file is
      missing and offers "Replace", which opens the block's media field; the stored reference stays
      until the editor picks another. The caption stays in the markup while it is empty, because
@@ -17,6 +17,9 @@
     credit,
     missing,
     replace,
+    thumbSrc,
+    previewLabel,
+    alt,
   }: {
     /** The variant URL, or null when there is nothing to show. */
     src: string | null;
@@ -32,19 +35,40 @@
     missing: string;
     /** "Replace": a link to the block's media field. */
     replace: { href: string; label: string };
+    thumbSrc?: string | undefined;
+    previewLabel?: string | undefined;
+    alt?:
+      | {
+          text: string;
+          decorative: boolean;
+          from: string;
+          decorativeFrom: string;
+          label: string;
+          decorativeLabel: string;
+          missingLabel: string;
+        }
+      | undefined;
   } = $props();
 </script>
 
 <figure class="ui-block-image" data-broken={src ? undefined : ''}>
   {#if src}
-    <img {src} alt="" {width} {height} loading="lazy" decoding="async" data-block-image />
+    <img
+      src={thumbSrc ?? src}
+      alt=""
+      {width}
+      {height}
+      loading="lazy"
+      decoding="async"
+      data-block-image
+    />
   {/if}
   <div class="ui-block-image-missing" role="note">
     <p>{missing}</p>
     <a href={replace.href}>{replace.label}</a>
   </div>
-  {#if caption || credit || captionSource}
-    <figcaption hidden={!caption && !credit}>
+  {#if caption || credit || captionSource || alt || previewLabel}
+    <figcaption hidden={!caption && !credit && !alt && !previewLabel}>
       {#if captionSource}
         <span
           hidden={!caption}
@@ -53,6 +77,26 @@
         >
       {:else if caption}<span>{caption}</span>{/if}
       {#if credit}<span class="ui-block-image-credit">{credit}</span>{/if}
+      {#if alt}
+        <div
+          class="ui-block-image-alt"
+          data-rest-alt={alt.from}
+          data-rest-decorative={alt.decorativeFrom}
+        >
+          <strong>{alt.label}</strong>
+          <span data-rest-alt-text hidden={alt.decorative || !alt.text.trim()}>{alt.text}</span>
+          <span data-rest-alt-decorative hidden={!alt.decorative}>{alt.decorativeLabel}</span>
+          <span data-rest-alt-missing hidden={alt.decorative || !!alt.text.trim()}
+            >{alt.missingLabel}</span
+          >
+        </div>
+      {/if}
+      {#if previewLabel && src}
+        <details class="ui-block-image-preview">
+          <summary>{previewLabel}</summary>
+          <img {src} alt="" {width} {height} loading="lazy" decoding="async" />
+        </details>
+      {/if}
     </figcaption>
   {/if}
 </figure>

@@ -505,7 +505,7 @@ test('an image block chooses its image from a grid of thumbnails, without a scri
   const picker = block.getByRole('group', { name: 'Afbeelding' });
   await expect(picker.locator('[data-picker-name]')).toHaveText(names[0]!);
 
-  await picker.getByRole('button', { name: 'Ander beeld kiezen' }).click();
+  await picker.getByRole('button', { name: 'Vervangen' }).click();
   const dialog = page.getByRole('dialog', { name: 'Afbeelding' });
   await expect(dialog).toBeVisible();
   // Thumbnails, each a radio named by its file; the current one is checked.
@@ -642,7 +642,7 @@ test('the picker searches, and uploads dropped files with progress', async ({ pa
   await page.goto(`/admin/probe/content/${itemId}`);
   const block = page.locator('details.block').first();
   await block.locator(':scope > summary').click();
-  await block.getByRole('button', { name: 'Ander beeld kiezen' }).click();
+  await block.getByRole('button', { name: 'Vervangen' }).click();
   const dialog = page.getByRole('dialog', { name: 'Afbeelding' });
 
   // Search: only images whose name or caption matches, from the server.

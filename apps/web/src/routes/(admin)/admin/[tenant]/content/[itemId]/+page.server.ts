@@ -293,6 +293,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     /** No `hero`: the document header is the only header new content gets (ADR 025). */
     blockTypes: INSERTABLE_BLOCK_TYPES,
     pending: canWrite && pending && shown.length ? pendingView(pending, shown) : null,
+    invalidInsert: !!url.searchParams.get('insert') && !pending,
     docLocales: doc.locales,
     /** The one locale the screen shows and saves (#66 PR 4). */
     workLocale: work,
@@ -1015,9 +1016,15 @@ export const actions: Actions = {
   insert: async (event) => {
     const saved = await commit(event);
     if ('failure' in saved) return saved.failure;
-    const [place = '', anchor = ''] = text(saved.data, 'insert').split(':');
+    const choice = text(saved.data, 'insert');
+    const divider = choice.indexOf('|');
+    // A native chooser button carries its type and the same placement. Older select posts
+    // still read insertType; pendingBlock remains the closed type/anchor validator on load.
+    const placement = divider < 0 ? choice : choice.slice(divider + 1);
+    const [place = '', anchor = ''] = placement.split(':');
     const query = {
-      insert: text(saved.data, `insertType.${anchor || place}`),
+      insert:
+        divider < 0 ? text(saved.data, `insertType.${anchor || place}`) : choice.slice(0, divider),
       place,
       ...(anchor ? { anchor } : {}),
     };
