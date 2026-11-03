@@ -86,9 +86,14 @@ test('local verify and CI cover every original command and both existing browser
   const checks = runBlock(stepsOf(jobs.checks).find((s) => /Static, adapter/.test(s)));
   assert.deepEqual(
     checks.split('\n').filter((line) => /^(npm|npx) /.test(line)),
-    ['npm ci', 'npm run migrate -w @mycel/db', 'npm run verify:checks']
+    [
+      'npm ci',
+      'npx playwright install --with-deps chromium',
+      'npm run migrate -w @mycel/db',
+      'npm run verify:checks',
+    ]
   );
-  assert.doesNotMatch(jobs.checks, /npm run test:e2e|playwright install/);
+  assert.doesNotMatch(jobs.checks, /npm run test:e2e/);
   assert.match(jobs.checks, /Signed-off-by on every commit/);
   assert.match(jobs.checks, /Merged migrations are unchanged/);
   const projects = /project: \[([^\]]+)\]/.exec(jobs.browsers)[1].split(', ');
@@ -110,6 +115,50 @@ test('local verify and CI cover every original command and both existing browser
       'npm run test:e2e -- --project=${{ matrix.project }} --reporter=list',
     ]
   );
+});
+
+test('checks install their measured-DOM runtime before running infrastructure gates', () => {
+  const job = jobsOf(verifyWorkflow()).checks;
+  const execution = stepsOf(job).find((s) => /timeout-minutes: 12/.test(s));
+  const shell = runBlock(execution);
+  // Model a fresh runner, not this machine's warm Playwright cache. Execute the real step
+  // with external command stand-ins: npm ci clears the runtime, installation provisions it,
+  // and verify needs it. A missing/late/failed install must never reach a green verification.
+  const commands = `
+    npm() {
+      case "$*" in
+        ci) rm -f chromium-ready ;;
+        'run migrate -w @mycel/db') : ;;
+        'run verify:checks') touch verify-ran; test -f chromium-ready || return 42 ;;
+        *) return 43 ;;
+      esac
+    }
+    npx() {
+      test "$*" = 'playwright install --with-deps chromium' || return 44
+      touch chromium-ready
+    }
+  `;
+  const install = 'npx playwright install --with-deps chromium';
+  for (const [name, body, status] of [
+    ['provisioned', shell, 0],
+    ['missing', shell.replace(install, ':'), 42],
+    ['late', shell.replace(install, ':') + '\n' + install, 42],
+    ['failed', shell.replace(install, 'false'), 1],
+  ]) {
+    const dir = mkdtempSync(join(tmpdir(), 'mycel-ci-runtime-'));
+    try {
+      const result = spawnSync(
+        'bash',
+        ['--noprofile', '--norc', '-e', '-o', 'pipefail', '-c', commands + body],
+        { cwd: dir }
+      );
+      assert.equal(result.status, status, name);
+      if (name === 'failed')
+        assert.equal(spawnSync('test', ['-f', join(dir, 'verify-ran')]).status, 1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
 });
 
 test('protected verify rejects failure, cancellation, skipping and missing dependency results', () => {

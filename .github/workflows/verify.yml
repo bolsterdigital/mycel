@@ -118,6 +118,8 @@ jobs:
           set -x
           trap 'status=$?; echo "$(date -u +%FT%TZ) checks exit=$status"' EXIT
           npm ci
+          # Infrastructure gates measure writer DOM with the lockfile-pinned Playwright browser.
+          npx playwright install --with-deps chromium
           npm run migrate -w @mycel/db
           npm run verify:checks
 
