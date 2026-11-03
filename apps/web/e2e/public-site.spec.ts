@@ -1511,7 +1511,7 @@ test.describe('site-settings', () => {
       withInvoker((invoker) => invoker.run(useCases.getSiteImages, principal, {}));
     const choose = async (name: string) => {
       const picker = page.getByRole('group', { name: 'Default image' });
-      await picker.getByRole('button', { name: /^Choose (another )?image$/ }).click();
+      await picker.getByRole('button', { name: /^(Choose image|Replace)$/ }).click();
       const dialog = page.getByRole('dialog', { name: 'Default image' });
       await dialog.getByRole('radio', { name }).check();
       await dialog.getByRole('button', { name: 'Done' }).click();
