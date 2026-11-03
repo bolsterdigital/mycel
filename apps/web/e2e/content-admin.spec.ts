@@ -21,6 +21,11 @@ import { ADMIN, login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { callApi, postUseCase, requireApi } from './lib/api';
 import { expectPixels } from './lib/images';
+import { settingsEvidence } from './lib/settings-evidence';
+
+// Keep the unfinished locale-edit action on timeout without tracing every content flow.
+// Rejected: a guessed readiness wait, which would change the timing being investigated.
+const localeEvidenceTest = test.extend({ trace: ['retain-on-failure', { scope: 'worker' }] });
 
 // Content admin (TODO #11, brief content-editor § A1): an operator makes a page in two locales,
 // edits it, reads its revisions and their diff, and opens a preview that the public site never
@@ -2908,60 +2913,88 @@ test.describe('content-blocks', () => {
     content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
   });
 
-  test('a rich-text field emptied in one locale falls back, and that locale cannot publish', async ({
-    page,
-    request,
-  }) => {
-    requireApi();
-    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
-      slug: `c-blank-${isA11y() ? 'a11y' : 'no-js'}-${Date.now()}`,
-      document: {
-        type: 'page',
-        defaultLocale: 'nl',
-        locales: ['nl', 'en'],
-        title: { nl: 'Leeg', en: 'Blank' },
-        blocks: [
-          {
-            type: 'rich-text',
-            version: 1,
-            props: { content: { nl: prose('Nederlandse woorden'), en: prose('English words') } },
-          },
-        ],
-      },
-    });
-    await login(page, `/admin/probe/content/${item.id}?locale=en`);
-    const fold = card(page, 1).locator('details.block');
-    await fold.locator('> summary').click();
-    await emptyProse(fold);
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(page.getByRole('alert')).toHaveCount(0);
+  localeEvidenceTest(
+    'a rich-text field emptied in one locale falls back, and that locale cannot publish',
+    async ({ page, request }) => {
+      requireApi();
+      const evidence = settingsEvidence(test.info());
+      evidence.watch('A', page);
+      try {
+        const { item } = await evidence.step('create bilingual rich-text page', () =>
+          callApi<{ item: { id: string } }>(request, 'content.item.create', {
+            slug: `c-blank-${isA11y() ? 'a11y' : 'no-js'}-${Date.now()}`,
+            document: {
+              type: 'page',
+              defaultLocale: 'nl',
+              locales: ['nl', 'en'],
+              title: { nl: 'Leeg', en: 'Blank' },
+              blocks: [
+                {
+                  type: 'rich-text',
+                  version: 1,
+                  props: {
+                    content: { nl: prose('Nederlandse woorden'), en: prose('English words') },
+                  },
+                },
+              ],
+            },
+          })
+        );
+        await evidence.step('log in to English content locale', () =>
+          login(page, `/admin/probe/content/${item.id}?locale=en`)
+        );
+        const fold = card(page, 1).locator('details.block');
+        await evidence.step('open rich-text block disclosure', () =>
+          fold.locator('> summary').click()
+        );
+        await evidence.step('empty English rich-text field', () => emptyProse(fold));
+        await evidence.step('save emptied English rich text', () =>
+          page.getByRole('button', { name: 'Opslaan', exact: true }).click()
+        );
+        await evidence.step('save has no alert', () =>
+          expect(page.getByRole('alert')).toHaveCount(0)
+        );
 
-    const { revision } = await callApi<{
-      revision: { id: string; document: { blocks: { props: { content: object } }[] } };
-    }>(request, 'content.item.get', { itemId: item.id });
-    expect(revision.document.blocks[0]!.props.content).toEqual({
-      nl: prose('Nederlandse woorden'),
-    });
-    // On the edit screen the other locale's words stand in, as for a text field.
-    await expect(card(page, 1)).toContainText('Nederlandse woorden');
-    // Publicly there is no fallback (ADR 018): the locale is refused, nothing blank goes out.
-    const probe = await tenantId();
-    const refusal = await withInvoker((invoker) =>
-      invoker
-        .run(useCases.publishItem, systemPrincipal(probe, 'e2e'), {
-          itemId: item.id,
-          revisionId: revision.id,
-          locale: 'en',
-        })
-        .then(
-          () => null,
-          (e: UseCaseError) => e
-        )
-    );
-    expect(refusal?.issues).toContainEqual(
-      expect.objectContaining({ message: 'content.publish.missing-translation' })
-    );
-  });
+        const { revision } = await evidence.step('read saved revision', () =>
+          callApi<{
+            revision: { id: string; document: { blocks: { props: { content: object } }[] } };
+          }>(request, 'content.item.get', { itemId: item.id })
+        );
+        await evidence.step('saved revision keeps only Dutch rich text', async () => {
+          expect(revision.document.blocks[0]!.props.content).toEqual({
+            nl: prose('Nederlandse woorden'),
+          });
+        });
+        // On the edit screen the other locale's words stand in, as for a text field.
+        await evidence.step('editor displays Dutch fallback', () =>
+          expect(card(page, 1)).toContainText('Nederlandse woorden')
+        );
+        // Publicly there is no fallback (ADR 018): the locale is refused, nothing blank goes out.
+        const probe = await evidence.step('resolve tenant for publication', () => tenantId());
+        const refusal = await evidence.step('attempt English publication', () =>
+          withInvoker((invoker) =>
+            invoker
+              .run(useCases.publishItem, systemPrincipal(probe, 'e2e'), {
+                itemId: item.id,
+                revisionId: revision.id,
+                locale: 'en',
+              })
+              .then(
+                () => null,
+                (e: UseCaseError) => e
+              )
+          )
+        );
+        await evidence.step('publication refuses missing English translation', async () => {
+          expect(refusal?.issues).toContainEqual(
+            expect.objectContaining({ message: 'content.publish.missing-translation' })
+          );
+        });
+      } finally {
+        await evidence.attach();
+      }
+    }
+  );
 
   test('a rich-text block with no words in any locale is refused, and the summary reaches it', async ({
     page,
