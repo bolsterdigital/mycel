@@ -1,7 +1,8 @@
 name: Verify
 
 # Gate on what silently rots: formatting, dependency direction and licences, types,
-# tests and the build, plus the Playwright + axe gate against a real Postgres. The
+# tests and the build in checks, plus isolated Playwright projects against Postgres.
+# Rejected: one serial job, which exhausted its deadline before retaining failure evidence. The
 # `security` job (advisories and secrets) needs the network, so it is not part of
 # `npm run verify`, which has to work offline. Runs on
 # PRs and pushes to main. Deployment is a separate workflow so a red check here never
@@ -27,7 +28,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
+  checks:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -62,7 +63,7 @@ jobs:
       PLATFORM_DOMAIN: localhost
       MAIL_FROM: CI <noreply@example.org>
       MAILER: console
-      # The browser flows need the same deterministic model in web, API and worker.
+      # Adapter fixtures use a deterministic model, never a network provider.
       ASSIST_PROVIDER: fake
       BLOB_S3_ENDPOINT: http://127.0.0.1:9000
       BLOB_S3_REGION: us-east-1
@@ -81,8 +82,6 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-
-      - run: npm ci
 
       # Both checks below need `github.base_ref` and run on the PR. In a merge queue they are
       # skipped (same step, same job result): the queue commit holds exactly the commits the PR
@@ -109,24 +108,122 @@ jobs:
             echo "$changed"; exit 1
           fi
 
-      - name: Install Chromium for Playwright
-        run: npx playwright install --with-deps chromium
+      # One execution deadline includes install/migration, leaving time to retain evidence.
+      - name: Static, adapter and unit checks
+        timeout-minutes: 12
+        run: |
+          mkdir -p .scratch/ci
+          exec > >(tee .scratch/ci/checks.log) 2>&1
+          PS4='+ $(date -u +%FT%TZ) '
+          set -x
+          # Capture the status before timestamp expansion, including on Bash 3.2 with -ex.
+          log_exit() { printf '%s checks exit=%s\n' "$(date -u +%FT%TZ)" "$1"; }
+          trap 'log_exit "$?"' EXIT
+          npm ci
+          # Infrastructure gates measure writer DOM with the lockfile-pinned Playwright browser.
+          npx playwright install --with-deps chromium
+          npm run migrate -w @mycel/db
+          npm run verify:checks
 
-      # Before the tests: the db suite connects as mycel_app and mycel_authenticator, whose
-      # logins migrate enables.
-      - name: Migrate
-        run: npm run migrate -w @mycel/db
-
-      - run: npm run verify
-
-      - name: Upload browser failure evidence
-        if: failure()
+      - name: Upload check evidence
+        if: always()
+        timeout-minutes: 1
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: browser-failure-evidence
-          path: apps/web/test-results/
+          name: checks-evidence
+          path: .scratch/ci/
+          include-hidden-files: true
           retention-days: 7
-          if-no-files-found: ignore
+          if-no-files-found: error
+
+  # Matrix cells run on separate runners: no shared database, seed, blobs or processes.
+  browsers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [no-js, a11y]
+    services:
+      postgres:
+        image: postgres:16.15-alpine
+        env:
+          POSTGRES_DB: mycel
+          POSTGRES_USER: mycel
+          POSTGRES_PASSWORD: mycel
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U mycel -d mycel" --health-interval 2s --health-timeout 3s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://mycel:mycel@localhost:5432/mycel
+      APP_DATABASE_URL: postgres://mycel_app:mycel_app_ci@localhost:5432/mycel
+      MYCEL_APP_PASSWORD: mycel_app_ci
+      AUTH_DATABASE_URL: postgres://mycel_authenticator:mycel_auth_ci@localhost:5432/mycel
+      MYCEL_AUTH_PASSWORD: mycel_auth_ci
+      SIGNING_SECRET: ci-only-signing-secret
+      AUDIT_HASH_KEY: ci-only-audit-hash-key
+      CONNECTION_CREDENTIAL_KEY: '1010101010101010101010101010101010101010101010101010101010101010'
+      PUBLIC_BASE_URL: http://127.0.0.1:4173
+      PLATFORM_DOMAIN: localhost
+      MAIL_FROM: CI <noreply@example.org>
+      MAILER: console
+      # The browser flows need the same deterministic model in web, API and worker.
+      ASSIST_PROVIDER: fake
+      # In CI a missing database or browser fails the e2e gate instead of skipping it.
+      E2E_REQUIRED: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Build and run browser project
+        timeout-minutes: 12
+        run: |
+          mkdir -p .scratch/ci
+          exec > >(tee .scratch/ci/browser-${{ matrix.project }}.log) 2>&1
+          PS4='+ $(date -u +%FT%TZ) '
+          set -x
+          # Capture the status before timestamp expansion, including on Bash 3.2 with -ex.
+          log_exit() { printf '%s browser exit=%s\n' "$(date -u +%FT%TZ)" "$1"; }
+          trap 'log_exit "$?"' EXIT
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run migrate -w @mycel/db
+          npm run build
+          # List emits each completed test and duration immediately, even if a later test hangs.
+          npm run test:e2e -- --project=${{ matrix.project }} --reporter=list
+
+      - name: Upload browser evidence
+        if: always()
+        timeout-minutes: 1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: browser-evidence-${{ matrix.project }}
+          path: |
+            .scratch/ci/
+            apps/web/test-results/
+          include-hidden-files: true
+          retention-days: 7
+          if-no-files-found: error
+
+  # Preserve the protected context. Missing, skipped or cancelled work cannot turn it green.
+  verify:
+    if: always()
+    needs: [checks, browsers, security, image, compose]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Require every dependency to succeed
+        run: |
+          test '${{ needs.checks.result }}' = success
+          test '${{ needs.browsers.result }}' = success
+          test '${{ needs.security.result }}' = success
+          test '${{ needs.image.result }}' = success
+          test '${{ needs.compose.result }}' = success
 
   # Known advisories in the whole dependency tree and secrets in the whole history (TODO #20c
   # decision 8). A red `npm audit` without a fix is a stop to discuss, never an --omit or an

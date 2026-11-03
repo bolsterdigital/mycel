@@ -9,6 +9,8 @@
     Actions,
     Badge,
     BlockCard,
+    BlockImage,
+    BlockInserter,
     BlockSummary,
     BlockText,
     Button,
@@ -31,6 +33,7 @@
     Field,
     Fieldset,
     FileDrop,
+    UploadDropZone,
     Icon,
     KeyReveal,
     MetaList,
@@ -43,7 +46,10 @@
     SubNav,
     Table,
     Tabs,
+    WritingSheet,
   } from '#lib/admin/ui/index.js';
+  import { BLOCK_ICONS } from '#lib/admin/block-presentation.js';
+  import { INSERTABLE_BLOCK_TYPES } from '@mycel/core';
   import { formatWhen } from '#lib/admin/format.js';
   import { fill, ui } from '../../../../../i18n/index.js';
   import { PATTERNS } from './patterns.js';
@@ -207,6 +213,11 @@
           value="#1d4ed8"
           label={t('admin.site.role.primary')}
           locale={data.locale}
+        />
+        <UploadDropZone
+          url="/admin/{data.tenant.slug}/media/upload"
+          locale={data.locale}
+          hint={t('admin.media.upload.hint')}
         />
         <FileDrop
           id="ui-file"
@@ -565,6 +576,17 @@
           { href: `${base}/assist`, label: t('admin.nav.assist'), icon: 'sparkles' },
         ]}
       />
+      <NavGroup
+        id="ui-nav-closed"
+        items={[
+          {
+            href: `${base}/beheer`,
+            label: t('admin.nav.manage'),
+            icon: 'shield',
+            children: [{ href: `${base}/leden`, label: t('admin.nav.members') }],
+          },
+        ]}
+      />
     </nav>
   </section>
 
@@ -594,6 +616,8 @@
     <h2 id="ui-item-bar">{t('admin.ui.catalogue.itemBar')}</h2>
     <p>{t('admin.ui.catalogue.itemBar.intro')}</p>
     <ItemBar
+      breadcrumbLabel={t('admin.ui.catalogue.itemBar')}
+      locale={data.locale}
       back={{ href: '#ui-item-bar', label: t('admin.content.filter.page') }}
       title={fill(t('admin.content.edit.title'), { type: t('admin.content.type.page') })}
       state={t('admin.content.state.changed')}
@@ -617,6 +641,58 @@
         <Button type="button">{t('admin.content.edit.save')}</Button>
       {/snippet}
     </ItemBar>
+  </section>
+
+  <section aria-labelledby="ui-block-picker">
+    <h2 id="ui-block-picker">{t('admin.ui.catalogue.blockInserter')}</h2>
+    <p>{t('admin.ui.catalogue.blockInserter.intro')}</p>
+    <form method="get" action={here}>
+      <BlockInserter
+        id="catalogue"
+        place="end"
+        label={t('admin.block.insert.end')}
+        locale={data.locale}
+        action={here}
+        options={INSERTABLE_BLOCK_TYPES.map((type) => ({
+          value: type,
+          label: t(`admin.block.type.${type}` as const),
+          icon: BLOCK_ICONS[type],
+        }))}
+      />
+    </form>
+  </section>
+
+  <section aria-labelledby="ui-writing-sheet">
+    <h2 id="ui-writing-sheet">{t('admin.ui.catalogue.writingSheet')}</h2>
+    <p>{t('admin.ui.catalogue.writingSheet.intro')}</p>
+    <WritingSheet>
+      {#snippet toolbar()}
+        <Actions>
+          <Button type="button" variant="secondary">{t('admin.editor.bold')}</Button>
+          <Button type="button" variant="secondary">{t('admin.editor.italic')}</Button>
+        </Actions>
+      {/snippet}
+      <p>{t('admin.ui.catalogue.form.titleHint')}</p>
+      <BlockImage
+        src={sample}
+        width={320}
+        height={240}
+        caption={t('admin.ui.catalogue.form.titleHint')}
+        credit={null}
+        missing={t('admin.block.image.altMissing')}
+        replace={{ href: '#ui-writing-sheet', label: t('admin.block.image.replace') }}
+        previewLabel={t('admin.block.image.preview')}
+        alt={{
+          text: t('admin.ui.catalogue.form.titleHint'),
+          decorative: false,
+          from: 'catalogue.alt',
+          decorativeFrom: 'catalogue.decorative',
+          label: t('admin.block.field.alt'),
+          decorativeLabel: t('admin.block.image.decorative'),
+          missingLabel: t('admin.block.image.altMissing'),
+        }}
+      />
+    </WritingSheet>
   </section>
 
   <section aria-labelledby="ui-status-card">

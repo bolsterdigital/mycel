@@ -10,10 +10,17 @@
 // never derived. The `@font-face` rules are here too, because the font pair is a theme value and
 // `inter` must not load Source Serif.
 //
-// Rejected: CSS built by string concatenation in a component, and colour arithmetic for hover or
-// dark states (a computed colour nobody checked for contrast).
+// Rejected: component-local CSS and unchecked hover arithmetic. Interaction pairs keep the
+// original polarity and are checked along the entire sRGB transition before becoming tokens.
 
-import { THEME_ROLES, type FontPair, type Palette, type ResolvedTheme } from '@mycel/core';
+import {
+  contrastRatio,
+  luminance,
+  THEME_ROLES,
+  type FontPair,
+  type Palette,
+  type ResolvedTheme,
+} from '@mycel/core';
 
 /** Self-hosted, Latin-subset variable fonts in `static/fonts` (docs/reference/fonts.md). */
 export const FONT_FILES = {
@@ -88,11 +95,53 @@ const num = (n: number): string => {
   return String(Math.round(n * 10_000) / 10_000);
 };
 
+// Keep a role's character, rather than fading through an unreadable foreground/background
+// inversion. Try a mild softening first, then strengthen the pair when it has no spare contrast.
+// Check the sRGB path including rounding; browser fixtures also measure actual interpolated colours.
+function interactionPair(pair: Palette['primary']): Palette['primary'] {
+  const mix = (a: string, b: string, fraction: number) =>
+    '#' +
+    [1, 3, 5]
+      .map((i) =>
+        Math.round(
+          parseInt(a.slice(i, i + 2), 16) * (1 - fraction) +
+            parseInt(b.slice(i, i + 2), 16) * fraction
+        )
+          .toString(16)
+          .padStart(2, '0')
+      )
+      .join('');
+  const { foreground: fg, background: bg } = pair;
+  const lightText = luminance(fg) > luminance(bg);
+  const strongFg = mix(fg, lightText ? '#ffffff' : '#000000', 0.12);
+  const strongBg = mix(bg, lightText ? '#000000' : '#ffffff', 0.12);
+  const candidates = [
+    { foreground: mix(fg, bg, 0.04), background: mix(bg, fg, 0.08) },
+    { foreground: mix(fg, bg, 0.02), background: strongBg },
+    { foreground: strongFg, background: mix(bg, fg, 0.02) },
+    { foreground: strongFg, background: strongBg },
+  ];
+  return (
+    candidates.find((target) =>
+      Array.from({ length: 101 }, (_, i) => i / 100).every(
+        (t) => contrastRatio(mix(fg, target.foreground, t), mix(bg, target.background, t)) >= 4.5
+      )
+    ) ?? pair
+  );
+}
+
 function palette(p: Palette): string[] {
   const lines = THEME_ROLES.flatMap((role) => [
     `--color-${role}-fg: ${p[role].foreground};`,
     `--color-${role}-bg: ${p[role].background};`,
   ]);
+  for (const role of ['primary', 'accent', 'body'] as const) {
+    const pair = interactionPair(p[role]);
+    lines.push(
+      `--color-${role}-active-fg: ${pair.foreground};`,
+      `--color-${role}-active-bg: ${pair.background};`
+    );
+  }
   lines.push(`--color-link: ${p.link};`, `--color-focus: ${p.focus};`);
   return lines;
 }

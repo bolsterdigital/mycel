@@ -913,6 +913,22 @@
     gap: var(--space-1);
     min-width: 0;
   }
+  .ui-media-picker-selection {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-2);
+  }
+  .ui-media-picker-selection > .ui-media-picker-current {
+    flex: 1 1 14rem;
+  }
+  .ui-media-picker-related {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+    align-items: start;
+    gap: var(--space-2);
+    min-width: 0;
+  }
   .ui-media-picker-current img {
     inline-size: 6rem;
     block-size: 4.5rem;
@@ -989,6 +1005,51 @@
   .ui-media-option-name {
     font-size: var(--step--1);
     overflow-wrap: anywhere;
+  }
+  /* A library keeps its content in view; file drops briefly cover the whole browser. */
+  .ui-library-search {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: var(--space-1);
+    max-inline-size: 42rem;
+  }
+  .ui-library-search .ui-field {
+    flex: 1 1 15rem;
+    min-inline-size: 0;
+    margin: 0;
+  }
+  .ui-library-search .ui-actions {
+    flex: 0 0 auto;
+    max-inline-size: 100%;
+    margin: 0;
+  }
+  .ui-upload-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    padding: var(--space-2);
+    background: var(--color-surface-bg);
+    color: var(--color-surface-fg);
+    border: 4px dashed var(--color-link);
+    pointer-events: none;
+  }
+  .ui-upload-overlay[hidden],
+  [data-upload-results][hidden] {
+    display: none;
+  }
+  .ui-upload-prompt {
+    max-inline-size: 36rem;
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+  .ui-upload-prompt strong {
+    font-size: var(--step-2);
+  }
+  [data-upload-results] {
+    margin-block: var(--space-1);
   }
   .ui-media-uploads {
     display: grid;
@@ -1762,25 +1823,28 @@
     color: var(--color-link);
     text-decoration: underline;
   }
-  /* An image block at rest: the photo at card scale in its own ratio, its caption on the image's
-     edge as the page prints it; a picture that cannot be shown is a framed note with "Replace". */
+  /* An image at rest is a thumbnail beside its complete words, not a full-width photo in every
+     card. A larger native preview is a deliberate request; long metadata remains unbounded. */
   .ui-block-image {
     display: grid;
-    gap: var(--space-0);
+    grid-template-columns: minmax(0, 6rem) minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-1) var(--space-2);
     margin: 0;
   }
   .ui-block-image > img {
     display: block;
-    width: 100%;
-    max-width: 40rem;
-    height: auto;
+    inline-size: 100%;
+    block-size: 4.5rem;
+    object-fit: contain;
     border-radius: var(--radius);
+    background: var(--color-body-bg);
   }
   .ui-block-image > figcaption {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0 var(--space-1);
-    max-width: 40rem;
+    overflow-wrap: anywhere;
+    display: grid;
+    gap: var(--space-0);
+    min-width: 0;
     font-size: var(--step--1);
   }
   .ui-block-image > figcaption[hidden] {
@@ -1788,6 +1852,32 @@
   }
   .ui-block-image-credit {
     color: var(--color-muted-fg);
+  }
+  .ui-block-image-alt {
+    display: grid;
+    gap: var(--space-0);
+  }
+  .ui-block-image-alt [hidden] {
+    display: none;
+  }
+  .ui-block-image-preview > summary {
+    display: flex;
+    align-items: center;
+    min-block-size: var(--tap);
+    color: var(--color-link);
+    cursor: pointer;
+  }
+  .ui-block-image-preview img {
+    display: block;
+    inline-size: 100%;
+    max-inline-size: 40rem;
+    block-size: auto;
+  }
+  .ui-block-image:has(.ui-block-image-preview[open]) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ui-block-image:has(.ui-block-image-preview[open]) > img {
+    max-inline-size: 6rem;
   }
   .ui-block-image-missing {
     display: none;
@@ -1801,6 +1891,17 @@
     padding: var(--space-1) var(--space-2);
     border: var(--border-width) dashed var(--color-border);
     border-radius: var(--radius);
+  }
+  .ui-block-image[data-broken] .ui-block-image-preview {
+    display: none;
+  }
+  @container (max-width: 24rem) {
+    .ui-block-image {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .ui-block-image > img {
+      max-inline-size: 6rem;
+    }
   }
   .ui-block-image-missing > * {
     margin: 0;
@@ -1860,18 +1961,98 @@
     display: none;
   }
   .ui-block-insert[open] {
-    padding: var(--space-1) var(--space-2);
+    padding: var(--space-1) 0;
     border: var(--border-width) dashed var(--color-border);
     border-radius: var(--radius-lg);
   }
   .ui-block-insert-body {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: end;
+    min-width: 0;
+  }
+  .ui-block-picker {
+    container-type: inline-size;
+    display: grid;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+  .ui-block-picker-place {
+    margin: 0;
+    color: var(--color-muted-fg);
+    font-size: var(--step--1);
+  }
+  .ui-block-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
     gap: var(--space-1);
   }
-  .ui-block-insert-body > .ui-field {
-    flex: 1 1 12rem;
+  .ui-block-picker-option {
+    display: flex;
+    inline-size: 100%;
+    justify-self: stretch;
+    flex-direction: column;
+    align-items: start;
+    gap: var(--space-1);
+    min-block-size: var(--tap);
+    min-inline-size: var(--tap);
+    max-inline-size: 100%;
+    padding: var(--space-1);
+    /* The end chooser can already sit inside a padded fieldset. Its own inline inset follows
+       the remaining space, so whole words retain their width at 320 px and 200% text. */
+    padding-inline: min(var(--space-1), 2cqi);
+    border: var(--border-width) solid var(--color-control-border);
+    border-radius: var(--radius);
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+    hyphens: manual;
+  }
+  .ui-block-picker-option[hidden] {
+    display: none;
+  }
+  .ui-block-picker-option:is(:hover, :focus-visible) {
+    border-color: currentColor;
+    box-shadow: inset 0 0 0 var(--border-width) currentColor;
+  }
+  .ui-block-picker-option > .ui-icon {
+    flex: none;
+  }
+  .ui-block-picker-option > span {
+    min-width: 0;
+    max-inline-size: 100%;
+    overflow-wrap: break-word;
+  }
+  .ui-writing-sheet {
+    container-type: inline-size;
+    display: grid;
+    min-width: 0;
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius);
+  }
+  .ui-writing-sheet[hidden] {
+    display: none;
+  }
+  .ui-writing-sheet-toolbar {
+    padding: var(--space-1) var(--space-2);
+    border-block-end: var(--border-width) solid var(--color-border);
+  }
+  .ui-writing-sheet-content {
+    container-type: inline-size;
+    min-width: 0;
+    min-block-size: 10rem;
+    padding: var(--space-2);
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+    border-radius: 0 0 var(--radius) var(--radius);
+  }
+
+  @container (max-width: 24rem) {
+    /* A sheet can be inside a block body and a fieldset. Neither its words nor its toolbar
+       add another inline inset to those groups when their available width is narrow. */
+    .ui-writing-sheet-toolbar,
+    .ui-writing-sheet-content {
+      padding-inline: 0;
+    }
   }
 
   .ui-detail-footer {
@@ -2035,6 +2216,7 @@
     letter-spacing: 0.04em;
   }
   .ui-navgroup ul {
+    min-width: 0;
     display: grid;
     gap: 0.125rem;
     margin: 0;
@@ -2043,7 +2225,8 @@
   }
   /* Labels are short words that stay whole: at 320 CSS px and 200% text the icon, gap and padding
      leave room for "Connections", never "Connectio|ns". */
-  .ui-navgroup a {
+  .ui-navgroup a,
+  .ui-navgroup summary {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -2056,14 +2239,38 @@
     hyphens: manual;
     border-radius: var(--radius);
   }
-  .ui-navgroup a:hover {
+  .ui-navgroup a:hover,
+  .ui-navgroup summary:hover {
     background: var(--color-muted-bg);
   }
   .ui-navgroup a[aria-current='page'],
-  .ui-navgroup a[aria-current='true'] {
+  .ui-navgroup a[aria-current='true'],
+  .ui-navgroup summary[aria-current='true'] {
     color: var(--color-selected-fg);
     background: var(--color-selected-bg);
     font-weight: 700;
+  }
+  .ui-navgroup summary {
+    flex-wrap: wrap;
+    cursor: pointer;
+    list-style: none;
+  }
+  /* Keep closed children's intrinsic width in the column calculation. Visibility and clipping
+     keep them unavailable until the native disclosure opens, without a width jump on opening. */
+  .ui-navgroup details:not([open])::details-content {
+    content-visibility: visible;
+    block-size: 0;
+    overflow: clip;
+    visibility: hidden;
+  }
+  .ui-navgroup summary::-webkit-details-marker {
+    display: none;
+  }
+  .ui-navgroup summary > .ui-icon:last-child {
+    margin-inline-start: auto;
+  }
+  .ui-navgroup details[open] > summary > .ui-icon:last-child {
+    transform: rotate(180deg);
   }
   /* A screen's sections under its item (#87): indented to the item's label, the current one
      marked by a bar and weight, so it reads apart from the filled item above it. */
@@ -2198,10 +2405,7 @@
      whole parts; the actions are a group of whole buttons that wraps under them when the line is
      too short (skill ui-action-layout). */
   .ui-item-bar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
+    display: grid;
     gap: var(--space-1) var(--space-2);
     margin-block-end: var(--space-3);
     padding-block-end: var(--space-1);
@@ -2229,16 +2433,41 @@
     }
   }
   .ui-item-bar-where {
+    display: grid;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+  .ui-item-bar-main {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: start;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+  .ui-item-bar-main > .ui-item-bar-where {
+    flex: 1 1 18rem;
+  }
+  .ui-item-bar-context {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: var(--space-0) var(--space-1);
-    flex: 1 1 14rem;
+    gap: var(--space-1) var(--space-2);
     min-width: 0;
+  }
+  .ui-item-bar-tools {
+    display: grid;
+    gap: var(--space-0);
+    flex: 1 1 16rem;
+    min-width: 0;
+    justify-items: end;
+  }
+  .ui-item-bar-tools > .ui-item-bar-save {
+    min-block-size: 1.5em;
+    font-size: var(--step--1);
   }
   .ui-item-bar-title {
     margin: 0;
-    font-size: var(--step-1);
+    font-size: var(--step-2);
   }
   .ui-item-bar-back {
     display: inline-flex;
@@ -2255,9 +2484,9 @@
   /* The host is a size container without an intrinsic width: it takes the rest of the line, and a
      line of its own once less than 16rem is left. The bar's own padding and gap space it, so the
      margin an action row has elsewhere would only make the bar that stays in view taller. */
-  .ui-item-bar > .ui-actions-host {
-    flex: 1 1 auto;
-    min-width: min(100%, 16rem);
+  .ui-item-bar-tools > .ui-actions-host {
+    inline-size: 100%;
+    min-width: 0;
     margin-block: 0;
   }
 

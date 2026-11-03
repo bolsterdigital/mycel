@@ -20,6 +20,7 @@ import {
   BLOCK_TYPES,
   Block,
   DEFAULT_THEME,
+  contrastRatio,
   EXAMPLE_IDS,
   THEME_PRESETS,
   THEME_RANGES,
@@ -438,6 +439,10 @@ describe('the demo documents render whole', () => {
 describe('theme tokens', () => {
   const PROPERTIES = [
     ...THEME_ROLES.flatMap((r) => [`--color-${r}-fg`, `--color-${r}-bg`]),
+    ...['primary', 'accent', 'body'].flatMap((r) => [
+      `--color-${r}-active-fg`,
+      `--color-${r}-active-bg`,
+    ]),
     '--color-link',
     '--color-focus',
     '--font-body',
@@ -472,6 +477,52 @@ describe('theme tokens', () => {
   it('maps the default theme and every preset completely', () => {
     for (const theme of [DEFAULT_THEME, ...Object.values(THEME_PRESETS)])
       expect(problems(theme as ResolvedTheme)).toEqual([]);
+  });
+
+  it('keeps interactive tokens readable even for a pair just above the contrast floor', () => {
+    const boundary = structuredClone(DEFAULT_THEME);
+    boundary.palettes.light.primary = { foreground: '#767676', background: '#ffffff' };
+    for (const theme of [DEFAULT_THEME, ...Object.values(THEME_PRESETS), boundary]) {
+      const css = themeCss(theme);
+      const palettes = css.split(':root {').slice(1);
+      for (const [index, mode] of (['light', 'dark'] as const).entries())
+        for (const role of ['primary', 'accent', 'body'] as const) {
+          const token = (suffix: string) =>
+            new RegExp(`--color-${role}-${suffix}: (#[a-f0-9]{6});`, 'i').exec(
+              palettes[index]!
+            )![1]!;
+          const pair = theme.palettes[mode][role];
+          const fg = token('active-fg');
+          const bg = token('active-bg');
+          expect(contrastRatio(fg, bg)).toBeGreaterThanOrEqual(4.5);
+          // Active feedback is a real colour change, never a foreground/background inversion.
+          expect([fg, bg]).not.toEqual([pair.foreground, pair.background]);
+          expect([fg, bg]).not.toEqual([pair.background, pair.foreground]);
+        }
+    }
+  });
+
+  it('keeps active feedback for arbitrary readable colour pairs', () => {
+    let seed = 131;
+    const colour = () => {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      return '#' + (seed & 0xffffff).toString(16).padStart(6, '0');
+    };
+    let checked = 0;
+    for (let i = 0; i < 1500; i++) {
+      const foreground = colour(),
+        background = colour();
+      if (contrastRatio(foreground, background) < 4.5) continue;
+      const theme = structuredClone(DEFAULT_THEME);
+      theme.palettes.light.primary = { foreground, background };
+      const css = themeCss(theme);
+      const fg = /--color-primary-active-fg: (#[a-f0-9]{6});/i.exec(css)![1]!;
+      const bg = /--color-primary-active-bg: (#[a-f0-9]{6});/i.exec(css)![1]!;
+      expect(contrastRatio(fg, bg)).toBeGreaterThanOrEqual(4.5);
+      expect([fg, bg]).not.toEqual([foreground, background]);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(100);
   });
 
   it('loads Source Serif only for the serif pair, and both palettes explicitly', () => {

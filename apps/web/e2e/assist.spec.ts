@@ -41,9 +41,9 @@ async function signInToFreshSite(page: Page) {
     })
   );
   await login(page, `${base(page)}/site?section=assist`, email);
-  // Signed in as this member; at 320 CSS px the address sits in the closed ☰ menu (#66 PR 1).
+  // Signed in as this member; the account disclosure retains the identity at every width.
   await expect(
-    page.locator('.admin-sidebar-bottom').getByText(email, { exact: true })
+    page.locator('.admin-account-actions').getByText(email, { exact: true })
   ).toBeAttached();
 }
 
@@ -110,6 +110,7 @@ async function ready(page: Page) {
 
 async function imagePage(page: Page, project: string) {
   await page.goto(`${base(page)}/media`);
+  await page.getByRole('button', { name: /^(Bestand uploaden|Upload file)$/, exact: true }).click();
   const example = useCases.uploadMedia.examples[0]!.input;
   await page.getByLabel(/^(Bestanden \(verplicht\)|Files \(required\))$/).setInputFiles({
     name: 'assist.png',

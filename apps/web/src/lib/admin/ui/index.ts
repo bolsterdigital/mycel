@@ -56,3 +56,7 @@ export { default as Table } from './display/Table.svelte';
 export { default as Tabs } from './nav/Tabs.svelte';
 export { default as ViewSwitch } from './nav/ViewSwitch.svelte';
 export { ICONS, type IconName } from './icons.js';
+
+export { default as UploadDropZone } from './form/UploadDropZone.svelte';
+export { default as BlockInserter } from './form/BlockInserter.svelte';
+export { default as WritingSheet } from './display/WritingSheet.svelte';

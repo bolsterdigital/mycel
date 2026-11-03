@@ -25,7 +25,13 @@ test.describe('ui-gate', () => {
   test.use({ viewport: NARROW });
 
   const measure = async (page: Page, route: GateRoute, text: string) => {
-    if (route.menu) await page.locator('.admin-menu > summary').click();
+    if (route.menu) {
+      await page.locator('.admin-menu > summary').click();
+      for (const summary of await page.locator('.admin-account:not([open]) > summary').all())
+        await summary.click();
+      const closedGroups = page.locator('.ui-navgroup-disclosure:not([open]) > summary');
+      while (await closedGroups.count()) await closedGroups.first().click();
+    }
     if (route.folds) {
       const folds = page.locator('.ui-fold > summary');
       // A fold inside a closed dialog (the role picker's advanced part, #101) is not on the page
@@ -64,8 +70,10 @@ test.describe('ui-gate', () => {
     onlyA11y('measures the layout with a script');
     await page.setViewportSize({ width: 1280, height: 900 });
     await login(page, ADMIN_ROUTES[0]!.path);
+    for (const summary of await page.locator('.admin-account:not([open]) > summary').all())
+      await summary.click();
     const [logout, link] = await page.evaluate(() =>
-      ['.admin-sidebar-bottom .admin-logout', '.admin-sidebar-bottom > a'].map((selector) => {
+      ['.admin-account-actions .admin-logout', '.admin-account-actions > a'].map((selector) => {
         const range = document.createRange();
         range.selectNodeContents(document.querySelector(selector)!);
         return range.getBoundingClientRect().left;
@@ -161,7 +169,7 @@ test.describe('admin-ui', () => {
       // navigation's and a long Choices list's search.
       await expect(
         page.locator(
-          'script:not([src="/_admin/copy.js"], [src="/_admin/nav.js"], [src="/_admin/choices.js"])'
+          'script:not([src="/_admin/copy.js"], [src="/_admin/nav.js"], [src="/_admin/choices.js"], [src="/_admin/drop-upload.js"])'
         )
       ).toHaveCount(0);
       return;
@@ -243,9 +251,25 @@ test.describe('admin-ui', () => {
     await expect(page.locator('html')).toHaveAttribute('data-admin-nav', 'rail');
     expect((await sidebar.boundingBox())!.width).toBeLessThan(80);
     await expect(media).toBeVisible();
-    await expect(sidebar.locator('.ui-navgroup-sub')).toBeHidden();
+    const iconOffsets = await sidebar.evaluate((side) => {
+      const box = side.getBoundingClientRect();
+      return [
+        ...side.querySelectorAll(
+          '.ui-navgroup > ul > li > a > svg, .ui-navgroup summary > svg:first-child, .admin-account > summary > svg:first-child, .admin-collapse svg'
+        ),
+      ]
+        .map((icon) => icon.getBoundingClientRect())
+        .filter((icon) => icon.width && icon.height)
+        .map((icon) => Math.abs(icon.left + icon.width / 2 - (box.left + box.width / 2)));
+    });
+    expect(iconOffsets.length).toBeGreaterThan(5);
+    expect(Math.max(...iconOffsets)).toBeLessThanOrEqual(1);
+    for (const children of await sidebar.locator('.ui-navgroup-sub').all())
+      await expect(children).toBeHidden();
     await media.hover();
     expect((await media.locator('span').boundingBox())!.width).toBeGreaterThan(20);
+    await page.locator('main .ui-navgroup-disclosure:not([open]) > summary').first().click();
+    await expect(page.locator('html')).toHaveAttribute('data-admin-nav', 'rail');
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('data-admin-nav', 'rail');
     await page.getByRole('button', { name: 'Expand menu' }).click();

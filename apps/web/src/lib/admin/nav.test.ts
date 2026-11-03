@@ -12,12 +12,12 @@ const labels = (entry: { children: { label: string }[] } | undefined) =>
   entry?.children.map((c) => c.label);
 
 describe('admin navigation data (#114)', () => {
-  it('shows Manage with only Team, and Settings closed, outside both', () => {
+  it('supplies every permitted destination to closed native groups outside both', () => {
     const [manage, settings] = at(`${base}/content?type=page`);
     expect(manage).toMatchObject({ id: 'manage', label: 'Manage', current: false });
-    expect(labels(manage)).toEqual(['Team']);
+    expect(labels(manage)).toEqual(MANAGE.screens.map((screen) => t(screen.label)));
     expect(settings).toMatchObject({ id: 'settings', label: 'Settings', current: false });
-    expect(labels(settings)).toEqual([]);
+    expect(labels(settings)).toEqual(SETTINGS.screens.map((screen) => t(screen.label)));
   });
 
   it('opens Manage with every screen on its own page and on each screen', () => {

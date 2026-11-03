@@ -12,6 +12,7 @@ import {
   BlockCard,
   BlockText,
   BlockImage,
+  BlockInserter,
   BlockSummary,
   Breadcrumb,
   Button,
@@ -31,11 +32,13 @@ import {
   Field,
   Fieldset,
   FileDrop,
+  UploadDropZone,
   FormPage,
   ICONS,
   Icon,
   IconSprite,
   ItemBar,
+  WritingSheet,
   KeyReveal,
   MetaList,
   NavGroup,
@@ -435,6 +438,36 @@ describe('BlockImage', () => {
     expect(out).toMatch(/<figcaption hidden/);
     expect(out).toMatch(/<span hidden[^>]*data-rest-caption="b\.1\.p\.caption\.nl"/);
     expect(out).toContain('data-rest-inherited="From the file"');
+  });
+  it('keeps full metadata and an explicit larger preview beside its thumbnail', () => {
+    const alt = {
+      text: 'The complete description of the picture',
+      decorative: false,
+      from: 'b.1.p.alt.en',
+      decorativeFrom: 'b.1.p.decorative',
+      label: 'Description',
+      decorativeLabel: 'Decorative',
+      missingLabel: 'Description missing',
+    };
+    const out = html(BlockImage, {
+      ...props,
+      src: '/v/w960.webp',
+      thumbSrc: '/v/thumb.webp',
+      previewLabel: 'Larger preview',
+      alt,
+    });
+    expect(out).toContain('src="/v/thumb.webp"');
+    expect(out).toContain('<summary>Larger preview</summary>');
+    expect(out).toContain('data-rest-alt="b.1.p.alt.en"');
+    expect(out).toContain('The complete description of the picture');
+    expect(out).toMatch(/data-rest-alt-decorative="" hidden/);
+    const decorative = html(BlockImage, {
+      ...props,
+      src: '/v/w960.webp',
+      alt: { ...alt, decorative: true },
+    });
+    expect(decorative).toMatch(/data-rest-alt-text="" hidden/);
+    expect(decorative).toContain('data-rest-alt-decorative="">Decorative');
   });
   it('says which file is missing and offers Replace, without an image', () => {
     const out = html(BlockImage, { ...props, src: null });
@@ -1216,13 +1249,33 @@ describe('NavGroup', () => {
         { href: '/leden', label: 'Members', icon: 'users' as const },
       ],
     });
+    expect(out).toMatch(/<details class="ui-navgroup-disclosure" open="">/);
+    expect(out).toMatch(/<summary data-nav-expand="" aria-current="true">/);
     expect(out).toMatch(/<a href="\/site" aria-current="true">/);
     expect(out).toContain(
-      '<ul class="ui-navgroup-sub"><li><a href="/site?s=general" aria-current="page">General</a></li><li><a href="/site?s=brand">Brand</a></li></ul>'
+      '<ul class="ui-navgroup-sub"><li><a href="/site" aria-current="true">Settings</a></li> <li><a href="/site?s=general" aria-current="page">General</a></li><li><a href="/site?s=brand">Brand</a></li></ul>'
     );
     expect(out.match(/aria-current="page"/g)).toHaveLength(1);
     // An item without sections has no sub-list.
     expect(out.match(/ui-navgroup-sub/g)).toHaveLength(1);
+  });
+  it('keeps every destination inside a closed native group until its summary is opened', () => {
+    const out = html(NavGroup, {
+      id: 'g',
+      items: [
+        {
+          href: '/manage',
+          label: 'Manage',
+          icon: 'shield',
+          children: [{ href: '/team', label: 'Team' }],
+        },
+      ],
+    });
+    expect(out).toContain('<details class="ui-navgroup-disclosure">');
+    expect(out).toMatch(/<summary data-nav-expand="">/);
+    expect(out).toContain('<a href="/manage">Manage</a>');
+    expect(out).toContain('<a href="/team">Team</a>');
+    expect(out).not.toMatch(/aria-expanded|onclick|<button/);
   });
   it('has no label when none is given, and renders nothing without items', () => {
     expect(html(NavGroup, { id: 'g', items })).not.toContain('aria-labelledby');
@@ -1278,6 +1331,7 @@ describe('DashboardWidget', () => {
 describe('ItemBar', () => {
   it('has the back link, the one <h1>, the state linked to its card, and the actions', () => {
     const out = html(ItemBar, {
+      locale: 'en',
       back: { href: '/admin/probe/content?type=page', label: 'Pages' },
       title: 'Edit page',
       state: 'Draft',
@@ -1295,6 +1349,7 @@ describe('ItemBar', () => {
   });
   it('shows the state without a link, and no action group without actions', () => {
     const out = html(ItemBar, {
+      locale: 'en',
       back: { href: '/x', label: 'Articles' },
       title: 'Edit article',
       state: 'Published, changed since',
@@ -1437,5 +1492,61 @@ describe('StatusCard', () => {
     expect(out).toContain('<h3 id="p-en-title" class="ui-status-card-title">Language en</h3>');
     expect(out).toContain('<span class="ui-badge success">Published on 28 October 2026</span>');
     expect(out).not.toContain('ui-actions');
+  });
+});
+
+describe('UploadDropZone', () => {
+  it('keeps the overlay hidden and a live region ready before a file enters', () => {
+    const out = render(UploadDropZone, {
+      props: {
+        url: '/admin/probe/media/upload',
+        locale: 'en',
+        hint: 'JPEG, at most 25 MB.',
+      },
+    });
+    expect(out.body).toContain('data-upload-overlay="" hidden=""');
+    expect(out.body).toContain('aria-live="polite"');
+    expect(out.body).toContain('Drop files to upload');
+    expect(out.body).toContain('JPEG, at most 25 MB.');
+    expect(out.body).not.toContain('type="file"');
+    expect(out.body + out.head).toContain('src="/_admin/drop-upload.js"');
+  });
+});
+
+describe('BlockInserter', () => {
+  it('uses named native choices at one explicit location without a second select or ARIA grid', () => {
+    const out = html(BlockInserter, {
+      id: 'middle',
+      place: 'before:block-a',
+      label: 'Before block 2',
+      locale: 'en',
+      action: '?/insert&locale=en',
+      options: [
+        { value: 'image', label: 'Image', icon: 'image' },
+        { value: 'quote', label: 'Quote', icon: 'newspaper' },
+      ],
+    });
+    expect(out).toContain('name="insert" value="image|before:block-a"');
+    expect(out).toContain('name="insert" value="quote|before:block-a"');
+    expect(out).toContain('formaction="?/insert&amp;locale=en"');
+    expect(out).toContain('aria-describedby="insert-place-middle"');
+    expect(out).toContain('Before block 2');
+    expect(out).toContain('<span>Image</span>');
+    expect(out).not.toMatch(/role="grid"|<select|tabindex=/);
+    expect(out).toMatch(/data-type-search[^>]*hidden/);
+  });
+});
+
+describe('WritingSheet', () => {
+  it('keeps tools before content and leaves native content in the same document', () => {
+    const out = html(WritingSheet, {
+      toolbar: text('Formatting'),
+      children: text('The article words'),
+    });
+    expect(out.indexOf('ui-writing-sheet-toolbar')).toBeLessThan(
+      out.indexOf('ui-writing-sheet-content')
+    );
+    expect(out).toContain('The article words');
+    expect(out).not.toContain('role="application"');
   });
 });

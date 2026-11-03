@@ -7,6 +7,23 @@
 // field kind (a `choice` is display for `layout` but content for a video's `provider`) and a
 // presentation field in core (the API and MCP have no use for it).
 import type { BlockType } from '@mycel/core';
+import type { IconName } from './ui/icons.js';
+
+/** Decorative cues for the same registered types; visible names always carry their meaning. */
+export const BLOCK_ICONS: Readonly<Record<BlockType, IconName>> = {
+  heading: 'file-text',
+  'rich-text': 'file-text',
+  image: 'image',
+  quote: 'newspaper',
+  callout: 'info',
+  faq: 'circle-help',
+  cta: 'arrow-left-right',
+  'video-embed': 'eye',
+  form: 'file-text',
+  'signup-form': 'users',
+  paywall: 'shield',
+  hero: 'image',
+};
 
 export type RestView =
   /** The picture itself at card scale, with the caption and credit the page shows. */
