@@ -1476,47 +1476,135 @@
     gap: var(--space-2);
   }
 
-  /* BlockCard (#66 PR 3, MY-110 A): a thin head (number and type, then "More actions" that opens
-     a stack of whole buttons under it), the block at rest as the page shows it, and "Edit" as a
-     named button over the fields; "Done" while they are open. */
+  /* BlockCard (#66 PR 3, MY-110 A, #159): a tinted head that names the block and holds its
+     actions, so a card reads apart from the running text around it, then the block at rest as the
+     page shows it and "Edit" as a named button over the fields; "Done" while they are open. Every
+     control keeps its whole word (skill ui-action-layout): the head wraps, it never clips. */
   .ui-block-card {
     container-type: inline-size;
     min-width: 0;
     color: var(--color-surface-fg);
     background: var(--color-surface-bg);
-    border: var(--border-width) solid var(--color-border);
+    border: var(--border-width) solid var(--color-border-strong);
     border-radius: var(--radius-lg);
   }
+  @media (hover: hover) {
+    .ui-block-card:hover {
+      border-color: var(--color-control-border);
+    }
+  }
+  /* A selected card in the writer showed nothing at all (`ProseMirror-selectednode` had no rule). */
+  .ProseMirror-selectednode > .ui-block-card {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+  /* A card with an open menu over the next: a size container is a stacking context of its own. */
+  .ui-block-card:has(.ui-block-card-more[open]) {
+    position: relative;
+    z-index: 2;
+  }
+  .ui-block-card:has(> .ui-block-card-content > .ui-block-card-fold[open]) {
+    border: 2px solid var(--color-primary-bg);
+  }
   .ui-block-card-head {
+    position: relative;
     display: flex;
     flex-wrap: wrap;
-    align-items: flex-start;
-    justify-content: space-between;
+    align-items: center;
     gap: 0 var(--space-1);
-    padding: var(--space-0) var(--space-1) var(--space-0) var(--space-2);
-    border-block-end: var(--border-width) solid var(--color-border);
+    padding: var(--space-0) var(--space-0) var(--space-0) var(--space-1);
+    background: var(--color-block-head-bg);
+    border-block-end: var(--border-width) solid var(--color-border-strong);
+    border-start-start-radius: calc(var(--radius-lg) - var(--border-width));
+    border-start-end-radius: calc(var(--radius-lg) - var(--border-width));
+  }
+  .ui-block-card[data-collapsed] > .ui-block-card-head {
+    border-block-end: 0;
+    border-end-start-radius: calc(var(--radius-lg) - var(--border-width));
+    border-end-end-radius: calc(var(--radius-lg) - var(--border-width));
+  }
+  .ui-block-card:has(> .ui-block-card-content > .ui-block-card-fold[open]) > .ui-block-card-head {
+    color: var(--color-selected-fg);
+    background: var(--color-selected-bg);
+  }
+  /* The head is a target with the script only; the toggle is what shows it has one. */
+  .ui-block-card-head:has(.ui-block-card-toggle:not([hidden])) {
+    cursor: pointer;
   }
   .ui-block-card-title {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    gap: var(--space-0) var(--space-1);
     min-height: var(--tap);
+    min-width: 0;
     margin: 0;
     font-size: var(--step-0);
-    font-weight: 600;
+    font-weight: 400;
+  }
+  .ui-block-card-number {
+    font-variant-numeric: tabular-nums;
     color: var(--color-muted-fg);
   }
+  .ui-block-card-type,
+  .ui-block-card-notice {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-0);
+    min-width: 0;
+    padding: var(--space-0) var(--space-1);
+    border-radius: var(--radius);
+    font-size: var(--step--1);
+    font-weight: 600;
+    line-height: 1.2;
+  }
+  .ui-block-card-type {
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .ui-block-card-notice {
+    color: var(--status-warning-fg);
+    background: var(--status-warning-bg);
+  }
+  /* One line with an ellipsis: this is an aid to recognition, the words themselves are below. */
+  .ui-block-card-name {
+    flex: 1 1 8rem;
+    min-width: 0;
+    overflow: hidden;
+    font-size: var(--step-0);
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ui-block-card-name:empty {
+    display: none;
+  }
+  .ui-block-card-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--space-0);
+    min-width: 0;
+    margin-inline-start: auto;
+  }
   .ui-block-card-more {
-    flex: 0 1 auto;
     min-width: 0;
   }
   .ui-block-card-more > summary,
-  .ui-block-card-fold > summary {
+  .ui-block-card-fold > summary,
+  .ui-block-card-toggle,
+  .ui-block-card-bar > button {
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
+    gap: var(--space-0);
     min-height: var(--tap);
     padding-inline: var(--space-1);
+    font: inherit;
     color: var(--color-link);
+    background: none;
+    border: 0;
+    border-radius: var(--radius);
     white-space: nowrap;
     list-style: none;
     cursor: pointer;
@@ -1525,15 +1613,99 @@
   .ui-block-card-fold > summary::-webkit-details-marker {
     display: none;
   }
-  .ui-block-card-more[open] > summary svg {
-    transform: rotate(180deg);
+  .ui-block-card-more > summary:hover,
+  .ui-block-card-more[open] > summary,
+  .ui-block-card-toggle:hover {
+    background: var(--color-surface-bg);
   }
+  .ui-block-card-toggle[hidden],
+  .ui-block-card-content[hidden],
+  .ui-block-card-bar[hidden] {
+    display: none;
+  }
+  .ui-block-card-collapse,
+  .ui-block-card-expand,
+  .ui-block-card-closed,
+  .ui-block-card-open {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-0);
+  }
+  .ui-block-card-toggle[aria-expanded='true'] .ui-block-card-expand,
+  .ui-block-card-toggle[aria-expanded='false'] .ui-block-card-collapse {
+    display: none;
+  }
+  /* A compact list over the content, anchored to the head; native `details`, so it works without
+     JavaScript. Rejected: the stack of whole buttons that pushed the card's content down. */
   .ui-block-card-menu {
-    padding-block: var(--space-0) var(--space-1);
+    position: absolute;
+    z-index: 1;
+    inset-block-start: calc(100% + var(--space-0));
+    inset-inline-end: var(--space-1);
+    display: grid;
+    width: max-content;
+    max-width: calc(100% - 2 * var(--space-1));
+    padding: var(--space-0);
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+    border: var(--border-width) solid var(--color-border-strong);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-2);
+  }
+  .ui-block-card-action {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    width: 100%;
+    min-height: var(--tap);
+    padding: var(--space-0) var(--space-1);
+    font: inherit;
+    line-height: 1.25;
+    text-align: start;
+    text-decoration: none;
+    hyphens: manual;
+    color: var(--color-surface-fg);
+    background: transparent;
+    border: 0;
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+  .ui-block-card-action:hover {
+    background: var(--color-block-head-bg);
+  }
+  .ui-block-card-action.danger {
+    position: relative;
+    margin-block-start: var(--space-0);
+    color: var(--status-error-fg);
+  }
+  .ui-block-card-action.danger:not(:first-child)::before {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    inset-block-start: calc(var(--space-0) * -0.5);
+    border-block-start: var(--border-width) solid var(--color-border);
+  }
+  .ui-block-card-action:focus-visible,
+  .ui-block-card-toggle:focus-visible,
+  .ui-block-card-bar > button:focus-visible,
+  .ui-block-card-more > summary:focus-visible,
+  .ui-block-card-fold > summary:focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: -3px;
+  }
+  .ui-block-card-bar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0 var(--space-1);
   }
   .ui-block-card-rest {
     padding: var(--space-1) var(--space-2) 0;
     overflow-wrap: anywhere;
+  }
+  /* A type without a fold (a paywall) ends with its rest view. */
+  .ui-block-card-rest:last-child {
+    padding-block-end: var(--space-2);
   }
   .ui-block-card-fold {
     margin: 0;
@@ -1587,7 +1759,7 @@
   .ui-block-text {
     max-inline-size: 70ch;
   }
-  .ui-block-card:has(> .ui-block-card-fold[open]) .ui-block-text {
+  .ui-block-card:has(> .ui-block-card-content > .ui-block-card-fold[open]) .ui-block-text {
     display: none;
   }
   .ui-block-text-heading {

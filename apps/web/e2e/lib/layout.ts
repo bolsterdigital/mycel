@@ -81,6 +81,9 @@ export function layoutProblems(page: Page, within = 'body'): Promise<string[]> {
       '.ui-fold > summary',
       '[data-hero-alt] > summary',
       '[data-hero-alt] .act',
+      '.ui-block-card-action',
+      '.ui-block-card-more > summary',
+      '.ui-block-card-fold > summary',
       '.ui-choice',
       '.admin-sidebar a',
       '.admin-sidebar summary',
@@ -89,6 +92,8 @@ export function layoutProblems(page: Page, within = 'body'): Promise<string[]> {
       for (const b of root.querySelectorAll(actions.join(', '))) {
         const r = b.getBoundingClientRect();
         if (r.width === 0 && r.height === 0) continue; // inside a closed dialog or disclosure
+        // Positioned content of a closed `details` keeps a box nobody can see (a card's menu).
+        if (!b.checkVisibility()) continue;
         // Hidden from everyone on purpose (the edit form's default button for Enter, #66 PR 6):
         // no pointer or tab reaches it, so it is no action to measure.
         if (b.closest('[aria-hidden="true"]') && b.getAttribute('tabindex') === '-1') continue;
@@ -106,7 +111,12 @@ export function layoutProblems(page: Page, within = 'body'): Promise<string[]> {
         // visible hyphen on purpose. A main navigation label is a word or two and keeps them whole
         // without that exemption: it inherited `hyphens: auto`, so the rule never fired and
         // "Dashboar|d" at 320 CSS px and 200% text passed (#66 PR 2).
-        if (!b.matches('button, .ui-button, .ui-navgroup a, .ui-navgroup summary')) continue;
+        if (
+          !b.matches(
+            'button, .ui-button, .ui-block-card-action, .ui-navgroup a, .ui-navgroup summary'
+          )
+        )
+          continue;
         if (
           !b.matches('.ui-navgroup a, .ui-navgroup summary') &&
           getComputedStyle(b).hyphens === 'auto'

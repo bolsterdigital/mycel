@@ -65,6 +65,8 @@
     --color-danger-bg: #b91c1c;
     --status-neutral-fg: #44403c;
     --status-neutral-bg: #f5f5f4;
+    /* The head of a block card: a band between the page's text (#159). */
+    --color-block-head-bg: var(--status-neutral-bg);
     --status-info-fg: #1e3a8a;
     --status-info-bg: #eff6ff;
     --status-success-fg: #14532d;

@@ -1,6 +1,7 @@
 <!-- A page pattern of the catalogue (brief #56 § B) filled with the copy of a real screen, so the
      UI gate in e2e/ui-gate.spec.ts measures each pattern as screens will use it. -->
 <script lang="ts">
+  import { BLOCK_ICONS } from '#lib/admin/block-presentation.js';
   import {
     Actions,
     Badge,
@@ -19,6 +20,7 @@
     Notice,
     OverviewPage,
     BlockCard,
+    Icon,
     BlockSummary,
     PageHeader,
     SettingsPage,
@@ -236,11 +238,17 @@
       <h2 id="ui-edit-blocks">{t('admin.block.title')}</h2>
       <BlockCard
         id="ui-edit-block"
-        title="1. {t('admin.block.type.faq')}"
+        number={1}
+        type={t('admin.block.type.faq')}
+        icon={BLOCK_ICONS['faq']}
+        name={t('admin.ui.catalogue.blockCard.text')}
         labels={{
           edit: t('admin.block.card.edit'),
           done: t('admin.block.card.done'),
           more: t('admin.block.card.more'),
+          block: t('admin.block.card.block'),
+          collapse: t('admin.block.card.collapse'),
+          expand: t('admin.block.card.expand'),
         }}
         open
       >
@@ -252,8 +260,12 @@
           />
         {/snippet}
         {#snippet actions()}
-          <Button variant="secondary" href={here}>{t('admin.block.move.down')}</Button>
-          <Button variant="secondary" href={here}>{t('admin.block.duplicate')}</Button>
+          <a class="ui-block-card-action" href={here}
+            ><Icon name="arrow-down" />{t('admin.block.move.down')}</a
+          >
+          <a class="ui-block-card-action" href={here}
+            ><Icon name="copy" />{t('admin.block.duplicate')}</a
+          >
         {/snippet}
         <p>{t('admin.ui.catalogue.panel.body')}</p>
       </BlockCard>

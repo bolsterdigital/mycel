@@ -11,17 +11,17 @@ import type { IconName } from './ui/icons.js';
 
 /** Decorative cues for the same registered types; visible names always carry their meaning. */
 export const BLOCK_ICONS: Readonly<Record<BlockType, IconName>> = {
-  heading: 'file-text',
-  'rich-text': 'file-text',
+  heading: 'heading',
+  'rich-text': 'text',
   image: 'image',
-  quote: 'newspaper',
+  quote: 'quote',
   callout: 'info',
   faq: 'circle-help',
-  cta: 'arrow-left-right',
-  'video-embed': 'eye',
-  form: 'file-text',
-  'signup-form': 'users',
-  paywall: 'shield',
+  cta: 'megaphone',
+  'video-embed': 'video',
+  form: 'clipboard-list',
+  'signup-form': 'mail',
+  paywall: 'lock',
   hero: 'image',
 };
 
@@ -66,4 +66,20 @@ export function groupOf(type: BlockType, key: string): 'content' | 'display' | '
   if (p.display.includes(key)) return 'display';
   if (p.source.includes(key)) return 'source';
   return 'content';
+}
+
+/**
+ * The first words a card's head shows, so a collapsed block stays recognisable (#159 § D). Read
+ * from what the rest view already has, never stored: an own name is #165. An image goes by its
+ * caption, else its file: its first text would be the alt text, which describes the picture to
+ * someone who cannot see it and does not tell two images apart for someone who can.
+ */
+export function blockName(block: {
+  type: BlockType;
+  preview: { text: string; entries: readonly string[] };
+  image: { caption: string | null; label: string } | null;
+}): string {
+  if (block.type === 'image' && block.image)
+    return block.image.caption?.trim() || block.image.label;
+  return block.preview.text || block.preview.entries[0] || '';
 }
