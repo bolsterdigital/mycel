@@ -14,12 +14,13 @@ import {
   systemPrincipal,
   useCases,
 } from '@mycel/core';
+import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { FakeDns } from '@mycel/core/testing';
 import { type Database, uuidv7Ids } from '@mycel/db';
 import { asRole, testTenant } from '@mycel/db/testing';
-import { type Page, expect, test } from '@playwright/test';
+import { type Locator, type Page, expect, test } from '@playwright/test';
 import type { Kysely } from 'kysely';
 import { expectNoAxeViolations } from './lib/axe';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
@@ -27,7 +28,7 @@ import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { ADMIN, login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { settingsEvidence } from './lib/settings-evidence';
-import { callApi, requireApi } from './lib/api';
+import { callApi, requireApi, seededPage } from './lib/api';
 
 // A worker-scoped option on a separate test type keeps timeout-safe tracing on this flow only.
 const settingsTest = test.extend({ trace: ['retain-on-failure', { scope: 'worker' }] });
@@ -1716,4 +1717,331 @@ test.describe('connections', () => {
       });
     });
   }
+});
+
+// Block cards in the edit screen (#66 PR 3, MY-110 A, #159): a head that names the block, a menu of
+// whole actions, rest and edit, and collapsing as an enhancement. Here rather than with the other
+// block tests because content-admin.spec.ts is at the repo's size limit and a spec of its own is
+// over the e2e budget (scripts/gates/e2e-budget.test.mjs, repo-size.test.mjs).
+test.describe('block cards', () => {
+  test.use({ locale: 'nl-NL' });
+
+  const card = (page: Page, n: number): Locator => page.locator('section.ui-block-card').nth(n - 1);
+
+  async function more(page: Page, n: number): Promise<Locator> {
+    const menu = card(page, n).locator('details.ui-block-card-more');
+    if ((await menu.getAttribute('open')) === null) await menu.locator(':scope > summary').click();
+    return card(page, n);
+  }
+
+  async function newPage(page: Page, what: string): Promise<string> {
+    const slug = `b-${what}-${test.info().project.name}-${randomUUID()}`;
+    await page.goto('/admin/probe/content/new?type=page');
+    await page.getByLabel('Slug').fill(slug);
+    await page.getByLabel('Titel (nl)').fill('Blokkenproef');
+    await page.getByLabel('Titel (en)').fill('Block test');
+    await page.getByRole('button', { name: 'Concept maken' }).click();
+    await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
+    return new URL(page.url()).pathname;
+  }
+
+  /** Stores a new heading at the end of the page through the one form. */
+  async function addHeading(page: Page, text: string) {
+    await page
+      .locator('[data-block-picker]')
+      .last()
+      .getByRole('button', { name: 'Kop', exact: true })
+      .click();
+    const fresh = page.locator('#block-new');
+    await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Kop');
+    if (isA11y())
+      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    // With the script, its landing moves focus into the new block.
+    if (isA11y()) await expect(fresh.getByLabel('Tekst', { exact: true })).toBeFocused();
+    await fresh.getByLabel('Tekst', { exact: true }).fill(text);
+    await page.getByRole('button', { name: 'Toevoegen en opslaan' }).click();
+    await expect(page.getByText(text).first()).toBeVisible();
+  }
+
+  test('a block rests until Edit, Escape and Done close it with what was typed, and focus follows actions', async ({
+    page,
+  }) => {
+    onlyA11y('Escape, Done and the focus after a round trip are the script');
+    await login(page, '/admin/probe');
+    const edit = await newPage(page, 'rest');
+    for (const text of ['Eerste', 'Tweede', 'Derde']) {
+      await addHeading(page, text);
+    }
+    await page.goto(edit);
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    const folds = page.locator('details.block');
+    await expect(folds.locator(':scope[open]')).toHaveCount(0);
+    await expect(page.locator('[data-block-rest]')).toHaveText(['Eerste', 'Tweede', 'Derde']);
+
+    // Edit opens the fields; Escape closes only this block and keeps what was typed.
+    const second = folds.nth(1);
+    await second.locator(':scope > summary').click();
+    await second.getByLabel('Tekst', { exact: true }).fill('Tweede, gewijzigd');
+    await page.keyboard.press('Escape');
+    await expect(second).not.toHaveAttribute('open', '');
+    await expect(second.locator(':scope > summary')).toBeFocused();
+    await expect(page.locator('[data-save-state]')).toHaveAttribute('data-current', 'unsaved');
+    // A click on the block at rest opens it too; Done under the fields closes it again.
+    await card(page, 2).locator('[data-block-rest]').click();
+    await expect(second).toHaveAttribute('open', '');
+    await expect(second.getByLabel('Tekst', { exact: true })).toHaveValue('Tweede, gewijzigd');
+    await second.locator('[data-block-done] button').click();
+    await expect(second).not.toHaveAttribute('open', '');
+    await expect(second.locator(':scope > summary')).toBeFocused();
+
+    // Move: focus lands on the moved block's More actions, the edit is saved with it.
+    await (await more(page, 2)).getByRole('button', { name: 'Omhoog' }).click();
+    await expect(page).toHaveURL(/done=blockMoved#block-/);
+    await expect(page.locator('[data-block-rest]')).toHaveText([
+      'Tweede, gewijzigd',
+      'Eerste',
+      'Derde',
+    ]);
+    await expect(card(page, 1).locator('details.ui-block-card-more > summary')).toBeFocused();
+    // Escape closes an open More actions and returns to its summary.
+    await (await more(page, 1)).locator('details.ui-block-card-more > summary').focus();
+    await page.keyboard.press('Escape');
+    await expect(card(page, 1).locator('details.ui-block-card-more')).not.toHaveAttribute(
+      'open',
+      ''
+    );
+    // Remove: focus lands on the block that took its place.
+    const removed = await more(page, 2);
+    await removed.getByRole('button', { name: 'Verwijderen' }).click();
+    await expect(page).toHaveURL(/done=blockRemoved&undo=[^#]+#block-/);
+    await expect(page.locator('[data-block-rest]')).toHaveText(['Tweede, gewijzigd', 'Derde']);
+    await expect(folds.nth(1).locator(':scope > summary')).toBeFocused();
+    await expectNoAxeViolations(page);
+  });
+
+  test('a card collapses and stays recognisable, its fields still save, and what needs attention opens itself (#159)', async ({
+    page,
+  }) => {
+    onlyA11y('collapsing is the script');
+    await login(page, '/admin/probe');
+    const edit = await newPage(page, 'collapse');
+    for (const text of ['Eerste', 'Tweede', 'Derde']) {
+      await addHeading(page, text);
+    }
+    await page.goto(edit);
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    const second = card(page, 2);
+    const content = second.locator('[data-block-content]');
+    const toggle = second.locator('[data-block-toggle]');
+    await expect(second.locator('.ui-block-card-name')).toHaveText('Tweede');
+    await expect(toggle).toHaveAccessibleName('Inklappen');
+
+    // The button: hidden content, the same head, focus stays.
+    await toggle.click();
+    await expect(content).toBeHidden();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(toggle).toHaveAccessibleName('Uitklappen');
+    await expect(toggle).toBeFocused();
+    await expect(second.locator('.ui-block-card-title')).toHaveText('Blok 02 Kop');
+    await expect(second.locator('.ui-block-card-name')).toBeVisible();
+    await expectNoAxeViolations(page);
+    // Empty space in the head does the same; a control in it does not.
+    await second.locator('.ui-block-card-name').click();
+    await expect(content).toBeVisible();
+    await second.locator('details.ui-block-card-more > summary').click();
+    await expect(content).toBeVisible();
+    // The menu lies over the content, and goes away on a click elsewhere.
+    await expect(second.locator('.ui-block-card-menu')).toBeVisible();
+    await page.locator('h3#blocks').click();
+    await expect(second.locator('details.ui-block-card-more')).not.toHaveAttribute('open', '');
+
+    // The keyboard: the button is a button.
+    await toggle.focus();
+    await page.keyboard.press('Space');
+    await expect(content).toBeHidden();
+    await page.keyboard.press('Enter');
+    await expect(content).toBeVisible();
+
+    // All of them, and remembered per browser and item, without a change to save.
+    await page.getByRole('button', { name: 'Alles inklappen' }).click();
+    await expect(page.locator('[data-block-content]:visible')).toHaveCount(0);
+    await expect(page.locator('[data-save-state]')).not.toHaveAttribute('data-current', 'unsaved');
+    await page.reload();
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    await expect(page.locator('[data-block-content]:visible')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Alles uitklappen' }).click();
+    await expect(page.locator('[data-block-content]:visible')).toHaveCount(3);
+
+    // What was typed in a block that is then collapsed is saved, and its name follows.
+    await card(page, 1).locator('details.block > summary').click();
+    await card(page, 1).getByLabel('Tekst', { exact: true }).fill('Eerste, gewijzigd');
+    await page.keyboard.press('Escape');
+    await expect(card(page, 1).locator('.ui-block-card-name')).toHaveText('Eerste, gewijzigd');
+    await card(page, 1).locator('[data-block-toggle]').click();
+    await card(page, 3).locator('[data-block-toggle]').click();
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/\?saved/);
+    // The changed block comes back open as ever; the one nobody touched stays collapsed.
+    await expect(card(page, 1).locator('.ui-block-card-name')).toHaveText('Eerste, gewijzigd');
+    await expect(card(page, 3).locator('[data-block-content]')).toBeHidden();
+
+    // A move leaves a collapsed block collapsed, with focus on its actions.
+    const moved = await more(page, 3);
+    await moved.getByRole('button', { name: 'Omhoog' }).click();
+    await expect(page).toHaveURL(/done=blockMoved/);
+    await expect(card(page, 2).locator('.ui-block-card-name')).toHaveText('Derde');
+    await expect(card(page, 2).locator('[data-block-content]')).toBeHidden();
+    await expect(card(page, 2).locator('details.ui-block-card-more > summary')).toBeFocused();
+
+    // A `#block-<id>` target opens itself, as a link to it does.
+    const id = await card(page, 2).getAttribute('data-block-card');
+    await page.goto(`${edit}#${id}`);
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    await expect(card(page, 2).locator('[data-block-content]')).toBeVisible();
+
+    // A field a save cannot take opens the collapsed block around it.
+    await card(page, 1).locator('details.block > summary').click();
+    await card(page, 1).getByLabel('Tekst', { exact: true }).fill('');
+    await page.keyboard.press('Escape');
+    await card(page, 1).locator('[data-block-toggle]').click();
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(card(page, 1).locator('[data-block-content]')).toBeVisible();
+    await expect(card(page, 1).getByLabel('Tekst', { exact: true })).toBeFocused();
+  });
+
+  test('"Insert a block below" opens the chooser of the next place (#159)', async ({ page }) => {
+    onlyA11y('the focus is the script; the link is a plain fragment without it');
+    await login(page, '/admin/probe');
+    await newPage(page, 'insert-below');
+    for (const text of ['Eerste', 'Tweede']) {
+      await addHeading(page, text);
+    }
+    const first = await more(page, 1);
+    await first.getByRole('link', { name: 'Blok hieronder invoegen' }).click();
+    const chooser = page.locator('details.ui-block-insert').nth(1);
+    await expect(chooser).toHaveAttribute('open', '');
+    await expect(chooser.locator(':scope > summary')).toBeFocused();
+    await expect(first.locator('details.ui-block-card-more')).not.toHaveAttribute('open', '');
+    await chooser.getByRole('button', { name: 'Citaat', exact: true }).click();
+    await expect(page.locator('#block-new').getByRole('heading')).toHaveText('Nieuw blok: Citaat');
+  });
+
+  test('without JavaScript nothing collapses and every block stays open (#159)', async ({
+    page,
+  }) => {
+    test.skip(isA11y(), 'the no-js project is the proof');
+    await login(page, '/admin/probe');
+    const edit = await newPage(page, 'collapse-nojs');
+    await addHeading(page, 'Zonder script');
+    await page.goto(edit);
+    await expect(card(page, 1).locator('[data-block-content]')).toBeVisible();
+    await expect(page.locator('[data-block-toggle]:visible')).toHaveCount(0);
+    await expect(page.locator('[data-block-bar]')).toBeHidden();
+    const opened = await more(page, 1);
+    await expect(opened.locator('.ui-block-card-menu')).toBeVisible();
+    await expect(opened.getByRole('button', { name: 'Verwijderen' })).toBeVisible();
+  });
+
+  for (const [locale, collapse] of [
+    ['nl-NL', 'Alles inklappen'],
+    ['en-GB', 'Collapse all'],
+  ] as const)
+    test.describe(`UI gate: the block card head at 320 CSS px and 200% text, ${locale} (#159)`, () => {
+      test.use({ viewport: NARROW, locale });
+
+      for (const scheme of ['light', 'dark'] as const)
+        test(`head, menu and bar whole, ${scheme}`, async ({ page, request }) => {
+          onlyA11y('measures the layout with a script');
+          await page.emulateMedia({ colorScheme: scheme });
+          const edit = await seededPage(request);
+          await login(page, edit);
+          const form = page.locator('form#item-edit');
+          await expect(form).toHaveAttribute('data-edit-screen', '');
+          // Every type, so also the longest names ("Inschrijfformulier (oud)"), and an open menu.
+          await setTextSize(page, '200%');
+          const opened = await more(page, 2);
+          await expect(opened.locator('.ui-block-card-menu')).toBeVisible();
+          await layoutGate(page, 'a card with its menu open', 'section.ui-block-card');
+          await layoutGate(page, 'the bar above the cards', '[data-block-bar]');
+          await opened.screenshot({
+            path: test.info().outputPath(`card-menu-320-200-${locale}-${scheme}.png`),
+          });
+          await page.locator('h3#blocks').click();
+          await page.getByRole('button', { name: collapse }).click();
+          await expect(page.locator('[data-block-content]:visible')).toHaveCount(0);
+          await layoutGate(page, 'every card collapsed', 'section.ui-block-card');
+          await page.locator('.item-blocks').screenshot({
+            path: test.info().outputPath(`cards-collapsed-320-200-${locale}-${scheme}.png`),
+          });
+          await expectNoAxeViolations(page);
+          // A later test of this project must not find these collapsed.
+          await page.evaluate(() => localStorage.clear());
+        });
+    });
+
+  test('a card the arrow keys select shows a ring, and "Insert a block below" works before prose (#159)', async ({
+    page,
+    request,
+  }) => {
+    onlyA11y();
+    requireApi();
+    const prose = (text: string) => ({
+      type: 'rich-text',
+      version: 1,
+      props: {
+        content: {
+          nl: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] },
+        },
+      },
+    });
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `writer-card-${Date.now()}`,
+      document: {
+        type: 'article',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: 'Artikel met een kaart' },
+        blocks: [
+          prose('Eerst'),
+          { type: 'heading', version: 1, props: { text: { nl: 'Kop een' } } },
+          prose('Dan'),
+        ],
+      },
+    });
+    await login(page, `/admin/probe/content/${item.id}`);
+    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    const surface = page.locator('.writing .ProseMirror');
+    await expect(surface).toBeVisible();
+    const card = surface.locator('section.ui-block-card');
+    await expect(card.locator('.ui-block-card-name')).toHaveText('Kop een');
+
+    await surface.getByText('Eerst').click();
+    await page.keyboard.press('End');
+    await page.keyboard.press('ArrowDown');
+    await expect(surface.locator('.ProseMirror-selectednode > .ui-block-card')).toHaveCount(1);
+    await expect(card).toHaveCSS('outline-style', 'solid');
+    await expect(card).toHaveCSS('outline-width', '3px');
+
+    // Collapse works inside the writer, and leaves its prose alone.
+    await card.locator('[data-block-toggle]').click();
+    await expect(card.locator('[data-block-content]')).toBeHidden();
+    await expect(surface.getByText('Dan')).toBeVisible();
+    await page.getByRole('button', { name: 'Alles uitklappen' }).click();
+    await expect(card.locator('[data-block-content]')).toBeVisible();
+
+    // The next block is prose: the writer shows no chooser there, so it comes to this card.
+    await card.locator('details.ui-block-card-more > summary').click();
+    // The writer's text may wrap anywhere; the menu's words stay whole inside it.
+    await page.setViewportSize(NARROW);
+    await setTextSize(page, '200%');
+    await layoutGate(page, 'a card menu in the writer', '.editor-card');
+    await setTextSize(page, '100%');
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await card.getByRole('link', { name: 'Blok hieronder invoegen' }).click();
+    const chooser = surface.locator('details.ui-block-insert[open]');
+    await expect(chooser).toBeVisible();
+    await expect(chooser.locator(':scope > summary')).toBeFocused();
+    await chooser.getByRole('button', { name: 'Citaat', exact: true }).click();
+    await expect(page.locator('#block-new').getByRole('heading')).toHaveText('Nieuw blok: Citaat');
+  });
 });

@@ -63,7 +63,7 @@
     StatusCard,
     Tabs,
   } from '#lib/admin/ui/index.js';
-  import { BLOCK_ICONS, BLOCK_PRESENTATION } from '#lib/admin/block-presentation.js';
+  import { BLOCK_ICONS, BLOCK_PRESENTATION, blockName } from '#lib/admin/block-presentation.js';
   import { pickAny, BLOCK_DEFINITIONS, pick, type BlockType, type MediaCredit } from '@mycel/core';
   import { fill, ui, type UiKey, refusalCopy } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
@@ -286,7 +286,22 @@
     edit: t('admin.block.card.edit'),
     done: t('admin.block.card.done'),
     more: t('admin.block.card.more'),
+    block: t('admin.block.card.block'),
+    collapse: t('admin.block.card.collapse'),
+    expand: t('admin.block.card.expand'),
   });
+  /** A locale where this block keeps the item from being ready: the shown one first (#159). */
+  const notReadyIn = (id: string): string | undefined => {
+    const has = (p: Publication) => p.issues.some((x) => x.field === `block-${id}`);
+    const locales = data.item.publication.filter(has).map((p) => p.locale);
+    return locales.includes(work) ? work : locales[0];
+  };
+  /** The one notice a card's head carries: what the last save refused, else what readiness says. */
+  const blockNotice = (id: string, refused: boolean): string => {
+    if (refused) return t('admin.block.card.refused');
+    const locale = notReadyIn(id);
+    return locale ? fill(t('admin.block.card.notReady'), { locale }) : '';
+  };
   const groupLabels = $derived({
     display: t('admin.block.group.display'),
     source: t('admin.block.group.source'),
@@ -549,7 +564,13 @@
   <BlockCard
     id="block-{b.id}"
     class="block"
-    title="{i + 1}. {t(`admin.block.type.${b.type}` as const)}"
+    number={i + 1}
+    type={t(`admin.block.type.${b.type}` as const)}
+    icon={BLOCK_ICONS[b.type]}
+    name={blockName(b)}
+    nameIfEmpty={b.type === 'image' ? b.image?.label : ''}
+    nameLang={work}
+    notice={blockNotice(b.id, refused)}
     editable={BLOCK_DEFINITIONS[b.type].fields.length > 0}
     open={refused ||
       data.openBlocks.includes(b.id) ||
@@ -559,24 +580,47 @@
     {#snippet rest()}{@render blockRest(b)}{/snippet}
     {#snippet actions()}
       {#if data.canWrite}
+        {#if !pending}
+          <a
+            class="ui-block-card-action"
+            href="#insert-{data.blocks[i + 1]?.id ?? 'end'}"
+            data-insert-below><Icon name="plus" />{t('admin.block.card.insertBelow')}</a
+          >
+        {/if}
         {#if i > 0}
-          <Button variant="secondary" formaction={action('move')} name="move" value="{b.id}:up"
-            >{t('admin.block.move.up')}</Button
+          <button
+            class="ui-block-card-action"
+            type="submit"
+            formaction={action('move')}
+            name="move"
+            value="{b.id}:up"><Icon name="arrow-up" />{t('admin.block.move.up')}</button
           >
         {/if}
         {#if i < data.blocks.length - 1}
-          <Button variant="secondary" formaction={action('move')} name="move" value="{b.id}:down"
-            >{t('admin.block.move.down')}</Button
+          <button
+            class="ui-block-card-action"
+            type="submit"
+            formaction={action('move')}
+            name="move"
+            value="{b.id}:down"><Icon name="arrow-down" />{t('admin.block.move.down')}</button
           >
         {/if}
         {#if b.duplicable}
-          <Button variant="secondary" formaction={action('duplicate')} name="duplicate" value={b.id}
-            >{t('admin.block.duplicate')}</Button
+          <button
+            class="ui-block-card-action"
+            type="submit"
+            formaction={action('duplicate')}
+            name="duplicate"
+            value={b.id}><Icon name="copy" />{t('admin.block.duplicate')}</button
           >
         {/if}
         <!-- No confirmation: the notice after it offers "Undo" (#66 PR 6c). -->
-        <Button variant="danger" formaction={action('remove')} name="remove" value={b.id}
-          >{t('admin.block.remove.short')}</Button
+        <button
+          class="ui-block-card-action danger"
+          type="submit"
+          formaction={action('remove')}
+          name="remove"
+          value={b.id}><Icon name="trash-2" />{t('admin.block.remove.short')}</button
         >
       {/if}
     {/snippet}
@@ -617,7 +661,7 @@
 {/snippet}
 
 {#snippet inserter(b: (typeof data.blocks)[number], i: number)}
-  <details class="ui-block-insert">
+  <details class="ui-block-insert" id="insert-{b.id}">
     <summary><Icon name="plus" />{t('admin.block.insert.fold')}</summary>
     <div class="ui-block-insert-body">
       <BlockInserter
@@ -761,6 +805,18 @@
         entries={outline}
       />
     {/if}
+    <!-- Above the blocks, outside the writer's document; the script reveals it, as without
+         JavaScript nothing collapses. Only with a card to act on: an article's prose has none. -->
+    {#if data.blocks.some((b) => !(article && data.canWrite && b.type === 'rich-text'))}
+      <div class="ui-block-card-bar" data-block-bar hidden>
+        <button type="button" data-block-all="collapse"
+          ><Icon name="chevron-up" />{t('admin.block.card.collapseAll')}</button
+        >
+        <button type="button" data-block-all="expand"
+          ><Icon name="chevron-down" />{t('admin.block.card.expandAll')}</button
+        >
+      </div>
+    {/if}
     {#each data.blocks as b, i (b.id)}
       {#if data.canWrite && !pending}{@render inserter(b, i)}{/if}
       {#if pending?.place === 'before' && pending.anchor === b.id}{@render pendingCard(
@@ -777,16 +833,18 @@
     {/each}
     {#if pending?.place === 'end'}{@render pendingCard(pending)}{/if}
     {#if data.canWrite}
-      <Fieldset legend={t('admin.block.add')}>
-        <BlockInserter
-          id="end"
-          place="end"
-          label={t('admin.block.insert.end')}
-          locale={data.locale}
-          options={blockTypeOptions}
-          action="?/insert&locale={work}"
-        />
-      </Fieldset>
+      <div id="insert-end">
+        <Fieldset legend={t('admin.block.add')}>
+          <BlockInserter
+            id="end"
+            place="end"
+            label={t('admin.block.insert.end')}
+            locale={data.locale}
+            options={blockTypeOptions}
+            action="?/insert&locale={work}"
+          />
+        </Fieldset>
+      </div>
     {/if}
   </section>
 {/snippet}

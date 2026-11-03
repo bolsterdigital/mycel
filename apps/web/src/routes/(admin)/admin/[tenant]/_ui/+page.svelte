@@ -282,11 +282,17 @@
     <h2 id="ui-block-card">{t('admin.ui.catalogue.blockCard')}</h2>
     <BlockCard
       id="ui-block-card-faq"
-      title="3. {t('admin.block.type.faq')}"
+      number={3}
+      type={t('admin.block.type.faq')}
+      icon={BLOCK_ICONS['faq']}
+      name={t('admin.ui.catalogue.blockCard.text')}
       labels={{
         edit: t('admin.block.card.edit'),
         done: t('admin.block.card.done'),
         more: t('admin.block.card.more'),
+        block: t('admin.block.card.block'),
+        collapse: t('admin.block.card.collapse'),
+        expand: t('admin.block.card.expand'),
       }}
       open
     >
@@ -298,10 +304,18 @@
         />
       {/snippet}
       {#snippet actions()}
-        <Button variant="secondary">{t('admin.block.move.up')}</Button>
-        <Button variant="secondary">{t('admin.block.move.down')}</Button>
-        <Button variant="secondary">{t('admin.block.duplicate')}</Button>
-        <Button variant="danger">{t('admin.block.remove.short')}</Button>
+        <button class="ui-block-card-action" type="button"
+          ><Icon name="arrow-up" />{t('admin.block.move.up')}</button
+        >
+        <button class="ui-block-card-action" type="button"
+          ><Icon name="arrow-down" />{t('admin.block.move.down')}</button
+        >
+        <button class="ui-block-card-action" type="button"
+          ><Icon name="copy" />{t('admin.block.duplicate')}</button
+        >
+        <button class="ui-block-card-action danger" type="button"
+          ><Icon name="trash-2" />{t('admin.block.remove.short')}</button
+        >
       {/snippet}
       <p>{t('admin.ui.catalogue.panel.body')}</p>
     </BlockCard>
@@ -310,11 +324,17 @@
     </details>
     <BlockCard
       id="ui-block-card-empty"
-      title="4. {t('admin.block.type.heading')}"
+      number={4}
+      type={t('admin.block.type.heading')}
+      icon={BLOCK_ICONS['heading']}
+      name={t('admin.ui.catalogue.blockCard.text')}
       labels={{
         edit: t('admin.block.card.edit'),
         done: t('admin.block.card.done'),
         more: t('admin.block.card.more'),
+        block: t('admin.block.card.block'),
+        collapse: t('admin.block.card.collapse'),
+        expand: t('admin.block.card.expand'),
       }}
     >
       {#snippet rest()}
@@ -324,11 +344,17 @@
     </BlockCard>
     <BlockCard
       id="ui-block-card-quote"
-      title="5. {t('admin.block.type.quote')}"
+      number={5}
+      type={t('admin.block.type.quote')}
+      icon={BLOCK_ICONS['quote']}
+      name={t('admin.ui.catalogue.blockCard.text')}
       labels={{
         edit: t('admin.block.card.edit'),
         done: t('admin.block.card.done'),
         more: t('admin.block.card.more'),
+        block: t('admin.block.card.block'),
+        collapse: t('admin.block.card.collapse'),
+        expand: t('admin.block.card.expand'),
       }}
     >
       {#snippet rest()}

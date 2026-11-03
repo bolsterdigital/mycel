@@ -1730,18 +1730,18 @@ test.describe('content-blocks', () => {
     await login(page, edit);
     const stamp = String(Date.now());
     await expect(page.locator('.ui-block-card-title')).toHaveText([
-      '1. Kop',
-      '2. Inschrijfformulier (oud)',
-      '3. Tekst',
-      '4. Betaalmuur',
-      '5. Afbeelding',
-      '6. Opening',
-      '7. Oproep',
-      '8. Kader',
-      '9. Vragen en antwoorden',
-      '10. Citaat',
-      '11. Video',
-      '12. Formulier',
+      'Blok 01 Kop',
+      'Blok 02 Inschrijfformulier (oud)',
+      'Blok 03 Tekst',
+      'Blok 04 Betaalmuur',
+      'Blok 05 Afbeelding',
+      'Blok 06 Opening',
+      'Blok 07 Oproep',
+      'Blok 08 Kader',
+      'Blok 09 Vragen en antwoorden',
+      'Blok 10 Citaat',
+      'Blok 11 Video',
+      'Blok 12 Formulier',
     ]);
 
     /** Fill one field of block `n`, save, and see the value back in the reopened form. */
@@ -1796,7 +1796,7 @@ test.describe('content-blocks', () => {
     // A paywall has no fold and no fields: the save keeps it through the document alone.
     await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
     await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
-    await expect(card(page, 4).locator('.ui-block-card-title')).toHaveText('4. Betaalmuur');
+    await expect(card(page, 4).locator('.ui-block-card-title')).toHaveText('Blok 04 Betaalmuur');
     await expectNoAxeViolations(page);
 
     // The other locale, shown on its own (#66 PR 4), kept its values: the FAQ's questions, and
@@ -1908,7 +1908,7 @@ test.describe('content-blocks', () => {
     await add(page);
     await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
     const summaries = page.locator('.ui-block-card-title');
-    await expect(summaries).toHaveText(['1. Tekst', '2. Kop']);
+    await expect(summaries).toHaveText(['Blok 01 Tekst', 'Blok 02 Kop']);
     // At rest each card shows what it says, beside a named Edit (MY-110 A).
     await expect(page.locator('[data-block-rest]')).toHaveText([
       'Een schuine inleiding.',
@@ -1923,7 +1923,7 @@ test.describe('content-blocks', () => {
     await page.locator('#title\\.nl').fill('Blokkenproef bewaard');
     await (await more(page, 2)).getByRole('button', { name: 'Omhoog' }).click();
     await expect(page.getByRole('status')).toContainText('Blok verplaatst.');
-    await expect(summaries).toHaveText(['1. Kop', '2. Tekst']);
+    await expect(summaries).toHaveText(['Blok 01 Kop', 'Blok 02 Tekst']);
     await expect(page.locator('#title\\.nl')).toHaveValue('Blokkenproef bewaard');
     await expectNoAxeViolations(page);
 
@@ -1940,12 +1940,12 @@ test.describe('content-blocks', () => {
     await expect(page).toHaveURL(new RegExp(`${edit}\\?done=blockRemoved`));
     const status = page.getByRole('status');
     await expect(status).toContainText('Blok verwijderd.');
-    await expect(summaries).toHaveText(['1. Tekst']);
+    await expect(summaries).toHaveText(['Blok 01 Tekst']);
     await expectNoAxeViolations(page);
     await page.locator('#title\\.nl').fill('Blokkenproef na ongedaan maken');
     await status.getByRole('button', { name: 'Ongedaan maken' }).click();
     await expect(page.getByRole('status')).toContainText('Blok teruggezet.');
-    await expect(summaries).toHaveText(['1. Kop', '2. Tekst']);
+    await expect(summaries).toHaveText(['Blok 01 Kop', 'Blok 02 Tekst']);
     await expect(page.locator('#title\\.nl')).toHaveValue('Blokkenproef na ongedaan maken');
     await expect(page.getByRole('button', { name: 'Ongedaan maken' })).toHaveCount(0);
   });
@@ -2024,7 +2024,7 @@ test.describe('content-blocks', () => {
     await (await more(page, 1)).getByRole('button', { name: 'Dupliceren' }).click();
     await expect(page.getByRole('status')).toContainText('Blok gedupliceerd.');
     await expect(page.locator('#title\\.nl')).toHaveValue('Blokkenproef gedupliceerd');
-    await expect(page.locator('.ui-block-card-title')).toHaveText(['1. Kop', '2. Kop']);
+    await expect(page.locator('.ui-block-card-title')).toHaveText(['Blok 01 Kop', 'Blok 02 Kop']);
     const copy = page.locator('details.block').nth(1);
     await expect(copy).not.toHaveAttribute('id', original!);
     // The screen lands on the copy at rest (it is complete), with the same fields.
@@ -2309,65 +2309,6 @@ test.describe('content-blocks', () => {
     await stillWorks();
   });
 
-  test('a block rests until Edit, Escape and Done close it with what was typed, and focus follows actions', async ({
-    page,
-  }) => {
-    onlyA11y('Escape, Done and the focus after a round trip are the script');
-    await login(page, '/admin/probe');
-    const edit = await newPage(page, 'rest');
-    for (const text of ['Eerste', 'Tweede', 'Derde']) {
-      const fresh = await insert(page, 'Kop', 'end');
-      await expect(fresh.getByLabel('Tekst', { exact: true })).toBeFocused();
-      await fresh.getByLabel('Tekst', { exact: true }).fill(text);
-      await add(page);
-    }
-    await page.goto(edit);
-    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
-    const folds = page.locator('details.block');
-    await expect(folds.locator(':scope[open]')).toHaveCount(0);
-    await expect(page.locator('[data-block-rest]')).toHaveText(['Eerste', 'Tweede', 'Derde']);
-
-    // Edit opens the fields; Escape closes only this block and keeps what was typed.
-    const second = folds.nth(1);
-    await second.locator(':scope > summary').click();
-    await second.getByLabel('Tekst', { exact: true }).fill('Tweede, gewijzigd');
-    await page.keyboard.press('Escape');
-    await expect(second).not.toHaveAttribute('open', '');
-    await expect(second.locator(':scope > summary')).toBeFocused();
-    await expect(page.locator('[data-save-state]')).toHaveAttribute('data-current', 'unsaved');
-    // A click on the block at rest opens it too; Done under the fields closes it again.
-    await card(page, 2).locator('[data-block-rest]').click();
-    await expect(second).toHaveAttribute('open', '');
-    await expect(second.getByLabel('Tekst', { exact: true })).toHaveValue('Tweede, gewijzigd');
-    await second.locator('[data-block-done] button').click();
-    await expect(second).not.toHaveAttribute('open', '');
-    await expect(second.locator(':scope > summary')).toBeFocused();
-
-    // Move: focus lands on the moved block's More actions, the edit is saved with it.
-    await (await more(page, 2)).getByRole('button', { name: 'Omhoog' }).click();
-    await expect(page).toHaveURL(/done=blockMoved#block-/);
-    await expect(page.locator('[data-block-rest]')).toHaveText([
-      'Tweede, gewijzigd',
-      'Eerste',
-      'Derde',
-    ]);
-    await expect(card(page, 1).locator('details.ui-block-card-more > summary')).toBeFocused();
-    // Escape closes an open More actions and returns to its summary.
-    await (await more(page, 1)).locator('details.ui-block-card-more > summary').focus();
-    await page.keyboard.press('Escape');
-    await expect(card(page, 1).locator('details.ui-block-card-more')).not.toHaveAttribute(
-      'open',
-      ''
-    );
-    // Remove: focus lands on the block that took its place.
-    const removed = await more(page, 2);
-    await removed.getByRole('button', { name: 'Verwijderen' }).click();
-    await expect(page).toHaveURL(/done=blockRemoved&undo=[^#]+#block-/);
-    await expect(page.locator('[data-block-rest]')).toHaveText(['Tweede, gewijzigd', 'Derde']);
-    await expect(folds.nth(1).locator(':scope > summary')).toBeFocused();
-    await expectNoAxeViolations(page);
-  });
-
   test('a heading, a text and a quote rest as their words, and say what was typed when they close', async ({
     page,
   }) => {
@@ -2627,7 +2568,7 @@ test.describe('content-blocks', () => {
     const edit = await seededPage(request);
     await login(page, edit);
     const paywall = card(page, 4);
-    await expect(paywall.locator('.ui-block-card-title')).toHaveText('4. Betaalmuur');
+    await expect(paywall.locator('.ui-block-card-title')).toHaveText('Blok 04 Betaalmuur');
     const boundary = paywall.locator('[data-block-rest] .ui-block-text-boundary');
     await expect(boundary).toContainText('Toegangsgrens');
     // The seeded page is public: the boundary is there, and holds nobody back yet.
@@ -2830,7 +2771,7 @@ test.describe('content-blocks', () => {
     await middle.locator('details.ui-block-card-more > summary').click();
     await middle.getByRole('button', { name: 'Omhoog', exact: true }).click();
     await expect(page.getByRole('status')).toContainText('Blok verplaatst.');
-    await expect(titles.nth(6)).toHaveText('7. Kop');
+    await expect(titles.nth(6)).toHaveText('Blok 07 Kop');
     await expect(card(page, 7).locator('[data-block-rest]')).toHaveText('Gewijzigd halverwege');
     await inView(card(page, 7));
 
@@ -3094,7 +3035,7 @@ test.describe('content-blocks', () => {
     await card(page, 2).getByRole('button', { name: 'Omlaag', exact: true }).click();
     await expect(page.getByRole('status')).toContainText('Blok verplaatst.');
     const paywall = card(page, 3);
-    await expect(paywall.locator('.ui-block-card-title')).toHaveText('3. Betaalmuur');
+    await expect(paywall.locator('.ui-block-card-title')).toHaveText('Blok 03 Betaalmuur');
     await expect(paywall.locator('details.ui-block-card-more > summary')).toBeFocused();
 
     await paywall.locator('details.ui-block-card-more > summary').click();
@@ -3102,7 +3043,7 @@ test.describe('content-blocks', () => {
     const alert = page.getByRole('alert');
     await expect(alert.getByRole('link', { name: 'Wat alle anderen zien' })).toBeVisible();
     await expect(alert.locator('li')).not.toBeEmpty();
-    await expect(page.locator('.ui-block-card-title').nth(2)).toHaveText('3. Betaalmuur');
+    await expect(page.locator('.ui-block-card-title').nth(2)).toHaveText('Blok 03 Betaalmuur');
     await alert.getByRole('link', { name: 'Wat alle anderen zien' }).click();
     await expect(page.locator('#teaser')).toBeFocused();
   });
@@ -3330,7 +3271,7 @@ test.describe('content-blocks', () => {
     const edit = await seededPage(request);
     await login(page, edit);
     const image = card(page, 5);
-    await expect(image.locator('.ui-block-card-title')).toHaveText('5. Afbeelding');
+    await expect(image.locator('.ui-block-card-title')).toHaveText('Blok 05 Afbeelding');
     await expectPixels(
       image.locator('[data-block-rest] img[data-block-image]'),
       'the image block at rest'

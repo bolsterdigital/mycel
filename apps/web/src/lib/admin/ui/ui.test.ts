@@ -210,11 +210,20 @@ describe('Panel', () => {
 });
 
 describe('BlockCard', () => {
-  const labels = { edit: 'Edit', done: 'Done', more: 'More actions' };
+  const labels = {
+    block: 'Block',
+    edit: 'Edit',
+    done: 'Done',
+    more: 'More actions',
+    collapse: 'Collapse',
+    expand: 'Expand',
+  };
   it('has no fold for a block without fields, and is then the target itself', () => {
     const out = html(BlockCard, {
       id: 'block-1',
-      title: '4. Paywall',
+      number: 4,
+      type: 'Paywall',
+      icon: 'lock',
       class: 'block',
       labels,
       editable: false,
@@ -233,7 +242,11 @@ describe('BlockCard', () => {
   it('shows the block at rest, a named Edit over the fields and actions under More actions', () => {
     const out = html(BlockCard, {
       id: 'block-1',
-      title: '2. Image',
+      number: 2,
+      type: 'Image',
+      icon: 'image',
+      name: 'Elke zak',
+      notice: 'Check this block',
       class: 'block',
       labels,
       actions: text('ACTIONS'),
@@ -241,7 +254,17 @@ describe('BlockCard', () => {
       children: text('FIELDS'),
     });
     expect(out).toMatch(/^<section class="ui-block-card" aria-labelledby="block-1-title"/);
-    expect(out).toContain('<h4 class="ui-block-card-title" id="block-1-title">2. Image</h4>');
+    const title = out.slice(out.indexOf('<h4'), out.indexOf('</h4>'));
+    expect(title).toContain('>02<');
+    expect(title).toContain('<span>Image</span>');
+    expect(title).toContain('>Block <');
+    expect(out).toMatch(/class="ui-block-card-name"[^>]*>Elke zak</);
+    expect(out).toContain('<span>Check this block</span>');
+    // Without the screen's script nothing collapses: the button stays hidden, the content open.
+    expect(out).toMatch(/<button[^>]*data-block-toggle[^>]*hidden/);
+    expect(out).toMatch(/aria-controls="block-1-content"/);
+    expect(out).toMatch(/id="block-1-content" data-block-content/);
+    expect(out).not.toMatch(/id="block-1-content"[^>]*hidden/);
     expect(out).toMatch(/<details class="ui-block-card-fold block" id="block-1">/);
     const more = out.slice(out.indexOf('ui-block-card-more'), out.indexOf('data-block-rest'));
     expect(more).toContain('More actions');
@@ -363,7 +386,9 @@ describe('BlockCard', () => {
   it('opens when asked, and has no More actions without actions', () => {
     const out = html(BlockCard, {
       id: 'block-2',
-      title: '3. FAQ',
+      number: 3,
+      type: 'FAQ',
+      icon: 'circle-help',
       labels,
       open: true,
       rest: text('r'),
