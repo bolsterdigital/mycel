@@ -113,6 +113,10 @@
   const docLocales = $derived(list('locales'));
   /** The one locale the screen shows (#66 PR 4); its fields only, while the item has it. */
   const work = $derived(data.workLocale);
+  // A named action replaces the query. Carry the displayed locale on every post so a refusal
+  // reloads the same language, even for a direct link without a remembered locale choice.
+  // Rejected: changing the cookie on a view-only link or fixing only the Save button.
+  const action = (name: string) => `?/${name}&locale=${encodeURIComponent(work)}`;
   const shown = $derived(data.translating ? [] : [work]);
   /** The site has more than one locale: the switch shows (table stake 13). */
   const multi = $derived(data.translations.length > 1);
@@ -393,8 +397,11 @@
           <li>{fill(t('admin.content.heroConversion.layout'), { variant: c.layout.variant })}</li>
         {/if}
       </ul>
-      <Button variant="secondary" formaction="?/convertHero" name="convertHero" value={c.heroId}
-        >{t('admin.content.heroConversion.action')}</Button
+      <Button
+        variant="secondary"
+        formaction={action('convertHero')}
+        name="convertHero"
+        value={c.heroId}>{t('admin.content.heroConversion.action')}</Button
       >
     {/if}
   </Notice>
@@ -440,8 +447,8 @@
       locale={data.locale}
     />
     <Actions>
-      <Button formaction="?/save">{t('admin.block.new.add')}</Button>
-      <Button variant="secondary" formaction="?/discard" formnovalidate
+      <Button formaction={action('save')}>{t('admin.block.new.add')}</Button>
+      <Button variant="secondary" formaction={action('discard')} formnovalidate
         >{t('admin.block.new.discard')}</Button
       >
     </Actions>
@@ -538,22 +545,22 @@
     {#snippet actions()}
       {#if data.canWrite}
         {#if i > 0}
-          <Button variant="secondary" formaction="?/move" name="move" value="{b.id}:up"
+          <Button variant="secondary" formaction={action('move')} name="move" value="{b.id}:up"
             >{t('admin.block.move.up')}</Button
           >
         {/if}
         {#if i < data.blocks.length - 1}
-          <Button variant="secondary" formaction="?/move" name="move" value="{b.id}:down"
+          <Button variant="secondary" formaction={action('move')} name="move" value="{b.id}:down"
             >{t('admin.block.move.down')}</Button
           >
         {/if}
         {#if b.duplicable}
-          <Button variant="secondary" formaction="?/duplicate" name="duplicate" value={b.id}
+          <Button variant="secondary" formaction={action('duplicate')} name="duplicate" value={b.id}
             >{t('admin.block.duplicate')}</Button
           >
         {/if}
         <!-- No confirmation: the notice after it offers "Undo" (#66 PR 6c). -->
-        <Button variant="danger" formaction="?/remove" name="remove" value={b.id}
+        <Button variant="danger" formaction={action('remove')} name="remove" value={b.id}
           >{t('admin.block.remove.short')}</Button
         >
       {/if}
@@ -619,11 +626,11 @@
       <input type="hidden" name="translateTo" value={work} />
       <Actions>
         {#each sources as source (source)}
-          <Button formaction="?/startTranslation" name="from" value={source}
+          <Button formaction={action('startTranslation')} name="from" value={source}
             >{fill(t('admin.locale.translate.copy'), { locale: source })}</Button
           >
         {/each}
-        <Button variant="secondary" formaction="?/startTranslation" name="from" value=""
+        <Button variant="secondary" formaction={action('startTranslation')} name="from" value=""
           >{t('admin.locale.translate.empty')}</Button
         >
       </Actions>
@@ -771,7 +778,9 @@
           locale={data.locale}
           options={data.patterns.map((p) => ({ value: p.id, label: p.name }))}
         />
-        <Button variant="secondary" formaction="?/pattern">{t('admin.content.new.pattern')}</Button>
+        <Button variant="secondary" formaction={action('pattern')}
+          >{t('admin.content.new.pattern')}</Button
+        >
       {/if}
     {/if}
     {#if outline.length}
@@ -1007,7 +1016,7 @@
       {#if data.canPublish}
         <div class="translation-approval">
           <Actions stack>
-            <Button formaction="?/approveTranslation" name="locale" value={p.locale}
+            <Button formaction={action('approveTranslation')} name="locale" value={p.locale}
               >{fill(t('admin.assist.approve'), { locale: p.locale })}</Button
             >
           </Actions>
@@ -1019,7 +1028,7 @@
     {/if}
     {#snippet actions()}
       {#if data.canPublish && (!p.live || p.changes || (p.pin && !p.pin.revision.latest))}
-        <Button formaction="?/publish" name="locale" value={p.locale}
+        <Button formaction={action('publish')} name="locale" value={p.locale}
           >{t(
             p.live ? 'admin.content.action.publishChanges' : 'admin.content.action.publish'
           )}</Button
@@ -1034,17 +1043,17 @@
         >
       {/if}
       {#if data.canPublish && p.pin && !p.pin.revision.latest}
-        <Button variant="secondary" formaction="?/repin" name="locale" value={p.locale}
+        <Button variant="secondary" formaction={action('repin')} name="locale" value={p.locale}
           >{t('admin.content.action.repin')}</Button
         >
       {/if}
       {#if data.canPublish && p.pin}
-        <Button variant="secondary" formaction="?/unschedule" name="locale" value={p.locale}
+        <Button variant="secondary" formaction={action('unschedule')} name="locale" value={p.locale}
           >{t('admin.content.action.unschedule')}</Button
         >
       {/if}
       {#if data.canPublish && p.live}
-        <Button variant="secondary" formaction="?/unpublish" name="locale" value={p.locale}
+        <Button variant="secondary" formaction={action('unpublish')} name="locale" value={p.locale}
           >{t('admin.content.action.unpublish')}</Button
         >
       {/if}
@@ -1065,8 +1074,11 @@
             value={p.pin?.input ?? ''}
           />
           <Actions stack>
-            <Button variant="secondary" formaction="?/schedule" name="locale" value={p.locale}
-              >{t('admin.content.action.schedule')}</Button
+            <Button
+              variant="secondary"
+              formaction={action('schedule')}
+              name="locale"
+              value={p.locale}>{t('admin.content.action.schedule')}</Button
             >
           </Actions>
         </details>
@@ -1082,7 +1094,7 @@
   form={{
     id: 'item-edit',
     method: 'post',
-    action: '?/save',
+    action: action('save'),
     'data-live-preview-source': '',
     'data-restore': data.restore ?? undefined,
     'data-restore-operator': data.operatorId ?? undefined,
@@ -1094,7 +1106,7 @@
          without this one that is the bar's locale switch, which saves and then switches. -->
     <button
       form="item-edit"
-      formaction="?/save"
+      formaction={action('save')}
       class="ui-default-submit"
       tabindex="-1"
       aria-hidden="true">{t('admin.content.edit.save')}</button
@@ -1135,7 +1147,7 @@
             label={t('admin.locale.switch')}
             locale={data.locale}
             form="item-edit"
-            formaction="?/switchLocale"
+            formaction={action('switchLocale')}
             locales={data.translations.map((x) => ({ ...x, current: x.locale === work }))}
           />
         {/if}
@@ -1163,7 +1175,7 @@
             data-preview-link={work}>{t('admin.content.edit.previewShort')}</Button
           >
         {/if}
-        <Button form="item-edit" formaction="?/save">{t('admin.content.edit.save')}</Button>
+        <Button form="item-edit" formaction={action('save')}>{t('admin.content.edit.save')}</Button>
       {/snippet}
     </ItemBar>
   {/snippet}
@@ -1223,7 +1235,7 @@
           <Button
             variant="secondary"
             form="item-edit"
-            formaction="?/restore"
+            formaction={action('restore')}
             name="restore"
             value={data.undo}>{t('admin.block.undo')}</Button
           >
@@ -1297,7 +1309,7 @@
         <ul>
           {#each others as o (o.locale)}
             <li>
-              <Button variant="link" formaction="?/switchLocale" name="to" value={o.locale}
+              <Button variant="link" formaction={action('switchLocale')} name="to" value={o.locale}
                 >{o.locale}</Button
               >
               {#if o.publication}<span>{stateOf(o.publication).text}</span>{/if}

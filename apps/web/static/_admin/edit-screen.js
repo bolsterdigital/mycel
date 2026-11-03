@@ -26,7 +26,7 @@ const form = document.getElementById('item-edit');
 
 if (form instanceof HTMLFormElement) {
   const state = document.querySelector('[data-save-state]');
-  const saveButton = document.querySelector('button[form="item-edit"][formaction="?/save"]');
+  const saveButton = document.querySelector('button[form="item-edit"][formaction^="?/save&"]');
   /** Controls that choose an action rather than change the document. */
   const IGNORED = /^(insertType\.|at\.|patternId$)/;
   // A refused save comes back with what was typed, still unsaved: leaving asks from the start.

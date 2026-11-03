@@ -19,7 +19,14 @@ import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
 import { ADMIN, login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
-import { callApi, postUseCase, requireApi } from './lib/api';
+import {
+  article,
+  callApi,
+  pictureAtBothEnds,
+  postUseCase,
+  requireApi,
+  seededPage,
+} from './lib/api';
 import { expectPixels } from './lib/images';
 import { settingsEvidence } from './lib/settings-evidence';
 
@@ -1499,7 +1506,7 @@ test.describe('content-admin', () => {
       await page.locator('.ui-item-bar').getByRole('button', { name: 'Opslaan' }).click();
       await expect(page.locator('main')).toContainText('of je sessie is verlopen');
       await loginAgain(page);
-      await expect(page).toHaveURL(new RegExp(`${edit}\\?/save$`));
+      await expect(page).toHaveURL(new RegExp(`${edit}\\?/save&locale=nl$`));
       // No claim that the input survived: the post never reached the form action.
       await expect(title(page)).toHaveValue('Herstel');
     });
@@ -1649,17 +1656,6 @@ test.describe('content-admin', () => {
 // the bulk fixture is seeded once and not made here (the audit log the status part of admin.spec.ts reads).
 test.describe('content-blocks', () => {
   test.use({ locale: 'nl-NL' });
-
-  /** The seeded page of this project, by slug over the HTTP API. */
-  async function seededPage(request: APIRequestContext): Promise<string> {
-    const slug = `e2e-blokken-${test.info().project.name}`;
-    const { items } = await callApi<{ items: { id: string }[] }>(request, 'content.item.list', {
-      type: 'page',
-      slug,
-    });
-    expect(items, `${slug} is seeded by scripts/e2e/e2e.mjs`).toHaveLength(1);
-    return `/admin/probe/content/${items[0]!.id}`;
-  }
 
   /** The card of block `n` (1-based): its head holds the block's actions (#66 PR 3). */
   const card = (page: Page, n: number): Locator => page.locator('section.ui-block-card').nth(n - 1);
@@ -2725,40 +2721,6 @@ test.describe('content-blocks', () => {
     await expect(rest.locator('.ui-block-text-heading')).toHaveText('Frisse lucht');
   });
 
-  /** A page with its text in the middle and a picture at both ends; `mediaId` from the seeded page. */
-  async function pictureAtBothEnds(page: Page, request: APIRequestContext, name: string) {
-    await login(page, await seededPage(request));
-    const src = await card(page, 5)
-      .locator('[data-block-rest] img[data-block-image]')
-      .getAttribute('src');
-    const mediaId = /\/media\/([0-9a-f-]{36})\//.exec(src ?? '')?.[1];
-    const image = (caption: string) => ({
-      type: 'image',
-      version: 1,
-      props: { mediaId, decorative: false, alt: { nl: 'Een plein' }, caption: { nl: caption } },
-    });
-    const heading = (text: string) => ({
-      type: 'heading',
-      version: 1,
-      props: { text: { nl: text } },
-    });
-    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
-      slug: `${name}-${isA11y() ? 'a11y' : 'no-js'}-${Date.now()}`,
-      document: {
-        type: 'page',
-        defaultLocale: 'nl',
-        locales: ['nl'],
-        title: { nl: 'Lange pagina met beeld' },
-        blocks: [
-          image('Bovenaan'),
-          ...Array.from({ length: 12 }, (_, i) => heading(`Kop ${i + 1}`)),
-          image('Onderaan'),
-        ],
-      },
-    });
-    return { itemId: item.id, edit: `/admin/probe/content/${item.id}`, mediaId: mediaId! };
-  }
-
   test('on a long page a change, a closed fold, a move and a save stay where the editor is', async ({
     page,
     request,
@@ -3451,37 +3413,64 @@ test.describe('article-writing', () => {
     }).toPass();
   }
 
-  async function article(request: APIRequestContext) {
-    const slug = `writer-${test.info().project.name}-${Date.now()}`;
-    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
-      slug,
-      document: {
-        type: 'article',
-        defaultLocale: 'nl',
-        locales: ['nl', 'en'],
-        title: { nl: 'Een artikel', en: 'An article' },
-        blocks: [
-          {
-            type: 'rich-text',
-            version: 1,
-            props: {
-              content: {
-                nl: {
-                  type: 'doc',
-                  content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Oude tekst' }] }],
-                },
-                en: {
-                  type: 'doc',
-                  content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Old text' }] }],
-                },
-              },
-            },
-          },
-        ],
-      },
+  test('a refused save from a direct locale link keeps English through the next post', async ({
+    page,
+    request,
+  }) => {
+    const edit = await article(request);
+    await login(page, edit);
+    await page.context().clearCookies({ name: 'mycel-content-locale' });
+    await page.goto(`${edit}?locale=en`);
+    if (isA11y())
+      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    const fold = page.getByRole('group', { name: 'Blok toevoegen', exact: true });
+    await fold.getByRole('button', { name: 'Citaat', exact: true }).click();
+    const fresh = page.locator('#block-new');
+    await fresh.locator('[name="new.p.text.en"]').fill('Incomplete quote');
+    if (isA11y()) {
+      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+      await page.locator('.writing-surface .editor-prose p').first().fill('English edited');
+    } else {
+      const prose = page.locator('details.block').first();
+      await prose.locator(':scope > summary').click();
+      await prose.getByLabel('Tekst', { exact: true }).fill('English edited');
+    }
+    await page.locator('[name="title.en"]').fill('English title edited');
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page.getByRole('alert')).toBeVisible();
+    await expect(page.locator('[name="editLocale"]')).toHaveValue('en');
+    await expect(page.locator('[name="title.en"]')).toHaveValue('English title edited');
+    // Every named action, including publication and the locale switch, must reload this language
+    // when refused. Check the native addresses too, rather than only the enhanced Save route.
+    const targets = await page
+      .locator('main [formaction], form#item-edit')
+      .evaluateAll((nodes) =>
+        nodes.map((node) => node.getAttribute('formaction') ?? node.getAttribute('action'))
+      );
+    for (const target of targets)
+      expect(new URL(target!, 'http://admin.invalid').searchParams.get('locale')).toBe('en');
+    if (isA11y()) {
+      await expectNoAxeViolations(page);
+      await page.setViewportSize({ width: 320, height: 900 });
+      await setTextSize(page, '200%');
+      await layoutGate(page, 'refused English save');
+      await page.screenshot({ path: test.info().outputPath('refused-save-en-320-200.png') });
+    }
+    await fresh.getByRole('button', { name: 'Niet toevoegen' }).click();
+    await expect(page.locator('#block-new')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/saved/);
+    const { revision } = await callApi(request, 'content.item.get', {
+      itemId: edit.split('/').at(-1)!,
     });
-    return `/admin/probe/content/${item.id}`;
-  }
+    expect(revision.document.title).toEqual({ nl: 'Een artikel', en: 'English title edited' });
+    const content = revision.document.blocks[0].props.content;
+    expect(content.nl.content[0].content[0].text).toBe('Oude tekst');
+    expect(content.en.content[0].content[0].text).toBe('English edited');
+    expect((await page.context().cookies()).some((c) => c.name === 'mycel-content-locale')).toBe(
+      false
+    );
+  });
 
   // #142: an empty line in the writer is ordinary writing. With words in another locale the block
   // loses this one and shows the other beside it; in the only locale the block goes and it publishes.
