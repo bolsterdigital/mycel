@@ -103,8 +103,6 @@ export function valuesOf(doc: ContentDocument): FormValues {
   v.canonical = doc.seo.canonical ?? '';
   put('lead', doc.lead);
   v.heroImageId = doc.heroImageId ?? '';
-  // Without an alt the hero is decorative (#99); the box is ticked, as for a new image.
-  if (!doc.heroAlt) v.heroDecorative = 'on';
   put('heroAlt', doc.heroAlt);
   v.featuredImageId = doc.featuredImageId ?? '';
   put('featuredTitle', doc.featured?.title);
@@ -157,11 +155,14 @@ export function documentFrom(
   const shareImage = image(v, 'shareImageId', doc.seo.imageId);
   if (shareImage) seo.imageId = shareImage;
   const heroImageId = image(v, 'heroImageId', doc.heroImageId);
-  // The alt belongs to the hero (#99): read where the form showed it (`heroAltShown`, the box only
-  // shows once there is an image), kept otherwise, gone with the image. An unticked box with no
-  // text in any locale is sent as `{}`, which core refuses. A different image keeps no stored
-  // description (it described the old picture, in every locale): only text typed over it counts,
-  // and without that the new image is decorative until someone describes it (MY-110 B3).
+  // The alt belongs to the hero (#99): read where the form showed it (`heroAltShown`), kept
+  // otherwise, gone with the image. Empty means decorative (#158, Jaap 2026-11-03): no text in any
+  // locale reads as no alt, because the description line now says so before and after saving. That
+  // reverses sending `{}` for core to refuse (#99), which guarded a state nobody could see; core
+  // still refuses `{}` from the API and MCP. `heroDecorative` is the box that removes the text of
+  // every locale. A different image keeps no stored description (it described the old picture, in
+  // every locale): only text typed over it counts, and without that the new image is decorative
+  // until someone describes it (MY-110 B3).
   const replaced = !!heroImageId && heroImageId !== doc.heroImageId;
   const retyped = (alt: Partial<Record<string, string>>) => {
     const typed = Object.entries(alt).filter(([l, text]) => text && text !== doc.heroAlt?.[l]);
@@ -174,7 +175,7 @@ export function documentFrom(
         ? undefined
         : replaced
           ? retyped(pick('heroAlt', undefined))
-          : pick('heroAlt', doc.heroAlt)
+          : optional(pick('heroAlt', doc.heroAlt))
       : replaced
         ? undefined
         : doc.heroAlt;

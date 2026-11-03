@@ -12,7 +12,11 @@ export async function openPublication(page: Page) {
 }
 
 export async function closePublication(page: Page) {
-  if (isA11y() && (await page.locator('#publication-panel:modal').count())) {
+  if (!isA11y()) return;
+  // A refused publish reopens the drawer on mount. Counting before that closes nothing, and the
+  // modal then makes the form inert, so the next fill types nowhere (seen under full-suite load).
+  await expect(page.locator('.ui-publication-disclosure')).toHaveClass(/enhanced/);
+  if (await page.locator('#publication-panel:modal').count()) {
     await page.keyboard.press('Escape');
     await expect(page.locator('#publication-panel')).toBeHidden();
   }

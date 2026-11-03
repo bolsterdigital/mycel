@@ -77,10 +77,16 @@ describe('documentFrom(valuesOf(doc))', () => {
 
   it('reads the hero alt where the form showed it, per locale, and drops it with the image (#99)', () => {
     const shown: FormValues = { ...valuesOf(featuredPage), heroAltShown: '1' };
-    expect(shown.heroDecorative).toBe('on');
+    expect(shown).not.toHaveProperty('heroDecorative');
     // Ticked: decorative, whatever the field holds.
+    // The box removes the text, also what stands in the field.
     expect(
-      documentFrom(featuredPage, { ...shown, 'heroAlt.nl': 'Het team' }, '2026-11-01', 'nl').heroAlt
+      documentFrom(
+        featuredPage,
+        { ...shown, heroDecorative: 'on', 'heroAlt.nl': 'Het team' },
+        '2026-11-01',
+        'nl'
+      ).heroAlt
     ).toBeUndefined();
     // Unticked: the shown locale from the form, the other kept.
     const described = { ...featuredPage, heroAlt: { en: 'The team' } };
@@ -90,10 +96,33 @@ describe('documentFrom(valuesOf(doc))', () => {
       nl: 'Het team',
       en: 'The team',
     });
-    // Unticked with no text anywhere: `{}`, for core to refuse rather than a silent decorative.
+    // No text anywhere is decorative (#158): the description line says so, so the form no longer
+    // sends `{}` for core to refuse. Core still refuses `{}` from the API and MCP (model.test.ts).
+    expect('heroAlt' in documentFrom(featuredPage, shown, '2026-11-01', 'nl')).toBe(false);
+    const nlOnly = { ...featuredPage, heroAlt: { nl: 'Het team' } };
     expect(
-      documentFrom(featuredPage, { ...shown, heroDecorative: '' }, '2026-11-01', 'nl').heroAlt
-    ).toEqual({});
+      'heroAlt' in
+        documentFrom(
+          nlOnly,
+          { ...valuesOf(nlOnly), heroAltShown: '1', 'heroAlt.nl': '' },
+          '2026-11-01',
+          'nl'
+        )
+    ).toBe(false);
+    // Emptied in one of two locales: the other keeps its text, so this one stays open.
+    const both = { ...featuredPage, heroAlt: { nl: 'Het team', en: 'The team' } };
+    const emptied = { ...valuesOf(both), heroAltShown: '1', 'heroAlt.nl': '' };
+    expect(documentFrom(both, emptied, '2026-11-01', 'nl').heroAlt).toEqual({ en: 'The team' });
+    // The box removes every locale, whatever the field holds.
+    expect(
+      'heroAlt' in
+        documentFrom(
+          both,
+          { ...emptied, 'heroAlt.nl': 'Het team', heroDecorative: 'on' },
+          '2026-11-01',
+          'nl'
+        )
+    ).toBe(false);
     // A form without the fields keeps the alt; no image, no alt.
     expect(documentFrom(described, valuesOf(described), '2026-11-01').heroAlt).toEqual(
       described.heroAlt
