@@ -40,6 +40,7 @@
     Badge,
     BlockCard,
     BlockImage,
+    BlockInserter,
     BlockSummary,
     BlockText,
     Button,
@@ -60,7 +61,7 @@
     StatusCard,
     Tabs,
   } from '#lib/admin/ui/index.js';
-  import { BLOCK_PRESENTATION } from '#lib/admin/block-presentation.js';
+  import { BLOCK_ICONS, BLOCK_PRESENTATION } from '#lib/admin/block-presentation.js';
   import { pickAny, BLOCK_DEFINITIONS, pick, type BlockType, type MediaCredit } from '@mycel/core';
   import { fill, ui, type UiKey, refusalCopy } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
@@ -183,6 +184,14 @@
       return { text: t('admin.content.state.offline'), tone: 'neutral' };
     return { text: t('admin.content.state.draft'), tone: 'neutral' };
   };
+  const compactStateOf = (p: Publication): string =>
+    p.live
+      ? t(p.changes ? 'admin.content.state.short.changed' : 'admin.content.state.short.live')
+      : p.pin
+        ? t('admin.content.state.short.pinned')
+        : t(
+            p.status === 'unpublished' ? 'admin.content.state.offline' : 'admin.content.state.draft'
+          );
 
   /** The document fields a refused save can name (`documentFieldIssues`), with their label. */
   const DOC_FIELDS: Record<string, UiKey> = {
@@ -275,6 +284,7 @@
     data.blockTypes.map((type) => ({
       value: type,
       label: t(`admin.block.type.${type}` as const),
+      icon: BLOCK_ICONS[type],
     }))
   );
 </script>
@@ -440,6 +450,8 @@
 
 {#snippet blockRest(b: (typeof data.blocks)[number])}
   {#snippet picture(img: NonNullable<typeof b.image>, field: string)}
+    {@const prefix = `b.${b.id}.p.${b.type === 'hero' ? 'image.' : ''}`}
+    {@const values = blockValues(b)}
     <BlockImage
       src={img.card ? `${base}/media/${img.mediaId}/variant/${img.card.file}` : null}
       width={img.card?.width ?? 4}
@@ -449,6 +461,17 @@
       credit={img.credit ? creditLine(img.credit) : null}
       missing={fill(t('admin.block.image.missing'), { file: img.label })}
       replace={{ href: `#b-${b.id}-p-${field}`, label: t('admin.block.image.replace') }}
+      thumbSrc={thumbPath(base, img.mediaId)}
+      previewLabel={t('admin.block.image.preview')}
+      alt={{
+        text: values[`${prefix}alt.${work}`] ?? '',
+        decorative: values[`${prefix}decorative`] === 'on',
+        from: `${prefix}alt.${work}`,
+        decorativeFrom: `${prefix}decorative`,
+        label: t('admin.block.field.alt'),
+        decorativeLabel: t('admin.block.image.decorative'),
+        missingLabel: t('admin.block.image.altMissing'),
+      }}
     />
   {/snippet}
   {#if BLOCK_PRESENTATION[b.type].rest === 'image' && b.image}
@@ -571,36 +594,18 @@
   </BlockCard>
 {/snippet}
 
-<!-- Filters the block type list next to it; only with JavaScript (the screen's script shows it),
-     since a native select already jumps to a typed first letter. Without a name it posts nothing. -->
-{#snippet typeSearch(id: string)}
-  <div class="ui-field" data-type-search data-none={t('admin.block.insert.none')} hidden>
-    <label for="insert-search-{id}">{t('admin.block.insert.search')}</label>
-    <input
-      id="insert-search-{id}"
-      type="search"
-      autocomplete="off"
-      aria-describedby="insert-search-{id}-hint"
-    />
-    <p class="ui-hint" id="insert-search-{id}-hint">{t('admin.block.insert.searchHint')}</p>
-  </div>
-{/snippet}
-
-{#snippet inserter(b: (typeof data.blocks)[number])}
+{#snippet inserter(b: (typeof data.blocks)[number], i: number)}
   <details class="ui-block-insert">
     <summary><Icon name="plus" />{t('admin.block.insert.fold')}</summary>
     <div class="ui-block-insert-body">
-      {@render typeSearch(b.id)}
-      <Select
-        id="insert-type-{b.id}"
-        name="insertType.{b.id}"
-        label={t('admin.block.insert.type')}
+      <BlockInserter
+        id={b.id}
+        place="before:{b.id}"
+        label={fill(t('admin.block.insert.location.before'), { n: String(i + 1) })}
         locale={data.locale}
         options={blockTypeOptions}
+        action="?/insert&locale={work}"
       />
-      <Button variant="secondary" formaction="?/insert" name="insert" value="before:{b.id}"
-        >{t('admin.block.insert.here')}</Button
-      >
     </div>
   </details>
 {/snippet}
@@ -673,59 +678,68 @@
       options={data.media}
       {base}
       upload={data.upload}
-    />
-    {#if v('heroImageId')}
-      <!-- #99: the hero's use, like an image block's: decorative, or described per locale. The
+    >
+      {#snippet related()}
+        {#if v('heroImageId')}
+          <!-- #99: the hero's use, like an image block's: decorative, or described per locale. The
          screen's script hides the empty alt while the box is ticked (data-alt-of). The marker
          tells the server the box was on the form, so an unticked box is not a box never shown.
          A rare choice (MY-110 B3): folded while the image is decorative and nothing is wrong. -->
-      <input type="hidden" name="heroAltShown" value="1" />
-      <details
-        class="ui-fold item-hero-alt"
-        open={v('heroDecorative') !== 'on' || flagged('heroAlt')}
-      >
-        <summary>{t('admin.content.field.heroAltFold')}</summary>
-        <Checkbox
-          id="heroDecorative"
-          name="heroDecorative"
-          label={t('admin.block.field.decorative')}
-          hint={t('admin.content.field.heroDecorativeHint')}
-          checked={v('heroDecorative') === 'on'}
-        />
-        <div class="ui-block-alt" data-alt-of="heroDecorative">
-          <Field
-            id="heroAlt"
-            label={t('admin.content.field.heroAlt')}
-            locale={data.locale}
-            invalid={flagged('heroAlt')}
+          <input type="hidden" name="heroAltShown" value="1" />
+          <details
+            class="ui-fold item-hero-alt"
+            open={v('heroDecorative') !== 'on' || flagged('heroAlt')}
           >
-            {#snippet control(attributes)}
-              <textarea name="heroAlt.{work}" maxlength="1000" rows="2" lang={work} {...attributes}
-                >{v(`heroAlt.${work}`)}</textarea
+            <summary>{t('admin.content.field.heroAltFold')}</summary>
+            <Checkbox
+              id="heroDecorative"
+              name="heroDecorative"
+              label={t('admin.block.field.decorative')}
+              hint={t('admin.content.field.heroDecorativeHint')}
+              checked={v('heroDecorative') === 'on'}
+            />
+            <div class="ui-block-alt" data-alt-of="heroDecorative">
+              <Field
+                id="heroAlt"
+                label={t('admin.content.field.heroAlt')}
+                locale={data.locale}
+                invalid={flagged('heroAlt')}
               >
-            {/snippet}
-          </Field>
-        </div>
-      </details>
-    {/if}
-    {#if article}
-      <Select
-        id="headerLayout"
-        name="headerLayout"
-        label={t('admin.content.field.headerLayout')}
-        hint={t('admin.content.field.headerLayoutHint')}
-        locale={data.locale}
-        value={v('headerLayout') || 'standard'}
-        options={[
-          { value: 'standard', label: t('admin.content.headerLayout.standard') },
-          { value: 'cover', label: t('admin.content.headerLayout.cover') },
-        ]}
-      />
-      {#if v('headerLayout') === 'cover' && !v('heroImageId')}
-        <Notice tone="warning" live={false}><p>{t('admin.content.headerLayout.noImage')}</p></Notice
-        >
-      {/if}
-    {/if}
+                {#snippet control(attributes)}
+                  <textarea
+                    name="heroAlt.{work}"
+                    maxlength="1000"
+                    rows="2"
+                    lang={work}
+                    {...attributes}>{v(`heroAlt.${work}`)}</textarea
+                  >
+                {/snippet}
+              </Field>
+            </div>
+          </details>
+        {/if}
+        {#if article}
+          <Select
+            id="headerLayout"
+            name="headerLayout"
+            label={t('admin.content.field.headerLayout')}
+            hint={t('admin.content.field.headerLayoutHint')}
+            locale={data.locale}
+            size="m"
+            value={v('headerLayout') || 'standard'}
+            options={[
+              { value: 'standard', label: t('admin.content.headerLayout.standard') },
+              { value: 'cover', label: t('admin.content.headerLayout.cover') },
+            ]}
+          />
+          {#if v('headerLayout') === 'cover' && !v('heroImageId')}
+            <Notice tone="warning" live={false}
+              ><p>{t('admin.content.headerLayout.noImage')}</p></Notice
+            >
+          {/if}
+        {/if}
+      {/snippet}
+    </MediaPicker>
     {#if data.heroConversion}
       <div id="hero-conversion">{@render heroConversion(data.heroConversion)}</div>
     {/if}
@@ -768,7 +782,7 @@
       />
     {/if}
     {#each data.blocks as b, i (b.id)}
-      {#if data.canWrite && !pending}{@render inserter(b)}{/if}
+      {#if data.canWrite && !pending}{@render inserter(b, i)}{/if}
       {#if pending?.place === 'before' && pending.anchor === b.id}{@render pendingCard(
           pending
         )}{/if}
@@ -784,19 +798,14 @@
     {#if pending?.place === 'end'}{@render pendingCard(pending)}{/if}
     {#if data.canWrite}
       <Fieldset legend={t('admin.block.add')}>
-        {@render typeSearch('end')}
-        <Select
-          id="insert-type-end"
-          name="insertType.end"
-          label={t('admin.block.insert.type')}
+        <BlockInserter
+          id="end"
+          place="end"
+          label={t('admin.block.insert.end')}
           locale={data.locale}
           options={blockTypeOptions}
+          action="?/insert&locale={work}"
         />
-        <Actions>
-          <Button variant="secondary" formaction="?/insert" name="insert" value="end"
-            >{t('admin.block.add.go')}</Button
-          >
-        </Actions>
       </Fieldset>
     {/if}
   </section>
@@ -1091,13 +1100,18 @@
       aria-hidden="true">{t('admin.content.edit.save')}</button
     >
     <ItemBar
+      locale={data.locale}
       back={{
         href: `${base}/content?type=${data.item.type}`,
         label: t(article ? 'admin.content.filter.article' : 'admin.content.filter.page'),
       }}
       title={fill(t('admin.content.edit.title'), { type: typeName })}
-      state={state?.text ??
-        (data.translating ? fill(t('admin.locale.translate.title'), { locale: work }) : undefined)}
+      state={mainPublication
+        ? compactStateOf(mainPublication)
+        : data.translating
+          ? fill(t('admin.locale.translate.title'), { locale: work })
+          : undefined}
+      stateDetail={state?.text}
       stateHref={mainPublication ? `#publication-${mainPublication.locale}` : undefined}
       tone={state?.tone}
       save={data.canWrite
@@ -1155,6 +1169,9 @@
   {/snippet}
 
   {#snippet notices()}
+    {#if data.invalidInsert}
+      <Notice tone="warning"><p>{t('admin.block.insert.invalid')}</p></Notice>
+    {/if}
     {#if recovered}
       <!-- Put back after logging in again (session-restore.js): nothing is saved until Save. -->
       <Notice tone="warning">

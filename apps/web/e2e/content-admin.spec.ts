@@ -324,8 +324,11 @@ test.describe('content-admin', () => {
     const edit = await newPage(page, slugFor('live'), 'Saved title');
 
     // Give the preview a block to select. Its native details remains the keyboard route.
-    await page.getByLabel('Soort', { exact: true }).last().selectOption({ label: 'Kop' });
-    await page.getByRole('button', { name: 'Toevoegen', exact: true }).click();
+    await page
+      .locator('[data-block-picker]')
+      .last()
+      .getByRole('button', { name: 'Kop', exact: true })
+      .click();
     await page.getByLabel('Tekst', { exact: true }).fill('Saved heading');
     await page.getByRole('button', { name: 'Toevoegen en opslaan' }).click();
     await expect(page).toHaveURL(/\?saved&block=/);
@@ -1812,11 +1815,13 @@ test.describe('content-blocks', () => {
     if (above && above <= (await folds.count())) {
       const fold = folds.nth(above - 1);
       await fold.locator('summary').click();
-      await fold.getByLabel('Soort').selectOption({ label: type });
-      await fold.getByRole('button', { name: 'Hier invoegen' }).click();
+      await fold.getByRole('button', { name: type, exact: true }).click();
     } else {
-      await page.locator('#insert-type-end').selectOption({ label: type });
-      await page.getByRole('button', { name: 'Toevoegen', exact: true }).click();
+      await page
+        .locator('[data-block-picker]')
+        .last()
+        .getByRole('button', { name: type, exact: true })
+        .click();
     }
     const fresh = page.locator('#block-new');
     await expect(fresh.getByRole('heading')).toHaveText(`Nieuw blok: ${type}`);
@@ -1919,11 +1924,17 @@ test.describe('content-blocks', () => {
     await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
     const search = page.getByLabel('Zoek een bloktype');
     await search.fill('cita');
-    await expect(page.locator('#insert-type-end option')).toHaveText(['Citaat']);
+    await expect(page.locator('[data-block-type]:visible')).toHaveText(['Citaat']);
     // Typing in the search is not a change of the document.
     await expect(page.locator('[data-save-state]')).not.toHaveAttribute('data-current', 'unsaved');
     await search.fill('zzz');
-    await expect(page.getByRole('button', { name: 'Toevoegen', exact: true })).toBeDisabled();
+    await expect(page.locator('[data-block-type]:visible')).toHaveCount(0);
+    await expect(page.locator('[data-type-count]')).toHaveText('Geen bloktype gevonden');
+    const noMatchUrl = page.url();
+    await search.press('Enter');
+    await expect(page).toHaveURL(noMatchUrl);
+    await expect(search).toBeFocused();
+    await expect(page.locator('#block-new')).toHaveCount(0);
     await search.fill('kop');
     await search.press('Enter');
     await expect(page.locator('#block-new').getByRole('heading')).toHaveText('Nieuw blok: Kop');
@@ -2086,8 +2097,9 @@ test.describe('content-blocks', () => {
     await expectNoAxeViolations(page);
   });
 
-  test('Enter in a text field saves in the locale on screen, not the first locale of the switch', async ({
+  test('Enter and native insertion keep a direct content locale through refusal and legacy posts', async ({
     page,
+    request,
   }) => {
     // The bar's locale switch comes before Save in the document; without a script Enter would
     // post the first submit button, "nl", and switch away (#66 PR 6). Both projects.
@@ -2101,6 +2113,63 @@ test.describe('content-blocks', () => {
     await page.locator('#title\\.en').press('Enter');
     await expect(page).toHaveURL(`${edit}?saved&locale=en`);
     await expect(page.locator('#title\\.en')).toHaveValue('Saved with Enter');
+    expect(
+      (await page.context().cookies()).some((cookie) => cookie.name === 'mycel-content-locale')
+    ).toBe(false);
+
+    // A direct English URL has no locale cookie. The new chooser carries that locale even
+    // when saving an incomplete pending block refuses the next choice. Other form actions
+    // retain their existing contract; this is not a general refused-save locale repair.
+    const atEnd = () => page.locator('[data-block-picker]').last();
+    await expect(atEnd().getByRole('button', { name: 'Kop', exact: true })).toHaveAttribute(
+      'formaction',
+      '?/insert&locale=en'
+    );
+    await atEnd().getByRole('button', { name: 'Kop', exact: true }).click();
+    const fresh = page.locator('#block-new');
+    await expect(fresh.locator('[name="new.p.text.en"]')).toBeVisible();
+    await atEnd().getByRole('button', { name: 'Citaat', exact: true }).click();
+    await expect(page.getByRole('alert')).toBeVisible();
+    await expect(page.locator('[name="editLocale"]')).toHaveValue('en');
+    await expect(page.locator('#title\\.en')).toHaveValue('Saved with Enter');
+    await fresh.locator('[name="new.p.text.en"]').fill('An English heading');
+    await add(page);
+
+    // Existing native posts with insertType still select the same pending type.
+    const legacy = atEnd().getByRole('button', { name: 'Kop', exact: true });
+    await legacy.evaluate((button) => {
+      (button as HTMLButtonElement).value = 'end';
+      const field = document.createElement('input');
+      field.type = 'hidden';
+      field.name = 'insertType.end';
+      field.value = 'quote';
+      button.closest('form')!.append(field);
+    });
+    await legacy.click();
+    await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Citaat');
+    await fresh.getByRole('button', { name: 'Niet toevoegen' }).click();
+
+    // A forged type stays outside the existing pending validator and is explained in place.
+    const unknown = atEnd().getByRole('button', { name: 'Kop', exact: true });
+    await unknown.evaluate(
+      (button) => ((button as HTMLButtonElement).value = 'not-registered|end')
+    );
+    await unknown.click();
+    await expect(
+      page.getByText('Dit bloktype of invoegpunt is niet meer beschikbaar. Kies een ander blok.')
+    ).toBeVisible();
+    await expect(fresh).toHaveCount(0);
+    const { revision } = await callApi<{
+      revision: {
+        document: {
+          title: { nl: string; en: string };
+          blocks: { props: { text: { en: string } } }[];
+        };
+      };
+    }>(request, 'content.item.get', { itemId: edit.split('/').at(-1)! });
+    expect(revision.document.title).toEqual({ nl: 'Blokkenproef', en: 'Saved with Enter' });
+    expect(revision.document.blocks).toHaveLength(1);
+    expect(revision.document.blocks[0]!.props.text.en).toBe('An English heading');
   });
 
   test('the screen says what is unsaved, saves with Ctrl+S and warns before leaving', async ({
@@ -2129,7 +2198,11 @@ test.describe('content-blocks', () => {
     await expect(state).toHaveAttribute('data-current', 'done');
     await expect(state.locator('[data-save-live]')).toHaveText('Alles opgeslagen');
     // Choosing a block type to insert is no change to the document: leaving does not ask.
-    await page.locator('#insert-type-end').selectOption({ label: 'Kop' });
+    await page
+      .locator('[data-block-picker]')
+      .last()
+      .getByRole('button', { name: 'Kop', exact: true })
+      .focus();
     await expect(state).toHaveAttribute('data-current', 'done');
   });
 
@@ -2577,7 +2650,9 @@ test.describe('content-blocks', () => {
     await expect(minimal.locator('.ui-block-text-heading')).not.toBeEmpty();
     await expect(minimal.locator('img, a[href^="http"], button, form')).toHaveCount(0);
     await expect(minimal).toContainText('ouder openingsblok');
-    const src = await card(page, 5).locator('[data-block-rest] img').getAttribute('src');
+    const src = await card(page, 5)
+      .locator('[data-block-rest] img[data-block-image]')
+      .getAttribute('src');
     const mediaId = /\/media\/([0-9a-f-]{36})\//.exec(src ?? '')?.[1];
     expect(mediaId).toBeTruthy();
 
@@ -2615,7 +2690,7 @@ test.describe('content-blocks', () => {
     });
     await page.goto(`/admin/probe/content/${item.id}`);
     const rest = page.locator('[data-block-rest]').first();
-    await expectPixels(rest.locator('img'), 'the legacy hero at rest');
+    await expectPixels(rest.locator('img[data-block-image]'), 'the legacy hero at rest');
     await expect(rest.locator('.ui-block-text-heading')).toHaveText('Schone lucht');
     await expect(rest.locator('.ui-block-text-body')).toHaveText('Doe mee met de buurt.');
     await expect(rest.locator('.ui-block-text-action').first()).toHaveText('Lees meer');
@@ -2648,7 +2723,9 @@ test.describe('content-blocks', () => {
   /** A page with its text in the middle and a picture at both ends; `mediaId` from the seeded page. */
   async function pictureAtBothEnds(page: Page, request: APIRequestContext, name: string) {
     await login(page, await seededPage(request));
-    const src = await card(page, 5).locator('[data-block-rest] img').getAttribute('src');
+    const src = await card(page, 5)
+      .locator('[data-block-rest] img[data-block-image]')
+      .getAttribute('src');
     const mediaId = /\/media\/([0-9a-f-]{36})\//.exec(src ?? '')?.[1];
     const image = (caption: string) => ({
       type: 'image',
@@ -2696,8 +2773,35 @@ test.describe('content-blocks', () => {
 
     // The picture on top is closed and shows itself and its caption.
     await expect(page.locator('details.block[open]')).toHaveCount(0);
-    await expectPixels(card(page, 1).locator('[data-block-rest] img'), 'the top image at rest');
+    await expectPixels(
+      card(page, 1).locator('[data-block-rest] img[data-block-image]'),
+      'the top image at rest'
+    );
     await expect(card(page, 1).locator('[data-block-rest]')).toContainText('Bovenaan');
+    const geometry = await page.evaluate(() => ({
+      viewport: { width: innerWidth, height: innerHeight },
+      scrollHeight: document.documentElement.scrollHeight,
+      cards: [...document.querySelectorAll('.ui-block-card:has(figure.ui-block-image)')].map(
+        (card) => {
+          const image = card.querySelector('img[data-block-image]')!;
+          const figure = card.querySelector('figure.ui-block-image')!;
+          return {
+            cardHeight: card.getBoundingClientRect().height,
+            figureHeight: figure.getBoundingClientRect().height,
+            thumbnail: {
+              width: image.getBoundingClientRect().width,
+              height: image.getBoundingClientRect().height,
+            },
+          };
+        }
+      ),
+    }));
+    expect(geometry.cards).toHaveLength(2);
+    expect(geometry.cards.every((entry) => entry.thumbnail.height <= 72)).toBe(true);
+    await test.info().attach('compact-long-page-geometry.json', {
+      body: JSON.stringify({ ...geometry, browser: page.context().browser()?.version() }),
+      contentType: 'application/json',
+    });
 
     // A text halfway, closed again: its rest follows, the page does not move.
     const middle = card(page, 8);
@@ -3052,14 +3156,14 @@ test.describe('content-blocks', () => {
         ],
       },
     });
-    await page.route(`**/media/${mediaId}/variant/**`, (route) => route.abort());
+    await page.route(`**/media/${mediaId}/**`, (route) => route.abort());
 
     // An image block: the words and the way out, no working-looking picture.
     await page.goto(edit);
     await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
     const figure = card(page, 1).locator('figure.ui-block-image');
     await expect(figure).toHaveAttribute('data-broken', '');
-    await expect(figure.locator('img')).toBeHidden();
+    await expect(figure.locator('img[data-block-image]')).toBeHidden();
     const note = figure.locator('.ui-block-image-missing');
     await expect(note).toBeVisible();
     await note.getByRole('link', { name: 'Beeld vervangen' }).click();
@@ -3194,7 +3298,21 @@ test.describe('content-blocks', () => {
     await login(page, edit);
     const image = card(page, 5);
     await expect(image.locator('.ui-block-card-title')).toHaveText('5. Afbeelding');
-    await expectPixels(image.locator('[data-block-rest] img'), 'the image block at rest');
+    await expectPixels(
+      image.locator('[data-block-rest] img[data-block-image]'),
+      'the image block at rest'
+    );
+    const rest = image.locator('figure.ui-block-image');
+    await expect(rest.locator('[data-rest-alt]')).toContainText('Beschrijving (alt-tekst)');
+    await expect(rest.locator('[data-rest-alt-text]')).not.toBeEmpty();
+    const thumbnail = await rest.locator('img[data-block-image]').boundingBox();
+    expect(thumbnail?.width).toBeLessThanOrEqual(96);
+    expect(thumbnail?.height).toBeLessThanOrEqual(72);
+    const preview = rest.locator('.ui-block-image-preview');
+    await expect(preview.locator('img')).toBeHidden();
+    await preview.locator('summary').click();
+    await expectPixels(preview.locator('img'), 'the requested larger preview');
+    await preview.locator('summary').click();
     const fields = image.locator('details.block');
     await fields.locator(':scope > summary').click();
     // Content first; layout and credit folded until asked for.
@@ -3214,6 +3332,14 @@ test.describe('content-blocks', () => {
       await (await more(page, 5)).locator('details.ui-block-card-more > summary').focus();
       await layoutGate(page, 'image card at rest with more actions', '#item-edit');
       await image.screenshot({ path: test.info().outputPath('image-card-rest-320-200.png') });
+      // Long metadata stays complete, while the ordinary thumbnail remains compact.
+      await fields.locator(':scope > summary').click();
+      const description = 'Een plein vol mensen met spandoeken. '.repeat(12).trim();
+      await fields.locator('[name$=".p.alt.nl"]').fill(description);
+      await fields.locator(':scope > summary').click();
+      await expect(rest.locator('[data-rest-alt-text]')).toHaveText(description);
+      await layoutGate(page, 'complete long image description', '#item-edit');
+      await image.screenshot({ path: test.info().outputPath('image-card-long-alt-320-200.png') });
     }
   });
 
@@ -3466,8 +3592,7 @@ test.describe('article-writing', () => {
       const itemId = await open(page, request, [prose, quote('Bestaand')]);
       const fold = page.locator('.writing-surface details.ui-block-insert:visible').first();
       await fold.locator('summary').click();
-      await fold.getByLabel('Soort').selectOption({ label: 'Citaat' });
-      await fold.getByRole('button', { name: 'Hier invoegen' }).click();
+      await fold.getByRole('button', { name: 'Citaat', exact: true }).click();
       const fresh = page.locator('#block-new');
       await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Citaat');
       await fresh.locator('[name$=".text.nl"]').fill('Nieuw citaat');
@@ -3724,8 +3849,7 @@ test.describe('article-writing', () => {
     await layoutGate(page, 'insert point in the writer', '.editor-card');
     await setTextSize(page, '100%');
     await page.setViewportSize({ width: 1280, height: 720 });
-    await second.getByLabel('Soort').selectOption({ label: 'Kop' });
-    await second.getByRole('button', { name: 'Hier invoegen' }).click();
+    await second.getByRole('button', { name: 'Kop', exact: true }).click();
     const fresh = page.locator('#block-new');
     await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Kop');
     await fresh.locator('[name$=".text.nl"]').fill('Nieuwe kop');
@@ -3969,7 +4093,7 @@ test.describe('article-writing', () => {
     await picker.locator(`input[type="radio"][value="${mediaId}"]`).click();
     await expect(page.locator('.writing .pending [data-picker-name]').first()).toHaveText(filename);
     await picker.getByRole('button', { name: 'Klaar' }).click();
-    await expect(page.getByRole('button', { name: 'Ander beeld kiezen' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Vervangen' })).toBeVisible();
     await expect(page.getByLabel('Alternatieve tekst')).toHaveValue('Een boom');
     await page.getByRole('button', { name: 'Kaart toevoegen' }).click();
     await page.getByRole('button', { name: 'Opslaan', exact: true }).click();

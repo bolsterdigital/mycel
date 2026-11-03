@@ -305,6 +305,19 @@ if (form instanceof HTMLFormElement) {
         const caption = line.closest('figcaption');
         if (caption) caption.hidden = [...caption.children].every((child) => child.hidden);
       }
+      for (const line of rest.querySelectorAll('[data-rest-alt]')) {
+        const text = controlOf(line.dataset.restAlt)?.value ?? '';
+        const decorative = !!controlOf(line.dataset.restDecorative)?.checked;
+        const words = line.querySelector('[data-rest-alt-text]');
+        const intentional = line.querySelector('[data-rest-alt-decorative]');
+        const missing = line.querySelector('[data-rest-alt-missing]');
+        if (words) {
+          words.textContent = text;
+          words.hidden = decorative || !text.trim();
+        }
+        if (intentional) intentional.hidden = !decorative;
+        if (missing) missing.hidden = decorative || !!text.trim();
+      }
       for (const note of rest.querySelectorAll('[data-rest-changed]')) {
         note.hidden = !typedInto(note.dataset.restChanged);
       }
@@ -400,33 +413,6 @@ if (form instanceof HTMLFormElement) {
   );
   for (const img of form.querySelectorAll('img[data-block-image]'))
     if (img.complete && img.naturalWidth === 0) broken(img);
-  // Block type search: rebuilds the list from its original options, so the select keeps posting
-  // a valid type; nothing found leaves one disabled line and the insert button refuses nothing.
-  for (const search of form.querySelectorAll('[data-type-search]')) {
-    const input = search.querySelector('input');
-    const select = search.parentElement?.querySelector('select');
-    const button = search.parentElement?.querySelector('button[formaction="?/insert"]');
-    if (!(input instanceof HTMLInputElement) || !(select instanceof HTMLSelectElement)) continue;
-    search.hidden = false;
-    const all = [...select.options].map((o) => o.cloneNode(true));
-    const none = document.createElement('option');
-    none.disabled = true;
-    none.textContent = search.dataset.none ?? '';
-    input.addEventListener('input', () => {
-      const q = input.value.trim().toLocaleLowerCase();
-      const shown = all.filter((o) => !q || o.textContent.toLocaleLowerCase().includes(q));
-      select.replaceChildren(...(shown.length ? shown.map((o) => o.cloneNode(true)) : [none]));
-      if (shown.length) select.selectedIndex = 0;
-      if (button instanceof HTMLButtonElement) button.disabled = !shown.length;
-    });
-    input.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter') return;
-      // Enter in a text field would save the whole form; here it adds the type that matched.
-      event.preventDefault();
-      if (button instanceof HTMLButtonElement && !button.disabled) form.requestSubmit(button);
-    });
-  }
-
   // Shortcuts panel: a fold the script shows; `?` outside a text field opens it.
   const keys = document.querySelector('details[data-shortcuts]');
   if (keys instanceof HTMLDetailsElement) {

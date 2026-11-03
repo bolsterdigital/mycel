@@ -1142,7 +1142,7 @@ test.describe('grid-compositions', () => {
 
   // Chrome's tabs API changes actual desktop browser zoom. Pinch/pageScaleFactor and a larger
   // root font cannot prove this: assert the halved CSS viewport and doubled pixel ratio too.
-  test('real Chromium 200% browser zoom reflows the composition', async () => {
+  test('real Chromium 200% browser zoom reflows the composition', async ({ request }) => {
     onlyA11y('browser zoom measurement');
     const directory = await mkdtemp(join(tmpdir(), 'mycel-zoom-'));
     let context;
@@ -1243,6 +1243,26 @@ test.describe('grid-compositions', () => {
       await layoutGate(page, 'admin at real 200% browser zoom', '.admin-sidebar');
       await page.screenshot({
         path: test.info().outputPath('admin-browser-zoom-200.png'),
+        fullPage: true,
+      });
+      const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+        slug: `zoom-editor-${Date.now()}`,
+        document: {
+          type: 'article',
+          defaultLocale: 'nl',
+          locales: ['nl'],
+          title: { nl: 'Een schrijfvlak bij echte browserzoom' },
+          blocks: [],
+        },
+      });
+      await page.goto(`http://127.0.0.1:4173/admin/probe/content/${item.id}`);
+      await expect(page.locator('.ui-writing-sheet')).toBeVisible();
+      expect(await page.evaluate(() => innerWidth)).toBeCloseTo(before.width / 2, 0);
+      expect(await page.evaluate(() => devicePixelRatio)).toBe(before.ratio * 2);
+      await layoutGate(page, 'editor at real 200% browser zoom');
+      await expectNoAxeViolations(page);
+      await page.screenshot({
+        path: test.info().outputPath('editor-browser-zoom-200.png'),
         fullPage: true,
       });
     } finally {
@@ -1491,7 +1511,7 @@ test.describe('site-settings', () => {
       withInvoker((invoker) => invoker.run(useCases.getSiteImages, principal, {}));
     const choose = async (name: string) => {
       const picker = page.getByRole('group', { name: 'Default image' });
-      await picker.getByRole('button', { name: /^Choose (another )?image$/ }).click();
+      await picker.getByRole('button', { name: /^(Choose image|Replace)$/ }).click();
       const dialog = page.getByRole('dialog', { name: 'Default image' });
       await dialog.getByRole('radio', { name }).check();
       await dialog.getByRole('button', { name: 'Done' }).click();

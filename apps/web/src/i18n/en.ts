@@ -687,7 +687,7 @@ export const en = {
   'admin.content.field.seoDescription': 'Description in search results',
   'admin.content.field.noindex': 'Hide from search engines',
   'admin.content.field.canonical': 'Canonical address (optional, starts with https://)',
-  'admin.content.field.heroImage': 'Main image',
+  'admin.content.field.heroImage': 'Hero image',
   'admin.content.field.heroImageHint':
     'The large image at the top of the page, below the title and the lead. Leave empty for no image above the story.',
   'admin.content.header.title': 'Header',
@@ -1386,7 +1386,7 @@ export const en = {
   'admin.media.search.clear': 'Show all',
   'admin.media.search.none': 'Nothing found for “{q}”.',
   'admin.media.picker.choose': 'Choose image',
-  'admin.media.picker.change': 'Choose another image',
+  'admin.media.picker.change': 'Replace',
   'admin.media.picker.title': 'Choose an image',
   'admin.media.picker.none': 'No image chosen yet',
   'admin.media.picker.noImage': 'No image',
@@ -1488,6 +1488,22 @@ export const en = {
   'admin.site.general.timeZone.hint':
     'The admin plans and shows times in this zone, unless someone chose their own under Preferences.',
   'admin.site.general.save': 'Save time zone',
+  'admin.content.state.short.live': 'Published',
+  'admin.content.state.short.changed': 'Published · draft changes',
+  'admin.content.state.short.pinned': 'Scheduled',
+  'admin.block.insert.location.before': 'Before block {n}',
+  'admin.block.insert.end': 'At the end',
+  'admin.block.insert.invalid':
+    'This block type or insertion point is no longer available. Choose another block.',
+  'admin.block.image.preview': 'Larger preview',
+  'admin.block.image.decorative': 'Intentionally decorative',
+  'admin.block.image.altMissing': 'Description missing',
+  'admin.ui.catalogue.blockInserter': 'Block chooser',
+  'admin.ui.catalogue.blockInserter.intro':
+    'The same native choices before a block and at the end. Search is optional.',
+  'admin.ui.catalogue.writingSheet': 'Writing sheet',
+  'admin.ui.catalogue.writingSheet.intro':
+    'Tools and labels stay outside the words; the surface follows the colour scheme.',
 } as const;
 
 export type UiKey = keyof typeof en;
