@@ -32,6 +32,7 @@
   import PublicationDrawer from '#lib/admin/ui/feedback/PublicationDrawer.svelte';
   import WritingSurface from '#lib/editor/WritingSurface.svelte';
   import BlockFields from '#lib/admin/BlockFields.svelte';
+  import HeroAltRow from '#lib/admin/hero-alt/HeroAltRow.svelte';
   import Diff from '#lib/admin/Diff.svelte';
   import Inherited from '#lib/admin/Inherited.svelte';
   import { issueLabel } from '#lib/admin/issue-label.js';
@@ -213,8 +214,18 @@
     slug: 'admin.content.slug',
     heroAlt: 'admin.content.field.heroAlt',
   };
+  /** A stored value: a refused post carries only the locale on screen. */
+  const saved = (k: string): string => {
+    const x = data.values[k];
+    return typeof x === 'string' ? x : '';
+  };
   /** Whether a refused save named this field. */
   const flagged = (name: string) => issues.some((i) => i.name === name);
+  /** A refused save, or a refused publish, which names its issues with a link instead (#158). */
+  const heroAltRefused = $derived(
+    flagged('heroAlt') ||
+      !!(form && 'issues' in form && form.issues?.some((i) => i.field === 'heroAlt'))
+  );
   /** A field name as words: a document field's label, or a block field's plus its locale. */
   const fieldLabel = (name: string): string => {
     if (name in DOC_FIELDS) return t(DOC_FIELDS[name]!);
@@ -691,64 +702,20 @@
       upload={data.upload}
     >
       {#snippet related()}
-        {#if v('heroImageId')}
-          <!-- #99: the hero's use, like an image block's: decorative, or described per locale. The
-         screen's script hides the empty alt while the box is ticked (data-alt-of). The marker
-         tells the server the box was on the form, so an unticked box is not a box never shown.
-         A rare choice (MY-110 B3): folded while the image is decorative and nothing is wrong. -->
-          <input type="hidden" name="heroAltShown" value="1" />
-          <details
-            class="ui-fold item-hero-alt"
-            open={v('heroDecorative') !== 'on' || flagged('heroAlt')}
-          >
-            <summary>{t('admin.content.field.heroAltFold')}</summary>
-            <Checkbox
-              id="heroDecorative"
-              name="heroDecorative"
-              label={t('admin.block.field.decorative')}
-              hint={t('admin.content.field.heroDecorativeHint')}
-              checked={v('heroDecorative') === 'on'}
-            />
-            <div class="ui-block-alt" data-alt-of="heroDecorative">
-              <Field
-                id="heroAlt"
-                label={t('admin.content.field.heroAlt')}
-                locale={data.locale}
-                invalid={flagged('heroAlt')}
-              >
-                {#snippet control(attributes)}
-                  <textarea
-                    name="heroAlt.{work}"
-                    maxlength="1000"
-                    rows="2"
-                    lang={work}
-                    {...attributes}>{v(`heroAlt.${work}`)}</textarea
-                  >
-                {/snippet}
-              </Field>
-            </div>
-          </details>
-        {/if}
-        {#if article}
-          <Select
-            id="headerLayout"
-            name="headerLayout"
-            label={t('admin.content.field.headerLayout')}
-            hint={t('admin.content.field.headerLayoutHint')}
-            locale={data.locale}
-            size="m"
-            value={v('headerLayout') || 'standard'}
-            options={[
-              { value: 'standard', label: t('admin.content.headerLayout.standard') },
-              { value: 'cover', label: t('admin.content.headerLayout.cover') },
-            ]}
-          />
-          {#if v('headerLayout') === 'cover' && !v('heroImageId')}
-            <Notice tone="warning" live={false}
-              ><p>{t('admin.content.headerLayout.noImage')}</p></Notice
-            >
-          {/if}
-        {/if}
+        <HeroAltRow
+          locale={data.locale}
+          {work}
+          locales={docLocales}
+          image={v('heroImageId')}
+          savedImage={saved('heroImageId')}
+          text={v(`heroAlt.${work}`)}
+          savedText={saved(`heroAlt.${work}`)}
+          others={Object.fromEntries(
+            docLocales.filter((l) => l !== work).map((l) => [l, saved(`heroAlt.${l}`)])
+          )}
+          clearing={v('heroDecorative') === 'on'}
+          flagged={heroAltRefused}
+        />
       {/snippet}
     </MediaPicker>
     {#if data.heroConversion}
@@ -1362,6 +1329,27 @@
 
     <section aria-labelledby="this-item">
       <h2 id="this-item">{t('admin.content.item.title')}</h2>
+      {#if article}
+        <!-- #158: the choice sets how title, lead and image open the article together, so it does
+             not sit with the image. A hidden `headerLayout` on a page would give pages a layout. -->
+        <Select
+          id="headerLayout"
+          name="headerLayout"
+          label={t('admin.content.field.headerLayout')}
+          hint={t('admin.content.field.headerLayoutHint')}
+          locale={data.locale}
+          value={v('headerLayout') || 'standard'}
+          options={[
+            { value: 'standard', label: t('admin.content.headerLayout.standard') },
+            { value: 'cover', label: t('admin.content.headerLayout.cover') },
+          ]}
+        />
+        {#if v('headerLayout') === 'cover' && !v('heroImageId')}
+          <Notice tone="warning" live={false}
+            ><p>{t('admin.content.headerLayout.noImage')}</p></Notice
+          >
+        {/if}
+      {/if}
       <MetaList items={[{ term: t('admin.content.item.url'), value: data.item.path }]} />
       {#if data.item.slugFixed}
         <p class="ui-hint">{t('admin.content.slug.fixed')}</p>
@@ -1439,6 +1427,24 @@
 </EditPage>
 
 <style>
+  /* The hero and its description are one group (#158); the shared picker stays frameless. */
+  .item-header :global(#heroImageId) {
+    gap: 0;
+    padding: 0;
+    border: var(--border-width) solid var(--color-border-strong);
+    border-radius: var(--radius);
+  }
+  .item-header :global(#heroImageId > legend) {
+    margin-inline-start: var(--space-1);
+    padding-inline: var(--space-0);
+    margin-block-end: 0;
+  }
+  .item-header :global(#heroImageId .ui-media-picker-selection) {
+    padding: var(--space-1) var(--space-2);
+  }
+  .item-header :global(#heroImageId .ui-media-picker-related) {
+    display: block;
+  }
   .native-block {
     border: 0;
     padding: 0;

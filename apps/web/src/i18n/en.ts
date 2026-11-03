@@ -728,15 +728,38 @@ export const en = {
     "The block's image has its own caption; the header shows the caption of the image itself.",
   'admin.content.heroConversion.conflict.credit':
     "The block's image has its own credit; the header shows the credit of the image itself.",
-  'admin.content.field.headerLayout': 'Header layout',
-  'admin.content.field.headerLayoutHint': 'A cover needs a landscape main image.',
+  'admin.content.field.headerLayout': 'Article layout',
+  'admin.content.field.headerLayoutHint':
+    'Sets how the article opens. Standard: title, lead and then the image. Cover: the image full-screen with the title over it, the lead below. A cover needs a landscape image.',
   'admin.content.headerLayout.standard': 'Standard',
   'admin.content.headerLayout.cover': 'Cover (full-screen image)',
-  'admin.content.headerLayout.noImage': 'A cover without a main image shows the standard header.',
-  'admin.content.field.heroAltFold': 'Description for people who cannot see the image',
+  'admin.content.headerLayout.noImage':
+    'Without a hero image this article shows the standard layout.',
   'admin.content.field.heroAlt': 'Description of the main image (alt text)',
-  'admin.content.field.heroDecorativeHint':
-    'Tick when the image adds nothing the title and lead do not say. Untick to describe it for people who cannot see it.',
+  'admin.content.heroAlt.described': 'Description',
+  'admin.content.heroAlt.alsoMissing': 'Still missing in {locales}',
+  'admin.content.heroAlt.missing': 'Description missing in {locale}',
+  'admin.content.heroAlt.missingBody': 'Needed to publish this language.',
+  'admin.content.heroAlt.decorative': 'Decorative',
+  'admin.content.heroAlt.decorativeBody': 'No description; screen readers skip this image.',
+  'admin.content.heroAlt.clearedBody':
+    'Decorative after saving; the description in every language goes.',
+  'admin.content.heroAlt.fresh': 'New image, no description yet',
+  'admin.content.heroAlt.freshBody':
+    'The old description belongs to the previous image and goes in every language. Without new text this image becomes decorative.',
+  'admin.content.heroAlt.freshBodyFirst': 'Without a description this image becomes decorative.',
+  'admin.content.heroAlt.edit': 'Edit',
+  'admin.content.heroAlt.describe': 'Describe',
+  'admin.content.heroAlt.field': 'Description',
+  'admin.content.heroAlt.fieldIn': 'Description in {locale}',
+  'admin.content.heroAlt.hint':
+    'Describe what the image adds, for people who cannot see it. If it adds nothing to the title and lead, leave it empty: it is then decorative.',
+  'admin.content.heroAlt.empty':
+    'Leave empty if the image adds nothing to the title and lead; it is then decorative.',
+  'admin.content.heroAlt.emptyPartial':
+    'There is a description in {locales}. If you leave this empty, this language stays open.',
+  'admin.content.heroAlt.clear': 'Make decorative: remove the description in every language',
+  'admin.content.heroAlt.refused': 'Fill in the description in {locales}.',
   'admin.content.field.featuredImage': 'Featured image',
   'admin.content.field.featuredImageHint':
     'How this item appears where it is shown elsewhere on the site: in a list, a block or a card. Leaving it empty is fine: what is shown below applies.',

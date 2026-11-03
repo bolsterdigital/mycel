@@ -736,15 +736,38 @@ export const nl: Partial<Record<UiKey, string>> = {
     'Het beeld in het blok heeft een eigen bijschrift; de kop toont het bijschrift van het beeld zelf.',
   'admin.content.heroConversion.conflict.credit':
     'Het beeld in het blok heeft een eigen credit; de kop toont de credit van het beeld zelf.',
-  'admin.content.field.headerLayout': 'Vorm van de kop',
-  'admin.content.field.headerLayoutHint': 'Een cover vraagt een liggend hoofdbeeld.',
+  'admin.content.field.headerLayout': 'Artikellayout',
+  'admin.content.field.headerLayoutHint':
+    'Bepaalt hoe het artikel opent. Standaard: titel, intro en daaronder het beeld. Cover: het beeld schermvullend met de titel eroverheen, de intro eronder. Een cover vraagt een liggend beeld.',
   'admin.content.headerLayout.standard': 'Standaard',
   'admin.content.headerLayout.cover': 'Cover (beeld schermvullend)',
-  'admin.content.headerLayout.noImage': 'Een cover zonder hoofdbeeld toont de standaardkop.',
-  'admin.content.field.heroAltFold': 'Beschrijving voor wie het beeld niet ziet',
+  'admin.content.headerLayout.noImage':
+    'Zonder hero-afbeelding toont dit artikel de standaardlayout.',
   'admin.content.field.heroAlt': 'Beschrijving van het hoofdbeeld (alt-tekst)',
-  'admin.content.field.heroDecorativeHint':
-    'Aangevinkt als het beeld niets toevoegt aan wat de titel en de intro zeggen. Vink uit om het te beschrijven voor wie het niet ziet.',
+  'admin.content.heroAlt.described': 'Beschrijving',
+  'admin.content.heroAlt.alsoMissing': 'Ontbreekt nog in het {locales}',
+  'admin.content.heroAlt.missing': 'Beschrijving ontbreekt in het {locale}',
+  'admin.content.heroAlt.missingBody': 'Nodig om deze taal te publiceren.',
+  'admin.content.heroAlt.decorative': 'Decoratief',
+  'admin.content.heroAlt.decorativeBody': 'Geen beschrijving; schermlezers slaan dit beeld over.',
+  'admin.content.heroAlt.clearedBody':
+    'Decoratief na opslaan; de beschrijving in alle talen vervalt.',
+  'admin.content.heroAlt.fresh': 'Nieuw beeld, nog geen beschrijving',
+  'admin.content.heroAlt.freshBody':
+    'De oude beschrijving hoort bij het vorige beeld en vervalt in alle talen. Zonder nieuwe tekst wordt dit beeld decoratief.',
+  'admin.content.heroAlt.freshBodyFirst': 'Zonder beschrijving wordt dit beeld decoratief.',
+  'admin.content.heroAlt.edit': 'Bewerken',
+  'admin.content.heroAlt.describe': 'Beschrijven',
+  'admin.content.heroAlt.field': 'Beschrijving',
+  'admin.content.heroAlt.fieldIn': 'Beschrijving in het {locale}',
+  'admin.content.heroAlt.hint':
+    'Beschrijf wat het beeld toevoegt, voor wie het niet ziet. Voegt het niets toe aan titel en intro, laat het dan leeg: dan is het decoratief.',
+  'admin.content.heroAlt.empty':
+    'Laat leeg als het beeld niets toevoegt aan titel en intro; dan is het decoratief.',
+  'admin.content.heroAlt.emptyPartial':
+    'Er staat een beschrijving in het {locales}. Laat je dit leeg, dan blijft deze taal open.',
+  'admin.content.heroAlt.clear': 'Decoratief maken: wis de beschrijving in alle talen',
+  'admin.content.heroAlt.refused': 'Vul de beschrijving in het {locales} in.',
   'admin.content.field.featuredImage': 'Uitgelicht beeld',
   'admin.content.field.featuredImageHint':
     'Hoe dit item verschijnt waar het elders op de site staat: in een overzicht, een blok of een kaart. Leeg laten is goed: dan geldt wat eronder staat.',

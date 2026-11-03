@@ -657,8 +657,12 @@ test.describe('content-routes', () => {
       await page.setViewportSize({ width: 1280, height: 900 });
       await login(page, `/admin/probe/content/${target.item.id}`);
       // The edit screen shows the hero as described, with the alt of the locale on screen.
+      // Its state stands without a click (#158); the line opens for the field.
+      const heroAltLine = page.locator('[data-hero-alt]');
+      await expect(heroAltLine.locator('summary')).toContainText('Een straat met bomen.');
       await expect(page.locator('#heroDecorative')).not.toBeChecked();
       await expect(page.locator('#heroAlt')).toHaveValue('Een straat met bomen.');
+      await heroAltLine.locator('summary').click();
       await expectNoAxeViolations(page);
       await page.setViewportSize(NARROW);
       for (const size of ['100%', '200%'] as const) {
@@ -683,6 +687,217 @@ test.describe('content-routes', () => {
           return letter && parseFloat(letter.fontSize) > parseFloat(getComputedStyle(p).fontSize);
         })
       ).toBe(true);
+    }
+  });
+
+  test('the hero description says its state without a click, and leaving it empty is decorative (#158)', async ({
+    page,
+    request,
+    browser,
+  }) => {
+    const { items } = await callApi<{ items: { id: string }[] }>(request, 'content.item.list', {
+      type: 'article',
+      slug: 'quality-article-v3',
+    });
+    const { revision: source } = await callApi<{
+      revision: { document: { blocks: { type: string; props: { mediaId?: string } }[] } };
+    }>(request, 'content.item.get', { itemId: items[0]!.id });
+    const mediaId = source.document.blocks.find((b) => b.type === 'image')?.props.mediaId;
+    expect(mediaId).toBeTruthy();
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `hero-alt-${test.info().project.name}-${randomBytes(4).toString('hex')}`,
+      document: {
+        type: 'article',
+        defaultLocale: 'nl',
+        locales: ['nl', 'en'],
+        title: { nl: 'Een beeld', en: 'An image' },
+        heroImageId: mediaId,
+        heroAlt: { nl: 'Een straat.' },
+        blocks: [],
+      },
+    });
+    const edit = `/admin/probe/content/${item.id}`;
+    const line = page.locator('[data-hero-alt]');
+    const summary = line.locator('summary');
+    const field = page.locator('#heroAlt');
+    const stored = async () =>
+      (
+        await callApi<{ revision: { document: { heroAlt?: Record<string, string> } } }>(
+          request,
+          'content.item.get',
+          { itemId: item.id }
+        )
+      ).revision.document.heroAlt;
+    const save = async () => {
+      await page.getByRole('button', { name: 'Opslaan' }).first().click();
+      await expect(page.getByRole('status').first()).toContainText('Opgeslagen');
+    };
+
+    // Filled here, missing in the other language: all of it visible while the line is closed.
+    await login(page, `${edit}?locale=nl`);
+    await expect(line).not.toHaveAttribute('open');
+    await expect(field).toBeHidden();
+    for (const words of ['Beschrijving', '· Nederlands', 'Een straat.', 'Bewerken'])
+      await expect(summary).toContainText(words, { useInnerText: true });
+    await expect(summary).toContainText('Ontbreekt nog in het Engels', { useInnerText: true });
+    await expect(line).toHaveAttribute('data-tone', 'ok');
+    // The layout belongs to the whole opening, not to the image.
+    await expect(page.locator('.ui-edit-side #headerLayout')).toHaveCount(1);
+    await expect(page.locator('.item-header #headerLayout')).toHaveCount(0);
+
+    // The error tone on text carries no green check. Set by hand: no screen reaches it yet, because
+    // publishing saves first and the panel offers only the language on screen.
+    if (isA11y()) {
+      await line.evaluate((el: HTMLElement) => (el.dataset.tone = 'err'));
+      const described = line.locator('[data-hero-alt-state="described"]');
+      await expect(described.locator('.icon.err')).toBeVisible();
+      await expect(described.locator('.icon.ok')).toBeHidden();
+    }
+
+    // Missing on screen, with another language as reference: the refusal becomes an error.
+    await page.goto(`${edit}?locale=en`);
+    await expect(summary).toContainText('Beschrijving ontbreekt in het Engels', {
+      useInnerText: true,
+    });
+    await expect(summary).toContainText('Beschrijven', { useInnerText: true });
+    await expect(line).toHaveAttribute('data-tone', 'warn');
+    await openPublication(page);
+    const en = page.locator('#publication-en');
+    await en.getByRole('link', { name: /hoofdbeeld/ }).click();
+    await expect(line).toHaveAttribute('open');
+    await expect(page.locator('[data-hero-alt-others]')).toContainText('Een straat.');
+    await page.goto(`${edit}?locale=en`);
+    await openPublication(page);
+    await page
+      .locator('#publication-en')
+      .getByRole('button', { name: 'Publiceren', exact: true })
+      .click();
+    await expect(line).toHaveAttribute('data-tone', 'err');
+    await expect(line).toHaveAttribute('open');
+    await expect(field).toHaveAttribute('aria-invalid', 'true');
+    await expect(line).toContainText('Vul de beschrijving in het Engels in.');
+    if (isA11y()) await expectNoAxeViolations(page);
+
+    // Typed: the status follows with a script (it also ends the refusal), and after the save.
+    await closePublication(page);
+    await field.fill('A street.');
+    if (isA11y()) {
+      await expect(summary).toContainText('A street.', { useInnerText: true });
+      await expect(line).toHaveAttribute('data-tone', 'ok');
+      await expect(field).not.toHaveAttribute('aria-invalid');
+    }
+    await save();
+    await expect(summary).toContainText('A street.', { useInnerText: true });
+    await expect(summary).not.toContainText('Ontbreekt', { useInnerText: true });
+    expect(await stored()).toEqual({ nl: 'Een straat.', en: 'A street.' });
+
+    // Emptied in one of two languages: this one stays open, the other keeps its text.
+    await page.goto(`${edit}?locale=nl`);
+    await summary.click();
+    await field.fill('');
+    await save();
+    await expect(summary).toContainText('Beschrijving ontbreekt in het Nederlands', {
+      useInnerText: true,
+    });
+    expect(await stored()).toEqual({ en: 'A street.' });
+
+    // The box removes every language, and says so before the save.
+    await summary.click();
+    await page.locator('#heroDecorative').check();
+    if (isA11y())
+      await expect(summary).toContainText('de beschrijving in alle talen vervalt', {
+        useInnerText: true,
+      });
+    await save();
+    await expect(summary).toContainText('Decoratief', { useInnerText: true });
+    await expect(line).toHaveAttribute('data-tone', 'neutral');
+    expect(await stored()).toBeUndefined();
+
+    // Empty in the only language with text is decorative, without a box or a refusal.
+    await summary.click();
+    await expect(page.locator('#heroDecorative')).toHaveCount(0);
+    await field.fill('Alleen hier.');
+    await save();
+    expect(await stored()).toEqual({ nl: 'Alleen hier.' });
+    await summary.click();
+    await field.fill('');
+    await save();
+    await expect(summary).toContainText('Decoratief', { useInnerText: true });
+    expect(await stored()).toBeUndefined();
+
+    if (!isA11y()) return;
+    // A described image, replaced: what described the old picture goes, and comes back with it.
+    await summary.click();
+    await field.fill('Terug.');
+    await save();
+    const picker = page.locator('#heroImageId');
+    const choose = async (radio: string) => {
+      await picker.getByRole('button', { name: /Vervangen|Beeld kiezen/ }).click();
+      await picker.locator(radio).first().click();
+      await picker.getByRole('button', { name: 'Klaar' }).click();
+    };
+    await choose(`input[type="radio"]:not([value=""]):not([value="${mediaId}"])`);
+    await expect(summary).toContainText('Nieuw beeld, nog geen beschrijving', {
+      useInnerText: true,
+    });
+    await expect(line).toHaveAttribute('data-tone', 'info');
+    await expect(field).toHaveValue('');
+    await choose(`input[type="radio"][value="${mediaId}"]`);
+    await expect(summary).toContainText('Terug.', { useInnerText: true });
+    await expect(field).toHaveValue('Terug.');
+    await choose('input[type="radio"][value=""]');
+    await expect(line).toBeHidden();
+    await choose(`input[type="radio"][value="${mediaId}"]`);
+    await save();
+    // The keyboard: Enter opens into the field, Escape closes back onto the line.
+    await summary.focus();
+    await page.keyboard.press('Enter');
+    await expect(field).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(line).not.toHaveAttribute('open');
+    await expect(summary).toBeFocused();
+
+    // No image yet: no line, until the first one is chosen.
+    const { item: bare } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `hero-alt-bare-${test.info().project.name}-${randomBytes(4).toString('hex')}`,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: 'Nog geen beeld' },
+        blocks: [],
+      },
+    });
+    await page.goto(`/admin/probe/content/${bare.id}`);
+    await expect(line).toBeHidden();
+    await picker.getByRole('button', { name: 'Beeld kiezen' }).click();
+    await picker.locator('input[type="radio"]:not([value=""])').first().click();
+    await picker.getByRole('button', { name: 'Klaar' }).click();
+    await expect(summary).toContainText('Zonder beschrijving wordt dit beeld decoratief.', {
+      useInnerText: true,
+    });
+    await expect(page.locator('#headerLayout')).toHaveCount(0);
+
+    // The UI gate: status and action, image and Replace, the side column, at the longest language.
+    for (const locale of ['nl-NL', 'en-GB']) {
+      const context = await browser.newContext({
+        locale,
+        viewport: NARROW,
+        baseURL: 'http://127.0.0.1:4173',
+        extraHTTPHeaders: { 'x-forwarded-proto': 'http' },
+      });
+      const narrow = await context.newPage();
+      await login(narrow, `${edit}?locale=en`);
+      await narrow.locator('[data-hero-alt] summary').click();
+      for (const size of TEXT_SIZES) {
+        await setTextSize(narrow, size);
+        await layoutGate(narrow, `hero description, ${locale}, ${size}`, '#heroImageId');
+        await layoutGate(narrow, `side column, ${locale}, ${size}`, '.ui-edit-side');
+        await narrow.locator('#heroImageId').screenshot({
+          path: test.info().outputPath(`hero-alt-${locale}-${size.replace('%', '')}.png`),
+        });
+      }
+      await context.close();
     }
   });
 

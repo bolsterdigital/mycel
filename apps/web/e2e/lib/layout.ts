@@ -79,6 +79,8 @@ export function layoutProblems(page: Page, within = 'body'): Promise<string[]> {
       '.ui-breadcrumb a',
       '.ui-table th a',
       '.ui-fold > summary',
+      '[data-hero-alt] > summary',
+      '[data-hero-alt] .act',
       '.ui-choice',
       '.admin-sidebar a',
       '.admin-sidebar summary',

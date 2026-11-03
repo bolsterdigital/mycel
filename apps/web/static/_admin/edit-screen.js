@@ -15,6 +15,8 @@
 //   copy's or neighbour's "Edit", the first field of a new block;
 // - a link or a refused control inside a closed fold opens that fold first (the tabs script
 //   shows a hidden tab the same way), so the browser can scroll to it and focus it;
+// - the hero's description line says what the fields say now (#158), and clears what described
+//   the previous picture when another image is chosen;
 // - an image block's alt text hides while the image is decorative and the field is empty, and a
 //   picture that fails to load turns its card into the "not available" state;
 // - a search field over each block type list that narrows it, Enter adding the first match;
@@ -98,7 +100,7 @@ if (form instanceof HTMLFormElement) {
     if (!target || target.closest('dialog')) return;
     if (event.defaultPrevented && !target.closest('.ProseMirror')) return;
     const fold = target.closest(
-      'details.ui-confirm[open], details.ui-block-card-more[open], details.ui-block-card-fold[open], details.ui-block-insert[open], details[data-shortcuts][open]'
+      'details.ui-confirm[open], details.ui-block-card-more[open], details.ui-block-card-fold[open], details.ui-block-insert[open], details[data-shortcuts][open], details[data-hero-alt][open]'
     );
     if (!fold) return;
     event.preventDefault();
@@ -400,6 +402,93 @@ if (form instanceof HTMLFormElement) {
     };
     box.addEventListener('change', sync);
     sync();
+  }
+
+  // The hero's description line, live (#158). The same order as `lib/admin/hero-alt/hero-alt.ts`,
+  // which the server renders with; every state's words are in the markup, so this only chooses.
+  const heroAlt = form.querySelector('details[data-hero-alt]');
+  const heroText = heroAlt?.querySelector('textarea');
+  if (heroAlt instanceof HTMLDetailsElement && heroText instanceof HTMLTextAreaElement) {
+    const { savedImage, savedText } = heroAlt.dataset;
+    const others = Number(heroAlt.dataset.others);
+    const storedOthers = Number(heroAlt.dataset.storedOthers);
+    const box = heroAlt.querySelector('input[name="heroDecorative"]');
+    const chosenImage = () =>
+      [...form.querySelectorAll('input[type="radio"][name="heroImageId"]')].find((i) => i.checked)
+        ?.value ?? '';
+    const part = (selector) => heroAlt.querySelector(selector);
+    const sync = () => {
+      const image = chosenImage();
+      const replaced = !!image && image !== savedImage;
+      const text = heroText.value.trim();
+      const flagged = 'flagged' in heroAlt.dataset;
+      const kept = replaced ? 0 : storedOthers;
+      const clearing = box instanceof HTMLInputElement && box.checked;
+      const [state, tone] = clearing
+        ? ['cleared', 'neutral']
+        : text
+          ? ['described', flagged ? 'err' : 'ok']
+          : flagged
+            ? ['missing', 'err']
+            : replaced
+              ? ['fresh', 'info']
+              : kept
+                ? ['missing', 'warn']
+                : ['decorative', 'neutral'];
+      heroAlt.hidden = !image;
+      heroAlt.dataset.tone = tone;
+      for (const words of heroAlt.querySelectorAll('[data-hero-alt-state]'))
+        words.hidden = words.dataset.heroAltState !== state;
+      part('[data-hero-alt-quote]').textContent = heroText.value;
+      part('[data-hero-alt-extra="kept"]').hidden =
+        state !== 'described' || replaced || others === storedOthers;
+      part('[data-hero-alt-extra="replaced"]').hidden =
+        state !== 'described' || !replaced || !others;
+      const edit = state === 'described' || state === 'cleared';
+      part('[data-hero-alt-action="edit"]').hidden = !edit;
+      part('[data-hero-alt-action="describe"]').hidden = edit;
+      part('[data-hero-alt-empty="decorative"]').hidden = kept > 0;
+      for (const standing of heroAlt.querySelectorAll(
+        '[data-hero-alt-empty="open"], [data-hero-alt-others]'
+      ))
+        standing.hidden = kept === 0;
+    };
+    /** What was typed answered a refusal: the error goes with it. */
+    const settle = () => {
+      if (!('flagged' in heroAlt.dataset)) return;
+      delete heroAlt.dataset.flagged;
+      heroText.removeAttribute('aria-invalid');
+      heroText.closest('.ui-field')?.classList.remove('invalid');
+      heroText.closest('.ui-field')?.querySelector('.ui-error')?.remove();
+      heroText.setAttribute(
+        'aria-describedby',
+        heroText.getAttribute('aria-describedby')?.replace('heroAlt-error', '').trim() ?? ''
+      );
+    };
+    heroText.addEventListener('input', () => {
+      settle();
+      sync();
+    });
+    box?.addEventListener('change', () => {
+      settle();
+      sync();
+    });
+    form.addEventListener('change', (event) => {
+      const radio = event.target;
+      if (!(radio instanceof HTMLInputElement) || radio.name !== 'heroImageId') return;
+      // A stored description described the old picture (the server keeps only text typed over it);
+      // back on the stored image it applies again. What someone typed stays in both directions.
+      const image = chosenImage();
+      if (image && image !== savedImage) {
+        if (heroText.value === savedText) heroText.value = '';
+        if (box instanceof HTMLInputElement) box.checked = false;
+      } else if (image && !heroText.value.trim()) heroText.value = savedText ?? '';
+      sync();
+    });
+    // Opening is a wish to write: the field, as a click on a block's words lands in its field.
+    heroAlt.querySelector(':scope > summary').addEventListener('click', () => {
+      if (!heroAlt.open) requestAnimationFrame(() => heroText.focus({ preventScroll: true }));
+    });
   }
 
   const broken = (img) => img.closest('figure')?.setAttribute('data-broken', '');
