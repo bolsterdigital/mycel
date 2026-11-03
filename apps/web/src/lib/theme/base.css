@@ -19,6 +19,14 @@
   initial-value: 640px;
 }
 
+/* Animate interaction progress, not theme colours: a palette or stylesheet change must apply
+   atomically, rather than interpolating between opposite foreground/background polarities. */
+@property --action-progress {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+
 @layer tokens {
   :root {
     --space-1: calc(0.5rem * var(--density));
@@ -194,7 +202,7 @@
   }
   .image figcaption,
   .video figcaption {
-    margin-block-start: var(--space-1);
+    margin-block-start: 4px;
     padding-inline: var(--caption-inset);
     text-align: start;
     font-size: var(--step--1);
@@ -266,7 +274,7 @@
   }
   .page > .page-cover {
     width: 100%;
-    margin-block-end: var(--space-1);
+    margin-block-end: 4px;
   }
   .page-cover {
     --site-header-height: calc(2 * var(--space-2) + var(--tap) + 2px);
@@ -328,7 +336,7 @@
   }
   .page > .page-cover-caption {
     width: 100%;
-    margin-block: 0 var(--space-3);
+    margin-block: 4px var(--space-3);
     padding-inline: var(--gutter);
     font-size: var(--step--1);
     color: var(--color-muted-fg);
@@ -499,8 +507,43 @@
     background: var(--color-body-bg);
     border-color: currentColor;
   }
-  .button:hover {
-    text-decoration: underline;
+  /* Public buttons and FAQ bars share one checked sRGB path. Only pointer/keyboard/open
+     progress animates; theme changes and initial stylesheet application set their pairs at once.
+     Without registered-property animation support the feedback changes immediately. */
+  .page:not(.admin) .button,
+  .faq-accordion summary {
+    --action-progress: 0;
+    --action-base-fg: var(--color-primary-fg);
+    --action-base-bg: var(--color-primary-bg);
+    --action-fg: var(--color-primary-active-fg);
+    --action-bg: var(--color-primary-active-bg);
+    color: var(--action-base-fg);
+    background-color: var(--action-base-bg);
+    color: color-mix(
+      in srgb,
+      var(--action-base-fg) calc((1 - var(--action-progress)) * 100%),
+      var(--action-fg)
+    );
+    background-color: color-mix(
+      in srgb,
+      var(--action-base-bg) calc((1 - var(--action-progress)) * 100%),
+      var(--action-bg)
+    );
+    transition: --action-progress 150ms ease-out;
+  }
+  .page:not(.admin) .button.secondary {
+    --action-base-fg: var(--color-body-fg);
+    --action-base-bg: var(--color-body-bg);
+    --action-fg: var(--color-body-active-fg);
+    --action-bg: var(--color-body-active-bg);
+  }
+  .page:not(.admin) .button:is(:hover, :focus-visible) {
+    --action-progress: 1;
+    text-decoration: none;
+  }
+  .page:not(.admin) .button:focus-visible {
+    outline-color: currentColor;
+    outline-offset: -0.25rem;
   }
 
   /* Hero. `cover`: an opaque surface panel over the image, never text on the photo. */
@@ -574,6 +617,12 @@
     color: var(--color-primary-fg);
     background: var(--color-primary-bg);
   }
+  .page:not(.admin) .cta-band .button:not(.secondary) {
+    --action-base-fg: var(--color-accent-fg);
+    --action-base-bg: var(--color-accent-bg);
+    --action-fg: var(--color-accent-active-fg);
+    --action-bg: var(--color-accent-active-bg);
+  }
   .cta-band .button {
     color: var(--color-accent-fg);
     background: var(--color-accent-bg);
@@ -640,11 +689,10 @@
     margin-block: var(--space-3) var(--space-1);
   }
   /* The accordion reads as the Dreamkit FAQ: every item a card, the question a bar in the
-     primary pair that turns to the surface pair on hover and when open, a plus of two bars that
-     turns into a minus, the answer on the surface pair. Only validated pairs, no script.
-     The pairs swap at once: a fade between them passes through colours no check measured, and
-     axe caught the question failing contrast mid-fade. Only the icon, which carries no text,
-     moves.
+     primary pair with a subtle active pair on hover, focus and when open, a plus of two bars
+     that turns into a minus, the answer on the surface pair. The active tokens preserve colour
+     polarity and are contrast-checked through their fade, unlike a primary/surface inversion.
+     Browser fixtures also sample the actual transition, rather than checking endpoints only.
      Rejected: drawing the bars with gradients, which forced colours would erase; borders keep
      the icon visible there. */
   .faq-accordion details {
@@ -663,25 +711,23 @@
     padding: var(--space-2) var(--inset);
     list-style: none;
     cursor: pointer;
-    color: var(--color-primary-fg);
-    background: var(--color-primary-bg);
   }
   .faq-accordion summary::-webkit-details-marker {
     display: none;
   }
   .faq-accordion details[open] > summary {
-    color: var(--color-surface-fg);
-    background: var(--color-surface-bg);
+    --action-progress: 1;
   }
   @media (hover: hover) {
     .faq-accordion summary:hover {
-      color: var(--color-surface-fg);
-      background: var(--color-surface-bg);
+      --action-progress: 1;
     }
   }
-  /* The card clips its corners, which would clip an outline outside the bar too: draw it just
-     inside. The theme check measures the focus colour 3:1 on every role background. */
+  /* The card clips an outside outline: draw it inside, using the active foreground whose
+     contrast against this background is at least 4.5:1. */
   .faq-accordion summary:focus-visible {
+    --action-progress: 1;
+    outline-color: currentColor;
     outline-offset: -0.25rem;
   }
   .faq-accordion summary > :is(h2, h3) {

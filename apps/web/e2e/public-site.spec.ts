@@ -8,7 +8,14 @@ import { randomBytes } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { type ContentDocument, THEME_PRESETS, systemPrincipal, useCases } from '@mycel/core';
+import {
+  type ContentDocument,
+  DEFAULT_THEME,
+  THEME_PRESETS,
+  contrastRatio,
+  systemPrincipal,
+  useCases,
+} from '@mycel/core';
 import { testTenant } from '@mycel/db/testing';
 import { type APIRequestContext, type Page, chromium, expect, test } from '@playwright/test';
 import sharp from 'sharp';
@@ -18,6 +25,7 @@ import { NARROW, TEXT_SIZES, layoutGate, setTextSize, setTextSpacing } from './l
 import { login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { callApi, requireApi } from './lib/api';
+import { themeCss } from '../src/lib/theme/tokens';
 
 // The block renderer on two composed pages (TODO #8c1, brief #8c § 5), seeded by scripts/e2e/e2e.mjs
 // from the registry's own examples: `campagne` (hero cover, rich text, cta card, wide image, FAQ
@@ -204,6 +212,146 @@ test.describe('blocks', () => {
         expect(bar.room).toBeGreaterThanOrEqual(20);
       }
     });
+
+    for (const locale of ['nl', 'en'])
+      for (const [name, theme] of Object.entries({ default: DEFAULT_THEME, ...THEME_PRESETS }))
+        for (const variant of ['card', 'band'])
+          test(`public action colours ${variant}/${name}/${locale} stay readable through hover and focus transitions`, async ({
+            page,
+          }) => {
+            onlyA11y('computed colours and actual CSS transitions');
+            await page.setViewportSize(NARROW);
+            await open(
+              page,
+              `/probe/${locale === 'en' ? 'en/' : ''}${variant === 'card' ? 'campagne' : 'blok-cta-band'}`
+            );
+            await setTextSize(page, '200%');
+            const sheet = await page.evaluateHandle(() => {
+              const sheet = new CSSStyleSheet();
+              document.adoptedStyleSheets.push(sheet);
+              return sheet;
+            });
+            await sheet.evaluate((sheet, css) => sheet.replaceSync(css), themeCss(theme));
+            for (const colorScheme of ['light', 'dark'] as const) {
+              await page.emulateMedia({ colorScheme, reducedMotion: 'no-preference' });
+              for (const selector of [
+                '.cta .button:not(.secondary)',
+                ...(variant === 'card' ? ['.cta .button.secondary', '.faq-accordion summary'] : []),
+              ]) {
+                const action = page.locator(selector).first();
+                await action.scrollIntoViewIfNeeded();
+                await page.mouse.move(0, 0);
+                await action.evaluate(async (el) => {
+                  (el as HTMLElement).blur();
+                  await Promise.all(el.getAnimations().map((a) => a.finished));
+                });
+                const before = await action.evaluate((el) => {
+                  const css = getComputedStyle(el);
+                  return [css.color, css.backgroundColor];
+                });
+                // Pause at transition start, so a busy runner cannot finish the 150 ms fade
+                // before the test reads it. No product duration or wall-clock wait is changed.
+                await action.evaluate((el) =>
+                  el.addEventListener(
+                    'transitionrun',
+                    () => {
+                      for (const animation of el.getAnimations()) animation.pause();
+                    },
+                    { once: true }
+                  )
+                );
+                await action.hover();
+                const samples = await action.evaluate(async (el) => {
+                  const animations = el.getAnimations();
+                  await Promise.all(animations.map((a) => a.ready));
+                  for (const a of animations) a.pause();
+                  const canvas = document.createElement('canvas');
+                  canvas.width = canvas.height = 1;
+                  const ctx = canvas.getContext('2d')!;
+                  const hex = (colour: string) => {
+                    ctx.fillStyle = colour;
+                    ctx.fillRect(0, 0, 1, 1);
+                    return (
+                      '#' +
+                      [...ctx.getImageData(0, 0, 1, 1).data]
+                        .slice(0, 3)
+                        .map((n) => n.toString(16).padStart(2, '0'))
+                        .join('')
+                    );
+                  };
+                  return [0, 0.25, 0.5, 0.75, 1].map((fraction) => {
+                    for (const a of animations)
+                      a.currentTime = Number(a.effect!.getTiming().duration) * fraction;
+                    const css = getComputedStyle(el);
+                    return {
+                      fg: css.color,
+                      bg: css.backgroundColor,
+                      fgHex: hex(css.color),
+                      bgHex: hex(css.backgroundColor),
+                      decoration: css.textDecorationLine,
+                      animations: animations.length,
+                    };
+                  });
+                });
+                expect(samples[0]!.animations, `${name}/${colorScheme}/${selector}`).toBe(1);
+                expect([samples[4]!.fg, samples[4]!.bg]).not.toEqual(before);
+                for (const sample of samples) {
+                  expect(
+                    contrastRatio(sample.fgHex, sample.bgHex),
+                    `${name}/${colorScheme}/${selector}`
+                  ).toBeGreaterThanOrEqual(4.5);
+                  if (selector.includes('button')) expect(sample.decoration).toBe('none');
+                }
+                await action.evaluate((el) => {
+                  for (const a of el.getAnimations()) a.finish();
+                });
+                await page.mouse.move(0, 0);
+                await action.evaluate(async (el) => {
+                  await Promise.all(el.getAnimations().map((a) => a.finished));
+                });
+                await action.focus();
+                await action.evaluate(async (el) => {
+                  await Promise.all(el.getAnimations().map((a) => a.finished));
+                });
+                const focused = await action.evaluate((el) => {
+                  const css = getComputedStyle(el);
+                  return {
+                    fg: css.color,
+                    bg: css.backgroundColor,
+                    outline: css.outlineStyle,
+                    width: css.outlineWidth,
+                  };
+                });
+                expect([focused.fg, focused.bg]).toEqual([samples[4]!.fg, samples[4]!.bg]);
+                expect(focused.outline).not.toBe('none');
+                expect(parseFloat(focused.width)).toBeGreaterThanOrEqual(3);
+                await action.evaluate((el) => (el as HTMLElement).blur());
+              }
+              await page.emulateMedia({ reducedMotion: 'reduce' });
+              for (const selector of [
+                '.cta .button',
+                ...(variant === 'card' ? ['.faq-accordion summary'] : []),
+              ])
+                expect(
+                  await page
+                    .locator(selector)
+                    .first()
+                    .evaluate((el) => getComputedStyle(el).transitionDuration)
+                ).toBe('0s');
+              await layoutGate(
+                page,
+                `${name}/${colorScheme}/${locale} actions at 320/200%`,
+                '.cta'
+              );
+              await expectNoAxeViolations(page);
+            }
+            await page.screenshot({
+              path: test
+                .info()
+                .outputPath(`public-polish-${variant}-${name}-${locale}-320-200.png`),
+              fullPage: true,
+            });
+          });
 
     test('the article keeps its outline and its footnote', async ({ page }) => {
       await open(page, '/probe/artikel');
@@ -581,6 +729,16 @@ test.describe('content-routes', () => {
       await expect(cover.locator('h1 span')).toBeVisible();
       await expect(page.locator('h1')).toHaveCount(1);
       await expect(cover.locator('img')).toHaveAttribute('fetchpriority', 'high');
+      if (isA11y())
+        expect(
+          await page
+            .locator('.page-cover-caption')
+            .evaluate(
+              (caption) =>
+                caption.getBoundingClientRect().top -
+                document.querySelector('.page-cover')!.getBoundingClientRect().bottom
+            )
+        ).toBeCloseTo(4, 1);
       await expect(cover.locator('img')).toHaveAttribute('alt', 'Een straat met bomen.');
       // The screen under the site's header, whatever the viewport; the page keeps its width.
       const boxes = await page.evaluate(() => ({
@@ -901,7 +1059,7 @@ test.describe('grid-compositions', () => {
           const box = caption.getBoundingClientRect();
           return {
             img: { left: img.left, right: img.right, width: img.width },
-            caption: { left: box.left, width: box.width },
+            caption: { left: box.left, width: box.width, gap: box.top - img.bottom },
             inset: parseFloat(getComputedStyle(caption).paddingInlineStart),
             figure: el.getBoundingClientRect().right,
           };
@@ -926,6 +1084,7 @@ test.describe('grid-compositions', () => {
       const f = wide[key];
       expect(f.caption.left).toBeCloseTo(f.img.left, 0);
       expect(f.caption.width).toBeCloseTo(f.img.width, 0);
+      expect(f.caption.gap).toBeCloseTo(4, 1);
     }
     expect(wide.wide.inset).toBe(0);
     expect(wide.float.inset).toBe(0);
@@ -950,6 +1109,16 @@ test.describe('grid-compositions', () => {
     expect(narrow.overflow).toBe(false);
     expect(narrow.float.caption.left).toBeCloseTo(narrow.float.img.left, 0);
     expect(narrow.full.inset).toBeGreaterThan(0);
+    await page.goto('/probe/blok-image-content');
+    expect(
+      await page
+        .locator('figure.image figcaption')
+        .evaluate(
+          (caption) =>
+            caption.getBoundingClientRect().top -
+            document.querySelector('figure.image img')!.getBoundingClientRect().bottom
+        )
+    ).toBeCloseTo(4, 1);
   });
 
   test('a narrow composition on a wide monitor contains floats and full media', async ({
