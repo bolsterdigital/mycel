@@ -728,13 +728,25 @@ test.describe('content-routes', () => {
           { itemId: item.id }
         )
       ).revision.document.heroAlt;
+    // The line's live state and the focus on opening come from the screen's script; a step before
+    // it has run gets the native behaviour, which is fine for a person but not what is tested (#178).
+    const ready = async () => {
+      if (isA11y())
+        await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    };
+    const visit = async (url: string) => {
+      await page.goto(url);
+      await ready();
+    };
     const save = async () => {
       await page.getByRole('button', { name: 'Opslaan' }).first().click();
       await expect(page.getByRole('status').first()).toContainText('Opgeslagen');
+      await ready();
     };
 
     // Filled here, missing in the other language: all of it visible while the line is closed.
     await login(page, `${edit}?locale=nl`);
+    await ready();
     await expect(line).not.toHaveAttribute('open');
     await expect(field).toBeHidden();
     for (const words of ['Beschrijving', '· Nederlands', 'Een straat.', 'Bewerken'])
@@ -755,7 +767,7 @@ test.describe('content-routes', () => {
     }
 
     // Missing on screen, with another language as reference: the refusal becomes an error.
-    await page.goto(`${edit}?locale=en`);
+    await visit(`${edit}?locale=en`);
     await expect(summary).toContainText('Beschrijving ontbreekt in het Engels', {
       useInnerText: true,
     });
@@ -766,7 +778,7 @@ test.describe('content-routes', () => {
     await en.getByRole('link', { name: /hoofdbeeld/ }).click();
     await expect(line).toHaveAttribute('open');
     await expect(page.locator('[data-hero-alt-others]')).toContainText('Een straat.');
-    await page.goto(`${edit}?locale=en`);
+    await visit(`${edit}?locale=en`);
     await openPublication(page);
     await page
       .locator('#publication-en')
@@ -777,6 +789,7 @@ test.describe('content-routes', () => {
     await expect(field).toHaveAttribute('aria-invalid', 'true');
     await expect(line).toContainText('Vul de beschrijving in het Engels in.');
     if (isA11y()) await expectNoAxeViolations(page);
+    await ready();
 
     // Typed: the status follows with a script (it also ends the refusal), and after the save.
     await closePublication(page);
@@ -792,7 +805,7 @@ test.describe('content-routes', () => {
     expect(await stored()).toEqual({ nl: 'Een straat.', en: 'A street.' });
 
     // Emptied in one of two languages: this one stays open, the other keeps its text.
-    await page.goto(`${edit}?locale=nl`);
+    await visit(`${edit}?locale=nl`);
     await summary.click();
     await field.fill('');
     await save();
@@ -868,7 +881,7 @@ test.describe('content-routes', () => {
         blocks: [],
       },
     });
-    await page.goto(`/admin/probe/content/${bare.id}`);
+    await visit(`/admin/probe/content/${bare.id}`);
     await expect(line).toBeHidden();
     await picker.getByRole('button', { name: 'Beeld kiezen' }).click();
     await picker.locator('input[type="radio"]:not([value=""])').first().click();
