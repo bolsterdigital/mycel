@@ -318,7 +318,7 @@ test.describe('admin-ui', () => {
     await login(page, '/admin/probe/content/new?type=article');
     await page
       .locator('[name="title.nl"]')
-      .fill(`Actiebalk ${test.info().project.name} ${Date.now()}`);
+      .fill(`Actiebalk ${test.info().project.name} ${crypto.randomUUID()}`);
     await page.getByRole('button', { name: /^(Concept maken|Create draft)$/ }).click();
     await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
     // As long as a real article, without a dozen blocks to make first.
@@ -348,14 +348,19 @@ test.describe('admin-ui', () => {
       await page.evaluate(() => window.scrollTo(0, 0));
       await expect(bar).toHaveCSS('position', 'static');
       await expect(dock).toHaveCSS('position', 'fixed');
-      await scrollDown();
-      const box = await measure();
-      expect(box.bottom, `dock at the window's edge at ${size.width}`).toBe(box.window);
-      expect(box.height / box.window, `dock cost at ${size.width}`).toBeLessThan(0.2);
-      await expect(save).toBeInViewport();
-      // The end of the document can be read above the dock.
-      const end = await page.locator('.ui-edit-side').evaluate((e) => e.getBoundingClientRect());
-      expect(end.bottom).toBeLessThanOrEqual(box.top);
+      // Scroll and measure as one retried step: hydration shrinks the page and then grows the side
+      // column by 65 px, so a scroll to the end made before it no longer is the end. Rejected:
+      // waiting for hydration first, as no signal says when the last enhancement has run.
+      await expect(async () => {
+        await scrollDown();
+        const box = await measure();
+        expect(box.bottom, `dock at the window's edge at ${size.width}`).toBe(box.window);
+        expect(box.height / box.window, `dock cost at ${size.width}`).toBeLessThan(0.2);
+        await expect(save).toBeInViewport({ timeout: 1000 });
+        // The end of the document can be read above the dock.
+        const end = await page.locator('.ui-edit-side').evaluate((e) => e.getBoundingClientRect());
+        expect(end.bottom, `end of the document at ${size.width}`).toBeLessThanOrEqual(box.top);
+      }).toPass({ timeout: 15_000 });
       await layoutGate(page, `editor dock at ${size.width}`, '.ui-item-bar');
       await expectNoAxeViolations(page);
     }
