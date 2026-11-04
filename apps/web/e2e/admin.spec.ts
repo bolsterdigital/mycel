@@ -27,6 +27,7 @@ import { ADMIN, login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { settingsEvidence } from './lib/settings-evidence';
 import { requireApi } from './lib/api';
+import { ADMIN_ROUTES } from './routes';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawn, execFile } from 'node:child_process';
@@ -449,6 +450,43 @@ test.describe('admin', () => {
       '/admin/login'
     );
     await expectNoAxeViolations(page);
+  });
+
+  test('no cache may keep an admin page, and Back after signing out finds none', async ({
+    page,
+  }) => {
+    onlyA11y('the header does not depend on the script');
+    test.slow();
+    await login(page, '/admin/probe');
+    await page.goto('/admin/probe/content?type=page');
+    const item = await page
+      .locator('main a[href*="/admin/probe/content/"]')
+      .first()
+      .getAttribute('href');
+    expect(item).toMatch(/\/content\/[0-9a-f-]{36}/);
+    const paths = [
+      ...ADMIN_ROUTES.map((route) => route.path),
+      new URL(item!, 'http://admin.invalid').pathname,
+      '/admin/probe/__data.json',
+      '/admin/probe/bestaat-niet',
+    ];
+    for (const path of paths) {
+      const { status, headers } = await page.request
+        .get(path, { maxRedirects: 0 })
+        .then((response) => ({ status: response.status(), headers: response.headers() }));
+      expect(status, path).toBeLessThan(500);
+      expect(headers['cache-control'], path).toBe('private, no-store');
+      expect(headers['etag'], path).toBeUndefined();
+    }
+
+    await page.goto('/admin/probe/profiel');
+    await page.goto('/admin/logout');
+    await page.getByRole('button', { name: 'Uitloggen' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Je bent uitgelogd' })).toBeVisible();
+    await page.goBack();
+    await page.goBack();
+    await expect(page).toHaveURL(/\/admin\/login\?return=/);
+    await expect(page.locator('.admin-sidebar')).toHaveCount(0);
   });
 
   test('logging out empties what this origin kept in the browser', async ({ page }) => {
