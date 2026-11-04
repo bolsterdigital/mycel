@@ -1913,6 +1913,27 @@ test.describe('block cards', () => {
     await expect(card(page, 1).locator('.ui-block-card-name')).toHaveText('Eerste, gewijzigd');
   });
 
+  test('the rail takes the icons of the menu, not those of the page (#163)', async ({ page }) => {
+    onlyA11y('the rail is the script');
+    await login(page, '/admin/probe');
+    const edit = await blockPage(page, 'rail-icons');
+    await addHeading(page, 'Eerste');
+    await page.goto(edit);
+    await editorReady(page);
+    // The editor starts in the rail by itself, so this is what every editor sees first. The menu
+    // hides its labels there and its chevrons with them; the page keeps both.
+    await expect(page.locator('html')).toHaveAttribute('data-admin-nav', 'rail');
+    await expect(
+      page.locator('main details.ui-block-insert > summary > .ui-icon').first()
+    ).toBeVisible();
+    const icons = page.locator('main summary > .ui-icon:last-child');
+    expect(await icons.count()).toBeGreaterThan(0);
+    for (const icon of await icons.all()) await expect(icon).not.toHaveCSS('display', 'none');
+    const chevrons = page.locator('.admin-sidebar summary > .ui-icon:last-child');
+    expect(await chevrons.count()).toBeGreaterThan(0);
+    for (const chevron of await chevrons.all()) await expect(chevron).toBeHidden();
+  });
+
   test('"Insert a block below" opens the chooser of the next place (#159)', async ({ page }) => {
     onlyA11y('the focus is the script; the link is a plain fragment without it');
     await login(page, '/admin/probe');

@@ -348,7 +348,7 @@
     :root[data-admin-nav='rail'] :is(.admin-brand, .admin-site-name, .admin-content-locale),
     :root[data-admin-nav='rail'] .admin-account-actions,
     :root[data-admin-nav='rail'] .ui-navgroup-sub,
-    :root[data-admin-nav='rail'] summary > .ui-icon:last-child {
+    :root[data-admin-nav='rail'] .admin-sidebar summary > .ui-icon:last-child {
       display: none;
     }
     :root[data-admin-nav='rail'] .ui-navgroup-label {
