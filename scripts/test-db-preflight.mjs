@@ -7,7 +7,8 @@
 // Rejected: making `migrate` refuse it, which would break a production rollback (migrate.ts).
 // It also names every other session on that database (a dev server's worker drains the outbox
 // the suites wait on) and goes on: a warning, because `npm run dev` next to tests is allowed.
-// Without DATABASE_URL the database suites skip, and so does this check.
+// Without DATABASE_URL the database suites skip (testing.md rule 3) and so does this check; it says
+// so, because a skipped suite is easy to read past in a green summary.
 
 import pg from 'pg';
 import { migrationsAhead } from '../packages/db/src/infra/migrate.ts';
@@ -15,7 +16,11 @@ import { foreignSessions, sessionsWarning } from '../packages/db/src/infra/sessi
 
 export default async function preflight() {
   const url = process.env.DATABASE_URL;
-  if (!url) return;
+  if (!url) {
+    if (process.env.MYCEL_NO_DOTENV !== '1')
+      console.warn('test preflight: DATABASE_URL is not set, so every database suite skips.');
+    return;
+  }
   const client = new pg.Client({ connectionString: url });
   try {
     await client.connect();

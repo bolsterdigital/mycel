@@ -55,6 +55,7 @@ const NOT_IN_EXAMPLE: Record<string, string> = {
   MOCK_OIDC_PORT: 'development IdP, set by scripts/dev.mjs and scripts/e2e/e2e.mjs',
   MOCK_OIDC_USER: 'development IdP, set by scripts/dev.mjs',
   E2E_REQUIRED: 'test harness (CI)',
+  MYCEL_NO_DOTENV: 'test harness (test:collect)',
   E2E_API_URL: 'test harness, set by scripts/e2e/e2e.mjs',
   E2E_API_PORT: 'test harness',
   E2E_OIDC_PORT: 'test harness',
