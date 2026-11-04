@@ -300,7 +300,9 @@
   const blockNotice = (id: string, refused: boolean): string => {
     if (refused) return t('admin.block.card.refused');
     const locale = notReadyIn(id);
-    return locale ? fill(t('admin.block.card.notReady'), { locale }) : '';
+    if (!locale) return '';
+    const language = new Intl.DisplayNames([data.locale], { type: 'language' }).of(locale);
+    return fill(t('admin.block.card.notReady'), { locale: language ?? locale });
   };
   const groupLabels = $derived({
     display: t('admin.block.group.display'),
@@ -583,8 +585,9 @@
         {#if !pending}
           <a
             class="ui-block-card-action"
-            href="#insert-{data.blocks[i + 1]?.id ?? 'end'}"
-            data-insert-below><Icon name="plus" />{t('admin.block.card.insertBelow')}</a
+            href={data.blocks[i + 1] ? `#insert-${data.blocks[i + 1]!.id}-body` : '#insert-end'}
+            data-insert-below="insert-{data.blocks[i + 1]?.id ?? 'end'}"
+            ><Icon name="plus" />{t('admin.block.card.insertBelow')}</a
           >
         {/if}
         {#if i > 0}
@@ -663,7 +666,8 @@
 {#snippet inserter(b: (typeof data.blocks)[number], i: number)}
   <details class="ui-block-insert" id="insert-{b.id}">
     <summary><Icon name="plus" />{t('admin.block.insert.fold')}</summary>
-    <div class="ui-block-insert-body">
+    <!-- The link's target: a fragment opens the details around it, not the details it names. -->
+    <div class="ui-block-insert-body" id="insert-{b.id}-body">
       <BlockInserter
         id={b.id}
         place="before:{b.id}"
