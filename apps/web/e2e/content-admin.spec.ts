@@ -1634,24 +1634,30 @@ test.describe('content-admin', () => {
     const saving = page.getByRole('button', { name: 'Opslaan', exact: true });
     await saving.click();
     const refusal = page.getByRole('listitem').filter({ hasText: 'vul minstens twee kaarten in' });
-    await expect(refusal.getByRole('link', { name: 'Titel', exact: true })).toBeVisible();
+    await expect(refusal.getByRole('link', { name: 'Titel (nl)' })).toBeVisible();
+    await expect(refusal).toHaveText('Titel (nl): vul minstens twee kaarten in');
     await expect(titles).toHaveCount(2);
     await expect(titles.first()).toHaveValue('Eerste kaart');
 
     await titles.nth(1).fill('Tweede kaart');
     await saving.click();
     await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
-    const rest = blockCard(page, 1).locator('[data-block-rest]');
-    await expect(rest.locator('.ui-block-text-card')).toHaveCount(2);
-    await expect(rest).toContainText('Tweede kaart');
-    // The spare row of a stored block: with scripts its rest view follows what is typed in it.
+    // Stored, it offers a spare row for a third.
+    const fold = blockCard(page, 1).locator('details.block');
+    const stored = fold.getByLabel('Titel', { exact: true });
+    await expect(stored).toHaveCount(3);
+    await expect(stored.nth(1)).toHaveValue('Tweede kaart');
+    // With scripts the rest view shows the cards that are filled and follows what is typed.
     if (isA11y()) {
-      await rest.click();
-      const fold = blockCard(page, 1).locator('details.block');
-      await fold.getByLabel('Titel', { exact: true }).nth(2).fill('Derde kaart');
+      const rest = blockCard(page, 1).locator('[data-block-rest]');
+      const shown = rest.locator('.ui-block-text-card:visible');
       await fold.locator('[data-block-done] button').click();
-      await expect(rest.locator('.ui-block-text-card')).toHaveCount(3);
-      await expect(rest).toContainText('Derde kaart');
+      await expect(shown).toHaveCount(2);
+      await rest.locator('.ui-block-text-heading').first().click();
+      await stored.nth(2).fill('Derde kaart');
+      await fold.locator('[data-block-done] button').click();
+      await expect(shown).toHaveCount(3);
+      await expect(shown.nth(2)).toContainText('Derde kaart');
     }
   });
 
