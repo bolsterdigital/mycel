@@ -400,7 +400,10 @@ test.describe('article-writing', () => {
       delivery: _delivery,
       ...document
     } = original.revision.document;
+    // Its own slug: from the title it would be one more `een-artikel-n` on every run, and a
+    // database that lives on across runs runs out of them at a hundred.
     const created = await callApi(request, 'content.item.create', {
+      slug: `page-prose-${Date.now()}`,
       document: { ...document, type: 'page' },
     });
     await login(page, `/admin/probe/content/${created.item.id}`);

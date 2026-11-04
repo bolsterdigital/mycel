@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { UseCaseError, systemPrincipal, useCases } from '@mycel/core';
 import { type APIRequestContext, type Browser, type Page, expect, test } from '@playwright/test';
 import { expectNoAxeViolations } from './lib/axe';
-import { newPage } from './lib/editor';
+import { card, editorReady, more, newPage } from './lib/editor';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
 import { ADMIN, login } from './lib/login';
@@ -1649,5 +1649,116 @@ test.describe('content-admin', () => {
           }
           await context.close();
         });
+  });
+});
+
+// Three loose ends of the block cards, read from an item made through the API (#168).
+test.describe('block card details', () => {
+  test.use({ locale: 'nl-NL' });
+
+  const heading = (text: string) => ({
+    type: 'heading',
+    version: 1,
+    props: { text: { nl: text } },
+  });
+  const make = async (
+    request: APIRequestContext,
+    slug: string,
+    locales: string[],
+    blocks: object[]
+  ): Promise<string> => {
+    requireApi();
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `${slug}-${Date.now()}`,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales,
+        title: Object.fromEntries(locales.map((locale) => [locale, 'Kaarten'])),
+        blocks,
+      },
+    });
+    return `/admin/probe/content/${item.id}`;
+  };
+
+  test('a card without a title keeps the name of its first question after an edit', async ({
+    page,
+    request,
+  }) => {
+    onlyA11y('the name follows with the script');
+    const answer = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Daarom.' }] }],
+    };
+    const edit = await make(
+      request,
+      'faq-name',
+      ['nl'],
+      [
+        {
+          type: 'faq',
+          version: 2,
+          props: { entries: [{ question: { nl: 'Waarom?' }, answer: { nl: answer } }] },
+        },
+      ]
+    );
+    await login(page, edit);
+    await editorReady(page);
+    const name = card(page, 1).locator('.ui-block-card-name');
+    await expect(name).toHaveText('Waarom?');
+    await card(page, 1).locator('.ui-block-card-fold > summary').click();
+    const question = card(page, 1).getByLabel('Vraag', { exact: true }).first();
+    await question.fill('Waarom nu?');
+    await question.focus();
+    await page.keyboard.press('Escape');
+    await expect(card(page, 1).locator('[data-block-rest]')).toContainText('Waarom nu?');
+    await expect(name).toHaveText('Waarom nu?');
+  });
+
+  test('a card says in the language of the screen where it is not ready', async ({
+    browser,
+    page,
+    request,
+  }) => {
+    const edit = await make(
+      request,
+      'notice-language',
+      ['nl', 'en'],
+      [heading('Alleen Nederlands')]
+    );
+    await login(page, `${edit}?locale=nl`);
+    await expect(card(page, 1).locator('.ui-block-card-notice')).toHaveText(
+      'Nog niet klaar in Engels'
+    );
+    // Chromium's context locale owns Accept-Language, so the other language is its own context.
+    const context = await browser.newContext({ locale: 'en-GB' });
+    try {
+      const english = await context.newPage();
+      await login(english, `${edit}?locale=nl`);
+      await expect(card(english, 1).locator('.ui-block-card-notice')).toHaveText(
+        'Not ready in English'
+      );
+    } finally {
+      await context.close();
+    }
+  });
+
+  test('without JavaScript "insert below" lands on an open chooser', async ({ page, request }) => {
+    test.skip(isA11y(), 'the no-js project is the proof');
+    const edit = await make(
+      request,
+      'insert-below-nojs',
+      ['nl'],
+      [heading('Eerste'), heading('Tweede')]
+    );
+    await login(page, edit);
+    const first = await more(page, 1);
+    await first.getByRole('link', { name: 'Blok hieronder invoegen' }).click();
+    const chooser = page.locator('details.ui-block-insert').nth(1);
+    await expect(chooser).toHaveAttribute('open', '');
+    const quote = chooser.getByRole('button', { name: 'Citaat', exact: true });
+    await expect(quote).toBeInViewport();
+    await quote.click();
+    await expect(page.locator('#block-new').getByRole('heading')).toHaveText('Nieuw blok: Citaat');
   });
 });

@@ -268,9 +268,13 @@ if (form instanceof HTMLFormElement) {
   const renameCard = (rest) => {
     const name = rest.closest('[data-block-card]')?.querySelector('[data-block-name]');
     if (!name) return;
-    const words = rest
-      .querySelector('[data-rest-caption], [data-rest-prose], [data-rest-from]')
-      ?.textContent?.trim();
+    // As `blockName` on the server: the first words there are. An FAQ without a title goes by its
+    // first question. An image goes by its caption alone: its next text is the alt text.
+    const caption = rest.querySelector('[data-rest-caption]');
+    const sources = caption
+      ? [caption]
+      : rest.querySelectorAll('[data-rest-prose], [data-rest-from]');
+    const words = [...sources].map((source) => source.textContent?.trim()).find(Boolean);
     name.textContent = words || name.dataset.blockName || '';
   };
   /** What the plain fields of a fold held when it opened. */
@@ -494,12 +498,13 @@ if (form instanceof HTMLFormElement) {
     true
   );
 
-  // "Insert a block below" is a link to the chooser of the next place, which a fragment reaches
-  // without JavaScript. The writer shows no chooser before prose (it is one text there), so that
-  // one comes to the card it is opened from; `before:<id>` still says where the block lands.
+  // "Insert a block below" is a link into the chooser of the next place, which a fragment opens
+  // without JavaScript; `data-insert-below` names the chooser itself. The writer shows no chooser
+  // before prose (it is one text there), so that one comes to the card it is opened from;
+  // `before:<id>` still says where the block lands.
   form.addEventListener('click', (event) => {
     const link = event.target instanceof Element && event.target.closest('a[data-insert-below]');
-    const target = link && document.getElementById(link.getAttribute('href').slice(1));
+    const target = link && document.getElementById(link.dataset.insertBelow);
     if (!target) return;
     event.preventDefault();
     const host = link.closest('.editor-card');
