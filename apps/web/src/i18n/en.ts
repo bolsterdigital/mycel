@@ -1082,6 +1082,7 @@ export const en = {
   'admin.block.issue.videoId': 'this is not a video id of that provider',
   'admin.block.issue.adjacentText': 'two text blocks cannot stand next to each other',
   'admin.block.issue.tooMany': 'an item has at most 200 blocks',
+  'admin.block.issue.tooFewCards': 'fill in at least two cards',
   'admin.block.issue.notIncluded': "this block type is not part of this site's plan",
   'admin.block.issue.unclosedLink': 'a link is not closed with )',
   'admin.block.issue.unknownFootnote': 'a footnote has no line [^…]: note',

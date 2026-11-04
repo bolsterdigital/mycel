@@ -12,7 +12,7 @@
 <section class="block cards cards-{block.accent} width-{block.width}">
   <ul class="cards-grid">
     {#each block.cards as card, i (i)}
-      <li class="card">
+      <li class="cards-item">
         <svelte:element this={headingTag(BLOCK_DEPTH)}>{card.title}</svelte:element>
         {#if card.body}<p>{card.body}</p>{/if}
         <Actions actions={card.actions} base={model.base} />

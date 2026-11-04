@@ -1094,6 +1094,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.block.issue.videoId': 'dit is geen video-id van die dienst',
   'admin.block.issue.adjacentText': 'twee tekstblokken kunnen niet naast elkaar staan',
   'admin.block.issue.tooMany': 'een item heeft hoogstens 200 blokken',
+  'admin.block.issue.tooFewCards': 'vul minstens twee kaarten in',
   'admin.block.issue.notIncluded': 'dit bloktype hoort niet bij het pakket van deze site',
   'admin.block.issue.unclosedLink': 'een link is niet afgesloten met )',
   'admin.block.issue.unknownFootnote': 'een voetnoot heeft geen regel [^…]: noot',

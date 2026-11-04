@@ -509,6 +509,7 @@ const ISSUE_COPY: Record<string, UiKey> = {
   'content.reference.media-not-image': 'admin.content.issue.mediaNotImage',
   'content.blocks.adjacent-rich-text': 'admin.block.issue.adjacentText',
   'content.blocks.too-many': 'admin.block.issue.tooMany',
+  'content.cards.too-few': 'admin.block.issue.tooFewCards',
   'entitlements.feature-off': 'admin.block.issue.notIncluded',
   'editor.markdown.unclosed-link': 'admin.block.issue.unclosedLink',
   'editor.markdown.unknown-footnote': 'admin.block.issue.unknownFootnote',

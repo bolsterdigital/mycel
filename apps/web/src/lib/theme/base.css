@@ -649,7 +649,7 @@
     padding: 0;
     list-style: none;
   }
-  .card {
+  .cards-item {
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
@@ -659,13 +659,13 @@
     color: var(--color-surface-fg);
     background: var(--color-surface-bg);
   }
-  .card > * {
+  .cards-item > * {
     margin-block: 0;
   }
-  .card h2 {
+  .cards-item h2 {
     font-size: var(--step-1);
   }
-  .card .actions {
+  .cards-item .actions {
     margin-block-start: auto;
   }
   .cards.width-full {
@@ -677,18 +677,18 @@
     max-width: var(--wide-width);
     margin-inline: auto;
   }
-  .cards.width-full:not(.cards-filled) .card {
+  .cards.width-full:not(.cards-filled) .cards-item {
     color: var(--color-body-fg);
     background: var(--color-body-bg);
   }
-  .cards-bar .card {
+  .cards-bar .cards-item {
     border-inline-start: 0.375rem solid var(--color-accent-bg);
   }
-  .cards-filled .card {
+  .cards-filled .cards-item {
     color: var(--color-primary-fg);
     background: var(--color-primary-bg);
   }
-  .page:not(.admin) .cards-filled .card .button {
+  .page:not(.admin) .cards-filled .cards-item .button {
     --action-base-fg: var(--color-accent-fg);
     --action-base-bg: var(--color-accent-bg);
     --action-fg: var(--color-accent-active-fg);

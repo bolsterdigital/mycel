@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { UseCaseError, systemPrincipal, useCases } from '@mycel/core';
 import { type APIRequestContext, type Browser, type Page, expect, test } from '@playwright/test';
 import { expectNoAxeViolations } from './lib/axe';
-import { newPage } from './lib/editor';
+import { blockPage, card as blockCard, editorReady, newPage } from './lib/editor';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
 import { ADMIN, login } from './lib/login';
@@ -1608,6 +1608,50 @@ test.describe('content-admin', () => {
       await member.locator('summary', { hasText: 'Verwijderen' }).click();
       await member.getByRole('button', { name: `Ja, verwijderen: ${email}` }).click();
       await expect(page.getByRole('status')).toContainText('Uit het team verwijderd');
+    }
+  });
+
+  // Review of #286: a new block starts from the empty form, which the seeded examples never reach.
+  test('a new row of cards offers the two it asks, refuses one by name and saves two', async ({
+    page,
+  }) => {
+    await login(page, '/admin/probe');
+    await blockPage(page, 'cards');
+    await editorReady(page);
+    await page
+      .locator('[data-block-picker]')
+      .last()
+      .getByRole('button', { name: 'Kaarten', exact: true })
+      .click();
+    const fresh = page.locator('#block-new');
+    await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Kaarten');
+    await editorReady(page);
+    const titles = fresh.getByLabel('Titel', { exact: true });
+    await expect(titles).toHaveCount(2);
+    await expect(fresh.getByLabel('Breedte')).toHaveValue('wide');
+
+    await titles.first().fill('Eerste kaart');
+    const saving = page.getByRole('button', { name: 'Opslaan', exact: true });
+    await saving.click();
+    const refusal = page.getByRole('listitem').filter({ hasText: 'vul minstens twee kaarten in' });
+    await expect(refusal.getByRole('link', { name: 'Titel', exact: true })).toBeVisible();
+    await expect(titles).toHaveCount(2);
+    await expect(titles.first()).toHaveValue('Eerste kaart');
+
+    await titles.nth(1).fill('Tweede kaart');
+    await saving.click();
+    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
+    const rest = blockCard(page, 1).locator('[data-block-rest]');
+    await expect(rest.locator('.ui-block-text-card')).toHaveCount(2);
+    await expect(rest).toContainText('Tweede kaart');
+    // The spare row of a stored block: with scripts its rest view follows what is typed in it.
+    if (isA11y()) {
+      await rest.click();
+      const fold = blockCard(page, 1).locator('details.block');
+      await fold.getByLabel('Titel', { exact: true }).nth(2).fill('Derde kaart');
+      await fold.locator('[data-block-done] button').click();
+      await expect(rest.locator('.ui-block-text-card')).toHaveCount(3);
+      await expect(rest).toContainText('Derde kaart');
     }
   });
 

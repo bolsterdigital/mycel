@@ -59,7 +59,13 @@ export type BlockField =
   | { key: string; kind: 'rich-text' }
   | { key: string; kind: 'media' }
   | { key: string; kind: 'reference'; to: 'form' | 'item' }
-  | { key: string; kind: 'choice'; options: readonly string[] }
+  | {
+      key: string;
+      kind: 'choice';
+      options: readonly string[];
+      /** What a new form selects, when the schema's default is not the first option. */
+      initial?: string;
+    }
   | { key: string; kind: 'boolean' }
   | { key: string; kind: 'actions'; min: number; max: number }
   | { key: string; kind: 'group'; optional?: 'omit' | 'null'; fields: readonly BlockField[] }
@@ -155,10 +161,11 @@ const textField = (
   key: string,
   opts: Omit<Extract<BlockField, { kind: 'text' }>, 'key' | 'kind'>
 ) => ({ key, kind: 'text', ...opts }) as const;
-const choice = (key: string, options: readonly string[]): BlockField => ({
+const choice = (key: string, options: readonly string[], initial?: string): BlockField => ({
   key,
   kind: 'choice',
   options,
+  ...(initial && { initial }),
 });
 const creditField: BlockField = {
   key: 'credit',
@@ -420,7 +427,7 @@ export const BLOCK_DEFINITIONS = {
       textField('body', { localized: true, multiline: true, optional: 'omit' }),
       { key: 'image', kind: 'group', optional: 'omit', fields: imageFieldsOf(['content']) },
       { key: 'actions', kind: 'actions', min: 0, max: 2 },
-      choice('width', WIDTHS),
+      choice('width', WIDTHS, 'full'),
       choice('align', ALIGNS),
     ],
     variants: { variant: HERO_VARIANTS, width: WIDTHS, align: ALIGNS },
@@ -552,7 +559,7 @@ export const BLOCK_DEFINITIONS = {
               })
               .strict()
           )
-          .min(2)
+          .min(2, 'content.cards.too-few')
           .max(6),
       })
       .strict(),
@@ -569,7 +576,7 @@ export const BLOCK_DEFINITIONS = {
         ],
       },
       choice('accent', CARDS_ACCENTS),
-      choice('width', WIDTHS),
+      choice('width', WIDTHS, 'wide'),
     ],
     variants: { accent: CARDS_ACCENTS, width: WIDTHS },
     localized: (p) =>

@@ -28,7 +28,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadDotEnv } from '../lib/repo.mjs';
-import { blockExamples } from './e2e-block-examples.mjs';
+import { blockExamples, everyBlockType } from './e2e-block-examples.mjs';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
 const qualityCorpus = JSON.parse(
@@ -406,7 +406,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
   for (const project of ['no-js', 'a11y'])
     pages[`e2e-blokken-${project}`] = {
       title: { nl: `Blokken ${project}`, en: `Blocks ${project}` },
-      blocks: Object.values(BLOCK_DEFINITIONS).map((d) => d.examples[0].name),
+      blocks: everyBlockType(BLOCK_DEFINITIONS),
       access: { level: 'public', teaser: 'marker' },
     };
   const needed = [];

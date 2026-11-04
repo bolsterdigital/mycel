@@ -46,9 +46,12 @@ const isEmpty = (v: string | null | undefined) => v === null || v === undefined 
 const asRecord = (v: unknown): Localized =>
   v && typeof v === 'object' && !Array.isArray(v) ? (v as Localized) : {};
 
-/** Extra empty rows a list offers for adding entries. */
+/**
+ * Extra empty rows a list offers: up to its minimum, else one for adding an entry. Without the
+ * minimum a new block of cards offers one row where its schema asks two, and cannot be saved.
+ */
 const spareRows = (field: Extract<BlockField, { kind: 'list' }>, rows: number) =>
-  rows < field.max ? 1 : 0;
+  Math.max(field.min - rows, rows < field.max ? 1 : 0);
 
 // --- props to form ------------------------------------------------------------------------------
 
@@ -84,7 +87,7 @@ function fieldValues(
       out[name] = typeof value === 'string' ? value : '';
       return;
     case 'choice':
-      out[name] = typeof value === 'string' ? value : (field.options[0] ?? '');
+      out[name] = typeof value === 'string' ? value : (field.initial ?? field.options[0] ?? '');
       return;
     case 'boolean':
       if (value === true) out[name] = 'on';
