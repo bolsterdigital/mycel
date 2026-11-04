@@ -1,9 +1,10 @@
 // One version per runtime (TODO #75): Node, Postgres and Caddy are pinned in several places that
 // have to agree, because CI measures one version and production runs another otherwise. `.nvmrc`
 // is the Node source (setup-node reads it; the Dockerfile default and the quality workflow,
-// whose evidence records the version literally, must equal it); the Postgres servers run the
-// minor the backup client is pinned to; production Caddy is the release the quality workflow
-// measures. Run by `npm run lint:infra`, offline.
+// whose evidence records the version literally, must equal it); the backup client's floor
+// (`>=`, TODO #179: Alpine moves its packages, so the client may be newer) is the minor the
+// Postgres servers run; production Caddy is the release the quality workflow measures. Run by
+// `npm run lint:infra`, offline.
 // Rejected: generating the files from one config (a build step for four lines) and floating tags
 // (`16-alpine`, `caddy:2`), which let a pull change what was measured.
 
@@ -22,7 +23,7 @@ export function pins(files) {
     add(path, 'node', /^ARG NODE_VERSION=(\S+)$/gm, text);
     add(path, 'node', /node-version: '([^']+)'/g, text);
     add(path, 'postgres', /image: postgres:([\w.-]+)/g, text);
-    add(path, 'postgres', /postgresql\d+-client~([\d.]+)/g, text);
+    add(path, 'postgres', /postgresql\d+-client(?:~|>=)([\d.]+)/g, text);
     add(path, 'caddy', /image: caddy:([\w.-]+)/g, text);
     add(path, 'caddy', /caddy\/releases\/download\/v([\d.]+)\//g, text);
   }
@@ -68,7 +69,8 @@ test('a floating tag and a second version are caught', () => {
     { path: '.nvmrc', text: '22.22.0\n' },
     { path: 'Dockerfile', text: 'ARG NODE_VERSION=22\n' },
     { path: 'compose.yml', text: 'image: postgres:16.15-alpine\nimage: caddy:2\n' },
-    { path: 'backup/Dockerfile', text: 'postgresql16-client~16.15 \\' },
+    { path: 'backup/Dockerfile', text: "'postgresql16-client>=16.15' \\" },
+    { path: 'old/Dockerfile', text: 'postgresql16-client~16.15 \\' },
     { path: 'ci.yml', text: "node-version: '22.22.0'\ncaddy/releases/download/v2.10.2/x" },
   ]);
   assert.deepEqual(disagreements(found), [

@@ -118,6 +118,37 @@ host() {
     E2E_REQUIRED=1 "$@"
 }
 
+step 'backup image: Alpine ships at least what the scripts were written against'
+# docker/backup/Dockerfile pins the Alpine release by digest and each tool by a floor, because a
+# stable Alpine moves its packages (TODO #179). Built here on its own, so a red drill says which of
+# three things happened: the packages cannot be selected (pin drift: a floor the release no longer
+# meets, or a package gone from its index), the build failed for another reason (environment), or
+# the build passed with a tool above its floor (drift to record after a green drill, not a failure).
+if ! dc build backup >"$work/build.log" 2>&1; then
+  cat "$work/build.log" >&2
+  if grep -q 'unable to select packages' "$work/build.log"; then
+    echo 'backup image: pin drift, the Alpine release no longer meets a floor in docker/backup/Dockerfile' >&2
+  else
+    echo 'backup image: the build failed for another reason than its package floors (environment)' >&2
+  fi
+  exit 1
+fi
+dc run --rm -T --entrypoint cat backup /usr/local/lib/mycel-backup/versions | tail -n 3 >"$work/versions.txt"
+sed -nE "s/^ *'(restic|rclone|postgresql[0-9]+-client)>=([0-9.]+)'.*/\1 \2/p" docker/backup/Dockerfile >"$work/floors.txt"
+[ "$(wc -l <"$work/floors.txt")" -eq 3 ] || { echo 'docker/backup/Dockerfile does not name three floors' >&2; exit 1; }
+: >"$work/drift.txt"
+while read -r tool floor; do
+  have=$(awk -v t="$tool" '$1 == t { sub(/-r[0-9]+$/, "", $2); print $2 }' "$work/versions.txt")
+  [ -n "$have" ] || { echo "backup image: $tool is not in its versions file" >&2; exit 1; }
+  [ "$have" = "$floor" ] || echo "$tool: floor $floor, Alpine ships $have" >>"$work/drift.txt"
+done <"$work/floors.txt"
+cat "$work/versions.txt"
+if [ -s "$work/drift.txt" ]; then
+  echo 'pin drift, not a failure: raise the floors in docker/backup/Dockerfile once this drill is green'
+  cat "$work/drift.txt"
+  [ -z "${GITHUB_STEP_SUMMARY:-}" ] || sed 's/^/::notice title=backup image pin drift::/' "$work/drift.txt"
+fi
+
 step 'populated box'
 dc down --volumes --remove-orphans >/dev/null 2>&1 || true
 dc up -d --wait --wait-timeout 180 postgres s3
@@ -298,5 +329,8 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     echo "| **RTO** | **${rto}** |"
     echo
     echo "$(cat "$work/compare.txt")"
+    echo
+    echo "Backup image: $(tr '\n' ',' <"$work/versions.txt" | sed 's/,$//; s/,/, /g')."
+    [ ! -s "$work/drift.txt" ] || echo "Pin drift (raise the floors in docker/backup/Dockerfile): $(tr '\n' ';' <"$work/drift.txt" | sed 's/;$//; s/;/; /g')."
   } >>"$GITHUB_STEP_SUMMARY"
 fi
