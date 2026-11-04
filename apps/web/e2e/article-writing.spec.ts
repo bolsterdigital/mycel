@@ -3,7 +3,7 @@
 
 import { systemPrincipal, useCases } from '@mycel/core';
 import { type APIRequestContext, type Page, expect, test } from '@playwright/test';
-import { expectNoAxeViolations } from './lib/axe';
+import { expectNoAxeViolations, headingOrderProblems } from './lib/axe';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, layoutGate, setTextSize } from './lib/layout';
 import { login } from './lib/login';
@@ -683,6 +683,30 @@ test.describe('article-writing', () => {
     await expect(writing.getByRole('heading', { name: 'Kop van elders' })).toBeVisible();
     await paste('> Een stem uit de buurt.');
     await expect(page.getByRole('heading', { name: 'Geplakt citaat' })).toBeVisible();
+  });
+
+  // The axe floor is WCAG only and heading-order is a best practice, so Lighthouse alone saw this
+  // (#162): the h2s of the prose come between the cards, and a card's title follows them.
+  test('the outline of a written article skips no level, in either locale (#162)', async ({
+    page,
+    request,
+  }) => {
+    onlyA11y('axe injects a script');
+    requireApi();
+    const { items } = await callApi<{ items: { id: string }[] }>(request, 'content.item.list', {
+      type: 'article',
+      slug: 'quality-article-v3',
+    });
+    const edit = `/admin/probe/content/${items[0]!.id}`;
+    await login(page, edit);
+    for (const width of [412, 1350]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const locale of ['nl', 'en']) {
+        await page.goto(`${edit}?locale=${locale}`);
+        await expect(page.locator('.writing-surface h2').first()).toBeAttached();
+        expect(await headingOrderProblems(page), `${width} ${locale}`).toEqual([]);
+      }
+    }
   });
 
   test('pasted image waits for media and alternative text before saving', async ({

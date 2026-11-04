@@ -11,6 +11,15 @@ import { isA11y } from './project';
 export const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
 /**
+ * The elements where the outline skips a level. A best practice, so the WCAG floor above does not
+ * ask for it and Lighthouse would be the only one to see it. Needs the `a11y` project.
+ */
+export async function headingOrderProblems(page: Page): Promise<string[]> {
+  const { violations } = await new AxeBuilder({ page }).withRules(['heading-order']).analyze();
+  return violations.flatMap((v) => v.nodes.map((n) => n.target.join(' ')));
+}
+
+/**
  * Check native semantics in both projects, then WCAG violations in `a11y`. With `dark` the
  * page is analysed in the light and the dark scheme, and left in the light one.
  */
