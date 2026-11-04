@@ -16,7 +16,6 @@ export const checkThemeUseCase = defineUseCase({
   description:
     'Check the contrast of a theme in light and dark mode; reports every colour pair and which ones fail, without storing anything.',
   requires: 'content:read',
-  authenticatedOnly: true,
   input: z.object({ theme: ThemeInput }).strict(),
   output: ThemeReport,
   examples: [

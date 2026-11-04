@@ -197,7 +197,6 @@ export const getHeroConversion = defineUseCase({
   description:
     'Show what moving the hero block of a revision into the document header would do: source and target per field and locale, conflicts, the separate CTA for its actions. Writes nothing.',
   requires: 'content:read',
-  authenticatedOnly: true,
   input: z.object({ itemId: z.string().guid(), revisionId: z.string().guid().optional() }),
   output: z.object({ conversion: HeroConversion.nullable() }),
   examples: [{ input: { itemId: exampleId(0x1) } }],
@@ -216,7 +215,6 @@ export const convertHero = defineUseCase({
   description:
     'Move the hero block into the document header as one new draft revision; its actions become a separate CTA at its position. Refuses with invalid_input and writes nothing when the header holds something else, when there are several heroes, or when the hero is not the first block. Publishing stays separate. Reports the retired hero id and every created id.',
   requires: 'content:write',
-  authenticatedOnly: true,
   input: z.object({
     itemId: z.string().guid(),
     baseRevisionId: z.string().guid(),

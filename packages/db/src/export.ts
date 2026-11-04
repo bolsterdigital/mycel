@@ -29,7 +29,7 @@ import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { mkdir, mkdtemp, open, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { promisify } from 'node:util';
 import { sql, type Kysely, type RawBuilder } from 'kysely';
@@ -93,7 +93,11 @@ export const TABLES = {
   content_item_locales: 'export',
   content_block_refs: 'export',
   tenant_memberships: 'export',
-  api_keys: 'export',
+  // Credentials of this installation: a key's hash is all a request needs to match, so a key that
+  // travelled would work on the importing side, for whoever wrote or kept the archive. The operator
+  // creates new keys there. Rejected: exporting the rows without the hash, which gives an importer
+  // names of keys that cannot exist.
+  api_keys: 'operational',
   audit_log: 'export',
   erasures: 'export',
   outbox: 'operational',
@@ -137,10 +141,44 @@ export const EXPORT_ORDER: readonly ExportTable[] = [
   'content_item_locales',
   'content_block_refs',
   'tenant_memberships',
-  'api_keys',
   'audit_log',
   'erasures',
 ];
+
+/**
+ * Tables an older archive still holds and this version never reads back. Its digests are still
+ * checked, so the rest of that archive stays verifiable; no row reaches the database.
+ */
+const RETIRED_TABLES: readonly string[] = ['api_keys'];
+
+/**
+ * How each table comes back in. A table added to `EXPORT_ORDER` does not compile until it says, so
+ * "copy the rows as they are" is a decision. Rejected: a default, which is how a credential
+ * travelled unnoticed.
+ */
+const IMPORT_RULE = {
+  site_settings: 'as-exported',
+  connections: 'as-exported',
+  tenant_hostnames: 'custom-only',
+  forms: 'as-exported',
+  form_submissions: 'as-exported',
+  supporters: 'as-exported',
+  supporter_admissions: 'as-exported',
+  events: 'as-exported',
+  authors: 'as-exported',
+  sections: 'as-exported',
+  patterns: 'as-exported',
+  media: 'as-exported',
+  media_usages: 'as-exported',
+  content_items: 'as-exported',
+  content_revisions: 'as-exported',
+  assist_settings: 'as-exported',
+  content_item_locales: 'as-exported',
+  content_block_refs: 'as-exported',
+  tenant_memberships: 'as-invitation',
+  audit_log: 'as-exported',
+  erasures: 'as-exported',
+} as const satisfies Record<ExportTable, 'as-exported' | 'as-invitation' | 'custom-only'>;
 
 const sha256 = (data: string | Uint8Array) => createHash('sha256').update(data).digest('hex');
 
@@ -398,11 +436,16 @@ async function fileSha256(path: string): Promise<{ sha256: string; lines: number
 const verifiedManifest = (dir: string): Promise<ExportManifest> =>
   verifyExportManifest(
     {
+      entries: async () =>
+        (await readdir(dir, { recursive: true, withFileTypes: true })).map((entry) => ({
+          path: relative(dir, join(entry.parentPath, entry.name)),
+          regular: entry.isFile() || entry.isDirectory(),
+        })),
       manifest: () => readFile(join(dir, 'manifest.json'), 'utf8'),
       table: (file) => fileSha256(join(dir, file)),
       media: async (file) => sha256(await readFile(join(dir, file))),
     },
-    EXPORT_ORDER
+    [...EXPORT_ORDER, ...RETIRED_TABLES]
   );
 
 /** The `occurred_at` range of the exported events, for their partitions. */
@@ -515,6 +558,11 @@ async function importDirectory(dir: string, options: ImportOptions): Promise<Imp
         );
         lines.push(`${table}: ${imported} imported${skipped ? `, ${skipped} skipped` : ''}`);
       }
+      for (const table of RETIRED_TABLES) {
+        const entry = manifest.tables[table];
+        if (entry)
+          lines.push(`${table}: ${entry.rows} not imported, create new keys on this installation`);
+      }
 
       // The files last, still inside the transaction: a failure here rolls the rows back too.
       for (const [key, entry] of Object.entries(manifest.media)) {
@@ -562,7 +610,7 @@ async function importTable(
 ): Promise<{ imported: number; skipped: number }> {
   let imported = 0;
   let skipped = 0;
-  if (table === 'tenant_memberships') {
+  if (IMPORT_RULE[table] === 'as-invitation') {
     // A pending operator per address, as `inviteMember` makes one; they log in again here.
     for await (const line of linesOf(path)) {
       const m = JSON.parse(line) as {
@@ -612,7 +660,7 @@ async function importTable(
   };
   for await (const line of linesOf(path)) {
     const row = JSON.parse(line) as Record<string, unknown>;
-    if (table === 'tenant_hostnames') {
+    if (IMPORT_RULE[table] === 'custom-only') {
       // This installation's platform hostname came with the tenant; a custom one is unverified
       // until its DNS answers here (the daily check, or Check DNS in the admin).
       if (!hostnameTravels(String(row['kind']))) {

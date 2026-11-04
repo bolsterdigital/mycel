@@ -24,6 +24,9 @@
 //   3. Every workspace package.json declares license AGPL-3.0-only, and every installed
 //      production dependency has a licence the allow-list accepts, read as an SPDX expression:
 //      `A OR B` needs one of the two, `A AND B` needs both, `A WITH exception` counts as A.
+//   4. Production source imports no test barrel (`<core>/testing`, `<db>/testing`): they hold the
+//      memory adapters and demo content. Test files, the barrels themselves and the seed commands
+//      (TEST_BARREL_USERS) may.
 //
 // `--root <dir>` checks another tree; scripts/gates/fixtures/dependency-rules/ holds one small repo
 // per rule that must fail, and check-dependency-rules.test.mjs runs them.
@@ -68,6 +71,14 @@ const IO_LIBS = [
 ];
 /** The only entries of packages/api that apps/web and packages/mcp may import (rule 2). */
 const API_ENTRIES = ['@mycel/api/compose', '@mycel/api/conditional'];
+
+/** Non-test files that may import a test barrel; the seed commands never run in a server. */
+const TEST_BARREL_USERS = [
+  'packages/api/src/runtime/seed-demo.ts',
+  'packages/db/src/infra/seed.ts',
+  'packages/db/src/testing.ts',
+];
+const isTestFile = (rel) => /\.test\.[a-z]+$/.test(rel) || rel.split(sep).includes('e2e');
 
 const ALLOWED = {
   'apps/web': ['packages/core', 'packages/api', 'packages/observability'],
@@ -164,6 +175,9 @@ function licenceAllowed(expression, allowed = ALLOWED_LICENSES) {
 }
 
 const errors = [];
+const testBarrels = ['packages/core', 'packages/db']
+  .filter((ws) => names[ws])
+  .map((ws) => `${names[ws]}/testing`);
 
 const sourceFiles = (dir) =>
   walk(relative(root, dir), { root, match: (p) => /\.(ts|js|mjs|cjs|svelte)$/.test(p) }).map((p) =>
@@ -204,6 +218,9 @@ for (const ws of workspaces) {
         !API_ENTRIES.includes(spec)
       ) {
         errors.push(`${rel}: imports ${spec}; only ${API_ENTRIES.join(', ')} from ${ws}`);
+      }
+      if (testBarrels.includes(spec) && !isTestFile(rel) && !TEST_BARREL_USERS.includes(rel)) {
+        errors.push(`${rel}: imports ${spec}, test code in production source`);
       }
       if (ws === CORE && IO_LIBS.some((lib) => spec === lib || spec.startsWith(lib))) {
         errors.push(`${rel}: core imports I/O library ${spec} (ADR 001)`);

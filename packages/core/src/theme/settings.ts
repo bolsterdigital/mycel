@@ -110,7 +110,6 @@ export const updateSiteTheme = defineUseCase({
   kind: 'command',
   description: 'Replace the site theme at a known version.',
   requires: 'content:write',
-  authenticatedOnly: true,
   input: z.object({ baseVersion: version, theme: Theme }).strict(),
   output: ThemeState,
   examples: [{ input: { baseVersion: 0, theme: DEFAULT_THEME } }],
@@ -135,7 +134,6 @@ export const updateSiteChrome = defineUseCase({
   kind: 'command',
   description: 'Replace public site chrome at a known version.',
   requires: 'content:write',
-  authenticatedOnly: true,
   input: z.object({ baseVersion: version, chrome: SiteChrome }).strict(),
   output: ChromeState,
   examples: [{ input: { baseVersion: 0, chrome: DEFAULT_CHROME } }],
@@ -160,7 +158,6 @@ export const updateSiteGeneral = defineUseCase({
   kind: 'command',
   description: 'Replace the general settings of this site at a known version.',
   requires: 'content:write',
-  authenticatedOnly: true,
   input: z.object({ baseVersion: version, general: SiteGeneral }).strict(),
   output: GeneralState,
   examples: [{ input: { baseVersion: 0, general: { timeZone: 'Europe/Berlin' } } }],
@@ -186,7 +183,6 @@ export const updateSiteImages = defineUseCase({
   description:
     'Replace the images of this site at a known version; the default image must be an image in the media library.',
   requires: 'content:write',
-  authenticatedOnly: true,
   input: z.object({ baseVersion: version, images: SiteImages }).strict(),
   output: ImagesState,
   // Clearing the default: an id must name an image of the tenant, which an empty tenant lacks.

@@ -102,7 +102,6 @@ export const getAssistSettings = defineUseCase({
   kind: 'query',
   description: 'Read this site’s assistance consent and configured processor.',
   requires: 'content:read',
-  authenticatedOnly: true,
   input: z.object({}).strict(),
   output: SettingsView,
   examples: [{ input: {} }],
@@ -116,7 +115,6 @@ export const updateAssistSettings = defineUseCase({
   kind: 'command',
   description: 'Enable assistance for a named processor and set the restricted-content choice.',
   requires: 'tenant:admin',
-  authenticatedOnly: true,
   actors: ['operator'],
   input: z
     .object({
@@ -155,7 +153,6 @@ export const suggestAlt = defineUseCase({
   kind: 'command',
   description: 'Queue an image alt-text proposal for one block and locale.',
   requires: 'ai:assist',
-  authenticatedOnly: true,
   consumes: 'ai.monthly_max',
   input: z
     .object({
@@ -218,7 +215,6 @@ export const getSuggestion = defineUseCase({
   kind: 'query',
   description: 'Read one tenant-owned assistance proposal.',
   requires: 'content:read',
-  authenticatedOnly: true,
   input: z.object({ suggestionId: Uuid }),
   output: SuggestionView,
   examples: [{ input: { suggestionId: exampleId(1) } }],
@@ -232,7 +228,6 @@ export const listSuggestions = defineUseCase({
   kind: 'query',
   description: 'List assistance proposals for one content item.',
   requires: 'content:read',
-  authenticatedOnly: true,
   input: z.object({ itemId: Uuid }),
   output: z.object({ suggestions: z.array(SuggestionView) }),
   examples: [{ input: { itemId: exampleId(1) } }],
@@ -248,7 +243,6 @@ export const dismissSuggestion = defineUseCase({
   kind: 'command',
   description: 'Dismiss a proposal without changing content.',
   requires: 'content:write',
-  authenticatedOnly: true,
   actors: ['operator'],
   input: z.object({ suggestionId: Uuid }),
   output: SuggestionView,
@@ -271,7 +265,6 @@ export const acceptSuggestion = defineUseCase({
   kind: 'command',
   description: 'Accept or edit an assistance proposal as a new unpublished revision.',
   requires: 'content:write',
-  authenticatedOnly: true,
   actors: ['operator'],
   input: z
     .object({ suggestionId: Uuid, baseRevisionId: Uuid, value: z.string().optional() })
@@ -367,7 +360,6 @@ export const suggestTranslation = defineUseCase({
   kind: 'command',
   description: 'Queue a proposal for selected fields in one source and target locale.',
   requires: 'ai:assist',
-  authenticatedOnly: true,
   consumes: 'ai.monthly_max',
   input: z
     .object({

@@ -112,9 +112,10 @@ describe('site images', () => {
 
   it('stores the default image, protects it as a usage and feeds the chain', async () => {
     const { invoker, photo, usages } = await setup();
-    expect(
-      await invoker.run(useCases.getSiteImages, anonymousPrincipal(TENANT, ['content:read']), {})
-    ).toEqual({ version: 0, value: { defaultImageId: null } });
+    expect(await invoker.run(useCases.getSiteImages, system, {})).toEqual({
+      version: 0,
+      value: { defaultImageId: null },
+    });
     expect(
       await invoker.run(useCases.updateSiteImages, system, {
         baseVersion: 0,

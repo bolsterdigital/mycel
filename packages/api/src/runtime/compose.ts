@@ -82,7 +82,7 @@ import {
 import { createFsBlobStore, createS3BlobStore, type S3BlobStoreConfig } from '@mycel/blob';
 import { ConsoleMailer, TemMailer } from '@mycel/mail-tem';
 import { createSharpProcessor, createBrandProcessor } from '@mycel/media-sharp';
-import { FakeTextModel } from '@mycel/core/testing';
+import { FakeTextModel } from '@mycel/core/fake-text-model';
 import { OpenAITextModel } from '@mycel/assist-openai';
 import { createAuthenticator, type Authenticator } from '../auth.js';
 import { createDnsResolver } from './dns.js';

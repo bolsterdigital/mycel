@@ -146,7 +146,6 @@ export const insertBlock = defineUseCase({
   description:
     'Insert one block before or after a block id, or at the start or end, as a new revision; the block keeps a free id it was sent with, otherwise it gets one.',
   requires: 'content:write',
-  authenticatedOnly: true,
   input: z.object({ ...Target, block: BlockInput, place: Placement }),
   output: OperationResult,
   examples: [
@@ -166,7 +165,6 @@ export const moveBlock = defineUseCase({
   description:
     'Move one block before or after another block id, or to the start or end, as a new revision; text blocks that end up next to each other merge into the first.',
   requires: 'content:write',
-  authenticatedOnly: true,
   input: z.object({ ...Target, blockId: BlockId, place: Placement }),
   output: OperationResult,
   examples: [{ input: { ...exampleTarget, blockId: 'signup', place: { before: 'intro' } } }],
@@ -187,7 +185,6 @@ export const removeBlock = defineUseCase({
   description:
     'Remove one block by id as a new revision; text blocks that end up next to each other merge into the first.',
   requires: 'content:write',
-  authenticatedOnly: true,
   input: z.object({ ...Target, blockId: BlockId }),
   output: OperationResult,
   examples: [{ input: { ...exampleTarget, blockId: 'signup' } }],
@@ -208,7 +205,6 @@ export const setBlockProps = defineUseCase({
   description:
     'Replace the props of one block as a new revision; its id and type stay. Send the complete props: a locale left out of a localised field is removed from it.',
   requires: 'content:write',
-  authenticatedOnly: true,
   // The block's own schema checks the props when the document is validated.
   input: z.object({ ...Target, blockId: BlockId, props: z.record(z.string(), z.unknown()) }),
   output: OperationResult,
@@ -236,7 +232,6 @@ export const splitInsertBlock = defineUseCase({
   description:
     'Split a text block at a paragraph boundary in every locale it has and put one block in between, as a new revision; the first part keeps the id, the second gets a new one.',
   requires: 'content:write',
-  authenticatedOnly: true,
   input: z.object({
     ...Target,
     blockId: BlockId,
@@ -290,7 +285,6 @@ export const findItems = defineUseCase({
   description:
     'Find items that contain a block type or reference a form, item, author, section or media id, in the latest revision or, with live, in what is published; newest first.',
   requires: 'content:read',
-  authenticatedOnly: true,
   input: z.object({
     blockType: z.enum(BLOCK_TYPES as [BlockType, ...BlockType[]]).optional(),
     ref: ReferenceFilter.optional(),

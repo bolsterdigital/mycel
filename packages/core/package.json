@@ -10,6 +10,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./fake-text-model": {
+      "types": "./dist/assist/fake-text-model.d.ts",
+      "default": "./dist/assist/fake-text-model.js"
+    },
     "./testing": {
       "types": "./dist/testing/index.d.ts",
       "default": "./dist/testing/index.js"

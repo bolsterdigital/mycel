@@ -1,5 +1,6 @@
 // Public surface of the domain core. Adapters and fronts import from here only (plus
-// `@mycel/core/testing` for in-memory ports in tests).
+// `@mycel/core/testing` for in-memory ports in tests, `@mycel/core/fake-text-model` for the
+// deterministic assist model).
 export * from './ports.js';
 export * from './connections/ports.js';
 export * from './connections/service.js';
