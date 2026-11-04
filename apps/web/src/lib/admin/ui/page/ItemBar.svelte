@@ -10,7 +10,13 @@
      keep "Saved" apart from "Published": what the server knows after a save or a refused one,
      and the screen's script with "Unsaved changes" and "Saving…" in between. The words share
      one grid cell, so a change of state never moves the Save button under a pointer, and a
-     polite live line (not a second `status` role beside the screen's notice) reads them. -->
+     polite live line (not a second `status` role beside the screen's notice) reads them.
+     `dock` (#160) holds the actions that must stay in reach where the bar itself scrolls away:
+     with the save state they become one line at the bottom of the window there (ui.css), and sit
+     in the bar everywhere else. They are the same elements, fixed rather than repeated, so there
+     is one Save, one live line and one publication trigger. Rejected: a second copy at the end
+     of the form, which the save state, the shortcut and the drawer's focus return would each
+     have to know about. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import Badge from '../feedback/Badge.svelte';
@@ -31,6 +37,7 @@
     locales,
     save,
     actions,
+    dock,
   }: {
     /** The list this item belongs to. */
     back: { href: string; label: string };
@@ -56,6 +63,8 @@
     /** The content locale switch, after the state. */
     locales?: Snippet;
     actions?: Snippet;
+    /** The actions that stay in reach at the bottom of a window where the bar scrolls away. */
+    dock?: Snippet;
   } = $props();
   const t = $derived(ui(locale));
 </script>
@@ -93,16 +102,26 @@
             ><Badge {tone}>{state}</Badge></a
           >{:else if state}<Badge {tone}>{state}</Badge>{/if}
         {#if !compact && locales}{@render locales()}{/if}
-        {#if compact}{@render saveState()}{/if}
+        {#if compact && !dock}{@render saveState()}{/if}
       </div>
     </div>
-    <div class="ui-item-bar-tools">
-      {#if !compact}{@render saveState()}{/if}
-      {#if actions}
-        <div class="ui-actions-host">
-          <div class="ui-actions end">{@render actions()}</div>
+    {#if dock}
+      <div class="ui-item-bar-tools docked">
+        {#if actions}<div class="ui-actions end">{@render actions()}</div>{/if}
+        <div class="ui-item-bar-dock">
+          {@render saveState()}
+          <div class="ui-actions end">{@render dock()}</div>
         </div>
-      {/if}
-    </div>
+      </div>
+    {:else}
+      <div class="ui-item-bar-tools">
+        {#if !compact}{@render saveState()}{/if}
+        {#if actions}
+          <div class="ui-actions-host">
+            <div class="ui-actions end">{@render actions()}</div>
+          </div>
+        {/if}
+      </div>
+    {/if}
   </div>
 </header>

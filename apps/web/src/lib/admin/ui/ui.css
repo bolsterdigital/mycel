@@ -2585,13 +2585,15 @@
   }
   /* With room for both, the bar stays in view while a long document scrolls (#66 PR 6c): Save
      and the save state are always one glance away. On a narrow or short screen, or at 200% text,
-     it wraps tall and would cover the text, so it scrolls with the page there.
+     it wraps tall and would cover the text, so it scrolls with the page there and its `dock`
+     stays at the bottom instead (#160). A wide window may be shorter than a narrow one: with the
+     sidebar beside it the bar is one line, which costs no more than the dock would.
      `--item-bar-block-size` is the one measure of what the bar covers while it stays: a fragment
      lands below it and the open preview starts below it. Here it is the bar on one line (a tap
      target plus its padding and border); the screen's script (edit-screen.js) sets the measured
      height when a long title wraps it. Rejected: a fixed offset per use, which drifted (the
      preview went 73px under the bar in the #208 review). */
-  @media (min-width: 48rem) and (min-height: 36rem) {
+  @media (min-width: 48rem) and (min-height: 36rem), (min-width: 60rem) and (min-height: 24rem) {
     :root:has(.ui-item-bar) {
       --item-bar-block-size: calc(var(--tap) + 2 * var(--space-1) + var(--border-width));
       scroll-padding-block-start: calc(var(--item-bar-block-size) + var(--space-2));
@@ -3039,6 +3041,61 @@
   .ui-item-bar.compact .ui-item-bar-tools {
     display: block;
     flex: 1 1 20rem;
+  }
+  /* The dock's parts stand in the bar's own line until the window has no room for the bar. Its
+     host would have no intrinsic width here, and a container would capture the fixed line. */
+  .ui-item-bar.compact .ui-item-bar-tools.docked {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-1);
+  }
+  .ui-item-bar-dock {
+    display: contents;
+  }
+  .ui-item-bar-dock > .ui-item-bar-save {
+    order: -1;
+  }
+  /* Where the bar scrolls away, Save, the main action and the save state stay at the bottom of
+     the window (#160), as a long settings section's save does (#113): in reach of a thumb, and
+     clear of where a fragment lands. It stays one line: below 20rem wide or 24rem high (400% zoom,
+     a phone at 200% text) it would wrap or take too much of the window, so it scrolls with the
+     bar there. Rejected: the line at the top, out of reach and in the way of every landing, and
+     the bar returning on scrolling up, up to a third of the window with no way to foresee it. */
+  @media screen and (min-width: 20rem) and (max-width: 47.99rem) and (min-height: 24rem),
+    screen and (min-width: 48rem) and (max-width: 59.99rem) and (min-height: 24rem) and (max-height: 35.99rem) {
+    :root:has(.ui-item-bar-dock) {
+      scroll-padding-block-end: calc(var(--tap) + 2 * var(--space-1) + var(--space-2));
+    }
+    .admin-workspace .page.admin.ui-edit-page:has(.ui-item-bar-dock) {
+      padding-block-end: calc(var(--tap) + 2 * var(--space-1) + var(--space-3));
+    }
+    .ui-item-bar.compact .ui-item-bar-tools.docked {
+      flex: 0 1 auto;
+      margin-inline-start: auto;
+    }
+    .ui-item-bar-dock {
+      position: fixed;
+      inset-block-end: 0;
+      inset-inline: 0;
+      z-index: 4;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: var(--space-0) var(--space-1);
+      padding: var(--space-1) var(--inset);
+      background: var(--color-surface-bg);
+      border-block-start: var(--border-width) solid var(--color-border);
+    }
+    .ui-item-bar-dock > .ui-item-bar-save {
+      order: 0;
+      flex: 1 1 0;
+      min-width: 4rem;
+      font-size: var(--step--1);
+      hyphens: manual;
+    }
   }
   .ui-publication-disclosure > summary {
     min-block-size: var(--tap);
