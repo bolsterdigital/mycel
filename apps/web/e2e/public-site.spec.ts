@@ -691,11 +691,12 @@ test.describe('content-routes', () => {
     }
   });
 
-  test('the hero description says its state without a click, and leaving it empty is decorative (#158)', async ({
-    page,
-    request,
-    browser,
-  }) => {
+  /** An article in nl and en with a hero image, and the steps of its edit screen. */
+  const heroAltArticle = async (
+    page: Page,
+    request: APIRequestContext,
+    heroAlt?: Record<string, string>
+  ) => {
     const { items } = await callApi<{ items: { id: string }[] }>(request, 'content.item.list', {
       type: 'article',
       slug: 'quality-article-v3',
@@ -713,7 +714,7 @@ test.describe('content-routes', () => {
         locales: ['nl', 'en'],
         title: { nl: 'Een beeld', en: 'An image' },
         heroImageId: mediaId,
-        heroAlt: { nl: 'Een straat.' },
+        ...(heroAlt && { heroAlt }),
         blocks: [],
       },
     });
@@ -741,6 +742,18 @@ test.describe('content-routes', () => {
       await expect(page.getByRole('status').first()).toContainText('Opgeslagen');
       await ready();
     };
+    return { mediaId, edit, line, summary, field, stored, ready, visit, save };
+  };
+
+  test('the hero description says its state without a click, and leaving it empty is decorative (#158)', async ({
+    page,
+    request,
+  }) => {
+    const { edit, line, summary, field, stored, ready, visit, save } = await heroAltArticle(
+      page,
+      request,
+      { nl: 'Een straat.' }
+    );
 
     // Filled here, missing in the other language: all of it visible while the line is closed.
     await login(page, `${edit}?locale=nl`);
@@ -835,8 +848,20 @@ test.describe('content-routes', () => {
     await save();
     await expect(summary).toContainText('Decoratief', { useInnerText: true });
     expect(await stored()).toBeUndefined();
+  });
 
-    if (!isA11y()) return;
+  test('the hero description follows a replaced or first image, by keyboard and at 320 px (#158)', async ({
+    page,
+    request,
+    browser,
+  }) => {
+    onlyA11y();
+    const { mediaId, edit, line, summary, field, ready, visit, save } = await heroAltArticle(
+      page,
+      request
+    );
+    await login(page, `${edit}?locale=nl`);
+    await ready();
     // A described image, replaced: what described the old picture goes, and comes back with it.
     await summary.click();
     await field.fill('Terug.');
@@ -912,10 +937,8 @@ test.describe('content-routes', () => {
     }
   });
 
-  test('an article chooses its header: cover fills the screen, standard stays (#105)', async ({
-    page,
-    request,
-  }) => {
+  /** The article with a cover header, published in nl. */
+  const coverArticle = async (request: APIRequestContext) => {
     const slug = `e2e-cover-105-${isA11y() ? 'a11y' : 'no-js'}`;
     const { items } = await callApi(request, 'content.item.list', { type: 'article', slug });
     let target = items[0]
@@ -944,6 +967,14 @@ test.describe('content-routes', () => {
       })
     );
     const path = `/probe/articles/${slug}`;
+    return { target, path };
+  };
+
+  test('an article with a cover header fills the screen under the site header (#105)', async ({
+    page,
+    request,
+  }) => {
+    const { path } = await coverArticle(request);
 
     for (const size of [
       { width: 1440, height: 900 },
@@ -980,8 +1011,17 @@ test.describe('content-routes', () => {
         '#page-content'
       );
     }
+  });
 
-    if (!isA11y()) return;
+  test('a cover header is whole and reachable, and the editor chooses it (#105)', async ({
+    page,
+    request,
+  }) => {
+    onlyA11y();
+    const { target, path } = await coverArticle(request);
+    await page.setViewportSize({ width: 375, height: 700 });
+    await page.goto(path);
+    await page.waitForLoadState('load');
     await expectNoAxeViolations(page);
     // The zoom runs, and reduced motion switches it off.
     const zoom = () =>
