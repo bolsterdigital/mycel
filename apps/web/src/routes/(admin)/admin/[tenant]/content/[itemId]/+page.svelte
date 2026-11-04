@@ -451,9 +451,9 @@
 
 {#snippet pendingCard(p: NonNullable<typeof pending>)}
   <section id="block-new" class="ui-panel pending" aria-labelledby="block-new-title">
-    <h4 id="block-new-title">
+    <h3 id="block-new-title">
       {fill(t('admin.block.new'), { type: t(`admin.block.type.${p.type}` as const) })}
-    </h4>
+    </h3>
     <p class="ui-hint">{t('admin.block.new.hint')}</p>
     {#each Object.entries(p.hidden) as [name, value] (name)}
       <input type="hidden" {name} {value} />

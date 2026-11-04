@@ -254,7 +254,7 @@ describe('BlockCard', () => {
       children: text('FIELDS'),
     });
     expect(out).toMatch(/^<section class="ui-block-card" aria-labelledby="block-1-title"/);
-    const title = out.slice(out.indexOf('<h4'), out.indexOf('</h4>'));
+    const title = out.slice(out.indexOf('<h3'), out.indexOf('</h3>'));
     expect(title).toContain('>02<');
     expect(title).toContain('<span>Image</span>');
     expect(title).toContain('>Block <');

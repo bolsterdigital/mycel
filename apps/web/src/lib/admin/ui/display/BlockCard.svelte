@@ -83,14 +83,17 @@
   data-block-card={id}
 >
   <div class="ui-block-card-head">
-    <h4 class="ui-block-card-title" id="{id}-title">
+    <!-- h3, not h4: the prose of an article sits between cards with its own h2s, and from there
+         an h4 skips a level. It sits beside "Blocks" rather than under it; a prose level cannot
+         be chosen for the author. -->
+    <h3 class="ui-block-card-title" id="{id}-title">
       <span class="ui-block-card-number"
         ><span class="ui-visually-hidden">{`${labels.block} `}</span>{number
           .toString()
           .padStart(2, '0')}</span
       >
       <span class="ui-block-card-type"><Icon name={icon} /><span>{type}</span></span>
-    </h4>
+    </h3>
     <span class="ui-block-card-name" lang={nameLang} data-block-name={nameIfEmpty}>{name}</span>
     {#if notice}
       <span class="ui-block-card-notice"><Icon name="triangle-alert" /><span>{notice}</span></span>
