@@ -33,6 +33,8 @@
 //
 // `/_reports` takes the browser's reports on every hostname (lib/server/http/reports.ts).
 //
+// An admin response no route gave a Cache-Control is `private, no-store` (http-cache.ts).
+//
 // A served public page also gets the header that names its speculation rules
 // (lib/server/http/speculation.ts) and the one that names the API catalog (ops/well-known.ts).
 //
@@ -97,6 +99,13 @@ export const handle: Handle = async (input) => {
     // What an operator sees depends on who they are and, before they chose one, their language.
     if (kind === 'admin' && !response.headers.has('vary'))
       response.headers.set('vary', 'cookie, accept-language');
+    // And only they may see it: no cache keeps an admin page, unless the route chose its own value.
+    // Rejected: `private, no-cache`, which leaves the page itself on disk, for Back to show after
+    // a session that ended without a sign-out; a typed plain field comes back on Back either way.
+    if (kind === 'admin' && !response.headers.has('cache-control')) {
+      response.headers.set('cache-control', PRIVATE_NO_STORE);
+      response.headers.delete('etag');
+    }
     if (kind === 'public' && event.locals.site) applySpeculationRules(response, event.locals.site);
     // A site's page only: the catalog is about what a visitor of that page could read by machine.
     if (
