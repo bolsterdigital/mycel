@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { UseCaseError, systemPrincipal, useCases } from '@mycel/core';
 import { type APIRequestContext, type Browser, type Page, expect, test } from '@playwright/test';
 import { expectNoAxeViolations } from './lib/axe';
-import { blockPage, card as blockCard, editorReady, newPage } from './lib/editor';
+import { blockPage, card, editorReady, more, newPage } from './lib/editor';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
 import { ADMIN, login } from './lib/login';
@@ -1611,56 +1611,6 @@ test.describe('content-admin', () => {
     }
   });
 
-  // Review of #286: a new block starts from the empty form, which the seeded examples never reach.
-  test('a new row of cards offers the two it asks, refuses one by name and saves two', async ({
-    page,
-  }) => {
-    await login(page, '/admin/probe');
-    await blockPage(page, 'cards');
-    await editorReady(page);
-    await page
-      .locator('[data-block-picker]')
-      .last()
-      .getByRole('button', { name: 'Kaarten', exact: true })
-      .click();
-    const fresh = page.locator('#block-new');
-    await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Kaarten');
-    await editorReady(page);
-    const titles = fresh.getByLabel('Titel', { exact: true });
-    await expect(titles).toHaveCount(2);
-    await expect(fresh.getByLabel('Breedte')).toHaveValue('wide');
-
-    await titles.first().fill('Eerste kaart');
-    const saving = page.getByRole('button', { name: 'Opslaan', exact: true });
-    await saving.click();
-    const refusal = page.getByRole('listitem').filter({ hasText: 'vul minstens twee kaarten in' });
-    await expect(refusal.getByRole('link', { name: 'Titel (nl)' })).toBeVisible();
-    await expect(refusal).toHaveText('Titel (nl): vul minstens twee kaarten in');
-    await expect(titles).toHaveCount(2);
-    await expect(titles.first()).toHaveValue('Eerste kaart');
-
-    await titles.nth(1).fill('Tweede kaart');
-    await saving.click();
-    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
-    // Stored, it offers a spare row for a third.
-    const fold = blockCard(page, 1).locator('details.block');
-    const stored = fold.getByLabel('Titel', { exact: true });
-    await expect(stored).toHaveCount(3);
-    await expect(stored.nth(1)).toHaveValue('Tweede kaart');
-    // With scripts the rest view shows the cards that are filled and follows what is typed.
-    if (isA11y()) {
-      const rest = blockCard(page, 1).locator('[data-block-rest]');
-      const shown = rest.locator('.ui-block-text-card:visible');
-      await fold.locator('[data-block-done] button').click();
-      await expect(shown).toHaveCount(2);
-      await rest.locator('.ui-block-text-heading').first().click();
-      await stored.nth(2).fill('Derde kaart');
-      await fold.locator('[data-block-done] button').click();
-      await expect(shown).toHaveCount(3);
-      await expect(shown.nth(2)).toContainText('Derde kaart');
-    }
-  });
-
   test.describe('UI gate: the content admin at 320 CSS px and 200% text', () => {
     test.use({ viewport: NARROW });
 
@@ -1699,5 +1649,166 @@ test.describe('content-admin', () => {
           }
           await context.close();
         });
+  });
+});
+
+// Three loose ends of the block cards, read from an item made through the API (#168).
+test.describe('block card details', () => {
+  test.use({ locale: 'nl-NL' });
+
+  const heading = (text: string) => ({
+    type: 'heading',
+    version: 1,
+    props: { text: { nl: text } },
+  });
+  const make = async (
+    request: APIRequestContext,
+    slug: string,
+    locales: string[],
+    blocks: object[]
+  ): Promise<string> => {
+    requireApi();
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `${slug}-${Date.now()}`,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales,
+        title: Object.fromEntries(locales.map((locale) => [locale, 'Kaarten'])),
+        blocks,
+      },
+    });
+    return `/admin/probe/content/${item.id}`;
+  };
+
+  // Review of #286: a new block starts from the empty form, which the seeded examples never reach.
+  test('a new row of cards offers the two it asks, refuses one by name and saves two', async ({
+    page,
+  }) => {
+    await login(page, '/admin/probe');
+    await blockPage(page, 'cards');
+    await editorReady(page);
+    await page
+      .locator('[data-block-picker]')
+      .last()
+      .getByRole('button', { name: 'Kaarten', exact: true })
+      .click();
+    const fresh = page.locator('#block-new');
+    await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Kaarten');
+    await editorReady(page);
+    const titles = fresh.getByLabel('Titel', { exact: true });
+    await expect(titles).toHaveCount(2);
+    await expect(fresh.getByLabel('Breedte')).toHaveValue('wide');
+
+    await titles.first().fill('Eerste kaart');
+    const saving = page.getByRole('button', { name: 'Opslaan', exact: true });
+    await saving.click();
+    const refusal = page.getByRole('listitem').filter({ hasText: 'vul minstens twee kaarten in' });
+    await expect(refusal.getByRole('link', { name: 'Titel (nl)' })).toBeVisible();
+    await expect(refusal).toHaveText('Titel (nl): vul minstens twee kaarten in');
+    await expect(titles).toHaveCount(2);
+    await expect(titles.first()).toHaveValue('Eerste kaart');
+
+    await titles.nth(1).fill('Tweede kaart');
+    await saving.click();
+    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
+    // Stored, it offers a spare row for a third.
+    const fold = card(page, 1).locator('details.block');
+    const stored = fold.getByLabel('Titel', { exact: true });
+    await expect(stored).toHaveCount(3);
+    await expect(stored.nth(1)).toHaveValue('Tweede kaart');
+    // With scripts the rest view shows the cards that are filled and follows what is typed.
+    if (isA11y()) {
+      const rest = card(page, 1).locator('[data-block-rest]');
+      const shown = rest.locator('.ui-block-text-card:visible');
+      await fold.locator('[data-block-done] button').click();
+      await expect(shown).toHaveCount(2);
+      await rest.locator('.ui-block-text-heading').first().click();
+      await stored.nth(2).fill('Derde kaart');
+      await fold.locator('[data-block-done] button').click();
+      await expect(shown).toHaveCount(3);
+      await expect(shown.nth(2)).toContainText('Derde kaart');
+    }
+  });
+
+  test('a card without a title keeps the name of its first question after an edit', async ({
+    page,
+    request,
+  }) => {
+    onlyA11y('the name follows with the script');
+    const answer = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Daarom.' }] }],
+    };
+    const edit = await make(
+      request,
+      'faq-name',
+      ['nl'],
+      [
+        {
+          type: 'faq',
+          version: 2,
+          props: { entries: [{ question: { nl: 'Waarom?' }, answer: { nl: answer } }] },
+        },
+      ]
+    );
+    await login(page, edit);
+    await editorReady(page);
+    const name = card(page, 1).locator('.ui-block-card-name');
+    await expect(name).toHaveText('Waarom?');
+    await card(page, 1).locator('.ui-block-card-fold > summary').click();
+    const question = card(page, 1).getByLabel('Vraag', { exact: true }).first();
+    await question.fill('Waarom nu?');
+    await question.focus();
+    await page.keyboard.press('Escape');
+    await expect(card(page, 1).locator('[data-block-rest]')).toContainText('Waarom nu?');
+    await expect(name).toHaveText('Waarom nu?');
+  });
+
+  test('a card says in the language of the screen where it is not ready', async ({
+    browser,
+    page,
+    request,
+  }) => {
+    const edit = await make(
+      request,
+      'notice-language',
+      ['nl', 'en'],
+      [heading('Alleen Nederlands')]
+    );
+    await login(page, `${edit}?locale=nl`);
+    await expect(card(page, 1).locator('.ui-block-card-notice')).toHaveText(
+      'Nog niet klaar in Engels'
+    );
+    // Chromium's context locale owns Accept-Language, so the other language is its own context.
+    const context = await browser.newContext({ locale: 'en-GB' });
+    try {
+      const english = await context.newPage();
+      await login(english, `${edit}?locale=nl`);
+      await expect(card(english, 1).locator('.ui-block-card-notice')).toHaveText(
+        'Not ready in English'
+      );
+    } finally {
+      await context.close();
+    }
+  });
+
+  test('without JavaScript "insert below" lands on an open chooser', async ({ page, request }) => {
+    test.skip(isA11y(), 'the no-js project is the proof');
+    const edit = await make(
+      request,
+      'insert-below-nojs',
+      ['nl'],
+      [heading('Eerste'), heading('Tweede')]
+    );
+    await login(page, edit);
+    const first = await more(page, 1);
+    await first.getByRole('link', { name: 'Blok hieronder invoegen' }).click();
+    const chooser = page.locator('details.ui-block-insert').nth(1);
+    await expect(chooser).toHaveAttribute('open', '');
+    const quote = chooser.getByRole('button', { name: 'Citaat', exact: true });
+    await expect(quote).toBeInViewport();
+    await quote.click();
+    await expect(page.locator('#block-new').getByRole('heading')).toHaveText('Nieuw blok: Citaat');
   });
 });
