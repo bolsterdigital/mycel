@@ -1888,6 +1888,52 @@ test.describe('block cards', () => {
     await expect(card(page, 1).getByLabel('Tekst', { exact: true })).toBeFocused();
   });
 
+  test('a card follows words typed before its fold had finished opening (#184)', async ({
+    page,
+  }) => {
+    onlyA11y('the name follows with the script');
+    await login(page, '/admin/probe');
+    const edit = await blockPage(page, 'name-race');
+    await addHeading(page, 'Eerste');
+    await page.goto(edit);
+    await editorReady(page);
+    const field = card(page, 1).getByLabel('Tekst', { exact: true });
+    // Open and type in one task, so `toggle` comes after the words: what a busy machine does to
+    // someone who starts typing at once, and what made this assertion fail now and then in CI.
+    await field.evaluate(async (input: HTMLInputElement) => {
+      const fold = input.closest('details')!;
+      fold.querySelector<HTMLElement>(':scope > summary')!.click();
+      input.value = 'Eerste, gewijzigd';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise((opened) => fold.addEventListener('toggle', opened, { once: true }));
+    });
+    await field.focus();
+    await page.keyboard.press('Escape');
+    await expect(card(page, 1).locator('[data-block-rest]')).toContainText('Eerste, gewijzigd');
+    await expect(card(page, 1).locator('.ui-block-card-name')).toHaveText('Eerste, gewijzigd');
+  });
+
+  test('the rail takes the icons of the menu, not those of the page (#163)', async ({ page }) => {
+    onlyA11y('the rail is the script');
+    await login(page, '/admin/probe');
+    const edit = await blockPage(page, 'rail-icons');
+    await addHeading(page, 'Eerste');
+    await page.goto(edit);
+    await editorReady(page);
+    // The editor starts in the rail by itself, so this is what every editor sees first. The menu
+    // hides its labels there and its chevrons with them; the page keeps both.
+    await expect(page.locator('html')).toHaveAttribute('data-admin-nav', 'rail');
+    await expect(
+      page.locator('main details.ui-block-insert > summary > .ui-icon').first()
+    ).toBeVisible();
+    const icons = page.locator('main summary > .ui-icon:last-child');
+    expect(await icons.count()).toBeGreaterThan(0);
+    for (const icon of await icons.all()) await expect(icon).not.toHaveCSS('display', 'none');
+    const chevrons = page.locator('.admin-sidebar summary > .ui-icon:last-child');
+    expect(await chevrons.count()).toBeGreaterThan(0);
+    for (const chevron of await chevrons.all()) await expect(chevron).toBeHidden();
+  });
+
   test('"Insert a block below" opens the chooser of the next place (#159)', async ({ page }) => {
     onlyA11y('the focus is the script; the link is a plain fragment without it');
     await login(page, '/admin/probe');

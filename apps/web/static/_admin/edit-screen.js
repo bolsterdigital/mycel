@@ -129,6 +129,10 @@ if (form instanceof HTMLFormElement) {
   let rememberFold = () => {};
   form.addEventListener('click', (event) => {
     const target = event.target instanceof Element ? event.target : null;
+    // The browser opens a fold after this click, and `toggle` comes a task later: what it holds now
+    // is what it held on opening, even when the words arrive before that task.
+    const opening = target?.closest('details.ui-block-card-fold:not([open]) > summary');
+    if (opening) rememberFold(opening.parentElement);
     const rest = target?.closest('[data-block-rest]');
     if (!rest || target.closest('a, button, summary')) return;
     const fold = rest.parentElement?.querySelector(':scope > details.ui-block-card-fold');
