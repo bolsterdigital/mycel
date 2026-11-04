@@ -23,6 +23,7 @@
     locale,
     value,
     options,
+    accept = 'image',
     base,
     hint,
     invalid = false,
@@ -37,6 +38,8 @@
     /** The chosen media id, '' for none. */
     value: string;
     options: readonly MediaChoice[];
+    /** What this slot takes; the picker offers only that kind, and says so in its words. */
+    accept?: 'image' | 'document';
     /** The tenant's admin root, `/admin/<slug>`: thumbnails, search and upload live under it. */
     base: string;
     hint?: string | undefined;
@@ -50,6 +53,27 @@
   } = $props();
 
   const t = $derived(ui(locale));
+  const isDocument = $derived(accept === 'document');
+  const offered = $derived(options.filter((o) => !!o.document === isDocument));
+  const word = $derived(
+    isDocument
+      ? {
+          choose: t('admin.media.picker.document.choose'),
+          none: t('admin.media.picker.document.none'),
+          noChoice: t('admin.media.picker.document.noChoice'),
+          library: t('admin.media.picker.document.library'),
+          uploadLink: t('admin.media.picker.document.uploadLink'),
+          drop: t('admin.media.picker.document.drop'),
+        }
+      : {
+          choose: t('admin.media.picker.choose'),
+          none: t('admin.media.picker.none'),
+          noChoice: t('admin.media.picker.noImage'),
+          library: t('admin.media.picker.library'),
+          uploadLink: t('admin.media.picker.uploadLink'),
+          drop: t('admin.media.picker.drop'),
+        }
+  );
   const thumb = (o: MediaChoice) => (o.thumb ? thumbPath(base, o.id) : '');
   // A choice the script added (a search result or an upload) is not in `options`; remember it
   // so a hydrated page still shows its name.
@@ -60,15 +84,15 @@
   const copy = $derived(
     JSON.stringify({
       search: t('admin.media.picker.search'),
-      drop: t('admin.media.picker.drop'),
+      drop: word.drop,
       more: t('admin.media.picker.more'),
       nothing: t('admin.media.picker.nothing'),
       uploading: t('admin.media.picker.uploading'),
       uploaded: t('admin.media.picker.uploaded'),
       failed: t('admin.media.picker.failed'),
       searchFailed: t('admin.media.picker.searchFailed'),
-      none: t('admin.media.picker.none'),
-      choose: t('admin.media.picker.choose'),
+      none: word.none,
+      choose: word.choose,
       change: t('admin.media.picker.change'),
     })
   );
@@ -121,6 +145,7 @@
   data-media-picker
   data-name={name}
   data-choices="{base}/media/choices"
+  data-kind={isDocument ? 'document' : undefined}
   data-upload={upload ? `${base}/media/upload` : undefined}
   data-copy={copy}
   onchange={changed}
@@ -144,21 +169,21 @@
         height={THUMB.choice.height}
       />
       <span data-picker-name class={[!chosen && value === '' && 'muted']}
-        >{chosen?.label ?? (value || t('admin.media.picker.none'))}</span
+        >{chosen?.label ?? (value || word.none)}</span
       >
     </div>
     <Dialog
       id="{id}-dialog"
       title={label}
-      trigger={value ? t('admin.media.picker.change') : t('admin.media.picker.choose')}
+      trigger={value ? t('admin.media.picker.change') : word.choose}
       {locale}
       wide
     >
       <div class="ui-media-picker-tools" data-picker-tools></div>
       <p class="ui-hint" data-picker-noscript>
-        <a href="{base}/media" target="_blank">{t('admin.media.picker.uploadLink')}</a>
+        <a href="{base}/media" target="_blank">{word.uploadLink}</a>
       </p>
-      <ul class="ui-media-grid" aria-label={t('admin.media.picker.library')} data-picker-initial>
+      <ul class="ui-media-grid" aria-label={word.library} data-picker-initial>
         <li>
           <label class="ui-media-option">
             <input
@@ -170,22 +195,17 @@
               data-thumb=""
             />
             <span class="ui-media-option-blank"></span>
-            <span class="ui-media-option-name">{t('admin.media.picker.noImage')}</span>
+            <span class="ui-media-option-name">{word.noChoice}</span>
           </label>
         </li>
-        {#if value && !options.some((o) => o.id === value)}
+        {#if value && !offered.some((o) => o.id === value)}
           {@render option(chosen ?? { id: value, label: value, thumb: false })}
         {/if}
-        {#each options as o (o.id)}
+        {#each offered as o (o.id)}
           {@render option(o)}
         {/each}
       </ul>
-      <ul
-        class="ui-media-grid"
-        aria-label={t('admin.media.picker.library')}
-        data-picker-results
-        hidden
-      ></ul>
+      <ul class="ui-media-grid" aria-label={word.library} data-picker-results hidden></ul>
       <Actions end>
         <button class="ui-button" type="button" commandfor="{id}-dialog" command="close"
           >{t('admin.media.picker.done')}</button

@@ -1731,6 +1731,43 @@ test.describe('block card details', () => {
     }
   });
 
+  // A document slot's picker offers documents only; the public link fetches the file itself.
+  test('a new list of files offers the documents, wants a file per row and saves', async ({
+    page,
+    request,
+  }) => {
+    await login(page, '/admin/probe');
+    await blockPage(page, 'files');
+    await editorReady(page);
+    await page
+      .locator('[data-block-picker]')
+      .last()
+      .getByRole('button', { name: 'Bestanden', exact: true })
+      .click();
+    const fresh = page.locator('#block-new');
+    await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Bestanden');
+    await editorReady(page);
+    await fresh.getByLabel('Naam', { exact: true }).first().fill('Jaarverslag');
+    const saving = page.getByRole('button', { name: 'Opslaan', exact: true });
+    await saving.click();
+    await expect(page.getByRole('listitem').filter({ hasText: 'kies een bestand' })).toBeVisible();
+
+    await page.locator('#block-new').getByRole('button', { name: 'Bestand kiezen' }).click();
+    const dialog = page.locator('#block-new dialog[open]');
+    await expect(dialog.getByRole('radio', { name: 'malieveld.jpg' })).toHaveCount(0);
+    await dialog.getByRole('radio', { name: 'jaarverslag.pdf' }).first().check();
+    await dialog.getByRole('button', { name: 'Klaar' }).click();
+    await saving.click();
+    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
+
+    await page.goto('/probe/blok-file-download-one');
+    const link = page.getByRole('link', { name: 'Jaarverslag 2025' });
+    await expect(link).toHaveAttribute('download', '');
+    const file = await request.get((await link.getAttribute('href'))!);
+    expect(file.status()).toBe(200);
+    expect(file.headers()['content-type']).toBe('application/pdf');
+  });
+
   test('a card without a title keeps the name of its first question after an edit', async ({
     page,
     request,

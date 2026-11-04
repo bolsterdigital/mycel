@@ -8,6 +8,7 @@
   import Cards from './Cards.svelte';
   import Cta from './Cta.svelte';
   import Faq from './Faq.svelte';
+  import FileDownload from './FileDownload.svelte';
   import Form from './Form.svelte';
   import Heading from './Heading.svelte';
   import Hero from './Hero.svelte';
@@ -54,6 +55,8 @@
     <Cta {block} {model} />
   {:else if block.type === 'cards'}
     <Cards {block} {model} />
+  {:else if block.type === 'file-download'}
+    <FileDownload {block} {model} />
   {:else if block.type === 'callout'}
     <Callout {block} {model} />
   {:else if block.type === 'faq'}

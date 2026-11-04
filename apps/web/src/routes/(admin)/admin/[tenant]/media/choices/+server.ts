@@ -18,7 +18,7 @@ export const GET: RequestHandler = async ({ locals, url, params }) => {
   const cursor = url.searchParams.get('cursor') ?? '';
   try {
     const list = await runtime().invoker.run(useCases.listMedia, principal, {
-      kind: 'image',
+      kind: url.searchParams.get('kind') === 'document' ? 'document' : 'image',
       q,
       cursor: isUuid(cursor) ? cursor : undefined,
       limit: PAGE,

@@ -21,6 +21,7 @@ const media = {
   bakery: exampleId(0xd102),
   measuring: exampleId(0xd103),
   signatures: exampleId(0xd104),
+  report: exampleId(0xd105),
 };
 const documents = [
   demoPage({ formId: FORM, media }).document,
@@ -85,7 +86,7 @@ describe('demo content', () => {
         ),
       });
       expect(stored.blocks.length).toBeGreaterThanOrEqual(10);
-      expect(stored.blocks.length).toBeLessThanOrEqual(14);
+      expect(stored.blocks.length).toBeLessThanOrEqual(15);
       expect(stored.lead?.['nl']).toBeTruthy();
       expect(stored.heroImageId).toBeDefined();
       for (const locale of ['nl', 'en']) expect(readinessIssues(stored, locale)).toEqual([]);
@@ -117,11 +118,13 @@ describe('demo content', () => {
         ['nl', 'published'],
       ]);
     const { items } = await invoker.run(useCases.listMedia, admin, {});
-    expect(items.map((m) => m.filename).sort()).toEqual(DEMO_IMAGES.map((i) => i.filename).sort());
+    expect(items.map((m) => m.filename).sort()).toEqual(
+      [...DEMO_IMAGES.map((i) => i.filename), 'meetresultaten-pepernoten.pdf'].sort()
+    );
 
     const again = await seedDemoContent(invoker, admin, { formId: FORM, load: jpegHeader });
     expect(again).toMatchObject({ created: false, upgraded: [], page: { id: first.page.id } });
-    expect((await invoker.run(useCases.listMedia, admin, {})).items).toHaveLength(4);
+    expect((await invoker.run(useCases.listMedia, admin, {})).items).toHaveLength(5);
   });
 
   it('swaps the posters of an earlier seed for the photos, once, keeping history and drafts', async () => {
@@ -132,6 +135,11 @@ describe('demo content', () => {
 
     // What the poster-era seed left: four PNG posters, both items published with their ids and
     // texts, and an editor's unpublished change to the article.
+    const report = await invoker.run(useCases.uploadMedia, admin, {
+      filename: 'meetresultaten-pepernoten.pdf',
+      contentType: 'application/pdf',
+      bytes: bytesToBase64(new TextEncoder().encode('%PDF-1.4\n')),
+    });
     const posters = Object.fromEntries(
       await Promise.all(
         DEMO_IMAGES.map(async (image) => {
@@ -143,18 +151,19 @@ describe('demo content', () => {
           return [image.key, m.id];
         })
       )
-    ) as typeof media;
+    ) as Omit<typeof media, 'report'>;
+    const earlier = { ...posters, report: report.id };
     const page = await publishProbePage(
       invoker,
       admin,
       FORM,
-      posterEra(demoPage({ formId: FORM, media: posters }))
+      posterEra(demoPage({ formId: FORM, media: earlier }))
     );
     const article = await publishProbePage(
       invoker,
       admin,
       FORM,
-      posterEra(demoArticle({ formId: FORM, media: posters, pageId: page.id }))
+      posterEra(demoArticle({ formId: FORM, media: earlier, pageId: page.id }))
     );
     const published = (await invoker.run(useCases.getItem, admin, { itemId: article.id })).revision;
     const edited = posterEra(published.document);
@@ -203,6 +212,6 @@ describe('demo content', () => {
 
     const again = await seedDemoContent(invoker, admin, { formId: FORM, load: jpegHeader });
     expect(again).toMatchObject({ created: false, upgraded: [] });
-    expect((await invoker.run(useCases.listMedia, admin, {})).items).toHaveLength(8);
+    expect((await invoker.run(useCases.listMedia, admin, {})).items).toHaveLength(9);
   });
 });
