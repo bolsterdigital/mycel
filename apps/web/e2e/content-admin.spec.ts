@@ -1850,6 +1850,15 @@ test.describe('content-blocks', () => {
     // The "+" above each card (#66 PR 3); after the last card that is the one at the end.
     const above = n && (place === 'before' ? n : n + 1);
     const folds = page.locator('details.ui-block-insert');
+    // With scripts, wait until they have moved the choices: the tabs shrink the page and the search
+    // field pushes the buttons down 59 px, so an earlier click lands beside them and is lost (#167).
+    if (isA11y()) {
+      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+      await expect(page.locator('[data-block-picker]').last()).toHaveAttribute(
+        'data-picker-ready',
+        ''
+      );
+    }
     if (above && above <= (await folds.count())) {
       const fold = folds.nth(above - 1);
       await fold.locator('summary').click();

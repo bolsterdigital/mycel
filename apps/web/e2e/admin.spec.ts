@@ -1013,6 +1013,8 @@ test.describe('admin-shell', () => {
     page,
   }) => {
     await login(page, '/admin/probe/content?type=page', email);
+    // The URL changes before the document has arrived, and the measuring below does not wait (#167).
+    await expect(page.locator('.admin-workspace .page.admin')).toBeVisible();
     const measure = async (width: number) => {
       await page.setViewportSize({ width, height: 900 });
       return page.evaluate(() => {
