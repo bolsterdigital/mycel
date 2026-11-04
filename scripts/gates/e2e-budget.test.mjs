@@ -30,10 +30,7 @@ export const TEST_LINES = 150;
  * Tests still past TEST_LINES, `<spec>: <start of the title>` with their exact length, so it can
  * only shrink: a shorter test has to lower its number here, and one under the limit leaves.
  */
-export const LONG_TESTS = new Map([
-  ['article-writing.spec.ts: TipTap saves headings', 162],
-  ['public-site.spec.ts: the hero description says', 220],
-]);
+export const LONG_TESTS = new Map([['article-writing.spec.ts: TipTap saves headings', 162]]);
 
 /** The first line of a spec names its flow; the generic gate names none. */
 export const FLOW = /^\/\/ flow: (money|consent|access|publish|none, the generic gate)\b/;
@@ -53,6 +50,7 @@ export const RULES = [
   { name: 'an API address or key', pattern: /process\.env\[['"](E2E_API_URL|MYCEL_API_KEY)['"]\]/ },
   { name: 'a fixed wait', pattern: /waitForTimeout\(/ },
   { name: 'a new-page helper', pattern: /function newPage\b/ },
+  { name: 'a silent project return', pattern: /if \(!isA11y\(\)\) return/ },
 ];
 
 /**
@@ -188,6 +186,12 @@ test('every exception is still needed', () => {
 test('a copied new-page helper is caught', () => {
   assert.deepEqual(violations({ 'x.spec.ts': 'async function newPage(page) {}' }), [
     'x.spec.ts defines a new-page helper; use apps/web/e2e/lib/',
+  ]);
+});
+
+test('a test that stops silently in one project is caught', () => {
+  assert.deepEqual(violations({ 'x.spec.ts': 'if (!isA11y()) return;' }), [
+    'x.spec.ts defines a silent project return; use apps/web/e2e/lib/',
   ]);
 });
 

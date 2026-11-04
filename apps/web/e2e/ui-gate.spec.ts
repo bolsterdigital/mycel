@@ -61,6 +61,10 @@ test.describe('ui-gate', () => {
       for (const text of TEXT_SIZES)
         test(`every admin route at ${text} text`, async ({ page }) => {
           onlyA11y('measures the layout with a script');
+          // Every admin route in turn, axe on each at 100 %: 15 s in CI, up to 29 s on a busy
+          // machine, past the default 30 s once. The budget has to scale with the walk.
+          // Rejected: splitting per route, which multiplies the logins and the login limit.
+          test.slow();
           await login(page, ADMIN_ROUTES[0]!.path, undefined, { 'accept-language': locale });
           for (const route of ADMIN_ROUTES) {
             expect((await page.goto(route.path))?.status(), route.path).toBe(200);
@@ -312,7 +316,6 @@ test.describe('admin-ui', () => {
       await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
       await expect(page.locator('main')).toHaveCount(1);
       await expect(page.locator('script:not([src="/_admin/nav.js"])')).toHaveCount(0);
-      if (!isA11y()) return;
       await expectNoAxeViolations(page, { dark: true });
     });
 

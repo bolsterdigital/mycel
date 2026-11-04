@@ -3,7 +3,7 @@
 // cards of the edit screen.
 
 import { UseCaseError, systemPrincipal, useCases } from '@mycel/core';
-import { type Locator, type Page, expect, test } from '@playwright/test';
+import { type APIRequestContext, type Locator, type Page, expect, test } from '@playwright/test';
 import { expectNoAxeViolations } from './lib/axe';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
@@ -607,9 +607,8 @@ test.describe('content-blocks', () => {
     await stillWorks();
   });
 
-  test('a heading, a text and a quote rest as their words, and say what was typed when they close', async ({
-    page,
-  }) => {
+  /** A new page with a heading, a text and a quote, reopened. */
+  const textBlocksAtRest = async (page: Page) => {
     await login(page, '/admin/probe');
     const edit = await blockPage(page, 'text-rest');
     const heading = await insert(page, 'Kop', 'end');
@@ -626,7 +625,11 @@ test.describe('content-blocks', () => {
     await add(page);
 
     await page.goto(edit);
-    const rests = page.locator('[data-block-rest]');
+    return page.locator('[data-block-rest]');
+  };
+
+  test('a heading, a text and a quote rest as their words', async ({ page }) => {
+    const rests = await textBlocksAtRest(page);
     await expect(rests.nth(0).locator('.ui-block-text-heading')).toHaveText('Wie wij zijn');
     await expect(rests.nth(1).locator('strong')).toHaveText('vette');
     await expect(rests.nth(1).locator('[data-heading]')).toHaveText('Tussenkop');
@@ -644,8 +647,11 @@ test.describe('content-blocks', () => {
     await setTextSize(page, '100%');
     await page.setViewportSize({ width: 1280, height: 900 });
     await expectNoAxeViolations(page);
+  });
 
-    if (!isA11y()) return;
+  test('a heading, a text and a quote say what was typed when they close', async ({ page }) => {
+    onlyA11y();
+    const rests = await textBlocksAtRest(page);
     // With the script: a click on the words goes straight into the field, the rest view steps
     // aside so the words stand there once, and closing shows what was typed, unsaved.
     await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
@@ -688,9 +694,8 @@ test.describe('content-blocks', () => {
     await expect(rests.nth(2).locator('footer')).toHaveText('Sam de Vries, Voorzitter');
   });
 
-  test('a callout, an FAQ and a CTA rest as the page shows them, and nothing there acts', async ({
-    page,
-  }) => {
+  /** A new page with a callout, an FAQ and a CTA, reopened. */
+  const calloutFaqCtaAtRest = async (page: Page) => {
     await login(page, '/admin/probe');
     const edit = await blockPage(page, 'c2-rest');
     const callout = await insert(page, 'Kader', 'end');
@@ -711,6 +716,13 @@ test.describe('content-blocks', () => {
     await page.goto(edit);
     const rests = page.locator('[data-block-rest]');
     const box = rests.nth(0).locator('.ui-block-text-callout');
+    return { edit, rests, box };
+  };
+
+  test('a callout, an FAQ and a CTA rest as the page shows them, and nothing there acts', async ({
+    page,
+  }) => {
+    const { rests, box } = await calloutFaqCtaAtRest(page);
     await expect(box.locator('.ui-block-text-kind')).toHaveText('Informatie');
     await expect(box.locator('.ui-block-text-title')).toHaveText('Let op');
     await expect(box.locator('strong')).toHaveText('vette');
@@ -732,8 +744,13 @@ test.describe('content-blocks', () => {
     await setTextSize(page, '100%');
     await page.setViewportSize({ width: 1280, height: 900 });
     await expectNoAxeViolations(page);
+  });
 
-    if (!isA11y()) return;
+  test('a callout, an FAQ and a CTA open at the words clicked, and show what changed', async ({
+    page,
+  }) => {
+    onlyA11y();
+    const { edit, rests, box } = await calloutFaqCtaAtRest(page);
     await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
     const folds = page.locator('details.block');
     const done = (i: number) => folds.nth(i).locator('[data-block-done] button').click();
@@ -801,10 +818,8 @@ test.describe('content-blocks', () => {
     await expect(rests.locator('a[href]')).toHaveCount(0);
   });
 
-  test('a video and a form rest as what they are, and nothing there plays or posts', async ({
-    page,
-    request,
-  }) => {
+  /** The seeded page, open, watching for a request to a video host. */
+  const videoAndFormAtRest = async (page: Page, request: APIRequestContext) => {
     const hosts: string[] = [];
     page.on('request', (r) => {
       if (/youtube|youtu\.be|vimeo/.test(r.url())) hosts.push(r.url());
@@ -813,6 +828,14 @@ test.describe('content-blocks', () => {
     await login(page, edit);
     const video = card(page, 11).locator('[data-block-rest]');
     const form = card(page, 12).locator('[data-block-rest]');
+    return { hosts, video, form };
+  };
+
+  test('a video and a form rest as what they are, and nothing there plays or posts', async ({
+    page,
+    request,
+  }) => {
+    const { hosts, video, form } = await videoAndFormAtRest(page, request);
     const legacy = card(page, 2).locator('[data-block-rest]');
     await expect(video.locator('.ui-block-text-title')).not.toBeEmpty();
     await expect(video.locator('.ui-block-text-kind')).toHaveText(/YouTube|Vimeo/);
@@ -832,8 +855,14 @@ test.describe('content-blocks', () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await expectNoAxeViolations(page);
     expect(hosts).toEqual([]);
+  });
 
-    if (!isA11y()) return;
+  test('a video and a form open at their first field, and say what changed', async ({
+    page,
+    request,
+  }) => {
+    onlyA11y();
+    const { hosts, video, form } = await videoAndFormAtRest(page, request);
     await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
     const url = page.url();
     // A click on the preview's button goes to the block's first field: no post, no navigation.
@@ -883,7 +912,13 @@ test.describe('content-blocks', () => {
     await setTextSize(page, '100%');
     await page.setViewportSize({ width: 1280, height: 900 });
     await expectNoAxeViolations(page);
-    if (!isA11y()) return;
+  });
+
+  test('a click on the words of a paywall opens nothing', async ({ page, request }) => {
+    onlyA11y();
+    await login(page, await seededPage(request));
+    await editorReady(page);
+    const boundary = card(page, 4).locator('[data-block-rest] .ui-block-text-boundary');
     // A click on the words opens nothing, and the page stays where it is.
     const url = page.url();
     await boundary.click();
@@ -917,17 +952,8 @@ test.describe('content-blocks', () => {
     await expect(boundary).not.toContainText('openbaar');
   });
 
-  test('a legacy hero shows its picture and words, and stays what it is', async ({
-    page,
-    request,
-  }) => {
-    const seeded = await seededPage(request);
-    await login(page, seeded);
-    // The first example has no image: only its words, no picture and nothing that leaves the form.
-    const minimal = card(page, 6).locator('[data-block-rest]');
-    await expect(minimal.locator('.ui-block-text-heading')).not.toBeEmpty();
-    await expect(minimal.locator('img, a[href^="http"], button, form')).toHaveCount(0);
-    await expect(minimal).toContainText('ouder openingsblok');
+  /** A page with a legacy hero that has an image, open; the seeded page must be on screen. */
+  const legacyHeroPage = async (page: Page, request: APIRequestContext) => {
     const src = await card(page, 5)
       .locator('[data-block-rest] img[data-block-image]')
       .getAttribute('src');
@@ -967,7 +993,21 @@ test.describe('content-blocks', () => {
       },
     });
     await page.goto(`/admin/probe/content/${item.id}`);
-    const rest = page.locator('[data-block-rest]').first();
+    return page.locator('[data-block-rest]').first();
+  };
+
+  test('a legacy hero shows its picture and words, and stays what it is', async ({
+    page,
+    request,
+  }) => {
+    const seeded = await seededPage(request);
+    await login(page, seeded);
+    // The first example has no image: only its words, no picture and nothing that leaves the form.
+    const minimal = card(page, 6).locator('[data-block-rest]');
+    await expect(minimal.locator('.ui-block-text-heading')).not.toBeEmpty();
+    await expect(minimal.locator('img, a[href^="http"], button, form')).toHaveCount(0);
+    await expect(minimal).toContainText('ouder openingsblok');
+    const rest = await legacyHeroPage(page, request);
     await expectPixels(rest.locator('img[data-block-image]'), 'the legacy hero at rest');
     await expect(rest.locator('.ui-block-text-heading')).toHaveText('Schone lucht');
     await expect(rest.locator('.ui-block-text-body')).toHaveText('Doe mee met de buurt.');
@@ -986,8 +1026,15 @@ test.describe('content-blocks', () => {
     await setTextSize(page, '100%');
     await page.setViewportSize({ width: 1280, height: 900 });
     await expectNoAxeViolations(page);
+  });
 
-    if (!isA11y()) return;
+  test('a legacy hero opens at its title and shows what was typed when it closes', async ({
+    page,
+    request,
+  }) => {
+    onlyA11y();
+    await login(page, await seededPage(request));
+    const rest = await legacyHeroPage(page, request);
     await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
     // A click on the title goes to its field; closing shows what was typed.
     await rest.locator('.ui-block-text-heading').click();
@@ -1002,7 +1049,7 @@ test.describe('content-blocks', () => {
     page,
     request,
   }) => {
-    if (!isA11y()) return;
+    onlyA11y();
     requireApi();
     const { itemId, edit } = await pictureAtBothEnds(page, request, 'c-long');
     await page.goto(edit);
@@ -1310,7 +1357,7 @@ test.describe('content-blocks', () => {
     page,
     request,
   }) => {
-    if (!isA11y()) return;
+    onlyA11y();
     requireApi();
     const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
       slug: `c-paywall-${Date.now()}`,
@@ -1350,7 +1397,7 @@ test.describe('content-blocks', () => {
     page,
     request,
   }) => {
-    if (!isA11y()) return;
+    onlyA11y();
     requireApi();
     const { edit, itemId, mediaId } = await pictureAtBothEnds(page, request, 'c-caption');
     const { caption: before } = await callApi<{ caption: Record<string, string> }>(
@@ -1405,7 +1452,7 @@ test.describe('content-blocks', () => {
     page,
     request,
   }) => {
-    if (!isA11y()) return;
+    onlyA11y();
     requireApi();
     const { itemId, edit, mediaId } = await pictureAtBothEnds(page, request, 'd-broken');
     const { item: hero } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
