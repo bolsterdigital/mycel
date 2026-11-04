@@ -219,16 +219,15 @@ export function documentFieldIssues(e: UseCaseError): { name: string; message: s
  * locales has words (`b.<id>.p.text`), but the form only has a control per locale: without this
  * the summary's link leads nowhere and the field is not marked. The first locale the form carried
  * is the one on screen. Rejected: an id on a wrapper around the locales, which the link reaches
- * but cannot focus.
+ * but cannot focus. A list refused as a whole (too few rows) points at its first row's first
+ * control: its only direct child is the hidden row count, which has no label and takes no focus.
  */
 export function formFieldOf(name: string, values: Readonly<Record<string, unknown>>): string {
   if (name in values) return name;
   const prefix = `${name}.`;
-  return (
-    Object.keys(values).find(
-      (k) => k.startsWith(prefix) && !k.slice(prefix.length).includes('.')
-    ) ?? name
-  );
+  const keys = Object.keys(values).filter((k) => k.startsWith(prefix));
+  if (`${prefix}rows` in values) return keys.find((k) => k !== `${prefix}rows`) ?? name;
+  return keys.find((k) => !k.slice(prefix.length).includes('.')) ?? name;
 }
 
 /**

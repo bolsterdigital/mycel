@@ -2,7 +2,7 @@
 // An operator builds a page from blocks: every block form, inserting and moving, and the block
 // cards of the edit screen.
 
-import { UseCaseError, systemPrincipal, useCases } from '@mycel/core';
+import { BLOCK_TYPES, UseCaseError, systemPrincipal, useCases } from '@mycel/core';
 import { type APIRequestContext, type Locator, type Page, expect, test } from '@playwright/test';
 import { expectNoAxeViolations } from './lib/axe';
 import { tenantId, withInvoker } from './lib/invoker';
@@ -36,7 +36,9 @@ test.describe('content-blocks', () => {
     const edit = await seededPage(request);
     await login(page, edit);
     const stamp = String(Date.now());
-    await expect(page.locator('.ui-block-card-title')).toHaveText([
+    const titles = page.locator('.ui-block-card-title');
+    await expect(titles).toHaveCount(BLOCK_TYPES.length);
+    const placed = [
       'Blok 01 Kop',
       'Blok 02 Inschrijfformulier (oud)',
       'Blok 03 Tekst',
@@ -49,7 +51,8 @@ test.describe('content-blocks', () => {
       'Blok 10 Citaat',
       'Blok 11 Video',
       'Blok 12 Formulier',
-    ]);
+    ];
+    for (const [i, title] of placed.entries()) await expect(titles.nth(i)).toHaveText(title);
 
     /** Fill one field of block `n`, save, and see the value back in the reopened form. */
     const edits: [number, string, string, string?][] = [
@@ -100,6 +103,13 @@ test.describe('content-blocks', () => {
       next === 'Breed' ? 'wide' : 'full'
     );
     await save(page, 2);
+    // Every type behind the placed twelve, without a line per type: its first text field.
+    for (let n = 13; n <= BLOCK_TYPES.length; n++) {
+      const first = (at: Locator) => at.locator('input[type="text"]').first();
+      await first(await block(page, n)).fill(`Blok ${n} ${stamp}`);
+      await save(page, n);
+      await expect(first(await block(page, n))).toHaveValue(`Blok ${n} ${stamp}`);
+    }
     // A paywall has no fold and no fields: the save keeps it through the document alone.
     await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
     await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
@@ -1696,9 +1706,9 @@ test.describe('content-blocks', () => {
           document.querySelectorAll('details').forEach((d) => (d.open = true))
         );
         const blocks = form.locator('details.block');
-        // Twelve cards, one fold less: a paywall has no fields to open.
-        await expect(form.locator('section.ui-block-card')).toHaveCount(12);
-        await expect(blocks).toHaveCount(11);
+        // One card per type, one fold less: a paywall has no fields to open.
+        await expect(form.locator('section.ui-block-card')).toHaveCount(BLOCK_TYPES.length);
+        await expect(blocks).toHaveCount(BLOCK_TYPES.length - 1);
         await expect(form.locator('details.block:not([open])')).toHaveCount(0);
         await expect(blocks.nth(2).locator('.ProseMirror')).toBeVisible();
         await expect(card(page, 9).getByLabel('Vraag', { exact: true }).first()).toBeVisible();

@@ -130,6 +130,14 @@ export function renderMarkdown(model: RenderModel, options: MarkdownOptions): st
         if (b.actions.length) lines.push(b.actions.map((a) => link(a.label, a.href)).join(' · '));
         return lines.join('\n\n');
       }
+      case 'cards':
+        return b.cards
+          .flatMap((c) => [
+            heading(BLOCK_DEPTH, c.title),
+            ...(c.body ? [md(c.body)] : []),
+            ...c.actions.map((a) => link(a.label, a.href)),
+          ])
+          .join('\n\n');
       case 'callout': {
         const label = `*${md(model.copy.callout[b.variant])}*`;
         const lines = b.title ? [label, heading(BLOCK_DEPTH, b.title)] : [label];

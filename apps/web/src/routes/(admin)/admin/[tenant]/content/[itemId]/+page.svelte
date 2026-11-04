@@ -1136,7 +1136,7 @@
         <ul>
           {#each issues as i (i.name + i.copy)}
             <li>
-              {#if i.name}<a href="#{fieldId(i.name)}">{fieldLabel(i.name)}</a>:
+              {#if i.name}<a href="#{fieldId(i.name)}">{fieldLabel(i.name)}</a>:{' '}
               {/if}{t(i.copy as UiKey)}
             </li>
           {/each}

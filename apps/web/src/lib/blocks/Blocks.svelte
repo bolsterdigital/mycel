@@ -5,6 +5,7 @@
 <script lang="ts">
   import type { FormState, RenderBlock, RenderModel } from './model.js';
   import Callout from './Callout.svelte';
+  import Cards from './Cards.svelte';
   import Cta from './Cta.svelte';
   import Faq from './Faq.svelte';
   import Form from './Form.svelte';
@@ -51,6 +52,8 @@
     <Hero {block} {model} />
   {:else if block.type === 'cta'}
     <Cta {block} {model} />
+  {:else if block.type === 'cards'}
+    <Cards {block} {model} />
   {:else if block.type === 'callout'}
     <Callout {block} {model} />
   {:else if block.type === 'faq'}

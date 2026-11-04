@@ -384,6 +384,17 @@ describe('refusals', () => {
     const faq = base('faq');
     refused({ ...faq, props: { ...faq.props, entries: [] } });
     refused({ ...faq, props: { ...faq.props, entries: Array(31).fill(faq.props.entries[0]) } });
+    const cards = base('cards');
+    const one = cards.props.cards[0];
+    refused({ ...cards, props: { ...cards.props, cards: [one] } });
+    refused({ ...cards, props: { ...cards.props, cards: Array(7).fill(one) } });
+    refused({
+      ...cards,
+      props: {
+        ...cards.props,
+        cards: [{ ...one, actions: [one.actions[0], one.actions[0]] }, one],
+      },
+    });
   });
 
   it('bounds video ids per provider and accepts no URL or HTML', () => {
@@ -459,6 +470,7 @@ describe('references', () => {
     expect(rows('callout-info')).toEqual([`callout-0 item ${EXAMPLE_IDS.item}`]);
     expect(rows('faq-list')).toEqual([`faq-0 item ${EXAMPLE_IDS.item}`]);
     expect(rows('cta-band')).toEqual([`cta-0 item ${EXAMPLE_IDS.item}`]);
+    expect(rows('cards-three-links')).toEqual([`cards-0 item ${EXAMPLE_IDS.item}`]);
     expect(rows('quote-pullquote-wide')).toEqual([]);
     expect(rows('video-youtube')).toEqual([]);
   });

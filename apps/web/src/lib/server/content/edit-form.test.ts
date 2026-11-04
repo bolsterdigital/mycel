@@ -125,6 +125,8 @@ describe('the one edit form', () => {
     expect(formFieldOf('b.a.p.width', values)).toBe('b.a.p.width');
     expect(formFieldOf('b.a.p.body', values)).toBe('b.a.p.body');
     expect(formFieldOf('b.a.p.gone', values)).toBe('b.a.p.gone');
+    const list = { 'new.p.cards.rows': '2', 'new.p.cards.0.title.nl': 'Een' };
+    expect(formFieldOf('new.p.cards', list)).toBe('new.p.cards.0.title.nl');
   });
 
   it('puts document issues on the form field that holds them, whatever its tab', () => {

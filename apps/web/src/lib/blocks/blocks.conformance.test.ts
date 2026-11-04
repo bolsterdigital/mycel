@@ -27,10 +27,12 @@ import {
   THEME_ROLES,
   Theme,
   projectBlock,
+  type BlockField,
   type MediaView,
   type ResolvedTheme,
 } from '@mycel/core';
 import { demoArticle, demoPage, probeForm } from '@mycel/core/testing';
+import { formValues } from '../editor/block-form.js';
 import Blocks from './Blocks.svelte';
 import { headingTag } from './headings.js';
 import { renderMarkdown } from './markdown.js';
@@ -185,6 +187,42 @@ function sentinel(value: unknown, inEn = false, key = ''): unknown {
     );
   return value;
 }
+
+// A new block starts from the empty form, which the seeded examples never go through: a form that
+// offers fewer rows than the schema asks, or selects another value than the schema's default, shows
+// only once an editor uses it (review of #286).
+describe('the empty form of every block agrees with its schema', () => {
+  const lists = (fields: readonly BlockField[], at: string): [string, number][] =>
+    fields.flatMap((f) => {
+      const name = `${at}.${f.key}`;
+      if (f.kind === 'group') return lists(f.fields, name);
+      return f.kind === 'list' ? [[name, f.min]] : [];
+    });
+
+  for (const type of BLOCK_TYPES) {
+    const { fields, examples: forType, version } = BLOCK_DEFINITIONS[type];
+
+    it(`${type} offers at least the rows each list asks for`, () => {
+      const values = formValues(fields, undefined, LOCALES);
+      for (const [name, min] of lists(fields, 'p'))
+        expect(Number(values[`${name}.rows`]), name).toBeGreaterThanOrEqual(min);
+    });
+
+    it(`${type} selects each choice's default`, () => {
+      const values = formValues(fields, undefined, LOCALES);
+      for (const f of fields) {
+        if (f.kind !== 'choice') continue;
+        // The default is what the schema makes of the example without this key; a required choice
+        // refuses that and has no default to agree with.
+        const { [f.key]: _without, ...props } = forType[0]!.props as Record<string, unknown>;
+        const parsed = Block.safeParse({ id: 'x', type, version, props });
+        if (!parsed.success) continue;
+        const stored = (parsed.data.props as Record<string, unknown>)[f.key];
+        if (stored !== undefined) expect(values[`p.${f.key}`], f.key).toBe(stored);
+      }
+    });
+  }
+});
 
 describe('every example renders to HTML and Markdown', () => {
   for (const { name, type, block } of examples)
