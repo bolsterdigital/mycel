@@ -1388,6 +1388,21 @@ describe('ItemBar', () => {
     expect(context).toContain('Published · draft changes');
     expect(context).toContain('data-save-state');
   });
+  it('moves the save state to the dock when the bar has one', () => {
+    const out = html(ItemBar, {
+      locale: 'en',
+      compact: true,
+      back: { href: '/content', label: 'Articles' },
+      title: 'Edit article',
+      save: { text: 'Saved', unsaved: 'Unsaved changes', saving: 'Saving…' },
+      dock: createRawSnippet(() => ({ render: () => '<button>Save</button>' })),
+    });
+    const dock = out.slice(out.indexOf('ui-item-bar-dock'));
+    expect(out.match(/data-save-state/g)).toHaveLength(1);
+    expect(dock).toContain('data-save-state');
+    expect(dock).toContain('<button>Save</button>');
+    expect(out).not.toContain('ui-actions-host');
+  });
   it('shows the state without a link, and no action group without actions', () => {
     const out = html(ItemBar, {
       locale: 'en',

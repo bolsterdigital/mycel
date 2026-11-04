@@ -13,7 +13,7 @@ import {
 import { type Page, expect, test } from '@playwright/test';
 import { expectNoAxeViolations } from './lib/axe';
 import { tenantId, withInvoker } from './lib/invoker';
-import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
+import { NARROW, TEXT_SIZES, focusObscuredProblems, layoutGate, setTextSize } from './lib/layout';
 import { forwarded, login } from './lib/login';
 import { ADMIN_LOCALES, ADMIN_ROUTES, type GateRoute, PUBLIC_ROUTES } from './routes';
 import { isA11y, onlyA11y } from './lib/project';
@@ -310,6 +310,93 @@ test.describe('admin-ui', () => {
       if (!isA11y()) return;
       await expectNoAxeViolations(page, { dark: true });
     });
+
+  // The edit screen's actions in every window (#160): the bar stays where it is one or two lines,
+  // the dock takes Save and the main action where it scrolls away, and neither is kept where it
+  // would cost too much of the window.
+  test('the editor keeps its actions in reach without covering the document', async ({ page }) => {
+    await login(page, '/admin/probe/content/new?type=article');
+    await page
+      .locator('[name="title.nl"]')
+      .fill(`Actiebalk ${test.info().project.name} ${crypto.randomUUID()}`);
+    await page.getByRole('button', { name: /^(Concept maken|Create draft)$/ }).click();
+    await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
+    // As long as a real article, without a dozen blocks to make first.
+    await page
+      .locator('.ui-edit-main')
+      .evaluate((main: HTMLElement) => (main.style.minBlockSize = '4000px'));
+    const bar = page.locator('.ui-item-bar');
+    const dock = page.locator('.ui-item-bar-dock');
+    const save = bar.getByRole('button', { name: /^(Opslaan|Save)$/ });
+    const measure = () =>
+      page.evaluate(() => {
+        const box = document.querySelector('.ui-item-bar-dock')!.getBoundingClientRect();
+        return { top: box.top, bottom: box.bottom, height: box.height, window: innerHeight };
+      });
+    const scrollDown = async () => {
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(1000);
+    };
+
+    for (const size of [
+      { width: 320, height: 568 },
+      { width: 390, height: 844 },
+      { width: 720, height: 450 },
+      { width: 800, height: 500 },
+    ]) {
+      await page.setViewportSize(size);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await expect(bar).toHaveCSS('position', 'static');
+      await expect(dock).toHaveCSS('position', 'fixed');
+      // Scroll and measure as one retried step: hydration shrinks the page and then grows the side
+      // column by 65 px, so a scroll to the end made before it no longer is the end. Rejected:
+      // waiting for hydration first, as no signal says when the last enhancement has run.
+      await expect(async () => {
+        await scrollDown();
+        const box = await measure();
+        expect(box.bottom, `dock at the window's edge at ${size.width}`).toBe(box.window);
+        expect(box.height / box.window, `dock cost at ${size.width}`).toBeLessThan(0.2);
+        await expect(save).toBeInViewport({ timeout: 1000 });
+        // The end of the document can be read above the dock.
+        const end = await page.locator('.ui-edit-side').evaluate((e) => e.getBoundingClientRect());
+        expect(end.bottom, `end of the document at ${size.width}`).toBeLessThanOrEqual(box.top);
+      }).toPass({ timeout: 15_000 });
+      await layoutGate(page, `editor dock at ${size.width}`, '.ui-item-bar');
+      await expectNoAxeViolations(page);
+    }
+
+    // No tab stop disappears behind the dock.
+    await page.setViewportSize({ width: 320, height: 568 });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    expect(await focusObscuredProblems(page, '.ui-edit-page')).toEqual([]);
+
+    for (const size of [
+      { width: 1280, height: 720 },
+      { width: 1280, height: 500 },
+      { width: 768, height: 1024 },
+    ]) {
+      await page.setViewportSize(size);
+      await expect(dock).toHaveCSS('display', 'contents');
+      await expect(bar).toHaveCSS('position', 'sticky');
+      await scrollDown();
+      await expect(save).toBeInViewport();
+    }
+
+    // Where one line no longer fits or costs too much, both scroll with the page.
+    for (const size of [
+      { width: 320, height: 256 },
+      { width: 300, height: 568 },
+    ]) {
+      await page.setViewportSize(size);
+      await expect(dock).toHaveCSS('display', 'contents');
+      await expect(bar).toHaveCSS('position', 'static');
+    }
+
+    // Labels whole at 320 CSS px and 200% text, where the line may wrap but stays in one piece.
+    await page.setViewportSize(NARROW);
+    await setTextSize(page, '200%');
+    await layoutGate(page, 'editor dock at 200% text', '.ui-item-bar');
+  });
 
   test('a settings section confirms its own save, without a script', async ({ page }) => {
     await open(page, '/admin/probe/_ui/settings');

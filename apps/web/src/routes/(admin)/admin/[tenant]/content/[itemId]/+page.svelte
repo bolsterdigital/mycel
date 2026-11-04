@@ -1215,9 +1215,6 @@
         {/if}
       {/snippet}
       {#snippet actions()}
-        <Button variant="secondary" form="item-edit" formaction={action('save')}
-          >{t('admin.content.edit.save')}</Button
-        >
         {#if livePreview}
           <button
             type="button"
@@ -1241,6 +1238,11 @@
             ><Icon name="external-link" />{t('admin.content.edit.previewShort')}</Button
           >
         {/if}
+      {/snippet}
+      {#snippet dock()}
+        <Button variant="secondary" form="item-edit" formaction={action('save')}
+          >{t('admin.content.edit.save')}</Button
+        >
         {#if mainPublication || others.length}<Button href="#publication-panel"
             >{t('admin.content.action.openPublication')}</Button
           >{/if}
