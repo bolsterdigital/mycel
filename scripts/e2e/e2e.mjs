@@ -174,7 +174,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
   MYCEL_SEED_OPERATOR_EMAIL: 'e2e-admin@probe.test',
 });
 
-// A second, verified hostname of tenant probe for hostnames.spec.ts (a non-primary hostname is
+// A second, verified hostname of tenant probe for the hostnames part of admin.spec.ts (a non-primary hostname is
 // a 301 to the primary). Verification needs a real TXT record, so the fixture goes in through
 // the repository as the use case would leave it, not through DNS.
 //
@@ -396,7 +396,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
         ...(type === 'paywall' && { access: { level: 'public', teaser: 'marker' } }),
       };
   // And one page per Playwright project with the first example of every type, for
-  // content-admin.spec.ts (TODO #11 B): each block edited once without JavaScript. One per
+  // content-blocks.spec.ts (TODO #11 B): each block edited once without JavaScript. One per
   // project, because both projects run that spec at the same time and would conflict on one page.
   for (const project of ['no-js', 'a11y'])
     pages[`e2e-blokken-${project}`] = {
@@ -701,7 +701,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
 // there, so the API process gets the same origin regardless of what .env says. Both processes
 // run with SITE_URL_MODE=hostnames and PLATFORM_DOMAIN=localhost: the seed gives tenant probe
 // the hostname probe.localhost, Chromium resolves it to loopback, and the specs cover both the
-// hostname form (hostnames.spec.ts) and the development path form (signup.spec.ts).
+// hostname form (the hostnames part of admin.spec.ts) and the development path form (signup.spec.ts).
 const WEB_ORIGIN = quality ? 'https://localhost:4443' : 'http://127.0.0.1:4173';
 const spool = mkdtempSync(join(tmpdir(), 'mycel-e2e-mail-'));
 const env = {

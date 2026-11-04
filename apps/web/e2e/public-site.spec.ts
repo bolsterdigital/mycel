@@ -21,6 +21,7 @@ import { testTenant } from '@mycel/db/testing';
 import { type APIRequestContext, type Page, chromium, expect, test } from '@playwright/test';
 import sharp from 'sharp';
 import { expectNoAxeViolations } from './lib/axe';
+import { editorReady } from './lib/editor';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
 import { login } from './lib/login';
@@ -730,10 +731,7 @@ test.describe('content-routes', () => {
       ).revision.document.heroAlt;
     // The line's live state and the focus on opening come from the screen's script; a step before
     // it has run gets the native behaviour, which is fine for a person but not what is tested (#178).
-    const ready = async () => {
-      if (isA11y())
-        await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
-    };
+    const ready = () => editorReady(page);
     const visit = async (url: string) => {
       await page.goto(url);
       await ready();

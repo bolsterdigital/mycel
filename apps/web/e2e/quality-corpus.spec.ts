@@ -10,7 +10,7 @@ import checklist from '../../../scripts/quality/spec-checklist.json' with { type
 import { type Sample, specFailures } from '../../../scripts/quality/spec-check.mjs';
 import { themeCss } from '../src/lib/theme/tokens.js';
 import { WCAG, expectNoAxeViolations, nativeSemanticsProblems } from './lib/axe';
-import { mobileInputProblems } from './lib/forms';
+import { mobileInputProblems } from './lib/form';
 import { tenantId, withInvoker } from './lib/invoker';
 import {
   NARROW,
