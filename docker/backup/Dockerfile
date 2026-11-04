@@ -24,7 +24,7 @@ FROM alpine:3.24.3@sha256:b3413572228e34bd1c9245f5565e6cd127005655e8a7899aef33d8
 # Quoted: unquoted, the shell reads `>=` as a redirect.
 RUN apk add --no-cache \
       'restic>=0.18.1' \
-      'rclone>=1.74.1' \
+      'rclone>=1.75.2' \
       'postgresql16-client>=16.15' \
       ca-certificates \
       openssh-client \
