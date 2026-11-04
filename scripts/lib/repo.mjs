@@ -14,6 +14,21 @@ import { fileURLToPath } from 'node:url';
 /** The repository root, absolute, without a trailing slash. */
 export const ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 
+/**
+ * Reads `.env` at the root into `process.env`, the one way a script or test run gets it. A
+ * variable already set wins, as with `node --env-file`. A missing file is no error: the caller
+ * decides what an absent variable means. `MYCEL_NO_DOTENV=1` leaves the file unread, for a run
+ * that proves what a clean checkout does (`scripts/test-collect.mjs`).
+ */
+export function loadDotEnv(root = ROOT) {
+  if (process.env.MYCEL_NO_DOTENV === '1') return;
+  try {
+    process.loadEnvFile(join(root, '.env'));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+}
+
 /** Directories no gate reads: installed packages, build output, VCS and per-user state. */
 export const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.svelte-kit', '.git']);
 

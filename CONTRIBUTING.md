@@ -41,9 +41,11 @@ Other scripts:
 npm run verify
 ```
 
-`verify` is the gate: formatting, dependency rules, types, tests, build and the Playwright + axe end-to-end tests. CI runs the same command. Keep it green on every commit.
+`verify` is the gate: `verify:checks` (formatting, dependency rules, infrastructure gates, types, a collection run with an empty environment, tests, build), then `test:e2e` (the Playwright + axe end-to-end tests). Keep it green on every commit. CI runs the same parts split over jobs: `checks` runs `verify:checks`, `browsers` runs `test:e2e` per project (`a11y`, `no-js`), and `security`, `image` and `compose` run beside them; job `verify` requires all five (`.github/workflows/verify.yml`).
 
-With `DATABASE_URL` and `APP_DATABASE_URL` set (they are, after the steps above), `verify` also runs the database suites, including the Row Level Security conformance test (`packages/db/src/rls.conformance.test.ts`), and the end-to-end tests (after `npx playwright install chromium`). The end-to-end run starts the API with its worker on port 8797 (`E2E_API_PORT` to change it; the other ports and the guards are in [testing.md](docs/architecture/testing.md#local-database)) and a console mailer that spools to a temporary directory, so the signup spec can follow the confirmation link. Without a database those suites skip; in CI (`E2E_REQUIRED=1`) a missing database fails the build instead. Load the env first: `set -a; . ./.env; set +a; npm run verify`.
+`test`, `test:e2e` and `quality` read `.env` themselves, and a variable already set in your shell wins. With the steps above, `verify` runs the database suites, including the Row Level Security conformance test (`packages/db/src/rls.conformance.test.ts`), and the end-to-end tests (after `npx playwright install chromium`). The end-to-end run starts the API with its worker on port 8797 (`E2E_API_PORT` to change it; the other ports and the guards are in [testing.md](docs/architecture/testing.md#local-database)) and a console mailer that spools to a temporary directory, so the signup spec can follow the confirmation link.
+
+Without a database the two differ on purpose. `npm run test` skips the database suites and says so, so a unit test works on a bare checkout; in CI (`E2E_REQUIRED=1`) a missing database fails it. `npm run test:e2e`, and so `verify`, always fails and names what is missing: a green `verify` means the browser tests ran.
 
 ## Container image
 

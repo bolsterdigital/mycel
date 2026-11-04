@@ -8,13 +8,15 @@ Open-core successor to Dreamkit: campaign sites, forms, donations, supporters an
 
 ```sh
 npm install
-npm run verify      # format:check + lint:deps + typecheck + test + build; run before every PR
+npm run verify      # verify:checks, then test:e2e; run before every PR
+npm run verify:checks # format:check, lint:deps, lint:infra, typecheck, test:collect, test, build
 npm run format      # fix formatting
-npm run test        # vitest
-npm run dev         # apps/web
+npm run test        # vitest; reads .env, database suites skip without DATABASE_URL
+npm run test:e2e    # Playwright + axe on a build; reads .env, fails without a database
+npm run dev         # builds the packages, then API with worker, web and, without OIDC_ISSUER, a mock IdP
 ```
 
-CI runs `verify` plus a DCO check (`.github/workflows/verify.yml`). Commits are signed off: `git commit -s`.
+CI does not run `verify` as one command (`.github/workflows/verify.yml`). Job `checks` runs `verify:checks` plus the DCO and unchanged-migrations checks, `browsers` runs `test:e2e` once per project (`a11y`, `no-js`), and `security`, `image` and `compose` run beside them; job `verify` requires all five. Commits are signed off: `git commit -s`.
 
 ## Frozen design decisions (summary; the ADRs are authoritative)
 

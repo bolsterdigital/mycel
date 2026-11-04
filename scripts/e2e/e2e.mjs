@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-// Runs the Playwright + axe gate (ADR 009 rule 3) when its infrastructure exists: a Postgres
-// (DATABASE_URL + APP_DATABASE_URL) and an installed Chromium. Without them it prints why it
-// skipped and exits 0, so `verify` stays usable on a laptop without a database; CI sets
-// E2E_REQUIRED=1 so a missing service fails the build instead of skipping silently.
-// Rejected: a separate CI-only command, which lets the gate drift out of `verify`.
+// Runs the Playwright + axe gate (ADR 009 rule 3). It reads `.env` itself and needs a Postgres
+// (DATABASE_URL + APP_DATABASE_URL), an installed Chromium and a build; without one of them it
+// says which and exits 1, here and in CI (TODO #175).
+// Rejected: skipping with exit 0 outside CI, which made `verify` green on a machine that had
+// only `.env`, without one browser test having run. Rejected: a separate CI-only command, which
+// lets the gate drift out of `verify`.
 //
 // The signup flow needs more than the web app: the outbox worker sends the confirmation mail,
 // and the spec reads that mail from a spool directory and checks the supporter over HTTP. So
@@ -26,6 +27,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadDotEnv } from '../lib/repo.mjs';
 import { blockExamples } from './e2e-block-examples.mjs';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
@@ -33,16 +35,12 @@ const qualityCorpus = JSON.parse(
   readFileSync(new URL('../../apps/web/e2e/quality-corpus.json', import.meta.url), 'utf8')
 );
 const quality = process.argv.includes('--quality');
-const required = quality || process.env.E2E_REQUIRED === '1';
-const skip = (why) => {
-  if (required) {
-    console.error(`e2e: required but ${why}`);
-    process.exit(1);
-  }
-  console.log(`e2e: skipped (${why}); set DATABASE_URL and APP_DATABASE_URL to run it`);
-  process.exit(0);
+const fail = (why) => {
+  console.error(`e2e: ${why}`);
+  process.exit(1);
 };
 
+loadDotEnv();
 for (const name of [
   'DATABASE_URL',
   'APP_DATABASE_URL',
@@ -52,23 +50,23 @@ for (const name of [
   'PLATFORM_DOMAIN',
   'MAIL_FROM',
 ])
-  if (!process.env[name]) skip(`${name} is not set`);
+  if (!process.env[name])
+    fail(
+      `${name} is not set: this gate needs a database and did not run. Copy .env.example to ` +
+        '.env and start one (the first commands in CONTRIBUTING.md)'
+    );
 
 const { chromium } = await import('@playwright/test');
 if (!existsSync(chromium.executablePath()))
-  skip('Chromium is not installed (npx playwright install chromium)');
-if (!existsSync(`${root}apps/web/build/index.js`)) skip('apps/web is not built (npm run build)');
-if (!existsSync(`${root}packages/api/dist/runtime/server.js`)) skip('packages/api is not built');
+  fail('Chromium is not installed (npx playwright install chromium)');
+if (!existsSync(`${root}apps/web/build/index.js`)) fail('apps/web is not built (npm run build)');
+if (!existsSync(`${root}packages/api/dist/runtime/server.js`))
+  fail('packages/api is not built (npm run build)');
 
 const run = (cmd, args, cwd = root, env = process.env) => {
   const r = spawnSync(cmd, args, { cwd, stdio: 'inherit', env });
   if (r.status !== 0) process.exit(r.status ?? 1);
 };
-const fail = (why) => {
-  console.error(`e2e: ${why}`);
-  process.exit(1);
-};
-
 // Ports of the processes this script starts. The worker's default is not 8799: that is where
 // `npm run dev` starts its mock IdP, and a running dev server used to push a run onto other
 // ports, which forked the fixture operators below (TODO #27).
@@ -100,7 +98,14 @@ for (const [name, port] of [
 // also when it is killed. Rejected: a lock file, which a killed run leaves behind.
 const pg = (await import('pg')).default;
 const runLock = new pg.Client({ connectionString: process.env.DATABASE_URL });
-await runLock.connect();
+await runLock
+  .connect()
+  .catch((error) =>
+    fail(
+      `cannot reach the database in DATABASE_URL (${error.code ?? error.message}): this gate did ` +
+        'not run. Start it with `npm run db:up`, or point DATABASE_URL at one that runs'
+    )
+  );
 if (!(await runLock.query('select pg_try_advisory_lock(4242027) as ok')).rows[0].ok)
   fail(`another e2e run holds database ${runLock.database}; wait for it or use another database`);
 // A schema ahead of this checkout (another branch migrated the shared local database) fails
@@ -771,26 +776,33 @@ await waitFor('worker', worker, `http://127.0.0.1:${WORKER_PORT}/healthz`);
 await waitFor('mock IdP', idp, `${env.OIDC_ISSUER}/.well-known/openid-configuration`);
 
 // The children keep the event loop alive; stop them explicitly once the tests are done.
-if (quality) {
-  run(
-    'node',
-    ['scripts/quality/run.mjs', ...process.argv.slice(2).filter((arg) => arg !== '--quality')],
-    root,
-    env
-  );
-} else {
-  run('npx', ['playwright', 'test', ...process.argv.slice(2)], `${root}apps/web`, env);
-}
+const gate = quality
+  ? spawnSync(
+      'node',
+      ['scripts/quality/run.mjs', ...process.argv.slice(2).filter((arg) => arg !== '--quality')],
+      { cwd: root, stdio: 'inherit', env }
+    )
+  : spawnSync('npx', ['playwright', 'test', ...process.argv.slice(2)], {
+      cwd: `${root}apps/web`,
+      stdio: 'inherit',
+      env,
+    });
+const status = gate.status ?? 1;
 stop();
 // The worker planned a `mail.reconcile` per confirmation it sent, RECONCILE_LAG_MS ahead, and is
 // gone before they fall due. Close probe's so they neither wait for the next run's worker nor
-// crowd recovery.test's claim (TODO #32); its other jobs, hostname checks, stay.
-{
+// crowd recovery.test's claim (TODO #32); its other jobs, hostname checks, stay. A red run leaves
+// those jobs just the same, so this runs after one too (TODO #175), and a failure here never
+// turns the run's own red into another exit code.
+try {
   const { createDb, createTenantDirectory } = await import('@mycel/db');
   const { closeTenantWork } = await import('@mycel/db/testing');
   const operatorDb = createDb(process.env.DATABASE_URL);
   const probe = await createTenantDirectory(operatorDb).findBySlug('probe');
   if (probe) await closeTenantWork(operatorDb, [probe.id], { jobTypes: ['mail.reconcile'] });
   await operatorDb.destroy();
+} catch (error) {
+  console.error(`e2e: could not close the work of tenant probe: ${error.message}`);
+  process.exit(status || 1);
 }
-process.exit(0);
+process.exit(status);

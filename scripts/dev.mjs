@@ -11,6 +11,7 @@
 
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { loadDotEnv } from './lib/repo.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
@@ -18,9 +19,7 @@ const build = spawnSync('npx', ['tsc', '-b', 'packages/api'], { cwd: root, stdio
 if (build.status !== 0) process.exit(build.status ?? 1);
 
 // Read .env here too (shell variables win, as with --env-file), to see which IdP it names.
-try {
-  process.loadEnvFile(`${root}.env`);
-} catch {}
+loadDotEnv();
 const env = { ...process.env };
 const issuer = env.OIDC_ISSUER;
 const mockIdp = !issuer || new URL(issuer).hostname === '127.0.0.1';
