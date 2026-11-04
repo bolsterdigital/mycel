@@ -92,6 +92,7 @@ export const IMAGE_LAYOUTS = ['content', 'wide', 'full', 'float-left', 'float-ri
 export const HERO_VARIANTS = ['minimal', 'cover', 'split'] as const;
 export const CTA_VARIANTS = ['band', 'card'] as const;
 export const CALLOUT_VARIANTS = ['info', 'note', 'warning'] as const;
+export const CARDS_ACCENTS = ['none', 'bar', 'filled'] as const;
 export const FAQ_VARIANTS = ['list', 'accordion'] as const;
 export const QUOTE_VARIANTS = ['blockquote', 'pullquote'] as const;
 export const VIDEO_PROVIDERS = ['youtube', 'vimeo'] as const;
@@ -265,6 +266,43 @@ const longLabel = {
 };
 
 // --- the registry -----------------------------------------------------------------------------
+
+const JOIN_CARD = {
+  title: { nl: 'Word lid', en: 'Become a member' },
+  body: { nl: 'Samen staan we sterker.', en: 'Together we stand stronger.' },
+  actions: [
+    {
+      label: { nl: 'Meld je aan', en: 'Sign up' },
+      target: { kind: 'item' as const, itemId: EXAMPLE_IDS.item },
+    },
+  ],
+};
+const VOLUNTEER_CARD = {
+  title: { nl: 'Doe mee als vrijwilliger', en: 'Volunteer with us' },
+  body: {
+    nl: 'Een paar uur per maand maakt al verschil, ook als je nog nooit eerder hebt meegedaan.',
+    en: 'A few hours a month already make a difference, even if you have never joined in before.',
+  },
+  actions: [
+    {
+      label: { nl: 'Bekijk de klussen', en: 'See the jobs' },
+      target: { kind: 'url' as const, url: 'https://example.org/klussen' },
+    },
+  ],
+};
+const DONATE_CARD = {
+  title: { nl: 'Steun ons', en: 'Support us' },
+  actions: [
+    {
+      label: { nl: 'Doneer', en: 'Donate' },
+      target: { kind: 'url' as const, url: 'https://example.org/doneer' },
+    },
+  ],
+};
+const NO_LINK_CARD = {
+  title: { nl: 'Kom langs', en: 'Drop by' },
+  body: { nl: 'Elke dinsdag op kantoor.', en: 'Every Tuesday at the office.' },
+};
 
 export const BLOCK_DEFINITIONS = {
   // No `level` prop: the renderer derives the heading level from tree depth (ADR 004 rule 3).
@@ -489,6 +527,73 @@ export const BLOCK_DEFINITIONS = {
           actions: [readMore],
           width: 'full',
           align: 'end',
+        },
+      },
+    ],
+  }),
+
+  // Dreamkit's action cards in one block: the entries are props, as in `faq`; the number of columns
+  // follows the width on offer, and `width: full` is the band. Rejected: a column count, which a
+  // narrow container cannot honour, and a parent with child blocks, which would give every card
+  // block operations nobody needs.
+  cards: define({
+    version: 1,
+    props: z
+      .object({
+        accent: z.enum(CARDS_ACCENTS).default('none'),
+        width: Width.default('wide'),
+        cards: z
+          .array(
+            z
+              .object({
+                title: localized(ShortText),
+                body: localized(BodyText).optional(),
+                actions: z.array(Action).max(1).default([]),
+              })
+              .strict()
+          )
+          .min(2)
+          .max(6),
+      })
+      .strict(),
+    fields: [
+      {
+        key: 'cards',
+        kind: 'list',
+        min: 2,
+        max: 6,
+        fields: [
+          textField('title', { localized: true }),
+          textField('body', { localized: true, multiline: true, optional: 'omit' }),
+          { key: 'actions', kind: 'actions', min: 0, max: 1 },
+        ],
+      },
+      choice('accent', CARDS_ACCENTS),
+      choice('width', WIDTHS),
+    ],
+    variants: { accent: CARDS_ACCENTS, width: WIDTHS },
+    localized: (p) =>
+      p.cards.flatMap((c, i) => [
+        ...present(['cards', i, 'title'], c.title),
+        ...present(['cards', i, 'body'], c.body),
+        ...c.actions.flatMap((a, j) => present(['cards', i, 'actions', j, 'label'], a.label)),
+      ]),
+    references: (p) => p.cards.flatMap((c) => actionRefs(c.actions)),
+    examples: [
+      {
+        name: 'cards-three-links',
+        props: { cards: [JOIN_CARD, VOLUNTEER_CARD, DONATE_CARD] },
+      },
+      {
+        name: 'cards-bar-content',
+        props: { accent: 'bar', width: 'content', cards: [JOIN_CARD, VOLUNTEER_CARD] },
+      },
+      {
+        name: 'cards-filled-full',
+        props: {
+          accent: 'filled',
+          width: 'full',
+          cards: [JOIN_CARD, VOLUNTEER_CARD, DONATE_CARD, NO_LINK_CARD],
         },
       },
     ],

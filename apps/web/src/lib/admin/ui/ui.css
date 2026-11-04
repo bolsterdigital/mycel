@@ -1885,6 +1885,22 @@
     border-radius: var(--radius);
     background: transparent;
   }
+  /* A card's three places always exist, so one typed after opening has somewhere to show; a card
+     nobody filled in takes no room. */
+  .ui-block-text-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+    gap: var(--space-1);
+  }
+  .ui-block-text-card {
+    padding: var(--space-1);
+    overflow-wrap: anywhere;
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius);
+  }
+  .ui-block-text-card:has(> .ui-block-text-heading:empty) {
+    display: none;
+  }
   .ui-block-text-body {
     margin-block: var(--space-0) 0;
     white-space: pre-line;

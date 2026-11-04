@@ -314,6 +314,18 @@ export async function resolveDocument(
           width: b.props.width,
           align: b.props.align,
         };
+      case 'cards':
+        return {
+          id,
+          type: 'cards',
+          accent: b.props.accent,
+          width: b.props.width,
+          cards: b.props.cards.map((c) => ({
+            title: text(c.title) ?? '',
+            body: text(c.body),
+            actions: actions(c.actions),
+          })),
+        };
       case 'callout':
         return {
           id,
@@ -410,6 +422,8 @@ function referencesOf(b: Block): { type: 'media' | 'form' | 'item'; refId: strin
       ];
     case 'cta':
       return targets(b.props.actions);
+    case 'cards':
+      return b.props.cards.flatMap((c) => targets(c.actions));
     case 'form':
     case 'signup-form':
       return [{ type: 'form', refId: b.props.formId }];

@@ -107,6 +107,18 @@ describe('textRestOf', () => {
     if (callout?.kind !== 'callout') throw new Error('no callout view');
     expect(callout.html).not.toMatch(/<a\b|<h[1-6]|\bid=|href/);
 
+    const cards = textRestOf(example('cards'), 'nl', 'b.b.');
+    if (cards?.kind !== 'cards') throw new Error('no cards view');
+    // One place per row the form can have, so a card typed after opening has somewhere to show.
+    expect(cards.cards).toHaveLength(6);
+    expect(cards.cards[0]).toMatchObject({
+      title: 'Word lid',
+      titleFrom: 'b.b.p.cards.0.title.nl',
+      label: 'Meld je aan',
+      labelFrom: 'b.b.p.cards.0.actions.0.label.nl',
+    });
+    expect(cards.cards[3]?.title).toBe('');
+
     const faq = textRestOf(example('faq', 1), 'nl', 'b.b.');
     if (faq?.kind !== 'faq') throw new Error('no faq view');
     expect(faq.variant).toBe('accordion');

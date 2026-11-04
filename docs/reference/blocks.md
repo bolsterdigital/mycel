@@ -104,6 +104,21 @@ Version 1.
 
 Examples: `cta-band`, `cta-card-two-actions`, `cta-full-end`.
 
+## `cards` (Cards)
+
+Version 1.
+
+| Prop              | Label     | Kind                                                | Presence |
+| ----------------- | --------- | --------------------------------------------------- | -------- |
+| `cards`           | Card      | list of 2–6                                         | required |
+| `cards[].title`   | Title     | localised text                                      | required |
+| `cards[].body`    | Body text | localised multi-line text                           | optional |
+| `cards[].actions` | Buttons   | 0–1 buttons: a localised label and an item or a URL | required |
+| `accent`          | Accent    | one of `none`, `bar`, `filled`                      | required |
+| `width`           | Width     | one of `content`, `wide`, `full`                    | required |
+
+Examples: `cards-three-links`, `cards-bar-content`, `cards-filled-full`.
+
 ## `callout` (Callout)
 
 Version 1.

@@ -54,6 +54,17 @@
         bodyFrom?: string;
         actions: readonly { label: string; from?: string }[];
       }
+    | {
+        kind: 'cards';
+        cards: readonly {
+          title: string;
+          titleFrom?: string;
+          body: string;
+          bodyFrom?: string;
+          label: string;
+          labelFrom?: string;
+        }[];
+      }
     | { kind: 'paywall' }
     | {
         kind: 'video';
@@ -155,6 +166,18 @@
           <span class="ui-block-text-action" data-rest-from={action.from}>{action.label}</span>
         {/each}
       </div>
+    </div>
+  {:else if view.kind === 'cards'}
+    <div class="ui-block-text-cards">
+      {#each view.cards as card, i (i)}
+        <div class="ui-block-text-card">
+          <p class="ui-block-text-heading" data-rest-from={card.titleFrom}>{card.title}</p>
+          <p class="ui-block-text-body" data-rest-from={card.bodyFrom}>{card.body}</p>
+          <div class="ui-block-text-actions">
+            <span class="ui-block-text-action" data-rest-from={card.labelFrom}>{card.label}</span>
+          </div>
+        </div>
+      {/each}
     </div>
   {:else if view.kind === 'paywall'}
     <div class="ui-block-text-boundary">

@@ -242,6 +242,18 @@ export type TextRest =
       /** Always both places the form has, so one typed after opening has somewhere to show. */
       actions: readonly { label: string; from: string }[];
     }
+  | {
+      kind: 'cards';
+      /** One place per row the form can have, so a card typed after opening shows at rest. */
+      cards: readonly {
+        title: string;
+        titleFrom: string;
+        body: string;
+        bodyFrom: string;
+        label: string;
+        labelFrom: string;
+      }[];
+    }
   /** A paywall has no words of its own: the screen says what the boundary does. */
   | { kind: 'paywall' }
   | {
@@ -271,6 +283,7 @@ export type TextRest =
 
 /** How many actions a CTA's form offers (`max` of its `actions` field). */
 const CTA_ACTION_ROWS = 2;
+const CARDS_ROWS = 6;
 
 export function textRestOf(
   block: Block,
@@ -361,6 +374,22 @@ export function textRestOf(
         label: local(block.props.actions[i]?.label),
         from: field(`actions.${i}.label.${locale}`),
       })),
+    };
+  }
+  if (block.type === 'cards') {
+    return {
+      kind: 'cards',
+      cards: Array.from({ length: CARDS_ROWS }, (_, i) => {
+        const card = block.props.cards[i];
+        return {
+          title: local(card?.title),
+          titleFrom: field(`cards.${i}.title.${locale}`),
+          body: local(card?.body),
+          bodyFrom: field(`cards.${i}.body.${locale}`),
+          label: local(card?.actions[0]?.label),
+          labelFrom: field(`cards.${i}.actions.0.label.${locale}`),
+        };
+      }),
     };
   }
   if (block.type === 'paywall') return { kind: 'paywall' };

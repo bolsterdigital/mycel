@@ -113,6 +113,12 @@ export type RenderBlock = { id: string } & (
       align: Align;
     }
   | {
+      type: 'cards';
+      accent: 'none' | 'bar' | 'filled';
+      width: Width;
+      cards: { title: string; body: string | null; actions: RenderAction[] }[];
+    }
+  | {
       type: 'callout';
       variant: 'info' | 'note' | 'warning';
       title: string | null;
