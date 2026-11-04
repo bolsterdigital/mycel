@@ -51,12 +51,6 @@ export interface UseCase<
    * explicitly (`registry-rules.ts`), so forgetting a limit cannot pass unnoticed.
    */
   consumes?: LimitName | null;
-  /**
-   * Refused for an anonymous principal whatever its capabilities: editorial reads and writes
-   * (drafts, revisions, author e-mail) never reach a public visitor, who holds `content:read`
-   * for the published projection only. `registry-rules.ts` says which use cases must set it.
-   */
-  authenticatedOnly?: boolean;
   /** An API key or agent cannot truthfully claim a human editorial decision. */
   actors?: readonly Principal['actor']['kind'][];
   input: TInput;
@@ -73,6 +67,26 @@ export interface UseCase<
    */
   examples: readonly [UseCaseExample<z.input<TInput>>, ...UseCaseExample<z.input<TInput>>[]];
 }
+
+/**
+ * The only use cases an anonymous principal reaches, whatever capabilities it carries: what a
+ * public page reads and the visitor's own form and opt-in. Everything else is refused, so a new use
+ * case is closed until someone adds it here. Rejected: a flag on each use case that closes it,
+ * because forgetting the flag then opens it, and resting on the front, which a next front need not
+ * repeat.
+ */
+export const ANONYMOUS_USE_CASES: ReadonlySet<string> = new Set([
+  'content.published.get',
+  'form.get',
+  'form.submit',
+  'mailing.opt_in.confirm',
+  'mailing.opt_in.get',
+  'media.get',
+  'site.brand.get',
+  'site.chrome.get',
+  'site.general.get',
+  'site.theme.get',
+]);
 
 export function defineUseCase<TInput extends z.ZodTypeAny, TOutput extends z.ZodTypeAny>(
   useCase: UseCase<TInput, TOutput>
@@ -100,7 +114,8 @@ export class UseCaseRegistry {
 
   /** Authorization check shared by every front, so no front can forget it. */
   authorize(useCase: UseCase, principal: Principal): boolean {
-    if (useCase.authenticatedOnly && principal.actor.kind === 'anonymous') return false;
+    if (principal.actor.kind === 'anonymous' && !ANONYMOUS_USE_CASES.has(useCase.name))
+      return false;
     if (useCase.actors && !useCase.actors.includes(principal.actor.kind)) return false;
     return (
       principal.capabilities.includes(useCase.requires) ||

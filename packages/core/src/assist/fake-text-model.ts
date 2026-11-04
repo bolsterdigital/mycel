@@ -1,9 +1,12 @@
 // CI and e2e use a deterministic model. It records exactly what crossed the model boundary, so
-// privacy tests can inspect parts without replacing any of our own modules.
+// privacy tests can inspect parts without replacing any of our own modules. `ASSIST_PROVIDER=fake`
+// selects it in the composition root, so it is an entrypoint of its own
+// (`@mycel/core/fake-text-model`). Rejected: reaching it through `@mycel/core/testing`, which made
+// every production process load the memory adapters and the demo content.
 
 import { fromMarkdown, toMarkdown } from '../content/markdown.js';
-import type { TextModel } from '../assist/ports.js';
-import { TextModelError, type ModelFailure } from '../assist/ports.js';
+import type { TextModel } from './ports.js';
+import { TextModelError, type ModelFailure } from './ports.js';
 
 const defaultAlt = { alt: 'Beschrijving van afbeelding' };
 

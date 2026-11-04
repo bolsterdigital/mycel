@@ -29,6 +29,7 @@ const failing = {
   'relative-import':
     'apps/web/src/index.ts: relative import ../../../packages/core/src/index.js leaves apps/web',
   'io-in-core': 'packages/core/src/index.ts: core imports I/O library node:fs (ADR 001)',
+  'test-barrel': 'apps/web/src/index.ts: imports @fx/core/testing, test code in production source',
   'licence-and': 'dependency mixed@1.0.0: licence MIT AND GPL-2.0-only not in allow-list',
   'licence-unknown':
     'dependency mystery@1.0.0: licence SEE LICENSE IN LICENSE.txt not in allow-list',

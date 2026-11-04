@@ -81,7 +81,7 @@ References are checked on every save (create, update, every block operation, pat
 | `content.author.*`, `content.section.*`, `content.pattern.*`       | write / read      | create, update, get, list                                                                           |
 | `content.published.get`                                            | `content:read`    | The public projection: one published locale of a public page or article (`type`, `slug`, `locale?`) |
 
-Every editorial use case is `authenticatedOnly`: an anonymous principal is refused whatever capabilities it holds, so a public visitor's `content:read` opens nothing but `content.published.get`. The registry rules require the flag for every `content.item.*`, `content.slug.*`, `content.author.*`, `content.section.*` and `content.pattern.*` use case.
+An anonymous principal reaches only the use cases in `ANONYMOUS_USE_CASES` (`packages/core/src/registry.ts`), whatever capabilities it holds, so a public visitor's `content:read` opens no editorial use case. A new use case is closed until it is listed there.
 
 Every write takes the item lock (`select ... for update` on the item row) first. Two saves on one base therefore end in one new revision and one `conflict`, and a publication change racing a save or a scheduled job serialises in lock order.
 

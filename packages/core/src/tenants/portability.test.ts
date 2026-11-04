@@ -32,6 +32,7 @@ const manifest = (over: Record<string, unknown> = {}) => ({
 });
 
 const archive = (text: string, files: Record<string, string> = {}): ExportArchive => ({
+  entries: async () => [{ path: 'manifest.json', regular: true }],
   manifest: async () => text,
   table: async (file) => ({ sha256: files[file] ?? 'f', lines: 2 }),
   media: async (file) => files[file] ?? 'm',
@@ -45,6 +46,15 @@ const refused = async (promise: Promise<unknown>, message: RegExp) => {
 };
 
 describe('verifyExportManifest', () => {
+  it('refuses an entry that is not a regular file before it reads anything', async () => {
+    const linked: ExportArchive = {
+      ...archive(JSON.stringify(manifest())),
+      entries: async () => [{ path: 'media/a.png', regular: false }],
+      manifest: () => Promise.reject(new Error('read the manifest first')),
+    };
+    await refused(verifyExportManifest(linked, ['forms']), /media\/a\.png is not a regular file/);
+  });
+
   it('returns a manifest whose every file matches', async () => {
     const m = await verifyExportManifest(archive(JSON.stringify(manifest())), ['forms']);
     expect(m.tenant.id).toBe(tenantId);

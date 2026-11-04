@@ -5,7 +5,7 @@
 // Every write takes the item lock first, so two saves on one base, a publish racing a save, and a
 // scheduled job racing a reschedule all serialise in lock order. Writing never moves a
 // publication pointer; publishing needs `content:publish` (ADR 018 rule 5). Every query here is
-// editorial: `authenticatedOnly` keeps anonymous principals out whatever capability they carry,
+// editorial: off the anonymous allowlist, so anonymous principals stay out whatever they carry,
 // because drafts must never reach a public visitor (the public projection is `public.ts`).
 
 import { z } from 'zod';
@@ -403,7 +403,6 @@ export const createItem = defineUseCase({
   description:
     'Create a page or article as a draft with its first revision; without a slug one is derived from the title in the default locale and made unique; blocks without an id get one, and patternId copies a pattern into the new document.',
   requires: 'content:write',
-  authenticatedOnly: true,
   consumes: null,
   input: z.object({
     slug: Slug.optional(),
@@ -462,7 +461,6 @@ export const updateItem = defineUseCase({
   description:
     'Save a new revision of an item; fails with conflict unless baseRevisionId is the latest revision, and never changes what is published.',
   requires: 'content:write',
-  authenticatedOnly: true,
   input: z.object({
     itemId: ItemId,
     baseRevisionId: z.string().guid(),
@@ -514,7 +512,6 @@ export const updateSlug = defineUseCase({
   description:
     'Change the slug of an item that has never been published in any locale; fails with conflict when another item of the same type has that slug, and leaves revisions and publication untouched.',
   requires: 'content:write',
-  authenticatedOnly: true,
   input: z.object({ itemId: ItemId, slug: Slug }),
   output: ContentItem,
   examples: [{ input: { itemId: exampleId(0x1), slug: 'over-ons' } }],
@@ -542,7 +539,6 @@ export const getItem = defineUseCase({
   description:
     'Get an item with its publication state and one revision: the latest, or revisionId if given.',
   requires: 'content:read',
-  authenticatedOnly: true,
   input: z.object({ itemId: ItemId, revisionId: z.string().guid().optional() }),
   output: ItemWithEffective,
   resource: { uriTemplate: 'mycel://content/{itemId}' },
@@ -565,7 +561,6 @@ export const listItems = defineUseCase({
   description:
     'List items newest first, optionally of one type or with one slug, a page at a time.',
   requires: 'content:read',
-  authenticatedOnly: true,
   input: z.object({
     type: ContentType.optional(),
     slug: Slug.optional(),
@@ -585,7 +580,6 @@ export const listRevisions = defineUseCase({
   kind: 'query',
   description: 'List the revisions of an item newest first, with who saved each and when.',
   requires: 'content:read',
-  authenticatedOnly: true,
   input: z.object({ itemId: ItemId, after: z.string().guid().optional(), limit: Limit }),
   output: z.object({ revisions: z.array(RevisionSummary), next: z.string().guid().nullable() }),
   examples: [{ input: { itemId: exampleId(0x1) } }],
@@ -602,7 +596,6 @@ export const diffRevisions = defineUseCase({
   description:
     'Compare two revisions of one item as a list of changed paths with the value before and after.',
   requires: 'content:read',
-  authenticatedOnly: true,
   input: z.object({
     itemId: ItemId,
     fromRevisionId: z.string().guid(),
@@ -685,7 +678,6 @@ export const publishItem = defineUseCase({
     'Put one revision live in one locale; other locales and newer drafts are untouched, and any planning for this locale is cancelled.',
   requires: 'content:publish',
   effect: 'publish',
-  authenticatedOnly: true,
   input: PublicationTarget,
   output: ContentItem,
   examples: [{ input: exampleTarget }],
@@ -703,7 +695,6 @@ export const unpublishItem = defineUseCase({
     'Take one locale of an item offline and cancel its planning; other locales stay as they are.',
   requires: 'content:publish',
   effect: 'publish',
-  authenticatedOnly: true,
   input: z.object({ itemId: ItemId, locale: Locale }),
   output: ContentItem,
   examples: [{ input: { itemId: exampleTarget.itemId, locale: 'nl' } }],
@@ -720,7 +711,6 @@ export const scheduleItem = defineUseCase({
     'Plan one revision to go live in one locale at a future time; exactly that revision is published, and scheduling again replaces the plan.',
   requires: 'content:publish',
   effect: 'publish',
-  authenticatedOnly: true,
   input: PublicationTarget.extend({ at: z.string().datetime({ offset: true }) }),
   output: ContentItem,
   examples: [{ input: { ...exampleTarget, at: '2030-01-01T09:00:00+01:00' } }],
@@ -751,7 +741,6 @@ export const unscheduleItem = defineUseCase({
   description: 'Cancel the planned publication of one locale; what is live stays live.',
   requires: 'content:publish',
   effect: 'publish',
-  authenticatedOnly: true,
   input: z.object({ itemId: ItemId, locale: Locale }),
   output: ContentItem,
   examples: [{ input: { itemId: exampleTarget.itemId, locale: 'nl' } }],
@@ -807,7 +796,6 @@ export const approveTranslation = defineUseCase({
   kind: 'command',
   description: 'Approve the machine-translated fields of one locale as a human publisher.',
   requires: 'content:publish',
-  authenticatedOnly: true,
   actors: ['operator'],
   input: z
     .object({ itemId: ItemId, locale: z.string().min(2), baseRevisionId: z.string().guid() })

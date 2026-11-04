@@ -57,7 +57,6 @@ export const putBrandAsset = defineUseCase({
   kind: 'command',
   description: 'Replace a site logo or wordmark font at a known settings version.',
   requires: 'content:write',
-  authenticatedOnly: true,
   consumes: null,
   input: z
     .object({
@@ -123,7 +122,6 @@ export const removeBrandAsset = defineUseCase({
   kind: 'command',
   description: 'Remove the active site logo or wordmark font at a known version.',
   requires: 'content:write',
-  authenticatedOnly: true,
   input: z.object({ kind: BrandKind, baseVersion: Version }).strict(),
   output: AssetState,
   examples: [{ input: { kind: 'logo', baseVersion: 0 } }],

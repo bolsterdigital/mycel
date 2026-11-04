@@ -93,7 +93,6 @@ export const listConnections = defineUseCase({
   kind: 'query',
   description: 'List this site’s managed external connections without credentials.',
   requires: 'connections:read',
-  authenticatedOnly: true,
   input: z.object({}).strict(),
   output: z.object({ connections: z.array(view) }),
   examples: [{ input: {} }],
@@ -107,7 +106,6 @@ export const getConnection = defineUseCase({
   kind: 'query',
   description: 'Read one managed connection of this site without its credential.',
   requires: 'connections:read',
-  authenticatedOnly: true,
   input: idInput,
   output: view,
   examples: [{ input: { id: exampleId(1) } }],
@@ -121,7 +119,6 @@ export const createConnection = defineUseCase({
   kind: 'command',
   description: 'Register an external connection with an explicit owner and data authority.',
   requires: 'connections:configure',
-  authenticatedOnly: true,
   consumes: null,
   input: z.object({ provider, ...fields }).strict(),
   output: view,
@@ -139,7 +136,6 @@ export const updateConnection = defineUseCase({
   kind: 'command',
   description: 'Change a managed connection using its current version.',
   requires: 'connections:configure',
-  authenticatedOnly: true,
   input: z
     .object({
       id: Uuid,
@@ -173,7 +169,6 @@ function stateChange(
     kind: 'command',
     description,
     requires: 'connections:configure',
-    authenticatedOnly: true,
     input: versionInput,
     output: view,
     examples: [{ input: { id: exampleId(1), baseVersion: 1 } }],
@@ -208,7 +203,6 @@ export const replaceConnectionCredential = defineUseCase({
   kind: 'command',
   description: 'Replace a connection credential without exposing it in any read result.',
   requires: 'connections:credentials',
-  authenticatedOnly: true,
   input: z
     .object({
       id: Uuid,

@@ -12,14 +12,17 @@
 // CI that is a failure.
 
 import { createHash } from 'node:crypto';
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql, type Kysely } from 'kysely';
 import {
   Invoker,
   buildRegistry,
+  hashApiKey,
   purgeMedia,
   supporterIngestSubscriber,
   systemPrincipal,
@@ -41,6 +44,7 @@ import {
   EXPORT_ORDER,
   TABLES,
   createDb,
+  createIdentityStore,
   createTenant,
   createUnitOfWork,
   exportTenant,
@@ -326,6 +330,33 @@ describe.skipIf(skip)('tenant export and import', () => {
     expect(unplaced, 'tenant tables without a place in TABLES and EXPORT_ORDER').toEqual([]);
   });
 
+  // A column named like a secret in an exported table needs a reason here. Grows with the catalog:
+  // a migration that adds one to a table in the export fails until someone has read this list.
+  it('exports no column that holds a secret', async () => {
+    const reviewed = new Map([
+      ['audit_log.input_hash', 'a keyed digest of an input, verifiable only with the audit key'],
+      ['connections.credential_version', 'a counter; the credential itself is not exported'],
+      ['erasures.email_hash', 'the erasure register, which must survive a move (ADR 019)'],
+      ['form_submissions.ip_hash', 'a keyed digest for spam defence, no credential'],
+      ['supporter_admissions.email_hash', 'a keyed digest of an address, no credential'],
+      ['tenant_hostnames.verification_token', 'public by design: it is published in DNS'],
+    ]);
+    const { rows } = await sql<{ name: string; column: string }>`
+      select c.relname as name, a.attname as column
+      from pg_class c join pg_attribute a on a.attrelid = c.oid
+      where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p')
+        and not c.relispartition and a.attnum > 0 and not a.attisdropped
+        and a.attname ~ '(hash|secret|token|credential|password)'`.execute(operatorDb);
+    const exported = rows
+      .filter((r) => (EXPORT_ORDER as readonly string[]).includes(r.name))
+      .map((r) => `${r.name}.${r.column}`)
+      .sort();
+    expect(exported).toEqual([...reviewed.keys()].sort());
+    await expect(readFile(join(scratch.dir, 'a', 'manifest.json'), 'utf8')).resolves.not.toContain(
+      'api_keys'
+    );
+  });
+
   it('exports every table with rows, the suspended status and the files', () => {
     expect(manifestA.tenant).toMatchObject({
       id: tenant.a.id,
@@ -424,6 +455,44 @@ describe.skipIf(skip)('tenant export and import', () => {
     ).rejects.toThrow(/exists in this database/);
   });
 
+  describe('an archive entry that is not a regular file', () => {
+    // A link to a file with the bytes the manifest names passes every digest, so only the entry's
+    // own type can refuse it; `readFile` would otherwise read any path on this box as media.
+    const linked = async (name: string) => {
+      const dir = join(scratch.dir, name);
+      await cp(join(scratch.dir, 'a'), dir, { recursive: true });
+      const [, media] = Object.entries(manifestA.media)[0]!;
+      const file = join(dir, media.file);
+      const outside = join(scratch.dir, `${name}-outside`);
+      await cp(file, outside);
+      await rm(file);
+      await mkdir(dirname(file), { recursive: true });
+      await symlink(outside, file);
+      return dir;
+    };
+
+    it('is refused in an export directory', async () => {
+      await expect(
+        importTenant({
+          operatorDb,
+          blobs,
+          path: await linked('symlink-dir'),
+          platform: memoryPlatform,
+          by,
+        })
+      ).rejects.toThrow(/is not a regular file/);
+    });
+
+    it('is refused in a tar', async () => {
+      const dir = await linked('symlink-tar');
+      const tar = join(scratch.dir, 'symlink.tar');
+      await promisify(execFile)('tar', ['-cf', tar, '-C', dir, '.']);
+      await expect(
+        importTenant({ operatorDb, blobs, path: tar, platform: memoryPlatform, by })
+      ).rejects.toThrow(/is not a regular file/);
+    });
+  });
+
   describe('round trip into an empty database', () => {
     const otherPlatform = { ...memoryPlatform, domain: 'other.example' };
     const targetBlobs = new MemoryBlobStore();
@@ -503,6 +572,71 @@ describe.skipIf(skip)('tenant export and import', () => {
       const { rows } = await sql<{ n: number }>`
         select count(*)::int as n from tenants where id = ${tenant.a.id}`.execute(target.db!);
       expect(rows[0]?.n).toBe(0);
+    });
+
+    // An archive from before keys stopped travelling, or a crafted one: its digests match, so only
+    // the import's own rule keeps the key out. `tenant:admin` is what the schema refuses anyway;
+    // the ordinary capability is the case that rule alone decides.
+    it.skipIf(!operatorUrl).each([
+      ['an ordinary key', ['content:read']],
+      ['an admin key', ['tenant:admin']],
+    ])('gives no working access through %s in the archive', async (label, capabilities) => {
+      if (!canCreateDb) return;
+      const slug = `keys-${label.includes('admin') ? 'admin' : 'plain'}-${run}`;
+      const source = await createTenant(
+        operatorDb,
+        { id: uuidv7(), slug, name: 'Keys', locales: ['nl'] },
+        memoryPlatform,
+        by
+      );
+      const dir = join(scratch.dir, slug);
+      const manifest = await exportTenant({
+        operatorDb,
+        blobs,
+        slug,
+        out: dir,
+        mycelVersion: 'test',
+      });
+      const token = `mk_planted_${slug}`;
+      const hash = await hashApiKey(token);
+      const row = {
+        id: uuidv7(),
+        tenant_id: source.id,
+        name: 'Planted',
+        prefix: token.slice(0, 12),
+        key_hash: hash,
+        capabilities,
+        created_by: { kind: 'system', id: 'crafted' },
+        created_at: '2026-11-04T00:00:00+00:00',
+        last_used_at: null,
+        revoked_at: null,
+      };
+      const text = `${JSON.stringify(row)}\n`;
+      await writeFile(join(dir, 'tables', 'api_keys.ndjson'), text);
+      await writeFile(
+        join(dir, 'manifest.json'),
+        JSON.stringify({
+          ...manifest,
+          tables: {
+            ...manifest.tables,
+            api_keys: {
+              file: 'tables/api_keys.ndjson',
+              rows: 1,
+              sha256: createHash('sha256').update(text).digest('hex'),
+              columns: Object.keys(row),
+            },
+          },
+        })
+      );
+      const report = await importTenant({
+        operatorDb: target.db!,
+        blobs: targetBlobs,
+        path: dir,
+        platform: otherPlatform,
+        by,
+      });
+      expect(await createIdentityStore(target.db!, uuidv7Ids).apiKeyByHash(hash)).toBeNull();
+      expect(report.lines).toContainEqual(expect.stringMatching(/^api_keys: 1 not imported/));
     });
 
     it.skipIf(!operatorUrl)(

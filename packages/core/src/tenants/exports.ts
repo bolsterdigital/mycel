@@ -261,7 +261,6 @@ export const requestExport = defineUseCase({
   effect: 'export',
   // ADR 015 rule 7: leaving is never gated by a limit.
   consumes: null,
-  authenticatedOnly: true,
   input: z.object({}).strict(),
   output: z.object({ id: z.string().guid(), status: ExportStatus, created: z.boolean() }),
   examples: [{ input: {} }],
@@ -289,7 +288,6 @@ export const listExports = defineUseCase({
   description:
     'List the archives of this site that were asked for, newest first: status, who asked and when, size, checksum and until when it can be downloaded.',
   requires: 'tenant:admin',
-  authenticatedOnly: true,
   input: z.object({}).strict(),
   output: z.object({ exports: z.array(ExportView) }),
   examples: [{ input: {} }],
