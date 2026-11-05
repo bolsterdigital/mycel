@@ -84,6 +84,7 @@ function fieldValues(
       return;
     case 'media':
     case 'reference':
+    case 'date':
       out[name] = typeof value === 'string' ? value : '';
       return;
     case 'choice':
@@ -279,6 +280,7 @@ function reader(form: Posted, errors: FieldError[]): Read {
         });
       case 'media':
       case 'reference':
+      case 'date':
       case 'choice': {
         const v = form.get(name);
         return v === null ? base : v;

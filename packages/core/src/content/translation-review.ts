@@ -38,7 +38,12 @@ function eraseControls(props: unknown, fields: readonly BlockField[]): void {
   if (!props || typeof props !== 'object') return;
   const record = props as JsonObject;
   for (const field of fields) {
-    if (field.kind === 'choice' || field.kind === 'media' || field.kind === 'reference')
+    if (
+      field.kind === 'choice' ||
+      field.kind === 'media' ||
+      field.kind === 'reference' ||
+      field.kind === 'date'
+    )
       delete record[field.key];
     else if (field.kind === 'group') eraseControls(record[field.key], field.fields);
     else if (field.kind === 'list' && Array.isArray(record[field.key]))

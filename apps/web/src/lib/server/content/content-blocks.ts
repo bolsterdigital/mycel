@@ -15,6 +15,7 @@ import {
   BLOCK_DEFINITIONS,
   FILE_DOWNLOAD_ROWS,
   GALLERY_ROWS,
+  TIMELINE_ROWS,
   blockReferences,
   can,
   useCases,
@@ -272,6 +273,13 @@ export type TextRest =
       /** One place per row, by its alt text: a decorative image has none and takes no room. */
       images: readonly { label: string; from: string }[];
     }
+  | {
+      kind: 'timeline';
+      title: string;
+      titleFrom: string;
+      /** One place per row, by its title, in the order of the form rather than of the page. */
+      events: readonly { label: string; from: string }[];
+    }
   /** A paywall has no words of its own: the screen says what the boundary does. */
   | { kind: 'paywall' }
   | {
@@ -432,6 +440,17 @@ export function textRestOf(
       })),
     };
   }
+  if (block.type === 'timeline') {
+    return {
+      kind: 'timeline',
+      title: local(block.props.title),
+      titleFrom: field(`title.${locale}`),
+      events: Array.from({ length: TIMELINE_ROWS }, (_, i) => ({
+        label: local(block.props.events[i]?.title),
+        from: field(`events.${i}.title.${locale}`),
+      })),
+    };
+  }
   if (block.type === 'paywall') return { kind: 'paywall' };
   if (block.type === 'video-embed') {
     return {
@@ -550,6 +569,8 @@ const ISSUE_COPY: Record<string, UiKey> = {
   'content.blocks.adjacent-rich-text': 'admin.block.issue.adjacentText',
   'content.blocks.too-many': 'admin.block.issue.tooMany',
   'content.cards.too-few': 'admin.block.issue.tooFewCards',
+  'content.timeline.too-few': 'admin.block.issue.tooFewEvents',
+  'content.timeline.no-date': 'admin.block.issue.noDate',
   'content.gallery.too-few': 'admin.block.issue.tooFewImages',
   'content.gallery.no-image': 'admin.block.issue.noImage',
   'content.files.too-few': 'admin.block.issue.tooFewFiles',

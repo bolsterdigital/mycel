@@ -69,6 +69,7 @@ export type BlockField =
       initial?: string;
     }
   | { key: string; kind: 'boolean' }
+  | { key: string; kind: 'date' }
   | { key: string; kind: 'actions'; min: number; max: number }
   | { key: string; kind: 'group'; optional?: 'omit' | 'null'; fields: readonly BlockField[] }
   | { key: string; kind: 'list'; min: number; max: number; fields: readonly BlockField[] };
@@ -102,6 +103,9 @@ export const CTA_VARIANTS = ['band', 'card'] as const;
 export const CALLOUT_VARIANTS = ['info', 'note', 'warning'] as const;
 export const CARDS_ACCENTS = ['none', 'bar', 'filled'] as const;
 export const GALLERY_VARIANTS = ['grid', 'row'] as const;
+export const TIMELINE_ORDERS = ['newest', 'oldest'] as const;
+/** How many events one `timeline` block lists; the rest view keeps a place for each. */
+export const TIMELINE_ROWS = 24;
 /** How many images one `gallery` block shows; the rest view keeps a place for each. */
 export const GALLERY_ROWS = 24;
 /** How many files one `file-download` block lists; the rest view keeps a place for each. */
@@ -754,6 +758,91 @@ export const BLOCK_DEFINITIONS = {
         props: {
           width: 'full',
           images: [image, { ...image, mediaId: EXAMPLE_IDS.portrait }, image],
+        },
+      },
+    ],
+  }),
+
+  // Dreamkit's timeline, without the script. An event has a date, a title, a text and at most one
+  // link, and the visitor gets all of them, sorted on the server. Rejected: Dreamkit's split into
+  // upcoming and earlier steps with a "now" marker, which needs a script to correct cached HTML and
+  // makes one revision's output depend on the day; folding each event, which hides the text for a
+  // list that is at most 24 short entries. No width: a list of dates reads best at the text's width.
+  timeline: define({
+    version: 1,
+    props: z
+      .object({
+        title: localized(ShortText).optional(),
+        order: z.enum(TIMELINE_ORDERS).default('newest'),
+        events: z
+          .array(
+            z
+              .object({
+                date: z.string().date('content.timeline.no-date'),
+                title: localized(ShortText),
+                body: localized(BodyText).optional(),
+                actions: z.array(Action).max(1).default([]),
+              })
+              .strict()
+          )
+          .min(2, 'content.timeline.too-few')
+          .max(TIMELINE_ROWS),
+      })
+      .strict(),
+    fields: [
+      textField('title', { localized: true, optional: 'omit' }),
+      {
+        key: 'events',
+        kind: 'list',
+        min: 2,
+        max: TIMELINE_ROWS,
+        fields: [
+          { key: 'date', kind: 'date' },
+          textField('title', { localized: true }),
+          textField('body', { localized: true, multiline: true, optional: 'omit' }),
+          { key: 'actions', kind: 'actions', min: 0, max: 1 },
+        ],
+      },
+      choice('order', TIMELINE_ORDERS),
+    ],
+    variants: { order: TIMELINE_ORDERS },
+    localized: (p) => [
+      ...present(['title'], p.title),
+      ...p.events.flatMap((e, i) => [
+        ...present(['events', i, 'title'], e.title),
+        ...present(['events', i, 'body'], e.body),
+        ...e.actions.flatMap((a, j) => present(['events', i, 'actions', j, 'label'], a.label)),
+      ]),
+    ],
+    references: (p) => p.events.flatMap((e) => actionRefs(e.actions)),
+    examples: [
+      {
+        name: 'timeline-newest',
+        props: {
+          events: [
+            { date: '2026-03-02', title: { nl: 'Petitie aangeboden', en: 'Petition handed over' } },
+            { date: '2026-05-19', title: { nl: 'Debat in de raad', en: 'Debate in the council' } },
+          ],
+        },
+      },
+      {
+        name: 'timeline-oldest-titled',
+        props: {
+          title: { nl: 'Hoe het ging', en: 'How it went' },
+          order: 'oldest',
+          events: [
+            {
+              date: '2026-05-19',
+              title: { nl: 'Debat in de raad', en: 'Debate in the council' },
+              body: {
+                nl: 'De raad stemde over het voorstel.',
+                en: 'The council voted on the proposal.',
+              },
+              actions: [signUp],
+            },
+            { date: '2026-03-02', title: { nl: 'Petitie aangeboden', en: 'Petition handed over' } },
+            { date: '2026-05-19', title: { nl: 'Besluit gepubliceerd', en: 'Decision published' } },
+          ],
         },
       },
     ],

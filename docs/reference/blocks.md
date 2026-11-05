@@ -154,6 +154,22 @@ Version 1.
 
 Examples: `gallery-grid`, `gallery-row-content`, `gallery-grid-full`.
 
+## `timeline` (Timeline)
+
+Version 1.
+
+| Prop               | Label     | Kind                                                | Presence |
+| ------------------ | --------- | --------------------------------------------------- | -------- |
+| `title`            | Title     | localised text                                      | optional |
+| `events`           | Event     | list of 2–24                                        | required |
+| `events[].date`    | Date      | date (YYYY-MM-DD)                                   | required |
+| `events[].title`   | Title     | localised text                                      | required |
+| `events[].body`    | Body text | localised multi-line text                           | optional |
+| `events[].actions` | Buttons   | 0–1 buttons: a localised label and an item or a URL | required |
+| `order`            | Order     | one of `newest`, `oldest`                           | required |
+
+Examples: `timeline-newest`, `timeline-oldest-titled`.
+
 ## `callout` (Callout)
 
 Version 1.

@@ -156,6 +156,16 @@ export function renderMarkdown(model: RenderModel, options: MarkdownOptions): st
           b.files.map((f) => `- ${link(f.label, f.href)} (${md(f.meta)})`).join('\n'),
         ].join('\n\n');
       }
+      case 'timeline':
+        return [
+          ...(b.title ? [heading(BLOCK_DEPTH, b.title)] : []),
+          ...b.events.flatMap((e) => [
+            heading(b.title ? BLOCK_DEPTH + 1 : BLOCK_DEPTH, e.title),
+            `*${md(e.dateLabel)}*`,
+            ...(e.body ? [md(e.body)] : []),
+            ...e.actions.map((a) => link(a.label, a.href)),
+          ]),
+        ].join('\n\n');
       case 'callout': {
         const label = `*${md(model.copy.callout[b.variant])}*`;
         const lines = b.title ? [label, heading(BLOCK_DEPTH, b.title)] : [label];

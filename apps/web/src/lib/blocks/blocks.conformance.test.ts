@@ -387,9 +387,43 @@ describe('nothing leaks into any representation', () => {
     const html = async (name: string) =>
       (await representations([examples.find((e) => e.name === name)!.block], 'en')).html;
     expect(await html('gallery-row-content')).toMatch(
-      /<ul class="gallery-list" tabindex="0" aria-label="Photos, scroll sideways for more"/
+      /<ul class="gallery-list" tabindex="0" aria-label="Row of photos"/
     );
     expect(await html('gallery-grid')).not.toContain('tabindex');
+  });
+
+  it('a timeline sorts by date in every representation, and keeps the editor order on one date', async () => {
+    const block = examples.find((e) => e.name === 'timeline-oldest-titled')!.block;
+    const titles = (out: string) =>
+      ['Petition handed over', 'Debate in the council', 'Decision published'].map((t) =>
+        out.indexOf(t)
+      );
+    const { html, markdown } = await representations([block], 'en');
+    for (const out of [html, markdown]) {
+      const [first, second, third] = titles(out);
+      expect(first).toBeGreaterThan(-1);
+      expect(first).toBeLessThan(second!);
+      expect(second).toBeLessThan(third!);
+    }
+    expect(html).toContain('<time datetime="2026-03-02">March 2, 2026</time>');
+    expect(markdown).toContain('*March 2, 2026*');
+    expect((await representations([block], 'nl')).html).toContain('2 maart 2026');
+
+    const newest = await representations(
+      [Block.parse({ ...block, props: { ...(block.props as object), order: 'newest' } })],
+      'en'
+    );
+    const [petition, debate, decision] = titles(newest.html);
+    expect(debate).toBeLessThan(decision!);
+    expect(decision).toBeLessThan(petition!);
+  });
+
+  it('an event title sits one level under the title of its timeline, or at its level without one', async () => {
+    const html = async (name: string) =>
+      (await representations([examples.find((e) => e.name === name)!.block], 'en')).html;
+    expect(await html('timeline-oldest-titled')).toMatch(/<h2[^>]*>How it went<\/h2>/);
+    expect(await html('timeline-oldest-titled')).toMatch(/<h3[^>]*>Petition handed over<\/h3>/);
+    expect(await html('timeline-newest')).toMatch(/<h2[^>]*>Petition handed over<\/h2>/);
   });
 
   it('a file link names its kind and size, in HTML and Markdown, not the stored filename', async () => {

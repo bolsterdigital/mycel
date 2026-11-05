@@ -135,6 +135,13 @@ describe('textRestOf', () => {
     expect(gallery.images[0]?.label).toBeTruthy();
     expect(gallery.images[2]?.label).toBe('');
 
+    const timeline = textRestOf(example('timeline'), 'nl', 'b.b.');
+    if (timeline?.kind !== 'timeline') throw new Error('no timeline view');
+    expect(timeline.events).toHaveLength(24);
+    expect(timeline.events[0]?.from).toBe('b.b.p.events.0.title.nl');
+    expect(timeline.events[0]?.label).toBeTruthy();
+    expect(timeline.events[2]?.label).toBe('');
+
     const faq = textRestOf(example('faq', 1), 'nl', 'b.b.');
     if (faq?.kind !== 'faq') throw new Error('no faq view');
     expect(faq.variant).toBe('accordion');
