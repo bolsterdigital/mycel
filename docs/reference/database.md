@@ -17,6 +17,10 @@ Known exceptions, left as they are because a migration on `main` is not edited:
 - 0014, 0025, 0026, 0027 and 0029 open without the number; 0001 to 0004 and 0025 to 0027 name no rejected alternative.
 - 0025 names its `mycel_erasure` policy on `connection_intents` `erasure`, where 0019 and 0022 use `erasure_apply`. The name has no effect; the policy body is what counts.
 
+## Collation
+
+An order a person reads (the titles of a content list) names its collation in the query: `collate "und-x-icu"`, the Unicode root collation, which the in-memory adapter matches with `Intl.Collator('und')`. The database's own default collation differs per installation (glibc, musl and ICU order a space, a capital and an accent differently), so an order left to it would differ between two boxes and from the tests. This needs a Postgres built with ICU, which the pinned image and the common distribution packages are. An order nobody reads (ids, timestamps) keeps the column's own collation, `"C"` where a migration set it.
+
 ## Constants
 
 | Constant              | Value          | Where                                | Why                                                           |

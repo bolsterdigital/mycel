@@ -1181,7 +1181,7 @@
       compact
       locale={data.locale}
       back={{
-        href: `${base}/content?type=${data.item.type}`,
+        href: data.listPath,
         label: t(article ? 'admin.content.filter.article' : 'admin.content.filter.page'),
       }}
       title={fill(t('admin.content.edit.title'), { type: typeName })}

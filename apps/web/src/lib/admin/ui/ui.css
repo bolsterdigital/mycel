@@ -535,9 +535,11 @@
     vertical-align: top;
     border-block-end: var(--border-width) solid var(--color-border);
   }
+  /* Column headings share a baseline: a heading that sorts is a link the height of a target,
+     and at the bottom the plain heading beside it would sit lower than its words. */
   .ui-table th {
     white-space: nowrap;
-    vertical-align: bottom;
+    vertical-align: baseline;
   }
   /* A row's own heading (a title, a file name) wraps; only column headings stay on one line. */
   .ui-table tbody th {
@@ -561,7 +563,8 @@
     width: auto;
     max-width: 100%;
   }
-  .ui-table.stack tbody :is(th, td) {
+  .ui-table.stack tbody :is(th, td),
+  .ui-table.level tbody :is(th, td) {
     vertical-align: baseline;
   }
   /* An action group in a cell: no margin above it (it would push the buttons below the row's
@@ -1278,6 +1281,27 @@
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
+    /* A code and its word stay together; the list wraps between locales. */
+    white-space: nowrap;
+  }
+  /* In a work list the code opens that translation: a whole target, and a link by its colour. */
+  .ui-locale-codes a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-block-size: var(--tap);
+    min-inline-size: var(--tap);
+    color: var(--color-link);
+  }
+  /* How many items a list holds, or a filter found, under its filter bar. */
+  .ui-list-count {
+    margin: var(--space-1) 0 0;
+    font-size: var(--step--1);
+    color: var(--color-muted-fg);
+  }
+  /* The row a link names by its id: where "back to the list" on an item lands. */
+  .ui-table tr:target :is(th, td) {
+    background: var(--color-selected-bg);
   }
   .ui-overview-list {
     margin-block-start: var(--space-3);

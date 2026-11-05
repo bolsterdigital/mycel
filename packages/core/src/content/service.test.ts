@@ -571,11 +571,83 @@ describe('content items', () => {
       const first = await invoker.run(useCases.listItems, admin, { limit: 2 });
       expect(first.items.map((i) => i.id)).toEqual([ids[2], ids[1]]);
       const second = await invoker.run(useCases.listItems, admin, { limit: 2, after: first.next! });
-      expect(second).toEqual({ items: [expect.objectContaining({ id: ids[0] })], next: null });
+      expect(second).toEqual({
+        items: [expect.objectContaining({ id: ids[0] })],
+        next: null,
+        total: 3,
+      });
       expect((await invoker.run(useCases.listItems, admin, { slug: 'b' })).items).toHaveLength(1);
       expect(
         (await invoker.run(useCases.listItems, admin, { type: 'article' })).items
       ).toHaveLength(0);
+    });
+
+    it('searches, narrows by the state of one locale, orders and counts every match', async () => {
+      const make = async (slug: string, nl: string, en?: string) => {
+        clock.advance(1000);
+        return (await create({ ...pageDoc(), title: { nl, ...(en ? { en } : {}) } }, slug)).item;
+      };
+      const een = await make('eendag', 'Één dag', 'One day');
+      await make('zomer', 'Zomerkamp');
+      await make('appel', 'appeltaart');
+      // Live in Dutch, then saved again: published with changes, and the last one saved.
+      await invoker.run(useCases.publishItem, admin, {
+        itemId: een.id,
+        revisionId: een.latestRevisionId,
+        locale: 'nl',
+      });
+      clock.advance(1000);
+      await invoker.run(useCases.updateItem, admin, {
+        itemId: een.id,
+        baseRevisionId: een.latestRevisionId,
+        document: { ...pageDoc(), title: { nl: 'Één dag', en: 'One day' } },
+      });
+      const list = async (input: z.input<typeof useCases.listItems.input>) => {
+        const page = await invoker.run(useCases.listItems, admin, input);
+        return { slugs: page.items.map((i) => i.slug), next: page.next, total: page.total };
+      };
+      const slugs = async (input: z.input<typeof useCases.listItems.input>) =>
+        (await list(input)).slugs;
+
+      expect(await slugs({})).toEqual(['appel', 'zomer', 'eendag']);
+      expect(await slugs({ sort: 'created', direction: 'asc' })).toEqual([
+        'eendag',
+        'zomer',
+        'appel',
+      ]);
+      expect(await slugs({ sort: 'updated' })).toEqual(['eendag', 'appel', 'zomer']);
+      // The root collation: the accent and the capital do not move a title out of its letter.
+      expect(await slugs({ sort: 'title' })).toEqual(['appel', 'eendag', 'zomer']);
+      expect(await slugs({ sort: 'title', direction: 'desc' })).toEqual([
+        'zomer',
+        'eendag',
+        'appel',
+      ]);
+
+      expect(await slugs({ q: 'ONE' })).toEqual(['eendag']);
+      expect(await slugs({ q: 'Zomer' })).toEqual(['zomer']);
+      expect(await slugs({ q: 'geen' })).toEqual([]);
+      expect(await slugs({ status: 'published' })).toEqual(['eendag']);
+      expect(await slugs({ status: 'draft' })).toEqual(['appel', 'zomer']);
+      expect(await slugs({ status: 'draft', locale: 'en' })).toEqual(['appel', 'zomer', 'eendag']);
+      expect(await slugs({ hasUnpublishedChanges: true })).toEqual(['eendag']);
+      expect(await slugs({ hasUnpublishedChanges: false })).toEqual(['appel', 'zomer']);
+      // A locale the items do not have is a state none of them is in.
+      expect(await slugs({ status: 'draft', locale: 'de' })).toEqual([]);
+
+      const first = await list({ sort: 'title', limit: 2 });
+      expect(first).toEqual({ slugs: ['appel', 'eendag'], next: een.id, total: 3 });
+      expect(await list({ sort: 'title', limit: 2, after: first.next! })).toEqual({
+        slugs: ['zomer'],
+        next: null,
+        total: 3,
+      });
+      expect(await list({ sort: 'title', limit: 2, offset: 2 })).toEqual({
+        slugs: ['zomer'],
+        next: null,
+        total: 3,
+      });
+      expect(await list({ q: 'a', limit: 1 })).toMatchObject({ slugs: ['appel'], total: 3 });
     });
 
     it('diffs two revisions by block id, deterministically', async () => {

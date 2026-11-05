@@ -6,7 +6,9 @@
      it (#87). `stack` is for a table whose rows are records rather than figures (the members,
      #101): below 36rem each row becomes a block and a cell with `data-label` shows its column
      heading, so nothing scrolls sideways at 320 CSS px. `card` puts the table in the white card of
-     an overview section (#116), its column headings small and muted. -->
+     an overview section (#116), its column headings small and muted. `level` sets the cells of a
+     row on one baseline, for rows that hold a link or a badge beside plain words: a link is as
+     tall as a target, and from the top its words would sit lower than the cell next to it. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
@@ -18,6 +20,7 @@
     hideCaption = false,
     stack = false,
     card = false,
+    level = false,
     columns,
     sort,
     sortHref,
@@ -31,6 +34,8 @@
     stack?: boolean;
     /** In a card, as the rows of an overview section. */
     card?: boolean;
+    /** The cells of a row share a baseline instead of a top edge. */
+    level?: boolean;
     columns: readonly { key: string; label: string; sortable?: boolean; numeric?: boolean }[];
     sort?: { key: string; dir: Dir } | undefined;
     /** The link that sorts by `key` in `dir`; required when a column is sortable. */
@@ -52,7 +57,7 @@
   aria-labelledby="{id}-caption"
   tabindex="0"
 >
-  <table class={['ui-table', stack && 'stack']} {id}>
+  <table class={['ui-table', stack && 'stack', level && 'level']} {id}>
     <caption id="{id}-caption" class={[hideCaption && 'ui-visually-hidden']}>{caption}</caption>
     <thead>
       <tr>
