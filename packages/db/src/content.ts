@@ -8,7 +8,7 @@
 // validates fails loudly instead of reaching a renderer. Rejected: an advisory lock (the item row
 // exists before any write, so a row lock is enough and shows up in pg_locks under its table).
 
-import { sql, type Kysely, type Selectable } from 'kysely';
+import { sql, type Kysely, type RawBuilder, type Selectable } from 'kysely';
 import {
   Actor,
   Author,
@@ -173,17 +173,80 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
     get: async (itemId) => one(await items().where('id', '=', itemId).execute()),
     findBySlug: async (type, slug) =>
       one(await items().where('type', '=', type).where('slug', '=', slug).execute()),
-    async list({ type, slug }, after, limit) {
-      let q = items();
-      if (type) q = q.where('type', '=', type);
-      if (slug) q = q.where('slug', '=', slug);
-      if (after) q = q.where('id', '<', after);
-      const rows = await q
-        .orderBy('id', 'desc')
-        .limit(limit + 1)
-        .execute();
-      const page = paged(rows, limit);
-      return { rows: await withLocales(page.rows), next: page.next };
+    async list(filter, { order, after, offset, limit }) {
+      const { type, slug, q, locale, status, hasUnpublishedChanges } = filter;
+      // Core's `matchesItemFilter` in SQL; `adapter-rules.test.ts` holds the two together.
+      const matches: RawBuilder<boolean>[] = [];
+      if (type) matches.push(sql<boolean>`i.type = ${type}`);
+      if (slug) matches.push(sql<boolean>`i.slug = ${slug}`);
+      if (q) {
+        // `%`, `_` and the backslash stand for themselves.
+        const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+        matches.push(
+          sql<boolean>`(i.slug ilike ${like} or exists (
+            select 1 from jsonb_each_text(i.title) t where t.value ilike ${like}))`
+        );
+      }
+      if (status !== undefined || hasUnpublishedChanges !== undefined) {
+        const changed = sql<boolean>`(l.published_revision_id is not null
+          and l.published_revision_id <> i.latest_revision_id)`;
+        matches.push(
+          sql<boolean>`exists (
+            select 1 from content_item_locales l
+            where l.item_id = i.id
+              and l.locale = coalesce(${locale ?? null}::text, i.default_locale)
+              and ${status ? sql<boolean>`l.status = ${status}` : sql<boolean>`true`}
+              and ${
+                hasUnpublishedChanges === undefined
+                  ? sql<boolean>`true`
+                  : hasUnpublishedChanges
+                    ? changed
+                    : sql<boolean>`not ${changed}`
+              })`
+        );
+      }
+      const matching = () => {
+        let query = trx.selectFrom('content_items as i');
+        for (const condition of matches) query = query.where(condition);
+        return query;
+      };
+
+      // Core's `compareItems`: the key, then the id, both in the order's direction. The page
+      // after an item starts from where that item stands now, read by id in the same statement.
+      const asc = order.direction === 'asc';
+      let rows = matching().selectAll('i');
+      if (order.by === 'title') {
+        const key = sql<string>`coalesce(i.title->>(${locale ?? null}::text), i.title->>i.default_locale, '') collate "und-x-icu"`;
+        const pivot = sql`(select coalesce(p.title->>(${locale ?? null}::text), p.title->>p.default_locale, '') collate "und-x-icu", p.id from content_items p where p.id = ${after})`;
+        if (after)
+          rows = rows.where(
+            asc ? sql<boolean>`(${key}, i.id) > ${pivot}` : sql<boolean>`(${key}, i.id) < ${pivot}`
+          );
+        rows = rows.orderBy(key, order.direction);
+      } else if (order.by === 'updated') {
+        const pivot = sql`(select p.updated_at, p.id from content_items p where p.id = ${after})`;
+        if (after)
+          rows = rows.where(
+            asc
+              ? sql<boolean>`(i.updated_at, i.id) > ${pivot}`
+              : sql<boolean>`(i.updated_at, i.id) < ${pivot}`
+          );
+        rows = rows.orderBy('i.updated_at', order.direction);
+      } else if (after) {
+        rows = rows.where('i.id', asc ? '>' : '<', after);
+      }
+      const [found, counted] = [
+        await rows
+          .orderBy('i.id', order.direction)
+          .offset(offset)
+          .limit(limit + 1)
+          .execute(),
+        await matching()
+          .select((eb) => eb.fn.countAll<string>().as('n'))
+          .executeTakeFirstOrThrow(),
+      ];
+      const page = paged(found, limit);
+      return { rows: await withLocales(page.rows), next: page.next, total: Number(counted.n) };
     },
     async insert(item, first) {
       const inserted = await insertedUnlessTaken(

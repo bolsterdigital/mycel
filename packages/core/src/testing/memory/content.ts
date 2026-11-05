@@ -3,7 +3,8 @@
 
 import { allBlocks } from '../../content/blocks.js';
 import { documentReferences, type Revision } from '../../content/model.js';
-import type { ContentRepository, ItemMatch } from '../../content/ports.js';
+import { compareItems, matchesItemFilter } from '../../content/listing.js';
+import type { ContentRepository, ItemMatch, ItemRecord } from '../../content/ports.js';
 import type { TransactionContext } from '../../ports.js';
 import { paged, type TenantStore } from './store.js';
 
@@ -20,14 +21,28 @@ export function memoryContent(s: TenantStore): ContentRepository {
       structuredClone(
         [...s.items.values()].find((i) => i.type === type && i.slug === slug) ?? null
       ),
-    list: async ({ type, slug }, after, limit) =>
-      paged(
-        [...s.items.values()].filter(
-          (i) => (!type || i.type === type) && (!slug || i.slug === slug)
-        ),
-        after,
-        limit
-      ),
+    async list(filter, { order, after, offset, limit }) {
+      const compare = compareItems(order, filter.locale);
+      const matching = [...s.items.values()].filter((i) => matchesItemFilter(i, filter));
+      // Found by id alone: the item a page continues after may no longer match the filter. In
+      // the `created` order the id is the whole position, so it need not name an item.
+      const pivot =
+        after === null
+          ? null
+          : order.by === 'created'
+            ? ({ id: after } as ItemRecord)
+            : (s.items.get(after) ?? undefined);
+      const rows =
+        pivot === undefined
+          ? []
+          : matching.sort(compare).filter((r) => pivot === null || compare(r, pivot) > 0);
+      const page = rows.slice(offset, offset + limit).map((r) => structuredClone(r));
+      return {
+        rows: page,
+        next: rows.length > offset + limit ? (page.at(-1)?.id ?? null) : null,
+        total: matching.length,
+      };
+    },
     async insert(item, first) {
       const taken = [...s.items.values()].some((i) => i.type === item.type && i.slug === item.slug);
       if (taken) return false;

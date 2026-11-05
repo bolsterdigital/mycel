@@ -1279,6 +1279,25 @@
     align-items: center;
     gap: 0.25rem;
   }
+  /* In a work list the code opens that translation: a whole target, and a link by its colour. */
+  .ui-locale-codes a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-block-size: var(--tap);
+    min-inline-size: var(--tap);
+    color: var(--color-link);
+  }
+  /* How many items a list holds, or a filter found, under its filter bar. */
+  .ui-list-count {
+    margin: var(--space-1) 0 0;
+    font-size: var(--step--1);
+    color: var(--color-muted-fg);
+  }
+  /* The row a link names by its id: where "back to the list" on an item lands. */
+  .ui-table tr:target :is(th, td) {
+    background: var(--color-selected-bg);
+  }
   .ui-overview-list {
     margin-block-start: var(--space-3);
   }

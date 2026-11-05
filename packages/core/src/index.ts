@@ -34,6 +34,7 @@ export * from './content/blocks.js';
 export * from './content/model.js';
 export * from './content/header/effective.js';
 export * from './content/lifecycle.js';
+export * from './content/listing.js';
 export * from './content/ports.js';
 export * from './content/diff.js';
 export * from './content/service.js';

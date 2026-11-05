@@ -1,6 +1,7 @@
 // The rules core owns and both adapters apply (ADR 001, TODO #53 PR 3): the credential gate,
-// "disconnected is frozen", what an erasure does to connection intents and that it takes the
-// admission seat of a signup that was never ingested under core's key. One scenario, one
+// "disconnected is frozen", what an erasure does to connection intents, that it takes the
+// admission seat of a signup that was never ingested under core's key, and which items a content
+// list matches and in what order (`core/content/listing.ts`). One scenario, one
 // expected record, run once over the memory adapter and once over Postgres; a rule that one
 // adapter keeps on its own shows up as a difference here. Rejected: a suite per adapter, which
 // is how memory came to block a `resolved` intent while Postgres kept it.
@@ -17,6 +18,7 @@ import {
   systemPrincipal,
   useCases,
   type ConnectionIntent,
+  type Principal,
   type UnitOfWork,
 } from '@mycel/core';
 import {
@@ -26,6 +28,7 @@ import {
   FakeSigner,
   MemoryUnitOfWork,
   memoryPlatform,
+  pageDocument,
   probeForm,
   runSuffix,
 } from '@mycel/core/testing';
@@ -36,6 +39,8 @@ const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
 interface Adapter {
   uow: UnitOfWork;
+  /** The clock `uow` reads, so the scenario can put its saves a second apart. */
+  clock: FakeClock;
   tenant(): Promise<string>;
   apply(tenantId: string): Promise<unknown>;
 }
@@ -56,8 +61,96 @@ const connection = {
   adapterVersion: 'v1',
 };
 
+/**
+ * Five pages, one in each publication state of Dutch, listed by every filter and order: what
+ * matches, in which order, how many in all and where the next page starts. The titles hold what
+ * two stores would order or match differently on their own: an accent, a capital, a space, and
+ * the two wildcards of `like`.
+ */
+async function observeListing(invoker: Invoker, admin: Principal, clock: FakeClock) {
+  const make = async (slug: string, nl: string, en?: string) => {
+    clock.advance(1000);
+    const { item } = await invoker.run(useCases.createItem, admin, {
+      slug,
+      document: pageDocument({ title: { nl, ...(en ? { en } : {}) } }),
+    });
+    return item;
+  };
+  const publish = async (item: { id: string; latestRevisionId: string }) => {
+    clock.advance(1000);
+    await invoker.run(useCases.publishItem, admin, {
+      itemId: item.id,
+      revisionId: item.latestRevisionId,
+      locale: 'nl',
+    });
+  };
+  await make('de-week', 'De week');
+  const deel = await make('deel', 'Deel', 'Zebra part');
+  const dag = await make('een-dag', 'Één dag', 'One day');
+  const procent = await make('procent', '100% zeker');
+  await make('appel', 'appeltaart_recept');
+  await publish(deel);
+  await publish(dag);
+  clock.advance(1000);
+  await invoker.run(useCases.updateItem, admin, {
+    itemId: dag.id,
+    baseRevisionId: dag.latestRevisionId,
+    document: pageDocument({ title: { nl: 'Één dag', en: 'One day' } }),
+  });
+  await publish(procent);
+  clock.advance(1000);
+  await invoker.run(useCases.unpublishItem, admin, { itemId: procent.id, locale: 'nl' });
+
+  const slugOf = new Map<string, string>();
+  const list = async (input: Parameters<typeof invoker.run<typeof useCases.listItems>>[2]) => {
+    const page = await invoker.run(useCases.listItems, admin, input);
+    for (const i of page.items) slugOf.set(i.id, i.slug);
+    return page;
+  };
+  const slugs = async (input: Parameters<typeof list>[0]) =>
+    (await list(input)).items.map((i) => i.slug).join(' ');
+  const firstByTitle = await list({ sort: 'title', limit: 2 });
+  return {
+    created: await slugs({}),
+    createdAscending: await slugs({ sort: 'created', direction: 'asc' }),
+    updated: await slugs({ sort: 'updated' }),
+    title: await slugs({ sort: 'title' }),
+    titleDescending: await slugs({ sort: 'title', direction: 'desc' }),
+    titleInEnglish: await slugs({ sort: 'title', locale: 'en' }),
+    search: await slugs({ q: 'DE' }),
+    searchOtherLocale: await slugs({ q: 'zebra' }),
+    searchPercent: await slugs({ q: '%' }),
+    searchUnderscore: await slugs({ q: '_' }),
+    searchBackslash: await slugs({ q: '\\' }),
+    draft: await slugs({ status: 'draft' }),
+    published: await slugs({ status: 'published' }),
+    unpublished: await slugs({ status: 'unpublished' }),
+    changed: await slugs({ hasUnpublishedChanges: true }),
+    unchanged: await slugs({ hasUnpublishedChanges: false }),
+    draftInEnglish: await slugs({ status: 'draft', locale: 'en' }),
+    draftInGerman: await slugs({ status: 'draft', locale: 'de' }),
+    searchAndState: await slugs({ q: 'e', status: 'published', sort: 'title' }),
+    page: {
+      slugs: firstByTitle.items.map((i) => i.slug).join(' '),
+      next: slugOf.get(firstByTitle.next ?? ''),
+      total: firstByTitle.total,
+    },
+    afterNext: await slugs({ sort: 'title', limit: 2, after: firstByTitle.next! }),
+    afterNextDescending: await slugs({
+      sort: 'title',
+      direction: 'desc',
+      after: firstByTitle.next!,
+    }),
+    afterUpdated: await slugs({ sort: 'updated', after: dag.id }),
+    offset: await slugs({ sort: 'title', offset: 4 }),
+    afterUnknownByTitle: await slugs({ sort: 'title', after: uuidv7() }),
+    afterUnknownByCreation: await slugs({ after: uuidv7() }),
+    total: (await list({ q: 'e', limit: 1 })).total,
+  };
+}
+
 /** Every observation the rules decide, in one record, so the two adapters compare as a whole. */
-async function observe({ uow, tenant, apply }: Adapter) {
+async function observe({ uow, clock, tenant, apply }: Adapter) {
   const t = await tenant();
   const admin = systemPrincipal(t, 'adapter-rules');
   const worker = systemPrincipal(t, 'connections.run');
@@ -153,7 +246,8 @@ async function observe({ uow, tenant, apply }: Adapter) {
     const row = (await uow.run(admin, (ctx) => ctx.connectionIntents.get(id)))!;
     erased[before] = { state: row.state, failure: row.failure, supporterId: row.supporterId };
   }
-  return { credential, frozen, erased, seat: { ...seat, after: await seated() } };
+  const listing = await observeListing(new Invoker(buildRegistry(), uow), admin, clock);
+  return { credential, frozen, erased, seat: { ...seat, after: await seated() }, listing };
 }
 
 const expected = {
@@ -178,6 +272,37 @@ const expected = {
     ])
   ),
   seat: { submitted: 'accepted', before: true, after: false },
+  listing: {
+    created: 'appel procent een-dag deel de-week',
+    createdAscending: 'de-week deel een-dag procent appel',
+    // A publication is not a save: only the second save of `een-dag` moved it.
+    updated: 'een-dag appel procent deel de-week',
+    title: 'procent appel de-week deel een-dag',
+    titleDescending: 'een-dag deel de-week appel procent',
+    // "One day" and "Zebra part"; the others fall to their Dutch title.
+    titleInEnglish: 'procent appel de-week een-dag deel',
+    search: 'deel de-week',
+    searchOtherLocale: 'deel',
+    searchPercent: 'procent',
+    searchUnderscore: 'appel',
+    searchBackslash: '',
+    draft: 'appel de-week',
+    published: 'een-dag deel',
+    unpublished: 'procent',
+    changed: 'een-dag',
+    unchanged: 'appel procent deel de-week',
+    draftInEnglish: 'appel procent een-dag deel de-week',
+    draftInGerman: '',
+    searchAndState: 'deel een-dag',
+    page: { slugs: 'procent appel', next: 'appel', total: 5 },
+    afterNext: 'de-week deel',
+    afterNextDescending: 'procent',
+    afterUpdated: 'appel procent deel de-week',
+    offset: 'een-dag',
+    afterUnknownByTitle: '',
+    afterUnknownByCreation: 'appel procent een-dag deel de-week',
+    total: 5,
+  },
 };
 
 it('keeps an intent whose state says what happened, and blocks the rest', () => {
@@ -195,9 +320,11 @@ it('keeps an intent whose state says what happened, and blocks the rest', () => 
 
 describe('adapter rules, memory', () => {
   it('applies the core rules', async () => {
-    const uow = new MemoryUnitOfWork({ clock: new FakeClock(new Date()) });
+    const clock = new FakeClock(new Date());
+    const uow = new MemoryUnitOfWork({ clock });
     const result = await observe({
       uow,
+      clock,
       tenant: async () => uuidv7(),
       apply: (t) => uow.run(systemPrincipal(t, 'erasures'), (ctx) => ctx.erasures.apply()),
     });
@@ -208,8 +335,9 @@ describe('adapter rules, memory', () => {
 describe.skipIf(skip)('adapter rules, postgres', () => {
   const operatorDb = createDb(operatorUrl);
   const appDb = createDb(appUrl);
+  const clock = new FakeClock(new Date());
   const uow = createUnitOfWork(appDb, {
-    clock: new FakeClock(new Date()),
+    clock,
     ids: uuidv7Ids,
     signer: new FakeSigner(),
     inputHasher: new FakeInputHasher(),
@@ -230,6 +358,7 @@ describe.skipIf(skip)('adapter rules, postgres', () => {
   it('applies the core rules', async () => {
     const result = await observe({
       uow,
+      clock,
       async tenant() {
         const { id } = await testTenant(operatorDb, `rules-${run}`, { name: 'Rules' });
         tenants.push(id);

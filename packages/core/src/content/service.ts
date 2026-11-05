@@ -28,6 +28,7 @@ import {
 import { EXAMPLE_IDS } from './block-types.js';
 import { diffDocuments } from './diff.js';
 import { EffectiveView, effectiveOf } from './header/effective.js';
+import { defaultDirection, itemListFields } from './listing.js';
 import {
   draftLocale,
   publish,
@@ -559,19 +560,37 @@ export const listItems = defineUseCase({
   name: 'content.item.list',
   kind: 'query',
   description:
-    'List items newest first, optionally of one type or with one slug, a page at a time.',
+    'List items a page at a time, newest first unless `sort` orders them; narrow by type, slug, `q` (in a title or the slug) or the publication state of `locale`; `total` counts every match.',
   requires: 'content:read',
   input: z.object({
     type: ContentType.optional(),
     slug: Slug.optional(),
+    ...itemListFields,
     after: z.string().guid().optional(),
     limit: Limit,
   }),
-  output: z.object({ items: z.array(ContentItem), next: z.string().guid().nullable() }),
-  examples: [{ input: { type: 'article' } }],
-  async handler(ctx, { type, slug, after, limit }) {
-    const page = await ctx.content.list({ type, slug }, after ?? null, limit ?? DEFAULT_PAGE_SIZE);
-    return { items: page.rows.map(toContentItem), next: page.next };
+  output: z.object({
+    items: z.array(ContentItem),
+    /** Pass as `after` for the rows that follow, in the same order; null when none do. */
+    next: z.string().guid().nullable(),
+    total: z.number().int().min(0),
+  }),
+  examples: [
+    { input: { type: 'article' } },
+    {
+      input: { type: 'article', q: 'budget', locale: 'nl', status: 'draft', sort: 'updated' },
+      note: 'Drafts in Dutch with "budget" in a title or the slug, last saved first.',
+    },
+  ],
+  async handler(ctx, { after, offset, limit, sort, direction, ...filter }) {
+    const by = sort ?? 'created';
+    const page = await ctx.content.list(filter, {
+      order: { by, direction: direction ?? defaultDirection(by) },
+      after: after ?? null,
+      offset: offset ?? 0,
+      limit: limit ?? DEFAULT_PAGE_SIZE,
+    });
+    return { items: page.rows.map(toContentItem), next: page.next, total: page.total };
   },
 });
 

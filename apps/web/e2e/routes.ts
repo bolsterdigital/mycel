@@ -43,6 +43,8 @@ export const ADMIN_ROUTES: GateRoute[] = [
   { path: '/admin/voorkeuren' },
   { path: '/admin/probe/profiel', within: 'main' },
   { path: '/admin/probe/content?type=page' },
+  // A filtered list: the filter bar with its clear link, and the count of what it found.
+  { path: '/admin/probe/content?type=page&q=e&status=draft' },
   { path: '/admin/probe/content/new' },
   ...['overview', 'overview?view=list', 'detail', 'edit', 'settings', 'form', 'states'].map(
     (pattern) => ({ path: `/admin/probe/_ui/${pattern}`, folds: true })

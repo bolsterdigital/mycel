@@ -174,8 +174,8 @@ test.describe('content-admin', () => {
 
     // In the list: the new page, a draft in the content locale; English as a code without a dot,
     // as its translation is complete (#66 PR 4).
-    await page.goto('/admin/probe/content?type=page');
-    const card = page.locator('#content-table tbody tr', { hasText: `/${slug}` });
+    await page.goto(`/admin/probe/content?type=page&q=${slug}`);
+    const card = page.locator('#content-table tbody tr');
     await expect(card.locator('.ui-badge')).toHaveText('concept');
     await expect(card.locator('.ui-locale-codes')).toHaveText('en');
   });
@@ -1049,10 +1049,8 @@ test.describe('content-admin', () => {
     const live = await (await request.get(`${SITE}/${slug}`)).text();
     expect(live).toContain('Buurtfeest');
     expect(live).not.toContain('Buurtfeest verplaatst');
-    await page.goto('/admin/probe/content?type=page');
-    await expect(
-      page.locator('#content-table tbody tr', { hasText: `/${slug}` }).locator('.ui-badge')
-    ).toHaveText('gewijzigd');
+    await page.goto(`/admin/probe/content?type=page&q=${slug}`);
+    await expect(page.locator('#content-table tbody tr .ui-badge')).toHaveText('gewijzigd');
 
     // Offline again: the address is gone, the card says it was live once.
     await page.goto(edit);
@@ -1117,8 +1115,8 @@ test.describe('content-admin', () => {
     await expect(page.locator('#title\\.nl')).toHaveValue(`${title}!`);
 
     // The choice holds for the list: English titles and states, Dutch as a code.
-    await page.goto('/admin/probe/content?type=page');
-    const row = page.locator('#content-table tbody tr', { hasText: `/${slug}` });
+    await page.goto(`/admin/probe/content?type=page&q=${slug}`);
+    const row = page.locator('#content-table tbody tr');
     await expect(row.locator('th')).toHaveText('Only Dutch, now English');
     await expect(row.locator('.ui-badge')).toHaveText('gepubliceerd');
     await expect(row.locator('.ui-locale-codes')).toHaveText('nl');
@@ -1127,10 +1125,96 @@ test.describe('content-admin', () => {
       .locator('.admin-content-locale')
       .getByRole('button', { name: 'nl', exact: true })
       .click();
-    await expect(page).toHaveURL('/admin/probe/content?type=page');
+    await expect(page).toHaveURL(`/admin/probe/content?type=page&q=${slug}`);
     await expect(row.locator('th')).toHaveText(`${title}!`);
     await expect(row.locator('.ui-badge')).toHaveText('concept');
     await expectNoAxeViolations(page);
+  });
+
+  test('the list searches, filters and sorts, and an item goes back to the view it left', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    // A word no other run has, in three titles whose order by title is not their order in time.
+    const word = `lijst${randomUUID().slice(0, 8)}`;
+    const make = async (title: string) => {
+      const { item } = await callApi<{ item: { id: string; latestRevisionId: string } }>(
+        request,
+        'content.item.create',
+        {
+          slug: slugFor('list'),
+          document: {
+            type: 'page',
+            defaultLocale: 'nl',
+            locales: ['nl'],
+            title: { nl: `${title} ${word}` },
+            blocks: [],
+          },
+        }
+      );
+      return item;
+    };
+    await make('Brood');
+    const first = await make('appel');
+    await make('Één');
+    await callApi(request, 'content.item.publish', {
+      itemId: first.id,
+      revisionId: first.latestRevisionId,
+      locale: 'nl',
+    });
+
+    await login(page, `/admin/probe/content?type=page&q=${word}`);
+    const titles = page.locator('#content-table tbody th');
+    // Last saved first, and how many the search found.
+    await expect(titles).toHaveText([`Één ${word}`, `appel ${word}`, `Brood ${word}`]);
+    await expect(page.locator('#content-count')).toHaveText('3 gevonden');
+    await expect(page.getByRole('columnheader', { name: 'Laatst opgeslagen' })).toHaveAttribute(
+      'aria-sort',
+      'descending'
+    );
+
+    // The column heading sorts, a link: by title, the accent and the capital in their letter.
+    const heading = page.getByRole('columnheader', { name: 'Titel' });
+    await heading.getByRole('link').click();
+    await expect(heading).toHaveAttribute('aria-sort', 'ascending');
+    await expect(titles).toHaveText([`appel ${word}`, `Brood ${word}`, `Één ${word}`]);
+
+    // One status, by a native form: the search and the order stay.
+    await page.getByLabel('Status').selectOption({ label: 'Gepubliceerd' });
+    await page.getByRole('button', { name: 'Filteren' }).click();
+    await expect(titles).toHaveText([`appel ${word}`]);
+    await expect(page.locator('#content-count')).toHaveText('1 gevonden');
+    await expect(page.getByLabel('Zoek op titel of adres')).toHaveValue(word);
+    await expect(heading).toHaveAttribute('aria-sort', 'ascending');
+    await expectNoAxeViolations(page);
+
+    // Into the item and back: the same search, status and order, at the item's own row.
+    await titles.getByRole('link').click();
+    await expect(page).toHaveURL(`/admin/probe/content/${first.id}`);
+    await page.locator('.ui-item-bar-back').click();
+    const back = new URL(page.url());
+    expect(Object.fromEntries(back.searchParams)).toEqual({
+      type: 'page',
+      q: word,
+      status: 'published',
+      sort: 'title',
+    });
+    expect(back.hash).toBe(`#item-${first.id}`);
+    await expect(titles).toHaveText([`appel ${word}`]);
+
+    // Nothing found says what was asked; clearing the filters is one link, and forgets the view.
+    await page.goto(`/admin/probe/content?type=page&q=${word}&status=scheduled`);
+    await expect(
+      page.getByRole('heading', { name: `Niets gevonden voor “${word}”.` })
+    ).toBeVisible();
+    await page.getByRole('link', { name: 'Filters wissen' }).click();
+    await expect(page).toHaveURL('/admin/probe/content?type=page');
+    await page.goto(`/admin/probe/content/${first.id}`);
+    await expect(page.locator('.ui-item-bar-back')).toHaveAttribute(
+      'href',
+      `/admin/probe/content?type=page#item-${first.id}`
+    );
   });
 
   test('a locale the item lacks starts as a copy of another; the other stays as it is', async ({

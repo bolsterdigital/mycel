@@ -64,6 +64,7 @@ import {
   contentLocale,
   translationState,
 } from '#lib/server/content/content-locale.js';
+import { recalledListPath } from '#lib/server/content/content-list.js';
 import {
   fieldOf,
   fromLocalInput,
@@ -261,6 +262,8 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
   }
   return {
     contentType: item.type,
+    // Back to the list as it was left: its search, status, order and page, at this item's row.
+    listPath: recalledListPath(cookies, params.tenant, item.type, item.id),
     patterns: doc.blocks.length
       ? []
       : (await invoker.run(useCases.listPatterns, principal, { limit: MAX_PAGE_SIZE })).patterns

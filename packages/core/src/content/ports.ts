@@ -5,6 +5,7 @@
 
 import type { BlockType, ReferenceType } from './blocks.js';
 import type { LocaleState } from './lifecycle.js';
+import type { ItemFilter, ItemOrder } from './listing.js';
 import type { Author, ContentType, Pattern, Revision, RevisionSummary, Section } from './model.js';
 
 export interface ItemRecord {
@@ -27,6 +28,20 @@ export interface Paged<T> {
   next: string | null;
 }
 
+/** Where a page of a list starts: after one item of the order, then past `offset` rows. */
+export interface ItemPosition {
+  order: ItemOrder;
+  /** An item id: the page holds what follows it in `order`, wherever that item stands now. */
+  after: string | null;
+  offset: number;
+  limit: number;
+}
+
+/** A page of items with the number of items the filter matches in all. */
+export interface ItemPage extends Paged<ItemRecord> {
+  total: number;
+}
+
 /** What `content.item.find` looks for; at least one of `blockType` and `ref` is set. */
 export interface FindFilter {
   blockType?: BlockType | undefined;
@@ -47,12 +62,12 @@ export interface ContentRepository {
   lock(itemId: string): Promise<ItemRecord | null>;
   get(itemId: string): Promise<ItemRecord | null>;
   findBySlug(type: ContentType, slug: string): Promise<ItemRecord | null>;
-  /** Newest first; `after` is the last id of the previous page. */
-  list(
-    filter: { type?: ContentType | undefined; slug?: string | undefined },
-    after: string | null,
-    limit: number
-  ): Promise<Paged<ItemRecord>>;
+  /**
+   * The items `filter` matches, in `position.order`. The rules are core's (`matchesItemFilter`,
+   * `compareItems`); an `after` that names no item of this tenant gives an empty page, except in
+   * the `created` order, where any id is a position.
+   */
+  list(filter: ItemFilter, position: ItemPosition): Promise<ItemPage>;
   /**
    * A new item with its first revision (inserted in the same transaction, refs included). False:
    * the slug is taken, by a request that passed the same check first. As with `setSlug`, the
