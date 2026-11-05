@@ -37,7 +37,7 @@ Keys: `tenants/<tenant id>/media/<media id>/<file>`.
 
 Never upscaled. A 4000 px photo stops at `w1920`: its full resolution stays private. `checksum` (sha256 hex) and `sizeBytes` describe the stored original (or `file`), `totalBytes` everything, which is what the cap counts. The own metadata of a PDF (author, producer) or an MP3 (ID3 tags) is not rewritten: only images pass through the processor, and a public file keeps what it came with.
 
-The unmodified upload is never kept. A photo with the GPS position of a source must not survive even in a leaked backup; whoever needs the pristine file keeps it outside Mycel.
+The unmodified upload of an image is never kept. A photo with the GPS position of a source must not survive even in a leaked backup; whoever needs the pristine file keeps it outside Mycel.
 
 ## Editorial fields
 
