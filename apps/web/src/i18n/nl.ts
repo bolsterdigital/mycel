@@ -377,7 +377,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.media.upload.title': 'Bestand uploaden',
   'admin.media.upload.file': 'Bestand',
   'admin.media.upload.hint':
-    "JPEG, PNG, WebP, AVIF, GIF, PDF of MP3, hooguit {max}. Foto's worden zonder metadata (zoals locatie) bewaard; SVG wordt niet geaccepteerd.",
+    "JPEG, PNG, WebP, AVIF, GIF, PDF of MP3, hooguit {max}. Foto's worden zonder metadata (zoals locatie) bewaard; een pdf of MP3 blijft zoals je hem uploadt, metadata inbegrepen. SVG wordt niet geaccepteerd.",
   'admin.media.upload.restricted': 'Afgeschermd: alleen lezers met toegang zien dit bestand',
   'admin.media.upload.submit': 'Uploaden',
   'admin.media.library': 'Bibliotheek',
@@ -1469,8 +1469,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.media.view.label': 'Weergave',
   'admin.media.view.grid': 'Raster',
   'admin.media.view.list': 'Lijst',
-  'admin.media.none.body':
-    'Upload hierboven een afbeelding of pdf; die verschijnt hier met een miniatuur.',
+  'admin.media.none.body': 'Upload hierboven een afbeelding, pdf of MP3; die verschijnt hier.',
   'admin.media.filename': 'Bestandsnaam',
   'admin.media.type': 'Soort bestand',
   'admin.media.dimensions': 'Afmetingen',

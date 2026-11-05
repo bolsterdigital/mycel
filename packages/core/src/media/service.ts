@@ -282,7 +282,7 @@ export const uploadMedia = defineUseCase({
   name: 'media.upload',
   kind: 'command',
   description:
-    'Upload an image (JPEG, PNG, WebP, AVIF, GIF) or a PDF as base64, up to 25 MB; images are stored without metadata, with AVIF and WebP variants.',
+    'Upload an image (JPEG, PNG, WebP, AVIF, GIF), a PDF or an MP3 as base64, up to 25 MB; images are stored without metadata, with AVIF and WebP variants; a PDF or MP3 is stored as it came, its own metadata included.',
   requires: 'media:write',
   consumes: 'media.storage_max_bytes',
   input: z
