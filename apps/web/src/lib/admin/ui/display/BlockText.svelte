@@ -65,6 +65,14 @@
           labelFrom?: string;
         }[];
       }
+    | {
+        kind: 'file-download';
+        title: string;
+        titleFrom?: string;
+        body: string;
+        bodyFrom?: string;
+        files: readonly { label: string; from?: string }[];
+      }
     | { kind: 'paywall' }
     | {
         kind: 'video';
@@ -179,6 +187,14 @@
         </div>
       {/each}
     </div>
+  {:else if view.kind === 'file-download'}
+    <p class="ui-block-text-heading" data-rest-from={view.titleFrom}>{view.title}</p>
+    <p class="ui-block-text-body" data-rest-from={view.bodyFrom}>{view.body}</p>
+    <ul class="ui-block-text-files">
+      {#each view.files as file, i (i)}
+        <li data-rest-from={file.from}>{file.label}</li>
+      {/each}
+    </ul>
   {:else if view.kind === 'paywall'}
     <div class="ui-block-text-boundary">
       <p class="ui-block-text-kind">{kindLabel}</p>

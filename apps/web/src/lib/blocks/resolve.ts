@@ -6,6 +6,8 @@
 // What a reference turns into is decided here, and it fails closed:
 //   - media: `media.get`; a restricted, deleted, failed or non-image asset is null, and the block
 //     renders nothing (no figure, no alt, no path). Signed paths for readers are #19.
+//     A document slot has the same rule for a document: the entry is left out, and a block with
+//     no file left renders nothing.
 //   - forms: `form.get` with a fresh `startedToken`, as the probe did; unknown is null.
 //   - items: a public path only if the item is published in this locale and its published
 //     revision is `access.level: public`, the rules of `content.published.get`; otherwise null,
@@ -16,6 +18,7 @@
 // renderer that cannot run without a database), and passing the whole `MediaView` through
 // (restricted paths would sit in the model even if no component printed them).
 
+import { formatBytes } from '../admin/format.js';
 import {
   type FormDefinition,
   type ArticleHeader,
@@ -173,6 +176,19 @@ function renderImage(
   };
 }
 
+/** Where a visitor fetches a document and what it is ("PDF, 845 kB"); fails closed like an image. */
+function renderFile(
+  asset: MediaView | null,
+  locale: string
+): { href: string; meta: string } | null {
+  if (!asset || asset.access !== 'public' || asset.kind !== 'document' || asset.state !== 'ready')
+    return null;
+  const file = asset.variants.find((v) => v.name === 'file' && v.path);
+  if (!file) return null;
+  const meta = `${file.format.toUpperCase()}, ${formatBytes(asset.sizeBytes, locale)}`;
+  return { href: file.path, meta };
+}
+
 /**
  * What sits between an item's title and its blocks (#86): the lead in this locale and the hero
  * image. A hero with an alt in this locale describes the image (#99); without one it is
@@ -326,6 +342,17 @@ export async function resolveDocument(
             actions: actions(c.actions),
           })),
         };
+      case 'file-download':
+        return {
+          id,
+          type: 'file-download',
+          title: text(b.props.title),
+          body: text(b.props.body),
+          files: b.props.files.flatMap((f) => {
+            const file = renderFile(media.get(f.fileId) ?? null, locale);
+            return file ? [{ ...file, label: text(f.name) ?? '' }] : [];
+          }),
+        };
       case 'callout':
         return {
           id,
@@ -424,6 +451,8 @@ function referencesOf(b: Block): { type: 'media' | 'form' | 'item'; refId: strin
       return targets(b.props.actions);
     case 'cards':
       return b.props.cards.flatMap((c) => targets(c.actions));
+    case 'file-download':
+      return b.props.files.map((f) => ({ type: 'media' as const, refId: f.fileId }));
     case 'form':
     case 'signup-form':
       return [{ type: 'form', refId: b.props.formId }];

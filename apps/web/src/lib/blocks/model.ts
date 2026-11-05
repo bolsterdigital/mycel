@@ -119,6 +119,13 @@ export type RenderBlock = { id: string } & (
       cards: { title: string; body: string | null; actions: RenderAction[] }[];
     }
   | {
+      type: 'file-download';
+      title: string | null;
+      body: string | null;
+      /** Only what a visitor may fetch; a restricted, deleted or failed file is left out. */
+      files: { label: string; href: string; meta: string }[];
+    }
+  | {
       type: 'callout';
       variant: 'info' | 'note' | 'warning';
       title: string | null;

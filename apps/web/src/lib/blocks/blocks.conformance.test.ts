@@ -51,6 +51,7 @@ const PROOF = {
 
 const LOCALES = ['nl', 'en'] as const;
 const RESTRICTED = '01900000-0000-7000-8000-00000000d0ff';
+const UNKNOWN_FILE = '01900000-0000-7000-8000-00000000d0fe';
 const UNPUBLISHED = '01900000-0000-7000-8000-00000000c0ff';
 const SENTINEL = 'LEAK-SENTINEL';
 
@@ -100,6 +101,19 @@ const fixtures: ResolveSource = {
   async media(id) {
     if (id === EXAMPLE_IDS.image) return asset(id, 1600, 900, { x: 0.3, y: 0.7 });
     if (id === EXAMPLE_IDS.portrait) return asset(id, 800, 1000);
+    if (id === EXAMPLE_IDS.document)
+      return {
+        ...asset(id, 1, 1),
+        kind: 'document',
+        contentType: 'application/pdf',
+        filename: 'jr-2025-final-v3.pdf',
+        width: null,
+        height: null,
+        sizeBytes: 845_000,
+        variants: [
+          { name: 'file', format: 'pdf', width: null, height: null, path: `/media/${id}/file.pdf` },
+        ],
+      };
     if (id === RESTRICTED)
       return {
         ...asset(id, 1600, 900),
@@ -329,6 +343,37 @@ describe('nothing leaks into any representation', () => {
     expect(html).toContain('hero-minimal');
   });
 
+  it('leaves out a restricted or missing file, and shows nothing with no file left', async () => {
+    const block = examples.find((e) => e.name === 'file-download-titled')!.block;
+    const props = block.props as { files: { fileId: string; name: object }[] };
+    const withIds = (...ids: string[]) =>
+      Block.parse({
+        ...block,
+        props: { ...props, files: ids.map((fileId, i) => ({ ...props.files[i], fileId })) },
+      });
+    const one = await representations([withIds(EXAMPLE_IDS.document, RESTRICTED)], 'nl');
+    for (const out of [one.html, one.markdown, JSON.stringify(one.model)]) {
+      expect(out).toContain('Jaarverslag 2025');
+      expect(out).not.toContain('Brief aan de gemeente');
+      expect(out).not.toContain(RESTRICTED);
+    }
+    const none = await representations([withIds(RESTRICTED, UNKNOWN_FILE)], 'nl');
+    for (const out of [none.html, none.markdown]) {
+      expect(out).not.toContain('Stukken bij deze zaak');
+      expect(out).not.toContain('/media/');
+    }
+    expect(none.html).not.toContain('file-download');
+  });
+
+  it('a file link names its kind and size, in HTML and Markdown, not the stored filename', async () => {
+    const block = examples.find((e) => e.name === 'file-download-one')!.block;
+    const { html, markdown } = await representations([block], 'en');
+    expect(html).toContain('Annual report 2025');
+    expect(html).toMatch(/\(PDF, 825[.,]2 kB\)/);
+    expect(markdown).toMatch(/\[Annual report 2025\]\(<.*file\.pdf>\) \(PDF, 825[.,]2 kB\)/);
+    expect(html + markdown).not.toContain('jr-2025-final');
+  });
+
   it('drops an action and a text link whose item is not published', async () => {
     const swap = (b: Block) =>
       Block.parse(JSON.parse(JSON.stringify(b).replaceAll(EXAMPLE_IDS.item, UNPUBLISHED)));
@@ -426,6 +471,7 @@ describe('the demo documents render whole', () => {
     bakery: EXAMPLE_IDS.image,
     measuring: EXAMPLE_IDS.portrait,
     signatures: EXAMPLE_IDS.image,
+    report: EXAMPLE_IDS.document,
   };
   const demos = [
     demoPage({ formId: EXAMPLE_IDS.form, media }),

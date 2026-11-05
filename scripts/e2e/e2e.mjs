@@ -447,6 +447,12 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
     const portrait = await upload('bomen.jpg', await picture(800, 1000, 110), { x: 0.5, y: 0.5 });
     const square = await upload('plein.jpg', await picture(1000, 1000, 45), { x: 0.5, y: 0.5 });
     const panorama = await upload('water.jpg', await picture(1800, 750, 175), { x: 0.5, y: 0.5 });
+    // The smallest thing `media.upload` calls a PDF; nothing opens it, a link only has to resolve.
+    const report = await invoker.run(useCases.uploadMedia, admin, {
+      filename: 'jaarverslag.pdf',
+      contentType: 'application/pdf',
+      bytes: Buffer.from('%PDF-1.4\n%%EOF\n').toString('base64'),
+    });
     const [signupItem] = (
       await invoker.run(useCases.listItems, admin, { type: 'page', slug: 'signup' })
     ).items;
@@ -582,6 +588,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
         JSON.stringify(block)
           .replaceAll(EXAMPLE_IDS.image, landscape.id)
           .replaceAll(EXAMPLE_IDS.portrait, portrait.id)
+          .replaceAll(EXAMPLE_IDS.document, report.id)
           .replaceAll(EXAMPLE_IDS.item, signupItem.id)
           .replaceAll(EXAMPLE_IDS.form, formId)
       );

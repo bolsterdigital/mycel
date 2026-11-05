@@ -119,6 +119,20 @@ Version 1.
 
 Examples: `cards-three-links`, `cards-bar-content`, `cards-filled-full`.
 
+## `file-download` (File download)
+
+Version 1.
+
+| Prop             | Label     | Kind                      | Presence |
+| ---------------- | --------- | ------------------------- | -------- |
+| `title`          | Title     | localised text            | optional |
+| `body`           | Body text | localised multi-line text | optional |
+| `files`          | File      | list of 1–12              | required |
+| `files[].fileId` | File      | document (media id)       | required |
+| `files[].name`   | Name      | localised text            | required |
+
+Examples: `file-download-one`, `file-download-titled`.
+
 ## `callout` (Callout)
 
 Version 1.

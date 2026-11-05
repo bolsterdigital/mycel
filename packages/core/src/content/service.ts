@@ -162,9 +162,11 @@ export async function recordMediaUsages(
   document: readonly { slot: string; mediaId: string }[]
 ): Promise<void> {
   const pairs = new Map<string, { mediaId: string; blockId: string }>();
-  for (const b of allBlocks(blocks))
-    for (const mediaId of blockReferences([b]).media)
+  for (const b of allBlocks(blocks)) {
+    const { media, documents } = blockReferences([b]);
+    for (const mediaId of [...media, ...documents])
       pairs.set(`${mediaId} ${b.id}`, { mediaId, blockId: b.id });
+  }
   // The document's own images under their slot (`doc:featured`, `doc:seo`), which no block id
   // can take, so a featured image that is also a block's image counts twice, as it should.
   for (const { slot, mediaId } of document)
@@ -244,8 +246,8 @@ export async function writeRevision(
 
 /**
  * The references of a block tree must point at this tenant's data (ADR 004 rule 6): forms,
- * linked items, and media that exists, is not deleted and is an image (every media slot is an
- * image slot so far; a PDF is refused). Lookups run under the tenant's RLS context, so another
+ * linked items, and media that exists, is not deleted and is of the kind its slot takes (an image
+ * slot refuses a PDF, a document slot an image). Lookups run under the tenant's RLS context, so another
  * tenant's id is simply not found: the issue says which path, never whether the id exists
  * elsewhere. Restricted media may be referenced; that grants no reader access or address.
  *
@@ -260,7 +262,7 @@ export async function blockReferenceIssues(
 ): Promise<Issue[]> {
   const issues: Issue[] = [];
   const refs = blockReferences(blocks);
-  if (refs.media.length) await ctx.media.lock();
+  if (refs.media.length || refs.documents.length) await ctx.media.lock();
   for (const id of refs.forms)
     if (!(await ctx.forms.findById(id)))
       issues.push({ path, message: 'content.reference.form-unknown', params: { id } });
@@ -271,7 +273,25 @@ export async function blockReferenceIssues(
     const issue = await imageIssue(ctx, id, path);
     if (issue) issues.push(issue);
   }
+  for (const id of refs.documents) {
+    const issue = await documentIssue(ctx, id, path);
+    if (issue) issues.push(issue);
+  }
   return issues;
+}
+
+/** A document slot's rule, next to the image rule: exists, not deleted, a document. */
+async function documentIssue(
+  ctx: TransactionContext,
+  mediaId: string,
+  path: string
+): Promise<Issue | null> {
+  const media = await ctx.media.get(mediaId);
+  if (!media || media.deletedAt)
+    return { path, message: 'content.reference.media-unknown', params: { id: mediaId } };
+  if (media.kind !== 'document')
+    return { path, message: 'content.reference.media-not-document', params: { id: mediaId } };
+  return null;
 }
 
 /**

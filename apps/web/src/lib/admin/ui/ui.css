@@ -1920,6 +1920,14 @@
   .ui-block-text-card:has(> .ui-block-text-heading:empty) {
     display: none;
   }
+  /* A place per row the form can have, as for cards; an empty one takes no room. */
+  .ui-block-text-files {
+    margin-block: var(--space-0) 0;
+    padding-inline-start: 1.25em;
+  }
+  .ui-block-text-files li:empty {
+    display: none;
+  }
   .ui-block-text-body {
     margin-block: var(--space-0) 0;
     white-space: pre-line;

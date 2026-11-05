@@ -119,6 +119,15 @@ describe('textRestOf', () => {
     });
     expect(cards.cards[3]?.title).toBe('');
 
+    const files = textRestOf(example('file-download'), 'nl', 'b.b.');
+    if (files?.kind !== 'file-download') throw new Error('no file-download view');
+    expect(files.files).toHaveLength(12);
+    expect(files.files[0]).toEqual({
+      label: 'Jaarverslag 2025',
+      from: 'b.b.p.files.0.name.nl',
+    });
+    expect(files.files[1]?.label).toBe('');
+
     const faq = textRestOf(example('faq', 1), 'nl', 'b.b.');
     if (faq?.kind !== 'faq') throw new Error('no faq view');
     expect(faq.variant).toBe('accordion');

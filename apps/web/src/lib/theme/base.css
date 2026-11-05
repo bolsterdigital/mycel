@@ -695,6 +695,21 @@
     --action-bg: var(--color-accent-active-bg);
   }
 
+  /* File downloads: a plain list of links; the kind and size stay quieter than the name. */
+  .file-download > * {
+    margin-block: 0 var(--space-1);
+  }
+  .file-download ul {
+    margin-block-end: 0;
+    padding-inline-start: 1.25em;
+  }
+  .file-download li + li {
+    margin-block-start: var(--space-0);
+  }
+  .file-download-meta {
+    white-space: nowrap;
+  }
+
   /* Callouts: the label carries the meaning; colour is a validated pair. */
   .callout {
     padding: var(--space-2) var(--inset);

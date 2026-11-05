@@ -197,6 +197,7 @@
       {locale}
       value={v(name)}
       options={media}
+      accept={f.accept ?? 'image'}
       {base}
       {upload}
       invalid={bad(name)}
