@@ -22,6 +22,7 @@ export { default as CopyField } from './form/CopyField.svelte';
 export { default as DetailPage } from './page/DetailPage.svelte';
 export { default as DocumentOutline } from './nav/DocumentOutline.svelte';
 export { default as DashboardWidget } from './display/DashboardWidget.svelte';
+export { default as RowActions } from './display/RowActions.svelte';
 export { default as Dialog } from './feedback/Dialog.svelte';
 export { default as EditPage } from './page/EditPage.svelte';
 export { default as EmptyState } from './feedback/EmptyState.svelte';

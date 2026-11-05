@@ -7,15 +7,18 @@
      works without JavaScript; the table scrolls inside its own region on a narrow screen, never
      the page. The page title is the one visible heading (#87); "updated" is relative in the
      operator's zone, the full moment in its title. A row carries its item's id, so the way back
-     from an item lands on it. -->
+     from an item lands on it. A row's actions (#79 PR 2) post through one form outside the table,
+     which no form can wrap; `RowActions` says how they show per width. -->
 <script lang="ts">
   import {
     Actions,
     Badge,
     Button,
+    ConfirmAction,
     Field,
     Notice,
     OverviewPage,
+    RowActions,
     Select,
     Table,
   } from '#lib/admin/ui/index.js';
@@ -65,6 +68,60 @@
   );
 </script>
 
+{#snippet create()}
+  <form method="POST" action="?/create">
+    <input type="hidden" name="type" value={data.type} /><Button
+      >{t(`admin.content.new.${data.type}`)}</Button
+    >
+  </form>
+{/snippet}
+
+{#snippet rowActions(item: (typeof data.items)[number])}
+  {@const name = item.title || t('admin.content.untitled')}
+  {#if item.live}
+    <a
+      class="ui-button link"
+      href={item.live}
+      target="_blank"
+      aria-label="{t('admin.content.row.site')}: {name}"
+      aria-describedby="new-tab">{t('admin.content.row.site')}</a
+    >
+  {/if}
+  {#if item.preview}
+    <a
+      class="ui-button link"
+      href={item.preview}
+      target="_blank"
+      aria-label="{t('admin.content.row.preview')}: {name}"
+      aria-describedby="new-tab">{t('admin.content.row.preview')}</a
+    >
+  {/if}
+  {#if data.canWrite}
+    <button
+      class="ui-button link"
+      type="submit"
+      form="content-row-actions"
+      formaction={data.links.duplicate}
+      name="item"
+      value={item.id}
+      aria-label="{t('admin.content.row.duplicate')}: {name}"
+      >{t('admin.content.row.duplicate')}</button
+    >
+  {/if}
+  {#if data.canPublish && item.live}
+    <ConfirmAction
+      variant="link"
+      label={t('admin.content.action.unpublish')}
+      question={fill(t('admin.content.row.offline.question'), { locale: data.workLocale })}
+      confirm={t('admin.content.row.offline.confirm')}
+      {name}
+      form="content-row-actions"
+      formaction={data.links.unpublish}
+      field={{ name: 'item', value: item.id }}
+    />
+  {/if}
+{/snippet}
+
 <svelte:head>
   <title>{kind} · {data.tenant.name} · {t('admin.title')}</title>
 </svelte:head>
@@ -78,7 +135,11 @@
     ? undefined
     : data.filtered
       ? { title: nothing, body: t('admin.content.list.none.body') }
-      : { title: t('admin.content.empty') }}
+      : {
+          title: t(`admin.content.empty.${data.type}`),
+          body: data.canWrite ? t(`admin.content.empty.${data.type}.body`) : undefined,
+          action: data.canWrite ? create : undefined,
+        }}
   paging={data.links.previous || data.links.next
     ? {
         previous: data.links.previous,
@@ -93,13 +154,15 @@
 >
   {#snippet notices()}
     {#if form}<Notice tone="error"><p>{t(form.error)}</p></Notice>{/if}
+    {#if data.offline}<Notice tone="success"
+        ><p>
+          {fill(t('admin.content.publication.done.unpublish'), { locale: data.workLocale })}
+        </p></Notice
+      >{/if}
   {/snippet}
   {#snippet actions()}
-    <form method="POST" action="?/create">
-      <input type="hidden" name="type" value={data.type} /><Button
-        >{t(`admin.content.new.${data.type}`)}</Button
-      >
-    </form>
+    <!-- An empty list offers this once, where the reader is looking. -->
+    {#if data.total > 0 || data.filtered}{@render create()}{/if}
   {/snippet}
   {#snippet filters()}
     <form
@@ -143,6 +206,10 @@
     <p class="ui-list-count" id="content-count">{count}</p>
   {/snippet}
 
+  <p id="new-tab" class="ui-visually-hidden">{t('admin.content.edit.newTab')}</p>
+  <form id="content-row-actions" method="POST">
+    <input type="hidden" name="locale" value={data.workLocale} />
+  </form>
   <Table
     id="content-table"
     caption={kind}
@@ -152,6 +219,11 @@
       { key: 'title', label: t('admin.content.field.title'), sortable: true },
       { key: 'status', label: t('admin.content.state') },
       { key: 'updated', label: t('admin.content.column.updated'), sortable: true },
+      {
+        key: 'actions',
+        label: t('admin.content.list.column.actions'),
+        class: 'ui-row-actions-cell',
+      },
     ]}
     sort={{ key: data.view.sort, dir: data.view.dir }}
     sortHref={(key, dir) => data.links.sort[key]?.[dir] ?? data.links.clear}
@@ -181,8 +253,10 @@
                 {/each}
               </ul>
             {/if}
+            <RowActions menu={t('admin.content.row.menu')}>{@render rowActions(item)}</RowActions>
           </td>
           <td><time datetime={updated.iso} title={updated.full}>{updated.text}</time></td>
+          <td class="ui-row-actions-cell"><RowActions>{@render rowActions(item)}</RowActions></td>
         </tr>
       {/each}
     {/snippet}
