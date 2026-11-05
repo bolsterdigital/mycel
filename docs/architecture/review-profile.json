@@ -147,6 +147,7 @@
         "apps/web/src/lib/components/**",
         "apps/web/src/routes/(admin)/**",
         "apps/web/src/lib/server/content/content-admin*",
+        "apps/web/src/lib/server/content/content-list*",
         "apps/web/src/lib/server/content/content-blocks*",
         "apps/web/src/lib/server/content/edit-form*",
         "apps/web/src/lib/editor/**",
