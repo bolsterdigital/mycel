@@ -31,6 +31,7 @@
   import { earlyInput } from '#lib/editor/early-input.js';
   import PublicationDrawer from '#lib/admin/ui/feedback/PublicationDrawer.svelte';
   import WritingSurface from '#lib/editor/WritingSurface.svelte';
+  import ItemTitleField from '#lib/editor/ItemTitleField.svelte';
   import BlockFields from '#lib/admin/BlockFields.svelte';
   import HeroAltRow from '#lib/admin/hero-alt/HeroAltRow.svelte';
   import Diff from '#lib/admin/Diff.svelte';
@@ -144,8 +145,6 @@
       (data.values[`title.${defaultLocale}`] as string | undefined) ||
       t('admin.content.untitled')
   );
-  /** A new item's stored stand-in title is no text to delete: the field is empty until typed in. */
-  const untitled = $derived(v(`title.${work}`) === ui(work)('admin.content.untitled'));
   const typeName = $derived(t(`admin.content.type.${data.item.type}` as const));
   const baseRevision = $derived(v('baseRevisionId') || data.revision.id);
   /** Folded groups open after a failed save, so a field the summary links to is in view. */
@@ -720,24 +719,12 @@
        the big title field already says where the header starts. -->
   <section aria-labelledby="item-header" class="item-header">
     <h3 id="item-header" class="ui-visually-hidden">{t('admin.content.header.title')}</h3>
-    <div class="ui-field">
-      <label class="ui-visually-hidden" for="title.{work}"
-        >{t('admin.content.edit.titleLabel')}</label
-      >
-      <input
-        class="ui-title-input"
-        size="1"
-        id="title.{work}"
-        name="title.{work}"
-        type="text"
-        maxlength="200"
-        required={work === defaultLocale && !untitled}
-        value={untitled ? '' : v(`title.${work}`)}
-        placeholder={untitled ? v(`title.${work}`) : undefined}
-        lang={work}
-      />
-      {#if untitled}<input type="hidden" name="untitled" value={work} />{/if}
-    </div>
+    <ItemTitleField
+      locale={work}
+      label={t('admin.content.edit.titleLabel')}
+      value={v(`title.${work}`)}
+      required={work === defaultLocale}
+    />
     {@render translateLinks('title', 'title', work, t('admin.content.field.title'))}
     {@render area(`lead.${work}`, t('admin.content.field.lead'), 1000)}
     {@render translateLinks('lead', 'lead', work, t('admin.content.field.lead'))}

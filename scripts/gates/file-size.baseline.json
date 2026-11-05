@@ -4,7 +4,7 @@
     "apps/web/src/lib/admin/ui/ui.test.ts": 1646,
     "apps/web/src/lib/theme/base.css": 1115,
     "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.server.ts": 1289,
-    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.svelte": 1537,
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.svelte": 1527,
     "packages/core/src/content/block-types.ts": 1216,
     "packages/core/src/content/service.ts": 1021,
     "packages/core/src/testing/demo-content.ts": 1374

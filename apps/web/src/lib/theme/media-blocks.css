@@ -28,6 +28,8 @@
   margin-block-start: 2px;
 }
 .credit-by {
+  /* Anchors the hidden word: positioned against the page it would widen a scrolling gallery row. */
+  position: relative;
   display: inline-flex;
   align-items: baseline;
   gap: 0.35em;
