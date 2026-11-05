@@ -108,6 +108,34 @@ jobs:
             echo "$changed"; exit 1
           fi
 
+      # The nine font packages `--with-deps` adds came from the Ubuntu mirror in 16 s or in over nine
+      # minutes, inside the step limit below, so a slow mirror failed the job with no test red. The
+      # action reports a restore error or a download past its segment limit as a warning, so both
+      # only mean the old download.
+      # This cache is trusted, not verified. apt 2.8.3 compares only the size of a .deb already in
+      # its archive directory, so what a run saved is installed as root by later runs on every ref
+      # until the key is bumped. Only a run on main can write the key other refs read (cache scope);
+      # poisoning it takes code execution in such a run, for example a compromised npm dependency,
+      # before the keep step. That could falsify later check results, but reaches no secret and no
+      # write access: this workflow has a read-only token and no secrets. Accepted for font
+      # packages; do not copy this to a job that holds a secret or a write token.
+      # Rejected: a higher step limit (hides a hang), dropping the fonts (rendering may change),
+      # checking each .deb against `apt-cache show` (a second `apt-get update` in every run).
+      - name: Restore browser system packages
+        id: browser-debs
+        timeout-minutes: 2
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: '1'
+        with:
+          path: ~/browser-debs
+          key: browser-debs-ubuntu-24.04-v1
+
+      - name: Hand restored packages to apt
+        run: |
+          mkdir -p ~/browser-debs
+          find ~/browser-debs -name '*.deb' -exec sudo cp -t /var/cache/apt/archives {} +
+
       # One execution deadline includes install/migration, leaving time to retain evidence.
       - name: Static, adapter and unit checks
         timeout-minutes: 12
@@ -124,6 +152,10 @@ jobs:
           npx playwright install --with-deps chromium
           npm run migrate -w @mycel/db
           npm run verify:checks
+
+      - name: Keep downloaded packages for the cache
+        if: steps.browser-debs.outputs.cache-hit != 'true'
+        run: find /var/cache/apt/archives -maxdepth 1 -name '*.deb' -exec cp -t ~/browser-debs {} +
 
       - name: Upload check evidence
         if: always()
@@ -180,6 +212,22 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      # Same packages and reasons as in `checks`.
+      - name: Restore browser system packages
+        id: browser-debs
+        timeout-minutes: 2
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: '1'
+        with:
+          path: ~/browser-debs
+          key: browser-debs-ubuntu-24.04-v1
+
+      - name: Hand restored packages to apt
+        run: |
+          mkdir -p ~/browser-debs
+          find ~/browser-debs -name '*.deb' -exec sudo cp -t /var/cache/apt/archives {} +
+
       - name: Build and run browser project
         timeout-minutes: 12
         run: |
@@ -196,6 +244,10 @@ jobs:
           npm run build
           # List emits each completed test and duration immediately, even if a later test hangs.
           npm run test:e2e -- --project=${{ matrix.project }} --reporter=list
+
+      - name: Keep downloaded packages for the cache
+        if: steps.browser-debs.outputs.cache-hit != 'true'
+        run: find /var/cache/apt/archives -maxdepth 1 -name '*.deb' -exec cp -t ~/browser-debs {} +
 
       - name: Upload browser evidence
         if: always()
