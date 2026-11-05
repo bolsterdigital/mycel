@@ -16,8 +16,8 @@ import {
 import { createServer } from 'node:http';
 import { type AddressInfo } from 'node:net';
 import { FakeDns } from '@mycel/core/testing';
-import { type Database, uuidv7Ids } from '@mycel/db';
-import { asRole, testTenant } from '@mycel/db/testing';
+import { type Database, createDb, uuidv7Ids } from '@mycel/db';
+import { asRole, breakLatestDocument, testTenant } from '@mycel/db/testing';
 import { type Locator, type Page, expect, test } from '@playwright/test';
 import { type Kysely } from 'kysely';
 import { expectNoAxeViolations } from './lib/axe';
@@ -1780,6 +1780,46 @@ test.describe('content-list-rows', () => {
       `Brood ${word}`,
       `Kopie van Brood ${word}`,
     ]);
+  });
+
+  test('a document that no longer validates fails on its own screen, not on the rest', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    const word = `kapot${randomUUID().slice(0, 8)}`;
+    const make = async (name: string) =>
+      (
+        await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+          slug: `${name}-${word}`,
+          document: {
+            type: 'page',
+            defaultLocale: 'nl',
+            locales: ['nl'],
+            title: { nl: `${name} ${word}` },
+            blocks: [],
+          },
+        })
+      ).item.id;
+    const sound = await make('heel');
+    const broken = await make('stuk');
+    const db = createDb(process.env['APP_DATABASE_URL']!);
+    const repair = await breakLatestDocument(db, await tenantId(), broken);
+    try {
+      const status = async (path: string) => (await page.goto(path))?.status();
+      await login(page, `/admin/probe/content?type=page&q=${word}`);
+      const row = page.locator(`[id="item-${broken}"]`);
+      await expect(row.getByRole('link', { name: `stuk ${word}`, exact: true })).toBeVisible();
+      await expect(row.locator('.ui-locale-dot')).toHaveCount(0);
+      expect(await status('/admin/probe')).toBe(200);
+      await expect(page.getByRole('link', { name: `stuk ${word}`, exact: true })).toBeVisible();
+      expect(await status(`/admin/probe/content/${sound}`)).toBe(200);
+      await expect(page.locator('[name="title.nl"]')).toHaveValue(`heel ${word}`);
+      expect(await status(`/admin/probe/content/${broken}`)).toBe(500);
+    } finally {
+      await repair();
+      await db.destroy();
+    }
   });
 
   test('a member who may only read gets no empty menu on an item without the locale', async ({

@@ -227,10 +227,13 @@ export const load: PageServerLoad = async ({ parent, locals, url, params, cookie
           : p.hasUnpublishedChanges
             ? ('changed' as const)
             : p.status,
-        others: others.map((l) => ({
-          locale: l,
-          state: i.translations[l] ?? ('missing' as const),
-        })),
+        // No translations at all: the document could not be read, which is not "missing".
+        others: Object.keys(i.translations).length
+          ? others.map((l) => ({
+              locale: l,
+              state: i.translations[l] ?? ('missing' as const),
+            }))
+          : [],
       };
     }),
   };

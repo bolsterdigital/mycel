@@ -99,7 +99,11 @@ export interface ContentRepository {
   find(filter: FindFilter, after: string | null, limit: number): Promise<Paged<ItemMatch>>;
   /** How many items publish a revision, in any locale, that uses `ref` (ADR 004 rule 6). */
   liveReferences(ref: { type: ReferenceType; id: string }): Promise<number>;
-  /** The document of each item's latest revision, by item id; an unknown id has no entry. */
+  /**
+   * The document of each item's latest revision, by item id, for what a list says about a row. An
+   * unknown id has no entry, and neither has a document that no longer validates: a list fails on
+   * no single row. Rendering and editing read `revision`, which does fail.
+   */
   latestDocuments(itemIds: readonly string[]): Promise<Map<string, ContentDocument>>;
   /** A revision of this item; another item's revision is null. */
   revision(itemId: string, revisionId: string): Promise<Revision | null>;

@@ -32,8 +32,9 @@ import {
   compareItems,
   defaultDirection,
   itemListFields,
+  listedDocuments,
+  listedTranslations,
   matchesTranslation,
-  translationState,
   type ItemFilter,
   type TranslationFilter,
 } from './listing.js';
@@ -651,7 +652,7 @@ export const getItem = defineUseCase({
 
 /** An item in a list: the item, and what its latest revision says that a work list shows. */
 const ListedItem = ContentItem.extend({
-  /** Per locale of the latest revision; a locale it lacks is missing. */
+  /** Per locale of the latest revision; a locale it lacks is missing; empty when unreadable. */
   translations: z.record(z.string(), z.enum(['ok', 'behind'])),
   authorIds: z.array(z.string().guid()),
   sectionId: z.string().guid().nullable(),
@@ -659,16 +660,13 @@ const ListedItem = ContentItem.extend({
 });
 
 function listedItem(row: ItemRecord, doc: ContentDocument | undefined): z.infer<typeof ListedItem> {
-  // The list and the read are one transaction, and an item always has a latest revision.
-  if (!doc) throw notFound('revision');
+  const article = doc?.type === 'article' ? doc : null;
   return {
     ...toContentItem(row),
-    translations: Object.fromEntries(
-      doc.locales.map((l) => [l, translationState(doc, l) === 'behind' ? 'behind' : 'ok'])
-    ),
-    authorIds: doc.type === 'article' ? doc.authorIds : [],
-    sectionId: doc.type === 'article' ? doc.sectionId : null,
-    tags: doc.type === 'article' ? doc.tags : [],
+    translations: doc ? listedTranslations(doc) : {},
+    authorIds: article?.authorIds ?? [],
+    sectionId: article?.sectionId ?? null,
+    tags: article?.tags ?? [],
   };
 }
 
@@ -692,7 +690,7 @@ async function listByTranslation(
       offset: 0,
       limit: MAX_PAGE_SIZE,
     });
-    const documents = await ctx.content.latestDocuments(batch.rows.map((r) => r.id));
+    const documents = await listedDocuments(ctx, batch.rows);
     for (const row of batch.rows) {
       const doc = documents.get(row.id);
       if (doc && matchesTranslation(doc, translation)) matched.push(row);
@@ -721,7 +719,7 @@ export const listItems = defineUseCase({
   name: 'content.item.list',
   kind: 'query',
   description:
-    'List items a page at a time, newest first unless `sort` orders them; narrow by type, slug, `q` (in a title or the slug), the publication state of `locale`, the author, section or tag of the latest revision, when it was last saved, or where a translation stands; `total` counts every match. Each item says where its translations stand, and its latest authors, section and tags.',
+    'List items a page at a time, newest first unless `sort` orders them; narrow by type, slug, `q` (in a title or the slug), the publication state of `locale`, the author, section or tag of the latest revision, when it was last saved, or where a translation stands; `total` counts every match. Each item says where its translations stand, and its latest authors, section and tags; an item whose latest document cannot be read says none of those and still lists.',
   requires: 'content:read',
   input: z.object({
     type: ContentType.optional(),
@@ -762,7 +760,7 @@ export const listItems = defineUseCase({
     const page = translation
       ? await listByTranslation(ctx, filter, translation, position)
       : await ctx.content.list(filter, position);
-    const documents = await ctx.content.latestDocuments(page.rows.map((r) => r.id));
+    const documents = await listedDocuments(ctx, page.rows);
     return {
       items: page.rows.map((row) => listedItem(row, documents.get(row.id))),
       next: page.next,
