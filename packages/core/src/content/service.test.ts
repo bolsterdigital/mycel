@@ -630,6 +630,18 @@ describe('content items', () => {
       ).toHaveLength(0);
     });
 
+    it('finds a translation across every batch of the walk, and counts all it found', async () => {
+      // One more than a batch holds (MAX_PAGE_SIZE), each behind in English.
+      for (let n = 0; n <= 100; n++) await create(pageDoc(), `stuk-${n}`);
+      const asked = { translation: { state: 'behind' as const, locales: ['en'] }, limit: 60 };
+      const first = await invoker.run(useCases.listItems, admin, asked);
+      expect(first.total).toBe(101);
+      expect(first.items).toHaveLength(60);
+      const second = await invoker.run(useCases.listItems, admin, { ...asked, after: first.next! });
+      expect(second.items).toHaveLength(41);
+      expect(second.next).toBeNull();
+    });
+
     it('searches, narrows by the state of one locale, orders and counts every match', async () => {
       const make = async (slug: string, nl: string, en?: string) => {
         clock.advance(1000);

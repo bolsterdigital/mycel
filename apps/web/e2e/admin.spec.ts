@@ -1824,6 +1824,141 @@ test.describe('content-list-rows', () => {
     await expect(row.locator('.ui-row-actions')).toHaveCount(0);
     // No row on this page has an action, so there is no column for them.
     await expect(page.locator('#content-table .ui-row-actions-cell')).toHaveCount(0);
+    // Above a full list too: a reader is not offered a button the use case refuses.
+    await expect(page.getByRole('button', { name: 'Nieuwe pagina' })).toHaveCount(0);
+  });
+
+  test('more filters narrow an article list as chips, and a person keeps their columns', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    const word = `meer${randomUUID().slice(0, 8)}`;
+    const author = await callApi<{ id: string }>(request, 'content.author.create', {
+      slug: `auteur-${word}`,
+      name: `Sam ${word}`,
+    });
+    const section = await callApi<{ id: string }>(request, 'content.section.create', {
+      slug: `rubriek-${word}`,
+      title: { nl: `Buurt ${word}` },
+    });
+    const write = (title: string, over: Record<string, unknown>) =>
+      callApi(request, 'content.item.create', {
+        slug: `filter-${randomUUID()}`,
+        document: {
+          type: 'article',
+          defaultLocale: 'nl',
+          locales: ['nl', 'en'],
+          title: { nl: `${title} ${word}`, en: `${title} ${word}` },
+          blocks: [],
+          ...over,
+        },
+      });
+    await write('Volledig', { authorIds: [author.id], sectionId: section.id, tags: [word] });
+    await write('Achter', { title: { nl: `Achter ${word}` } });
+    await write('Alleen', { locales: ['nl'], title: { nl: `Alleen ${word}` } });
+
+    const list = `/admin/probe/content?type=article&q=${word}`;
+    await login(page, list);
+    const titles = page.locator('#content-table tbody th > a');
+    await expect(titles).toHaveCount(3);
+    const more = page.locator('.ui-filter-more');
+    await expect(more).not.toHaveAttribute('open');
+    const form = page.getByRole('search', { name: 'Zoeken en filteren' });
+    const filter = form.getByRole('button', { name: 'Filteren' });
+    const chips = page.getByRole('list', { name: 'Actieve filters' }).getByRole('link');
+    // The search is a chip, and taking it off leaves the rest of the view; asserted below.
+    await expect(chips).toHaveText([`Zoeken: ${word}`]);
+
+    // Each field narrows, shows as a chip and keeps the fold open while it is on.
+    await more.locator('summary').click();
+    await form.getByLabel('Auteur').selectOption({ label: `Sam ${word}` });
+    await filter.click();
+    await expect(titles).toHaveText([`Volledig ${word}`]);
+    await expect(more).toHaveAttribute('open');
+    await expect(chips).toHaveText([`Zoeken: ${word}`, `Auteur: Sam ${word}`]);
+    await expectNoAxeViolations(page);
+
+    // A chip takes off only its own filter, by name.
+    await page.getByRole('link', { name: `Filter Auteur: Sam ${word} verwijderen` }).click();
+    await expect(titles).toHaveCount(3);
+    await expect(chips).toHaveText([`Zoeken: ${word}`]);
+    await expect(more).not.toHaveAttribute('open');
+
+    await page.goto(`${list}&section=${section.id}`);
+    await expect(titles).toHaveText([`Volledig ${word}`]);
+    await expect(chips).toContainText([`Rubriek: Buurt ${word}`]);
+    await form.getByLabel('Rubriek').selectOption('');
+    await form.getByLabel('Tag', { exact: true }).fill(`  ${word.toUpperCase()} `);
+    await filter.click();
+    await expect(titles).toHaveText([`Volledig ${word}`]);
+    await expect(chips).toContainText([`Tag: ${word}`]);
+
+    // Where a translation stands comes from core, in the row and in the filter.
+    await page.goto(`${list}&translation=behind`);
+    await expect(titles).toHaveText([`Achter ${word}`]);
+    await expect(page.locator('#content-table tbody .ui-locale-codes')).toContainText(
+      'loopt achter'
+    );
+    await expect(chips).toContainText(['Vertaling: loopt achter']);
+    await form
+      .getByLabel('Vertaling', { exact: true })
+      .selectOption({ label: 'Vertaling ontbreekt' });
+    await filter.click();
+    await expect(titles).toHaveText([`Alleen ${word}`]);
+    await expect(page.locator('#content-count')).toHaveText('1 gevonden');
+
+    // The period is the last save, both days whole; what falls outside says so.
+    await page.goto(`${list}&from=2000-01-01`);
+    await expect(titles).toHaveCount(3);
+    await page.goto(`${list}&to=2000-01-02`);
+    await expect(titles).toHaveCount(0);
+    await expect(chips).toContainText([/^Opgeslagen tot en met: /]);
+    await page.getByRole('link', { name: 'Filters wissen' }).click();
+    await expect(page).toHaveURL('/admin/probe/content?type=article');
+
+    // One person's columns and page size: a POST that goes back to the list, and they stay.
+    await page.goto(`${list}&sort=title`);
+    const table = page.locator('#content-table');
+    await expect(table.getByRole('columnheader', { name: 'Status' })).toBeVisible();
+    await expect(table.getByRole('columnheader', { name: 'Adres' })).toHaveCount(0);
+    const display = page.locator('.ui-list-display');
+    await display.locator('summary').click();
+    await display.getByLabel('Status').uncheck();
+    for (const column of ['Auteur', 'Rubriek', 'Tags', 'Adres', 'Aangemaakt'])
+      await display.getByLabel(column).check();
+    await display.getByLabel('Per pagina').selectOption('50');
+    await display.getByRole('button', { name: 'Toepassen' }).click();
+    await expect(page).toHaveURL(`${list}&sort=title`);
+    await expect(table.getByRole('columnheader', { name: 'Status' })).toHaveCount(0);
+    const row = table.getByRole('row', { name: new RegExp(`^Volledig ${word}`) });
+    await expect(row).toContainText(`Sam ${word}`);
+    await expect(row).toContainText(`Buurt ${word}`);
+    await expect(row).toContainText(word);
+    await expect(row).toContainText('filter-');
+    // The choice is the person's, on every view of this list and not on the pages'.
+    await page.goto('/admin/probe/content?type=article');
+    await expect(table.getByRole('columnheader', { name: 'Adres' })).toBeVisible();
+    await page.goto('/admin/probe/content?type=page');
+    await expect(table.getByRole('columnheader', { name: 'Adres' })).toHaveCount(0);
+    await expect(page.locator('.ui-list-display').getByLabel('Auteur')).toHaveCount(0);
+    // A query may name it for one link, and the links of that view keep it.
+    await page.goto(`${list}&columns=slug&per=20`);
+    await expect(table.getByRole('columnheader', { name: 'Rubriek' })).toHaveCount(0);
+    await expect(table.getByRole('link', { name: 'Titel' })).toHaveAttribute(
+      'href',
+      /columns=slug&per=20/
+    );
+
+    // Every field and every column at 320 CSS px and 200% text: the table scrolls in its region.
+    await page.goto(
+      `${list}&tag=${word}&from=2000-01-01&to=2100-01-01&translation=behind&columns=status,author,section,tags,slug,created,updated`
+    );
+    await page.locator('.ui-list-display > summary').click();
+    await page.setViewportSize(NARROW);
+    await setTextSize(page, '200%');
+    await layoutGate(page, 'content list with every filter and the columns open', 'main');
+    await expectNoAxeViolations(page);
   });
 
   test('the width of the table picks the buttons or one menu, and the row keeps its name', async ({
@@ -1919,7 +2054,10 @@ test.describe('content-list-rows', () => {
     await expect(actions).toBeHidden();
     const header = row.getByRole('rowheader', { name: `Brood ${word}`, exact: true });
     await expect(header).toBeVisible();
-    await row.locator('.ui-row-menu > summary').click();
+    // Fifty rows are not fifty "Acties": the menu says whose it is, to the ear only.
+    const summary = row.locator('.ui-row-menu > summary');
+    await expect(summary).toHaveAccessibleName(`Acties: Brood ${word}`);
+    await summary.click();
     await expect(row.locator('.ui-row-menu').getByText('Dupliceren')).toBeVisible();
     // The menu sits in the row's header cell; opening it does not rename the row.
     await expect(header).toBeVisible();

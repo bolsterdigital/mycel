@@ -12,6 +12,7 @@ import { sql, type Kysely, type RawBuilder, type Selectable } from 'kysely';
 import {
   Actor,
   Author,
+  ContentDocument,
   documentReferences,
   Pattern,
   Revision,
@@ -174,7 +175,19 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
     findBySlug: async (type, slug) =>
       one(await items().where('type', '=', type).where('slug', '=', slug).execute()),
     async list(filter, { order, after, offset, limit }) {
-      const { type, slug, q, locale, status, hasUnpublishedChanges } = filter;
+      const {
+        type,
+        slug,
+        q,
+        locale,
+        status,
+        hasUnpublishedChanges,
+        authorId,
+        sectionId,
+        tag,
+        updatedFrom,
+        updatedBefore,
+      } = filter;
       // Core's `matchesItemFilter` in SQL; `adapter-rules.test.ts` holds the two together.
       const matches: RawBuilder<boolean>[] = [];
       if (type) matches.push(sql<boolean>`i.type = ${type}`);
@@ -187,6 +200,26 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
             select 1 from jsonb_each_text(i.title) t where t.value ilike ${like}))`
         );
       }
+      if (updatedFrom) matches.push(sql<boolean>`i.updated_at >= ${updatedFrom}`);
+      if (updatedBefore) matches.push(sql<boolean>`i.updated_at < ${updatedBefore}`);
+      for (const [refType, refId] of [
+        ['author', authorId],
+        ['section', sectionId],
+      ] as const)
+        if (refId)
+          matches.push(
+            sql<boolean>`exists (
+              select 1 from content_block_refs b
+              where b.revision_id = i.latest_revision_id
+                and b.block_id is null and b.type = ${refType} and b.ref_id = ${refId})`
+          );
+      if (tag)
+        matches.push(
+          sql<boolean>`exists (
+            select 1 from content_revisions r
+            where r.id = i.latest_revision_id
+              and r.document @> ${JSON.stringify({ tags: [tag] })}::jsonb)`
+        );
       if (status !== undefined || hasUnpublishedChanges !== undefined) {
         const changed = sql<boolean>`(l.published_revision_id is not null
           and l.published_revision_id <> i.latest_revision_id)`;
@@ -362,6 +395,18 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
         .select(sql<string>`count(distinct l.item_id)`.as('n'))
         .executeTakeFirstOrThrow();
       return Number(row.n);
+    },
+    async latestDocuments(itemIds) {
+      if (!itemIds.length) return new Map();
+      const rows = await trx
+        .selectFrom('content_items as i')
+        .innerJoin('content_revisions as r', 'r.id', 'i.latest_revision_id')
+        .select(['i.id', 'r.document'])
+        .where('i.id', 'in', [...itemIds])
+        .execute();
+      return new Map(
+        rows.map((r) => [r.id, ContentDocument.parse(upgradeFaqV1InDocument(r.document))])
+      );
     },
     async revision(itemId, revisionId) {
       const r = await trx

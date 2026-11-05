@@ -28,7 +28,15 @@ import {
 import { EXAMPLE_IDS } from './block-types.js';
 import { diffDocuments } from './diff.js';
 import { EffectiveView, effectiveOf } from './header/effective.js';
-import { defaultDirection, itemListFields } from './listing.js';
+import {
+  compareItems,
+  defaultDirection,
+  itemListFields,
+  matchesTranslation,
+  translationState,
+  type ItemFilter,
+  type TranslationFilter,
+} from './listing.js';
 import {
   draftLocale,
   publish,
@@ -52,7 +60,7 @@ import {
   slugFromTitle,
   readinessIssues,
 } from './model.js';
-import type { ItemRecord } from './ports.js';
+import type { ItemPage, ItemPosition, ItemRecord } from './ports.js';
 import { preserveTranslationReview } from './translation-review.js';
 import './ports.js';
 import '../theme/ports.js';
@@ -641,11 +649,79 @@ export const getItem = defineUseCase({
   },
 });
 
+/** An item in a list: the item, and what its latest revision says that a work list shows. */
+const ListedItem = ContentItem.extend({
+  /** Per locale of the latest revision; a locale it lacks is missing. */
+  translations: z.record(z.string(), z.enum(['ok', 'behind'])),
+  authorIds: z.array(z.string().guid()),
+  sectionId: z.string().guid().nullable(),
+  tags: z.array(z.string()),
+});
+
+function listedItem(row: ItemRecord, doc: ContentDocument | undefined): z.infer<typeof ListedItem> {
+  // The list and the read are one transaction, and an item always has a latest revision.
+  if (!doc) throw notFound('revision');
+  return {
+    ...toContentItem(row),
+    translations: Object.fromEntries(
+      doc.locales.map((l) => [l, translationState(doc, l) === 'behind' ? 'behind' : 'ok'])
+    ),
+    authorIds: doc.type === 'article' ? doc.authorIds : [],
+    sectionId: doc.type === 'article' ? doc.sectionId : null,
+    tags: doc.type === 'article' ? doc.tags : [],
+  };
+}
+
+/**
+ * The page of what also matches `translation`, which only core can tell (`listing.ts`): every
+ * match of the other filters is read once, a batch at a time, so `total` is exact and the cost is
+ * the number of those matches. `after` and `offset` then apply as the adapters apply them.
+ */
+async function listByTranslation(
+  ctx: TransactionContext,
+  filter: ItemFilter,
+  translation: TranslationFilter,
+  { order, after, offset, limit }: ItemPosition
+): Promise<ItemPage> {
+  const matched: ItemRecord[] = [];
+  let cursor: string | null = null;
+  do {
+    const batch: ItemPage = await ctx.content.list(filter, {
+      order,
+      after: cursor,
+      offset: 0,
+      limit: MAX_PAGE_SIZE,
+    });
+    const documents = await ctx.content.latestDocuments(batch.rows.map((r) => r.id));
+    for (const row of batch.rows) {
+      const doc = documents.get(row.id);
+      if (doc && matchesTranslation(doc, translation)) matched.push(row);
+    }
+    cursor = batch.next;
+  } while (cursor);
+  // The same position the adapters give: after an item wherever it stands, which need not match.
+  const compare = compareItems(order, filter.locale);
+  const pivot =
+    after === null
+      ? null
+      : order.by === 'created'
+        ? ({ id: after } as ItemRecord)
+        : await ctx.content.get(after);
+  const rest = after !== null && !pivot ? [] : matched;
+  const following = pivot ? rest.filter((r) => compare(r, pivot) > 0) : rest;
+  const rows = following.slice(offset, offset + limit);
+  return {
+    rows,
+    next: following.length > offset + limit ? (rows.at(-1)?.id ?? null) : null,
+    total: matched.length,
+  };
+}
+
 export const listItems = defineUseCase({
   name: 'content.item.list',
   kind: 'query',
   description:
-    'List items a page at a time, newest first unless `sort` orders them; narrow by type, slug, `q` (in a title or the slug) or the publication state of `locale`; `total` counts every match.',
+    'List items a page at a time, newest first unless `sort` orders them; narrow by type, slug, `q` (in a title or the slug), the publication state of `locale`, the author, section or tag of the latest revision, when it was last saved, or where a translation stands; `total` counts every match. Each item says where its translations stand, and its latest authors, section and tags.',
   requires: 'content:read',
   input: z.object({
     type: ContentType.optional(),
@@ -655,7 +731,7 @@ export const listItems = defineUseCase({
     limit: Limit,
   }),
   output: z.object({
-    items: z.array(ContentItem),
+    items: z.array(ListedItem),
     /** Pass as `after` for the rows that follow, in the same order; null when none do. */
     next: z.string().guid().nullable(),
     total: z.number().int().min(0),
@@ -667,15 +743,31 @@ export const listItems = defineUseCase({
       note: 'Drafts in Dutch with "budget" in a title or the slug, last saved first.',
     },
   ],
-  async handler(ctx, { after, offset, limit, sort, direction, ...filter }) {
+  async handler(
+    ctx,
+    { after, offset, limit, sort, direction, translation, updatedFrom, updatedBefore, ...rest }
+  ) {
     const by = sort ?? 'created';
-    const page = await ctx.content.list(filter, {
+    const filter: ItemFilter = {
+      ...rest,
+      ...(updatedFrom ? { updatedFrom: new Date(updatedFrom) } : {}),
+      ...(updatedBefore ? { updatedBefore: new Date(updatedBefore) } : {}),
+    };
+    const position: ItemPosition = {
       order: { by, direction: direction ?? defaultDirection(by) },
       after: after ?? null,
       offset: offset ?? 0,
       limit: limit ?? DEFAULT_PAGE_SIZE,
-    });
-    return { items: page.rows.map(toContentItem), next: page.next, total: page.total };
+    };
+    const page = translation
+      ? await listByTranslation(ctx, filter, translation, position)
+      : await ctx.content.list(filter, position);
+    const documents = await ctx.content.latestDocuments(page.rows.map((r) => r.id));
+    return {
+      items: page.rows.map((row) => listedItem(row, documents.get(row.id))),
+      next: page.next,
+      total: page.total,
+    };
   },
 });
 

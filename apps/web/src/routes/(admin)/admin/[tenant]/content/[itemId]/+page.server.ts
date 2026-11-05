@@ -45,6 +45,7 @@ import {
   MAX_PAGE_SIZE,
   isUuid,
   pickAny,
+  translationState,
 } from '@mycel/core';
 import { formValues, posted, type Posted } from '#lib/editor/block-form.js';
 import { failureOf, loaded, orNull, text } from '#lib/server/admin/admin-actions.js';
@@ -59,11 +60,7 @@ import {
   valuesOf,
   when,
 } from '#lib/server/content/content-admin.js';
-import {
-  chooseContentLocale,
-  contentLocale,
-  translationState,
-} from '#lib/server/content/content-locale.js';
+import { chooseContentLocale, contentLocale } from '#lib/server/content/content-locale.js';
 import { recalledListPath, rememberListFromReferer } from '#lib/server/content/content-list.js';
 import {
   fieldOf,

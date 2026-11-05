@@ -3,7 +3,9 @@
      locale (#66 PR 4): its title, one status badge, and the other locales as links to that
      translation, with a word where it is behind or missing (a dot alone says nothing to touch or
      a keyboard). Above the table the filter bar of the audit log: a search and one status in a
-     GET form; the column headings sort. Every view is a link built by the route, so the list
+     GET form, and behind "more filters" the rest of what a list can be narrowed by, each filter
+     that is on a chip that takes it off; the column headings sort, and a person picks the columns
+     and the page size (`content-list.ts`). Every view is a link built by the route, so the list
      works without JavaScript; the table scrolls inside its own region on a narrow screen, never
      the page. The page title is the one visible heading (#87); "updated" is relative in the
      operator's zone, the full moment in its title. A row carries its item's id, so the way back
@@ -14,8 +16,10 @@
     Actions,
     Badge,
     Button,
+    Choices,
     ConfirmAction,
     Field,
+    FilterChips,
     Notice,
     OverviewPage,
     RowActions,
@@ -67,6 +71,23 @@
   // A page on which no row has any keeps no column for them: without the row's actions the table
   // is no container, so an empty column would never give way below 58rem.
   const anyActions = $derived(data.items.some(hasActions));
+  const columnLabel = (column: (typeof data.columnChoices)[number]) =>
+    t(`admin.content.list.column.${column}` as const);
+  /** A day of the filter, as the operator reads dates: it is a calendar day, so no zone. */
+  const dayText = (value: string) =>
+    new Intl.DateTimeFormat(data.locale, { dateStyle: 'medium', timeZone: 'UTC' }).format(
+      Date.parse(`${value}T00:00:00Z`)
+    );
+  const chipValue = (chip: (typeof data.chips)[number]) =>
+    chip.name === 'status' && data.view.status
+      ? t(`admin.content.list.status.${data.view.status}` as const)
+      : chip.name === 'translation' && data.view.translation
+        ? t(`admin.content.list.locale.${data.view.translation}` as const)
+        : chip.name === 'from' || chip.name === 'to'
+          ? dayText(chip.value)
+          : chip.value;
+  // The filters behind the fold stay in view while one of them is on.
+  const moreOn = $derived(data.chips.some((chip) => chip.name !== 'q' && chip.name !== 'status'));
   const nothing = $derived(
     data.view.q
       ? fill(t('admin.content.list.none.q'), { q: data.view.q })
@@ -168,7 +189,7 @@
   {/snippet}
   {#snippet actions()}
     <!-- An empty list offers this once, where the reader is looking. -->
-    {#if data.total > 0 || data.filtered}{@render create()}{/if}
+    {#if data.canWrite && (data.total > 0 || data.filtered)}{@render create()}{/if}
   {/snippet}
   {#snippet filters()}
     <form
@@ -202,6 +223,80 @@
         label={t('admin.content.state')}
         locale={data.locale}
       />
+      <details class="ui-fold ui-filter-more" open={moreOn}>
+        <summary>{t('admin.content.list.more')}</summary>
+        <div class="ui-filter-more-fields">
+          {#if data.type === 'article'}
+            <Select
+              id="content-author"
+              name="author"
+              size="m"
+              value={data.view.author ?? ''}
+              options={[
+                { value: '', label: t('admin.content.list.author.all') },
+                ...data.authors.map((a) => ({ value: a.id, label: a.name })),
+              ]}
+              label={t('admin.content.list.column.author')}
+              locale={data.locale}
+            />
+            <Select
+              id="content-section"
+              name="section"
+              size="m"
+              value={data.view.section ?? ''}
+              options={[
+                { value: '', label: t('admin.content.list.section.all') },
+                ...data.sections.map((s) => ({ value: s.id, label: s.name })),
+              ]}
+              label={t('admin.content.list.column.section')}
+              locale={data.locale}
+            />
+            <Field
+              id="content-tag"
+              name="tag"
+              size="m"
+              value={data.view.tag}
+              label={t('admin.content.list.tag')}
+              locale={data.locale}
+            />
+          {/if}
+          <Field
+            id="content-from"
+            name="from"
+            type="date"
+            size="m"
+            value={data.view.from}
+            label={t('admin.content.list.from')}
+            locale={data.locale}
+          />
+          <Field
+            id="content-to"
+            name="to"
+            type="date"
+            size="m"
+            value={data.view.to}
+            label={t('admin.content.list.to')}
+            locale={data.locale}
+          />
+          {#if data.multi}
+            <Select
+              id="content-translation"
+              name="translation"
+              size="m"
+              value={data.view.translation ?? ''}
+              options={[
+                { value: '', label: t('admin.content.list.translation.all') },
+                ...data.translations.map((state) => ({
+                  value: state,
+                  label: t(`admin.content.list.translation.${state}` as const),
+                })),
+              ]}
+              label={t('admin.content.list.translation')}
+              locale={data.locale}
+            />
+          {/if}
+        </div>
+      </details>
       <Actions>
         <Button variant="secondary">{t('admin.content.list.submit')}</Button>
         {#if data.filtered}
@@ -209,7 +304,54 @@
         {/if}
       </Actions>
     </form>
-    <p class="ui-list-count" id="content-count">{count}</p>
+    {#if data.chips.length}
+      <FilterChips
+        label={t('admin.content.list.chips')}
+        items={data.chips.map((chip) => {
+          const label = `${t(`admin.content.list.chip.${chip.name}` as const)}: ${chipValue(chip)}`;
+          return {
+            label,
+            href: chip.href,
+            remove: fill(t('admin.content.list.chip.remove'), { filter: label }),
+          };
+        })}
+      />
+    {/if}
+    <div class="ui-list-tools">
+      <p class="ui-list-count" id="content-count">{count}</p>
+      <details class="ui-fold ui-list-display">
+        <summary>{t('admin.content.list.display')}</summary>
+        <form method="POST" action={data.links.display} class="ui-list-display-form">
+          <Choices
+            id="content-columns"
+            name="column"
+            type="checkbox"
+            legend={t('admin.content.list.display.columns')}
+            locale={data.locale}
+            selected={data.display.columns}
+            options={data.columnChoices.map((column) => ({
+              value: column,
+              label: columnLabel(column),
+            }))}
+          />
+          <Select
+            id="content-per"
+            name="per"
+            size="xs"
+            value={String(data.display.per)}
+            options={data.pageSizes.map((size) => ({
+              value: String(size),
+              label: String(size),
+            }))}
+            label={t('admin.content.list.display.per')}
+            locale={data.locale}
+          />
+          <Actions>
+            <Button variant="secondary">{t('admin.content.list.display.save')}</Button>
+          </Actions>
+        </form>
+      </details>
+    </div>
   {/snippet}
 
   <p id="new-tab" class="ui-visually-hidden">{t('admin.content.edit.newTab')}</p>
@@ -223,8 +365,11 @@
     level
     columns={[
       { key: 'title', label: t('admin.content.field.title'), sortable: true },
-      { key: 'status', label: t('admin.content.state') },
-      { key: 'updated', label: t('admin.content.column.updated'), sortable: true },
+      ...data.display.columns.map((column) => ({
+        key: column,
+        label: columnLabel(column),
+        sortable: column === 'updated' || column === 'created',
+      })),
       ...(anyActions
         ? [
             {
@@ -240,7 +385,6 @@
   >
     {#snippet rows()}
       {#each data.items as item (item.id)}
-        {@const updated = when(item.updated)}
         <tr id="item-{item.id}">
           <!-- Named by the title alone: from its content the row header would read the menu along. -->
           <th scope="row" aria-labelledby="title-{item.id}"
@@ -252,24 +396,44 @@
                 : undefined}>{item.title || t('admin.content.untitled')}</a
             >
             {#if hasActions(item)}
-              <RowActions menu={t('admin.content.row.menu')}>{@render rowActions(item)}</RowActions>
+              <RowActions
+                menu={t('admin.content.row.menu')}
+                name={item.title || t('admin.content.untitled')}
+                >{@render rowActions(item)}</RowActions
+              >
             {/if}</th
           >
-          <td>
-            <Badge tone={tone(item.status)}>{status(item.status)}</Badge>
-            {#if item.others.length}
-              <ul class="ui-locale-codes">
-                {#each item.others as o (o.locale)}
-                  <li>
-                    <a href="{base}/{item.id}?locale={o.locale}">{o.locale}</a
-                    >{#if o.state !== 'ok'}<span class="ui-locale-dot {o.state}" aria-hidden="true"
-                      ></span>{t(`admin.content.list.locale.${o.state}` as const)}{/if}
-                  </li>
-                {/each}
-              </ul>
-            {/if}
-          </td>
-          <td><time datetime={updated.iso} title={updated.full}>{updated.text}</time></td>
+          {#each data.display.columns as column (column)}
+            <td>
+              {#if column === 'status'}
+                <Badge tone={tone(item.status)}>{status(item.status)}</Badge>
+                {#if item.others.length}
+                  <ul class="ui-locale-codes">
+                    {#each item.others as o (o.locale)}
+                      <li>
+                        <a href="{base}/{item.id}?locale={o.locale}">{o.locale}</a
+                        >{#if o.state !== 'ok'}<span
+                            class="ui-locale-dot {o.state}"
+                            aria-hidden="true"
+                          ></span>{t(`admin.content.list.locale.${o.state}` as const)}{/if}
+                      </li>
+                    {/each}
+                  </ul>
+                {/if}
+              {:else if column === 'author'}
+                {item.authors.join(', ')}
+              {:else if column === 'section'}
+                {item.section ?? ''}
+              {:else if column === 'tags'}
+                {item.tags.join(', ')}
+              {:else if column === 'slug'}
+                {item.slug}
+              {:else}
+                {@const moment = when(column === 'created' ? item.created : item.updated)}
+                <time datetime={moment.iso} title={moment.full}>{moment.text}</time>
+              {/if}
+            </td>
+          {/each}
           {#if anyActions}
             <td class="ui-row-actions-cell"
               >{#if hasActions(item)}<RowActions>{@render rowActions(item)}</RowActions>{/if}</td

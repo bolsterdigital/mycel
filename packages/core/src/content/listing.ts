@@ -10,11 +10,25 @@
 // sorted from outside the store), a second use case for searching, and the database's default
 // collation for titles (glibc, musl and ICU order a space and an accent differently, so the
 // adapters would disagree).
+//
+// Author, section and tag read the latest revision: the first two through its references, a tag
+// from the document, because tags are strings without a reference row (ADR 012 rule 3). Where a
+// translation stands cannot be said in SQL: it is `readinessIssues` over the block registry. So
+// `translation` is the one filter core applies itself, walking the other filters' matches a batch
+// at a time (`service.ts`), which is why both adapters agree on it without a scenario holding them
+// together. Rejected: a stored state per revision, which needs a backfill the SQL-only migration
+// runner cannot compute, and which a rare filter on a multilingual site does not yet justify.
 
 import { z } from 'zod';
 import { Locale } from '../i18n/locale.js';
 import { statusOf } from './lifecycle.js';
-import { LocaleStatus, type ContentType } from './model.js';
+import {
+  canonicalTag,
+  LocaleStatus,
+  readinessIssues,
+  type ContentDocument,
+  type ContentType,
+} from './model.js';
 import type { ItemRecord } from './ports.js';
 
 export const ItemSort = z.enum(['created', 'updated', 'title']);
@@ -39,6 +53,25 @@ export const itemListFields = {
   locale: Locale.optional(),
   status: LocaleStatus.optional(),
   hasUnpublishedChanges: z.boolean().optional(),
+  authorId: z.string().guid().optional(),
+  sectionId: z.string().guid().optional(),
+  // A filter, not a stored tag: a tag no article can have just finds nothing.
+  tag: z
+    .string()
+    .trim()
+    .min(1)
+    .max(50)
+    .refine((tag) => !tag.includes('\0'))
+    .transform(canonicalTag)
+    .optional(),
+  updatedFrom: z.string().datetime({ offset: true }).optional(),
+  updatedBefore: z.string().datetime({ offset: true }).optional(),
+  translation: z
+    .object({
+      state: z.enum(['behind', 'missing']),
+      locales: z.array(Locale).min(1).max(50),
+    })
+    .optional(),
   sort: ItemSort.optional(),
   direction: SortDirection.optional(),
   offset: z.number().int().min(0).max(MAX_LIST_OFFSET).optional(),
@@ -54,6 +87,48 @@ export interface ItemFilter {
   status?: LocaleStatus | undefined;
   /** Live with a newer revision that is not (true), or any other state of the locale (false). */
   hasUnpublishedChanges?: boolean | undefined;
+  /** In the latest revision, like the three that follow; only an article has them. */
+  authorId?: string | undefined;
+  sectionId?: string | undefined;
+  /** Canonical (`canonicalTag`). */
+  tag?: string | undefined;
+  /** Last saved at or after this moment. */
+  updatedFrom?: Date | undefined;
+  /** Last saved before this moment. */
+  updatedBefore?: Date | undefined;
+}
+
+export type TranslationState = 'ok' | 'behind' | 'missing';
+
+/**
+ * Where a translation stands: `missing` when the document lacks the locale, `behind` when a field
+ * that another locale has is empty in it (`readinessIssues`, `missing-translation`), else `ok`.
+ */
+export function translationState(doc: ContentDocument, locale: string): TranslationState {
+  if (!doc.locales.includes(locale)) return 'missing';
+  return readinessIssues(doc, locale).some(
+    (i) => i.message === 'content.publish.missing-translation'
+  )
+    ? 'behind'
+    : 'ok';
+}
+
+/** The `translation` filter: the state in at least one of these locales. */
+export interface TranslationFilter {
+  state: 'behind' | 'missing';
+  locales: string[];
+}
+
+export const matchesTranslation = (doc: ContentDocument, filter: TranslationFilter): boolean =>
+  filter.locales.some((locale) => translationState(doc, locale) === filter.state);
+
+/** The filter's questions about the latest revision, as the memory adapter asks them. */
+export function matchesItemDocument(doc: ContentDocument, filter: ItemFilter): boolean {
+  if (!filter.authorId && !filter.sectionId && !filter.tag) return true;
+  if (doc.type !== 'article') return false;
+  if (filter.authorId && !doc.authorIds.includes(filter.authorId)) return false;
+  if (filter.sectionId && doc.sectionId !== filter.sectionId) return false;
+  return !filter.tag || doc.tags.includes(filter.tag);
 }
 
 export interface ItemOrder {
@@ -78,6 +153,8 @@ export function matchesItemFilter(item: ItemRecord, filter: ItemFilter): boolean
     );
     if (!found) return false;
   }
+  if (filter.updatedFrom && item.updatedAt < filter.updatedFrom) return false;
+  if (filter.updatedBefore && item.updatedAt >= filter.updatedBefore) return false;
   if (filter.status === undefined && filter.hasUnpublishedChanges === undefined) return true;
   const state = item.publication.find((s) => s.locale === (filter.locale ?? item.defaultLocale));
   // An item without the locale has no publication state there, so no state matches it.

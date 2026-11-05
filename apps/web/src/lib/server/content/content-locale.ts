@@ -6,7 +6,6 @@
 // return) without changing the choice. Rejected: a per-operator preference in `mycel_auth` (one
 // site's languages are not another's, and #88 keeps preferences for the admin's own display) and
 // the locale in every admin URL (every link of the shell would have to carry it).
-import { readinessIssues, type ContentDocument } from '@mycel/core';
 import type { Cookies } from '@sveltejs/kit';
 
 const COOKIE = 'mycel-content-locale';
@@ -37,21 +36,6 @@ export function chooseContentLocale(cookies: Cookies, tenant: string, locale: st
     sameSite: 'lax',
     maxAge: 60 * 60 * 24 * 365,
   });
-}
-
-/**
- * Where a translation stands: `missing` when the document lacks the locale, `behind` when a field
- * that another locale has is empty in it (core's readiness, `missing-translation`), else `ok`.
- */
-export type TranslationState = 'ok' | 'behind' | 'missing';
-
-export function translationState(doc: ContentDocument, locale: string): TranslationState {
-  if (!doc.locales.includes(locale)) return 'missing';
-  return readinessIssues(doc, locale).some(
-    (i) => i.message === 'content.publish.missing-translation'
-  )
-    ? 'behind'
-    : 'ok';
 }
 
 /** An admin path to return to after a choice, without its own `locale`; null if it is not one. */

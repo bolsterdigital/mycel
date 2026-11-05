@@ -3,7 +3,7 @@
 
 import { allBlocks } from '../../content/blocks.js';
 import { documentReferences, type Revision } from '../../content/model.js';
-import { compareItems, matchesItemFilter } from '../../content/listing.js';
+import { compareItems, matchesItemDocument, matchesItemFilter } from '../../content/listing.js';
 import type { ContentRepository, ItemMatch, ItemRecord } from '../../content/ports.js';
 import type { TransactionContext } from '../../ports.js';
 import { paged, type TenantStore } from './store.js';
@@ -23,7 +23,12 @@ export function memoryContent(s: TenantStore): ContentRepository {
       ),
     async list(filter, { order, after, offset, limit }) {
       const compare = compareItems(order, filter.locale);
-      const matching = [...s.items.values()].filter((i) => matchesItemFilter(i, filter));
+      const matching = [...s.items.values()].filter((i) => {
+        const latest = s.revisions.get(i.latestRevisionId);
+        return (
+          matchesItemFilter(i, filter) && latest && matchesItemDocument(latest.document, filter)
+        );
+      });
       // Found by id alone: the item a page continues after may no longer match the filter. In
       // the `created` order the id is the whole position, so it need not name an item.
       const pivot =
@@ -42,6 +47,15 @@ export function memoryContent(s: TenantStore): ContentRepository {
         next: rows.length > offset + limit ? (page.at(-1)?.id ?? null) : null,
         total: matching.length,
       };
+    },
+    async latestDocuments(itemIds) {
+      const found = new Map();
+      for (const id of itemIds) {
+        const item = s.items.get(id);
+        const latest = item && s.revisions.get(item.latestRevisionId);
+        if (latest) found.set(id, structuredClone(latest.document));
+      }
+      return found;
     },
     async insert(item, first) {
       const taken = [...s.items.values()].some((i) => i.type === item.type && i.slug === item.slug);

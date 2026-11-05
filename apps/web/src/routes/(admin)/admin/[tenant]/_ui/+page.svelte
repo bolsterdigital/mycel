@@ -32,6 +32,7 @@
     Section,
     StatusLine,
     Field,
+    FilterChips,
     Fieldset,
     FileDrop,
     UploadDropZone,
@@ -472,6 +473,22 @@
     />
   </section>
 
+  <section aria-labelledby="ui-filter-chips">
+    <h2 id="ui-filter-chips">{t('admin.content.list.chips')}</h2>
+    <FilterChips
+      label={t('admin.content.list.chips')}
+      items={[
+        {
+          label: `${t('admin.content.list.chip.status')}: ${t('admin.content.list.status.draft')}`,
+          href: '#ui-filter-chips',
+          remove: fill(t('admin.content.list.chip.remove'), {
+            filter: `${t('admin.content.list.chip.status')}: ${t('admin.content.list.status.draft')}`,
+          }),
+        },
+      ]}
+    />
+  </section>
+
   <section aria-labelledby="ui-row-actions">
     <h2 id="ui-row-actions">{t('admin.ui.catalogue.rowActions')}</h2>
     <!-- A form without action posts nowhere but this page: the catalogue has no actions. -->
@@ -494,7 +511,8 @@
         <tr>
           <th scope="row" aria-labelledby="ui-row-actions-name"
             ><span id="ui-row-actions-name">Brood</span>
-            <RowActions menu={t('admin.content.row.menu')}>{@render sampleRowActions()}</RowActions
+            <RowActions menu={t('admin.content.row.menu')} name="Brood"
+              >{@render sampleRowActions()}</RowActions
             ></th
           >
           <td class="ui-row-actions-cell"><RowActions>{@render sampleRowActions()}</RowActions></td>

@@ -12,17 +12,22 @@
 
   let {
     menu,
+    name,
     children,
   }: {
     /** The menu's label; without it, the row of buttons. */
     menu?: string | undefined;
+    /** What the row is about, heard after the menu's label: fifty rows are not fifty "Actions". */
+    name?: string | undefined;
     children: Snippet;
   } = $props();
 </script>
 
 {#if menu}
   <details class="ui-row-menu ui-fold">
-    <summary class="ui-button link">{menu}</summary>
+    <summary class="ui-button link" aria-label={name ? `${menu}: ${name}` : undefined}
+      >{menu}</summary
+    >
     <div class="ui-row-actions">{@render children()}</div>
   </details>
 {:else}
