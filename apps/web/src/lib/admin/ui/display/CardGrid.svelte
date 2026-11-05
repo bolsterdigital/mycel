@@ -7,18 +7,21 @@
     items,
     key,
     label,
+    itemId,
     card,
   }: {
     items: readonly T[];
     key: (item: T) => string;
     /** The list's accessible name, when the heading above it does not give one. */
     label?: string | undefined;
+    /** An id per item, for a link that lands on it. */
+    itemId?: ((item: T) => string) | undefined;
     card: Snippet<[T]>;
   } = $props();
 </script>
 
 <ul class="ui-card-grid" aria-label={label}>
   {#each items as item (key(item))}
-    <li>{@render card(item)}</li>
+    <li id={itemId?.(item)}>{@render card(item)}</li>
   {/each}
 </ul>

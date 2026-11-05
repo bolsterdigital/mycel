@@ -14,6 +14,7 @@ import {
   EXAMPLE_IDS,
   MAX_BLOCKS,
   blockLocalized,
+  blockReferences,
   blockReferenceRows,
   blockTreeIssues,
   projectBlock,
@@ -26,6 +27,7 @@ import { Invoker } from '../invoke.js';
 import { systemPrincipal } from '../principal.js';
 import { MemoryUnitOfWork, probeForm, TENANT } from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
+import { imageUsesIn } from '../media/listing.js';
 import { ContentDocument, readinessIssues } from './model.js';
 
 const examples = BLOCK_TYPES.flatMap((type) =>
@@ -474,6 +476,18 @@ describe('tree invariants with the new types', () => {
       path: [1, 'id'],
       message: 'content.block-id.duplicate',
     });
+  });
+});
+
+describe('image uses', () => {
+  // `mediaMissingAlt` and its SQL twin recognise an image by this shape, on any block type.
+  it('names every image slot of every example in the one shape of an image use', () => {
+    for (const { type, input } of examples) {
+      const block = stored(input);
+      const inSlots = blockReferences([block]).media;
+      const found = imageUsesIn(block.props).map((use) => use.mediaId);
+      expect(new Set(found), `${type}`).toEqual(new Set(inSlots));
+    }
   });
 });
 

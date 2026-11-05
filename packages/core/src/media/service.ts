@@ -19,6 +19,8 @@ import { base64ToBytes } from '../util/bytes.js';
 import { sha256HexOfBytes } from '../util/digest.js';
 import { errorFields } from '../util/log.js';
 import { MAX_PAGE_SIZE } from '../util/page-size.js';
+import { MAX_LIST_OFFSET } from '../content/listing.js';
+import { defaultMediaDirection, MediaSort, MediaSortDirection } from './listing.js';
 import {
   CENTRE,
   CONTENT_TYPE_OF,
@@ -389,25 +391,49 @@ export const listMedia = defineUseCase({
   name: 'media.list',
   kind: 'query',
   description:
-    'List the media of this site, newest first, a page at a time; `q` finds a filename or caption that contains it.',
+    'List the media of this site, a page at a time, newest first unless `sort` says otherwise; `q` finds a filename or caption that contains it, `unused` a file nothing refers to, `missingAlt` an image a latest revision uses without alt text in one of its locales.',
   requires: 'media:read',
   input: z
     .object({
       kind: MediaKind.optional(),
-      q: z.string().trim().min(1).max(100).optional(),
+      // A NUL is no search anyone typed, and Postgres refuses it in a parameter: a 400, not a 500.
+      q: z
+        .string()
+        .trim()
+        .min(1)
+        .max(100)
+        .refine((q) => !q.includes('\0'))
+        .optional(),
+      unused: z.boolean().optional(),
+      missingAlt: z.boolean().optional(),
+      sort: MediaSort.optional(),
+      direction: MediaSortDirection.optional(),
       cursor: MediaId.optional(),
+      offset: z.number().int().min(0).max(MAX_LIST_OFFSET).optional(),
       /** Default 50. */
       limit: z.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
     })
     .strict(),
-  output: z.object({ items: z.array(MediaView), nextCursor: MediaId.nullable() }),
+  output: z.object({
+    items: z.array(MediaView),
+    nextCursor: MediaId.nullable(),
+    /** Everything the filter matches, on every page. */
+    total: z.number().int().nonnegative(),
+  }),
   examples: [{ input: {} }],
-  async handler(ctx, { kind, q, cursor, limit = 50 }) {
-    const rows = await ctx.media.list({ kind, q, cursor, limit: limit + 1 });
+  async handler(
+    ctx,
+    { kind, q, unused, missingAlt, sort = 'created', direction, cursor, offset, limit = 50 }
+  ) {
+    const filter = { kind, q, unused, missingAlt };
+    const order = { by: sort, direction: direction ?? defaultMediaDirection(sort) };
+    const rows = await ctx.media.list({ ...filter, order, cursor, offset, limit: limit + 1 });
+    const total = await ctx.media.count(filter);
     const page = rows.slice(0, limit);
     return {
       items: page.map((m) => toMediaView(ctx, m)),
       nextCursor: rows.length > limit ? (page.at(-1)?.id ?? null) : null,
+      total,
     };
   },
 });

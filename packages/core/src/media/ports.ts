@@ -7,7 +7,8 @@
 // direct links (originals and restricted media would then have an address).
 
 import type { Signer } from '../ports.js';
-import type { ImageFormat, MediaKind, MediaPatch, MediaRecord, NewMedia } from './model.js';
+import type { MediaFilter, MediaOrder } from './listing.js';
+import type { ImageFormat, MediaPatch, MediaRecord, NewMedia } from './model.js';
 
 /**
  * Bytes under keys. Keys are paths (`tenants/<id>/media/<id>/w960.avif`); `put` is idempotent on
@@ -79,12 +80,13 @@ export interface MediaDelivery {
   ): Promise<string>;
 }
 
-export interface MediaListQuery {
-  kind?: MediaKind | undefined;
-  /** Case-insensitive substring of the filename or of the caption in any locale. */
-  q?: string | undefined;
-  /** The id of the last item of the previous page. */
+export interface MediaListQuery extends MediaFilter {
+  /** Newest first when absent (`listing.ts`). */
+  order?: MediaOrder | undefined;
+  /** The id of the last item of the previous page, in the same order. */
   cursor?: string | undefined;
+  /** Rows to skip: what a numbered page asks. */
+  offset?: number | undefined;
   limit: number;
 }
 
@@ -98,8 +100,10 @@ export interface MediaRepository {
   lock(): Promise<void>;
   /** Soft-deleted rows too, with `deletedAt` set; the service decides what that means. */
   get(id: string): Promise<MediaRecord | null>;
-  /** Newest first, without soft-deleted rows. */
+  /** In the query's order, without soft-deleted rows. */
   list(query: MediaListQuery): Promise<MediaRecord[]>;
+  /** How many rows the filter matches, whatever the position. */
+  count(filter: MediaFilter): Promise<number>;
   insert(media: NewMedia): Promise<void>;
   update(id: string, patch: MediaPatch, at: Date): Promise<boolean>;
   softDelete(id: string, at: Date): Promise<boolean>;

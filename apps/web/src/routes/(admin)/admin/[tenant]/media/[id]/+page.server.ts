@@ -16,6 +16,7 @@ import {
 } from '@mycel/core';
 import { redirect } from '@sveltejs/kit';
 import { act, loaded, text } from '#lib/server/admin/admin-actions.js';
+import { recalledMediaPath, rememberMediaListFromReferer } from '#lib/server/admin/media-list.js';
 import { ORIGINAL_TTL_MS, signedOriginalPath } from '#lib/server/media.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { Actions, PageServerLoad } from './$types';
@@ -39,9 +40,10 @@ function previewFiles(m: Pick<MediaView, 'variants'>): { preview: string; full: 
   return { preview: `${preview.name}.webp`, full: `${largest.name}.webp` };
 }
 
-export const load: PageServerLoad = async ({ parent, locals, params }) => {
+export const load: PageServerLoad = async ({ parent, locals, params, cookies, request, url }) => {
   const { tenant } = await parent();
   if (!isUuid(params.id)) refuse(404);
+  rememberMediaListFromReferer(cookies, request.headers.get('referer'), url, params.tenant);
   const principal = locals.principal!;
   const rt = runtime();
   const m: MediaView = await loaded(
@@ -77,6 +79,7 @@ export const load: PageServerLoad = async ({ parent, locals, params }) => {
       more: usedIn.next !== null,
     },
     locales: info?.locales ?? [],
+    backToList: recalledMediaPath(cookies, params.tenant, m.id),
   };
 };
 
@@ -133,7 +136,7 @@ export const actions: Actions = {
       { conflict: 'admin.media.error.inUse.other', notFound: 'admin.media.error.notFound' },
       async (principal) => {
         await runtime().invoker.run(useCases.deleteMedia, principal, { id: event.params.id });
-        redirect(303, `/admin/${event.params.tenant}/media?done=deleted`);
+        redirect(303, recalledMediaPath(event.cookies, event.params.tenant, null, 'deleted'));
       },
       // "In use in n places": the count from the register; the page lists where, for a reader.
       async (e: UseCaseError, principal): Promise<Record<string, string | number>> => {

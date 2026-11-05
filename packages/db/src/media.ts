@@ -5,12 +5,13 @@
 // uploads are serialised. Rejected: `select ... for update` on the tenant's rows, which locks
 // nothing when the tenant has no media yet.
 
-import { sql, type Kysely, type Selectable } from 'kysely';
+import { sql, type Kysely, type Selectable, type SelectQueryBuilder } from 'kysely';
 import {
   MediaCredit,
   MediaFocal,
   StoredVariant,
   type MediaContentType,
+  type MediaFilter,
   type MediaRecord,
   type MediaRepository,
 } from '@mycel/core';
@@ -19,6 +20,48 @@ import { advisoryLock } from './infra/roles.js';
 
 type Trx = Kysely<Database>;
 type Row = Selectable<Database['media']> & { usage_count: string | number };
+
+/** The column an order compares, the same expression for the row and for a cursor's row. */
+const SORTED = {
+  created: (row: string) => sql.ref(`${row}.created_at`),
+  size: (row: string) => sql.ref(`${row}.size_bytes`),
+  // Unicode root, as in `Intl.Collator('und')`: the database's own order differs per installation.
+  name: (row: string) => sql`${sql.ref(`${row}.filename`)} collate "und-x-icu"`,
+};
+
+/** What lets `media.delete` go ahead when false (`core/media/listing.ts`). */
+const USED = sql<boolean>`exists (select 1 from media_usages u where u.tenant_id = media.tenant_id and u.media_id = media.id)`;
+
+/**
+ * Core's `mediaMissingAlt` over every latest revision of this tenant (RLS scopes them), each read
+ * once, so one statement that `statement_timeout` bounds and a hashed set the media rows test
+ * against. Measured on 20,000 articles of 25 KB with four images each, as `mycel_app`: 0.6 s. Strict
+ * `.**`, so arrays are not unwrapped into duplicate matches. Rejected: a correlated `exists` per
+ * file over `content_block_refs`, which reads a document once per image and locale (2.8 s there).
+ */
+const LACKING_ALT = sql<string>`(
+  select (image_use->>'mediaId')::uuid
+  from content_items i
+  join content_revisions r on r.id = i.latest_revision_id
+  cross join lateral jsonb_path_query(
+    r.document->'blocks',
+    'strict $.** ? (exists(@.mediaId) && @.decorative == false)'
+  ) image_use
+  where exists (
+    select 1 from jsonb_array_elements_text(r.document->'locales') locale
+    where not jsonb_exists(coalesce(nullif(image_use->'alt', 'null'), '{}'), locale.value)
+  )
+  union all
+  select (r.document->>'heroImageId')::uuid
+  from content_items i
+  join content_revisions r on r.id = i.latest_revision_id
+  where jsonb_exists(r.document, 'heroImageId')
+    and jsonb_exists(r.document, 'heroAlt')
+    and exists (
+      select 1 from jsonb_array_elements_text(r.document->'locales') locale
+      where not jsonb_exists(r.document->'heroAlt', locale.value)
+    )
+)`;
 
 const toRecord = (r: Row): MediaRecord => ({
   id: r.id,
@@ -55,6 +98,30 @@ export function mediaRepository(trx: Trx, tenantId: string): MediaRepository {
           'usage_count'
         )
       );
+  // Generic over the selection, so a page and its count cannot ask different questions.
+  const filtered = <O>(
+    query: SelectQueryBuilder<Database, 'media', O>,
+    { kind, q: text, unused, missingAlt }: MediaFilter
+  ) => {
+    let q = query.where('media.deleted_at', 'is', null);
+    if (kind) q = q.where('media.kind', '=', kind);
+    if (text) {
+      // A sequential scan of one tenant's media; a trigram index waits for a measured need
+      // (ADR 008). The caption is matched on its values, never on the jsonb keys.
+      const like = `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+      q = q.where(
+        sql<boolean>`(media.filename ilike ${like} or exists (select 1 from jsonb_each_text(media.caption) c where c.value ilike ${like}))`
+      );
+    }
+    if (unused !== undefined) q = q.where(unused ? sql<boolean>`not ${USED}` : USED);
+    if (missingAlt !== undefined)
+      q = q.where(
+        missingAlt
+          ? sql<boolean>`media.id in ${LACKING_ALT}`
+          : sql<boolean>`media.id not in ${LACKING_ALT}`
+      );
+    return q;
+  };
   return {
     async lock() {
       await advisoryLock(trx, 'media', tenantId);
@@ -63,27 +130,29 @@ export function mediaRepository(trx: Trx, tenantId: string): MediaRepository {
       const row = await select().where('media.id', '=', id).executeTakeFirst();
       return row ? toRecord(row) : null;
     },
-    async list({ kind, q: text, cursor, limit }) {
-      let q = select().where('media.deleted_at', 'is', null);
-      if (kind) q = q.where('media.kind', '=', kind);
-      if (text) {
-        // A sequential scan of one tenant's media; a trigram index waits for a measured need
-        // (ADR 008). The caption is matched on its values, never on the jsonb keys.
-        const like = `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    async list({ order = { by: 'created', direction: 'desc' }, cursor, offset, limit, ...filter }) {
+      const sorted = SORTED[order.by];
+      const dir = order.direction === 'asc' ? sql`asc` : sql`desc`;
+      let q = filtered(select(), filter);
+      if (cursor) {
+        const beyond = order.direction === 'asc' ? sql`>` : sql`<`;
         q = q.where(
-          sql<boolean>`(media.filename ilike ${like} or exists (select 1 from jsonb_each_text(media.caption) c where c.value ilike ${like}))`
+          sql<boolean>`(${sorted('media')}, media.id) ${beyond} (select ${sorted('c')}, c.id from media c where c.id = ${cursor})`
         );
       }
-      if (cursor)
-        q = q.where(
-          sql<boolean>`(media.created_at, media.id) < (select c.created_at, c.id from media c where c.id = ${cursor})`
-        );
+      if (offset) q = q.offset(offset);
       const rows = await q
-        .orderBy('media.created_at', 'desc')
-        .orderBy('media.id', 'desc')
+        .orderBy(sql`${sorted('media')} ${dir}`)
+        .orderBy(sql`media.id ${dir}`)
         .limit(limit)
         .execute();
       return rows.map(toRecord);
+    },
+    async count(filter) {
+      const row = await filtered(trx.selectFrom('media'), filter)
+        .select(sql<string>`count(*)`.as('n'))
+        .executeTakeFirstOrThrow();
+      return Number(row.n);
     },
     async insert(m) {
       await trx

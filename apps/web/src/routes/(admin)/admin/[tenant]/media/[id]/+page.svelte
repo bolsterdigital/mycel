@@ -94,7 +94,7 @@
   locale={data.locale}
   breadcrumb={[
     { label: data.tenant.name, href: base },
-    { label: t('admin.media.title'), href: `${base}/media` },
+    { label: t('admin.media.title'), href: data.backToList },
     { label: m.filename },
   ]}
   previewLabel={t('admin.media.preview')}

@@ -471,7 +471,7 @@ test('the library takes several files at once and finds one by name or caption',
   await expectNoAxeViolations(page, { dark: true });
 
   await page.getByLabel('Zoeken in media').fill(`plein-${stamp}`);
-  await page.getByRole('button', { name: 'Zoeken' }).click();
+  await page.getByRole('button', { name: 'Filteren' }).click();
   await expect(page).toHaveURL(new RegExp(`q=plein-${stamp}`));
   await expect(item(page, names[0]!)).toBeVisible();
   await expect(item(page, names[1]!)).toHaveCount(0);
@@ -489,6 +489,131 @@ test('the library takes several files at once and finds one by name or caption',
   await expect(page.getByText(`Niets gevonden voor “niets-${stamp}”.`)).toBeVisible();
 
   for (const name of names) await remove(page, ids[name]!, name);
+});
+
+// The library as a worklist, on the rules of the content list. With and without a script,
+// since every view is a link or a GET form.
+test('the library narrows to what needs attention, in any order, and an asset goes back to it', async ({
+  page,
+}) => {
+  await login(page, '/admin/probe/media');
+  const stamp = `${test.info().project.name}-${Date.now()}`;
+  const names = {
+    lacking: `aaa-half-${stamp}.png`,
+    described: `bbb-heel-${stamp}.png`,
+    unused: `ccc-los-${stamp}.png`,
+  };
+  const ids = await uploadMany(page, Object.values(names));
+  const probe = await tenantId();
+  const itemId = await withInvoker(async (invoker) => {
+    const { item } = await invoker.run(useCases.createItem, systemPrincipal(probe, 'e2e'), {
+      slug: `media-worklist-${Date.now()}`,
+      document: ContentDocumentInput.parse({
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl', 'en'],
+        title: { nl: `Werklijst ${stamp}` },
+        blocks: [
+          {
+            type: 'image',
+            version: 1,
+            props: { mediaId: ids[names.lacking], decorative: false, alt: { nl: 'Half' } },
+          },
+          {
+            type: 'image',
+            version: 1,
+            props: {
+              mediaId: ids[names.described],
+              decorative: false,
+              alt: { nl: 'Heel', en: 'Whole' },
+            },
+          },
+        ],
+        access: { level: 'public' },
+      }),
+    });
+    return item.id;
+  });
+  leftovers.items.push(itemId);
+  leftovers.media.push(ids[names.lacking]!, ids[names.described]!);
+
+  await page.goto(`/admin/probe/media?q=${stamp}`);
+  await expect(page.locator('#media-count')).toHaveText('3 gevonden');
+
+  // Alt text missing: only the file a use lacks a locale for, and it says what is on.
+  await page.getByLabel('Gebruik').selectOption('no-alt');
+  await page.getByRole('button', { name: 'Filteren' }).click();
+  await expect(page).toHaveURL(/show=no-alt/);
+  await expect(page.locator('#media-count')).toHaveText('1 gevonden');
+  await expect(item(page, names.lacking)).toBeVisible();
+  await expect(item(page, names.described)).toHaveCount(0);
+  await expect(item(page, names.unused)).toHaveCount(0);
+  await expectNoAxeViolations(page, { dark: true });
+
+  // A chip takes only itself off: the search stays.
+  await page.getByRole('link', { name: 'Filter Gebruik: Alt-tekst ontbreekt verwijderen' }).click();
+  await expect(page).toHaveURL(new RegExp(`q=${stamp}`));
+  await expect(page).not.toHaveURL(/show=/);
+  await expect(page.locator('#media-count')).toHaveText('3 gevonden');
+
+  // Unused: what can go, and the delete on its page agrees.
+  await page.getByLabel('Gebruik').selectOption('unused');
+  await page.getByRole('button', { name: 'Filteren' }).click();
+  await expect(item(page, names.unused)).toBeVisible();
+  await expect(item(page, names.lacking)).toHaveCount(0);
+
+  // A type is a filter too; nothing of this search is a document, and the empty list says what to do.
+  await page.getByLabel('Soort').selectOption('document');
+  await page.getByRole('button', { name: 'Filteren' }).click();
+  await expect(page.getByText(`Niets gevonden voor “${stamp}”.`)).toBeVisible();
+  await page.getByRole('link', { name: 'Filters wissen' }).click();
+  await expect(page).not.toHaveURL(/kind=|show=|q=/);
+
+  // An order in the form works in the grid; in the table the headings say and change the same.
+  await page.goto(`/admin/probe/media?q=${stamp}`);
+  await page.getByLabel('Volgorde').selectOption('name-desc');
+  await page.getByRole('button', { name: 'Filteren' }).click();
+  await expect(page.locator('article h3').first()).toHaveText(names.unused);
+  await page.getByRole('link', { name: 'Lijst' }).click();
+  await expect(page).toHaveURL(/view=list/);
+  await expect(page).toHaveURL(/sort=name-desc/);
+  const table = page.locator('#media-table');
+  await expect(table.getByRole('columnheader', { name: 'Bestandsnaam' })).toHaveAttribute(
+    'aria-sort',
+    'descending'
+  );
+  await table.getByRole('link', { name: 'Grootte' }).click();
+  await expect(page).toHaveURL(/sort=size-asc/);
+  await expect(table.getByRole('columnheader', { name: 'Grootte' })).toHaveAttribute(
+    'aria-sort',
+    'ascending'
+  );
+
+  // The moment of the upload is a date a person reads, with the exact one on the element.
+  const uploaded = table.getByRole('row', { name: new RegExp(names.described) }).locator('time');
+  await expect(uploaded).toHaveAttribute('datetime', /^\d{4}-\d{2}-\d{2}T/);
+  await expect(uploaded).not.toHaveText(/object/);
+
+  // In and out: the asset goes back to this view, at its own row.
+  await table.getByRole('link', { name: names.described }).click();
+  await page
+    .getByRole('navigation', { name: /kruimel/i })
+    .getByRole('link', { name: 'Media' })
+    .click();
+  await expect(page).toHaveURL(new RegExp(`q=${stamp}.*view=list`));
+  await expect(page).toHaveURL(new RegExp(`#media-${ids[names.described]}$`));
+
+  // The menu opens the plain library, and a page past the end lands on the last there is.
+  await page.goto(`/admin/probe/media?q=${stamp}&page=9`);
+  await expect(page).not.toHaveURL(/page=/);
+  await expect(page.locator('#media-count')).toHaveText('3 gevonden');
+
+  // Deleting returns to that view too, and says so.
+  await page.goto(`/admin/probe/media/${ids[names.unused]}`);
+  await page.getByRole('button', { name: 'Verwijderen' }).click();
+  await expect(page).toHaveURL(new RegExp(`q=${stamp}.*done=deleted$`));
+  await expect(page.getByRole('status')).toContainText('Het bestand is verwijderd');
+  await expect(page.getByRole('link', { name: names.unused })).toHaveCount(0);
 });
 
 test('an image block chooses its image from a grid of thumbnails, without a script', async ({
@@ -809,7 +934,13 @@ test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
         await setLocale(locale.startsWith('en') ? 'en' : 'nl');
         const headers = forwarded();
         await page.context().setExtraHTTPHeaders({ ...headers, 'accept-language': locale });
-        for (const path of ['/admin/probe/media', '/admin/probe/media?view=list']) {
+        // The last with its chips and clear link, in the longest words of the filter bar.
+        for (const path of [
+          '/admin/probe/media',
+          '/admin/probe/media?view=list',
+          `/admin/probe/media?view=list&sort=size-asc&q=gate&kind=image&show=no-alt`,
+          `/admin/probe/media?view=list&q=${filename}&kind=image&show=unused`,
+        ]) {
           await page.goto(path);
           await setTextSize(page, text);
           await layoutGate(page, path);
