@@ -170,8 +170,15 @@ export function pendingProps(p: PendingBlock, posted: Posted) {
  * The pending block still holds what choosing it showed: nothing typed, picked or switched in any
  * of `locales`. Choosing another block then replaces it instead of inserting it, the way a menu
  * choice replaces an untouched one; anything typed is still inserted first, or refused with
- * its words kept. Rejected: refusing the new choice until Cancel (a step for nothing lost) and
- * comparing raw form values (a list posts its row count, an editor its own document).
+ * its words kept.
+ *
+ * Both the props and every posted value must match the empty block. Props alone miss words a
+ * field only keeps beside something else (a caption or credit without an image, a URL without a
+ * label): those read back as the empty block's props, and the block with the words would vanish.
+ * A list's row count and a choice's default are in the empty view, so they match. An enhanced
+ * editor's `.editor` document is left to the props: blank, it reads as nothing; with words, the
+ * props differ. Rejected: refusing the new choice until Cancel (a step for nothing lost) and
+ * comparing props only (the case above).
  */
 export function pendingUntouched(
   p: PendingBlock,
@@ -179,8 +186,19 @@ export function pendingUntouched(
   locales: readonly string[]
 ): boolean {
   const fields = BLOCK_DEFINITIONS[p.type].fields;
-  const shown = postedValues(formValues(fields, undefined, locales));
-  return isDeepStrictEqual(pendingProps(p, posted).props, propsFromForm(fields, shown).props);
+  const empty = formValues(fields, undefined, locales);
+  const typed = within(posted, NEW_BLOCK);
+  const asShown = typed
+    .names()
+    .filter((n) => n.startsWith('p.') && !n.endsWith('.editor'))
+    .every((n) => (typed.get(n) ?? '') === (empty[n] ?? ''));
+  return (
+    asShown &&
+    isDeepStrictEqual(
+      pendingProps(p, posted).props,
+      propsFromForm(fields, postedValues(empty)).props
+    )
+  );
 }
 
 /**

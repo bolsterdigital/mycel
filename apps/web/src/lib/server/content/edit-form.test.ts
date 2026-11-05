@@ -9,6 +9,7 @@ import {
   Block,
   INSERTABLE_BLOCK_TYPES,
   UseCaseError,
+  type BlockField,
 } from '@mycel/core';
 import { formValues, postedValues } from '#lib/editor/block-form.js';
 import {
@@ -44,6 +45,63 @@ function formOf(list: readonly Block[]): Record<string, string> {
     ))
       out[`${blockPrefix(b.id)}${k}`] = v;
   return out;
+}
+
+/**
+ * One input per control of an empty form under `name`: a word in a text, another option in a
+ * choice, a ticked box, one more row in a list. `empty` is the empty view, for row counts and
+ * the selected options.
+ */
+function inputsOf(
+  fields: readonly BlockField[],
+  name: string,
+  empty: Record<string, string>,
+  locales: readonly string[]
+): [string, string][] {
+  const other = (n: string, options: readonly string[]) =>
+    [n, options.find((o) => o !== empty[n])!] as [string, string];
+  return fields.flatMap((f): [string, string][] => {
+    const n = `${name}.${f.key}`;
+    switch (f.kind) {
+      case 'text':
+        return f.localized ? locales.map((l) => [`${n}.${l}`, 'x']) : [[n, 'x']];
+      case 'caption':
+        return locales.flatMap((l): [string, string][] => [
+          [`${n}.${l}`, 'x'],
+          other(`${n}.${l}.mode`, ['inherit', 'hide', 'own']),
+        ]);
+      case 'rich-text':
+        return locales.map((l) => [`${n}.${l}`, 'x']);
+      case 'media':
+      case 'reference':
+      case 'date':
+        return [[n, 'x']];
+      case 'choice':
+        return [other(n, f.options)];
+      case 'boolean':
+        return [[n, 'on']];
+      case 'actions':
+        return Array.from({ length: f.max }, (_, i): [string, string][] => [
+          ...locales.map((l): [string, string] => [`${n}.${i}.label.${l}`, 'x']),
+          [`${n}.${i}.target`, 'url'],
+          [`${n}.${i}.url`, 'x'],
+        ]).flat();
+      case 'group':
+        return [
+          ...(f.optional === 'omit' ? [[`${n}.present`, 'on'] as [string, string]] : []),
+          ...inputsOf(f.fields, n, empty, locales),
+        ];
+      case 'list': {
+        const rows = Number(empty[`${n}.rows`]);
+        return [
+          [`${n}.rows`, String(rows + 1)],
+          ...Array.from({ length: rows }, (_, i) =>
+            inputsOf(f.fields, `${n}.${i}`, empty, locales)
+          ).flat(),
+        ];
+      }
+    }
+  });
 }
 
 describe('the one edit form', () => {
@@ -152,6 +210,12 @@ describe('the one edit form', () => {
       const shown = pendingView(p, ['nl']);
       const post = { ...shown.hidden, ...shown.values };
       expect(pendingUntouched(p, postedValues(post), LOCALES), type).toBe(true);
+      // With JavaScript a rich-text field also posts its editor's blank document.
+      const blank = JSON.stringify({ type: 'doc', content: [{ type: 'paragraph' }] });
+      const enhanced = { ...post };
+      for (const f of BLOCK_DEFINITIONS[type].fields)
+        if (f.kind === 'rich-text') enhanced[`new.p.${f.key}.nl.editor`] = blank;
+      expect(pendingUntouched(p, postedValues(enhanced), LOCALES), type).toBe(true);
     }
     const cards = pendingBlock('cards', 'end', null, [])!;
     const empty = pendingView(cards, ['nl']);
@@ -162,6 +226,26 @@ describe('the one edit form', () => {
     const image = pendingBlock('image', 'end', null, [])!;
     const picked = { ...pendingView(image, ['nl']).values, 'new.p.mediaId': 'm1' };
     expect(pendingUntouched(image, postedValues(picked), LOCALES)).toBe(false);
+  });
+
+  // Words a field only keeps beside something else (a caption without an image, a URL without
+  // a label) read back as the empty block's props; the posted values still tell them apart.
+  it('counts any one input in a pending block as touched, in every type', () => {
+    for (const type of INSERTABLE_BLOCK_TYPES) {
+      const p = pendingBlock(type, 'end', null, [])!;
+      const shown = pendingView(p, ['nl']);
+      const empty = formValues(BLOCK_DEFINITIONS[type].fields, undefined, ['nl']);
+      const inputs = inputsOf(BLOCK_DEFINITIONS[type].fields, 'p', empty, ['nl']);
+      for (const key of Object.keys(empty))
+        expect(
+          inputs.map(([n]) => n),
+          `${type}: ${key}`
+        ).toContain(key);
+      for (const [name, value] of inputs) {
+        const post = { ...shown.hidden, ...shown.values, [`new.${name}`]: value };
+        expect(pendingUntouched(p, postedValues(post), LOCALES), `${type}: ${name}`).toBe(false);
+      }
+    }
   });
 
   it('puts document issues on the form field that holds them, whatever its tab', () => {
