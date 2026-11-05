@@ -26,13 +26,13 @@ import {
   type SluggedRepository,
 } from '@mycel/core';
 import type { Database } from './infra/schema.js';
+import { toIso } from './infra/dates.js';
 
 type Trx = Kysely<Database>;
 type ItemRow = Selectable<Database['content_items']>;
 type LocaleRow = Selectable<Database['content_item_locales']>;
 
 const date = (v: Date | string | null): Date | null => (v === null ? null : new Date(v));
-const iso = (v: Date | string): string => new Date(v).toISOString();
 
 /** Keyset page: `limit + 1` rows were fetched, newest first. */
 function paged<T extends { id: string }>(rows: T[], limit: number): Paged<T> {
@@ -374,7 +374,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
         ? Revision.parse({
             id: r.id,
             itemId: r.item_id,
-            createdAt: iso(r.created_at),
+            createdAt: toIso(r.created_at),
             actor: r.actor,
             ...(r.provenance ? { provenance: r.provenance } : {}),
             document: upgradeFaqV1InDocument(r.document),
@@ -395,7 +395,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
         rows.map((r): RevisionSummary => ({
           id: r.id,
           itemId: r.item_id,
-          createdAt: iso(r.created_at),
+          createdAt: toIso(r.created_at),
           actor: Actor.parse(r.actor),
         })),
         limit
@@ -414,8 +414,8 @@ export function authorRepository(trx: Trx, tenantId: string): SluggedRepository<
       ...(r.image_id ? { imageId: r.image_id } : {}),
       links: r.links,
       ...(r.email ? { email: r.email } : {}),
-      createdAt: iso(r.created_at),
-      updatedAt: iso(r.updated_at),
+      createdAt: toIso(r.created_at),
+      updatedAt: toIso(r.updated_at),
     });
   const fields = (a: Author) => ({
     name: a.name,
@@ -476,8 +476,8 @@ export function sectionRepository(trx: Trx, tenantId: string): SluggedRepository
       title: r.title,
       ...(r.description ? { description: r.description } : {}),
       order: r.sort_order,
-      createdAt: iso(r.created_at),
-      updatedAt: iso(r.updated_at),
+      createdAt: toIso(r.created_at),
+      updatedAt: toIso(r.updated_at),
     });
   const fields = (s: Section) => ({
     title: JSON.stringify(s.title),
@@ -536,8 +536,8 @@ export function patternRepository(trx: Trx, tenantId: string): EntityRepository<
       ...(r.description ? { description: r.description } : {}),
       intendedType: r.intended_type,
       blocks: r.blocks,
-      createdAt: iso(r.created_at),
-      updatedAt: iso(r.updated_at),
+      createdAt: toIso(r.created_at),
+      updatedAt: toIso(r.updated_at),
     });
   const fields = (p: Pattern) => ({
     name: JSON.stringify(p.name),

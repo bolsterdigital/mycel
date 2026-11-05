@@ -1,13 +1,14 @@
 // Fold and identity in memory (ADR 019 rules 1 and 2). The lock is a Postgres property; its test
 // is the concurrency case in packages/db/src/supporters.test.ts.
 
+import fc from 'fast-check';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { Invoker } from '../invoke.js';
 import { systemPrincipal } from '../principal.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { MemoryUnitOfWork, TENANT } from '../testing/index.js';
 import { SupporterEvent, type SupporterEventType } from './events.js';
-import { rebuildProjection } from './model.js';
+import { rebuildProjection, type SupporterProjection } from './model.js';
 import { ingest } from './service.js';
 
 const admin = systemPrincipal(TENANT, 'test');
@@ -41,6 +42,71 @@ function permutations<T>(items: readonly T[]): T[][] {
     permutations([...items.slice(0, i), ...items.slice(i + 1)]).map((rest) => [item, ...rest])
   );
 }
+
+// ADR 019 rule 2 as a property: any events, any arrival order, a redelivery on top. The fixed lists
+// below name the cases worth reading; this one looks for the case nobody listed.
+describe('supporter fold, for any events in any order', () => {
+  const drawn = fc
+    .array(
+      fc.record({
+        type: fc.constantFrom<SupporterEventType>(
+          'newsletter.subscribed',
+          'newsletter.unsubscribed',
+          'consent.given',
+          'consent.withdrawn'
+        ),
+        list: fc.constantFrom('news', 'campaign'),
+        minute: fc.integer({ min: 0, max: 5 }),
+        confirmed: fc.constantFrom(undefined, false, true),
+      }),
+      { minLength: 1, maxLength: 7 }
+    )
+    .map((draws) =>
+      draws.map(({ type, list, minute, confirmed }, i) =>
+        event(`e${i}`, type, minute, {
+          list,
+          ...(type === 'newsletter.subscribed' && confirmed !== undefined ? { confirmed } : {}),
+        })
+      )
+    );
+
+  const ingestAll = async (order: readonly SupporterEvent[]) => {
+    const uow = new MemoryUnitOfWork();
+    for (const e of order) await uow.run(admin, (ctx) => ingest(ctx, e));
+    const stored = await uow.run(admin, (ctx) => ctx.supporters.getProjection('x@example.org'));
+    const log = await uow.run(admin, (ctx) => ctx.supporters.eventsFor(stored!.id));
+    return { stored: stored!, log };
+  };
+  /** The id is minted per run; everything else has to come out the same. */
+  const content = ({ id: _id, ...rest }: SupporterProjection) => rest;
+
+  it('gives one projection, equal to a rebuild, with no list both pending and confirmed', async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        drawn.chain((events) =>
+          fc.record({
+            events: fc.constant(events),
+            arrival: fc.shuffledSubarray(events, {
+              minLength: events.length,
+              maxLength: events.length,
+            }),
+            redelivered: fc.constantFrom(...events),
+          })
+        ),
+        async ({ events, arrival, redelivered }) => {
+          const once = await ingestAll(events);
+          const shuffled = await ingestAll([...arrival, redelivered]);
+          expect(shuffled.log).toHaveLength(events.length);
+          expect(shuffled.stored).toEqual(rebuildProjection(shuffled.log));
+          expect(content(shuffled.stored)).toEqual(content(once.stored));
+          expect(
+            shuffled.stored.lists.filter((l) => shuffled.stored.pendingLists.includes(l))
+          ).toEqual([]);
+        }
+      )
+    );
+  });
+});
 
 describe('supporter fold', () => {
   const events = [

@@ -10,6 +10,7 @@
 // so the suite never takes real work and runs beside the other database suites. Skips without
 // DATABASE_URL and APP_DATABASE_URL; in CI that is a failure.
 
+import fc from 'fast-check';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
 import pg from 'pg';
@@ -339,6 +340,80 @@ describe.skipIf(skip)('jobs conformance', () => {
     expect(await completeJob(operatorDb, first!)).toBe(false);
     expect(await completeJob(operatorDb, second!)).toBe(true);
     expect((await byKey(key))[0]!.doneAt).not.toBeNull();
+  });
+
+  // The lease as a property: any order of claims, deaths, late reports and failures. The model is
+  // what a worker may rely on: one holder at a time, a late report changes nothing, and a finished
+  // or exhausted job is never handed out again. Few runs, because each step is real transactions.
+  it('keeps one holder and ignores late reports, for any order of events', async () => {
+    const MAX = 4;
+    let round = 0;
+    await fc.assert(
+      fc.asyncProperty(
+        // Weighted, or most sequences finish before a second worker ever comes along.
+        fc.array(
+          fc.constantFrom(
+            'claim',
+            'claim',
+            'claim',
+            'die',
+            'die',
+            'late',
+            'late',
+            'fail',
+            'complete'
+          ),
+          { minLength: 6, maxLength: 14 }
+        ),
+        async (events) => {
+          const t = type(`lease-property-${round++}`);
+          const key = await due(t, undefined, MAX);
+          const stale: JobRecord[] = [];
+          let held: JobRecord | undefined;
+          let leased = false;
+          let done = false;
+          let attempts = 0;
+          for (const e of events) {
+            if (e === 'claim') {
+              const claimed = await claimJobs(operatorDb, { types: [t] });
+              if (done || leased || attempts >= MAX) expect(claimed).toEqual([]);
+              else {
+                expect(claimed).toHaveLength(1);
+                expect(claimed[0]!.attempts).toBe(++attempts);
+                if (held) stale.push(held);
+                held = claimed[0]!;
+                leased = true;
+              }
+            } else if (e === 'die' && leased) {
+              await asWorkerUpdate(
+                sql`update jobs set claimed_at = now() - make_interval(secs => ${JOB_LEASE_SECONDS + 1})
+                    where key = ${key}`
+              );
+              leased = false;
+            } else if (e === 'complete' && held) {
+              expect(await completeJob(operatorDb, held)).toBe(!done);
+              done = true;
+              leased = false;
+            } else if (e === 'fail' && held) {
+              expect(await failJob(operatorDb, held, 'x')).toBe(!done);
+              if (!done) {
+                leased = false;
+                // The backoff is time, not part of what is under test.
+                await asWorkerUpdate(sql`update jobs set run_at = now() where key = ${key}`);
+              }
+            } else if (e === 'late' && stale.length) {
+              expect(await completeJob(operatorDb, stale.at(-1)!)).toBe(false);
+              expect(await failJob(operatorDb, stale.at(-1)!, 'x')).toBe(false);
+            }
+            const rows = await byKey(key);
+            expect(rows).toHaveLength(1);
+            expect(rows[0]!.attempts).toBe(attempts);
+            expect(rows[0]!.doneAt !== null).toBe(done);
+          }
+        }
+      ),
+      { numRuns: 40 }
+    );
   });
 
   it('plans the next run in the transaction that completes this one', async () => {

@@ -11,6 +11,7 @@
 
 import { z } from 'zod';
 import type { Clock, Signer } from '../ports.js';
+import { bytesToHex } from '../util/bytes.js';
 
 export const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 
@@ -36,7 +37,7 @@ export interface OperatorSession {
 
 function randomId(): string {
   const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
-  return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+  return bytesToHex(bytes);
 }
 
 /** A fresh session for this operator: always a new value, never an extension of an old one. */

@@ -1,6 +1,7 @@
 // The inventory's security contract: capability separation, tenant isolation and no secret in
 // any returned or audited value. The registry conformance covers HTTP and MCP for each use case.
 
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { Invoker } from '../invoke.js';
 import { systemPrincipal, type Capability, type Principal } from '../principal.js';
@@ -679,5 +680,67 @@ describe('durable connection effects', () => {
     e.clock.advance(60_000);
     await runConnectionIntent(e.deps, A, row.id);
     expect(e.transport.dispatched).toHaveLength(1);
+  });
+});
+
+// ADR 019 rule 6 as a property: whatever the provider answers, in whatever order, with or without
+// proof of what happened, and whatever an operator asks for in between. The fixed cases above name
+// the transitions; this one holds the invariants over sequences nobody wrote down.
+describe('a connection intent, for any sequence of answers', () => {
+  const FINAL = new Set(['succeeded', 'blocked', 'resolved', 'failed']);
+  const step = fc.record({
+    op: fc.constantFrom('run', 'run', 'run', 'replay', 'resolve'),
+    result: fc.constantFrom('succeeded', 'pre_send', 'unknown') as fc.Arbitrary<
+      FakeConnectionTransport['result']
+    >,
+    lookup: fc.constantFrom('succeeded', 'absent', 'unknown') as fc.Arbitrary<
+      FakeConnectionTransport['lookup']
+    >,
+    wait: fc.constantFrom(0, CONNECTION_LEASE_MS + 1, 3_600_000),
+  });
+
+  it('never leaves a final state, resends only from pending, and stays within its attempts', async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        fc.boolean(),
+        fc.array(step, { minLength: 1, maxLength: 14 }),
+        async (reconciles, steps) => {
+          const e = await engine();
+          const row = await e.plan();
+          if (!reconciles) e.deps.transport = { dispatch: (i) => e.transport.dispatch(i) };
+          for (const { op, result, lookup, wait } of steps) {
+            e.transport.result = result;
+            e.transport.lookup = lookup;
+            e.clock.advance(wait);
+            const before = (await e.read(row.id))!;
+            const sent = e.transport.dispatched.length;
+            if (op === 'run') await runConnectionIntent(e.deps, A, row.id);
+            else
+              await e.invoker
+                .run(
+                  op === 'replay'
+                    ? useCases.replayConnectionIntent
+                    : useCases.resolveConnectionIntent,
+                  e.principal,
+                  { id: row.id }
+                )
+                .catch((error: { code?: string }) => expect(error.code).toBe('conflict'));
+            const after = (await e.read(row.id))!;
+            if (FINAL.has(before.state)) expect(after.state).toBe(before.state);
+            // Re-sending after an unknown outcome could repeat what the receiver already did.
+            if (e.transport.dispatched.length > sent) expect(before.state).toBe('pending');
+            if (after.state === 'resolved') expect(before.state).toMatch(/^(unknown|resolved)$/);
+            expect(after.attempts).toBeLessThanOrEqual(CONNECTION_MAX_ATTEMPTS);
+            expect(after.leaseToken).toBeNull();
+            expect(e.transport.dispatched.length + e.transport.reconciled.length).toBe(
+              after.attempts
+            );
+          }
+          // One business effect, one provider key, however many tries it took.
+          expect(new Set(e.transport.dispatched.map((i) => i.key)).size).toBeLessThanOrEqual(1);
+        }
+      ),
+      { numRuns: 60 }
+    );
   });
 });

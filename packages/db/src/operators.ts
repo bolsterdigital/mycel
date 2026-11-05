@@ -31,9 +31,9 @@ import {
 } from '@mycel/core';
 import type { Database } from './infra/schema.js';
 import { advisoryLock, asRole } from './infra/roles.js';
+import { toIso } from './infra/dates.js';
 
 type Trx = Kysely<Database>;
-const iso = (d: Date | string | null) => (d === null ? null : new Date(d).toISOString());
 
 export function operatorRepository(trx: Trx): OperatorRepository {
   return {
@@ -132,8 +132,8 @@ export function apiKeyRepository(trx: Trx, tenantId: string): ApiKeyRepository {
     capabilities: r.capabilities as KeyCapability[],
     createdBy: Actor.parse(r.created_by),
     createdAt: new Date(r.created_at).toISOString(),
-    lastUsedAt: iso(r.last_used_at),
-    revokedAt: iso(r.revoked_at),
+    lastUsedAt: toIso(r.last_used_at),
+    revokedAt: toIso(r.revoked_at),
   });
   return {
     async list() {
@@ -205,8 +205,8 @@ const toOperator = (r: OperatorRow): Operator => ({
   id: r.id,
   email: r.email,
   name: r.name,
-  emailVerifiedAt: iso(r.email_verified_at),
-  lastLoginAt: iso(r.last_login_at),
+  emailVerifiedAt: toIso(r.email_verified_at),
+  lastLoginAt: toIso(r.last_login_at),
 });
 
 /**
