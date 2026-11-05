@@ -1658,7 +1658,7 @@ test.describe('export', () => {
 test.describe('content-list-rows', () => {
   test.use({ locale: 'nl-NL' });
 
-  test('a row opens the site and the preview, copies, takes offline; a phone gets one menu', async ({
+  test('a row opens the site and the preview, copies and takes offline', async ({
     page,
     request,
   }) => {
@@ -1707,8 +1707,7 @@ test.describe('content-list-rows', () => {
     await expect(actions.getByRole('link', { name: /^Voorbeeld/ })).toHaveCount(0);
     await expectNoAxeViolations(page);
 
-    // Live with newer changes: both, named apart. All four actions fit just above the width
-    // where the menu takes over, with no scrolling inside the table.
+    // Live with newer changes: both, named apart.
     await callApi(request, 'content.item.update', {
       itemId: item.id,
       baseRevisionId: item.latestRevisionId,
@@ -1722,6 +1721,93 @@ test.describe('content-list-rows', () => {
       },
     });
     await page.reload();
+    await row.hover();
+    await expect(actions.getByRole('link', { name: /^Op de site/ })).toBeVisible();
+    await expect(actions.getByRole('link', { name: /^Voorbeeld/ })).toBeVisible();
+
+    // Taken offline after a question in the row; the same view, and it says so.
+    await page.reload();
+    await row.hover();
+    await actions.locator('summary').click();
+    await actions.getByRole('button', { name: `Ja, offline halen: Brood ${word}` }).click();
+    await expect(page).toHaveURL(new RegExp(`done=offline#item-${item.id}$`));
+    await expect(page.getByText('Offline gehaald in nl.')).toBeVisible();
+    await expect(row.locator('.ui-badge')).toHaveText('offline');
+
+    // Planned, it is on the dashboard; the widget links to an item and says when.
+    await withInvoker((invoker) =>
+      invoker.run(useCases.scheduleItem, systemPrincipal(probe, 'e2e'), {
+        itemId: item.id,
+        revisionId: item.latestRevisionId,
+        locale: 'nl',
+        at: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+      })
+    );
+    await page.goto('/admin/probe');
+    const planned = page.getByRole('region', { name: 'Ingepland' }).getByRole('listitem');
+    await expect(planned.first().getByRole('link')).toHaveAttribute('href', /\/content\//);
+    await expect(planned.first().locator('time')).toBeVisible();
+    await page.goto(list);
+
+    // Duplicating opens a draft of its own.
+    await row.hover();
+    await actions.getByRole('button', { name: `Dupliceren: Brood ${word}` }).click();
+    await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
+    expect(page.url()).not.toContain(item.id);
+    await expect(page.locator('[name="title.nl"]')).toHaveValue(`Kopie van Brood ${word}`);
+    await page.goto(list);
+    await expect(page.locator('#content-table tbody th > a')).toHaveText([
+      `Brood ${word}`,
+      `Kopie van Brood ${word}`,
+    ]);
+  });
+
+  test('the width of the table picks the buttons or one menu, and the row keeps its name', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    const word = `rij${randomUUID().slice(0, 8)}`;
+    const { item } = await callApi<{ item: { id: string; latestRevisionId: string } }>(
+      request,
+      'content.item.create',
+      {
+        slug: `row-${word}`,
+        document: {
+          type: 'page',
+          defaultLocale: 'nl',
+          locales: ['nl'],
+          title: { nl: `Brood ${word}` },
+          blocks: [],
+        },
+      }
+    );
+    const probe = await tenantId();
+    await withInvoker((invoker) =>
+      invoker.run(useCases.publishItem, systemPrincipal(probe, 'e2e'), {
+        itemId: item.id,
+        revisionId: item.latestRevisionId,
+        locale: 'nl',
+      })
+    );
+    await callApi(request, 'content.item.update', {
+      itemId: item.id,
+      baseRevisionId: item.latestRevisionId,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: `Brood ${word}` },
+        lead: { nl: 'Gewijzigd.' },
+        blocks: [],
+      },
+    });
+    const row = page.locator(`[id="item-${item.id}"]`);
+    const actions = row.locator('.ui-row-actions.inline');
+    await login(page, `/admin/probe/content?type=page&q=${word}&sort=title`);
+
+    // Live with newer changes, so all four actions: they fit just above the width where the menu
+    // takes over, with no scrolling inside the table.
     const region = page.locator('.ui-table-scroll');
     // The table's region picks the layout, and the sidebar's width follows the font: a fixed
     // window lands on either side of the width depending on the machine. So measure it.
@@ -1775,43 +1861,5 @@ test.describe('content-list-rows', () => {
         NARROW.width
       );
     await expectNoAxeViolations(page);
-    await setTextSize(page, '100%');
-    await page.setViewportSize({ width: 1280, height: 800 });
-
-    // Taken offline after a question in the row; the same view, and it says so.
-    await page.reload();
-    await row.hover();
-    await actions.locator('summary').click();
-    await actions.getByRole('button', { name: `Ja, offline halen: Brood ${word}` }).click();
-    await expect(page).toHaveURL(new RegExp(`done=offline#item-${item.id}$`));
-    await expect(page.getByText('Offline gehaald in nl.')).toBeVisible();
-    await expect(row.locator('.ui-badge')).toHaveText('offline');
-
-    // Planned, it is on the dashboard; the widget links to an item and says when.
-    await withInvoker((invoker) =>
-      invoker.run(useCases.scheduleItem, systemPrincipal(probe, 'e2e'), {
-        itemId: item.id,
-        revisionId: item.latestRevisionId,
-        locale: 'nl',
-        at: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-      })
-    );
-    await page.goto('/admin/probe');
-    const planned = page.getByRole('region', { name: 'Ingepland' }).getByRole('listitem');
-    await expect(planned.first().getByRole('link')).toHaveAttribute('href', /\/content\//);
-    await expect(planned.first().locator('time')).toBeVisible();
-    await page.goto(list);
-
-    // Duplicating opens a draft of its own.
-    await row.hover();
-    await actions.getByRole('button', { name: `Dupliceren: Brood ${word}` }).click();
-    await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
-    expect(page.url()).not.toContain(item.id);
-    await expect(page.locator('[name="title.nl"]')).toHaveValue(`Kopie van Brood ${word}`);
-    await page.goto(list);
-    await expect(page.locator('#content-table tbody th > a')).toHaveText([
-      `Brood ${word}`,
-      `Kopie van Brood ${word}`,
-    ]);
   });
 });
