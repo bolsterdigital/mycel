@@ -7,7 +7,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { gitFiles, readJson, ROOT } from '../lib/repo.mjs';
+import { gitFiles, ratchet, readJson, ROOT } from '../lib/repo.mjs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -31,26 +31,20 @@ export function countRefs(paths, read) {
   return counts;
 }
 
-/** What grew past the baseline, and what shrank below it so the baseline can follow. */
-export function ratchet(counts, baseline) {
-  const grew = [];
-  const shrank = [];
-  for (const [p, n] of Object.entries(counts))
-    if (n > (baseline[p] ?? 0)) grew.push(`${p}: ${n} (baseline ${baseline[p] ?? 0})`);
-  for (const [p, n] of Object.entries(baseline))
-    if ((counts[p] ?? 0) < n) shrank.push(`${p}: ${counts[p] ?? 0} (baseline ${n})`);
-  return { grew, shrank };
-}
-
 const tracked = gitFiles() ?? [];
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
 
 test('references to the private board in code, scripts and workflows only go down', () => {
   const paths = tracked.filter((p) => /^(packages|apps|scripts|docker|\.github)\//.test(p));
   assert.ok(paths.length > 100, 'found the sources');
-  const { grew, shrank } = ratchet(countRefs(paths, read), readJson(BASELINE));
+  const { grew, shrank, stale } = ratchet(
+    countRefs(paths, read),
+    { ceilings: readJson(BASELINE) },
+    0
+  );
   assert.deepEqual(grew, [], 'name the constraint instead of a private TODO number');
   assert.deepEqual(shrank, [], `fewer references: lower these entries in ${BASELINE}`);
+  assert.deepEqual(stale, [], `no references left: remove these entries from ${BASELINE}`);
 });
 
 test('ADRs, architecture docs and the README reference no private board item', () => {
@@ -81,8 +75,9 @@ test('a new reference and a removed one are both reported', () => {
     (p) => ({ 'a.ts': '// TODO #1 and TODO #2', 'b.ts': 'none', 'c.ts': '// TODO #3' })[p]
   );
   assert.deepEqual(counts, { 'a.ts': 2, 'c.ts': 1 });
-  assert.deepEqual(ratchet(counts, { 'a.ts': 1, 'c.ts': 2, 'd.ts': 1 }), {
-    grew: ['a.ts: 2 (baseline 1)'],
-    shrank: ['c.ts: 1 (baseline 2)', 'd.ts: 0 (baseline 1)'],
+  assert.deepEqual(ratchet(counts, { ceilings: { 'a.ts': 1, 'c.ts': 2, 'd.ts': 1 } }, 0), {
+    grew: ['a.ts: 2 (ceiling 1)'],
+    shrank: ['c.ts: 1 (ceiling 2)'],
+    stale: ['d.ts: 0, within 0; remove the ceiling'],
   });
 });
