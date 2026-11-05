@@ -18,6 +18,7 @@ import {
   can,
   KEY_ROLES,
   KeyCapability,
+  offeredCapabilities,
   DROP_CAPS,
   Theme,
   SiteChrome,
@@ -115,7 +116,7 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
     api: keys && {
       keys,
       roles: [...KEY_ROLES, 'custom' as const],
-      capabilities: KeyCapability.options,
+      capabilities: offeredCapabilities().filter((c) => c !== 'tenant:admin'),
     },
     images: images && {
       ...images,
