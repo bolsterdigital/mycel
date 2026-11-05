@@ -28,7 +28,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadDotEnv } from '../lib/repo.mjs';
-import { blockExamples, everyBlockType } from './e2e-block-examples.mjs';
+import { blockExamples, everyBlockType, missingBlockTypes } from './e2e-block-examples.mjs';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
 const qualityCorpus = JSON.parse(
@@ -416,6 +416,18 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
         .items.length
     )
       needed.push(slug);
+  for (const project of ['no-js', 'a11y']) {
+    const slug = `e2e-blokken-${project}`;
+    if (needed.includes(slug)) continue;
+    const [item] = (await invoker.run(useCases.listItems, admin, { type: 'page', slug })).items;
+    const { revision } = await invoker.run(useCases.getItem, admin, { itemId: item.id });
+    const missing = missingBlockTypes(BLOCK_DEFINITIONS, revision.document.blocks);
+    if (missing.length)
+      fail(
+        `the page ${slug} was seeded before these blocks existed: ${missing.join(', ')}. ` +
+          'A green run would prove an old fixture; run on a fresh database.'
+      );
+  }
   if (needed.length) {
     const sharp = (await import('sharp')).default;
     // A landscape and a portrait with real pixels: shapes and a gradient, rendered from SVG.

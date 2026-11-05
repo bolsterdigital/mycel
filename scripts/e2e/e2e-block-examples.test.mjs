@@ -4,7 +4,12 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { PLACED_TYPES, blockExamples, everyBlockType } from './e2e-block-examples.mjs';
+import {
+  PLACED_TYPES,
+  blockExamples,
+  everyBlockType,
+  missingBlockTypes,
+} from './e2e-block-examples.mjs';
 
 test('browser seed examples preserve each registry definition version, name, type and props', () => {
   const v1 = { title: { nl: 'Bestaand', en: 'Existing' } };
@@ -29,4 +34,13 @@ test('a type added to the registry lands behind the placed types, wherever the r
     ...PLACED_TYPES.map((type) => `${type}-first`),
     'added-first',
   ]);
+});
+
+test('a page seeded before a block was added lacks that type', () => {
+  const definitions = { heading: {}, audio: {} };
+  assert.deepEqual(missingBlockTypes(definitions, [{ type: 'heading' }]), ['audio']);
+  assert.deepEqual(
+    missingBlockTypes(definitions, [{ type: 'audio' }, { type: 'heading' }, { type: 'gone' }]),
+    []
+  );
 });
