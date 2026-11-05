@@ -104,7 +104,7 @@ Version 1.
 
 Examples: `cta-band`, `cta-card-two-actions`, `cta-full-end`.
 
-## `cards` (Cards)
+## `cards` (Action row)
 
 Version 1.
 

@@ -23,6 +23,7 @@
     OverviewPage,
     Select,
     Table,
+    ViewSwitch,
   } from '#lib/admin/ui/index.js';
   import { formatBytes, formatWhen } from '#lib/admin/format.js';
   import { THUMB, thumbPath } from '#lib/admin/ui/thumb.js';
@@ -99,21 +100,6 @@
   locale={data.locale}
   breadcrumb={[{ label: data.tenant.name, href: base }, { label: t('admin.media.title') }]}
   listTitle={t('admin.media.title')}
-  views={{
-    label: t('admin.media.view.label'),
-    items: [
-      {
-        href: data.links.grid,
-        label: t('admin.media.view.grid'),
-        current: data.view.layout === 'grid',
-      },
-      {
-        href: data.links.list,
-        label: t('admin.media.view.list'),
-        current: data.view.layout === 'list',
-      },
-    ],
-  }}
   empty={data.items.length === 0
     ? data.filtered
       ? {
@@ -175,7 +161,7 @@
     {/if}
   {/snippet}
 
-  {#snippet intro()}
+  {#snippet actions()}
     <Dialog
       id="media-upload"
       title={t('admin.media.upload.title')}
@@ -207,87 +193,99 @@
         </Fieldset>
       </form>
     </Dialog>
+  {/snippet}
+
+  {#snippet intro()}
     <UploadDropZone
       url="{base}/media/upload"
       locale={data.locale}
       hint={fill(t('admin.media.upload.hint'), { max: size(data.maxUploadBytes) })}
     />
-    {#if data.storage}
-      <p class="ui-hint" data-media-storage>
-        {fill(t('admin.media.storage'), {
-          used: size(data.storage.usedBytes),
-          max: size(data.storage.maxBytes),
-        })}
-      </p>
-    {/if}
   {/snippet}
 
   {#snippet filters()}
-    <form
-      method="get"
-      role="search"
-      class="ui-filter-bar"
-      aria-label={t('admin.content.list.filter')}
-    >
-      {#each data.keep as [name, value] (name)}<input type="hidden" {name} {value} />{/each}
-      <Field
-        id="media-search"
-        name="q"
-        type="search"
-        size="m"
-        value={data.view.q}
-        label={t('admin.media.search.label')}
-        locale={data.locale}
-      />
-      <Select
-        id="media-kind"
-        name="kind"
-        size="m"
-        value={data.view.kind ?? ''}
-        options={[
-          { value: '', label: t('admin.media.list.kind.all') },
-          ...data.kinds.map((kind) => ({
-            value: kind,
-            label: t(`admin.media.list.kind.${kind}` as const),
-          })),
+    <div class="ui-filter-row">
+      <form
+        method="get"
+        role="search"
+        class="ui-filter-bar"
+        aria-label={t('admin.content.list.filter')}
+      >
+        {#each data.keep as [name, value] (name)}<input type="hidden" {name} {value} />{/each}
+        <Field
+          id="media-search"
+          name="q"
+          type="search"
+          size="m"
+          value={data.view.q}
+          label={t('admin.media.search.label')}
+          locale={data.locale}
+        />
+        <Select
+          id="media-kind"
+          name="kind"
+          size="m"
+          value={data.view.kind ?? ''}
+          options={[
+            { value: '', label: t('admin.media.list.kind.all') },
+            ...data.kinds.map((kind) => ({
+              value: kind,
+              label: t(`admin.media.list.kind.${kind}` as const),
+            })),
+          ]}
+          label={t('admin.media.list.kind')}
+          locale={data.locale}
+        />
+        <Select
+          id="media-show"
+          name="show"
+          size="m"
+          value={data.view.show ?? ''}
+          options={[
+            { value: '', label: t('admin.media.list.show.all') },
+            ...data.shows.map((show) => ({
+              value: show,
+              label: t(`admin.media.list.show.${show}` as const),
+            })),
+          ]}
+          label={t('admin.media.list.show')}
+          locale={data.locale}
+        />
+        <Select
+          id="media-order"
+          name="sort"
+          size="m"
+          value={data.view.order}
+          options={data.orders.map((order) => ({
+            value: order,
+            label: t(`admin.media.list.order.${order}` as const),
+          }))}
+          label={t('admin.media.list.order')}
+          locale={data.locale}
+        />
+        <Actions>
+          <Button variant="secondary">{t('admin.content.list.submit')}</Button>
+          {#if data.filtered}
+            <Button variant="link" href={data.links.clear}>{t('admin.content.list.clear')}</Button>
+          {/if}
+        </Actions>
+      </form>
+      <ViewSwitch
+        label={t('admin.media.view.label')}
+        items={[
+          {
+            href: data.links.grid,
+            label: t('admin.media.view.grid'),
+            current: data.view.layout === 'grid',
+          },
+          {
+            href: data.links.list,
+            label: t('admin.media.view.list'),
+            current: data.view.layout === 'list',
+          },
         ]}
-        label={t('admin.media.list.kind')}
-        locale={data.locale}
       />
-      <Select
-        id="media-show"
-        name="show"
-        size="m"
-        value={data.view.show ?? ''}
-        options={[
-          { value: '', label: t('admin.media.list.show.all') },
-          ...data.shows.map((show) => ({
-            value: show,
-            label: t(`admin.media.list.show.${show}` as const),
-          })),
-        ]}
-        label={t('admin.media.list.show')}
-        locale={data.locale}
-      />
-      <Select
-        id="media-order"
-        name="sort"
-        size="m"
-        value={data.view.order}
-        options={data.orders.map((order) => ({
-          value: order,
-          label: t(`admin.media.list.order.${order}` as const),
-        }))}
-        label={t('admin.media.list.order')}
-        locale={data.locale}
-      />
-      <Actions>
-        <Button variant="secondary">{t('admin.content.list.submit')}</Button>
-        {#if data.filtered}
-          <Button variant="link" href={data.links.clear}>{t('admin.content.list.clear')}</Button>
-        {/if}
-      </Actions>
-    </form>
+    </div>
     {#if data.chips.length}
       <FilterChips
         label={t('admin.content.list.chips')}
@@ -300,6 +298,14 @@
     {/if}
     <div class="ui-list-tools">
       <p class="ui-list-count" id="media-count">{count}</p>
+      {#if data.storage}
+        <p class="ui-hint" data-media-storage>
+          {fill(t('admin.media.storage'), {
+            used: size(data.storage.usedBytes),
+            max: size(data.storage.maxBytes),
+          })}
+        </p>
+      {/if}
     </div>
   {/snippet}
 

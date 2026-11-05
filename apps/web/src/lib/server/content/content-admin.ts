@@ -31,6 +31,7 @@ import {
   type ContentDocument,
   type ContentDocumentInput,
 } from '@mycel/core';
+import { ui } from '../../../i18n/index.js';
 import { localInput } from './content-admin-publication.js';
 
 /** Form values: one string per field, a list for checkboxes and multi-selects. */
@@ -44,6 +45,11 @@ export function valuesFromForm(data: FormData): FormValues {
     out[key] = LISTS.has(key) ? all : (all[0] ?? '');
   }
   for (const key of LISTS) out[key] ??= [];
+  // A new item's title is a stand-in the field shows as placeholder (P185-79); left empty, it stays
+  // what is stored instead of refusing a save that only added a block.
+  const untitled = out.untitled;
+  if (typeof untitled === 'string' && untitled && !String(out[`title.${untitled}`] ?? '').trim())
+    out[`title.${untitled}`] = ui(untitled)('admin.content.untitled');
   return out;
 }
 

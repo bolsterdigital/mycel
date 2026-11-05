@@ -108,6 +108,9 @@ test.describe('content-admin', () => {
     const itemId = new URL(page.url()).pathname.split('/').at(-1)!;
     const initial = await callApi(request, 'content.item.get', { itemId });
     expect(initial.revision.document.title).toEqual({ nl: '(geen titel)' });
+    // The stand-in is a placeholder, not text to delete first (P185-79).
+    await expect(page.locator('#title\\.nl')).toHaveValue('');
+    await expect(page.locator('#title\\.nl')).toHaveAttribute('placeholder', '(geen titel)');
     expect(initial.revision.document.blocks).toEqual([]);
     // A programmatic select-all during hydration can append instead of replace (Notities, #66
     // PR 6); wait for the screen script like the other editor tests do.
@@ -1785,10 +1788,10 @@ test.describe('block card details', () => {
     await page
       .locator('[data-block-picker]')
       .last()
-      .getByRole('button', { name: 'Kaarten', exact: true })
+      .getByRole('button', { name: 'Actierij', exact: true })
       .click();
     const fresh = page.locator('#block-new');
-    await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Kaarten');
+    await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Actierij');
     await editorReady(page);
     const titles = fresh.getByLabel('Titel', { exact: true });
     await expect(titles).toHaveCount(2);

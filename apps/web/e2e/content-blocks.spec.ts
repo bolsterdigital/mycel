@@ -238,7 +238,7 @@ test.describe('content-blocks', () => {
     // A chosen block that is not wanted after all: the rest of the form is still saved.
     fresh = await insert(page, 'Citaat', 'end');
     await page.locator('#title\\.nl').fill('Blokkenproef zonder citaat');
-    await fresh.getByRole('button', { name: 'Niet toevoegen' }).click();
+    await fresh.getByRole('button', { name: 'Annuleren' }).click();
     await expect(page.locator('#block-new')).toHaveCount(0);
     await expect(summaries).toHaveCount(2);
     await expect(page.locator('#title\\.nl')).toHaveValue('Blokkenproef zonder citaat');
@@ -494,7 +494,7 @@ test.describe('content-blocks', () => {
     });
     await legacy.click();
     await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Citaat');
-    await fresh.getByRole('button', { name: 'Niet toevoegen' }).click();
+    await fresh.getByRole('button', { name: 'Annuleren' }).click();
 
     // A forged type stays outside the existing pending validator and is explained in place.
     const unknown = atEnd().getByRole('button', { name: 'Kop', exact: true });

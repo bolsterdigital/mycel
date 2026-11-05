@@ -38,6 +38,7 @@ import {
   type MediaCredit,
 } from '@mycel/core';
 import { ui } from '../../i18n/index.js';
+import { headingsAboveFloats } from './float-order.js';
 import type {
   BlockCopy,
   RenderAction,
@@ -466,7 +467,7 @@ export async function resolveDocument(
     locale,
     title: projection.title,
     base: options.base,
-    blocks: out,
+    blocks: headingsAboveFloats(out),
     links,
     copy: blockCopy(locale),
   };

@@ -31,6 +31,7 @@
   import { earlyInput } from '#lib/editor/early-input.js';
   import PublicationDrawer from '#lib/admin/ui/feedback/PublicationDrawer.svelte';
   import WritingSurface from '#lib/editor/WritingSurface.svelte';
+  import ItemTitleField from '#lib/editor/ItemTitleField.svelte';
   import BlockFields from '#lib/admin/BlockFields.svelte';
   import HeroAltRow from '#lib/admin/hero-alt/HeroAltRow.svelte';
   import Diff from '#lib/admin/Diff.svelte';
@@ -456,7 +457,6 @@
     <h3 id="block-new-title">
       {fill(t('admin.block.new'), { type: t(`admin.block.type.${p.type}` as const) })}
     </h3>
-    <p class="ui-hint">{t('admin.block.new.hint')}</p>
     {#each Object.entries(p.hidden) as [name, value] (name)}
       <input type="hidden" {name} {value} />
     {/each}
@@ -719,22 +719,12 @@
        the big title field already says where the header starts. -->
   <section aria-labelledby="item-header" class="item-header">
     <h3 id="item-header" class="ui-visually-hidden">{t('admin.content.header.title')}</h3>
-    <div class="ui-field">
-      <label class="ui-visually-hidden" for="title.{work}"
-        >{t('admin.content.edit.titleLabel')}</label
-      >
-      <input
-        class="ui-title-input"
-        size="1"
-        id="title.{work}"
-        name="title.{work}"
-        type="text"
-        maxlength="200"
-        required={work === defaultLocale}
-        value={v(`title.${work}`)}
-        lang={work}
-      />
-    </div>
+    <ItemTitleField
+      locale={work}
+      label={t('admin.content.edit.titleLabel')}
+      value={v(`title.${work}`)}
+      required={work === defaultLocale}
+    />
     {@render translateLinks('title', 'title', work, t('admin.content.field.title'))}
     {@render area(`lead.${work}`, t('admin.content.field.lead'), 1000)}
     {@render translateLinks('lead', 'lead', work, t('admin.content.field.lead'))}

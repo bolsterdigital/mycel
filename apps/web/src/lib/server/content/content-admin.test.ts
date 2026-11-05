@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ContentDocument, ContentDocumentInput } from '@mycel/core';
 import {
+  valuesFromForm,
   documentFrom,
   keepOrder,
   valuesOf,
@@ -293,5 +294,23 @@ describe('withoutLocales', () => {
     const before = structuredClone(article);
     withoutLocales(article, ['nl']);
     expect(article).toEqual(before);
+  });
+});
+
+describe("a new item's stand-in title (P185-79)", () => {
+  const form = (entries: Record<string, string>) => {
+    const data = new FormData();
+    for (const [k, v] of Object.entries(entries)) data.set(k, v);
+    return data;
+  };
+
+  it('stays what is stored when the field is left empty', () => {
+    const values = valuesFromForm(form({ untitled: 'nl', 'title.nl': '' }));
+    expect(values['title.nl']).toBe('(geen titel)');
+  });
+
+  it('gives way to a typed title, and does nothing on a form without the marker', () => {
+    expect(valuesFromForm(form({ untitled: 'nl', 'title.nl': 'Echt' }))['title.nl']).toBe('Echt');
+    expect(valuesFromForm(form({ 'title.nl': '' }))['title.nl']).toBe('');
   });
 });
