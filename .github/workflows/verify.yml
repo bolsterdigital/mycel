@@ -111,13 +111,15 @@ jobs:
       # The nine font packages `--with-deps` adds came from the Ubuntu mirror in 16 s or in over nine
       # minutes, inside the step limit below, so a slow mirror failed the job with no test red. apt
       # checks a cached .deb against its signed index and fetches again on a mismatch, so this adds
-      # no trust, and a failed restore only means the old download.
+      # no trust. The action reports a restore error or a download past its segment limit as a
+      # warning, so both only mean the old download.
       # Rejected: a higher step limit (hides a hang), dropping the fonts (rendering may change).
       - name: Restore browser system packages
         id: browser-debs
-        continue-on-error: true
-        timeout-minutes: 1
+        timeout-minutes: 2
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: '1'
         with:
           path: ~/browser-debs
           key: browser-debs-${{ runner.os }}-${{ env.ImageOS }}-v1
@@ -206,9 +208,10 @@ jobs:
       # Same packages and reasons as in `checks`.
       - name: Restore browser system packages
         id: browser-debs
-        continue-on-error: true
-        timeout-minutes: 1
+        timeout-minutes: 2
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: '1'
         with:
           path: ~/browser-debs
           key: browser-debs-${{ runner.os }}-${{ env.ImageOS }}-v1
