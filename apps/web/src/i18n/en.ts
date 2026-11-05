@@ -372,7 +372,7 @@ export const en = {
   'admin.media.upload.title': 'Upload a file',
   'admin.media.upload.file': 'File',
   'admin.media.upload.hint':
-    'JPEG, PNG, WebP, AVIF, GIF, PDF or MP3, at most {max}. Photos are stored without their metadata (such as location); SVG is not accepted.',
+    'JPEG, PNG, WebP, AVIF, GIF, PDF or MP3, at most {max}. Photos are stored without their metadata (such as location); a PDF or MP3 is kept as uploaded, its metadata included. SVG is not accepted.',
   'admin.media.upload.restricted': 'Restricted: only readers with access see this file',
   'admin.media.upload.submit': 'Upload',
   'admin.media.library': 'Library',
@@ -1456,7 +1456,7 @@ export const en = {
   'admin.media.view.label': 'View',
   'admin.media.view.grid': 'Grid',
   'admin.media.view.list': 'List',
-  'admin.media.none.body': 'Upload an image or a PDF above; it appears here with its thumbnail.',
+  'admin.media.none.body': 'Upload an image, a PDF or an MP3 above; it appears here.',
   'admin.media.filename': 'File name',
   'admin.media.type': 'File type',
   'admin.media.dimensions': 'Dimensions',
