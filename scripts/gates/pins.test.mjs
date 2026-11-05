@@ -3,8 +3,10 @@
 // is the Node source (setup-node reads it; the Dockerfile default and the quality workflow,
 // whose evidence records the version literally, must equal it); the backup client's floor
 // (`>=`, TODO #179: Alpine moves its packages, so the client may be newer) is the minor the
-// Postgres servers run; production Caddy is the release the quality workflow measures. Run by
-// `npm run lint:infra`, offline.
+// Postgres servers run; production Caddy is the release the quality workflow measures. RustFS and
+// gitleaks follow the same rule, and so does the CI runner: `ubuntu-latest` moves without a commit,
+// so a job could change operating system between two runs of one SHA. Run by `npm run lint:infra`,
+// offline.
 // Rejected: generating the files from one config (a build step for four lines) and floating tags
 // (`16-alpine`, `caddy:2`), which let a pull change what was measured.
 
@@ -26,13 +28,23 @@ export function pins(files) {
     add(path, 'postgres', /postgresql\d+-client(?:~|>=)([\d.]+)/g, text);
     add(path, 'caddy', /image: caddy:([\w.-]+)/g, text);
     add(path, 'caddy', /caddy\/releases\/download\/v([\d.]+)\//g, text);
+    add(path, 'rustfs', /image: rustfs\/rustfs:([\w.-]+)/g, text);
+    add(path, 'gitleaks', /ghcr\.io\/gitleaks\/gitleaks:([\w.-]+)/g, text);
+    add(path, 'runner', /^\s*runs-on: (\S+)/gm, text);
   }
   return out;
 }
 
 /** The runtimes whose pins disagree or float, as messages. Postgres compares `<major>.<minor>`. */
 export function disagreements(found) {
-  const norm = { node: (v) => v, caddy: (v) => v, postgres: (v) => v.replace(/-alpine$/, '') };
+  const norm = {
+    node: (v) => v,
+    caddy: (v) => v,
+    rustfs: (v) => v,
+    postgres: (v) => v.replace(/-alpine$/, ''),
+    gitleaks: (v) => v.replace(/^v/, ''),
+    runner: (v) => v.replace(/^ubuntu-/, ''),
+  };
   const errors = [];
   for (const runtime of Object.keys(norm)) {
     const own = found.filter((p) => p.runtime === runtime);
@@ -55,11 +67,12 @@ const sources = () =>
     'docker/backup/Dockerfile',
     ...walk('', { match: (p) => /^compose[\w.]*\.ya?ml$/.test(p), skip: () => true }),
     ...walk('.github/workflows', { match: (p) => /\.ya?ml$/.test(p) }),
+    'scripts/gates/gitleaks.test.mjs',
   ]);
 
-test('Node, Postgres and Caddy are each pinned to one version everywhere', () => {
+test('every runtime, RustFS, gitleaks and the runner are each pinned to one version', () => {
   const found = pins(sources());
-  for (const runtime of ['node', 'postgres', 'caddy'])
+  for (const runtime of ['node', 'postgres', 'caddy', 'rustfs', 'gitleaks', 'runner'])
     assert.ok(found.filter((p) => p.runtime === runtime).length >= 2, `found the ${runtime} pins`);
   assert.deepEqual(disagreements(found), []);
 });
@@ -78,5 +91,22 @@ test('a floating tag and a second version are caught', () => {
     'node pins disagree: .nvmrc 22.22.0, Dockerfile 22, ci.yml 22.22.0',
     'compose.yml: caddy 2 floats; pin a minor',
     'caddy pins disagree: compose.yml 2, ci.yml 2.10.2',
+  ]);
+});
+
+test('a moving runner, and a second RustFS or gitleaks version, are caught', () => {
+  const found = pins([
+    { path: 'a.yml', text: '    runs-on: ubuntu-24.04\n    image: rustfs/rustfs:1.0.1\n' },
+    {
+      path: 'b.yml',
+      text: '    runs-on: ubuntu-latest\n    image: rustfs/rustfs:1.0.2\n    ghcr.io/gitleaks/gitleaks:v8.30.1 \\\n',
+    },
+    { path: 'c.mjs', text: "const image = 'ghcr.io/gitleaks/gitleaks:v8.31.0';\n" },
+  ]);
+  assert.deepEqual(disagreements(found), [
+    'rustfs pins disagree: a.yml 1.0.1, b.yml 1.0.2',
+    'gitleaks pins disagree: b.yml v8.30.1, c.mjs v8.31.0',
+    'b.yml: runner ubuntu-latest floats; pin a minor',
+    'runner pins disagree: a.yml ubuntu-24.04, b.yml ubuntu-latest',
   ]);
 });
