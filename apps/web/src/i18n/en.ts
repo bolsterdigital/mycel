@@ -1462,6 +1462,7 @@ export const en = {
   'admin.ui.catalogue.subnav.theme': 'Theme',
   'admin.ui.catalogue.subnav.domains': 'Domains',
   'admin.ui.catalogue.outline': 'Document outline',
+  'admin.ui.catalogue.rowActions': 'Actions in a table row',
   'admin.ui.catalogue.confirm': 'Confirm in the row, show once and copy',
   'admin.ui.catalogue.dialog': 'Dialog',
   'admin.ui.catalogue.dialog.open': 'View full size',

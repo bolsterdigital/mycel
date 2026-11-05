@@ -61,6 +61,9 @@
       ? plural('admin.content.list.found', data.total)
       : plural(`admin.content.list.count.${data.type}`, data.total)
   );
+  // Without any, a reader would open a menu with nothing in it. Taking offline needs a live page.
+  const hasActions = (item: (typeof data.items)[number]) =>
+    Boolean(item.live || item.preview || data.canWrite);
   const nothing = $derived(
     data.view.q
       ? fill(t('admin.content.list.none.q'), { q: data.view.q })
@@ -241,8 +244,9 @@
                 ? item.titleLocale
                 : undefined}>{item.title || t('admin.content.untitled')}</a
             >
-            <RowActions menu={t('admin.content.row.menu')}>{@render rowActions(item)}</RowActions
-            ></th
+            {#if hasActions(item)}
+              <RowActions menu={t('admin.content.row.menu')}>{@render rowActions(item)}</RowActions>
+            {/if}</th
           >
           <td>
             <Badge tone={tone(item.status)}>{status(item.status)}</Badge>
@@ -259,7 +263,9 @@
             {/if}
           </td>
           <td><time datetime={updated.iso} title={updated.full}>{updated.text}</time></td>
-          <td class="ui-row-actions-cell"><RowActions>{@render rowActions(item)}</RowActions></td>
+          <td class="ui-row-actions-cell"
+            >{#if hasActions(item)}<RowActions>{@render rowActions(item)}</RowActions>{/if}</td
+          >
         </tr>
       {/each}
     {/snippet}

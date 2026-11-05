@@ -1475,6 +1475,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.ui.catalogue.subnav.theme': 'Thema',
   'admin.ui.catalogue.subnav.domains': 'Domeinen',
   'admin.ui.catalogue.outline': 'Inhoudsopgave van een document',
+  'admin.ui.catalogue.rowActions': 'Acties in een tabelrij',
   'admin.ui.catalogue.confirm': 'Bevestigen in de rij, eenmalig tonen en kopiëren',
   'admin.ui.catalogue.dialog': 'Dialoogvenster',
   'admin.ui.catalogue.dialog.open': 'Op ware grootte bekijken',

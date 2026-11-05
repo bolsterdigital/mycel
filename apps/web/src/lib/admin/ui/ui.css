@@ -561,7 +561,10 @@
     align-items: center;
     gap: 0 var(--space-1);
   }
-  .ui-row-actions .ui-button {
+  /* The row's own actions keep their one line. The question's button is not one of them: it lives
+     in the question's narrower column and runs on at its word boundaries (#79, F4). */
+  .ui-row-actions > .ui-button,
+  .ui-row-actions > .ui-confirm > summary {
     white-space: nowrap;
   }
   .ui-row-actions.inline {

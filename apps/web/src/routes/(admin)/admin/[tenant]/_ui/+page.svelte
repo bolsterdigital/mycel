@@ -43,6 +43,7 @@
     PageHeader,
     Pagination,
     Panel,
+    RowActions,
     Select,
     SubNav,
     Table,
@@ -74,6 +75,31 @@
       relative: data.dateFormat !== 'absolute',
     });
 </script>
+
+{#snippet sampleRowActions()}
+  <a class="ui-button link" href="#ui-row-actions" aria-label="{t('admin.content.row.site')}: Brood"
+    >{t('admin.content.row.site')}</a
+  >
+  <a
+    class="ui-button link"
+    href="#ui-row-actions"
+    aria-label="{t('admin.content.row.preview')}: Brood">{t('admin.content.row.preview')}</a
+  >
+  <button
+    class="ui-button link"
+    form="ui-row-actions-form"
+    aria-label="{t('admin.content.row.duplicate')}: Brood"
+    >{t('admin.content.row.duplicate')}</button
+  >
+  <ConfirmAction
+    variant="link"
+    label={t('admin.content.action.unpublish')}
+    question={fill(t('admin.content.row.offline.question'), { locale: 'nl' })}
+    confirm={t('admin.content.row.offline.confirm')}
+    name="Brood"
+    form="ui-row-actions-form"
+  />
+{/snippet}
 
 <svelte:head>
   <title>{t('admin.ui.catalogue.title')} · {data.tenant.name}</title>
@@ -444,6 +470,37 @@
       next="{here}?page=3#ui-table"
       position={fill(t('admin.usage.of'), { used: 2, max: 5 })}
     />
+  </section>
+
+  <section aria-labelledby="ui-row-actions">
+    <h2 id="ui-row-actions">{t('admin.ui.catalogue.rowActions')}</h2>
+    <!-- A form without action posts nowhere but this page: the catalogue has no actions. -->
+    <form id="ui-row-actions-form"></form>
+    <Table
+      id="ui-row-actions-table"
+      caption={t('admin.ui.catalogue.rowActions')}
+      hideCaption
+      level
+      columns={[
+        { key: 'name', label: t('admin.ui.catalogue.table.name') },
+        {
+          key: 'actions',
+          label: t('admin.content.list.column.actions'),
+          class: 'ui-row-actions-cell',
+        },
+      ]}
+    >
+      {#snippet rows()}
+        <tr>
+          <th scope="row" aria-labelledby="ui-row-actions-name"
+            ><span id="ui-row-actions-name">Brood</span>
+            <RowActions menu={t('admin.content.row.menu')}>{@render sampleRowActions()}</RowActions
+            ></th
+          >
+          <td class="ui-row-actions-cell"><RowActions>{@render sampleRowActions()}</RowActions></td>
+        </tr>
+      {/snippet}
+    </Table>
   </section>
 
   <section aria-labelledby="ui-cards">
