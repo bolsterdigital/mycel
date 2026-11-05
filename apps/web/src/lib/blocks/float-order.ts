@@ -1,9 +1,11 @@
 // An image beside the text stands beside running text, never above a heading (P185-79: a float
 // placed before a text that opens with its heading started higher than the heading did). So
 // the headings go first, in reading order too, and the float starts at the first paragraph.
-// That holds for a run of floats (they all wait for the same text) and across blocks: heading
-// blocks and texts that are only headings move up whole, until the first block with running
-// text, whose opening headings are split off.
+// That holds for a run of floats (they all wait for the same text), also when a heading sits
+// between two floats (the later float joins the same run, in its order), and across blocks:
+// heading blocks and texts that are only headings move up whole, until the first block with
+// running text, whose opening headings are split off. So every heading up to that running text
+// ends up above every float of the run.
 // Here and not in the document: an editor's block order stays as saved, and every representation
 // that renders a model gets the same answer. Rejected: pushing the float down with a margin (a
 // heading's height depends on its wrapping) and refusing the order in the editor (a correct
@@ -36,6 +38,11 @@ export function headingsAboveFloats(blocks: readonly RenderBlock[]): RenderBlock
     const beside: RenderBlock[] = [];
     while (i < blocks.length) {
       const next = blocks[i]!;
+      if (isFloat(next)) {
+        floats.push(next);
+        i += 1;
+        continue;
+      }
       if (next.type === 'heading') {
         above.push(next);
         i += 1;

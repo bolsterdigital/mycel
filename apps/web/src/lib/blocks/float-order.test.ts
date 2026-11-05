@@ -58,6 +58,23 @@ describe('headingsAboveFloats', () => {
     expect(ids([a, b, h, text(paragraph)])).toEqual(['h', 'a', 'b', 'txt']);
   });
 
+  it('lets a float after the collected headings join the run, so no float precedes a heading', () => {
+    const a = { ...float(), id: 'a' } as RenderBlock;
+    const b = { ...float('float-left'), id: 'b' } as RenderBlock;
+    const h = { id: 'h', type: 'heading', text: 'x' } as RenderBlock;
+    const ids = (blocks: RenderBlock[]) => headingsAboveFloats(blocks).map((x) => x.id);
+    expect(ids([a, h, b, text(heading, paragraph)])).toEqual(['h', 'txt-opening', 'a', 'b', 'txt']);
+    const only = { ...text(heading), id: 'only' } as RenderBlock;
+    expect(ids([a, only, b, text(heading, paragraph)])).toEqual([
+      'only',
+      'txt-opening',
+      'a',
+      'b',
+      'txt',
+    ]);
+    expect(ids([a, h, b, text(paragraph)])).toEqual(['h', 'a', 'b', 'txt']);
+  });
+
   it('splits every heading a text opens with, and leaves an empty text where it is', () => {
     const sub = { ...heading, attrs: { level: 2 } };
     const [opening, , rest] = headingsAboveFloats([float(), text(heading, sub, paragraph)]);
