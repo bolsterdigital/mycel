@@ -388,6 +388,12 @@ describe('refusals', () => {
     const one = cards.props.cards[0];
     refused({ ...cards, props: { ...cards.props, cards: [one] } });
     refused({ ...cards, props: { ...cards.props, cards: Array(7).fill(one) } });
+    const files = base('file-download');
+    const file = files.props.files[0];
+    refused({ ...files, props: { ...files.props, files: [] } });
+    refused({ ...files, props: { ...files.props, files: Array(13).fill(file) } });
+    refused({ ...files, props: { ...files.props, files: [{ ...file, fileId: '' }] } });
+    refused({ ...files, props: { ...files.props, files: [{ fileId: file.fileId }] } });
     refused({
       ...cards,
       props: {
@@ -471,6 +477,8 @@ describe('references', () => {
     expect(rows('faq-list')).toEqual([`faq-0 item ${EXAMPLE_IDS.item}`]);
     expect(rows('cta-band')).toEqual([`cta-0 item ${EXAMPLE_IDS.item}`]);
     expect(rows('cards-three-links')).toEqual([`cards-0 item ${EXAMPLE_IDS.item}`]);
+    // Twice the same file in one block is one row; the column says `media`, as for an image.
+    expect(rows('file-download-titled')).toEqual([`file-download-1 media ${EXAMPLE_IDS.document}`]);
     expect(rows('quote-pullquote-wide')).toEqual([]);
     expect(rows('video-youtube')).toEqual([]);
   });

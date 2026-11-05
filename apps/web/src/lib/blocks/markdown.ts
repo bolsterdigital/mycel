@@ -138,6 +138,14 @@ export function renderMarkdown(model: RenderModel, options: MarkdownOptions): st
             ...c.actions.map((a) => link(a.label, a.href)),
           ])
           .join('\n\n');
+      case 'file-download': {
+        if (!b.files.length) return null;
+        return [
+          ...(b.title ? [heading(BLOCK_DEPTH, b.title)] : []),
+          ...(b.body ? [md(b.body)] : []),
+          b.files.map((f) => `- ${link(f.label, f.href)} (${md(f.meta)})`).join('\n'),
+        ].join('\n\n');
+      }
       case 'callout': {
         const label = `*${md(model.copy.callout[b.variant])}*`;
         const lines = b.title ? [label, heading(BLOCK_DEPTH, b.title)] : [label];

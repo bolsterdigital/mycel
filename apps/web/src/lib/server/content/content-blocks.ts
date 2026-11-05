@@ -13,6 +13,7 @@
 
 import {
   BLOCK_DEFINITIONS,
+  FILE_DOWNLOAD_ROWS,
   blockReferences,
   can,
   useCases,
@@ -51,7 +52,7 @@ export async function pickerOptions(
   const used = blockReferences(blocks);
   const orNull = <T>(p: Promise<T>) => p.catch(() => null);
   const [media, items] = await Promise.all([
-    mediaChoices(principal, [...new Set([...used.media, ...alsoChosen])]),
+    mediaChoices(principal, [...new Set([...used.media, ...used.documents, ...alsoChosen])]),
     invoker.run(useCases.listItems, principal, { limit: MAX_PAGE_SIZE }).then(({ items }) => {
       const label = (i: { slug: string; title: Record<string, string | undefined> }) =>
         `${pickAny(i.title, locale) ?? i.slug} (/${i.slug})`;
@@ -70,7 +71,8 @@ export async function pickerOptions(
 }
 
 /**
- * The images a media picker offers: a page of the newest plus the ones already chosen. An
+ * What the media pickers offer: a page of the newest images and of the newest documents, each
+ * picker showing its own kind, plus the ones already chosen. An
  * editor without `media:read` sees the chosen ones by id, and keeps them.
  */
 export async function mediaChoices(
@@ -80,13 +82,14 @@ export async function mediaChoices(
   const { invoker } = runtime();
   const missing = (id: string): MediaChoice => ({ id, label: id, thumb: false });
   if (!can(principal, 'media:read')) return chosen.map(missing);
-  const { items } = await invoker.run(useCases.listMedia, principal, {
-    kind: 'image',
-    limit: MAX_PAGE_SIZE,
-  });
+  const [images, documents] = await Promise.all(
+    (['image', 'document'] as const).map((kind) =>
+      invoker.run(useCases.listMedia, principal, { kind, limit: MAX_PAGE_SIZE })
+    )
+  );
   return withAssigned(
     chosen,
-    items.map(mediaChoice),
+    [...images!.items, ...documents!.items].map(mediaChoice),
     async (id) => {
       const m = await invoker.run(useCases.getMedia, principal, { id }).catch(() => null);
       return m && mediaChoice(m);
@@ -254,6 +257,15 @@ export type TextRest =
         labelFrom: string;
       }[];
     }
+  | {
+      kind: 'file-download';
+      title: string;
+      titleFrom: string;
+      body: string;
+      bodyFrom: string;
+      /** One place per row the form can have, so a file typed after opening shows at rest. */
+      files: readonly { label: string; from: string }[];
+    }
   /** A paywall has no words of its own: the screen says what the boundary does. */
   | { kind: 'paywall' }
   | {
@@ -392,6 +404,19 @@ export function textRestOf(
       }),
     };
   }
+  if (block.type === 'file-download') {
+    return {
+      kind: 'file-download',
+      title: local(block.props.title),
+      titleFrom: field(`title.${locale}`),
+      body: local(block.props.body),
+      bodyFrom: field(`body.${locale}`),
+      files: Array.from({ length: FILE_DOWNLOAD_ROWS }, (_, i) => ({
+        label: local(block.props.files[i]?.name),
+        from: field(`files.${i}.name.${locale}`),
+      })),
+    };
+  }
   if (block.type === 'paywall') return { kind: 'paywall' };
   if (block.type === 'video-embed') {
     return {
@@ -510,6 +535,9 @@ const ISSUE_COPY: Record<string, UiKey> = {
   'content.blocks.adjacent-rich-text': 'admin.block.issue.adjacentText',
   'content.blocks.too-many': 'admin.block.issue.tooMany',
   'content.cards.too-few': 'admin.block.issue.tooFewCards',
+  'content.files.too-few': 'admin.block.issue.tooFewFiles',
+  'content.files.no-file': 'admin.block.issue.noFile',
+  'content.reference.media-not-document': 'admin.content.issue.mediaNotDocument',
   'entitlements.feature-off': 'admin.block.issue.notIncluded',
   'editor.markdown.unclosed-link': 'admin.block.issue.unclosedLink',
   'editor.markdown.unknown-footnote': 'admin.block.issue.unknownFootnote',

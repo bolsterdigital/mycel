@@ -29,6 +29,8 @@ export interface LocalField {
 export interface PropReference {
   type: 'form' | 'item' | 'media';
   refId: string;
+  /** This media slot takes a document, not an image; the `content_block_refs` row stays `media`. */
+  document?: true;
 }
 
 export interface BlockExample<P> {
@@ -57,7 +59,7 @@ export type BlockField =
     }
   | { key: string; kind: 'caption' }
   | { key: string; kind: 'rich-text' }
-  | { key: string; kind: 'media' }
+  | { key: string; kind: 'media'; accept?: 'document' }
   | { key: string; kind: 'reference'; to: 'form' | 'item' }
   | {
       key: string;
@@ -99,6 +101,8 @@ export const HERO_VARIANTS = ['minimal', 'cover', 'split'] as const;
 export const CTA_VARIANTS = ['band', 'card'] as const;
 export const CALLOUT_VARIANTS = ['info', 'note', 'warning'] as const;
 export const CARDS_ACCENTS = ['none', 'bar', 'filled'] as const;
+/** How many files one `file-download` block lists; the rest view keeps a place for each. */
+export const FILE_DOWNLOAD_ROWS = 12;
 export const FAQ_VARIANTS = ['list', 'accordion'] as const;
 export const QUOTE_VARIANTS = ['blockquote', 'pullquote'] as const;
 export const VIDEO_PROVIDERS = ['youtube', 'vimeo'] as const;
@@ -229,6 +233,7 @@ export const EXAMPLE_IDS = {
   item: exampleId(0xc001),
   image: exampleId(0xd001),
   portrait: exampleId(0xd002),
+  document: exampleId(0xd003),
 } as const;
 
 const doc = (...paragraphs: string[]): RichTextDoc => ({
@@ -601,6 +606,86 @@ export const BLOCK_DEFINITIONS = {
           accent: 'filled',
           width: 'full',
           cards: [JOIN_CARD, VOLUNTEER_CARD, DONATE_CARD, NO_LINK_CARD],
+        },
+      },
+    ],
+  }),
+
+  // Dreamkit's file download, with the name of a file required and localised: readers get
+  // "Annual report 2025", not `jr-2025-final-v3.pdf`, and the rest view can show it without a media
+  // lookup. Rejected: falling back on the filename, which puts an internal name on the public site.
+  // No width: a list of links reads best at the width of the text.
+  'file-download': define({
+    version: 1,
+    props: z
+      .object({
+        title: localized(ShortText).optional(),
+        body: localized(BodyText).optional(),
+        files: z
+          .array(
+            z
+              .object({
+                fileId: z.string().guid('content.files.no-file'),
+                name: localized(ShortText),
+              })
+              .strict()
+          )
+          .min(1, 'content.files.too-few')
+          .max(FILE_DOWNLOAD_ROWS),
+      })
+      .strict(),
+    fields: [
+      textField('title', { localized: true, optional: 'omit' }),
+      textField('body', { localized: true, multiline: true, optional: 'omit' }),
+      {
+        key: 'files',
+        kind: 'list',
+        min: 1,
+        max: FILE_DOWNLOAD_ROWS,
+        fields: [
+          { key: 'fileId', kind: 'media', accept: 'document' },
+          textField('name', { localized: true }),
+        ],
+      },
+    ],
+    variants: {},
+    localized: (p) => [
+      ...present(['title'], p.title),
+      ...present(['body'], p.body),
+      ...p.files.flatMap((f, i) => present(['files', i, 'name'], f.name)),
+    ],
+    references: (p) =>
+      p.files.map((f) => ({ type: 'media' as const, refId: f.fileId, document: true as const })),
+    examples: [
+      {
+        name: 'file-download-one',
+        props: {
+          files: [
+            {
+              fileId: EXAMPLE_IDS.document,
+              name: { nl: 'Jaarverslag 2025', en: 'Annual report 2025' },
+            },
+          ],
+        },
+      },
+      {
+        name: 'file-download-titled',
+        props: {
+          title: { nl: 'Stukken bij deze zaak', en: 'Documents in this case' },
+          body: {
+            nl: 'Alle stukken die we openbaar hebben gekregen, met hun datum.',
+            en: 'Every document we obtained publicly, with its date.',
+          },
+          files: [
+            {
+              fileId: EXAMPLE_IDS.document,
+              name: { nl: 'Jaarverslag 2025', en: 'Annual report 2025' },
+            },
+            {
+              fileId: EXAMPLE_IDS.document,
+              name: { nl: 'Brief aan de gemeente', en: 'Letter to the municipality' },
+            },
+          ],
         },
       },
     ],

@@ -34,6 +34,7 @@ const CARD_WIDTH = 640;
 
 export const mediaChoice = (m: {
   id: string;
+  kind?: string;
   filename: string;
   variants: readonly { name: string; format: string; width: number | null }[];
   width?: number | null;
@@ -49,6 +50,7 @@ export const mediaChoice = (m: {
     id: m.id,
     label: m.filename,
     thumb: m.variants.some((v) => v.name === 'thumb'),
+    ...(m.kind === 'document' && { document: true }),
     card:
       variant && m.width && m.height && m.caption && m.credit
         ? {

@@ -182,7 +182,7 @@ const SIGNATURES_USE = {
   },
 };
 
-export type DemoMediaIds = Record<DemoImageKey, string>;
+export type DemoMediaIds = Record<DemoImageKey, string> & { report: string };
 
 // --- rich-text builders -----------------------------------------------------------------------
 
@@ -661,6 +661,54 @@ export function demoPage(refs: { formId: string; media: DemoMediaIds }): CreateI
 
 // --- the article ------------------------------------------------------------------------------
 
+const DEMO_REPORT_FILENAME = 'meetresultaten-pepernoten.pdf';
+
+/**
+ * A real one-page PDF, written here so the demo's download opens without a binary in the repo.
+ * Invented figures, as everything in this article. Rejected: a committed file, which needs the
+ * source table the demo photos have, for a page that says one sentence.
+ */
+function demoReportPdf(): Uint8Array {
+  const text = 'Meetresultaten pepernoten: 48 zakken, demonstratiegegevens.';
+  const stream = `BT /F1 14 Tf 72 720 Td (${text}) Tj ET`;
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R ' +
+      '/Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets = objects.map((body, i) => {
+    const at = pdf.length;
+    pdf += `${i + 1} 0 obj\n${body}\nendobj\n`;
+    return at;
+  });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const at of offsets) pdf += `${String(at).padStart(10, '0')} 00000 n \n`;
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return new TextEncoder().encode(pdf);
+}
+
+/** The measurements behind the article, to download. */
+function articleReport(report: string): BlockIn {
+  return {
+    type: 'file-download',
+    version: BLOCK_DEFINITIONS['file-download'].version,
+    props: {
+      title: { nl: 'De meetresultaten', en: 'The measurements' },
+      files: [
+        {
+          fileId: report,
+          name: { nl: 'Alle 48 zakken per merk', en: 'All 48 bags by brand' },
+        },
+      ],
+    },
+  };
+}
+
 const ARTICLE_TITLE: L = {
   nl: 'Pepernoten zijn vaak zouter dan chips',
   en: 'Pepernoten are often saltier than crisps',
@@ -1016,6 +1064,7 @@ export function demoArticle(refs: {
         image2!,
         callout!,
         faq!,
+        articleReport(refs.media.report),
         articleNext(),
         cta!,
         video!,
@@ -1039,9 +1088,14 @@ export interface DemoSeed {
 /** The bytes of the committed photo `image.filename`, a JPEG of `image.width` by `image.height`. */
 type Load = (image: DemoImage) => Promise<Uint8Array>;
 
-async function findMedia(invoker: Invoker, principal: Principal, filename: string) {
+async function findMedia(
+  invoker: Invoker,
+  principal: Principal,
+  filename: string,
+  kind: 'image' | 'document' = 'image'
+) {
   const { items } = await invoker.run(useCases.listMedia, principal, {
-    kind: 'image',
+    kind,
     q: filename,
   });
   return items.find((m) => m.filename === filename);
@@ -1054,6 +1108,15 @@ async function demoMedia(
   load: Load
 ): Promise<DemoMediaIds> {
   const media: Partial<DemoMediaIds> = {};
+  media.report =
+    (await findMedia(invoker, principal, DEMO_REPORT_FILENAME, 'document'))?.id ??
+    (
+      await invoker.run(useCases.uploadMedia, principal, {
+        filename: DEMO_REPORT_FILENAME,
+        contentType: 'application/pdf',
+        bytes: bytesToBase64(demoReportPdf()),
+      })
+    ).id;
   for (const image of DEMO_IMAGES) {
     const found = await findMedia(invoker, principal, image.filename);
     media[image.key] =
