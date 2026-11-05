@@ -1,7 +1,6 @@
 {
   "ceilings": {
-    "packages/core/src/testing/memory": 16,
-    "packages/db/src": 23
+    "packages/core/src/testing/memory": 16
   },
   "exempt": {
     ".": "the repository root holds the files tools look for there (package.json, licence, configs)",

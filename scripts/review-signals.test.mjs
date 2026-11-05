@@ -85,7 +85,10 @@ test('every tracked file maps, so needs review only ever means a new path', () =
 });
 
 test('a migration routes to security first and raises the migration flag', () => {
-  const r = route(['packages/db/migrations/0021_x.sql', 'packages/db/src/jobs.ts'], profile);
+  const r = route(
+    ['packages/db/migrations/0021_x.sql', 'packages/db/src/operations/jobs.ts'],
+    profile
+  );
   assert.equal(r.verdict, 'route');
   assert.equal(r.lenses[0].id, 'security');
   assert.ok(r.lenses.some((l) => l.id === 'reliability'));

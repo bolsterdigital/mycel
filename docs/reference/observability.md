@@ -76,7 +76,7 @@ The console reporter always writes one `error` line with `errorType`, the scrubb
 
 `/healthz` stays the container healthcheck, so a database outage or a backlog takes a process out of rotation (readiness) but never into a restart loop. The proxy of the production stack ([`docker/caddy/Caddyfile`](../../docker/caddy/Caddyfile)) answers 404 for `/readyz`, `/metrics` and `/internal/*` from outside, which CI checks through a real Caddy; the worker's health port is never routed.
 
-The api and web processes do not compute queue lag: they have no owner credentials and may not read the queues (ADR 011 rule 1). The worker does, as `mycel_worker` (`queueLag` in `packages/db/src/ops.ts`), with aggregates only.
+The api and web processes do not compute queue lag: they have no owner credentials and may not read the queues (ADR 011 rule 1). The worker does, as `mycel_worker` (`queueLag` in `packages/db/src/operations/ops.ts`), with aggregates only.
 
 ### Metric names
 

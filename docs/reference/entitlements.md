@@ -55,7 +55,7 @@ A use case that grows something countable declares the limit it grows: `consumes
 
 ## Usage
 
-`UsageReader` (`ports.ts`, `ctx.usage`) counts on demand inside the tenant's transaction as `mycel_app` (`packages/db/src/usage.ts`), so the limit checks and the admin read the same numbers. Rejected: a materialized view.
+`UsageReader` (`ports.ts`, `ctx.usage`) counts on demand inside the tenant's transaction as `mycel_app` (`packages/db/src/operations/usage.ts`), so the limit checks and the admin read the same numbers. Rejected: a materialized view.
 
 | Method              | Counts                                                                  |
 | ------------------- | ----------------------------------------------------------------------- |

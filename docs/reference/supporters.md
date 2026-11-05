@@ -59,13 +59,13 @@ Fold order is `occurred_at` compared as an instant, then `id` by code unit, whic
 
 ## Constants
 
-| Constant                    | Value               | Where                                                         | Why                                                                            |
-| --------------------------- | ------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| partitions ahead            | 3 months            | `packages/db/src/infra/migrate.ts`, `packages/db/src/jobs.ts` | a missed monthly job still leaves months before rows hit the default partition |
-| `FIRST_EVENT_MONTH`         | `2026-10-01`        | `packages/db/src/infra/migrate.ts`                            | first month with partitions; older rows need their own range first             |
-| `events.partitions` cadence | monthly             | `packages/api/src/jobs.ts`                                    | keeps the three-month lead without a deploy                                    |
-| `ADMISSION_WINDOW_MS`       | 7 days              | `packages/core/src/supporters/ports.ts`                       | a signup whose event never arrived must not hold a seat forever                |
-| `supporters.max`            | 100,000 (default)   | `packages/core/src/entitlements/model.ts`                     | supporters per tenant, projection plus live reservations                       |
-| `reason`                    | 1 to 500 characters | `packages/core/src/supporters/service.ts`                     | evidence for an address change                                                 |
-| `ERASED_DOMAIN`             | `erased.invalid`    | `packages/core/src/supporters/erasure.ts`                     | RFC 2606 reserved: a tombstone is never deliverable                            |
-| `ERASURE_UNSECURED_WARN_MS` | 1 hour              | `packages/core/src/supporters/erasure.ts`                     | four missed 15-minute erasure backups                                          |
+| Constant                    | Value               | Where                                                                    | Why                                                                            |
+| --------------------------- | ------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| partitions ahead            | 3 months            | `packages/db/src/infra/migrate.ts`, `packages/db/src/operations/jobs.ts` | a missed monthly job still leaves months before rows hit the default partition |
+| `FIRST_EVENT_MONTH`         | `2026-10-01`        | `packages/db/src/infra/migrate.ts`                                       | first month with partitions; older rows need their own range first             |
+| `events.partitions` cadence | monthly             | `packages/api/src/jobs.ts`                                               | keeps the three-month lead without a deploy                                    |
+| `ADMISSION_WINDOW_MS`       | 7 days              | `packages/core/src/supporters/ports.ts`                                  | a signup whose event never arrived must not hold a seat forever                |
+| `supporters.max`            | 100,000 (default)   | `packages/core/src/entitlements/model.ts`                                | supporters per tenant, projection plus live reservations                       |
+| `reason`                    | 1 to 500 characters | `packages/core/src/supporters/service.ts`                                | evidence for an address change                                                 |
+| `ERASED_DOMAIN`             | `erased.invalid`    | `packages/core/src/supporters/erasure.ts`                                | RFC 2606 reserved: a tombstone is never deliverable                            |
+| `ERASURE_UNSECURED_WARN_MS` | 1 hour              | `packages/core/src/supporters/erasure.ts`                                | four missed 15-minute erasure backups                                          |

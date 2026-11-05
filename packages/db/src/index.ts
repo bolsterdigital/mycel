@@ -33,8 +33,8 @@ import {
 import { auditRepository } from './audit.js';
 import { applicationName } from './infra/sessions.js';
 import { siteSettingsRepository, brandAssetsRepository } from './site-settings.js';
-import { connectionIntentsRepository } from './connection-intents.js';
-import { connectionRepository, credentialKey } from './connections.js';
+import { connectionIntentsRepository } from './connections/connection-intents.js';
+import { connectionRepository, credentialKey } from './connections/connections.js';
 import { assistRepository } from './assist.js';
 import {
   authorRepository,
@@ -43,24 +43,24 @@ import {
   sectionRepository,
 } from './content.js';
 import { erasureRepository } from './erasures.js';
-import { tenantExportRepository } from './tenant-exports.js';
+import { tenantExportRepository } from './portability/tenant-exports.js';
 import { hostnameRepository } from './hostnames.js';
 import { enterTenant } from './infra/roles.js';
-import { jobScheduler } from './jobs.js';
+import { jobScheduler } from './operations/jobs.js';
 import { jobRecoveryRepository } from './infra/recovery.js';
 import { mediaRepository } from './media.js';
 import { apiKeyRepository, membershipRepository, operatorRepository } from './operators.js';
-import { outboxEventBus } from './outbox.js';
+import { outboxEventBus } from './operations/outbox.js';
 import { formRepository, submissionRepository } from './forms.js';
 import { mailSendsRepository } from './mailing.js';
-import { rateLimiter } from './rate-limit.js';
+import { rateLimiter } from './operations/rate-limit.js';
 import { supporterRepository } from './supporters.js';
 import type { Database } from './infra/schema.js';
-import { usageReader } from './usage.js';
+import { usageReader } from './operations/usage.js';
 import { supporterAdmissions } from './infra/admissions.js';
 
 export type { Database } from './infra/schema.js';
-export { credentialKey, encryptCredential, decryptCredential } from './connections.js';
+export { credentialKey, encryptCredential, decryptCredential } from './connections/connections.js';
 export { uuidv7, uuidv7Ids } from './infra/ids.js';
 export {
   MAX_ATTEMPTS as OUTBOX_MAX_ATTEMPTS,
@@ -68,8 +68,8 @@ export {
   readOutboxEvent,
   startOutboxWorker,
   type DrainResult,
-} from './outbox.js';
-export { deleteFinishedJobs, ping, queueLag, type QueueLag } from './ops.js';
+} from './operations/outbox.js';
+export { deleteFinishedJobs, ping, queueLag, type QueueLag } from './operations/ops.js';
 export { sweepRateLimits } from './infra/janitor.js';
 export {
   opsCloseJob,
@@ -88,19 +88,17 @@ export {
 } from './infra/recovery.js';
 export { deleteExpiredAudit } from './audit.js';
 export { applyErasures, erasureStatus } from './erasures.js';
-export { expireExports, runExportJob, type ExportJobDeps } from './tenant-exports.js';
+export { expireExports, runExportJob, type ExportJobDeps } from './portability/tenant-exports.js';
 export {
   EXPORT_FORMAT,
   EXPORT_ORDER,
   TABLES,
   exportTenant,
-  importTenant,
   schemaVersion,
   type ExportManifest,
   type ExportOptions,
-  type ImportOptions,
-  type ImportReport,
-} from './export.js';
+} from './portability/export.js';
+export { importTenant, type ImportOptions, type ImportReport } from './portability/import.js';
 export {
   JOB_LEASE_SECONDS,
   claimJobs,
@@ -121,7 +119,7 @@ export {
   type RecurringJob,
   type WorkerErrorContext,
   type WorkerHooks,
-} from './jobs.js';
+} from './operations/jobs.js';
 export { createIdentityStore } from './operators.js';
 export { mediaRepository } from './media.js';
 export { createSiteDirectory, SITE_CACHE_TTL_MS } from './hostnames.js';

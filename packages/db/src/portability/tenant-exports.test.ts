@@ -60,12 +60,12 @@ import {
   uuidv7Ids,
   withTenant,
   type ExportManifest,
-} from './index.js';
+} from '../index.js';
 import { claimExportRow, stepExportRow, tenantExportRepository } from './tenant-exports.js';
-import { toJobRecord } from './jobs.js';
-import type { Database } from './infra/schema.js';
-import { asRole } from './infra/roles.js';
-import { requireDatabase, migrateSchema, testTenant } from './testing.js';
+import { toJobRecord } from '../operations/jobs.js';
+import type { Database } from '../infra/schema.js';
+import { asRole } from '../infra/roles.js';
+import { requireDatabase, migrateSchema, testTenant } from '../testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 

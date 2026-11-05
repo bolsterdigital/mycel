@@ -52,10 +52,10 @@ import {
   type TenantExportRepository,
 } from '@mycel/core';
 import { exportTenant, schemaVersion } from './export.js';
-import { withTenant } from './index.js';
-import { JOB_LEASE_SECONDS, touchJob } from './jobs.js';
-import { getTenant } from './platform.js';
-import type { Database } from './infra/schema.js';
+import { withTenant } from '../index.js';
+import { JOB_LEASE_SECONDS, touchJob } from '../operations/jobs.js';
+import { getTenant } from '../platform.js';
+import type { Database } from '../infra/schema.js';
 
 type Trx = Kysely<Database>;
 

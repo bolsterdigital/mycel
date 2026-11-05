@@ -54,9 +54,9 @@ import {
   uuidv7,
   uuidv7Ids,
   type ExportManifest,
-} from './index.js';
-import type { Database } from './infra/schema.js';
-import { closeTenantWork, requireDatabase, migrateSchema } from './testing.js';
+} from '../index.js';
+import type { Database } from '../infra/schema.js';
+import { closeTenantWork, requireDatabase, migrateSchema } from '../testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
