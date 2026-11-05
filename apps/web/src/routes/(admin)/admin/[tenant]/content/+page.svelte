@@ -65,7 +65,7 @@
   const hasActions = (item: (typeof data.items)[number]) =>
     Boolean(item.live || item.preview || data.canWrite);
   // A page on which no row has any keeps no column for them: without the row's actions the table
-  // is no container, so an empty column would never give way and the region would scroll at 320 px.
+  // is no container, so an empty column would never give way below 58rem.
   const anyActions = $derived(data.items.some(hasActions));
   const nothing = $derived(
     data.view.q
