@@ -80,6 +80,10 @@ test('every path pattern still matches a tracked file', () => {
   assert.deepEqual(dead, []);
 });
 
+test('every tracked file maps, so needs review only ever means a new path', () => {
+  assert.deepEqual(route(tracked, profile).unmapped, []);
+});
+
 test('a migration routes to security first and raises the migration flag', () => {
   const r = route(['packages/db/migrations/0021_x.sql', 'packages/db/src/jobs.ts'], profile);
   assert.equal(r.verdict, 'route');
@@ -116,9 +120,9 @@ test('a weakened test is a flag even when its module maps to no lens', () => {
 });
 
 test('a file the profile does not know makes the verdict needs review', () => {
-  const r = route(['packages/core/src/util/new-thing.ts', 'README.md'], profile);
+  const r = route(['tools/new-thing.ts', 'README.md'], profile);
   assert.equal(r.verdict, 'needs review');
-  assert.deepEqual(r.unmapped, ['packages/core/src/util/new-thing.ts']);
+  assert.deepEqual(r.unmapped, ['tools/new-thing.ts']);
   assert.deepEqual(r.informational, ['README.md']);
 });
 

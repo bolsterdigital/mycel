@@ -2,6 +2,10 @@
 
 A supporter is one person per tenant, identified by a normalised e-mail address that resolves to a stable `supporter_id`, with an append-only event log as the source of truth and a projection folded from it. Other modules publish domain events; the supporter module subscribes, maps them onto the envelope `wings.supporter-event.v1` inherited from Dreamkit, appends them and folds ([ADR 003](../adr/003-supporter-identity-and-event-log.md), [ADR 019](../adr/019-supporter-consistency-identity-and-retention.md) rules 1 to 3). Code: `packages/core/src/supporters/`, `supporterRepository` in `packages/db/src/supporters.ts`, migration 0005. Erasure is described in [export.md](export.md#erasure-register); the consent flow that feeds the log in [mail.md](mail.md); the tables in [database.md](database.md).
 
+## Identity and fold
+
+**Supporter identity and fold.** Ingest locks the event's e-mail address (a transaction-scoped advisory lock per tenant and address), resolves it to a stable `supporter_id` (a new UUIDv7 on first sight), appends the event to the monthly partitioned `events` log (dedup on the deterministic id) and folds it into the `supporters` projection. The projection records `appliedThrough`, the fold position (`occurred_at`, then id) of the last event it applied: a newer event is applied on top, a late one triggers a re-fold of that one supporter from its log, so every arrival order ends in the same projection. An address changes only through `supporter.email.update`, which locks both addresses and logs `supporter.email_changed` (ADR 019 rules 1 to 3). Monthly partitions are created by `migrate` up to three months ahead and kept going by the worker's monthly `events.partitions` job; a backfill calls `ensureEventPartitions` for its own range first.
+
 ## The envelope
 
 `SupporterEvent` (`packages/core/src/supporters/events.ts`) keeps the Dreamkit schema id so a backfill from the predecessor needs no translation. A new event type is an addition to `SupporterEventType`; a changed meaning is a new schema id, never an edit.

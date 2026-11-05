@@ -1,7 +1,7 @@
 {
   "$comment": "Project profile for targeted review (docs/architecture/review.md). Data, not code: which paths touch which review lens, which ADRs and gates already cover it, and which flags a reviewer reads first. scripts/review-signals.mjs maps a diff through it; scripts/review-signals.test.mjs keeps every path, ADR and gate here real.",
-  "version": 1,
-  "phase": "Phase 1: platform and content foundations. No editor, no public mail, no money yet.",
+  "version": 2,
+  "phase": "Platform, content with its editor, forms and mail are built. No money yet.",
   "lenses": [
     {
       "id": "security",
@@ -70,7 +70,11 @@
         "packages/core/src/util/digest*",
         "packages/core/src/util/email*",
         "packages/core/src/util/log*",
-        "packages/core/src/util/token*"
+        "packages/core/src/util/token*",
+        "apps/web/src/routes/_reports/**",
+        "apps/web/src/lib/server/http/reports*",
+        "apps/web/src/lib/server/admin/hostname*",
+        "apps/web/src/lib/server/admin/profile*"
       ],
       "adrs": ["002", "009", "011", "014", "016", "019", "024"],
       "gates": [
@@ -123,7 +127,8 @@
         "packages/api/src/**",
         "packages/mcp/src/**",
         "docs/reference/platform-api.md",
-        "packages/core/src/errors.ts"
+        "packages/core/src/errors.ts",
+        "apps/web/src/routes/.well-known/**"
       ],
       "adrs": ["009", "015", "018"],
       "gates": [
@@ -158,7 +163,8 @@
         "apps/web/src/app.html",
         "apps/web/src/lib/assets/**",
         "apps/web/e2e/quality-corpus.json",
-        "apps/web/e2e/routes.ts"
+        "apps/web/e2e/routes.ts",
+        "apps/web/src/hooks.client.ts"
       ],
       "adrs": ["009", "013", "020"],
       "gates": [
@@ -182,7 +188,8 @@
         "apps/web/src/lib/server/admin/time-zones*",
         "apps/web/src/lib/server/content/content-locale*",
         "apps/web/src/params.ts",
-        "packages/api/src/content-read.ts"
+        "packages/api/src/content-read.ts",
+        "apps/web/src/lib/server/public/share-locale*"
       ],
       "adrs": ["007", "012", "018"],
       "gates": [
@@ -232,7 +239,8 @@
         "apps/web/src/routes/readyz/**",
         "packages/db/src/ops.ts",
         "packages/db/src/usage.ts",
-        "packages/db/src/site-settings*"
+        "packages/db/src/site-settings*",
+        "packages/core/src/assist/**"
       ],
       "adrs": ["005", "011", "019"],
       "gates": [
@@ -280,7 +288,8 @@
         "apps/web/src/app.d.ts",
         "apps/web/src/lib/index.ts",
         "apps/web/src/lib/runtime-key.ts",
-        "packages/core/src/util/bytes*"
+        "packages/core/src/util/bytes*",
+        "packages/core/src/util/**"
       ],
       "adrs": ["001", "006", "008", "013"],
       "gates": [
@@ -313,7 +322,8 @@
         "packages/db/src/testing.ts",
         "scripts/**",
         "packages/db/src/infra/seed*.ts",
-        "packages/db/src/infra/sessions*"
+        "packages/db/src/infra/sessions*",
+        "apps/web/e2e/fonts/**"
       ],
       "adrs": ["000"],
       "gates": [
@@ -378,6 +388,7 @@
     "LICENSE",
     "SECURITY.md",
     "TRADEMARK.md",
-    "**/.vscode/**"
+    "**/.vscode/**",
+    "packages/api/demo-photos/**"
   ]
 }

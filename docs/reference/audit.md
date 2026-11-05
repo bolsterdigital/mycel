@@ -2,6 +2,10 @@
 
 Who did what on a site, and how it ended (PR #19). Every command, over HTTP, MCP or the web app, leaves exactly one row in `audit_log`; every mutation of the platform API and `npm run platform` leaves one too. The log names its actors by id and its inputs by a keyed hash: it is an account of actions, not a copy of the data (ADR 019 rule 8). Logs, error reports and metrics are in [observability.md](observability.md).
 
+## In short
+
+**Audit log** (PR #19, `docs/reference/audit.md`). `Invoker.run` writes one `audit_log` row per command through `ctx.audit`: in the command's own transaction when it succeeds, in a short transaction of its own after the rollback when it is refused or fails, so HTTP, MCP and web are covered by the one code path. A row holds tenant, actor kind and id (never an address), operation, effect, a keyed hash of the input (`ctx.inputHasher`, HMAC under `AUDIT_HASH_KEY`), result, request id and subject id. The platform functions write their own rows as `mycel_platform`; `audit.retention` prunes as `mycel_audit_janitor` (migration 0015). Tenant administrators read their log with `audit.list`.
+
 ## What a row holds
 
 | Column        | Content                                                                                                                                      |
