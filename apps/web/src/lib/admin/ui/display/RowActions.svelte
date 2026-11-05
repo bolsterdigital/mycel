@@ -1,6 +1,6 @@
 <!-- The actions of one table row (#79, table stake 7): a row of whole buttons in a column of their
-     own where the table has room, one menu in another cell where it has not, so a phone reads the
-     title and its status first. The route renders both and the table's width picks one in CSS
+     own where the table has room, one menu under the title where it has not, the one cell a phone
+     shows without scrolling the table. The route renders both and the table's width picks one in CSS
      (`.ui-table-scroll` is the container), so it works without JavaScript and follows the text
      size: at 200% the menu takes over. The row of buttons shows on hover and focus and always
      on a screen without hover. The menu opens in place: a popup would be cut off by the table's

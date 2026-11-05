@@ -1736,6 +1736,12 @@ test.describe('content-list-rows', () => {
     await row.locator('.ui-row-menu > summary').click();
     await expect(row.locator('.ui-row-menu').getByText('Dupliceren')).toBeVisible();
     await layoutGate(page, 'content list with an open row menu');
+    // The table scrolls in its own region, which the page gate does not see: no action behind it.
+    const menu = row.locator('.ui-row-menu');
+    for (const action of await menu.locator('a, summary, button:visible').all())
+      expect(await action.evaluate((e) => e.getBoundingClientRect().right)).toBeLessThanOrEqual(
+        NARROW.width
+      );
     await expectNoAxeViolations(page);
     await setTextSize(page, '100%');
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -1771,7 +1777,7 @@ test.describe('content-list-rows', () => {
     expect(page.url()).not.toContain(item.id);
     await expect(page.locator('[name="title.nl"]')).toHaveValue(`Kopie van Brood ${word}`);
     await page.goto(list);
-    await expect(page.locator('#content-table tbody th')).toHaveText([
+    await expect(page.locator('#content-table tbody th > a')).toHaveText([
       `Brood ${word}`,
       `Kopie van Brood ${word}`,
     ]);

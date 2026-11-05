@@ -238,6 +238,8 @@
               lang={item.titleLocale && item.titleLocale !== data.workLocale
                 ? item.titleLocale
                 : undefined}>{item.title || t('admin.content.untitled')}</a
+            >
+            <RowActions menu={t('admin.content.row.menu')}>{@render rowActions(item)}</RowActions
             ></th
           >
           <td>
@@ -253,7 +255,6 @@
                 {/each}
               </ul>
             {/if}
-            <RowActions menu={t('admin.content.row.menu')}>{@render rowActions(item)}</RowActions>
           </td>
           <td><time datetime={updated.iso} title={updated.full}>{updated.text}</time></td>
           <td class="ui-row-actions-cell"><RowActions>{@render rowActions(item)}</RowActions></td>
