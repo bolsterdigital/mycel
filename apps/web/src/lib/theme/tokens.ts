@@ -95,22 +95,24 @@ const num = (n: number): string => {
   return String(Math.round(n * 10_000) / 10_000);
 };
 
+/** The colour a fraction of the way from `a` to `b` in sRGB, rounded. */
+const mix = (a: string, b: string, fraction: number) =>
+  '#' +
+  [1, 3, 5]
+    .map((i) =>
+      Math.round(
+        parseInt(a.slice(i, i + 2), 16) * (1 - fraction) +
+          parseInt(b.slice(i, i + 2), 16) * fraction
+      )
+        .toString(16)
+        .padStart(2, '0')
+    )
+    .join('');
+
 // Keep a role's character, rather than fading through an unreadable foreground/background
 // inversion. Try a mild softening first, then strengthen the pair when it has no spare contrast.
 // Check the sRGB path including rounding; browser fixtures also measure actual interpolated colours.
 function interactionPair(pair: Palette['primary']): Palette['primary'] {
-  const mix = (a: string, b: string, fraction: number) =>
-    '#' +
-    [1, 3, 5]
-      .map((i) =>
-        Math.round(
-          parseInt(a.slice(i, i + 2), 16) * (1 - fraction) +
-            parseInt(b.slice(i, i + 2), 16) * fraction
-        )
-          .toString(16)
-          .padStart(2, '0')
-      )
-      .join('');
   const { foreground: fg, background: bg } = pair;
   const lightText = luminance(fg) > luminance(bg);
   const strongFg = mix(fg, lightText ? '#ffffff' : '#000000', 0.12);
@@ -130,6 +132,21 @@ function interactionPair(pair: Palette['primary']): Palette['primary'] {
   );
 }
 
+/**
+ * A photo caption is quieter than other muted text (P185-79): the muted colour moved towards the
+ * page as far as a caption stays readable, at most a quarter of the way. A theme whose muted text
+ * has no contrast to spare keeps it. Here and not with `color-mix` in the stylesheet, which
+ * cannot know the result's contrast.
+ */
+function captionForeground(p: Palette): string {
+  const { foreground } = p.muted;
+  const { background } = p.body;
+  const step = Array.from({ length: 26 }, (_, i) => (25 - i) / 100).find(
+    (t) => contrastRatio(mix(foreground, background, t), background) >= 4.6
+  );
+  return step ? mix(foreground, background, step) : foreground;
+}
+
 function palette(p: Palette): string[] {
   const lines = THEME_ROLES.flatMap((role) => [
     `--color-${role}-fg: ${p[role].foreground};`,
@@ -142,7 +159,11 @@ function palette(p: Palette): string[] {
       `--color-${role}-active-bg: ${pair.background};`
     );
   }
-  lines.push(`--color-link: ${p.link};`, `--color-focus: ${p.focus};`);
+  lines.push(
+    `--color-caption-fg: ${captionForeground(p)};`,
+    `--color-link: ${p.link};`,
+    `--color-focus: ${p.focus};`
+  );
   return lines;
 }
 

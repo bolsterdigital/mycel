@@ -24,7 +24,10 @@ import type { Principal } from '../principal.js';
 import { BLOCK_DEFINITIONS } from '../content/block-types.js';
 import { useCases } from '../use-cases.js';
 import { bytesToBase64 } from '../util/bytes.js';
+import { DEMO_SOUND_BASE64 } from './demo-sound.js';
 import { publishProbePage } from './fixtures.js';
+
+export { DEMO_SOUND_BASE64 };
 
 type L = { nl: string; en: string };
 type CreateInput = z.input<typeof useCases.createItem.input>;
@@ -638,7 +641,7 @@ function pageWays(): BlockIn {
 
 /**
  * `content.item.create` input for the demo page: the document header (title, lead, main image
- * described) and 14 blocks, the form last. No hero block (ADR 025 rule 4).
+ * described) and its blocks, plain text around each custom one. No hero block (ADR 025 rule 4).
  */
 export function demoPage(refs: { formId: string; media: DemoMediaIds }): CreateInput {
   const [opening, image, quote, faq, callout, cta, video, form] = pageCards(
@@ -659,31 +662,61 @@ export function demoPage(refs: { formId: string; media: DemoMediaIds }): CreateI
       blocks: [
         pageIntro(),
         opening!,
+        bridge(
+          'Dat begon klein. Op de eerste actiedag haalden we steunbetuigingen op bij ouders en bakkers, en die namen we mee naar het gemeentehuis.',
+          'It started small. On our first day of action we collected statements of support from parents and bakers, and took them to the town hall.'
+        ),
         image!,
         heading({ nl: 'Wat we doen', en: 'What we do' }),
         pageWork(),
         pageGallery(refs.media),
+        bridge(
+          'Bakkers die meedoen, houden hun recept. Ze halen er alleen zout uit, in stappen, tot iemand het proeft. Dat gebeurt zelden, en precies daarom blijven we het zeggen.',
+          'Bakers who take part keep their recipe. They only take salt out, step by step, until someone can taste it. That rarely happens, and that is exactly why we keep saying it.'
+        ),
         quote!,
         pageMethod(),
         faq!,
+        bridge(
+          'Staat je vraag er niet bij, dan helpt het vaak om te weten dat we nooit een merk aanwijzen zonder dat de fabrikant de uitslag eerst heeft gezien.',
+          'If your question is not listed, it often helps to know that we never name a brand before the manufacturer has seen the result.'
+        ),
         callout!,
         pageClosing(),
         pageWays(),
+        bridge(
+          'Meedoen hoeft niet groot te zijn. De meeste vrijwilligers begonnen met één zak en één vraag aan hun eigen bakker.',
+          'Taking part need not be a big step. Most volunteers began with one bag and one question to their own baker.'
+        ),
         cta!,
+        bridge(
+          'We maken nog een filmpje over hoe zo’n meting gaat, van zak tot uitslag. Tot die tijd staat hier een open film op die plek.',
+          'We are still making a video of how a measurement goes, from bag to result. Until then an open film stands in that place.'
+        ),
         video!,
+        bridge(
+          'Wil je weten wat we met de uitslagen doen? We sturen je een korte mail als er een nieuwe meting klaar is.',
+          'Want to know what we do with the results? We send you a short e-mail when a new measurement is ready.'
+        ),
         form!,
+        bridge(
+          'Je kunt je altijd weer uitschrijven, en we delen je adres met niemand.',
+          'You can unsubscribe at any time, and we share your address with no one.'
+        ),
       ],
     },
   };
 }
 
+/** One paragraph of plain text, the least that stands between two custom blocks. */
+function bridge(nl: string, en: string): BlockIn {
+  return richText(doc(p(nl)), doc(p(en)));
+}
+
 // --- the article ------------------------------------------------------------------------------
 
 const DEMO_REPORT_FILENAME = 'meetresultaten-pepernoten.pdf';
-const DEMO_SOUND_FILENAME = 'stilte-pepernoten.mp3';
-/** One second of silence as an MP3, 1 KB: enough for a player to read a duration. */
-export const DEMO_SOUND_BASE64 =
-  '/+MQxAAAAANIAAAAAExBTUUzLjEwMFVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVf/jEsQnAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVV/+MQxE8AAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVVVf/jEMR2AAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVX/4xDEnQAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVV/+MSxMQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVX/4xDE2AAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVV/+MQxNgAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVf/jEMTYAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVX/4xLE1wAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVVVf/jEMTYAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVX/4xDE2AAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVV/+MQxNgAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVf/jEsTXAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVV/+MQxNgAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVVVf/jEMTYAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVX/4xDE2AAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV/+MSxNcAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/4xDE2AAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV/+MQxNgAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/jEMTYAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/4xLE1wAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQ==';
+const DEMO_SOUND_FILENAME = 'zoutmeter-pepernoten.mp3';
 
 /**
  * A real one-page PDF, written here so the demo's download opens without a binary in the repo.
@@ -825,17 +858,17 @@ function articleWhy(): BlockIn {
   );
 }
 
-/** The sound in the demo is a second of silence, and the text says so. */
+/** The transcript says what the sound in `demo-sound.ts` does: nobody speaks in it. */
 function articleSound(sound: string): BlockIn {
   return {
     type: 'audio',
     version: BLOCK_DEFINITIONS.audio.version,
     props: {
-      title: { nl: 'Beluister het voorbeeld', en: 'Listen to the sample' },
+      title: { nl: 'Zo klinkt de zoutmeter', en: 'What the salt meter sounds like' },
       fileId: sound,
       transcript: {
-        nl: 'Dit is een voorbeeldbestand: een seconde stilte.',
-        en: 'This is a sample file: one second of silence.',
+        nl: 'Drie korte piepjes, één voor elke meting. Daarna één hogere toon: de meter is klaar en de uitslag staat op het scherm. Er wordt niet gesproken.',
+        en: 'Three short beeps, one for each measurement. Then one higher tone: the meter is done and the result is on the screen. Nobody speaks.',
       },
     },
   };
@@ -1073,7 +1106,7 @@ function articleCards(formId: string, media: DemoMediaIds, pageId: string): Bloc
 }
 
 /**
- * `content.item.create` input for the demo article: 14 blocks. It links to the demo page by id,
+ * `content.item.create` input for the demo article. It links to the demo page by id,
  * so the page is created first. Public, with the `marker` teaser so the `paywall` block is valid:
  * a public item shows everything to everyone, so the boundary only shows in the admin.
  */
@@ -1114,16 +1147,44 @@ export function demoArticle(refs: {
         articleFindings(),
         paywall!,
         quote!,
+        bridge(
+          'Ahmed is niet de enige. Van de veertien bakkers die meededen, ging er niet één terug naar het oude recept.',
+          'Ahmed is not the only one. Of the fourteen bakers who took part, not one went back to the old recipe.'
+        ),
         heading({ nl: 'Waarom zout ertoe doet', en: 'Why salt matters' }),
         articleWhy(),
         image2!,
+        bridge(
+          'Dat geldt niet voor iedereen in dezelfde mate. Hoe jonger het kind, hoe minder zout er op een dag bij past.',
+          'That does not apply to everyone to the same degree. The younger the child, the less salt fits into a day.'
+        ),
         callout!,
+        bridge(
+          'Gemeten hebben we met een handzame zoutmeter, die aangeeft wanneer hij klaar is. Vrijwilligers noteerden elke uitslag op papier en controleerden die daarna samen.',
+          'We measured with a handheld salt meter, which signals when it is done. Volunteers wrote each result down on paper and then checked it together.'
+        ),
         articleSound(refs.media.sound),
+        bridge(
+          'Alle uitslagen staan in één overzicht, zodat je zelf kunt nakijken hoe jouw merk scoorde.',
+          'All the results are in one overview, so you can check for yourself how your brand scored.'
+        ),
         articleReport(refs.media.report),
+        bridge(
+          'Het hele onderzoek duurde ruim een maand, van de eerste aankoop tot de laatste vraag aan de merken.',
+          'The whole study took just over a month, from the first purchase to the last question to the brands.'
+        ),
         articleTimeline(),
         articleNext(),
         cta!,
+        bridge(
+          'Je inschrijving is met één klik geregeld, en uitschrijven net zo snel.',
+          'Signing up takes one click, and unsubscribing is just as quick.'
+        ),
         signup!,
+        bridge(
+          'We sturen alleen die ene mail per maand, en we delen je adres met niemand.',
+          'We only send that one e-mail a month, and we share your address with no one.'
+        ),
       ],
     },
   };

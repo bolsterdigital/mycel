@@ -59,7 +59,7 @@
       ? (['page', 'article'] as const).map((type) => ({
           href: `${base}/content?type=${type}`,
           label: t(type === 'page' ? 'admin.content.filter.page' : 'admin.content.filter.article'),
-          icon: type === 'page' ? 'file-text' : 'newspaper',
+          icon: type === 'page' ? 'panels-top-left' : 'square-pen',
           current: within('content') && contentType === type,
         }))
       : [];
