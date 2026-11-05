@@ -60,7 +60,7 @@ import {
   readinessIssues,
 } from './model.js';
 import type { ItemPosition, ItemRecord } from './ports.js';
-import { freeSlug, slugFollowingTitle, slugTaken } from './slugs.js';
+import { freeSlug, slugFollowingTitle, slugTaken } from './address/slugs.js';
 import { preserveTranslationReview } from './translation-review.js';
 import './ports.js';
 import '../theme/ports.js';

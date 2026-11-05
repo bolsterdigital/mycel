@@ -2,10 +2,10 @@
 // P185-79), and nothing else ever moves a slug on save.
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { Invoker } from '../invoke.js';
-import { systemPrincipal, type Principal } from '../principal.js';
-import { FakeClock, MemoryUnitOfWork, TENANT } from '../testing/index.js';
-import { buildRegistry, useCases } from '../use-cases.js';
+import { Invoker } from '../../invoke.js';
+import { systemPrincipal, type Principal } from '../../principal.js';
+import { FakeClock, MemoryUnitOfWork, TENANT } from '../../testing/index.js';
+import { buildRegistry, useCases } from '../../use-cases.js';
 import { isStartSlug, startSlug } from './slugs.js';
 
 const UUID = '01900000-0000-7000-8000-0000000000aa';

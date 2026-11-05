@@ -9,16 +9,16 @@
 // Rejected too: following whenever the slug equals what the previous title would give (Ghost's
 // rule). That also moves a slug an editor typed in that happens to match the title, and the item
 // rule is that a self-chosen address is never overwritten.
-import { UseCaseError } from '../errors.js';
-import type { TransactionContext } from '../ports.js';
+import { UseCaseError } from '../../errors.js';
+import type { TransactionContext } from '../../ports.js';
 import {
   type ContentDocument,
   type ContentDocumentInput,
   type ContentType,
   isReservedPageSlug,
   slugFromTitle,
-} from './model.js';
-import type { ItemRecord } from './ports.js';
+} from '../model.js';
+import type { ItemRecord } from '../ports.js';
 
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const START = new RegExp(`^(page|article)-${UUID}$`);
