@@ -1788,10 +1788,10 @@ test.describe('block card details', () => {
     await page
       .locator('[data-block-picker]')
       .last()
-      .getByRole('button', { name: 'Kaarten', exact: true })
+      .getByRole('button', { name: 'Actierij', exact: true })
       .click();
     const fresh = page.locator('#block-new');
-    await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Kaarten');
+    await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Actierij');
     await editorReady(page);
     const titles = fresh.getByLabel('Titel', { exact: true });
     await expect(titles).toHaveCount(2);

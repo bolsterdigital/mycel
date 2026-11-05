@@ -1177,7 +1177,7 @@ export const en = {
   'admin.block.type.image': 'Image',
   'admin.block.type.hero': 'Hero',
   'admin.block.type.cta': 'Call to action',
-  'admin.block.type.cards': 'Cards',
+  'admin.block.type.cards': 'Action row',
   'admin.block.type.gallery': 'Gallery',
   'admin.block.type.audio': 'Audio',
   'admin.block.type.timeline': 'Timeline',

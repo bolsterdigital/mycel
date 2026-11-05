@@ -1189,7 +1189,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.block.type.image': 'Afbeelding',
   'admin.block.type.hero': 'Opening',
   'admin.block.type.cta': 'Oproep',
-  'admin.block.type.cards': 'Kaarten',
+  'admin.block.type.cards': 'Actierij',
   'admin.block.type.gallery': 'Fotogalerij',
   'admin.block.type.audio': 'Geluid',
   'admin.block.type.timeline': 'Tijdlijn',
