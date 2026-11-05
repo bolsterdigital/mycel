@@ -20,6 +20,8 @@ import type {
 /** UI text that does not come from the document (ADR 007), resolved for the model's locale. */
 export interface BlockCopy {
   callout: { info: string; note: string; warning: string };
+  /** What a scrolling row of images is called for assistive technology. */
+  galleryRow: string;
   /** `{name}` filled by the renderer. */
   photographer: string;
   /** `{provider}` filled by the renderer. */
@@ -124,6 +126,13 @@ export type RenderBlock = { id: string } & (
       body: string | null;
       /** Only what a visitor may fetch; a restricted, deleted or failed file is left out. */
       files: { label: string; href: string; meta: string }[];
+    }
+  | {
+      type: 'gallery';
+      variant: 'grid' | 'row';
+      width: Width;
+      /** Only what a visitor may see; a restricted, deleted or failed image is left out. */
+      images: RenderImage[];
     }
   | {
       type: 'callout';

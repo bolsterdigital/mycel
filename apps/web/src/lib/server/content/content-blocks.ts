@@ -14,6 +14,7 @@
 import {
   BLOCK_DEFINITIONS,
   FILE_DOWNLOAD_ROWS,
+  GALLERY_ROWS,
   blockReferences,
   can,
   useCases,
@@ -266,6 +267,11 @@ export type TextRest =
       /** One place per row the form can have, so a file typed after opening shows at rest. */
       files: readonly { label: string; from: string }[];
     }
+  | {
+      kind: 'gallery';
+      /** One place per row, by its alt text: a decorative image has none and takes no room. */
+      images: readonly { label: string; from: string }[];
+    }
   /** A paywall has no words of its own: the screen says what the boundary does. */
   | { kind: 'paywall' }
   | {
@@ -417,6 +423,15 @@ export function textRestOf(
       })),
     };
   }
+  if (block.type === 'gallery') {
+    return {
+      kind: 'gallery',
+      images: Array.from({ length: GALLERY_ROWS }, (_, i) => ({
+        label: local(block.props.images[i]?.alt ?? undefined),
+        from: field(`images.${i}.alt.${locale}`),
+      })),
+    };
+  }
   if (block.type === 'paywall') return { kind: 'paywall' };
   if (block.type === 'video-embed') {
     return {
@@ -535,6 +550,8 @@ const ISSUE_COPY: Record<string, UiKey> = {
   'content.blocks.adjacent-rich-text': 'admin.block.issue.adjacentText',
   'content.blocks.too-many': 'admin.block.issue.tooMany',
   'content.cards.too-few': 'admin.block.issue.tooFewCards',
+  'content.gallery.too-few': 'admin.block.issue.tooFewImages',
+  'content.gallery.no-image': 'admin.block.issue.noImage',
   'content.files.too-few': 'admin.block.issue.tooFewFiles',
   'content.files.no-file': 'admin.block.issue.noFile',
   'content.reference.media-not-document': 'admin.content.issue.mediaNotDocument',

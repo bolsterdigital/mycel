@@ -101,6 +101,9 @@ export const HERO_VARIANTS = ['minimal', 'cover', 'split'] as const;
 export const CTA_VARIANTS = ['band', 'card'] as const;
 export const CALLOUT_VARIANTS = ['info', 'note', 'warning'] as const;
 export const CARDS_ACCENTS = ['none', 'bar', 'filled'] as const;
+export const GALLERY_VARIANTS = ['grid', 'row'] as const;
+/** How many images one `gallery` block shows; the rest view keeps a place for each. */
+export const GALLERY_ROWS = 24;
 /** How many files one `file-download` block lists; the rest view keeps a place for each. */
 export const FILE_DOWNLOAD_ROWS = 12;
 export const FAQ_VARIANTS = ['list', 'accordion'] as const;
@@ -134,23 +137,27 @@ export const BlockAction = Action;
  * decorative, caption and credit overrides; docs/reference/media.md). An absent caption or credit
  * inherits the asset's; an empty caption string hides it in that locale.
  */
+const IMAGE_USE = {
+  mediaId: z.string().guid(),
+  decorative: z.boolean(),
+  alt: localized(z.string().min(1).max(1000).regex(/\S/, 'content.image.alt-empty')).nullable(),
+  caption: localized(CaptionText).optional(),
+  credit: MediaCredit.optional(),
+};
+function altRule(p: { decorative: boolean; alt: unknown }, ctx: z.RefinementCtx) {
+  if (p.decorative && p.alt !== null)
+    ctx.addIssue({ code: 'custom', path: ['alt'], message: 'content.image.decorative-alt' });
+  if (!p.decorative && p.alt === null)
+    ctx.addIssue({ code: 'custom', path: ['alt'], message: 'content.image.alt-required' });
+}
 function imageProps<L extends readonly [string, ...string[]]>(layouts: L) {
   return z
     .object({
-      mediaId: z.string().guid(),
-      decorative: z.boolean(),
-      alt: localized(z.string().min(1).max(1000).regex(/\S/, 'content.image.alt-empty')).nullable(),
-      caption: localized(CaptionText).optional(),
-      credit: MediaCredit.optional(),
+      ...IMAGE_USE,
       layout: z.enum(layouts as unknown as [L[number], ...L[number][]]).default(layouts[0]),
     })
     .strict()
-    .superRefine((p, ctx) => {
-      if (p.decorative && p.alt !== null)
-        ctx.addIssue({ code: 'custom', path: ['alt'], message: 'content.image.decorative-alt' });
-      if (!p.decorative && p.alt === null)
-        ctx.addIssue({ code: 'custom', path: ['alt'], message: 'content.image.alt-required' });
-    });
+    .superRefine(altRule);
 }
 const ImageProps = imageProps(IMAGE_LAYOUTS);
 const HeroImage = imageProps(['content'] as const);
@@ -185,12 +192,15 @@ const creditField: BlockField = {
     textField('photographer', { localized: false, optional: 'null' }),
   ],
 };
-const imageFieldsOf = (layouts: readonly string[]): BlockField[] => [
+const imageUseFields: BlockField[] = [
   { key: 'mediaId', kind: 'media' },
   { key: 'decorative', kind: 'boolean' },
   textField('alt', { localized: true, optional: 'null' }),
   { key: 'caption', kind: 'caption' },
   creditField,
+];
+const imageFieldsOf = (layouts: readonly string[]): BlockField[] => [
+  ...imageUseFields,
   choice('layout', layouts),
 ];
 
@@ -686,6 +696,64 @@ export const BLOCK_DEFINITIONS = {
               name: { nl: 'Brief aan de gemeente', en: 'Letter to the municipality' },
             },
           ],
+        },
+      },
+    ],
+  }),
+
+  // Dreamkit's carousel, without the library: `row` is a native scroll-snap row that works without
+  // JavaScript, `grid` needs no scrolling at all. Each image is a use like the image block's, with
+  // its own alt per locale. Rejected: PhotoSwipe's lightbox and thumbnails, a script and a dialog
+  // for what a larger `width` already gives; autoplay, which WCAG 2.2.2 would have us let stop.
+  gallery: define({
+    version: 1,
+    props: z
+      .object({
+        variant: z.enum(GALLERY_VARIANTS).default('grid'),
+        width: Width.default('wide'),
+        images: z
+          .array(
+            z
+              .object({ ...IMAGE_USE, mediaId: z.string().guid('content.gallery.no-image') })
+              .strict()
+              .superRefine(altRule)
+          )
+          .min(2, 'content.gallery.too-few')
+          .max(GALLERY_ROWS),
+      })
+      .strict(),
+    fields: [
+      { key: 'images', kind: 'list', min: 2, max: GALLERY_ROWS, fields: imageUseFields },
+      choice('variant', GALLERY_VARIANTS),
+      choice('width', WIDTHS, 'wide'),
+    ],
+    variants: { variant: GALLERY_VARIANTS, width: WIDTHS },
+    localized: (p) => p.images.flatMap((image, i) => imageFields(['images', i], image)),
+    references: (p) => p.images.map((image) => ({ type: 'media' as const, refId: image.mediaId })),
+    examples: [
+      {
+        name: 'gallery-grid',
+        props: {
+          images: [image, { ...image, mediaId: EXAMPLE_IDS.portrait }],
+        },
+      },
+      {
+        name: 'gallery-row-content',
+        props: {
+          variant: 'row',
+          width: 'content',
+          images: [
+            { ...image, caption: { nl: 'Op het plein.', en: 'On the square.' } },
+            { mediaId: EXAMPLE_IDS.portrait, decorative: true, alt: null },
+            { ...image, credit: { work: null, photographer: 'Sam de Vries' } },
+          ],
+        },
+      },
+      {
+        name: 'gallery-grid-full',
+        props: {
+          width: 'full',
+          images: [image, { ...image, mediaId: EXAMPLE_IDS.portrait }, image],
         },
       },
     ],

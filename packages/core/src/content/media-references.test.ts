@@ -158,6 +158,35 @@ describe('media references of blocks', () => {
     });
   });
 
+  it('a gallery takes images only, and each of them counts as used', async () => {
+    const shot = (mediaId: string) => ({
+      mediaId,
+      decorative: false,
+      alt: { nl: 'Foto', en: 'Photo' },
+    });
+    const gallery = (...ids: string[]) => ({
+      id: 'g',
+      type: 'gallery' as const,
+      version: 1 as const,
+      props: { images: ids.map(shot) },
+    });
+    await expectCode(
+      page([gallery(photo, pdf)]),
+      'invalid_input',
+      'content.reference.media-not-image'
+    );
+    await expectCode(
+      page([gallery(photo, foreign)]),
+      'invalid_input',
+      'content.reference.media-unknown'
+    );
+    await page([gallery(photo, photo)]);
+    expect(usages(photo)).toHaveLength(1);
+    await expect(invoker.run(useCases.deleteMedia, system, { id: photo })).rejects.toMatchObject({
+      code: 'conflict',
+    });
+  });
+
   it('records one usage per image block under the revision', async () => {
     const { item, revision } = await page([image('a', photo), text('t'), image('b', photo)]);
     expect(usages(photo)).toEqual([

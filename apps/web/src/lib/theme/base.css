@@ -393,7 +393,7 @@
     float: right;
     margin: 0 var(--float-outer) var(--space-2) var(--float-inner);
   }
-  .page :is(.cta, .cards, .faq) {
+  .page :is(.cta, .cards, .faq, .gallery) {
     clear: both;
   }
   @container (max-width: 40rem) {
@@ -693,6 +693,40 @@
     --action-base-bg: var(--color-accent-bg);
     --action-fg: var(--color-accent-active-fg);
     --action-bg: var(--color-accent-active-bg);
+  }
+
+  /* Galleries: every image in one shape, cut on its focal point, so a row of mixed photos lines up.
+     A row snaps but does not trap: `proximity` lets a keyboard or a wheel stop between two images. */
+  .gallery-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    gap: var(--space-2);
+  }
+  .gallery-grid .gallery-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  }
+  .gallery-row .gallery-list {
+    display: flex;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: x proximity;
+    padding-block-end: var(--space-1);
+  }
+  .gallery-row .gallery-list > li {
+    flex: 0 0 min(85%, 28rem);
+    scroll-snap-align: start;
+  }
+  .gallery figure {
+    margin: 0;
+  }
+  .gallery img {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
   }
 
   /* File downloads: a plain list of links; the kind and size stay quieter than the name. */

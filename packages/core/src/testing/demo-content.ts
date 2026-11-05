@@ -573,6 +573,23 @@ function pageCards(formId: string, media: DemoMediaIds): BlockIn[] {
 }
 
 /** Three ways to join in, in a band: the row of cards a campaign page ends on. */
+/** Two photos from the work, side by side. */
+function pageGallery(media: DemoMediaIds): BlockIn {
+  const use = (image: DemoImage, mediaId: string) => ({
+    mediaId,
+    decorative: false,
+    alt: image.alt,
+    caption: image.caption,
+  });
+  return {
+    type: 'gallery',
+    version: BLOCK_DEFINITIONS.gallery.version,
+    props: {
+      images: [use(DEMO_IMAGES[1]!, media.bakery), use(DEMO_IMAGES[2]!, media.measuring)],
+    },
+  };
+}
+
 function pageWays(): BlockIn {
   return {
     type: 'cards',
@@ -645,6 +662,7 @@ export function demoPage(refs: { formId: string; media: DemoMediaIds }): CreateI
         image!,
         heading({ nl: 'Wat we doen', en: 'What we do' }),
         pageWork(),
+        pageGallery(refs.media),
         quote!,
         pageMethod(),
         faq!,

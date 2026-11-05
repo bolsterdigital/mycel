@@ -120,6 +120,7 @@ export function blockCopy(locale: string): BlockCopy {
       note: t('block.callout.note'),
       warning: t('block.callout.warning'),
     },
+    galleryRow: t('block.gallery.row'),
     photographer: t('block.credit.photographer'),
     videoOn: t('block.video.on'),
     footnotes: t('block.footnotes'),
@@ -353,6 +354,17 @@ export async function resolveDocument(
             return file ? [{ ...file, label: text(f.name) ?? '' }] : [];
           }),
         };
+      case 'gallery':
+        return {
+          id,
+          type: 'gallery',
+          variant: b.props.variant,
+          width: b.props.width,
+          images: b.props.images.flatMap((use) => {
+            const image = renderImage(media.get(use.mediaId) ?? null, use, locale);
+            return image ? [image] : [];
+          }),
+        };
       case 'callout':
         return {
           id,
@@ -453,6 +465,8 @@ function referencesOf(b: Block): { type: 'media' | 'form' | 'item'; refId: strin
       return b.props.cards.flatMap((c) => targets(c.actions));
     case 'file-download':
       return b.props.files.map((f) => ({ type: 'media' as const, refId: f.fileId }));
+    case 'gallery':
+      return b.props.images.map((i) => ({ type: 'media' as const, refId: i.mediaId }));
     case 'form':
     case 'signup-form':
       return [{ type: 'form', refId: b.props.formId }];

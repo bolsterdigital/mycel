@@ -73,6 +73,10 @@
         bodyFrom?: string;
         files: readonly { label: string; from?: string }[];
       }
+    | {
+        kind: 'gallery';
+        images: readonly { label: string; from?: string }[];
+      }
     | { kind: 'paywall' }
     | {
         kind: 'video';
@@ -193,6 +197,12 @@
     <ul class="ui-block-text-files">
       {#each view.files as file, i (i)}
         <li data-rest-from={file.from}>{file.label}</li>
+      {/each}
+    </ul>
+  {:else if view.kind === 'gallery'}
+    <ul class="ui-block-text-files">
+      {#each view.images as image, i (i)}
+        <li data-rest-from={image.from}>{image.label}</li>
       {/each}
     </ul>
   {:else if view.kind === 'paywall'}

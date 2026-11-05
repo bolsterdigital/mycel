@@ -10,6 +10,7 @@
   import Faq from './Faq.svelte';
   import FileDownload from './FileDownload.svelte';
   import Form from './Form.svelte';
+  import Gallery from './Gallery.svelte';
   import Heading from './Heading.svelte';
   import Hero from './Hero.svelte';
   import Image from './Image.svelte';
@@ -57,6 +58,8 @@
     <Cards {block} {model} />
   {:else if block.type === 'file-download'}
     <FileDownload {block} {model} />
+  {:else if block.type === 'gallery'}
+    <Gallery {block} {model} />
   {:else if block.type === 'callout'}
     <Callout {block} {model} />
   {:else if block.type === 'faq'}
