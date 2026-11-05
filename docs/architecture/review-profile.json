@@ -279,6 +279,7 @@
         "scripts/gates/dead-exports*",
         "docs/architecture/overview.md",
         "packages/*/src/index.ts",
+        "packages/db/src/infra/dates.ts",
         "packages/db/src/infra/ids.ts",
         "packages/db/src/forms.ts",
         "packages/db/src/mailing.ts",
