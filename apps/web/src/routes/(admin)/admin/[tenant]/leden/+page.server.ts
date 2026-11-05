@@ -5,7 +5,7 @@
 // access (#101: "members" are people). A refusal by an entitlement or a suspension is a message
 // that names what, never a price (ADR 015 rule 3); the mapping lives in
 // lib/server/admin/admin-actions.ts.
-import { Capability, Role, useCases } from '@mycel/core';
+import { offeredCapabilities, Role, useCases, type Capability } from '@mycel/core';
 import { act, loaded, text } from '#lib/server/admin/admin-actions.js';
 import { postedCapabilities } from '#lib/server/admin/roles.js';
 import { runtime } from '#lib/server/runtime.js';
@@ -16,9 +16,9 @@ export const load: PageServerLoad = async ({ parent, locals }) => {
   const { invoker, config } = runtime();
   const { members } = await loaded(invoker.run(useCases.listMembers, locals.principal!, {}));
   return {
-    members,
+    members: members.map((m) => ({ ...m, offered: offeredCapabilities(m.capabilities) })),
     roles: Role.options,
-    allCapabilities: Capability.options,
+    offered: offeredCapabilities(),
     loginUrl: `${config.PUBLIC_BASE_URL}/admin`,
   };
 };

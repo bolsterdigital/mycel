@@ -5,7 +5,14 @@ import { DEFAULT_ENTITLEMENTS } from './entitlements/model.js';
 import { UseCaseError } from './errors.js';
 import { Invoker } from './invoke.js';
 import { toJsonSchema } from './json-schema.js';
-import { anonymousPrincipal, Capability, systemPrincipal, type Principal } from './principal.js';
+import {
+  anonymousPrincipal,
+  Capability,
+  offeredCapabilities,
+  PLANNED_CAPABILITIES,
+  systemPrincipal,
+  type Principal,
+} from './principal.js';
 import { checkRegistry } from './registry-rules.js';
 import { ANONYMOUS_USE_CASES, type UseCase } from './registry.js';
 import { MemoryUnitOfWork, TENANT, principal, probeForm, probeTenant } from './testing/index.js';
@@ -171,6 +178,29 @@ describe('every ai:assist command passes the assistance gate (ADR 015)', () => {
       }),
     };
     expect(await ungated(skips)).toBe(true);
+  });
+});
+
+// A capability an operator can grant has to limit something (ADR 018 rule 5), or say why not yet.
+describe('every capability is required by a use case or planned with a reason', () => {
+  const required = new Set(
+    buildRegistry()
+      .list()
+      .map((u) => u.requires)
+  );
+  const planned = Object.keys(PLANNED_CAPABILITIES) as Capability[];
+
+  it('leaves no capability without a use case or a reason', () => {
+    expect(Capability.options.filter((c) => !required.has(c) && !planned.includes(c))).toEqual([]);
+  });
+  it('lists no capability that has a use case by now', () => {
+    expect(planned.filter((c) => required.has(c))).toEqual([]);
+  });
+  it('offers a planned capability only to a set that already holds it', () => {
+    expect(offeredCapabilities()).not.toContain('mailing:send');
+    expect(offeredCapabilities()).toContain('content:read');
+    expect(offeredCapabilities(['mailing:send'])).toContain('mailing:send');
+    expect(offeredCapabilities(['mailing:send'])).not.toContain('money:refund');
   });
 });
 
