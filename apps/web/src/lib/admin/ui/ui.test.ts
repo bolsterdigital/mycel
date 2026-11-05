@@ -800,6 +800,10 @@ describe('Table', () => {
     expect(html(Table, { ...props, card: true })).toMatch(/^<div class="ui-table-scroll card"/);
     expect(html(Table, props)).toMatch(/^<div class="ui-table-scroll"/);
   });
+  it('sets the cells of a row on one baseline when asked', () => {
+    expect(html(Table, { ...props, level: true })).toContain('<table class="ui-table level"');
+    expect(html(Table, props)).toContain('<table class="ui-table"');
+  });
 });
 
 describe('Card and CardGrid', () => {

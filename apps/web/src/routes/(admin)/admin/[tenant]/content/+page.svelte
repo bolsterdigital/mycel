@@ -48,8 +48,9 @@
   const kind = $derived(
     t(data.type === 'page' ? 'admin.content.filter.page' : 'admin.content.filter.article')
   );
+  const number = (n: number) => new Intl.NumberFormat(data.locale).format(n);
   const plural = (key: string, n: number) =>
-    fill(t(`${key}.${n === 1 ? 'one' : 'other'}` as UiKey), { n });
+    fill(t(`${key}.${n === 1 ? 'one' : 'other'}` as UiKey), { n: number(n) });
   const count = $derived(
     data.filtered
       ? plural('admin.content.list.found', data.total)
@@ -81,9 +82,9 @@
         previous: data.links.previous,
         next: data.links.next,
         position: fill(t('admin.content.list.position'), {
-          from: data.range.from,
-          to: data.range.to,
-          total: data.total,
+          from: number(data.range.from),
+          to: number(data.range.to),
+          total: number(data.total),
         }),
       }
     : undefined}
@@ -144,6 +145,7 @@
     id="content-table"
     caption={kind}
     hideCaption
+    level
     columns={[
       { key: 'title', label: t('admin.content.field.title'), sortable: true },
       { key: 'status', label: t('admin.content.state') },

@@ -58,7 +58,7 @@ export interface ItemOrder {
 export const defaultDirection = (by: ItemSort): SortDirection => (by === 'title' ? 'asc' : 'desc');
 
 /** The title an item sorts under: in `locale`, else in its own default locale, else empty. */
-export const sortTitle = (item: ItemRecord, locale?: string): string =>
+const sortTitle = (item: ItemRecord, locale?: string): string =>
   (locale ? item.title[locale] : undefined) ?? item.title[item.defaultLocale] ?? '';
 
 export function matchesItemFilter(item: ItemRecord, filter: ItemFilter): boolean {

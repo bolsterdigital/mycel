@@ -1158,11 +1158,14 @@ test.describe('content-admin', () => {
     await make('Brood');
     const first = await make('appel');
     await make('Één');
-    await callApi(request, 'content.item.publish', {
-      itemId: first.id,
-      revisionId: first.latestRevisionId,
-      locale: 'nl',
-    });
+    const probe = await tenantId();
+    await withInvoker((invoker) =>
+      invoker.run(useCases.publishItem, systemPrincipal(probe, 'e2e'), {
+        itemId: first.id,
+        revisionId: first.latestRevisionId,
+        locale: 'nl',
+      })
+    );
 
     await login(page, `/admin/probe/content?type=page&q=${word}`);
     const titles = page.locator('#content-table tbody th');
