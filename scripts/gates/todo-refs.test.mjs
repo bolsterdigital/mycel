@@ -13,19 +13,60 @@ import { join } from 'node:path';
 
 export const BASELINE = 'scripts/gates/todo-refs.baseline.json';
 const REF = /TODO #\d/g;
-/**
- * A bare `#n` after a comment marker on its line. `PR #n` is a public number a reader can follow,
- * a colour or an anchor has no marker in front of it, and `&#n;` is an entity.
- */
-const BARE = /(?:^\s*(?:\*|#)|\/\/|\/\*|<!--|\s#\s).*?(?<![\w&/#-])(?<!PRs? )(?<!TODO )#\d{1,3}\b/;
-const bareRefs = (text) => text.split('\n').filter((line) => BARE.test(line)).length;
+/** A bare `#n`. `PR #n` is a public number a reader can follow, and `&#n;` is an entity. */
+const NUMBER = /(?<![\w&/#-])(?<!PRs? )(?<!TODO )#\d{1,3}\b/;
+/** The same number after a comment marker on its line, so a colour or an anchor does not count. */
+const BARE = new RegExp(String.raw`(?:^\s*(?:\*|#)|\/\/|\/\*|<!--|\s#\s).*?` + NUMBER.source);
 
-/** `{ path: count }` of every file in `paths` with at least one reference. */
+/**
+ * The comment forms that run over lines, per kind of file. Only there: `/*` in a YAML path or a
+ * shell glob opens nothing. An opener after a path or a quote is a glob as well (`packages/*`).
+ */
+const blockComments = (path) => [
+  ...(/\.(?:[cm]?[jt]s|css|svelte)$/.test(path) ? [[/(?<![\w*'"`/.-])\/\*/, '*/']] : []),
+  ...(/\.(?:svelte|html)$/.test(path) ? [[/<!--/, '-->']] : []),
+];
+
+/** The lines with a bare number: after a marker, or anywhere inside an open block comment. */
+function bareRefs(text, path) {
+  const forms = blockComments(path);
+  let close = null;
+  let n = 0;
+  for (const line of text.split('\n')) {
+    let hit = BARE.test(line) && close === null;
+    let rest = line;
+    while (rest) {
+      if (close !== null) {
+        const end = rest.indexOf(close);
+        if (NUMBER.test(end < 0 ? rest : rest.slice(0, end))) hit = true;
+        if (end < 0) break;
+        rest = rest.slice(end + close.length);
+        close = null;
+      } else {
+        const open = forms
+          .map(([opener, closer]) => ({ match: rest.match(opener), closer }))
+          .filter(({ match }) => match)
+          .sort((a, b) => a.match.index - b.match.index)[0];
+        if (!open) break;
+        rest = rest.slice(open.match.index + open.match[0].length);
+        close = open.closer;
+      }
+    }
+    if (hit) n++;
+  }
+  return n;
+}
+
+/**
+ * `{ path: count }` of every text file in `paths` with at least one reference. A NUL byte is how
+ * git itself tells a binary: a font or a photo holds `#1` by chance, and no reader sees it.
+ */
 export function countRefs(paths, read) {
   const counts = {};
   for (const p of paths) {
     const text = read(p);
-    const n = (text.match(REF) ?? []).length + bareRefs(text);
+    if (text.includes('\0')) continue;
+    const n = (text.match(REF) ?? []).length + bareRefs(text, p);
     if (n) counts[p] = n;
   }
   return counts;
@@ -67,6 +108,28 @@ test('a bare number counts in a comment, not as a public PR, a colour or an enti
   assert.equal(count('// PR #28 and PRs #175'), 0);
   assert.equal(count("const color = '#123';"), 0);
   assert.equal(count('<a href="#12">&#39;</a>'), 0);
+});
+
+test('a bare number on a later line of a block comment counts, and only inside it', () => {
+  const count = (text, path = 'a.ts') => countRefs([path], () => text)[path] ?? 0;
+  assert.equal(count('/*\n * see (#999)\n */\nconst a = 1;'), 1);
+  assert.equal(count('/**\n  the menu (#87)\n  and (#88)\n*/'), 2);
+  assert.equal(count('<!--\n  Page header (#999)\n-->', 'a.svelte'), 1);
+  assert.equal(count('/* one */\n.a { color: #123; }', 'a.css'), 0);
+  assert.equal(count('/*\n closed */ .a { color: #123; }', 'a.css'), 0);
+  assert.equal(count('<!-- one -->\n<a href="x">#12</a>', 'a.svelte'), 0);
+  assert.equal(count('/*\n PR #28\n*/'), 0);
+  // Not a comment here: a glob in a string, a path in YAML, an HTML comment in TypeScript.
+  assert.equal(count("const g = 'packages/*';\nconst c = '#123';\nconst d = 'x #12';"), 0);
+  assert.equal(count('paths:\n  - /*\nname: (#12)', 'a.yml'), 0);
+  assert.equal(count("const h = '<!--';\nconst d = 'x #12';"), 0);
+});
+
+test('a binary file holds no reference, whatever its bytes spell', () => {
+  assert.deepEqual(
+    countRefs(['font.ttf', 'a.ts'], (p) => (p === 'a.ts' ? '// (#1)' : '\0// (#1) TODO #2')),
+    { 'a.ts': 1 }
+  );
 });
 
 test('a new reference and a removed one are both reported', () => {
