@@ -107,7 +107,7 @@ export interface MediaRepository {
   hardDelete(id: string): Promise<boolean>;
   /**
    * Replace every usage recorded under `ref` (`item:<id>:rev:<id>`, `og:<...>`) with `usages`, in
-   * the caller's transaction. #8b1 calls this when it saves a block tree; a soft-deleted or
+   * the caller's transaction. Saving a block tree calls this; a soft-deleted or
    * unknown media id is skipped. Returns how many usages it recorded.
    */
   replaceUsages(ref: string, usages: readonly MediaUsage[]): Promise<number>;

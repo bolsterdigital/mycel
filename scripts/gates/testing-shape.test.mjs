@@ -5,7 +5,8 @@
 // `packages/core/src/testing/services.ts` compares `E2E_REQUIRED`; a suite asks
 // `requireServices` or `requireDatabase`. A test principal comes from `principal({...})` in
 // `core/testing/fixtures.ts`, not from spreading `adminOf`/`systemPrincipal` or spelling out the
-// default access by hand. Run by `npm run lint:infra`, offline.
+// default access by hand. An exported transition table has a fast-check suite. Run by
+// `npm run lint:infra`, offline.
 // Rejected: a line budget per file (a module may grow with its port; one long function is the
 // shape that made the old file hard to change).
 
@@ -120,6 +121,40 @@ test('the check sees a principal built by hand', () => {
 test('testing/memory.ts stays a list of exports', () => {
   const lines = readAll([`${dir}/memory.ts`])[0].text.split('\n').length;
   assert.ok(lines < BARREL_LIMIT, `memory.ts has ${lines} lines, limit ${BARREL_LIMIT}`);
+});
+
+/** Exported transition tables in `files`, each with whether a fast-check suite names it. */
+export function untestedTransitions(files) {
+  const suites = files.filter(({ path, text }) => isTest(path) && /from 'fast-check'/.test(text));
+  return files
+    .filter(({ path }) => !isTest(path))
+    .flatMap(({ path, text }) =>
+      [...text.matchAll(/^export const (\w*TRANSITIONS)\b/gm)].map((m) => ({ path, name: m[1] }))
+    )
+    .filter(({ name }) => !suites.some(({ text }) => text.includes(name)))
+    .map(({ path, name }) => `${path}: ${name} has no fast-check suite`);
+}
+
+// ADR 019 rule 2: a state machine is held by a property, not only by the cases someone listed.
+test('every exported transition table has a fast-check suite', () => {
+  const files = readAll(
+    walk('packages', { match: (p) => p.endsWith('.ts') && !p.includes('/dist/') })
+  );
+  assert.ok(
+    files.some(({ text }) => /export const \w*TRANSITIONS\b/.test(text)),
+    'found a table'
+  );
+  assert.deepEqual(untestedTransitions(files), []);
+});
+
+test('a transition table without a property test is a finding', () => {
+  const table = { path: 'a/model.ts', text: 'export const THING_TRANSITIONS = {};\n' };
+  const plain = { path: 'a/model.test.ts', text: "import { THING_TRANSITIONS } from './model';\n" };
+  const property = { path: 'a/p.test.ts', text: `${plain.text}import fc from 'fast-check';\n` };
+  assert.deepEqual(untestedTransitions([table, plain]), [
+    'a/model.ts: THING_TRANSITIONS has no fast-check suite',
+  ]);
+  assert.deepEqual(untestedTransitions([table, property]), []);
 });
 
 test('the check sees a long function, nested or not', () => {
