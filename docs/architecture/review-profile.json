@@ -329,6 +329,7 @@
       "adrs": ["000"],
       "gates": [
         "scripts/gates/workflows.test.mjs",
+        "scripts/gates/file-size.test.mjs",
         "scripts/gates/docs-links.test.mjs",
         "scripts/review-signals.test.mjs"
       ],

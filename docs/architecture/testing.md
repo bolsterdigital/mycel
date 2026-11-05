@@ -88,6 +88,7 @@ Every check `npm run lint:infra` and `npm run lint:deps` run, with the rule it k
 | `scripts/gates/todo-refs.test.mjs`                                                          | References to the private board (`TODO #n`) in packages and apps only go down per file; none in ADRs, architecture docs and the README.                                                                                                                               |
 | `scripts/gates/web-rules.test.mjs`                                                          | Copies in the web front of a rule core or a web helper owns (a hand-caught `UseCaseError` or written error message in a route, a link-scheme or UUID regex, a hand-picked locale value, a fallback to English) only go down per file.                                 |
 | `scripts/gates/dir-size.test.mjs`                                                           | At most 15 loose non-test files per directory; the directories over it only shrink to their ceiling in `scripts/gates/dir-size.baseline.json`, numbered or one-per-kind directories exempt with a reason.                                                             |
+| `scripts/gates/file-size.test.mjs`                                                          | At most 1,000 lines per tracked code file; the files over it only shrink to their ceiling in `scripts/gates/file-size.baseline.json`, catalogues and other data exempt with a reason. End-to-end specs have their own limit in `e2e-budget`.                          |
 | `scripts/gates/e2e-budget.test.mjs`                                                         | Ten specs, nested ones counted, each naming its flow; spec and test size; no silent project return; shared checks once in `apps/web/e2e/lib/`.                                                                                                                        |
 | `scripts/gates/repo-size.test.mjs`                                                          | No tracked file over 200 KB outside fixtures and static assets; no review evidence in `docs/reports/`.                                                                                                                                                                |
 | `scripts/gates/check-owner-strings.test.mjs`                                                | No personal path, private planning word, owner tooling or provenance comment ("review of PR", "moved here from") in the public repository.                                                                                                                            |
@@ -119,15 +120,16 @@ How each rule above is held:
 
 The numeric limits of the ratchets above:
 
-| Constant         | Value     | Where                                  | Why                                                                                      |
-| ---------------- | --------- | -------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `FUNCTION_LIMIT` | 150 lines | `scripts/gates/testing-shape.test.mjs` | no function under `packages/core/src/testing` grows back into one every module edits     |
-| `BARREL_LIMIT`   | 300 lines | `scripts/gates/testing-shape.test.mjs` | `testing/memory.ts` stays a list of exports                                              |
-| `MAX_SPECS`      | 10        | `scripts/gates/e2e-budget.test.mjs`    | a new flow replaces a spec or makes the case to raise this in review                     |
-| `SPEC_LIMIT`     | 100 KiB   | `scripts/gates/e2e-budget.test.mjs`    | a spec past this is two flows, or holds copy checks that belong in unit tests            |
-| `TEST_LINES`     | 150 lines | `scripts/gates/e2e-budget.test.mjs`    | a longer test hides several claims; `LONG_TESTS` lists the one left, and can only shrink |
-| `LIMIT`          | 200 KiB   | `scripts/gates/repo-size.test.mjs`     | review evidence and generated files stay out of the public repository                    |
-| `DIR_LIMIT`      | 15 files  | `scripts/gates/dir-size.test.mjs`      | a reader finds a module in a directory instead of scanning it                            |
+| Constant         | Value      | Where                                  | Why                                                                                      |
+| ---------------- | ---------- | -------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `FUNCTION_LIMIT` | 150 lines  | `scripts/gates/testing-shape.test.mjs` | no function under `packages/core/src/testing` grows back into one every module edits     |
+| `BARREL_LIMIT`   | 300 lines  | `scripts/gates/testing-shape.test.mjs` | `testing/memory.ts` stays a list of exports                                              |
+| `MAX_SPECS`      | 10         | `scripts/gates/e2e-budget.test.mjs`    | a new flow replaces a spec or makes the case to raise this in review                     |
+| `SPEC_LIMIT`     | 100 KiB    | `scripts/gates/e2e-budget.test.mjs`    | a spec past this is two flows, or holds copy checks that belong in unit tests            |
+| `TEST_LINES`     | 150 lines  | `scripts/gates/e2e-budget.test.mjs`    | a longer test hides several claims; `LONG_TESTS` lists the one left, and can only shrink |
+| `LIMIT`          | 200 KiB    | `scripts/gates/repo-size.test.mjs`     | review evidence and generated files stay out of the public repository                    |
+| `DIR_LIMIT`      | 15 files   | `scripts/gates/dir-size.test.mjs`      | a reader finds a module in a directory instead of scanning it                            |
+| `FILE_LIMIT`     | 1000 lines | `scripts/gates/file-size.test.mjs`     | a file past this holds several subjects; a new one goes beside it, not in it             |
 
 The two `packages/db` ratchets have their limits in [database.md](../reference/database.md#constants).
 

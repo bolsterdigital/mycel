@@ -9,7 +9,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { posix } from 'node:path';
-import { gitFiles, isTest, readJson } from '../lib/repo.mjs';
+import { gitFiles, isTest, ratchet, readJson } from '../lib/repo.mjs';
 
 export const BASELINE = 'scripts/gates/dir-size.baseline.json';
 export const DIR_LIMIT = 15;
@@ -28,35 +28,11 @@ export function countDirs(paths) {
   return counts;
 }
 
-/**
- * What grew past its ceiling (or past the limit without one), what shrank below its ceiling so
- * the baseline can follow, and which exemptions or ceilings name a directory that is gone or
- * back under the limit.
- */
-export function ratchet(counts, { ceilings, exempt }) {
-  const grew = [];
-  const shrank = [];
-  const stale = [];
-  for (const [dir, n] of Object.entries(counts)) {
-    if (dir in exempt) continue;
-    const ceiling = ceilings[dir] ?? DIR_LIMIT;
-    if (n > ceiling) grew.push(`${dir}: ${n} (ceiling ${ceiling})`);
-  }
-  for (const [dir, ceiling] of Object.entries(ceilings)) {
-    const n = counts[dir] ?? 0;
-    if (n <= DIR_LIMIT) stale.push(`${dir}: ${n}, within ${DIR_LIMIT}; remove the ceiling`);
-    else if (n < ceiling) shrank.push(`${dir}: ${n} (ceiling ${ceiling})`);
-  }
-  for (const dir of Object.keys(exempt))
-    if (!(dir in counts)) stale.push(`${dir}: gone; remove the exemption`);
-  return { grew, shrank, stale };
-}
-
 test('no directory grows past 15 loose non-test files or past its ceiling', () => {
   const paths = gitFiles() ?? [];
   assert.ok(paths.length > 500, 'found the tracked files');
   const baseline = readJson(BASELINE);
-  const { grew, shrank, stale } = ratchet(countDirs(paths), baseline);
+  const { grew, shrank, stale } = ratchet(countDirs(paths), baseline, DIR_LIMIT);
   assert.deepEqual(grew, [], 'group related files into a subdirectory instead');
   assert.deepEqual(shrank, [], `fewer files: lower these ceilings in ${BASELINE}`);
   assert.deepEqual(stale, [], `update ${BASELINE}`);
@@ -79,7 +55,11 @@ test('tests, snapshots, fixtures and static assets do not count; each finding is
   ]);
   assert.deepEqual(counts, { a: 17, b: 12, c: 16, n: 30, '.': 1 });
   assert.deepEqual(
-    ratchet(counts, { ceilings: { a: 18, b: 20, d: 19 }, exempt: { n: 'numbered', gone: 'x' } }),
+    ratchet(
+      counts,
+      { ceilings: { a: 18, b: 20, d: 19 }, exempt: { n: 'numbered', gone: 'x' } },
+      DIR_LIMIT
+    ),
     {
       grew: ['c: 16 (ceiling 15)'],
       shrank: ['a: 17 (ceiling 18)'],
