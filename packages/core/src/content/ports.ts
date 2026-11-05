@@ -6,7 +6,15 @@
 import type { BlockType, ReferenceType } from './blocks.js';
 import type { LocaleState } from './lifecycle.js';
 import type { ItemFilter, ItemOrder } from './listing.js';
-import type { Author, ContentType, Pattern, Revision, RevisionSummary, Section } from './model.js';
+import type {
+  Author,
+  ContentDocument,
+  ContentType,
+  Pattern,
+  Revision,
+  RevisionSummary,
+  Section,
+} from './model.js';
 
 export interface ItemRecord {
   id: string;
@@ -91,6 +99,8 @@ export interface ContentRepository {
   find(filter: FindFilter, after: string | null, limit: number): Promise<Paged<ItemMatch>>;
   /** How many items publish a revision, in any locale, that uses `ref` (ADR 004 rule 6). */
   liveReferences(ref: { type: ReferenceType; id: string }): Promise<number>;
+  /** The document of each item's latest revision, by item id; an unknown id has no entry. */
+  latestDocuments(itemIds: readonly string[]): Promise<Map<string, ContentDocument>>;
   /** A revision of this item; another item's revision is null. */
   revision(itemId: string, revisionId: string): Promise<Revision | null>;
   revisions(itemId: string, after: string | null, limit: number): Promise<Paged<RevisionSummary>>;

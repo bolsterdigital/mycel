@@ -1185,7 +1185,7 @@ test.describe('content-admin', () => {
     await expect(titles).toHaveText([`appel ${word}`, `Brood ${word}`, `Één ${word}`]);
 
     // One status, by a native form: the search and the order stay.
-    await page.getByLabel('Status').selectOption({ label: 'Gepubliceerd' });
+    await page.getByRole('search').getByLabel('Status').selectOption({ label: 'Gepubliceerd' });
     await page.getByRole('button', { name: 'Filteren' }).click();
     await expect(titles).toHaveText([`appel ${word}`]);
     await expect(page.locator('#content-count')).toHaveText('1 gevonden');

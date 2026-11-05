@@ -1366,6 +1366,62 @@
     font-size: var(--step--1);
     color: var(--color-muted-fg);
   }
+  /* The count on one side, the choice of columns on the other; each its own line when narrow. */
+  .ui-list-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-1) var(--space-2);
+    margin-block-start: var(--space-1);
+  }
+  .ui-list-tools > .ui-list-count {
+    margin: 0;
+  }
+  .ui-list-display > summary {
+    min-block-size: var(--tap);
+  }
+  .ui-list-display[open] {
+    flex-basis: 100%;
+  }
+  .ui-list-display-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-1) var(--space-3);
+    padding-block: var(--space-1);
+  }
+  .ui-list-display-form > .ui-actions-host {
+    flex: 1 1 8rem;
+    margin-block: 0;
+  }
+  /* The filters that are on: a whole chip is its link, and wraps to the next line as a whole. */
+  .ui-filter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-0) var(--space-1);
+    margin: var(--space-1) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ui-filter-chips a {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-0);
+    min-block-size: var(--tap);
+    max-inline-size: 100%;
+    padding-inline: var(--space-1);
+    overflow-wrap: anywhere;
+    font-size: var(--step--1);
+    color: var(--color-fg);
+    text-decoration: none;
+    background: var(--color-surface-bg);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius);
+  }
+  .ui-filter-chips a:hover {
+    background: var(--color-selected-bg);
+  }
   /* The row a link names by its id: where "back to the list" on an item lands. */
   .ui-table tr:target :is(th, td) {
     background: var(--color-selected-bg);
@@ -3149,6 +3205,31 @@
     flex-basis: 12rem;
   }
   .ui-filter-bar .ui-field-head > label {
+    font-size: var(--step--1);
+    font-weight: 500;
+    color: var(--color-muted-fg);
+  }
+  /* Closed, one more thing in the row; open, the fields take a row of their own. */
+  .ui-filter-more > summary {
+    display: flex;
+    align-items: center;
+    min-block-size: var(--tap);
+  }
+  .ui-filter-more[open] {
+    flex-basis: 100%;
+  }
+  .ui-filter-more-fields {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-1) var(--space-2);
+  }
+  .ui-filter-more-fields > .ui-field {
+    flex: 1 1 12rem;
+    max-inline-size: var(--field-width);
+    min-inline-size: 0;
+  }
+  .ui-filter-more-fields .ui-field-head > label {
     font-size: var(--step--1);
     font-weight: 500;
     color: var(--color-muted-fg);

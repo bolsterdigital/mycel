@@ -42,6 +42,7 @@ export { default as NavGroup } from './nav/NavGroup.svelte';
 export { default as Notice } from './feedback/Notice.svelte';
 export { default as OverviewPage } from './page/OverviewPage.svelte';
 export { default as PageHeader } from './page/PageHeader.svelte';
+export { default as FilterChips } from './nav/FilterChips.svelte';
 export { default as Pagination } from './nav/Pagination.svelte';
 export { default as Panel } from './display/Panel.svelte';
 export { default as Select } from './form/Select.svelte';

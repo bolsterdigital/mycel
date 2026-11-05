@@ -3,9 +3,8 @@
 // by core's readiness; the shell's return path stays inside this site's admin.
 
 import { describe, expect, it } from 'vitest';
-import { ContentDocument } from '@mycel/core';
 import type { Cookies } from '@sveltejs/kit';
-import { contentLocale, returnPath, translationState } from './content-locale.js';
+import { contentLocale, returnPath } from './content-locale.js';
 
 const jar = (value?: string) => ({ get: () => value }) as unknown as Cookies;
 const site = { locales: ['nl', 'en'], defaultLocale: 'nl' };
@@ -20,22 +19,6 @@ describe('contentLocale', () => {
   it('ignores a locale the site does not have, asked or stored', () => {
     expect(contentLocale(jar('de'), site, 'fr')).toBe('nl');
     expect(contentLocale(jar(), site, 'de', ['nl', 'en', 'de'])).toBe('de');
-  });
-});
-
-describe('translationState', () => {
-  const doc = ContentDocument.parse({
-    type: 'page',
-    title: { nl: 'Titel', en: 'Title' },
-    lead: { nl: 'Kern' },
-    defaultLocale: 'nl',
-    locales: ['nl', 'en'],
-    blocks: [],
-  });
-  it('names a locale missing, behind or ok', () => {
-    expect(translationState(doc, 'nl')).toBe('ok');
-    expect(translationState(doc, 'en')).toBe('behind');
-    expect(translationState(doc, 'de')).toBe('missing');
   });
 });
 

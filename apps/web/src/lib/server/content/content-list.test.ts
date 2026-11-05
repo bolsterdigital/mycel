@@ -5,6 +5,11 @@
 import { describe, expect, it } from 'vitest';
 import type { Cookies } from '@sveltejs/kit';
 import {
+  chooseListDisplay,
+  columnsOf,
+  isFiltered,
+  listChips,
+  listDisplay,
   listInput,
   listParams,
   listPath,
@@ -13,7 +18,9 @@ import {
   rememberListFromReferer,
 } from './content-list.js';
 
-const view = (query: string) => listViewFrom(new URLSearchParams(query));
+const view = (query: string, type: 'page' | 'article' = 'article') =>
+  listViewFrom(new URLSearchParams(query), type);
+const NL = { per: 20, zone: 'Europe/Amsterdam', others: ['en'] };
 const ITEM = '01900000-0000-7000-8000-000000000001';
 
 /** A cookie jar that records what a response would set. */
@@ -39,14 +46,22 @@ describe('listViewFrom', () => {
     expect(view('type=page')).toEqual({
       q: '',
       status: null,
+      author: null,
+      section: null,
+      tag: '',
+      from: '',
+      to: '',
+      translation: null,
       sort: 'updated',
       dir: 'desc',
       page: 1,
+      columns: null,
+      per: null,
     });
   });
 
   it('reads a search, a status, an order and a page', () => {
-    expect(view('q=+buurt+&status=changed&sort=title&dir=desc&page=3')).toEqual({
+    expect(view('q=+buurt+&status=changed&sort=title&dir=desc&page=3')).toMatchObject({
       q: 'buurt',
       status: 'changed',
       sort: 'title',
@@ -83,7 +98,7 @@ describe('listParams and listPath', () => {
 
 describe('listInput', () => {
   it('asks for the page of twenty the view shows, in the content locale', () => {
-    expect(listInput(view('q=buurt&status=draft&page=3'), 'article', 'en')).toEqual({
+    expect(listInput(view('q=buurt&status=draft&page=3'), 'article', 'en', NL)).toEqual({
       type: 'article',
       locale: 'en',
       q: 'buurt',
@@ -96,17 +111,124 @@ describe('listInput', () => {
   });
 
   it('asks for "changed" as published with changes, not as a status', () => {
-    const input = listInput(view('status=changed'), 'page', 'nl');
+    const input = listInput(view('status=changed'), 'page', 'nl', NL);
     expect(input).toMatchObject({ hasUnpublishedChanges: true });
     expect(input).not.toHaveProperty('status');
     expect(input).not.toHaveProperty('q');
   });
 });
 
+const AUTHOR = '01900000-0000-7000-8000-00000000000a';
+
+describe('the filters of a view', () => {
+  it('reads an author, a section, a tag, two days and a translation', () => {
+    const asked = view(
+      `author=${AUTHOR}&section=${ITEM}&tag=+Buurt++Nieuws&from=2026-03-29&to=2026-03-29&translation=behind`
+    );
+    expect(asked).toMatchObject({
+      author: AUTHOR,
+      section: ITEM,
+      tag: 'buurt nieuws',
+      from: '2026-03-29',
+      to: '2026-03-29',
+      translation: 'behind',
+    });
+    expect(isFiltered(asked)).toBe(true);
+    expect(listChips(asked).map((c) => c.name)).toEqual([
+      'author',
+      'section',
+      'tag',
+      'from',
+      'to',
+      'translation',
+    ]);
+  });
+
+  it('takes what it does not understand as no filter', () => {
+    const asked = view('author=sam&section=1&from=2026-02-31&to=gisteren&translation=oud&tag=%00');
+    expect(isFiltered(asked)).toBe(false);
+    expect(listChips(asked)).toEqual([]);
+  });
+
+  it('asks nothing of a page that only an article can answer', () => {
+    const asked = view(`author=${AUTHOR}&section=${ITEM}&tag=zee&from=2026-01-01`, 'page');
+    expect(asked).toMatchObject({ author: null, section: null, tag: '', from: '2026-01-01' });
+  });
+
+  it('turns two days into the moments of the admin zone, the last day whole', () => {
+    // 29 March 2026 in Amsterdam has 23 hours: the clock jumps from 02:00 to 03:00.
+    expect(listInput(view('from=2026-03-29&to=2026-03-29'), 'page', 'nl', NL)).toMatchObject({
+      updatedFrom: '2026-03-28T23:00:00.000Z',
+      updatedBefore: '2026-03-29T22:00:00.000Z',
+    });
+  });
+
+  it('looks for a translation in the other locales, and not without any', () => {
+    expect(listInput(view('translation=missing'), 'page', 'nl', NL)).toMatchObject({
+      translation: { state: 'missing', locales: ['en'] },
+    });
+    expect(
+      listInput(view('translation=missing'), 'page', 'nl', { ...NL, others: [] })
+    ).not.toHaveProperty('translation');
+  });
+
+  it('keeps an offset core accepts, whatever the page size asks', () => {
+    expect(listInput(view('page=5001'), 'page', 'nl', { ...NL, per: 100 }).offset).toBe(100_000);
+  });
+});
+
+describe('the display of a list', () => {
+  const form = (columns: string[], per: string) => {
+    const data = new FormData();
+    for (const column of columns) data.append('column', column);
+    data.set('per', per);
+    return data;
+  };
+
+  it('shows the status and the last save, twenty to a page, until someone chooses', () => {
+    expect(listDisplay(jar().cookies, view(''), 'article')).toEqual({
+      columns: ['status', 'updated'],
+      per: 20,
+    });
+  });
+
+  it('offers a page no column it cannot fill', () => {
+    expect(columnsOf('page')).toEqual(['status', 'slug', 'created', 'updated']);
+    expect(view('columns=author,slug', 'page').columns).toEqual(['slug']);
+  });
+
+  it('keeps a choice per site and type, and in its own order', () => {
+    const { cookies, calls } = jar();
+    chooseListDisplay(cookies, 'probe', 'article', form(['updated', 'tags', 'nonsense'], '50'));
+    expect(calls).toEqual(['set mycel-content-display-article /admin/probe']);
+    expect(listDisplay(cookies, view(''), 'article')).toEqual({
+      columns: ['tags', 'updated'],
+      per: 50,
+    });
+    // Another type follows its own choice.
+    expect(listDisplay(cookies, view(''), 'page').per).toBe(20);
+  });
+
+  it('may hold nothing but the title, and a size it does not know is the default', () => {
+    const { cookies } = jar();
+    chooseListDisplay(cookies, 'probe', 'page', form([], '7'));
+    expect(listDisplay(cookies, view('', 'page'), 'page')).toEqual({ columns: [], per: 20 });
+  });
+
+  it('lets a query name the display for one link, and keeps it in the view', () => {
+    const { cookies } = jar();
+    chooseListDisplay(cookies, 'probe', 'article', form(['status'], '50'));
+    const asked = view('columns=slug&per=100');
+    expect(listDisplay(cookies, asked, 'article')).toEqual({ columns: ['slug'], per: 100 });
+    expect(listParams(asked).toString()).toBe('columns=slug&per=100');
+    expect(listParams(view('per=7')).toString()).toBe('');
+  });
+});
+
 describe('a query that holds a NUL', () => {
   it('is no search', () => {
     expect(view('q=a%00b').q).toBe('');
-    expect(listInput(view('q=%00'), 'page', 'nl')).not.toHaveProperty('q');
+    expect(listInput(view('q=%00'), 'page', 'nl', NL)).not.toHaveProperty('q');
   });
 });
 

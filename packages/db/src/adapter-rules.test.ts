@@ -112,7 +112,7 @@ async function observeListing(invoker: Invoker, admin: Principal, clock: FakeClo
   };
   const slugs = async (input: ListInput) => (await list(input)).items.map((i) => i.slug).join(' ');
   const firstByTitle = await list({ sort: 'title', limit: 2 });
-  return {
+  const pages = {
     created: await slugs({}),
     createdAscending: await slugs({ sort: 'created', direction: 'asc' }),
     updated: await slugs({ sort: 'updated' }),
@@ -148,6 +148,99 @@ async function observeListing(invoker: Invoker, admin: Principal, clock: FakeClo
     afterUnknownByTitle: await slugs({ sort: 'title', after: uuidv7() }),
     afterUnknownByCreation: await slugs({ after: uuidv7() }),
     total: (await list({ q: 'e', limit: 1 })).total,
+  };
+
+  // Articles from here on, so the record above stays the five pages. The authors and the tags of
+  // an earlier revision do not count: `oud` lost both in its second save.
+  const sam = await invoker.run(useCases.createAuthor, admin, { slug: 'sam', name: 'Sam' });
+  const noor = await invoker.run(useCases.createAuthor, admin, { slug: 'noor', name: 'Noor' });
+  const buurt = await invoker.run(useCases.createSection, admin, {
+    slug: 'buurt',
+    title: { nl: 'Buurt' },
+  });
+  const article = (over: Record<string, unknown>) => ({
+    type: 'article' as const,
+    defaultLocale: 'nl',
+    locales: ['nl', 'en'],
+    title: { nl: 'Artikel', en: 'Article' },
+    blocks: [],
+    ...over,
+  });
+  const write = async (slug: string, over: Record<string, unknown>) => {
+    clock.advance(1000);
+    const { item } = await invoker.run(useCases.createItem, admin, {
+      slug,
+      document: article(over) as never,
+    });
+    return item;
+  };
+  const volledig = await write('volledig', {
+    authorIds: [sam.id],
+    sectionId: buurt.id,
+    tags: ['Buurt Nieuws'],
+  });
+  const oud = await write('oud', { authorIds: [sam.id, noor.id], tags: ['zee'] });
+  clock.advance(1000);
+  await invoker.run(useCases.updateItem, admin, {
+    itemId: oud.id,
+    baseRevisionId: oud.latestRevisionId,
+    document: article({ authorIds: [noor.id] }) as never,
+  });
+  const achter = await write('achter', { title: { nl: 'Alleen Nederlands' } });
+  const nl = await write('nl-alleen', { locales: ['nl'], title: { nl: 'Alleen hier' } });
+  const of = (type: 'article' | 'page' = 'article') => ({ type, sort: 'created' as const });
+  const saved = async (id: string) =>
+    (await invoker.run(useCases.getItem, admin, { itemId: id })).item.updatedAt;
+  const behind = { translation: { state: 'behind' as const, locales: ['en'] } };
+  const missing = { translation: { state: 'missing' as const, locales: ['en'] } };
+  const firstBehind = await list({ ...of(), ...behind, limit: 1 });
+  const listed = await list({ slug: 'volledig' });
+  return {
+    ...pages,
+    author: await slugs({ ...of(), authorId: sam.id }),
+    authorOfLatestRevision: await slugs({ ...of(), authorId: noor.id }),
+    section: await slugs({ ...of(), sectionId: buurt.id }),
+    tag: await slugs({ ...of(), tag: '  BUURT   nieuws ' }),
+    tagOfEarlierRevision: await slugs({ ...of(), tag: 'zee' }),
+    pageHasNoAuthor: await slugs({ ...of('page'), authorId: sam.id }),
+    pageHasNoTag: await slugs({ ...of('page'), tag: 'zee' }),
+    // From is inclusive, before is exclusive: one moment lands in exactly one of two days.
+    savedFrom: await slugs({ ...of(), updatedFrom: await saved(achter.id) }),
+    savedBefore: await slugs({ ...of(), updatedBefore: await saved(achter.id) }),
+    translationBehind: await slugs({ ...of(), ...behind }),
+    translationMissing: await slugs({ ...of(), ...missing }),
+    translationAndAuthor: await slugs({ ...of(), ...behind, authorId: sam.id }),
+    translationPage: {
+      slugs: firstBehind.items.map((i) => i.slug).join(' '),
+      next: firstBehind.next,
+      total: firstBehind.total,
+    },
+    translationOffset: await slugs({
+      ...of(),
+      ...missing,
+      offset: 1,
+    }),
+    translationAfterUnknown: await slugs({
+      sort: 'title',
+      type: 'article',
+      ...missing,
+      after: uuidv7(),
+    }),
+    translationAfterNonMatch: await slugs({
+      sort: 'title',
+      direction: 'desc',
+      type: 'article',
+      ...missing,
+      after: volledig.id,
+    }),
+    listed: {
+      translations: listed.items[0]?.translations,
+      authors: listed.items[0]?.authorIds.length,
+      section: listed.items[0]?.sectionId === buurt.id,
+      tags: listed.items[0]?.tags,
+    },
+    listedBehind: (await list({ slug: 'achter' })).items[0]?.translations,
+    listedAlone: (await list({ slug: nl.slug })).items[0]?.translations,
   };
 }
 
@@ -304,6 +397,31 @@ const expected = {
     afterUnknownByTitle: '',
     afterUnknownByCreation: 'appel procent een-dag deel de-week',
     total: 5,
+    author: 'volledig',
+    authorOfLatestRevision: 'oud',
+    section: 'volledig',
+    tag: 'volledig',
+    tagOfEarlierRevision: '',
+    pageHasNoAuthor: '',
+    pageHasNoTag: '',
+    savedFrom: 'nl-alleen achter',
+    savedBefore: 'oud volledig',
+    translationBehind: 'achter',
+    translationMissing: 'nl-alleen',
+    translationAndAuthor: '',
+    translationPage: { slugs: 'achter', next: null, total: 1 },
+    translationOffset: '',
+    translationAfterUnknown: '',
+    // Downwards "Alleen hier" follows "Artikel", though the item named does not match itself.
+    translationAfterNonMatch: 'nl-alleen',
+    listed: {
+      translations: { nl: 'ok', en: 'ok' },
+      authors: 1,
+      section: true,
+      tags: ['buurt nieuws'],
+    },
+    listedBehind: { nl: 'ok', en: 'behind' },
+    listedAlone: { nl: 'ok' },
   },
 };
 
