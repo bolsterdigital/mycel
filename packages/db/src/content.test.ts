@@ -19,6 +19,7 @@ import {
   parseJobPayload,
   publishScheduled,
   scheduleItem,
+  startSlug,
   systemPrincipal,
   useCases,
   type JobRecord,
@@ -535,6 +536,44 @@ describe.skipIf(skip)('content conformance', () => {
           code: 'conflict',
           issues: [{ path: 'slug', message: 'content.slug.taken' }],
         });
+    }
+  });
+
+  it('lets one of two new items whose saves race to one title slug have it, with no orphan revision', async () => {
+    // The start slug follows the title on save (P185-79): both saves read the slug as free under
+    // their own item lock, and the unique key decides; the loser's revision goes with its refusal.
+    for (let round = 0; round < 3; round++) {
+      const title = `Titel race ${round} ${run}`;
+      const items = await Promise.all(
+        Array.from({ length: 4 }, () =>
+          invoker.run(useCases.createItem, adminOf(tenantA), {
+            slug: startSlug('page', crypto.randomUUID()),
+            document: doc('(geen titel)'),
+          })
+        )
+      );
+      const results = await Promise.allSettled(
+        items.map(({ item, revision }) =>
+          invoker.run(useCases.updateItem, adminOf(tenantA), {
+            itemId: item.id,
+            baseRevisionId: revision.id,
+            document: doc(title),
+          })
+        )
+      );
+      const won = results.filter((r) => r.status === 'fulfilled') as PromiseFulfilledResult<{
+        item: { id: string; slug: string };
+      }>[];
+      expect(won.map((w) => w.value.item.slug)).toContain(`titel-race-${round}-${run}`);
+      for (const r of results.filter((r) => r.status === 'rejected') as PromiseRejectedResult[])
+        expect(r.reason).toMatchObject({ code: 'conflict' });
+      for (const [i, { item, revision }] of items.entries()) {
+        const read = await invoker.run(useCases.getItem, adminOf(tenantA), { itemId: item.id });
+        if (results[i]!.status === 'rejected') {
+          expect(read.item.slug).toBe(item.slug);
+          expect(read.item.latestRevisionId).toBe(revision.id);
+        } else expect(read.item.slug).toMatch(new RegExp(`^titel-race-${round}-${run}(-\\d)?$`));
+      }
     }
   });
 

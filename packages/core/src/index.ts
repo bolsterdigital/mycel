@@ -32,6 +32,7 @@ export * from './content/rich-text.js';
 export * from './content/markdown.js';
 export * from './content/blocks.js';
 export * from './content/model.js';
+export { startSlug } from './content/address/slugs.js';
 export * from './content/header/effective.js';
 export * from './content/lifecycle.js';
 export * from './content/listing.js';

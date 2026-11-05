@@ -248,7 +248,7 @@
   "packages/core/src/content/model.ts": 7,
   "packages/core/src/content/public.ts": 5,
   "packages/core/src/content/rich-text.ts": 2,
-  "packages/core/src/content/service.ts": 5,
+  "packages/core/src/content/service.ts": 4,
   "packages/core/src/entitlements/entitlements.test.ts": 1,
   "packages/core/src/entitlements/guards.ts": 1,
   "packages/core/src/entitlements/model.ts": 1,

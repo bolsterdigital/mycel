@@ -1,6 +1,7 @@
 // flow: publish
 // An operator writes an article: the enhanced writer and pasting save one core document.
 
+import { randomUUID } from 'node:crypto';
 import { systemPrincipal, useCases } from '@mycel/core';
 import { type APIRequestContext, type Page, expect, test } from '@playwright/test';
 import { expectNoAxeViolations, headingOrderProblems } from './lib/axe';
@@ -380,6 +381,64 @@ test.describe('article-writing', () => {
     expect(saved.revision.document.blocks[0].props.content.nl.content[0].content[0].text).toBe(
       'Native invoer voor het laden'
     );
+  });
+
+  test('a new page takes its address from its title on the first save, then keeps it', async ({
+    page,
+    request,
+  }) => {
+    await login(page, '/admin/probe/content?type=page');
+    await page.getByRole('button', { name: 'Nieuwe pagina' }).click();
+    await expect(page).toHaveURL(/\/content\/[0-9a-f-]{36}$/);
+    const itemId = new URL(page.url()).pathname.split('/').at(-1)!;
+    const edit = new URL(page.url()).pathname;
+    const start = (await callApi(request, 'content.item.get', { itemId })).item.slug;
+    expect(start).toMatch(/^page-[0-9a-f-]{36}$/);
+    if (isA11y())
+      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    const stamp = randomUUID().slice(0, 8);
+    const title = `Leesbaar adres ${stamp} ${test.info().project.name}`;
+    const slug = `leesbaar-adres-${stamp}-${test.info().project.name}`;
+    await page.locator('#title\\.nl').fill(title);
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(page).toHaveURL(`${edit}?saved`);
+    const side = page.locator('section[aria-labelledby="this-item"]');
+    await expect(side).toContainText(`/${slug}`);
+    await expect(side).not.toContainText(start);
+
+    // The link picker of another page names it by that address.
+    const { item: other } = await callApi(request, 'content.item.create', {
+      slug: `a1-picker-${stamp}-${test.info().project.name}`,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: 'Koppelt' },
+        blocks: [
+          {
+            type: 'cta',
+            version: 1,
+            props: {
+              title: { nl: 'Doe mee' },
+              actions: [{ label: { nl: 'Lees' }, target: { kind: 'item', itemId } }],
+            },
+          },
+        ],
+      },
+    });
+    await page.goto(`/admin/probe/content/${other.id}`);
+    await expect(page.locator('select[name$=".actions.0.target"] option:checked')).toHaveText(
+      `${title} (/${slug})`
+    );
+
+    // A second title leaves the address where the first save put it.
+    await page.goto(edit);
+    if (isA11y())
+      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    await page.locator('#title\\.nl').fill(`${title} bis`);
+    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await expect(page).toHaveURL(`${edit}?saved`);
+    expect((await callApi(request, 'content.item.get', { itemId })).item.slug).toBe(slug);
   });
 
   test('page prose edits inline and saves in the same form as its title', async ({
