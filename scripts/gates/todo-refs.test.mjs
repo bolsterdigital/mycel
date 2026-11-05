@@ -19,13 +19,38 @@ const NUMBER = /(?<![\w&/#-])(?<!PRs? )(?<!TODO )#\d{1,3}\b/;
 const BARE = new RegExp(String.raw`(?:^\s*(?:\*|#)|\/\/|\/\*|<!--|\s#\s).*?` + NUMBER.source);
 
 /**
- * The comment forms that run over lines, per kind of file. Only there: `/*` in a YAML path or a
- * shell glob opens nothing. An opener after a path or a quote is a glob as well (`packages/*`).
+ * The comment forms that run over lines, per kind of file, and whether they only open in code (an
+ * apostrophe in Svelte markup is no string). Only there: `/*` in a YAML path or a
+ * shell glob opens nothing. An opener after a path, a bracket or a quote is a glob as well
+ * (`packages/*`, `[tenant]/*`, `${id}/**`).
  */
 const blockComments = (path) => [
-  ...(/\.(?:[cm]?[jt]s|css|svelte)$/.test(path) ? [[/(?<![\w*'"`/.-])\/\*/, '*/']] : []),
-  ...(/\.(?:svelte|html)$/.test(path) ? [[/<!--/, '-->']] : []),
+  ...(/\.(?:[cm]?[jt]s|css|svelte)$/.test(path) ? [[/(?<![\w*'"`/.\]})-])\/\*/, '*/', true]] : []),
+  ...(/\.(?:svelte|html)$/.test(path) ? [[/<!--/, '-->', false]] : []),
 ];
+
+/**
+ * `line` with its strings, templates and line comment blanked, same length, so an opener found in
+ * it sits at the same index in `line`. One line at a time: a template over lines or a regex
+ * literal with a quote in it can still fool it, which only ever hides an opener. CSS has no line
+ * comment, and `//` there is a URL. Rejected: a real tokenizer per language, for a ratchet.
+ */
+function code(line, path) {
+  let out = '';
+  let quote = null;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (quote) {
+      if (c === '\\') ((out += '  '), i++);
+      else if (c === quote) ((out += c), (quote = null));
+      else out += ' ';
+    } else if (c === "'" || c === '"' || c === '`') ((out += c), (quote = c));
+    else if (c === '/' && line[i + 1] === '/' && !path.endsWith('.css'))
+      return out.padEnd(line.length);
+    else out += c;
+  }
+  return out;
+}
 
 /** The lines with a bare number: after a marker, or anywhere inside an open block comment. */
 function bareRefs(text, path) {
@@ -42,9 +67,15 @@ function bareRefs(text, path) {
         if (end < 0) break;
         rest = rest.slice(end + close.length);
         close = null;
+        // After a closer the line is code again, and a marker there counts.
+        if (BARE.test(rest)) hit = true;
       } else {
+        const scan = code(rest, path);
         const open = forms
-          .map(([opener, closer]) => ({ match: rest.match(opener), closer }))
+          .map(([opener, closer, inCode]) => ({
+            match: (inCode ? scan : rest).match(opener),
+            closer,
+          }))
           .filter(({ match }) => match)
           .sort((a, b) => a.match.index - b.match.index)[0];
         if (!open) break;
@@ -123,6 +154,24 @@ test('a bare number on a later line of a block comment counts, and only inside i
   assert.equal(count("const g = 'packages/*';\nconst c = '#123';\nconst d = 'x #12';"), 0);
   assert.equal(count('paths:\n  - /*\nname: (#12)', 'a.yml'), 0);
   assert.equal(count("const h = '<!--';\nconst d = 'x #12';"), 0);
+});
+
+test('an opener in a line comment, a string or a template opens nothing', () => {
+  const count = (text, path = 'a.ts') => countRefs([path], () => text)[path] ?? 0;
+  assert.equal(count("// /admin/[tenant]/*: a redirect\nconst colour = '#123';"), 0);
+  assert.equal(count("await page.route(`**/media/${id}/**`, abort);\nconst c = '#123';"), 0);
+  assert.equal(count("count('paths:\\n  - /*\\nname', 'a.yml');\nconst c = '#123';"), 0);
+  assert.equal(count("const u = 'https://x/*';\nconst c = '#123';"), 0);
+  // A real opener after code or after a string still opens.
+  assert.equal(count("const a = 'x'; /*\n see (#9)\n*/"), 1);
+});
+
+test('a marker after a closer on the same line counts', () => {
+  const count = (text, path = 'a.ts') => countRefs([path], () => text)[path] ?? 0;
+  assert.equal(count('/*\n x */ // (#9)'), 1);
+  assert.equal(count('/*\n x */ /* (#9) */'), 1);
+  assert.equal(count('<!--\n x --> <!-- (#9) -->', 'a.svelte'), 1);
+  assert.equal(count("<p>Don't</p> <!--\n  (#9)\n-->", 'a.svelte'), 1);
 });
 
 test('a binary file holds no reference, whatever its bytes spell', () => {
