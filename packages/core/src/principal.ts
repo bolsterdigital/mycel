@@ -35,6 +35,31 @@ export const Capability = z.enum([
 ]);
 export type Capability = z.infer<typeof Capability>;
 
+/**
+ * Capabilities no use case requires yet, with the reason. They stay in the schema, because ADR 018
+ * rule 5 names them and a stored set may hold one, but granting one limits nothing, so the admin
+ * does not offer them as if it did. A test in registry.conformance.test.ts fails when a capability
+ * is neither required nor listed here, and when a listed one gets a use case.
+ * Rejected: removing them from the enum (a stored member or key would no longer parse), and
+ * leaving them on offer with a warning (a choice that does nothing should not be a choice).
+ */
+export const PLANNED_CAPABILITIES: Readonly<Partial<Record<Capability, string>>> = {
+  'supporters:export':
+    'no supporter export exists; tenant.export.create requires tenant:admin (ADR 018 rule 5)',
+  'donations:read': 'donations (ADR 005) are not built',
+  'donations:write': 'donations (ADR 005) are not built',
+  'mailing:read': 'campaign mailing (ADR 010) is not built; confirmation mail is not mailing',
+  'mailing:send': 'campaign mailing (ADR 010) is not built; confirmation mail is not mailing',
+  'money:refund': 'donations (ADR 005) are not built',
+};
+
+/**
+ * What a form may offer: everything with a use case behind it, plus what the set being edited
+ * already holds, so that saving a member does not silently drop a stored capability.
+ */
+export const offeredCapabilities = (held: readonly Capability[] = []): Capability[] =>
+  Capability.options.filter((c) => !(c in PLANNED_CAPABILITIES) || held.includes(c));
+
 export const Actor = z.discriminatedUnion('kind', [
   // Our stable operator id, never the IdP subject: an operator can move between identity
   // providers, and attribution (ADR 009 rule 9) must survive that.
