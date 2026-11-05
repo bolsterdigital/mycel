@@ -110,7 +110,7 @@
   const authors = $derived((form && 'authors' in form ? form.authors : null) ?? data.authors);
   const sections = $derived((form && 'sections' in form ? form.sections : null) ?? data.sections);
   const pending = $derived(form && 'pending' in form ? form.pending : data.pending);
-  const issues = $derived<{ name: string; copy: string }[]>(
+  const issues = $derived<{ name: string; list?: string; copy: string }[]>(
     form && 'fieldIssues' in form ? (form.fieldIssues ?? []) : []
   );
   const docLocales = $derived(list('locales'));
@@ -227,8 +227,8 @@
     flagged('heroAlt') ||
       !!(form && 'issues' in form && form.issues?.some((i) => i.field === 'heroAlt'))
   );
-  /** A field name as words: a document field's label, or a block field's plus its locale. */
-  const fieldLabel = (name: string): string => {
+  /** A field name as words: a document field's label, a block field's plus its locale, a list's. */
+  const fieldLabel = (name: string, list = false): string => {
     if (name in DOC_FIELDS) return t(DOC_FIELDS[name]!);
     const parts = name
       .replace(/^(b\.[^.]+|new)\./, '')
@@ -236,7 +236,9 @@
       .slice(1);
     const locale = data.docLocales.includes(parts.at(-1) ?? '') ? parts.pop() : null;
     const key = [...parts].reverse().find((p) => !/^\d+$/.test(p) && p !== 'mode');
-    const label = key ? t(`admin.block.field.${key}` as UiKey) : t('admin.block.title');
+    const label = key
+      ? t(`admin.block.${list ? 'list' : 'field'}.${key}` as UiKey)
+      : t('admin.block.title');
     return locale ? `${label} (${locale})` : label;
   };
   /** The element id of a block field: `b-<block id>-p-…`, `b-new-p-…` for the pending block. */
@@ -1126,7 +1128,8 @@
         <ul>
           {#each issues as i (i.name + i.copy)}
             <li>
-              {#if i.name}<a href="#{fieldId(i.name)}">{fieldLabel(i.name)}</a>:{' '}
+              {#if i.name}<a href="#{fieldId(i.name)}">{fieldLabel(i.list ?? i.name, !!i.list)}</a
+                >:{' '}
               {/if}{t(i.copy as UiKey)}
             </li>
           {/each}
