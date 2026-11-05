@@ -35,7 +35,15 @@ export async function runConnectionIntent(
   const now = deps.clock.now();
   const claimed = await run(async (ctx) => {
     const row = await ctx.connectionIntents.get(id);
-    if (!row || row.state === 'succeeded' || row.state === 'blocked' || row.state === 'resolved')
+    // ADR 019 rule 6: a final state stays what it is. A second job for one, say after a worker died
+    // before finishing its own, must not rewrite why it ended.
+    if (
+      !row ||
+      row.state === 'succeeded' ||
+      row.state === 'blocked' ||
+      row.state === 'resolved' ||
+      row.state === 'failed'
+    )
       return { done: true } as const;
     if (row.leaseUntil && row.leaseUntil > now) return { next: row.leaseUntil } as const;
     // An expired claim is still unknown. Only provider proof can move it back to pending; a
