@@ -30,6 +30,7 @@ import {
   type ContentType,
 } from './model.js';
 import type { ItemRecord } from './ports.js';
+import type { TransactionContext } from '../ports.js';
 
 export const ItemSort = z.enum(['created', 'updated', 'title']);
 export type ItemSort = z.infer<typeof ItemSort>;
@@ -112,6 +113,30 @@ export function translationState(doc: ContentDocument, locale: string): Translat
     ? 'behind'
     : 'ok';
 }
+
+/**
+ * The latest documents a list reads, and a log line for each row it must show without one. An
+ * overview renders nothing from the document, so that row stays and its own edit screen says what
+ * is wrong; the line is how an operator finds the row before anyone opens it. Rejected: throwing,
+ * which let one stored document take the list, the dashboard and every edit screen's pickers down
+ * until someone repaired it in SQL.
+ */
+export async function listedDocuments(
+  ctx: Pick<TransactionContext, 'content' | 'log'>,
+  rows: readonly { id: string }[]
+): Promise<Map<string, ContentDocument>> {
+  const documents = await ctx.content.latestDocuments(rows.map((r) => r.id));
+  for (const { id } of rows) {
+    if (!documents.has(id)) ctx.log.warn('content.list.document_unreadable', { itemId: id });
+  }
+  return documents;
+}
+
+/** What a list says per locale the document has; a locale it lacks is missing by absence. */
+export const listedTranslations = (doc: ContentDocument): Record<string, 'ok' | 'behind'> =>
+  Object.fromEntries(
+    doc.locales.map((l) => [l, translationState(doc, l) === 'behind' ? 'behind' : 'ok'])
+  );
 
 /** The `translation` filter: the state in at least one of these locales. */
 export interface TranslationFilter {

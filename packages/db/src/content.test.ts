@@ -28,6 +28,7 @@ import {
   FakeDns,
   FakeInputHasher,
   FakeSigner,
+  MemoryLogger,
   adminOf,
   memoryPlatform,
   principal,
@@ -43,7 +44,7 @@ import {
   type JobHandlers,
 } from './index.js';
 import { asRole } from './infra/roles.js';
-import { requireDatabase, testTenant, migrateSchema } from './testing.js';
+import { breakLatestDocument, requireDatabase, testTenant, migrateSchema } from './testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
@@ -54,8 +55,10 @@ describe.skipIf(skip)('content conformance', () => {
   const appDb = createDb(appUrl);
   const run = runSuffix();
   const clock = new FakeClock(new Date(Date.now() - 60 * MINUTE));
+  const log = new MemoryLogger();
   const uow = createUnitOfWork(appDb, {
     clock,
+    log,
     ids: uuidv7Ids,
     signer: new FakeSigner(),
     inputHasher: new FakeInputHasher(),
@@ -232,6 +235,56 @@ describe.skipIf(skip)('content conformance', () => {
   afterAll(async () => {
     await operatorDb.destroy();
     await appDb.destroy();
+  });
+
+  it('lists around a document that no longer validates; reading that one still fails', async () => {
+    const admin = adminOf(tenantA);
+    const good = (await create('list-good')).item.id;
+    const unknown = (await create('list-unknown-block')).item.id;
+    const oldFaq = (await create('list-old-faq')).item.id;
+    const repairs = [
+      await breakLatestDocument(appDb, tenantA, unknown),
+      // Throws in the upgrade to FAQ v2, before the document's own parse.
+      await breakLatestDocument(appDb, tenantA, oldFaq, {
+        blocks: [{ id: 'old', type: 'faq', version: 1, props: {} }],
+      }),
+    ];
+    try {
+      for (const input of [
+        {}, // the list
+        { sort: 'updated', limit: 5 }, // the dashboard's last edited
+        { locale: 'nl', status: 'draft', sort: 'updated', limit: 50 }, // its query by state
+        { limit: 100 }, // the editor's pickers
+      ] as const) {
+        const { items } = await invoker.run(useCases.listItems, admin, input);
+        const row = (id: string) => items.find((i) => i.id === id)!;
+        expect(row(good).translations).toEqual({ nl: 'ok', en: 'ok' });
+        for (const id of [unknown, oldFaq]) {
+          expect(row(id).translations).toEqual({});
+          expect(row(id)).toMatchObject({ authorIds: [], sectionId: null, tags: [] });
+        }
+      }
+      const { items } = await invoker.run(useCases.listItems, admin, {
+        translation: { state: 'missing', locales: ['de'] },
+      });
+      expect(items.map((i) => i.id)).toContain(good);
+      expect(items.map((i) => i.id)).not.toContain(unknown);
+      expect(log.lines).toContainEqual(
+        expect.objectContaining({
+          level: 'warn',
+          message: 'content.list.document_unreadable',
+          fields: expect.objectContaining({ itemId: oldFaq }),
+        })
+      );
+
+      // Rendering and editing stay loud: the broken one fails, its neighbour reads.
+      const get = (itemId: string) => invoker.run(useCases.getItem, admin, { itemId });
+      await expect(get(unknown)).rejects.toThrow();
+      await expect(get(oldFaq)).rejects.toThrow();
+      await expect(get(good)).resolves.toBeTruthy();
+    } finally {
+      for (const repair of repairs) await repair();
+    }
   });
 
   it('retains an older scheduled pin through pending writes, refusal and human approval', async () => {

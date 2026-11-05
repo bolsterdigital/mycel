@@ -5,7 +5,8 @@
 // `lock` is `select ... for update` on the item row: every write and the scheduled-publish job
 // take it first, so concurrent saves on one base serialise and the second sees the new latest
 // revision. Revisions are parsed with core's schema on read, so a stored document that no longer
-// validates fails loudly instead of reaching a renderer. Rejected: an advisory lock (the item row
+// validates fails loudly instead of reaching a renderer; `latestDocuments` alone leaves such a
+// document out, because a list renders nothing from it. Rejected: an advisory lock (the item row
 // exists before any write, so a row lock is enough and shows up in pg_locks under its table).
 
 import { sql, type Kysely, type RawBuilder, type Selectable } from 'kysely';
@@ -34,6 +35,15 @@ type ItemRow = Selectable<Database['content_items']>;
 type LocaleRow = Selectable<Database['content_item_locales']>;
 
 const date = (v: Date | string | null): Date | null => (v === null ? null : new Date(v));
+
+/** A stored document as a list reads it; null when it no longer validates, the upgrade included. */
+function readableDocument(stored: unknown): ContentDocument | null {
+  try {
+    return ContentDocument.parse(upgradeFaqV1InDocument(stored));
+  } catch {
+    return null;
+  }
+}
 
 /** Keyset page: `limit + 1` rows were fetched, newest first. */
 function paged<T extends { id: string }>(rows: T[], limit: number): Paged<T> {
@@ -404,9 +414,12 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
         .select(['i.id', 'r.document'])
         .where('i.id', 'in', [...itemIds])
         .execute();
-      return new Map(
-        rows.map((r) => [r.id, ContentDocument.parse(upgradeFaqV1InDocument(r.document))])
-      );
+      const documents = new Map<string, ContentDocument>();
+      for (const r of rows) {
+        const document = readableDocument(r.document);
+        if (document) documents.set(r.id, document);
+      }
+      return documents;
     },
     async revision(itemId, revisionId) {
       const r = await trx
