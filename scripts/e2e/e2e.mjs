@@ -202,7 +202,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
   const { blobStoreFor, loadConfig, missingMediaAdvice, missingMediaFiles } =
     await import('@mycel/api/compose');
   const { createSharpProcessor } = await import('@mycel/media-sharp');
-  const { FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } =
+  const { DEMO_SOUND_BASE64, FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } =
     await import('@mycel/core/testing');
   const operatorDb = createDb(process.env.DATABASE_URL);
   const probe = await createTenantDirectory(operatorDb).findBySlug('probe');
@@ -453,6 +453,11 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
       contentType: 'application/pdf',
       bytes: Buffer.from('%PDF-1.4\n%%EOF\n').toString('base64'),
     });
+    const sound = await invoker.run(useCases.uploadMedia, admin, {
+      filename: 'gesprek.mp3',
+      contentType: 'audio/mpeg',
+      bytes: DEMO_SOUND_BASE64,
+    });
     const [signupItem] = (
       await invoker.run(useCases.listItems, admin, { type: 'page', slug: 'signup' })
     ).items;
@@ -589,6 +594,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
           .replaceAll(EXAMPLE_IDS.image, landscape.id)
           .replaceAll(EXAMPLE_IDS.portrait, portrait.id)
           .replaceAll(EXAMPLE_IDS.document, report.id)
+          .replaceAll(EXAMPLE_IDS.audio, sound.id)
           .replaceAll(EXAMPLE_IDS.item, signupItem.id)
           .replaceAll(EXAMPLE_IDS.form, formId)
       );

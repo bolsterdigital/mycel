@@ -39,7 +39,7 @@
     value: string;
     options: readonly MediaChoice[];
     /** What this slot takes; the picker offers only that kind, and says so in its words. */
-    accept?: 'image' | 'document';
+    accept?: 'image' | 'document' | 'audio';
     /** The tenant's admin root, `/admin/<slug>`: thumbnails, search and upload live under it. */
     base: string;
     hint?: string | undefined;
@@ -54,25 +54,37 @@
 
   const t = $derived(ui(locale));
   const isDocument = $derived(accept === 'document');
-  const offered = $derived(options.filter((o) => !!o.document === isDocument));
+  const isAudio = $derived(accept === 'audio');
+  const offered = $derived(
+    options.filter((o) => !!o.document === isDocument && !!o.audio === isAudio)
+  );
   const word = $derived(
-    isDocument
+    isAudio
       ? {
-          choose: t('admin.media.picker.document.choose'),
-          none: t('admin.media.picker.document.none'),
-          noChoice: t('admin.media.picker.document.noChoice'),
-          library: t('admin.media.picker.document.library'),
-          uploadLink: t('admin.media.picker.document.uploadLink'),
-          drop: t('admin.media.picker.document.drop'),
+          choose: t('admin.media.picker.audio.choose'),
+          none: t('admin.media.picker.audio.none'),
+          noChoice: t('admin.media.picker.audio.noChoice'),
+          library: t('admin.media.picker.audio.library'),
+          uploadLink: t('admin.media.picker.audio.uploadLink'),
+          drop: t('admin.media.picker.audio.drop'),
         }
-      : {
-          choose: t('admin.media.picker.choose'),
-          none: t('admin.media.picker.none'),
-          noChoice: t('admin.media.picker.noImage'),
-          library: t('admin.media.picker.library'),
-          uploadLink: t('admin.media.picker.uploadLink'),
-          drop: t('admin.media.picker.drop'),
-        }
+      : isDocument
+        ? {
+            choose: t('admin.media.picker.document.choose'),
+            none: t('admin.media.picker.document.none'),
+            noChoice: t('admin.media.picker.document.noChoice'),
+            library: t('admin.media.picker.document.library'),
+            uploadLink: t('admin.media.picker.document.uploadLink'),
+            drop: t('admin.media.picker.document.drop'),
+          }
+        : {
+            choose: t('admin.media.picker.choose'),
+            none: t('admin.media.picker.none'),
+            noChoice: t('admin.media.picker.noImage'),
+            library: t('admin.media.picker.library'),
+            uploadLink: t('admin.media.picker.uploadLink'),
+            drop: t('admin.media.picker.drop'),
+          }
   );
   const thumb = (o: MediaChoice) => (o.thumb ? thumbPath(base, o.id) : '');
   // A choice the script added (a search result or an upload) is not in `options`; remember it
@@ -145,7 +157,7 @@
   data-media-picker
   data-name={name}
   data-choices="{base}/media/choices"
-  data-kind={isDocument ? 'document' : undefined}
+  data-kind={accept === 'image' ? undefined : accept}
   data-upload={upload ? `${base}/media/upload` : undefined}
   data-copy={copy}
   onchange={changed}

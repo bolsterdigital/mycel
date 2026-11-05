@@ -51,6 +51,7 @@ export const mediaChoice = (m: {
     label: m.filename,
     thumb: m.variants.some((v) => v.name === 'thumb'),
     ...(m.kind === 'document' && { document: true }),
+    ...(m.kind === 'audio' && { audio: true }),
     card:
       variant && m.width && m.height && m.caption && m.credit
         ? {

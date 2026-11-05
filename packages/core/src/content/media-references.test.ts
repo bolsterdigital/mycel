@@ -127,6 +127,42 @@ describe('media references of blocks', () => {
     foreign = await upload(other);
   });
 
+  it('a sound slot takes a sound file and refuses an image or a document, and the reverse', async () => {
+    const sound = await upload(
+      system,
+      'audio/mpeg',
+      bytesToBase64(new Uint8Array([0xff, 0xfb, 0x90, 0x64]))
+    );
+    const audio = (id: string, fileId: string) => ({
+      id,
+      type: 'audio' as const,
+      version: 1 as const,
+      props: { title: { nl: 'Gesprek', en: 'Talk' }, fileId },
+    });
+    for (const wrong of [photo, pdf])
+      await expectCode(
+        page([audio('a', wrong)]),
+        'invalid_input',
+        'content.reference.media-not-audio'
+      );
+    await expectCode(
+      page([audio('a', foreign)]),
+      'invalid_input',
+      'content.reference.media-unknown'
+    );
+    await expectCode(
+      page([image('a', sound)]),
+      'invalid_input',
+      'content.reference.media-not-image'
+    );
+    await page([audio('a', sound)]);
+    // In use it is protected like the other kinds: it counts, and it cannot be deleted.
+    expect(usages(sound)).toHaveLength(1);
+    await expect(invoker.run(useCases.deleteMedia, system, { id: sound })).rejects.toMatchObject({
+      code: 'conflict',
+    });
+  });
+
   it('a document slot takes a document and refuses an image, and an image slot the reverse', async () => {
     const files = (id: string, fileId: string) => ({
       id,

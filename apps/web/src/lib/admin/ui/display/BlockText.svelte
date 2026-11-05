@@ -77,6 +77,7 @@
         kind: 'gallery';
         images: readonly { label: string; from?: string }[];
       }
+    | { kind: 'audio'; titleFrom?: string; title: string }
     | {
         kind: 'timeline';
         titleFrom?: string;
@@ -211,6 +212,8 @@
         <li data-rest-from={image.from}>{image.label}</li>
       {/each}
     </ul>
+  {:else if view.kind === 'audio'}
+    <p class="ui-block-text-heading" data-rest-from={view.titleFrom}>{view.title}</p>
   {:else if view.kind === 'timeline'}
     <p class="ui-block-text-heading" data-rest-from={view.titleFrom}>{view.title}</p>
     <ul class="ui-block-text-files">

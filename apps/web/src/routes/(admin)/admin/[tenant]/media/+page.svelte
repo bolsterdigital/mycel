@@ -145,7 +145,7 @@
             label={t('admin.media.upload.files')}
             multiple
             locale={data.locale}
-            accept="image/jpeg,image/png,image/webp,image/avif,image/gif,application/pdf"
+            accept="image/jpeg,image/png,image/webp,image/avif,image/gif,application/pdf,audio/mpeg"
             hint={fill(t('admin.media.upload.hint'), { max: size(data.maxUploadBytes) })}
             required
             preview
