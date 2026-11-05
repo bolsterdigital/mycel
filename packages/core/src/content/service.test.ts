@@ -627,6 +627,8 @@ describe('content items', () => {
       expect(await slugs({ q: 'ONE' })).toEqual(['eendag']);
       expect(await slugs({ q: 'Zomer' })).toEqual(['zomer']);
       expect(await slugs({ q: 'geen' })).toEqual([]);
+      // Postgres refuses a NUL in a parameter: invalid input here, never a 500 from the adapter.
+      await expect(list({ q: 'a\0b' })).rejects.toMatchObject({ code: 'invalid_input' });
       expect(await slugs({ status: 'published' })).toEqual(['eendag']);
       expect(await slugs({ status: 'draft' })).toEqual(['appel', 'zomer']);
       expect(await slugs({ status: 'draft', locale: 'en' })).toEqual(['appel', 'zomer', 'eendag']);

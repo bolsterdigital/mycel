@@ -64,7 +64,7 @@ import {
   contentLocale,
   translationState,
 } from '#lib/server/content/content-locale.js';
-import { recalledListPath } from '#lib/server/content/content-list.js';
+import { recalledListPath, rememberListFromReferer } from '#lib/server/content/content-list.js';
 import {
   fieldOf,
   fromLocalInput,
@@ -177,7 +177,7 @@ const itemPath = (
   return `/admin/${tenant}/content/${itemId}${search ? `?${search}` : ''}${hash ? `#${hash}` : ''}`;
 };
 
-export const load: PageServerLoad = async ({ parent, locals, params, url, cookies }) => {
+export const load: PageServerLoad = async ({ parent, locals, params, url, cookies, request }) => {
   const { tenant } = await parent();
   const principal = locals.principal!;
   const { zone, site } = await adminTimeZone(locals);
@@ -260,6 +260,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     const found = await orNull(invoker.run(useCases.getForm, principal, { id: b.props.formId }));
     forms.set(b.props.formId, found?.form ?? null);
   }
+  rememberListFromReferer(cookies, request.headers.get('referer'), url, params.tenant, item.type);
   return {
     contentType: item.type,
     // Back to the list as it was left: its search, status, order and page, at this item's row.
