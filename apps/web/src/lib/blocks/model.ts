@@ -135,6 +135,18 @@ export type RenderBlock = { id: string } & (
       images: RenderImage[];
     }
   | {
+      type: 'timeline';
+      title: string | null;
+      /** In the order they are shown; the date is ISO, its label is in the model's locale. */
+      events: {
+        date: string;
+        dateLabel: string;
+        title: string;
+        body: string | null;
+        actions: RenderAction[];
+      }[];
+    }
+  | {
       type: 'callout';
       variant: 'info' | 'note' | 'warning';
       title: string | null;

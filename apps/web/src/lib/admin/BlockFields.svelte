@@ -114,6 +114,14 @@
   </Field>
 {/snippet}
 
+{#snippet dateInput(name: string, text: string)}
+  <Field id={id(name)} label={text} {locale} invalid={bad(name)}>
+    {#snippet control(attributes)}
+      <input {name} type="date" value={v(name)} {...attributes} />
+    {/snippet}
+  </Field>
+{/snippet}
+
 {#snippet select(name: string, text: string, options: readonly Option[], empty?: string)}
   <Field id={id(name)} label={text} {locale} invalid={bad(name)}>
     {#snippet control(attributes)}
@@ -212,6 +220,8 @@
       label(f.key),
       f.options.map((o) => ({ id: o, label: t(`admin.block.option.${o}` as UiKey) }))
     )}
+  {:else if f.kind === 'date'}
+    {@render dateInput(name, label(f.key))}
   {:else if f.kind === 'boolean'}
     <Checkbox id={id(name)} {name} label={label(f.key)} checked={v(name) === 'on'} />
   {:else if f.kind === 'actions'}

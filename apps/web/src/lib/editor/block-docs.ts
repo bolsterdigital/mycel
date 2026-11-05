@@ -27,6 +27,8 @@ function kind(f: BlockField): string {
       return `one of ${f.options.map((o) => `\`${o}\``).join(', ')}`;
     case 'boolean':
       return 'yes or no';
+    case 'date':
+      return 'date (YYYY-MM-DD)';
     case 'actions':
       return `${f.min}–${f.max} buttons: a localised label and an item or a URL`;
     case 'group':

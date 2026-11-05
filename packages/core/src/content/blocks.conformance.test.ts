@@ -398,6 +398,12 @@ describe('refusals', () => {
       ...gallery,
       props: { ...gallery.props, images: [shot, { ...shot, decorative: true }] },
     });
+    const timeline = base('timeline');
+    const moment = timeline.props.events[0];
+    refused({ ...timeline, props: { ...timeline.props, events: [moment] } });
+    refused({ ...timeline, props: { ...timeline.props, events: Array(25).fill(moment) } });
+    for (const date of ['', '2026-02-30', '2 maart 2026', '2026-03'])
+      refused({ ...timeline, props: { ...timeline.props, events: [moment, { ...moment, date }] } });
     const files = base('file-download');
     const file = files.props.files[0];
     refused({ ...files, props: { ...files.props, files: [] } });
@@ -494,6 +500,9 @@ describe('references', () => {
       `gallery-2 media ${EXAMPLE_IDS.image}`,
       `gallery-2 media ${EXAMPLE_IDS.portrait}`,
     ]);
+    // An event's link counts as a reference, as a card's does.
+    expect(rows('timeline-newest')).toEqual([]);
+    expect(rows('timeline-oldest-titled')).toEqual([`timeline-1 item ${EXAMPLE_IDS.item}`]);
     expect(rows('quote-pullquote-wide')).toEqual([]);
     expect(rows('video-youtube')).toEqual([]);
   });

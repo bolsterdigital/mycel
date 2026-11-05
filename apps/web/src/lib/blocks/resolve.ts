@@ -365,6 +365,28 @@ export async function resolveDocument(
             return image ? [image] : [];
           }),
         };
+      case 'timeline': {
+        // A calendar date has no zone: written in UTC, read in UTC, so no server shifts it a day.
+        const dateLabel = new Intl.DateTimeFormat(locale, { timeZone: 'UTC', dateStyle: 'long' });
+        const newestFirst = b.props.order === 'newest';
+        return {
+          id,
+          type: 'timeline',
+          title: text(b.props.title),
+          // A stable sort: two events on one date stay in the order the editor gave them.
+          events: [...b.props.events]
+            .sort((x, y) =>
+              newestFirst ? y.date.localeCompare(x.date) : x.date.localeCompare(y.date)
+            )
+            .map((e) => ({
+              date: e.date,
+              dateLabel: dateLabel.format(new Date(`${e.date}T00:00:00Z`)),
+              title: text(e.title) ?? '',
+              body: text(e.body),
+              actions: actions(e.actions),
+            })),
+        };
+      }
       case 'callout':
         return {
           id,
@@ -467,6 +489,8 @@ function referencesOf(b: Block): { type: 'media' | 'form' | 'item'; refId: strin
       return b.props.files.map((f) => ({ type: 'media' as const, refId: f.fileId }));
     case 'gallery':
       return b.props.images.map((i) => ({ type: 'media' as const, refId: i.mediaId }));
+    case 'timeline':
+      return b.props.events.flatMap((e) => targets(e.actions));
     case 'form':
     case 'signup-form':
       return [{ type: 'form', refId: b.props.formId }];

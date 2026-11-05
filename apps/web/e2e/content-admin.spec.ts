@@ -1911,6 +1911,39 @@ test.describe('block card details', () => {
     await expect.poll(() => row.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
   });
 
+  // Dates by a native control, without a script; a row without one is refused by name.
+  test('a new timeline wants two events with a date and saves', async ({ page }) => {
+    await login(page, '/admin/probe');
+    await blockPage(page, 'timeline');
+    await editorReady(page);
+    await page
+      .locator('[data-block-picker]')
+      .last()
+      .getByRole('button', { name: 'Tijdlijn', exact: true })
+      .click();
+    const fresh = page.locator('#block-new');
+    await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Tijdlijn');
+    await editorReady(page);
+    const saving = page.getByRole('button', { name: 'Opslaan', exact: true });
+    await saving.click();
+    await expect(
+      page.getByRole('listitem').filter({ hasText: 'vul minstens twee gebeurtenissen in' })
+    ).toBeVisible();
+
+    const fill = async (row: number, date: string, title: string) => {
+      const fields = fresh.getByRole('group', { name: `Gebeurtenis ${row}`, exact: true });
+      if (date) await fields.getByLabel('Datum', { exact: true }).fill(date);
+      await fields.getByLabel('Titel', { exact: true }).fill(title);
+    };
+    await fill(1, '', 'Later');
+    await fill(2, '2026-03-02', 'Eerder');
+    await saving.click();
+    await expect(page.getByRole('listitem').filter({ hasText: 'kies een datum' })).toBeVisible();
+    await fill(1, '2026-05-19', 'Later');
+    await saving.click();
+    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
+  });
+
   test('a card without a title keeps the name of its first question after an edit', async ({
     page,
     request,

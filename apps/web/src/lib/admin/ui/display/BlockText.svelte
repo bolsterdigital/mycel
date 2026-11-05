@@ -77,6 +77,12 @@
         kind: 'gallery';
         images: readonly { label: string; from?: string }[];
       }
+    | {
+        kind: 'timeline';
+        titleFrom?: string;
+        title: string;
+        events: readonly { label: string; from?: string }[];
+      }
     | { kind: 'paywall' }
     | {
         kind: 'video';
@@ -203,6 +209,13 @@
     <ul class="ui-block-text-files">
       {#each view.images as image, i (i)}
         <li data-rest-from={image.from}>{image.label}</li>
+      {/each}
+    </ul>
+  {:else if view.kind === 'timeline'}
+    <p class="ui-block-text-heading" data-rest-from={view.titleFrom}>{view.title}</p>
+    <ul class="ui-block-text-files">
+      {#each view.events as event, i (i)}
+        <li data-rest-from={event.from}>{event.label}</li>
       {/each}
     </ul>
   {:else if view.kind === 'paywall'}
