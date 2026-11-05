@@ -14,7 +14,7 @@ const NAME = /^[a-z]+(\.[a-z][a-z_]*)+$/;
 const EFFECT_VERBS = ['publish', 'unpublish', 'schedule', 'unschedule', 'send', 'export', 'refund'];
 
 /** Last name segments that make something new, and so must say which limit they consume. */
-const GROWTH_VERBS = ['create', 'invite', 'add', 'submit', 'upload'];
+const GROWTH_VERBS = ['create', 'duplicate', 'invite', 'add', 'submit', 'upload'];
 
 /**
  * The naming rule (docs/reference/use-cases.md, TODO #54): `<module>.<entity>.<verb>`, or
@@ -46,6 +46,7 @@ const SINGULAR_DOCUMENTS = ['settings', 'entitlements', 'status'];
  * place), `delete` undoes `create` or `upload` (the thing stops existing).
  */
 const VERBS = [
+  'duplicate',
   ...['create', 'get', 'list', 'update', 'delete'],
   // Placement in a collection: a tenant's hostnames and members, a document's blocks (ADR 020).
   ...['add', 'remove', 'invite', 'insert', 'move', 'split_insert', 'set_primary'],

@@ -36,7 +36,14 @@
     card?: boolean;
     /** The cells of a row share a baseline instead of a top edge. */
     level?: boolean;
-    columns: readonly { key: string; label: string; sortable?: boolean; numeric?: boolean }[];
+    columns: readonly {
+      key: string;
+      label: string;
+      sortable?: boolean;
+      numeric?: boolean;
+      /** A class on the heading, for a column the screen shows only at some widths. */
+      class?: string;
+    }[];
     sort?: { key: string; dir: Dir } | undefined;
     /** The link that sorts by `key` in `dir`; required when a column is sortable. */
     sortHref?: ((key: string, dir: Dir) => string) | undefined;
@@ -62,7 +69,11 @@
     <thead>
       <tr>
         {#each columns as column (column.key)}
-          <th scope="col" aria-sort={ariaSort(column.key)} class={[column.numeric && 'numeric']}>
+          <th
+            scope="col"
+            aria-sort={ariaSort(column.key)}
+            class={[column.numeric && 'numeric', column.class]}
+          >
             {#if column.sortable && sortHref}
               <a href={sortHref(column.key, next(column.key))}
                 >{column.label}<span class="ui-sort" aria-hidden="true"

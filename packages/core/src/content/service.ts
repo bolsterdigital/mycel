@@ -12,7 +12,7 @@ import { z } from 'zod';
 import { requireActive, requireEntitled } from '../entitlements/guards.js';
 import { type Issue, notFound, UseCaseError } from '../errors.js';
 import { zodIssues } from '../invoke.js';
-import { Locale } from '../i18n/locale.js';
+import { Locale, localized } from '../i18n/locale.js';
 import type { JobOutcome } from '../jobs/ports.js';
 import { jobKey, type JobPayload } from '../jobs/types.js';
 import type { TransactionContext } from '../ports.js';
@@ -473,24 +473,71 @@ export const createItem = defineUseCase({
     }
     const doc = finalize(ctx, document, blocks);
     await assertReferences(ctx, doc);
-    const now = ctx.clock.now();
-    const itemId = ctx.ids.next();
-    const revision = newRevision(ctx, itemId, doc, now);
-    const item: ItemRecord = {
-      id: itemId,
-      type: doc.type,
-      slug,
-      title: doc.title,
-      defaultLocale: doc.defaultLocale,
-      locales: doc.locales,
-      latestRevisionId: revision.id,
-      createdAt: now,
-      updatedAt: now,
-      publication: doc.locales.map(draftLocale),
-    };
-    if (!(await ctx.content.insert(item, revision))) throw taken();
-    await recordRevisionUsages(ctx, revision);
-    return { item: toContentItem(item), revision };
+    return insertDraft(ctx, slug, doc, taken);
+  },
+});
+
+/** A new item in draft in every locale, with `doc` as its first revision. */
+async function insertDraft(
+  ctx: TransactionContext,
+  slug: string,
+  doc: ContentDocument,
+  taken: () => UseCaseError
+) {
+  const now = ctx.clock.now();
+  const itemId = ctx.ids.next();
+  const revision = newRevision(ctx, itemId, doc, now);
+  const item: ItemRecord = {
+    id: itemId,
+    type: doc.type,
+    slug,
+    title: doc.title,
+    defaultLocale: doc.defaultLocale,
+    locales: doc.locales,
+    latestRevisionId: revision.id,
+    createdAt: now,
+    updatedAt: now,
+    publication: doc.locales.map(draftLocale),
+  };
+  if (!(await ctx.content.insert(item, revision))) throw taken();
+  await recordRevisionUsages(ctx, revision);
+  return { item: toContentItem(item), revision };
+}
+
+// A copy of what the item says now, as a draft nobody has published: its latest revision, also
+// when a published one differs. Block ids stay, because a document refers to its own blocks
+// (machine-translation markers, a teaser) and an id only has to be unique within its document.
+// An article's corrections and e-mail delivery do not come along: they are about the original's
+// publication. Rejected: copying in the route with `content.item.create`, which would give the
+// API and MCP no duplicate and leave those two rules to each front.
+export const duplicateItem = defineUseCase({
+  name: 'content.item.duplicate',
+  kind: 'command',
+  description:
+    "Copy an item's latest revision into a new draft with its own slug; `title` replaces the title per locale, and an article's corrections and e-mail delivery stay behind.",
+  requires: 'content:write',
+  consumes: null,
+  input: z.object({
+    itemId: ItemId,
+    title: localized(z.string().min(1).max(200)).optional(),
+  }),
+  output: ItemWithRevision,
+  examples: [{ input: { itemId: exampleId(0x1) } }],
+  async handler(ctx, { itemId, title }) {
+    const item = await ctx.content.get(itemId);
+    if (!item) throw notFound('item');
+    const latest = await ctx.content.revision(itemId, item.latestRevisionId);
+    if (!latest) throw notFound('revision');
+    const { blocks, ...source } = latest.document;
+    const document = {
+      ...source,
+      title: { ...source.title, ...title },
+      ...(source.type === 'article' ? { corrections: [], delivery: undefined } : {}),
+    } as ContentDocumentInput;
+    const doc = finalize(ctx, document, blocks);
+    await assertReferences(ctx, doc);
+    const slug = await freeSlug(ctx, doc);
+    return insertDraft(ctx, slug, doc, () => slugTaken(doc.type, slug));
   },
 });
 

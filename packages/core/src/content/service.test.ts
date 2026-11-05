@@ -34,6 +34,54 @@ const pageDoc = (en?: string) => ({
   ],
 });
 
+describe('content.item.duplicate', () => {
+  const setup = () => {
+    const uow = new MemoryUnitOfWork({ clock: new FakeClock() });
+    const invoker = new Invoker(buildRegistry(), uow);
+    const admin = principal({ capabilities: ['content:read', 'content:write'] });
+    return { invoker, admin };
+  };
+  const article = {
+    type: 'article' as const,
+    defaultLocale: 'nl',
+    locales: ['nl', 'en'],
+    title: { nl: 'Brood', en: 'Bread' },
+    blocks: [],
+    corrections: [{ date: '2026-01-01', text: { nl: 'Fout', en: 'Wrong' } }],
+  };
+
+  it('copies the latest revision into a draft with its own slug and new titles', async () => {
+    const { invoker, admin } = setup();
+    const { item } = await invoker.run(useCases.createItem, admin, {
+      slug: 'brood',
+      document: article,
+    });
+    const copy = await invoker.run(useCases.duplicateItem, admin, {
+      itemId: item.id,
+      title: { nl: 'Kopie van Brood' },
+    });
+    expect(copy.item.id).not.toBe(item.id);
+    expect(copy.item.slug).toBe('kopie-van-brood');
+    expect(copy.item.title).toEqual({ nl: 'Kopie van Brood', en: 'Bread' });
+    expect(copy.item.publication.map((p) => p.status)).toEqual(['draft', 'draft']);
+  });
+
+  it('leaves corrections behind and refuses an unknown item', async () => {
+    const { invoker, admin } = setup();
+    const { item } = await invoker.run(useCases.createItem, admin, { document: article });
+    const copy = await invoker.run(useCases.duplicateItem, admin, { itemId: item.id });
+    expect(copy.revision.document.type === 'article' && copy.revision.document.corrections).toEqual(
+      []
+    );
+    expect(copy.item.slug).not.toBe(item.slug);
+    await expect(
+      invoker.run(useCases.duplicateItem, admin, {
+        itemId: '00000000-0000-4000-8000-0000000000ff',
+      })
+    ).rejects.toMatchObject({ code: 'not_found' });
+  });
+});
+
 describe('content items', () => {
   let clock: FakeClock;
   let uow: MemoryUnitOfWork;
