@@ -729,6 +729,41 @@
     min-width: 0;
   }
   /* The blocks of an item: their heading, then each block, at the rhythm's step (#87). */
+  /* A new block's form stands inside the list of blocks: its own inset and rhythm, no extra frame
+     around the fields (P185-79: the heading sat against the line, and the groups on each other). */
+  .admin .ui-panel.pending {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-2);
+  }
+  .admin .ui-panel.pending > h3 {
+    margin: 0;
+  }
+  /* Each entry of a list in a block form: its fields clear of the outline on all sides. */
+  .admin .ui-panel.pending .ui-fieldset:not(.nested),
+  .admin .ui-block-card .ui-fieldset:not(.nested) {
+    padding: var(--space-1) var(--space-2) var(--space-2);
+  }
+  /* A list's hint belongs to the list above it and keeps its distance from the next field. */
+  .admin .ui-fieldset + .ui-hint {
+    margin-block: var(--space-1) 0;
+  }
+  /* The placeholder of a new item's title: the size of the title, quieter than one that is set. */
+  .admin .ui-title-input::placeholder {
+    color: var(--color-muted-fg);
+    opacity: 1;
+  }
+  /* The filters and the view switch share a line; the switch wraps under them as a whole. */
+  .admin .ui-filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-1) var(--space-2);
+  }
+  .admin .ui-filter-row > .ui-filter-bar {
+    flex: 1 1 28rem;
+    min-width: 0;
+  }
   .admin .item-blocks {
     display: grid;
     gap: var(--space-2);

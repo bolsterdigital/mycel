@@ -90,7 +90,12 @@ type Align = 'start' | 'center' | 'end';
 
 export type RenderBlock = { id: string } & (
   | { type: 'heading'; text: string }
-  | { type: 'rich-text'; doc: RichTextDoc }
+  | {
+      type: 'rich-text';
+      doc: RichTextDoc;
+      /** Set on the heading split off above a float (`float-order.ts`): the block it came from. */
+      sourceId?: string;
+    }
   | { type: 'paywall' }
   | {
       type: 'image';

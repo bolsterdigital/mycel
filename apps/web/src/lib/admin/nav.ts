@@ -38,7 +38,7 @@ export interface NavSection {
 export const MANAGE: NavSection = {
   id: 'manage',
   label: 'admin.nav.manage',
-  icon: 'shield',
+  icon: 'wrench',
   path: 'beheer',
   screens: [
     {

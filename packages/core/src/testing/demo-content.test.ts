@@ -77,6 +77,30 @@ const posterEra = <T>(document: T): T => {
   ) as T;
 };
 
+/**
+ * Jaap, P185-79: a custom block never follows another; at least one paragraph of plain text stands
+ * before and after it, in demo content too. An image is not custom here: it belongs to the text.
+ */
+const PLAIN = new Set(['rich-text', 'heading', 'image', 'paywall']);
+const hasParagraph = (block: { type: string; props: unknown } | undefined) =>
+  block?.type === 'rich-text' &&
+  JSON.stringify((block.props as { content: unknown }).content).includes('"paragraph"');
+
+describe('demo content rhythm', () => {
+  it.each(documents.map((d) => [d.type, d] as const))(
+    'the %s has a paragraph on both sides of every custom block',
+    (_type, document) => {
+      const blocks = document.blocks.filter((b) => b.type !== 'paywall');
+      const crowded = blocks.flatMap((block, i) =>
+        !PLAIN.has(block.type) && !(hasParagraph(blocks[i - 1]) && hasParagraph(blocks[i + 1]))
+          ? [`${i}: ${block.type}`]
+          : []
+      );
+      expect(crowded).toEqual([]);
+    }
+  );
+});
+
 describe('demo content', () => {
   it.each(documents.map((d) => [d.type, d] as const))(
     'the %s is a valid document, ready in nl and en',
@@ -93,7 +117,7 @@ describe('demo content', () => {
         ),
       });
       expect(stored.blocks.length).toBeGreaterThanOrEqual(10);
-      expect(stored.blocks.length).toBeLessThanOrEqual(15);
+      expect(stored.blocks.length).toBeLessThanOrEqual(25);
       expect(stored.lead?.['nl']).toBeTruthy();
       expect(stored.heroImageId).toBeDefined();
       for (const locale of ['nl', 'en']) expect(readinessIssues(stored, locale)).toEqual([]);
@@ -129,7 +153,7 @@ describe('demo content', () => {
       [
         ...DEMO_IMAGES.map((i) => i.filename),
         'meetresultaten-pepernoten.pdf',
-        'stilte-pepernoten.mp3',
+        'zoutmeter-pepernoten.mp3',
       ].sort()
     );
 
@@ -164,7 +188,7 @@ describe('demo content', () => {
       )
     ) as Omit<typeof media, 'report' | 'sound'>;
     const sound = await invoker.run(useCases.uploadMedia, admin, {
-      filename: 'stilte-pepernoten.mp3',
+      filename: 'zoutmeter-pepernoten.mp3',
       contentType: 'audio/mpeg',
       bytes: DEMO_SOUND_BASE64,
     });

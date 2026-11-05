@@ -144,6 +144,8 @@
       (data.values[`title.${defaultLocale}`] as string | undefined) ||
       t('admin.content.untitled')
   );
+  /** A new item's stored stand-in title is no text to delete: the field is empty until typed in. */
+  const untitled = $derived(v(`title.${work}`) === ui(work)('admin.content.untitled'));
   const typeName = $derived(t(`admin.content.type.${data.item.type}` as const));
   const baseRevision = $derived(v('baseRevisionId') || data.revision.id);
   /** Folded groups open after a failed save, so a field the summary links to is in view. */
@@ -456,7 +458,6 @@
     <h3 id="block-new-title">
       {fill(t('admin.block.new'), { type: t(`admin.block.type.${p.type}` as const) })}
     </h3>
-    <p class="ui-hint">{t('admin.block.new.hint')}</p>
     {#each Object.entries(p.hidden) as [name, value] (name)}
       <input type="hidden" {name} {value} />
     {/each}
@@ -730,10 +731,12 @@
         name="title.{work}"
         type="text"
         maxlength="200"
-        required={work === defaultLocale}
-        value={v(`title.${work}`)}
+        required={work === defaultLocale && !untitled}
+        value={untitled ? '' : v(`title.${work}`)}
+        placeholder={untitled ? v(`title.${work}`) : undefined}
         lang={work}
       />
+      {#if untitled}<input type="hidden" name="untitled" value={work} />{/if}
     </div>
     {@render translateLinks('title', 'title', work, t('admin.content.field.title'))}
     {@render area(`lead.${work}`, t('admin.content.field.lead'), 1000)}

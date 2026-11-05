@@ -22,6 +22,7 @@ import {
   DEFAULT_THEME,
   contrastRatio,
   EXAMPLE_IDS,
+  resolveTheme,
   THEME_PRESETS,
   THEME_RANGES,
   THEME_ROLES,
@@ -411,7 +412,7 @@ describe('nothing leaks into any representation', () => {
     expect(html).toMatch(/<audio[^>]*\bcontrols\b/);
     expect(html).toContain(`src="/media/${EXAMPLE_IDS.audio}/file.mp3"`);
     expect(html).toContain('aria-label="The talk with the council"');
-    expect(html).toMatch(/<details>\s*<summary>Transcript<\/summary>/);
+    expect(html).toMatch(/<details[^>]*>\s*<summary>Transcript<\/summary>/);
     expect(markdown).toContain('Download the sound');
     expect(markdown).toContain('(MP3, ');
     expect(markdown).toContain('Good morning.\nWe start with the petition.');
@@ -473,7 +474,7 @@ describe('nothing leaks into any representation', () => {
     const block = examples.find((e) => e.name === 'file-download-one')!.block;
     const { html, markdown } = await representations([block], 'en');
     expect(html).toContain('Annual report 2025');
-    expect(html).toMatch(/\(PDF, 825[.,]2 kB\)/);
+    expect(html).toMatch(/PDF, 825[.,]2 kB/);
     expect(markdown).toMatch(/\[Annual report 2025\]\(<.*file\.pdf>\) \(PDF, 825[.,]2 kB\)/);
     expect(html + markdown).not.toContain('jr-2025-final');
   });
@@ -590,7 +591,8 @@ describe('the demo documents render whole', () => {
     for (const locale of LOCALES)
       it(`${slug} (${locale})`, async () => {
         const { html, markdown, model } = await representations(blocks, locale);
-        expect(model.blocks).toHaveLength(blocks.length);
+        // A heading split off above a float (float-order.ts) is one extra part, of the same block.
+        expect(model.blocks.filter((b) => !('sourceId' in b))).toHaveLength(blocks.length);
         expect(markupProblems(html)).toEqual([]);
         expect(outlineProblems(headingLevels(html))).toEqual([]);
         expect(markdown).not.toMatch(/<[a-z][a-z0-9-]*[\s>/]/i);
@@ -632,6 +634,7 @@ describe('theme tokens', () => {
       `--color-${r}-active-fg`,
       `--color-${r}-active-bg`,
     ]),
+    '--color-caption-fg',
     '--color-link',
     '--color-focus',
     '--font-body',
@@ -642,6 +645,17 @@ describe('theme tokens', () => {
     '--radius',
     '--density',
   ];
+  it('keeps a caption readable on the page, lighter than muted text where there is room', () => {
+    for (const theme of Object.values(THEME_PRESETS)) {
+      const css = themeCss(resolveTheme({ ...theme }));
+      const [, caption] = /--color-caption-fg: (#[a-f0-9]{6});/i.exec(css)!;
+      const [, muted] = /--color-muted-fg: (#[a-f0-9]{6});/i.exec(css)!;
+      const [, page] = /--color-body-bg: (#[a-f0-9]{6});/i.exec(css)!;
+      expect(contrastRatio(caption!, page!)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(caption!, page!)).toBeLessThanOrEqual(contrastRatio(muted!, page!));
+    }
+  });
+
   // The grammar of the output: declarations of our own properties with hex colours, plain
   // numbers with a unit, our font names and the @font-face rules of our own files.
   const declaration =

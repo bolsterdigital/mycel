@@ -71,7 +71,7 @@ test.describe('article-writing', () => {
       await layoutGate(page, 'refused English save');
       await page.screenshot({ path: test.info().outputPath('refused-save-en-320-200.png') });
     }
-    await fresh.getByRole('button', { name: 'Niet toevoegen' }).click();
+    await fresh.getByRole('button', { name: 'Annuleren' }).click();
     await expect(page.locator('#block-new')).toHaveCount(0);
     await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
     await expect(page).toHaveURL(/saved/);

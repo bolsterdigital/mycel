@@ -2,12 +2,12 @@
   "ceilings": {
     "apps/web/src/lib/admin/ui/ui.css": 3392,
     "apps/web/src/lib/admin/ui/ui.test.ts": 1646,
-    "apps/web/src/lib/theme/base.css": 1143,
+    "apps/web/src/lib/theme/base.css": 1115,
     "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.server.ts": 1289,
     "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.svelte": 1537,
     "packages/core/src/content/block-types.ts": 1216,
     "packages/core/src/content/service.ts": 1021,
-    "packages/core/src/testing/demo-content.ts": 1313
+    "packages/core/src/testing/demo-content.ts": 1374
   },
   "exempt": {
     "apps/web/src/i18n/en.ts": "copy catalogue: one entry per string, found by key, never read top to bottom",

@@ -1,0 +1,130 @@
+/* Captions, credits and the file and sound blocks: what surrounds a medium on a public page. Apart
+   from base.css because that file stands at its size ceiling (gate file-size), against the same
+   theme properties and under the same pair rule. A caption is quieter than the text it stands
+   in: smaller, in `--color-caption-fg` (tokens.ts) and in `--font-caption` where a house style sets one,
+   so a monospace caption is a value and not a rule. */
+.image figcaption,
+.video figcaption,
+.gallery figcaption {
+  margin-block-start: 4px;
+  padding-inline: var(--caption-inset);
+  text-align: start;
+  font-family: var(--font-caption, inherit);
+  font-size: calc(var(--step--1) * 0.92);
+  line-height: 1.35;
+  color: var(--color-caption-fg, var(--color-muted-fg));
+}
+
+/* The video's caption stands on the surface colour, which the caption colour was not checked
+     against. */
+.video figcaption {
+  color: var(--color-surface-fg);
+}
+
+/* The maker is not part of the caption's sentence (P185-79): a line of its own, the camera in
+     place of the word "Photo", which stays for a screen reader. */
+.credit {
+  display: block;
+  margin-block-start: 2px;
+}
+.credit-by {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35em;
+}
+.credit-icon {
+  flex: none;
+  align-self: center;
+}
+.credit-word {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* File downloads: one framed row per file, the icon before the link; the kind and size stay
+     quieter than the name and move under it when the row runs out of room. */
+.file-download > * {
+  margin-block: 0 var(--space-1);
+}
+.file-download ul {
+  margin-block-end: 0;
+  padding: 0;
+  list-style: none;
+}
+.file-download li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(var(--space-1) / 2) var(--space-1);
+  min-height: var(--tap);
+  padding: calc(var(--space-1) / 2) var(--space-1);
+  border: 1px solid var(--color-muted-fg);
+  border-radius: var(--radius);
+}
+.file-download li + li {
+  margin-block-start: calc(var(--space-1) / 2);
+}
+.file-download li > a {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+.file-download-meta {
+  white-space: nowrap;
+  font-weight: 400;
+  font-size: var(--step--1);
+  color: var(--color-muted-fg);
+}
+.download-icon {
+  flex: none;
+}
+
+/* Audio: one framed unit like the video block, with the browser's player at the frame's width,
+     the download as a button and the transcript in a frame of its own. */
+.audio {
+  padding: var(--space-2) var(--inset);
+  color: var(--color-surface-fg);
+  background: var(--color-surface-bg);
+  border-radius: var(--radius);
+}
+.audio > * {
+  margin-block: 0 var(--space-1);
+}
+.audio > :last-child {
+  margin-block-end: 0;
+}
+.audio audio {
+  display: block;
+  width: 100%;
+}
+.audio-download {
+  gap: calc(var(--space-1) / 2);
+  flex-wrap: wrap;
+}
+.audio-download .file-download-meta {
+  color: inherit;
+}
+.audio-transcript-frame {
+  margin-block-start: var(--space-1);
+  background: var(--color-body-bg);
+  color: var(--color-body-fg);
+  border: 1px solid var(--color-muted-fg);
+  border-radius: var(--radius);
+}
+.audio-transcript-frame > summary {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space-1) / 2);
+  min-height: var(--tap);
+  padding-inline: var(--space-2);
+  font-weight: 600;
+  cursor: pointer;
+}
+.audio-transcript {
+  margin: 0;
+  padding: 0 var(--space-2) var(--space-2);
+  white-space: pre-line;
+}

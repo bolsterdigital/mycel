@@ -47,7 +47,13 @@
   {#if block.type === 'heading'}
     <Heading text={block.text} />
   {:else if block.type === 'rich-text'}
-    <RichText doc={block.doc} {model} depth={1} idPrefix={block.id} />
+    <RichText
+      doc={block.doc}
+      {model}
+      depth={1}
+      idPrefix={block.id}
+      class={block.sourceId ? 'block rich-text rich-text-opening' : 'block rich-text'}
+    />
   {:else if block.type === 'image'}
     {#if block.image}
       <Image image={block.image} layout={block.layout} {model} eager={block.id === firstImage} />
@@ -90,7 +96,12 @@
 
 {#each model.blocks as block (block.id)}
   {#if selectable}
-    <div data-block-id={block.id} class="preview-selectable">{@render rendered(block)}</div>
+    <div
+      data-block-id={(block.type === 'rich-text' && block.sourceId) || block.id}
+      class="preview-selectable"
+    >
+      {@render rendered(block)}
+    </div>
   {:else}
     {@render rendered(block)}
   {/if}

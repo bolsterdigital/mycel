@@ -243,7 +243,8 @@ describe('the two article headers (#105)', () => {
     const { body } = render(Credit, {
       props: { credit: { work: null, photographer: name }, photographer: 'Foto: {name}' },
     });
-    expect(body).toContain('Foto: Sam $&amp; $` Vries');
+    expect(body).toContain('Sam $&amp; $` Vries');
+    expect(body).toContain('<span class="credit-word">Foto: </span>');
   });
 });
 
