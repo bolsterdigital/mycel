@@ -10,7 +10,7 @@ import type { RequestHandler } from './$types';
 
 const forbidden = () => new Response(null, { status: 403, headers: PREVIEW_HEADERS });
 
-export const GET: RequestHandler = async ({ params, locals, url }) => {
+export const GET: RequestHandler = async ({ params, locals, url, request }) => {
   if (!(await adminMediaPrincipal(locals, params.tenant))) return forbidden();
   const rt = runtime();
   const tenant = await rt.tenants.findBySlug(params.tenant);
@@ -20,7 +20,9 @@ export const GET: RequestHandler = async ({ params, locals, url }) => {
     siteTenant(await previewSite(tenant)),
     params.id,
     params.variant,
-    url
+    url,
+    null,
+    { range: request.headers.get('range'), ifRange: request.headers.get('if-range') }
   );
   const headers = new Headers(res.headers);
   for (const [k, v] of Object.entries(PREVIEW_HEADERS)) headers.set(k, v);

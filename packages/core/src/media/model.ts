@@ -20,6 +20,7 @@ export const MEDIA_CONTENT_TYPES = [
   'image/avif',
   'image/gif',
   'application/pdf',
+  'audio/mpeg',
 ] as const;
 export const MediaContentType = z.enum(MEDIA_CONTENT_TYPES);
 export type MediaContentType = z.infer<typeof MediaContentType>;
@@ -57,7 +58,7 @@ export const THUMB_WIDTH = 160;
 export const MEDIA_PURGE_DELAY_MS = 24 * 60 * 60 * 1000;
 
 export type ImageFormat = 'jpeg' | 'png' | 'webp' | 'avif' | 'gif';
-export type FileFormat = ImageFormat | 'pdf';
+export type FileFormat = ImageFormat | 'pdf' | 'mp3';
 
 export const FORMAT_OF: Record<MediaContentType, FileFormat> = {
   'image/jpeg': 'jpeg',
@@ -66,6 +67,7 @@ export const FORMAT_OF: Record<MediaContentType, FileFormat> = {
   'image/avif': 'avif',
   'image/gif': 'gif',
   'application/pdf': 'pdf',
+  'audio/mpeg': 'mp3',
 };
 export const CONTENT_TYPE_OF: Record<FileFormat, MediaContentType> = {
   jpeg: 'image/jpeg',
@@ -74,6 +76,7 @@ export const CONTENT_TYPE_OF: Record<FileFormat, MediaContentType> = {
   avif: 'image/avif',
   gif: 'image/gif',
   pdf: 'application/pdf',
+  mp3: 'audio/mpeg',
 };
 export const EXTENSION_OF: Record<FileFormat, string> = {
   jpeg: 'jpg',
@@ -82,9 +85,10 @@ export const EXTENSION_OF: Record<FileFormat, string> = {
   avif: 'avif',
   gif: 'gif',
   pdf: 'pdf',
+  mp3: 'mp3',
 };
 
-export const MediaKind = z.enum(['image', 'document']);
+export const MediaKind = z.enum(['image', 'document', 'audio']);
 export type MediaKind = z.infer<typeof MediaKind>;
 export const MediaAccess = z.enum(['public', 'restricted']);
 export type MediaAccess = z.infer<typeof MediaAccess>;
@@ -115,7 +119,7 @@ export const CENTRE: MediaFocal = { x: 0.5, y: 0.5 };
  */
 export const StoredVariant = z.object({
   name: z.string().regex(/^(w\d{1,5}|thumb|file)$/),
-  format: z.enum(['avif', 'webp', 'gif', 'pdf']),
+  format: z.enum(['avif', 'webp', 'gif', 'pdf', 'mp3']),
   width: z.number().int().positive().nullable(),
   height: z.number().int().positive().nullable(),
   bytes: z.number().int().nonnegative(),

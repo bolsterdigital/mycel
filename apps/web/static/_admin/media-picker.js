@@ -199,7 +199,9 @@ function uploader(picker, copy, id, initial, reveal) {
     accept:
       picker.dataset.kind === 'document'
         ? 'application/pdf'
-        : 'image/jpeg,image/png,image/webp,image/avif,image/gif',
+        : picker.dataset.kind === 'audio'
+          ? 'audio/mpeg'
+          : 'image/jpeg,image/png,image/webp,image/avif,image/gif',
     multiple: true,
   });
   const progress = el('ul', { class: 'ui-media-uploads', 'aria-live': 'polite' });

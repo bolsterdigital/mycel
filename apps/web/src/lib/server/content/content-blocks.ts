@@ -54,7 +54,9 @@ export async function pickerOptions(
   const used = blockReferences(blocks);
   const orNull = <T>(p: Promise<T>) => p.catch(() => null);
   const [media, items] = await Promise.all([
-    mediaChoices(principal, [...new Set([...used.media, ...used.documents, ...alsoChosen])]),
+    mediaChoices(principal, [
+      ...new Set([...used.media, ...used.documents, ...used.audio, ...alsoChosen]),
+    ]),
     invoker.run(useCases.listItems, principal, { limit: MAX_PAGE_SIZE }).then(({ items }) => {
       const label = (i: { slug: string; title: Record<string, string | undefined> }) =>
         `${pickAny(i.title, locale) ?? i.slug} (/${i.slug})`;
@@ -84,14 +86,14 @@ export async function mediaChoices(
   const { invoker } = runtime();
   const missing = (id: string): MediaChoice => ({ id, label: id, thumb: false });
   if (!can(principal, 'media:read')) return chosen.map(missing);
-  const [images, documents] = await Promise.all(
-    (['image', 'document'] as const).map((kind) =>
+  const [images, documents, audio] = await Promise.all(
+    (['image', 'document', 'audio'] as const).map((kind) =>
       invoker.run(useCases.listMedia, principal, { kind, limit: MAX_PAGE_SIZE })
     )
   );
   return withAssigned(
     chosen,
-    [...images!.items, ...documents!.items].map(mediaChoice),
+    [...images!.items, ...documents!.items, ...audio!.items].map(mediaChoice),
     async (id) => {
       const m = await invoker.run(useCases.getMedia, principal, { id }).catch(() => null);
       return m && mediaChoice(m);
@@ -273,6 +275,7 @@ export type TextRest =
       /** One place per row, by its alt text: a decorative image has none and takes no room. */
       images: readonly { label: string; from: string }[];
     }
+  | { kind: 'audio'; title: string; titleFrom: string }
   | {
       kind: 'timeline';
       title: string;
@@ -440,6 +443,9 @@ export function textRestOf(
       })),
     };
   }
+  if (block.type === 'audio') {
+    return { kind: 'audio', title: local(block.props.title), titleFrom: field(`title.${locale}`) };
+  }
   if (block.type === 'timeline') {
     return {
       kind: 'timeline',
@@ -569,6 +575,7 @@ const ISSUE_COPY: Record<string, UiKey> = {
   'content.blocks.adjacent-rich-text': 'admin.block.issue.adjacentText',
   'content.blocks.too-many': 'admin.block.issue.tooMany',
   'content.cards.too-few': 'admin.block.issue.tooFewCards',
+  'content.audio.no-file': 'admin.block.issue.noAudio',
   'content.timeline.too-few': 'admin.block.issue.tooFewEvents',
   'content.timeline.no-date': 'admin.block.issue.noDate',
   'content.gallery.too-few': 'admin.block.issue.tooFewImages',
@@ -576,6 +583,7 @@ const ISSUE_COPY: Record<string, UiKey> = {
   'content.files.too-few': 'admin.block.issue.tooFewFiles',
   'content.files.no-file': 'admin.block.issue.noFile',
   'content.reference.media-not-document': 'admin.content.issue.mediaNotDocument',
+  'content.reference.media-not-audio': 'admin.content.issue.mediaNotAudio',
   'entitlements.feature-off': 'admin.block.issue.notIncluded',
   'editor.markdown.unclosed-link': 'admin.block.issue.unclosedLink',
   'editor.markdown.unknown-footnote': 'admin.block.issue.unknownFootnote',

@@ -20,7 +20,7 @@ function kind(f: BlockField): string {
     case 'rich-text':
       return 'localised rich text (Markdown subset in the no-JS form)';
     case 'media':
-      return f.accept === 'document' ? 'document (media id)' : 'image (media id)';
+      return `${f.accept ?? 'image'} (media id)`;
     case 'reference':
       return `${f.to} reference (id)`;
     case 'choice':

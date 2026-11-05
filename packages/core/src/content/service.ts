@@ -163,8 +163,8 @@ export async function recordMediaUsages(
 ): Promise<void> {
   const pairs = new Map<string, { mediaId: string; blockId: string }>();
   for (const b of allBlocks(blocks)) {
-    const { media, documents } = blockReferences([b]);
-    for (const mediaId of [...media, ...documents])
+    const { media, documents, audio } = blockReferences([b]);
+    for (const mediaId of [...media, ...documents, ...audio])
       pairs.set(`${mediaId} ${b.id}`, { mediaId, blockId: b.id });
   }
   // The document's own images under their slot (`doc:featured`, `doc:seo`), which no block id
@@ -262,7 +262,7 @@ export async function blockReferenceIssues(
 ): Promise<Issue[]> {
   const issues: Issue[] = [];
   const refs = blockReferences(blocks);
-  if (refs.media.length || refs.documents.length) await ctx.media.lock();
+  if (refs.media.length || refs.documents.length || refs.audio.length) await ctx.media.lock();
   for (const id of refs.forms)
     if (!(await ctx.forms.findById(id)))
       issues.push({ path, message: 'content.reference.form-unknown', params: { id } });
@@ -275,6 +275,10 @@ export async function blockReferenceIssues(
   }
   for (const id of refs.documents) {
     const issue = await documentIssue(ctx, id, path);
+    if (issue) issues.push(issue);
+  }
+  for (const id of refs.audio) {
+    const issue = await audioIssue(ctx, id, path);
     if (issue) issues.push(issue);
   }
   return issues;
@@ -291,6 +295,20 @@ async function documentIssue(
     return { path, message: 'content.reference.media-unknown', params: { id: mediaId } };
   if (media.kind !== 'document')
     return { path, message: 'content.reference.media-not-document', params: { id: mediaId } };
+  return null;
+}
+
+/** A sound slot's rule, the same again: exists, not deleted, audio. */
+async function audioIssue(
+  ctx: TransactionContext,
+  mediaId: string,
+  path: string
+): Promise<Issue | null> {
+  const media = await ctx.media.get(mediaId);
+  if (!media || media.deletedAt)
+    return { path, message: 'content.reference.media-unknown', params: { id: mediaId } };
+  if (media.kind !== 'audio')
+    return { path, message: 'content.reference.media-not-audio', params: { id: mediaId } };
   return null;
 }
 

@@ -393,7 +393,7 @@
     float: right;
     margin: 0 var(--float-outer) var(--space-2) var(--float-inner);
   }
-  .page :is(.cta, .cards, .faq, .gallery, .timeline) {
+  .page :is(.cta, .cards, .faq, .gallery, .timeline, .audio) {
     clear: both;
   }
   @container (max-width: 40rem) {
@@ -763,6 +763,18 @@
   }
   .file-download-meta {
     white-space: nowrap;
+  }
+
+  /* Audio: the browser's player at the text's width; a transcript keeps the lines it was given. */
+  .audio > * {
+    margin-block: 0 var(--space-1);
+  }
+  .audio audio {
+    display: block;
+    width: 100%;
+  }
+  .audio-transcript {
+    white-space: pre-line;
   }
 
   /* Callouts: the label carries the meaning; colour is a validated pair. */

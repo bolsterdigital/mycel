@@ -182,7 +182,7 @@ const SIGNATURES_USE = {
   },
 };
 
-export type DemoMediaIds = Record<DemoImageKey, string> & { report: string };
+export type DemoMediaIds = Record<DemoImageKey, string> & { report: string; sound: string };
 
 // --- rich-text builders -----------------------------------------------------------------------
 
@@ -680,6 +680,10 @@ export function demoPage(refs: { formId: string; media: DemoMediaIds }): CreateI
 // --- the article ------------------------------------------------------------------------------
 
 const DEMO_REPORT_FILENAME = 'meetresultaten-pepernoten.pdf';
+const DEMO_SOUND_FILENAME = 'stilte-pepernoten.mp3';
+/** One second of silence as an MP3, 1 KB: enough for a player to read a duration. */
+export const DEMO_SOUND_BASE64 =
+  '/+MQxAAAAANIAAAAAExBTUUzLjEwMFVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVf/jEsQnAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVV/+MQxE8AAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVVVf/jEMR2AAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVX/4xDEnQAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVV/+MSxMQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVX/4xDE2AAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVV/+MQxNgAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVf/jEMTYAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVX/4xLE1wAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVVVf/jEMTYAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVX/4xDE2AAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVV/+MQxNgAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVf/jEsTXAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVV/+MQxNgAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVMQU1FMy4xMDBVVVVVVVVVVVVVVf/jEMTYAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVX/4xDE2AAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV/+MSxNcAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/4xDE2AAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV/+MQxNgAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/jEMTYAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/4xLE1wAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQ==';
 
 /**
  * A real one-page PDF, written here so the demo's download opens without a binary in the repo.
@@ -819,6 +823,22 @@ function articleWhy(): BlockIn {
       )
     )
   );
+}
+
+/** The sound in the demo is a second of silence, and the text says so. */
+function articleSound(sound: string): BlockIn {
+  return {
+    type: 'audio',
+    version: BLOCK_DEFINITIONS.audio.version,
+    props: {
+      title: { nl: 'Beluister het voorbeeld', en: 'Listen to the sample' },
+      fileId: sound,
+      transcript: {
+        nl: 'Dit is een voorbeeldbestand: een seconde stilte.',
+        en: 'This is a sample file: one second of silence.',
+      },
+    },
+  };
 }
 
 /** How the research went, oldest first: the order a reader follows it in. */
@@ -1098,7 +1118,7 @@ export function demoArticle(refs: {
         articleWhy(),
         image2!,
         callout!,
-        faq!,
+        articleSound(refs.media.sound),
         articleReport(refs.media.report),
         articleTimeline(),
         articleNext(),
@@ -1127,7 +1147,7 @@ async function findMedia(
   invoker: Invoker,
   principal: Principal,
   filename: string,
-  kind: 'image' | 'document' = 'image'
+  kind: 'image' | 'document' | 'audio' = 'image'
 ) {
   const { items } = await invoker.run(useCases.listMedia, principal, {
     kind,
@@ -1150,6 +1170,15 @@ async function demoMedia(
         filename: DEMO_REPORT_FILENAME,
         contentType: 'application/pdf',
         bytes: bytesToBase64(demoReportPdf()),
+      })
+    ).id;
+  media.sound =
+    (await findMedia(invoker, principal, DEMO_SOUND_FILENAME, 'audio'))?.id ??
+    (
+      await invoker.run(useCases.uploadMedia, principal, {
+        filename: DEMO_SOUND_FILENAME,
+        contentType: 'audio/mpeg',
+        bytes: DEMO_SOUND_BASE64,
       })
     ).id;
   for (const image of DEMO_IMAGES) {

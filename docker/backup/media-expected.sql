@@ -19,6 +19,7 @@ cross join lateral (
       when 'image/avif' then 'avif'
       when 'image/gif' then 'gif'
       when 'application/pdf' then 'pdf'
+      when 'audio/mpeg' then 'mp3'
       else 'unknown-content-type'
     end as file
   where not m.variants @> '[{"name": "file"}]'
@@ -30,6 +31,7 @@ cross join lateral (
       when 'avif' then 'avif'
       when 'gif' then 'gif'
       when 'pdf' then 'pdf'
+      when 'mp3' then 'mp3'
       else 'unknown-format'
     end
   from jsonb_array_elements(m.variants) v

@@ -10,7 +10,13 @@ import { ContentDocument, ContentDocumentInput, readinessIssues } from '../conte
 import { Invoker } from '../invoke.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { exampleId } from '../util/ids.js';
-import { DEMO_IMAGES, demoArticle, demoPage, seedDemoContent } from './demo-content.js';
+import {
+  DEMO_IMAGES,
+  DEMO_SOUND_BASE64,
+  demoArticle,
+  demoPage,
+  seedDemoContent,
+} from './demo-content.js';
 import { bytesToBase64 } from '../util/bytes.js';
 import { adminOf, probeForm, publishProbePage } from './fixtures.js';
 import { MemoryUnitOfWork } from './memory.js';
@@ -22,6 +28,7 @@ const media = {
   measuring: exampleId(0xd103),
   signatures: exampleId(0xd104),
   report: exampleId(0xd105),
+  sound: exampleId(0xd106),
 };
 const documents = [
   demoPage({ formId: FORM, media }).document,
@@ -119,12 +126,16 @@ describe('demo content', () => {
       ]);
     const { items } = await invoker.run(useCases.listMedia, admin, {});
     expect(items.map((m) => m.filename).sort()).toEqual(
-      [...DEMO_IMAGES.map((i) => i.filename), 'meetresultaten-pepernoten.pdf'].sort()
+      [
+        ...DEMO_IMAGES.map((i) => i.filename),
+        'meetresultaten-pepernoten.pdf',
+        'stilte-pepernoten.mp3',
+      ].sort()
     );
 
     const again = await seedDemoContent(invoker, admin, { formId: FORM, load: jpegHeader });
     expect(again).toMatchObject({ created: false, upgraded: [], page: { id: first.page.id } });
-    expect((await invoker.run(useCases.listMedia, admin, {})).items).toHaveLength(5);
+    expect((await invoker.run(useCases.listMedia, admin, {})).items).toHaveLength(6);
   });
 
   it('swaps the posters of an earlier seed for the photos, once, keeping history and drafts', async () => {
@@ -151,8 +162,13 @@ describe('demo content', () => {
           return [image.key, m.id];
         })
       )
-    ) as Omit<typeof media, 'report'>;
-    const earlier = { ...posters, report: report.id };
+    ) as Omit<typeof media, 'report' | 'sound'>;
+    const sound = await invoker.run(useCases.uploadMedia, admin, {
+      filename: 'stilte-pepernoten.mp3',
+      contentType: 'audio/mpeg',
+      bytes: DEMO_SOUND_BASE64,
+    });
+    const earlier = { ...posters, report: report.id, sound: sound.id };
     const page = await publishProbePage(
       invoker,
       admin,
@@ -212,6 +228,6 @@ describe('demo content', () => {
 
     const again = await seedDemoContent(invoker, admin, { formId: FORM, load: jpegHeader });
     expect(again).toMatchObject({ created: false, upgraded: [] });
-    expect((await invoker.run(useCases.listMedia, admin, {})).items).toHaveLength(9);
+    expect((await invoker.run(useCases.listMedia, admin, {})).items).toHaveLength(10);
   });
 });

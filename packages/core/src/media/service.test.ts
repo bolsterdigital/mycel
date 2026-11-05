@@ -210,6 +210,33 @@ describe('media', () => {
       expect(keys().filter((k) => k.includes('original'))).toEqual([]);
     });
 
+    it('stores an MP3 as one delivered file and refuses what only claims to be one', async () => {
+      const frame = bytesToBase64(new Uint8Array([0xff, 0xfb, 0x90, 0x64, 0, 0, 0, 0]));
+      const mp3 = await upload({ filename: 'a.mp3', contentType: 'audio/mpeg', bytes: frame });
+      expect(mp3).toMatchObject({ kind: 'audio', width: null, height: null });
+      expect(mp3.variants.map((v) => `${v.name}.${v.format}`)).toEqual(['file.mp3']);
+      const tagged = await upload({
+        filename: 'b.mp3',
+        contentType: 'audio/mpeg',
+        bytes: text('ID3\x04\0\0'),
+      });
+      expect(tagged.kind).toBe('audio');
+      for (const bytes of [
+        text('%PDF-1.7\n'),
+        text('<script>alert(1)</script>'),
+        // A sync word with a reserved version, a layer other than III, a bad bitrate, a bad rate.
+        bytesToBase64(new Uint8Array([0xff, 0xeb, 0x90, 0x64])),
+        bytesToBase64(new Uint8Array([0xff, 0xfd, 0x90, 0x64])),
+        bytesToBase64(new Uint8Array([0xff, 0xfb, 0xf0, 0x64])),
+        bytesToBase64(new Uint8Array([0xff, 0xfb, 0x9c, 0x64])),
+      ])
+        await expectCode(
+          upload({ filename: 'c.mp3', contentType: 'audio/mpeg', bytes }),
+          'invalid_input',
+          'media.type.mismatch'
+        );
+    });
+
     it('stops at the storage cap: exactly at it is fine, one byte over is refused', async () => {
       const first = await upload();
       const total = first.totalBytes;

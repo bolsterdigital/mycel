@@ -360,7 +360,7 @@ export interface Database {
   media: {
     id: string;
     tenant_id: string;
-    kind: 'image' | 'document';
+    kind: 'image' | 'document' | 'audio';
     content_type: string;
     filename: string;
     checksum: string;
