@@ -95,5 +95,5 @@ A tenant handler throws when the job has no tenant, a platform handler when it h
 | outbox backoff        | `min(2^attempts, 3600)` s | `packages/db/src/outbox.ts`            | the same schedule as jobs                                                |
 | outbox batch size     | 50                        | `packages/db/src/outbox.ts`            | events per claim (`drainOutbox`)                                         |
 | `OUTBOX_INTERVAL_MS`  | 1 s                       | `packages/api/src/runtime/compose.ts`  | outbox loop tick when nothing is pending                                 |
-| `JOBS_RETENTION_DAYS` | 30 (1 to 3650)            | `packages/api/src/runtime/compose.ts`  | env; finished jobs older than this are deleted daily                     |
+| `JOBS_RETENTION_DAYS` | 30 (1 to 3650)            | `packages/api/src/runtime/config.ts`   | env; finished jobs older than this are deleted daily                     |
 | retention batch       | 1000                      | `packages/db/src/ops.ts`               | rows per delete, so no transaction holds many row locks                  |

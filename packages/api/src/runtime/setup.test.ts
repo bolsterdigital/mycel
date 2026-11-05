@@ -11,7 +11,7 @@ import { systemPrincipal, useCases } from '@mycel/core';
 import { createDb, createTenant, getTenantBySlug, uuidv7 } from '@mycel/db';
 import { requireDatabase, migrateSchema } from '@mycel/db/testing';
 import { runSuffix } from '@mycel/core/testing';
-import { runSetup, type SetupDeps } from './cli.js';
+import { runSetup, type SetupDeps } from './setup.js';
 import { createRuntime, inputHasherOf, loadConfig } from './compose.js';
 
 const env = process.env;

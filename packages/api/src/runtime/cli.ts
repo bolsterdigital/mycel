@@ -2,8 +2,8 @@
 // the same `platformOperations` as the platform API (compose.ts, TODO #74) on the operator
 // connection, without a token, because whoever holds DATABASE_URL already holds everything; the
 // functions enter `mycel_platform` and `mycel_ops` themselves (0010, 0016), so the CLI and the API
-// run under the same grants. `setup` adds the first tenant, its first operator and a custom
-// domain in one idempotent, non-interactive run, so a self-hoster and CI can script it.
+// run under the same grants. `setup` (setup.ts) adds the first tenant, its first operator and a
+// custom domain in one idempotent, non-interactive run, so a self-hoster and CI can script it.
 // Rejected: calling the platform API over HTTP from here, which would make a self-hoster run the
 // API with PLATFORM_API_TOKEN just to change a limit; and prompts, which a script cannot answer.
 //
@@ -11,17 +11,7 @@
 // with DATABASE_URL, ADR 011 rule 1). From a checkout: `npm run mycel -- <command>`.
 
 import { fileURLToPath } from 'node:url';
-import {
-  ERASURE_UNSECURED_WARN_MS,
-  Invoker,
-  UseCaseError,
-  normalizeHostname,
-  systemPrincipal,
-  useCases,
-  type Entitlements,
-  type Hostname,
-  type TenantStatus,
-} from '@mycel/core';
+import { ERASURE_UNSECURED_WARN_MS, type TenantStatus } from '@mycel/core';
 import {
   applyErasures,
   expireExports,
@@ -43,6 +33,7 @@ import {
   s3ConfigOf,
 } from './compose.js';
 import { OPS_REFUSALS } from '../platform.js';
+import { runSetup, type SetupInput } from './setup.js';
 
 export const USAGE = `usage:
   mycel setup --tenant <slug> --name <name> --operator <e-mail> [--locales nl,en] [--hostname <domain>]
@@ -60,14 +51,6 @@ export const USAGE = `usage:
   mycel erasures apply [--tenant <slug>]
   mycel erasures status [--tenant <slug>]
   mycel version`;
-
-export interface SetupInput {
-  slug: string;
-  name: string;
-  locales: string[];
-  operator: string;
-  hostname?: string;
-}
 
 export type Command =
   | { kind: 'setup'; input: SetupInput }
@@ -181,120 +164,6 @@ export function parseCommand(argv: readonly string[]): Command {
   }
   throw new UsageError(noun ? `unknown command "${argv.join(' ')}"` : 'no command given');
 }
-
-/** What `setup` needs; the CLI passes Postgres and the runtime, the tests the memory ports. */
-export interface SetupDeps {
-  tenantBySlug(slug: string): Promise<SetupTenant | null>;
-  createTenant(input: { slug: string; name: string; locales: string[] }): Promise<SetupTenant>;
-  invoker: Invoker;
-  /** The platform origin (PUBLIC_BASE_URL), where the admin lives. */
-  platformOrigin: string;
-}
-
-export interface SetupTenant {
-  id: string;
-  slug: string;
-  name: string;
-  locales: string[];
-  status: TenantStatus;
-  primaryHostname: string | null;
-  entitlements: Entitlements;
-}
-
-export interface SetupReport {
-  tenant: SetupTenant;
-  /** Whether this run changed anything; a second run with the same arguments changes nothing. */
-  changed: boolean;
-  lines: string[];
-}
-
-const isConflict = (e: unknown) => e instanceof UseCaseError && e.code === 'conflict';
-
-function dnsLines(hostname: string, dns: Hostname['dns']): string[] {
-  if (!dns) return [`  ${hostname} is verified; nothing to do in DNS`];
-  return [
-    `  DNS for ${hostname} (docs/reference/hostnames.md):`,
-    `    TXT   ${dns.txt.name}  "${dns.txt.value}"`,
-    `    CNAME ${dns.cname.name}  ${dns.cname.target}`,
-    `  An apex domain cannot take a CNAME at most providers: point its A/AAAA records at this`,
-    `  server instead. The TXT record is always required. The worker checks it daily; the admin's`,
-    `  Check DNS verifies it right away.`,
-  ];
-}
-
-/**
- * The first tenant of an installation: create it on the platform path, invite its first operator
- * as a pending `tenant:admin` (they become real at their first login with that address, as in the
- * seed), add a custom hostname and say what DNS needs. Idempotent: what already exists is
- * reported, never changed, so a second run with the same arguments is a no-op.
- */
-export async function runSetup(deps: SetupDeps, input: SetupInput): Promise<SetupReport> {
-  const lines: string[] = [];
-  let changed = false;
-  let tenant = await deps.tenantBySlug(input.slug);
-  if (tenant) {
-    lines.push(`tenant ${tenant.slug} exists (${tenant.id}); left as it is`);
-    if (tenant.name !== input.name || tenant.locales.join(',') !== input.locales.join(','))
-      lines.push(
-        `  note: it has name "${tenant.name}" and locales ${tenant.locales.join(',')}; setup changes neither`
-      );
-  } else {
-    tenant = await deps.createTenant({
-      slug: input.slug,
-      name: input.name,
-      locales: input.locales,
-    });
-    changed = true;
-    lines.push(`created tenant ${tenant.slug} (${tenant.id}) on ${tenant.primaryHostname ?? '-'}`);
-  }
-  const admin = systemPrincipal(tenant.id, 'cli', {
-    entitlements: tenant.entitlements,
-    status: tenant.status,
-  });
-
-  try {
-    await deps.invoker.run(useCases.inviteMember, admin, {
-      email: input.operator,
-      capabilities: ['tenant:admin'],
-    });
-    changed = true;
-    lines.push(`invited ${input.operator} as tenant:admin (pending until the first login)`);
-  } catch (e) {
-    if (!isConflict(e)) throw e;
-    lines.push(`${input.operator} is already a member; left as it is`);
-  }
-
-  const hostname = input.hostname;
-  if (hostname) {
-    try {
-      const added = await deps.invoker.run(useCases.addHostname, admin, {
-        hostname,
-      });
-      changed = true;
-      lines.push(
-        `added custom hostname ${added.hostname} (unverified)`,
-        ...dnsLines(added.hostname, added.dns)
-      );
-    } catch (e) {
-      if (!isConflict(e)) throw e;
-      const { hostnames } = await deps.invoker.run(useCases.listHostnames, admin, {});
-      const own = hostnames.find(
-        (h) => h.kind === 'custom' && h.hostname === normalizeHostname(hostname)
-      );
-      // Taken by another tenant: the conflict stands and names no owner (ADR 014).
-      if (!own) throw e;
-      lines.push(
-        `custom hostname ${own.hostname} exists; left as it is`,
-        ...dnsLines(own.hostname, own.dns)
-      );
-    }
-  }
-
-  lines.push(`admin: ${new URL(`/admin/${tenant.slug}`, deps.platformOrigin).href}`);
-  if (!changed) lines.push('nothing changed');
-  return { tenant, changed, lines };
-}
-
 /** The version of this build: MYCEL_VERSION from the release image, else the root package.json. */
 export const version = (): string => buildVersion();
 
