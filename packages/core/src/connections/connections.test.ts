@@ -688,8 +688,38 @@ describe('durable connection effects', () => {
 // the transitions; this one holds the invariants over sequences nobody wrote down.
 describe('a connection intent, for any sequence of answers', () => {
   const FINAL = new Set(['succeeded', 'blocked', 'resolved', 'failed']);
+  // What can change under an intent between two jobs; each makes the guard answer differently.
+  const interferences = {
+    pause: (e: Engine) => changeConnection(e, useCases.pauseConnection),
+    disconnect: (e: Engine) => changeConnection(e, useCases.disconnectConnection),
+    withdraw: async (e: Engine) => {
+      for (const p of e.uow.store.for(A).projections.values()) p.lists = [];
+    },
+    erase: async (e: Engine) => e.uow.store.for(A).projections.clear(),
+  };
+  const changeConnection = async (
+    e: Engine,
+    change: typeof useCases.pauseConnection | typeof useCases.disconnectConnection
+  ) => {
+    const c = await e.uow.run(e.principal, (ctx) => ctx.connections.get(e.c.id));
+    await e.invoker
+      .run(change, e.principal, { id: e.c.id, baseVersion: c!.version })
+      .catch((error: { code?: string }) => expect(error.code).toBe('conflict'));
+  };
+  const interference = fc.constantFrom(
+    ...(Object.keys(interferences) as (keyof typeof interferences)[])
+  );
+  const operate = (e: Engine, op: 'replay' | 'resolve', id: string) =>
+    e.invoker
+      .run(
+        op === 'replay' ? useCases.replayConnectionIntent : useCases.resolveConnectionIntent,
+        e.principal,
+        { id }
+      )
+      .catch((error: { code?: string }) => expect(error.code).toBe('conflict'));
   const step = fc.record({
-    op: fc.constantFrom('run', 'run', 'run', 'replay', 'resolve'),
+    op: fc.constantFrom('run', 'run', 'run', 'replay', 'resolve', 'interfere'),
+    interference,
     result: fc.constantFrom('succeeded', 'pre_send', 'unknown') as fc.Arbitrary<
       FakeConnectionTransport['result']
     >,
@@ -708,25 +738,20 @@ describe('a connection intent, for any sequence of answers', () => {
           const e = await engine();
           const row = await e.plan();
           if (!reconciles) e.deps.transport = { dispatch: (i) => e.transport.dispatch(i) };
-          for (const { op, result, lookup, wait } of steps) {
+          for (const { op, interference, result, lookup, wait } of steps) {
             e.transport.result = result;
             e.transport.lookup = lookup;
             e.clock.advance(wait);
             const before = (await e.read(row.id))!;
             const sent = e.transport.dispatched.length;
             if (op === 'run') await runConnectionIntent(e.deps, A, row.id);
-            else
-              await e.invoker
-                .run(
-                  op === 'replay'
-                    ? useCases.replayConnectionIntent
-                    : useCases.resolveConnectionIntent,
-                  e.principal,
-                  { id: row.id }
-                )
-                .catch((error: { code?: string }) => expect(error.code).toBe('conflict'));
+            else if (op === 'interfere') await interferences[interference](e);
+            else await operate(e, op, row.id);
             const after = (await e.read(row.id))!;
-            if (FINAL.has(before.state)) expect(after.state).toBe(before.state);
+            if (FINAL.has(before.state)) {
+              expect(after.state).toBe(before.state);
+              expect(after.failure).toBe(before.failure);
+            }
             // Re-sending after an unknown outcome could repeat what the receiver already did.
             if (e.transport.dispatched.length > sent) expect(before.state).toBe('pending');
             if (after.state === 'resolved') expect(before.state).toMatch(/^(unknown|resolved)$/);
@@ -742,5 +767,72 @@ describe('a connection intent, for any sequence of answers', () => {
       ),
       { numRuns: 60 }
     );
+  });
+
+  // Random answers rarely spend every attempt in fourteen steps, so each final state is reached on
+  // purpose here and then has anything thrown at it.
+  const reach = {
+    succeeded: async (e: Engine, id: string) => {
+      await runConnectionIntent(e.deps, A, id);
+    },
+    failed: async (e: Engine, id: string) => {
+      e.transport.result = 'pre_send';
+      for (let i = 0; i < CONNECTION_MAX_ATTEMPTS; i++) {
+        await runConnectionIntent(e.deps, A, id);
+        e.clock.advance(3_600_000);
+      }
+    },
+    blocked: async (e: Engine, id: string) => {
+      await interferences.withdraw(e);
+      await runConnectionIntent(e.deps, A, id);
+    },
+    resolved: async (e: Engine, id: string) => {
+      e.deps.transport = { dispatch: (i) => e.transport.dispatch(i) };
+      e.transport.result = 'unknown';
+      await runConnectionIntent(e.deps, A, id);
+      e.clock.advance(CONNECTION_LEASE_MS + 1);
+      await operate(e, 'resolve', id);
+    },
+  };
+
+  it('keeps a final state and the reason it ended, whatever a later job finds', async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        fc.constantFrom(...(Object.keys(reach) as (keyof typeof reach)[])),
+        fc.array(fc.option(interference), { minLength: 1, maxLength: 6 }),
+        async (final, later) => {
+          const e = await engine();
+          const { id } = await e.plan();
+          await reach[final](e, id);
+          const ended = (await e.read(id))!;
+          expect(ended.state).toBe(final);
+          const sent = e.transport.dispatched.length;
+          for (const change of later) {
+            if (change) await interferences[change](e);
+            e.clock.advance(3_600_000);
+            await runConnectionIntent(e.deps, A, id);
+            await operate(e, 'replay', id);
+          }
+          const after = (await e.read(id))!;
+          expect([after.state, after.failure, after.revision]).toEqual([
+            ended.state,
+            ended.failure,
+            ended.revision,
+          ]);
+          expect(e.transport.dispatched).toHaveLength(sent);
+        }
+      ),
+      { numRuns: 60 }
+    );
+  });
+
+  it('leaves an exhausted intent exhausted when consent is gone by the second job', async () => {
+    const e = await engine();
+    const { id } = await e.plan();
+    await reach.failed(e, id);
+    await interferences.withdraw(e);
+    await runConnectionIntent(e.deps, A, id);
+    const row = (await e.read(id))!;
+    expect([row.state, row.failure]).toEqual(['failed', 'exhausted']);
   });
 });
