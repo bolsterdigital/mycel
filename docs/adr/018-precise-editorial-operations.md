@@ -4,6 +4,7 @@
 - **Date**: 2026-10-21
 - **Amends**: ADR 012 (rules 4, 5 and 7), ADR 016 (rule 3)
 - **Prompted by**: second-opinion review of 2026-10-21, findings 2 and 3 and the product table
+- **Rule 5 amended**: 2026-11-05. The rule names the capabilities a use case needs once its feature exists; it did not say that `mailing:send`, `supporters:export` and `money:refund` have no use case yet. They are declared as planned (`PLANNED_CAPABILITIES`) and limit nothing until then. The only command with effect `export`, `tenant.export.create`, requires `tenant:admin`, because its archive holds members and the audit log, more than `supporters:export` covers; the registry allows an effect to require `tenant:admin`, which holds every capability and is never weaker. The original wording is retained below.
 
 ## Context
 

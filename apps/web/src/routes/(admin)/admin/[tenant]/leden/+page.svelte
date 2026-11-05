@@ -85,7 +85,7 @@
               id="m-{m.operatorId}"
               locale={data.locale}
               roles={data.roles}
-              capabilities={data.allCapabilities}
+              capabilities={m.offered}
               role={m.role}
               selected={m.capabilities}
             />
@@ -154,7 +154,7 @@
           id="invite"
           locale={data.locale}
           roles={data.roles}
-          capabilities={data.allCapabilities}
+          capabilities={data.offered}
         />
         <p class="ui-hint">{fill(t('admin.invite.hint'), { url: data.loginUrl })}</p>
         <Actions>

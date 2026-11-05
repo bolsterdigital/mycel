@@ -26,6 +26,8 @@ The operator id is Mycel's own, never the IdP subject, so attribution survives a
 
 `tenant:admin` implies every other capability (`can` and `grants`). Fine-grained rules live in the use cases. A key never carries `tenant:admin` (`KeyCapability`), so no integration or agent can manage members or keys. Capability lists are non-empty and without duplicates.
 
+Six capabilities have no use case yet: `supporters:export`, `donations:read`, `donations:write`, `mailing:read`, `mailing:send` and `money:refund`. They stay valid in a stored set (ADR 018 rule 5 names them), they limit nothing, and the admin does not offer them unless the set being edited already holds one. `PLANNED_CAPABILITIES` in `principal.ts` gives the reason per capability, and the registry conformance suite fails when a capability is neither required nor listed, or is listed after it got a use case.
+
 ## Login and the session
 
 Login is OIDC authorization code flow with PKCE (S256) through `openid-client`; `client_secret_post` when `OIDC_CLIENT_SECRET` is set, a public client otherwise. The flow's state, nonce, verifier and return path travel in a signed cookie `mycel_oidc` scoped to `/admin`. The callback checks state, nonce, PKCE and the ID token and refuses a token without an `email` claim; core only sees the claims (`LoginClaims`). Discovery runs once per process; plain `http` is accepted only for a local issuer and refused in production by the config.
