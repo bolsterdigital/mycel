@@ -1,7 +1,10 @@
 <!-- The media library starts with its assets, not a full-page upload form (TODO #10b). A compact
      button opens the native upload dialog; a window-wide drop enhancement reports progress and
-     per-file failures, then refreshes the server-rendered library. The dialog, search, views and
-     asset links remain usable without JavaScript; media.spec.ts checks both paths and reflow. -->
+     per-file failures, then refreshes the server-rendered library. Above the assets the filter bar
+     of the content list: a search, a type, what needs attention and an order in one GET form, each
+     filter that is on a chip that takes it off. An order sits in the form because a grid has no
+     column headings to click; the table has both. Everything remains usable without JavaScript;
+     media.spec.ts checks both paths and reflow. -->
 <script lang="ts">
   import {
     Actions,
@@ -15,11 +18,13 @@
     Dialog,
     UploadDropZone,
     Fieldset,
+    FilterChips,
     Notice,
     OverviewPage,
+    Select,
     Table,
   } from '#lib/admin/ui/index.js';
-  import { formatBytes } from '#lib/admin/format.js';
+  import { formatBytes, formatWhen } from '#lib/admin/format.js';
   import { THUMB, thumbPath } from '#lib/admin/ui/thumb.js';
   import { fill, ui, refusalCopy } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
@@ -50,15 +55,32 @@
       filename: r.filename,
       max: size(data.maxUploadBytes),
     })}`;
-  const query = (view: 'grid' | 'list', extra: Record<string, string> = {}) => {
-    const params = new URLSearchParams({
-      ...(data.q ? { q: data.q } : {}),
-      ...(view === 'list' ? { view } : {}),
-      ...extra,
+  const number = (n: number) => new Intl.NumberFormat(data.locale).format(n);
+  const count = $derived(
+    fill(
+      t(
+        data.filtered
+          ? (`admin.content.list.found.${data.total === 1 ? 'one' : 'other'}` as const)
+          : (`admin.media.list.count.${data.total === 1 ? 'one' : 'other'}` as const)
+      ),
+      { n: number(data.total) }
+    )
+  );
+  const chipLabel = (chip: (typeof data.chips)[number]) =>
+    chip.name === 'kind'
+      ? `${t('admin.media.list.kind')}: ${t(`admin.media.list.kind.${data.view.kind!}` as const)}`
+      : chip.name === 'show'
+        ? `${t('admin.media.list.show')}: ${t(`admin.media.list.show.${data.view.show!}` as const)}`
+        : `${t('admin.content.list.chip.q')}: ${chip.value}`;
+  // The admin renders on the server only (csr = false), so `now` is the moment of the request.
+  const now = new Date();
+  const when = (iso: string) =>
+    formatWhen(iso, {
+      locale: data.locale,
+      zone: data.timeZone,
+      now,
+      relative: data.dateFormat !== 'absolute',
     });
-    return `?${params}`;
-  };
-  const viewHref = (view: 'grid' | 'list') => query(view);
   const usage = (n: number) =>
     fill(t(n === 1 ? 'admin.media.usage.one' : 'admin.media.usage.other'), { n });
   const access = (a: string) =>
@@ -80,16 +102,39 @@
   views={{
     label: t('admin.media.view.label'),
     items: [
-      { href: viewHref('grid'), label: t('admin.media.view.grid'), current: data.view === 'grid' },
-      { href: viewHref('list'), label: t('admin.media.view.list'), current: data.view === 'list' },
+      {
+        href: data.links.grid,
+        label: t('admin.media.view.grid'),
+        current: data.view.layout === 'grid',
+      },
+      {
+        href: data.links.list,
+        label: t('admin.media.view.list'),
+        current: data.view.layout === 'list',
+      },
     ],
   }}
   empty={data.items.length === 0
-    ? data.q
-      ? { title: fill(t('admin.media.search.none'), { q: data.q }) }
+    ? data.filtered
+      ? {
+          title: data.view.q
+            ? fill(t('admin.media.search.none'), { q: data.view.q })
+            : t('admin.content.list.none'),
+          body: t('admin.content.list.none.body'),
+        }
       : { title: t('admin.media.none'), body: t('admin.media.none.body') }
     : undefined}
-  paging={data.nextCursor ? { next: query(data.view, { cursor: data.nextCursor }) } : undefined}
+  paging={data.links.previous || data.links.next
+    ? {
+        previous: data.links.previous,
+        next: data.links.next,
+        position: fill(t('admin.content.list.position'), {
+          from: number(data.range.from),
+          to: number(data.range.to),
+          total: number(data.total),
+        }),
+      }
+    : undefined}
 >
   {#snippet notices()}
     {#if failed}
@@ -178,43 +223,106 @@
   {/snippet}
 
   {#snippet filters()}
-    <form method="get" role="search" class="ui-library-search">
-      {#if data.view === 'list'}<input type="hidden" name="view" value="list" />{/if}
+    <form
+      method="get"
+      role="search"
+      class="ui-filter-bar"
+      aria-label={t('admin.content.list.filter')}
+    >
+      {#each data.keep as [name, value] (name)}<input type="hidden" {name} {value} />{/each}
       <Field
         id="media-search"
         name="q"
         type="search"
-        value={data.q}
+        size="m"
+        value={data.view.q}
         label={t('admin.media.search.label')}
         locale={data.locale}
       />
-      <div class="ui-actions">
-        <Button variant="secondary">{t('admin.media.search.submit')}</Button>
-        {#if data.q}
-          <Button variant="link" href={data.view === 'list' ? '?view=list' : '?'}
-            >{t('admin.media.search.clear')}</Button
-          >
+      <Select
+        id="media-kind"
+        name="kind"
+        size="m"
+        value={data.view.kind ?? ''}
+        options={[
+          { value: '', label: t('admin.media.list.kind.all') },
+          ...data.kinds.map((kind) => ({
+            value: kind,
+            label: t(`admin.media.list.kind.${kind}` as const),
+          })),
+        ]}
+        label={t('admin.media.list.kind')}
+        locale={data.locale}
+      />
+      <Select
+        id="media-show"
+        name="show"
+        size="m"
+        value={data.view.show ?? ''}
+        options={[
+          { value: '', label: t('admin.media.list.show.all') },
+          ...data.shows.map((show) => ({
+            value: show,
+            label: t(`admin.media.list.show.${show}` as const),
+          })),
+        ]}
+        label={t('admin.media.list.show')}
+        locale={data.locale}
+      />
+      <Select
+        id="media-order"
+        name="sort"
+        size="m"
+        value={data.view.order}
+        options={data.orders.map((order) => ({
+          value: order,
+          label: t(`admin.media.list.order.${order}` as const),
+        }))}
+        label={t('admin.media.list.order')}
+        locale={data.locale}
+      />
+      <Actions>
+        <Button variant="secondary">{t('admin.content.list.submit')}</Button>
+        {#if data.filtered}
+          <Button variant="link" href={data.links.clear}>{t('admin.content.list.clear')}</Button>
         {/if}
-      </div>
+      </Actions>
     </form>
+    {#if data.chips.length}
+      <FilterChips
+        label={t('admin.content.list.chips')}
+        items={data.chips.map((chip) => ({
+          label: chipLabel(chip),
+          href: chip.href,
+          remove: fill(t('admin.content.list.chip.remove'), { filter: chipLabel(chip) }),
+        }))}
+      />
+    {/if}
+    <div class="ui-list-tools">
+      <p class="ui-list-count" id="media-count">{count}</p>
+    </div>
   {/snippet}
 
-  {#if data.view === 'list'}
+  {#if data.view.layout === 'list'}
     <Table
       id="media-table"
       caption={t('admin.media.library')}
       columns={[
         { key: 'thumb', label: t('admin.media.preview') },
-        { key: 'name', label: t('admin.media.filename') },
+        { key: 'name', label: t('admin.media.filename'), sortable: true },
         { key: 'dimensions', label: t('admin.media.dimensions') },
-        { key: 'size', label: t('admin.media.size'), numeric: true },
+        { key: 'size', label: t('admin.media.size'), numeric: true, sortable: true },
         { key: 'usage', label: t('admin.media.usage') },
         { key: 'access', label: t('admin.media.access') },
+        { key: 'created', label: t('admin.media.uploaded'), sortable: true },
       ]}
+      sort={{ key: data.view.sort, dir: data.view.dir }}
+      sortHref={(key, dir) => data.links.sort[`${key}-${dir}`] ?? data.links.clear}
     >
       {#snippet rows()}
         {#each data.items as m (m.id)}
-          <tr>
+          {@const moment = when(m.createdAt)}
+          <tr id="media-{m.id}">
             <td>
               {#if m.thumb}
                 <img
@@ -232,12 +340,18 @@
             <td class="numeric">{size(m.sizeBytes)}</td>
             <td>{usage(m.usageCount)}</td>
             <td>{access(m.access)}</td>
+            <td><time datetime={moment.iso} title={moment.full}>{moment.text}</time></td>
           </tr>
         {/each}
       {/snippet}
     </Table>
   {:else}
-    <CardGrid items={data.items} key={(m) => m.id} label={t('admin.media.library')}>
+    <CardGrid
+      items={data.items}
+      key={(m) => m.id}
+      itemId={(m) => `media-${m.id}`}
+      label={t('admin.media.library')}
+    >
       {#snippet card(m)}
         <Card title={m.filename} href="{base}/media/{m.id}">
           {#snippet media()}

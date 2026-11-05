@@ -83,6 +83,7 @@ export * from './entitlements/guards.js';
 export * from './entitlements/ports.js';
 export * from './entitlements/service.js';
 export * from './media/model.js';
+export * from './media/listing.js';
 export * from './media/ports.js';
 export * from './media/signed-paths.js';
 export * from './media/service.js';

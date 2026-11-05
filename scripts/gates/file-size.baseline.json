@@ -1,6 +1,6 @@
 {
   "ceilings": {
-    "apps/web/src/lib/admin/ui/ui.css": 3409,
+    "apps/web/src/lib/admin/ui/ui.css": 3392,
     "apps/web/src/lib/admin/ui/ui.test.ts": 1646,
     "apps/web/src/lib/theme/base.css": 1143,
     "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.server.ts": 1289,

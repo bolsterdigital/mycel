@@ -34,6 +34,7 @@ import {
 } from '@mycel/core';
 import type { Cookies } from '@sveltejs/kit';
 import type { z } from 'zod';
+import { keepListQuery } from '../admin/list-memory.js';
 import { fromLocalInput } from './content-admin-publication.js';
 
 /** The states a list filters on: the four of a locale, and "published, changed since". */
@@ -279,8 +280,6 @@ export function chooseListDisplay(
 }
 
 const cookieOf = (type: ContentType) => `mycel-content-list-${type}`;
-/** A working day: tomorrow the list opens as it is, not as it was left. */
-const REMEMBERED_SECONDS = 60 * 60 * 12;
 
 /** The view in a Referer, if that is this site's list of this type on this origin. */
 function viewInReferer(
@@ -310,20 +309,7 @@ export function rememberListFromReferer(
 ): void {
   const view = viewInReferer(referer, url, tenant, type);
   if (!view) return;
-  const path = `/admin/${tenant}`;
-  const query = listParams(view).toString();
-  const kept = cookies.get(cookieOf(type));
-  if (kept === query || (!query && kept === undefined)) return;
-  if (!query) {
-    cookies.delete(cookieOf(type), { path });
-    return;
-  }
-  cookies.set(cookieOf(type), query, {
-    path,
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge: REMEMBERED_SECONDS,
-  });
+  keepListQuery(cookies, cookieOf(type), tenant, listParams(view).toString());
 }
 
 /**
