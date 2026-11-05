@@ -122,7 +122,7 @@ jobs:
           SEGMENT_DOWNLOAD_TIMEOUT_MINS: '1'
         with:
           path: ~/browser-debs
-          key: browser-debs-${{ runner.os }}-${{ env.ImageOS }}-v1
+          key: browser-debs-ubuntu-24.04-v1
 
       - name: Hand restored packages to apt
         run: |
@@ -214,7 +214,7 @@ jobs:
           SEGMENT_DOWNLOAD_TIMEOUT_MINS: '1'
         with:
           path: ~/browser-debs
-          key: browser-debs-${{ runner.os }}-${{ env.ImageOS }}-v1
+          key: browser-debs-ubuntu-24.04-v1
 
       - name: Hand restored packages to apt
         run: |

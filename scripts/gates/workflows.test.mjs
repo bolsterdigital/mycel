@@ -133,6 +133,8 @@ test('browser system packages reach apt from a cache before the install, in ever
     assert.match(steps[restore], /SEGMENT_DOWNLOAD_TIMEOUT_MINS: '1'/);
     assert.match(steps[restore], /timeout-minutes: 2\b/);
     assert.match(steps[keep], /cache-hit != 'true'/);
+    // `env.ImageOS` is empty in an expression: the key must name the image the job pins.
+    assert.match(steps[restore], /key: browser-debs-ubuntu-24\.04-v\d+$/m);
   }
 });
 
