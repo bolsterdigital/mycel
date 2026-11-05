@@ -365,6 +365,33 @@ describe('nothing leaks into any representation', () => {
     expect(none.html).not.toContain('file-download');
   });
 
+  it('leaves out a restricted or missing image of a gallery, and shows nothing with none left', async () => {
+    const block = examples.find((e) => e.name === 'gallery-row-content')!.block;
+    const props = block.props as { images: { mediaId: string }[] };
+    const withIds = (...ids: string[]) =>
+      Block.parse({
+        ...block,
+        props: { ...props, images: ids.map((mediaId, i) => ({ ...props.images[i], mediaId })) },
+      });
+    const one = await representations([withIds(EXAMPLE_IDS.image, RESTRICTED)], 'nl');
+    for (const out of [one.html, one.markdown, JSON.stringify(one.model)]) {
+      expect(out).toContain('Op het plein.');
+      expect(out).not.toContain(RESTRICTED);
+    }
+    const none = await representations([withIds(RESTRICTED, UNKNOWN_FILE)], 'nl');
+    for (const out of [none.html, none.markdown]) expect(out).not.toContain('/media/');
+    expect(none.html).not.toContain('gallery');
+  });
+
+  it('a gallery row is a named region a keyboard can scroll; a grid needs neither', async () => {
+    const html = async (name: string) =>
+      (await representations([examples.find((e) => e.name === name)!.block], 'en')).html;
+    expect(await html('gallery-row-content')).toMatch(
+      /<ul class="gallery-list" tabindex="0" aria-label="Photos, scroll sideways for more"/
+    );
+    expect(await html('gallery-grid')).not.toContain('tabindex');
+  });
+
   it('a file link names its kind and size, in HTML and Markdown, not the stored filename', async () => {
     const block = examples.find((e) => e.name === 'file-download-one')!.block;
     const { html, markdown } = await representations([block], 'en');

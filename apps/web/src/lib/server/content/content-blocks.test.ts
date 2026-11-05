@@ -128,6 +128,13 @@ describe('textRestOf', () => {
     });
     expect(files.files[1]?.label).toBe('');
 
+    const gallery = textRestOf(example('gallery'), 'nl', 'b.b.');
+    if (gallery?.kind !== 'gallery') throw new Error('no gallery view');
+    expect(gallery.images).toHaveLength(24);
+    expect(gallery.images[0]?.from).toBe('b.b.p.images.0.alt.nl');
+    expect(gallery.images[0]?.label).toBeTruthy();
+    expect(gallery.images[2]?.label).toBe('');
+
     const faq = textRestOf(example('faq', 1), 'nl', 'b.b.');
     if (faq?.kind !== 'faq') throw new Error('no faq view');
     expect(faq.variant).toBe('accordion');

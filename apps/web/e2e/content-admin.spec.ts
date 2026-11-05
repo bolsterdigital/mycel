@@ -1855,6 +1855,55 @@ test.describe('block card details', () => {
     expect(file.headers()['content-type']).toBe('application/pdf');
   });
 
+  // A new gallery wants an image per row, and two rows; its picker offers images, not documents.
+  test('a new gallery wants an image per row, refuses a PDF in the picker and saves', async ({
+    page,
+  }) => {
+    await login(page, '/admin/probe');
+    await blockPage(page, 'gallery');
+    await editorReady(page);
+    await page
+      .locator('[data-block-picker]')
+      .last()
+      .getByRole('button', { name: 'Fotogalerij', exact: true })
+      .click();
+    const fresh = page.locator('#block-new');
+    await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Fotogalerij');
+    await editorReady(page);
+    const saving = page.getByRole('button', { name: 'Opslaan', exact: true });
+    await saving.click();
+    await expect(
+      page.getByRole('listitem').filter({ hasText: 'vul minstens twee afbeeldingen in' })
+    ).toBeVisible();
+
+    // By row: without scripts a chosen row's button still says "Beeld kiezen".
+    const fill = async (row: number, file: string) => {
+      const fields = fresh.getByRole('group', { name: `Afbeelding ${row}`, exact: true });
+      await fields.getByRole('button', { name: 'Beeld kiezen' }).click();
+      const dialog = fields.locator('dialog[open]');
+      await expect(dialog.getByRole('radio', { name: 'jaarverslag.pdf' })).toHaveCount(0);
+      await dialog.getByRole('radio', { name: file }).first().check();
+      await dialog.getByRole('button', { name: 'Klaar' }).click();
+      await fields.getByRole('checkbox', { name: 'Decoratief' }).check();
+    };
+    await fill(1, 'bomen.jpg');
+    await fill(2, 'plein.jpg');
+    await saving.click();
+    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
+  });
+
+  // The row scrolls inside itself: a phone's page stays still, and a keyboard reaches every photo.
+  test('a gallery row scrolls by keyboard at 320 px without moving the page', async ({ page }) => {
+    await page.setViewportSize(NARROW);
+    await page.goto('/probe/blok-gallery-row-content');
+    await layoutGate(page);
+    const row = page.locator('.gallery-row .gallery-list');
+    await row.focus();
+    await expect(row).toBeFocused();
+    await page.keyboard.press('ArrowRight');
+    await expect.poll(() => row.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+  });
+
   test('a card without a title keeps the name of its first question after an edit', async ({
     page,
     request,

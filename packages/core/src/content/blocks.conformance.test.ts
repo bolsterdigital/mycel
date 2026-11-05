@@ -388,6 +388,16 @@ describe('refusals', () => {
     const one = cards.props.cards[0];
     refused({ ...cards, props: { ...cards.props, cards: [one] } });
     refused({ ...cards, props: { ...cards.props, cards: Array(7).fill(one) } });
+    const gallery = base('gallery');
+    const shot = gallery.props.images[0];
+    refused({ ...gallery, props: { ...gallery.props, images: [shot] } });
+    refused({ ...gallery, props: { ...gallery.props, images: Array(25).fill(shot) } });
+    refused({ ...gallery, props: { ...gallery.props, images: [shot, { ...shot, mediaId: '' }] } });
+    refused({ ...gallery, props: { ...gallery.props, images: [shot, { ...shot, alt: null }] } });
+    refused({
+      ...gallery,
+      props: { ...gallery.props, images: [shot, { ...shot, decorative: true }] },
+    });
     const files = base('file-download');
     const file = files.props.files[0];
     refused({ ...files, props: { ...files.props, files: [] } });
@@ -479,6 +489,11 @@ describe('references', () => {
     expect(rows('cards-three-links')).toEqual([`cards-0 item ${EXAMPLE_IDS.item}`]);
     // Twice the same file in one block is one row; the column says `media`, as for an image.
     expect(rows('file-download-titled')).toEqual([`file-download-1 media ${EXAMPLE_IDS.document}`]);
+    // The same photo twice in one gallery is one row.
+    expect(rows('gallery-grid-full')).toEqual([
+      `gallery-2 media ${EXAMPLE_IDS.image}`,
+      `gallery-2 media ${EXAMPLE_IDS.portrait}`,
+    ]);
     expect(rows('quote-pullquote-wide')).toEqual([]);
     expect(rows('video-youtube')).toEqual([]);
   });

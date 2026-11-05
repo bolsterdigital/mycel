@@ -9,7 +9,12 @@
 
 import type { Mark, MediaCredit, RichTextDoc } from '@mycel/core';
 import { BLOCK_DEPTH, headingTag } from './headings.js';
-import { VIDEO_PROVIDER_NAMES, type RenderBlock, type RenderModel } from './model.js';
+import {
+  VIDEO_PROVIDER_NAMES,
+  type RenderBlock,
+  type RenderImage,
+  type RenderModel,
+} from './model.js';
 import { linkTarget } from './rich-text.js';
 
 export interface MarkdownOptions {
@@ -94,6 +99,17 @@ export function renderMarkdown(model: RenderModel, options: MarkdownOptions): st
       .filter(Boolean)
       .join(' · ');
 
+  /** One image with its caption and credit; a decorative image says nothing here. */
+  const image = (i: RenderImage): string | null => {
+    if (!i.alt) return null;
+    const lines = [`![${md(i.alt)}](<${abs(i.src)}>)`];
+    const caption = [i.caption && md(i.caption), i.credit && md(credit(i.credit))]
+      .filter(Boolean)
+      .join(' · ');
+    if (caption) lines.push(`*${caption}*`);
+    return lines.join('\n');
+  };
+
   const out: string[] = [`# ${md(model.title)}`];
   for (const b of model.blocks) {
     const part = blockMarkdown(b);
@@ -109,17 +125,11 @@ export function renderMarkdown(model: RenderModel, options: MarkdownOptions): st
         return richText(b.doc, 1);
       case 'paywall':
         return null;
-      case 'image': {
-        if (!b.image || !b.image.alt) return null;
-        const lines = [`![${md(b.image.alt)}](<${abs(b.image.src)}>)`];
-        const caption = [
-          b.image.caption && md(b.image.caption),
-          b.image.credit && md(credit(b.image.credit)),
-        ]
-          .filter(Boolean)
-          .join(' · ');
-        if (caption) lines.push(`*${caption}*`);
-        return lines.join('\n');
+      case 'image':
+        return b.image ? image(b.image) : null;
+      case 'gallery': {
+        const images = b.images.flatMap((i) => image(i) ?? []);
+        return images.length ? images.join('\n\n') : null;
       }
       case 'hero':
       case 'cta': {

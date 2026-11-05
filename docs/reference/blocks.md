@@ -133,6 +133,27 @@ Version 1.
 
 Examples: `file-download-one`, `file-download-titled`.
 
+## `gallery` (Gallery)
+
+Version 1.
+
+| Prop                           | Label                       | Kind                                                       | Presence                   |
+| ------------------------------ | --------------------------- | ---------------------------------------------------------- | -------------------------- |
+| `images`                       | Image                       | list of 2–24                                               | required                   |
+| `images[].mediaId`             | Image                       | image (media id)                                           | required                   |
+| `images[].decorative`          | Decorative (no description) | yes or no                                                  | required                   |
+| `images[].alt`                 | Description (alt text)      | localised text                                             | optional (null when empty) |
+| `images[].caption`             | Caption                     | localised caption: the file’s, none, or its own per locale | optional                   |
+| `images[].credit`              | Own credit for this use     | group                                                      | optional                   |
+| `images[].credit.work`         | Work                        | group                                                      | optional (null when empty) |
+| `images[].credit.work.title`   | Title                       | text                                                       | required                   |
+| `images[].credit.work.maker`   | Maker                       | text                                                       | required                   |
+| `images[].credit.photographer` | Photographer                | text                                                       | optional (null when empty) |
+| `variant`                      | Variant                     | one of `grid`, `row`                                       | required                   |
+| `width`                        | Width                       | one of `content`, `wide`, `full`                           | required                   |
+
+Examples: `gallery-grid`, `gallery-row-content`, `gallery-grid-full`.
+
 ## `callout` (Callout)
 
 Version 1.
