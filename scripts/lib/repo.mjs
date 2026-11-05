@@ -144,3 +144,30 @@ export const staleEntries = (allowed, stillNeeded, where) =>
   [...allowed]
     .filter((entry) => !stillNeeded(entry))
     .map((entry) => `${where}: ${entry} is no longer needed; remove the entry`);
+
+/**
+ * A count that may only go down, per key of `counts`. `grew`: past its ceiling, or past `limit`
+ * without one. `shrank`: below its ceiling, so the baseline follows. `stale`: a ceiling or an
+ * exemption that names something within `limit` or gone, so an allowance leaves with its reason.
+ */
+export function ratchet(counts, { ceilings = {}, exempt = {} }, limit) {
+  const grew = [];
+  const shrank = [];
+  const stale = [];
+  for (const [key, n] of Object.entries(counts)) {
+    if (key in exempt) continue;
+    const ceiling = ceilings[key] ?? limit;
+    if (n > ceiling) grew.push(`${key}: ${n} (ceiling ${ceiling})`);
+  }
+  for (const [key, ceiling] of Object.entries(ceilings)) {
+    const n = counts[key] ?? 0;
+    if (n <= limit) stale.push(`${key}: ${n}, within ${limit}; remove the ceiling`);
+    else if (n < ceiling) shrank.push(`${key}: ${n} (ceiling ${ceiling})`);
+  }
+  for (const key of Object.keys(exempt)) {
+    if (!(key in counts)) stale.push(`${key}: gone; remove the exemption`);
+    else if (counts[key] <= limit)
+      stale.push(`${key}: ${counts[key]}, within ${limit}; remove the exemption`);
+  }
+  return { grew, shrank, stale };
+}
