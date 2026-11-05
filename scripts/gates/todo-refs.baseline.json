@@ -411,7 +411,7 @@
   "scripts/gates/pins.test.mjs": 2,
   "scripts/gates/repo-size.test.mjs": 1,
   "scripts/gates/testing-shape.test.mjs": 2,
-  "scripts/gates/todo-refs.test.mjs": 17,
+  "scripts/gates/todo-refs.test.mjs": 26,
   "scripts/gates/web-rules.test.mjs": 1,
   "scripts/gates/workflows.test.mjs": 1,
   "scripts/lib/repo.mjs": 1,

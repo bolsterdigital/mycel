@@ -35,8 +35,8 @@ export async function runConnectionIntent(
   const now = deps.clock.now();
   const claimed = await run(async (ctx) => {
     const row = await ctx.connectionIntents.get(id);
-    // ADR 019 rule 6: a final state stays what it is. A second job for one, say after a worker died
-    // before finishing its own, must not rewrite why it ended.
+    // A final state stays what it is (docs/reference/connections.md § Operator actions). A second
+    // job for one, say after a worker died before finishing its own, must not rewrite why it ended.
     if (
       !row ||
       row.state === 'succeeded' ||
