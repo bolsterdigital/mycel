@@ -1671,7 +1671,7 @@ test.describe('export', () => {
   });
 });
 
-// #79 PR 2: the actions of one row of the content list, and the dashboard's content widgets.
+// The actions of one row of the content list, and the dashboard's content widgets.
 test.describe('content-list-rows', () => {
   test.use({ locale: 'nl-NL' });
 
@@ -1820,6 +1820,11 @@ test.describe('content-list-rows', () => {
     await expect(row).toBeVisible();
     await expect(row.locator('.ui-row-menu')).toHaveCount(0);
     await expect(row.locator('.ui-row-actions')).toHaveCount(0);
+    // No row on this page has an action, so there is no column for them, and nothing to scroll.
+    await expect(page.locator('#content-table .ui-row-actions-cell')).toHaveCount(0);
+    await page.setViewportSize({ width: 320, height: 720 });
+    const region = page.locator('#content-table').locator('..');
+    expect(await region.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
   });
 
   test('the width of the table picks the buttons or one menu, and the row keeps its name', async ({

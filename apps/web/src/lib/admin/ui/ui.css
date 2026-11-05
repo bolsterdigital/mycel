@@ -549,7 +549,7 @@
   .ui-table .numeric {
     text-align: end;
   }
-  /* RowActions (#79): the table's width picks the row of buttons or the menu, in rem, so the
+  /* RowActions: the table's width picks the row of buttons or the menu, in rem, so the
      text size counts. The row's buttons appear on hover and focus; they keep their place, so a
      row does not jump, and the keyboard reaches them while they are out of sight. */
   .ui-table-scroll:has(.ui-row-actions) {
@@ -562,7 +562,7 @@
     gap: 0 var(--space-1);
   }
   /* The row's own actions keep their one line. The question's button is not one of them: it lives
-     in the question's narrower column and runs on at its word boundaries (#79, F4). */
+     in the question's narrower column and runs on at its word boundaries. */
   .ui-row-actions > .ui-button,
   .ui-row-actions > .ui-confirm > summary {
     white-space: nowrap;
@@ -2687,7 +2687,7 @@
     margin: 0;
     color: var(--color-muted-fg);
   }
-  /* A widget's rows (#79): what it is about, a link, and one quiet fact beside or under it. */
+  /* A widget's rows: what it is about, a link, and one quiet fact beside or under it. */
   .ui-widget-list {
     display: grid;
     gap: var(--space-1);

@@ -1,7 +1,7 @@
 <!-- The dashboard: six widgets in two columns, one on a phone (brief edit-screen § 4). Three are
      empty contours for now, so the place of what will come is learnt before it is filled; #82
      fills "Waiting for you", #12 visits and #39/#47 sign-ups. "Recently edited" and "Scheduled"
-     link to the items in the content locale (#79 PR 2). "Usage and limits" shows the usage the
+     link to the items in the content locale. "Usage and limits" shows the usage the
      tenant home showed, with its suspended notice; the settings show the same list. -->
 <script lang="ts">
   import { DashboardWidget, Notice, PageHeader } from '#lib/admin/ui/index.js';

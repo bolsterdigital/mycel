@@ -1,7 +1,7 @@
 // The dashboard (#66 PR 1, decision Jaap 2026-10-29): the tenant home shows its widgets before
 // their data. "Usage and limits" is the usage the tenant home already showed; the use case is
 // for site administrators, so another member sees that widget empty, like the rest. "Recently
-// edited" and "Scheduled" (#79 PR 2) ask `content.item.list`, the query of the content list, in
+// edited" and "Scheduled" ask `content.item.list`, the query of the content list, in
 // the content locale, for anyone who may read content. Members, keys and domains moved verbatim
 // to `leden` and `domeinen`.
 // The list has no order on a scheduled moment, so the soonest five come from the 50 last saved;

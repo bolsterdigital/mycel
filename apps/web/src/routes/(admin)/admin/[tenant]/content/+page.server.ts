@@ -6,7 +6,7 @@
 // Search, status, order and page are query parameters read by `content-list.ts` and answered by
 // `content.item.list`, so every view has its own URL and works without JavaScript; the route
 // only turns the view into links. The view is remembered for the way back from an item.
-// A row's actions (#79 PR 2) are what the operator may do with that item in the content locale:
+// A row's actions are what the operator may do with that item in the content locale:
 // the live page and the preview are separate, because they differ exactly when both are offered;
 // taking offline is for what is live, with the use case the edit screen uses. Duplicating opens
 // the copy, like creating does (decision Jaap 2026-10-29).

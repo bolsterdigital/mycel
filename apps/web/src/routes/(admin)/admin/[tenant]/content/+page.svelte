@@ -7,7 +7,7 @@
      works without JavaScript; the table scrolls inside its own region on a narrow screen, never
      the page. The page title is the one visible heading (#87); "updated" is relative in the
      operator's zone, the full moment in its title. A row carries its item's id, so the way back
-     from an item lands on it. A row's actions (#79 PR 2) post through one form outside the table,
+     from an item lands on it. A row's actions post through one form outside the table,
      which no form can wrap; `RowActions` says how they show per width. -->
 <script lang="ts">
   import {
@@ -64,6 +64,9 @@
   // Without any, a reader would open a menu with nothing in it. Taking offline needs a live page.
   const hasActions = (item: (typeof data.items)[number]) =>
     Boolean(item.live || item.preview || data.canWrite);
+  // A page on which no row has any keeps no column for them: without the row's actions the table
+  // is no container, so an empty column would never give way and the region would scroll at 320 px.
+  const anyActions = $derived(data.items.some(hasActions));
   const nothing = $derived(
     data.view.q
       ? fill(t('admin.content.list.none.q'), { q: data.view.q })
@@ -222,11 +225,15 @@
       { key: 'title', label: t('admin.content.field.title'), sortable: true },
       { key: 'status', label: t('admin.content.state') },
       { key: 'updated', label: t('admin.content.column.updated'), sortable: true },
-      {
-        key: 'actions',
-        label: t('admin.content.list.column.actions'),
-        class: 'ui-row-actions-cell',
-      },
+      ...(anyActions
+        ? [
+            {
+              key: 'actions',
+              label: t('admin.content.list.column.actions'),
+              class: 'ui-row-actions-cell',
+            },
+          ]
+        : []),
     ]}
     sort={{ key: data.view.sort, dir: data.view.dir }}
     sortHref={(key, dir) => data.links.sort[key]?.[dir] ?? data.links.clear}
@@ -263,9 +270,11 @@
             {/if}
           </td>
           <td><time datetime={updated.iso} title={updated.full}>{updated.text}</time></td>
-          <td class="ui-row-actions-cell"
-            >{#if hasActions(item)}<RowActions>{@render rowActions(item)}</RowActions>{/if}</td
-          >
+          {#if anyActions}
+            <td class="ui-row-actions-cell"
+              >{#if hasActions(item)}<RowActions>{@render rowActions(item)}</RowActions>{/if}</td
+            >
+          {/if}
         </tr>
       {/each}
     {/snippet}

@@ -1,4 +1,4 @@
-<!-- The actions of one table row (#79, table stake 7): a row of whole buttons in a column of their
+<!-- The actions of one table row: a row of whole buttons in a column of their
      own where the table has room, one menu under the title where it has not, the one cell a phone
      shows without scrolling the table. The route renders both and the table's width picks one in CSS
      (`.ui-table-scroll` is the container), so it works without JavaScript and follows the text
