@@ -212,39 +212,38 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
       };
 
       // Core's `compareItems`: the key, then the id, both in the order's direction. The page
-      // after an item starts from where that item stands now, read by id in the same statement.
+      // after an item starts from where that item stands now, read by id in the same statement;
+      // `key` writes one expression for the listed row (`i`) and for that item (`p`).
+      const key =
+        order.by === 'title'
+          ? (row: 'i' | 'p') =>
+              sql<string>`coalesce(${sql.ref(`${row}.title`)}->>(${locale ?? null}::text),
+                ${sql.ref(`${row}.title`)}->>${sql.ref(`${row}.default_locale`)}, '')
+                collate "und-x-icu"`
+          : order.by === 'updated'
+            ? (row: 'i' | 'p') => sql<Date>`${sql.ref(`${row}.updated_at`)}`
+            : null;
       const asc = order.direction === 'asc';
       let rows = matching().selectAll('i');
-      if (order.by === 'title') {
-        const key = sql<string>`coalesce(i.title->>(${locale ?? null}::text), i.title->>i.default_locale, '') collate "und-x-icu"`;
-        const pivot = sql`(select coalesce(p.title->>(${locale ?? null}::text), p.title->>p.default_locale, '') collate "und-x-icu", p.id from content_items p where p.id = ${after})`;
-        if (after)
-          rows = rows.where(
-            asc ? sql<boolean>`(${key}, i.id) > ${pivot}` : sql<boolean>`(${key}, i.id) < ${pivot}`
-          );
-        rows = rows.orderBy(key, order.direction);
-      } else if (order.by === 'updated') {
-        const pivot = sql`(select p.updated_at, p.id from content_items p where p.id = ${after})`;
-        if (after)
-          rows = rows.where(
-            asc
-              ? sql<boolean>`(i.updated_at, i.id) > ${pivot}`
-              : sql<boolean>`(i.updated_at, i.id) < ${pivot}`
-          );
-        rows = rows.orderBy('i.updated_at', order.direction);
+      if (after && key) {
+        const pivot = sql`(select ${key('p')}, p.id from content_items p where p.id = ${after})`;
+        rows = rows.where(
+          asc
+            ? sql<boolean>`(${key('i')}, i.id) > ${pivot}`
+            : sql<boolean>`(${key('i')}, i.id) < ${pivot}`
+        );
       } else if (after) {
         rows = rows.where('i.id', asc ? '>' : '<', after);
       }
-      const [found, counted] = [
-        await rows
-          .orderBy('i.id', order.direction)
-          .offset(offset)
-          .limit(limit + 1)
-          .execute(),
-        await matching()
-          .select((eb) => eb.fn.countAll<string>().as('n'))
-          .executeTakeFirstOrThrow(),
-      ];
+      if (key) rows = rows.orderBy(key('i'), order.direction);
+      const found = await rows
+        .orderBy('i.id', order.direction)
+        .offset(offset)
+        .limit(limit + 1)
+        .execute();
+      const counted = await matching()
+        .select((eb) => eb.fn.countAll<string>().as('n'))
+        .executeTakeFirstOrThrow();
       const page = paged(found, limit);
       return { rows: await withLocales(page.rows), next: page.next, total: Number(counted.n) };
     },
