@@ -232,8 +232,10 @@
       {#each data.items as item (item.id)}
         {@const updated = when(item.updated)}
         <tr id="item-{item.id}">
-          <th scope="row"
+          <!-- Named by the title alone: from its content the row header would read the menu along. -->
+          <th scope="row" aria-labelledby="title-{item.id}"
             ><a
+              id="title-{item.id}"
               href="{base}/{item.id}"
               lang={item.titleLocale && item.titleLocale !== data.workLocale
                 ? item.titleLocale

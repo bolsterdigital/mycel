@@ -1721,20 +1721,52 @@ test.describe('content-list-rows', () => {
         blocks: [],
       },
     });
-    await page.setViewportSize({ width: 1180, height: 800 });
     await page.reload();
+    const region = page.locator('.ui-table-scroll');
+    // The table's region picks the layout, and the sidebar's width follows the font: a fixed
+    // window lands on either side of the width depending on the machine. So measure it.
+    const takeover = await region.evaluate(
+      () => 58 * parseFloat(getComputedStyle(document.documentElement).fontSize)
+    );
+    for (let tries = 0; tries < 3; tries++) {
+      const lacking = await region.evaluate(
+        (e, width) => width - e.getBoundingClientRect().width,
+        takeover + 1
+      );
+      if (lacking >= 0 && lacking < 1) break;
+      await page.setViewportSize({
+        width: page.viewportSize()!.width + Math.ceil(lacking),
+        height: 800,
+      });
+    }
     await row.hover();
     await expect(actions.getByRole('link', { name: /^Op de site/ })).toBeVisible();
     await expect(actions.getByRole('link', { name: /^Voorbeeld/ })).toBeVisible();
-    const region = page.locator('.ui-table-scroll');
     expect(await region.evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(0);
+
+    // Exactly one of the two at every width, the width where the menu takes over included.
+    for (const [width, inMenu] of [
+      [takeover - 1, true],
+      [takeover, false],
+      [takeover + 1, false],
+    ] as const) {
+      await region.evaluate((e, px) => (e.style.width = `${px}px`), width);
+      expect(await region.evaluate((e) => e.getBoundingClientRect().width)).toBe(width);
+      await expect(row.locator('.ui-row-menu')).toBeVisible({ visible: inMenu });
+      await expect(row.locator('.ui-row-actions-cell')).toBeVisible({ visible: !inMenu });
+    }
+    await region.evaluate((e) => e.style.removeProperty('width'));
 
     // One menu at 320 CSS px and 200% text, with every label whole; the column is gone.
     await page.setViewportSize(NARROW);
     await setTextSize(page, '200%');
     await expect(actions).toBeHidden();
+    const header = row.getByRole('rowheader', { name: `Brood ${word}`, exact: true });
+    await expect(header).toBeVisible();
     await row.locator('.ui-row-menu > summary').click();
     await expect(row.locator('.ui-row-menu').getByText('Dupliceren')).toBeVisible();
+    // The menu sits in the row's header cell; opening it does not rename the row.
+    await expect(header).toBeVisible();
     await layoutGate(page, 'content list with an open row menu');
     // The table scrolls in its own region, which the page gate does not see: no action behind it.
     const menu = row.locator('.ui-row-menu');

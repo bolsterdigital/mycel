@@ -597,7 +597,8 @@
       display: none;
     }
   }
-  @container (max-width: 58rem) {
+  /* Exclusive, with min-width above: at exactly 58rem both would apply and no action would show. */
+  @container (width < 58rem) {
     .ui-row-actions-cell {
       display: none;
     }
