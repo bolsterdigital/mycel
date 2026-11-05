@@ -43,9 +43,18 @@ export const load: PageServerLoad = async ({ parent, locals, url, params }) => {
   ]);
   const to = (change: Partial<MediaListView>) =>
     mediaListPath(params.tenant, { ...view, ...change });
-  // A page past the end, after a narrower filter or a deletion: the last page there is.
+  // A page past the end, after a narrower filter or a deletion: the last page there is. `done`
+  // is not part of the view, and a deletion that empties the last page still has to say so.
   const pages = Math.max(1, Math.ceil(list.total / MEDIA_PAGE_SIZE));
-  if (view.page > pages) redirect(303, to({ page: pages }));
+  if (view.page > pages)
+    redirect(
+      303,
+      mediaListPath(
+        params.tenant,
+        { ...view, page: pages },
+        url.searchParams.get('done') ?? undefined
+      )
+    );
   const first = (view.page - 1) * MEDIA_PAGE_SIZE;
   return {
     items: list.items.map((m) => ({

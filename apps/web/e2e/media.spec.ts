@@ -10,9 +10,16 @@
 // repository as a block tree's save will, as mycel_app under the tenant's RLS.
 
 import { expect, test, type Page } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
 import { crc32, deflateSync } from 'node:zlib';
 import { request as httpRequest } from 'node:http';
-import { BLOCK_DEFINITIONS, ContentDocumentInput, systemPrincipal, useCases } from '@mycel/core';
+import {
+  BLOCK_DEFINITIONS,
+  ContentDocumentInput,
+  systemPrincipal,
+  useCases,
+  type TransactionContext,
+} from '@mycel/core';
 import { expectNoAxeViolations } from './lib/axe';
 import { expectPixels, watchImages } from './lib/images';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
@@ -614,6 +621,65 @@ test('the library narrows to what needs attention, in any order, and an asset go
   await expect(page).toHaveURL(new RegExp(`q=${stamp}.*done=deleted$`));
   await expect(page.getByRole('status')).toContainText('Het bestand is verwijderd');
   await expect(page.getByRole('link', { name: names.unused })).toHaveCount(0);
+});
+
+test('deleting the only file on the last page says so, on the page before it', async ({ page }) => {
+  await login(page, '/admin/probe/media');
+  const stamp = `${test.info().project.name}-laatste-${Date.now()}`;
+  const principal = systemPrincipal(await tenantId(), 'e2e');
+  // One file more than a page holds. Rows without files, so this is quick: the library lists them
+  // from the database and no route in this test asks for their bytes.
+  const now = Date.now();
+  const rows = Array.from({ length: 51 }, (_, n) => ({
+    id: randomUUID(),
+    filename: `${stamp}-${String(n).padStart(2, '0')}.png`,
+    createdAt: new Date(now - n * 1000),
+  }));
+  const eachRow = (
+    write: (ctx: TransactionContext, row: (typeof rows)[number]) => Promise<unknown>
+  ) =>
+    withInvoker((_, uow) =>
+      uow.run(principal, async (ctx) => {
+        for (const row of rows) await write(ctx, row);
+      })
+    );
+  await eachRow((ctx, { id, filename, createdAt }) =>
+    ctx.media.insert({
+      id,
+      kind: 'image',
+      contentType: 'image/png',
+      filename,
+      checksum: id.replaceAll('-', '').padEnd(64, '0'),
+      sizeBytes: 1,
+      totalBytes: 1,
+      width: 1,
+      height: 1,
+      variants: [],
+      access: 'public',
+      caption: {},
+      credit: { work: null, photographer: null },
+      source: null,
+      licence: null,
+      focal: { x: 0.5, y: 0.5 },
+      state: 'ready',
+      createdBy: principal.actor,
+      createdAt,
+      updatedAt: createdAt,
+    })
+  );
+  try {
+    await page.goto(`/admin/probe/media?q=${stamp}&page=2`);
+    await page.getByRole('link', { name: rows[50]!.filename }).click();
+    await page.getByRole('button', { name: 'Verwijderen' }).click();
+    // Page 2 is gone, so this is the redirect to page 1, which keeps the notice.
+    await expect(page).toHaveURL(new RegExp(`q=${stamp}.*done=deleted$`));
+    await expect(page).not.toHaveURL(/page=/);
+    await expect(page.locator('#media-count')).toHaveText('50 gevonden');
+    await expect(page.getByRole('status')).toContainText('Het bestand is verwijderd');
+  } finally {
+    // Soft-deleted, or the preflight of the next run refuses live rows without files.
+    await eachRow((ctx, { id }) => ctx.media.softDelete(id, new Date()));
+  }
 });
 
 test('an image block chooses its image from a grid of thumbnails, without a script', async ({
