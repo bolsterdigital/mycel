@@ -2,6 +2,10 @@
 
 Logs, error reports, health and metrics of every Mycel process (PR #18). The hoster reads stdout; nothing here ships logs anywhere. The reasoning is in ADR 008 (our own code before a dependency), 011 (who may read the queues) and 019 rule 8 (erasure covers every copy, and a log line is a copy). The audit log is [audit.md](audit.md) (PR #19); the per-tenant status page and the hoster's view of stuck work (PR #20) are in [platform-api.md](platform-api.md) § Stuck work.
 
+## In short
+
+**Observability** (PR #18, `docs/reference/observability.md`). Every process writes one JSON object per line with `service`, the request or job context (`requestId`, `tenantId`, `job`, `eventId`, from an `AsyncLocalStorage` the front or worker opens) and never an e-mail address: the logger scrubs every string value and drops keys such as `email` and `input`. Unexpected failures (not a `UseCaseError`) go to the `ErrorReporter`: a log line always, and a Sentry envelope to `ERROR_REPORTING_DSN` (GlitchTip) when set. `/healthz` is liveness only; `/readyz` checks the database (api, web) or the loops and queue lag (worker, `queueLag` as `mycel_worker`); `/metrics` is Prometheus text on the api (behind `METRICS_TOKEN`) and on the worker's health port. Finished jobs are deleted after `JOBS_RETENTION_DAYS` by the daily `jobs.retention` job under a restrictive delete policy that cannot reach an open job (migration 0014).
+
 ## Log lines
 
 Every process writes one JSON object per line: api, web and worker to stdout, the MCP server to stderr (its stdout is the protocol channel).

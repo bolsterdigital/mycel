@@ -7,7 +7,7 @@
 // not match its manifest. The table list is held to the live catalog, so a new tenant table
 // fails here until it has its place in the export order.
 //
-// The second database needs CREATEDB (CI and dev-server-1 connect as a superuser); without it the
+// The second database needs CREATEDB (CI and a typical dev server connect as a superuser); without it the
 // round trip is skipped and the rest runs. Skips without DATABASE_URL and APP_DATABASE_URL; in
 // CI that is a failure.
 
@@ -309,7 +309,7 @@ describe.skipIf(skip)('tenant export and import', () => {
   it('migrates a second database beside the primary without racing on the shared roles', async (ctx) => {
     if (!canCreateDb) ctx.skip();
     // Repeated cross-database migration checks: the old password-writing setup failed in 236
-    // of 600 calls on dev-server-1. Both sides now leave cluster roles alone.
+    // of 600 calls on a dev server. Both sides now leave cluster roles alone.
     for (let round = 0; round < 10; round++)
       await Promise.all([migrateSchema(target.url), migrateSchema(operatorUrl)]);
   });

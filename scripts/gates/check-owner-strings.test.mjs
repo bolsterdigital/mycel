@@ -28,6 +28,7 @@ const failing = {
   trial: 'apps/web/src/save.ts:1: private trial reference',
   'planning-sibling': 'packages/core/src/plans.ts:1: private planning sibling',
   'model-mode': 'tools/run.mjs:1: owner agent tooling',
+  'machine-name': 'notes.mjs:1: owner machine name',
   'shared-task': '.github/claim.mjs:1: owner agent tooling',
   'lane-mbp': 'apps/web/src/lane.ts:1: planning lane word',
   'lane-owner-dev': 'scripts/route.mjs:1: planning lane literal',

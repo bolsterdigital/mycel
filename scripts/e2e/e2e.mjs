@@ -26,11 +26,10 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { loadDotEnv } from '../lib/repo.mjs';
+import { ROOT, loadDotEnv } from '../lib/repo.mjs';
 import { blockExamples, everyBlockType, missingBlockTypes } from './e2e-block-examples.mjs';
 
-const root = fileURLToPath(new URL('../..', import.meta.url));
+const root = `${ROOT}/`;
 const qualityCorpus = JSON.parse(
   readFileSync(new URL('../../apps/web/e2e/quality-corpus.json', import.meta.url), 'utf8')
 );

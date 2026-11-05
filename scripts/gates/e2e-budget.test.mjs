@@ -2,7 +2,7 @@
 // consent or access changes hands, target ten. The suite had grown to nineteen specs with eleven
 // copies of the login, ten of the axe check and fifteen of the layout gate, in five variants, so a
 // check added to one copy never reached the others (TODO #50). Each shared check now lives once in
-// apps/web/e2e/lib/ and this test keeps it there; the suite holds ten specs, each naming its flow.
+// apps/web/e2e/lib/ and this test keeps it there; `MAX_SPECS` holds the count, each spec names its flow.
 // Since TODO #75 that includes which project a test runs in, the API's address and key, and the
 // wait for a form's minimum fill time. Since TODO #171 it also bounds each spec and each test: the
 // spec count alone did not stop growth, since lines doubled at the same ten specs, and a spec in a

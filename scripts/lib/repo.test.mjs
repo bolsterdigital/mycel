@@ -35,12 +35,33 @@ function lintWords() {
     .filter((word) => word.endsWith('.mjs'));
 }
 
+/** A glob word of `lint:infra` as the files it runs: `dir/*.test.mjs` only. */
+function expand(word) {
+  if (!word.includes('*')) return [word];
+  const dir = dirname(word);
+  const suffix = posix.basename(word).replace(/^\*/, '');
+  return walk(dir, { match: (p) => p.endsWith(suffix) && dirname(p) === dir });
+}
+
+/** Every `.mjs` entry an npm script runs: a local run's root and files are held to the same rule. */
+function scriptWords() {
+  const { scripts } = readJson('package.json');
+  return Object.values(scripts)
+    .flatMap((script) => script.split(/\s+/))
+    .filter((word) => /^scripts\/.*\.mjs$/.test(word));
+}
+
+/** Reads something that is not this repository, so the shared walk has nothing to offer it. */
+const OUTSIDE_THE_REPO = new Map([
+  ['scripts/quality/gate.mjs', 'lists the directory the matrix artifacts were downloaded to'],
+]);
+
 /**
  * The gate files: every plain `.mjs` path in the `lint:infra` and `lint:deps` scripts, plus the
  * script modules they import or spawn.
  */
 function gateFiles() {
-  const named = lintWords().filter((word) => !word.includes('*'));
+  const named = [...new Set([...lintWords(), ...scriptWords()].flatMap(expand))];
   const all = new Set(named);
   for (const { path, text } of readAll(named))
     for (const [, spec] of text.matchAll(/(?:from |new URL\()'((?:\.\.?\/)?[\w./-]+\.mjs)'/g))
@@ -53,7 +74,9 @@ test('every gate uses scripts/lib/repo.mjs for walking, the root and tracked fil
   const gates = gateFiles();
   assert.ok(gates.includes('scripts/gates/check-owner-strings.mjs'), 'follows imports and spawns');
   assert.ok(gates.length > 15, `found ${gates.length} gate files`);
-  assert.deepEqual(ownPlumbing(readAll(gates)), []);
+  assert.ok(gates.includes('scripts/quality/runner.test.mjs'), 'expands a glob word');
+  assert.ok(gates.includes('scripts/e2e/e2e.mjs'), 'follows npm scripts');
+  assert.deepEqual(ownPlumbing(readAll(gates.filter((path) => !OUTSIDE_THE_REPO.has(path)))), []);
 });
 
 test('testing.md § Gates names every gate', () => {
@@ -61,6 +84,16 @@ test('testing.md § Gates names every gate', () => {
   const gates = doc.slice(doc.indexOf('\n## Gates\n'), doc.indexOf('\n## Local database\n'));
   assert.deepEqual(
     lintWords().filter((word) => !gates.includes(`\`${word}\``)),
+    []
+  );
+  // And the other way: a row whose gate left `lint:infra` is a promise nothing keeps.
+  const named = [...gates.matchAll(/^\| `(scripts\/[^`]+\.mjs|docker\/[^`]+\.mjs)`/gm)].map(
+    (m) => m[1]
+  );
+  assert.ok(named.length > 15, `found ${named.length} rows`);
+  const run = lintWords();
+  assert.deepEqual(
+    named.filter((word) => !run.includes(word)),
     []
   );
 });

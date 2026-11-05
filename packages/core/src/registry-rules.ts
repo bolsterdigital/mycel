@@ -17,7 +17,7 @@ const EFFECT_VERBS = ['publish', 'unpublish', 'schedule', 'unschedule', 'send', 
 const GROWTH_VERBS = ['create', 'invite', 'add', 'submit', 'upload'];
 
 /**
- * The naming rule (overview.md § Use-case names, TODO #54): `<module>.<entity>.<verb>`, or
+ * The naming rule (docs/reference/use-cases.md, TODO #54): `<module>.<entity>.<verb>`, or
  * `<module>.<verb>` when the module is the entity. A name is an HTTP path, an MCP tool and an
  * OpenAPI operation at once, so one word per concept, singular. `site` is the only prefix for site
  * settings, `tenant` the one for members, keys, hostnames, exports and limits. Rejected: a regex
