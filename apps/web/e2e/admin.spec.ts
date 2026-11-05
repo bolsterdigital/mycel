@@ -31,11 +31,11 @@ import { randomUUID } from 'node:crypto';
 import { ADMIN_ROUTES } from './routes';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { spawn, execFile } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { pastMinimumFillTime } from './lib/form';
 import { writeFile } from 'node:fs/promises';
-import { promisify } from 'node:util';
+import { tarEntries } from '../../../scripts/e2e/tar-entries.mjs';
 
 // A worker-scoped option on a separate test type keeps timeout-safe tracing on this flow only.
 const settingsTest = test.extend({ trace: ['retain-on-failure', { scope: 'worker' }] });
@@ -1590,8 +1590,6 @@ test.describe('hostnames', () => {
 // text.
 // An ask while one is being built gets that one back, so the two projects may share an archive.
 test.describe('export', () => {
-  const run = promisify(execFile);
-
   test.use({
     locale: 'nl-NL',
     extraHTTPHeaders: {
@@ -1649,9 +1647,10 @@ test.describe('export', () => {
     expect(response.headers()['cache-control']).toBe('private, no-store');
     const file = test.info().outputPath('probe.tar');
     await writeFile(file, await response.body());
-    const { stdout } = await run('tar', ['-tf', file]);
-    expect(stdout.split('\n')).toContain('./manifest.json');
-    expect(stdout).toContain('./tables/supporters.ndjson');
+    // Streamed: a local probe's listing outgrows execFile's 1 MiB buffer.
+    const entries = await tarEntries(file);
+    expect(entries).toContain('./manifest.json');
+    expect(entries).toContain('./tables/supporters.ndjson');
 
     // The link is bound to the archive and expires; without its signature it is a 404.
     const bare = await page.request.get(href.split('?')[0]!);
