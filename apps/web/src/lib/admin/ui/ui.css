@@ -1391,6 +1391,14 @@
     gap: var(--space-1) var(--space-3);
     padding-block: var(--space-1);
   }
+  /* The boxes side by side while they fit: seven under each other push the rest off the screen. */
+  .ui-list-display-form > .ui-choices {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    gap: 0 var(--space-2);
+    max-inline-size: none;
+  }
   .ui-list-display-form > .ui-actions-host {
     flex: 1 1 8rem;
     margin-block: 0;
