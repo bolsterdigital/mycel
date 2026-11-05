@@ -49,8 +49,10 @@
     t(data.type === 'page' ? 'admin.content.filter.page' : 'admin.content.filter.article')
   );
   const number = (n: number) => new Intl.NumberFormat(data.locale).format(n);
-  const plural = (key: string, n: number) =>
-    fill(t(`${key}.${n === 1 ? 'one' : 'other'}` as UiKey), { n: number(n) });
+  const plural = (
+    key: 'admin.content.list.found' | `admin.content.list.count.${'page' | 'article'}`,
+    n: number
+  ) => fill(t(`${key}.${n === 1 ? 'one' : 'other'}` as const), { n: number(n) });
   const count = $derived(
     data.filtered
       ? plural('admin.content.list.found', data.total)
@@ -125,7 +127,7 @@
           { value: '', label: t('admin.content.list.status.all') },
           ...data.statuses.map((s) => ({
             value: s,
-            label: t(`admin.content.list.status.${s}` as UiKey),
+            label: t(`admin.content.list.status.${s}` as const),
           })),
         ]}
         label={t('admin.content.state')}
