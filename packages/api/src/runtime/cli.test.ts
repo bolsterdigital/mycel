@@ -13,7 +13,8 @@ import {
   useCases,
 } from '@mycel/core';
 import { FakeClock, FakeDns, MemoryUnitOfWork } from '@mycel/core/testing';
-import { UsageError, parseCommand, runSetup, version, type SetupTenant } from './cli.js';
+import { UsageError, parseCommand, version } from './cli.js';
+import { runSetup, type SetupTenant } from './setup.js';
 
 describe('parseCommand', () => {
   it('reads setup with its flags in either form, locales defaulting to nl', () => {

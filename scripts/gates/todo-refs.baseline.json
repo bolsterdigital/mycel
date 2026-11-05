@@ -220,7 +220,7 @@
   "packages/api/src/registry.conformance.test.ts": 1,
   "packages/api/src/runtime/cli.test.ts": 1,
   "packages/api/src/runtime/cli.ts": 4,
-  "packages/api/src/runtime/compose.ts": 7,
+  "packages/api/src/runtime/compose.ts": 3,
   "packages/api/src/runtime/dns.ts": 2,
   "packages/api/src/runtime/setup.test.ts": 1,
   "packages/api/src/runtime/signer.ts": 2,
