@@ -38,15 +38,15 @@ describe.skipIf(skip)('migration 0020 backfill', () => {
 
   afterAll(() => client.end());
 
-  it('fills every submission from its own form, for two tenants, and forces RLS again', async () => {
-    const tenants = ['a', 'b'].map((key) => ({
-      key,
-      id: uuidv7(),
-      form: { ...probeForm(uuidv7()), list: `list-${key}`, consentTextVersion: `text-${key}` },
-      submissions: [uuidv7(), uuidv7()],
-    }));
+  // Role membership locks precede table locks in every migration replay fixture. Holding
+  // forms while waiting for mycel_app can deadlock with another fixture inserting a form.
+  async function prepare(tenants: { id: string; key: string }[]) {
     await client.query('begin');
     try {
+      const role = `snapshot_app_${run}`;
+      await client.query(`create role ${role} nologin in role mycel_app`);
+      // A non-superuser with CREATEROLE administers the new role but is not yet a member (16+).
+      await client.query(`grant ${role} to current_user`);
       for (const t of tenants)
         await client.query(
           `insert into tenants (id, slug, name, default_locale, locales) values ($1, $2, $2, 'nl', '{nl}')`,
@@ -61,10 +61,56 @@ describe.skipIf(skip)('migration 0020 backfill', () => {
       // The state before 0020: the columns exist but nothing fills them.
       await client.query(`alter table form_submissions alter column list drop not null,
                                                      alter column consent_text_version drop not null`);
-      const role = `snapshot_app_${run}`;
-      await client.query(`create role ${role} nologin in role mycel_app`);
-      // A non-superuser with CREATEROLE administers the new role but is not yet a member (16+).
-      await client.query(`grant ${role} to current_user`);
+      return role;
+    } catch (error) {
+      await client.query('rollback');
+      throw error;
+    }
+  }
+
+  it('waits for role membership before locking forms during a concurrent fixture', async () => {
+    const holder = new pg.Client({ connectionString: operatorUrl });
+    await holder.connect();
+    const { rows } = await client.query<{ pid: number }>('select pg_backend_pid() as pid');
+    const pid = rows[0]!.pid;
+    let preparing: Promise<string | Error> | undefined;
+    try {
+      await holder.query('begin');
+      await holder.query(`create role snapshot_holder_${run} nologin in role mycel_app`);
+      preparing = prepare([]).catch((error: Error) => error);
+      // Synchronise on the actual role wait, not a sleep that can miss the interleaving.
+      await expect
+        .poll(async () => {
+          const { rows } = await holder.query<{ blocked: boolean }>(
+            'select pg_backend_pid() = any(pg_blocking_pids($1)) as blocked',
+            [pid]
+          );
+          return rows[0]!.blocked;
+        })
+        .toBe(true);
+      // The other fixture must still be able to touch forms while owning the role lock.
+      // With table-first setup this fails with 55P03 and would complete the deadlock cycle.
+      await holder.query("set local lock_timeout = '100ms'");
+      await holder.query('lock table forms in access share mode');
+      await holder.query('rollback');
+      expect(await preparing).toBe(`snapshot_app_${run}`);
+    } finally {
+      await holder.query('rollback');
+      if (preparing) await preparing;
+      await client.query('rollback');
+      await holder.end();
+    }
+  });
+
+  it('fills every submission from its own form, for two tenants, and forces RLS again', async () => {
+    const tenants = ['a', 'b'].map((key) => ({
+      key,
+      id: uuidv7(),
+      form: { ...probeForm(uuidv7()), list: `list-${key}`, consentTextVersion: `text-${key}` },
+      submissions: [uuidv7(), uuidv7()],
+    }));
+    const role = await prepare(tenants);
+    try {
       await client.query(`set local role ${role}`);
       for (const t of tenants) {
         await client.query(`select set_config('app.tenant_id', $1, true)`, [t.id]);
