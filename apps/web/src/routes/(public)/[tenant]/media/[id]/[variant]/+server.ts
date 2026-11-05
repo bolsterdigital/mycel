@@ -18,7 +18,8 @@ export const GET: RequestHandler = async ({ params, locals, url, request }) => {
       params.id,
       params.variant,
       url,
-      request.headers.get('if-none-match')
+      request.headers.get('if-none-match'),
+      { range: request.headers.get('range'), ifRange: request.headers.get('if-range') }
     )
   );
 };

@@ -156,6 +156,13 @@ export function renderMarkdown(model: RenderModel, options: MarkdownOptions): st
           b.files.map((f) => `- ${link(f.label, f.href)} (${md(f.meta)})`).join('\n'),
         ].join('\n\n');
       }
+      case 'audio':
+        if (!b.file) return null;
+        return [
+          heading(BLOCK_DEPTH, b.title),
+          `${link(model.copy.audioDownload, b.file.href)} (${md(b.file.meta)})`,
+          ...(b.transcript ? [md(b.transcript)] : []),
+        ].join('\n\n');
       case 'timeline':
         return [
           ...(b.title ? [heading(BLOCK_DEPTH, b.title)] : []),

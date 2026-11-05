@@ -142,6 +142,48 @@ interface Prepared {
 const startsWith = (bytes: Uint8Array, prefix: string) =>
   prefix.length <= bytes.length && [...prefix].every((c, i) => bytes[i] === c.charCodeAt(0));
 
+/**
+ * An ID3 tag, or an MPEG Layer III frame header with a legal version, bitrate and sample rate.
+ * Delivered with `nosniff` and as `audio/mpeg`, so this only keeps a wrong file out of the library;
+ * rejected: decoding the file, which would put an audio library in the core for no safer outcome.
+ */
+function isMp3(b: Uint8Array): boolean {
+  if (startsWith(b, 'ID3')) return true;
+  const [sync, flags, rates] = [b[0] ?? 0, b[1] ?? 0, b[2] ?? 0];
+  return (
+    sync === 0xff &&
+    (flags & 0xe0) === 0xe0 &&
+    (flags & 0x18) !== 0x08 &&
+    (flags & 0x06) === 0x02 &&
+    rates >> 4 !== 0x0f &&
+    ((rates >> 2) & 0x03) !== 0x03
+  );
+}
+
+/** A file kept as it came: one `file` variant, which the checksum and size describe. */
+function asStored(
+  kind: MediaRecord['kind'],
+  format: StoredVariant['format'],
+  contentType: MediaContentType,
+  bytes: Uint8Array
+): Prepared {
+  const variant: StoredVariant = {
+    name: 'file',
+    format,
+    width: null,
+    height: null,
+    bytes: bytes.length,
+  };
+  return {
+    kind,
+    width: null,
+    height: null,
+    primary: bytes,
+    variants: [variant],
+    files: [{ file: variantFile(variant), bytes, contentType }],
+  };
+}
+
 /** Check what the bytes are, then render everything that will be stored. */
 async function prepare(
   ctx: TransactionContext,
@@ -151,21 +193,12 @@ async function prepare(
   if (contentType === 'application/pdf') {
     if (!startsWith(bytes, '%PDF-'))
       throw invalid('contentType', 'media.type.mismatch', 'the file is not a PDF');
-    const variant: StoredVariant = {
-      name: 'file',
-      format: 'pdf',
-      width: null,
-      height: null,
-      bytes: bytes.length,
-    };
-    return {
-      kind: 'document',
-      width: null,
-      height: null,
-      primary: bytes,
-      variants: [variant],
-      files: [{ file: variantFile(variant), bytes, contentType }],
-    };
+    return asStored('document', 'pdf', contentType, bytes);
+  }
+  if (contentType === 'audio/mpeg') {
+    if (!isMp3(bytes))
+      throw invalid('contentType', 'media.type.mismatch', 'the file is not an MP3');
+    return asStored('audio', 'mp3', contentType, bytes);
   }
 
   const probe = await ctx.images.probe(bytes);

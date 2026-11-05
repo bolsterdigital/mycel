@@ -114,6 +114,19 @@ const fixtures: ResolveSource = {
           { name: 'file', format: 'pdf', width: null, height: null, path: `/media/${id}/file.pdf` },
         ],
       };
+    if (id === EXAMPLE_IDS.audio)
+      return {
+        ...asset(id, 1, 1),
+        kind: 'audio',
+        contentType: 'audio/mpeg',
+        filename: 'raad-opname-def.mp3',
+        width: null,
+        height: null,
+        sizeBytes: 4_200_000,
+        variants: [
+          { name: 'file', format: 'mp3', width: null, height: null, path: `/media/${id}/file.mp3` },
+        ],
+      };
     if (id === RESTRICTED)
       return {
         ...asset(id, 1600, 900),
@@ -392,6 +405,36 @@ describe('nothing leaks into any representation', () => {
     expect(await html('gallery-grid')).not.toContain('tabindex');
   });
 
+  it('a sound file plays, downloads and has its transcript, without its stored filename', async () => {
+    const block = examples.find((e) => e.name === 'audio-transcript')!.block;
+    const { html, markdown } = await representations([block], 'en');
+    expect(html).toMatch(/<audio[^>]*\bcontrols\b/);
+    expect(html).toContain(`src="/media/${EXAMPLE_IDS.audio}/file.mp3"`);
+    expect(html).toContain('aria-label="The talk with the council"');
+    expect(html).toMatch(/<details>\s*<summary>Transcript<\/summary>/);
+    expect(markdown).toContain('Download the sound');
+    expect(markdown).toContain('(MP3, ');
+    expect(markdown).toContain('Good morning.\nWe start with the petition.');
+    for (const out of [html, markdown]) expect(out).not.toContain('raad-opname-def');
+  });
+
+  it('a sound file a visitor may not fetch leaves nothing behind in any representation', async () => {
+    const block = examples.find((e) => e.name === 'audio-transcript')!.block;
+    const hidden = Block.parse({
+      ...block,
+      props: { ...(block.props as object), fileId: RESTRICTED },
+    });
+    const { html, markdown, model } = await representations([hidden], 'en');
+    for (const out of [html, markdown, JSON.stringify(model)]) {
+      expect(out).not.toContain(RESTRICTED);
+      expect(out).not.toContain('<audio');
+    }
+    for (const out of [html, markdown]) {
+      expect(out).not.toContain('The talk with the council');
+      expect(out).not.toContain('Good morning');
+    }
+  });
+
   it('a timeline sorts by date in every representation, and keeps the editor order on one date', async () => {
     const block = examples.find((e) => e.name === 'timeline-oldest-titled')!.block;
     const titles = (out: string) =>
@@ -533,6 +576,7 @@ describe('the demo documents render whole', () => {
     measuring: EXAMPLE_IDS.portrait,
     signatures: EXAMPLE_IDS.image,
     report: EXAMPLE_IDS.document,
+    sound: EXAMPLE_IDS.audio,
   };
   const demos = [
     demoPage({ formId: EXAMPLE_IDS.form, media }),

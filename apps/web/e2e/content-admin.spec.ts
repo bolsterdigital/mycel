@@ -1862,6 +1862,32 @@ test.describe('block card details', () => {
     expect(file.headers()['content-type']).toBe('application/pdf');
   });
 
+  test('a new sound block wants a sound file; its picker offers only those', async ({ page }) => {
+    await login(page, '/admin/probe');
+    await blockPage(page, 'sound');
+    await editorReady(page);
+    await page
+      .locator('[data-block-picker]')
+      .last()
+      .getByRole('button', { name: 'Geluid', exact: true })
+      .click();
+    const fresh = page.locator('#block-new');
+    await editorReady(page);
+    await fresh.getByLabel('Titel', { exact: true }).fill('Het gesprek');
+    const saving = page.getByRole('button', { name: 'Opslaan', exact: true });
+    await saving.click();
+    await expect(
+      page.getByRole('listitem').filter({ hasText: 'kies een geluidsbestand' })
+    ).toBeVisible();
+    await page.locator('#block-new').getByRole('button', { name: 'Geluid kiezen' }).click();
+    const dialog = page.locator('#block-new dialog[open]');
+    await expect(dialog.getByRole('radio', { name: 'jaarverslag.pdf' })).toHaveCount(0);
+    await dialog.getByRole('radio', { name: 'gesprek.mp3' }).first().check();
+    await dialog.getByRole('button', { name: 'Klaar' }).click();
+    await saving.click();
+    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
+  });
+
   // A new gallery wants an image per row, and two rows; its picker offers images, not documents.
   test('a new gallery wants an image per row, refuses a PDF in the picker and saves', async ({
     page,

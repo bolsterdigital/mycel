@@ -232,13 +232,14 @@ describe.skipIf(skip)('media conformance', () => {
       { contentType: 'image/avif', variants: [v('thumb', 'avif')] },
       { contentType: 'image/gif', variants: [v('file', 'gif'), v('thumb', 'webp')] },
       { contentType: 'application/pdf', variants: [v('file', 'pdf')] },
+      { contentType: 'audio/mpeg', variants: [v('file', 'mp3')] },
     ];
     const rows = fixtures.map((f) => ({ id: uuidv7(), ...f }));
     const gone = uuidv7();
     const insert = (id: string, f: (typeof fixtures)[number], deleted: boolean) => sql`
       insert into media (id, tenant_id, kind, content_type, filename, checksum, size_bytes,
         total_bytes, variants, created_by, deleted_at)
-      values (${id}, ${c}, ${f.contentType === 'application/pdf' ? 'document' : 'image'},
+      values (${id}, ${c}, ${f.contentType === 'application/pdf' ? 'document' : f.contentType === 'audio/mpeg' ? 'audio' : 'image'},
         ${f.contentType}, 'x', ${'0'.repeat(64)}, 1, 1, ${JSON.stringify(f.variants)}::jsonb,
         '{"type": "system"}'::jsonb, ${deleted ? sql`now()` : null})`;
     const query = await readFile(

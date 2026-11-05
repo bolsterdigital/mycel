@@ -10,6 +10,8 @@ export interface MediaChoice {
   thumb: boolean;
   /** A document, offered by a document slot's picker and not by an image slot's. */
   document?: boolean;
+  /** A sound file, offered by a sound slot's picker and by no other. */
+  audio?: boolean;
   /**
    * What a block card shows at rest (MY-110 A): a variant file at card scale for
    * `media/<id>/variant/<file>`, the pixel size for its aspect ratio, and the file's own caption

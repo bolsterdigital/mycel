@@ -398,6 +398,10 @@ describe('refusals', () => {
       ...gallery,
       props: { ...gallery.props, images: [shot, { ...shot, decorative: true }] },
     });
+    const audio = base('audio');
+    refused({ ...audio, props: { ...audio.props, fileId: '' } });
+    refused({ ...audio, props: { title: audio.props.title } });
+    refused({ ...audio, props: { ...audio.props, title: {} } });
     const timeline = base('timeline');
     const moment = timeline.props.events[0];
     refused({ ...timeline, props: { ...timeline.props, events: [moment] } });
@@ -500,6 +504,7 @@ describe('references', () => {
       `gallery-2 media ${EXAMPLE_IDS.image}`,
       `gallery-2 media ${EXAMPLE_IDS.portrait}`,
     ]);
+    expect(rows('audio-plain')).toEqual([`audio-0 media ${EXAMPLE_IDS.audio}`]);
     // An event's link counts as a reference, as a card's does.
     expect(rows('timeline-newest')).toEqual([]);
     expect(rows('timeline-oldest-titled')).toEqual([`timeline-1 item ${EXAMPLE_IDS.item}`]);

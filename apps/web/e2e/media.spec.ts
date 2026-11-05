@@ -864,3 +864,43 @@ test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
       });
     }
 });
+
+// Sound (#185): the browser's own player reads a real MP3 from the site, by byte ranges, because
+// Safari plays nothing from a server without them. Without scripts the player and the link remain.
+test.describe('a sound file on the site', () => {
+  const PATH = '/probe/blok-audio-transcript';
+
+  test('the player, the link and the transcript work without a script', async ({ page }) => {
+    await page.goto(PATH);
+    const block = page.locator('section.audio');
+    await expect(block.locator('audio[controls]')).toHaveAttribute(
+      'aria-label',
+      'Het gesprek met de raad'
+    );
+    await expect(block.getByRole('link', { name: 'Download het geluid' })).toBeVisible();
+    await block.getByText('Uitgeschreven tekst').click();
+    await expect(block.getByText('Goedemorgen.')).toBeVisible();
+    await page.setViewportSize(NARROW);
+    await setTextSize(page, '200%');
+    await layoutGate(page, 'sound block at 320 px and 200%');
+  });
+
+  test('the browser reads its duration, and a range gets that part', async ({ page, request }) => {
+    onlyA11y();
+    await page.goto(PATH);
+    const audio = page.locator('section.audio audio');
+    await expect
+      .poll(() => audio.evaluate((el: HTMLAudioElement) => el.duration))
+      .toBeGreaterThan(0.5);
+    const src = (await audio.getAttribute('src'))!;
+    const whole = await request.get(src);
+    expect(whole.status()).toBe(200);
+    expect(whole.headers()['content-type']).toBe('audio/mpeg');
+    expect(whole.headers()['accept-ranges']).toBe('bytes');
+    const size = (await whole.body()).length;
+    const part = await request.get(src, { headers: { range: 'bytes=0-9' } });
+    expect(part.status()).toBe(206);
+    expect(part.headers()['content-range']).toBe(`bytes 0-9/${size}`);
+    expect((await part.body()).length).toBe(10);
+  });
+});

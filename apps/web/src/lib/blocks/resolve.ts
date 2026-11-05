@@ -121,6 +121,8 @@ export function blockCopy(locale: string): BlockCopy {
       warning: t('block.callout.warning'),
     },
     galleryRow: t('block.gallery.row'),
+    audioDownload: t('block.audio.download'),
+    audioTranscript: t('block.audio.transcript'),
     photographer: t('block.credit.photographer'),
     videoOn: t('block.video.on'),
     footnotes: t('block.footnotes'),
@@ -180,9 +182,10 @@ function renderImage(
 /** Where a visitor fetches a document and what it is ("PDF, 845 kB"); fails closed like an image. */
 function renderFile(
   asset: MediaView | null,
-  locale: string
+  locale: string,
+  kind: 'document' | 'audio' = 'document'
 ): { href: string; meta: string } | null {
-  if (!asset || asset.access !== 'public' || asset.kind !== 'document' || asset.state !== 'ready')
+  if (!asset || asset.access !== 'public' || asset.kind !== kind || asset.state !== 'ready')
     return null;
   const file = asset.variants.find((v) => v.name === 'file' && v.path);
   if (!file) return null;
@@ -354,6 +357,14 @@ export async function resolveDocument(
             return file ? [{ ...file, label: text(f.name) ?? '' }] : [];
           }),
         };
+      case 'audio':
+        return {
+          id,
+          type: 'audio',
+          title: text(b.props.title) ?? '',
+          file: renderFile(media.get(b.props.fileId) ?? null, locale, 'audio'),
+          transcript: text(b.props.transcript),
+        };
       case 'gallery':
         return {
           id,
@@ -487,6 +498,8 @@ function referencesOf(b: Block): { type: 'media' | 'form' | 'item'; refId: strin
       return b.props.cards.flatMap((c) => targets(c.actions));
     case 'file-download':
       return b.props.files.map((f) => ({ type: 'media' as const, refId: f.fileId }));
+    case 'audio':
+      return [{ type: 'media' as const, refId: b.props.fileId }];
     case 'gallery':
       return b.props.images.map((i) => ({ type: 'media' as const, refId: i.mediaId }));
     case 'timeline':

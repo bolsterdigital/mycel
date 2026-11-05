@@ -22,6 +22,8 @@ export interface BlockCopy {
   callout: { info: string; note: string; warning: string };
   /** What a scrolling row of images is called for assistive technology. */
   galleryRow: string;
+  audioDownload: string;
+  audioTranscript: string;
   /** `{name}` filled by the renderer. */
   photographer: string;
   /** `{provider}` filled by the renderer. */
@@ -126,6 +128,13 @@ export type RenderBlock = { id: string } & (
       body: string | null;
       /** Only what a visitor may fetch; a restricted, deleted or failed file is left out. */
       files: { label: string; href: string; meta: string }[];
+    }
+  | {
+      type: 'audio';
+      title: string;
+      /** Null when a visitor may not fetch it: restricted, deleted or failed. */
+      file: { href: string; meta: string } | null;
+      transcript: string | null;
     }
   | {
       type: 'gallery';

@@ -46,7 +46,7 @@ export interface MediaDeliveryDeps {
 }
 
 /** What a variant file may be called; `original.*` never matches. */
-const FILE = /^(w\d{1,5}|thumb|file)\.(avif|webp|gif|pdf)$/;
+const FILE = /^(w\d{1,5}|thumb|file)\.(avif|webp|gif|pdf|mp3)$/;
 
 const status = (code: number, cache = NO_STORE) =>
   new Response(null, {
@@ -62,6 +62,27 @@ function disposition(filename: string, type: 'inline' | 'attachment' = 'inline')
     : `${type}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }
 
+/**
+ * One byte range of a file of `size` bytes, as RFC 9110 reads it: `null` for a header to ignore
+ * (several ranges, or nothing readable, which gets the whole file), `unsatisfiable` for a range
+ * outside it. Rejected: multipart answers, which no audio element asks for.
+ */
+function byteRange(
+  header: string,
+  size: number
+): { start: number; end: number } | 'unsatisfiable' | null {
+  const m = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!m || (!m[1] && !m[2])) return null;
+  if (!m[1]) {
+    const last = Number(m[2]);
+    return last === 0 ? 'unsatisfiable' : { start: Math.max(0, size - last), end: size - 1 };
+  }
+  const start = Number(m[1]);
+  const end = m[2] ? Math.min(Number(m[2]), size - 1) : size - 1;
+  if (m[2] && Number(m[2]) < start) return null;
+  return start >= size ? 'unsatisfiable' : { start, end };
+}
+
 export async function serveMedia(
   deps: MediaDeliveryDeps,
   /** The visited site's tenant with its access (`siteTenant(site)`). */
@@ -69,7 +90,9 @@ export async function serveMedia(
   id: string,
   file: string,
   url: URL,
-  ifNoneMatch: string | null = null
+  ifNoneMatch: string | null = null,
+  /** A player's `Range` and `If-Range`: Safari plays no sound from a server without ranges. */
+  ranged: { range: string | null; ifRange: string | null } | null = null
 ): Promise<Response> {
   if (!isUuid(id) || !FILE.test(file)) return status(404);
   const visitor = anonymousPrincipal(tenant, ['media:read']);
@@ -98,6 +121,7 @@ export async function serveMedia(
     'cache-control': restricted ? PRIVATE_NO_STORE : 'public, max-age=31536000, immutable',
     'x-content-type-options': 'nosniff',
     ...(media.kind === 'document' ? { 'content-disposition': disposition(media.filename) } : {}),
+    ...(media.kind === 'audio' ? { 'accept-ranges': 'bytes' } : {}),
   };
   if (!restricted && ifNoneMatch?.split(',').some((t) => t.trim() === etag))
     return new Response(null, { status: 304, headers });
@@ -107,6 +131,24 @@ export async function serveMedia(
     deps.log?.error('media: in the register but not in the store', { mediaId: id, file });
     return status(404);
   }
+  const range =
+    media.kind === 'audio' && ranged?.range && (!ranged.ifRange || ranged.ifRange === etag)
+      ? byteRange(ranged.range, bytes.length)
+      : null;
+  if (range === 'unsatisfiable')
+    return new Response(null, {
+      status: 416,
+      headers: { ...headers, 'content-range': `bytes */${bytes.length}` },
+    });
+  if (range)
+    return new Response(new Uint8Array(bytes.subarray(range.start, range.end + 1)).buffer, {
+      status: 206,
+      headers: {
+        ...headers,
+        'content-length': String(range.end - range.start + 1),
+        'content-range': `bytes ${range.start}-${range.end}/${bytes.length}`,
+      },
+    });
   // A copy into a plain ArrayBuffer: what `BodyInit` takes, whatever buffer the store returned.
   return new Response(new Uint8Array(bytes).buffer, {
     headers: { ...headers, 'content-length': String(bytes.length) },

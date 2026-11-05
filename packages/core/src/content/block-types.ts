@@ -31,6 +31,8 @@ export interface PropReference {
   refId: string;
   /** This media slot takes a document, not an image; the `content_block_refs` row stays `media`. */
   document?: true;
+  /** This media slot takes a sound file, not an image; the row stays `media` here too. */
+  audio?: true;
 }
 
 export interface BlockExample<P> {
@@ -59,7 +61,7 @@ export type BlockField =
     }
   | { key: string; kind: 'caption' }
   | { key: string; kind: 'rich-text' }
-  | { key: string; kind: 'media'; accept?: 'document' }
+  | { key: string; kind: 'media'; accept?: 'document' | 'audio' }
   | { key: string; kind: 'reference'; to: 'form' | 'item' }
   | {
       key: string;
@@ -92,6 +94,8 @@ const define = <S extends z.ZodTypeAny, V extends number>(d: BlockDefinition<S, 
 // Text bounds shared by the cards (brief #8b2 § 1).
 const ShortText = z.string().min(1).max(200);
 const BodyText = z.string().min(1).max(5000);
+/** A transcript: about half an hour of speech, which is what the upload limit lets through. */
+const TranscriptText = z.string().min(1).max(50000);
 const CaptionText = z.string().max(2000);
 const LabelText = z.string().min(1).max(100);
 
@@ -248,6 +252,7 @@ export const EXAMPLE_IDS = {
   image: exampleId(0xd001),
   portrait: exampleId(0xd002),
   document: exampleId(0xd003),
+  audio: exampleId(0xd004),
 } as const;
 
 const doc = (...paragraphs: string[]): RichTextDoc => ({
@@ -758,6 +763,50 @@ export const BLOCK_DEFINITIONS = {
         props: {
           width: 'full',
           images: [image, { ...image, mediaId: EXAMPLE_IDS.portrait }, image],
+        },
+      },
+    ],
+  }),
+
+  // Dreamkit's audio player, without Plyr: the browser's own controls need no script and no styling
+  // that can fail. A title is required because a player without a name says nothing to a screen
+  // reader. Rejected: a captions file and a poster, which an audio element does not show; a switch
+  // to hide the download, which hides nothing from a visitor who has the file playing; the podcast
+  // feed and episode fields, which need an entity of their own (custom post types).
+  audio: define({
+    version: 1,
+    props: z
+      .object({
+        title: localized(ShortText),
+        fileId: z.string().uuid('content.audio.no-file'),
+        transcript: localized(TranscriptText).optional(),
+      })
+      .strict(),
+    fields: [
+      textField('title', { localized: true }),
+      { key: 'fileId', kind: 'media', accept: 'audio' },
+      textField('transcript', { localized: true, multiline: true, optional: 'omit' }),
+    ],
+    variants: {},
+    localized: (p) => [...present(['title'], p.title), ...present(['transcript'], p.transcript)],
+    references: (p) => [{ type: 'media' as const, refId: p.fileId, audio: true as const }],
+    examples: [
+      {
+        name: 'audio-plain',
+        props: {
+          title: { nl: 'Het gesprek met de raad', en: 'The talk with the council' },
+          fileId: EXAMPLE_IDS.audio,
+        },
+      },
+      {
+        name: 'audio-transcript',
+        props: {
+          title: { nl: 'Het gesprek met de raad', en: 'The talk with the council' },
+          fileId: EXAMPLE_IDS.audio,
+          transcript: {
+            nl: 'Goedemorgen.\nWe beginnen met de petitie.',
+            en: 'Good morning.\nWe start with the petition.',
+          },
         },
       },
     ],

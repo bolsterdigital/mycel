@@ -9,6 +9,7 @@
   import Cta from './Cta.svelte';
   import Faq from './Faq.svelte';
   import FileDownload from './FileDownload.svelte';
+  import Audio from './Audio.svelte';
   import Form from './Form.svelte';
   import Gallery from './Gallery.svelte';
   import Heading from './Heading.svelte';
@@ -61,6 +62,8 @@
     <FileDownload {block} {model} />
   {:else if block.type === 'gallery'}
     <Gallery {block} {model} />
+  {:else if block.type === 'audio'}
+    <Audio {block} {model} />
   {:else if block.type === 'timeline'}
     <Timeline {block} {model} />
   {:else if block.type === 'callout'}

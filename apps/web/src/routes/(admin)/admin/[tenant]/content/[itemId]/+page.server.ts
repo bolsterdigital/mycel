@@ -423,6 +423,7 @@ const ISSUE_COPY: Record<string, UiKey> = {
   'content.reference.media-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.media-not-image': 'admin.content.issue.mediaNotImage',
   'content.reference.media-not-document': 'admin.content.issue.mediaNotDocument',
+  'content.reference.media-not-audio': 'admin.content.issue.mediaNotAudio',
   'content.schedule.not-in-future': 'admin.content.issue.notInFuture',
   'admin.content.publication.time-invalid': 'admin.content.issue.timeInvalid',
 };

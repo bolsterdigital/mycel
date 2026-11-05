@@ -154,6 +154,18 @@ Version 1.
 
 Examples: `gallery-grid`, `gallery-row-content`, `gallery-grid-full`.
 
+## `audio` (Audio)
+
+Version 1.
+
+| Prop         | Label      | Kind                      | Presence |
+| ------------ | ---------- | ------------------------- | -------- |
+| `title`      | Title      | localised text            | required |
+| `fileId`     | File       | audio (media id)          | required |
+| `transcript` | Transcript | localised multi-line text | optional |
+
+Examples: `audio-plain`, `audio-transcript`.
+
 ## `timeline` (Timeline)
 
 Version 1.

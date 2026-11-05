@@ -227,6 +227,8 @@ export function blockReferences(blocks: readonly BlockInput[]): {
   media: string[];
   /** Media in a document slot: one rule per slot, so the same id in both is checked twice. */
   documents: string[];
+  /** Media in a sound slot, with its own rule too. */
+  audio: string[];
 } {
   // Input blocks may lack an id; the sets do not need one.
   const refs = allBlocks(blocks.map((b) => ({ ...b, id: b.id ?? '-' }) as Block)).flatMap((b) =>
@@ -238,8 +240,9 @@ export function blockReferences(blocks: readonly BlockInput[]): {
   return {
     forms: of((r) => r.type === 'form'),
     items: of((r) => r.type === 'item'),
-    media: of((r) => r.type === 'media' && !r.document),
+    media: of((r) => r.type === 'media' && !r.document && !r.audio),
     documents: of((r) => r.type === 'media' && !!r.document),
+    audio: of((r) => r.type === 'media' && !!r.audio),
   };
 }
 
