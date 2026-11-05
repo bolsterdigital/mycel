@@ -23,7 +23,14 @@ import {
   type ContentDocumentInput,
   type UseCaseError,
 } from '@mycel/core';
-import { formValues, propsFromForm, type FieldError, type Posted } from '#lib/editor/block-form.js';
+import { isDeepStrictEqual } from 'node:util';
+import {
+  formValues,
+  postedValues,
+  propsFromForm,
+  type FieldError,
+  type Posted,
+} from '#lib/editor/block-form.js';
 import { fromArticleEditor } from '#lib/editor/article-document.js';
 import { documentFrom, type FormValues } from './content-admin.js';
 
@@ -160,6 +167,23 @@ export function pendingProps(p: PendingBlock, posted: Posted) {
 }
 
 /**
+ * The pending block still holds what choosing it showed: nothing typed, picked or switched in any
+ * of `locales`. Choosing another block then replaces it instead of inserting it, the way a menu
+ * choice replaces an untouched one; anything typed is still inserted first, or refused with
+ * its words kept. Rejected: refusing the new choice until Cancel (a step for nothing lost) and
+ * comparing raw form values (a list posts its row count, an editor its own document).
+ */
+export function pendingUntouched(
+  p: PendingBlock,
+  posted: Posted,
+  locales: readonly string[]
+): boolean {
+  const fields = BLOCK_DEFINITIONS[p.type].fields;
+  const shown = postedValues(formValues(fields, undefined, locales));
+  return isDeepStrictEqual(pendingProps(p, posted).props, propsFromForm(fields, shown).props);
+}
+
+/**
  * The form field a core issue is about: `document.blocks.<i>.props.<path>` of a save is the field
  * of the block at `i`, `block.props.<path>` of an insert the new block's; '' for any other path.
  */
@@ -228,6 +252,19 @@ export function formFieldOf(name: string, values: Readonly<Record<string, unknow
   const keys = Object.keys(values).filter((k) => k.startsWith(prefix));
   if (`${prefix}rows` in values) return keys.find((k) => k !== `${prefix}rows`) ?? name;
   return keys.find((k) => !k.slice(prefix.length).includes('.')) ?? name;
+}
+
+/**
+ * A block issue as the summary lists it: the control it links to (`formFieldOf`) and, for a list
+ * refused as a whole, the list it is about, so the words say "Cards" and not the first row's
+ * first field.
+ */
+export function blockIssueField(
+  name: string,
+  values: Readonly<Record<string, unknown>>
+): { name: string; list?: string } {
+  const field = formFieldOf(name, values);
+  return `${name}.rows` in values ? { name: field, list: name } : { name: field };
 }
 
 /**

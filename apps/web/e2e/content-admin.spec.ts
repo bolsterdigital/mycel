@@ -1801,8 +1801,8 @@ test.describe('block card details', () => {
     const saving = page.getByRole('button', { name: 'Opslaan', exact: true });
     await saving.click();
     const refusal = page.getByRole('listitem').filter({ hasText: 'vul minstens twee kaarten in' });
-    await expect(refusal.getByRole('link', { name: 'Titel (nl)' })).toBeVisible();
-    await expect(refusal).toHaveText('Titel (nl): vul minstens twee kaarten in');
+    await expect(refusal.getByRole('link', { name: 'Kaarten' })).toBeVisible();
+    await expect(refusal).toHaveText('Kaarten: vul minstens twee kaarten in');
     await expect(titles).toHaveCount(2);
     await expect(titles.first()).toHaveValue('Eerste kaart');
 

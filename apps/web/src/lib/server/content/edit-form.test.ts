@@ -3,9 +3,16 @@
 // props, a pending block needs a known type and place, and core's issue paths land on the field.
 
 import { describe, expect, it } from 'vitest';
-import { BLOCK_DEFINITIONS, BLOCK_TYPES, Block, UseCaseError } from '@mycel/core';
+import {
+  BLOCK_DEFINITIONS,
+  BLOCK_TYPES,
+  Block,
+  INSERTABLE_BLOCK_TYPES,
+  UseCaseError,
+} from '@mycel/core';
 import { formValues, postedValues } from '#lib/editor/block-form.js';
 import {
+  blockIssueField,
   blockIssues,
   documentFieldIssues,
   formFieldOf,
@@ -14,6 +21,8 @@ import {
   pendingBlock,
   pendingFields,
   pendingProps,
+  pendingUntouched,
+  pendingView,
 } from './edit-form.js';
 
 const LOCALES = ['nl', 'en'];
@@ -127,6 +136,32 @@ describe('the one edit form', () => {
     expect(formFieldOf('b.a.p.gone', values)).toBe('b.a.p.gone');
     const list = { 'new.p.cards.rows': '2', 'new.p.cards.0.title.nl': 'Een' };
     expect(formFieldOf('new.p.cards', list)).toBe('new.p.cards.0.title.nl');
+    // The summary names the list, and still links to its first control.
+    expect(blockIssueField('new.p.cards', list)).toEqual({
+      name: 'new.p.cards.0.title.nl',
+      list: 'new.p.cards',
+    });
+    expect(blockIssueField('b.a.p.text', values)).toEqual({ name: 'b.a.p.text.nl' });
+  });
+
+  // Choosing another block replaces one nothing was typed into, of every type, in the one
+  // locale the form shows; a typed word, a switched choice or a picked file keeps it.
+  it('tells an untouched pending block from one with input', () => {
+    for (const type of INSERTABLE_BLOCK_TYPES) {
+      const p = pendingBlock(type, 'end', null, [])!;
+      const shown = pendingView(p, ['nl']);
+      const post = { ...shown.hidden, ...shown.values };
+      expect(pendingUntouched(p, postedValues(post), LOCALES), type).toBe(true);
+    }
+    const cards = pendingBlock('cards', 'end', null, [])!;
+    const empty = pendingView(cards, ['nl']);
+    const typed = { ...empty.values, 'new.p.cards.1.title.nl': 'Tweede' };
+    expect(pendingUntouched(cards, postedValues(typed), LOCALES)).toBe(false);
+    const switched = { ...empty.values, 'new.p.width': 'full' };
+    expect(pendingUntouched(cards, postedValues(switched), LOCALES)).toBe(false);
+    const image = pendingBlock('image', 'end', null, [])!;
+    const picked = { ...pendingView(image, ['nl']).values, 'new.p.mediaId': 'm1' };
+    expect(pendingUntouched(image, postedValues(picked), LOCALES)).toBe(false);
   });
 
   it('puts document issues on the form field that holds them, whatever its tab', () => {

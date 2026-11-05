@@ -19,12 +19,12 @@ import { block, blockPage, card, editorReady, more, save } from './lib/editor';
 // Rejected: a guessed readiness wait, which would change the timing being investigated.
 const localeEvidenceTest = test.extend({ trace: ['retain-on-failure', { scope: 'worker' }] });
 
-// Block forms of the content admin (TODO #11, brief content-editor § B): every block type is
-// edited once through its generated form, and a block is inserted, moved and removed, all with
-// native forms. The admin ships no script, so the `no-js` project is the no-JavaScript proof and
-// the `a11y` project runs axe and the UI gate (skill ui-action-layout). Each project edits its own
-// seeded page (`e2e-blokken-<project>`, scripts/e2e/e2e.mjs) with the first example of every type, so
-// the bulk fixture is seeded once and not made here (the audit log the status part of admin.spec.ts reads).
+// Block forms of the content admin (brief content-editor § B): every block type is edited once
+// through its generated form, and a block is inserted, moved and removed, all with native forms.
+// The `no-js` project is the no-JavaScript proof and the `a11y` project runs axe and the UI gate
+// (skill ui-action-layout). Each project edits its own seeded page (`e2e-blokken-<project>`,
+// scripts/e2e/e2e.mjs) with the first example of every type, so the bulk fixture is seeded once and
+// not made here (admin.spec.ts reads its audit log).
 test.describe('content-blocks', () => {
   test.use({ locale: 'nl-NL' });
 
@@ -190,7 +190,16 @@ test.describe('content-blocks', () => {
     const edit = await blockPage(page, 'ops');
     await expect(page.getByText('Dit item heeft nog geen blokken.')).toBeVisible();
 
-    let fresh = await insert(page, 'Kop', 'end');
+    // Another choice replaces an empty new block; typed words stay.
+    await insert(page, 'Fotogalerij', 'end');
+    let fresh = await insert(page, 'Actierij', 'end');
+    const words = fresh.locator('#b-new-p-cards-0-title-nl');
+    await words.fill('Doneer');
+    await page.getByRole('button', { name: 'Kop', exact: true }).click();
+    await expect(page.getByRole('link', { name: 'Kaarten' })).toBeVisible();
+    await expect(words).toHaveValue('Doneer');
+    await fresh.getByRole('button', { name: 'Annuleren' }).click();
+    fresh = await insert(page, 'Kop', 'end');
     await expect(page).toHaveURL(new RegExp(`${edit}\\?insert=heading&place=end#block-new$`));
     await expectNoAxeViolations(page);
     // Nothing typed: core refuses, the issue links to its field, the block stays at its place.
@@ -474,7 +483,7 @@ test.describe('content-blocks', () => {
     );
     await atEnd().getByRole('button', { name: 'Kop', exact: true }).click();
     const fresh = page.locator('#block-new');
-    await expect(fresh.locator('[name="new.p.text.en"]')).toBeVisible();
+    await fresh.locator('[name="new.p.text.en"]').fill('x'.repeat(201));
     await atEnd().getByRole('button', { name: 'Citaat', exact: true }).click();
     await expect(page.getByRole('alert')).toBeVisible();
     await expect(page.locator('[name="editLocale"]')).toHaveValue('en');

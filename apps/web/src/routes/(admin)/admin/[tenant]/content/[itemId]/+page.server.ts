@@ -81,11 +81,12 @@ import {
   NEW_BLOCK,
   blockIssues,
   documentFieldIssues,
-  formFieldOf,
+  blockIssueField,
   blockPrefix,
   formDocument,
   pendingBlock,
   pendingProps,
+  pendingUntouched,
   pendingView,
   type PendingBlock,
 } from '#lib/server/content/edit-form.js';
@@ -597,7 +598,8 @@ async function moveSlug(
  * adds a revision for an untouched form, as before; any other action saves only a change, and a
  * member without `content:write` changes nothing on the way to an action they may do. The block
  * being removed keeps its stored props, so an unfinished block can always be thrown away.
- * `publication` refuses a member without `content:publish` before anything is saved.
+ * `publication` refuses a member without `content:publish` before anything is saved. A pending
+ * block nothing was typed into is added by `always` only; any other action drops it.
  */
 async function commit(
   event: Event,
@@ -659,6 +661,7 @@ async function commit(
           text(data, `${NEW_BLOCK}anchor`),
           base.blocks.map((b) => b.id)
         );
+    if (!opts.always && pending && pendingUntouched(pending, post, base.locales)) pending = null;
     const today = rt.clock.now().toISOString().slice(0, 10);
     const read = formDocument(
       base,
@@ -751,7 +754,7 @@ async function commit(
           fieldIssues: [
             ...onFields.map((i) => ({ name: i.name, copy: ISSUES[i.message] ?? body.error })),
             ...onBlocks.map((i) => ({
-              name: formFieldOf(i.name, values),
+              ...blockIssueField(i.name, values),
               copy: blockIssueCopy(i.message),
             })),
           ],
