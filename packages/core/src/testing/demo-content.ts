@@ -572,7 +572,6 @@ function pageCards(formId: string, media: DemoMediaIds): BlockIn[] {
   ];
 }
 
-/** Three ways to join in, in a band: the row of cards a campaign page ends on. */
 /** Two photos from the work, side by side. */
 function pageGallery(media: DemoMediaIds): BlockIn {
   const use = (image: DemoImage, mediaId: string) => ({
@@ -590,6 +589,7 @@ function pageGallery(media: DemoMediaIds): BlockIn {
   };
 }
 
+/** Three ways to join in, in a band: the row of cards a campaign page ends on. */
 function pageWays(): BlockIn {
   return {
     type: 'cards',
@@ -821,6 +821,36 @@ function articleWhy(): BlockIn {
   );
 }
 
+/** How the research went, oldest first: the order a reader follows it in. */
+function articleTimeline(): BlockIn {
+  return {
+    type: 'timeline',
+    version: BLOCK_DEFINITIONS.timeline.version,
+    props: {
+      title: { nl: 'Zo verliep het onderzoek', en: 'How the research went' },
+      order: 'oldest',
+      events: [
+        {
+          date: '2026-09-07',
+          title: { nl: 'Zakken gekocht', en: 'Bags bought' },
+          body: {
+            nl: 'We kochten 48 zakken pepernoten bij supermarkten en bakkers.',
+            en: 'We bought 48 bags of pepernoten at supermarkets and bakeries.',
+          },
+        },
+        {
+          date: '2026-09-28',
+          title: { nl: 'Metingen afgerond', en: 'Measurements finished' },
+        },
+        {
+          date: '2026-10-12',
+          title: { nl: 'Merken om een reactie gevraagd', en: 'Brands asked to respond' },
+        },
+      ],
+    },
+  };
+}
+
 function articleNext(): BlockIn {
   return richText(
     doc(
@@ -1015,19 +1045,6 @@ function articleCards(formId: string, media: DemoMediaIds, pageId: string): Bloc
       },
     },
     {
-      type: 'video-embed',
-      version: BLOCK_DEFINITIONS['video-embed'].version,
-      props: {
-        provider: 'youtube',
-        videoId: VIDEO_ID,
-        title: {
-          nl: 'Voorbeeldvideo: Big Buck Bunny van de Blender Foundation',
-          en: 'Sample video: Big Buck Bunny by the Blender Foundation',
-        },
-        width: 'wide',
-      },
-    },
-    {
       type: 'signup-form',
       version: BLOCK_DEFINITIONS['signup-form'].version,
       props: { formId },
@@ -1045,7 +1062,7 @@ export function demoArticle(refs: {
   media: DemoMediaIds;
   pageId: string;
 }): CreateInput {
-  const [image, paywall, quote, image2, callout, faq, cta, video, signup] = articleCards(
+  const [image, paywall, quote, image2, callout, faq, cta, signup] = articleCards(
     refs.formId,
     refs.media,
     refs.pageId
@@ -1083,9 +1100,9 @@ export function demoArticle(refs: {
         callout!,
         faq!,
         articleReport(refs.media.report),
+        articleTimeline(),
         articleNext(),
         cta!,
-        video!,
         signup!,
       ],
     },

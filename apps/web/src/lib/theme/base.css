@@ -393,7 +393,7 @@
     float: right;
     margin: 0 var(--float-outer) var(--space-2) var(--float-inner);
   }
-  .page :is(.cta, .cards, .faq, .gallery) {
+  .page :is(.cta, .cards, .faq, .gallery, .timeline) {
     clear: both;
   }
   @container (max-width: 40rem) {
@@ -727,6 +727,27 @@
     height: auto;
     aspect-ratio: 4 / 3;
     object-fit: cover;
+  }
+
+  /* Timelines: one line down the side, a date above each title; the page carries the rest. */
+  .timeline-list {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    padding-inline-start: var(--space-2);
+    list-style: none;
+    border-inline-start: 2px solid var(--color-muted-fg);
+  }
+  .timeline-list > li > * {
+    margin-block: 0 var(--space-1);
+  }
+  .timeline-list :is(h2, h3) {
+    font-size: var(--step-1);
+  }
+  .timeline-list time {
+    display: block;
+    color: var(--color-muted-fg);
   }
 
   /* File downloads: a plain list of links; the kind and size stay quieter than the name. */

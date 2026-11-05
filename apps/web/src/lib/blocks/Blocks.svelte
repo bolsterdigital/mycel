@@ -12,6 +12,7 @@
   import Form from './Form.svelte';
   import Gallery from './Gallery.svelte';
   import Heading from './Heading.svelte';
+  import Timeline from './Timeline.svelte';
   import Hero from './Hero.svelte';
   import Image from './Image.svelte';
   import Quote from './Quote.svelte';
@@ -60,6 +61,8 @@
     <FileDownload {block} {model} />
   {:else if block.type === 'gallery'}
     <Gallery {block} {model} />
+  {:else if block.type === 'timeline'}
+    <Timeline {block} {model} />
   {:else if block.type === 'callout'}
     <Callout {block} {model} />
   {:else if block.type === 'faq'}
