@@ -30,6 +30,8 @@ import {
   isUuid,
   MAX_LIST_OFFSET,
   MAX_PAGE_SIZE,
+  TRANSLATION_TOO_BROAD,
+  UseCaseError,
   type useCases,
 } from '@mycel/core';
 import type { Cookies } from '@sveltejs/kit';
@@ -241,6 +243,15 @@ export function listInput(
     limit: per,
   };
 }
+
+/**
+ * Whether core refused the translation filter because the rest of the view matches too much. The
+ * list then says so and keeps its filters, so the way out is on the screen; anything else that
+ * goes wrong is still an error. Rejected: dropping the filter silently, which shows a list that
+ * looks like the answer and is not.
+ */
+export const translationTooBroad = (error: unknown): boolean =>
+  error instanceof UseCaseError && error.issues.some((i) => i.message === TRANSLATION_TOO_BROAD);
 
 const displayCookieOf = (type: ContentType) => `mycel-content-display-${type}`;
 

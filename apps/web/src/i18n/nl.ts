@@ -737,6 +737,9 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.list.none': 'Niets gevonden.',
   'admin.content.list.none.q': 'Niets gevonden voor “{q}”.',
   'admin.content.list.none.body': 'Probeer een ander woord of wis de filters.',
+  'admin.content.list.tooBroad': 'Te veel om na te kijken.',
+  'admin.content.list.tooBroad.body':
+    'Het vertaalfilter leest hoogstens {limit} items tegelijk. Verklein de lijst eerst, met een woord, een status of een datum.',
   'admin.content.list.locale.behind': 'loopt achter',
   'admin.content.list.locale.missing': 'ontbreekt',
   'admin.content.type.legend': 'Soort',

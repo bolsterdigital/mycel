@@ -160,13 +160,18 @@
   listTitle={kind}
   empty={data.items.length > 0
     ? undefined
-    : data.filtered
-      ? { title: nothing, body: t('admin.content.list.none.body') }
-      : {
-          title: t(`admin.content.empty.${data.type}`),
-          body: data.canWrite ? t(`admin.content.empty.${data.type}.body`) : undefined,
-          action: data.canWrite ? create : undefined,
-        }}
+    : data.tooBroad
+      ? {
+          title: t('admin.content.list.tooBroad'),
+          body: fill(t('admin.content.list.tooBroad.body'), { limit: number(data.walkLimit) }),
+        }
+      : data.filtered
+        ? { title: nothing, body: t('admin.content.list.none.body') }
+        : {
+            title: t(`admin.content.empty.${data.type}`),
+            body: data.canWrite ? t(`admin.content.empty.${data.type}.body`) : undefined,
+            action: data.canWrite ? create : undefined,
+          }}
   paging={data.links.previous || data.links.next
     ? {
         previous: data.links.previous,
@@ -318,7 +323,8 @@
       />
     {/if}
     <div class="ui-list-tools">
-      <p class="ui-list-count" id="content-count">{count}</p>
+      <!-- A refused filter counted nothing, so it says no number. -->
+      {#if !data.tooBroad}<p class="ui-list-count" id="content-count">{count}</p>{/if}
       <details class="ui-fold ui-list-display">
         <summary>{t('admin.content.list.display')}</summary>
         <form method="POST" action={data.links.display} class="ui-list-display-form">

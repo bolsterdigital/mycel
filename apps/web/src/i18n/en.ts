@@ -730,6 +730,9 @@ export const en = {
   'admin.content.list.none': 'Nothing found.',
   'admin.content.list.none.q': 'Nothing found for “{q}”.',
   'admin.content.list.none.body': 'Try another word or clear the filters.',
+  'admin.content.list.tooBroad': 'Too many items to check.',
+  'admin.content.list.tooBroad.body':
+    'The translation filter reads at most {limit} items at a time. Narrow the list first, with a word, a status or a date.',
   'admin.content.list.locale.behind': 'behind',
   'admin.content.list.locale.missing': 'missing',
   'admin.content.type.legend': 'Type',

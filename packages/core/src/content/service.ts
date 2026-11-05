@@ -29,14 +29,13 @@ import { EXAMPLE_IDS } from './block-types.js';
 import { diffDocuments } from './diff.js';
 import { EffectiveView, effectiveOf } from './header/effective.js';
 import {
-  compareItems,
   defaultDirection,
   itemListFields,
+  listByTranslation,
   listedDocuments,
   listedTranslations,
-  matchesTranslation,
+  MAX_TRANSLATION_WALK,
   type ItemFilter,
-  type TranslationFilter,
 } from './listing.js';
 import {
   draftLocale,
@@ -61,7 +60,7 @@ import {
   slugFromTitle,
   readinessIssues,
 } from './model.js';
-import type { ItemPage, ItemPosition, ItemRecord } from './ports.js';
+import type { ItemPosition, ItemRecord } from './ports.js';
 import { preserveTranslationReview } from './translation-review.js';
 import './ports.js';
 import '../theme/ports.js';
@@ -670,56 +669,13 @@ function listedItem(row: ItemRecord, doc: ContentDocument | undefined): z.infer<
   };
 }
 
-/**
- * The page of what also matches `translation`, which only core can tell (`listing.ts`): every
- * match of the other filters is read once, a batch at a time, so `total` is exact and the cost is
- * the number of those matches. `after` and `offset` then apply as the adapters apply them.
- */
-async function listByTranslation(
-  ctx: TransactionContext,
-  filter: ItemFilter,
-  translation: TranslationFilter,
-  { order, after, offset, limit }: ItemPosition
-): Promise<ItemPage> {
-  const matched: ItemRecord[] = [];
-  let cursor: string | null = null;
-  do {
-    const batch: ItemPage = await ctx.content.list(filter, {
-      order,
-      after: cursor,
-      offset: 0,
-      limit: MAX_PAGE_SIZE,
-    });
-    const documents = await listedDocuments(ctx, batch.rows);
-    for (const row of batch.rows) {
-      const doc = documents.get(row.id);
-      if (doc && matchesTranslation(doc, translation)) matched.push(row);
-    }
-    cursor = batch.next;
-  } while (cursor);
-  // The same position the adapters give: after an item wherever it stands, which need not match.
-  const compare = compareItems(order, filter.locale);
-  const pivot =
-    after === null
-      ? null
-      : order.by === 'created'
-        ? ({ id: after } as ItemRecord)
-        : await ctx.content.get(after);
-  const rest = after !== null && !pivot ? [] : matched;
-  const following = pivot ? rest.filter((r) => compare(r, pivot) > 0) : rest;
-  const rows = following.slice(offset, offset + limit);
-  return {
-    rows,
-    next: following.length > offset + limit ? (rows.at(-1)?.id ?? null) : null,
-    total: matched.length,
-  };
-}
-
 export const listItems = defineUseCase({
   name: 'content.item.list',
   kind: 'query',
   description:
-    'List items a page at a time, newest first unless `sort` orders them; narrow by type, slug, `q` (in a title or the slug), the publication state of `locale`, the author, section or tag of the latest revision, when it was last saved, or where a translation stands; `total` counts every match. Each item says where its translations stand, and its latest authors, section and tags; an item whose latest document cannot be read says none of those and still lists.',
+    'List items a page at a time, newest first unless `sort` orders them; narrow by type, slug, `q` (in a title or the slug), the publication state of `locale`, the author, section or tag of the latest revision, when it was last saved, or where a translation stands; `total` counts every match. The translation filter refuses when more than ' +
+    MAX_TRANSLATION_WALK +
+    ' items match the other filters: narrow those first. Each item says where its translations stand, and its latest authors, section and tags; an item whose latest document cannot be read says none of those and still lists.',
   requires: 'content:read',
   input: z.object({
     type: ContentType.optional(),
