@@ -413,7 +413,8 @@ test.describe('admin', () => {
       evidence.watch('B', other);
       await evidence.step('B: load settings', () => other.goto(`/admin/${slug}/site`));
       await evidence.step('B: save settings', () => save(other));
-      await evidence.step('B: close tab', () => other.close());
+      // B stays open until the context goes. Closing it proved nothing here, and on CI one
+      // `page.close()` right after the navigation hung until the 30 s timeout, blamed on A's click.
       await evidence.step('A: save stale settings', () => save(page));
       await evidence.step('A: conflict message', () =>
         expect(page.getByText('Deze instellingen zijn elders gewijzigd')).toBeVisible()
