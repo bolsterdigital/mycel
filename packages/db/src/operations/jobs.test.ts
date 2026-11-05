@@ -49,10 +49,10 @@ import {
   uuidv7,
   uuidv7Ids,
   withTenant,
-} from './index.js';
+} from '../index.js';
 import { toJobRecord } from './jobs.js';
-import { asRole, setClientRole } from './infra/roles.js';
-import { requireDatabase, testTenant, migrateSchema } from './testing.js';
+import { asRole, setClientRole } from '../infra/roles.js';
+import { requireDatabase, testTenant, migrateSchema } from '../testing.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 

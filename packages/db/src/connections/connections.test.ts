@@ -35,11 +35,11 @@ import {
   uuidv7Ids,
   applyErasures,
   withTenant,
-} from './index.js';
+} from '../index.js';
 
 const { skip, operator: operatorUrl, app: appUrl } = requireDatabase('app');
 
-import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from './testing.js';
+import { closeTenantWork, requireDatabase, testTenant, migrateSchema } from '../testing.js';
 
 const key = '10'.repeat(32);
 const input = {

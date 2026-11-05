@@ -32,9 +32,9 @@ import {
   type Logger,
   type Scheduler,
 } from '@mycel/core';
-import { uuidv7 } from './infra/ids.js';
-import { asRole } from './infra/roles.js';
-import type { Database } from './infra/schema.js';
+import { uuidv7 } from '../infra/ids.js';
+import { asRole } from '../infra/roles.js';
+import type { Database } from '../infra/schema.js';
 
 /** A claim older than this is free again: the worker that held it is presumed dead. */
 export const JOB_LEASE_SECONDS = 300;

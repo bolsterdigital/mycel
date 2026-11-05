@@ -1,6 +1,6 @@
 // The rules of the tenant export format (TODO #18d, #53 PR 4; ADR 002 rule 5, ADR 019 rule 8):
 // what a manifest must say before an import trusts a byte of it, and what changes on the way in.
-// packages/db/src/export.ts does the plumbing (snapshot, files, tar, rows) and asks these:
+// packages/db/src/portability/export.ts does the plumbing (snapshot, files, tar, rows) and asks these:
 //
 // * a manifest names only files the format prescribes, and every file matches its digest;
 // * an export from a newer schema is refused, an older one is fine (`migrate` is past it);

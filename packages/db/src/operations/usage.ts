@@ -5,8 +5,8 @@
 
 import { sql, type Kysely } from 'kysely';
 import type { Clock, UsageReader } from '@mycel/core';
-import { mediaStorageBytes } from './media.js';
-import type { Database } from './infra/schema.js';
+import { mediaStorageBytes } from '../media.js';
+import type { Database } from '../infra/schema.js';
 
 type Trx = Kysely<Database>;
 

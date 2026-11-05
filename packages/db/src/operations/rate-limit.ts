@@ -3,8 +3,8 @@
 
 import { sql, type Kysely } from 'kysely';
 import { checkCooldown, type Clock, type RateLimiter } from '@mycel/core';
-import type { Database } from './infra/schema.js';
-import { advisoryLock } from './infra/roles.js';
+import type { Database } from '../infra/schema.js';
+import { advisoryLock } from '../infra/roles.js';
 
 type Trx = Kysely<Database>;
 

@@ -16,7 +16,7 @@ export const ALLOWED = {
     'the hostname is already in use: only the read under mycel_platform knows',
     'a tenant with that slug exists: the insert under mycel_platform decides, races included',
   ],
-  'packages/db/src/export.ts': [
+  'packages/db/src/portability/export.ts': [
     'the export target is not empty: a file-system fact, checked before anything is written',
   ],
 };
@@ -74,7 +74,10 @@ test(`packages/db raises at most ${LIMIT} refusals, each in its listed place`, (
 test('the rule counts code, not comments or tests, and names a file over its allowance', () => {
   const found = refusals([
     { path: 'packages/db/src/media.ts', text: "throw new UseCaseError('conflict', 'x');" },
-    { path: 'packages/db/src/jobs.ts', text: '// throws new UseCaseError( never\nconst a = 1;' },
+    {
+      path: 'packages/db/src/operations/jobs.ts',
+      text: '// throws new UseCaseError( never\nconst a = 1;',
+    },
     { path: 'packages/db/src/media.test.ts', text: "new UseCaseError('conflict', 'x')" },
     {
       path: 'packages/db/src/platform.ts',
@@ -90,6 +93,6 @@ test('the rule counts code, not comments or tests, and names a file over its all
     'packages/db/src/platform.ts: 3 refusal(s), 2 allowed',
   ]);
   assert.deepEqual(unusedAllowance(found), [
-    'db-refusals ALLOWED: packages/db/src/export.ts is no longer needed; remove the entry',
+    'db-refusals ALLOWED: packages/db/src/portability/export.ts is no longer needed; remove the entry',
   ]);
 });

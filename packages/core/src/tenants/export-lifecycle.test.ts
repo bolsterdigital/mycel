@@ -1,7 +1,7 @@
 // Property test for the export state machine (TODO #74; testing.md: state machines get property
 // tests). Random sequences of requests, job runs, their steps, the daily expiry and time over
 // MemoryExportJobs, checked after every op against `exportViolations`; the same sequences run
-// through Postgres in packages/db/src/tenant-exports.test.ts. Next to it the fixed points the
+// through Postgres in packages/db/src/portability/tenant-exports.test.ts. Next to it the fixed points the
 // property cannot see: a busy run looks again after one lease, a failed export is never started
 // again, and an erasure only expires what may become expired.
 

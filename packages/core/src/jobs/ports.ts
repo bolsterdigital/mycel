@@ -1,7 +1,7 @@
 // The scheduling port (TODO #15, ADR 011, ADR 012 rule 4). A use case plans work for later with
 // `ctx.jobs.enqueue` inside its own transaction, exactly like `ctx.events.publish`: the job
 // exists if and only if the change that caused it committed. The worker that runs jobs is an
-// adapter concern (packages/db/src/jobs.ts); the core only says what to run and when.
+// adapter concern (packages/db/src/operations/jobs.ts); the core only says what to run and when.
 
 import type { JobPayload, JobType } from './types.js';
 
