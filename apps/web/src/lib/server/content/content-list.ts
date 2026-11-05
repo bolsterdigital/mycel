@@ -4,12 +4,19 @@
 // a view, writes a view back as the shortest query that means the same, and turns it into the
 // input of `content.item.list`, where the matching and the ordering happen.
 //
-// The last view of each list is also kept in a cookie scoped to the site's admin, so "back to
-// the list" on an item returns to the search, filter, order and page the operator came from.
-// Rejected: carrying the view through every editor URL and form (a dozen redirects would have to
-// pass it on), the Referer (absent after a save and redirect), and restoring the view on the
-// menu link too (a menu item that opens a filtered list hides content without saying why).
-import { defaultDirection, MAX_LIST_OFFSET, type ContentType, type useCases } from '@mycel/core';
+// The view an item was entered from is kept in a cookie scoped to the site's admin, so "back to
+// the list" on that item returns to the search, filter, order and page the operator came from.
+// It is written when an item opens with the list as its Referer (the admin sends the full URL
+// to itself, `referrer-policy: same-origin`), and only if the value changes. The cookie then
+// outlives the saves and redirects that follow; without a Referer the way back is what was kept
+// before, or the plain list.
+// Rejected: writing the cookie on a GET of the list. An admin page is `no-store`, and Chrome
+// drops such a page from the back/forward cache when an HttpOnly cookie changes, so a look at a
+// list cost an editor's unsaved rich text. Also rejected: the Referer as the only source (absent
+// after a save and redirect), carrying the view through every editor URL and form (a dozen
+// redirects would have to pass it on), and restoring the view on the menu link (a menu item
+// that opens a filtered list hides content without saying why).
+import { ContentType, defaultDirection, MAX_LIST_OFFSET, type useCases } from '@mycel/core';
 import type { Cookies } from '@sveltejs/kit';
 import type { z } from 'zod';
 
@@ -42,8 +49,10 @@ const oneOf = <T extends string>(all: readonly T[], raw: string | null): T | nul
 export function listViewFrom(params: URLSearchParams): ListView {
   const sort = oneOf(LIST_SORTS, params.get('sort')) ?? DEFAULT_SORT;
   const page = Number(params.get('page'));
+  const q = (params.get('q') ?? '').trim().slice(0, 100);
   return {
-    q: (params.get('q') ?? '').trim().slice(0, 100),
+    // A NUL is no search anyone typed, and core refuses it.
+    q: q.includes('\0') ? '' : q,
     status: oneOf(LIST_STATUSES, params.get('status')),
     sort,
     dir: oneOf(['asc', 'desc'] as const, params.get('dir')) ?? defaultDirection(sort),
@@ -98,17 +107,40 @@ const cookieOf = (type: ContentType) => `mycel-content-list-${type}`;
 /** A working day: tomorrow the list opens as it is, not as it was left. */
 const REMEMBERED_SECONDS = 60 * 60 * 12;
 
-/** Keeps the view for the way back from an item; an untouched list forgets the last one. */
-export function rememberList(
-  cookies: Cookies,
+/** The view in a Referer, if that is this site's list of this type on this origin. */
+function viewInReferer(
+  referer: string | null,
+  url: URL,
   tenant: string,
-  type: ContentType,
-  view: ListView
+  type: ContentType
+): ListView | null {
+  if (!referer || !URL.canParse(referer)) return null;
+  const from = new URL(referer);
+  if (from.origin !== url.origin || from.pathname !== `/admin/${tenant}/content`) return null;
+  // What the list itself reads: no `type` is the list of pages.
+  const listed = ContentType.safeParse(from.searchParams.get('type')).data ?? 'page';
+  return listed === type ? listViewFrom(from.searchParams) : null;
+}
+
+/**
+ * Keeps the view an item is entered from, for the way back; entered from the untouched list, it
+ * forgets the last one. Anything else (a save, a link from elsewhere, no Referer) changes nothing.
+ */
+export function rememberListFromReferer(
+  cookies: Cookies,
+  referer: string | null,
+  url: URL,
+  tenant: string,
+  type: ContentType
 ): void {
+  const view = viewInReferer(referer, url, tenant, type);
+  if (!view) return;
   const path = `/admin/${tenant}`;
   const query = listParams(view).toString();
+  const kept = cookies.get(cookieOf(type));
+  if (kept === query || (!query && kept === undefined)) return;
   if (!query) {
-    if (cookies.get(cookieOf(type)) !== undefined) cookies.delete(cookieOf(type), { path });
+    cookies.delete(cookieOf(type), { path });
     return;
   }
   cookies.set(cookieOf(type), query, {
@@ -120,7 +152,7 @@ export function rememberList(
 }
 
 /**
- * The list an item goes back to: the view last seen for its type, at the item's own row. The
+ * The list an item goes back to: the view it was entered from, at the item's own row. The
  * cookie is read through `listViewFrom`, so whatever it holds comes out as a view or as none.
  */
 export function recalledListPath(

@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { UseCaseError, systemPrincipal, useCases } from '@mycel/core';
 import { type APIRequestContext, type Browser, type Page, expect, test } from '@playwright/test';
 import { expectNoAxeViolations } from './lib/axe';
+import { bfcacheBack, bfcacheBrowser } from './lib/bfcache';
 import { blockPage, card, editorReady, more, newPage } from './lib/editor';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
@@ -1206,6 +1207,11 @@ test.describe('content-admin', () => {
     expect(back.hash).toBe(`#item-${first.id}`);
     await expect(titles).toHaveText([`appel ${word}`]);
 
+    // A NUL is no search: the list as if none was asked, not an error.
+    const nul = await page.goto('/admin/probe/content?type=page&q=%00');
+    expect(nul?.status()).toBe(200);
+    await expect(page.getByLabel('Zoek op titel of adres')).toHaveValue('');
+
     // Nothing found says what was asked; clearing the filters is one link, and forgets the view.
     await page.goto(`/admin/probe/content?type=page&q=${word}&status=scheduled`);
     await expect(
@@ -1213,7 +1219,8 @@ test.describe('content-admin', () => {
     ).toBeVisible();
     await page.getByRole('link', { name: 'Filters wissen' }).click();
     await expect(page).toHaveURL('/admin/probe/content?type=page');
-    await page.goto(`/admin/probe/content/${first.id}`);
+    // Entering from that plain list; its row is not on the first page of a full probe site.
+    await page.goto(`/admin/probe/content/${first.id}`, { referer: page.url() });
     await expect(page.locator('.ui-item-bar-back')).toHaveAttribute(
       'href',
       `/admin/probe/content?type=page#item-${first.id}`
@@ -1983,5 +1990,108 @@ test.describe('block card details', () => {
     await expect(quote).toBeInViewport();
     await quote.click();
     await expect(page.locator('#block-new').getByRole('heading')).toHaveText('Nieuw blok: Citaat');
+  });
+});
+
+// Looking at a list keeps the editor waiting behind it: Chrome drops a `no-store` page from the
+// back/forward cache when an HttpOnly cookie changes, and rich text does not survive a new load
+// the way a form field does. The cookie that remembers a list is therefore written on entering
+// an item, and only if it changes (content-list.ts). It needs its own browser (lib/bfcache.ts).
+test.describe('an editor with unsaved rich text survives a look at the list', () => {
+  let browser: Browser | undefined;
+  test.beforeAll(async () => {
+    onlyA11y('one browser of its own, measured once');
+    browser = await bfcacheBrowser();
+  });
+  test.afterAll(async () => {
+    await browser?.close();
+  });
+
+  const WRITER = '.writing-surface .ProseMirror';
+  const article = async (request: APIRequestContext, word: string) => {
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: word,
+      document: {
+        type: 'article',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: `Terugknop ${word}` },
+        blocks: [
+          {
+            type: 'rich-text',
+            version: 1,
+            props: {
+              content: {
+                nl: {
+                  type: 'doc',
+                  content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Begin.' }] }],
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+    return item.id;
+  };
+  /** Types without saving, goes to `away`, presses Back: the same document, with the words in it. */
+  const expectKept = async (page: Page, away: string, typed: string) => {
+    const writer = page.locator(WRITER).first();
+    await writer.click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(` ${typed}`);
+    await expect(writer).toContainText(typed);
+    expect({ away, ...(await bfcacheBack(page, away)) }).toEqual({
+      away,
+      restored: true,
+      reasons: [],
+    });
+    await expect(page.locator(WRITER).first()).toContainText(typed);
+  };
+
+  test('to a filtered list, back to the same view, and to the plain list', async ({
+    baseURL,
+    request,
+  }) => {
+    requireApi();
+    const word = `terug${randomUUID().slice(0, 8)}`;
+    const itemId = await article(request, word);
+    const edit = `/admin/probe/content/${itemId}`;
+    const list = `/admin/probe/content?type=article`;
+    const filtered = `${list}&q=${word}`;
+    const session = async () => {
+      const context = await browser!.newContext(baseURL ? { baseURL } : {});
+      const page = await context.newPage();
+      await login(page, edit);
+      await expect(page.locator(WRITER).first()).toBeVisible();
+      return page;
+    };
+    /** Into the item by its row in the filtered list, which is what keeps the view. */
+    const enteredFromList = async () => {
+      const page = await session();
+      await page.goto(filtered);
+      await page.locator('#content-table tbody th').getByRole('link').click();
+      await expect(page).toHaveURL(edit);
+      await expect(page.locator(WRITER).first()).toBeVisible();
+      return page;
+    };
+
+    // No view kept yet: a first look at a filtered list.
+    let page = await session();
+    await expectKept(page, filtered, 'naar een gefilterde lijst');
+    await page.context().close();
+
+    // The item's own way back, to the view already kept.
+    page = await enteredFromList();
+    const back = await page.locator('.ui-item-bar-back').getAttribute('href');
+    expect(back).toBe(`${filtered}#item-${itemId}`);
+    await expectKept(page, back!, 'naar dezelfde weergave');
+    await page.context().close();
+
+    // The plain list, with a view kept: looking at it forgets nothing either.
+    page = await enteredFromList();
+    await expectKept(page, list, 'naar de kale lijst');
+    await expect(page.locator('.ui-item-bar-back')).toHaveAttribute('href', back!);
+    await page.context().close();
   });
 });

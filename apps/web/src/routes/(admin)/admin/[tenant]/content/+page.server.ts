@@ -23,14 +23,13 @@ import {
   listParams,
   listPath,
   listViewFrom,
-  rememberList,
   type ListView,
 } from '#lib/server/content/content-list.js';
 import { translationState } from '#lib/server/content/content-locale.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ parent, locals, url, params, cookies }) => {
+export const load: PageServerLoad = async ({ parent, locals, url, params }) => {
   const { tenant, contentLocale: work } = await parent();
   const type = ContentType.safeParse(url.searchParams.get('type')).data ?? 'page';
   const view = listViewFrom(url.searchParams);
@@ -45,7 +44,6 @@ export const load: PageServerLoad = async ({ parent, locals, url, params, cookie
   // A page past the end, after a narrower filter or a deletion: the last page there is.
   const pages = Math.max(1, Math.ceil(total / LIST_PAGE_SIZE));
   if (view.page > pages) redirect(303, to({ page: pages }));
-  rememberList(cookies, params.tenant, type, view);
   const multi = tenant.locales.length > 1;
   const first = (view.page - 1) * LIST_PAGE_SIZE;
   return {

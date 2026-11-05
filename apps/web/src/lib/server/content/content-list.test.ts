@@ -1,6 +1,6 @@
 // The view of a content list (#79): a query reads into a view whatever it holds, a view writes
 // back as the shortest query that means the same, the view asks `content.item.list` for exactly
-// what it shows, and the way back from an item is the view last seen, or the plain list.
+// what it shows, and the way back from an item is the view it was entered from, or the plain list.
 
 import { describe, expect, it } from 'vitest';
 import type { Cookies } from '@sveltejs/kit';
@@ -10,7 +10,7 @@ import {
   listPath,
   listViewFrom,
   recalledListPath,
-  rememberList,
+  rememberListFromReferer,
 } from './content-list.js';
 
 const view = (query: string) => listViewFrom(new URLSearchParams(query));
@@ -103,10 +103,22 @@ describe('listInput', () => {
   });
 });
 
+describe('a query that holds a NUL', () => {
+  it('is no search', () => {
+    expect(view('q=a%00b').q).toBe('');
+    expect(listInput(view('q=%00'), 'page', 'nl')).not.toHaveProperty('q');
+  });
+});
+
 describe('the way back from an item', () => {
-  it('is the view last seen for that type, at the row of the item', () => {
+  const HERE = new URL(`http://mycel.test/admin/probe/content/${ITEM}`);
+  const list = (query: string) => `http://mycel.test/admin/probe/content?${query}`;
+  const enter = (cookies: Cookies, referer: string | null, type: 'page' | 'article' = 'page') =>
+    rememberListFromReferer(cookies, referer, HERE, 'probe', type);
+
+  it('is the view the item was entered from, at the row of the item', () => {
     const { cookies, calls } = jar();
-    rememberList(cookies, 'probe', 'article', view('q=buurt&sort=title&page=2'));
+    enter(cookies, list('type=article&q=buurt&sort=title&page=2'), 'article');
     expect(calls).toEqual(['set mycel-content-list-article /admin/probe']);
     expect(recalledListPath(cookies, 'probe', 'article', ITEM)).toBe(
       `/admin/probe/content?type=article&q=buurt&sort=title&page=2#item-${ITEM}`
@@ -117,12 +129,43 @@ describe('the way back from an item', () => {
     );
   });
 
-  it('forgets the view once the list is opened untouched, and sets nothing when none was kept', () => {
+  it('forgets the view when entered from the untouched list, and sets nothing when none was kept', () => {
     const { cookies, calls, held } = jar({ 'mycel-content-list-page': 'q=buurt' });
-    rememberList(cookies, 'probe', 'page', view(''));
+    enter(cookies, list('type=page'));
     expect(held.size).toBe(0);
-    rememberList(cookies, 'probe', 'page', view(''));
+    enter(cookies, list('type=page'));
     expect(calls).toEqual(['delete mycel-content-list-page /admin/probe']);
+  });
+
+  // A changed HttpOnly cookie drops a `no-store` page from the back/forward cache.
+  it('does not write the same view again', () => {
+    const { cookies, calls } = jar({ 'mycel-content-list-page': 'q=buurt' });
+    enter(cookies, list('type=page&q=buurt'));
+    expect(calls).toEqual([]);
+  });
+
+  it.each([
+    ['no Referer', null],
+    ['an unreadable Referer', 'not a url'],
+    ['another origin', 'http://evil.example/admin/probe/content?type=page&q=x'],
+    ['another site', 'http://mycel.test/admin/other/content?type=page&q=x'],
+    ['the item itself, after a save', `http://mycel.test/admin/probe/content/${ITEM}?saved`],
+    ['the list of another type', list('type=article&q=x')],
+  ])('changes nothing after %s', (_, referer) => {
+    const { cookies, calls } = jar({ 'mycel-content-list-page': 'q=buurt' });
+    enter(cookies, referer);
+    expect(calls).toEqual([]);
+    expect(recalledListPath(cookies, 'probe', 'page', ITEM)).toBe(
+      `/admin/probe/content?type=page&q=buurt#item-${ITEM}`
+    );
+  });
+
+  it('reads a list without a type as the list of pages, as the list itself does', () => {
+    const { cookies } = jar();
+    enter(cookies, list('q=buurt'));
+    expect(recalledListPath(cookies, 'probe', 'page', ITEM)).toBe(
+      `/admin/probe/content?type=page&q=buurt#item-${ITEM}`
+    );
   });
 
   it('reads a stored value as a view, so nothing else comes out of it', () => {
