@@ -29,6 +29,17 @@ export function everyBlockType(definitions) {
   return [...PLACED_TYPES, ...added].map((type) => definitions[type].examples[0].name);
 }
 
+/**
+ * The registry's types a page already in the database lacks. The seed only creates a page that does
+ * not exist yet, so a database seeded before a block was added keeps the old page: browser tests
+ * then fail locally and pass in CI, or the reverse. Rejected: rewriting the page, which would undo
+ * what the specs left behind and hide that the rest of the fixture is just as old.
+ */
+export function missingBlockTypes(definitions, blocks) {
+  const present = new Set(blocks.map((b) => b.type));
+  return Object.keys(definitions).filter((type) => !present.has(type));
+}
+
 export function blockExamples(definitions) {
   return Object.fromEntries(
     Object.entries(definitions).flatMap(([type, d]) =>

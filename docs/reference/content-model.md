@@ -2,6 +2,14 @@
 
 How pages and articles are stored, revised, published per locale and scheduled (PR #14). The decisions are in [ADR 012](../adr/012-content-types-and-publishing.md), [ADR 018](../adr/018-precise-editorial-operations.md) and [ADR 020](../adr/020-editing-surface-and-block-operations.md); this page records the choices made while building them, so the block, rendering and feed work build on them instead of choosing again. Code: `packages/core/src/content/`, migration `0011_content_items_and_revisions.sql`, repositories in `packages/db/src/content.ts`.
 
+## In short
+
+**Content** (ADR 012, 018, 020, PR #14) is one `content_items` row per page or article, an immutable `content_revisions` row per save holding the whole validated document, and a `content_item_locales` row per locale with the live pointer and the scheduled pin; the status per locale is derived from those pointers. Blocks carry stable ids, rich text is constrained ProseMirror JSON, and every save, publication change and scheduled publish takes the item lock first. Anonymous principals reach only the short allowlist `ANONYMOUS_USE_CASES`, so of the content use cases a public visitor reaches only `content.published.get`, the projection of one published locale of a public page or article, from which the HTML, the JSON read route (`GET /v1/sites/{tenant}/content/{type}/{slug}`, `packages/api/src/content-read.ts`) and MCP all derive. A scheduled publication is a `content.publish` job keyed by item, locale and schedule id. Small edits are block operations by id (insert, move, remove, update, split_insert), each one revision on a base; every revision insert also writes its `content_block_refs` rows, which `content.item.find` and live-usage checks read (PR #21). Block types are entries of one registry (`content/block-types.ts`) from which validation, readiness, locale projection and references derive; media references are checked and recorded as usages under the tenant's media lock, which `media.delete` takes too (PR #25). Themes are validated values with one contrast check in `core/theme` (`site.theme.check`; `docs/reference/theme.md`). Details, reserved slugs and the migration of the probe's pages: `docs/reference/content-model.md`.
+
+## Future content extensions
+
+**Future content extensions** (ADR 022) must preserve those publication, locale and access rules in every representation. A block adds content within `page` or `article`; a type profile adds metadata and presentation over those types; a new domain entity or lifecycle requires another ADR. The effective theme and preview must show the source of each managed override. Current stored blocks and themes remain bounded validated data, with no free CSS field.
+
 ## Item, revisions, locales
 
 | Table                  | One row per             | Holds                                                                                                                                                            |

@@ -10,10 +10,9 @@
 // Rejected: `concurrently` or `npm-run-all` (ADR 008 policy 1: forty lines of our own cover it).
 
 import { spawn, spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import { loadDotEnv } from './lib/repo.mjs';
+import { ROOT, loadDotEnv } from './lib/repo.mjs';
 
-const root = fileURLToPath(new URL('..', import.meta.url));
+const root = ROOT;
 
 const build = spawnSync('npx', ['tsc', '-b', 'packages/api'], { cwd: root, stdio: 'inherit' });
 if (build.status !== 0) process.exit(build.status ?? 1);

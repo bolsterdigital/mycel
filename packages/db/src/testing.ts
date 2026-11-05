@@ -6,7 +6,7 @@
 //
 // Test hygiene for suites that share one database (TODO #32). A suite that submits a form leaves
 // outbox rows a worker has not drained and jobs nobody runs; on a database that outlives the run
-// (a laptop, dev-server-1) the next worker on it, the e2e one included, picks them up: it sends
+// (a laptop, a dev server) the next worker on it, the e2e one included, picks them up: it sends
 // their confirmations and plans a `mail.reconcile` per mail, which pile up ahead of
 // recovery.test's claim. CI never sees it, its database is fresh. Every such suite calls
 // `closeTenantWork` in `afterAll` with the tenants it created: a suite closes its own work and

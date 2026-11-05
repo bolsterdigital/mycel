@@ -1,8 +1,9 @@
 // Every third-party action in .github/workflows runs pinned to a full commit sha with its version
 // as a comment (TODO #18b): a tag can be moved by whoever controls the action, a commit cannot,
 // and release.yml runs with write access to packages and releases. Docker images in `run:` steps
-// are pinned by tag and are out of scope here. verify.yml also runs with a read-only token and a
-// timeout per job (testing.md rule 2: a hung run must not hold a runner for the six-hour default).
+// are pinned by tag and are out of scope here. verify.yml also runs with a read-only token, and
+// every job of every workflow has a timeout (testing.md rule 2: a hung run must not hold a runner
+// for the six-hour default). release.yml writes packages, so it counts as much as the gate does.
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -212,7 +213,7 @@ test('layer jobs own services and reserve time for unconditional, distinct retai
   const names = [];
   for (const name of ['checks', 'browsers']) {
     const job = jobs[name];
-    assert.match(job, /^    runs-on: ubuntu-latest$/m);
+    assert.match(job, /^    runs-on: ubuntu-24\.04$/m);
     assert.match(job, /^    timeout-minutes: 15$/m);
     assert.match(job, /^    services:\n      postgres:\n        image: postgres:16\.15-alpine/m);
     assert.doesNotMatch(job, /container:|environment:|needs:|continue-on-error/);
@@ -280,13 +281,43 @@ test('layer jobs own services and reserve time for unconditional, distinct retai
   assert.ok(names.some((name) => name.includes('${{ matrix.project }}')));
 });
 
-test('verify.yml runs with a read-only token and every job has a timeout', () => {
-  const workflow = workflows().find((w) => w.path === 'verify.yml').text;
-  assert.match(workflow, /^permissions:\n  contents: read\n/m);
-  const jobs = workflow.split(/^jobs:\n/m)[1].split(/^(?=  [\w-]+:\n)/m);
-  const without = jobs
+/** The jobs of a workflow's text, each with its indented body; the first line names it. */
+const jobBodies = (text) => text.split(/^jobs:\n/m)[1].split(/^(?=  [\w-]+:\n)/m);
+
+/** The jobs without a job-level timeout; a step's `timeout-minutes` is indented further. */
+const withoutTimeout = (text) =>
+  jobBodies(text)
     .filter((job) => !/^    timeout-minutes: \d+$/m.test(job))
     .map((job) => job.split(':')[0].trim());
+
+test('verify.yml runs with a read-only token', () => {
+  const workflow = workflows().find((w) => w.path === 'verify.yml').text;
+  assert.match(workflow, /^permissions:\n  contents: read\n/m);
+});
+
+test('every job of every workflow has a timeout', () => {
+  const found = workflows();
+  assert.ok(found.length >= 4, `found ${found.length} workflows`);
+  const without = found.flatMap(({ path, text }) =>
+    withoutTimeout(text).map((job) => `${path}: ${job}`)
+  );
   assert.deepEqual(without, []);
-  assert.ok(jobs.length >= 4, `found ${jobs.length} jobs`);
+  const verify = found.find((w) => w.path === 'verify.yml').text;
+  assert.ok(jobBodies(verify).length >= 4, 'found the jobs of verify.yml');
+});
+
+test('a job with only a step timeout has no timeout', () => {
+  const text = [
+    'jobs:',
+    '  covered:',
+    '    timeout-minutes: 5',
+    '    steps:',
+    '      - run: a',
+    '  bare:',
+    '    steps:',
+    '      - run: b',
+    '        timeout-minutes: 3',
+    '',
+  ].join('\n');
+  assert.deepEqual(withoutTimeout(text), ['bare']);
 });

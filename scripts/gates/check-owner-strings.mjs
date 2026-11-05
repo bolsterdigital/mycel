@@ -1,6 +1,6 @@
 // Fails when a tracked file carries the owner's private process into this public repository: a
 // personal home path, the private planning sibling, the owner's agent tooling (`model-mode`,
-// `shared-task`), a planning lane (`mbp`, `dev`) as a code identifier, or the words of the
+// `shared-task`), the owner's machine names, a planning lane (`mbp`, `dev`) as a code identifier, or the words of the
 // private planning (`mbp`, `lane`, `proef`) in prose, comments and workflows. Mycel has to build,
 // test and run for anyone who clones it; how the owner steers agents belongs in the private
 // sibling. The review method's `pilot` lens status is public vocabulary (review.md) and stays.
@@ -26,6 +26,7 @@ const anywhere = [
   },
   { rule: 'private planning sibling', pattern: /mycel-planning/ },
   { rule: 'owner agent tooling', pattern: /\bmodel-mode\b|\bshared-task\b/ },
+  { rule: 'owner machine name', pattern: /\bdev-server-\d/ },
 ];
 
 /** Prose, comments, code and workflows: everything a reader reads, but not data (JSON keeps

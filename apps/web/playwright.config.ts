@@ -7,7 +7,7 @@ import { defineConfig } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 
 // One font for every run on Linux: the admin sets `system-ui`, which the CI runner
-// resolves to DejaVu Sans and a dev machine to whatever it has installed (Noto Sans on dev-server-1,
+// resolves to DejaVu Sans and a dev machine to whatever it has installed (Noto Sans on one dev server,
 // narrower), so a label or an ⓘ that fits locally overflowed in CI three times. Chromium on Linux
 // asks fontconfig, so pointing it at e2e/fonts/ (Latin subsets of DejaVu Sans and Sans Mono, the
 // CI fonts) makes every machine measure what CI measures. Set here, so the runner, its workers

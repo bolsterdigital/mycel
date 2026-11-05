@@ -2,6 +2,10 @@
 
 A site (one tenant, ADR 017) leaves an installation as a directory or a `.tar` and arrives in another one with the same data, the same ids and the same files (PR #32, ADR 002 rule 5). The same archive is the way back after a site was lost on this installation. Export is never gated by an entitlement or a suspension (ADR 015 rule 7). The commands are in [`../self-hosting.md`](../self-hosting.md#export); the code is [`packages/db/src/export.ts`](../../packages/db/src/export.ts).
 
+## In short
+
+**Export and erasure** (PR #32, migration 0019). A tenant leaves an installation as an archive of its rows, read as `mycel_app` in its own context, plus its media files, and arrives in another through one transaction (`packages/db/src/export.ts`, `mycel export|import`, `docs/reference/export.md`); every table of the schema is placed in `TABLES` there, so a new one is in or out of the export by decision, never by accident. Erasure is a permanent register (`ctx.erasures.register`) plus an idempotent apply that only the worker and the CLI can run, as the tenant-bound role `mycel_erasure`, and that a restore runs again. A registration is completed once a backup holds it: the backup login records that in `erasure_backups` (PR #39, migration 0021) and `ctx.erasures.status()` reads it.
+
 ## Format
 
 ```

@@ -2,6 +2,10 @@
 
 The media library of a site (PRs #15 and #16): one register of uploaded files per tenant, the files behind a storage port, and variants served by the site itself. This page is the contract for the `image` block (PR #25), og-images, reader access and a later delivery adapter (a CDN or an image service). The reasoning is in ADR 004 (rules 4 and 6), 008, 011, 015, 018 (rules 7 and 8) and 019 (rules 6 and 8).
 
+## In short
+
+**Media** (PRs #15 and #16, `docs/reference/media.md`) is a register per tenant (`media`, `media_usages`, migration 0012) with the bytes behind three ports: `BlobStore` (storage: `@mycel/blob`, a directory or a private S3-compatible bucket), `ImageProcessor` (processing: `@mycel/media-sharp`, which probes the header, applies the EXIF orientation and writes no metadata) and `MediaDelivery` (where a variant is served: `appDelivery` in core, `/media/<id>/<file>` on the site itself). Content refers to a media id, never to a URL. `media.upload` renders every variant before it takes the tenant's media lock, then counts `media.storage_max_bytes` and writes files and row under it; `media.delete` refuses while `media_usages` has rows and plans `media.purge` in its own transaction; the daily `media.orphans` platform job sweeps each tenant in its own unit of work as `mycel_app`. The site serves a public variant with `immutable` caching and a restricted one only with a signed path; the original has no public route. The media admin downloads it through a session-authorized route with a ten-minute signed path (`docs/reference/media.md`).
+
 ## The model in one paragraph
 
 Content refers to a **media id**, never to a URL. Mycel owns the record (id, checksum, sizes, editorial fields, usages, state) in the `media` table; the bytes live in a `BlobStore` under keys derived from the id. Three ports keep three concerns apart: `BlobStore` (storage), `ImageProcessor` (processing) and `MediaDelivery` (where a variant is served). Swapping a directory for a bucket, sharp for another library, or the site's own route for a CDN changes no content.
@@ -31,7 +35,7 @@ Keys: `tenants/<tenant id>/media/<media id>/<file>`.
 | MP3                   | `file.mp3` (delivered as stored)                                                                                                                                                                                                                                                                                         |
 | PDF                   | `file.pdf` (delivered as stored)                                                                                                                                                                                                                                                                                         |
 
-Never upscaled. A 4000 px photo stops at `w1920`: its full resolution stays private. `checksum` (sha256 hex) and `sizeBytes` describe the stored original (or `file`), `totalBytes` everything, which is what the cap counts. A PDF's own metadata (author, producer) is not rewritten: only images pass through the processor.
+Never upscaled. A 4000 px photo stops at `w1920`: its full resolution stays private. `checksum` (sha256 hex) and `sizeBytes` describe the stored original (or `file`), `totalBytes` everything, which is what the cap counts. The own metadata of a PDF (author, producer) or an MP3 (ID3 tags) is not rewritten: only images pass through the processor, and a public file keeps what it came with.
 
 The unmodified upload is never kept. A photo with the GPS position of a source must not survive even in a leaked backup; whoever needs the pristine file keeps it outside Mycel.
 
