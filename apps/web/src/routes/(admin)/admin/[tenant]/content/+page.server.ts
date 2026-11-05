@@ -23,6 +23,7 @@ import {
   can,
   contentPath,
   MAX_PAGE_SIZE,
+  MAX_TRANSLATION_WALK,
   pickAny,
   ContentType,
   useCases,
@@ -44,6 +45,7 @@ import {
   listPath,
   listViewFrom,
   NO_FILTERS,
+  translationTooBroad,
   type ListView,
 } from '#lib/server/content/content-list.js';
 import { withAssigned } from '#lib/server/content/content-admin.js';
@@ -104,10 +106,17 @@ export const load: PageServerLoad = async ({ parent, locals, url, params, cookie
   const display = listDisplay(cookies, view, type);
   const { invoker } = runtime();
   const principal = locals.principal!;
-  const { items, total } = await invoker.run(
+  const listed = invoker.run(
     useCases.listItems,
     principal,
     listInput(view, type, work, { per: display.per, zone: timeZone, others })
+  );
+  const { items, total, tooBroad } = await listed.then(
+    (page) => ({ ...page, tooBroad: false }),
+    (error: unknown) => {
+      if (!translationTooBroad(error)) throw error;
+      return { items: [], total: 0, tooBroad: true };
+    }
   );
   const to = (change: Partial<ListView>) => listPath(params.tenant, type, { ...view, ...change });
   // A page past the end, after a narrower filter or a deletion: the last page there is.
@@ -164,6 +173,8 @@ export const load: PageServerLoad = async ({ parent, locals, url, params, cookie
     authors: entities.authors,
     sections: entities.sections,
     filtered: isFiltered(view),
+    tooBroad,
+    walkLimit: MAX_TRANSLATION_WALK,
     // Each filter that is on, with the link that takes only that one off.
     chips: listChips(view).map((chip) => ({
       ...chip,

@@ -196,6 +196,7 @@ async function observeListing(invoker: Invoker, admin: Principal, clock: FakeClo
     (await invoker.run(useCases.getItem, admin, { itemId: id })).item.updatedAt;
   const behind = { translation: { state: 'behind' as const, locales: ['en'] } };
   const missing = { translation: { state: 'missing' as const, locales: ['en'] } };
+  const absent = { translation: { state: 'missing' as const, locales: ['de'] } };
   const firstBehind = await list({ ...of(), ...behind, limit: 1 });
   const listed = await list({ slug: 'volledig' });
   return {
@@ -223,6 +224,9 @@ async function observeListing(invoker: Invoker, admin: Principal, clock: FakeClo
       ...missing,
       offset: 1,
     }),
+    // Core orders what it walked, so both adapters answer in the order the others are asked in.
+    translationByTitle: await slugs({ type: 'article', sort: 'title', ...absent }),
+    translationBySaved: await slugs({ type: 'article', sort: 'updated', ...absent }),
     translationAfterUnknown: await slugs({
       sort: 'title',
       type: 'article',
@@ -566,6 +570,8 @@ const expected = {
     translationAndAuthor: '',
     translationPage: { slugs: 'achter', next: null, total: 1 },
     translationOffset: '',
+    translationByTitle: 'nl-alleen achter volledig oud',
+    translationBySaved: 'nl-alleen achter oud volledig',
     translationAfterUnknown: '',
     // Downwards "Alleen hier" follows "Artikel", though the item named does not match itself.
     translationAfterNonMatch: 'nl-alleen',

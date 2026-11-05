@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { Cookies } from '@sveltejs/kit';
+import { TRANSLATION_TOO_BROAD, UseCaseError } from '@mycel/core';
 import {
   chooseListDisplay,
   columnsOf,
@@ -16,6 +17,7 @@ import {
   listViewFrom,
   recalledListPath,
   rememberListFromReferer,
+  translationTooBroad,
 } from './content-list.js';
 
 const view = (query: string, type: 'page' | 'article' = 'article') =>
@@ -297,5 +299,16 @@ describe('the way back from an item', () => {
     expect(recalledListPath(cookies, 'probe', 'page', ITEM)).toBe(
       `/admin/probe/content?type=page&q=x#item-${ITEM}`
     );
+  });
+});
+
+describe('translationTooBroad', () => {
+  it('tells that one refusal from any other', () => {
+    const issue = (message: string) => [{ path: 'translation', message }];
+    expect(
+      translationTooBroad(new UseCaseError('invalid_input', 'x', issue(TRANSLATION_TOO_BROAD)))
+    ).toBe(true);
+    expect(translationTooBroad(new UseCaseError('invalid_input', 'x', issue('other')))).toBe(false);
+    expect(translationTooBroad(new Error(TRANSLATION_TOO_BROAD))).toBe(false);
   });
 });
