@@ -10,6 +10,7 @@
 // and in CI that is a failure.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { z } from 'zod';
 import {
   ConnectionIntentState,
   Invoker,
@@ -61,6 +62,8 @@ const connection = {
   adapterVersion: 'v1',
 };
 
+type ListInput = z.input<typeof useCases.listItems.input>;
+
 /**
  * Five pages, one in each publication state of Dutch, listed by every filter and order: what
  * matches, in which order, how many in all and where the next page starts. The titles hold what
@@ -102,13 +105,12 @@ async function observeListing(invoker: Invoker, admin: Principal, clock: FakeClo
   await invoker.run(useCases.unpublishItem, admin, { itemId: procent.id, locale: 'nl' });
 
   const slugOf = new Map<string, string>();
-  const list = async (input: Parameters<typeof invoker.run<typeof useCases.listItems>>[2]) => {
+  const list = async (input: ListInput) => {
     const page = await invoker.run(useCases.listItems, admin, input);
     for (const i of page.items) slugOf.set(i.id, i.slug);
     return page;
   };
-  const slugs = async (input: Parameters<typeof list>[0]) =>
-    (await list(input)).items.map((i) => i.slug).join(' ');
+  const slugs = async (input: ListInput) => (await list(input)).items.map((i) => i.slug).join(' ');
   const firstByTitle = await list({ sort: 'title', limit: 2 });
   return {
     created: await slugs({}),
