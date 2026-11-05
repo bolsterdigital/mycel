@@ -109,11 +109,18 @@ jobs:
           fi
 
       # The nine font packages `--with-deps` adds came from the Ubuntu mirror in 16 s or in over nine
-      # minutes, inside the step limit below, so a slow mirror failed the job with no test red. apt
-      # checks a cached .deb against its signed index and fetches again on a mismatch, so this adds
-      # no trust. The action reports a restore error or a download past its segment limit as a
-      # warning, so both only mean the old download.
-      # Rejected: a higher step limit (hides a hang), dropping the fonts (rendering may change).
+      # minutes, inside the step limit below, so a slow mirror failed the job with no test red. The
+      # action reports a restore error or a download past its segment limit as a warning, so both
+      # only mean the old download.
+      # This cache is trusted, not verified. apt 2.8.3 compares only the size of a .deb already in
+      # its archive directory, so what a run saved is installed as root by later runs on every ref
+      # until the key is bumped. Only a run on main can write the key other refs read (cache scope);
+      # poisoning it takes code execution in such a run, for example a compromised npm dependency,
+      # before the keep step. That could falsify later check results, but reaches no secret and no
+      # write access: this workflow has a read-only token and no secrets. Accepted for font
+      # packages; do not copy this to a job that holds a secret or a write token.
+      # Rejected: a higher step limit (hides a hang), dropping the fonts (rendering may change),
+      # checking each .deb against `apt-cache show` (a second `apt-get update` in every run).
       - name: Restore browser system packages
         id: browser-debs
         timeout-minutes: 2
