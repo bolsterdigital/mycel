@@ -57,10 +57,10 @@ import {
   RevisionSummary,
   Slug,
   isReservedPageSlug,
-  slugFromTitle,
   readinessIssues,
 } from './model.js';
 import type { ItemPosition, ItemRecord } from './ports.js';
+import { freeSlug, slugFollowingTitle, slugTaken } from './slugs.js';
 import { preserveTranslationReview } from './translation-review.js';
 import './ports.js';
 import '../theme/ports.js';
@@ -117,14 +117,6 @@ export function requireBlockTypes(
   for (const type of new Set(allBlocks(blocks).map((b) => b.type)))
     requireEntitled(ctx.principal, `blocks.${type}`, undefined, { blockType: type });
 }
-
-/** The `detail` an API or MCP client reads: "an article", not "a article" (#140). */
-const slugTaken = (type: ContentType, slug: string) =>
-  new UseCaseError(
-    'conflict',
-    `${type === 'article' ? 'an article' : 'a page'} with slug "${slug}" already exists`,
-    [{ path: 'slug', message: 'content.slug.taken' }]
-  );
 
 /** The document as stored: ids for new blocks, the full schema (defaults, invariants) re-checked. */
 export function finalize(
@@ -427,23 +419,6 @@ const pageExample = {
   },
 };
 
-/**
- * The slug of a new item that gave none: its title in the default locale as a slug, with `-2`,
- * `-3` and so on when that is taken or reserved. A title with nothing usable falls back to the
- * type name.
- */
-async function freeSlug(ctx: TransactionContext, document: ContentDocumentInput): Promise<string> {
-  const title = document.title[document.defaultLocale] ?? Object.values(document.title)[0] ?? '';
-  const stem = slugFromTitle(title) || document.type;
-  for (let n = 1; n <= 100; n++) {
-    const suffix = n === 1 ? '' : `-${n}`;
-    const slug = `${stem.slice(0, 63 - suffix.length).replace(/-+$/, '')}${suffix}`;
-    if (document.type === 'page' && isReservedPageSlug(slug)) continue;
-    if (!(await ctx.content.findBySlug(document.type, slug))) return slug;
-  }
-  throw new UseCaseError('conflict', `no free slug for "${stem}"`);
-}
-
 export const createItem = defineUseCase({
   name: 'content.item.create',
   kind: 'command',
@@ -553,7 +528,7 @@ export const updateItem = defineUseCase({
   name: 'content.item.update',
   kind: 'command',
   description:
-    'Save a new revision of an item; fails with conflict unless baseRevisionId is the latest revision, and never changes what is published.',
+    'Save a new revision of an item; fails with conflict unless baseRevisionId is the latest revision, and never changes what is published. While an item has its placeholder slug and was never published, a save that gives it a title moves the slug to that title.',
   requires: 'content:write',
   input: z.object({
     itemId: ItemId,
@@ -589,7 +564,13 @@ export const updateItem = defineUseCase({
     const previous = await ctx.content.revision(itemId, baseRevisionId);
     if (!previous) throw notFound('revision');
     const next = finalize(ctx, document, document.blocks);
-    return writeRevision(ctx, item, next);
+    // Decided before the write, which may still refuse; set after it, so a taken slug undoes both.
+    const slug = await slugFollowingTitle(ctx, item, previous.document, next);
+    const saved = await writeRevision(ctx, item, next);
+    if (!slug) return saved;
+    if (!(await ctx.content.setSlug(itemId, slug, new Date(saved.item.updatedAt))))
+      throw slugTaken(item.type, slug);
+    return { ...saved, item: { ...saved.item, slug } };
   },
 });
 

@@ -26,6 +26,7 @@ import {
   MAX_TRANSLATION_WALK,
   pickAny,
   ContentType,
+  startSlug,
   useCases,
   type Principal,
 } from '@mycel/core';
@@ -268,7 +269,8 @@ export const actions: Actions = {
         );
         const type = ContentType.parse(form.get('type'));
         return runtime().invoker.run(useCases.createItem, principal, {
-          slug: `${type}-${randomUUID()}`,
+          // A placeholder until the first save with a title; core then moves it there.
+          slug: startSlug(type, randomUUID()),
           document: {
             type,
             title: { [tenant.defaultLocale]: ui(tenant.defaultLocale)('admin.content.untitled') },
