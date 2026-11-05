@@ -16,6 +16,7 @@
     confirm,
     name,
     formaction,
+    form,
     variant = 'secondary',
     field,
   }: {
@@ -28,6 +29,8 @@
     name?: string | undefined;
     /** The action the submit posts to, when the row's form has another. */
     formaction?: string | undefined;
+    /** The form the submit belongs to, when no form can wrap it (a table row). */
+    form?: string | undefined;
     /** `link` in a row of light actions, such as a block card's head (#66 PR 3). */
     variant?: 'secondary' | 'link';
     /** The submit's own name and value, when the form tells several rows apart by it. */
@@ -43,6 +46,7 @@
       class="ui-button danger"
       type="submit"
       {formaction}
+      {form}
       name={field?.name}
       value={field?.value}
       aria-label={name ? `${confirm}: ${name}` : undefined}>{confirm}</button

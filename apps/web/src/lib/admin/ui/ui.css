@@ -549,6 +549,73 @@
   .ui-table .numeric {
     text-align: end;
   }
+  /* RowActions: the table's width picks the row of buttons or the menu, in rem, so the
+     text size counts. The row's buttons appear on hover and focus; they keep their place, so a
+     row does not jump, and the keyboard reaches them while they are out of sight. */
+  .ui-table-scroll:has(.ui-row-actions) {
+    container-type: inline-size;
+  }
+  .ui-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 var(--space-1);
+  }
+  /* The row's own actions keep their one line. The question's button is not one of them: it lives
+     in the question's narrower column and runs on at its word boundaries. */
+  .ui-row-actions > .ui-button,
+  .ui-row-actions > .ui-confirm > summary {
+    white-space: nowrap;
+  }
+  .ui-row-actions.inline {
+    justify-content: end;
+    min-width: max-content;
+  }
+  .ui-row-actions.inline:has(.ui-confirm[open]) {
+    min-width: 18rem;
+  }
+  .ui-row-actions.inline .ui-confirm-body {
+    max-width: 24rem;
+  }
+  /* The column is as wide as its buttons; the title takes what is left. */
+  .ui-table .ui-row-actions-cell {
+    width: 1%;
+  }
+  .ui-row-menu > .ui-row-actions {
+    flex-direction: column;
+    align-items: start;
+  }
+  .ui-table tbody th .ui-row-menu {
+    font-weight: 400;
+  }
+  .ui-row-menu > summary {
+    display: inline-flex;
+    list-style: none;
+  }
+  .ui-row-menu > summary::-webkit-details-marker {
+    display: none;
+  }
+  @container (min-width: 58rem) {
+    .ui-row-menu {
+      display: none;
+    }
+  }
+  /* Exclusive, with min-width above: at exactly 58rem both would apply and no action would show. */
+  @container (width < 58rem) {
+    .ui-row-actions-cell {
+      display: none;
+    }
+  }
+  @media (hover: hover) {
+    .ui-row-actions.inline {
+      opacity: 0;
+    }
+    tr:hover .ui-row-actions.inline,
+    .ui-row-actions.inline:focus-within,
+    .ui-row-actions.inline:has([open]) {
+      opacity: 1;
+    }
+  }
   /* A role option: its name, then one line of what it may do (RolePicker, #101). */
   .ui-role {
     display: grid;
@@ -2618,6 +2685,28 @@
   }
   .ui-widget-later {
     margin: 0;
+    color: var(--color-muted-fg);
+  }
+  /* A widget's rows: what it is about, a link, and one quiet fact beside or under it. */
+  .ui-widget-list {
+    display: grid;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ui-widget-list > li {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0 var(--space-2);
+    min-width: 0;
+  }
+  .ui-widget-list a {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .ui-widget-list time {
     color: var(--color-muted-fg);
   }
 

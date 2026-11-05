@@ -18,7 +18,7 @@ import { type AddressInfo } from 'node:net';
 import { FakeDns } from '@mycel/core/testing';
 import { type Database, uuidv7Ids } from '@mycel/db';
 import { asRole, testTenant } from '@mycel/db/testing';
-import { type Page, expect, test } from '@playwright/test';
+import { type Locator, type Page, expect, test } from '@playwright/test';
 import { type Kysely } from 'kysely';
 import { expectNoAxeViolations } from './lib/axe';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
@@ -26,7 +26,8 @@ import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { ADMIN, login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { settingsEvidence } from './lib/settings-evidence';
-import { requireApi } from './lib/api';
+import { callApi, requireApi } from './lib/api';
+import { randomUUID } from 'node:crypto';
 import { ADMIN_ROUTES } from './routes';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -45,6 +46,23 @@ const settingsTest = test.extend({ trace: ['retain-on-failure', { scope: 'worker
 // Runs without JavaScript and under axe like the signup spec. The dashboard and the members and
 // domains pages (moved verbatim from the tenant home in #66 PR 1) are routes of the generic UI
 // gate (routes.ts).
+/** The label stays inside its button, and no word of it breaks in the middle. */
+async function expectWholeLabel(button: Locator) {
+  expect(await button.evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(0);
+  const broken = await button.evaluate((e) => {
+    const text = [...e.childNodes].find((node) => node.nodeType === Node.TEXT_NODE)!;
+    return [...(text.textContent ?? '').matchAll(/\S+/g)]
+      .filter((word) => {
+        const range = document.createRange();
+        range.setStart(text, word.index);
+        range.setEnd(text, word.index + word[0].length);
+        return range.getClientRects().length > 1;
+      })
+      .map((word) => word[0]);
+  });
+  expect(broken).toEqual([]);
+}
+
 test.describe('admin', () => {
   test.use({
     locale: 'nl-NL',
@@ -1652,5 +1670,276 @@ test.describe('export', () => {
         await layoutGate(page, 'export actions', 'main');
       });
     }
+  });
+});
+
+// The actions of one row of the content list, and the dashboard's content widgets.
+test.describe('content-list-rows', () => {
+  test.use({ locale: 'nl-NL' });
+
+  test('a row opens the site and the preview, copies and takes offline', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    const word = `rij${randomUUID().slice(0, 8)}`;
+    const { item } = await callApi<{ item: { id: string; latestRevisionId: string } }>(
+      request,
+      'content.item.create',
+      {
+        slug: `row-${word}`,
+        document: {
+          type: 'page',
+          defaultLocale: 'nl',
+          locales: ['nl'],
+          title: { nl: `Brood ${word}` },
+          blocks: [],
+        },
+      }
+    );
+    const list = `/admin/probe/content?type=page&q=${word}&sort=title`;
+    const row = page.locator(`[id="item-${item.id}"]`);
+    await login(page, list);
+
+    // A draft has a preview and no live page, and nothing to take offline.
+    await row.hover();
+    const actions = row.locator('.ui-row-actions.inline');
+    await expect(actions.getByRole('link', { name: `Voorbeeld: Brood ${word}` })).toHaveAttribute(
+      'href',
+      `/admin/probe/preview/item/${item.id}?revision=${item.latestRevisionId}&locale=nl`
+    );
+    await expect(actions.getByRole('link', { name: /^Op de site/ })).toHaveCount(0);
+    await expect(actions.getByText('Offline halen')).toHaveCount(0);
+
+    // Live and unchanged: the site, no second look at the same thing.
+    const probe = await tenantId();
+    await withInvoker((invoker) =>
+      invoker.run(useCases.publishItem, systemPrincipal(probe, 'e2e'), {
+        itemId: item.id,
+        revisionId: item.latestRevisionId,
+        locale: 'nl',
+      })
+    );
+    await page.reload();
+    await row.hover();
+    await expect(actions.getByRole('link', { name: /^Op de site/ })).toBeVisible();
+    await expect(actions.getByRole('link', { name: /^Voorbeeld/ })).toHaveCount(0);
+    await expectNoAxeViolations(page);
+
+    // Live with newer changes: both, named apart.
+    await callApi(request, 'content.item.update', {
+      itemId: item.id,
+      baseRevisionId: item.latestRevisionId,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: `Brood ${word}` },
+        lead: { nl: 'Gewijzigd.' },
+        blocks: [],
+      },
+    });
+    await page.reload();
+    await row.hover();
+    await expect(actions.getByRole('link', { name: /^Op de site/ })).toBeVisible();
+    await expect(actions.getByRole('link', { name: /^Voorbeeld/ })).toBeVisible();
+
+    // Taken offline after a question in the row; the same view, and it says so.
+    await page.reload();
+    await row.hover();
+    await actions.locator('summary').click();
+    await actions.getByRole('button', { name: `Ja, offline halen: Brood ${word}` }).click();
+    await expect(page).toHaveURL(new RegExp(`done=offline#item-${item.id}$`));
+    await expect(page.getByText('Offline gehaald in nl.')).toBeVisible();
+    await expect(row.locator('.ui-badge')).toHaveText('offline');
+
+    // Planned, it is on the dashboard; the widget links to an item and says when.
+    await withInvoker((invoker) =>
+      invoker.run(useCases.scheduleItem, systemPrincipal(probe, 'e2e'), {
+        itemId: item.id,
+        revisionId: item.latestRevisionId,
+        locale: 'nl',
+        at: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+      })
+    );
+    await page.goto('/admin/probe');
+    const planned = page.getByRole('region', { name: 'Ingepland' }).getByRole('listitem');
+    await expect(planned.first().getByRole('link')).toHaveAttribute('href', /\/content\//);
+    await expect(planned.first().locator('time')).toBeVisible();
+    await page.goto(list);
+
+    // Duplicating opens a draft of its own.
+    await row.hover();
+    await actions.getByRole('button', { name: `Dupliceren: Brood ${word}` }).click();
+    await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
+    expect(page.url()).not.toContain(item.id);
+    await expect(page.locator('[name="title.nl"]')).toHaveValue(`Kopie van Brood ${word}`);
+    await page.goto(list);
+    await expect(page.locator('#content-table tbody th > a')).toHaveText([
+      `Brood ${word}`,
+      `Kopie van Brood ${word}`,
+    ]);
+  });
+
+  test('a member who may only read gets no empty menu on an item without the locale', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    const word = `lees${randomUUID().slice(0, 8)}`;
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `row-${word}`,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: `Brood ${word}` },
+        blocks: [],
+      },
+    });
+    const reader = 'row-reader@probe.test';
+    const probe = await tenantId();
+    await withInvoker(async (invoker) => {
+      try {
+        await invoker.run(useCases.inviteMember, systemPrincipal(probe, 'e2e'), {
+          email: reader,
+          capabilities: ['content:read'],
+        });
+      } catch (e) {
+        if (!(e instanceof UseCaseError && e.code === 'conflict')) throw e;
+      }
+    });
+    await page.context().addCookies([
+      {
+        name: 'mycel-content-locale',
+        value: 'en',
+        domain: '127.0.0.1',
+        path: '/admin/probe',
+      },
+    ]);
+    await login(page, `/admin/probe/content?type=page&q=${word}`, reader);
+    const row = page.locator(`[id="item-${item.id}"]`);
+    await expect(row).toBeVisible();
+    await expect(row.locator('.ui-row-menu')).toHaveCount(0);
+    await expect(row.locator('.ui-row-actions')).toHaveCount(0);
+    // No row on this page has an action, so there is no column for them.
+    await expect(page.locator('#content-table .ui-row-actions-cell')).toHaveCount(0);
+  });
+
+  test('the width of the table picks the buttons or one menu, and the row keeps its name', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    const word = `rij${randomUUID().slice(0, 8)}`;
+    const { item } = await callApi<{ item: { id: string; latestRevisionId: string } }>(
+      request,
+      'content.item.create',
+      {
+        slug: `row-${word}`,
+        document: {
+          type: 'page',
+          defaultLocale: 'nl',
+          locales: ['nl'],
+          title: { nl: `Brood ${word}` },
+          blocks: [],
+        },
+      }
+    );
+    const probe = await tenantId();
+    await withInvoker((invoker) =>
+      invoker.run(useCases.publishItem, systemPrincipal(probe, 'e2e'), {
+        itemId: item.id,
+        revisionId: item.latestRevisionId,
+        locale: 'nl',
+      })
+    );
+    await callApi(request, 'content.item.update', {
+      itemId: item.id,
+      baseRevisionId: item.latestRevisionId,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: `Brood ${word}` },
+        lead: { nl: 'Gewijzigd.' },
+        blocks: [],
+      },
+    });
+    const row = page.locator(`[id="item-${item.id}"]`);
+    const actions = row.locator('.ui-row-actions.inline');
+    await login(page, `/admin/probe/content?type=page&q=${word}&sort=title`);
+
+    // Live with newer changes, so all four actions: they fit just above the width where the menu
+    // takes over, with no scrolling inside the table.
+    const region = page.locator('.ui-table-scroll');
+    // The table's region picks the layout, and the sidebar's width follows the font: a fixed
+    // window lands on either side of the width depending on the machine. So measure it.
+    const takeover = await region.evaluate(
+      () => 58 * parseFloat(getComputedStyle(document.documentElement).fontSize)
+    );
+    for (let tries = 0; tries < 3; tries++) {
+      const lacking = await region.evaluate(
+        (e, width) => width - e.getBoundingClientRect().width,
+        takeover + 1
+      );
+      if (lacking >= 0 && lacking < 1) break;
+      await page.setViewportSize({
+        width: page.viewportSize()!.width + Math.ceil(lacking),
+        height: 800,
+      });
+    }
+    await row.hover();
+    await expect(actions.getByRole('link', { name: /^Op de site/ })).toBeVisible();
+    await expect(actions.getByRole('link', { name: /^Voorbeeld/ })).toBeVisible();
+    expect(await region.evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(0);
+
+    // The question in the column keeps its button whole too; closed again for what follows.
+    const inlineConfirm = actions.locator('.ui-confirm');
+    await inlineConfirm.locator('summary').click();
+    await expectWholeLabel(inlineConfirm.locator('.ui-confirm-body .ui-button'));
+    await inlineConfirm.locator('summary').click();
+
+    // Exactly one of the two at every width, the width where the menu takes over included.
+    for (const [width, inMenu] of [
+      [takeover - 1, true],
+      [takeover, false],
+      [takeover + 1, false],
+    ] as const) {
+      await region.evaluate((e, px) => (e.style.width = `${px}px`), width);
+      expect(await region.evaluate((e) => e.getBoundingClientRect().width)).toBe(width);
+      await expect(row.locator('.ui-row-menu')).toBeVisible({ visible: inMenu });
+      await expect(row.locator('.ui-row-actions-cell')).toBeVisible({ visible: !inMenu });
+    }
+    await region.evaluate((e) => e.style.removeProperty('width'));
+
+    // One menu at 320 CSS px and 200% text, with every label whole; the column is gone.
+    await page.setViewportSize(NARROW);
+    await setTextSize(page, '200%');
+    await expect(actions).toBeHidden();
+    const header = row.getByRole('rowheader', { name: `Brood ${word}`, exact: true });
+    await expect(header).toBeVisible();
+    await row.locator('.ui-row-menu > summary').click();
+    await expect(row.locator('.ui-row-menu').getByText('Dupliceren')).toBeVisible();
+    // The menu sits in the row's header cell; opening it does not rename the row.
+    await expect(header).toBeVisible();
+    await layoutGate(page, 'content list with an open row menu');
+
+    // The question in the menu: the button holds its label at 200% text and at 100%, on word
+    // boundaries. The page gate does not see this: nothing overflows the page.
+    const menu = row.locator('.ui-row-menu');
+    await menu.locator('.ui-confirm > summary').click();
+    const yes = menu.locator('.ui-confirm-body .ui-button');
+    await expect(yes).toBeVisible();
+    await expectWholeLabel(yes);
+    await page.evaluate(() => document.documentElement.style.removeProperty('font-size'));
+    await expectWholeLabel(yes);
+    await setTextSize(page, '200%');
+    // The table scrolls in its own region, which the page gate does not see: no action behind it.
+    for (const action of await menu.locator('a, summary, button:visible').all())
+      expect(await action.evaluate((e) => e.getBoundingClientRect().right)).toBeLessThanOrEqual(
+        NARROW.width
+      );
+    await expectNoAxeViolations(page);
   });
 });

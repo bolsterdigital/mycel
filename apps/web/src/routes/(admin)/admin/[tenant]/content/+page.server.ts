@@ -6,14 +6,18 @@
 // Search, status, order and page are query parameters read by `content-list.ts` and answered by
 // `content.item.list`, so every view has its own URL and works without JavaScript; the route
 // only turns the view into links. The view is remembered for the way back from an item.
+// A row's actions are what the operator may do with that item in the content locale:
+// the live page and the preview are separate, because they differ exactly when both are offered;
+// taking offline is for what is live, with the use case the edit screen uses. Duplicating opens
+// the copy, like creating does (decision Jaap 2026-10-29).
 // The latest revision is one read per row, a page of at most 20; rejected for now: a translation
 // summary in `content.item.list` itself, which changes core's output for every caller.
-import { ui } from '../../../../../i18n/index.js';
+import { fill, ui } from '../../../../../i18n/index.js';
 import { randomUUID } from 'node:crypto';
 import { redirect } from '@sveltejs/kit';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { act } from '#lib/server/admin/admin-actions.js';
-import { pickAny, ContentType, useCases } from '@mycel/core';
+import { can, contentPath, pickAny, ContentType, useCases } from '@mycel/core';
 import {
   isFiltered,
   LIST_PAGE_SIZE,
@@ -26,6 +30,7 @@ import {
   type ListView,
 } from '#lib/server/content/content-list.js';
 import { translationState } from '#lib/server/content/content-locale.js';
+import { adminSiteUrls } from '#lib/server/site.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -46,7 +51,17 @@ export const load: PageServerLoad = async ({ parent, locals, url, params }) => {
   if (view.page > pages) redirect(303, to({ page: pages }));
   const multi = tenant.locales.length > 1;
   const first = (view.page - 1) * LIST_PAGE_SIZE;
+  const siteUrl = items.some((i) =>
+    i.publication.some((p) => p.locale === work && p.publishedRevisionId)
+  )
+    ? await adminSiteUrls(principal, tenant.slug)
+    : null;
+  const here = to({});
   return {
+    canWrite: can(principal, 'content:write'),
+    canPublish: can(principal, 'content:publish'),
+    // The list came back from taking an item offline: it says so, in words.
+    offline: url.searchParams.get('done') === 'offline',
     type,
     contentType: type,
     workLocale: work,
@@ -61,6 +76,8 @@ export const load: PageServerLoad = async ({ parent, locals, url, params }) => {
       string,
     ][],
     links: {
+      unpublish: `${here}&/unpublish`,
+      duplicate: `${here}&/duplicate`,
       clear: to({ q: '', status: null, page: 1 }),
       sort: Object.fromEntries(
         LIST_SORTS.map((sort) => [
@@ -84,6 +101,15 @@ export const load: PageServerLoad = async ({ parent, locals, url, params }) => {
           // The title shown is another locale's: it carries that language.
           titleLocale: own ? work : i.title[i.defaultLocale] ? i.defaultLocale : null,
           updated: i.updatedAt,
+          live:
+            siteUrl && p?.publishedRevisionId
+              ? siteUrl(contentPath(i, work, tenant.defaultLocale))
+              : null,
+          // What the live page does not show yet, or there is no live page: the latest revision.
+          preview:
+            p && (!p.publishedRevisionId || p.hasUnpublishedChanges)
+              ? `/admin/${params.tenant}/preview/item/${i.id}?revision=${i.latestRevisionId}&locale=${work}`
+              : null,
           status: !p
             ? ('missing' as const)
             : p.hasUnpublishedChanges
@@ -131,5 +157,53 @@ export const actions: Actions = {
     );
     if ('status' in result) return result;
     redirect(303, `/admin/${event.params.tenant}/content/${result.item.id}`);
+  },
+  // The title says it is a copy in each locale's own words; a title at its limit is cut, so the
+  // copy still has one instead of a refusal the operator cannot act on from the list.
+  duplicate: async (event) => {
+    const result = await act(
+      event,
+      'duplicate',
+      { conflict: 'admin.content.error.invalid', invalid: 'admin.content.error.invalid' },
+      async (principal, form) => {
+        const itemId = String(form.get('item'));
+        const { item } = await runtime().invoker.run(useCases.getItem, principal, { itemId });
+        const title = Object.fromEntries(
+          Object.entries(item.title).map(([locale, text]) => [
+            locale,
+            fill(ui(locale)('admin.content.row.duplicate.title'), { title: text }).slice(0, 200),
+          ])
+        );
+        return runtime().invoker.run(useCases.duplicateItem, principal, { itemId, title });
+      }
+    );
+    if ('status' in result) return result;
+    redirect(303, `/admin/${event.params.tenant}/content/${result.item.id}`);
+  },
+  // Back to the same view at the item's row; a filter the item no longer matches may hide it.
+  unpublish: async (event) => {
+    const type = ContentType.safeParse(event.url.searchParams.get('type')).data ?? 'page';
+    const view = listViewFrom(event.url.searchParams);
+    const result = await act(
+      event,
+      'unpublish',
+      {
+        conflict: 'admin.content.error.invalid',
+        invalid: 'admin.content.publication.error.refused',
+      },
+      async (principal, form) => {
+        const itemId = String(form.get('item'));
+        await runtime().invoker.run(useCases.unpublishItem, principal, {
+          itemId,
+          locale: String(form.get('locale')),
+        });
+        return { itemId };
+      }
+    );
+    if ('status' in result) return result;
+    redirect(
+      303,
+      `${listPath(event.params.tenant, type, view)}&done=offline#item-${result.itemId}`
+    );
   },
 };

@@ -1118,7 +1118,7 @@ test.describe('content-admin', () => {
     // The choice holds for the list: English titles and states, Dutch as a code.
     await page.goto(`/admin/probe/content?type=page&q=${slug}`);
     const row = page.locator('#content-table tbody tr');
-    await expect(row.locator('th')).toHaveText('Only Dutch, now English');
+    await expect(row.locator('th > a')).toHaveText('Only Dutch, now English');
     await expect(row.locator('.ui-badge')).toHaveText('gepubliceerd');
     await expect(row.locator('.ui-locale-codes')).toHaveText('nl');
     // The shell switches back; the list follows.
@@ -1127,7 +1127,7 @@ test.describe('content-admin', () => {
       .getByRole('button', { name: 'nl', exact: true })
       .click();
     await expect(page).toHaveURL(`/admin/probe/content?type=page&q=${slug}`);
-    await expect(row.locator('th')).toHaveText(`${title}!`);
+    await expect(row.locator('th > a')).toHaveText(`${title}!`);
     await expect(row.locator('.ui-badge')).toHaveText('concept');
     await expectNoAxeViolations(page);
   });
@@ -1169,7 +1169,7 @@ test.describe('content-admin', () => {
     );
 
     await login(page, `/admin/probe/content?type=page&q=${word}`);
-    const titles = page.locator('#content-table tbody th');
+    const titles = page.locator('#content-table tbody th > a');
     // Last saved first, and how many the search found.
     await expect(titles).toHaveText([`Één ${word}`, `appel ${word}`, `Brood ${word}`]);
     await expect(page.locator('#content-count')).toHaveText('3 gevonden');
@@ -1194,7 +1194,7 @@ test.describe('content-admin', () => {
     await expectNoAxeViolations(page);
 
     // Into the item and back: the same search, status and order, at the item's own row.
-    await titles.getByRole('link').click();
+    await titles.click();
     await expect(page).toHaveURL(`/admin/probe/content/${first.id}`);
     await page.locator('.ui-item-bar-back').click();
     const back = new URL(page.url());
@@ -2129,7 +2129,7 @@ test.describe('an editor with unsaved rich text survives a look at the list', ()
     const enteredFromList = async () => {
       const page = await session();
       await page.goto(filtered);
-      await page.locator('#content-table tbody th').getByRole('link').click();
+      await page.locator('#content-table tbody th > a').click();
       await expect(page).toHaveURL(edit);
       await expect(page.locator(WRITER).first()).toBeVisible();
       return page;

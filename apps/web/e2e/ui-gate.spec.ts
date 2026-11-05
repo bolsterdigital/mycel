@@ -726,6 +726,9 @@ test.describe('admin-shell', () => {
       .click();
     await expect(page.locator('#content-table tbody tr')).toHaveCount(0);
     await checkShell(page, 'Second editorial site', 'Pages');
+    // An empty list offers the next step once, where the reader is looking.
+    await expect(page.getByRole('heading', { name: 'No pages yet.' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'New page' })).toHaveCount(1);
     await expect(page.locator('body')).not.toContainText('Probe');
   });
 
@@ -736,7 +739,7 @@ test.describe('admin-shell', () => {
     await checkShell(page, 'Probe', 'Dashboard');
     await expect(page.locator('.admin-menu > summary')).toBeHidden();
     await expect(page.locator('.ui-dashboard > .ui-widget')).toHaveCount(6);
-    await expect(page.locator('.ui-widget.empty')).toHaveCount(5);
+    await expect(page.locator('.ui-widget.empty')).toHaveCount(3);
     // Two columns on a wide screen, never three (brief edit-screen § 4).
     expect(
       await page
@@ -748,6 +751,9 @@ test.describe('admin-shell', () => {
     await expect(page.getByRole('region', { name: 'Usage and limits' })).toContainText(
       'Supporters'
     );
+    await expect(
+      page.getByRole('region', { name: 'Recently edited' }).getByRole('listitem')
+    ).toHaveCount(5);
     await expect(page.getByRole('region', { name: 'Waiting for you' })).toContainText(
       'Coming later.'
     );
