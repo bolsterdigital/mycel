@@ -108,6 +108,25 @@ jobs:
             echo "$changed"; exit 1
           fi
 
+      # The nine font packages `--with-deps` adds came from the Ubuntu mirror in 16 s or in over nine
+      # minutes, inside the step limit below, so a slow mirror failed the job with no test red. apt
+      # checks a cached .deb against its signed index and fetches again on a mismatch, so this adds
+      # no trust, and a failed restore only means the old download.
+      # Rejected: a higher step limit (hides a hang), dropping the fonts (rendering may change).
+      - name: Restore browser system packages
+        id: browser-debs
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/browser-debs
+          key: browser-debs-${{ runner.os }}-${{ env.ImageOS }}-v1
+
+      - name: Hand restored packages to apt
+        run: |
+          mkdir -p ~/browser-debs
+          find ~/browser-debs -name '*.deb' -exec sudo cp -t /var/cache/apt/archives {} +
+
       # One execution deadline includes install/migration, leaving time to retain evidence.
       - name: Static, adapter and unit checks
         timeout-minutes: 12
@@ -124,6 +143,10 @@ jobs:
           npx playwright install --with-deps chromium
           npm run migrate -w @mycel/db
           npm run verify:checks
+
+      - name: Keep downloaded packages for the cache
+        if: steps.browser-debs.outputs.cache-hit != 'true'
+        run: find /var/cache/apt/archives -maxdepth 1 -name '*.deb' -exec cp -t ~/browser-debs {} +
 
       - name: Upload check evidence
         if: always()
@@ -180,6 +203,21 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      # Same packages and reasons as in `checks`.
+      - name: Restore browser system packages
+        id: browser-debs
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/browser-debs
+          key: browser-debs-${{ runner.os }}-${{ env.ImageOS }}-v1
+
+      - name: Hand restored packages to apt
+        run: |
+          mkdir -p ~/browser-debs
+          find ~/browser-debs -name '*.deb' -exec sudo cp -t /var/cache/apt/archives {} +
+
       - name: Build and run browser project
         timeout-minutes: 12
         run: |
@@ -196,6 +234,10 @@ jobs:
           npm run build
           # List emits each completed test and duration immediately, even if a later test hangs.
           npm run test:e2e -- --project=${{ matrix.project }} --reporter=list
+
+      - name: Keep downloaded packages for the cache
+        if: steps.browser-debs.outputs.cache-hit != 'true'
+        run: find /var/cache/apt/archives -maxdepth 1 -name '*.deb' -exec cp -t ~/browser-debs {} +
 
       - name: Upload browser evidence
         if: always()

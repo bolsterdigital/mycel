@@ -118,6 +118,24 @@ test('local verify and CI cover every original command and both existing browser
   );
 });
 
+// A slow Ubuntu mirror cost a whole job with no test red. The cached packages must arrive before
+// the install, and a broken cache must fall back to the download instead of failing the job.
+test('browser system packages reach apt from a cache before the install, in every job that installs', () => {
+  const jobs = jobsOf(verifyWorkflow());
+  for (const name of ['checks', 'browsers']) {
+    const steps = stepsOf(jobs[name]);
+    const at = (pattern) => steps.findIndex((s) => pattern.test(s));
+    const restore = at(/name: Restore browser system packages/);
+    const hand = at(/name: Hand restored packages to apt/);
+    const install = at(/playwright install --with-deps chromium/);
+    const keep = at(/name: Keep downloaded packages for the cache/);
+    assert.ok(restore >= 0 && restore < hand && hand < install && install < keep, name);
+    assert.match(steps[restore], /continue-on-error: true/);
+    assert.match(steps[restore], /timeout-minutes: 1\b/);
+    assert.match(steps[keep], /cache-hit != 'true'/);
+  }
+});
+
 test('checks install their measured-DOM runtime before running infrastructure gates', () => {
   const job = jobsOf(verifyWorkflow()).checks;
   const execution = stepsOf(job).find((s) => /timeout-minutes: 12/.test(s));
