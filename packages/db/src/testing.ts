@@ -6,7 +6,7 @@
 //
 // Test hygiene for suites that share one database (TODO #32). A suite that submits a form leaves
 // outbox rows a worker has not drained and jobs nobody runs; on a database that outlives the run
-// (a laptop, dev-server-1) the next worker on it, the e2e one included, picks them up: it sends
+// (a laptop, a dev server) the next worker on it, the e2e one included, picks them up: it sends
 // their confirmations and plans a `mail.reconcile` per mail, which pile up ahead of
 // recovery.test's claim. CI never sees it, its database is fresh. Every such suite calls
 // `closeTenantWork` in `afterAll` with the tenants it created: a suite closes its own work and
@@ -24,7 +24,7 @@ import { migrate } from './infra/migrate.js';
 import { createTenant, ensureTenant, type NewTenant, type PlatformTenant } from './platform.js';
 import { uuidv7 } from './infra/ids.js';
 import type { Database } from './infra/schema.js';
-import { asRole } from './infra/roles.js';
+import { asRole, enterTenant } from './infra/roles.js';
 
 /** A role switch for suites in other packages, through the one helper (`db-roles` ratchet). */
 export { asRole } from './infra/roles.js';
@@ -81,6 +81,58 @@ export function testTenant(
     { ...memoryPlatform, domain: platformDomain },
     testPlatformActor
   );
+}
+
+/**
+ * Gives an item a latest revision whose document no longer validates, as a stricter schema would
+ * leave it, through the application login (revisions are immutable there, so a new one). The
+ * function it returns points the item back at its previous revision; a suite on a database that
+ * outlives the run calls it.
+ */
+export async function breakLatestDocument(
+  appDb: Kysely<Database>,
+  tenantId: string,
+  itemId: string,
+  document: object = { blocks: [{ id: 'gone', type: 'no-such-block', version: 1, props: {} }] }
+): Promise<() => Promise<void>> {
+  const inTenant = <T>(fn: (trx: Kysely<Database>) => Promise<T>) =>
+    appDb.transaction().execute(async (trx) => {
+      await enterTenant(trx, tenantId);
+      return fn(trx);
+    });
+  const point = (trx: Kysely<Database>, revisionId: string) =>
+    trx
+      .updateTable('content_items')
+      .set({ latest_revision_id: revisionId })
+      .where('id', '=', itemId)
+      .execute();
+  const previous = await inTenant(async (trx) => {
+    const { latest_revision_id } = await trx
+      .selectFrom('content_items')
+      .select('latest_revision_id')
+      .where('id', '=', itemId)
+      .executeTakeFirstOrThrow();
+    const stored = await trx
+      .selectFrom('content_revisions')
+      .select(['document', 'actor'])
+      .where('id', '=', latest_revision_id)
+      .executeTakeFirstOrThrow();
+    const id = uuidv7();
+    await trx
+      .insertInto('content_revisions')
+      .values({
+        id,
+        tenant_id: tenantId,
+        item_id: itemId,
+        document: JSON.stringify({ ...(stored.document as object), ...document }),
+        actor: JSON.stringify(stored.actor),
+        created_at: new Date(),
+      })
+      .execute();
+    await point(trx, id);
+    return latest_revision_id;
+  });
+  return () => inTenant((trx) => point(trx, previous)).then(() => undefined);
 }
 
 /**

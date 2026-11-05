@@ -5,7 +5,7 @@
 
 import { NO_STORE } from '#lib/server/http/http-cache.js';
 import { requireSite, sitePath } from '#lib/server/site.js';
-import { siteTheme, themePath } from '#lib/server/theme.js';
+import { siteTheme, themePath } from '#lib/server/public/theme.js';
 import type { RequestHandler } from './$types';
 import { refuse } from '#lib/server/http/refuse.js';
 

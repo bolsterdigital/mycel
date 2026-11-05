@@ -29,8 +29,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { earlyInput } from '#lib/editor/early-input.js';
+  import PublicationDrawer from '#lib/admin/ui/feedback/PublicationDrawer.svelte';
   import WritingSurface from '#lib/editor/WritingSurface.svelte';
+  import ItemTitleField from '#lib/editor/ItemTitleField.svelte';
   import BlockFields from '#lib/admin/BlockFields.svelte';
+  import HeroAltRow from '#lib/admin/hero-alt/HeroAltRow.svelte';
   import Diff from '#lib/admin/Diff.svelte';
   import Inherited from '#lib/admin/Inherited.svelte';
   import { issueLabel } from '#lib/admin/issue-label.js';
@@ -40,6 +43,7 @@
     Badge,
     BlockCard,
     BlockImage,
+    BlockInserter,
     BlockSummary,
     BlockText,
     Button,
@@ -60,7 +64,7 @@
     StatusCard,
     Tabs,
   } from '#lib/admin/ui/index.js';
-  import { BLOCK_PRESENTATION } from '#lib/admin/block-presentation.js';
+  import { BLOCK_ICONS, BLOCK_PRESENTATION, blockName } from '#lib/admin/block-presentation.js';
   import { pickAny, BLOCK_DEFINITIONS, pick, type BlockType, type MediaCredit } from '@mycel/core';
   import { fill, ui, type UiKey, refusalCopy } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
@@ -106,12 +110,16 @@
   const authors = $derived((form && 'authors' in form ? form.authors : null) ?? data.authors);
   const sections = $derived((form && 'sections' in form ? form.sections : null) ?? data.sections);
   const pending = $derived(form && 'pending' in form ? form.pending : data.pending);
-  const issues = $derived<{ name: string; copy: string }[]>(
+  const issues = $derived<{ name: string; list?: string; copy: string }[]>(
     form && 'fieldIssues' in form ? (form.fieldIssues ?? []) : []
   );
   const docLocales = $derived(list('locales'));
   /** The one locale the screen shows (#66 PR 4); its fields only, while the item has it. */
   const work = $derived(data.workLocale);
+  // A named action replaces the query. Carry the displayed locale on every post so a refusal
+  // reloads the same language, even for a direct link without a remembered locale choice.
+  // Rejected: changing the cookie on a view-only link or fixing only the Save button.
+  const action = (name: string) => `?/${name}&locale=${encodeURIComponent(work)}`;
   const shown = $derived(data.translating ? [] : [work]);
   /** The site has more than one locale: the switch shows (table stake 13). */
   const multi = $derived(data.translations.length > 1);
@@ -165,6 +173,9 @@
     })
   );
 
+  const languageName = (locale: string) =>
+    new Intl.DisplayNames([locale], { type: 'language' }).of(locale) ?? locale;
+
   type Publication = (typeof data.item.publication)[number];
   type Tone = 'neutral' | 'info' | 'success' | 'warning';
   /** A locale's state in words (brief edit-screen table stake 8). */
@@ -183,6 +194,14 @@
       return { text: t('admin.content.state.offline'), tone: 'neutral' };
     return { text: t('admin.content.state.draft'), tone: 'neutral' };
   };
+  const compactStateOf = (p: Publication): string =>
+    p.live
+      ? t(p.changes ? 'admin.content.state.short.changed' : 'admin.content.state.short.live')
+      : p.pin
+        ? t('admin.content.state.short.pinned')
+        : t(
+            p.status === 'unpublished' ? 'admin.content.state.offline' : 'admin.content.state.draft'
+          );
 
   /** The document fields a refused save can name (`documentFieldIssues`), with their label. */
   const DOC_FIELDS: Record<string, UiKey> = {
@@ -196,10 +215,20 @@
     slug: 'admin.content.slug',
     heroAlt: 'admin.content.field.heroAlt',
   };
+  /** A stored value: a refused post carries only the locale on screen. */
+  const saved = (k: string): string => {
+    const x = data.values[k];
+    return typeof x === 'string' ? x : '';
+  };
   /** Whether a refused save named this field. */
   const flagged = (name: string) => issues.some((i) => i.name === name);
-  /** A field name as words: a document field's label, or a block field's plus its locale. */
-  const fieldLabel = (name: string): string => {
+  /** A refused save, or a refused publish, which names its issues with a link instead (#158). */
+  const heroAltRefused = $derived(
+    flagged('heroAlt') ||
+      !!(form && 'issues' in form && form.issues?.some((i) => i.field === 'heroAlt'))
+  );
+  /** A field name as words: a document field's label, a block field's plus its locale, a list's. */
+  const fieldLabel = (name: string, list = false): string => {
     if (name in DOC_FIELDS) return t(DOC_FIELDS[name]!);
     const parts = name
       .replace(/^(b\.[^.]+|new)\./, '')
@@ -207,7 +236,9 @@
       .slice(1);
     const locale = data.docLocales.includes(parts.at(-1) ?? '') ? parts.pop() : null;
     const key = [...parts].reverse().find((p) => !/^\d+$/.test(p) && p !== 'mode');
-    const label = key ? t(`admin.block.field.${key}` as UiKey) : t('admin.block.title');
+    const label = key
+      ? t(`admin.block.${list ? 'list' : 'field'}.${key}` as UiKey)
+      : t('admin.block.title');
     return locale ? `${label} (${locale})` : label;
   };
   /** The element id of a block field: `b-<block id>-p-…`, `b-new-p-…` for the pending block. */
@@ -258,7 +289,24 @@
     edit: t('admin.block.card.edit'),
     done: t('admin.block.card.done'),
     more: t('admin.block.card.more'),
+    block: t('admin.block.card.block'),
+    collapse: t('admin.block.card.collapse'),
+    expand: t('admin.block.card.expand'),
   });
+  /** A locale where this block keeps the item from being ready: the shown one first (#159). */
+  const notReadyIn = (id: string): string | undefined => {
+    const has = (p: Publication) => p.issues.some((x) => x.field === `block-${id}`);
+    const locales = data.item.publication.filter(has).map((p) => p.locale);
+    return locales.includes(work) ? work : locales[0];
+  };
+  /** The one notice a card's head carries: what the last save refused, else what readiness says. */
+  const blockNotice = (id: string, refused: boolean): string => {
+    if (refused) return t('admin.block.card.refused');
+    const locale = notReadyIn(id);
+    if (!locale) return '';
+    const language = new Intl.DisplayNames([data.locale], { type: 'language' }).of(locale);
+    return fill(t('admin.block.card.notReady'), { locale: language ?? locale });
+  };
   const groupLabels = $derived({
     display: t('admin.block.group.display'),
     source: t('admin.block.group.source'),
@@ -275,6 +323,7 @@
     data.blockTypes.map((type) => ({
       value: type,
       label: t(`admin.block.type.${type}` as const),
+      icon: BLOCK_ICONS[type],
     }))
   );
 </script>
@@ -383,8 +432,11 @@
           <li>{fill(t('admin.content.heroConversion.layout'), { variant: c.layout.variant })}</li>
         {/if}
       </ul>
-      <Button variant="secondary" formaction="?/convertHero" name="convertHero" value={c.heroId}
-        >{t('admin.content.heroConversion.action')}</Button
+      <Button
+        variant="secondary"
+        formaction={action('convertHero')}
+        name="convertHero"
+        value={c.heroId}>{t('admin.content.heroConversion.action')}</Button
       >
     {/if}
   </Notice>
@@ -404,10 +456,9 @@
 
 {#snippet pendingCard(p: NonNullable<typeof pending>)}
   <section id="block-new" class="ui-panel pending" aria-labelledby="block-new-title">
-    <h4 id="block-new-title">
+    <h3 id="block-new-title">
       {fill(t('admin.block.new'), { type: t(`admin.block.type.${p.type}` as const) })}
-    </h4>
-    <p class="ui-hint">{t('admin.block.new.hint')}</p>
+    </h3>
     {#each Object.entries(p.hidden) as [name, value] (name)}
       <input type="hidden" {name} {value} />
     {/each}
@@ -430,8 +481,8 @@
       locale={data.locale}
     />
     <Actions>
-      <Button formaction="?/save">{t('admin.block.new.add')}</Button>
-      <Button variant="secondary" formaction="?/discard" formnovalidate
+      <Button formaction={action('save')}>{t('admin.block.new.add')}</Button>
+      <Button variant="secondary" formaction={action('discard')} formnovalidate
         >{t('admin.block.new.discard')}</Button
       >
     </Actions>
@@ -440,6 +491,8 @@
 
 {#snippet blockRest(b: (typeof data.blocks)[number])}
   {#snippet picture(img: NonNullable<typeof b.image>, field: string)}
+    {@const prefix = `b.${b.id}.p.${b.type === 'hero' ? 'image.' : ''}`}
+    {@const values = blockValues(b)}
     <BlockImage
       src={img.card ? `${base}/media/${img.mediaId}/variant/${img.card.file}` : null}
       width={img.card?.width ?? 4}
@@ -449,6 +502,17 @@
       credit={img.credit ? creditLine(img.credit) : null}
       missing={fill(t('admin.block.image.missing'), { file: img.label })}
       replace={{ href: `#b-${b.id}-p-${field}`, label: t('admin.block.image.replace') }}
+      thumbSrc={thumbPath(base, img.mediaId)}
+      previewLabel={t('admin.block.image.preview')}
+      alt={{
+        text: values[`${prefix}alt.${work}`] ?? '',
+        decorative: values[`${prefix}decorative`] === 'on',
+        from: `${prefix}alt.${work}`,
+        decorativeFrom: `${prefix}decorative`,
+        label: t('admin.block.field.alt'),
+        decorativeLabel: t('admin.block.image.decorative'),
+        missingLabel: t('admin.block.image.altMissing'),
+      }}
     />
   {/snippet}
   {#if BLOCK_PRESENTATION[b.type].rest === 'image' && b.image}
@@ -504,7 +568,13 @@
   <BlockCard
     id="block-{b.id}"
     class="block"
-    title="{i + 1}. {t(`admin.block.type.${b.type}` as const)}"
+    number={i + 1}
+    type={t(`admin.block.type.${b.type}` as const)}
+    icon={BLOCK_ICONS[b.type]}
+    name={blockName(b)}
+    nameIfEmpty={b.type === 'image' ? b.image?.label : ''}
+    nameLang={work}
+    notice={blockNotice(b.id, refused)}
     editable={BLOCK_DEFINITIONS[b.type].fields.length > 0}
     open={refused ||
       data.openBlocks.includes(b.id) ||
@@ -514,24 +584,48 @@
     {#snippet rest()}{@render blockRest(b)}{/snippet}
     {#snippet actions()}
       {#if data.canWrite}
+        {#if !pending}
+          <a
+            class="ui-block-card-action"
+            href={data.blocks[i + 1] ? `#insert-${data.blocks[i + 1]!.id}-body` : '#insert-end'}
+            data-insert-below="insert-{data.blocks[i + 1]?.id ?? 'end'}"
+            ><Icon name="plus" />{t('admin.block.card.insertBelow')}</a
+          >
+        {/if}
         {#if i > 0}
-          <Button variant="secondary" formaction="?/move" name="move" value="{b.id}:up"
-            >{t('admin.block.move.up')}</Button
+          <button
+            class="ui-block-card-action"
+            type="submit"
+            formaction={action('move')}
+            name="move"
+            value="{b.id}:up"><Icon name="arrow-up" />{t('admin.block.move.up')}</button
           >
         {/if}
         {#if i < data.blocks.length - 1}
-          <Button variant="secondary" formaction="?/move" name="move" value="{b.id}:down"
-            >{t('admin.block.move.down')}</Button
+          <button
+            class="ui-block-card-action"
+            type="submit"
+            formaction={action('move')}
+            name="move"
+            value="{b.id}:down"><Icon name="arrow-down" />{t('admin.block.move.down')}</button
           >
         {/if}
         {#if b.duplicable}
-          <Button variant="secondary" formaction="?/duplicate" name="duplicate" value={b.id}
-            >{t('admin.block.duplicate')}</Button
+          <button
+            class="ui-block-card-action"
+            type="submit"
+            formaction={action('duplicate')}
+            name="duplicate"
+            value={b.id}><Icon name="copy" />{t('admin.block.duplicate')}</button
           >
         {/if}
         <!-- No confirmation: the notice after it offers "Undo" (#66 PR 6c). -->
-        <Button variant="danger" formaction="?/remove" name="remove" value={b.id}
-          >{t('admin.block.remove.short')}</Button
+        <button
+          class="ui-block-card-action danger"
+          type="submit"
+          formaction={action('remove')}
+          name="remove"
+          value={b.id}><Icon name="trash-2" />{t('admin.block.remove.short')}</button
         >
       {/if}
     {/snippet}
@@ -571,36 +665,19 @@
   </BlockCard>
 {/snippet}
 
-<!-- Filters the block type list next to it; only with JavaScript (the screen's script shows it),
-     since a native select already jumps to a typed first letter. Without a name it posts nothing. -->
-{#snippet typeSearch(id: string)}
-  <div class="ui-field" data-type-search data-none={t('admin.block.insert.none')} hidden>
-    <label for="insert-search-{id}">{t('admin.block.insert.search')}</label>
-    <input
-      id="insert-search-{id}"
-      type="search"
-      autocomplete="off"
-      aria-describedby="insert-search-{id}-hint"
-    />
-    <p class="ui-hint" id="insert-search-{id}-hint">{t('admin.block.insert.searchHint')}</p>
-  </div>
-{/snippet}
-
-{#snippet inserter(b: (typeof data.blocks)[number])}
-  <details class="ui-block-insert">
+{#snippet inserter(b: (typeof data.blocks)[number], i: number)}
+  <details class="ui-block-insert" id="insert-{b.id}">
     <summary><Icon name="plus" />{t('admin.block.insert.fold')}</summary>
-    <div class="ui-block-insert-body">
-      {@render typeSearch(b.id)}
-      <Select
-        id="insert-type-{b.id}"
-        name="insertType.{b.id}"
-        label={t('admin.block.insert.type')}
+    <!-- The link's target: a fragment opens the details around it, not the details it names. -->
+    <div class="ui-block-insert-body" id="insert-{b.id}-body">
+      <BlockInserter
+        id={b.id}
+        place="before:{b.id}"
+        label={fill(t('admin.block.insert.location.before'), { n: String(i + 1) })}
         locale={data.locale}
         options={blockTypeOptions}
+        action="?/insert&locale={work}"
       />
-      <Button variant="secondary" formaction="?/insert" name="insert" value="before:{b.id}"
-        >{t('admin.block.insert.here')}</Button
-      >
     </div>
   </details>
 {/snippet}
@@ -614,11 +691,11 @@
       <input type="hidden" name="translateTo" value={work} />
       <Actions>
         {#each sources as source (source)}
-          <Button formaction="?/startTranslation" name="from" value={source}
+          <Button formaction={action('startTranslation')} name="from" value={source}
             >{fill(t('admin.locale.translate.copy'), { locale: source })}</Button
           >
         {/each}
-        <Button variant="secondary" formaction="?/startTranslation" name="from" value=""
+        <Button variant="secondary" formaction={action('startTranslation')} name="from" value=""
           >{t('admin.locale.translate.empty')}</Button
         >
       </Actions>
@@ -644,22 +721,12 @@
        the big title field already says where the header starts. -->
   <section aria-labelledby="item-header" class="item-header">
     <h3 id="item-header" class="ui-visually-hidden">{t('admin.content.header.title')}</h3>
-    <div class="ui-field">
-      <label class="ui-visually-hidden" for="title.{work}"
-        >{t('admin.content.edit.titleLabel')}</label
-      >
-      <input
-        class="ui-title-input"
-        size="1"
-        id="title.{work}"
-        name="title.{work}"
-        type="text"
-        maxlength="200"
-        required={work === defaultLocale}
-        value={v(`title.${work}`)}
-        lang={work}
-      />
-    </div>
+    <ItemTitleField
+      locale={work}
+      label={t('admin.content.edit.titleLabel')}
+      value={v(`title.${work}`)}
+      required={work === defaultLocale}
+    />
     {@render translateLinks('title', 'title', work, t('admin.content.field.title'))}
     {@render area(`lead.${work}`, t('admin.content.field.lead'), 1000)}
     {@render translateLinks('lead', 'lead', work, t('admin.content.field.lead'))}
@@ -673,59 +740,24 @@
       options={data.media}
       {base}
       upload={data.upload}
-    />
-    {#if v('heroImageId')}
-      <!-- #99: the hero's use, like an image block's: decorative, or described per locale. The
-         screen's script hides the empty alt while the box is ticked (data-alt-of). The marker
-         tells the server the box was on the form, so an unticked box is not a box never shown.
-         A rare choice (MY-110 B3): folded while the image is decorative and nothing is wrong. -->
-      <input type="hidden" name="heroAltShown" value="1" />
-      <details
-        class="ui-fold item-hero-alt"
-        open={v('heroDecorative') !== 'on' || flagged('heroAlt')}
-      >
-        <summary>{t('admin.content.field.heroAltFold')}</summary>
-        <Checkbox
-          id="heroDecorative"
-          name="heroDecorative"
-          label={t('admin.block.field.decorative')}
-          hint={t('admin.content.field.heroDecorativeHint')}
-          checked={v('heroDecorative') === 'on'}
+    >
+      {#snippet related()}
+        <HeroAltRow
+          locale={data.locale}
+          {work}
+          locales={docLocales}
+          image={v('heroImageId')}
+          savedImage={saved('heroImageId')}
+          text={v(`heroAlt.${work}`)}
+          savedText={saved(`heroAlt.${work}`)}
+          others={Object.fromEntries(
+            docLocales.filter((l) => l !== work).map((l) => [l, saved(`heroAlt.${l}`)])
+          )}
+          clearing={v('heroDecorative') === 'on'}
+          flagged={heroAltRefused}
         />
-        <div class="ui-block-alt" data-alt-of="heroDecorative">
-          <Field
-            id="heroAlt"
-            label={t('admin.content.field.heroAlt')}
-            locale={data.locale}
-            invalid={flagged('heroAlt')}
-          >
-            {#snippet control(attributes)}
-              <textarea name="heroAlt.{work}" maxlength="1000" rows="2" lang={work} {...attributes}
-                >{v(`heroAlt.${work}`)}</textarea
-              >
-            {/snippet}
-          </Field>
-        </div>
-      </details>
-    {/if}
-    {#if article}
-      <Select
-        id="headerLayout"
-        name="headerLayout"
-        label={t('admin.content.field.headerLayout')}
-        hint={t('admin.content.field.headerLayoutHint')}
-        locale={data.locale}
-        value={v('headerLayout') || 'standard'}
-        options={[
-          { value: 'standard', label: t('admin.content.headerLayout.standard') },
-          { value: 'cover', label: t('admin.content.headerLayout.cover') },
-        ]}
-      />
-      {#if v('headerLayout') === 'cover' && !v('heroImageId')}
-        <Notice tone="warning" live={false}><p>{t('admin.content.headerLayout.noImage')}</p></Notice
-        >
-      {/if}
-    {/if}
+      {/snippet}
+    </MediaPicker>
     {#if data.heroConversion}
       <div id="hero-conversion">{@render heroConversion(data.heroConversion)}</div>
     {/if}
@@ -757,7 +789,9 @@
           locale={data.locale}
           options={data.patterns.map((p) => ({ value: p.id, label: p.name }))}
         />
-        <Button variant="secondary" formaction="?/pattern">{t('admin.content.new.pattern')}</Button>
+        <Button variant="secondary" formaction={action('pattern')}
+          >{t('admin.content.new.pattern')}</Button
+        >
       {/if}
     {/if}
     {#if outline.length}
@@ -767,8 +801,20 @@
         entries={outline}
       />
     {/if}
+    <!-- Above the blocks, outside the writer's document; the script reveals it, as without
+         JavaScript nothing collapses. Only with a card to act on: an article's prose has none. -->
+    {#if data.blocks.some((b) => !(article && data.canWrite && b.type === 'rich-text'))}
+      <div class="ui-block-card-bar" data-block-bar hidden>
+        <button type="button" data-block-all="collapse"
+          ><Icon name="chevron-up" />{t('admin.block.card.collapseAll')}</button
+        >
+        <button type="button" data-block-all="expand"
+          ><Icon name="chevron-down" />{t('admin.block.card.expandAll')}</button
+        >
+      </div>
+    {/if}
     {#each data.blocks as b, i (b.id)}
-      {#if data.canWrite && !pending}{@render inserter(b)}{/if}
+      {#if data.canWrite && !pending}{@render inserter(b, i)}{/if}
       {#if pending?.place === 'before' && pending.anchor === b.id}{@render pendingCard(
           pending
         )}{/if}
@@ -783,21 +829,18 @@
     {/each}
     {#if pending?.place === 'end'}{@render pendingCard(pending)}{/if}
     {#if data.canWrite}
-      <Fieldset legend={t('admin.block.add')}>
-        {@render typeSearch('end')}
-        <Select
-          id="insert-type-end"
-          name="insertType.end"
-          label={t('admin.block.insert.type')}
-          locale={data.locale}
-          options={blockTypeOptions}
-        />
-        <Actions>
-          <Button variant="secondary" formaction="?/insert" name="insert" value="end"
-            >{t('admin.block.add.go')}</Button
-          >
-        </Actions>
-      </Fieldset>
+      <div id="insert-end">
+        <Fieldset legend={t('admin.block.add')}>
+          <BlockInserter
+            id="end"
+            place="end"
+            label={t('admin.block.insert.end')}
+            locale={data.locale}
+            options={blockTypeOptions}
+            action="?/insert&locale={work}"
+          />
+        </Fieldset>
+      </div>
     {/if}
   </section>
 {/snippet}
@@ -968,10 +1011,11 @@
   {@const state = stateOf(p)}
   <StatusCard
     id="publication-{p.locale}"
-    title={t('admin.content.edit.side')}
+    title={languageName(p.locale)}
+    variant="panel"
     state={state.text}
     tone={state.tone}
-    level={2}
+    level={3}
   >
     {#if data.restricted}
       <Notice tone="warning" live={false}><p>{t('admin.content.publication.restricted')}</p></Notice
@@ -998,7 +1042,7 @@
       {#if data.canPublish}
         <div class="translation-approval">
           <Actions stack>
-            <Button formaction="?/approveTranslation" name="locale" value={p.locale}
+            <Button formaction={action('approveTranslation')} name="locale" value={p.locale}
               >{fill(t('admin.assist.approve'), { locale: p.locale })}</Button
             >
           </Actions>
@@ -1010,39 +1054,34 @@
     {/if}
     {#snippet actions()}
       {#if data.canPublish && (!p.live || p.changes || (p.pin && !p.pin.revision.latest))}
-        <Button formaction="?/publish" name="locale" value={p.locale}
+        <Button formaction={action('publish')} name="locale" value={p.locale}
           >{t(
             p.live ? 'admin.content.action.publishChanges' : 'admin.content.action.publish'
           )}</Button
         >
       {/if}
       {#if p.href}
-        <Button
-          variant={p.live && !p.changes ? 'primary' : 'secondary'}
-          href={p.href}
-          aria-describedby="new-tab"
-          target="_blank">{t('admin.content.action.view')}</Button
+        <Button variant="link" href={p.href} aria-describedby="new-tab" target="_blank"
+          ><Icon name="external-link" />{t('admin.content.action.view')}</Button
         >
       {/if}
       {#if data.canPublish && p.pin && !p.pin.revision.latest}
-        <Button variant="secondary" formaction="?/repin" name="locale" value={p.locale}
+        <Button variant="secondary" formaction={action('repin')} name="locale" value={p.locale}
           >{t('admin.content.action.repin')}</Button
         >
       {/if}
       {#if data.canPublish && p.pin}
-        <Button variant="secondary" formaction="?/unschedule" name="locale" value={p.locale}
+        <Button variant="secondary" formaction={action('unschedule')} name="locale" value={p.locale}
           >{t('admin.content.action.unschedule')}</Button
-        >
-      {/if}
-      {#if data.canPublish && p.live}
-        <Button variant="secondary" formaction="?/unpublish" name="locale" value={p.locale}
-          >{t('admin.content.action.unpublish')}</Button
         >
       {/if}
     {/snippet}
     {#snippet more()}
       {#if data.canPublish}
-        <details class="ui-fold" open={form && 'locale' in form && form.locale === p.locale}>
+        <details
+          class="ui-fold ui-publication-option"
+          open={form && 'locale' in form && form.locale === p.locale}
+        >
           <summary>{t('admin.content.action.scheduleFold')}</summary>
           <Field
             id="at.{p.locale}"
@@ -1056,14 +1095,55 @@
             value={p.pin?.input ?? ''}
           />
           <Actions stack>
-            <Button variant="secondary" formaction="?/schedule" name="locale" value={p.locale}
-              >{t('admin.content.action.schedule')}</Button
+            <Button
+              variant="secondary"
+              formaction={action('schedule')}
+              name="locale"
+              value={p.locale}>{t('admin.content.action.schedule')}</Button
             >
           </Actions>
         </details>
       {/if}
+      {#if data.canPublish && p.live}
+        <details class="ui-fold ui-publication-option">
+          <summary>{t('admin.content.action.unpublish')}</summary>
+          <p class="ui-hint">{t('admin.content.publication.offlineHint')}</p>
+          <Button
+            variant="secondary"
+            formaction={action('unpublish')}
+            name="locale"
+            value={p.locale}>{t('admin.content.action.unpublish')}</Button
+          >
+        </details>
+      {/if}
     {/snippet}
   </StatusCard>
+{/snippet}
+
+{#snippet refusalNotice()}
+  {#if form && !form.conflict && !recovered}
+    <Notice tone="error" title={t('error.summary.title')}>
+      {#if issues.length}
+        <p>{refusalCopy(t, form)}</p>
+        <ul>
+          {#each issues as i (i.name + i.copy)}
+            <li>
+              {#if i.name}<a href="#{fieldId(i.name)}">{fieldLabel(i.list ?? i.name, !!i.list)}</a
+                >:{' '}
+              {/if}{t(i.copy as UiKey)}
+            </li>
+          {/each}
+        </ul>
+      {:else if 'issues' in form && form.issues?.length}
+        <p>
+          {fill(t('admin.content.publication.error.refused'), { locale: form.locale ?? '' })}
+        </p>
+        {@render issueList(form.issues ?? [])}
+      {:else}
+        <p>{refusalCopy(t, form)}</p>
+      {/if}
+    </Notice>
+  {/if}
 {/snippet}
 
 <EditPage
@@ -1073,7 +1153,7 @@
   form={{
     id: 'item-edit',
     method: 'post',
-    action: '?/save',
+    action: action('save'),
     'data-live-preview-source': '',
     'data-restore': data.restore ?? undefined,
     'data-restore-operator': data.operatorId ?? undefined,
@@ -1085,20 +1165,25 @@
          without this one that is the bar's locale switch, which saves and then switches. -->
     <button
       form="item-edit"
-      formaction="?/save"
+      formaction={action('save')}
       class="ui-default-submit"
       tabindex="-1"
       aria-hidden="true">{t('admin.content.edit.save')}</button
     >
     <ItemBar
+      compact
+      locale={data.locale}
       back={{
-        href: `${base}/content?type=${data.item.type}`,
+        href: data.listPath,
         label: t(article ? 'admin.content.filter.article' : 'admin.content.filter.page'),
       }}
       title={fill(t('admin.content.edit.title'), { type: typeName })}
-      state={state?.text ??
-        (data.translating ? fill(t('admin.locale.translate.title'), { locale: work }) : undefined)}
-      stateHref={mainPublication ? `#publication-${mainPublication.locale}` : undefined}
+      state={mainPublication
+        ? compactStateOf(mainPublication)
+        : data.translating
+          ? fill(t('admin.locale.translate.title'), { locale: work })
+          : undefined}
+      stateDetail={state?.text}
       tone={state?.tone}
       save={data.canWrite
         ? {
@@ -1121,7 +1206,7 @@
             label={t('admin.locale.switch')}
             locale={data.locale}
             form="item-edit"
-            formaction="?/switchLocale"
+            formaction={action('switchLocale')}
             locales={data.translations.map((x) => ({ ...x, current: x.locale === work }))}
           />
         {/if}
@@ -1146,15 +1231,26 @@
             href={previewHref(work)}
             target="_blank"
             aria-describedby="new-tab"
-            data-preview-link={work}>{t('admin.content.edit.previewShort')}</Button
+            data-preview-link={work}
+            ><Icon name="external-link" />{t('admin.content.edit.previewShort')}</Button
           >
         {/if}
-        <Button form="item-edit" formaction="?/save">{t('admin.content.edit.save')}</Button>
+      {/snippet}
+      {#snippet dock()}
+        <Button variant="secondary" form="item-edit" formaction={action('save')}
+          >{t('admin.content.edit.save')}</Button
+        >
+        {#if mainPublication || others.length}<Button href="#publication-panel"
+            >{t('admin.content.action.openPublication')}</Button
+          >{/if}
       {/snippet}
     </ItemBar>
   {/snippet}
 
   {#snippet notices()}
+    {#if data.invalidInsert}
+      <Notice tone="warning"><p>{t('admin.block.insert.invalid')}</p></Notice>
+    {/if}
     {#if recovered}
       <!-- Put back after logging in again (session-restore.js): nothing is saved until Save. -->
       <Notice tone="warning">
@@ -1166,28 +1262,7 @@
         </p>
       </Notice>
     {/if}
-    {#if form && !form.conflict && !recovered}
-      <Notice tone="error" title={t('error.summary.title')}>
-        {#if issues.length}
-          <p>{refusalCopy(t, form)}</p>
-          <ul>
-            {#each issues as i (i.name + i.copy)}
-              <li>
-                {#if i.name}<a href="#{fieldId(i.name)}">{fieldLabel(i.name)}</a>:
-                {/if}{t(i.copy as UiKey)}
-              </li>
-            {/each}
-          </ul>
-        {:else if 'issues' in form && form.issues?.length}
-          <p>
-            {fill(t('admin.content.publication.error.refused'), { locale: form.locale ?? '' })}
-          </p>
-          {@render issueList(form.issues ?? [])}
-        {:else}
-          <p>{refusalCopy(t, form)}</p>
-        {/if}
-      </Notice>
-    {/if}
+    {#if !(form && 'locale' in form && !form.conflict)}{@render refusalNotice()}{/if}
     {#if form?.conflict}
       <Notice tone="error" title={t('admin.content.conflict.title')}>
         <p>
@@ -1206,7 +1281,7 @@
           <Button
             variant="secondary"
             form="item-edit"
-            formaction="?/restore"
+            formaction={action('restore')}
             name="restore"
             value={data.undo}>{t('admin.block.undo')}</Button
           >
@@ -1273,26 +1348,65 @@
   {/snippet}
 
   {#snippet aside()}
-    {#if mainPublication}{@render statusCard(mainPublication)}{/if}
-    {#if multi && others.length}
-      <section aria-labelledby="other-locales" class="item-locales">
-        <h2 id="other-locales">{t('admin.content.item.locales')}</h2>
-        <ul>
-          {#each others as o (o.locale)}
-            <li>
-              <Button variant="link" formaction="?/switchLocale" name="to" value={o.locale}
-                >{o.locale}</Button
-              >
-              {#if o.publication}<span>{stateOf(o.publication).text}</span>{/if}
-              {#if o.state !== 'ok'}<span class="ui-hint">{stateWords(o.state)}</span>{/if}
-            </li>
-          {/each}
-        </ul>
-      </section>
+    {#if mainPublication || others.length}
+      <PublicationDrawer
+        id="publication-panel"
+        title={t('admin.content.publication.title')}
+        locale={data.locale}
+        refused={!!(form && 'locale' in form && !form.conflict)}
+      >
+        {#if form && 'locale' in form && !form.conflict}{@render refusalNotice()}{/if}
+        {#if mainPublication}{@render statusCard(mainPublication)}{:else}<h3>
+            {languageName(work)}
+          </h3>
+          <p>{fill(t('admin.locale.translate.title'), { locale: work })}</p>{/if}
+        {#if multi && others.length}
+          <section aria-labelledby="other-locales" class="item-locales">
+            <h3 id="other-locales">{t('admin.content.item.locales')}</h3>
+            {#each others as o (o.locale)}
+              <div class="ui-publication-locale">
+                <div>
+                  <strong>{languageName(o.locale)}</strong>
+                  {#if o.publication}<span>{stateOf(o.publication).text}</span>{/if}
+                  {#if o.state !== 'ok'}<span class="ui-hint">{stateWords(o.state)}</span>{/if}
+                </div>
+                <Button
+                  variant="secondary"
+                  formaction={action('switchLocale')}
+                  name="to"
+                  value={o.locale}>{t('admin.block.card.edit')}</Button
+                >
+              </div>
+            {/each}
+          </section>
+        {/if}
+        <p class="ui-hint">{t('admin.content.publication.chosenLocale')}</p>
+      </PublicationDrawer>
     {/if}
 
     <section aria-labelledby="this-item">
       <h2 id="this-item">{t('admin.content.item.title')}</h2>
+      {#if article}
+        <!-- #158: the choice sets how title, lead and image open the article together, so it does
+             not sit with the image. A hidden `headerLayout` on a page would give pages a layout. -->
+        <Select
+          id="headerLayout"
+          name="headerLayout"
+          label={t('admin.content.field.headerLayout')}
+          hint={t('admin.content.field.headerLayoutHint')}
+          locale={data.locale}
+          value={v('headerLayout') || 'standard'}
+          options={[
+            { value: 'standard', label: t('admin.content.headerLayout.standard') },
+            { value: 'cover', label: t('admin.content.headerLayout.cover') },
+          ]}
+        />
+        {#if v('headerLayout') === 'cover' && !v('heroImageId')}
+          <Notice tone="warning" live={false}
+            ><p>{t('admin.content.headerLayout.noImage')}</p></Notice
+          >
+        {/if}
+      {/if}
       <MetaList items={[{ term: t('admin.content.item.url'), value: data.item.path }]} />
       {#if data.item.slugFixed}
         <p class="ui-hint">{t('admin.content.slug.fixed')}</p>
@@ -1370,6 +1484,24 @@
 </EditPage>
 
 <style>
+  /* The hero and its description are one group (#158); the shared picker stays frameless. */
+  .item-header :global(#heroImageId) {
+    gap: 0;
+    padding: 0;
+    border: var(--border-width) solid var(--color-border-strong);
+    border-radius: var(--radius);
+  }
+  .item-header :global(#heroImageId > legend) {
+    margin-inline-start: var(--space-1);
+    padding-inline: var(--space-0);
+    margin-block-end: 0;
+  }
+  .item-header :global(#heroImageId .ui-media-picker-selection) {
+    padding: var(--space-1) var(--space-2);
+  }
+  .item-header :global(#heroImageId .ui-media-picker-related) {
+    display: block;
+  }
   .native-block {
     border: 0;
     padding: 0;

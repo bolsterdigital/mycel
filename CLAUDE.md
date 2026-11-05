@@ -8,13 +8,15 @@ Open-core successor to Dreamkit: campaign sites, forms, donations, supporters an
 
 ```sh
 npm install
-npm run verify      # format:check + lint:deps + typecheck + test + build; run before every PR
+npm run verify      # verify:checks, then test:e2e; run before every PR
+npm run verify:checks # format:check, lint:deps, lint:infra, typecheck, test:collect, test, build
 npm run format      # fix formatting
-npm run test        # vitest
-npm run dev         # apps/web
+npm run test        # vitest; reads .env, database suites skip without DATABASE_URL
+npm run test:e2e    # Playwright + axe on a build; reads .env, fails without a database
+npm run dev         # builds the packages, then API with worker, web and, without OIDC_ISSUER, a mock IdP
 ```
 
-CI runs `verify` plus a DCO check (`.github/workflows/verify.yml`). Commits are signed off: `git commit -s`.
+CI does not run `verify` as one command (`.github/workflows/verify.yml`). Job `checks` runs `verify:checks` plus the DCO and unchanged-migrations checks, `browsers` runs `test:e2e` once per project (`a11y`, `no-js`), and `security`, `image` and `compose` run beside them; job `verify` requires all five. Commits are signed off: `git commit -s`.
 
 ## Frozen design decisions (summary; the ADRs are authoritative)
 
@@ -65,22 +67,22 @@ For frontend plans, changes and quality regressions, load `.agents/skills/mycel-
 - English in code, docs and ADRs (public repo). Dutch in the private planning sibling. No em dashes in prose.
 - Never commit secrets, client data or prices: this repo is public. Those live in private siblings.
 
-## Werkwijze
+## How work is organised
 
-Deze repo volgt de universele werkwijze (skill `werkwijze` in `~/.claude`):
+This repository follows the owner's general way of working (skill `werkwijze` in `~/.claude`):
 
-- **Nu**: `docs/plans/TODO.md` - claimbord + open werk, budget < 300 regels.
-- **Briefs**: `docs/plans/briefs/<slug>.md`; uitgevoerd -> `docs/plans/done/`.
-- **Handoff per lane**: `/handoff` leest `docs/plans/handoff/<lane>.md` (`mbp` of `dev`) plus het gedeelde `handoff/queue.md`; elke werk-afrondende sessie overschrijft alleen het bestand van haar eigen lane en sluit af met de sluitregel. `docs/plans/HANDOFF.md` is een stub.
-- **Lanes**: `dev` bouwt platform en operatie, `mbp` content en publicatie; welke code en welke TODO-items bij welke lane horen, hoe gedeelde registratiepunten en migratienummers werken: `docs/plans/lanes.md`. Bouw alleen items van je eigen lane.
-- **Rollen**: het stuur-model brieft, beslist en reviewt; het uitvoer-model voert één brief per sessie uit op een branch en merget nooit de eigen PR. Welk model een rol nu heeft volgt uit `werkwijze` § Modelkeuze per sessie en `~/.claude/models.conf`.
-- **Ritmes**: `merge-housekeeping` per gedelegeerde merge; `reorg-audit` bij de drift-drempel; `tighten-scan` op aanvraag.
+- **Now**: `docs/plans/TODO.md`: claim board and open work, budget under 300 lines.
+- **Briefs**: `docs/plans/briefs/<slug>.md`; once carried out, `docs/plans/done/`.
+- **Handoff per lane**: `/handoff` reads `docs/plans/handoff/<lane>.md` (`mbp` or `dev`) plus the shared `handoff/queue.md`; a session that finishes work overwrites only its own lane's file and ends with the closing line. `docs/plans/HANDOFF.md` is a stub.
+- **Lanes**: `dev` builds platform and operations, `mbp` content and publishing; which code and which TODO items belong to which lane, and how shared registration points and migration numbers work: `docs/plans/lanes.md`. Build only items of your own lane.
+- **Roles**: the steering model briefs, decides and reviews; the executing model carries out one brief per session on a branch and never merges its own PR. Which model has which role follows from `werkwijze` § Modelkeuze per sessie and `~/.claude/models.conf`.
+- **Rhythms**: `merge-housekeeping` per delegated merge; `reorg-audit` at the drift threshold; `tighten-scan` on request.
 
-Afwijkingen van de universele werkwijze:
+Deviations from that way of working:
 
-1. **`docs/plans/` is een symlink naar de private sibling `../mycel-planning`** (deckyard-model), omdat deze repo publiek is. Planning-commits gaan in die sibling; verse checkout: `ln -s ../../mycel-planning docs/plans`.
-2. **Alle commits zijn signed-off** (`git commit -s`, DCO, ADR 006); CI weigert PR's zonder.
-3. **Review-en-merge volgt `docs/architecture/review.md`** en registreert tijdens de pilot (tot 2026-11-06 of twaalf reviews) elke review in `docs/plans/reference/review-pilot-2026-10.md`: signals-blok, gekozen lens, bestaand bewijs, minuten. Hooguit één extra tegenproef per PR; nooit een fix of merge uit de review zelf.
+1. **`docs/plans/` is a symlink to the private sibling `../mycel-planning`**, because this repository is public. Planning commits go in that sibling; on a fresh checkout: `ln -s ../../mycel-planning docs/plans`.
+2. **All commits are signed off** (`git commit -s`, DCO, ADR 006); CI refuses a PR without.
+3. **Review-and-merge follows `docs/architecture/review.md`** and, during the pilot (until 2026-11-06 or twelve reviews), registers each review in `docs/plans/reference/review-pilot-2026-10.md`: signals block, chosen lens, existing evidence, minutes. At most one extra counterproof per PR; never a fix or a merge out of the review itself.
 
 ## Relation to Dreamkit
 

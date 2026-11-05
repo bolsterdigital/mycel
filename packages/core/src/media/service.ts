@@ -19,6 +19,8 @@ import { base64ToBytes } from '../util/bytes.js';
 import { sha256HexOfBytes } from '../util/digest.js';
 import { errorFields } from '../util/log.js';
 import { MAX_PAGE_SIZE } from '../util/page-size.js';
+import { MAX_LIST_OFFSET } from '../content/listing.js';
+import { defaultMediaDirection, MediaSort, MediaSortDirection } from './listing.js';
 import {
   CENTRE,
   CONTENT_TYPE_OF,
@@ -142,6 +144,48 @@ interface Prepared {
 const startsWith = (bytes: Uint8Array, prefix: string) =>
   prefix.length <= bytes.length && [...prefix].every((c, i) => bytes[i] === c.charCodeAt(0));
 
+/**
+ * An ID3 tag, or an MPEG Layer III frame header with a legal version, bitrate and sample rate.
+ * Delivered with `nosniff` and as `audio/mpeg`, so this only keeps a wrong file out of the library;
+ * rejected: decoding the file, which would put an audio library in the core for no safer outcome.
+ */
+function isMp3(b: Uint8Array): boolean {
+  if (startsWith(b, 'ID3')) return true;
+  const [sync, flags, rates] = [b[0] ?? 0, b[1] ?? 0, b[2] ?? 0];
+  return (
+    sync === 0xff &&
+    (flags & 0xe0) === 0xe0 &&
+    (flags & 0x18) !== 0x08 &&
+    (flags & 0x06) === 0x02 &&
+    rates >> 4 !== 0x0f &&
+    ((rates >> 2) & 0x03) !== 0x03
+  );
+}
+
+/** A file kept as it came: one `file` variant, which the checksum and size describe. */
+function asStored(
+  kind: MediaRecord['kind'],
+  format: StoredVariant['format'],
+  contentType: MediaContentType,
+  bytes: Uint8Array
+): Prepared {
+  const variant: StoredVariant = {
+    name: 'file',
+    format,
+    width: null,
+    height: null,
+    bytes: bytes.length,
+  };
+  return {
+    kind,
+    width: null,
+    height: null,
+    primary: bytes,
+    variants: [variant],
+    files: [{ file: variantFile(variant), bytes, contentType }],
+  };
+}
+
 /** Check what the bytes are, then render everything that will be stored. */
 async function prepare(
   ctx: TransactionContext,
@@ -151,21 +195,12 @@ async function prepare(
   if (contentType === 'application/pdf') {
     if (!startsWith(bytes, '%PDF-'))
       throw invalid('contentType', 'media.type.mismatch', 'the file is not a PDF');
-    const variant: StoredVariant = {
-      name: 'file',
-      format: 'pdf',
-      width: null,
-      height: null,
-      bytes: bytes.length,
-    };
-    return {
-      kind: 'document',
-      width: null,
-      height: null,
-      primary: bytes,
-      variants: [variant],
-      files: [{ file: variantFile(variant), bytes, contentType }],
-    };
+    return asStored('document', 'pdf', contentType, bytes);
+  }
+  if (contentType === 'audio/mpeg') {
+    if (!isMp3(bytes))
+      throw invalid('contentType', 'media.type.mismatch', 'the file is not an MP3');
+    return asStored('audio', 'mp3', contentType, bytes);
   }
 
   const probe = await ctx.images.probe(bytes);
@@ -249,7 +284,7 @@ export const uploadMedia = defineUseCase({
   name: 'media.upload',
   kind: 'command',
   description:
-    'Upload an image (JPEG, PNG, WebP, AVIF, GIF) or a PDF as base64, up to 25 MB; images are stored without metadata, with AVIF and WebP variants.',
+    'Upload an image (JPEG, PNG, WebP, AVIF, GIF), a PDF or an MP3 as base64, up to 25 MB; images are stored without metadata, with AVIF and WebP variants; a PDF or MP3 is stored as it came, its own metadata included.',
   requires: 'media:write',
   consumes: 'media.storage_max_bytes',
   input: z
@@ -356,25 +391,49 @@ export const listMedia = defineUseCase({
   name: 'media.list',
   kind: 'query',
   description:
-    'List the media of this site, newest first, a page at a time; `q` finds a filename or caption that contains it.',
+    'List the media of this site, a page at a time, newest first unless `sort` says otherwise; `q` finds a filename or caption that contains it, `unused` a file nothing refers to, `missingAlt` an image a latest revision uses without alt text in one of its locales.',
   requires: 'media:read',
   input: z
     .object({
       kind: MediaKind.optional(),
-      q: z.string().trim().min(1).max(100).optional(),
+      // A NUL is no search anyone typed, and Postgres refuses it in a parameter: a 400, not a 500.
+      q: z
+        .string()
+        .trim()
+        .min(1)
+        .max(100)
+        .refine((q) => !q.includes('\0'))
+        .optional(),
+      unused: z.boolean().optional(),
+      missingAlt: z.boolean().optional(),
+      sort: MediaSort.optional(),
+      direction: MediaSortDirection.optional(),
       cursor: MediaId.optional(),
+      offset: z.number().int().min(0).max(MAX_LIST_OFFSET).optional(),
       /** Default 50. */
       limit: z.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
     })
     .strict(),
-  output: z.object({ items: z.array(MediaView), nextCursor: MediaId.nullable() }),
+  output: z.object({
+    items: z.array(MediaView),
+    nextCursor: MediaId.nullable(),
+    /** Everything the filter matches, on every page. */
+    total: z.number().int().nonnegative(),
+  }),
   examples: [{ input: {} }],
-  async handler(ctx, { kind, q, cursor, limit = 50 }) {
-    const rows = await ctx.media.list({ kind, q, cursor, limit: limit + 1 });
+  async handler(
+    ctx,
+    { kind, q, unused, missingAlt, sort = 'created', direction, cursor, offset, limit = 50 }
+  ) {
+    const filter = { kind, q, unused, missingAlt };
+    const order = { by: sort, direction: direction ?? defaultMediaDirection(sort) };
+    const rows = await ctx.media.list({ ...filter, order, cursor, offset, limit: limit + 1 });
+    const total = await ctx.media.count(filter);
     const page = rows.slice(0, limit);
     return {
       items: page.map((m) => toMediaView(ctx, m)),
       nextCursor: rows.length > limit ? (page.at(-1)?.id ?? null) : null,
+      total,
     };
   },
 });

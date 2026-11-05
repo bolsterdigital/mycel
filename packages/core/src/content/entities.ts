@@ -1,6 +1,6 @@
 // Authors, sections and patterns (ADR 012 rules 2, 3 and 8): tenant entities next to content,
 // each with create, update, get and list. Slugs are chosen at create and fixed afterwards; a
-// rename with redirects is #9. Every query is editorial (`authenticatedOnly`): an author's
+// rename with redirects is #9. Every query is editorial (not on the anonymous allowlist): an author's
 // e-mail address is internal data and never reaches a public principal.
 //
 // The three are written out instead of generated from one factory: their inputs differ, and an
@@ -52,7 +52,6 @@ export const createAuthor = defineUseCase({
   kind: 'command',
   description: 'Create an author profile; a person need not have an operator account to be one.',
   requires: 'content:write',
-  authenticatedOnly: true,
   consumes: null,
   input: AuthorInput.extend({ slug: Slug }),
   output: Author,
@@ -73,7 +72,6 @@ export const updateAuthor = defineUseCase({
   kind: 'command',
   description: 'Replace the fields of an author profile; the slug stays as it is.',
   requires: 'content:write',
-  authenticatedOnly: true,
   input: AuthorInput.extend({ authorId: z.string().guid() }),
   output: Author,
   examples: [{ input: { authorId: exampleId(1), name: 'Sam de Vries' } }],
@@ -97,7 +95,6 @@ export const getAuthor = defineUseCase({
   kind: 'query',
   description: 'Get an author profile, including its internal e-mail address.',
   requires: 'content:read',
-  authenticatedOnly: true,
   input: z.object({ authorId: z.string().guid() }),
   output: Author,
   examples: [{ input: { authorId: exampleId(1) } }],
@@ -111,7 +108,6 @@ export const listAuthors = defineUseCase({
   kind: 'query',
   description: 'List author profiles newest first, a page at a time.',
   requires: 'content:read',
-  authenticatedOnly: true,
   input: z.object({ after: z.string().guid().optional(), limit: Limit }),
   output: z.object({ authors: z.array(Author), next: z.string().guid().nullable() }),
   examples: [{ input: {} }],
@@ -126,7 +122,6 @@ export const createSection = defineUseCase({
   kind: 'command',
   description: 'Create a section that articles can belong to, with its own archive page later.',
   requires: 'content:write',
-  authenticatedOnly: true,
   consumes: null,
   input: SectionInput.extend({ slug: Slug }),
   output: Section,
@@ -151,7 +146,6 @@ export const updateSection = defineUseCase({
   kind: 'command',
   description: 'Replace the title, description and order of a section; the slug stays as it is.',
   requires: 'content:write',
-  authenticatedOnly: true,
   input: SectionInput.extend({ sectionId: z.string().guid() }),
   output: Section,
   examples: [{ input: { sectionId: exampleId(1), title: { nl: 'Politiek' } } }],
@@ -175,7 +169,6 @@ export const getSection = defineUseCase({
   kind: 'query',
   description: 'Get a section.',
   requires: 'content:read',
-  authenticatedOnly: true,
   input: z.object({ sectionId: z.string().guid() }),
   output: Section,
   examples: [{ input: { sectionId: exampleId(1) } }],
@@ -189,7 +182,6 @@ export const listSections = defineUseCase({
   kind: 'query',
   description: 'List sections newest first, a page at a time.',
   requires: 'content:read',
-  authenticatedOnly: true,
   input: z.object({ after: z.string().guid().optional(), limit: Limit }),
   output: z.object({ sections: z.array(Section), next: z.string().guid().nullable() }),
   examples: [{ input: {} }],
@@ -229,7 +221,6 @@ export const createPattern = defineUseCase({
   kind: 'command',
   description: 'Save a block tree as a pattern that new pages or articles can start from.',
   requires: 'content:write',
-  authenticatedOnly: true,
   consumes: null,
   input: PatternInput,
   output: Pattern,
@@ -261,7 +252,6 @@ export const updatePattern = defineUseCase({
   kind: 'command',
   description: 'Replace a pattern; documents created from it earlier keep their own copy.',
   requires: 'content:write',
-  authenticatedOnly: true,
   input: PatternInput.extend({ patternId: z.string().guid() }),
   output: Pattern,
   examples: [
@@ -295,7 +285,6 @@ export const getPattern = defineUseCase({
   kind: 'query',
   description: 'Get a pattern with its block tree.',
   requires: 'content:read',
-  authenticatedOnly: true,
   input: z.object({ patternId: z.string().guid() }),
   output: Pattern,
   examples: [{ input: { patternId: exampleId(1) } }],
@@ -309,7 +298,6 @@ export const listPatterns = defineUseCase({
   kind: 'query',
   description: 'List patterns newest first, a page at a time.',
   requires: 'content:read',
-  authenticatedOnly: true,
   input: z.object({ after: z.string().guid().optional(), limit: Limit }),
   output: z.object({ patterns: z.array(Pattern), next: z.string().guid().nullable() }),
   examples: [{ input: {} }],

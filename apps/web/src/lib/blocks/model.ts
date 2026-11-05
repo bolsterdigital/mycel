@@ -20,6 +20,10 @@ import type {
 /** UI text that does not come from the document (ADR 007), resolved for the model's locale. */
 export interface BlockCopy {
   callout: { info: string; note: string; warning: string };
+  /** What a scrolling row of images is called for assistive technology. */
+  galleryRow: string;
+  audioDownload: string;
+  audioTranscript: string;
   /** `{name}` filled by the renderer. */
   photographer: string;
   /** `{provider}` filled by the renderer. */
@@ -86,7 +90,12 @@ type Align = 'start' | 'center' | 'end';
 
 export type RenderBlock = { id: string } & (
   | { type: 'heading'; text: string }
-  | { type: 'rich-text'; doc: RichTextDoc }
+  | {
+      type: 'rich-text';
+      doc: RichTextDoc;
+      /** Set on the heading split off above a float (`float-order.ts`): the block it came from. */
+      sourceId?: string;
+    }
   | { type: 'paywall' }
   | {
       type: 'image';
@@ -111,6 +120,45 @@ export type RenderBlock = { id: string } & (
       actions: RenderAction[];
       width: Width;
       align: Align;
+    }
+  | {
+      type: 'cards';
+      accent: 'none' | 'bar' | 'filled';
+      width: Width;
+      cards: { title: string; body: string | null; actions: RenderAction[] }[];
+    }
+  | {
+      type: 'file-download';
+      title: string | null;
+      body: string | null;
+      /** Only what a visitor may fetch; a restricted, deleted or failed file is left out. */
+      files: { label: string; href: string; meta: string }[];
+    }
+  | {
+      type: 'audio';
+      title: string;
+      /** Null when a visitor may not fetch it: restricted, deleted or failed. */
+      file: { href: string; meta: string } | null;
+      transcript: string | null;
+    }
+  | {
+      type: 'gallery';
+      variant: 'grid' | 'row';
+      width: Width;
+      /** Only what a visitor may see; a restricted, deleted or failed image is left out. */
+      images: RenderImage[];
+    }
+  | {
+      type: 'timeline';
+      title: string | null;
+      /** In the order they are shown; the date is ISO, its label is in the model's locale. */
+      events: {
+        date: string;
+        dateLabel: string;
+        title: string;
+        body: string | null;
+        actions: RenderAction[];
+      }[];
     }
   | {
       type: 'callout';

@@ -1,26 +1,26 @@
 // flow: publish
-// An operator writes and publishes: the content admin, the block forms and the enhanced article
-// writer save one core document. Each part below was a spec of its own until TODO #50 folded the
-// suite to its budget (testing.md § End-to-end flows); each keeps its own fixtures.
+// An operator writes and publishes: the content lifecycle, revisions, conflicts and preview.
 
 import { createApp } from '@mycel/api';
 import { randomUUID } from 'node:crypto';
 import { UseCaseError, systemPrincipal, useCases } from '@mycel/core';
-import {
-  type APIRequestContext,
-  type Browser,
-  type Locator,
-  type Page,
-  expect,
-  test,
-} from '@playwright/test';
+import { type APIRequestContext, type Browser, type Page, expect, test } from '@playwright/test';
 import { expectNoAxeViolations } from './lib/axe';
+import { bfcacheBack, bfcacheBrowser } from './lib/bfcache';
+import { blockPage, card, editorReady, more, newPage } from './lib/editor';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
 import { ADMIN, login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { callApi, postUseCase, requireApi } from './lib/api';
-import { expectPixels } from './lib/images';
+import {
+  openPublication,
+  takeOffline,
+  closePublication,
+  exercisePublicationDrawer,
+  fourActions,
+  newPageIn,
+} from './lib/publication';
 
 // Content admin (TODO #11, brief content-editor § A1): an operator makes a page in two locales,
 // edits it, reads its revisions and their diff, and opens a preview that the public site never
@@ -82,20 +82,9 @@ test.describe('content-admin', () => {
   const slugFor = (what: string) =>
     `a1-${what}-${test.info().project.name}-${randomUUID()}`.toLowerCase();
 
-  /** Make a page in nl and en through the "new" form; returns its edit URL. */
   /** With JavaScript the edit screen's sections are tabs (#66 PR 3): show the one named. */
   async function showTab(page: Page, name: string) {
     if (isA11y()) await page.getByRole('tab', { name, exact: true }).click();
-  }
-
-  async function newPage(page: Page, slug: string, title: string): Promise<string> {
-    await page.goto('/admin/probe/content/new?type=page');
-    await page.getByLabel('Slug').fill(slug);
-    await page.getByLabel('Titel (nl)').fill(title);
-    await page.getByLabel('Titel (en)').fill(`${title} (en)`);
-    await page.getByRole('button', { name: 'Concept maken' }).click();
-    await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
-    return new URL(page.url()).pathname;
   }
 
   test('new content opens a draft immediately and chooses a pattern in the empty column', async ({
@@ -119,6 +108,9 @@ test.describe('content-admin', () => {
     const itemId = new URL(page.url()).pathname.split('/').at(-1)!;
     const initial = await callApi(request, 'content.item.get', { itemId });
     expect(initial.revision.document.title).toEqual({ nl: '(geen titel)' });
+    // The stand-in is a placeholder, not text to delete first (P185-79).
+    await expect(page.locator('#title\\.nl')).toHaveValue('');
+    await expect(page.locator('#title\\.nl')).toHaveAttribute('placeholder', '(geen titel)');
     expect(initial.revision.document.blocks).toEqual([]);
     // A programmatic select-all during hydration can append instead of replace (Notities, #66
     // PR 6); wait for the screen script like the other editor tests do.
@@ -143,8 +135,7 @@ test.describe('content-admin', () => {
     await login(page, '/admin/probe');
     await page.getByRole('link', { name: 'Pagina’s' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Pagina’s' })).toBeVisible();
-    // One visible "Pagina's" (#87): the list heading and the table caption repeat the title for
-    // screen readers only.
+    // The list heading is the sole visible title (#87).
     expect(
       await page
         .locator('main :is(h1, h2, caption)', { hasText: 'Pagina’s' })
@@ -187,8 +178,8 @@ test.describe('content-admin', () => {
 
     // In the list: the new page, a draft in the content locale; English as a code without a dot,
     // as its translation is complete (#66 PR 4).
-    await page.goto('/admin/probe/content?type=page');
-    const card = page.locator('#content-table tbody tr', { hasText: `/${slug}` });
+    await page.goto(`/admin/probe/content?type=page&q=${slug}`);
+    const card = page.locator('#content-table tbody tr');
     await expect(card.locator('.ui-badge')).toHaveText('concept');
     await expect(card.locator('.ui-locale-codes')).toHaveText('en');
   });
@@ -324,8 +315,11 @@ test.describe('content-admin', () => {
     const edit = await newPage(page, slugFor('live'), 'Saved title');
 
     // Give the preview a block to select. Its native details remains the keyboard route.
-    await page.getByLabel('Soort', { exact: true }).last().selectOption({ label: 'Kop' });
-    await page.getByRole('button', { name: 'Toevoegen', exact: true }).click();
+    await page
+      .locator('[data-block-picker]')
+      .last()
+      .getByRole('button', { name: 'Kop', exact: true })
+      .click();
     await page.getByLabel('Tekst', { exact: true }).fill('Saved heading');
     await page.getByRole('button', { name: 'Toevoegen en opslaan' }).click();
     await expect(page).toHaveURL(/\?saved&block=/);
@@ -354,12 +348,13 @@ test.describe('content-admin', () => {
       panel.getByRole('link', { name: 'Opgeslagen versie in nieuw tabblad' })
     ).toBeVisible();
     await expectNoAxeViolations(page);
-    // The state in the bar points into the side column: following it closes the preview.
-    await page.locator('.ui-item-bar-state').click();
-    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
-    await expect(side).toBeVisible();
+    // Publication is independent of the live preview and closes back to its opener.
+    await openPublication(page);
+    await expect(page.locator('#publication-panel')).toBeVisible();
+    await closePublication(page);
+    await expect(page.locator('a[href="#publication-panel"]')).toBeFocused();
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
     // The browser remembers the choice.
-    await toggle.click();
     await page.reload();
     await expect(toggle).toHaveAttribute('aria-pressed', 'true');
     await page.setViewportSize({ width: 1280, height: 720 });
@@ -484,6 +479,8 @@ test.describe('content-admin', () => {
     const context = await freshContext(browser);
     const other = await context.newPage();
     await login(other, edit);
+    // Hydration resets native disclosures opened before the editor has mounted.
+    if (isA11y()) await expect(other.locator('form#item-edit[data-edit-screen]')).toBeVisible();
     const moved = slugFor('stale-to');
     const theirs = other.locator('section[aria-labelledby="this-item"]');
     await theirs.locator('details', { hasText: 'Adres wijzigen' }).locator('summary').click();
@@ -930,12 +927,11 @@ test.describe('content-admin', () => {
     await expectNoAxeViolations(page);
   });
 
-  // Publication per locale (brief content-editor § A2, edit-screen § 4): core decides, the
-  // status card of each locale shows what it decided, its state in words. Every action is a
-  // button of the one edit form.
+  // Publication per locale stays in the one edit form (brief content-editor § A2).
   const card = (page: Page, locale: string) => page.locator(`#publication-${locale}`);
   /** The schedule fold of a card, opened. */
   const scheduleFold = async (page: Page, locale: string) => {
+    await openPublication(page);
     const fold = card(page, locale).locator('details', { hasText: 'Inplannen' });
     if ((await fold.getAttribute('open')) === null) await fold.locator('summary').click();
     return fold;
@@ -971,6 +967,7 @@ test.describe('content-admin', () => {
     await page.setViewportSize({ width: 1280, height: 900 });
 
     // Taken: nothing is saved, the field says why and keeps what was typed.
+    await closePublication(page);
     await page.locator('#title\\.nl').fill('Verhuizing gepland');
     await field.fill(taken);
     await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
@@ -997,6 +994,7 @@ test.describe('content-admin', () => {
     expect(await conflict.json()).toMatchObject({ code: 'conflict' });
 
     // Live once: the address stays, also over the API.
+    await openPublication(page);
     await card(page, 'nl').getByRole('button', { name: 'Publiceren', exact: true }).click();
     await expect(page).toHaveURL(`${edit}?done=publish&locale=nl`);
     await expect(side.locator('details', { hasText: 'Adres wijzigen' })).toHaveCount(0);
@@ -1019,11 +1017,13 @@ test.describe('content-admin', () => {
     await login(page, '/admin/probe');
     const slug = slugFor('publish');
     const edit = await newPage(page, slug, 'Buurtfeest');
+    await openPublication(page);
     await expect(card(page, 'nl')).toContainText('Concept');
     await expect(card(page, 'nl').getByRole('list')).toHaveCount(0);
     await card(page, 'nl').getByRole('button', { name: 'Publiceren', exact: true }).click();
     await expect(page).toHaveURL(`${edit}?done=publish&locale=nl`);
     await expect(page.getByRole('status')).toContainText('Gepubliceerd in nl.');
+    await openPublication(page);
     await expect(card(page, 'nl')).toContainText(/Gepubliceerd op \d+ \w+ \d{4}/);
     await expect(card(page, 'nl').getByRole('button', { name: /publiceren/i })).toHaveCount(0);
     await expect(card(page, 'nl').getByRole('link', { name: /Bekijk op de site/ })).toHaveAttribute(
@@ -1041,9 +1041,11 @@ test.describe('content-admin', () => {
     await page.goto(edit);
 
     // A new revision: the site keeps the old title until it is published.
+    await closePublication(page);
     await page.locator('#title\\.nl').fill('Buurtfeest verplaatst');
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await expect(page).toHaveURL(`${edit}?saved`);
+    await openPublication(page);
     await expect(card(page, 'nl')).toContainText('Gepubliceerd, sindsdien gewijzigd');
     await expect(
       card(page, 'nl').getByRole('button', { name: 'Wijzigingen publiceren', exact: true })
@@ -1051,15 +1053,15 @@ test.describe('content-admin', () => {
     const live = await (await request.get(`${SITE}/${slug}`)).text();
     expect(live).toContain('Buurtfeest');
     expect(live).not.toContain('Buurtfeest verplaatst');
-    await page.goto('/admin/probe/content?type=page');
-    await expect(
-      page.locator('#content-table tbody tr', { hasText: `/${slug}` }).locator('.ui-badge')
-    ).toHaveText('gewijzigd');
+    await page.goto(`/admin/probe/content?type=page&q=${slug}`);
+    await expect(page.locator('#content-table tbody tr .ui-badge')).toHaveText('gewijzigd');
 
     // Offline again: the address is gone, the card says it was live once.
     await page.goto(edit);
-    await card(page, 'nl').getByRole('button', { name: 'Offline halen', exact: true }).click();
+    await openPublication(page);
+    await takeOffline(page, 'nl', 'Offline halen');
     await expect(page.getByRole('status')).toContainText('Offline gehaald in nl.');
+    await openPublication(page);
     await expect(card(page, 'nl')).toContainText('Offline gehaald');
     expect((await request.get(`${SITE}/${slug}`)).status()).toBe(404);
   });
@@ -1090,21 +1092,26 @@ test.describe('content-admin', () => {
     await expectNoAxeViolations(page);
 
     // The switch saves what was typed first, then shows English.
+    await closePublication(page);
     await page.locator('#title\\.nl').fill(`${title}!`);
     await switchTo('en').click();
     await expect(page).toHaveURL(`${edit}?locale=en`);
     await expect(switchTo('en')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('[name="title.nl"]')).toHaveCount(0);
+    await openPublication(page);
     const en = card(page, 'en');
     await expect(en).toContainText('Titel (en): de vertaling ontbreekt');
     await expect(en.getByRole('link', { name: 'Titel (en)' })).toHaveAttribute('href', '#title.en');
+    await openPublication(page);
     await en.getByRole('button', { name: 'Publiceren', exact: true }).click();
     const alert = page.getByRole('alert');
     await expect(alert).toContainText('Dit kan in en nog niet:');
     await expect(alert).toContainText('Titel (en): de vertaling ontbreekt');
 
     // Typed but not saved: the publish button saves it first; Dutch stays as it was saved.
+    await closePublication(page);
     await page.locator('#title\\.en').fill('Only Dutch, now English');
+    await openPublication(page);
     await card(page, 'en').getByRole('button', { name: 'Publiceren', exact: true }).click();
     await expect(page).toHaveURL(`${edit}?done=publish&locale=en`);
     expect((await request.get(`${SITE}/en/${slug}`)).status()).toBe(200);
@@ -1112,9 +1119,9 @@ test.describe('content-admin', () => {
     await expect(page.locator('#title\\.nl')).toHaveValue(`${title}!`);
 
     // The choice holds for the list: English titles and states, Dutch as a code.
-    await page.goto('/admin/probe/content?type=page');
-    const row = page.locator('#content-table tbody tr', { hasText: `/${slug}` });
-    await expect(row.locator('th')).toHaveText('Only Dutch, now English');
+    await page.goto(`/admin/probe/content?type=page&q=${slug}`);
+    const row = page.locator('#content-table tbody tr');
+    await expect(row.locator('th > a')).toHaveText('Only Dutch, now English');
     await expect(row.locator('.ui-badge')).toHaveText('gepubliceerd');
     await expect(row.locator('.ui-locale-codes')).toHaveText('nl');
     // The shell switches back; the list follows.
@@ -1122,10 +1129,105 @@ test.describe('content-admin', () => {
       .locator('.admin-content-locale')
       .getByRole('button', { name: 'nl', exact: true })
       .click();
-    await expect(page).toHaveURL('/admin/probe/content?type=page');
-    await expect(row.locator('th')).toHaveText(`${title}!`);
+    await expect(page).toHaveURL(`/admin/probe/content?type=page&q=${slug}`);
+    await expect(row.locator('th > a')).toHaveText(`${title}!`);
     await expect(row.locator('.ui-badge')).toHaveText('concept');
     await expectNoAxeViolations(page);
+  });
+
+  test('the list searches, filters and sorts, and an item goes back to the view it left', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    // A word no other run has, in three titles whose order by title is not their order in time.
+    const word = `lijst${randomUUID().slice(0, 8)}`;
+    const make = async (title: string) => {
+      const { item } = await callApi<{ item: { id: string; latestRevisionId: string } }>(
+        request,
+        'content.item.create',
+        {
+          slug: slugFor('list'),
+          document: {
+            type: 'page',
+            defaultLocale: 'nl',
+            locales: ['nl'],
+            title: { nl: `${title} ${word}` },
+            blocks: [],
+          },
+        }
+      );
+      return item;
+    };
+    await make('Brood');
+    const first = await make('appel');
+    await make('Één');
+    const probe = await tenantId();
+    await withInvoker((invoker) =>
+      invoker.run(useCases.publishItem, systemPrincipal(probe, 'e2e'), {
+        itemId: first.id,
+        revisionId: first.latestRevisionId,
+        locale: 'nl',
+      })
+    );
+
+    await login(page, `/admin/probe/content?type=page&q=${word}`);
+    const titles = page.locator('#content-table tbody th > a');
+    // Last saved first, and how many the search found.
+    await expect(titles).toHaveText([`Één ${word}`, `appel ${word}`, `Brood ${word}`]);
+    await expect(page.locator('#content-count')).toHaveText('3 gevonden');
+    await expect(page.getByRole('columnheader', { name: 'Laatst opgeslagen' })).toHaveAttribute(
+      'aria-sort',
+      'descending'
+    );
+
+    // The column heading sorts, a link: by title, the accent and the capital in their letter.
+    const heading = page.getByRole('columnheader', { name: 'Titel' });
+    await heading.getByRole('link').click();
+    await expect(heading).toHaveAttribute('aria-sort', 'ascending');
+    await expect(titles).toHaveText([`appel ${word}`, `Brood ${word}`, `Één ${word}`]);
+
+    // One status, by a native form: the search and the order stay.
+    await page.getByRole('search').getByLabel('Status').selectOption({ label: 'Gepubliceerd' });
+    await page.getByRole('button', { name: 'Filteren' }).click();
+    await expect(titles).toHaveText([`appel ${word}`]);
+    await expect(page.locator('#content-count')).toHaveText('1 gevonden');
+    await expect(page.getByLabel('Zoek op titel of adres')).toHaveValue(word);
+    await expect(heading).toHaveAttribute('aria-sort', 'ascending');
+    await expectNoAxeViolations(page);
+
+    // Into the item and back: the same search, status and order, at the item's own row.
+    await titles.click();
+    await expect(page).toHaveURL(`/admin/probe/content/${first.id}`);
+    await page.locator('.ui-item-bar-back').click();
+    const back = new URL(page.url());
+    expect(Object.fromEntries(back.searchParams)).toEqual({
+      type: 'page',
+      q: word,
+      status: 'published',
+      sort: 'title',
+    });
+    expect(back.hash).toBe(`#item-${first.id}`);
+    await expect(titles).toHaveText([`appel ${word}`]);
+
+    // A NUL is no search: the list as if none was asked, not an error.
+    const nul = await page.goto('/admin/probe/content?type=page&q=%00');
+    expect(nul?.status()).toBe(200);
+    await expect(page.getByLabel('Zoek op titel of adres')).toHaveValue('');
+
+    // Nothing found says what was asked; clearing the filters is one link, and forgets the view.
+    await page.goto(`/admin/probe/content?type=page&q=${word}&status=scheduled`);
+    await expect(
+      page.getByRole('heading', { name: `Niets gevonden voor “${word}”.` })
+    ).toBeVisible();
+    await page.getByRole('link', { name: 'Filters wissen' }).click();
+    await expect(page).toHaveURL('/admin/probe/content?type=page');
+    // Entering from that plain list; its row is not on the first page of a full probe site.
+    await page.goto(`/admin/probe/content/${first.id}`, { referer: page.url() });
+    await expect(page.locator('.ui-item-bar-back')).toHaveAttribute(
+      'href',
+      `/admin/probe/content?type=page#item-${first.id}`
+    );
   });
 
   test('a locale the item lacks starts as a copy of another; the other stays as it is', async ({
@@ -1152,6 +1254,7 @@ test.describe('content-admin', () => {
     await layoutGate(page, 'start the translation', '#translate');
     await layoutGate(page, 'locale switch', '.ui-item-bar');
     await setTextSize(page, '100%');
+    await openPublication(page);
     await page.locator('.ui-edit-side button[name="to"][value="nl"]').click();
     await expect(page).toHaveURL(`${edit}?locale=nl`);
     await expect(page.locator('#title\\.nl')).toHaveValue(title);
@@ -1161,11 +1264,22 @@ test.describe('content-admin', () => {
     await expect(page).toHaveURL(`${edit}?saved&locale=en`);
     await expect(page.locator('#title\\.en')).toHaveValue(title);
     await expect(page.locator('#lead\\.en')).toHaveValue('Een korte kern.');
+    await closePublication(page);
     await page.locator('#title\\.en').fill('Start from Dutch');
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await page.goto(`${edit}?locale=nl`);
     await expect(page.locator('#title\\.nl')).toHaveValue(title);
     await expect(page.locator('#lead\\.nl')).toHaveValue('Een korte kern.');
+  });
+
+  test('publication opens without saving or moving the editor and restores focus on close', async ({
+    page,
+  }) => {
+    onlyA11y('checks the enhanced modal, focus and stored navigation choice');
+    await login(page, '/admin/probe');
+    await page.evaluate(() => localStorage.removeItem('mycel.admin.nav'));
+    const edit = await newPage(page, slugFor('drawer'), 'Paneel');
+    await exercisePublicationDrawer(page, edit);
   });
 
   test('a schedule pins a revision; a newer one can take its place', async ({ page }) => {
@@ -1175,34 +1289,44 @@ test.describe('content-admin', () => {
     // Scheduling is folded away until asked for: no date field in view by default.
     await expect(nl.getByLabel('Publiceren op')).toBeHidden();
     await (await scheduleFold(page, 'nl')).getByLabel('Publiceren op').fill('2030-01-04T09:00');
+    await openPublication(page);
     await nl.getByRole('button', { name: 'Inplannen', exact: true }).click();
     await expect(page).toHaveURL(`${edit}?done=schedule&locale=nl`);
+    await openPublication(page);
     await expect(nl).toContainText('Ingepland voor 2030-01-04 09:00');
 
     // Edited after planning: the pin stays on the old revision until the editor moves it.
+    await closePublication(page);
     await page.locator('#title\\.nl').fill('Op vrijdagochtend');
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await expect(page).toHaveURL(`${edit}?saved`);
+    await openPublication(page);
     await expect(nl).toContainText('Ingepland voor 2030-01-04 09:00');
+    await openPublication(page);
     await expect(nl).toContainText('Je bewerkt een nieuwere revisie');
     await expectNoAxeViolations(page);
+    await openPublication(page);
     await nl
       .getByRole('button', { name: 'Deze versie op dat moment publiceren', exact: true })
       .click();
     await expect(page).toHaveURL(`${edit}?done=repin&locale=nl`);
+    await openPublication(page);
     await expect(nl).toContainText('Ingepland voor 2030-01-04 09:00');
     await expect(nl).not.toContainText('Je bewerkt een nieuwere revisie');
 
     // A time in the past is core's refusal, worded in the panel's terms.
     await (await scheduleFold(page, 'nl')).getByLabel('Publiceren op').fill('2020-01-01T09:00');
+    await openPublication(page);
     await nl.getByRole('button', { name: 'Inplannen', exact: true }).click();
     await expect(page.getByRole('alert')).toContainText(
       'Publiceren op: de tijd ligt niet in de toekomst'
     );
 
     await page.goto(edit);
+    await openPublication(page);
     await nl.getByRole('button', { name: 'Planning intrekken', exact: true }).click();
     await expect(page.getByRole('status')).toContainText('Planning ingetrokken in nl.');
+    await openPublication(page);
     await expect(nl).toContainText('Concept');
   });
 
@@ -1247,10 +1371,12 @@ test.describe('content-admin', () => {
         });
 
         await page.goto(edit);
+        await closePublication(page);
         await page.locator('#title\\.nl').fill(`Updated ${label}`);
         await page.getByRole('button', { name: 'Opslaan' }).click();
         const newRevisionId = await page.locator('input[name="baseRevisionId"]').inputValue();
         expect(newRevisionId).not.toBe(oldRevisionId);
+        await openPublication(page);
         await card(page, 'nl')
           .getByRole('button', { name: 'Deze versie op dat moment publiceren', exact: true })
           .click();
@@ -1287,6 +1413,7 @@ test.describe('content-admin', () => {
     });
     await page.goto(edit);
     await expect(page.getByLabel('Wie het mag lezen')).toHaveValue('members');
+    await openPublication(page);
     const notice = card(page, 'nl').getByText('Bezoekers zonder account zien dit item niet');
     await expect(notice).toBeVisible();
     // Before the first button in document order, and no button closes it.
@@ -1489,7 +1616,7 @@ test.describe('content-admin', () => {
       await page.locator('.ui-item-bar').getByRole('button', { name: 'Opslaan' }).click();
       await expect(page.locator('main')).toContainText('of je sessie is verlopen');
       await loginAgain(page);
-      await expect(page).toHaveURL(new RegExp(`${edit}\\?/save$`));
+      await expect(page).toHaveURL(new RegExp(`${edit}\\?/save&locale=nl$`));
       // No claim that the input survived: the post never reached the form action.
       await expect(title(page)).toHaveValue('Herstel');
     });
@@ -1513,7 +1640,9 @@ test.describe('content-admin', () => {
     try {
       await context.clearCookies();
       await login(page, edit, email);
+      await openPublication(page);
       await expect(card(page, 'nl')).toContainText('Concept');
+      await openPublication(page);
       await expect(
         card(page, 'nl').getByText('vragen de bevoegdheid content:publish')
       ).toBeVisible();
@@ -1601,1692 +1730,354 @@ test.describe('content-admin', () => {
             await page.goto(path);
             await setTextSize(page, text);
             await layoutGate(page, path);
+            if (path === edit) {
+              await page.screenshot({
+                path: test.info().outputPath(`editor-${locale}-${text}.png`),
+                fullPage: true,
+              });
+              await openPublication(page);
+              await layoutGate(page, 'publication drawer', '#publication-panel');
+              await expectNoAxeViolations(page);
+              await page.screenshot({
+                path: test.info().outputPath(`publication-${locale}-${text}.png`),
+              });
+              await closePublication(page);
+            }
           }
           await context.close();
         });
   });
-
-  /** Live, pinned to an older revision: all four actions of the nl card, plus the schedule. */
-  async function fourActions(page: Page, locale: string) {
-    const nl = locale.startsWith('nl');
-    const card = page.locator('#publication-nl');
-    await card.getByRole('button', { name: nl ? 'Publiceren' : 'Publish', exact: true }).click();
-    await card.locator('details > summary').click();
-    await card.locator('input[type="datetime-local"]').fill('2030-01-04T09:00');
-    await card.getByRole('button', { name: nl ? 'Inplannen' : 'Schedule', exact: true }).click();
-    await page.locator('#title\\.nl').fill('Poort 2');
-    await page.getByRole('button', { name: nl ? 'Opslaan' : 'Save' }).click();
-    await expect(page).toHaveURL(/\?saved$/);
-  }
-
-  /** `newPage` in either admin language. */
-  async function newPageIn(page: Page, locale: string, slug: string): Promise<string> {
-    const nl = locale.startsWith('nl');
-    await page.goto('/admin/probe/content/new?type=page');
-    await page.getByLabel('Slug').fill(slug);
-    await page.getByLabel(nl ? 'Titel (nl)' : 'Title (nl)').fill('Poort');
-    await page.getByRole('button', { name: nl ? 'Concept maken' : 'Create draft' }).click();
-    await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
-    return new URL(page.url()).pathname;
-  }
 });
 
-// Block forms of the content admin (TODO #11, brief content-editor § B): every block type is
-// edited once through its generated form, and a block is inserted, moved and removed, all with
-// native forms. The admin ships no script, so the `no-js` project is the no-JavaScript proof and
-// the `a11y` project runs axe and the UI gate (skill ui-action-layout). Each project edits its own
-// seeded page (`e2e-blokken-<project>`, scripts/e2e/e2e.mjs) with the first example of every type, so
-// the bulk fixture is seeded once and not made here (the audit log the status part of admin.spec.ts reads).
-test.describe('content-blocks', () => {
+// Three loose ends of the block cards, read from an item made through the API (#168).
+test.describe('block card details', () => {
   test.use({ locale: 'nl-NL' });
 
-  /** The seeded page of this project, by slug over the HTTP API. */
-  async function seededPage(request: APIRequestContext): Promise<string> {
-    const slug = `e2e-blokken-${test.info().project.name}`;
-    const { items } = await callApi<{ items: { id: string }[] }>(request, 'content.item.list', {
-      type: 'page',
-      slug,
-    });
-    expect(items, `${slug} is seeded by scripts/e2e/e2e.mjs`).toHaveLength(1);
-    return `/admin/probe/content/${items[0]!.id}`;
-  }
-
-  /** The card of block `n` (1-based): its head holds the block's actions (#66 PR 3). */
-  const card = (page: Page, n: number): Locator => page.locator('section.ui-block-card').nth(n - 1);
-
-  /** Block `n` (1-based) of the edit page, opened, with its Display and Source folds open. */
-  async function block(page: Page, n: number): Promise<Locator> {
-    const details = card(page, n).locator('details.block');
-    if ((await details.getAttribute('open')) === null)
-      await details.locator(':scope > summary').click();
-    const closed = details.locator('details.ui-block-group:not([open])');
-    while ((await closed.count()) > 0) await closed.first().locator(':scope > summary').click();
-    return details;
-  }
-
-  /** Opens "More actions" of block `n` (MY-110 A) and returns its card. */
-  async function more(page: Page, n: number): Promise<Locator> {
-    const menu = card(page, n).locator('details.ui-block-card-more');
-    if ((await menu.getAttribute('open')) === null) await menu.locator(':scope > summary').click();
-    return card(page, n);
-  }
-
-  /** Save the one edit form after editing block `n` (#66 PR 2: one form, one save). */
-  async function save(page: Page, n: number) {
-    await block(page, n);
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(page).toHaveURL(/\?saved/);
-    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
-  }
-
-  test('every block type is edited once through its form, without JavaScript', async ({
-    page,
-    request,
-  }) => {
-    requireApi();
-    const edit = await seededPage(request);
-    await login(page, edit);
-    const stamp = String(Date.now());
-    await expect(page.locator('.ui-block-card-title')).toHaveText([
-      '1. Kop',
-      '2. Inschrijfformulier (oud)',
-      '3. Tekst',
-      '4. Betaalmuur',
-      '5. Afbeelding',
-      '6. Opening',
-      '7. Oproep',
-      '8. Kader',
-      '9. Vragen en antwoorden',
-      '10. Citaat',
-      '11. Video',
-      '12. Formulier',
-    ]);
-
-    /** Fill one field of block `n`, save, and see the value back in the reopened form. */
-    const edits: [number, string, string, string?][] = [
-      [1, 'Tekst', `Kop ${stamp}`],
-      [3, 'Tekst', `Nieuwe **tekst** met [een link](/over) ${stamp}`],
-      [5, 'Beschrijving (alt-tekst)', `Een plein vol mensen ${stamp}`],
-      [6, 'Titel', `Schone lucht ${stamp}`],
-      [7, 'Titel', `Doe mee ${stamp}`],
-      [8, 'Titel', `Let op ${stamp}`],
-      [10, 'Naam', `Fatima ${stamp}`],
-      [11, 'Titel', `Verslag ${stamp}`],
-    ];
-    // The first field of that name: a hero also has the title of its image's work, in the
-    // credit fieldset further down.
-    for (const [n, label, value] of edits) {
-      const current = await block(page, n);
-      if (n === 3 && isA11y()) {
-        const surface = current.locator('.writing-surface .ProseMirror');
-        await surface.locator('p').first().fill('');
-        await surface.evaluate((element, source) => {
-          const clipboardData = new DataTransfer();
-          clipboardData.setData('text/plain', source);
-          element.dispatchEvent(
-            new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData })
-          );
-        }, value);
-      } else await current.getByLabel(label, { exact: true }).first().fill(value);
-      await save(page, n);
-      await expect((await block(page, n)).getByLabel(label, { exact: true }).first()).toHaveValue(
-        value
-      );
-    }
-    // A list row, a choice, and the two blocks without editable text: saved through their forms.
-    await (await block(page, 9)).getByLabel('Vraag', { exact: true }).first().fill(`Wat? ${stamp}`);
-    await save(page, 9);
-    await expect((await block(page, 9)).getByLabel('Vraag', { exact: true }).first()).toHaveValue(
-      `Wat? ${stamp}`
-    );
-    await (await block(page, 9)).getByLabel('Breedte').selectOption('wide');
-    await save(page, 9);
-    await page.reload();
-    await expect((await block(page, 9)).getByLabel('Breedte')).toHaveValue('wide');
-    const width = (await block(page, 12)).getByLabel('Breedte');
-    const next = (await width.inputValue()) === 'wide' ? 'Volle breedte' : 'Breed';
-    await width.selectOption({ label: next });
-    await save(page, 12);
-    await expect((await block(page, 12)).getByLabel('Breedte')).toHaveValue(
-      next === 'Breed' ? 'wide' : 'full'
-    );
-    await save(page, 2);
-    // A paywall has no fold and no fields: the save keeps it through the document alone.
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
-    await expect(card(page, 4).locator('.ui-block-card-title')).toHaveText('4. Betaalmuur');
-    await expectNoAxeViolations(page);
-
-    // The other locale, shown on its own (#66 PR 4), kept its values: the FAQ's questions, and
-    // the rich text its item link, written as Markdown.
-    await page.goto(`${edit}?locale=en`);
-    await expect((await block(page, 9)).getByLabel('Vraag', { exact: true }).first()).toHaveValue(
-      /.+/
-    );
-    await expect((await block(page, 3)).getByLabel('Tekst', { exact: true })).toHaveValue(
-      /^More about our work is in \[the annual report\]\(item:[0-9a-f-]{36}\)$/
-    );
-    await page.goto(edit);
-    // And the edited locale was read back from Markdown: the preview renders the bold and the link.
-    const preview = await page.locator('a[data-preview-link="nl"]').getAttribute('href');
-    await page.goto(preview!);
-    await expect(page.locator('main strong', { hasText: 'tekst' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'een link' })).toHaveAttribute('href', /\/over$/);
-    await expect(page.locator('main .faq.width-wide')).toContainText(`Wat? ${stamp}`);
-    await page.goto(edit);
-    if (isA11y()) {
-      await page.getByRole('button', { name: 'Voorbeeld', exact: true }).click();
-      await expect(
-        page.frameLocator('iframe[data-live-preview-frame]').locator('.faq.width-wide')
-      ).toBeVisible();
-      // Closed again, the side column with the publish button comes back.
-      await page.getByRole('button', { name: 'Voorbeeld', exact: true }).click();
-    }
-    await page.getByRole('button', { name: /^(Wijzigingen )?publiceren$/i }).click();
-    await page.goto(`/probe/e2e-blokken-${test.info().project.name}`);
-    await expect(page.locator('main .faq.width-wide')).toContainText(`Wat? ${stamp}`);
+  const heading = (text: string) => ({
+    type: 'heading',
+    version: 1,
+    props: { text: { nl: text } },
   });
+  const make = async (
+    request: APIRequestContext,
+    slug: string,
+    locales: string[],
+    blocks: object[]
+  ): Promise<string> => {
+    requireApi();
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `${slug}-${Date.now()}`,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales,
+        title: Object.fromEntries(locales.map((locale) => [locale, 'Kaarten'])),
+        blocks,
+      },
+    });
+    return `/admin/probe/content/${item.id}`;
+  };
 
-  /** Make a page through the "new" form; returns its edit URL. */
-  async function newPage(page: Page, what: string): Promise<string> {
-    const slug = `b-${what}-${test.info().project.name}-${randomUUID()}`;
-    await page.goto('/admin/probe/content/new?type=page');
-    await page.getByLabel('Slug').fill(slug);
-    await page.getByLabel('Titel (nl)').fill('Blokkenproef');
-    await page.getByLabel('Titel (en)').fill('Block test');
-    await page.getByRole('button', { name: 'Concept maken' }).click();
-    await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
-    return new URL(page.url()).pathname;
-  }
-
-  /**
-   * Choose a block of `type` at the end, or before or after block `n`: it shows empty at its
-   * place in the same form (#66 PR 2) and is stored with the next save. Returns that card.
-   */
-  async function insert(page: Page, type: string, place: 'end' | 'before' | 'after', n?: number) {
-    // The "+" above each card (#66 PR 3); after the last card that is the one at the end.
-    const above = n && (place === 'before' ? n : n + 1);
-    const folds = page.locator('details.ui-block-insert');
-    if (above && above <= (await folds.count())) {
-      const fold = folds.nth(above - 1);
-      await fold.locator('summary').click();
-      await fold.getByLabel('Soort').selectOption({ label: type });
-      await fold.getByRole('button', { name: 'Hier invoegen' }).click();
-    } else {
-      await page.locator('#insert-type-end').selectOption({ label: type });
-      await page.getByRole('button', { name: 'Toevoegen', exact: true }).click();
-    }
+  // Review of #286: a new block starts from the empty form, which the seeded examples never reach.
+  test('a new row of cards offers the two it asks, refuses one by name and saves two', async ({
+    page,
+  }) => {
+    await login(page, '/admin/probe');
+    await blockPage(page, 'cards');
+    await editorReady(page);
+    await page
+      .locator('[data-block-picker]')
+      .last()
+      .getByRole('button', { name: 'Actierij', exact: true })
+      .click();
     const fresh = page.locator('#block-new');
-    await expect(fresh.getByRole('heading')).toHaveText(`Nieuw blok: ${type}`);
-    // With the script, its landing moves focus into the new block once it is ready; a fill
-    // before that loses its first characters to the focus change (a verify flake, 2026-10-31).
-    if (isA11y())
-      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
-    return fresh;
-  }
+    await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Actierij');
+    await editorReady(page);
+    const titles = fresh.getByLabel('Titel', { exact: true });
+    await expect(titles).toHaveCount(2);
+    await expect(fresh.getByLabel('Breedte')).toHaveValue('wide');
 
-  /** Store the chosen block with everything else in the form. */
-  async function add(page: Page) {
-    await page.getByRole('button', { name: 'Toevoegen en opslaan' }).click();
-  }
+    await titles.first().fill('Eerste kaart');
+    const saving = page.getByRole('button', { name: 'Opslaan', exact: true });
+    await saving.click();
+    const refusal = page.getByRole('listitem').filter({ hasText: 'vul minstens twee kaarten in' });
+    await expect(refusal.getByRole('link', { name: 'Kaarten' })).toBeVisible();
+    await expect(refusal).toHaveText('Kaarten: vul minstens twee kaarten in');
+    await expect(titles).toHaveCount(2);
+    await expect(titles.first()).toHaveValue('Eerste kaart');
 
-  test('a block is inserted, moved and removed in place, without losing what was typed', async ({
-    page,
-  }) => {
-    await login(page, '/admin/probe');
-    const edit = await newPage(page, 'ops');
-    await expect(page.getByText('Dit item heeft nog geen blokken.')).toBeVisible();
-
-    let fresh = await insert(page, 'Kop', 'end');
-    await expect(page).toHaveURL(new RegExp(`${edit}\\?insert=heading&place=end#block-new$`));
-    await expectNoAxeViolations(page);
-    // Nothing typed: core refuses, the issue links to its field, the block stays at its place.
-    await add(page);
-    const summary = page.getByRole('alert');
-    await expect(summary).toContainText('Het blok kon niet worden opgeslagen');
-    await expect(summary.getByRole('link', { name: 'Tekst' })).toBeVisible();
-    fresh = page.locator('#block-new');
-    await fresh.getByLabel('Tekst', { exact: true }).fill('Eerste kop');
-    await add(page);
-    await expect(page).toHaveURL(/\?saved&block=/);
+    await titles.nth(1).fill('Tweede kaart');
+    await saving.click();
     await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
-
-    fresh = await insert(page, 'Tekst', 'before', 1);
-    await fresh.getByLabel('Tekst', { exact: true }).fill('Een [open link](https://example.org');
-    await add(page);
-    await expect(page.getByRole('alert')).toContainText('een link is niet afgesloten met )');
-    fresh = page.locator('#block-new');
-    await expect(fresh.getByLabel('Tekst', { exact: true })).toHaveValue(
-      'Een [open link](https://example.org'
-    );
-    await fresh.getByLabel('Tekst', { exact: true }).fill('Een _schuine_ inleiding.');
-    await add(page);
-    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
-    const summaries = page.locator('.ui-block-card-title');
-    await expect(summaries).toHaveText(['1. Tekst', '2. Kop']);
-    // At rest each card shows what it says, beside a named Edit (MY-110 A).
-    await expect(page.locator('[data-block-rest]')).toHaveText([
-      'Een schuine inleiding.',
-      'Eerste kop',
-    ]);
-    for (const fold of await page.locator('details.block').all())
-      await expect(fold.locator(':scope > summary')).toHaveAccessibleName(
-        (await fold.getAttribute('open')) === null ? 'Bewerken' : 'Gereed'
-      );
-
-    // A block action saves what was typed elsewhere first (brief edit-screen § 1 point 4).
-    await page.locator('#title\\.nl').fill('Blokkenproef bewaard');
-    await (await more(page, 2)).getByRole('button', { name: 'Omhoog' }).click();
-    await expect(page.getByRole('status')).toContainText('Blok verplaatst.');
-    await expect(summaries).toHaveText(['1. Kop', '2. Tekst']);
-    await expect(page.locator('#title\\.nl')).toHaveValue('Blokkenproef bewaard');
-    await expectNoAxeViolations(page);
-
-    // A chosen block that is not wanted after all: the rest of the form is still saved.
-    fresh = await insert(page, 'Citaat', 'end');
-    await page.locator('#title\\.nl').fill('Blokkenproef zonder citaat');
-    await fresh.getByRole('button', { name: 'Niet toevoegen' }).click();
-    await expect(page.locator('#block-new')).toHaveCount(0);
-    await expect(summaries).toHaveCount(2);
-    await expect(page.locator('#title\\.nl')).toHaveValue('Blokkenproef zonder citaat');
-
-    // Remove asks nothing: the notice after it offers Undo, which puts the block back in place.
-    await (await more(page, 1)).getByRole('button', { name: 'Verwijderen' }).click();
-    await expect(page).toHaveURL(new RegExp(`${edit}\\?done=blockRemoved`));
-    const status = page.getByRole('status');
-    await expect(status).toContainText('Blok verwijderd.');
-    await expect(summaries).toHaveText(['1. Tekst']);
-    await expectNoAxeViolations(page);
-    await page.locator('#title\\.nl').fill('Blokkenproef na ongedaan maken');
-    await status.getByRole('button', { name: 'Ongedaan maken' }).click();
-    await expect(page.getByRole('status')).toContainText('Blok teruggezet.');
-    await expect(summaries).toHaveText(['1. Kop', '2. Tekst']);
-    await expect(page.locator('#title\\.nl')).toHaveValue('Blokkenproef na ongedaan maken');
-    await expect(page.getByRole('button', { name: 'Ongedaan maken' })).toHaveCount(0);
-  });
-
-  // #66 PR 6c: with JavaScript the block type list has a search field (Enter adds the first
-  // match), `?` opens the shortcuts panel and the bar stays in view; the undo notice and the
-  // search keep whole labels at 320 px and 200% text (skill ui-action-layout).
-  test('the block type search, the shortcuts panel and the bar that stays in view', async ({
-    page,
-  }) => {
-    onlyA11y('the search, the panel and the keys are the screen script');
-    await login(page, '/admin/probe');
-    await newPage(page, 'search');
-    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
-    const search = page.getByLabel('Zoek een bloktype');
-    await search.fill('cita');
-    await expect(page.locator('#insert-type-end option')).toHaveText(['Citaat']);
-    // Typing in the search is not a change of the document.
-    await expect(page.locator('[data-save-state]')).not.toHaveAttribute('data-current', 'unsaved');
-    await search.fill('zzz');
-    await expect(page.getByRole('button', { name: 'Toevoegen', exact: true })).toBeDisabled();
-    await search.fill('kop');
-    await search.press('Enter');
-    await expect(page.locator('#block-new').getByRole('heading')).toHaveText('Nieuw blok: Kop');
-    await page.locator('#block-new').getByLabel('Tekst', { exact: true }).fill('Gevonden');
-    await add(page);
-    await expect(page.locator('[data-block-rest]')).toHaveText(['Gevonden']);
-
-    // `?` outside a text field opens the shortcuts; Escape closes them again.
-    await page.locator('#blocks').click();
-    await page.keyboard.press('?');
-    const keys = page.locator('details[data-shortcuts]');
-    await expect(keys).toHaveAttribute('open', '');
-    await expect(keys).toContainText('Opslaan');
-    await page.keyboard.press('Escape');
-    await expect(keys).not.toHaveAttribute('open', '');
-    await page.locator('#title\\.nl').press('?');
-    await expect(keys).not.toHaveAttribute('open', '');
-    await page.locator('#title\\.nl').fill('Blokkenproef');
-
-    // On a wide screen the bar stays at the top while the page scrolls.
-    await page.setViewportSize({ width: 1280, height: 720 });
-    await page.mouse.wheel(0, 2000);
-    await expect
-      .poll(() => page.locator('.ui-item-bar').evaluate((e) => e.getBoundingClientRect().top))
-      .toBeLessThan(2);
-    await expectNoAxeViolations(page);
-
-    // Remove, then the notice with Undo and the search, narrow and at 200% text.
-    await (await more(page, 1)).getByRole('button', { name: 'Verwijderen' }).click();
-    await expect(page.getByRole('button', { name: 'Ongedaan maken' })).toBeVisible();
-    await page.setViewportSize(NARROW);
-    for (const text of TEXT_SIZES) {
-      await setTextSize(page, text);
-      await layoutGate(page, `undo notice and type search at ${text}`);
-    }
-  });
-
-  test('a block is duplicated right after itself, with its fields and a new id', async ({
-    page,
-  }) => {
-    await login(page, '/admin/probe');
-    const edit = await newPage(page, 'dup');
-    const fresh = await insert(page, 'Kop', 'end');
-    await fresh.getByLabel('Tekst', { exact: true }).fill('Twee keer');
-    await add(page);
-    const original = await page.locator('details.block').first().getAttribute('id');
-    // What was typed elsewhere is saved first, as with every block action.
-    await page.locator('#title\\.nl').fill('Blokkenproef gedupliceerd');
-    await (await more(page, 1)).getByRole('button', { name: 'Dupliceren' }).click();
-    await expect(page.getByRole('status')).toContainText('Blok gedupliceerd.');
-    await expect(page.locator('#title\\.nl')).toHaveValue('Blokkenproef gedupliceerd');
-    await expect(page.locator('.ui-block-card-title')).toHaveText(['1. Kop', '2. Kop']);
-    const copy = page.locator('details.block').nth(1);
-    await expect(copy).not.toHaveAttribute('id', original!);
-    // The screen lands on the copy at rest (it is complete), with the same fields.
-    await expect(page).toHaveURL(new RegExp(`${edit}\\?done=blockDuplicated#block-`));
-    await expect(copy).not.toHaveAttribute('open', '');
-    await expect((await block(page, 2)).getByLabel('Tekst', { exact: true })).toHaveValue(
-      'Twee keer'
-    );
-    // A text block cannot stand next to its copy: it offers no duplicate.
-    await insert(page, 'Tekst', 'end');
-    await page.locator('#block-new').getByLabel('Tekst', { exact: true }).fill('Los');
-    await add(page);
-    await expect(card(page, 3).getByRole('button', { name: 'Dupliceren' })).toHaveCount(0);
-    await expectNoAxeViolations(page);
-  });
-
-  test('FAQ v2 inserts, moves and publishes through native forms in both locales', async ({
-    page,
-  }) => {
-    await login(page, '/admin/probe');
-    const edit = await newPage(page, 'faq-width');
-    let fresh = await insert(page, 'Kop', 'end');
-    await fresh.getByLabel('Tekst', { exact: true }).fill('Vooraf');
-    await add(page);
-    fresh = await insert(page, 'Vragen en antwoorden', 'after', 1);
-    await fresh.getByLabel('Variant').selectOption('accordion');
-    await fresh.getByLabel('Breedte').selectOption('full');
-    await fresh.getByLabel('Vraag').first().fill('Waarom is dit belangrijk?');
-    await fresh.getByLabel('Antwoord').first().fill('Omdat iedereen kan meedoen.');
-    await add(page);
-    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
-    const id = await page.locator('details.block').nth(1).getAttribute('id');
-    await (await more(page, 2)).getByRole('button', { name: 'Omhoog' }).click();
-    await expect(page.locator('details.block').first()).toHaveAttribute('id', id!);
-    await page.reload();
-    await expect((await block(page, 1)).getByLabel('Breedte')).toHaveValue('full');
-    // English on its own screen (#66 PR 4): the same blocks, their English fields.
-    await page.goto(`${edit}?locale=en`);
-    await (await block(page, 1)).getByLabel('Vraag').first().fill('Why does this matter?');
-    await (
-      await block(page, 1)
-    )
-      .getByLabel('Antwoord')
-      .first()
-      .fill('Because everyone can take part.');
-    await (await block(page, 2)).getByLabel('Tekst', { exact: true }).fill('Before');
-    await save(page, 2);
-    await expect((await block(page, 1)).getByLabel('Vraag').first()).toHaveValue(
-      'Why does this matter?'
-    );
-    for (const locale of ['nl', 'en']) {
-      await page.goto(`${edit}?locale=${locale}`);
-      const preview = await page.locator(`a[data-preview-link="${locale}"]`).getAttribute('href');
-      await page.goto(preview!);
-      await expect(page.locator('main .faq-accordion.width-full')).toContainText(
-        locale === 'nl' ? 'Waarom is dit belangrijk?' : 'Why does this matter?'
-      );
-      await page.goto(`${edit}?locale=${locale}`);
-      await page.getByRole('button', { name: 'Publiceren', exact: true }).click();
-      await expect(page.getByRole('status')).toContainText(`Gepubliceerd in ${locale}.`);
-    }
-    await expectNoAxeViolations(page);
-  });
-
-  test('the integrated article keeps its structured card, identity and other locale in one save', async ({
-    page,
-    request,
-  }) => {
-    onlyA11y();
-    const source = await callApi(request, 'content.item.list', {
-      type: 'article',
-      slug: 'quality-article-v3',
-    });
-    const fetched = await callApi(request, 'content.item.get', { itemId: source.items[0].id });
-    const prose = fetched.revision.document.blocks.find(
-      (b: { type: string }) => b.type === 'rich-text'
-    );
-    const faqSource = await callApi(request, 'content.item.list', {
-      type: 'page',
-      slug: 'e2e-blokken-a11y',
-    });
-    const fixture = await callApi(request, 'content.item.get', { itemId: faqSource.items[0].id });
-    const faq = fixture.revision.document.blocks.find((b: { type: string }) => b.type === 'faq');
-    const created = await callApi(request, 'content.item.create', {
-      slug: `integrated-${Date.now()}`,
-      document: { ...fetched.revision.document, blocks: [prose, faq] },
-    });
-    const edit = `/admin/probe/content/${created.item.id}`;
-    await login(page, edit);
-    const surface = page.locator('.writing-surface .ProseMirror').first();
-    await expect(surface).toBeVisible();
-    await surface.locator('.editor-prose p').first().fill('Artikeltekst in één scherm');
-    await page.locator('#title\\.nl').fill('Een nieuwe kop');
-    const card = surface.locator('details.block');
-    await card.locator(':scope > summary').click();
-    await card.locator('details.ui-block-group > summary').click();
-    await card.getByLabel('Breedte').selectOption('full');
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(page).toHaveURL(/saved/);
-    const saved = await callApi(request, 'content.item.get', { itemId: created.item.id });
-    expect(saved.revision.document.title.nl).toBe('Een nieuwe kop');
-    expect(saved.revision.document.blocks.map((b: { id: string }) => b.id)).toEqual([
-      prose.id,
-      faq.id,
-    ]);
-    expect(saved.revision.document.blocks[0].props.content.en).toEqual(prose.props.content.en);
-    expect(saved.revision.document.blocks[1].props.width).toBe('full');
-    await expectNoAxeViolations(page);
-  });
-
-  test('Enter in a text field saves in the locale on screen, not the first locale of the switch', async ({
-    page,
-  }) => {
-    // The bar's locale switch comes before Save in the document; without a script Enter would
-    // post the first submit button, "nl", and switch away (#66 PR 6). Both projects.
-    await login(page, '/admin/probe');
-    const edit = await newPage(page, 'enter');
-    await page.goto(`${edit}?locale=en`);
-    // With the script, type only once edit-screen.js has started, or it misses the input.
-    if (isA11y())
-      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
-    await page.locator('#title\\.en').fill('Saved with Enter');
-    await page.locator('#title\\.en').press('Enter');
-    await expect(page).toHaveURL(`${edit}?saved&locale=en`);
-    await expect(page.locator('#title\\.en')).toHaveValue('Saved with Enter');
-  });
-
-  test('the screen says what is unsaved, saves with Ctrl+S and warns before leaving', async ({
-    page,
-  }) => {
-    onlyA11y('the save state, the shortcut and the leave warning are the script');
-    await login(page, '/admin/probe');
-    const edit = await newPage(page, 'keys');
-    const state = page.locator('[data-save-state]');
-    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
-    await expect(state).toHaveAttribute('data-current', 'none');
-    await page.locator('#title\\.nl').fill('Nog niet bewaard');
-    await expect(state).toHaveAttribute('data-current', 'unsaved');
-    await expect(state.locator('[data-save-live]')).toHaveText('Niet opgeslagen wijzigingen');
-    // Leaving asks first; staying keeps what was typed.
-    page.once('dialog', (dialog) => {
-      expect(dialog.type()).toBe('beforeunload');
-      void dialog.dismiss();
-    });
-    await page.locator('.ui-item-bar-back').click();
-    await expect(page).toHaveURL(edit);
-    await expect(page.locator('#title\\.nl')).toHaveValue('Nog niet bewaard');
-    await page.locator('#title\\.nl').press('ControlOrMeta+s');
-    await expect(page).toHaveURL(`${edit}?saved`);
-    await expect(page.locator('#title\\.nl')).toHaveValue('Nog niet bewaard');
-    await expect(state).toHaveAttribute('data-current', 'done');
-    await expect(state.locator('[data-save-live]')).toHaveText('Alles opgeslagen');
-    // Choosing a block type to insert is no change to the document: leaving does not ask.
-    await page.locator('#insert-type-end').selectOption({ label: 'Kop' });
-    await expect(state).toHaveAttribute('data-current', 'done');
-  });
-
-  // The router must not carry a click from the editor to another admin page: that page ships no
-  // client code by design, and the editor's scripts run once per document, so coming back left a
-  // screen that no longer knew it had changes (#145). Back and by link, as both are common.
-  test('leaving for Revisions warns about unsaved changes, and coming back the scripts still run', async ({
-    page,
-    request,
-  }) => {
-    onlyA11y('the save state, the leave warning and the search are the scripts');
-    requireApi();
-    const run = `a1-return-${Date.now()}`;
-    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
-      slug: run,
-      document: {
-        type: 'article',
-        title: { nl: 'Heen en terug' },
-        defaultLocale: 'nl',
-        locales: ['nl'],
-        blocks: [],
-        authorIds: [],
-      },
-    });
-    const edit = `/admin/probe/content/${item.id}`;
-    await login(page, edit);
-    const state = page.locator('[data-save-state]');
-    const revisions = page.locator(`a[href$="${edit}/revisions"]`);
-    const stillWorks = async () => {
-      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
-      await expect(
-        page.locator('#authors').getByRole('searchbox', { name: 'Zoeken' })
-      ).toBeVisible();
-      await expect(state).not.toHaveAttribute('data-current', 'unsaved');
-      await page.locator('#title\\.nl').fill(`Gewijzigd ${Date.now()}`);
-      await expect(state).toHaveAttribute('data-current', 'unsaved');
-    };
-
-    // Unsaved: the link asks first, and staying keeps what was typed.
-    await stillWorks();
-    const typed = await page.locator('#title\\.nl').inputValue();
-    let asked = false;
-    page.once('dialog', (dialog) => {
-      asked = dialog.type() === 'beforeunload';
-      void dialog.dismiss();
-    });
-    await revisions.click();
-    await expect.poll(() => asked).toBe(true);
-    await expect(page.locator('#title\\.nl')).toHaveValue(typed);
-    await page.locator('#title\\.nl').press('ControlOrMeta+s');
-    await expect(page).toHaveURL(new RegExp(`${edit}\\?saved$`));
-
-    // Nothing unsaved: there and back with the browser, then there and back by link.
-    await revisions.click();
-    await expect(page).toHaveURL(new RegExp(`${edit}/revisions$`));
-    await page.goBack();
-    await expect(page).toHaveURL(new RegExp(`${edit}\\?saved$`));
-    await stillWorks();
-    await page.locator('#title\\.nl').press('ControlOrMeta+s');
-    await expect(state).toHaveAttribute('data-current', 'done');
-    await revisions.click();
-    await expect(page).toHaveURL(new RegExp(`${edit}/revisions$`));
-    await page.locator(`a[href$="${edit}"]`).first().click();
-    await expect(page).toHaveURL(new RegExp(`${edit}$`));
-    await stillWorks();
-  });
-
-  test('a block rests until Edit, Escape and Done close it with what was typed, and focus follows actions', async ({
-    page,
-  }) => {
-    onlyA11y('Escape, Done and the focus after a round trip are the script');
-    await login(page, '/admin/probe');
-    const edit = await newPage(page, 'rest');
-    for (const text of ['Eerste', 'Tweede', 'Derde']) {
-      const fresh = await insert(page, 'Kop', 'end');
-      await expect(fresh.getByLabel('Tekst', { exact: true })).toBeFocused();
-      await fresh.getByLabel('Tekst', { exact: true }).fill(text);
-      await add(page);
-    }
-    await page.goto(edit);
-    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
-    const folds = page.locator('details.block');
-    await expect(folds.locator(':scope[open]')).toHaveCount(0);
-    await expect(page.locator('[data-block-rest]')).toHaveText(['Eerste', 'Tweede', 'Derde']);
-
-    // Edit opens the fields; Escape closes only this block and keeps what was typed.
-    const second = folds.nth(1);
-    await second.locator(':scope > summary').click();
-    await second.getByLabel('Tekst', { exact: true }).fill('Tweede, gewijzigd');
-    await page.keyboard.press('Escape');
-    await expect(second).not.toHaveAttribute('open', '');
-    await expect(second.locator(':scope > summary')).toBeFocused();
-    await expect(page.locator('[data-save-state]')).toHaveAttribute('data-current', 'unsaved');
-    // A click on the block at rest opens it too; Done under the fields closes it again.
-    await card(page, 2).locator('[data-block-rest]').click();
-    await expect(second).toHaveAttribute('open', '');
-    await expect(second.getByLabel('Tekst', { exact: true })).toHaveValue('Tweede, gewijzigd');
-    await second.locator('[data-block-done] button').click();
-    await expect(second).not.toHaveAttribute('open', '');
-    await expect(second.locator(':scope > summary')).toBeFocused();
-
-    // Move: focus lands on the moved block's More actions, the edit is saved with it.
-    await (await more(page, 2)).getByRole('button', { name: 'Omhoog' }).click();
-    await expect(page).toHaveURL(/done=blockMoved#block-/);
-    await expect(page.locator('[data-block-rest]')).toHaveText([
-      'Tweede, gewijzigd',
-      'Eerste',
-      'Derde',
-    ]);
-    await expect(card(page, 1).locator('details.ui-block-card-more > summary')).toBeFocused();
-    // Escape closes an open More actions and returns to its summary.
-    await (await more(page, 1)).locator('details.ui-block-card-more > summary').focus();
-    await page.keyboard.press('Escape');
-    await expect(card(page, 1).locator('details.ui-block-card-more')).not.toHaveAttribute(
-      'open',
-      ''
-    );
-    // Remove: focus lands on the block that took its place.
-    const removed = await more(page, 2);
-    await removed.getByRole('button', { name: 'Verwijderen' }).click();
-    await expect(page).toHaveURL(/done=blockRemoved&undo=[^#]+#block-/);
-    await expect(page.locator('[data-block-rest]')).toHaveText(['Tweede, gewijzigd', 'Derde']);
-    await expect(folds.nth(1).locator(':scope > summary')).toBeFocused();
-    await expectNoAxeViolations(page);
-  });
-
-  test('a heading, a text and a quote rest as their words, and say what was typed when they close', async ({
-    page,
-  }) => {
-    await login(page, '/admin/probe');
-    const edit = await newPage(page, 'text-rest');
-    const heading = await insert(page, 'Kop', 'end');
-    await heading.getByLabel('Tekst', { exact: true }).fill('Wie wij zijn');
-    await add(page);
-    const text = await insert(page, 'Tekst', 'end');
-    await text
-      .getByLabel('Tekst', { exact: true })
-      .fill('## Tussenkop\n\nEen **vette** zin met [een link](https://example.org/weg).');
-    await add(page);
-    const quote = await insert(page, 'Citaat', 'end');
-    await quote.getByLabel('Tekst', { exact: true }).fill('Zo is het.');
-    await quote.getByLabel('Naam', { exact: true }).fill('Sam de Vries');
-    await add(page);
-
-    await page.goto(edit);
-    const rests = page.locator('[data-block-rest]');
-    await expect(rests.nth(0).locator('.ui-block-text-heading')).toHaveText('Wie wij zijn');
-    await expect(rests.nth(1).locator('strong')).toHaveText('vette');
-    await expect(rests.nth(1).locator('[data-heading]')).toHaveText('Tussenkop');
-    await expect(rests.nth(1).locator('[data-link]')).toHaveText('een link');
-    await expect(rests.nth(2).locator('blockquote > p')).toHaveText('Zo is het.');
-    await expect(rests.nth(2).locator('blockquote > footer')).toHaveText('Sam de Vries');
-    // The card's own title is the outline, and nothing at rest leaves the unsaved form.
-    await expect(rests.locator('h1, h2, h3, h4, h5, h6, a[href], [id]')).toHaveCount(0);
-
-    await page.setViewportSize(NARROW);
-    for (const size of TEXT_SIZES) {
-      await setTextSize(page, size);
-      await layoutGate(page, `text blocks at rest at ${size}`, '.item-blocks');
-    }
-    await setTextSize(page, '100%');
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await expectNoAxeViolations(page);
-
-    if (!isA11y()) return;
-    // With the script: a click on the words goes straight into the field, the rest view steps
-    // aside so the words stand there once, and closing shows what was typed, unsaved.
-    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
-    const folds = page.locator('details.block');
-    await rests.nth(0).click();
-    const headingField = folds.nth(0).getByLabel('Tekst', { exact: true });
-    await expect(headingField).toBeFocused();
-    await expect(rests.nth(0).locator('.ui-block-text')).toBeHidden();
-    await headingField.fill('Wie wij nu zijn');
-    await folds.nth(0).locator('[data-block-done] button').click();
-    await expect(rests.nth(0).locator('.ui-block-text-heading')).toHaveText('Wie wij nu zijn');
-
-    await rests.nth(2).click();
-    await folds.nth(2).getByLabel('Functie', { exact: true }).fill('Voorzitter');
-    await page.keyboard.press('Escape');
-    await expect(rests.nth(2).locator('footer')).toHaveText('Sam de Vries, Voorzitter');
-
-    // Opened and closed unchanged, the text keeps what the server set; typed into, it follows.
-    const editor = folds.nth(1).locator('.ProseMirror');
-    await rests.nth(1).click();
-    await expect(editor).toBeFocused();
-    await page.keyboard.press('Escape');
-    await expect(folds.nth(1)).not.toHaveAttribute('open', '');
-    await expect(folds.nth(1).locator(':scope > summary')).toBeFocused();
-    await expect(rests.nth(1).locator('[data-heading]')).toHaveText('Tussenkop');
-    await rests.nth(1).click();
-    await expect(editor).toBeFocused();
-    await page.keyboard.type('Erbij. ');
-    await page.keyboard.press('Escape');
-    await expect(folds.nth(1)).not.toHaveAttribute('open', '');
-    await expect(rests.nth(1)).toContainText('Erbij.');
-    await expect(rests.nth(1).locator('strong')).toHaveText('vette');
-    await expect(rests.nth(1).locator('a[href]')).toHaveCount(0);
-
-    // All of it survives the save, marks and link included.
-    await page.getByRole('button', { name: 'Opslaan' }).first().click();
-    await expect(page.getByRole('status').first()).toContainText('Opgeslagen');
-    await expect(rests.nth(0).locator('.ui-block-text-heading')).toHaveText('Wie wij nu zijn');
-    await expect(rests.nth(1).locator('[data-link]')).toHaveText('een link');
-    await expect(rests.nth(2).locator('footer')).toHaveText('Sam de Vries, Voorzitter');
-  });
-
-  test('a callout, an FAQ and a CTA rest as the page shows them, and nothing there acts', async ({
-    page,
-  }) => {
-    await login(page, '/admin/probe');
-    const edit = await newPage(page, 'c2-rest');
-    const callout = await insert(page, 'Kader', 'end');
-    await callout.getByLabel('Titel', { exact: true }).fill('Let op');
-    await callout.getByLabel('Tekst', { exact: true }).fill('Een **vette** zin.');
-    await add(page);
-    const faq = await insert(page, 'Vragen en antwoorden', 'end');
-    await faq.getByLabel('Vraag', { exact: true }).first().fill('Waarom dit?');
-    await faq.getByLabel('Antwoord', { exact: true }).first().fill('Omdat **het** kan.');
-    await add(page);
-    const cta = await insert(page, 'Oproep', 'end');
-    await cta.getByLabel('Titel', { exact: true }).fill('Doe mee');
-    await cta.getByLabel('Tekst op de knop', { exact: true }).first().fill('Teken nu');
-    await cta.getByLabel('Linkt naar').first().selectOption({ label: 'Het adres hieronder' });
-    await cta.getByLabel('Adres (URL)').first().fill('https://example.org/teken');
-    await add(page);
-
-    await page.goto(edit);
-    const rests = page.locator('[data-block-rest]');
-    const box = rests.nth(0).locator('.ui-block-text-callout');
-    await expect(box.locator('.ui-block-text-kind')).toHaveText('Informatie');
-    await expect(box.locator('.ui-block-text-title')).toHaveText('Let op');
-    await expect(box.locator('strong')).toHaveText('vette');
-    await expect(rests.nth(1).locator('.ui-block-text-question')).toHaveText('Waarom dit?');
-    await expect(rests.nth(1).locator('strong')).toHaveText('het');
-    await expect(rests.nth(2).locator('.ui-block-text-heading')).toHaveText('Doe mee');
-    await expect(rests.nth(2).locator('.ui-block-text-action').first()).toHaveText('Teken nu');
-    // The second place is there for a label typed later, and takes no room until then.
-    await expect(rests.nth(2).locator('.ui-block-text-action').nth(1)).toBeHidden();
-    await expect(
-      rests.locator('h1, h2, h3, h4, h5, h6, a[href], button, input, form, [id]')
-    ).toHaveCount(0);
-
-    await page.setViewportSize(NARROW);
-    for (const size of TEXT_SIZES) {
-      await setTextSize(page, size);
-      await layoutGate(page, `callout, FAQ and CTA at rest at ${size}`, '.item-blocks');
-    }
-    await setTextSize(page, '100%');
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await expectNoAxeViolations(page);
-
-    if (!isA11y()) return;
-    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
-    const folds = page.locator('details.block');
-    const done = (i: number) => folds.nth(i).locator('[data-block-done] button').click();
-
-    // A click lands in the field those words came from; closing shows what changed, kind included.
-    await box.locator('.ui-block-text-prose').click();
-    await expect(folds.nth(0).locator('.ProseMirror')).toBeFocused();
-    await page.keyboard.type('Erbij. ');
-    await folds.nth(0).locator('details.ui-block-group > summary').click();
-    await folds.nth(0).getByLabel('Variant').selectOption({ label: 'Waarschuwing' });
-    await folds.nth(0).getByLabel('Titel', { exact: true }).fill('');
-    await done(0);
-    await expect(box).toHaveAttribute('data-variant', 'warning');
-    await expect(box.locator('.ui-block-text-kind')).toHaveText('Waarschuwing');
-    await expect(box).toContainText('Erbij.');
-    await expect(box.locator('strong')).toHaveText('vette');
-    // An emptied optional title goes, as the save will make it.
-    await expect(box.locator('.ui-block-text-title')).toBeHidden();
-
-    // A CTA's preview goes nowhere: a click on its button opens the block at that label.
-    await rests.nth(2).locator('.ui-block-text-action').first().click();
-    await expect(page).toHaveURL(new RegExp(`${edit}$`));
-    const label = folds.nth(2).getByLabel('Tekst op de knop', { exact: true });
-    await expect(label.first()).toBeFocused();
-    await label.nth(1).fill('Lees meer');
-    const second = folds.nth(2);
-    await second.getByLabel('Linkt naar').nth(1).selectOption({ label: 'Het adres hieronder' });
-    await second.getByLabel('Adres (URL)').nth(1).fill('https://example.org/meer');
-    await label.nth(1).focus();
-    await page.keyboard.press('Escape');
-    await expect(rests.nth(2).locator('.ui-block-text-action').nth(1)).toHaveText('Lees meer');
-
-    // An FAQ's answer goes to its editor; its question to its field.
-    await rests.nth(1).locator('.ui-block-text-prose').first().click();
-    await expect(folds.nth(1).locator('.ProseMirror').first()).toBeFocused();
-    await page.keyboard.press('Escape');
-    await rests.nth(1).locator('.ui-block-text-question').first().click();
-    const question = folds.nth(1).getByLabel('Vraag', { exact: true }).first();
-    await expect(question).toBeFocused();
-
-    // As an accordion its answers fold at rest: the keyboard folds without opening the block, and
-    // "Edit" is a separate stop.
-    await question.fill('Waarom nu?');
-    await folds.nth(1).locator('details.ui-block-group > summary').click();
-    await folds.nth(1).getByLabel('Variant').selectOption({ label: 'Uitklapbaar' });
-    await done(1);
-    const summary = rests.nth(1).locator('details > summary').first();
-    await expect(summary).toHaveText('Waarom nu?');
-    await expect(rests.nth(1).locator('strong')).toBeHidden();
-    await summary.focus();
-    await page.keyboard.press('Enter');
-    await expect(rests.nth(1).locator('strong')).toHaveText('het');
-    await expect(folds.nth(1)).not.toHaveAttribute('open', '');
-    await summary.click();
-    await expect(rests.nth(1).locator('strong')).toBeHidden();
-    await expect(folds.nth(1)).not.toHaveAttribute('open', '');
-
-    // All of it survives the save.
-    await page.getByRole('button', { name: 'Opslaan' }).first().click();
-    await expect(page.getByRole('status').first()).toContainText('Opgeslagen');
-    await expect(box.locator('.ui-block-text-kind')).toHaveText('Waarschuwing');
-    await expect(box.locator('strong')).toHaveText('vette');
-    await expect(rests.nth(1).locator('details > summary').first()).toHaveText('Waarom nu?');
-    await expect(rests.nth(2).locator('.ui-block-text-action').nth(1)).toHaveText('Lees meer');
-    await expect(rests.locator('a[href]')).toHaveCount(0);
-  });
-
-  test('a video and a form rest as what they are, and nothing there plays or posts', async ({
-    page,
-    request,
-  }) => {
-    const hosts: string[] = [];
-    page.on('request', (r) => {
-      if (/youtube|youtu\.be|vimeo/.test(r.url())) hosts.push(r.url());
-    });
-    const edit = await seededPage(request);
-    await login(page, edit);
-    const video = card(page, 11).locator('[data-block-rest]');
-    const form = card(page, 12).locator('[data-block-rest]');
-    const legacy = card(page, 2).locator('[data-block-rest]');
-    await expect(video.locator('.ui-block-text-title')).not.toBeEmpty();
-    await expect(video.locator('.ui-block-text-kind')).toHaveText(/YouTube|Vimeo/);
-    await expect(video.locator('iframe, img, video, a[href]')).toHaveCount(0);
-    for (const rest of [form, legacy]) {
-      await expect(rest.locator('.ui-block-text-kind')).toContainText('Inschrijfformulier');
-      await expect(rest.locator('.ui-block-text-input')).toBeVisible();
-      await expect(rest.locator('.ui-block-text-action')).not.toBeEmpty();
-      await expect(rest.locator('form, input, button, select, textarea, a[href]')).toHaveCount(0);
-    }
-    await page.setViewportSize(NARROW);
-    for (const size of TEXT_SIZES) {
-      await setTextSize(page, size);
-      await layoutGate(page, `video and form at rest at ${size}`, '.item-blocks');
-    }
-    await setTextSize(page, '100%');
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await expectNoAxeViolations(page);
-    expect(hosts).toEqual([]);
-
-    if (!isA11y()) return;
-    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
-    const url = page.url();
-    // A click on the preview's button goes to the block's first field: no post, no navigation.
-    const posts: string[] = [];
-    page.on('request', (r) => {
-      if (r.method() === 'POST') posts.push(r.url());
-    });
-    await form.locator('.ui-block-text-action').click();
-    const id = card(page, 12).getByLabel('Formulier-id');
-    await expect(id).toBeFocused();
-    expect(page.url()).toBe(url);
-    expect(posts).toEqual([]);
-    // The screen cannot look a new reference up, so it says so instead of showing the old form.
-    const changed = form.locator('.ui-block-text-changed');
-    await expect(changed).toBeHidden();
-    await id.fill('01a17235-f9c5-7c70-908a-7103f7f10566');
-    await page.keyboard.press('Escape');
-    await expect(changed).toBeVisible();
-    // A video follows its title and host when it closes.
-    await video.locator('.ui-block-text-title').click();
-    const fold = card(page, 11);
-    await expect(fold.getByLabel('Titel', { exact: true })).toBeFocused();
-    await fold.getByLabel('Titel', { exact: true }).fill('Een andere titel');
-    await page.keyboard.press('Escape');
-    await expect(video.locator('.ui-block-text-title')).toHaveText('Een andere titel');
-    expect(hosts).toEqual([]);
-  });
-
-  test('a paywall says what it does, and has nothing to edit', async ({ page, request }) => {
-    const edit = await seededPage(request);
-    await login(page, edit);
-    const paywall = card(page, 4);
-    await expect(paywall.locator('.ui-block-card-title')).toHaveText('4. Betaalmuur');
-    const boundary = paywall.locator('[data-block-rest] .ui-block-text-boundary');
-    await expect(boundary).toContainText('Toegangsgrens');
-    // The seeded page is public: the boundary is there, and holds nobody back yet.
-    await expect(boundary).toContainText('openbaar');
-    await expect(paywall.locator('details.ui-block-card-fold')).toHaveCount(0);
-    await expect(paywall.locator('details.ui-block-card-more')).toHaveCount(1);
-    // The target of a save and an outline link is the card itself.
-    await expect(paywall).toHaveAttribute('id', /^block-/);
-    await page.setViewportSize(NARROW);
-    for (const size of TEXT_SIZES) {
-      await setTextSize(page, size);
-      await layoutGate(page, `paywall at rest at ${size}`, '.item-blocks');
-    }
-    await setTextSize(page, '100%');
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await expectNoAxeViolations(page);
-    if (!isA11y()) return;
-    // A click on the words opens nothing, and the page stays where it is.
-    const url = page.url();
-    await boundary.click();
-    expect(page.url()).toBe(url);
-    await expect(page.locator('details.block[open]')).toHaveCount(0);
-  });
-
-  test('a paywall on a restricted page does not say the page is public', async ({
-    page,
-    request,
-  }) => {
-    requireApi();
-    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
-      slug: `c4-restricted-${isA11y() ? 'a11y' : 'no-js'}-${Date.now()}`,
-      document: {
-        type: 'article',
-        defaultLocale: 'nl',
-        locales: ['nl'],
-        title: { nl: 'Voor leden' },
-        access: { level: 'members', teaser: 'marker' },
-        blocks: [
-          { type: 'heading', version: 1, props: { text: { nl: 'Voor iedereen' } } },
-          { type: 'paywall', version: 1, props: {} },
-          { type: 'heading', version: 1, props: { text: { nl: 'Voor leden' } } },
-        ],
-      },
-    });
-    await login(page, `/admin/probe/content/${item.id}`);
-    const boundary = page.locator('.ui-block-text-boundary');
-    await expect(boundary).toContainText('Toegangsgrens');
-    await expect(boundary).not.toContainText('openbaar');
-  });
-
-  test('a legacy hero shows its picture and words, and stays what it is', async ({
-    page,
-    request,
-  }) => {
-    const seeded = await seededPage(request);
-    await login(page, seeded);
-    // The first example has no image: only its words, no picture and nothing that leaves the form.
-    const minimal = card(page, 6).locator('[data-block-rest]');
-    await expect(minimal.locator('.ui-block-text-heading')).not.toBeEmpty();
-    await expect(minimal.locator('img, a[href^="http"], button, form')).toHaveCount(0);
-    await expect(minimal).toContainText('ouder openingsblok');
-    const src = await card(page, 5).locator('[data-block-rest] img').getAttribute('src');
-    const mediaId = /\/media\/([0-9a-f-]{36})\//.exec(src ?? '')?.[1];
-    expect(mediaId).toBeTruthy();
-
-    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
-      slug: `c4-hero-${isA11y() ? 'a11y' : 'no-js'}-${Date.now()}`,
-      document: {
-        type: 'page',
-        defaultLocale: 'nl',
-        locales: ['nl'],
-        title: { nl: 'Schone lucht' },
-        blocks: [
-          {
-            type: 'hero',
-            version: 1,
-            props: {
-              variant: 'cover',
-              title: { nl: 'Schone lucht' },
-              body: { nl: 'Doe mee met de buurt.' },
-              image: {
-                mediaId,
-                decorative: false,
-                alt: { nl: 'Een plein' },
-                caption: { nl: 'Geen bijschrift in deze weergave' },
-              },
-              actions: [
-                {
-                  label: { nl: 'Lees meer' },
-                  target: { kind: 'url', url: 'https://example.org/' },
-                },
-              ],
-            },
-          },
-        ],
-      },
-    });
-    await page.goto(`/admin/probe/content/${item.id}`);
-    const rest = page.locator('[data-block-rest]').first();
-    await expectPixels(rest.locator('img'), 'the legacy hero at rest');
-    await expect(rest.locator('.ui-block-text-heading')).toHaveText('Schone lucht');
-    await expect(rest.locator('.ui-block-text-body')).toHaveText('Doe mee met de buurt.');
-    await expect(rest.locator('.ui-block-text-action').first()).toHaveText('Lees meer');
-    await expect(rest).not.toContainText('Geen bijschrift');
-    await expect(rest.locator('a[href^="https:"], button, input')).toHaveCount(0);
-    // Its way into the header is one link away; the notice it points at is on this page.
-    const move = rest.getByRole('link', { name: 'Verplaats het naar de kop' });
-    await expect(move).toHaveAttribute('href', '#hero-conversion');
-    await expect(page.locator('#hero-conversion')).toContainText(/kop/i);
-    await page.setViewportSize(NARROW);
-    for (const size of TEXT_SIZES) {
-      await setTextSize(page, size);
-      await layoutGate(page, `legacy hero at rest at ${size}`, '.item-blocks');
-    }
-    await setTextSize(page, '100%');
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await expectNoAxeViolations(page);
-
-    if (!isA11y()) return;
-    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
-    // A click on the title goes to its field; closing shows what was typed.
-    await rest.locator('.ui-block-text-heading').click();
-    const fold = page.locator('details.block').first();
-    await expect(fold.getByLabel('Titel', { exact: true }).first()).toBeFocused();
-    await fold.getByLabel('Titel', { exact: true }).first().fill('Frisse lucht');
-    await page.keyboard.press('Escape');
-    await expect(rest.locator('.ui-block-text-heading')).toHaveText('Frisse lucht');
-  });
-
-  /** A page with its text in the middle and a picture at both ends; `mediaId` from the seeded page. */
-  async function pictureAtBothEnds(page: Page, request: APIRequestContext, name: string) {
-    await login(page, await seededPage(request));
-    const src = await card(page, 5).locator('[data-block-rest] img').getAttribute('src');
-    const mediaId = /\/media\/([0-9a-f-]{36})\//.exec(src ?? '')?.[1];
-    const image = (caption: string) => ({
-      type: 'image',
-      version: 1,
-      props: { mediaId, decorative: false, alt: { nl: 'Een plein' }, caption: { nl: caption } },
-    });
-    const heading = (text: string) => ({
-      type: 'heading',
-      version: 1,
-      props: { text: { nl: text } },
-    });
-    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
-      slug: `${name}-${isA11y() ? 'a11y' : 'no-js'}-${Date.now()}`,
-      document: {
-        type: 'page',
-        defaultLocale: 'nl',
-        locales: ['nl'],
-        title: { nl: 'Lange pagina met beeld' },
-        blocks: [
-          image('Bovenaan'),
-          ...Array.from({ length: 12 }, (_, i) => heading(`Kop ${i + 1}`)),
-          image('Onderaan'),
-        ],
-      },
-    });
-    return { itemId: item.id, edit: `/admin/probe/content/${item.id}`, mediaId: mediaId! };
-  }
-
-  test('on a long page a change, a closed fold, a move and a save stay where the editor is', async ({
-    page,
-    request,
-  }) => {
-    if (!isA11y()) return;
-    requireApi();
-    const { itemId, edit } = await pictureAtBothEnds(page, request, 'c-long');
-    await page.goto(edit);
-    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
-    const titles = page.locator('.ui-block-card-title');
-    const inView = async (at: Locator) => {
-      await expect
-        .poll(() => page.evaluate(() => scrollY), 'not at the page top')
-        .toBeGreaterThan(400);
-      await expect(at).toBeInViewport();
-    };
-
-    // The picture on top is closed and shows itself and its caption.
-    await expect(page.locator('details.block[open]')).toHaveCount(0);
-    await expectPixels(card(page, 1).locator('[data-block-rest] img'), 'the top image at rest');
-    await expect(card(page, 1).locator('[data-block-rest]')).toContainText('Bovenaan');
-
-    // A text halfway, closed again: its rest follows, the page does not move.
-    const middle = card(page, 8);
-    await middle.locator('details.block > summary').click();
-    await middle.getByLabel('Tekst', { exact: true }).fill('Gewijzigd halverwege');
-    await page.keyboard.press('Escape');
-    await expect(middle.locator('[data-block-rest]')).toHaveText('Gewijzigd halverwege');
-    await inView(middle);
-
-    // Another picture, opened and closed: its rest shows the caption the save will keep.
-    const last = card(page, 14);
-    await last.locator('details.block > summary').click();
-    await last
-      .locator('input[name$=".p.caption.nl"], textarea[name$=".p.caption.nl"]')
-      .fill('Onderaan gewijzigd');
-    await page.keyboard.press('Escape');
-    await expect(last.locator('[data-block-rest] figcaption')).toContainText('Onderaan gewijzigd');
-    await inView(last);
-
-    // A move saves what was typed and lands at the block.
-    await middle.locator('details.ui-block-card-more > summary').click();
-    await middle.getByRole('button', { name: 'Omhoog', exact: true }).click();
-    await expect(page.getByRole('status')).toContainText('Blok verplaatst.');
-    await expect(titles.nth(6)).toHaveText('7. Kop');
-    await expect(card(page, 7).locator('[data-block-rest]')).toHaveText('Gewijzigd halverwege');
-    await inView(card(page, 7));
-
-    // A save with nothing left to land at stays at the card in view, not at the page top.
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(page).toHaveURL(/\?saved/);
-    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
-    await inView(card(page, 7));
-    await expect(page.locator('details.block[open]')).toHaveCount(0);
-
-    const { revision } = await callApi<{
-      revision: {
-        document: { blocks: { props: { text?: { nl: string }; caption?: { nl: string } } }[] };
-      };
-    }>(request, 'content.item.get', { itemId });
-    const saved = revision.document.blocks;
-    expect(saved[6]?.props.text?.nl).toBe('Gewijzigd halverwege');
-    expect(saved[13]?.props.caption?.nl).toBe('Onderaan gewijzigd');
-    expect(saved[0]?.props.caption?.nl).toBe('Bovenaan');
-  });
-
-  test('a refused save opens the closed block, keeps the rest and leads to the field', async ({
-    page,
-    request,
-  }) => {
-    requireApi();
-    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
-      slug: `c-refused-${isA11y() ? 'a11y' : 'no-js'}-${Date.now()}`,
-      document: {
-        type: 'page',
-        defaultLocale: 'nl',
-        locales: ['nl'],
-        title: { nl: 'Weigering' },
-        blocks: [
-          { type: 'heading', version: 1, props: { text: { nl: 'Wordt leeg' } } },
-          { type: 'heading', version: 1, props: { text: { nl: 'Blijft dicht' } } },
-        ],
-      },
-    });
-    await login(page, `/admin/probe/content/${item.id}`);
-    const first = card(page, 1);
-    await first.locator('details.block > summary').click();
-    await first.getByLabel('Tekst', { exact: true }).fill('');
-    await first.locator('details.block > summary').click();
-    const second = card(page, 2);
-    await second.locator('details.block > summary').click();
-    await second.getByLabel('Tekst', { exact: true }).fill('Getypt in het andere blok');
-    await second.locator('details.block > summary').click();
-    await page.locator('#title\\.nl').fill('Getypte titel');
-    await expect(first.locator('details.block')).not.toHaveAttribute('open', '');
-
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    const alert = page.getByRole('alert');
-    await expect(alert).toContainText('Het blok kon niet worden opgeslagen');
-    await expect(first.locator('details.block')).toHaveAttribute('open', '');
-    await expect(page.locator('#title\\.nl')).toHaveValue('Getypte titel');
-    await expect(card(page, 2).locator('details.block')).not.toHaveAttribute('open', '');
-    await expect(card(page, 2).getByLabel('Tekst', { exact: true })).toHaveValue(
-      'Getypt in het andere blok'
-    );
-    // By keyboard: the link in the summary reaches the refused field.
-    const link = alert.getByRole('link', { name: /Tekst/ });
-    await link.focus();
-    await page.keyboard.press('Enter');
-    await expect(first.getByLabel('Tekst', { exact: true })).toBeFocused();
-    await expectNoAxeViolations(page);
-  });
-
-  // #130: an emptied rich-text field is absent on both routes. The editor empties it with the
-  // script, the textarea without.
-  async function emptyProse(fold: Locator) {
+    // Stored, it offers a spare row for a third.
+    const fold = card(page, 1).locator('details.block');
+    const stored = fold.getByLabel('Titel', { exact: true });
+    await expect(stored).toHaveCount(3);
+    await expect(stored.nth(1)).toHaveValue('Tweede kaart');
+    // With scripts the rest view shows the cards that are filled and follows what is typed.
     if (isA11y()) {
-      await fold.locator('.ProseMirror').first().click();
-      await fold.page().keyboard.press('ControlOrMeta+a');
-      await fold.page().keyboard.press('Delete');
-    } else await fold.getByRole('textbox').last().fill('');
-  }
-  const prose = (text: string) => ({
-    type: 'doc',
-    content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
-  });
-
-  test('a rich-text field emptied in one locale falls back, and that locale cannot publish', async ({
-    page,
-    request,
-  }) => {
-    requireApi();
-    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
-      slug: `c-blank-${isA11y() ? 'a11y' : 'no-js'}-${Date.now()}`,
-      document: {
-        type: 'page',
-        defaultLocale: 'nl',
-        locales: ['nl', 'en'],
-        title: { nl: 'Leeg', en: 'Blank' },
-        blocks: [
-          {
-            type: 'rich-text',
-            version: 1,
-            props: { content: { nl: prose('Nederlandse woorden'), en: prose('English words') } },
-          },
-        ],
-      },
-    });
-    await login(page, `/admin/probe/content/${item.id}?locale=en`);
-    const fold = card(page, 1).locator('details.block');
-    await fold.locator('> summary').click();
-    await emptyProse(fold);
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(page.getByRole('alert')).toHaveCount(0);
-
-    const { revision } = await callApi<{
-      revision: { id: string; document: { blocks: { props: { content: object } }[] } };
-    }>(request, 'content.item.get', { itemId: item.id });
-    expect(revision.document.blocks[0]!.props.content).toEqual({
-      nl: prose('Nederlandse woorden'),
-    });
-    // On the edit screen the other locale's words stand in, as for a text field.
-    await expect(card(page, 1)).toContainText('Nederlandse woorden');
-    // Publicly there is no fallback (ADR 018): the locale is refused, nothing blank goes out.
-    const probe = await tenantId();
-    const refusal = await withInvoker((invoker) =>
-      invoker
-        .run(useCases.publishItem, systemPrincipal(probe, 'e2e'), {
-          itemId: item.id,
-          revisionId: revision.id,
-          locale: 'en',
-        })
-        .then(
-          () => null,
-          (e: UseCaseError) => e
-        )
-    );
-    expect(refusal?.issues).toContainEqual(
-      expect.objectContaining({ message: 'content.publish.missing-translation' })
-    );
-  });
-
-  test('a rich-text block with no words in any locale is refused, and the summary reaches it', async ({
-    page,
-    request,
-  }) => {
-    requireApi();
-    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
-      slug: `c-noword-${isA11y() ? 'a11y' : 'no-js'}-${Date.now()}`,
-      document: {
-        type: 'page',
-        defaultLocale: 'nl',
-        locales: ['nl'],
-        title: { nl: 'Geen woorden' },
-        blocks: [
-          { type: 'rich-text', version: 1, props: { content: { nl: prose('Wordt leeg') } } },
-        ],
-      },
-    });
-    await login(page, `/admin/probe/content/${item.id}`);
-    const fold = card(page, 1).locator('details.block');
-    await fold.locator('> summary').click();
-    await emptyProse(fold);
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    const alert = page.getByRole('alert');
-    await expect(alert).toContainText('Het blok kon niet worden opgeslagen');
-    // The field holds what was typed: nothing, not the words it loaded.
-    if (isA11y()) await expect(card(page, 1).locator('.ProseMirror')).toHaveText('');
-    else await expect(card(page, 1).getByRole('textbox').first()).toHaveValue('');
-    const link = alert.getByRole('link').first();
-    await link.focus();
-    await page.keyboard.press('Enter');
-    await expect(card(page, 1).getByRole('textbox').first()).toBeFocused();
-    await expectNoAxeViolations(page);
-  });
-
-  test('a question cleared above an untouched answer is refused, and the answer stays', async ({
-    page,
-    request,
-  }) => {
-    requireApi();
-    const entries = [
-      { question: { nl: 'Vraag een?' }, answer: { nl: prose('Antwoord een.') } },
-      { question: { nl: 'Vraag twee?' }, answer: { nl: prose('Antwoord twee.') } },
-    ];
-    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
-      slug: `c-question-${isA11y() ? 'a11y' : 'no-js'}-${Date.now()}`,
-      document: {
-        type: 'page',
-        defaultLocale: 'nl',
-        locales: ['nl'],
-        title: { nl: 'Vragen' },
-        blocks: [{ type: 'faq', version: 2, props: { variant: 'list', entries } }],
-      },
-    });
-    await login(page, `/admin/probe/content/${item.id}`);
-    const fold = card(page, 1).locator('details.block');
-    await fold.locator('> summary').click();
-    await fold.getByLabel('Vraag', { exact: true }).first().fill('');
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(page.getByRole('alert')).toContainText('Het blok kon niet worden opgeslagen');
-
-    // Nothing was dropped: neither on the screen nor in the stored revision.
-    const answer = card(page, 1).locator('textarea[name$="entries.0.answer.nl"]');
-    await expect(answer).toHaveValue('Antwoord een.');
-    if (isA11y())
-      await expect(card(page, 1).locator('.ProseMirror').first()).toHaveText('Antwoord een.');
-    const { revision } = await callApi<{
-      revision: { document: { blocks: { props: { entries: object[] } }[] } };
-    }>(request, 'content.item.get', { itemId: item.id });
-    expect(revision.document.blocks[0]!.props.entries).toEqual(entries);
-  });
-
-  test('a paywall lands on its actions after a move, and its removal says why it cannot go', async ({
-    page,
-    request,
-  }) => {
-    if (!isA11y()) return;
-    requireApi();
-    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
-      slug: `c-paywall-${Date.now()}`,
-      document: {
-        type: 'article',
-        defaultLocale: 'nl',
-        locales: ['nl'],
-        title: { nl: 'Voor leden' },
-        access: { level: 'members', teaser: 'marker' },
-        blocks: [
-          { type: 'heading', version: 1, props: { text: { nl: 'Voor iedereen' } } },
-          { type: 'paywall', version: 1, props: {} },
-          { type: 'heading', version: 1, props: { text: { nl: 'Voor leden' } } },
-        ],
-      },
-    });
-    await login(page, `/admin/probe/content/${item.id}`);
-    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
-    await card(page, 2).locator('details.ui-block-card-more > summary').click();
-    await card(page, 2).getByRole('button', { name: 'Omlaag', exact: true }).click();
-    await expect(page.getByRole('status')).toContainText('Blok verplaatst.');
-    const paywall = card(page, 3);
-    await expect(paywall.locator('.ui-block-card-title')).toHaveText('3. Betaalmuur');
-    await expect(paywall.locator('details.ui-block-card-more > summary')).toBeFocused();
-
-    await paywall.locator('details.ui-block-card-more > summary').click();
-    await paywall.getByRole('button', { name: 'Verwijderen', exact: true }).click();
-    const alert = page.getByRole('alert');
-    await expect(alert.getByRole('link', { name: 'Wat alle anderen zien' })).toBeVisible();
-    await expect(alert.locator('li')).not.toBeEmpty();
-    await expect(page.locator('.ui-block-card-title').nth(2)).toHaveText('3. Betaalmuur');
-    await alert.getByRole('link', { name: 'Wat alle anderen zien' }).click();
-    await expect(page.locator('#teaser')).toBeFocused();
-  });
-
-  test("a picture's caption at rest follows its mode, as the save will read it", async ({
-    page,
-    request,
-  }) => {
-    if (!isA11y()) return;
-    requireApi();
-    const { edit, itemId, mediaId } = await pictureAtBothEnds(page, request, 'c-caption');
-    const { caption: before } = await callApi<{ caption: Record<string, string> }>(
-      request,
-      'media.get',
-      { id: mediaId }
-    );
-    await callApi(request, 'media.update', { id: mediaId, caption: { nl: 'Van het bestand' } });
-    try {
-      await page.goto(edit);
-      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
-      const pic = card(page, 1);
-      const caption = pic.locator('[data-block-rest] figcaption');
-      const set = async (mode: 'inherit' | 'hide' | 'own', words?: string) => {
-        await pic.locator('details.block > summary').click();
-        await pic.locator('select[name$=".p.caption.nl.mode"]').selectOption(mode);
-        if (words !== undefined)
-          await pic.locator('[name$=".p.caption.nl"]:not(select)').fill(words);
-        await page.keyboard.press('Escape');
-      };
-      await expect(caption).toContainText('Bovenaan');
-
-      await set('own', 'Eigen woorden');
-      await expect(caption).toContainText('Eigen woorden');
-      await set('inherit');
-      await expect(caption).toContainText('Van het bestand');
-      await set('hide');
-      await expect(pic.locator('[data-rest-caption]')).toBeHidden();
-      // Own, with no words: a save stores it empty, which hides the file's.
-      await set('own', '');
-      await expect(pic.locator('[data-rest-caption]')).toBeHidden();
-
-      // What the rest said is what comes back.
-      await set('inherit');
-      await expect(caption).toContainText('Van het bestand');
-      await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-      await expect(page).toHaveURL(/\?saved/);
-      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
-      await expect(card(page, 1).locator('[data-block-rest] figcaption')).toContainText(
-        'Van het bestand'
-      );
-      const { revision } = await callApi<{
-        revision: { document: { blocks: { props: { caption?: unknown } }[] } };
-      }>(request, 'content.item.get', { itemId });
-      expect(revision.document.blocks[0]?.props.caption).toBeUndefined();
-    } finally {
-      await callApi(request, 'media.update', { id: mediaId, caption: before });
+      const rest = card(page, 1).locator('[data-block-rest]');
+      const shown = rest.locator('.ui-block-text-card:visible');
+      await fold.locator('[data-block-done] button').click();
+      await expect(shown).toHaveCount(2);
+      await rest.locator('.ui-block-text-heading').first().click();
+      await stored.nth(2).fill('Derde kaart');
+      await fold.locator('[data-block-done] button').click();
+      await expect(shown).toHaveCount(3);
+      await expect(shown.nth(2)).toContainText('Derde kaart');
     }
   });
 
-  test('a picture that does not load says so, and its reference stays', async ({
+  // A document slot's picker offers documents only; the public link fetches the file itself.
+  test('a new list of files offers the documents, wants a file per row and saves', async ({
     page,
     request,
   }) => {
-    if (!isA11y()) return;
-    requireApi();
-    const { itemId, edit, mediaId } = await pictureAtBothEnds(page, request, 'd-broken');
-    const { item: hero } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
-      slug: `d-broken-hero-${Date.now()}`,
-      document: {
-        type: 'page',
-        defaultLocale: 'nl',
-        locales: ['nl'],
-        title: { nl: 'Kapotte hero' },
-        blocks: [
-          {
-            type: 'hero',
-            version: 1,
-            props: {
-              variant: 'cover',
-              title: { nl: 'Schone lucht' },
-              image: { mediaId, decorative: false, alt: { nl: 'Een plein' } },
-            },
-          },
-        ],
-      },
-    });
-    await page.route(`**/media/${mediaId}/variant/**`, (route) => route.abort());
+    await login(page, '/admin/probe');
+    await blockPage(page, 'files');
+    await editorReady(page);
+    await page
+      .locator('[data-block-picker]')
+      .last()
+      .getByRole('button', { name: 'Bestanden', exact: true })
+      .click();
+    const fresh = page.locator('#block-new');
+    await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Bestanden');
+    await editorReady(page);
+    await fresh.getByLabel('Naam', { exact: true }).first().fill('Jaarverslag');
+    const saving = page.getByRole('button', { name: 'Opslaan', exact: true });
+    await saving.click();
+    await expect(page.getByRole('listitem').filter({ hasText: 'kies een bestand' })).toBeVisible();
 
-    // An image block: the words and the way out, no working-looking picture.
-    await page.goto(edit);
-    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
-    const figure = card(page, 1).locator('figure.ui-block-image');
-    await expect(figure).toHaveAttribute('data-broken', '');
-    await expect(figure.locator('img')).toBeHidden();
-    const note = figure.locator('.ui-block-image-missing');
-    await expect(note).toBeVisible();
-    await note.getByRole('link', { name: 'Beeld vervangen' }).click();
-    await expect(card(page, 1).locator('details.block')).toHaveAttribute('open', '');
-    await expect(page).toHaveURL(/#b-[0-9a-f-]+-p-mediaId$/);
-    // Saved as it stands: the reference is not touched by a request that failed.
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(page).toHaveURL(/\?saved/);
-    const { revision } = await callApi<{
-      revision: { document: { blocks: { props: { mediaId?: string } }[] } };
-    }>(request, 'content.item.get', { itemId });
-    expect(revision.document.blocks[0]?.props.mediaId).toBe(mediaId);
+    await page.locator('#block-new').getByRole('button', { name: 'Bestand kiezen' }).click();
+    const dialog = page.locator('#block-new dialog[open]');
+    await expect(dialog.getByRole('radio', { name: 'malieveld.jpg' })).toHaveCount(0);
+    await dialog.getByRole('radio', { name: 'jaarverslag.pdf' }).first().check();
+    await dialog.getByRole('button', { name: 'Klaar' }).click();
+    await saving.click();
+    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
 
-    // A legacy hero's picture says the same, and "Replace" reaches its own field.
-    await page.goto(`/admin/probe/content/${hero.id}`);
-    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
-    const heroFigure = card(page, 1).locator('figure.ui-block-image');
-    await expect(heroFigure).toHaveAttribute('data-broken', '');
-    await heroFigure.getByRole('link', { name: 'Beeld vervangen' }).click();
-    await expect(page).toHaveURL(/#b-[0-9a-f-]+-p-image-mediaId$/);
-    const field = decodeURIComponent(new URL(page.url()).hash);
-    await expect(page.locator(field)).toBeAttached();
-    await expect(card(page, 1).locator('details.block')).toHaveAttribute('open', '');
+    await page.goto('/probe/blok-file-download-one');
+    const link = page.getByRole('link', { name: 'Jaarverslag 2025' });
+    await expect(link).toHaveAttribute('download', '');
+    const file = await request.get((await link.getAttribute('href'))!);
+    expect(file.status()).toBe(200);
+    expect(file.headers()['content-type']).toBe('application/pdf');
   });
 
-  test('an FAQ rebuilt on the other locale keeps the words of its untouched fields', async ({
-    page,
-    request,
-  }) => {
-    test.skip(!isA11y(), 'closing a block changes the rest view only with the script');
-    const prose = (text: string) => ({
-      type: 'doc',
-      content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
-    });
-    requireApi();
-    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
-      slug: `c2-fallback-${Date.now()}`,
-      document: {
-        type: 'page',
-        defaultLocale: 'nl',
-        locales: ['nl', 'en'],
-        title: { nl: 'Vragen', en: 'Questions' },
-        blocks: [
-          {
-            type: 'faq',
-            version: 2,
-            props: {
-              variant: 'list',
-              entries: [
-                { question: { nl: 'Vraag een?' }, answer: { nl: prose('Antwoord een.') } },
-                { question: { nl: 'Vraag twee?' }, answer: { nl: prose('Antwoord twee.') } },
-              ],
-            },
-          },
-          {
-            type: 'callout',
-            version: 1,
-            props: { variant: 'warning', body: { nl: prose('Pas op.') } },
-          },
-          {
-            type: 'callout',
-            version: 1,
-            props: { variant: 'note', body: { nl: prose('Ter info.') } },
-          },
-          {
-            type: 'cta',
-            version: 1,
-            props: {
-              variant: 'card',
-              title: { nl: 'Doe mee' },
-              actions: [
-                {
-                  label: { nl: 'Teken' },
-                  target: { kind: 'url', url: 'https://example.org/teken' },
-                },
-              ],
-            },
-          },
-        ],
-      },
-    });
-    const edit = `/admin/probe/content/${item.id}`;
-    await login(page, `${edit}?locale=en`);
-    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
-    const rest = page.locator('[data-block-rest]').first();
-    const fold = page.locator('details.block').first();
-    const faq = rest.locator('.ui-block-text-faq');
-    const open = async () => {
-      await fold.locator('> summary').click();
-      await expect(fold).toHaveAttribute('open', '');
-      await expect(fold.getByLabel('Vraag', { exact: true }).first()).toBeVisible();
-    };
-    const close = () => fold.locator('[data-block-done] button').click();
-
-    // Only the variant changes: every row keeps its fallback words, as a fold now.
-    await open();
-    await fold.locator('details.ui-block-group > summary').click();
-    await fold.getByLabel('Variant').selectOption('accordion');
-    await close();
-    await expect(faq).toHaveAttribute('data-variant', 'accordion');
-    await expect(rest.locator('summary')).toHaveText(['Vraag een?', 'Vraag twee?']);
-    await expectNoAxeViolations(page);
-
-    // One question translated: that row says the new words, the other keeps the fallback, and
-    // its answer stays the server's rendering.
-    await rest.locator('summary').first().click();
-    await open();
-    await fold.getByLabel('Vraag', { exact: true }).first().fill('Question one?');
-    await close();
-    await expect(rest.locator('summary')).toHaveText(['Question one?', 'Vraag twee?']);
-    await expect(rest.locator('.ui-block-text-prose').first()).toContainText('Antwoord een.');
-
-    // Emptied again, the field holds what it loaded: nothing typed, so the fallback, as the save
-    // will keep it.
-    await open();
-    await fold.getByLabel('Vraag', { exact: true }).first().fill('');
-    await close();
-    await expect(rest.locator('summary')).toHaveText(['Vraag een?', 'Vraag twee?']);
-
-    // A warning and a note in their boxes, and a CTA card, pass axe in their own colours.
-    await expect(page.locator('.ui-block-text-callout[data-variant="warning"]')).toBeVisible();
-    await expect(page.locator('.ui-block-text-callout[data-variant="note"]')).toBeVisible();
-    await expect(page.locator('.ui-block-text-cta[data-variant="card"]')).toBeVisible();
-    await expectNoAxeViolations(page);
-  });
-
-  test('an image block shows its picture with caption and credit at rest, its layout under Display', async ({
-    page,
-    request,
-  }) => {
-    const edit = await seededPage(request);
-    await login(page, edit);
-    const image = card(page, 5);
-    await expect(image.locator('.ui-block-card-title')).toHaveText('5. Afbeelding');
-    await expectPixels(image.locator('[data-block-rest] img'), 'the image block at rest');
-    const fields = image.locator('details.block');
-    await fields.locator(':scope > summary').click();
-    // Content first; layout and credit folded until asked for.
-    await expect(fields.getByLabel('Plaatsing')).toBeHidden();
-    await fields.locator('details.ui-block-group > summary', { hasText: 'Weergave' }).click();
-    await expect(fields.getByLabel('Plaatsing')).toBeVisible();
+  test('a new sound block wants a sound file; its picker offers only those', async ({ page }) => {
+    await login(page, '/admin/probe');
+    await blockPage(page, 'sound');
+    await editorReady(page);
+    await page
+      .locator('[data-block-picker]')
+      .last()
+      .getByRole('button', { name: 'Geluid', exact: true })
+      .click();
+    const fresh = page.locator('#block-new');
+    await editorReady(page);
+    await fresh.getByLabel('Titel', { exact: true }).fill('Het gesprek');
+    const saving = page.getByRole('button', { name: 'Opslaan', exact: true });
+    await saving.click();
     await expect(
-      fields.locator('details.ui-block-group > summary', { hasText: 'Bron en credits' })
+      page.getByRole('listitem').filter({ hasText: 'kies een geluidsbestand' })
     ).toBeVisible();
-    // Evidence for the PR's UI gate: the card at rest and opened, at 320 CSS px and 200% text.
-    if (isA11y()) {
-      await page.setViewportSize(NARROW);
-      await setTextSize(page, '200%');
-      await layoutGate(page, 'image card opened', '#item-edit');
-      await image.screenshot({ path: test.info().outputPath('image-card-open-320-200.png') });
-      await fields.locator(':scope > summary').click();
-      await (await more(page, 5)).locator('details.ui-block-card-more > summary').focus();
-      await layoutGate(page, 'image card at rest with more actions', '#item-edit');
-      await image.screenshot({ path: test.info().outputPath('image-card-rest-320-200.png') });
+    await page.locator('#block-new').getByRole('button', { name: 'Geluid kiezen' }).click();
+    const dialog = page.locator('#block-new dialog[open]');
+    await expect(dialog.getByRole('radio', { name: 'jaarverslag.pdf' })).toHaveCount(0);
+    await dialog.getByRole('radio', { name: 'gesprek.mp3' }).first().check();
+    await dialog.getByRole('button', { name: 'Klaar' }).click();
+    await saving.click();
+    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
+  });
+
+  // A new gallery wants an image per row, and two rows; its picker offers images, not documents.
+  test('a new gallery wants an image per row, refuses a PDF in the picker and saves', async ({
+    page,
+  }) => {
+    await login(page, '/admin/probe');
+    await blockPage(page, 'gallery');
+    await editorReady(page);
+    await page
+      .locator('[data-block-picker]')
+      .last()
+      .getByRole('button', { name: 'Fotogalerij', exact: true })
+      .click();
+    const fresh = page.locator('#block-new');
+    await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Fotogalerij');
+    await editorReady(page);
+    const saving = page.getByRole('button', { name: 'Opslaan', exact: true });
+    await saving.click();
+    await expect(
+      page.getByRole('listitem').filter({ hasText: 'vul minstens twee afbeeldingen in' })
+    ).toBeVisible();
+
+    // By row: without scripts a chosen row's button still says "Beeld kiezen".
+    const fill = async (row: number, file: string) => {
+      const fields = fresh.getByRole('group', { name: `Afbeelding ${row}`, exact: true });
+      await fields.getByRole('button', { name: 'Beeld kiezen' }).click();
+      const dialog = fields.locator('dialog[open]');
+      await expect(dialog.getByRole('radio', { name: 'jaarverslag.pdf' })).toHaveCount(0);
+      await dialog.getByRole('radio', { name: file }).first().check();
+      await dialog.getByRole('button', { name: 'Klaar' }).click();
+      await fields.getByRole('checkbox', { name: 'Decoratief' }).check();
+    };
+    await fill(1, 'bomen.jpg');
+    await fill(2, 'plein.jpg');
+    await saving.click();
+    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
+  });
+
+  // The row scrolls inside itself: a phone's page stays still, and a keyboard reaches every photo.
+  test('a gallery row scrolls by keyboard at 320 px without moving the page', async ({ page }) => {
+    await page.setViewportSize(NARROW);
+    await page.goto('/probe/blok-gallery-row-content');
+    await layoutGate(page);
+    const row = page.locator('.gallery-row .gallery-list');
+    await row.focus();
+    await expect(row).toBeFocused();
+    await page.keyboard.press('ArrowRight');
+    await expect.poll(() => row.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+  });
+
+  // Dates by a native control, without a script; a row without one is refused by name.
+  test('a new timeline wants two events with a date and saves', async ({ page }) => {
+    await login(page, '/admin/probe');
+    await blockPage(page, 'timeline');
+    await editorReady(page);
+    await page
+      .locator('[data-block-picker]')
+      .last()
+      .getByRole('button', { name: 'Tijdlijn', exact: true })
+      .click();
+    const fresh = page.locator('#block-new');
+    await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Tijdlijn');
+    await editorReady(page);
+    const saving = page.getByRole('button', { name: 'Opslaan', exact: true });
+    await saving.click();
+    await expect(
+      page.getByRole('listitem').filter({ hasText: 'vul minstens twee gebeurtenissen in' })
+    ).toBeVisible();
+
+    const fill = async (row: number, date: string, title: string) => {
+      const fields = fresh.getByRole('group', { name: `Gebeurtenis ${row}`, exact: true });
+      if (date) await fields.getByLabel('Datum', { exact: true }).fill(date);
+      await fields.getByLabel('Titel', { exact: true }).fill(title);
+    };
+    await fill(1, '', 'Later');
+    await fill(2, '2026-03-02', 'Eerder');
+    await saving.click();
+    await expect(page.getByRole('listitem').filter({ hasText: 'kies een datum' })).toBeVisible();
+    await fill(1, '2026-05-19', 'Later');
+    await saving.click();
+    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
+  });
+
+  test('a card without a title keeps the name of its first question after an edit', async ({
+    page,
+    request,
+  }) => {
+    onlyA11y('the name follows with the script');
+    const answer = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Daarom.' }] }],
+    };
+    const edit = await make(
+      request,
+      'faq-name',
+      ['nl'],
+      [
+        {
+          type: 'faq',
+          version: 2,
+          props: { entries: [{ question: { nl: 'Waarom?' }, answer: { nl: answer } }] },
+        },
+      ]
+    );
+    await login(page, edit);
+    await editorReady(page);
+    const name = card(page, 1).locator('.ui-block-card-name');
+    await expect(name).toHaveText('Waarom?');
+    await card(page, 1).locator('.ui-block-card-fold > summary').click();
+    const question = card(page, 1).getByLabel('Vraag', { exact: true }).first();
+    await question.fill('Waarom nu?');
+    await question.focus();
+    await page.keyboard.press('Escape');
+    await expect(card(page, 1).locator('[data-block-rest]')).toContainText('Waarom nu?');
+    await expect(name).toHaveText('Waarom nu?');
+  });
+
+  test('a card says in the language of the screen where it is not ready', async ({
+    browser,
+    page,
+    request,
+  }) => {
+    const edit = await make(
+      request,
+      'notice-language',
+      ['nl', 'en'],
+      [heading('Alleen Nederlands')]
+    );
+    await login(page, `${edit}?locale=nl`);
+    await expect(card(page, 1).locator('.ui-block-card-notice')).toHaveText(
+      'Nog niet klaar in Engels'
+    );
+    // Chromium's context locale owns Accept-Language, so the other language is its own context.
+    const context = await browser.newContext({ locale: 'en-GB' });
+    try {
+      const english = await context.newPage();
+      await login(english, `${edit}?locale=nl`);
+      await expect(card(english, 1).locator('.ui-block-card-notice')).toHaveText(
+        'Not ready in English'
+      );
+    } finally {
+      await context.close();
     }
   });
 
-  test.describe('UI gate: the block forms at 320 CSS px and 200% text', () => {
-    test.use({ viewport: NARROW });
-
-    for (const text of TEXT_SIZES)
-      test(`every action whole and no horizontal scroll, text ${text}`, async ({
-        page,
-        request,
-      }) => {
-        onlyA11y('measures the layout with a script');
-        const edit = await seededPage(request);
-        // A committed URL can precede the HTML body. Throttled delivery keeps that window
-        // observable without sleeps; restore normal networking once the document is parsed.
-        const network = await page.context().newCDPSession(page);
-        await network.send('Network.enable');
-        await network.send('Network.emulateNetworkConditions', {
-          offline: false,
-          latency: 20,
-          downloadThroughput: 128 * 1024,
-          uploadThroughput: 128 * 1024,
-        });
-        await login(page, edit);
-        const form = page.locator('form#item-edit');
-        await expect(form).toBeVisible();
-        await expect(form.locator('input[name="baseRevisionId"]')).toHaveValue(/.+/);
-        await page.waitForLoadState('domcontentloaded');
-        await network.detach();
-        // Mounting the prose editor and the tab enhancement is observable readiness, unlike
-        // the URL or body alone. Open folds afterwards so hydration cannot replace the state.
-        await expect(form.locator('details.block').nth(2).locator('.ProseMirror')).toHaveCount(1);
-        await expect(form.locator('.ui-tabs')).toHaveAttribute('data-tabs', '');
-        await page.evaluate(() =>
-          document.querySelectorAll('details').forEach((d) => (d.open = true))
-        );
-        const blocks = form.locator('details.block');
-        // Twelve cards, one fold less: a paywall has no fields to open.
-        await expect(form.locator('section.ui-block-card')).toHaveCount(12);
-        await expect(blocks).toHaveCount(11);
-        await expect(form.locator('details.block:not([open])')).toHaveCount(0);
-        await expect(blocks.nth(2).locator('.ProseMirror')).toBeVisible();
-        await expect(card(page, 9).getByLabel('Vraag', { exact: true }).first()).toBeVisible();
-        await setTextSize(page, text);
-        await expect(page).toHaveURL(new RegExp(`${edit}$`));
-        await layoutGate(page, edit);
-        // A block with many fields, chosen but not stored, at its place. Not the hero: new content
-        // gets no hero block (ADR 025 rule 4).
-        await page.goto(edit);
-        await insert(page, 'Oproep', 'after', 7);
-        await expect(form.locator('.ui-tabs')).toHaveAttribute('data-tabs', '');
-        await expect(
-          page.locator('#block-new').getByLabel('Titel', { exact: true }).first()
-        ).toBeVisible();
-        await setTextSize(page, text);
-        await layoutGate(page, 'new cta');
-      });
+  test('without JavaScript "insert below" lands on an open chooser', async ({ page, request }) => {
+    test.skip(isA11y(), 'the no-js project is the proof');
+    const edit = await make(
+      request,
+      'insert-below-nojs',
+      ['nl'],
+      [heading('Eerste'), heading('Tweede')]
+    );
+    await login(page, edit);
+    const first = await more(page, 1);
+    await first.getByRole('link', { name: 'Blok hieronder invoegen' }).click();
+    const chooser = page.locator('details.ui-block-insert').nth(1);
+    await expect(chooser).toHaveAttribute('open', '');
+    const quote = chooser.getByRole('button', { name: 'Citaat', exact: true });
+    await expect(quote).toBeInViewport();
+    await quote.click();
+    await expect(page.locator('#block-new').getByRole('heading')).toHaveText('Nieuw blok: Citaat');
   });
 });
 
-// The enhanced article view and native block forms save the same core document. The browser
-// proof covers explicit saving, axe and the action layout at 320 CSS px with 200% text; the no-JS
-// project proves the adjacent form can write the same prose without hydrating the editor.
-test.describe('article-writing', () => {
-  test.use({ locale: 'nl-NL' });
+// Looking at a list keeps the editor waiting behind it: Chrome drops a `no-store` page from the
+// back/forward cache when an HttpOnly cookie changes, and rich text does not survive a new load
+// the way a form field does. The cookie that remembers a list is therefore written on entering
+// an item, and only if it changes (content-list.ts). It needs its own browser (lib/bfcache.ts).
+test.describe('an editor with unsaved rich text survives a look at the list', () => {
+  let browser: Browser | undefined;
+  test.beforeAll(async () => {
+    onlyA11y('one browser of its own, measured once');
+    browser = await bfcacheBrowser();
+  });
+  test.afterAll(async () => {
+    await browser?.close();
+  });
 
-  async function article(request: APIRequestContext) {
-    const slug = `writer-${test.info().project.name}-${Date.now()}`;
+  const WRITER = '.writing-surface .ProseMirror';
+  const article = async (request: APIRequestContext, word: string) => {
     const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
-      slug,
+      slug: word,
       document: {
         type: 'article',
         defaultLocale: 'nl',
-        locales: ['nl', 'en'],
-        title: { nl: 'Een artikel', en: 'An article' },
+        locales: ['nl'],
+        title: { nl: `Terugknop ${word}` },
         blocks: [
           {
             type: 'rich-text',
@@ -3295,11 +2086,7 @@ test.describe('article-writing', () => {
               content: {
                 nl: {
                   type: 'doc',
-                  content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Oude tekst' }] }],
-                },
-                en: {
-                  type: 'doc',
-                  content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Old text' }] }],
+                  content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Begin.' }] }],
                 },
               },
             },
@@ -3307,602 +2094,66 @@ test.describe('article-writing', () => {
         ],
       },
     });
-    return `/admin/probe/content/${item.id}`;
-  }
-
-  test('article prose and title save together, while the native form and other locale remain lossless', async ({
-    page,
-    request,
-  }) => {
-    const edit = await article(request);
-    await login(page, edit);
-    // This proves the save, not input during hydration (the early-input test below does): a fill
-    // whose select-all lands while hydration sets the title's value would append to it.
-    if (isA11y())
-      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
-    await page.locator('#title\\.nl').fill('Gewijzigde kop');
-    if (isA11y()) {
-      await expect(page.locator('.writing-surface .ProseMirror').first()).toBeVisible();
-      await page.locator('.writing-surface .editor-prose p').first().fill('Nieuwe tekst');
-    } else {
-      const prose = page.locator('details.block').first();
-      await prose.locator(':scope > summary').click();
-      await prose.getByLabel('Tekst', { exact: true }).fill('Nieuwe tekst');
-    }
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(page).toHaveURL(/saved/);
-    const { revision } = await callApi(request, 'content.item.get', {
-      itemId: edit.split('/').at(-1)!,
-    });
-    expect(revision.document.title.nl).toBe('Gewijzigde kop');
-    expect(revision.document.blocks[0].props.content.nl.content[0].content[0].text).toBe(
-      'Nieuwe tekst'
-    );
-    expect(revision.document.blocks[0].props.content.en.content[0].content[0].text).toBe(
-      'Old text'
-    );
-    if (isA11y()) await expectNoAxeViolations(page);
-    await page.goto(`${edit}/write?locale=en`);
-    await expect(page).toHaveURL(`${edit}?locale=en#blocks`);
-  });
-
-  test('native input typed while the editor bundle loads survives enhancement', async ({
-    page,
-    request,
-  }) => {
-    onlyA11y();
-    const edit = await article(request);
-    await login(page, edit);
-    let release!: () => void;
-    const ready = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    await page.route('**/_app/immutable/**/*.js', async (route) => {
-      await ready;
-      await route.continue();
-    });
-    await page.reload({ waitUntil: 'commit' });
-    await page.locator('#title\\.nl').fill('Voor de enhancement');
-    const native = page.locator('details.block').first();
-    await native.locator(':scope > summary').click();
-    await native.getByLabel('Tekst', { exact: true }).fill('Native invoer voor het laden');
-    release();
-    await expect(page.locator('form#item-edit[data-edit-screen]')).toHaveCount(1);
-    await expect(page.locator('#title\\.nl')).toHaveValue('Voor de enhancement');
-    await expect(native.getByLabel('Tekst', { exact: true })).toBeVisible();
-    await expect(native.getByLabel('Tekst', { exact: true })).toHaveValue(
-      'Native invoer voor het laden'
-    );
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(page).toHaveURL(/saved/);
-    const saved = await callApi(request, 'content.item.get', { itemId: edit.split('/').at(-1)! });
-    expect(saved.revision.document.title.nl).toBe('Voor de enhancement');
-    expect(saved.revision.document.blocks[0].props.content.nl.content[0].content[0].text).toBe(
-      'Native invoer voor het laden'
-    );
-  });
-
-  test('page prose edits inline and saves in the same form as its title', async ({
-    page,
-    request,
-  }) => {
-    onlyA11y();
-    const source = await article(request);
-    const original = await callApi(request, 'content.item.get', {
-      itemId: source.split('/').at(-1)!,
-    });
-    const {
-      type: _type,
-      authorIds: _authors,
-      sectionId: _section,
-      tags: _tags,
-      corrections: _corrections,
-      delivery: _delivery,
-      ...document
-    } = original.revision.document;
-    const created = await callApi(request, 'content.item.create', {
-      document: { ...document, type: 'page' },
-    });
-    await login(page, `/admin/probe/content/${created.item.id}`);
-    const native = page.locator('details.block').first();
-    await native.locator(':scope > summary').click();
-    const prose = native.locator('.writing-surface .ProseMirror');
-    await expect(prose).toBeVisible();
-    await prose.locator('p').first().fill('Inline pagina-inhoud');
-    await page.locator('#title\\.nl').fill('Pagina met schrijfvlak');
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(page).toHaveURL(/saved/);
-    const saved = await callApi(request, 'content.item.get', { itemId: created.item.id });
-    expect(saved.revision.document.title.nl).toBe('Pagina met schrijfvlak');
-    expect(saved.revision.document.blocks[0].props.content.nl.content[0].content[0].text).toBe(
-      'Inline pagina-inhoud'
-    );
-    expect(saved.revision.document.blocks[0].props.content.en).toEqual(
-      original.revision.document.blocks[0].props.content.en
-    );
-    await expectNoAxeViolations(page);
-  });
-
-  test("a card's insert point stands above it in the writer, and inserts there", async ({
-    page,
-    request,
-  }) => {
-    onlyA11y();
-    requireApi();
-    const prose = (text: string) => ({
-      type: 'rich-text',
-      version: 1,
-      props: {
-        content: {
-          nl: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] },
-        },
-      },
-    });
-    const heading = (text: string) => ({
-      type: 'heading',
-      version: 1,
-      props: { text: { nl: text } },
-    });
-    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
-      slug: `writer-inserts-${Date.now()}`,
-      document: {
-        type: 'article',
-        defaultLocale: 'nl',
-        locales: ['nl'],
-        title: { nl: 'Artikel met kaarten' },
-        access: { level: 'members', teaser: 'marker' },
-        blocks: [
-          prose('Eerst'),
-          heading('Kop een'),
-          prose('Dan'),
-          // A card without fields has no fold, and its "+" belongs above it all the same.
-          { type: 'paywall', version: 1, props: {} },
-          heading('Kop twee'),
-        ],
-      },
-    });
-    const edit = `/admin/probe/content/${item.id}`;
-    await login(page, edit);
-    await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
-    const surface = page.locator('.writing .ProseMirror');
-    await expect(surface).toBeVisible();
-
-    // One "+" per card, each directly above its card; none left under the writer.
-    const shown = page.locator('details.ui-block-insert:visible');
-    await expect(shown).toHaveCount(3);
-    for (const name of ['Kop een', 'Betaalmuur', 'Kop twee']) {
-      const card = surface.locator('section.ui-block-card', { hasText: name });
-      await expect(
-        card.locator('xpath=preceding-sibling::details[contains(@class, "ui-block-insert")]')
-      ).toHaveCount(1);
-    }
-    await expect(page.locator('.item-blocks fieldset.native-block:visible')).toHaveCount(0);
-
-    // It still does what it says: a new block lands before the card without fields.
-    const second = shown.nth(1);
-    await second.locator('summary').click();
-    await page.setViewportSize(NARROW);
-    await setTextSize(page, '200%');
-    await layoutGate(page, 'insert point in the writer', '.editor-card');
-    await setTextSize(page, '100%');
-    await page.setViewportSize({ width: 1280, height: 720 });
-    await second.getByLabel('Soort').selectOption({ label: 'Kop' });
-    await second.getByRole('button', { name: 'Hier invoegen' }).click();
-    const fresh = page.locator('#block-new');
-    await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Kop');
-    await fresh.locator('[name$=".text.nl"]').fill('Nieuwe kop');
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(page).toHaveURL(/\?saved/);
-    const { revision } = await callApi<{
-      revision: { document: { blocks: { type: string; props: { text?: { nl?: string } } }[] } };
-    }>(request, 'content.item.get', { itemId: item.id });
-    expect(revision.document.blocks.map((b) => b.props.text?.nl ?? b.type)).toEqual([
-      'rich-text',
-      'Kop een',
-      'rich-text',
-      'Nieuwe kop',
-      'paywall',
-      'Kop twee',
-    ]);
-  });
-
-  test('typing in an empty article saves and reopens with stable block identity', async ({
-    page,
-    request,
-  }) => {
-    onlyA11y();
-    requireApi();
-    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
-      slug: `empty-writer-${Date.now()}`,
-      document: {
-        type: 'article',
-        defaultLocale: 'nl',
-        locales: ['nl'],
-        title: { nl: 'Leeg artikel' },
-        blocks: [],
-      },
-    });
-    const route = `/admin/probe/content/${item.id}/write`;
-    await login(page, `/admin/probe/content/${item.id}`);
-    await page.goto(route);
-    const writing = page.locator('.writing-surface .ProseMirror');
-    await expect(writing).toBeVisible();
-    await writing.click();
-    await page.keyboard.type('Eerste tekst');
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(page).toHaveURL(/saved/);
-    const id = await writing.locator('[data-mycel-prose]').getAttribute('data-block-id');
-    expect(id).toBeTruthy();
-    await page.reload();
-    await expect(writing).toContainText('Eerste tekst');
-    await expect(writing.locator('[data-mycel-prose]')).toHaveAttribute('data-block-id', id!);
-    await writing.locator('p').first().fill('Tweede tekst');
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(page).toHaveURL(/saved/);
-    await page.reload();
-    await expect(writing).toContainText('Tweede tekst');
-    await expect(writing.locator('[data-mycel-prose]')).toHaveAttribute('data-block-id', id!);
-  });
-
-  test('writer toolbar wraps whole actions at 320 CSS px and 200% text', async ({
-    browser,
-    request,
-  }) => {
-    onlyA11y();
-    requireApi();
-    const edit = await article(request);
-    // Chromium's context locale owns Accept-Language too; changing only the request header
-    // left both screenshots in Dutch. Use real locale contexts and assert the rendered language.
-    for (const locale of ['nl-NL', 'en-GB']) {
-      const context = await browser.newContext({ locale, viewport: NARROW });
-      try {
-        const page = await context.newPage();
-        await login(page, edit);
-        await expect(page.locator('html')).toHaveAttribute('lang', locale.slice(0, 2));
-        await expect(page.locator('.writing-actions').first()).toBeVisible();
-        await setTextSize(page, '200%');
-        await layoutGate(page, `writer actions ${locale}`, '.writing-actions');
-        const screenshot = test.info().outputPath(`integrated-editor-${locale}-320-200.png`);
-        await page.screenshot({ path: screenshot, fullPage: true });
-        await test.info().attach(`integrated-editor-${locale}-320-200`, {
-          path: screenshot,
-          contentType: 'image/png',
-        });
-      } finally {
-        await context.close();
-      }
-    }
-  });
-
-  test('pasted text keeps its paragraphs and marks, and no stray empty ones', async ({
-    page,
-    request,
-  }) => {
-    onlyA11y();
-    requireApi();
-    await login(page, await article(request));
-    const writing = page.locator('.writing-surface .ProseMirror');
-    await writing.locator('p').first().click();
-    const before = await writing.locator('p').count();
-    await writing.evaluate((element) => {
-      const clipboardData = new DataTransfer();
-      clipboardData.setData(
-        'text/html',
-        '<p>Eerste <strong>alinea</strong>.</p>\n<script>window.pasted = 1</script>\n<p>Tweede alinea.</p>\n'
-      );
-      element.dispatchEvent(
-        new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData })
-      );
-    });
-    await expect(writing.locator('strong', { hasText: 'alinea' })).toBeVisible();
-    await expect(writing.locator('p', { hasText: 'Tweede alinea.' })).toHaveCount(1);
-    expect(await writing.locator('p').count()).toBeLessThanOrEqual(before + 2);
-    await expect(writing.locator('p:empty, p:has(> br:only-child)')).toHaveCount(0);
-    expect(await page.evaluate(() => 'pasted' in window)).toBe(false);
-  });
-
-  test('pasted blockquote becomes a structured quote card after attribution', async ({
-    page,
-    request,
-  }) => {
-    onlyA11y();
-    requireApi();
-    const edit = await article(request);
-    await login(page, edit);
-    const writing = page.locator('.writing-surface .ProseMirror');
-    await writing.click();
-    await writing.evaluate((element) => {
-      const clipboardData = new DataTransfer();
-      clipboardData.setData('text/html', '<blockquote><p>Een stem uit de buurt.</p></blockquote>');
-      element.dispatchEvent(
-        new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData })
-      );
-    });
-    await expect(page.getByRole('heading', { name: 'Geplakt citaat' })).toBeVisible();
-    await page.getByLabel('Naam voor bronvermelding').fill('Sam');
-    await page.getByRole('button', { name: 'Kaart toevoegen' }).click();
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(page).toHaveURL(/saved/);
-    await page.goto(edit);
-    await expect(page.locator('details.block')).toHaveCount(2);
-    await expect(page.locator('.writing-surface .ui-block-card-title')).toContainText(
-      /Quote|Citaat/
-    );
-  });
-
-  test('an integrated prose conflict retains input and never overwrites the newer revision', async ({
-    page,
-    request,
-  }) => {
-    onlyA11y();
-    const edit = await article(request);
-    const itemId = edit.split('/').at(-1)!;
-    await login(page, edit);
-    await expect(page.locator('.writing-surface .ProseMirror').first()).toBeVisible();
-    const { revision } = await callApi(request, 'content.item.get', { itemId });
-    await callApi(request, 'content.item.update', {
-      itemId,
-      baseRevisionId: revision.id,
-      document: { ...revision.document, title: { nl: 'Kop van collega', en: 'An article' } },
-    });
-    await page.locator('.writing-surface .editor-prose p').first().fill('Mijn nieuwe tekst');
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(
-      page
-        .getByRole('alert')
-        .filter({ hasText: 'Iemand anders heeft dit item intussen opgeslagen' })
-    ).toBeVisible();
-    await expect(page.locator('.writing-surface .ProseMirror').first()).toContainText(
-      'Mijn nieuwe tekst'
-    );
-    const saved = await callApi(request, 'content.item.get', { itemId });
-    expect(saved.revision.document.title.nl).toBe('Kop van collega');
-    expect(saved.revision.document.blocks[0].props.content.nl).toEqual(
-      revision.document.blocks[0].props.content.nl
-    );
-  });
-
-  test('pasted plain text is read as text written elsewhere', async ({ page, request }) => {
-    onlyA11y();
-    requireApi();
-    await login(page, await article(request));
-    const writing = page.locator('.writing-surface .ProseMirror');
-    const paste = (text: string) =>
-      writing.evaluate((element, source) => {
-        const clipboardData = new DataTransfer();
-        clipboardData.setData('text/plain', source);
-        element.dispatchEvent(
-          new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData })
-        );
-      }, text);
-    await writing.locator('p').first().click();
-    // The characters stay what they are: no toggle swallows them.
-    await paste('snake_case_naam en **open');
-    await expect(writing.locator('p', { hasText: 'snake_case_naam en **open' })).toHaveCount(1);
-    // And what is recognised takes the same route as pasted HTML.
-    await paste('# Kop van elders');
-    await expect(writing.getByRole('heading', { name: 'Kop van elders' })).toBeVisible();
-    await paste('> Een stem uit de buurt.');
-    await expect(page.getByRole('heading', { name: 'Geplakt citaat' })).toBeVisible();
-  });
-
-  test('pasted image waits for media and alternative text before saving', async ({
-    page,
-    request,
-  }) => {
-    onlyA11y();
-    requireApi();
-    const { items } = await callApi<{ items: { id: string }[] }>(request, 'content.item.list', {
-      type: 'page',
-      slug: 'e2e-blokken-a11y',
-    });
-    const { revision } = await callApi<{
-      revision: { document: { blocks: { type: string; props: { mediaId?: string } }[] } };
-    }>(request, 'content.item.get', { itemId: items[0]!.id });
-    const mediaId = revision.document.blocks.find((block) => block.type === 'image')?.props.mediaId;
-    expect(mediaId).toBeTruthy();
-    const edit = await article(request);
-    await login(page, edit);
-    const writing = page.locator('.writing-surface .ProseMirror');
-    await writing.click();
-    await writing.evaluate((element) => {
-      const clipboardData = new DataTransfer();
-      clipboardData.setData(
-        'text/html',
-        '<p><img src="https://example.org/photo.jpg" alt="Een boom"></p>'
-      );
-      element.dispatchEvent(
-        new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData })
-      );
-    });
-    await expect(page.getByRole('heading', { name: 'Geplakte afbeelding' })).toBeVisible();
-    await page.setViewportSize(NARROW);
-    await setTextSize(page, '200%');
-    await layoutGate(page, 'writer actions', '.writing-actions');
-    await expect(page.getByRole('alert')).toContainText('Vul de velden van de geplakte kaarten in');
-    // The card's image comes from the shared media picker, not a typed id (brief media-picker).
-    // The grid holds the newest hundred; this spec's other tests upload more, so search by name.
-    const { filename } = await callApi<{ filename: string }>(request, 'media.get', { id: mediaId });
-    await page.locator('.writing .pending').getByRole('button', { name: 'Beeld kiezen' }).click();
-    const picker = page.getByRole('dialog', { name: 'Afbeelding' });
-    await picker.getByLabel('Zoeken op naam of bijschrift').fill(filename);
-    // A click, not check(): the hydrated picker then renders the choice as its own radio of the
-    // same value, which unchecks the script's search result.
-    await picker.locator(`input[type="radio"][value="${mediaId}"]`).click();
-    await expect(page.locator('.writing .pending [data-picker-name]').first()).toHaveText(filename);
-    await picker.getByRole('button', { name: 'Klaar' }).click();
-    await expect(page.getByRole('button', { name: 'Ander beeld kiezen' })).toBeVisible();
-    await expect(page.getByLabel('Alternatieve tekst')).toHaveValue('Een boom');
-    await page.getByRole('button', { name: 'Kaart toevoegen' }).click();
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(page).toHaveURL(/saved/);
-    await page.goto(edit);
-    await expect(page.locator('details.block')).toHaveCount(2);
-    await expect(page.locator('.writing-surface .ui-block-card-title')).toContainText(
-      /Image|Afbeelding/
-    );
-  });
-
-  test('TipTap saves headings, lists, links and notes without changing stored structure', async ({
-    page,
-    request,
-  }) => {
-    onlyA11y();
-    requireApi();
-    const edit = await article(request);
-    const itemId = edit.split('/').at(-1)!;
-    const { revision } = await callApi<{ revision: { id: string; document: any } }>(
-      request,
-      'content.item.get',
-      { itemId }
-    );
-    const rich = {
-      type: 'doc',
-      content: [
-        { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'Tussenkop' }] },
-        {
-          type: 'paragraph',
-          content: [
-            { type: 'text', text: 'Vet', marks: [{ type: 'bold' }] },
-            {
-              type: 'text',
-              text: ' bron',
-              marks: [{ type: 'link', attrs: { href: 'https://example.org' } }],
-            },
-            {
-              type: 'text',
-              text: ' noot',
-              marks: [{ type: 'footnote_reference', attrs: { text: 'Bron 1' } }],
-            },
-          ],
-        },
-        {
-          type: 'bullet_list',
-          content: [
-            {
-              type: 'list_item',
-              content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Punt' }] }],
-            },
-          ],
-        },
-        {
-          type: 'ordered_list',
-          attrs: { start: 3 },
-          content: [
-            {
-              type: 'list_item',
-              content: [
-                {
-                  type: 'paragraph',
-                  content: [
-                    { type: 'text', text: 'Derde', marks: [{ type: 'bold' }] },
-                    { type: 'text', text: ' punt' },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-        {
-          type: 'ordered_list',
-          attrs: { start: 1 },
-          content: [
-            {
-              type: 'list_item',
-              content: [
-                {
-                  type: 'paragraph',
-                  content: [
-                    { type: 'text', text: 'Eerste', marks: [{ type: 'bold' }] },
-                    { type: 'text', text: ' punt' },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    };
-    await callApi(request, 'content.item.update', {
-      itemId,
-      baseRevisionId: revision.id,
-      document: {
-        ...revision.document,
-        blocks: [
-          {
-            ...revision.document.blocks[0],
-            props: { content: { nl: rich, en: revision.document.blocks[0].props.content.en } },
-          },
-        ],
-      },
-    });
-    await login(page, edit);
-
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(page).toHaveURL(/saved/);
-    const { revision: latest } = await callApi<{ revision: { document: any } }>(
-      request,
-      'content.item.get',
-      { itemId }
-    );
-    expect(latest.document.blocks[0].id).toBe(revision.document.blocks[0].id);
-    expect(latest.document.blocks[0].props.content.nl).toEqual(rich);
-    expect(latest.document.blocks[0].props.content.en).toEqual(
-      revision.document.blocks[0].props.content.en
-    );
-    const listItem = page.locator('.writing-surface .ProseMirror ol li p').last();
-    await listItem.click();
+    return item.id;
+  };
+  /** Types without saving, goes to `away`, presses Back: the same document, with the words in it. */
+  const expectKept = async (page: Page, away: string, typed: string) => {
+    const writer = page.locator(WRITER).first();
+    await writer.click();
     await page.keyboard.press('End');
-    await page.keyboard.type(' aangevuld');
-    await expect(listItem).toContainText('Eerste punt aangevuld');
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(page).toHaveURL(/saved/);
-    await expect
-      .poll(async () => {
-        const { revision: current } = await callApi<{ revision: { document: any } }>(
-          request,
-          'content.item.get',
-          { itemId }
-        );
-        return current.document.blocks[0].props.content.nl.content[4].content[0].content[0].content
-          .map((part: { text: string }) => part.text)
-          .join('');
-      })
-      .toBe('Eerste punt aangevuld');
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(page).toHaveURL(/saved/);
-    const { revision: afterEdit } = await callApi<{ revision: { document: any } }>(
-      request,
-      'content.item.get',
-      { itemId }
-    );
-    expect(afterEdit.document.blocks[0].id).toBe(revision.document.blocks[0].id);
-    expect(afterEdit.document.blocks[0].props.content.nl).toEqual({
-      ...rich,
-      content: rich.content.map((node) =>
-        node.type === 'ordered_list' && node.attrs?.start === 1
-          ? {
-              ...node,
-              content: [
-                {
-                  type: 'list_item',
-                  content: [
-                    {
-                      type: 'paragraph',
-                      content: [
-                        { type: 'text', text: 'Eerste', marks: [{ type: 'bold' }] },
-                        { type: 'text', text: ' punt aangevuld' },
-                      ],
-                    },
-                  ],
-                },
-              ],
-            }
-          : node
-      ),
+    await page.keyboard.type(` ${typed}`);
+    await expect(writer).toContainText(typed);
+    expect({ away, ...(await bfcacheBack(page, away)) }).toEqual({
+      away,
+      restored: true,
+      reasons: [],
     });
-    expect(afterEdit.document.blocks[0].props.content.en).toEqual(
-      revision.document.blocks[0].props.content.en
-    );
+    await expect(page.locator(WRITER).first()).toContainText(typed);
+  };
+
+  test('to a filtered list, back to the same view, and to the plain list', async ({
+    baseURL,
+    request,
+  }) => {
+    requireApi();
+    const word = `terug${randomUUID().slice(0, 8)}`;
+    const itemId = await article(request, word);
+    const edit = `/admin/probe/content/${itemId}`;
+    const list = `/admin/probe/content?type=article`;
+    const filtered = `${list}&q=${word}`;
+    const session = async () => {
+      const context = await browser!.newContext(baseURL ? { baseURL } : {});
+      const page = await context.newPage();
+      await login(page, edit);
+      await expect(page.locator(WRITER).first()).toBeVisible();
+      return page;
+    };
+    /** Into the item by its row in the filtered list, which is what keeps the view. */
+    const enteredFromList = async () => {
+      const page = await session();
+      await page.goto(filtered);
+      await page.locator('#content-table tbody th > a').click();
+      await expect(page).toHaveURL(edit);
+      await expect(page.locator(WRITER).first()).toBeVisible();
+      return page;
+    };
+
+    // No view kept yet: a first look at a filtered list.
+    let page = await session();
+    await expectKept(page, filtered, 'naar een gefilterde lijst');
+    await page.context().close();
+
+    // The item's own way back, to the view already kept.
+    page = await enteredFromList();
+    const back = await page.locator('.ui-item-bar-back').getAttribute('href');
+    expect(back).toBe(`${filtered}#item-${itemId}`);
+    await expectKept(page, back!, 'naar dezelfde weergave');
+    await page.context().close();
+
+    // The plain list, with a view kept: looking at it forgets nothing either.
+    page = await enteredFromList();
+    await expectKept(page, list, 'naar de kale lijst');
+    await expect(page.locator('.ui-item-bar-back')).toHaveAttribute('href', back!);
+    await page.context().close();
   });
 });

@@ -5,13 +5,15 @@
 // `lock` is `select ... for update` on the item row: every write and the scheduled-publish job
 // take it first, so concurrent saves on one base serialise and the second sees the new latest
 // revision. Revisions are parsed with core's schema on read, so a stored document that no longer
-// validates fails loudly instead of reaching a renderer. Rejected: an advisory lock (the item row
+// validates fails loudly instead of reaching a renderer; `latestDocuments` alone leaves such a
+// document out, because a list renders nothing from it. Rejected: an advisory lock (the item row
 // exists before any write, so a row lock is enough and shows up in pg_locks under its table).
 
-import { sql, type Kysely, type Selectable } from 'kysely';
+import { sql, type Kysely, type RawBuilder, type Selectable } from 'kysely';
 import {
   Actor,
   Author,
+  ContentDocument,
   documentReferences,
   Pattern,
   Revision,
@@ -26,13 +28,22 @@ import {
   type SluggedRepository,
 } from '@mycel/core';
 import type { Database } from './infra/schema.js';
+import { toIso } from './infra/dates.js';
 
 type Trx = Kysely<Database>;
 type ItemRow = Selectable<Database['content_items']>;
 type LocaleRow = Selectable<Database['content_item_locales']>;
 
 const date = (v: Date | string | null): Date | null => (v === null ? null : new Date(v));
-const iso = (v: Date | string): string => new Date(v).toISOString();
+
+/** A stored document as a list reads it; null when it no longer validates, the upgrade included. */
+function readableDocument(stored: unknown): ContentDocument | null {
+  try {
+    return ContentDocument.parse(upgradeFaqV1InDocument(stored));
+  } catch {
+    return null;
+  }
+}
 
 /** Keyset page: `limit + 1` rows were fetched, newest first. */
 function paged<T extends { id: string }>(rows: T[], limit: number): Paged<T> {
@@ -173,17 +184,111 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
     get: async (itemId) => one(await items().where('id', '=', itemId).execute()),
     findBySlug: async (type, slug) =>
       one(await items().where('type', '=', type).where('slug', '=', slug).execute()),
-    async list({ type, slug }, after, limit) {
-      let q = items();
-      if (type) q = q.where('type', '=', type);
-      if (slug) q = q.where('slug', '=', slug);
-      if (after) q = q.where('id', '<', after);
-      const rows = await q
-        .orderBy('id', 'desc')
+    async list(filter, { order, after, offset, limit }) {
+      const {
+        type,
+        slug,
+        q,
+        locale,
+        status,
+        hasUnpublishedChanges,
+        authorId,
+        sectionId,
+        tag,
+        updatedFrom,
+        updatedBefore,
+      } = filter;
+      // Core's `matchesItemFilter` in SQL; `adapter-rules.test.ts` holds the two together.
+      const matches: RawBuilder<boolean>[] = [];
+      if (type) matches.push(sql<boolean>`i.type = ${type}`);
+      if (slug) matches.push(sql<boolean>`i.slug = ${slug}`);
+      if (q) {
+        // `%`, `_` and the backslash stand for themselves.
+        const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+        matches.push(
+          sql<boolean>`(i.slug ilike ${like} or exists (
+            select 1 from jsonb_each_text(i.title) t where t.value ilike ${like}))`
+        );
+      }
+      if (updatedFrom) matches.push(sql<boolean>`i.updated_at >= ${updatedFrom}`);
+      if (updatedBefore) matches.push(sql<boolean>`i.updated_at < ${updatedBefore}`);
+      for (const [refType, refId] of [
+        ['author', authorId],
+        ['section', sectionId],
+      ] as const)
+        if (refId)
+          matches.push(
+            sql<boolean>`exists (
+              select 1 from content_block_refs b
+              where b.revision_id = i.latest_revision_id
+                and b.block_id is null and b.type = ${refType} and b.ref_id = ${refId})`
+          );
+      if (tag)
+        matches.push(
+          sql<boolean>`exists (
+            select 1 from content_revisions r
+            where r.id = i.latest_revision_id
+              and r.document @> ${JSON.stringify({ tags: [tag] })}::jsonb)`
+        );
+      if (status !== undefined || hasUnpublishedChanges !== undefined) {
+        const changed = sql<boolean>`(l.published_revision_id is not null
+          and l.published_revision_id <> i.latest_revision_id)`;
+        matches.push(
+          sql<boolean>`exists (
+            select 1 from content_item_locales l
+            where l.item_id = i.id
+              and l.locale = coalesce(${locale ?? null}::text, i.default_locale)
+              and ${status ? sql<boolean>`l.status = ${status}` : sql<boolean>`true`}
+              and ${
+                hasUnpublishedChanges === undefined
+                  ? sql<boolean>`true`
+                  : hasUnpublishedChanges
+                    ? changed
+                    : sql<boolean>`not ${changed}`
+              })`
+        );
+      }
+      const matching = () => {
+        let query = trx.selectFrom('content_items as i');
+        for (const condition of matches) query = query.where(condition);
+        return query;
+      };
+
+      // Core's `compareItems`: the key, then the id, both in the order's direction. The page
+      // after an item starts from where that item stands now, read by id in the same statement;
+      // `key` writes one expression for the listed row (`i`) and for that item (`p`).
+      const key =
+        order.by === 'title'
+          ? (row: 'i' | 'p') =>
+              sql<string>`coalesce(${sql.ref(`${row}.title`)}->>(${locale ?? null}::text),
+                ${sql.ref(`${row}.title`)}->>${sql.ref(`${row}.default_locale`)}, '')
+                collate "und-x-icu"`
+          : order.by === 'updated'
+            ? (row: 'i' | 'p') => sql<Date>`${sql.ref(`${row}.updated_at`)}`
+            : null;
+      const asc = order.direction === 'asc';
+      let rows = matching().selectAll('i');
+      if (after && key) {
+        const pivot = sql`(select ${key('p')}, p.id from content_items p where p.id = ${after})`;
+        rows = rows.where(
+          asc
+            ? sql<boolean>`(${key('i')}, i.id) > ${pivot}`
+            : sql<boolean>`(${key('i')}, i.id) < ${pivot}`
+        );
+      } else if (after) {
+        rows = rows.where('i.id', asc ? '>' : '<', after);
+      }
+      if (key) rows = rows.orderBy(key('i'), order.direction);
+      const found = await rows
+        .orderBy('i.id', order.direction)
+        .offset(offset)
         .limit(limit + 1)
         .execute();
-      const page = paged(rows, limit);
-      return { rows: await withLocales(page.rows), next: page.next };
+      const counted = await matching()
+        .select((eb) => eb.fn.countAll<string>().as('n'))
+        .executeTakeFirstOrThrow();
+      const page = paged(found, limit);
+      return { rows: await withLocales(page.rows), next: page.next, total: Number(counted.n) };
     },
     async insert(item, first) {
       const inserted = await insertedUnlessTaken(
@@ -301,6 +406,21 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
         .executeTakeFirstOrThrow();
       return Number(row.n);
     },
+    async latestDocuments(itemIds) {
+      if (!itemIds.length) return new Map();
+      const rows = await trx
+        .selectFrom('content_items as i')
+        .innerJoin('content_revisions as r', 'r.id', 'i.latest_revision_id')
+        .select(['i.id', 'r.document'])
+        .where('i.id', 'in', [...itemIds])
+        .execute();
+      const documents = new Map<string, ContentDocument>();
+      for (const r of rows) {
+        const document = readableDocument(r.document);
+        if (document) documents.set(r.id, document);
+      }
+      return documents;
+    },
     async revision(itemId, revisionId) {
       const r = await trx
         .selectFrom('content_revisions')
@@ -312,7 +432,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
         ? Revision.parse({
             id: r.id,
             itemId: r.item_id,
-            createdAt: iso(r.created_at),
+            createdAt: toIso(r.created_at),
             actor: r.actor,
             ...(r.provenance ? { provenance: r.provenance } : {}),
             document: upgradeFaqV1InDocument(r.document),
@@ -333,7 +453,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
         rows.map((r): RevisionSummary => ({
           id: r.id,
           itemId: r.item_id,
-          createdAt: iso(r.created_at),
+          createdAt: toIso(r.created_at),
           actor: Actor.parse(r.actor),
         })),
         limit
@@ -352,8 +472,8 @@ export function authorRepository(trx: Trx, tenantId: string): SluggedRepository<
       ...(r.image_id ? { imageId: r.image_id } : {}),
       links: r.links,
       ...(r.email ? { email: r.email } : {}),
-      createdAt: iso(r.created_at),
-      updatedAt: iso(r.updated_at),
+      createdAt: toIso(r.created_at),
+      updatedAt: toIso(r.updated_at),
     });
   const fields = (a: Author) => ({
     name: a.name,
@@ -414,8 +534,8 @@ export function sectionRepository(trx: Trx, tenantId: string): SluggedRepository
       title: r.title,
       ...(r.description ? { description: r.description } : {}),
       order: r.sort_order,
-      createdAt: iso(r.created_at),
-      updatedAt: iso(r.updated_at),
+      createdAt: toIso(r.created_at),
+      updatedAt: toIso(r.updated_at),
     });
   const fields = (s: Section) => ({
     title: JSON.stringify(s.title),
@@ -474,8 +594,8 @@ export function patternRepository(trx: Trx, tenantId: string): EntityRepository<
       ...(r.description ? { description: r.description } : {}),
       intendedType: r.intended_type,
       blocks: r.blocks,
-      createdAt: iso(r.created_at),
-      updatedAt: iso(r.updated_at),
+      createdAt: toIso(r.created_at),
+      updatedAt: toIso(r.updated_at),
     });
   const fields = (p: Pattern) => ({
     name: JSON.stringify(p.name),

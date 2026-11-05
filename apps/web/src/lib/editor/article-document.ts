@@ -3,13 +3,20 @@
 // locale's prose is editable here. The server resolves every id against the base revision and
 // never trusts props sent by the browser. Rejected: storing the TipTap document as a revision,
 // which would make public rendering and MCP depend on an admin editor.
-import { Block, ContentDocument, RichTextDoc } from '@mycel/core';
+import { Block, ContentDocument, RichTextDoc, isBlankDoc } from '@mycel/core';
 
 export type EditorNode = {
   type: 'mycelProse' | 'mycelCard';
-  attrs: { blockId: string; blockType?: string; newBlock?: unknown };
+  attrs: {
+    blockId: string;
+    blockType?: string;
+    newBlock?: unknown;
+    /** What another locale says, shown beside an empty block and never posted back as its value. */
+    showThrough?: ShowThrough | null;
+  };
   content?: RichTextDoc['content'];
 };
+export type ShowThrough = { locale: string; text: string };
 export type ArticleEditorDocument = { type: 'doc'; content: EditorNode[] };
 export class EditorInputError extends Error {}
 
@@ -93,6 +100,39 @@ export const fromTiptap = (value: unknown): unknown => {
   );
 };
 
+const SHOW_THROUGH_LENGTH = 200;
+
+const wordsOf = (node: unknown): string[] => {
+  const { text, content } = node as { text?: unknown; content?: unknown };
+  return [
+    ...(typeof text === 'string' ? [text] : []),
+    ...(Array.isArray(content) ? content.flatMap(wordsOf) : []),
+  ];
+};
+
+/**
+ * The words an emptied block has in another locale, default locale first. A hint, not content: the
+ * editor's text would be posted as this locale's translation (#142). Rejected: loading the other
+ * locale into the editor, which stores Dutch as English on the next save.
+ */
+function showThrough(
+  content: Record<string, unknown>,
+  locale: string,
+  defaultLocale: string
+): ShowThrough | null {
+  if (content[locale] !== undefined && !isBlankDoc(content[locale])) return null;
+  const other = [defaultLocale, ...Object.keys(content)].find(
+    (l) => l !== locale && content[l] !== undefined && !isBlankDoc(content[l])
+  );
+  if (!other) return null;
+  const text = wordsOf(content[other]).join(' ').replace(/\s+/g, ' ').trim();
+  return {
+    locale: other,
+    text:
+      text.length > SHOW_THROUGH_LENGTH ? `${text.slice(0, SHOW_THROUGH_LENGTH).trimEnd()}…` : text,
+  };
+}
+
 export function toArticleEditor(doc: ContentDocument, locale: string): ArticleEditorDocument {
   return {
     type: 'doc',
@@ -100,7 +140,11 @@ export function toArticleEditor(doc: ContentDocument, locale: string): ArticleEd
       block.type === 'rich-text'
         ? {
             type: 'mycelProse' as const,
-            attrs: { blockId: block.id, blockType: block.type },
+            attrs: {
+              blockId: block.id,
+              blockType: block.type,
+              showThrough: showThrough(block.props.content, locale, doc.defaultLocale),
+            },
             content: toTiptap(
               block.props.content[locale]?.content ?? [{ type: 'paragraph' }]
             ) as RichTextDoc['content'],
@@ -108,6 +152,25 @@ export function toArticleEditor(doc: ContentDocument, locale: string): ArticleEd
         : { type: 'mycelCard' as const, attrs: { blockId: block.id, blockType: block.type } }
     ),
   };
+}
+
+/**
+ * A prose block after the writer. Emptied is absent, as in the block forms: another locale with
+ * words keeps the block and shows through, and readiness sees a missing translation. Without words
+ * anywhere the block goes, because an empty line between two cards is ordinary writing (#142), not
+ * a mistake to refuse. Rejected: refusing the save as the native form does, which blocks everything
+ * else on the screen over a line nobody can see.
+ */
+function written(
+  block: Extract<Block, { type: 'rich-text' }>,
+  locale: string,
+  content: RichTextDoc
+): Block[] {
+  const { [locale]: _emptied, ...others } = block.props.content;
+  if (!isBlankDoc(content))
+    return [{ ...block, props: { ...block.props, content: { ...others, [locale]: content } } }];
+  if (Object.values(others).every(isBlankDoc)) return [];
+  return [{ ...block, props: { ...block.props, content: others } }];
 }
 
 /** Parse an untrusted editor payload against the base revision and core's complete document schema. */
@@ -122,7 +185,7 @@ export function fromArticleEditor(
     throw new EditorInputError('Invalid editor document');
   const byId = new Map(base.blocks.map((block) => [block.id, block]));
   const seen = new Set<string>();
-  const blocks: Block[] = root.content.map((node) => {
+  const blocks: Block[] = root.content.flatMap((node) => {
     const id = node?.attrs?.blockId;
     if (typeof id !== 'string' || seen.has(id))
       throw new EditorInputError('Invalid block identity');
@@ -147,12 +210,9 @@ export function fromArticleEditor(
       node.type !== (block.type === 'rich-text' ? 'mycelProse' : 'mycelCard')
     )
       throw new EditorInputError('Unknown or changed block');
-    if (block.type !== 'rich-text') return block;
+    if (block.type !== 'rich-text') return [block];
     const content = RichTextDoc.parse({ type: 'doc', content: fromTiptap(node.content) });
-    return {
-      ...block,
-      props: { ...block.props, content: { ...block.props.content, [locale]: content } },
-    };
+    return written(block, locale, content);
   });
   if ([...byId.keys()].some((id) => !seen.has(id)))
     throw new EditorInputError('A block is missing');

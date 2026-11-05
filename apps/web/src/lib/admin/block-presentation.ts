@@ -7,6 +7,28 @@
 // field kind (a `choice` is display for `layout` but content for a video's `provider`) and a
 // presentation field in core (the API and MCP have no use for it).
 import type { BlockType } from '@mycel/core';
+import type { IconName } from './ui/icons.js';
+
+/** Decorative cues for the same registered types; visible names always carry their meaning. */
+export const BLOCK_ICONS: Readonly<Record<BlockType, IconName>> = {
+  heading: 'heading',
+  'rich-text': 'text',
+  image: 'image',
+  quote: 'quote',
+  callout: 'info',
+  faq: 'circle-help',
+  cta: 'megaphone',
+  cards: 'clipboard-list',
+  'file-download': 'download',
+  gallery: 'images',
+  timeline: 'calendar',
+  audio: 'volume',
+  'video-embed': 'video',
+  form: 'clipboard-list',
+  'signup-form': 'mail',
+  paywall: 'lock',
+  hero: 'image',
+};
 
 export type RestView =
   /** The picture itself at card scale, with the caption and credit the page shows. */
@@ -36,6 +58,11 @@ export const BLOCK_PRESENTATION: { readonly [T in BlockType]: BlockPresentation 
   callout: { rest: 'text', display: ['variant'], source: [], stage: 'C2' },
   faq: { rest: 'text', display: ['variant', 'width'], source: [], stage: 'C2' },
   cta: { rest: 'text', display: ['variant', 'width', 'align'], source: [], stage: 'C2' },
+  cards: { rest: 'text', display: ['accent', 'width'], source: [], stage: 'C2' },
+  'file-download': { rest: 'text', display: [], source: [], stage: 'C2' },
+  gallery: { rest: 'text', display: ['variant', 'width'], source: [], stage: 'C2' },
+  timeline: { rest: 'text', display: ['order'], source: [], stage: 'C2' },
+  audio: { rest: 'text', display: [], source: [], stage: 'C2' },
   'video-embed': { rest: 'text', display: ['width'], source: [], stage: 'C3' },
   form: { rest: 'text', display: ['variant', 'width'], source: [], stage: 'C3' },
   'signup-form': { rest: 'text', display: [], source: [], stage: 'C3' },
@@ -49,4 +76,20 @@ export function groupOf(type: BlockType, key: string): 'content' | 'display' | '
   if (p.display.includes(key)) return 'display';
   if (p.source.includes(key)) return 'source';
   return 'content';
+}
+
+/**
+ * The first words a card's head shows, so a collapsed block stays recognisable (#159 § D). Read
+ * from what the rest view already has, never stored: an own name is #165. An image goes by its
+ * caption, else its file: its first text would be the alt text, which describes the picture to
+ * someone who cannot see it and does not tell two images apart for someone who can.
+ */
+export function blockName(block: {
+  type: BlockType;
+  preview: { text: string; entries: readonly string[] };
+  image: { caption: string | null; label: string } | null;
+}): string {
+  if (block.type === 'image' && block.image)
+    return block.image.caption?.trim() || block.image.label;
+  return block.preview.text || block.preview.entries[0] || '';
 }

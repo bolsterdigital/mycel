@@ -112,8 +112,12 @@ if (
   // A link into the side column (the state in the bar, an issue in the status card) closes the
   // preview, so it never points at a column that stepped aside.
   document.addEventListener('click', (event) => {
+    // An enhanced publication opener already handled its own modal without a fragment jump.
+    if (event.defaultPrevented) return;
     const link = event.target instanceof Element && event.target.closest('a[href^="#"]');
     const target = link && document.getElementById(link.getAttribute('href').slice(1));
+    // A dialog floats above the editor; it does not need the sidebar's layout slot.
+    if (target instanceof HTMLDialogElement) return;
     if (!panel.hidden && target?.closest('.ui-edit-side')) show(false);
   });
   source.addEventListener('input', schedule);

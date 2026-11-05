@@ -12,13 +12,15 @@ import type { RequestHandler } from './$types';
 
 const PAGE = 48;
 
+const KINDS = ['document', 'audio'] as const;
+
 export const GET: RequestHandler = async ({ locals, url, params }) => {
   const { principal } = await requireTenantPrincipal(locals, url, params.tenant);
   const q = url.searchParams.get('q')?.trim().slice(0, 100) || undefined;
   const cursor = url.searchParams.get('cursor') ?? '';
   try {
     const list = await runtime().invoker.run(useCases.listMedia, principal, {
-      kind: 'image',
+      kind: KINDS.find((k) => k === url.searchParams.get('kind')) ?? 'image',
       q,
       cursor: isUuid(cursor) ? cursor : undefined,
       limit: PAGE,

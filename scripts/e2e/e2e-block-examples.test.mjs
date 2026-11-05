@@ -4,7 +4,12 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { blockExamples } from './e2e-block-examples.mjs';
+import {
+  PLACED_TYPES,
+  blockExamples,
+  everyBlockType,
+  missingBlockTypes,
+} from './e2e-block-examples.mjs';
 
 test('browser seed examples preserve each registry definition version, name, type and props', () => {
   const v1 = { title: { nl: 'Bestaand', en: 'Existing' } };
@@ -19,4 +24,23 @@ test('browser seed examples preserve each registry definition version, name, typ
   });
   assert.strictEqual(examples['heading-default'].props, v1);
   assert.strictEqual(examples['faq-wide-probe'].props, v2);
+});
+
+test('a type added to the registry lands behind the placed types, wherever the registry lists it', () => {
+  const one = (type) => ({ version: 1, examples: [{ name: `${type}-first` }, { name: 'later' }] });
+  const placed = PLACED_TYPES.map((type) => [type, one(type)]);
+  const definitions = Object.fromEntries([['added', one('added')], ...placed.reverse()]);
+  assert.deepEqual(everyBlockType(definitions), [
+    ...PLACED_TYPES.map((type) => `${type}-first`),
+    'added-first',
+  ]);
+});
+
+test('a page seeded before a block was added lacks that type', () => {
+  const definitions = { heading: {}, audio: {} };
+  assert.deepEqual(missingBlockTypes(definitions, [{ type: 'heading' }]), ['audio']);
+  assert.deepEqual(
+    missingBlockTypes(definitions, [{ type: 'audio' }, { type: 'heading' }, { type: 'gone' }]),
+    []
+  );
 });

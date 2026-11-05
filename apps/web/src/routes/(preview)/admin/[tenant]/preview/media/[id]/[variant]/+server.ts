@@ -1,16 +1,16 @@
-// A media variant for the admin preview (lib/server/preview.ts): the site's own delivery
+// A media variant for the admin preview (lib/server/content/preview.ts): the site's own delivery
 // (`serveMedia`, as a visitor sees it, restricted originals included), but only for an operator
 // of this site, and never cached in a shared cache.
 import { adminMediaPrincipal } from '#lib/server/admin/admin.js';
 import { serveMedia } from '#lib/server/media.js';
-import { PREVIEW_HEADERS, previewSite } from '#lib/server/preview.js';
+import { PREVIEW_HEADERS, previewSite } from '#lib/server/content/preview.js';
 import { runtime } from '#lib/server/runtime.js';
 import { siteTenant } from '#lib/server/site.js';
 import type { RequestHandler } from './$types';
 
 const forbidden = () => new Response(null, { status: 403, headers: PREVIEW_HEADERS });
 
-export const GET: RequestHandler = async ({ params, locals, url }) => {
+export const GET: RequestHandler = async ({ params, locals, url, request }) => {
   if (!(await adminMediaPrincipal(locals, params.tenant))) return forbidden();
   const rt = runtime();
   const tenant = await rt.tenants.findBySlug(params.tenant);
@@ -20,7 +20,9 @@ export const GET: RequestHandler = async ({ params, locals, url }) => {
     siteTenant(await previewSite(tenant)),
     params.id,
     params.variant,
-    url
+    url,
+    null,
+    { range: request.headers.get('range'), ifRange: request.headers.get('if-range') }
   );
   const headers = new Headers(res.headers);
   for (const [k, v] of Object.entries(PREVIEW_HEADERS)) headers.set(k, v);

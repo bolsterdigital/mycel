@@ -8,34 +8,81 @@
 //
 // The list shows each asset's thumbnail from the admin's own route (`media/[id]/thumb`): the
 // admin is on the platform origin, the site's `/media/...` route on the tenant's hostnames. The
-// view (grid or list) and the search are query parameters, so they survive paging and work
-// without a script.
+// layout, the search, the filters, the order and the page are query parameters (`media-list.ts`),
+// so they survive paging and work without a script.
 import { MAX_UPLOAD_BYTES, can, useCases } from '@mycel/core';
-import { fail } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 import { loaded, text } from '#lib/server/admin/admin-actions.js';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { uploadFile } from '#lib/server/admin/media-choices.js';
+import {
+  MEDIA_KINDS,
+  MEDIA_ORDERS,
+  MEDIA_PAGE_SIZE,
+  MEDIA_SHOWS,
+  mediaChips,
+  mediaFiltered,
+  mediaListInput,
+  mediaListParams,
+  mediaListPath,
+  mediaListViewFrom,
+  MEDIA_NO_FILTERS,
+  type MediaListView,
+} from '#lib/server/admin/media-list.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ parent, locals, url }) => {
+export const load: PageServerLoad = async ({ parent, locals, url, params }) => {
   await parent();
   const principal = locals.principal!;
   const rt = runtime();
-  const cursor = url.searchParams.get('cursor') ?? undefined;
-  const q = url.searchParams.get('q')?.trim().slice(0, 100) || undefined;
+  const view = mediaListViewFrom(url.searchParams);
   const [list, usage] = await Promise.all([
-    loaded(rt.invoker.run(useCases.listMedia, principal, { q, cursor, limit: 50 })),
+    loaded(rt.invoker.run(useCases.listMedia, principal, mediaListInput(view))),
     can(principal, 'tenant:admin') ? rt.invoker.run(useCases.getUsage, principal, {}) : null,
   ]);
+  const to = (change: Partial<MediaListView>) =>
+    mediaListPath(params.tenant, { ...view, ...change });
+  // A page past the end, after a narrower filter or a deletion: the last page there is. `done`
+  // is not part of the view, and a deletion that empties the last page still has to say so.
+  const pages = Math.max(1, Math.ceil(list.total / MEDIA_PAGE_SIZE));
+  if (view.page > pages)
+    redirect(
+      303,
+      mediaListPath(
+        params.tenant,
+        { ...view, page: pages },
+        url.searchParams.get('done') ?? undefined
+      )
+    );
+  const first = (view.page - 1) * MEDIA_PAGE_SIZE;
   return {
     items: list.items.map((m) => ({
       ...m,
       thumb: m.variants.some((v) => v.name === 'thumb'),
     })),
-    view: url.searchParams.get('view') === 'list' ? ('list' as const) : ('grid' as const),
-    q: q ?? '',
-    nextCursor: list.nextCursor,
+    view,
+    kinds: MEDIA_KINDS,
+    shows: MEDIA_SHOWS,
+    orders: MEDIA_ORDERS,
+    filtered: mediaFiltered(view),
+    // Each filter that is on, with the link that takes only that one off.
+    chips: mediaChips(view).map((chip) => ({
+      ...chip,
+      href: to({ [chip.name]: MEDIA_NO_FILTERS[chip.name], page: 1 }),
+    })),
+    total: list.total,
+    range: { from: first + 1, to: first + list.items.length },
+    // What the filter form keeps besides its own fields: the layout.
+    keep: [...mediaListParams({ ...view, ...MEDIA_NO_FILTERS, order: 'created-desc', page: 1 })],
+    links: {
+      grid: to({ layout: 'grid', page: view.page }),
+      list: to({ layout: 'list', page: view.page }),
+      clear: to({ ...MEDIA_NO_FILTERS, page: 1 }),
+      sort: Object.fromEntries(MEDIA_ORDERS.map((order) => [order, to({ order, page: 1 })])),
+      previous: view.page > 1 ? to({ page: view.page - 1 }) : undefined,
+      next: view.page < pages ? to({ page: view.page + 1 }) : undefined,
+    },
     deleted: url.searchParams.get('done') === 'deleted',
     storage: usage?.storage ?? null,
     maxUploadBytes: MAX_UPLOAD_BYTES,

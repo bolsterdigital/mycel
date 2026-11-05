@@ -1,0 +1,295 @@
+// The block summaries and the mapping of core's refusals onto block form fields (TODO #11 B).
+import { describe, expect, it } from 'vitest';
+import { BLOCK_DEFINITIONS, Block, FormDefinition, UseCaseError } from '@mycel/core';
+import { fieldIssues, imageRestOf, previewOf, summaryOf, textRestOf } from './content-blocks.js';
+
+const example = (type: keyof typeof BLOCK_DEFINITIONS, n = 0) =>
+  Block.parse({
+    id: 'b',
+    type,
+    version: BLOCK_DEFINITIONS[type].version,
+    props: BLOCK_DEFINITIONS[type].examples[n]!.props,
+  });
+
+describe('summaryOf', () => {
+  it('names a block by its first text in the locale, rich text and list rows included', () => {
+    expect(summaryOf(example('hero'), 'en')).toBe('Clean air for everyone');
+    expect(summaryOf(example('rich-text'), 'nl')).toBe(
+      'Meer over ons werk staat in het jaarverslag'
+    );
+    expect(summaryOf(example('faq'), 'nl')).toBe('Veelgestelde vragen');
+    expect(summaryOf(example('form'), 'nl')).toBe('');
+  });
+});
+
+describe('textRestOf', () => {
+  const doc = {
+    type: 'doc',
+    content: [
+      { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'Kop <b>' }] },
+      {
+        type: 'paragraph',
+        content: [
+          {
+            type: 'text',
+            text: 'naar buiten',
+            marks: [{ type: 'bold' }, { type: 'link', attrs: { href: 'https://example.org/' } }],
+          },
+          {
+            type: 'text',
+            text: 'noot',
+            marks: [{ type: 'footnote_reference', attrs: { text: 'De <noot>' } }],
+          },
+        ],
+      },
+    ],
+  };
+  const rich = (content: unknown) =>
+    Block.parse({ id: 'b', type: 'rich-text', version: 1, props: { content } });
+
+  it('sets rich text as the page does, without a link, a heading or an id', () => {
+    const view = textRestOf(rich({ nl: doc }), 'nl', 'b.b.');
+    if (view?.kind !== 'rich-text') throw new Error('no rich-text view');
+    expect(view.html).toContain('<p data-heading="1">Kop &lt;b&gt;</p>');
+    expect(view.html).toContain('<span data-link><strong>naar buiten</strong></span>');
+    expect(view.html).toContain('<li>De &lt;noot&gt;</li>');
+    expect(view.html).not.toMatch(/<a\b|<h[1-6]|\bid=|href/);
+  });
+
+  it('reads the other locale when this one is absent, and nothing for an empty text', () => {
+    expect(textRestOf(rich({ en: doc }), 'nl', 'b.b.')?.kind).toBe('rich-text');
+    expect(
+      textRestOf(rich({ nl: { type: 'doc', content: [{ type: 'paragraph' }] } }), 'nl', 'b.b.')
+    ).toBe(null);
+  });
+
+  it('names a heading by its text and field, and a quote by what the page prints', () => {
+    expect(textRestOf(example('heading'), 'en', 'b.b.')).toEqual({
+      kind: 'heading',
+      text: 'Who we are',
+      from: 'b.b.p.text.en',
+    });
+    const quote = Block.parse({
+      id: 'b',
+      type: 'quote',
+      version: 1,
+      props: {
+        text: { nl: 'Dit is het.' },
+        attribution: { name: 'Sam', role: { nl: 'Voorzitter' }, url: 'https://example.org/' },
+      },
+    });
+    expect(textRestOf(quote, 'nl', 'b.b.')).toMatchObject({
+      kind: 'quote',
+      text: 'Dit is het.',
+      by: 'Sam, Voorzitter, https://example.org/',
+      variant: 'blockquote',
+    });
+  });
+
+  it('sets a callout with its kind, title and inert body, and each answer of an FAQ', () => {
+    const callout = textRestOf(
+      Block.parse({
+        id: 'b',
+        type: 'callout',
+        version: 1,
+        props: { variant: 'warning', title: { nl: 'Let <op>' }, body: { nl: doc } },
+      }),
+      'nl',
+      'b.b.'
+    );
+    expect(callout).toMatchObject({
+      kind: 'callout',
+      variant: 'warning',
+      title: 'Let <op>',
+      titleFrom: 'b.b.p.title.nl',
+      proseFrom: 'b.b.p.body.nl.editor',
+    });
+    if (callout?.kind !== 'callout') throw new Error('no callout view');
+    expect(callout.html).not.toMatch(/<a\b|<h[1-6]|\bid=|href/);
+
+    const cards = textRestOf(example('cards'), 'nl', 'b.b.');
+    if (cards?.kind !== 'cards') throw new Error('no cards view');
+    // One place per row the form can have, so a card typed after opening has somewhere to show.
+    expect(cards.cards).toHaveLength(6);
+    expect(cards.cards[0]).toMatchObject({
+      title: 'Word lid',
+      titleFrom: 'b.b.p.cards.0.title.nl',
+      label: 'Meld je aan',
+      labelFrom: 'b.b.p.cards.0.actions.0.label.nl',
+    });
+    expect(cards.cards[3]?.title).toBe('');
+
+    const files = textRestOf(example('file-download'), 'nl', 'b.b.');
+    if (files?.kind !== 'file-download') throw new Error('no file-download view');
+    expect(files.files).toHaveLength(12);
+    expect(files.files[0]).toEqual({
+      label: 'Jaarverslag 2025',
+      from: 'b.b.p.files.0.name.nl',
+    });
+    expect(files.files[1]?.label).toBe('');
+
+    const gallery = textRestOf(example('gallery'), 'nl', 'b.b.');
+    if (gallery?.kind !== 'gallery') throw new Error('no gallery view');
+    expect(gallery.images).toHaveLength(24);
+    expect(gallery.images[0]?.from).toBe('b.b.p.images.0.alt.nl');
+    expect(gallery.images[0]?.label).toBeTruthy();
+    expect(gallery.images[2]?.label).toBe('');
+
+    const timeline = textRestOf(example('timeline'), 'nl', 'b.b.');
+    if (timeline?.kind !== 'timeline') throw new Error('no timeline view');
+    expect(timeline.events).toHaveLength(24);
+    expect(timeline.events[0]?.from).toBe('b.b.p.events.0.title.nl');
+    expect(timeline.events[0]?.label).toBeTruthy();
+    expect(timeline.events[2]?.label).toBe('');
+
+    const faq = textRestOf(example('faq', 1), 'nl', 'b.b.');
+    if (faq?.kind !== 'faq') throw new Error('no faq view');
+    expect(faq.variant).toBe('accordion');
+    expect(faq.list).toBe('b.b.p.entries');
+    expect(faq.entries[0]).toMatchObject({
+      from: 'b.b.p.entries.0.question.nl',
+      proseFrom: 'b.b.p.entries.0.answer.nl.editor',
+    });
+    for (const entry of faq.entries) expect(entry.html).not.toMatch(/<a\b|href/);
+  });
+
+  it('gives a CTA both of its action places, also when only one is filled', () => {
+    const cta = textRestOf(example('cta'), 'nl', 'b.b.');
+    if (cta?.kind !== 'cta') throw new Error('no cta view');
+    expect(cta.title).toBe('Doe mee');
+    expect(cta.actions).toHaveLength(2);
+    expect(cta.actions[1]).toEqual({ label: '', from: 'b.b.p.actions.1.label.nl' });
+  });
+
+  it('sets a video by its title and host', () => {
+    expect(textRestOf(example('video-embed'), 'nl', 'b.b.')).toMatchObject({
+      kind: 'video',
+      provider: 'youtube',
+      providerFrom: 'b.b.p.provider',
+      title: 'Verslag van de mars',
+      titleFrom: 'b.b.p.title.nl',
+      captionFrom: 'b.b.p.caption.nl',
+    });
+  });
+
+  it('reads a form from what its reference finds, and says when that is nothing', () => {
+    const block = example('form');
+    const definition = FormDefinition.parse({
+      id: (block.props as { formId: string }).formId,
+      kind: 'signup',
+      list: 'nieuwsbrief',
+      fields: [
+        { type: 'email', name: 'email', label: { nl: 'E-mail' }, required: true },
+        { type: 'consent', name: 'ok', label: { nl: 'Ik doe mee' }, required: true },
+      ],
+      submitLabel: { nl: 'Aanmelden' },
+      thankYou: { nl: 'Dank' },
+      consentTextVersion: 'v1',
+    });
+    const found = new Map([[definition.id, definition]]);
+    expect(textRestOf(block, 'nl', 'b.b.', found)).toEqual({
+      kind: 'form',
+      variant: 'default',
+      variantFrom: 'b.b.p.variant',
+      idFrom: 'b.b.p.formId',
+      form: {
+        list: 'nieuwsbrief',
+        fields: [
+          { type: 'email', label: 'E-mail' },
+          { type: 'consent', label: 'Ik doe mee' },
+        ],
+        submit: 'Aanmelden',
+      },
+    });
+    // Looked up and not there, against not looked up: a role without `forms:read`.
+    expect(textRestOf(block, 'nl', 'b.b.', new Map([[definition.id, null]]))).toEqual({
+      kind: 'form',
+      variant: 'default',
+      variantFrom: 'b.b.p.variant',
+      idFrom: 'b.b.p.formId',
+      form: null,
+    });
+    expect(textRestOf(block, 'nl', 'b.b.')).toMatchObject({ form: null, unread: true });
+    // The legacy type has the same view and no variant to follow.
+    const legacy = textRestOf(example('signup-form'), 'nl', 'b.b.', found);
+    expect(legacy).toMatchObject({ kind: 'form', variant: 'default' });
+    expect(legacy).not.toHaveProperty('variantFrom');
+  });
+
+  it('marks a paywall, and sets a legacy hero in the words of a CTA', () => {
+    expect(textRestOf(example('paywall'), 'nl', 'b.b.')).toEqual({ kind: 'paywall' });
+    const hero = textRestOf(example('hero', 1), 'en', 'b.b.');
+    expect(hero).toMatchObject({
+      kind: 'cta',
+      variant: 'cover',
+      variantFrom: 'b.b.p.variant',
+      title: 'Clean air for everyone',
+      titleFrom: 'b.b.p.title.en',
+      bodyFrom: 'b.b.p.body.en',
+    });
+    expect(hero).toHaveProperty('actions.0.from', 'b.b.p.actions.0.label.en');
+  });
+
+  it("names an image's caption field and the file's words, so the script can follow the mode", () => {
+    const block = { ...example('image'), id: 'b' };
+    const media = [
+      {
+        id: (block.props as { mediaId: string }).mediaId,
+        label: 'a.jpg',
+        card: { file: 'w.webp', width: 4, height: 3, caption: { nl: 'Van het bestand' } },
+      },
+    ] as never;
+    expect(imageRestOf(block, 'nl', media)?.captionSource).toEqual({
+      from: 'b.b.p.caption.nl',
+      inherited: 'Van het bestand',
+    });
+  });
+
+  it('gives a hero its picture without caption or credit, and none when it has no image', () => {
+    expect(imageRestOf(example('hero'), 'nl', [])).toBe(null);
+    const rest = imageRestOf(example('hero', 1), 'nl', []);
+    expect(rest).toMatchObject({ card: null, caption: null, captionSource: null, credit: null });
+    expect(rest?.mediaId).toEqual(expect.any(String));
+    expect(imageRestOf(example('heading'), 'nl', [])).toBe(null);
+  });
+});
+
+describe('previewOf', () => {
+  it('shows an image with its caption, a heading by its text and an FAQ by its questions', () => {
+    const image = previewOf(example('image', 1), 'nl');
+    expect(image.mediaId).toBe(BLOCK_DEFINITIONS.image.examples[1]!.props.mediaId);
+    expect(image.text).toBe('Ruim tweeduizend mensen kwamen af op de oproep.');
+    expect(previewOf(example('heading'), 'nl')).toEqual({
+      text: summaryOf(example('heading'), 'nl'),
+      mediaId: null,
+      entries: [],
+    });
+    const faq = previewOf(example('faq'), 'nl');
+    expect(faq.text).toBe('Veelgestelde vragen');
+    expect(faq.entries.length).toBeGreaterThan(1);
+    expect(faq.entries.every((q) => q.length > 0 && q.length <= 80)).toBe(true);
+  });
+
+  it('finds the image inside a group, as the hero has it', () => {
+    expect(previewOf(example('hero', 1), 'en').mediaId).toEqual(expect.any(String));
+  });
+});
+
+describe('fieldIssues', () => {
+  it('maps paths in the document, in update and in insert onto form names', () => {
+    const e = new UseCaseError('invalid_input', 'x', [
+      { path: 'blocks.3.props.title.nl', message: 'i18n.localized.empty' },
+      { path: 'blocks.2.props.title.nl', message: 'i18n.localized.empty' },
+      { path: 'block.props.text', message: 'content.link.unsafe' },
+      { path: 'props', message: 'content.hero.image-required' },
+      { path: 'blocks', message: 'content.blocks.adjacent-rich-text' },
+    ]);
+    expect(fieldIssues(e, 3)).toEqual([
+      { name: 'p.title.nl', copy: 'admin.block.issue.required' },
+      { name: '', copy: 'admin.block.issue.required' },
+      { name: 'p.text', copy: 'admin.block.issue.unsafeLink' },
+      { name: '', copy: 'admin.block.issue.heroImage' },
+      { name: '', copy: 'admin.block.issue.adjacentText' },
+    ]);
+  });
+});

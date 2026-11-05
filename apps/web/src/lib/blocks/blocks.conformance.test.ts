@@ -20,16 +20,20 @@ import {
   BLOCK_TYPES,
   Block,
   DEFAULT_THEME,
+  contrastRatio,
   EXAMPLE_IDS,
+  resolveTheme,
   THEME_PRESETS,
   THEME_RANGES,
   THEME_ROLES,
   Theme,
   projectBlock,
+  type BlockField,
   type MediaView,
   type ResolvedTheme,
 } from '@mycel/core';
 import { demoArticle, demoPage, probeForm } from '@mycel/core/testing';
+import { formValues } from '../editor/block-form.js';
 import Blocks from './Blocks.svelte';
 import { headingTag } from './headings.js';
 import { renderMarkdown } from './markdown.js';
@@ -48,6 +52,7 @@ const PROOF = {
 
 const LOCALES = ['nl', 'en'] as const;
 const RESTRICTED = '01900000-0000-7000-8000-00000000d0ff';
+const UNKNOWN_FILE = '01900000-0000-7000-8000-00000000d0fe';
 const UNPUBLISHED = '01900000-0000-7000-8000-00000000c0ff';
 const SENTINEL = 'LEAK-SENTINEL';
 
@@ -97,6 +102,32 @@ const fixtures: ResolveSource = {
   async media(id) {
     if (id === EXAMPLE_IDS.image) return asset(id, 1600, 900, { x: 0.3, y: 0.7 });
     if (id === EXAMPLE_IDS.portrait) return asset(id, 800, 1000);
+    if (id === EXAMPLE_IDS.document)
+      return {
+        ...asset(id, 1, 1),
+        kind: 'document',
+        contentType: 'application/pdf',
+        filename: 'jr-2025-final-v3.pdf',
+        width: null,
+        height: null,
+        sizeBytes: 845_000,
+        variants: [
+          { name: 'file', format: 'pdf', width: null, height: null, path: `/media/${id}/file.pdf` },
+        ],
+      };
+    if (id === EXAMPLE_IDS.audio)
+      return {
+        ...asset(id, 1, 1),
+        kind: 'audio',
+        contentType: 'audio/mpeg',
+        filename: 'raad-opname-def.mp3',
+        width: null,
+        height: null,
+        sizeBytes: 4_200_000,
+        variants: [
+          { name: 'file', format: 'mp3', width: null, height: null, path: `/media/${id}/file.mp3` },
+        ],
+      };
     if (id === RESTRICTED)
       return {
         ...asset(id, 1600, 900),
@@ -184,6 +215,42 @@ function sentinel(value: unknown, inEn = false, key = ''): unknown {
     );
   return value;
 }
+
+// A new block starts from the empty form, which the seeded examples never go through: a form that
+// offers fewer rows than the schema asks, or selects another value than the schema's default, shows
+// only once an editor uses it (review of #286).
+describe('the empty form of every block agrees with its schema', () => {
+  const lists = (fields: readonly BlockField[], at: string): [string, number][] =>
+    fields.flatMap((f) => {
+      const name = `${at}.${f.key}`;
+      if (f.kind === 'group') return lists(f.fields, name);
+      return f.kind === 'list' ? [[name, f.min]] : [];
+    });
+
+  for (const type of BLOCK_TYPES) {
+    const { fields, examples: forType, version } = BLOCK_DEFINITIONS[type];
+
+    it(`${type} offers at least the rows each list asks for`, () => {
+      const values = formValues(fields, undefined, LOCALES);
+      for (const [name, min] of lists(fields, 'p'))
+        expect(Number(values[`${name}.rows`]), name).toBeGreaterThanOrEqual(min);
+    });
+
+    it(`${type} selects each choice's default`, () => {
+      const values = formValues(fields, undefined, LOCALES);
+      for (const f of fields) {
+        if (f.kind !== 'choice') continue;
+        // The default is what the schema makes of the example without this key; a required choice
+        // refuses that and has no default to agree with.
+        const { [f.key]: _without, ...props } = forType[0]!.props as Record<string, unknown>;
+        const parsed = Block.safeParse({ id: 'x', type, version, props });
+        if (!parsed.success) continue;
+        const stored = (parsed.data.props as Record<string, unknown>)[f.key];
+        if (stored !== undefined) expect(values[`p.${f.key}`], f.key).toBe(stored);
+      }
+    });
+  }
+});
 
 describe('every example renders to HTML and Markdown', () => {
   for (const { name, type, block } of examples)
@@ -290,6 +357,128 @@ describe('nothing leaks into any representation', () => {
     expect(html).toContain('hero-minimal');
   });
 
+  it('leaves out a restricted or missing file, and shows nothing with no file left', async () => {
+    const block = examples.find((e) => e.name === 'file-download-titled')!.block;
+    const props = block.props as { files: { fileId: string; name: object }[] };
+    const withIds = (...ids: string[]) =>
+      Block.parse({
+        ...block,
+        props: { ...props, files: ids.map((fileId, i) => ({ ...props.files[i], fileId })) },
+      });
+    const one = await representations([withIds(EXAMPLE_IDS.document, RESTRICTED)], 'nl');
+    for (const out of [one.html, one.markdown, JSON.stringify(one.model)]) {
+      expect(out).toContain('Jaarverslag 2025');
+      expect(out).not.toContain('Brief aan de gemeente');
+      expect(out).not.toContain(RESTRICTED);
+    }
+    const none = await representations([withIds(RESTRICTED, UNKNOWN_FILE)], 'nl');
+    for (const out of [none.html, none.markdown]) {
+      expect(out).not.toContain('Stukken bij deze zaak');
+      expect(out).not.toContain('/media/');
+    }
+    expect(none.html).not.toContain('file-download');
+  });
+
+  it('leaves out a restricted or missing image of a gallery, and shows nothing with none left', async () => {
+    const block = examples.find((e) => e.name === 'gallery-row-content')!.block;
+    const props = block.props as { images: { mediaId: string }[] };
+    const withIds = (...ids: string[]) =>
+      Block.parse({
+        ...block,
+        props: { ...props, images: ids.map((mediaId, i) => ({ ...props.images[i], mediaId })) },
+      });
+    const one = await representations([withIds(EXAMPLE_IDS.image, RESTRICTED)], 'nl');
+    for (const out of [one.html, one.markdown, JSON.stringify(one.model)]) {
+      expect(out).toContain('Op het plein.');
+      expect(out).not.toContain(RESTRICTED);
+    }
+    const none = await representations([withIds(RESTRICTED, UNKNOWN_FILE)], 'nl');
+    for (const out of [none.html, none.markdown]) expect(out).not.toContain('/media/');
+    expect(none.html).not.toContain('gallery');
+  });
+
+  it('a gallery row is a named region a keyboard can scroll; a grid needs neither', async () => {
+    const html = async (name: string) =>
+      (await representations([examples.find((e) => e.name === name)!.block], 'en')).html;
+    expect(await html('gallery-row-content')).toMatch(
+      /<ul class="gallery-list" tabindex="0" aria-label="Row of photos"/
+    );
+    expect(await html('gallery-grid')).not.toContain('tabindex');
+  });
+
+  it('a sound file plays, downloads and has its transcript, without its stored filename', async () => {
+    const block = examples.find((e) => e.name === 'audio-transcript')!.block;
+    const { html, markdown } = await representations([block], 'en');
+    expect(html).toMatch(/<audio[^>]*\bcontrols\b/);
+    expect(html).toContain(`src="/media/${EXAMPLE_IDS.audio}/file.mp3"`);
+    expect(html).toContain('aria-label="The talk with the council"');
+    expect(html).toMatch(/<details[^>]*>\s*<summary>Transcript<\/summary>/);
+    expect(markdown).toContain('Download the sound');
+    expect(markdown).toContain('(MP3, ');
+    expect(markdown).toContain('Good morning.\nWe start with the petition.');
+    for (const out of [html, markdown]) expect(out).not.toContain('raad-opname-def');
+  });
+
+  it('a sound file a visitor may not fetch leaves nothing behind in any representation', async () => {
+    const block = examples.find((e) => e.name === 'audio-transcript')!.block;
+    const hidden = Block.parse({
+      ...block,
+      props: { ...(block.props as object), fileId: RESTRICTED },
+    });
+    const { html, markdown, model } = await representations([hidden], 'en');
+    for (const out of [html, markdown, JSON.stringify(model)]) {
+      expect(out).not.toContain(RESTRICTED);
+      expect(out).not.toContain('<audio');
+    }
+    for (const out of [html, markdown]) {
+      expect(out).not.toContain('The talk with the council');
+      expect(out).not.toContain('Good morning');
+    }
+  });
+
+  it('a timeline sorts by date in every representation, and keeps the editor order on one date', async () => {
+    const block = examples.find((e) => e.name === 'timeline-oldest-titled')!.block;
+    const titles = (out: string) =>
+      ['Petition handed over', 'Debate in the council', 'Decision published'].map((t) =>
+        out.indexOf(t)
+      );
+    const { html, markdown } = await representations([block], 'en');
+    for (const out of [html, markdown]) {
+      const [first, second, third] = titles(out);
+      expect(first).toBeGreaterThan(-1);
+      expect(first).toBeLessThan(second!);
+      expect(second).toBeLessThan(third!);
+    }
+    expect(html).toContain('<time datetime="2026-03-02">March 2, 2026</time>');
+    expect(markdown).toContain('*March 2, 2026*');
+    expect((await representations([block], 'nl')).html).toContain('2 maart 2026');
+
+    const newest = await representations(
+      [Block.parse({ ...block, props: { ...(block.props as object), order: 'newest' } })],
+      'en'
+    );
+    const [petition, debate, decision] = titles(newest.html);
+    expect(debate).toBeLessThan(decision!);
+    expect(decision).toBeLessThan(petition!);
+  });
+
+  it('an event title sits one level under the title of its timeline, or at its level without one', async () => {
+    const html = async (name: string) =>
+      (await representations([examples.find((e) => e.name === name)!.block], 'en')).html;
+    expect(await html('timeline-oldest-titled')).toMatch(/<h2[^>]*>How it went<\/h2>/);
+    expect(await html('timeline-oldest-titled')).toMatch(/<h3[^>]*>Petition handed over<\/h3>/);
+    expect(await html('timeline-newest')).toMatch(/<h2[^>]*>Petition handed over<\/h2>/);
+  });
+
+  it('a file link names its kind and size, in HTML and Markdown, not the stored filename', async () => {
+    const block = examples.find((e) => e.name === 'file-download-one')!.block;
+    const { html, markdown } = await representations([block], 'en');
+    expect(html).toContain('Annual report 2025');
+    expect(html).toMatch(/PDF, 825[.,]2 kB/);
+    expect(markdown).toMatch(/\[Annual report 2025\]\(<.*file\.pdf>\) \(PDF, 825[.,]2 kB\)/);
+    expect(html + markdown).not.toContain('jr-2025-final');
+  });
+
   it('drops an action and a text link whose item is not published', async () => {
     const swap = (b: Block) =>
       Block.parse(JSON.parse(JSON.stringify(b).replaceAll(EXAMPLE_IDS.item, UNPUBLISHED)));
@@ -387,6 +576,8 @@ describe('the demo documents render whole', () => {
     bakery: EXAMPLE_IDS.image,
     measuring: EXAMPLE_IDS.portrait,
     signatures: EXAMPLE_IDS.image,
+    report: EXAMPLE_IDS.document,
+    sound: EXAMPLE_IDS.audio,
   };
   const demos = [
     demoPage({ formId: EXAMPLE_IDS.form, media }),
@@ -400,7 +591,8 @@ describe('the demo documents render whole', () => {
     for (const locale of LOCALES)
       it(`${slug} (${locale})`, async () => {
         const { html, markdown, model } = await representations(blocks, locale);
-        expect(model.blocks).toHaveLength(blocks.length);
+        // A heading split off above a float (float-order.ts) is one extra part, of the same block.
+        expect(model.blocks.filter((b) => !('sourceId' in b))).toHaveLength(blocks.length);
         expect(markupProblems(html)).toEqual([]);
         expect(outlineProblems(headingLevels(html))).toEqual([]);
         expect(markdown).not.toMatch(/<[a-z][a-z0-9-]*[\s>/]/i);
@@ -438,6 +630,11 @@ describe('the demo documents render whole', () => {
 describe('theme tokens', () => {
   const PROPERTIES = [
     ...THEME_ROLES.flatMap((r) => [`--color-${r}-fg`, `--color-${r}-bg`]),
+    ...['primary', 'accent', 'body'].flatMap((r) => [
+      `--color-${r}-active-fg`,
+      `--color-${r}-active-bg`,
+    ]),
+    '--color-caption-fg',
     '--color-link',
     '--color-focus',
     '--font-body',
@@ -448,6 +645,17 @@ describe('theme tokens', () => {
     '--radius',
     '--density',
   ];
+  it('keeps a caption readable on the page, lighter than muted text where there is room', () => {
+    for (const theme of Object.values(THEME_PRESETS)) {
+      const css = themeCss(resolveTheme({ ...theme }));
+      const [, caption] = /--color-caption-fg: (#[a-f0-9]{6});/i.exec(css)!;
+      const [, muted] = /--color-muted-fg: (#[a-f0-9]{6});/i.exec(css)!;
+      const [, page] = /--color-body-bg: (#[a-f0-9]{6});/i.exec(css)!;
+      expect(contrastRatio(caption!, page!)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(caption!, page!)).toBeLessThanOrEqual(contrastRatio(muted!, page!));
+    }
+  });
+
   // The grammar of the output: declarations of our own properties with hex colours, plain
   // numbers with a unit, our font names and the @font-face rules of our own files.
   const declaration =
@@ -472,6 +680,52 @@ describe('theme tokens', () => {
   it('maps the default theme and every preset completely', () => {
     for (const theme of [DEFAULT_THEME, ...Object.values(THEME_PRESETS)])
       expect(problems(theme as ResolvedTheme)).toEqual([]);
+  });
+
+  it('keeps interactive tokens readable even for a pair just above the contrast floor', () => {
+    const boundary = structuredClone(DEFAULT_THEME);
+    boundary.palettes.light.primary = { foreground: '#767676', background: '#ffffff' };
+    for (const theme of [DEFAULT_THEME, ...Object.values(THEME_PRESETS), boundary]) {
+      const css = themeCss(theme);
+      const palettes = css.split(':root {').slice(1);
+      for (const [index, mode] of (['light', 'dark'] as const).entries())
+        for (const role of ['primary', 'accent', 'body'] as const) {
+          const token = (suffix: string) =>
+            new RegExp(`--color-${role}-${suffix}: (#[a-f0-9]{6});`, 'i').exec(
+              palettes[index]!
+            )![1]!;
+          const pair = theme.palettes[mode][role];
+          const fg = token('active-fg');
+          const bg = token('active-bg');
+          expect(contrastRatio(fg, bg)).toBeGreaterThanOrEqual(4.5);
+          // Active feedback is a real colour change, never a foreground/background inversion.
+          expect([fg, bg]).not.toEqual([pair.foreground, pair.background]);
+          expect([fg, bg]).not.toEqual([pair.background, pair.foreground]);
+        }
+    }
+  });
+
+  it('keeps active feedback for arbitrary readable colour pairs', () => {
+    let seed = 131;
+    const colour = () => {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      return '#' + (seed & 0xffffff).toString(16).padStart(6, '0');
+    };
+    let checked = 0;
+    for (let i = 0; i < 1500; i++) {
+      const foreground = colour(),
+        background = colour();
+      if (contrastRatio(foreground, background) < 4.5) continue;
+      const theme = structuredClone(DEFAULT_THEME);
+      theme.palettes.light.primary = { foreground, background };
+      const css = themeCss(theme);
+      const fg = /--color-primary-active-fg: (#[a-f0-9]{6});/i.exec(css)![1]!;
+      const bg = /--color-primary-active-bg: (#[a-f0-9]{6});/i.exec(css)![1]!;
+      expect(contrastRatio(fg, bg)).toBeGreaterThanOrEqual(4.5);
+      expect([fg, bg]).not.toEqual([foreground, background]);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(100);
   });
 
   it('loads Source Serif only for the serif pair, and both palettes explicitly', () => {

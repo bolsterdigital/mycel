@@ -22,6 +22,7 @@ export { default as CopyField } from './form/CopyField.svelte';
 export { default as DetailPage } from './page/DetailPage.svelte';
 export { default as DocumentOutline } from './nav/DocumentOutline.svelte';
 export { default as DashboardWidget } from './display/DashboardWidget.svelte';
+export { default as RowActions } from './display/RowActions.svelte';
 export { default as Dialog } from './feedback/Dialog.svelte';
 export { default as EditPage } from './page/EditPage.svelte';
 export { default as EmptyState } from './feedback/EmptyState.svelte';
@@ -41,6 +42,7 @@ export { default as NavGroup } from './nav/NavGroup.svelte';
 export { default as Notice } from './feedback/Notice.svelte';
 export { default as OverviewPage } from './page/OverviewPage.svelte';
 export { default as PageHeader } from './page/PageHeader.svelte';
+export { default as FilterChips } from './nav/FilterChips.svelte';
 export { default as Pagination } from './nav/Pagination.svelte';
 export { default as Panel } from './display/Panel.svelte';
 export { default as Select } from './form/Select.svelte';
@@ -56,3 +58,9 @@ export { default as Table } from './display/Table.svelte';
 export { default as Tabs } from './nav/Tabs.svelte';
 export { default as ViewSwitch } from './nav/ViewSwitch.svelte';
 export { ICONS, type IconName } from './icons.js';
+
+export { default as UploadDropZone } from './form/UploadDropZone.svelte';
+export { default as BlockInserter } from './form/BlockInserter.svelte';
+export { default as WritingSheet } from './display/WritingSheet.svelte';
+
+export { default as PublicationDrawer } from './feedback/PublicationDrawer.svelte';

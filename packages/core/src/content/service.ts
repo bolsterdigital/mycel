@@ -5,14 +5,14 @@
 // Every write takes the item lock first, so two saves on one base, a publish racing a save, and a
 // scheduled job racing a reschedule all serialise in lock order. Writing never moves a
 // publication pointer; publishing needs `content:publish` (ADR 018 rule 5). Every query here is
-// editorial: `authenticatedOnly` keeps anonymous principals out whatever capability they carry,
+// editorial: off the anonymous allowlist, so anonymous principals stay out whatever they carry,
 // because drafts must never reach a public visitor (the public projection is `public.ts`).
 
 import { z } from 'zod';
 import { requireActive, requireEntitled } from '../entitlements/guards.js';
 import { type Issue, notFound, UseCaseError } from '../errors.js';
 import { zodIssues } from '../invoke.js';
-import { Locale } from '../i18n/locale.js';
+import { Locale, localized } from '../i18n/locale.js';
 import type { JobOutcome } from '../jobs/ports.js';
 import { jobKey, type JobPayload } from '../jobs/types.js';
 import type { TransactionContext } from '../ports.js';
@@ -28,6 +28,15 @@ import {
 import { EXAMPLE_IDS } from './block-types.js';
 import { diffDocuments } from './diff.js';
 import { EffectiveView, effectiveOf } from './header/effective.js';
+import {
+  defaultDirection,
+  itemListFields,
+  listByTranslation,
+  listedDocuments,
+  listedTranslations,
+  MAX_TRANSLATION_WALK,
+  type ItemFilter,
+} from './listing.js';
 import {
   draftLocale,
   publish,
@@ -51,7 +60,7 @@ import {
   slugFromTitle,
   readinessIssues,
 } from './model.js';
-import type { ItemRecord } from './ports.js';
+import type { ItemPosition, ItemRecord } from './ports.js';
 import { preserveTranslationReview } from './translation-review.js';
 import './ports.js';
 import '../theme/ports.js';
@@ -161,9 +170,11 @@ export async function recordMediaUsages(
   document: readonly { slot: string; mediaId: string }[]
 ): Promise<void> {
   const pairs = new Map<string, { mediaId: string; blockId: string }>();
-  for (const b of allBlocks(blocks))
-    for (const mediaId of blockReferences([b]).media)
+  for (const b of allBlocks(blocks)) {
+    const { media, documents, audio } = blockReferences([b]);
+    for (const mediaId of [...media, ...documents, ...audio])
       pairs.set(`${mediaId} ${b.id}`, { mediaId, blockId: b.id });
+  }
   // The document's own images under their slot (`doc:featured`, `doc:seo`), which no block id
   // can take, so a featured image that is also a block's image counts twice, as it should.
   for (const { slot, mediaId } of document)
@@ -243,8 +254,8 @@ export async function writeRevision(
 
 /**
  * The references of a block tree must point at this tenant's data (ADR 004 rule 6): forms,
- * linked items, and media that exists, is not deleted and is an image (every media slot is an
- * image slot so far; a PDF is refused). Lookups run under the tenant's RLS context, so another
+ * linked items, and media that exists, is not deleted and is of the kind its slot takes (an image
+ * slot refuses a PDF, a document slot an image). Lookups run under the tenant's RLS context, so another
  * tenant's id is simply not found: the issue says which path, never whether the id exists
  * elsewhere. Restricted media may be referenced; that grants no reader access or address.
  *
@@ -259,7 +270,7 @@ export async function blockReferenceIssues(
 ): Promise<Issue[]> {
   const issues: Issue[] = [];
   const refs = blockReferences(blocks);
-  if (refs.media.length) await ctx.media.lock();
+  if (refs.media.length || refs.documents.length || refs.audio.length) await ctx.media.lock();
   for (const id of refs.forms)
     if (!(await ctx.forms.findById(id)))
       issues.push({ path, message: 'content.reference.form-unknown', params: { id } });
@@ -270,7 +281,43 @@ export async function blockReferenceIssues(
     const issue = await imageIssue(ctx, id, path);
     if (issue) issues.push(issue);
   }
+  for (const id of refs.documents) {
+    const issue = await documentIssue(ctx, id, path);
+    if (issue) issues.push(issue);
+  }
+  for (const id of refs.audio) {
+    const issue = await audioIssue(ctx, id, path);
+    if (issue) issues.push(issue);
+  }
   return issues;
+}
+
+/** A document slot's rule, next to the image rule: exists, not deleted, a document. */
+async function documentIssue(
+  ctx: TransactionContext,
+  mediaId: string,
+  path: string
+): Promise<Issue | null> {
+  const media = await ctx.media.get(mediaId);
+  if (!media || media.deletedAt)
+    return { path, message: 'content.reference.media-unknown', params: { id: mediaId } };
+  if (media.kind !== 'document')
+    return { path, message: 'content.reference.media-not-document', params: { id: mediaId } };
+  return null;
+}
+
+/** A sound slot's rule, the same again: exists, not deleted, audio. */
+async function audioIssue(
+  ctx: TransactionContext,
+  mediaId: string,
+  path: string
+): Promise<Issue | null> {
+  const media = await ctx.media.get(mediaId);
+  if (!media || media.deletedAt)
+    return { path, message: 'content.reference.media-unknown', params: { id: mediaId } };
+  if (media.kind !== 'audio')
+    return { path, message: 'content.reference.media-not-audio', params: { id: mediaId } };
+  return null;
 }
 
 /**
@@ -403,7 +450,6 @@ export const createItem = defineUseCase({
   description:
     'Create a page or article as a draft with its first revision; without a slug one is derived from the title in the default locale and made unique; blocks without an id get one, and patternId copies a pattern into the new document.',
   requires: 'content:write',
-  authenticatedOnly: true,
   consumes: null,
   input: z.object({
     slug: Slug.optional(),
@@ -435,24 +481,71 @@ export const createItem = defineUseCase({
     }
     const doc = finalize(ctx, document, blocks);
     await assertReferences(ctx, doc);
-    const now = ctx.clock.now();
-    const itemId = ctx.ids.next();
-    const revision = newRevision(ctx, itemId, doc, now);
-    const item: ItemRecord = {
-      id: itemId,
-      type: doc.type,
-      slug,
-      title: doc.title,
-      defaultLocale: doc.defaultLocale,
-      locales: doc.locales,
-      latestRevisionId: revision.id,
-      createdAt: now,
-      updatedAt: now,
-      publication: doc.locales.map(draftLocale),
-    };
-    if (!(await ctx.content.insert(item, revision))) throw taken();
-    await recordRevisionUsages(ctx, revision);
-    return { item: toContentItem(item), revision };
+    return insertDraft(ctx, slug, doc, taken);
+  },
+});
+
+/** A new item in draft in every locale, with `doc` as its first revision. */
+async function insertDraft(
+  ctx: TransactionContext,
+  slug: string,
+  doc: ContentDocument,
+  taken: () => UseCaseError
+) {
+  const now = ctx.clock.now();
+  const itemId = ctx.ids.next();
+  const revision = newRevision(ctx, itemId, doc, now);
+  const item: ItemRecord = {
+    id: itemId,
+    type: doc.type,
+    slug,
+    title: doc.title,
+    defaultLocale: doc.defaultLocale,
+    locales: doc.locales,
+    latestRevisionId: revision.id,
+    createdAt: now,
+    updatedAt: now,
+    publication: doc.locales.map(draftLocale),
+  };
+  if (!(await ctx.content.insert(item, revision))) throw taken();
+  await recordRevisionUsages(ctx, revision);
+  return { item: toContentItem(item), revision };
+}
+
+// A copy of what the item says now, as a draft nobody has published: its latest revision, also
+// when a published one differs. Block ids stay, because a document refers to its own blocks
+// (machine-translation markers, a teaser) and an id only has to be unique within its document.
+// An article's corrections and e-mail delivery do not come along: they are about the original's
+// publication. Rejected: copying in the route with `content.item.create`, which would give the
+// API and MCP no duplicate and leave those two rules to each front.
+export const duplicateItem = defineUseCase({
+  name: 'content.item.duplicate',
+  kind: 'command',
+  description:
+    "Copy an item's latest revision into a new draft with its own slug; `title` replaces the title per locale, and an article's corrections and e-mail delivery stay behind.",
+  requires: 'content:write',
+  consumes: null,
+  input: z.object({
+    itemId: ItemId,
+    title: localized(z.string().min(1).max(200)).optional(),
+  }),
+  output: ItemWithRevision,
+  examples: [{ input: { itemId: exampleId(0x1) } }],
+  async handler(ctx, { itemId, title }) {
+    const item = await ctx.content.get(itemId);
+    if (!item) throw notFound('item');
+    const latest = await ctx.content.revision(itemId, item.latestRevisionId);
+    if (!latest) throw notFound('revision');
+    const { blocks, ...source } = latest.document;
+    const document = {
+      ...source,
+      title: { ...source.title, ...title },
+      ...(source.type === 'article' ? { corrections: [], delivery: undefined } : {}),
+    } as ContentDocumentInput;
+    const doc = finalize(ctx, document, blocks);
+    await assertReferences(ctx, doc);
+    const slug = await freeSlug(ctx, doc);
+    return insertDraft(ctx, slug, doc, () => slugTaken(doc.type, slug));
   },
 });
 
@@ -462,7 +555,6 @@ export const updateItem = defineUseCase({
   description:
     'Save a new revision of an item; fails with conflict unless baseRevisionId is the latest revision, and never changes what is published.',
   requires: 'content:write',
-  authenticatedOnly: true,
   input: z.object({
     itemId: ItemId,
     baseRevisionId: z.string().guid(),
@@ -514,7 +606,6 @@ export const updateSlug = defineUseCase({
   description:
     'Change the slug of an item that has never been published in any locale; fails with conflict when another item of the same type has that slug, and leaves revisions and publication untouched.',
   requires: 'content:write',
-  authenticatedOnly: true,
   input: z.object({ itemId: ItemId, slug: Slug }),
   output: ContentItem,
   examples: [{ input: { itemId: exampleId(0x1), slug: 'over-ons' } }],
@@ -542,7 +633,6 @@ export const getItem = defineUseCase({
   description:
     'Get an item with its publication state and one revision: the latest, or revisionId if given.',
   requires: 'content:read',
-  authenticatedOnly: true,
   input: z.object({ itemId: ItemId, revisionId: z.string().guid().optional() }),
   output: ItemWithEffective,
   resource: { uriTemplate: 'mycel://content/{itemId}' },
@@ -559,24 +649,79 @@ export const getItem = defineUseCase({
   },
 });
 
+/** An item in a list: the item, and what its latest revision says that a work list shows. */
+const ListedItem = ContentItem.extend({
+  /** Per locale of the latest revision; a locale it lacks is missing; empty when unreadable. */
+  translations: z.record(z.string(), z.enum(['ok', 'behind'])),
+  authorIds: z.array(z.string().guid()),
+  sectionId: z.string().guid().nullable(),
+  tags: z.array(z.string()),
+});
+
+function listedItem(row: ItemRecord, doc: ContentDocument | undefined): z.infer<typeof ListedItem> {
+  const article = doc?.type === 'article' ? doc : null;
+  return {
+    ...toContentItem(row),
+    translations: doc ? listedTranslations(doc) : {},
+    authorIds: article?.authorIds ?? [],
+    sectionId: article?.sectionId ?? null,
+    tags: article?.tags ?? [],
+  };
+}
+
 export const listItems = defineUseCase({
   name: 'content.item.list',
   kind: 'query',
   description:
-    'List items newest first, optionally of one type or with one slug, a page at a time.',
+    'List items a page at a time, newest first unless `sort` orders them; narrow by type, slug, `q` (in a title or the slug), the publication state of `locale`, the author, section or tag of the latest revision, when it was last saved, or where a translation stands; `total` counts every match. The translation filter refuses when more than ' +
+    MAX_TRANSLATION_WALK +
+    ' items match the other filters: narrow those first. Each item says where its translations stand, and its latest authors, section and tags; an item whose latest document cannot be read says none of those and still lists.',
   requires: 'content:read',
-  authenticatedOnly: true,
   input: z.object({
     type: ContentType.optional(),
     slug: Slug.optional(),
+    ...itemListFields,
     after: z.string().guid().optional(),
     limit: Limit,
   }),
-  output: z.object({ items: z.array(ContentItem), next: z.string().guid().nullable() }),
-  examples: [{ input: { type: 'article' } }],
-  async handler(ctx, { type, slug, after, limit }) {
-    const page = await ctx.content.list({ type, slug }, after ?? null, limit ?? DEFAULT_PAGE_SIZE);
-    return { items: page.rows.map(toContentItem), next: page.next };
+  output: z.object({
+    items: z.array(ListedItem),
+    /** Pass as `after` for the rows that follow, in the same order; null when none do. */
+    next: z.string().guid().nullable(),
+    total: z.number().int().min(0),
+  }),
+  examples: [
+    { input: { type: 'article' } },
+    {
+      input: { type: 'article', q: 'budget', locale: 'nl', status: 'draft', sort: 'updated' },
+      note: 'Drafts in Dutch with "budget" in a title or the slug, last saved first.',
+    },
+  ],
+  async handler(
+    ctx,
+    { after, offset, limit, sort, direction, translation, updatedFrom, updatedBefore, ...rest }
+  ) {
+    const by = sort ?? 'created';
+    const filter: ItemFilter = {
+      ...rest,
+      ...(updatedFrom ? { updatedFrom: new Date(updatedFrom) } : {}),
+      ...(updatedBefore ? { updatedBefore: new Date(updatedBefore) } : {}),
+    };
+    const position: ItemPosition = {
+      order: { by, direction: direction ?? defaultDirection(by) },
+      after: after ?? null,
+      offset: offset ?? 0,
+      limit: limit ?? DEFAULT_PAGE_SIZE,
+    };
+    const page = translation
+      ? await listByTranslation(ctx, filter, translation, position)
+      : await ctx.content.list(filter, position);
+    const documents = await listedDocuments(ctx, page.rows);
+    return {
+      items: page.rows.map((row) => listedItem(row, documents.get(row.id))),
+      next: page.next,
+      total: page.total,
+    };
   },
 });
 
@@ -585,7 +730,6 @@ export const listRevisions = defineUseCase({
   kind: 'query',
   description: 'List the revisions of an item newest first, with who saved each and when.',
   requires: 'content:read',
-  authenticatedOnly: true,
   input: z.object({ itemId: ItemId, after: z.string().guid().optional(), limit: Limit }),
   output: z.object({ revisions: z.array(RevisionSummary), next: z.string().guid().nullable() }),
   examples: [{ input: { itemId: exampleId(0x1) } }],
@@ -602,7 +746,6 @@ export const diffRevisions = defineUseCase({
   description:
     'Compare two revisions of one item as a list of changed paths with the value before and after.',
   requires: 'content:read',
-  authenticatedOnly: true,
   input: z.object({
     itemId: ItemId,
     fromRevisionId: z.string().guid(),
@@ -685,7 +828,6 @@ export const publishItem = defineUseCase({
     'Put one revision live in one locale; other locales and newer drafts are untouched, and any planning for this locale is cancelled.',
   requires: 'content:publish',
   effect: 'publish',
-  authenticatedOnly: true,
   input: PublicationTarget,
   output: ContentItem,
   examples: [{ input: exampleTarget }],
@@ -703,7 +845,6 @@ export const unpublishItem = defineUseCase({
     'Take one locale of an item offline and cancel its planning; other locales stay as they are.',
   requires: 'content:publish',
   effect: 'publish',
-  authenticatedOnly: true,
   input: z.object({ itemId: ItemId, locale: Locale }),
   output: ContentItem,
   examples: [{ input: { itemId: exampleTarget.itemId, locale: 'nl' } }],
@@ -720,7 +861,6 @@ export const scheduleItem = defineUseCase({
     'Plan one revision to go live in one locale at a future time; exactly that revision is published, and scheduling again replaces the plan.',
   requires: 'content:publish',
   effect: 'publish',
-  authenticatedOnly: true,
   input: PublicationTarget.extend({ at: z.string().datetime({ offset: true }) }),
   output: ContentItem,
   examples: [{ input: { ...exampleTarget, at: '2030-01-01T09:00:00+01:00' } }],
@@ -751,7 +891,6 @@ export const unscheduleItem = defineUseCase({
   description: 'Cancel the planned publication of one locale; what is live stays live.',
   requires: 'content:publish',
   effect: 'publish',
-  authenticatedOnly: true,
   input: z.object({ itemId: ItemId, locale: Locale }),
   output: ContentItem,
   examples: [{ input: { itemId: exampleTarget.itemId, locale: 'nl' } }],
@@ -807,7 +946,6 @@ export const approveTranslation = defineUseCase({
   kind: 'command',
   description: 'Approve the machine-translated fields of one locale as a human publisher.',
   requires: 'content:publish',
-  authenticatedOnly: true,
   actors: ['operator'],
   input: z
     .object({ itemId: ItemId, locale: z.string().min(2), baseRevisionId: z.string().guid() })

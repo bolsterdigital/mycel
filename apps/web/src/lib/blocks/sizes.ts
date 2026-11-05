@@ -20,3 +20,14 @@ export const IMAGE_SIZES = {
 } as const;
 
 export type ImageLayout = keyof typeof IMAGE_SIZES;
+
+// A gallery has at least two images, so in the grid one is at most half its column above the
+// narrow step, whatever the number of images; a row shows most of one at a time.
+export const GALLERY_SIZES = {
+  grid: {
+    content: `(min-width: 48rem) 22rem, ${NARROW}`,
+    wide: `(min-width: 72rem) 34rem, ${NARROW}`,
+    full: `(min-width: 32rem) 50vw, 100vw`,
+  },
+  row: 'min(85vw, 28rem)',
+} as const;

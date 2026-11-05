@@ -3,6 +3,7 @@
 // schema. Rejected: StarterKit defaults, which would silently admit blockquotes and code blocks.
 import { Extension, Mark, Node } from '@tiptap/core';
 import { Plugin } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import StarterKit from '@tiptap/starter-kit';
 import { z } from 'zod';
 
@@ -26,7 +27,32 @@ const Prose = Node.create({
       blockId: { default: null, parseHTML: (element) => element.getAttribute('data-block-id') },
       blockType: { default: 'rich-text' },
       newBlock: { default: null, rendered: false },
+      showThrough: { default: null, rendered: false },
     };
+  },
+  // What another locale says, while this one has no words (#142). A decoration, so it is never in
+  // the document and never posted as this locale's text; it goes on the first typed character.
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        props: {
+          decorations: (state) => {
+            const shown: Decoration[] = [];
+            state.doc.forEach((node, position) => {
+              const through = node.attrs.showThrough as { locale: string; text: string } | null;
+              if (node.type.name !== 'mycelProse' || !through || node.textContent.trim()) return;
+              shown.push(
+                Decoration.node(position, position + node.nodeSize, {
+                  'data-through-locale': through.locale,
+                  'data-through': through.text,
+                })
+              );
+            });
+            return DecorationSet.create(state.doc, shown);
+          },
+        },
+      }),
+    ];
   },
   parseHTML() {
     return [{ tag: 'section[data-mycel-prose]' }];

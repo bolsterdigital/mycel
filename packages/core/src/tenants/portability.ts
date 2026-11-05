@@ -1,6 +1,6 @@
 // The rules of the tenant export format (TODO #18d, #53 PR 4; ADR 002 rule 5, ADR 019 rule 8):
 // what a manifest must say before an import trusts a byte of it, and what changes on the way in.
-// packages/db/src/export.ts does the plumbing (snapshot, files, tar, rows) and asks these:
+// packages/db/src/portability/export.ts does the plumbing (snapshot, files, tar, rows) and asks these:
 //
 // * a manifest names only files the format prescribes, and every file matches its digest;
 // * an export from a newer schema is refused, an older one is fine (`migrate` is past it);
@@ -47,6 +47,8 @@ export interface ExportManifest {
 
 /** How the verification reads an unpacked export; the adapter knows where it lies. */
 export interface ExportArchive {
+  /** Every entry of the unpacked export as it lies there, without following a link. */
+  entries(): Promise<readonly { path: string; regular: boolean }[]>;
   /** The text of `manifest.json`; throws when it cannot be read. */
   manifest(): Promise<string>;
   /** Digest and line count of a table file, as the export computed them. */
@@ -60,12 +62,16 @@ const refuse = (message: string) => new UseCaseError('invalid_input', message);
 /**
  * The manifest of an export, checked against every file it names. A file name is the one the
  * format prescribes (`tables/<table>.ndjson`, `media/<key>`), never one the manifest chooses: a
- * crafted archive could otherwise name any readable path on this box as media.
+ * crafted archive could otherwise name any readable path on this box as media. For the same reason
+ * every entry must be a regular file or a directory: a link with the right digest passes every
+ * other check, and reading it would read whatever it points at.
  */
 export async function verifyExportManifest(
   archive: ExportArchive,
   knownTables: readonly string[]
 ): Promise<ExportManifest> {
+  const irregular = (await archive.entries()).find((entry) => !entry.regular);
+  if (irregular) throw refuse(`${irregular.path} is not a regular file`);
   let manifest: ExportManifest;
   try {
     manifest = JSON.parse(await archive.manifest()) as ExportManifest;

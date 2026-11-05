@@ -1,6 +1,6 @@
 // One random sequence of export operations for two property tests (TODO #74; testing.md: state
 // machines get property tests): core's own (tenants/export-lifecycle.test.ts, over
-// MemoryExportJobs) and Postgres's (packages/db/src/tenant-exports.test.ts, the same sequence
+// MemoryExportJobs) and Postgres's (packages/db/src/portability/tenant-exports.test.ts, the same sequence
 // through the db plumbing and MemoryExportJobs side by side). The draw takes a `pick`, so this
 // file needs no fast-check: the tests pass `g(fc.constantFrom, ...xs)`.
 // Rejected: a generator per test (the two would drift, and the Postgres test would prove a

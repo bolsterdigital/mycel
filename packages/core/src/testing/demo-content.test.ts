@@ -10,7 +10,13 @@ import { ContentDocument, ContentDocumentInput, readinessIssues } from '../conte
 import { Invoker } from '../invoke.js';
 import { buildRegistry, useCases } from '../use-cases.js';
 import { exampleId } from '../util/ids.js';
-import { DEMO_IMAGES, demoArticle, demoPage, seedDemoContent } from './demo-content.js';
+import {
+  DEMO_IMAGES,
+  DEMO_SOUND_BASE64,
+  demoArticle,
+  demoPage,
+  seedDemoContent,
+} from './demo-content.js';
 import { bytesToBase64 } from '../util/bytes.js';
 import { adminOf, probeForm, publishProbePage } from './fixtures.js';
 import { MemoryUnitOfWork } from './memory.js';
@@ -21,6 +27,8 @@ const media = {
   bakery: exampleId(0xd102),
   measuring: exampleId(0xd103),
   signatures: exampleId(0xd104),
+  report: exampleId(0xd105),
+  sound: exampleId(0xd106),
 };
 const documents = [
   demoPage({ formId: FORM, media }).document,
@@ -69,6 +77,30 @@ const posterEra = <T>(document: T): T => {
   ) as T;
 };
 
+/**
+ * Jaap, P185-79: a custom block never follows another; at least one paragraph of plain text stands
+ * before and after it, in demo content too. An image is not custom here: it belongs to the text.
+ */
+const PLAIN = new Set(['rich-text', 'heading', 'image', 'paywall']);
+const hasParagraph = (block: { type: string; props: unknown } | undefined) =>
+  block?.type === 'rich-text' &&
+  JSON.stringify((block.props as { content: unknown }).content).includes('"paragraph"');
+
+describe('demo content rhythm', () => {
+  it.each(documents.map((d) => [d.type, d] as const))(
+    'the %s has a paragraph on both sides of every custom block',
+    (_type, document) => {
+      const blocks = document.blocks.filter((b) => b.type !== 'paywall');
+      const crowded = blocks.flatMap((block, i) =>
+        !PLAIN.has(block.type) && !(hasParagraph(blocks[i - 1]) && hasParagraph(blocks[i + 1]))
+          ? [`${i}: ${block.type}`]
+          : []
+      );
+      expect(crowded).toEqual([]);
+    }
+  );
+});
+
 describe('demo content', () => {
   it.each(documents.map((d) => [d.type, d] as const))(
     'the %s is a valid document, ready in nl and en',
@@ -85,7 +117,7 @@ describe('demo content', () => {
         ),
       });
       expect(stored.blocks.length).toBeGreaterThanOrEqual(10);
-      expect(stored.blocks.length).toBeLessThanOrEqual(14);
+      expect(stored.blocks.length).toBeLessThanOrEqual(25);
       expect(stored.lead?.['nl']).toBeTruthy();
       expect(stored.heroImageId).toBeDefined();
       for (const locale of ['nl', 'en']) expect(readinessIssues(stored, locale)).toEqual([]);
@@ -117,11 +149,17 @@ describe('demo content', () => {
         ['nl', 'published'],
       ]);
     const { items } = await invoker.run(useCases.listMedia, admin, {});
-    expect(items.map((m) => m.filename).sort()).toEqual(DEMO_IMAGES.map((i) => i.filename).sort());
+    expect(items.map((m) => m.filename).sort()).toEqual(
+      [
+        ...DEMO_IMAGES.map((i) => i.filename),
+        'meetresultaten-pepernoten.pdf',
+        'zoutmeter-pepernoten.mp3',
+      ].sort()
+    );
 
     const again = await seedDemoContent(invoker, admin, { formId: FORM, load: jpegHeader });
     expect(again).toMatchObject({ created: false, upgraded: [], page: { id: first.page.id } });
-    expect((await invoker.run(useCases.listMedia, admin, {})).items).toHaveLength(4);
+    expect((await invoker.run(useCases.listMedia, admin, {})).items).toHaveLength(6);
   });
 
   it('swaps the posters of an earlier seed for the photos, once, keeping history and drafts', async () => {
@@ -132,6 +170,11 @@ describe('demo content', () => {
 
     // What the poster-era seed left: four PNG posters, both items published with their ids and
     // texts, and an editor's unpublished change to the article.
+    const report = await invoker.run(useCases.uploadMedia, admin, {
+      filename: 'meetresultaten-pepernoten.pdf',
+      contentType: 'application/pdf',
+      bytes: bytesToBase64(new TextEncoder().encode('%PDF-1.4\n')),
+    });
     const posters = Object.fromEntries(
       await Promise.all(
         DEMO_IMAGES.map(async (image) => {
@@ -143,18 +186,24 @@ describe('demo content', () => {
           return [image.key, m.id];
         })
       )
-    ) as typeof media;
+    ) as Omit<typeof media, 'report' | 'sound'>;
+    const sound = await invoker.run(useCases.uploadMedia, admin, {
+      filename: 'zoutmeter-pepernoten.mp3',
+      contentType: 'audio/mpeg',
+      bytes: DEMO_SOUND_BASE64,
+    });
+    const earlier = { ...posters, report: report.id, sound: sound.id };
     const page = await publishProbePage(
       invoker,
       admin,
       FORM,
-      posterEra(demoPage({ formId: FORM, media: posters }))
+      posterEra(demoPage({ formId: FORM, media: earlier }))
     );
     const article = await publishProbePage(
       invoker,
       admin,
       FORM,
-      posterEra(demoArticle({ formId: FORM, media: posters, pageId: page.id }))
+      posterEra(demoArticle({ formId: FORM, media: earlier, pageId: page.id }))
     );
     const published = (await invoker.run(useCases.getItem, admin, { itemId: article.id })).revision;
     const edited = posterEra(published.document);
@@ -203,6 +252,6 @@ describe('demo content', () => {
 
     const again = await seedDemoContent(invoker, admin, { formId: FORM, load: jpegHeader });
     expect(again).toMatchObject({ created: false, upgraded: [] });
-    expect((await invoker.run(useCases.listMedia, admin, {})).items).toHaveLength(8);
+    expect((await invoker.run(useCases.listMedia, admin, {})).items).toHaveLength(10);
   });
 });

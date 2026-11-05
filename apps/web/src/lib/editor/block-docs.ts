@@ -20,13 +20,15 @@ function kind(f: BlockField): string {
     case 'rich-text':
       return 'localised rich text (Markdown subset in the no-JS form)';
     case 'media':
-      return 'image (media id)';
+      return `${f.accept ?? 'image'} (media id)`;
     case 'reference':
       return `${f.to} reference (id)`;
     case 'choice':
       return `one of ${f.options.map((o) => `\`${o}\``).join(', ')}`;
     case 'boolean':
       return 'yes or no';
+    case 'date':
+      return 'date (YYYY-MM-DD)';
     case 'actions':
       return `${f.min}–${f.max} buttons: a localised label and an item or a URL`;
     case 'group':

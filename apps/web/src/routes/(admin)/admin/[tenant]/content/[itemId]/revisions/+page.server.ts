@@ -2,7 +2,7 @@
 // preview per revision, and a comparison of two revisions as a diff (ADR 009 rule 9). The
 // comparison is a GET form, so a diff has its own URL and works without JavaScript.
 import { pickAny, isUuid, useCases } from '@mycel/core';
-import { actorLabel, diffRows, when } from '#lib/server/content-admin.js';
+import { actorLabel, diffRows, when } from '#lib/server/content/content-admin.js';
 import { loaded } from '#lib/server/admin/admin-actions.js';
 import { adminTimeZone } from '#lib/server/admin/admin.js';
 import { runtime } from '#lib/server/runtime.js';

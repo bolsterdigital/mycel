@@ -2,12 +2,16 @@
 
 Three kinds of background work can stall without anyone noticing: a job that used up its attempts, an outbox event that failed every pass without reaching every subscriber, and a mail intent whose outcome is unknown or that was given up. This module makes them visible and recoverable, for a site's own administrators through three use cases in `packages/core/src/ops/`, and for the hoster platform-wide through `/platform/ops/*` and the CLI ([platform-api.md](platform-api.md)), with one set of rules in `packages/db/src/infra/recovery.ts` (migration 0016; ADR 011 rules 1 and 2, [`../adr/011-background-roles-and-outbox.md`](../adr/011-background-roles-and-outbox.md)). The queues themselves are in [jobs.md](jobs.md), mail intents in [mail.md](mail.md). Nobody acts "as" someone else: a tenant administrator recovers as themselves, the hoster as the platform, and both are audited ([audit.md](audit.md)).
 
+## In short
+
+**Stuck work** (PR #20, migration 0016). Exhausted jobs, dead outbox events and unknown or abandoned mail intents are visible: a tenant's administrators see their own on `/admin/<slug>/status` through `ops.status.get` and recover a job with `ops.job.retry` or `ops.job.close` (module `packages/core/src/ops/`, as `mycel_app` without the payload), with a redacted diagnosis to copy and nothing sent on their behalf; the hoster lists every tenant's as `mycel_ops` through `/platform/ops/*` and `npm run platform -- ops` (`packages/db/src/infra/recovery.ts`, `docs/reference/platform-api.md`).
+
 ## What counts as stuck
 
 | Kind              | Condition                                                                                                                      |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | exhausted job     | `done_at is null and attempts >= max_attempts`                                                                                 |
-| dead outbox event | `processed_at is null and attempts >= MAX_ATTEMPTS` (10, `packages/db/src/outbox.ts`)                                          |
+| dead outbox event | `processed_at is null and attempts >= MAX_ATTEMPTS` (10, `packages/db/src/operations/outbox.ts`)                               |
 | unresolved mail   | attempted, not sent, and either abandoned or with no running lease: the `unknown` and `abandoned` states of [mail.md](mail.md) |
 
 A job is **recoverable** when it is exhausted and no run holds its lease (`claimed_at` null or older than `JOB_LEASE_SECONDS`). A job on its last attempt counts as exhausted from the claim on; resetting it while that run is still going would let a second worker run it beside the first, so that is refused.

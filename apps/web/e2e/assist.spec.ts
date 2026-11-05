@@ -9,6 +9,7 @@ import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { NARROW, layoutGate, setTextSize } from './lib/layout';
 import { login } from './lib/login';
 import { isA11y } from './lib/project';
+import { openPublication } from './lib/publication';
 
 test.use({
   locale: 'nl-NL',
@@ -41,9 +42,9 @@ async function signInToFreshSite(page: Page) {
     })
   );
   await login(page, `${base(page)}/site?section=assist`, email);
-  // Signed in as this member; at 320 CSS px the address sits in the closed ☰ menu (#66 PR 1).
+  // Signed in as this member; the account disclosure retains the identity at every width.
   await expect(
-    page.locator('.admin-sidebar-bottom').getByText(email, { exact: true })
+    page.locator('.admin-account-actions').getByText(email, { exact: true })
   ).toBeAttached();
 }
 
@@ -110,6 +111,7 @@ async function ready(page: Page) {
 
 async function imagePage(page: Page, project: string) {
   await page.goto(`${base(page)}/media`);
+  await page.getByRole('button', { name: /^(Bestand uploaden|Upload file)$/, exact: true }).click();
   const example = useCases.uploadMedia.examples[0]!.input;
   await page.getByLabel(/^(Bestanden \(verplicht\)|Files \(required\))$/).setInputFiles({
     name: 'assist.png',
@@ -290,6 +292,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
         .fill('Edited English heading');
       await acceptWithKeyboard(page);
       await expect(page).toHaveURL(`${edit}?saved=1&locale=en`);
+      await openPublication(page);
       const publication = page.locator('#publication-en');
       await expect(page.locator('details.block')).toHaveCount(0);
       await expect(publication).toContainText(/Machinevertaling|Machine translation/);
@@ -321,6 +324,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
       expect(denied.status()).toBe(403);
       await permissions(page, ['tenant:admin']);
       await page.reload();
+      await openPublication(page);
       await page
         .locator('#publication-en')
         .getByRole('button', { name: /Vertaling in en goedkeuren|Approve translation in en/ })
@@ -473,6 +477,7 @@ for (const locale of ['nl-NL', 'en-GB']) {
       });
       await page.reload();
       await expect(page.locator('details.block')).toHaveCount(0);
+      await openPublication(page);
       const publication = page.locator('#publication-en');
       await expect(publication).toContainText(/Machinevertaling|Machine translation/);
       await expect(publication.locator('a[href="#publication-en"]')).toHaveCount(1);

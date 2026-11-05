@@ -10,6 +10,7 @@
    underlined. The admin imports this file too and supplies its own fixed values for the same
    properties (admin.css) until #11 designs it. */
 @layer tokens, base, components;
+@import './media-blocks.css' layer(base);
 
 /* A content column measured in the page's own `ch`, inherited as a length, so a heading with a
    larger font has the same column as the text under it. */
@@ -17,6 +18,14 @@
   syntax: '<length>';
   inherits: true;
   initial-value: 640px;
+}
+
+/* Animate interaction progress, not theme colours: a palette or stylesheet change must apply
+   atomically, rather than interpolating between opposite foreground/background polarities. */
+@property --action-progress {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
 }
 
 @layer tokens {
@@ -192,14 +201,6 @@
   .image.layout-full {
     --caption-inset: var(--gutter);
   }
-  .image figcaption,
-  .video figcaption {
-    margin-block-start: var(--space-1);
-    padding-inline: var(--caption-inset);
-    text-align: start;
-    font-size: var(--step--1);
-    color: var(--color-muted-fg);
-  }
   /* Every image fills its figure, so the image and its caption share a left edge even when the
      file is narrower than its rail. */
   .image img {
@@ -209,10 +210,6 @@
     max-width: var(--content-width);
     margin-inline: auto;
   }
-  .credit {
-    display: inline-block;
-  }
-
   /* The item's own introduction (#86): the lead in the next step of the scale, in the heading
      font, and the hero image between it and the blocks. */
   /* Centred under the title like Dreamkit's compact-header lede, in a 44rem rail of its own:
@@ -266,7 +263,7 @@
   }
   .page > .page-cover {
     width: 100%;
-    margin-block-end: var(--space-1);
+    margin-block-end: 4px;
   }
   .page-cover {
     --site-header-height: calc(2 * var(--space-2) + var(--tap) + 2px);
@@ -328,7 +325,7 @@
   }
   .page > .page-cover-caption {
     width: 100%;
-    margin-block: 0 var(--space-3);
+    margin-block: 4px var(--space-3);
     padding-inline: var(--gutter);
     font-size: var(--step--1);
     color: var(--color-muted-fg);
@@ -385,7 +382,7 @@
     float: right;
     margin: 0 var(--float-outer) var(--space-2) var(--float-inner);
   }
-  .page :is(.cta, .faq) {
+  .page :is(.cta, .cards, .faq, .gallery, .timeline, .audio) {
     clear: both;
   }
   @container (max-width: 40rem) {
@@ -499,8 +496,43 @@
     background: var(--color-body-bg);
     border-color: currentColor;
   }
-  .button:hover {
-    text-decoration: underline;
+  /* Public buttons and FAQ bars share one checked sRGB path. Only pointer/keyboard/open
+     progress animates; theme changes and initial stylesheet application set their pairs at once.
+     Without registered-property animation support the feedback changes immediately. */
+  .page:not(.admin) .button,
+  .faq-accordion summary {
+    --action-progress: 0;
+    --action-base-fg: var(--color-primary-fg);
+    --action-base-bg: var(--color-primary-bg);
+    --action-fg: var(--color-primary-active-fg);
+    --action-bg: var(--color-primary-active-bg);
+    color: var(--action-base-fg);
+    background-color: var(--action-base-bg);
+    color: color-mix(
+      in srgb,
+      var(--action-base-fg) calc((1 - var(--action-progress)) * 100%),
+      var(--action-fg)
+    );
+    background-color: color-mix(
+      in srgb,
+      var(--action-base-bg) calc((1 - var(--action-progress)) * 100%),
+      var(--action-bg)
+    );
+    transition: --action-progress 150ms ease-out;
+  }
+  .page:not(.admin) .button.secondary {
+    --action-base-fg: var(--color-body-fg);
+    --action-base-bg: var(--color-body-bg);
+    --action-fg: var(--color-body-active-fg);
+    --action-bg: var(--color-body-active-bg);
+  }
+  .page:not(.admin) .button:is(:hover, :focus-visible) {
+    --action-progress: 1;
+    text-decoration: none;
+  }
+  .page:not(.admin) .button:focus-visible {
+    outline-color: currentColor;
+    outline-offset: -0.25rem;
   }
 
   /* Hero. `cover`: an opaque surface panel over the image, never text on the photo. */
@@ -574,6 +606,12 @@
     color: var(--color-primary-fg);
     background: var(--color-primary-bg);
   }
+  .page:not(.admin) .cta-band .button:not(.secondary) {
+    --action-base-fg: var(--color-accent-fg);
+    --action-base-bg: var(--color-accent-bg);
+    --action-fg: var(--color-accent-active-fg);
+    --action-bg: var(--color-accent-active-bg);
+  }
   .cta-band .button {
     color: var(--color-accent-fg);
     background: var(--color-accent-bg);
@@ -588,6 +626,117 @@
   }
   .cta-band a:not(.button) {
     color: inherit;
+  }
+
+  /* Cards: the grid follows the width on offer. Full width is a band: the background runs to the
+     edges and the cards stay on the wide rail. */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .cards-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding: var(--inset);
+    border-radius: var(--radius);
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+  }
+  .cards-item > * {
+    margin-block: 0;
+  }
+  .cards-item h2 {
+    font-size: var(--step-1);
+  }
+  .cards-item .actions {
+    margin-block-start: auto;
+  }
+  .cards.width-full {
+    padding-block: var(--space-3);
+    padding-inline: var(--gutter);
+    background: var(--color-surface-bg);
+  }
+  .cards.width-full .cards-grid {
+    max-width: var(--wide-width);
+    margin-inline: auto;
+  }
+  .cards.width-full:not(.cards-filled) .cards-item {
+    color: var(--color-body-fg);
+    background: var(--color-body-bg);
+  }
+  .cards-bar .cards-item {
+    border-inline-start: 0.375rem solid var(--color-accent-bg);
+  }
+  .cards-filled .cards-item {
+    color: var(--color-primary-fg);
+    background: var(--color-primary-bg);
+  }
+  .page:not(.admin) .cards-filled .cards-item .button {
+    --action-base-fg: var(--color-accent-fg);
+    --action-base-bg: var(--color-accent-bg);
+    --action-fg: var(--color-accent-active-fg);
+    --action-bg: var(--color-accent-active-bg);
+  }
+
+  /* Galleries: every image in one shape, cut on its focal point, so a row of mixed photos lines up.
+     A row snaps but does not trap: `proximity` lets a keyboard or a wheel stop between two images. */
+  .gallery-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    gap: var(--space-2);
+  }
+  .gallery-grid .gallery-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  }
+  .gallery-row .gallery-list {
+    display: flex;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: x proximity;
+    padding-block-end: var(--space-1);
+  }
+  .gallery-row .gallery-list > li {
+    flex: 0 0 min(85%, 28rem);
+    scroll-snap-align: start;
+  }
+  .gallery figure {
+    margin: 0;
+  }
+  .gallery img {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+  }
+
+  /* Timelines: one line down the side, a date above each title; the page carries the rest. */
+  .timeline-list {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    padding-inline-start: var(--space-2);
+    list-style: none;
+    border-inline-start: 2px solid var(--color-muted-fg);
+  }
+  .timeline-list > li > * {
+    margin-block: 0 var(--space-1);
+  }
+  .timeline-list :is(h2, h3) {
+    font-size: var(--step-1);
+  }
+  .timeline-list time {
+    display: block;
+    color: var(--color-muted-fg);
   }
 
   /* Callouts: the label carries the meaning; colour is a validated pair. */
@@ -640,11 +789,10 @@
     margin-block: var(--space-3) var(--space-1);
   }
   /* The accordion reads as the Dreamkit FAQ: every item a card, the question a bar in the
-     primary pair that turns to the surface pair on hover and when open, a plus of two bars that
-     turns into a minus, the answer on the surface pair. Only validated pairs, no script.
-     The pairs swap at once: a fade between them passes through colours no check measured, and
-     axe caught the question failing contrast mid-fade. Only the icon, which carries no text,
-     moves.
+     primary pair with a subtle active pair on hover, focus and when open, a plus of two bars
+     that turns into a minus, the answer on the surface pair. The active tokens preserve colour
+     polarity and are contrast-checked through their fade, unlike a primary/surface inversion.
+     Browser fixtures also sample the actual transition, rather than checking endpoints only.
      Rejected: drawing the bars with gradients, which forced colours would erase; borders keep
      the icon visible there. */
   .faq-accordion details {
@@ -663,25 +811,23 @@
     padding: var(--space-2) var(--inset);
     list-style: none;
     cursor: pointer;
-    color: var(--color-primary-fg);
-    background: var(--color-primary-bg);
   }
   .faq-accordion summary::-webkit-details-marker {
     display: none;
   }
   .faq-accordion details[open] > summary {
-    color: var(--color-surface-fg);
-    background: var(--color-surface-bg);
+    --action-progress: 1;
   }
   @media (hover: hover) {
     .faq-accordion summary:hover {
-      color: var(--color-surface-fg);
-      background: var(--color-surface-bg);
+      --action-progress: 1;
     }
   }
-  /* The card clips its corners, which would clip an outline outside the bar too: draw it just
-     inside. The theme check measures the focus colour 3:1 on every role background. */
+  /* The card clips an outside outline: draw it inside, using the active foreground whose
+     contrast against this background is at least 4.5:1. */
   .faq-accordion summary:focus-visible {
+    --action-progress: 1;
+    outline-color: currentColor;
     outline-offset: -0.25rem;
   }
   .faq-accordion summary > :is(h2, h3) {
@@ -740,7 +886,17 @@
     overflow-wrap: anywhere;
   }
 
+  /* A heading split off above a float (float-order.ts) sits on its text like any other heading. */
+  .rich-text-opening {
+    margin-block-end: 0;
+  }
+
   /* Quotes */
+  /* A pull quote is a pause in the page: it gets more room than the blocks around it, whatever
+     stands next to it (P185-79: it hung against the cards above). */
+  .page .quote-pullquote {
+    margin-block: var(--space-4);
+  }
   .quote blockquote {
     margin: 0;
     padding-inline-start: var(--inset);

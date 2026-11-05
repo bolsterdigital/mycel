@@ -60,7 +60,7 @@ async function setup() {
       which,
       new URL(`https://mycel.example/admin/probe/media/${id}/${which}${query}`)
     );
-  return { upload, get, remove, admin, signer, clock };
+  return { upload, get, remove, admin, signer, clock, deps };
 }
 
 describe('media delivery route', () => {
@@ -132,6 +132,123 @@ describe('media delivery route', () => {
     expect(res.headers.get('content-disposition')).toBe(
       `inline; filename="jaarverslag 2026 _ d_finitief.pdf"; filename*=UTF-8''${encodeURIComponent('jaarverslag 2026 – définitief.pdf')}`
     );
+  });
+
+  describe('a sound file answers a player', () => {
+    const FRAME = [0xff, 0xfb, 0x90, 0x64, 1, 2, 3, 4, 5, 6];
+    const sound = async () => {
+      const { upload, deps } = await setup();
+      const m = await upload({
+        filename: 'raad-opname-def.mp3',
+        contentType: 'audio/mpeg',
+        bytes: btoa(String.fromCharCode(...FRAME)),
+      });
+      const asked = (range: string | null, ifRange: string | null = null, query = '') =>
+        serveMedia(
+          deps,
+          site(TENANT),
+          m.id,
+          'file.mp3',
+          new URL(`https://probe.example/media/${m.id}/file.mp3${query}`),
+          null,
+          { range, ifRange }
+        );
+      return { m, asked };
+    };
+    const body = async (res: Response) => [...new Uint8Array(await res.arrayBuffer())];
+
+    it('whole, saying it takes ranges and without its stored name', async () => {
+      const { asked } = await sound();
+      const res = await asked(null);
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toBe('audio/mpeg');
+      expect(res.headers.get('accept-ranges')).toBe('bytes');
+      expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+      expect(res.headers.get('content-disposition')).toBeNull();
+      expect(await body(res)).toEqual(FRAME);
+    });
+
+    it.each([
+      ['bytes=2-4', 2, 4],
+      ['bytes=8-', 8, 9],
+      ['bytes=-3', 7, 9],
+      ['bytes=8-99', 8, 9],
+      ['bytes=-99', 0, 9],
+      ['bytes=0-0', 0, 0],
+    ])('%s is that part of it', async (range, start, end) => {
+      const { asked } = await sound();
+      const res = await asked(range);
+      expect(res.status).toBe(206);
+      expect(res.headers.get('content-range')).toBe(`bytes ${start}-${end}/10`);
+      expect(res.headers.get('content-length')).toBe(String(end - start + 1));
+      expect(await body(res)).toEqual(FRAME.slice(start, end + 1));
+    });
+
+    it.each(['bytes=10-', 'bytes=-0'])('%s is outside it: 416 with the size', async (range) => {
+      const { asked } = await sound();
+      const res = await asked(range);
+      expect(res.status).toBe(416);
+      expect(res.headers.get('content-range')).toBe('bytes */10');
+    });
+
+    it.each(['bytes=0-1,3-4', 'bytes=4-2', 'bytes=-', 'seconds=1-2', 'bytes=a-b'])(
+      '%s is ignored: the whole file',
+      async (range) => {
+        const { asked } = await sound();
+        const res = await asked(range);
+        expect(res.status).toBe(200);
+        expect(await body(res)).toEqual(FRAME);
+      }
+    );
+
+    it('If-Range with another version gets the whole file, with this one the part', async () => {
+      const { asked } = await sound();
+      const etag = (await asked(null)).headers.get('etag');
+      expect((await asked('bytes=2-4', '"other"')).status).toBe(200);
+      expect((await asked('bytes=2-4', etag)).status).toBe(206);
+    });
+
+    it('a range opens nothing: a restricted file still wants its signature', async () => {
+      const { upload, deps } = await setup();
+      const m = await upload({
+        filename: 'a.mp3',
+        contentType: 'audio/mpeg',
+        bytes: btoa(String.fromCharCode(...FRAME)),
+        access: 'restricted',
+      });
+      const res = await serveMedia(
+        deps,
+        site(TENANT),
+        m.id,
+        'file.mp3',
+        new URL(`https://probe.example/media/${m.id}/file.mp3`),
+        null,
+        { range: 'bytes=0-3', ifRange: null }
+      );
+      expect(res.status).toBe(403);
+      expect(res.headers.get('content-range')).toBeNull();
+      expect(await res.arrayBuffer()).toHaveProperty('byteLength', 0);
+    });
+
+    it('a range on another kind of file changes nothing', async () => {
+      const { upload, deps } = await setup();
+      const m = await upload({
+        filename: 'a.pdf',
+        contentType: 'application/pdf',
+        bytes: btoa('%PDF-1.7\n%%EOF'),
+      });
+      const res = await serveMedia(
+        deps,
+        site(TENANT),
+        m.id,
+        'file.pdf',
+        new URL(`https://probe.example/media/${m.id}/file.pdf`),
+        null,
+        { range: 'bytes=0-3', ifRange: null }
+      );
+      expect(res.status).toBe(200);
+      expect(res.headers.get('accept-ranges')).toBeNull();
+    });
   });
 
   it('answers 404 once the asset is deleted, before the purge has run', async () => {

@@ -14,6 +14,21 @@ import { fileURLToPath } from 'node:url';
 /** The repository root, absolute, without a trailing slash. */
 export const ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 
+/**
+ * Reads `.env` at the root into `process.env`, the one way a script or test run gets it. A
+ * variable already set wins, as with `node --env-file`. A missing file is no error: the caller
+ * decides what an absent variable means. `MYCEL_NO_DOTENV=1` leaves the file unread, for a run
+ * that proves what a clean checkout does (`scripts/test-collect.mjs`).
+ */
+export function loadDotEnv(root = ROOT) {
+  if (process.env.MYCEL_NO_DOTENV === '1') return;
+  try {
+    process.loadEnvFile(join(root, '.env'));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+}
+
 /** Directories no gate reads: installed packages, build output, VCS and per-user state. */
 export const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', '.svelte-kit', '.git']);
 
@@ -129,3 +144,30 @@ export const staleEntries = (allowed, stillNeeded, where) =>
   [...allowed]
     .filter((entry) => !stillNeeded(entry))
     .map((entry) => `${where}: ${entry} is no longer needed; remove the entry`);
+
+/**
+ * A count that may only go down, per key of `counts`. `grew`: past its ceiling, or past `limit`
+ * without one. `shrank`: below its ceiling, so the baseline follows. `stale`: a ceiling or an
+ * exemption that names something within `limit` or gone, so an allowance leaves with its reason.
+ */
+export function ratchet(counts, { ceilings = {}, exempt = {} }, limit) {
+  const grew = [];
+  const shrank = [];
+  const stale = [];
+  for (const [key, n] of Object.entries(counts)) {
+    if (key in exempt) continue;
+    const ceiling = ceilings[key] ?? limit;
+    if (n > ceiling) grew.push(`${key}: ${n} (ceiling ${ceiling})`);
+  }
+  for (const [key, ceiling] of Object.entries(ceilings)) {
+    const n = counts[key] ?? 0;
+    if (n <= limit) stale.push(`${key}: ${n}, within ${limit}; remove the ceiling`);
+    else if (n < ceiling) shrank.push(`${key}: ${n} (ceiling ${ceiling})`);
+  }
+  for (const key of Object.keys(exempt)) {
+    if (!(key in counts)) stale.push(`${key}: gone; remove the exemption`);
+    else if (counts[key] <= limit)
+      stale.push(`${key}: ${counts[key]}, within ${limit}; remove the exemption`);
+  }
+  return { grew, shrank, stale };
+}

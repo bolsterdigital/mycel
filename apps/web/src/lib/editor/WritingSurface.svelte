@@ -7,7 +7,7 @@
   import MarkdownIt from 'markdown-it';
   import { DOMParser as PMDOMParser } from '@tiptap/pm/model';
   import { parseInert, withoutLineBreakNodes } from './inert-html.js';
-  import { Actions, Button, MediaPicker } from '#lib/admin/ui/index.js';
+  import { Actions, Button, MediaPicker, WritingSheet } from '#lib/admin/ui/index.js';
   import type { MediaChoice } from '#lib/admin/media-choice.js';
   import { ui } from '../../i18n/index.js';
 
@@ -325,35 +325,42 @@
 
 <input type="hidden" {name} value={payload} />
 <div class="writing" class:active>
-  <div class="writing-actions" hidden={!active} aria-label={t('admin.editor.formatting')}>
-    <Actions>
-      <Button
-        variant="secondary"
-        type="button"
-        onclick={() => editor?.chain().focus().toggleBold().run()}>{t('admin.editor.bold')}</Button
-      >
-      <Button
-        variant="secondary"
-        type="button"
-        onclick={() => editor?.chain().focus().toggleItalic().run()}
-        >{t('admin.editor.italic')}</Button
-      >
-      <Button
-        variant="secondary"
-        type="button"
-        onclick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
-        >{t('admin.editor.heading')}</Button
-      >
-      <Button variant="secondary" type="button" onclick={setLink}>{t('admin.editor.link')}</Button>
-      <Button variant="secondary" type="button" onclick={() => editor?.commands.undo()}
-        >{t('admin.editor.undo')}</Button
-      >
-      <Button variant="secondary" type="button" onclick={() => editor?.commands.redo()}
-        >{t('admin.editor.redo')}</Button
-      >
-    </Actions>
-  </div>
-  <div bind:this={host} class="writing-surface" hidden={!active}></div>
+  <WritingSheet hidden={!active}>
+    {#snippet toolbar()}
+      <div class="writing-actions" hidden={!active} aria-label={t('admin.editor.formatting')}>
+        <Actions>
+          <Button
+            variant="secondary"
+            type="button"
+            onclick={() => editor?.chain().focus().toggleBold().run()}
+            >{t('admin.editor.bold')}</Button
+          >
+          <Button
+            variant="secondary"
+            type="button"
+            onclick={() => editor?.chain().focus().toggleItalic().run()}
+            >{t('admin.editor.italic')}</Button
+          >
+          <Button
+            variant="secondary"
+            type="button"
+            onclick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
+            >{t('admin.editor.heading')}</Button
+          >
+          <Button variant="secondary" type="button" onclick={setLink}
+            >{t('admin.editor.link')}</Button
+          >
+          <Button variant="secondary" type="button" onclick={() => editor?.commands.undo()}
+            >{t('admin.editor.undo')}</Button
+          >
+          <Button variant="secondary" type="button" onclick={() => editor?.commands.redo()}
+            >{t('admin.editor.redo')}</Button
+          >
+        </Actions>
+      </div>
+    {/snippet}
+    <div bind:this={host} class="writing-surface" hidden={!active}></div>
+  </WritingSheet>
   {#if reason}<p role="alert">{reason}</p>{/if}
   {#each pending as card (card.id)}
     <fieldset class="card pending">
@@ -422,6 +429,14 @@
     white-space: break-spaces;
     overflow-wrap: anywhere;
     outline-offset: 0.25rem;
+  }
+  .writing-surface :global(.editor-prose[data-through])::before {
+    content: attr(data-through-locale) ': ' attr(data-through);
+    display: block;
+    color: var(--color-muted);
+    font-style: italic;
+    pointer-events: none;
+    user-select: none;
   }
   .writing-surface :global(.editor-prose) {
     margin-block: 1rem;

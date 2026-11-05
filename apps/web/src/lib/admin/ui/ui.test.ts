@@ -12,6 +12,7 @@ import {
   BlockCard,
   BlockText,
   BlockImage,
+  BlockInserter,
   BlockSummary,
   Breadcrumb,
   Button,
@@ -31,11 +32,14 @@ import {
   Field,
   Fieldset,
   FileDrop,
+  UploadDropZone,
   FormPage,
   ICONS,
   Icon,
   IconSprite,
   ItemBar,
+  PublicationDrawer,
+  WritingSheet,
   KeyReveal,
   MetaList,
   NavGroup,
@@ -206,11 +210,20 @@ describe('Panel', () => {
 });
 
 describe('BlockCard', () => {
-  const labels = { edit: 'Edit', done: 'Done', more: 'More actions' };
+  const labels = {
+    block: 'Block',
+    edit: 'Edit',
+    done: 'Done',
+    more: 'More actions',
+    collapse: 'Collapse',
+    expand: 'Expand',
+  };
   it('has no fold for a block without fields, and is then the target itself', () => {
     const out = html(BlockCard, {
       id: 'block-1',
-      title: '4. Paywall',
+      number: 4,
+      type: 'Paywall',
+      icon: 'lock',
       class: 'block',
       labels,
       editable: false,
@@ -229,7 +242,11 @@ describe('BlockCard', () => {
   it('shows the block at rest, a named Edit over the fields and actions under More actions', () => {
     const out = html(BlockCard, {
       id: 'block-1',
-      title: '2. Image',
+      number: 2,
+      type: 'Image',
+      icon: 'image',
+      name: 'Elke zak',
+      notice: 'Check this block',
       class: 'block',
       labels,
       actions: text('ACTIONS'),
@@ -237,7 +254,17 @@ describe('BlockCard', () => {
       children: text('FIELDS'),
     });
     expect(out).toMatch(/^<section class="ui-block-card" aria-labelledby="block-1-title"/);
-    expect(out).toContain('<h4 class="ui-block-card-title" id="block-1-title">2. Image</h4>');
+    const title = out.slice(out.indexOf('<h3'), out.indexOf('</h3>'));
+    expect(title).toContain('>02<');
+    expect(title).toContain('<span>Image</span>');
+    expect(title).toContain('>Block <');
+    expect(out).toMatch(/class="ui-block-card-name"[^>]*>Elke zak</);
+    expect(out).toContain('<span>Check this block</span>');
+    // Without the screen's script nothing collapses: the button stays hidden, the content open.
+    expect(out).toMatch(/<button[^>]*data-block-toggle[^>]*hidden/);
+    expect(out).toMatch(/aria-controls="block-1-content"/);
+    expect(out).toMatch(/id="block-1-content" data-block-content/);
+    expect(out).not.toMatch(/id="block-1-content"[^>]*hidden/);
     expect(out).toMatch(/<details class="ui-block-card-fold block" id="block-1">/);
     const more = out.slice(out.indexOf('ui-block-card-more'), out.indexOf('data-block-rest'));
     expect(more).toContain('More actions');
@@ -359,7 +386,9 @@ describe('BlockCard', () => {
   it('opens when asked, and has no More actions without actions', () => {
     const out = html(BlockCard, {
       id: 'block-2',
-      title: '3. FAQ',
+      number: 3,
+      type: 'FAQ',
+      icon: 'circle-help',
       labels,
       open: true,
       rest: text('r'),
@@ -435,6 +464,36 @@ describe('BlockImage', () => {
     expect(out).toMatch(/<figcaption hidden/);
     expect(out).toMatch(/<span hidden[^>]*data-rest-caption="b\.1\.p\.caption\.nl"/);
     expect(out).toContain('data-rest-inherited="From the file"');
+  });
+  it('keeps full metadata and an explicit larger preview beside its thumbnail', () => {
+    const alt = {
+      text: 'The complete description of the picture',
+      decorative: false,
+      from: 'b.1.p.alt.en',
+      decorativeFrom: 'b.1.p.decorative',
+      label: 'Description',
+      decorativeLabel: 'Decorative',
+      missingLabel: 'Description missing',
+    };
+    const out = html(BlockImage, {
+      ...props,
+      src: '/v/w960.webp',
+      thumbSrc: '/v/thumb.webp',
+      previewLabel: 'Larger preview',
+      alt,
+    });
+    expect(out).toContain('src="/v/thumb.webp"');
+    expect(out).toContain('<summary>Larger preview</summary>');
+    expect(out).toContain('data-rest-alt="b.1.p.alt.en"');
+    expect(out).toContain('The complete description of the picture');
+    expect(out).toMatch(/data-rest-alt-decorative="" hidden/);
+    const decorative = html(BlockImage, {
+      ...props,
+      src: '/v/w960.webp',
+      alt: { ...alt, decorative: true },
+    });
+    expect(decorative).toMatch(/data-rest-alt-text="" hidden/);
+    expect(decorative).toContain('data-rest-alt-decorative="">Decorative');
   });
   it('says which file is missing and offers Replace, without an image', () => {
     const out = html(BlockImage, { ...props, src: null });
@@ -740,6 +799,10 @@ describe('Table', () => {
   it('sits in the card of an overview section when asked (#116)', () => {
     expect(html(Table, { ...props, card: true })).toMatch(/^<div class="ui-table-scroll card"/);
     expect(html(Table, props)).toMatch(/^<div class="ui-table-scroll"/);
+  });
+  it('sets the cells of a row on one baseline when asked', () => {
+    expect(html(Table, { ...props, level: true })).toContain('<table class="ui-table level"');
+    expect(html(Table, props)).toContain('<table class="ui-table"');
   });
 });
 
@@ -1216,13 +1279,33 @@ describe('NavGroup', () => {
         { href: '/leden', label: 'Members', icon: 'users' as const },
       ],
     });
+    expect(out).toMatch(/<details class="ui-navgroup-disclosure" open="">/);
+    expect(out).toMatch(/<summary data-nav-expand="" aria-current="true">/);
     expect(out).toMatch(/<a href="\/site" aria-current="true">/);
     expect(out).toContain(
-      '<ul class="ui-navgroup-sub"><li><a href="/site?s=general" aria-current="page">General</a></li><li><a href="/site?s=brand">Brand</a></li></ul>'
+      '<ul class="ui-navgroup-sub"><li><a href="/site" aria-current="true">Settings</a></li> <li><a href="/site?s=general" aria-current="page">General</a></li><li><a href="/site?s=brand">Brand</a></li></ul>'
     );
     expect(out.match(/aria-current="page"/g)).toHaveLength(1);
     // An item without sections has no sub-list.
     expect(out.match(/ui-navgroup-sub/g)).toHaveLength(1);
+  });
+  it('keeps every destination inside a closed native group until its summary is opened', () => {
+    const out = html(NavGroup, {
+      id: 'g',
+      items: [
+        {
+          href: '/manage',
+          label: 'Manage',
+          icon: 'shield',
+          children: [{ href: '/team', label: 'Team' }],
+        },
+      ],
+    });
+    expect(out).toContain('<details class="ui-navgroup-disclosure">');
+    expect(out).toMatch(/<summary data-nav-expand="">/);
+    expect(out).toContain('<a href="/manage">Manage</a>');
+    expect(out).toContain('<a href="/team">Team</a>');
+    expect(out).not.toMatch(/aria-expanded|onclick|<button/);
   });
   it('has no label when none is given, and renders nothing without items', () => {
     expect(html(NavGroup, { id: 'g', items })).not.toContain('aria-labelledby');
@@ -1278,6 +1361,7 @@ describe('DashboardWidget', () => {
 describe('ItemBar', () => {
   it('has the back link, the one <h1>, the state linked to its card, and the actions', () => {
     const out = html(ItemBar, {
+      locale: 'en',
       back: { href: '/admin/probe/content?type=page', label: 'Pages' },
       title: 'Edit page',
       state: 'Draft',
@@ -1293,8 +1377,39 @@ describe('ItemBar', () => {
     );
     expect(out).toContain('<div class="ui-actions end"><span><button>Save</button></span></div>');
   });
+  it('keeps a semantic title and one compact context line without a status action', () => {
+    const out = html(ItemBar, {
+      locale: 'en',
+      compact: true,
+      back: { href: '/content', label: 'Articles' },
+      title: 'Edit article',
+      state: 'Published · draft changes',
+      save: { text: 'Saved', unsaved: 'Unsaved changes', saving: 'Saving…' },
+    });
+    expect(out).toContain('<h1 class="ui-visually-hidden">Edit article</h1>');
+    expect(out).not.toContain('ui-item-bar-state');
+    const context = out.slice(out.indexOf('ui-item-bar-context'), out.indexOf('ui-item-bar-tools'));
+    expect(context).toContain('Published · draft changes');
+    expect(context).toContain('data-save-state');
+  });
+  it('moves the save state to the dock when the bar has one', () => {
+    const out = html(ItemBar, {
+      locale: 'en',
+      compact: true,
+      back: { href: '/content', label: 'Articles' },
+      title: 'Edit article',
+      save: { text: 'Saved', unsaved: 'Unsaved changes', saving: 'Saving…' },
+      dock: createRawSnippet(() => ({ render: () => '<button>Save</button>' })),
+    });
+    const dock = out.slice(out.indexOf('ui-item-bar-dock'));
+    expect(out.match(/data-save-state/g)).toHaveLength(1);
+    expect(dock).toContain('data-save-state');
+    expect(dock).toContain('<button>Save</button>');
+    expect(out).not.toContain('ui-actions-host');
+  });
   it('shows the state without a link, and no action group without actions', () => {
     const out = html(ItemBar, {
+      locale: 'en',
       back: { href: '/x', label: 'Articles' },
       title: 'Edit article',
       state: 'Published, changed since',
@@ -1405,6 +1520,21 @@ describe('Section (#116)', () => {
 });
 
 describe('StatusCard', () => {
+  it('supports an unboxed panel while retaining the same state and action semantics', () => {
+    const out = html(StatusCard, {
+      id: 'panel-state',
+      title: 'English',
+      state: 'Draft',
+      variant: 'panel',
+      level: 3,
+      actions: text('<button>Publish</button>'),
+    });
+    expect(out).toContain('ui-status-card panel');
+    expect(out).toContain('<h3 id="panel-state-title"');
+    expect(out).toContain('Draft');
+    expect(out).toContain('<button>Publish</button>');
+  });
+
   it('is a region named by its heading: the state, then notes, then the actions, then more', () => {
     const out = html(StatusCard, {
       id: 'publication-nl',
@@ -1437,5 +1567,80 @@ describe('StatusCard', () => {
     expect(out).toContain('<h3 id="p-en-title" class="ui-status-card-title">Language en</h3>');
     expect(out).toContain('<span class="ui-badge success">Published on 28 October 2026</span>');
     expect(out).not.toContain('ui-actions');
+  });
+});
+
+describe('UploadDropZone', () => {
+  it('keeps the overlay hidden and a live region ready before a file enters', () => {
+    const out = render(UploadDropZone, {
+      props: {
+        url: '/admin/probe/media/upload',
+        locale: 'en',
+        hint: 'JPEG, at most 25 MB.',
+      },
+    });
+    expect(out.body).toContain('data-upload-overlay="" hidden=""');
+    expect(out.body).toContain('aria-live="polite"');
+    expect(out.body).toContain('Drop files to upload');
+    expect(out.body).toContain('JPEG, at most 25 MB.');
+    expect(out.body).not.toContain('type="file"');
+    expect(out.body + out.head).toContain('src="/_admin/drop-upload.js"');
+  });
+});
+
+describe('BlockInserter', () => {
+  it('uses named native choices at one explicit location without a second select or ARIA grid', () => {
+    const out = html(BlockInserter, {
+      id: 'middle',
+      place: 'before:block-a',
+      label: 'Before block 2',
+      locale: 'en',
+      action: '?/insert&locale=en',
+      options: [
+        { value: 'image', label: 'Image', icon: 'image' },
+        { value: 'quote', label: 'Quote', icon: 'newspaper' },
+      ],
+    });
+    expect(out).toContain('name="insert" value="image|before:block-a"');
+    expect(out).toContain('name="insert" value="quote|before:block-a"');
+    expect(out).toContain('formaction="?/insert&amp;locale=en"');
+    expect(out).toContain('aria-describedby="insert-place-middle"');
+    expect(out).toContain('Before block 2');
+    expect(out).toContain('<span>Image</span>');
+    expect(out).not.toMatch(/role="grid"|<select|tabindex=/);
+    expect(out).toMatch(/data-type-search[^>]*hidden/);
+  });
+});
+
+describe('WritingSheet', () => {
+  it('keeps tools before content and leaves native content in the same document', () => {
+    const out = html(WritingSheet, {
+      toolbar: text('Formatting'),
+      children: text('The article words'),
+    });
+    expect(out.indexOf('ui-writing-sheet-toolbar')).toBeLessThan(
+      out.indexOf('ui-writing-sheet-content')
+    );
+    expect(out).toContain('The article words');
+    expect(out).not.toContain('role="application"');
+  });
+});
+
+describe('PublicationDrawer', () => {
+  it('keeps native disclosure and publication fields available without scripts or nested forms', () => {
+    const out = html(PublicationDrawer, {
+      id: 'publication',
+      title: 'Publication',
+      locale: 'en',
+      children: text(
+        '<input name="at.nl" type="datetime-local"><button type="submit" name="locale" value="nl">Publish</button>'
+      ),
+    });
+    expect(out).toContain('<summary>Publication</summary>');
+    expect(out).toContain('<dialog');
+    expect(out).toContain('aria-labelledby="publication-heading"');
+    expect(out).toContain('closedby="none"');
+    expect(out).toContain('name="at.nl"');
+    expect(out).not.toContain('<form');
   });
 });

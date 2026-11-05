@@ -9,11 +9,14 @@
     Actions,
     Badge,
     BlockCard,
+    BlockImage,
+    BlockInserter,
     BlockSummary,
     BlockText,
     Button,
     DocumentOutline,
     ItemBar,
+    PublicationDrawer,
     LocaleSwitch,
     StatusCard,
     Card,
@@ -29,8 +32,10 @@
     Section,
     StatusLine,
     Field,
+    FilterChips,
     Fieldset,
     FileDrop,
+    UploadDropZone,
     Icon,
     KeyReveal,
     MetaList,
@@ -39,11 +44,15 @@
     PageHeader,
     Pagination,
     Panel,
+    RowActions,
     Select,
     SubNav,
     Table,
     Tabs,
+    WritingSheet,
   } from '#lib/admin/ui/index.js';
+  import { BLOCK_ICONS } from '#lib/admin/block-presentation.js';
+  import { INSERTABLE_BLOCK_TYPES } from '@mycel/core';
   import { formatWhen } from '#lib/admin/format.js';
   import { fill, ui } from '../../../../../i18n/index.js';
   import { PATTERNS } from './patterns.js';
@@ -67,6 +76,31 @@
       relative: data.dateFormat !== 'absolute',
     });
 </script>
+
+{#snippet sampleRowActions()}
+  <a class="ui-button link" href="#ui-row-actions" aria-label="{t('admin.content.row.site')}: Brood"
+    >{t('admin.content.row.site')}</a
+  >
+  <a
+    class="ui-button link"
+    href="#ui-row-actions"
+    aria-label="{t('admin.content.row.preview')}: Brood">{t('admin.content.row.preview')}</a
+  >
+  <button
+    class="ui-button link"
+    form="ui-row-actions-form"
+    aria-label="{t('admin.content.row.duplicate')}: Brood"
+    >{t('admin.content.row.duplicate')}</button
+  >
+  <ConfirmAction
+    variant="link"
+    label={t('admin.content.action.unpublish')}
+    question={fill(t('admin.content.row.offline.question'), { locale: 'nl' })}
+    confirm={t('admin.content.row.offline.confirm')}
+    name="Brood"
+    form="ui-row-actions-form"
+  />
+{/snippet}
 
 <svelte:head>
   <title>{t('admin.ui.catalogue.title')} · {data.tenant.name}</title>
@@ -208,6 +242,11 @@
           label={t('admin.site.role.primary')}
           locale={data.locale}
         />
+        <UploadDropZone
+          url="/admin/{data.tenant.slug}/media/upload"
+          locale={data.locale}
+          hint={t('admin.media.upload.hint')}
+        />
         <FileDrop
           id="ui-file"
           name="file"
@@ -270,11 +309,17 @@
     <h2 id="ui-block-card">{t('admin.ui.catalogue.blockCard')}</h2>
     <BlockCard
       id="ui-block-card-faq"
-      title="3. {t('admin.block.type.faq')}"
+      number={3}
+      type={t('admin.block.type.faq')}
+      icon={BLOCK_ICONS['faq']}
+      name={t('admin.ui.catalogue.blockCard.text')}
       labels={{
         edit: t('admin.block.card.edit'),
         done: t('admin.block.card.done'),
         more: t('admin.block.card.more'),
+        block: t('admin.block.card.block'),
+        collapse: t('admin.block.card.collapse'),
+        expand: t('admin.block.card.expand'),
       }}
       open
     >
@@ -286,10 +331,18 @@
         />
       {/snippet}
       {#snippet actions()}
-        <Button variant="secondary">{t('admin.block.move.up')}</Button>
-        <Button variant="secondary">{t('admin.block.move.down')}</Button>
-        <Button variant="secondary">{t('admin.block.duplicate')}</Button>
-        <Button variant="danger">{t('admin.block.remove.short')}</Button>
+        <button class="ui-block-card-action" type="button"
+          ><Icon name="arrow-up" />{t('admin.block.move.up')}</button
+        >
+        <button class="ui-block-card-action" type="button"
+          ><Icon name="arrow-down" />{t('admin.block.move.down')}</button
+        >
+        <button class="ui-block-card-action" type="button"
+          ><Icon name="copy" />{t('admin.block.duplicate')}</button
+        >
+        <button class="ui-block-card-action danger" type="button"
+          ><Icon name="trash-2" />{t('admin.block.remove.short')}</button
+        >
       {/snippet}
       <p>{t('admin.ui.catalogue.panel.body')}</p>
     </BlockCard>
@@ -298,11 +351,17 @@
     </details>
     <BlockCard
       id="ui-block-card-empty"
-      title="4. {t('admin.block.type.heading')}"
+      number={4}
+      type={t('admin.block.type.heading')}
+      icon={BLOCK_ICONS['heading']}
+      name={t('admin.ui.catalogue.blockCard.text')}
       labels={{
         edit: t('admin.block.card.edit'),
         done: t('admin.block.card.done'),
         more: t('admin.block.card.more'),
+        block: t('admin.block.card.block'),
+        collapse: t('admin.block.card.collapse'),
+        expand: t('admin.block.card.expand'),
       }}
     >
       {#snippet rest()}
@@ -312,11 +371,17 @@
     </BlockCard>
     <BlockCard
       id="ui-block-card-quote"
-      title="5. {t('admin.block.type.quote')}"
+      number={5}
+      type={t('admin.block.type.quote')}
+      icon={BLOCK_ICONS['quote']}
+      name={t('admin.ui.catalogue.blockCard.text')}
       labels={{
         edit: t('admin.block.card.edit'),
         done: t('admin.block.card.done'),
         more: t('admin.block.card.more'),
+        block: t('admin.block.card.block'),
+        collapse: t('admin.block.card.collapse'),
+        expand: t('admin.block.card.expand'),
       }}
     >
       {#snippet rest()}
@@ -406,6 +471,54 @@
       next="{here}?page=3#ui-table"
       position={fill(t('admin.usage.of'), { used: 2, max: 5 })}
     />
+  </section>
+
+  <section aria-labelledby="ui-filter-chips">
+    <h2 id="ui-filter-chips">{t('admin.content.list.chips')}</h2>
+    <FilterChips
+      label={t('admin.content.list.chips')}
+      items={[
+        {
+          label: `${t('admin.content.list.chip.status')}: ${t('admin.content.list.status.draft')}`,
+          href: '#ui-filter-chips',
+          remove: fill(t('admin.content.list.chip.remove'), {
+            filter: `${t('admin.content.list.chip.status')}: ${t('admin.content.list.status.draft')}`,
+          }),
+        },
+      ]}
+    />
+  </section>
+
+  <section aria-labelledby="ui-row-actions">
+    <h2 id="ui-row-actions">{t('admin.ui.catalogue.rowActions')}</h2>
+    <!-- A form without action posts nowhere but this page: the catalogue has no actions. -->
+    <form id="ui-row-actions-form"></form>
+    <Table
+      id="ui-row-actions-table"
+      caption={t('admin.ui.catalogue.rowActions')}
+      hideCaption
+      level
+      columns={[
+        { key: 'name', label: t('admin.ui.catalogue.table.name') },
+        {
+          key: 'actions',
+          label: t('admin.content.list.column.actions'),
+          class: 'ui-row-actions-cell',
+        },
+      ]}
+    >
+      {#snippet rows()}
+        <tr>
+          <th scope="row" aria-labelledby="ui-row-actions-name"
+            ><span id="ui-row-actions-name">Brood</span>
+            <RowActions menu={t('admin.content.row.menu')} name="Brood"
+              >{@render sampleRowActions()}</RowActions
+            ></th
+          >
+          <td class="ui-row-actions-cell"><RowActions>{@render sampleRowActions()}</RowActions></td>
+        </tr>
+      {/snippet}
+    </Table>
   </section>
 
   <section aria-labelledby="ui-cards">
@@ -565,6 +678,17 @@
           { href: `${base}/assist`, label: t('admin.nav.assist'), icon: 'sparkles' },
         ]}
       />
+      <NavGroup
+        id="ui-nav-closed"
+        items={[
+          {
+            href: `${base}/beheer`,
+            label: t('admin.nav.manage'),
+            icon: 'shield',
+            children: [{ href: `${base}/leden`, label: t('admin.nav.members') }],
+          },
+        ]}
+      />
     </nav>
   </section>
 
@@ -594,10 +718,12 @@
     <h2 id="ui-item-bar">{t('admin.ui.catalogue.itemBar')}</h2>
     <p>{t('admin.ui.catalogue.itemBar.intro')}</p>
     <ItemBar
+      compact
+      breadcrumbLabel={t('admin.ui.catalogue.itemBar')}
+      locale={data.locale}
       back={{ href: '#ui-item-bar', label: t('admin.content.filter.page') }}
       title={fill(t('admin.content.edit.title'), { type: t('admin.content.type.page') })}
       state={t('admin.content.state.changed')}
-      stateHref="#ui-status-card"
       tone="warning"
       level={3}
     >
@@ -614,9 +740,78 @@
       {/snippet}
       {#snippet actions()}
         <Button variant="secondary" type="button">{t('admin.content.edit.previewShort')}</Button>
-        <Button type="button">{t('admin.content.edit.save')}</Button>
+        <Button variant="secondary" type="button">{t('admin.content.edit.save')}</Button>
+        <Button href="#catalogue-publication">{t('admin.content.action.openPublication')}</Button>
       {/snippet}
     </ItemBar>
+    <PublicationDrawer
+      id="catalogue-publication"
+      title={t('admin.content.publication.title')}
+      locale={data.locale}
+    >
+      <StatusCard
+        id="catalogue-publication-state"
+        title="Nederlands"
+        variant="panel"
+        state={t('admin.content.state.changed')}
+        level={3}
+      >
+        {#snippet actions()}<Button type="button">{t('admin.content.action.publishChanges')}</Button
+          >{/snippet}
+      </StatusCard>
+    </PublicationDrawer>
+  </section>
+
+  <section aria-labelledby="ui-block-picker">
+    <h2 id="ui-block-picker">{t('admin.ui.catalogue.blockInserter')}</h2>
+    <p>{t('admin.ui.catalogue.blockInserter.intro')}</p>
+    <form method="get" action={here}>
+      <BlockInserter
+        id="catalogue"
+        place="end"
+        label={t('admin.block.insert.end')}
+        locale={data.locale}
+        action={here}
+        options={INSERTABLE_BLOCK_TYPES.map((type) => ({
+          value: type,
+          label: t(`admin.block.type.${type}` as const),
+          icon: BLOCK_ICONS[type],
+        }))}
+      />
+    </form>
+  </section>
+
+  <section aria-labelledby="ui-writing-sheet">
+    <h2 id="ui-writing-sheet">{t('admin.ui.catalogue.writingSheet')}</h2>
+    <p>{t('admin.ui.catalogue.writingSheet.intro')}</p>
+    <WritingSheet>
+      {#snippet toolbar()}
+        <Actions>
+          <Button type="button" variant="secondary">{t('admin.editor.bold')}</Button>
+          <Button type="button" variant="secondary">{t('admin.editor.italic')}</Button>
+        </Actions>
+      {/snippet}
+      <p>{t('admin.ui.catalogue.form.titleHint')}</p>
+      <BlockImage
+        src={sample}
+        width={320}
+        height={240}
+        caption={t('admin.ui.catalogue.form.titleHint')}
+        credit={null}
+        missing={t('admin.block.image.altMissing')}
+        replace={{ href: '#ui-writing-sheet', label: t('admin.block.image.replace') }}
+        previewLabel={t('admin.block.image.preview')}
+        alt={{
+          text: t('admin.ui.catalogue.form.titleHint'),
+          decorative: false,
+          from: 'catalogue.alt',
+          decorativeFrom: 'catalogue.decorative',
+          label: t('admin.block.field.alt'),
+          decorativeLabel: t('admin.block.image.decorative'),
+          missingLabel: t('admin.block.image.altMissing'),
+        }}
+      />
+    </WritingSheet>
   </section>
 
   <section aria-labelledby="ui-status-card">

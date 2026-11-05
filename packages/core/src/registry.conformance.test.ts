@@ -5,9 +5,16 @@ import { DEFAULT_ENTITLEMENTS } from './entitlements/model.js';
 import { UseCaseError } from './errors.js';
 import { Invoker } from './invoke.js';
 import { toJsonSchema } from './json-schema.js';
-import { anonymousPrincipal, Capability, systemPrincipal, type Principal } from './principal.js';
+import {
+  anonymousPrincipal,
+  Capability,
+  offeredCapabilities,
+  PLANNED_CAPABILITIES,
+  systemPrincipal,
+  type Principal,
+} from './principal.js';
 import { checkRegistry } from './registry-rules.js';
-import type { UseCase } from './registry.js';
+import { ANONYMOUS_USE_CASES, type UseCase } from './registry.js';
 import { MemoryUnitOfWork, TENANT, principal, probeForm, probeTenant } from './testing/index.js';
 import { buildRegistry, useCases } from './use-cases.js';
 
@@ -174,14 +181,44 @@ describe('every ai:assist command passes the assistance gate (ADR 015)', () => {
   });
 });
 
-// Drafts, revisions and author e-mail never reach a public visitor, even one handed every
-// capability: `authenticatedOnly` is checked before capabilities, in the one Invoker every
-// front uses.
-describe('editorial use cases refuse anonymous principals', () => {
+// A capability an operator can grant has to limit something (ADR 018 rule 5), or say why not yet.
+describe('every capability is required by a use case or planned with a reason', () => {
+  const required = new Set(
+    buildRegistry()
+      .list()
+      .map((u) => u.requires)
+  );
+  const planned = Object.keys(PLANNED_CAPABILITIES) as Capability[];
+
+  it('leaves no capability without a use case or a reason', () => {
+    expect(Capability.options.filter((c) => !required.has(c) && !planned.includes(c))).toEqual([]);
+  });
+  it('lists no capability that has a use case by now', () => {
+    expect(planned.filter((c) => required.has(c))).toEqual([]);
+  });
+  it('offers a planned capability only to a set that already holds it', () => {
+    expect(offeredCapabilities()).not.toContain('mailing:send');
+    expect(offeredCapabilities()).toContain('content:read');
+    expect(offeredCapabilities(['mailing:send'])).toContain('mailing:send');
+    expect(offeredCapabilities(['mailing:send'])).not.toContain('money:refund');
+  });
+});
+
+// A public visitor reaches the allowlist and nothing else, even when handed every capability: it
+// is checked before capabilities, in the one Invoker every front uses.
+describe('use cases outside the allowlist refuse anonymous principals', () => {
   const registry = buildRegistry();
-  const editorial = registry.list().filter((u) => u.authenticatedOnly);
-  it('has editorial use cases to check', () => expect(editorial.length).toBeGreaterThan(0));
-  it.each(editorial.map((u) => [u.name, u] as const))(
+  const closed = registry.list().filter((u) => !ANONYMOUS_USE_CASES.has(u.name));
+  it('has no allowlist entry without a use case', () => {
+    const names = registry.list().map((u) => u.name);
+    expect([...ANONYMOUS_USE_CASES].filter((name) => !names.includes(name))).toEqual([]);
+  });
+  it('closes a use case that nobody listed', () => {
+    const fresh = { ...closed[0]!, name: 'content.item.brand_new', requires: 'content:read' };
+    const visitor = anonymousPrincipal('01900000-0000-7000-8000-00000000aaaa', ['content:read']);
+    expect(registry.authorize(fresh as UseCase, visitor)).toBe(false);
+  });
+  it.each(closed.map((u) => [u.name, u] as const))(
     '%s refuses an anonymous principal with every capability',
     async (_name, useCase) => {
       const invoker = new Invoker(registry, new MemoryUnitOfWork());
@@ -203,7 +240,6 @@ describe('registry rules catch violations', () => {
     kind: 'command',
     description: 'Update an item.',
     requires: 'content:write',
-    authenticatedOnly: true,
     input: z.object({ id: z.string() }),
     output: z.object({ id: z.string() }),
     handler: async (_ctx, input) => input,
@@ -269,11 +305,6 @@ describe('registry rules catch violations', () => {
     ['a verb outside the list', { name: 'site.brand.put' }, /verb "put" is not in VERBS/],
     ['a noun as the verb', { name: 'content.item.revisions' }, /verb "revisions"/],
     ['four segments', { name: 'content.item.translation.approve' }, /more than three segments/],
-    [
-      'an editorial use case open to anonymous principals',
-      { authenticatedOnly: false },
-      /must be authenticatedOnly/,
-    ],
   ])('rejects %s', (_label, override, rule) => {
     const found = violations(override as Partial<UseCase>);
     expect(found).toHaveLength(1);

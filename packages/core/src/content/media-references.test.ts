@@ -127,6 +127,102 @@ describe('media references of blocks', () => {
     foreign = await upload(other);
   });
 
+  it('a sound slot takes a sound file and refuses an image or a document, and the reverse', async () => {
+    const sound = await upload(
+      system,
+      'audio/mpeg',
+      bytesToBase64(new Uint8Array([0xff, 0xfb, 0x90, 0x64]))
+    );
+    const audio = (id: string, fileId: string) => ({
+      id,
+      type: 'audio' as const,
+      version: 1 as const,
+      props: { title: { nl: 'Gesprek', en: 'Talk' }, fileId },
+    });
+    for (const wrong of [photo, pdf])
+      await expectCode(
+        page([audio('a', wrong)]),
+        'invalid_input',
+        'content.reference.media-not-audio'
+      );
+    await expectCode(
+      page([audio('a', foreign)]),
+      'invalid_input',
+      'content.reference.media-unknown'
+    );
+    await expectCode(
+      page([image('a', sound)]),
+      'invalid_input',
+      'content.reference.media-not-image'
+    );
+    await page([audio('a', sound)]);
+    // In use it is protected like the other kinds: it counts, and it cannot be deleted.
+    expect(usages(sound)).toHaveLength(1);
+    await expect(invoker.run(useCases.deleteMedia, system, { id: sound })).rejects.toMatchObject({
+      code: 'conflict',
+    });
+  });
+
+  it('a document slot takes a document and refuses an image, and an image slot the reverse', async () => {
+    const files = (id: string, fileId: string) => ({
+      id,
+      type: 'file-download' as const,
+      version: 1 as const,
+      props: { files: [{ fileId, name: { nl: 'Verslag', en: 'Report' } }] },
+    });
+    await expectCode(
+      page([files('a', photo)]),
+      'invalid_input',
+      'content.reference.media-not-document'
+    );
+    await expectCode(
+      page([files('a', foreign)]),
+      'invalid_input',
+      'content.reference.media-unknown'
+    );
+    // One id in both slots is judged per slot, not once.
+    await expectCode(
+      page([image('a', pdf), files('b', pdf)]),
+      'invalid_input',
+      'content.reference.media-not-image'
+    );
+    await page([files('a', pdf)]);
+    // A document in use is protected like an image: it counts, and it cannot be deleted.
+    expect(usages(pdf)).toHaveLength(1);
+    await expect(invoker.run(useCases.deleteMedia, system, { id: pdf })).rejects.toMatchObject({
+      code: 'conflict',
+    });
+  });
+
+  it('a gallery takes images only, and each of them counts as used', async () => {
+    const shot = (mediaId: string) => ({
+      mediaId,
+      decorative: false,
+      alt: { nl: 'Foto', en: 'Photo' },
+    });
+    const gallery = (...ids: string[]) => ({
+      id: 'g',
+      type: 'gallery' as const,
+      version: 1 as const,
+      props: { images: ids.map(shot) },
+    });
+    await expectCode(
+      page([gallery(photo, pdf)]),
+      'invalid_input',
+      'content.reference.media-not-image'
+    );
+    await expectCode(
+      page([gallery(photo, foreign)]),
+      'invalid_input',
+      'content.reference.media-unknown'
+    );
+    await page([gallery(photo, photo)]);
+    expect(usages(photo)).toHaveLength(1);
+    await expect(invoker.run(useCases.deleteMedia, system, { id: photo })).rejects.toMatchObject({
+      code: 'conflict',
+    });
+  });
+
   it('records one usage per image block under the revision', async () => {
     const { item, revision } = await page([image('a', photo), text('t'), image('b', photo)]);
     expect(usages(photo)).toEqual([

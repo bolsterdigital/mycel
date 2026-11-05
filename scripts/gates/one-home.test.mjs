@@ -65,6 +65,18 @@ export const HOMES = [
     'packages/core/src/supporters/email-key.ts',
     /(?:sha256Hex\(|\.update\()\s*`[^`]*\$\{[\w.]*tenantId\}/,
   ],
+  [
+    'bytes turned into hex by hand (use bytesToHex)',
+    'packages/core/src/util/bytes.ts',
+    /toString\(16\)\.padStart\(2,\s*'0'\)/,
+    'packages/',
+  ],
+  [
+    'a local iso helper for database dates (use toIso)',
+    'packages/db/src/infra/dates.ts',
+    /const iso = \(\w+: Date|=== null \? null : new Date\(\w+\)\.toISOString\(\)/,
+    'packages/db/',
+  ],
 ];
 
 const isHome = (path, home) =>

@@ -34,6 +34,54 @@ const pageDoc = (en?: string) => ({
   ],
 });
 
+describe('content.item.duplicate', () => {
+  const setup = () => {
+    const uow = new MemoryUnitOfWork({ clock: new FakeClock() });
+    const invoker = new Invoker(buildRegistry(), uow);
+    const admin = principal({ capabilities: ['content:read', 'content:write'] });
+    return { invoker, admin };
+  };
+  const article = {
+    type: 'article' as const,
+    defaultLocale: 'nl',
+    locales: ['nl', 'en'],
+    title: { nl: 'Brood', en: 'Bread' },
+    blocks: [],
+    corrections: [{ date: '2026-01-01', text: { nl: 'Fout', en: 'Wrong' } }],
+  };
+
+  it('copies the latest revision into a draft with its own slug and new titles', async () => {
+    const { invoker, admin } = setup();
+    const { item } = await invoker.run(useCases.createItem, admin, {
+      slug: 'brood',
+      document: article,
+    });
+    const copy = await invoker.run(useCases.duplicateItem, admin, {
+      itemId: item.id,
+      title: { nl: 'Kopie van Brood' },
+    });
+    expect(copy.item.id).not.toBe(item.id);
+    expect(copy.item.slug).toBe('kopie-van-brood');
+    expect(copy.item.title).toEqual({ nl: 'Kopie van Brood', en: 'Bread' });
+    expect(copy.item.publication.map((p) => p.status)).toEqual(['draft', 'draft']);
+  });
+
+  it('leaves corrections behind and refuses an unknown item', async () => {
+    const { invoker, admin } = setup();
+    const { item } = await invoker.run(useCases.createItem, admin, { document: article });
+    const copy = await invoker.run(useCases.duplicateItem, admin, { itemId: item.id });
+    expect(copy.revision.document.type === 'article' && copy.revision.document.corrections).toEqual(
+      []
+    );
+    expect(copy.item.slug).not.toBe(item.slug);
+    await expect(
+      invoker.run(useCases.duplicateItem, admin, {
+        itemId: '00000000-0000-4000-8000-0000000000ff',
+      })
+    ).rejects.toMatchObject({ code: 'not_found' });
+  });
+});
+
 describe('content items', () => {
   let clock: FakeClock;
   let uow: MemoryUnitOfWork;
@@ -571,11 +619,97 @@ describe('content items', () => {
       const first = await invoker.run(useCases.listItems, admin, { limit: 2 });
       expect(first.items.map((i) => i.id)).toEqual([ids[2], ids[1]]);
       const second = await invoker.run(useCases.listItems, admin, { limit: 2, after: first.next! });
-      expect(second).toEqual({ items: [expect.objectContaining({ id: ids[0] })], next: null });
+      expect(second).toEqual({
+        items: [expect.objectContaining({ id: ids[0] })],
+        next: null,
+        total: 3,
+      });
       expect((await invoker.run(useCases.listItems, admin, { slug: 'b' })).items).toHaveLength(1);
       expect(
         (await invoker.run(useCases.listItems, admin, { type: 'article' })).items
       ).toHaveLength(0);
+    });
+
+    it('finds a translation across every batch of the walk, and counts all it found', async () => {
+      // One more than a batch holds (MAX_PAGE_SIZE), each behind in English.
+      for (let n = 0; n <= 100; n++) await create(pageDoc(), `stuk-${n}`);
+      const asked = { translation: { state: 'behind' as const, locales: ['en'] }, limit: 60 };
+      const first = await invoker.run(useCases.listItems, admin, asked);
+      expect(first.total).toBe(101);
+      expect(first.items).toHaveLength(60);
+      const second = await invoker.run(useCases.listItems, admin, { ...asked, after: first.next! });
+      expect(second.items).toHaveLength(41);
+      expect(second.next).toBeNull();
+    });
+
+    it('searches, narrows by the state of one locale, orders and counts every match', async () => {
+      const make = async (slug: string, nl: string, en?: string) => {
+        clock.advance(1000);
+        return (await create({ ...pageDoc(), title: { nl, ...(en ? { en } : {}) } }, slug)).item;
+      };
+      const een = await make('eendag', 'Één dag', 'One day');
+      await make('zomer', 'Zomerkamp');
+      await make('appel', 'appeltaart');
+      // Live in Dutch, then saved again: published with changes, and the last one saved.
+      await invoker.run(useCases.publishItem, admin, {
+        itemId: een.id,
+        revisionId: een.latestRevisionId,
+        locale: 'nl',
+      });
+      clock.advance(1000);
+      await invoker.run(useCases.updateItem, admin, {
+        itemId: een.id,
+        baseRevisionId: een.latestRevisionId,
+        document: { ...pageDoc(), title: { nl: 'Één dag', en: 'One day' } },
+      });
+      const list = async (input: z.input<typeof useCases.listItems.input>) => {
+        const page = await invoker.run(useCases.listItems, admin, input);
+        return { slugs: page.items.map((i) => i.slug), next: page.next, total: page.total };
+      };
+      const slugs = async (input: z.input<typeof useCases.listItems.input>) =>
+        (await list(input)).slugs;
+
+      expect(await slugs({})).toEqual(['appel', 'zomer', 'eendag']);
+      expect(await slugs({ sort: 'created', direction: 'asc' })).toEqual([
+        'eendag',
+        'zomer',
+        'appel',
+      ]);
+      expect(await slugs({ sort: 'updated' })).toEqual(['eendag', 'appel', 'zomer']);
+      // The root collation: the accent and the capital do not move a title out of its letter.
+      expect(await slugs({ sort: 'title' })).toEqual(['appel', 'eendag', 'zomer']);
+      expect(await slugs({ sort: 'title', direction: 'desc' })).toEqual([
+        'zomer',
+        'eendag',
+        'appel',
+      ]);
+
+      expect(await slugs({ q: 'ONE' })).toEqual(['eendag']);
+      expect(await slugs({ q: 'Zomer' })).toEqual(['zomer']);
+      expect(await slugs({ q: 'geen' })).toEqual([]);
+      // Postgres refuses a NUL in a parameter: invalid input here, never a 500 from the adapter.
+      await expect(list({ q: 'a\0b' })).rejects.toMatchObject({ code: 'invalid_input' });
+      expect(await slugs({ status: 'published' })).toEqual(['eendag']);
+      expect(await slugs({ status: 'draft' })).toEqual(['appel', 'zomer']);
+      expect(await slugs({ status: 'draft', locale: 'en' })).toEqual(['appel', 'zomer', 'eendag']);
+      expect(await slugs({ hasUnpublishedChanges: true })).toEqual(['eendag']);
+      expect(await slugs({ hasUnpublishedChanges: false })).toEqual(['appel', 'zomer']);
+      // A locale the items do not have is a state none of them is in.
+      expect(await slugs({ status: 'draft', locale: 'de' })).toEqual([]);
+
+      const first = await list({ sort: 'title', limit: 2 });
+      expect(first).toEqual({ slugs: ['appel', 'eendag'], next: een.id, total: 3 });
+      expect(await list({ sort: 'title', limit: 2, after: first.next! })).toEqual({
+        slugs: ['zomer'],
+        next: null,
+        total: 3,
+      });
+      expect(await list({ sort: 'title', limit: 2, offset: 2 })).toEqual({
+        slugs: ['zomer'],
+        next: null,
+        total: 3,
+      });
+      expect(await list({ q: 'a', limit: 1 })).toMatchObject({ slugs: ['appel'], total: 3 });
     });
 
     it('diffs two revisions by block id, deterministically', async () => {

@@ -104,6 +104,84 @@ Version 1.
 
 Examples: `cta-band`, `cta-card-two-actions`, `cta-full-end`.
 
+## `cards` (Action row)
+
+Version 1.
+
+| Prop              | Label     | Kind                                                | Presence |
+| ----------------- | --------- | --------------------------------------------------- | -------- |
+| `cards`           | Card      | list of 2–6                                         | required |
+| `cards[].title`   | Title     | localised text                                      | required |
+| `cards[].body`    | Body text | localised multi-line text                           | optional |
+| `cards[].actions` | Buttons   | 0–1 buttons: a localised label and an item or a URL | required |
+| `accent`          | Accent    | one of `none`, `bar`, `filled`                      | required |
+| `width`           | Width     | one of `content`, `wide`, `full`                    | required |
+
+Examples: `cards-three-links`, `cards-bar-content`, `cards-filled-full`.
+
+## `file-download` (File download)
+
+Version 1.
+
+| Prop             | Label     | Kind                      | Presence |
+| ---------------- | --------- | ------------------------- | -------- |
+| `title`          | Title     | localised text            | optional |
+| `body`           | Body text | localised multi-line text | optional |
+| `files`          | File      | list of 1–12              | required |
+| `files[].fileId` | File      | document (media id)       | required |
+| `files[].name`   | Name      | localised text            | required |
+
+Examples: `file-download-one`, `file-download-titled`.
+
+## `gallery` (Gallery)
+
+Version 1.
+
+| Prop                           | Label                       | Kind                                                       | Presence                   |
+| ------------------------------ | --------------------------- | ---------------------------------------------------------- | -------------------------- |
+| `images`                       | Image                       | list of 2–24                                               | required                   |
+| `images[].mediaId`             | Image                       | image (media id)                                           | required                   |
+| `images[].decorative`          | Decorative (no description) | yes or no                                                  | required                   |
+| `images[].alt`                 | Description (alt text)      | localised text                                             | optional (null when empty) |
+| `images[].caption`             | Caption                     | localised caption: the file’s, none, or its own per locale | optional                   |
+| `images[].credit`              | Own credit for this use     | group                                                      | optional                   |
+| `images[].credit.work`         | Work                        | group                                                      | optional (null when empty) |
+| `images[].credit.work.title`   | Title                       | text                                                       | required                   |
+| `images[].credit.work.maker`   | Maker                       | text                                                       | required                   |
+| `images[].credit.photographer` | Photographer                | text                                                       | optional (null when empty) |
+| `variant`                      | Variant                     | one of `grid`, `row`                                       | required                   |
+| `width`                        | Width                       | one of `content`, `wide`, `full`                           | required                   |
+
+Examples: `gallery-grid`, `gallery-row-content`, `gallery-grid-full`.
+
+## `audio` (Audio)
+
+Version 1.
+
+| Prop         | Label      | Kind                      | Presence |
+| ------------ | ---------- | ------------------------- | -------- |
+| `title`      | Title      | localised text            | required |
+| `fileId`     | File       | audio (media id)          | required |
+| `transcript` | Transcript | localised multi-line text | optional |
+
+Examples: `audio-plain`, `audio-transcript`.
+
+## `timeline` (Timeline)
+
+Version 1.
+
+| Prop               | Label     | Kind                                                | Presence |
+| ------------------ | --------- | --------------------------------------------------- | -------- |
+| `title`            | Title     | localised text                                      | optional |
+| `events`           | Event     | list of 2–24                                        | required |
+| `events[].date`    | Date      | date (YYYY-MM-DD)                                   | required |
+| `events[].title`   | Title     | localised text                                      | required |
+| `events[].body`    | Body text | localised multi-line text                           | optional |
+| `events[].actions` | Buttons   | 0–1 buttons: a localised label and an item or a URL | required |
+| `order`            | Order     | one of `newest`, `oldest`                           | required |
+
+Examples: `timeline-newest`, `timeline-oldest-titled`.
+
 ## `callout` (Callout)
 
 Version 1.

@@ -7,6 +7,7 @@
      fighting over a subtree. Rejected: a <select> of filenames (editor trial 2026-10-28) and a separate picker
      page, which loses what was typed in the form. -->
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import AdminScript from '../../trusted/AdminScript.svelte';
   import { ui } from '../../../../i18n/index.js';
   import type { MediaChoice } from '../../media-choice.js';
@@ -22,11 +23,13 @@
     locale,
     value,
     options,
+    accept = 'image',
     base,
     hint,
     invalid = false,
     upload = false,
     onchange,
+    related,
   }: {
     id: string;
     name: string;
@@ -35,6 +38,8 @@
     /** The chosen media id, '' for none. */
     value: string;
     options: readonly MediaChoice[];
+    /** What this slot takes; the picker offers only that kind, and says so in its words. */
+    accept?: 'image' | 'document' | 'audio';
     /** The tenant's admin root, `/admin/<slug>`: thumbnails, search and upload live under it. */
     base: string;
     hint?: string | undefined;
@@ -43,9 +48,44 @@
     upload?: boolean;
     /** For a hydrated page: the id chosen, also one the script added by searching or uploading. */
     onchange?: ((id: string) => void) | undefined;
+    /** Fields that belong to this image use, without changing their names or stored shape. */
+    related?: Snippet;
   } = $props();
 
   const t = $derived(ui(locale));
+  const isDocument = $derived(accept === 'document');
+  const isAudio = $derived(accept === 'audio');
+  const offered = $derived(
+    options.filter((o) => !!o.document === isDocument && !!o.audio === isAudio)
+  );
+  const word = $derived(
+    isAudio
+      ? {
+          choose: t('admin.media.picker.audio.choose'),
+          none: t('admin.media.picker.audio.none'),
+          noChoice: t('admin.media.picker.audio.noChoice'),
+          library: t('admin.media.picker.audio.library'),
+          uploadLink: t('admin.media.picker.audio.uploadLink'),
+          drop: t('admin.media.picker.audio.drop'),
+        }
+      : isDocument
+        ? {
+            choose: t('admin.media.picker.document.choose'),
+            none: t('admin.media.picker.document.none'),
+            noChoice: t('admin.media.picker.document.noChoice'),
+            library: t('admin.media.picker.document.library'),
+            uploadLink: t('admin.media.picker.document.uploadLink'),
+            drop: t('admin.media.picker.document.drop'),
+          }
+        : {
+            choose: t('admin.media.picker.choose'),
+            none: t('admin.media.picker.none'),
+            noChoice: t('admin.media.picker.noImage'),
+            library: t('admin.media.picker.library'),
+            uploadLink: t('admin.media.picker.uploadLink'),
+            drop: t('admin.media.picker.drop'),
+          }
+  );
   const thumb = (o: MediaChoice) => (o.thumb ? thumbPath(base, o.id) : '');
   // A choice the script added (a search result or an upload) is not in `options`; remember it
   // so a hydrated page still shows its name.
@@ -56,15 +96,15 @@
   const copy = $derived(
     JSON.stringify({
       search: t('admin.media.picker.search'),
-      drop: t('admin.media.picker.drop'),
+      drop: word.drop,
       more: t('admin.media.picker.more'),
       nothing: t('admin.media.picker.nothing'),
       uploading: t('admin.media.picker.uploading'),
       uploaded: t('admin.media.picker.uploaded'),
       failed: t('admin.media.picker.failed'),
       searchFailed: t('admin.media.picker.searchFailed'),
-      none: t('admin.media.picker.none'),
-      choose: t('admin.media.picker.choose'),
+      none: word.none,
+      choose: word.choose,
       change: t('admin.media.picker.change'),
     })
   );
@@ -117,6 +157,7 @@
   data-media-picker
   data-name={name}
   data-choices="{base}/media/choices"
+  data-kind={accept === 'image' ? undefined : accept}
   data-upload={upload ? `${base}/media/upload` : undefined}
   data-copy={copy}
   onchange={changed}
@@ -129,56 +170,61 @@
       />{/if}</legend
   >
   {#if hint}<p class="ui-hint" id="{id}-hint" popover>{hint}</p>{/if}
-  <div class="ui-media-picker-current">
-    <img
-      data-picker-img
-      src={chosen?.thumb ? thumb(chosen) : undefined}
-      hidden={!chosen?.thumb}
-      alt=""
-      width={THUMB.choice.width}
-      height={THUMB.choice.height}
-    />
-    <span data-picker-name class={[!chosen && value === '' && 'muted']}
-      >{chosen?.label ?? (value || t('admin.media.picker.none'))}</span
-    >
-  </div>
-  <Dialog
-    id="{id}-dialog"
-    title={label}
-    trigger={value ? t('admin.media.picker.change') : t('admin.media.picker.choose')}
-    {locale}
-    wide
-  >
-    <div class="ui-media-picker-tools" data-picker-tools></div>
-    <p class="ui-hint" data-picker-noscript>
-      <a href="{base}/media" target="_blank">{t('admin.media.picker.uploadLink')}</a>
-    </p>
-    <ul class="ui-media-grid" aria-label={t('admin.media.picker.library')} data-picker-initial>
-      <li>
-        <label class="ui-media-option">
-          <input type="radio" {name} value="" checked={value === ''} data-label="" data-thumb="" />
-          <span class="ui-media-option-blank"></span>
-          <span class="ui-media-option-name">{t('admin.media.picker.noImage')}</span>
-        </label>
-      </li>
-      {#if value && !options.some((o) => o.id === value)}
-        {@render option(chosen ?? { id: value, label: value, thumb: false })}
-      {/if}
-      {#each options as o (o.id)}
-        {@render option(o)}
-      {/each}
-    </ul>
-    <ul
-      class="ui-media-grid"
-      aria-label={t('admin.media.picker.library')}
-      data-picker-results
-      hidden
-    ></ul>
-    <Actions end>
-      <button class="ui-button" type="button" commandfor="{id}-dialog" command="close"
-        >{t('admin.media.picker.done')}</button
+  <div class="ui-media-picker-selection">
+    <div class="ui-media-picker-current">
+      <img
+        data-picker-img
+        src={chosen?.thumb ? thumb(chosen) : undefined}
+        hidden={!chosen?.thumb}
+        alt=""
+        width={THUMB.choice.width}
+        height={THUMB.choice.height}
+      />
+      <span data-picker-name class={[!chosen && value === '' && 'muted']}
+        >{chosen?.label ?? (value || word.none)}</span
       >
-    </Actions>
-  </Dialog>
+    </div>
+    <Dialog
+      id="{id}-dialog"
+      title={label}
+      trigger={value ? t('admin.media.picker.change') : word.choose}
+      {locale}
+      wide
+    >
+      <div class="ui-media-picker-tools" data-picker-tools></div>
+      <p class="ui-hint" data-picker-noscript>
+        <a href="{base}/media" target="_blank">{word.uploadLink}</a>
+      </p>
+      <ul class="ui-media-grid" aria-label={word.library} data-picker-initial>
+        <li>
+          <label class="ui-media-option">
+            <input
+              type="radio"
+              {name}
+              value=""
+              checked={value === ''}
+              data-label=""
+              data-thumb=""
+            />
+            <span class="ui-media-option-blank"></span>
+            <span class="ui-media-option-name">{word.noChoice}</span>
+          </label>
+        </li>
+        {#if value && !offered.some((o) => o.id === value)}
+          {@render option(chosen ?? { id: value, label: value, thumb: false })}
+        {/if}
+        {#each offered as o (o.id)}
+          {@render option(o)}
+        {/each}
+      </ul>
+      <ul class="ui-media-grid" aria-label={word.library} data-picker-results hidden></ul>
+      <Actions end>
+        <button class="ui-button" type="button" commandfor="{id}-dialog" command="close"
+          >{t('admin.media.picker.done')}</button
+        >
+      </Actions>
+    </Dialog>
+  </div>
+  {#if related}<div class="ui-media-picker-related">{@render related()}</div>{/if}
   <AdminScript src="/_admin/media-picker.js" />
 </fieldset>

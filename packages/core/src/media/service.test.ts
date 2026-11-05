@@ -23,8 +23,14 @@ import {
   expectCode,
   principal,
 } from '../testing/index.js';
-import { MEDIA_PURGE_DELAY_MS, VARIANT_MAX_STEP, VARIANT_WIDTHS, variantWidths } from './model.js';
-import { EXAMPLE_PNG, ORPHAN_AGE_MS } from './service.js';
+import {
+  FORMAT_OF,
+  MEDIA_PURGE_DELAY_MS,
+  VARIANT_MAX_STEP,
+  VARIANT_WIDTHS,
+  variantWidths,
+} from './model.js';
+import { EXAMPLE_PNG, ORPHAN_AGE_MS, uploadMedia } from './service.js';
 
 const OTHER = '01900000-0000-7000-8000-00000000bbbb';
 const system = systemPrincipal(TENANT, 'test');
@@ -208,6 +214,39 @@ describe('media', () => {
       const gif = await upload({ filename: 'a.gif', contentType: 'image/gif', bytes: GIF });
       expect(gif.variants.map((v) => `${v.name}.${v.format}`)).toEqual(['file.gif', 'thumb.webp']);
       expect(keys().filter((k) => k.includes('original'))).toEqual([]);
+    });
+
+    // `contentType` is a free string, so this sentence is how an agent learns what can be uploaded.
+    it('names every accepted format in the description of media.upload', () => {
+      for (const format of Object.values(FORMAT_OF))
+        expect(uploadMedia.description.toLowerCase()).toContain(format);
+    });
+
+    it('stores an MP3 as one delivered file and refuses what only claims to be one', async () => {
+      const frame = bytesToBase64(new Uint8Array([0xff, 0xfb, 0x90, 0x64, 0, 0, 0, 0]));
+      const mp3 = await upload({ filename: 'a.mp3', contentType: 'audio/mpeg', bytes: frame });
+      expect(mp3).toMatchObject({ kind: 'audio', width: null, height: null });
+      expect(mp3.variants.map((v) => `${v.name}.${v.format}`)).toEqual(['file.mp3']);
+      const tagged = await upload({
+        filename: 'b.mp3',
+        contentType: 'audio/mpeg',
+        bytes: text('ID3\x04\0\0'),
+      });
+      expect(tagged.kind).toBe('audio');
+      for (const bytes of [
+        text('%PDF-1.7\n'),
+        text('<script>alert(1)</script>'),
+        // A sync word with a reserved version, a layer other than III, a bad bitrate, a bad rate.
+        bytesToBase64(new Uint8Array([0xff, 0xeb, 0x90, 0x64])),
+        bytesToBase64(new Uint8Array([0xff, 0xfd, 0x90, 0x64])),
+        bytesToBase64(new Uint8Array([0xff, 0xfb, 0xf0, 0x64])),
+        bytesToBase64(new Uint8Array([0xff, 0xfb, 0x9c, 0x64])),
+      ])
+        await expectCode(
+          upload({ filename: 'c.mp3', contentType: 'audio/mpeg', bytes }),
+          'invalid_input',
+          'media.type.mismatch'
+        );
     });
 
     it('stops at the storage cap: exactly at it is fine, one byte over is refused', async () => {

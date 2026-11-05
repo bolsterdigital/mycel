@@ -4,20 +4,30 @@
 // below was a spec of its own until TODO #50 folded the suite to its budget (testing.md
 // § End-to-end flows); each keeps its own fixtures.
 
+import { openPublication, closePublication } from './lib/publication';
 import { randomBytes } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { type ContentDocument, THEME_PRESETS, systemPrincipal, useCases } from '@mycel/core';
+import {
+  type ContentDocument,
+  DEFAULT_THEME,
+  THEME_PRESETS,
+  contrastRatio,
+  systemPrincipal,
+  useCases,
+} from '@mycel/core';
 import { testTenant } from '@mycel/db/testing';
 import { type APIRequestContext, type Page, chromium, expect, test } from '@playwright/test';
 import sharp from 'sharp';
 import { expectNoAxeViolations } from './lib/axe';
+import { editorReady } from './lib/editor';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
 import { login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { callApi, requireApi } from './lib/api';
+import { themeCss } from '../src/lib/theme/tokens';
 
 // The block renderer on two composed pages (TODO #8c1, brief #8c § 5), seeded by scripts/e2e/e2e.mjs
 // from the registry's own examples: `campagne` (hero cover, rich text, cta card, wide image, FAQ
@@ -204,6 +214,146 @@ test.describe('blocks', () => {
         expect(bar.room).toBeGreaterThanOrEqual(20);
       }
     });
+
+    for (const locale of ['nl', 'en'])
+      for (const [name, theme] of Object.entries({ default: DEFAULT_THEME, ...THEME_PRESETS }))
+        for (const variant of ['card', 'band'])
+          test(`public action colours ${variant}/${name}/${locale} stay readable through hover and focus transitions`, async ({
+            page,
+          }) => {
+            onlyA11y('computed colours and actual CSS transitions');
+            await page.setViewportSize(NARROW);
+            await open(
+              page,
+              `/probe/${locale === 'en' ? 'en/' : ''}${variant === 'card' ? 'campagne' : 'blok-cta-band'}`
+            );
+            await setTextSize(page, '200%');
+            const sheet = await page.evaluateHandle(() => {
+              const sheet = new CSSStyleSheet();
+              document.adoptedStyleSheets.push(sheet);
+              return sheet;
+            });
+            await sheet.evaluate((sheet, css) => sheet.replaceSync(css), themeCss(theme));
+            for (const colorScheme of ['light', 'dark'] as const) {
+              await page.emulateMedia({ colorScheme, reducedMotion: 'no-preference' });
+              for (const selector of [
+                '.cta .button:not(.secondary)',
+                ...(variant === 'card' ? ['.cta .button.secondary', '.faq-accordion summary'] : []),
+              ]) {
+                const action = page.locator(selector).first();
+                await action.scrollIntoViewIfNeeded();
+                await page.mouse.move(0, 0);
+                await action.evaluate(async (el) => {
+                  (el as HTMLElement).blur();
+                  await Promise.all(el.getAnimations().map((a) => a.finished));
+                });
+                const before = await action.evaluate((el) => {
+                  const css = getComputedStyle(el);
+                  return [css.color, css.backgroundColor];
+                });
+                // Pause at transition start, so a busy runner cannot finish the 150 ms fade
+                // before the test reads it. No product duration or wall-clock wait is changed.
+                await action.evaluate((el) =>
+                  el.addEventListener(
+                    'transitionrun',
+                    () => {
+                      for (const animation of el.getAnimations()) animation.pause();
+                    },
+                    { once: true }
+                  )
+                );
+                await action.hover();
+                const samples = await action.evaluate(async (el) => {
+                  const animations = el.getAnimations();
+                  await Promise.all(animations.map((a) => a.ready));
+                  for (const a of animations) a.pause();
+                  const canvas = document.createElement('canvas');
+                  canvas.width = canvas.height = 1;
+                  const ctx = canvas.getContext('2d')!;
+                  const hex = (colour: string) => {
+                    ctx.fillStyle = colour;
+                    ctx.fillRect(0, 0, 1, 1);
+                    return (
+                      '#' +
+                      [...ctx.getImageData(0, 0, 1, 1).data]
+                        .slice(0, 3)
+                        .map((n) => n.toString(16).padStart(2, '0'))
+                        .join('')
+                    );
+                  };
+                  return [0, 0.25, 0.5, 0.75, 1].map((fraction) => {
+                    for (const a of animations)
+                      a.currentTime = Number(a.effect!.getTiming().duration) * fraction;
+                    const css = getComputedStyle(el);
+                    return {
+                      fg: css.color,
+                      bg: css.backgroundColor,
+                      fgHex: hex(css.color),
+                      bgHex: hex(css.backgroundColor),
+                      decoration: css.textDecorationLine,
+                      animations: animations.length,
+                    };
+                  });
+                });
+                expect(samples[0]!.animations, `${name}/${colorScheme}/${selector}`).toBe(1);
+                expect([samples[4]!.fg, samples[4]!.bg]).not.toEqual(before);
+                for (const sample of samples) {
+                  expect(
+                    contrastRatio(sample.fgHex, sample.bgHex),
+                    `${name}/${colorScheme}/${selector}`
+                  ).toBeGreaterThanOrEqual(4.5);
+                  if (selector.includes('button')) expect(sample.decoration).toBe('none');
+                }
+                await action.evaluate((el) => {
+                  for (const a of el.getAnimations()) a.finish();
+                });
+                await page.mouse.move(0, 0);
+                await action.evaluate(async (el) => {
+                  await Promise.all(el.getAnimations().map((a) => a.finished));
+                });
+                await action.focus();
+                await action.evaluate(async (el) => {
+                  await Promise.all(el.getAnimations().map((a) => a.finished));
+                });
+                const focused = await action.evaluate((el) => {
+                  const css = getComputedStyle(el);
+                  return {
+                    fg: css.color,
+                    bg: css.backgroundColor,
+                    outline: css.outlineStyle,
+                    width: css.outlineWidth,
+                  };
+                });
+                expect([focused.fg, focused.bg]).toEqual([samples[4]!.fg, samples[4]!.bg]);
+                expect(focused.outline).not.toBe('none');
+                expect(parseFloat(focused.width)).toBeGreaterThanOrEqual(3);
+                await action.evaluate((el) => (el as HTMLElement).blur());
+              }
+              await page.emulateMedia({ reducedMotion: 'reduce' });
+              for (const selector of [
+                '.cta .button',
+                ...(variant === 'card' ? ['.faq-accordion summary'] : []),
+              ])
+                expect(
+                  await page
+                    .locator(selector)
+                    .first()
+                    .evaluate((el) => getComputedStyle(el).transitionDuration)
+                ).toBe('0s');
+              await layoutGate(
+                page,
+                `${name}/${colorScheme}/${locale} actions at 320/200%`,
+                '.cta'
+              );
+              await expectNoAxeViolations(page);
+            }
+            await page.screenshot({
+              path: test
+                .info()
+                .outputPath(`public-polish-${variant}-${name}-${locale}-320-200.png`),
+              fullPage: true,
+            });
+          });
 
     test('the article keeps its outline and its footnote', async ({ page }) => {
       await open(page, '/probe/artikel');
@@ -508,8 +658,12 @@ test.describe('content-routes', () => {
       await page.setViewportSize({ width: 1280, height: 900 });
       await login(page, `/admin/probe/content/${target.item.id}`);
       // The edit screen shows the hero as described, with the alt of the locale on screen.
+      // Its state stands without a click (#158); the line opens for the field.
+      const heroAltLine = page.locator('[data-hero-alt]');
+      await expect(heroAltLine.locator('summary')).toContainText('Een straat met bomen.');
       await expect(page.locator('#heroDecorative')).not.toBeChecked();
       await expect(page.locator('#heroAlt')).toHaveValue('Een straat met bomen.');
+      await heroAltLine.locator('summary').click();
       await expectNoAxeViolations(page);
       await page.setViewportSize(NARROW);
       for (const size of ['100%', '200%'] as const) {
@@ -537,10 +691,254 @@ test.describe('content-routes', () => {
     }
   });
 
-  test('an article chooses its header: cover fills the screen, standard stays (#105)', async ({
+  /** An article in nl and en with a hero image, and the steps of its edit screen. */
+  const heroAltArticle = async (
+    page: Page,
+    request: APIRequestContext,
+    heroAlt?: Record<string, string>
+  ) => {
+    const { items } = await callApi<{ items: { id: string }[] }>(request, 'content.item.list', {
+      type: 'article',
+      slug: 'quality-article-v3',
+    });
+    const { revision: source } = await callApi<{
+      revision: { document: { blocks: { type: string; props: { mediaId?: string } }[] } };
+    }>(request, 'content.item.get', { itemId: items[0]!.id });
+    const mediaId = source.document.blocks.find((b) => b.type === 'image')?.props.mediaId;
+    expect(mediaId).toBeTruthy();
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `hero-alt-${test.info().project.name}-${randomBytes(4).toString('hex')}`,
+      document: {
+        type: 'article',
+        defaultLocale: 'nl',
+        locales: ['nl', 'en'],
+        title: { nl: 'Een beeld', en: 'An image' },
+        heroImageId: mediaId,
+        ...(heroAlt && { heroAlt }),
+        blocks: [],
+      },
+    });
+    const edit = `/admin/probe/content/${item.id}`;
+    const line = page.locator('[data-hero-alt]');
+    const summary = line.locator('summary');
+    const field = page.locator('#heroAlt');
+    const stored = async () =>
+      (
+        await callApi<{ revision: { document: { heroAlt?: Record<string, string> } } }>(
+          request,
+          'content.item.get',
+          { itemId: item.id }
+        )
+      ).revision.document.heroAlt;
+    // The line's live state and the focus on opening come from the screen's script; a step before
+    // it has run gets the native behaviour, which is fine for a person but not what is tested (#178).
+    const ready = () => editorReady(page);
+    const visit = async (url: string) => {
+      await page.goto(url);
+      await ready();
+    };
+    const save = async () => {
+      await page.getByRole('button', { name: 'Opslaan' }).first().click();
+      await expect(page.getByRole('status').first()).toContainText('Opgeslagen');
+      await ready();
+    };
+    return { mediaId, edit, line, summary, field, stored, ready, visit, save };
+  };
+
+  test('the hero description says its state without a click, and leaving it empty is decorative (#158)', async ({
     page,
     request,
   }) => {
+    const { edit, line, summary, field, stored, ready, visit, save } = await heroAltArticle(
+      page,
+      request,
+      { nl: 'Een straat.' }
+    );
+
+    // Filled here, missing in the other language: all of it visible while the line is closed.
+    await login(page, `${edit}?locale=nl`);
+    await ready();
+    await expect(line).not.toHaveAttribute('open');
+    await expect(field).toBeHidden();
+    for (const words of ['Beschrijving', '· Nederlands', 'Een straat.', 'Bewerken'])
+      await expect(summary).toContainText(words, { useInnerText: true });
+    await expect(summary).toContainText('Ontbreekt nog in het Engels', { useInnerText: true });
+    await expect(line).toHaveAttribute('data-tone', 'ok');
+    // The layout belongs to the whole opening, not to the image.
+    await expect(page.locator('.ui-edit-side #headerLayout')).toHaveCount(1);
+    await expect(page.locator('.item-header #headerLayout')).toHaveCount(0);
+
+    // The error tone on text carries no green check. Set by hand: no screen reaches it yet, because
+    // publishing saves first and the panel offers only the language on screen.
+    if (isA11y()) {
+      await line.evaluate((el: HTMLElement) => (el.dataset.tone = 'err'));
+      const described = line.locator('[data-hero-alt-state="described"]');
+      await expect(described.locator('.icon.err')).toBeVisible();
+      await expect(described.locator('.icon.ok')).toBeHidden();
+    }
+
+    // Missing on screen, with another language as reference: the refusal becomes an error.
+    await visit(`${edit}?locale=en`);
+    await expect(summary).toContainText('Beschrijving ontbreekt in het Engels', {
+      useInnerText: true,
+    });
+    await expect(summary).toContainText('Beschrijven', { useInnerText: true });
+    await expect(line).toHaveAttribute('data-tone', 'warn');
+    await openPublication(page);
+    const en = page.locator('#publication-en');
+    await en.getByRole('link', { name: /hoofdbeeld/ }).click();
+    await expect(line).toHaveAttribute('open');
+    await expect(page.locator('[data-hero-alt-others]')).toContainText('Een straat.');
+    await visit(`${edit}?locale=en`);
+    await openPublication(page);
+    await page
+      .locator('#publication-en')
+      .getByRole('button', { name: 'Publiceren', exact: true })
+      .click();
+    await expect(line).toHaveAttribute('data-tone', 'err');
+    await expect(line).toHaveAttribute('open');
+    await expect(field).toHaveAttribute('aria-invalid', 'true');
+    await expect(line).toContainText('Vul de beschrijving in het Engels in.');
+    if (isA11y()) await expectNoAxeViolations(page);
+    await ready();
+
+    // Typed: the status follows with a script (it also ends the refusal), and after the save.
+    await closePublication(page);
+    await field.fill('A street.');
+    if (isA11y()) {
+      await expect(summary).toContainText('A street.', { useInnerText: true });
+      await expect(line).toHaveAttribute('data-tone', 'ok');
+      await expect(field).not.toHaveAttribute('aria-invalid');
+    }
+    await save();
+    await expect(summary).toContainText('A street.', { useInnerText: true });
+    await expect(summary).not.toContainText('Ontbreekt', { useInnerText: true });
+    expect(await stored()).toEqual({ nl: 'Een straat.', en: 'A street.' });
+
+    // Emptied in one of two languages: this one stays open, the other keeps its text.
+    await visit(`${edit}?locale=nl`);
+    await summary.click();
+    await field.fill('');
+    await save();
+    await expect(summary).toContainText('Beschrijving ontbreekt in het Nederlands', {
+      useInnerText: true,
+    });
+    expect(await stored()).toEqual({ en: 'A street.' });
+
+    // The box removes every language, and says so before the save.
+    await summary.click();
+    await page.locator('#heroDecorative').check();
+    if (isA11y())
+      await expect(summary).toContainText('de beschrijving in alle talen vervalt', {
+        useInnerText: true,
+      });
+    await save();
+    await expect(summary).toContainText('Decoratief', { useInnerText: true });
+    await expect(line).toHaveAttribute('data-tone', 'neutral');
+    expect(await stored()).toBeUndefined();
+
+    // Empty in the only language with text is decorative, without a box or a refusal.
+    await summary.click();
+    await expect(page.locator('#heroDecorative')).toHaveCount(0);
+    await field.fill('Alleen hier.');
+    await save();
+    expect(await stored()).toEqual({ nl: 'Alleen hier.' });
+    await summary.click();
+    await field.fill('');
+    await save();
+    await expect(summary).toContainText('Decoratief', { useInnerText: true });
+    expect(await stored()).toBeUndefined();
+  });
+
+  test('the hero description follows a replaced or first image, by keyboard and at 320 px (#158)', async ({
+    page,
+    request,
+    browser,
+  }) => {
+    onlyA11y();
+    const { mediaId, edit, line, summary, field, ready, visit, save } = await heroAltArticle(
+      page,
+      request
+    );
+    await login(page, `${edit}?locale=nl`);
+    await ready();
+    // A described image, replaced: what described the old picture goes, and comes back with it.
+    await summary.click();
+    await field.fill('Terug.');
+    await save();
+    const picker = page.locator('#heroImageId');
+    const choose = async (radio: string) => {
+      await picker.getByRole('button', { name: /Vervangen|Beeld kiezen/ }).click();
+      await picker.locator(radio).first().click();
+      await picker.getByRole('button', { name: 'Klaar' }).click();
+    };
+    await choose(`input[type="radio"]:not([value=""]):not([value="${mediaId}"])`);
+    await expect(summary).toContainText('Nieuw beeld, nog geen beschrijving', {
+      useInnerText: true,
+    });
+    await expect(line).toHaveAttribute('data-tone', 'info');
+    await expect(field).toHaveValue('');
+    await choose(`input[type="radio"][value="${mediaId}"]`);
+    await expect(summary).toContainText('Terug.', { useInnerText: true });
+    await expect(field).toHaveValue('Terug.');
+    await choose('input[type="radio"][value=""]');
+    await expect(line).toBeHidden();
+    await choose(`input[type="radio"][value="${mediaId}"]`);
+    await save();
+    // The keyboard: Enter opens into the field, Escape closes back onto the line.
+    await summary.focus();
+    await page.keyboard.press('Enter');
+    await expect(field).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(line).not.toHaveAttribute('open');
+    await expect(summary).toBeFocused();
+
+    // No image yet: no line, until the first one is chosen.
+    const { item: bare } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `hero-alt-bare-${test.info().project.name}-${randomBytes(4).toString('hex')}`,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: 'Nog geen beeld' },
+        blocks: [],
+      },
+    });
+    await visit(`/admin/probe/content/${bare.id}`);
+    await expect(line).toBeHidden();
+    await picker.getByRole('button', { name: 'Beeld kiezen' }).click();
+    await picker.locator('input[type="radio"]:not([value=""])').first().click();
+    await picker.getByRole('button', { name: 'Klaar' }).click();
+    await expect(summary).toContainText('Zonder beschrijving wordt dit beeld decoratief.', {
+      useInnerText: true,
+    });
+    await expect(page.locator('#headerLayout')).toHaveCount(0);
+
+    // The UI gate: status and action, image and Replace, the side column, at the longest language.
+    for (const locale of ['nl-NL', 'en-GB']) {
+      const context = await browser.newContext({
+        locale,
+        viewport: NARROW,
+        baseURL: 'http://127.0.0.1:4173',
+        extraHTTPHeaders: { 'x-forwarded-proto': 'http' },
+      });
+      const narrow = await context.newPage();
+      await login(narrow, `${edit}?locale=en`);
+      await narrow.locator('[data-hero-alt] summary').click();
+      for (const size of TEXT_SIZES) {
+        await setTextSize(narrow, size);
+        await layoutGate(narrow, `hero description, ${locale}, ${size}`, '#heroImageId');
+        await layoutGate(narrow, `side column, ${locale}, ${size}`, '.ui-edit-side');
+        await narrow.locator('#heroImageId').screenshot({
+          path: test.info().outputPath(`hero-alt-${locale}-${size.replace('%', '')}.png`),
+        });
+      }
+      await context.close();
+    }
+  });
+
+  /** The article with a cover header, published in nl. */
+  const coverArticle = async (request: APIRequestContext) => {
     const slug = `e2e-cover-105-${isA11y() ? 'a11y' : 'no-js'}`;
     const { items } = await callApi(request, 'content.item.list', { type: 'article', slug });
     let target = items[0]
@@ -569,6 +967,14 @@ test.describe('content-routes', () => {
       })
     );
     const path = `/probe/articles/${slug}`;
+    return { target, path };
+  };
+
+  test('an article with a cover header fills the screen under the site header (#105)', async ({
+    page,
+    request,
+  }) => {
+    const { path } = await coverArticle(request);
 
     for (const size of [
       { width: 1440, height: 900 },
@@ -581,6 +987,16 @@ test.describe('content-routes', () => {
       await expect(cover.locator('h1 span')).toBeVisible();
       await expect(page.locator('h1')).toHaveCount(1);
       await expect(cover.locator('img')).toHaveAttribute('fetchpriority', 'high');
+      if (isA11y())
+        expect(
+          await page
+            .locator('.page-cover-caption')
+            .evaluate(
+              (caption) =>
+                caption.getBoundingClientRect().top -
+                document.querySelector('.page-cover')!.getBoundingClientRect().bottom
+            )
+        ).toBeCloseTo(4, 1);
       await expect(cover.locator('img')).toHaveAttribute('alt', 'Een straat met bomen.');
       // The screen under the site's header, whatever the viewport; the page keeps its width.
       const boxes = await page.evaluate(() => ({
@@ -595,8 +1011,17 @@ test.describe('content-routes', () => {
         '#page-content'
       );
     }
+  });
 
-    if (!isA11y()) return;
+  test('a cover header is whole and reachable, and the editor chooses it (#105)', async ({
+    page,
+    request,
+  }) => {
+    onlyA11y();
+    const { target, path } = await coverArticle(request);
+    await page.setViewportSize({ width: 375, height: 700 });
+    await page.goto(path);
+    await page.waitForLoadState('load');
     await expectNoAxeViolations(page);
     // The zoom runs, and reduced motion switches it off.
     const zoom = () =>
@@ -901,7 +1326,7 @@ test.describe('grid-compositions', () => {
           const box = caption.getBoundingClientRect();
           return {
             img: { left: img.left, right: img.right, width: img.width },
-            caption: { left: box.left, width: box.width },
+            caption: { left: box.left, width: box.width, gap: box.top - img.bottom },
             inset: parseFloat(getComputedStyle(caption).paddingInlineStart),
             figure: el.getBoundingClientRect().right,
           };
@@ -926,6 +1351,7 @@ test.describe('grid-compositions', () => {
       const f = wide[key];
       expect(f.caption.left).toBeCloseTo(f.img.left, 0);
       expect(f.caption.width).toBeCloseTo(f.img.width, 0);
+      expect(f.caption.gap).toBeCloseTo(4, 1);
     }
     expect(wide.wide.inset).toBe(0);
     expect(wide.float.inset).toBe(0);
@@ -950,6 +1376,16 @@ test.describe('grid-compositions', () => {
     expect(narrow.overflow).toBe(false);
     expect(narrow.float.caption.left).toBeCloseTo(narrow.float.img.left, 0);
     expect(narrow.full.inset).toBeGreaterThan(0);
+    await page.goto('/probe/blok-image-content');
+    expect(
+      await page
+        .locator('figure.image figcaption')
+        .evaluate(
+          (caption) =>
+            caption.getBoundingClientRect().top -
+            document.querySelector('figure.image img')!.getBoundingClientRect().bottom
+        )
+    ).toBeCloseTo(4, 1);
   });
 
   test('a narrow composition on a wide monitor contains floats and full media', async ({
@@ -973,7 +1409,7 @@ test.describe('grid-compositions', () => {
 
   // Chrome's tabs API changes actual desktop browser zoom. Pinch/pageScaleFactor and a larger
   // root font cannot prove this: assert the halved CSS viewport and doubled pixel ratio too.
-  test('real Chromium 200% browser zoom reflows the composition', async () => {
+  test('real Chromium 200% browser zoom reflows the composition', async ({ request }) => {
     onlyA11y('browser zoom measurement');
     const directory = await mkdtemp(join(tmpdir(), 'mycel-zoom-'));
     let context;
@@ -1076,6 +1512,32 @@ test.describe('grid-compositions', () => {
         path: test.info().outputPath('admin-browser-zoom-200.png'),
         fullPage: true,
       });
+      const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+        slug: `zoom-editor-${Date.now()}`,
+        document: {
+          type: 'article',
+          defaultLocale: 'nl',
+          locales: ['nl'],
+          title: { nl: 'Een schrijfvlak bij echte browserzoom' },
+          blocks: [],
+        },
+      });
+      await page.goto(`http://127.0.0.1:4173/admin/probe/content/${item.id}`);
+      await expect(page.locator('.ui-writing-sheet')).toBeVisible();
+      expect(await page.evaluate(() => innerWidth)).toBeCloseTo(before.width / 2, 0);
+      expect(await page.evaluate(() => devicePixelRatio)).toBe(before.ratio * 2);
+      await layoutGate(page, 'editor at real 200% browser zoom');
+      await expectNoAxeViolations(page);
+      await page.screenshot({
+        path: test.info().outputPath('editor-browser-zoom-200.png'),
+        fullPage: true,
+      });
+      await openPublication(page);
+      await layoutGate(page, 'publication at real 200% browser zoom', '#publication-panel');
+      await expectNoAxeViolations(page);
+      await page.screenshot({ path: test.info().outputPath('publication-browser-zoom-200.png') });
+      await closePublication(page);
+      await expect(page.locator('a[href="#publication-panel"]')).toBeFocused();
     } finally {
       await context?.close();
       await rm(directory, { recursive: true, force: true });
@@ -1308,6 +1770,7 @@ test.describe('site-settings', () => {
     const principal = systemPrincipal(tenantId, 'e2e');
     const filename = `default-${Date.now()}.png`;
     await login(page, `/admin/${slug}/media`, `site-editor-${slug}@probe.test`);
+    await page.getByRole('button', { name: 'Upload file', exact: true }).click();
     await page.getByLabel('Files (required)', { exact: true }).setInputFiles({
       name: filename,
       mimeType: 'image/png',
@@ -1321,7 +1784,7 @@ test.describe('site-settings', () => {
       withInvoker((invoker) => invoker.run(useCases.getSiteImages, principal, {}));
     const choose = async (name: string) => {
       const picker = page.getByRole('group', { name: 'Default image' });
-      await picker.getByRole('button', { name: /^Choose (another )?image$/ }).click();
+      await picker.getByRole('button', { name: /^(Choose image|Replace)$/ }).click();
       const dialog = page.getByRole('dialog', { name: 'Default image' });
       await dialog.getByRole('radio', { name }).check();
       await dialog.getByRole('button', { name: 'Done' }).click();

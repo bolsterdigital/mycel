@@ -13,7 +13,12 @@ import { fail, redirect } from '@sveltejs/kit';
 import { refusalOf } from '#lib/server/http/refuse.js';
 import { anonymousPrincipal, useCases, type ConfirmPreview } from '@mycel/core';
 import { ui } from '../../../../i18n/index.js';
-import { CONFIRM_HEADERS, OUTCOME_COPY, answerLocale, outcomePath } from '#lib/server/confirm.js';
+import {
+  CONFIRM_HEADERS,
+  OUTCOME_COPY,
+  answerLocale,
+  outcomePath,
+} from '#lib/server/public/confirm.js';
 import { runtime } from '#lib/server/runtime.js';
 import { requireSite, sitePath, siteTenant } from '#lib/server/site.js';
 import type { Actions, PageServerLoad } from './$types';

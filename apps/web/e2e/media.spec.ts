@@ -10,15 +10,23 @@
 // repository as a block tree's save will, as mycel_app under the tenant's RLS.
 
 import { expect, test, type Page } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
 import { crc32, deflateSync } from 'node:zlib';
 import { request as httpRequest } from 'node:http';
-import { BLOCK_DEFINITIONS, ContentDocumentInput, systemPrincipal, useCases } from '@mycel/core';
+import {
+  BLOCK_DEFINITIONS,
+  ContentDocumentInput,
+  systemPrincipal,
+  useCases,
+  type TransactionContext,
+} from '@mycel/core';
 import { expectNoAxeViolations } from './lib/axe';
 import { expectPixels, watchImages } from './lib/images';
-import { tenantId, withInvoker } from './lib/invoker';
+import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { forwarded, login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
+import { openPublication } from './lib/publication';
 
 const SITE = 'http://probe.localhost:4173';
 
@@ -80,12 +88,13 @@ async function remove(page: Page, id: string, filename: string) {
 }
 
 async function upload(page: Page, filename: string, buffer = png(400, 300)) {
+  await page.getByRole('button', { name: 'Bestand uploaden', exact: true }).click();
   await page.getByLabel('Bestanden (verplicht)', { exact: true }).setInputFiles({
     name: filename,
     mimeType: 'image/png',
     buffer,
   });
-  await page.getByRole('button', { name: 'Uploaden' }).click();
+  await page.getByRole('button', { name: 'Uploaden', exact: true }).click();
   await expect(page.getByRole('status')).toContainText(`${filename} geüpload`);
   const card = item(page, filename);
   await expect(card).toBeVisible();
@@ -102,14 +111,20 @@ async function upload(page: Page, filename: string, buffer = png(400, 300)) {
  * delete, and every revision keeps the usages of its images, so a test page would otherwise pin
  * its images and their files in the shared tenant for good, and probe grew by fifteen media a run.
  */
-const leftovers = { items: [] as string[], media: [] as string[], names: [] as string[] };
+const leftovers = {
+  items: [] as string[],
+  media: [] as string[],
+  names: [] as string[],
+  members: [] as string[],
+};
 
 test.afterEach(async () => {
-  const { items, media, names } = leftovers;
+  const { items, media, names, members } = leftovers;
   leftovers.items = [];
   leftovers.media = [];
   leftovers.names = [];
-  if (items.length + media.length + names.length === 0) return;
+  leftovers.members = [];
+  if (items.length + media.length + names.length + members.length === 0) return;
   const principal = systemPrincipal(await tenantId(), 'e2e');
   await withInvoker(async (invoker, uow) => {
     for (const itemId of items) {
@@ -125,6 +140,8 @@ test.afterEach(async () => {
       for (const m of await uow.run(principal, (ctx) => ctx.media.list({ q, limit: 5 })))
         if (m.filename === q) media.push(m.id);
     for (const id of media) await invoker.run(useCases.deleteMedia, principal, { id });
+    for (const operatorId of members)
+      await invoker.run(useCases.removeMember, principal, { operatorId });
   });
 });
 
@@ -148,7 +165,9 @@ test('an operator uploads, sees, edits, downloads and deletes an image', async (
   // Only the thumbnail enhancement of the file field; the upload works without it.
   expect(
     await page
-      .locator('script:not([src="/_admin/file-preview.js"], [src="/_admin/nav.js"])')
+      .locator(
+        'script:not([src="/_admin/file-preview.js"], [src="/_admin/drop-upload.js"], [src="/_admin/nav.js"])'
+      )
       .count()
   ).toBe(0);
   await expectNoAxeViolations(page, { dark: true });
@@ -312,6 +331,7 @@ test('a chosen image shows as a thumbnail before it is uploaded', async ({ page 
   onlyA11y('the preview is a JavaScript enhancement');
   await login(page, '/admin/probe/media');
   const filename = `preview-${Date.now()}.png`;
+  await page.getByRole('button', { name: 'Bestand uploaden', exact: true }).click();
   await page.getByLabel('Bestanden (verplicht)', { exact: true }).setInputFiles({
     name: filename,
     mimeType: 'image/png',
@@ -324,20 +344,22 @@ test('a chosen image shows as a thumbnail before it is uploaded', async ({ page 
 
 test('an upload that is not what it says is refused with a reason', async ({ page }) => {
   await login(page, '/admin/probe/media');
+  await page.getByRole('button', { name: 'Bestand uploaden', exact: true }).click();
   await page.getByLabel('Bestanden (verplicht)', { exact: true }).setInputFiles({
     name: 'logo.svg',
     mimeType: 'image/svg+xml',
     buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>1</script></svg>'),
   });
-  await page.getByRole('button', { name: 'Uploaden' }).click();
+  await page.getByRole('button', { name: 'Uploaden', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('SVG-bestanden worden niet geaccepteerd');
 
+  await page.getByRole('button', { name: 'Bestand uploaden', exact: true }).click();
   await page.getByLabel('Bestanden (verplicht)', { exact: true }).setInputFiles({
     name: 'photo.jpg',
     mimeType: 'image/jpeg',
     buffer: png(10, 10),
   });
-  await page.getByRole('button', { name: 'Uploaden' }).click();
+  await page.getByRole('button', { name: 'Uploaden', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('niet wat de naam of het type zegt');
   await expectNoAxeViolations(page, { dark: true });
 });
@@ -430,12 +452,13 @@ test('a body above 512K is refused, except for the media upload', async ({ page,
 
 /** Upload two or more files in one go on the media page; returns their ids by filename. */
 async function uploadMany(page: Page, filenames: string[]) {
+  await page.getByRole('button', { name: 'Bestand uploaden', exact: true }).click();
   await page
     .getByLabel('Bestanden (verplicht)', { exact: true })
     .setInputFiles(
       filenames.map((name) => ({ name, mimeType: 'image/png', buffer: png(400, 300) }))
     );
-  await page.getByRole('button', { name: 'Uploaden' }).click();
+  await page.getByRole('button', { name: 'Uploaden', exact: true }).click();
   await expect(page.getByRole('status')).toContainText(`${filenames.length} bestanden geüpload`);
   const ids: Record<string, string> = {};
   for (const name of filenames) {
@@ -455,7 +478,7 @@ test('the library takes several files at once and finds one by name or caption',
   await expectNoAxeViolations(page, { dark: true });
 
   await page.getByLabel('Zoeken in media').fill(`plein-${stamp}`);
-  await page.getByRole('button', { name: 'Zoeken' }).click();
+  await page.getByRole('button', { name: 'Filteren' }).click();
   await expect(page).toHaveURL(new RegExp(`q=plein-${stamp}`));
   await expect(item(page, names[0]!)).toBeVisible();
   await expect(item(page, names[1]!)).toHaveCount(0);
@@ -475,6 +498,190 @@ test('the library takes several files at once and finds one by name or caption',
   for (const name of names) await remove(page, ids[name]!, name);
 });
 
+// The library as a worklist, on the rules of the content list. With and without a script,
+// since every view is a link or a GET form.
+test('the library narrows to what needs attention, in any order, and an asset goes back to it', async ({
+  page,
+}) => {
+  await login(page, '/admin/probe/media');
+  const stamp = `${test.info().project.name}-${Date.now()}`;
+  const names = {
+    lacking: `aaa-half-${stamp}.png`,
+    described: `bbb-heel-${stamp}.png`,
+    unused: `ccc-los-${stamp}.png`,
+  };
+  const ids = await uploadMany(page, Object.values(names));
+  const probe = await tenantId();
+  const itemId = await withInvoker(async (invoker) => {
+    const { item } = await invoker.run(useCases.createItem, systemPrincipal(probe, 'e2e'), {
+      slug: `media-worklist-${Date.now()}`,
+      document: ContentDocumentInput.parse({
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl', 'en'],
+        title: { nl: `Werklijst ${stamp}` },
+        blocks: [
+          {
+            type: 'image',
+            version: 1,
+            props: { mediaId: ids[names.lacking], decorative: false, alt: { nl: 'Half' } },
+          },
+          {
+            type: 'image',
+            version: 1,
+            props: {
+              mediaId: ids[names.described],
+              decorative: false,
+              alt: { nl: 'Heel', en: 'Whole' },
+            },
+          },
+        ],
+        access: { level: 'public' },
+      }),
+    });
+    return item.id;
+  });
+  leftovers.items.push(itemId);
+  leftovers.media.push(ids[names.lacking]!, ids[names.described]!);
+
+  await page.goto(`/admin/probe/media?q=${stamp}`);
+  await expect(page.locator('#media-count')).toHaveText('3 gevonden');
+
+  // Alt text missing: only the file a use lacks a locale for, and it says what is on.
+  await page.getByLabel('Gebruik').selectOption('no-alt');
+  await page.getByRole('button', { name: 'Filteren' }).click();
+  await expect(page).toHaveURL(/show=no-alt/);
+  await expect(page.locator('#media-count')).toHaveText('1 gevonden');
+  await expect(item(page, names.lacking)).toBeVisible();
+  await expect(item(page, names.described)).toHaveCount(0);
+  await expect(item(page, names.unused)).toHaveCount(0);
+  await expectNoAxeViolations(page, { dark: true });
+
+  // A chip takes only itself off: the search stays.
+  await page.getByRole('link', { name: 'Filter Gebruik: Alt-tekst ontbreekt verwijderen' }).click();
+  await expect(page).toHaveURL(new RegExp(`q=${stamp}`));
+  await expect(page).not.toHaveURL(/show=/);
+  await expect(page.locator('#media-count')).toHaveText('3 gevonden');
+
+  // Unused: what can go, and the delete on its page agrees.
+  await page.getByLabel('Gebruik').selectOption('unused');
+  await page.getByRole('button', { name: 'Filteren' }).click();
+  await expect(item(page, names.unused)).toBeVisible();
+  await expect(item(page, names.lacking)).toHaveCount(0);
+
+  // A type is a filter too; nothing of this search is a document, and the empty list says what to do.
+  await page.getByLabel('Soort').selectOption('document');
+  await page.getByRole('button', { name: 'Filteren' }).click();
+  await expect(page.getByText(`Niets gevonden voor “${stamp}”.`)).toBeVisible();
+  await page.getByRole('link', { name: 'Filters wissen' }).click();
+  await expect(page).not.toHaveURL(/kind=|show=|q=/);
+
+  // An order in the form works in the grid; in the table the headings say and change the same.
+  await page.goto(`/admin/probe/media?q=${stamp}`);
+  await page.getByLabel('Volgorde').selectOption('name-desc');
+  await page.getByRole('button', { name: 'Filteren' }).click();
+  await expect(page.locator('article h3').first()).toHaveText(names.unused);
+  await page.getByRole('link', { name: 'Lijst' }).click();
+  await expect(page).toHaveURL(/view=list/);
+  await expect(page).toHaveURL(/sort=name-desc/);
+  const table = page.locator('#media-table');
+  await expect(table.getByRole('columnheader', { name: 'Bestandsnaam' })).toHaveAttribute(
+    'aria-sort',
+    'descending'
+  );
+  await table.getByRole('link', { name: 'Grootte' }).click();
+  await expect(page).toHaveURL(/sort=size-asc/);
+  await expect(table.getByRole('columnheader', { name: 'Grootte' })).toHaveAttribute(
+    'aria-sort',
+    'ascending'
+  );
+
+  // The moment of the upload is a date a person reads, with the exact one on the element.
+  const uploaded = table.getByRole('row', { name: new RegExp(names.described) }).locator('time');
+  await expect(uploaded).toHaveAttribute('datetime', /^\d{4}-\d{2}-\d{2}T/);
+  await expect(uploaded).not.toHaveText(/object/);
+
+  // In and out: the asset goes back to this view, at its own row.
+  await table.getByRole('link', { name: names.described }).click();
+  await page
+    .getByRole('navigation', { name: /kruimel/i })
+    .getByRole('link', { name: 'Media' })
+    .click();
+  await expect(page).toHaveURL(new RegExp(`q=${stamp}.*view=list`));
+  await expect(page).toHaveURL(new RegExp(`#media-${ids[names.described]}$`));
+
+  // The menu opens the plain library, and a page past the end lands on the last there is.
+  await page.goto(`/admin/probe/media?q=${stamp}&page=9`);
+  await expect(page).not.toHaveURL(/page=/);
+  await expect(page.locator('#media-count')).toHaveText('3 gevonden');
+
+  // Deleting returns to that view too, and says so.
+  await page.goto(`/admin/probe/media/${ids[names.unused]}`);
+  await page.getByRole('button', { name: 'Verwijderen' }).click();
+  await expect(page).toHaveURL(new RegExp(`q=${stamp}.*done=deleted$`));
+  await expect(page.getByRole('status')).toContainText('Het bestand is verwijderd');
+  await expect(page.getByRole('link', { name: names.unused })).toHaveCount(0);
+});
+
+test('deleting the only file on the last page says so, on the page before it', async ({ page }) => {
+  await login(page, '/admin/probe/media');
+  const stamp = `${test.info().project.name}-laatste-${Date.now()}`;
+  const principal = systemPrincipal(await tenantId(), 'e2e');
+  // One file more than a page holds. Rows without files, so this is quick: the library lists them
+  // from the database and no route in this test asks for their bytes.
+  const now = Date.now();
+  const rows = Array.from({ length: 51 }, (_, n) => ({
+    id: randomUUID(),
+    filename: `${stamp}-${String(n).padStart(2, '0')}.png`,
+    createdAt: new Date(now - n * 1000),
+  }));
+  const eachRow = (
+    write: (ctx: TransactionContext, row: (typeof rows)[number]) => Promise<unknown>
+  ) =>
+    withInvoker((_, uow) =>
+      uow.run(principal, async (ctx) => {
+        for (const row of rows) await write(ctx, row);
+      })
+    );
+  await eachRow((ctx, { id, filename, createdAt }) =>
+    ctx.media.insert({
+      id,
+      kind: 'image',
+      contentType: 'image/png',
+      filename,
+      checksum: id.replaceAll('-', '').padEnd(64, '0'),
+      sizeBytes: 1,
+      totalBytes: 1,
+      width: 1,
+      height: 1,
+      variants: [],
+      access: 'public',
+      caption: {},
+      credit: { work: null, photographer: null },
+      source: null,
+      licence: null,
+      focal: { x: 0.5, y: 0.5 },
+      state: 'ready',
+      createdBy: principal.actor,
+      createdAt,
+      updatedAt: createdAt,
+    })
+  );
+  try {
+    await page.goto(`/admin/probe/media?q=${stamp}&page=2`);
+    await page.getByRole('link', { name: rows[50]!.filename }).click();
+    await page.getByRole('button', { name: 'Verwijderen' }).click();
+    // Page 2 is gone, so this is the redirect to page 1, which keeps the notice.
+    await expect(page).toHaveURL(new RegExp(`q=${stamp}.*done=deleted$`));
+    await expect(page).not.toHaveURL(/page=/);
+    await expect(page.locator('#media-count')).toHaveText('50 gevonden');
+    await expect(page.getByRole('status')).toContainText('Het bestand is verwijderd');
+  } finally {
+    // Soft-deleted, or the preflight of the next run refuses live rows without files.
+    await eachRow((ctx, { id }) => ctx.media.softDelete(id, new Date()));
+  }
+});
+
 test('an image block chooses its image from a grid of thumbnails, without a script', async ({
   page,
 }) => {
@@ -490,7 +697,7 @@ test('an image block chooses its image from a grid of thumbnails, without a scri
   const picker = block.getByRole('group', { name: 'Afbeelding' });
   await expect(picker.locator('[data-picker-name]')).toHaveText(names[0]!);
 
-  await picker.getByRole('button', { name: 'Ander beeld kiezen' }).click();
+  await picker.getByRole('button', { name: 'Vervangen' }).click();
   const dialog = page.getByRole('dialog', { name: 'Afbeelding' });
   await expect(dialog).toBeVisible();
   // Thumbnails, each a radio named by its file; the current one is checked.
@@ -544,6 +751,7 @@ test('a page gets its featured image from the picker, and shares it when publish
   await dialog.getByRole('radio', { name: filename }).check();
   await dialog.getByRole('button', { name: 'Klaar' }).click();
   // Publishing from the same form saves the choice first (editor trial 2026-10-28).
+  await openPublication(page);
   await page.getByRole('button', { name: 'Publiceren', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Gepubliceerd in nl.');
   // Back on the first tab after the redirect: the picker is there, a tab away with JavaScript.
@@ -627,7 +835,7 @@ test('the picker searches, and uploads dropped files with progress', async ({ pa
   await page.goto(`/admin/probe/content/${itemId}`);
   const block = page.locator('details.block').first();
   await block.locator(':scope > summary').click();
-  await block.getByRole('button', { name: 'Ander beeld kiezen' }).click();
+  await block.getByRole('button', { name: 'Vervangen' }).click();
   const dialog = page.getByRole('dialog', { name: 'Afbeelding' });
 
   // Search: only images whose name or caption matches, from the server.
@@ -666,6 +874,100 @@ test('the picker searches, and uploads dropped files with progress', async ({ pa
   ).toContainText(added[1]!);
 });
 
+test('the library opens as a grid and accepts window-wide drops with per-file results', async ({
+  page,
+}) => {
+  onlyA11y('window-wide drag and drop is progressive enhancement');
+  await login(page, '/admin/probe/media');
+  await expect(page.getByRole('button', { name: 'Bestand uploaden', exact: true })).toBeVisible();
+  await expect(page.getByLabel('Bestanden (verplicht)', { exact: true })).toBeHidden();
+  const originalUrl = page.url();
+  const overlay = page.locator('[data-upload-overlay]');
+  // A dragged link is not a file, and crossing nested elements does not hide the overlay.
+  await page.evaluate(() => {
+    const dataTransfer = new DataTransfer();
+    dataTransfer.setData('text/uri-list', 'https://example.test/image.png');
+    document.body.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer }));
+  });
+  await expect(overlay).toBeHidden();
+  const enter = () =>
+    page.evaluate(() => {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(new File(['x'], 'photo.png', { type: 'image/png' }));
+      document.body.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer }));
+      document
+        .querySelector('h1')!
+        .dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer }));
+      document
+        .querySelector('h1')!
+        .dispatchEvent(new DragEvent('dragleave', { bubbles: true, dataTransfer }));
+    });
+  await enter();
+  await expect(overlay).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(overlay).toBeHidden();
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await enter();
+  await expect(overlay).toBeVisible();
+  await setTextSize(page, '200%');
+  await page.setViewportSize(NARROW);
+  await layoutGate(page, 'window-wide file drop');
+  await expectNoAxeViolations(page);
+  await page.screenshot({ path: '.scratch/media-drop-320-200.png' });
+  const stamp = Date.now();
+  const filename = `window-drop-${stamp}.png`;
+  leftovers.names.push(filename);
+  const drop = (files: { name: string; type: string; bytes: number[] }[]) =>
+    page.evaluate((uploads) => {
+      const dataTransfer = new DataTransfer();
+      for (const f of uploads)
+        dataTransfer.items.add(new File([new Uint8Array(f.bytes)], f.name, { type: f.type }));
+      // Body is outside the upload dialog and its native file field.
+      document.body.dispatchEvent(
+        new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer })
+      );
+    }, files);
+  await drop([
+    { name: filename, type: 'image/png', bytes: [...png(400, 300)] },
+    { name: `refused-${stamp}.svg`, type: 'image/svg+xml', bytes: [...Buffer.from('<svg/>')] },
+  ]);
+  const results = page.locator('[data-upload-results]');
+  await expect(results).toContainText(`${filename} geüpload.`);
+  await expect(results).toContainText('SVG-bestanden worden niet geaccepteerd');
+  await expect(item(page, filename)).toBeVisible();
+  await expect(overlay).toBeHidden();
+  expect(page.url()).toBe(originalUrl);
+  await layoutGate(page, 'upload results and refreshed grid');
+  await expectNoAxeViolations(page);
+  await page.screenshot({ path: '.scratch/media-grid-320-200.png' });
+  // A network failure stays visible, does not navigate to the file and permits retry.
+  await page.route('**/media/upload', (route) => route.abort());
+  await drop([{ name: 'network.png', type: 'image/png', bytes: [...png(10, 10)] }]);
+  await expect(results).toContainText('network.png: Uploaden mislukt');
+  expect(page.url()).toBe(originalUrl);
+  await page.unroute('**/media/upload');
+  await results.getByRole('button', { name: 'Uploadresultaten sluiten' }).click();
+  await expect(results).toBeHidden();
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(originalUrl);
+  // A restricted upload dialog retains the native file drop path. Never publish a file
+  // dropped behind that dialog via the public quick-upload endpoint.
+  await page.getByRole('button', { name: 'Bestand uploaden', exact: true }).click();
+  await page.getByLabel('Afgeschermd: alleen lezers met toegang zien dit bestand').check();
+  const uploads: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().endsWith('/media/upload'))
+      uploads.push(request.url());
+  });
+  await drop([{ name: 'restricted.png', type: 'image/png', bytes: [...png(10, 10)] }]);
+  await expect(overlay).toBeHidden();
+  await expect(page.getByLabel('Bestanden (verplicht)', { exact: true })).toBeVisible();
+  expect(uploads).toEqual([]);
+  await page.keyboard.press('Escape');
+  const bounds = await item(page, filename).boundingBox();
+  expect(bounds!.y).toBeLessThan(700);
+  await page.screenshot({ path: '.scratch/media-grid-desktop.png' });
+});
 test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
   test.use({ viewport: NARROW });
 
@@ -675,15 +977,48 @@ test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
         page,
       }) => {
         onlyA11y('measures the layout with a script');
-        await login(page, '/admin/probe/media');
+        const email = `media-layout-${Date.now()}@probe.test`;
+        const principal = systemPrincipal(await tenantId(), 'e2e');
+        const member = await withInvoker((invoker) =>
+          invoker.run(useCases.inviteMember, principal, {
+            email,
+            capabilities: ['tenant:admin'],
+          })
+        );
+        leftovers.members.push(member.operatorId);
+        await login(page, '/admin/probe/media', email);
         const filename = `gate-${locale}-${text.replace('%', '')}-${Date.now()}.png`;
         const { id } = await upload(page, filename);
+        const setLocale = (value: string) =>
+          asOwner((owner) =>
+            owner
+              .updateTable('operators')
+              .set({ ui_locale: value })
+              .where('id', '=', member.operatorId)
+              .execute()
+          );
+        await setLocale(locale.startsWith('en') ? 'en' : 'nl');
         const headers = forwarded();
         await page.context().setExtraHTTPHeaders({ ...headers, 'accept-language': locale });
-        for (const path of ['/admin/probe/media', '/admin/probe/media?view=list']) {
+        // The last with its chips and clear link, in the longest words of the filter bar.
+        for (const path of [
+          '/admin/probe/media',
+          '/admin/probe/media?view=list',
+          `/admin/probe/media?view=list&sort=size-asc&q=gate&kind=image&show=no-alt`,
+          `/admin/probe/media?view=list&q=${filename}&kind=image&show=unused`,
+        ]) {
           await page.goto(path);
           await setTextSize(page, text);
           await layoutGate(page, path);
+          await page
+            .getByRole('button', {
+              name: locale === 'en-GB' ? 'Upload file' : 'Bestand uploaden',
+              exact: true,
+            })
+            .click();
+          await layoutGate(page, 'upload dialog', '#media-upload');
+          await expectNoAxeViolations(page);
+          await page.keyboard.press('Escape');
         }
         await page.goto(`/admin/probe/media/${id}`);
         await setTextSize(page, text);
@@ -693,10 +1028,12 @@ test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
         await layoutGate(page, 'lightbox');
         await page.keyboard.press('Escape');
         // The picker on an edit page; its image stays, a page uses it.
+        await setLocale('nl');
         await page.context().setExtraHTTPHeaders({ ...headers, 'accept-language': 'nl-NL' });
         await page.goto('/admin/probe/media');
         const used = await upload(page, `kiezer-${Date.now()}.png`);
         leftovers.media.push(used.id);
+        await setLocale(locale.startsWith('en') ? 'en' : 'nl');
         await page.context().setExtraHTTPHeaders({ ...headers, 'accept-language': locale });
         const itemId = await pageUsing(used.id, `Gate ${filename}`);
         await page.goto(`/admin/probe/content/${itemId}`);
@@ -718,8 +1055,49 @@ test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
         await page.locator('details.block [command="show-modal"]').first().click();
         await layoutGate(page, 'media picker dialog', 'dialog[open]');
         await page.keyboard.press('Escape');
+        await setLocale('nl');
         await page.context().setExtraHTTPHeaders({ ...headers, 'accept-language': 'nl-NL' });
         await remove(page, id, filename);
       });
     }
+});
+
+// Sound (#185): the browser's own player reads a real MP3 from the site, by byte ranges, because
+// Safari plays nothing from a server without them. Without scripts the player and the link remain.
+test.describe('a sound file on the site', () => {
+  const PATH = '/probe/blok-audio-transcript';
+
+  test('the player, the link and the transcript work without a script', async ({ page }) => {
+    await page.goto(PATH);
+    const block = page.locator('section.audio');
+    await expect(block.locator('audio[controls]')).toHaveAttribute(
+      'aria-label',
+      'Het gesprek met de raad'
+    );
+    await expect(block.getByRole('link', { name: 'Download het geluid' })).toBeVisible();
+    await block.getByText('Uitgeschreven tekst').click();
+    await expect(block.getByText('Goedemorgen.')).toBeVisible();
+    await page.setViewportSize(NARROW);
+    await setTextSize(page, '200%');
+    await layoutGate(page, 'sound block at 320 px and 200%');
+  });
+
+  test('the browser reads its duration, and a range gets that part', async ({ page, request }) => {
+    onlyA11y();
+    await page.goto(PATH);
+    const audio = page.locator('section.audio audio');
+    await expect
+      .poll(() => audio.evaluate((el: HTMLAudioElement) => el.duration))
+      .toBeGreaterThan(0.5);
+    const src = (await audio.getAttribute('src'))!;
+    const whole = await request.get(src);
+    expect(whole.status()).toBe(200);
+    expect(whole.headers()['content-type']).toBe('audio/mpeg');
+    expect(whole.headers()['accept-ranges']).toBe('bytes');
+    const size = (await whole.body()).length;
+    const part = await request.get(src, { headers: { range: 'bytes=0-9' } });
+    expect(part.status()).toBe(206);
+    expect(part.headers()['content-range']).toBe(`bytes 0-9/${size}`);
+    expect((await part.body()).length).toBe(10);
+  });
 });

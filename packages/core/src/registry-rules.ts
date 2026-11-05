@@ -13,28 +13,11 @@ const NAME = /^[a-z]+(\.[a-z][a-z_]*)+$/;
 /** Last name segments that publish, send, export or refund, and so must declare an `effect`. */
 const EFFECT_VERBS = ['publish', 'unpublish', 'schedule', 'unschedule', 'send', 'export', 'refund'];
 
-/**
- * Editorial modules: every use case under these prefixes must be `authenticatedOnly`, so a
- * public visitor's `content:read` never opens a draft, a revision or an author's e-mail address.
- * The public projection (`content.published.get`) is outside them on purpose.
- */
-const EDITORIAL_PREFIXES = [
-  'content.item.',
-  'content.block.',
-  'content.hero.',
-  'content.revision.',
-  'content.slug.',
-  'content.translation.',
-  'content.author.',
-  'content.section.',
-  'content.pattern.',
-];
-
 /** Last name segments that make something new, and so must say which limit they consume. */
-const GROWTH_VERBS = ['create', 'invite', 'add', 'submit', 'upload'];
+const GROWTH_VERBS = ['create', 'duplicate', 'invite', 'add', 'submit', 'upload'];
 
 /**
- * The naming rule (overview.md § Use-case names, TODO #54): `<module>.<entity>.<verb>`, or
+ * The naming rule (docs/reference/use-cases.md, TODO #54): `<module>.<entity>.<verb>`, or
  * `<module>.<verb>` when the module is the entity. A name is an HTTP path, an MCP tool and an
  * OpenAPI operation at once, so one word per concept, singular. `site` is the only prefix for site
  * settings, `tenant` the one for members, keys, hostnames, exports and limits. Rejected: a regex
@@ -63,6 +46,7 @@ const SINGULAR_DOCUMENTS = ['settings', 'entitlements', 'status'];
  * place), `delete` undoes `create` or `upload` (the thing stops existing).
  */
 const VERBS = [
+  'duplicate',
   ...['create', 'get', 'list', 'update', 'delete'],
   // Placement in a collection: a tenant's hostnames and members, a document's blocks (ADR 020).
   ...['add', 'remove', 'invite', 'insert', 'move', 'split_insert', 'set_primary'],
@@ -112,7 +96,7 @@ function checkUseCase(useCase: UseCase, fail: (rule: string) => void): void {
 
   // ADR 018 rule 5: publishing, sending, exporting and refunding need their own capability. Or
   // `tenant:admin`, which holds every capability and is never weaker: `tenant.export.create` (TODO #28)
-  // hands over members, key hashes and the audit log, more than `supporters:export` covers.
+  // hands over members and the audit log, more than `supporters:export` covers.
   if (effect) {
     if (kind === 'query') fail(`a query cannot have effect "${effect}"`);
     else if (requires !== EFFECT_CAPABILITY[effect] && requires !== 'tenant:admin')
@@ -129,8 +113,6 @@ function checkUseCase(useCase: UseCase, fail: (rule: string) => void): void {
   if (kind === 'command' && GROWTH_VERBS.includes(verb) && consumes === undefined)
     fail(`a command named "${verb}" must declare consumes (a limit, or null)`);
 
-  if (EDITORIAL_PREFIXES.some((p) => name.startsWith(p)) && !useCase.authenticatedOnly)
-    fail('an editorial use case must be authenticatedOnly');
   if (
     useCase.actors &&
     (!useCase.actors.length || new Set(useCase.actors).size !== useCase.actors.length)

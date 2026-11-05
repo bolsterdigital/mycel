@@ -223,14 +223,27 @@ export function blockReferenceRows(blocks: readonly Block[]): BlockReference[] {
 export function blockReferences(blocks: readonly BlockInput[]): {
   forms: string[];
   items: string[];
+  /** Media in an image slot. */
   media: string[];
+  /** Media in a document slot: one rule per slot, so the same id in both is checked twice. */
+  documents: string[];
+  /** Media in a sound slot, with its own rule too. */
+  audio: string[];
 } {
   // Input blocks may lack an id; the sets do not need one.
-  const rows = blockReferenceRows(blocks.map((b) => ({ ...b, id: b.id ?? '-' }) as Block));
-  const of = (type: ReferenceType) => [
-    ...new Set(rows.filter((r) => r.type === type).map((r) => r.refId)),
+  const refs = allBlocks(blocks.map((b) => ({ ...b, id: b.id ?? '-' }) as Block)).flatMap((b) =>
+    definition(b.type).references(b.props)
+  );
+  const of = (keep: (r: (typeof refs)[number]) => boolean) => [
+    ...new Set(refs.filter(keep).map((r) => r.refId)),
   ];
-  return { forms: of('form'), items: of('item'), media: of('media') };
+  return {
+    forms: of((r) => r.type === 'form'),
+    items: of((r) => r.type === 'item'),
+    media: of((r) => r.type === 'media' && !r.document && !r.audio),
+    documents: of((r) => r.type === 'media' && !!r.document),
+    audio: of((r) => r.type === 'media' && !!r.audio),
+  };
 }
 
 /** The outcome of normalising one block list (ADR 020 rule 4). */

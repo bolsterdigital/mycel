@@ -5,10 +5,15 @@
 <script lang="ts">
   import type { FormState, RenderBlock, RenderModel } from './model.js';
   import Callout from './Callout.svelte';
+  import Cards from './Cards.svelte';
   import Cta from './Cta.svelte';
   import Faq from './Faq.svelte';
+  import FileDownload from './FileDownload.svelte';
+  import Audio from './Audio.svelte';
   import Form from './Form.svelte';
+  import Gallery from './Gallery.svelte';
   import Heading from './Heading.svelte';
+  import Timeline from './Timeline.svelte';
   import Hero from './Hero.svelte';
   import Image from './Image.svelte';
   import Quote from './Quote.svelte';
@@ -42,7 +47,13 @@
   {#if block.type === 'heading'}
     <Heading text={block.text} />
   {:else if block.type === 'rich-text'}
-    <RichText doc={block.doc} {model} depth={1} idPrefix={block.id} />
+    <RichText
+      doc={block.doc}
+      {model}
+      depth={1}
+      idPrefix={block.id}
+      class={block.sourceId ? 'block rich-text rich-text-opening' : 'block rich-text'}
+    />
   {:else if block.type === 'image'}
     {#if block.image}
       <Image image={block.image} layout={block.layout} {model} eager={block.id === firstImage} />
@@ -51,6 +62,16 @@
     <Hero {block} {model} />
   {:else if block.type === 'cta'}
     <Cta {block} {model} />
+  {:else if block.type === 'cards'}
+    <Cards {block} {model} />
+  {:else if block.type === 'file-download'}
+    <FileDownload {block} {model} />
+  {:else if block.type === 'gallery'}
+    <Gallery {block} {model} />
+  {:else if block.type === 'audio'}
+    <Audio {block} {model} />
+  {:else if block.type === 'timeline'}
+    <Timeline {block} {model} />
   {:else if block.type === 'callout'}
     <Callout {block} {model} />
   {:else if block.type === 'faq'}
@@ -75,7 +96,12 @@
 
 {#each model.blocks as block (block.id)}
   {#if selectable}
-    <div data-block-id={block.id} class="preview-selectable">{@render rendered(block)}</div>
+    <div
+      data-block-id={(block.type === 'rich-text' && block.sourceId) || block.id}
+      class="preview-selectable"
+    >
+      {@render rendered(block)}
+    </div>
   {:else}
     {@render rendered(block)}
   {/if}

@@ -5,7 +5,7 @@
      the newest ready archive with its download, the checksum behind "Technical details"; and
      the history as a table in a card that stacks below 36rem, who created it by name. Nothing polls: a reload
      shows the progress. No cancel, because the export state machine has none (#74).
-     e2e/export.spec.ts checks the flow and 320 CSS px and 200% text (skill ui-action-layout).
+     e2e/admin.spec.ts checks the flow and 320 CSS px and 200% text (skill ui-action-layout).
      Rejected: a card per archive (the reader scans a history, #82) and a progress bar (the job
      reports steps, not a fraction; a bar would invent one). -->
 <script lang="ts">

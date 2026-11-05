@@ -72,8 +72,14 @@ test('the rule counts sql.raw and sql.lit in code, not comments or tests, and na
   const found = rawFragments([
     { path: 'packages/db/src/media.ts', text: 'const q = sql.raw(`drop ${name}`);' },
     { path: 'apps/web/src/lib/server/x.ts', text: 'const v = sql . lit(value);' },
-    { path: 'packages/db/src/jobs.ts', text: '// `sql.raw(` never\nconst a = sql.id(name);' },
-    { path: 'packages/db/src/jobs.test.ts', text: 'await sql.raw(`drop table x`).execute(db);' },
+    {
+      path: 'packages/db/src/operations/jobs.ts',
+      text: '// `sql.raw(` never\nconst a = sql.id(name);',
+    },
+    {
+      path: 'packages/db/src/operations/jobs.test.ts',
+      text: 'await sql.raw(`drop table x`).execute(db);',
+    },
     {
       path: 'packages/db/src/erasures.ts',
       text: 'sql.raw(a);\nsql.raw(b);\nsql.raw(c);\nsql.lit(d);',

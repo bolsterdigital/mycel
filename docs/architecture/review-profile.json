@@ -1,7 +1,7 @@
 {
   "$comment": "Project profile for targeted review (docs/architecture/review.md). Data, not code: which paths touch which review lens, which ADRs and gates already cover it, and which flags a reviewer reads first. scripts/review-signals.mjs maps a diff through it; scripts/review-signals.test.mjs keeps every path, ADR and gate here real.",
-  "version": 1,
-  "phase": "Phase 1: platform and content foundations. No editor, no public mail, no money yet.",
+  "version": 2,
+  "phase": "Platform, content with its editor, forms and mail are built. No money yet.",
   "lenses": [
     {
       "id": "security",
@@ -14,13 +14,11 @@
         "packages/db/src/infra/roles*",
         "packages/db/src/platform*",
         "packages/db/src/operators*",
-        "packages/db/src/connections*",
-        "packages/db/src/connection-intents*",
+        "packages/db/src/connections/**",
         "packages/db/src/infra/schema.ts",
         "packages/db/src/erasures*",
         "packages/db/src/erasure-backups*",
-        "packages/db/src/export*",
-        "packages/db/src/tenant-exports*",
+        "packages/db/src/portability/**",
         "packages/db/src/login-limit*",
         "packages/core/src/operators/**",
         "packages/core/src/connections/**",
@@ -56,10 +54,10 @@
         "apps/web/src/hooks.ts",
         "apps/web/vite.config.ts",
         "apps/web/src/lib/server/admin/admin*",
-        "apps/web/src/lib/server/confirm*",
-        "apps/web/src/lib/server/form-post*",
+        "apps/web/src/lib/server/public/confirm*",
+        "apps/web/src/lib/server/public/form-post*",
         "apps/web/src/lib/server/media.ts",
-        "apps/web/src/lib/server/preview.ts",
+        "apps/web/src/lib/server/content/preview.ts",
         "apps/web/src/routes/(preview)/**",
         "apps/web/src/lib/server/admin/export-download*",
         "apps/web/src/lib/server/admin/assist-settings*",
@@ -70,12 +68,16 @@
         "packages/core/src/util/digest*",
         "packages/core/src/util/email*",
         "packages/core/src/util/log*",
-        "packages/core/src/util/token*"
+        "packages/core/src/util/token*",
+        "apps/web/src/routes/_reports/**",
+        "apps/web/src/lib/server/http/reports*",
+        "apps/web/src/lib/server/admin/hostname*",
+        "apps/web/src/lib/server/admin/profile*"
       ],
       "adrs": ["002", "009", "011", "014", "016", "019", "024"],
       "gates": [
         "packages/db/src/rls.conformance.test.ts",
-        "packages/db/src/connections.test.ts",
+        "packages/db/src/connections/connections.test.ts",
         "packages/api/src/auth-runtime.test.ts",
         "packages/api/src/redaction.conformance.test.ts",
         "packages/db/src/erasures.conformance.test.ts",
@@ -98,7 +100,7 @@
         "packages/core/src/content/**",
         "packages/db/src/content*",
         "apps/web/src/routes/(public)/**",
-        "apps/web/src/lib/server/content-route*",
+        "apps/web/src/lib/server/public/content-route*",
         "docs/reference/content-model.md"
       ],
       "adrs": ["004", "012", "017", "020"],
@@ -106,7 +108,7 @@
         "packages/core/src/content/blocks.conformance.test.ts",
         "packages/db/src/content.test.ts",
         "packages/db/src/content-operations.test.ts",
-        "apps/web/src/lib/server/content-route.test.ts"
+        "apps/web/src/lib/server/public/content-route.test.ts"
       ],
       "counterproof": "One editorial task written in plain words (find, place, publish, correct) walked through the real routes."
     },
@@ -123,7 +125,8 @@
         "packages/api/src/**",
         "packages/mcp/src/**",
         "docs/reference/platform-api.md",
-        "packages/core/src/errors.ts"
+        "packages/core/src/errors.ts",
+        "apps/web/src/routes/.well-known/**"
       ],
       "adrs": ["009", "015", "018"],
       "gates": [
@@ -146,18 +149,22 @@
         "apps/web/src/lib/admin/**",
         "apps/web/src/lib/components/**",
         "apps/web/src/routes/(admin)/**",
-        "apps/web/src/lib/server/content-admin*",
-        "apps/web/src/lib/server/content-blocks*",
-        "apps/web/src/lib/server/edit-form*",
+        "apps/web/src/lib/server/content/content-admin*",
+        "apps/web/src/lib/server/content/content-list*",
+        "apps/web/src/lib/server/admin/media-list*",
+        "apps/web/src/lib/server/admin/list-memory*",
+        "apps/web/src/lib/server/content/content-blocks*",
+        "apps/web/src/lib/server/content/edit-form*",
         "apps/web/src/lib/editor/**",
         "apps/web/src/lib/theme/**",
         "packages/core/src/theme/**",
-        "apps/web/src/lib/server/theme*",
+        "apps/web/src/lib/server/public/theme*",
         "apps/web/static/**",
         "apps/web/src/app.html",
         "apps/web/src/lib/assets/**",
         "apps/web/e2e/quality-corpus.json",
-        "apps/web/e2e/routes.ts"
+        "apps/web/e2e/routes.ts",
+        "apps/web/src/hooks.client.ts"
       ],
       "adrs": ["009", "013", "020"],
       "gates": [
@@ -177,11 +184,12 @@
         "apps/web/src/i18n/**",
         "packages/core/src/i18n/**",
         "apps/web/src/lib/server/http/http-cache*",
-        "apps/web/src/lib/server/public-page.ts",
+        "apps/web/src/lib/server/public/public-page.ts",
         "apps/web/src/lib/server/admin/time-zones*",
-        "apps/web/src/lib/server/content-locale*",
+        "apps/web/src/lib/server/content/content-locale*",
         "apps/web/src/params.ts",
-        "packages/api/src/content-read.ts"
+        "packages/api/src/content-read.ts",
+        "apps/web/src/lib/server/public/share-locale*"
       ],
       "adrs": ["007", "012", "018"],
       "gates": [
@@ -201,12 +209,11 @@
         "packages/core/src/ops/**",
         "packages/core/src/mailing/**",
         "packages/core/src/media/**",
-        "packages/db/src/jobs*",
-        "packages/db/src/outbox*",
+        "packages/db/src/operations/jobs*",
+        "packages/db/src/operations/outbox*",
         "packages/db/src/infra/migrate*",
         "packages/db/src/infra/recovery*",
-        "packages/db/src/export*",
-        "packages/db/src/tenant-exports*",
+        "packages/db/src/portability/**",
         "packages/db/src/media*",
         "packages/db/src/assist*",
         "packages/api/src/runtime/worker*",
@@ -225,22 +232,23 @@
         "packages/db/src/infra/janitor.ts",
         "packages/db/src/forms.ts",
         "packages/db/src/mailing.ts",
-        "packages/db/src/rate-limit.ts",
+        "packages/db/src/operations/rate-limit.ts",
         "packages/db/src/supporters.ts",
         "apps/web/src/routes/healthz/**",
         "apps/web/src/routes/readyz/**",
-        "packages/db/src/ops.ts",
-        "packages/db/src/usage.ts",
-        "packages/db/src/site-settings*"
+        "packages/db/src/operations/ops.ts",
+        "packages/db/src/operations/usage.ts",
+        "packages/db/src/site-settings*",
+        "packages/core/src/assist/**"
       ],
       "adrs": ["005", "011", "019"],
       "gates": [
-        "packages/db/src/jobs.test.ts",
+        "packages/db/src/operations/jobs.test.ts",
         "packages/db/src/infra/recovery.test.ts",
         "packages/db/src/mailing.test.ts",
         "packages/db/src/site-settings.test.ts",
         "packages/db/src/infra/migrate.test.ts",
-        "packages/db/src/export.conformance.test.ts",
+        "packages/db/src/portability/export.conformance.test.ts",
         "packages/api/src/mail.test.ts",
         "packages/blob/src/blob.conformance.test.ts",
         ".github/workflows/restore-drill.yml",
@@ -270,16 +278,18 @@
         "scripts/gates/dead-exports*",
         "docs/architecture/overview.md",
         "packages/*/src/index.ts",
+        "packages/db/src/infra/dates.ts",
         "packages/db/src/infra/ids.ts",
         "packages/db/src/forms.ts",
         "packages/db/src/mailing.ts",
-        "packages/db/src/rate-limit.ts",
+        "packages/db/src/operations/rate-limit.ts",
         "packages/db/src/supporters.ts",
         "apps/*/.npmrc",
         "apps/web/src/app.d.ts",
         "apps/web/src/lib/index.ts",
         "apps/web/src/lib/runtime-key.ts",
-        "packages/core/src/util/bytes*"
+        "packages/core/src/util/bytes*",
+        "packages/core/src/util/**"
       ],
       "adrs": ["001", "006", "008", "013"],
       "gates": [
@@ -312,11 +322,13 @@
         "packages/db/src/testing.ts",
         "scripts/**",
         "packages/db/src/infra/seed*.ts",
-        "packages/db/src/infra/sessions*"
+        "packages/db/src/infra/sessions*",
+        "apps/web/e2e/fonts/**"
       ],
       "adrs": ["000"],
       "gates": [
         "scripts/gates/workflows.test.mjs",
+        "scripts/gates/file-size.test.mjs",
         "scripts/gates/docs-links.test.mjs",
         "scripts/review-signals.test.mjs"
       ],
@@ -377,6 +389,7 @@
     "LICENSE",
     "SECURITY.md",
     "TRADEMARK.md",
-    "**/.vscode/**"
+    "**/.vscode/**",
+    "packages/api/demo-photos/**"
   ]
 }

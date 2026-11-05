@@ -125,6 +125,7 @@ function enhance(picker) {
     controller = new AbortController();
     const url = new URL(picker.dataset.choices, location.href);
     url.searchParams.set('q', query);
+    if (picker.dataset.kind) url.searchParams.set('kind', picker.dataset.kind);
     if (append && cursor) url.searchParams.set('cursor', cursor);
     try {
       const response = await fetch(url, {
@@ -195,7 +196,12 @@ function uploader(picker, copy, id, initial, reveal) {
     type: 'file',
     id: `${id}-upload`,
     class: 'ui-filedrop',
-    accept: 'image/jpeg,image/png,image/webp,image/avif,image/gif',
+    accept:
+      picker.dataset.kind === 'document'
+        ? 'application/pdf'
+        : picker.dataset.kind === 'audio'
+          ? 'audio/mpeg'
+          : 'image/jpeg,image/png,image/webp,image/avif,image/gif',
     multiple: true,
   });
   const progress = el('ul', { class: 'ui-media-uploads', 'aria-live': 'polite' });

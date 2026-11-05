@@ -29,6 +29,10 @@ export interface LocalField {
 export interface PropReference {
   type: 'form' | 'item' | 'media';
   refId: string;
+  /** This media slot takes a document, not an image; the `content_block_refs` row stays `media`. */
+  document?: true;
+  /** This media slot takes a sound file, not an image; the row stays `media` here too. */
+  audio?: true;
 }
 
 export interface BlockExample<P> {
@@ -57,10 +61,17 @@ export type BlockField =
     }
   | { key: string; kind: 'caption' }
   | { key: string; kind: 'rich-text' }
-  | { key: string; kind: 'media' }
+  | { key: string; kind: 'media'; accept?: 'document' | 'audio' }
   | { key: string; kind: 'reference'; to: 'form' | 'item' }
-  | { key: string; kind: 'choice'; options: readonly string[] }
+  | {
+      key: string;
+      kind: 'choice';
+      options: readonly string[];
+      /** What a new form selects, when the schema's default is not the first option. */
+      initial?: string;
+    }
   | { key: string; kind: 'boolean' }
+  | { key: string; kind: 'date' }
   | { key: string; kind: 'actions'; min: number; max: number }
   | { key: string; kind: 'group'; optional?: 'omit' | 'null'; fields: readonly BlockField[] }
   | { key: string; kind: 'list'; min: number; max: number; fields: readonly BlockField[] };
@@ -83,6 +94,8 @@ const define = <S extends z.ZodTypeAny, V extends number>(d: BlockDefinition<S, 
 // Text bounds shared by the cards (brief #8b2 § 1).
 const ShortText = z.string().min(1).max(200);
 const BodyText = z.string().min(1).max(5000);
+/** A transcript: about half an hour of speech, which is what the upload limit lets through. */
+const TranscriptText = z.string().min(1).max(50000);
 const CaptionText = z.string().max(2000);
 const LabelText = z.string().min(1).max(100);
 
@@ -92,6 +105,15 @@ export const IMAGE_LAYOUTS = ['content', 'wide', 'full', 'float-left', 'float-ri
 export const HERO_VARIANTS = ['minimal', 'cover', 'split'] as const;
 export const CTA_VARIANTS = ['band', 'card'] as const;
 export const CALLOUT_VARIANTS = ['info', 'note', 'warning'] as const;
+export const CARDS_ACCENTS = ['none', 'bar', 'filled'] as const;
+export const GALLERY_VARIANTS = ['grid', 'row'] as const;
+export const TIMELINE_ORDERS = ['newest', 'oldest'] as const;
+/** How many events one `timeline` block lists; the rest view keeps a place for each. */
+export const TIMELINE_ROWS = 24;
+/** How many images one `gallery` block shows; the rest view keeps a place for each. */
+export const GALLERY_ROWS = 24;
+/** How many files one `file-download` block lists; the rest view keeps a place for each. */
+export const FILE_DOWNLOAD_ROWS = 12;
 export const FAQ_VARIANTS = ['list', 'accordion'] as const;
 export const QUOTE_VARIANTS = ['blockquote', 'pullquote'] as const;
 export const VIDEO_PROVIDERS = ['youtube', 'vimeo'] as const;
@@ -123,23 +145,27 @@ export const BlockAction = Action;
  * decorative, caption and credit overrides; docs/reference/media.md). An absent caption or credit
  * inherits the asset's; an empty caption string hides it in that locale.
  */
+const IMAGE_USE = {
+  mediaId: z.string().guid(),
+  decorative: z.boolean(),
+  alt: localized(z.string().min(1).max(1000).regex(/\S/, 'content.image.alt-empty')).nullable(),
+  caption: localized(CaptionText).optional(),
+  credit: MediaCredit.optional(),
+};
+function altRule(p: { decorative: boolean; alt: unknown }, ctx: z.RefinementCtx) {
+  if (p.decorative && p.alt !== null)
+    ctx.addIssue({ code: 'custom', path: ['alt'], message: 'content.image.decorative-alt' });
+  if (!p.decorative && p.alt === null)
+    ctx.addIssue({ code: 'custom', path: ['alt'], message: 'content.image.alt-required' });
+}
 function imageProps<L extends readonly [string, ...string[]]>(layouts: L) {
   return z
     .object({
-      mediaId: z.string().guid(),
-      decorative: z.boolean(),
-      alt: localized(z.string().min(1).max(1000).regex(/\S/, 'content.image.alt-empty')).nullable(),
-      caption: localized(CaptionText).optional(),
-      credit: MediaCredit.optional(),
+      ...IMAGE_USE,
       layout: z.enum(layouts as unknown as [L[number], ...L[number][]]).default(layouts[0]),
     })
     .strict()
-    .superRefine((p, ctx) => {
-      if (p.decorative && p.alt !== null)
-        ctx.addIssue({ code: 'custom', path: ['alt'], message: 'content.image.decorative-alt' });
-      if (!p.decorative && p.alt === null)
-        ctx.addIssue({ code: 'custom', path: ['alt'], message: 'content.image.alt-required' });
-    });
+    .superRefine(altRule);
 }
 const ImageProps = imageProps(IMAGE_LAYOUTS);
 const HeroImage = imageProps(['content'] as const);
@@ -154,10 +180,11 @@ const textField = (
   key: string,
   opts: Omit<Extract<BlockField, { kind: 'text' }>, 'key' | 'kind'>
 ) => ({ key, kind: 'text', ...opts }) as const;
-const choice = (key: string, options: readonly string[]): BlockField => ({
+const choice = (key: string, options: readonly string[], initial?: string): BlockField => ({
   key,
   kind: 'choice',
   options,
+  ...(initial && { initial }),
 });
 const creditField: BlockField = {
   key: 'credit',
@@ -173,12 +200,15 @@ const creditField: BlockField = {
     textField('photographer', { localized: false, optional: 'null' }),
   ],
 };
-const imageFieldsOf = (layouts: readonly string[]): BlockField[] => [
+const imageUseFields: BlockField[] = [
   { key: 'mediaId', kind: 'media' },
   { key: 'decorative', kind: 'boolean' },
   textField('alt', { localized: true, optional: 'null' }),
   { key: 'caption', kind: 'caption' },
   creditField,
+];
+const imageFieldsOf = (layouts: readonly string[]): BlockField[] => [
+  ...imageUseFields,
   choice('layout', layouts),
 ];
 
@@ -221,6 +251,8 @@ export const EXAMPLE_IDS = {
   item: exampleId(0xc001),
   image: exampleId(0xd001),
   portrait: exampleId(0xd002),
+  document: exampleId(0xd003),
+  audio: exampleId(0xd004),
 } as const;
 
 const doc = (...paragraphs: string[]): RichTextDoc => ({
@@ -265,6 +297,43 @@ const longLabel = {
 };
 
 // --- the registry -----------------------------------------------------------------------------
+
+const JOIN_CARD = {
+  title: { nl: 'Word lid', en: 'Become a member' },
+  body: { nl: 'Samen staan we sterker.', en: 'Together we stand stronger.' },
+  actions: [
+    {
+      label: { nl: 'Meld je aan', en: 'Sign up' },
+      target: { kind: 'item' as const, itemId: EXAMPLE_IDS.item },
+    },
+  ],
+};
+const VOLUNTEER_CARD = {
+  title: { nl: 'Doe mee als vrijwilliger', en: 'Volunteer with us' },
+  body: {
+    nl: 'Een paar uur per maand maakt al verschil, ook als je nog nooit eerder hebt meegedaan.',
+    en: 'A few hours a month already make a difference, even if you have never joined in before.',
+  },
+  actions: [
+    {
+      label: { nl: 'Bekijk de klussen', en: 'See the jobs' },
+      target: { kind: 'url' as const, url: 'https://example.org/klussen' },
+    },
+  ],
+};
+const DONATE_CARD = {
+  title: { nl: 'Steun ons', en: 'Support us' },
+  actions: [
+    {
+      label: { nl: 'Doneer', en: 'Donate' },
+      target: { kind: 'url' as const, url: 'https://example.org/doneer' },
+    },
+  ],
+};
+const NO_LINK_CARD = {
+  title: { nl: 'Kom langs', en: 'Drop by' },
+  body: { nl: 'Elke dinsdag op kantoor.', en: 'Every Tuesday at the office.' },
+};
 
 export const BLOCK_DEFINITIONS = {
   // No `level` prop: the renderer derives the heading level from tree depth (ADR 004 rule 3).
@@ -382,7 +451,7 @@ export const BLOCK_DEFINITIONS = {
       textField('body', { localized: true, multiline: true, optional: 'omit' }),
       { key: 'image', kind: 'group', optional: 'omit', fields: imageFieldsOf(['content']) },
       { key: 'actions', kind: 'actions', min: 0, max: 2 },
-      choice('width', WIDTHS),
+      choice('width', WIDTHS, 'full'),
       choice('align', ALIGNS),
     ],
     variants: { variant: HERO_VARIANTS, width: WIDTHS, align: ALIGNS },
@@ -489,6 +558,340 @@ export const BLOCK_DEFINITIONS = {
           actions: [readMore],
           width: 'full',
           align: 'end',
+        },
+      },
+    ],
+  }),
+
+  // Dreamkit's action cards in one block: the entries are props, as in `faq`; the number of columns
+  // follows the width on offer, and `width: full` is the band. Rejected: a column count, which a
+  // narrow container cannot honour, and a parent with child blocks, which would give every card
+  // block operations nobody needs.
+  cards: define({
+    version: 1,
+    props: z
+      .object({
+        accent: z.enum(CARDS_ACCENTS).default('none'),
+        width: Width.default('wide'),
+        cards: z
+          .array(
+            z
+              .object({
+                title: localized(ShortText),
+                body: localized(BodyText).optional(),
+                actions: z.array(Action).max(1).default([]),
+              })
+              .strict()
+          )
+          .min(2, 'content.cards.too-few')
+          .max(6),
+      })
+      .strict(),
+    fields: [
+      {
+        key: 'cards',
+        kind: 'list',
+        min: 2,
+        max: 6,
+        fields: [
+          textField('title', { localized: true }),
+          textField('body', { localized: true, multiline: true, optional: 'omit' }),
+          { key: 'actions', kind: 'actions', min: 0, max: 1 },
+        ],
+      },
+      choice('accent', CARDS_ACCENTS),
+      choice('width', WIDTHS, 'wide'),
+    ],
+    variants: { accent: CARDS_ACCENTS, width: WIDTHS },
+    localized: (p) =>
+      p.cards.flatMap((c, i) => [
+        ...present(['cards', i, 'title'], c.title),
+        ...present(['cards', i, 'body'], c.body),
+        ...c.actions.flatMap((a, j) => present(['cards', i, 'actions', j, 'label'], a.label)),
+      ]),
+    references: (p) => p.cards.flatMap((c) => actionRefs(c.actions)),
+    examples: [
+      {
+        name: 'cards-three-links',
+        props: { cards: [JOIN_CARD, VOLUNTEER_CARD, DONATE_CARD] },
+      },
+      {
+        name: 'cards-bar-content',
+        props: { accent: 'bar', width: 'content', cards: [JOIN_CARD, VOLUNTEER_CARD] },
+      },
+      {
+        name: 'cards-filled-full',
+        props: {
+          accent: 'filled',
+          width: 'full',
+          cards: [JOIN_CARD, VOLUNTEER_CARD, DONATE_CARD, NO_LINK_CARD],
+        },
+      },
+    ],
+  }),
+
+  // Dreamkit's file download, with the name of a file required and localised: readers get
+  // "Annual report 2025", not `jr-2025-final-v3.pdf`, and the rest view can show it without a media
+  // lookup. Rejected: falling back on the filename, which puts an internal name on the public site.
+  // No width: a list of links reads best at the width of the text.
+  'file-download': define({
+    version: 1,
+    props: z
+      .object({
+        title: localized(ShortText).optional(),
+        body: localized(BodyText).optional(),
+        files: z
+          .array(
+            z
+              .object({
+                fileId: z.string().guid('content.files.no-file'),
+                name: localized(ShortText),
+              })
+              .strict()
+          )
+          .min(1, 'content.files.too-few')
+          .max(FILE_DOWNLOAD_ROWS),
+      })
+      .strict(),
+    fields: [
+      textField('title', { localized: true, optional: 'omit' }),
+      textField('body', { localized: true, multiline: true, optional: 'omit' }),
+      {
+        key: 'files',
+        kind: 'list',
+        min: 1,
+        max: FILE_DOWNLOAD_ROWS,
+        fields: [
+          { key: 'fileId', kind: 'media', accept: 'document' },
+          textField('name', { localized: true }),
+        ],
+      },
+    ],
+    variants: {},
+    localized: (p) => [
+      ...present(['title'], p.title),
+      ...present(['body'], p.body),
+      ...p.files.flatMap((f, i) => present(['files', i, 'name'], f.name)),
+    ],
+    references: (p) =>
+      p.files.map((f) => ({ type: 'media' as const, refId: f.fileId, document: true as const })),
+    examples: [
+      {
+        name: 'file-download-one',
+        props: {
+          files: [
+            {
+              fileId: EXAMPLE_IDS.document,
+              name: { nl: 'Jaarverslag 2025', en: 'Annual report 2025' },
+            },
+          ],
+        },
+      },
+      {
+        name: 'file-download-titled',
+        props: {
+          title: { nl: 'Stukken bij deze zaak', en: 'Documents in this case' },
+          body: {
+            nl: 'Alle stukken die we openbaar hebben gekregen, met hun datum.',
+            en: 'Every document we obtained publicly, with its date.',
+          },
+          files: [
+            {
+              fileId: EXAMPLE_IDS.document,
+              name: { nl: 'Jaarverslag 2025', en: 'Annual report 2025' },
+            },
+            {
+              fileId: EXAMPLE_IDS.document,
+              name: { nl: 'Brief aan de gemeente', en: 'Letter to the municipality' },
+            },
+          ],
+        },
+      },
+    ],
+  }),
+
+  // Dreamkit's carousel, without the library: `row` is a native scroll-snap row that works without
+  // JavaScript, `grid` needs no scrolling at all. Each image is a use like the image block's, with
+  // its own alt per locale. Rejected: PhotoSwipe's lightbox and thumbnails, a script and a dialog
+  // for what a larger `width` already gives; autoplay, which WCAG 2.2.2 would have us let stop.
+  gallery: define({
+    version: 1,
+    props: z
+      .object({
+        variant: z.enum(GALLERY_VARIANTS).default('grid'),
+        width: Width.default('wide'),
+        images: z
+          .array(
+            z
+              .object({ ...IMAGE_USE, mediaId: z.string().guid('content.gallery.no-image') })
+              .strict()
+              .superRefine(altRule)
+          )
+          .min(2, 'content.gallery.too-few')
+          .max(GALLERY_ROWS),
+      })
+      .strict(),
+    fields: [
+      { key: 'images', kind: 'list', min: 2, max: GALLERY_ROWS, fields: imageUseFields },
+      choice('variant', GALLERY_VARIANTS),
+      choice('width', WIDTHS, 'wide'),
+    ],
+    variants: { variant: GALLERY_VARIANTS, width: WIDTHS },
+    localized: (p) => p.images.flatMap((image, i) => imageFields(['images', i], image)),
+    references: (p) => p.images.map((image) => ({ type: 'media' as const, refId: image.mediaId })),
+    examples: [
+      {
+        name: 'gallery-grid',
+        props: {
+          images: [image, { ...image, mediaId: EXAMPLE_IDS.portrait }],
+        },
+      },
+      {
+        name: 'gallery-row-content',
+        props: {
+          variant: 'row',
+          width: 'content',
+          images: [
+            { ...image, caption: { nl: 'Op het plein.', en: 'On the square.' } },
+            { mediaId: EXAMPLE_IDS.portrait, decorative: true, alt: null },
+            { ...image, credit: { work: null, photographer: 'Sam de Vries' } },
+          ],
+        },
+      },
+      {
+        name: 'gallery-grid-full',
+        props: {
+          width: 'full',
+          images: [image, { ...image, mediaId: EXAMPLE_IDS.portrait }, image],
+        },
+      },
+    ],
+  }),
+
+  // Dreamkit's audio player, without Plyr: the browser's own controls need no script and no styling
+  // that can fail. A title is required because a player without a name says nothing to a screen
+  // reader. Rejected: a captions file and a poster, which an audio element does not show; a switch
+  // to hide the download, which hides nothing from a visitor who has the file playing; the podcast
+  // feed and episode fields, which need an entity of their own (custom post types).
+  audio: define({
+    version: 1,
+    props: z
+      .object({
+        title: localized(ShortText),
+        fileId: z.string().uuid('content.audio.no-file'),
+        transcript: localized(TranscriptText).optional(),
+      })
+      .strict(),
+    fields: [
+      textField('title', { localized: true }),
+      { key: 'fileId', kind: 'media', accept: 'audio' },
+      textField('transcript', { localized: true, multiline: true, optional: 'omit' }),
+    ],
+    variants: {},
+    localized: (p) => [...present(['title'], p.title), ...present(['transcript'], p.transcript)],
+    references: (p) => [{ type: 'media' as const, refId: p.fileId, audio: true as const }],
+    examples: [
+      {
+        name: 'audio-plain',
+        props: {
+          title: { nl: 'Het gesprek met de raad', en: 'The talk with the council' },
+          fileId: EXAMPLE_IDS.audio,
+        },
+      },
+      {
+        name: 'audio-transcript',
+        props: {
+          title: { nl: 'Het gesprek met de raad', en: 'The talk with the council' },
+          fileId: EXAMPLE_IDS.audio,
+          transcript: {
+            nl: 'Goedemorgen.\nWe beginnen met de petitie.',
+            en: 'Good morning.\nWe start with the petition.',
+          },
+        },
+      },
+    ],
+  }),
+
+  // Dreamkit's timeline, without the script. An event has a date, a title, a text and at most one
+  // link, and the visitor gets all of them, sorted on the server. Rejected: Dreamkit's split into
+  // upcoming and earlier steps with a "now" marker, which needs a script to correct cached HTML and
+  // makes one revision's output depend on the day; folding each event, which hides the text for a
+  // list that is at most 24 short entries. No width: a list of dates reads best at the text's width.
+  timeline: define({
+    version: 1,
+    props: z
+      .object({
+        title: localized(ShortText).optional(),
+        order: z.enum(TIMELINE_ORDERS).default('newest'),
+        events: z
+          .array(
+            z
+              .object({
+                date: z.string().date('content.timeline.no-date'),
+                title: localized(ShortText),
+                body: localized(BodyText).optional(),
+                actions: z.array(Action).max(1).default([]),
+              })
+              .strict()
+          )
+          .min(2, 'content.timeline.too-few')
+          .max(TIMELINE_ROWS),
+      })
+      .strict(),
+    fields: [
+      textField('title', { localized: true, optional: 'omit' }),
+      {
+        key: 'events',
+        kind: 'list',
+        min: 2,
+        max: TIMELINE_ROWS,
+        fields: [
+          { key: 'date', kind: 'date' },
+          textField('title', { localized: true }),
+          textField('body', { localized: true, multiline: true, optional: 'omit' }),
+          { key: 'actions', kind: 'actions', min: 0, max: 1 },
+        ],
+      },
+      choice('order', TIMELINE_ORDERS),
+    ],
+    variants: { order: TIMELINE_ORDERS },
+    localized: (p) => [
+      ...present(['title'], p.title),
+      ...p.events.flatMap((e, i) => [
+        ...present(['events', i, 'title'], e.title),
+        ...present(['events', i, 'body'], e.body),
+        ...e.actions.flatMap((a, j) => present(['events', i, 'actions', j, 'label'], a.label)),
+      ]),
+    ],
+    references: (p) => p.events.flatMap((e) => actionRefs(e.actions)),
+    examples: [
+      {
+        name: 'timeline-newest',
+        props: {
+          events: [
+            { date: '2026-03-02', title: { nl: 'Petitie aangeboden', en: 'Petition handed over' } },
+            { date: '2026-05-19', title: { nl: 'Debat in de raad', en: 'Debate in the council' } },
+          ],
+        },
+      },
+      {
+        name: 'timeline-oldest-titled',
+        props: {
+          title: { nl: 'Hoe het ging', en: 'How it went' },
+          order: 'oldest',
+          events: [
+            {
+              date: '2026-05-19',
+              title: { nl: 'Debat in de raad', en: 'Debate in the council' },
+              body: {
+                nl: 'De raad stemde over het voorstel.',
+                en: 'The council voted on the proposal.',
+              },
+              actions: [signUp],
+            },
+            { date: '2026-03-02', title: { nl: 'Petitie aangeboden', en: 'Petition handed over' } },
+            { date: '2026-05-19', title: { nl: 'Besluit gepubliceerd', en: 'Decision published' } },
+          ],
         },
       },
     ],

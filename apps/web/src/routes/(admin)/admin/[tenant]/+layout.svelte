@@ -11,8 +11,8 @@
      (src/lib/admin/nav.ts, #114): the shell shows a screen's place before it is opened, and a
      screen knows nothing of the shell. Rejected: a rail that switches on by itself on edit
      screens (it surprises, and the script path would differ per screen; Jaap 2026-10-30).
-     The top holds the site, the profile and (#118, not built yet) the notifications: what is
-     about you and what asks for you, above the menu and visible on a phone too.
+     The top holds product/collapse, site and one native account group. Account actions stay
+     together above the navigation, also on phones. Notifications remain separate work.
      Under the site's name, a site with more than one locale has the content locale switch (#66
      PR 4): a form that stores the choice and comes back here. An edit screen says `itemLocale`
      in its page data and switches in its own bar instead, where it saves what was typed first.
@@ -59,7 +59,7 @@
       ? (['page', 'article'] as const).map((type) => ({
           href: `${base}/content?type=${type}`,
           label: t(type === 'page' ? 'admin.content.filter.page' : 'admin.content.filter.article'),
-          icon: type === 'page' ? 'file-text' : 'newspaper',
+          icon: type === 'page' ? 'panels-top-left' : 'square-pen',
           current: within('content') && contentType === type,
         }))
       : [];
@@ -97,23 +97,41 @@
 <div class="admin-shell" data-sveltekit-reload>
   <aside class="admin-sidebar" aria-label={t('admin.shell.navigation')}>
     <div class="admin-sidebar-top">
-      <a class="admin-brand" href="/admin?all">{t('admin.title')}</a>
-      <div class="admin-site-row">
-        <a class="admin-site-name" href={base}>{data.tenant.name}</a>
-        <!-- #118 puts the notifications bell here, before the profile. -->
-        <a
-          class="admin-profile"
-          href="{base}/profiel"
-          aria-current={within('profiel') ? 'page' : undefined}
-          title={t('admin.nav.profile')}
-          ><Icon name="circle-user" /><span class="ui-visually-hidden"
-            >{t('admin.nav.profile')}</span
-          ></a
+      <div class="admin-product-row">
+        <a class="admin-brand" href="/admin?all">{t('admin.shell.brand')}</a>
+        <button type="button" class="admin-collapse" data-nav-toggle
+          ><span class="admin-collapse-close"
+            ><Icon name="panel-left-close" /><span>{t('admin.shell.collapse')}</span></span
+          ><span class="admin-collapse-open"
+            ><Icon name="panel-left-open" /><span>{t('admin.shell.expand')}</span></span
+          ></button
         >
       </div>
+      <a class="admin-site-name" href={base}>{data.tenant.name}</a>
+      <!-- #118 adds real notification sources separately. -->
+      <details class="admin-account" open={within('profiel')}>
+        <summary data-nav-expand
+          ><Icon name="circle-user" /><span>{t('admin.shell.account')}</span><Icon
+            name="chevron-down"
+          /></summary
+        >
+        <div class="admin-account-actions">
+          <p>{data.email}</p>
+          <a href="{base}/profiel" aria-current={within('profiel') ? 'page' : undefined}
+            ><Icon name="circle-user" /><span>{t('admin.nav.profile')}</span></a
+          >
+          <a href="/admin?all"><Icon name="arrow-left-right" /><span>{t('admin.back')}</span></a>
+          <form method="post" action="/admin/logout">
+            <button type="submit" class="admin-logout"
+              ><Icon name="log-out" /><span>{t('admin.logout')}</span></button
+            >
+          </form>
+        </div>
+      </details>
       {#if localeSwitch}
         <form class="admin-content-locale" method="post" action="{base}/content-locale">
           <input type="hidden" name="return" value={page.url.pathname + page.url.search} />
+          <p class="admin-content-locale-label">{t('admin.locale.switch')}</p>
           <LocaleSwitch
             label={t('admin.locale.switch')}
             locale={data.locale}
@@ -144,22 +162,6 @@
           <NavGroup id={group.id} label={group.label} items={group.items} />
         {/each}
       </nav>
-      <div class="admin-sidebar-bottom">
-        <a href="/admin?all"><Icon name="arrow-left-right" /><span>{t('admin.back')}</span></a>
-        <p>{data.email}</p>
-        <form method="post" action="/admin/logout">
-          <button type="submit" class="admin-logout"
-            ><Icon name="log-out" /><span>{t('admin.logout')}</span></button
-          >
-        </form>
-        <button type="button" class="admin-collapse" data-nav-toggle
-          ><span class="admin-collapse-close"
-            ><Icon name="panel-left-close" /><span>{t('admin.shell.collapse')}</span></span
-          ><span class="admin-collapse-open"
-            ><Icon name="panel-left-open" /><span>{t('admin.shell.expand')}</span></span
-          ></button
-        >
-      </div>
     </details>
   </aside>
   <div class="admin-workspace" id="admin-main" tabindex="-1">

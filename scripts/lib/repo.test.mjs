@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, posix } from 'node:path';
-import { readAll, readJson, staleEntries, stripComments, walk } from './repo.mjs';
+import { loadDotEnv, readAll, readJson, staleEntries, stripComments, walk } from './repo.mjs';
 
 /** What a gate does itself instead of asking the shared module. */
 export const OWN_PLUMBING = [
@@ -35,12 +35,33 @@ function lintWords() {
     .filter((word) => word.endsWith('.mjs'));
 }
 
+/** A glob word of `lint:infra` as the files it runs: `dir/*.test.mjs` only. */
+function expand(word) {
+  if (!word.includes('*')) return [word];
+  const dir = dirname(word);
+  const suffix = posix.basename(word).replace(/^\*/, '');
+  return walk(dir, { match: (p) => p.endsWith(suffix) && dirname(p) === dir });
+}
+
+/** Every `.mjs` entry an npm script runs: a local run's root and files are held to the same rule. */
+function scriptWords() {
+  const { scripts } = readJson('package.json');
+  return Object.values(scripts)
+    .flatMap((script) => script.split(/\s+/))
+    .filter((word) => /^scripts\/.*\.mjs$/.test(word));
+}
+
+/** Reads something that is not this repository, so the shared walk has nothing to offer it. */
+const OUTSIDE_THE_REPO = new Map([
+  ['scripts/quality/gate.mjs', 'lists the directory the matrix artifacts were downloaded to'],
+]);
+
 /**
  * The gate files: every plain `.mjs` path in the `lint:infra` and `lint:deps` scripts, plus the
  * script modules they import or spawn.
  */
 function gateFiles() {
-  const named = lintWords().filter((word) => !word.includes('*'));
+  const named = [...new Set([...lintWords(), ...scriptWords()].flatMap(expand))];
   const all = new Set(named);
   for (const { path, text } of readAll(named))
     for (const [, spec] of text.matchAll(/(?:from |new URL\()'((?:\.\.?\/)?[\w./-]+\.mjs)'/g))
@@ -53,7 +74,9 @@ test('every gate uses scripts/lib/repo.mjs for walking, the root and tracked fil
   const gates = gateFiles();
   assert.ok(gates.includes('scripts/gates/check-owner-strings.mjs'), 'follows imports and spawns');
   assert.ok(gates.length > 15, `found ${gates.length} gate files`);
-  assert.deepEqual(ownPlumbing(readAll(gates)), []);
+  assert.ok(gates.includes('scripts/quality/runner.test.mjs'), 'expands a glob word');
+  assert.ok(gates.includes('scripts/e2e/e2e.mjs'), 'follows npm scripts');
+  assert.deepEqual(ownPlumbing(readAll(gates.filter((path) => !OUTSIDE_THE_REPO.has(path)))), []);
 });
 
 test('testing.md § Gates names every gate', () => {
@@ -61,6 +84,16 @@ test('testing.md § Gates names every gate', () => {
   const gates = doc.slice(doc.indexOf('\n## Gates\n'), doc.indexOf('\n## Local database\n'));
   assert.deepEqual(
     lintWords().filter((word) => !gates.includes(`\`${word}\``)),
+    []
+  );
+  // And the other way: a row whose gate left `lint:infra` is a promise nothing keeps.
+  const named = [...gates.matchAll(/^\| `(scripts\/[^`]+\.mjs|docker\/[^`]+\.mjs)`/gm)].map(
+    (m) => m[1]
+  );
+  assert.ok(named.length > 15, `found ${named.length} rows`);
+  const run = lintWords();
+  assert.deepEqual(
+    named.filter((word) => !run.includes(word)),
     []
   );
 });
@@ -117,4 +150,34 @@ test('stripComments keeps lines and URLs; staleEntries names what nothing needs'
     staleEntries(['x', 'y'], (e) => e === 'x', 'LIST'),
     ['LIST: y is no longer needed; remove the entry']
   );
+});
+
+test('loadDotEnv reads .env, lets a set variable win and accepts a missing file', () => {
+  const root = mkdtempSync(join(tmpdir(), 'mycel-dotenv-'));
+  const names = ['MYCEL_TEST_FROM_FILE', 'MYCEL_TEST_FROM_SHELL'];
+  try {
+    loadDotEnv(root);
+    writeFileSync(join(root, '.env'), names.map((name) => `${name}=file`).join('\n'));
+    process.env.MYCEL_TEST_FROM_SHELL = 'shell';
+    loadDotEnv(root);
+    assert.equal(process.env.MYCEL_TEST_FROM_FILE, 'file');
+    assert.equal(process.env.MYCEL_TEST_FROM_SHELL, 'shell');
+  } finally {
+    for (const name of names) delete process.env[name];
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('MYCEL_NO_DOTENV leaves .env unread, and test:collect sets it', () => {
+  const root = mkdtempSync(join(tmpdir(), 'mycel-dotenv-'));
+  try {
+    writeFileSync(join(root, '.env'), 'MYCEL_TEST_UNREAD=file');
+    process.env.MYCEL_NO_DOTENV = '1';
+    loadDotEnv(root);
+    assert.equal(process.env.MYCEL_TEST_UNREAD, undefined);
+  } finally {
+    delete process.env.MYCEL_NO_DOTENV;
+    rmSync(root, { recursive: true, force: true });
+  }
+  assert.match(readAll(['scripts/test-collect.mjs'])[0].text, /MYCEL_NO_DOTENV: '1'/);
 });

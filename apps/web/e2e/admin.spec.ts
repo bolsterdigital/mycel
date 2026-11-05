@@ -1,11 +1,11 @@
 // flow: access
 // Who may administer a site, and what the admin shows them: sign-in, membership, API keys, the
-// tenant shell across sites, the status page and managed connections. Each part below was a spec
-// of its own until TODO #50 folded the suite to its budget (testing.md § End-to-end flows); each
-// keeps its own fixtures in its own describe.
+// status page, managed connections, the site's hostnames and the export of its data. Each part
+// below was a spec of its own until TODO #50 and #171 folded the suite to its budget (testing.md §
+// End-to-end flows); each keeps its own fixtures in its own describe.
 
+import { openPublication } from './lib/publication';
 import {
-  Invoker,
   SYNTHETIC_SCOPE,
   capabilitiesFor,
   SYNTHETIC_SOURCE,
@@ -14,18 +14,31 @@ import {
   useCases,
 } from '@mycel/core';
 import { createServer } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import { type AddressInfo } from 'node:net';
 import { FakeDns } from '@mycel/core/testing';
-import { type Database, uuidv7Ids } from '@mycel/db';
-import { asRole, testTenant } from '@mycel/db/testing';
-import { type Page, expect, test } from '@playwright/test';
-import type { Kysely } from 'kysely';
+import { type Database, createDb, uuidv7Ids } from '@mycel/db';
+import { asRole, breakLatestDocument, testTenant } from '@mycel/db/testing';
+import { type Locator, type Page, expect, test } from '@playwright/test';
+import { type Kysely } from 'kysely';
 import { expectNoAxeViolations } from './lib/axe';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { ADMIN, login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
+import { settingsEvidence } from './lib/settings-evidence';
 import { callApi, requireApi } from './lib/api';
+import { randomUUID } from 'node:crypto';
+import { ADMIN_ROUTES } from './routes';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { spawn, execFile } from 'node:child_process';
+import { once } from 'node:events';
+import { pastMinimumFillTime } from './lib/form';
+import { writeFile } from 'node:fs/promises';
+import { promisify } from 'node:util';
+
+// A worker-scoped option on a separate test type keeps timeout-safe tracing on this flow only.
+const settingsTest = test.extend({ trace: ['retain-on-failure', { scope: 'worker' }] });
 
 // Operator admin (TODO #7), the seed of the "publish" flow in testing.md: login through the mock
 // IdP as e2e-admin@probe.test (scripts/e2e/e2e.mjs seeds that admin and starts the IdP), access by
@@ -33,6 +46,23 @@ import { callApi, requireApi } from './lib/api';
 // Runs without JavaScript and under axe like the signup spec. The dashboard and the members and
 // domains pages (moved verbatim from the tenant home in #66 PR 1) are routes of the generic UI
 // gate (routes.ts).
+/** The label stays inside its button, and no word of it breaks in the middle. */
+async function expectWholeLabel(button: Locator) {
+  expect(await button.evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(0);
+  const broken = await button.evaluate((e) => {
+    const text = [...e.childNodes].find((node) => node.nodeType === Node.TEXT_NODE)!;
+    return [...(text.textContent ?? '').matchAll(/\S+/g)]
+      .filter((word) => {
+        const range = document.createRange();
+        range.setStart(text, word.index);
+        range.setEnd(text, word.index + word[0].length);
+        return range.getClientRects().length > 1;
+      })
+      .map((word) => word[0]);
+  });
+  expect(broken).toEqual([]);
+}
+
 test.describe('admin', () => {
   test.use({
     locale: 'nl-NL',
@@ -56,11 +86,12 @@ test.describe('admin', () => {
   }) => {
     await login(page, '/admin/probe/leden');
     await expect(page.getByRole('heading', { level: 1, name: 'Team' })).toBeVisible();
+    await page.locator('.admin-account > summary').click();
     await expect(
-      page.locator('.admin-sidebar-bottom').getByText('e2e-admin@probe.test')
+      page.locator('.admin-account-actions').getByText('e2e-admin@probe.test')
     ).toBeVisible();
     await expect(
-      page.locator('.admin-sidebar-bottom').getByRole('button', { name: 'Uitloggen' })
+      page.locator('.admin-account-actions').getByRole('button', { name: 'Uitloggen' })
     ).toBeVisible();
     // The shell's one script is the menu's collapse button (#87); the screen itself has none.
     expect(await page.locator('script:not([src="/_admin/nav.js"])').count()).toBe(0);
@@ -112,6 +143,7 @@ test.describe('admin', () => {
 
     // Logging out ends the session: the admin sends you to the login page, which says why and
     // returns you to the page you asked for.
+    await page.locator('.admin-account > summary').click();
     await page.getByRole('button', { name: 'Uitloggen' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Je bent uitgelogd' })).toBeVisible();
     await expectNoAxeViolations(page);
@@ -159,6 +191,8 @@ test.describe('admin', () => {
       await expect(change.getByRole('radio', { name: /^Redacteur/ })).toBeChecked();
       await change.getByRole('radio', { name: /^Aangepast/ }).check();
       await change.locator('summary', { hasText: 'Geavanceerd' }).click();
+      // A capability no use case requires limits nothing, so it is not on offer.
+      await expect(change.getByLabel('mailing:send', { exact: true })).toHaveCount(0);
       await change.getByLabel('forms:read', { exact: true }).uncheck();
       await change.getByRole('button', { name: 'Opslaan' }).click();
       await expect(page.getByRole('status')).toContainText('Rol opgeslagen.');
@@ -343,7 +377,7 @@ test.describe('admin', () => {
   });
 
   // #51: a refused settings save says what happened; `suspended` was called "check the fields".
-  test('a refused settings save names a conflict and a suspension', async ({ page }) => {
+  settingsTest('a refused settings save names a conflict and a suspension', async ({ page }) => {
     const project = test.info().project.name;
     const slug = `site-refusals-${project}`;
     const email = `site-refusals-${project}@probe.test`;
@@ -370,21 +404,33 @@ test.describe('admin', () => {
         if (!(e instanceof UseCaseError && e.code === 'conflict')) throw e;
       }
     });
-    await login(page, `/admin/${slug}/site`, email);
+    const evidence = settingsEvidence(test.info());
+    evidence.watch('A', page);
     const save = (on: Page) => on.getByRole('button', { name: 'Tijdzone opslaan' }).click();
-    const other = await page.context().newPage();
-    await other.goto(`/admin/${slug}/site`);
-    await save(other);
-    await other.close();
-    await save(page);
-    await expect(page.getByText('Deze instellingen zijn elders gewijzigd')).toBeVisible();
     try {
-      await status('suspended');
-      await page.goto(`/admin/${slug}/site`);
-      await save(page);
-      await expect(page.getByText('Deze site is opgeschort')).toBeVisible();
+      await evidence.step('A: log in to settings', () => login(page, `/admin/${slug}/site`, email));
+      const other = await evidence.step('B: open tab', () => page.context().newPage());
+      evidence.watch('B', other);
+      await evidence.step('B: load settings', () => other.goto(`/admin/${slug}/site`));
+      await evidence.step('B: save settings', () => save(other));
+      // B stays open until the context goes. Closing it proved nothing here, and on CI one
+      // `page.close()` right after the navigation hung until the 30 s timeout, blamed on A's click.
+      await evidence.step('A: save stale settings', () => save(page));
+      await evidence.step('A: conflict message', () =>
+        expect(page.getByText('Deze instellingen zijn elders gewijzigd')).toBeVisible()
+      );
+      try {
+        await evidence.step('suspend tenant', () => status('suspended'));
+        await evidence.step('A: reload suspended settings', () => page.goto(`/admin/${slug}/site`));
+        await evidence.step('A: save suspended settings', () => save(page));
+        await evidence.step('A: suspension message', () =>
+          expect(page.getByText('Deze site is opgeschort')).toBeVisible()
+        );
+      } finally {
+        await evidence.step('restore active tenant', () => status('active'));
+      }
     } finally {
-      await status('active');
+      await evidence.attach();
     }
   });
 
@@ -425,6 +471,43 @@ test.describe('admin', () => {
       '/admin/login'
     );
     await expectNoAxeViolations(page);
+  });
+
+  test('no cache may keep an admin page, and Back after signing out finds none', async ({
+    page,
+  }) => {
+    onlyA11y('the header does not depend on the script');
+    test.slow();
+    await login(page, '/admin/probe');
+    await page.goto('/admin/probe/content?type=page');
+    const item = await page
+      .locator('main a[href*="/admin/probe/content/"]')
+      .first()
+      .getAttribute('href');
+    expect(item).toMatch(/\/content\/[0-9a-f-]{36}/);
+    const paths = [
+      ...ADMIN_ROUTES.map((route) => route.path),
+      new URL(item!, 'http://admin.invalid').pathname,
+      '/admin/probe/__data.json',
+      '/admin/probe/bestaat-niet',
+    ];
+    for (const path of paths) {
+      const { status, headers } = await page.request
+        .get(path, { maxRedirects: 0 })
+        .then((response) => ({ status: response.status(), headers: response.headers() }));
+      expect(status, path).toBeLessThan(500);
+      expect(headers['cache-control'], path).toBe('private, no-store');
+      expect(headers['etag'], path).toBeUndefined();
+    }
+
+    await page.goto('/admin/probe/profiel');
+    await page.goto('/admin/logout');
+    await page.getByRole('button', { name: 'Uitloggen' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Je bent uitgelogd' })).toBeVisible();
+    await page.goBack();
+    await page.goBack();
+    await expect(page).toHaveURL(/\/admin\/login\?return=/);
+    await expect(page.locator('.admin-sidebar')).toHaveCount(0);
   });
 
   test('logging out empties what this origin kept in the browser', async ({ page }) => {
@@ -631,522 +714,6 @@ test.describe('admin', () => {
   });
 });
 
-// The tenant shell is one navigation surface across routes, locales and site memberships.
-// A second, empty site catches stale site names and links when changing tenants.
-test.describe('admin-shell', () => {
-  const email = 'shell-admin@probe.test';
-  const other = 'shell-other';
-  // A live API key whose name has no break opportunity, long enough to overflow with any font. Its
-  // revoke button once repeated the name and was clipped (TODO #63); the whole overview is now
-  // measured at 320 CSS px and 200% text on every run and platform, that button included.
-  const unbroken = 'newsletter_sync_production_e2e_a11y_1761600000000';
-
-  /** Runs one use case as the system on tenant probe, outside the browser. */
-  async function onProbe<T>(run: (invoker: Invoker, tenantId: string) => Promise<T>): Promise<T> {
-    const probe = await tenantId();
-    return withInvoker((invoker) => run(invoker, probe));
-  }
-
-  test.beforeAll(async () => {
-    const probe = await tenantId();
-    const tenant = await asOwner((owner) =>
-      // Fixed slug, reused on a database that outlives the run: the test clicks it by name.
-      testTenant(owner, other, {
-        name: 'Second editorial site',
-        locales: ['en', 'nl'],
-        platformDomain: process.env['PLATFORM_DOMAIN']!,
-        reuse: true,
-      })
-    );
-    await withInvoker(async (invoker) => {
-      for (const site of [probe, tenant.id]) {
-        try {
-          await invoker.run(useCases.inviteMember, systemPrincipal(site, 'e2e'), {
-            email,
-            capabilities: ['tenant:admin'],
-          });
-        } catch (e) {
-          if (!(e instanceof UseCaseError && e.code === 'conflict')) throw e;
-        }
-      }
-    });
-  });
-
-  /** At 320 CSS px the navigation is one ☰ bar, closed on every page load (#66 PR 1). */
-  async function openMenu(page: Page) {
-    const summary = page.locator('.admin-menu > summary');
-    if ((await summary.isVisible()) && (await page.locator('.admin-menu[open]').count()) === 0)
-      await summary.click();
-  }
-
-  async function checkShell(page: Page, name: string, current: string) {
-    await openMenu(page);
-    await expect(page.locator('.admin-site-name')).toHaveText(name);
-    await expect(
-      page
-        .getByRole('navigation', { name: /sitenavigatie|site navigation/i })
-        .getByRole('link', { name: current })
-    ).toHaveAttribute('aria-current', 'page');
-    await expect(page.getByRole('main')).toHaveCount(1);
-    if (isA11y()) await expectNoAxeViolations(page);
-    else {
-      const all = await page
-        .locator('script')
-        .evaluateAll((nodes) =>
-          nodes.map((node) => ({ src: node.getAttribute('src'), type: node.getAttribute('type') }))
-        );
-      // The content editor's live preview, the media pickers' search and upload and the media
-      // upload's thumbnails are optional modules, inert in this project; the native flows remain
-      // the no-JS contract. Other shell routes still emit no script.
-      const path = new URL(page.url()).pathname;
-      const picker = (s: { src: string | null }) => s.src === '/_admin/media-picker.js';
-      // Every tenant route carries the menu's collapse script (#87), a classic one in <head>.
-      expect(all).toContainEqual({ src: '/_admin/nav.js', type: null });
-      // Only the integrated editor hydrates. Its tabs and live preview start after hydration;
-      // no-JavaScript still receives the complete native form and one inert bootstrap.
-      const editor = /\/content\/[0-9a-f-]{36}$/.test(path);
-      const bootstrap = all.filter((s) => s.src === null);
-      expect(bootstrap).toHaveLength(editor ? 1 : 0);
-      const scripts = all.filter((s) => !picker(s) && s.src !== '/_admin/nav.js' && s.src !== null);
-      if (all.some(picker)) {
-        expect(editor).toBe(true);
-        expect(all.filter(picker).every((s) => s.type === 'module')).toBe(true);
-      }
-      expect(scripts).toEqual(
-        /\/media$/.test(path) ? [{ src: '/_admin/file-preview.js', type: 'module' }] : []
-      );
-    }
-  }
-
-  test('site navigation persists through content, editor, media, settings and a second tenant', async ({
-    page,
-  }) => {
-    await login(page, '/admin/probe', email);
-    await checkShell(page, 'Probe', 'Dashboard');
-    await page
-      .getByRole('navigation', { name: 'Site navigation' })
-      .getByRole('link', { name: 'Pages' })
-      .click();
-    await checkShell(page, 'Probe', 'Pages');
-    await expect(page.locator('#content-table tbody tr').first()).toBeVisible();
-    await page.locator('#content-table tbody th a').first().click();
-    await checkShell(page, 'Probe', 'Pages');
-    await page
-      .getByRole('navigation', { name: 'Site navigation' })
-      .getByRole('link', { name: 'Media' })
-      .click();
-    await checkShell(page, 'Probe', 'Media');
-    await page
-      .getByRole('navigation', { name: 'Site navigation' })
-      .getByRole('link', { name: 'Settings' })
-      .click();
-    await expect(page).toHaveURL(/\/admin\/probe\/site$/);
-    // The subjects of Settings sit under it in the sidebar (#81-rest), not as tabs on the page;
-    // since #114 the look only, API access, assistance and usage are under Manage.
-    const sections = page
-      .getByRole('navigation', { name: 'Site navigation' })
-      .getByRole('link', { name: 'Settings' })
-      .locator('xpath=following-sibling::ul');
-    await expect(sections.getByRole('link')).toHaveText([
-      'General',
-      'Theme',
-      'Logo and wordmark',
-      'Menus and footer',
-    ]);
-    await expect(sections.getByRole('link', { name: 'General' })).toHaveAttribute(
-      'aria-current',
-      'page'
-    );
-    await expect(page.getByRole('main').locator('.ui-subnav')).toHaveCount(0);
-    await sections.getByRole('link', { name: 'Theme' }).click();
-    await expect(page).toHaveURL(/\/admin\/probe\/site\?section=theme$/);
-    await expect(sections.getByRole('link', { name: 'Theme' })).toHaveAttribute(
-      'aria-current',
-      'page'
-    );
-    await page.getByRole('link', { name: 'Back to your sites' }).click();
-    await page.getByRole('main').getByRole('link', { name: 'Second editorial site' }).click();
-    await checkShell(page, 'Second editorial site', 'Dashboard');
-    // That layout was mounted on a hydrated page: its script runs, and only once.
-    if (isA11y()) {
-      await page.locator('[data-nav-toggle]').click();
-      await expect(page.locator('html')).toHaveAttribute('data-admin-nav', 'rail');
-      await page.locator('[data-nav-toggle]').click();
-      await expect(page.locator('html')).toHaveAttribute('data-admin-nav', 'full');
-    }
-    await page
-      .getByRole('navigation', { name: 'Site navigation' })
-      .getByRole('link', { name: 'Pages' })
-      .click();
-    await expect(page.locator('#content-table tbody tr')).toHaveCount(0);
-    await checkShell(page, 'Second editorial site', 'Pages');
-    await expect(page.locator('body')).not.toContainText('Probe');
-  });
-
-  // #66 PR 1: the dashboard first, then three groups with short labels and icons; an article is
-  // marked as an article in its list, its editor and its writer. Axe in both schemes.
-  test('the dashboard has six widgets and the navigation three groups', async ({ page }) => {
-    await login(page, '/admin/probe', email);
-    await checkShell(page, 'Probe', 'Dashboard');
-    await expect(page.locator('.admin-menu > summary')).toBeHidden();
-    await expect(page.locator('.ui-dashboard > .ui-widget')).toHaveCount(6);
-    await expect(page.locator('.ui-widget.empty')).toHaveCount(5);
-    // Two columns on a wide screen, never three (brief edit-screen § 4).
-    expect(
-      await page
-        .locator('.ui-dashboard > .ui-widget')
-        .evaluateAll(
-          (nodes) => new Set(nodes.map((n) => Math.round(n.getBoundingClientRect().left))).size
-        )
-    ).toBe(2);
-    await expect(page.getByRole('region', { name: 'Usage and limits' })).toContainText(
-      'Supporters'
-    );
-    await expect(page.getByRole('region', { name: 'Waiting for you' })).toContainText(
-      'Coming later.'
-    );
-    const nav = page.getByRole('navigation', { name: 'Site navigation' });
-    for (const [group, links] of [
-      ['Content', ['Pages', 'Articles']],
-      ['Library', ['Media']],
-    ] as const)
-      await expect(nav.getByRole('list', { name: group }).getByRole('link')).toHaveText([...links]);
-    // #114 (Jaap 2026-10-31): Manage apart from Settings, Team its own line under Manage, the
-    // screens you set once (domains, status, export) only once you are inside Manage.
-    await expect(nav.locator('.ui-navgroup:last-child a')).toHaveText([
-      'Manage',
-      'Team',
-      'Settings',
-    ]);
-    await nav.getByRole('link', { name: 'Manage' }).click();
-    await expect(page.getByRole('heading', { level: 1, name: 'Manage' })).toBeVisible();
-    await expect(nav.getByRole('link', { name: 'Manage' })).toHaveAttribute('aria-current', 'page');
-    await expect(nav.locator('.ui-navgroup:last-child a')).toHaveText([
-      'Manage',
-      'Team',
-      'Domains',
-      'Connections',
-      'API access',
-      'AI assistance',
-      'Usage and limits',
-      'Status',
-      'Log',
-      'Export',
-      'Settings',
-    ]);
-    await expect(page.getByRole('main').getByRole('link')).toHaveText([
-      'Probe',
-      'Team',
-      'Domains',
-      'Connections',
-      'API access',
-      'AI assistance',
-      'Usage and limits',
-      'Status',
-      'Log',
-      'Export',
-    ]);
-    await page.getByRole('main').getByRole('link', { name: 'Domains' }).click();
-    await expect(nav.getByRole('link', { name: 'Domains' })).toHaveAttribute(
-      'aria-current',
-      'page'
-    );
-    await expect(nav.getByRole('link', { name: 'Manage' })).toHaveAttribute('aria-current', 'true');
-    if (isA11y()) await expectNoAxeViolations(page, { dark: true });
-    await page.goto('/admin/probe');
-    await expect(nav.getByRole('link', { name: 'Overview' })).toHaveCount(0);
-    await expect(page.locator('.admin-site-name')).toHaveAttribute('href', '/admin/probe');
-    if (isA11y()) await expectNoAxeViolations(page, { dark: true });
-
-    await nav.getByRole('link', { name: 'Articles' }).click();
-    await checkShell(page, 'Probe', 'Articles');
-    if (isA11y()) await expectNoAxeViolations(page, { dark: true });
-    // The article editor loads no live preview, unlike the page editor checkShell expects, so
-    // its mark is checked here directly.
-    await page.locator('#content-table tbody th a').first().click();
-    await expect(nav.getByRole('link', { name: 'Articles' })).toHaveAttribute(
-      'aria-current',
-      'page'
-    );
-    await expect(page.locator('#item-edit')).toBeVisible();
-    await page.goto(`${new URL(page.url()).pathname}/write`);
-    await expect(nav.getByRole('link', { name: 'Articles' })).toHaveAttribute(
-      'aria-current',
-      'page'
-    );
-    await expect(nav.getByRole('link', { name: 'Pages' })).not.toHaveAttribute('aria-current');
-  });
-
-  // #114: a member without an administrator's capabilities sees no Manage and no empty group,
-  // and the Manage page refuses them rather than listing nothing.
-  test('an author sees no Manage, and the Manage page refuses them', async ({ page }) => {
-    const author = 'shell-author@probe.test';
-    await withInvoker(async (invoker) => {
-      try {
-        await invoker.run(useCases.inviteMember, systemPrincipal(await tenantId(), 'e2e'), {
-          email: author,
-          capabilities: capabilitiesFor('author'),
-        });
-      } catch (e) {
-        if (!(e instanceof UseCaseError && e.code === 'conflict')) throw e;
-      }
-    });
-    await login(page, '/admin/probe', author);
-    const nav = page.getByRole('navigation', { name: 'Site navigation' });
-    await expect(nav.getByRole('link', { name: 'Pages' })).toBeVisible();
-    await expect(nav.getByRole('link', { name: 'Manage' })).toHaveCount(0);
-    await expect(nav.getByRole('link', { name: 'Team' })).toHaveCount(0);
-    expect(
-      await nav
-        .locator('.ui-navgroup')
-        .evaluateAll((groups) => groups.filter((g) => !g.querySelector('a')).length)
-    ).toBe(0);
-    const refused = await page.goto('/admin/probe/beheer');
-    expect(refused?.status()).toBe(403);
-  });
-
-  // MY-110 C3: an author edits a page with a form but has no `forms:read`. The screen opens, says
-  // the form is linked and keeps the reference, rather than failing or calling it missing.
-  test('an author opens a page with a form and sees that it is linked', async ({
-    page,
-    request,
-  }) => {
-    requireApi();
-    const author = 'form-author@probe.test';
-    await withInvoker(async (invoker) => {
-      try {
-        await invoker.run(useCases.inviteMember, systemPrincipal(await tenantId(), 'e2e'), {
-          email: author,
-          capabilities: capabilitiesFor('author'),
-        });
-      } catch (e) {
-        if (!(e instanceof UseCaseError && e.code === 'conflict')) throw e;
-      }
-    });
-    const { items } = await callApi<{ items: { id: string }[] }>(request, 'content.item.list', {
-      type: 'page',
-      slug: `e2e-blokken-${test.info().project.name}`,
-    });
-    await login(page, `/admin/probe/content/${items[0]!.id}`, author);
-    const rests = page.locator('[data-block-rest] .ui-block-text-form');
-    await expect(rests).toHaveCount(2);
-    await expect(rests.first().locator('.ui-block-text-kind')).toContainText(
-      /Linked form|Gekoppeld/
-    );
-    await expect(rests.locator('[data-missing]')).toHaveCount(0);
-    await expect(rests.locator('.ui-block-text-input')).toHaveCount(0);
-  });
-
-  // #66 PR 4 (Jaap 2026-10-30, zoomed out): the workspace stands at one distance from the
-  // sidebar and grows with the window, instead of a capped page centred further and further away.
-  test('the workspace keeps its place beside the sidebar and grows on a wide screen', async ({
-    page,
-  }) => {
-    await login(page, '/admin/probe/content?type=page', email);
-    const measure = async (width: number) => {
-      await page.setViewportSize({ width, height: 900 });
-      return page.evaluate(() => {
-        const side = document.querySelector('.admin-sidebar')!.getBoundingClientRect();
-        const main = document
-          .querySelector('.admin-workspace .page.admin')!
-          .getBoundingClientRect();
-        return { gap: Math.round(main.left - side.right), width: Math.round(main.width) };
-      });
-    };
-    const normal = await measure(1280);
-    const wide = await measure(2560);
-    expect(wide.gap).toBe(normal.gap);
-    expect(wide.width - normal.width).toBe(1280);
-  });
-
-  // Trial 4b-8/9 (#113): Team's table is as wide as its content with every cell of a row on one
-  // baseline, and the long Theme form keeps its save in view at the bottom of the window.
-  test('Team reads as a compact table, and Theme keeps its save in view', async ({ page }) => {
-    await login(page, '/admin/probe/leden', email);
-    await page.setViewportSize({ width: 1280, height: 800 });
-    const team = await page.locator('#members').evaluate((table) => {
-      const row = table.querySelector('tbody tr')!;
-      // The bottom of each cell's first line of text: equal when the cells share a baseline.
-      const bottoms = [...row.querySelectorAll('th, td')].map((cell) => {
-        // No filter callback: with JavaScript off (no-js) the page cannot run one.
-        const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
-        let node = walker.nextNode();
-        while (node && !node.textContent!.trim()) node = walker.nextNode();
-        const range = document.createRange();
-        range.selectNodeContents(node!);
-        return range.getClientRects()[0]!.bottom;
-      });
-      return {
-        width: table.getBoundingClientRect().width,
-        column: table.closest('main')!.getBoundingClientRect().width,
-        spread: Math.max(...bottoms) - Math.min(...bottoms),
-      };
-    });
-    expect(team.width).toBeLessThan(team.column * 0.8);
-    expect(team.spread).toBeLessThanOrEqual(4);
-
-    await page.goto('/admin/probe/site?section=theme');
-    const save = page.getByRole('button', { name: 'Save theme' });
-    await expect(save).toBeInViewport();
-  });
-
-  for (const locale of ['nl', 'en']) {
-    test.describe(`sidebar language ${locale}`, () => {
-      test.use({ locale });
-      test(`sidebar follows its longest label and reflows in ${locale}`, async ({ page }) => {
-        await login(page, '/admin/probe/content?type=page', email, { 'accept-language': locale });
-        await expect(page.locator('html')).toHaveAttribute('lang', locale);
-        await page.setViewportSize({ width: 1280, height: 900 });
-        // The menu's lines and the account lines below it set the column (#114: "Back to your
-        // sites" on one line), and every line is one line of text.
-        const measure = () =>
-          page.locator('.admin-sidebar').evaluate((sidebar) => {
-            const links = [
-              ...sidebar.querySelectorAll(
-                '.ui-navgroup a, .admin-sidebar-bottom > a, .admin-sidebar-bottom button'
-              ),
-            ].filter((link) => link.getClientRects().length);
-            // Lines of text per link: the distinct tops of its visible text (icons left out).
-            const lines = links.map((link) => {
-              const walker = document.createTreeWalker(link, NodeFilter.SHOW_TEXT);
-              const tops = new Set<number>();
-              for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-                if (!node.textContent!.trim()) continue;
-                const range = document.createRange();
-                range.selectNodeContents(node);
-                for (const rect of range.getClientRects())
-                  if (rect.width) tops.add(Math.round(rect.top));
-              }
-              return tops.size;
-            });
-            const longest = Math.max(
-              ...links.map((link) => {
-                const range = document.createRange();
-                range.selectNodeContents(link.querySelector('span') ?? link);
-                return range.getBoundingClientRect().width;
-              })
-            );
-            const active = sidebar
-              .querySelector('.ui-navgroup [aria-current]')!
-              .getBoundingClientRect();
-            return {
-              width: sidebar.getBoundingClientRect().width,
-              longest,
-              edge: sidebar.getBoundingClientRect().right - active.right,
-              wrapped: lines.filter((n) => n > 1).length,
-              switchRows: new Set(
-                [...sidebar.querySelectorAll('.admin-content-locale button')].map((b) =>
-                  Math.round(b.getBoundingClientRect().top)
-                )
-              ).size,
-            };
-          });
-        const metrics = await measure();
-        expect(metrics.width - metrics.longest).toBeLessThan(100);
-        expect(metrics.edge).toBeLessThan(2);
-        expect(metrics.wrapped).toBe(0);
-        expect(metrics.switchRows).toBe(1);
-        // Manage open lists its screens; the column keeps its width and every label whole.
-        await page.goto('/admin/probe/beheer');
-        const open = await measure();
-        expect(open.wrapped).toBe(0);
-        expect(Math.abs(open.width - metrics.width)).toBeLessThan(1);
-        await page.goto('/admin/probe/content?type=page');
-        await page.setViewportSize(NARROW);
-        await setTextSize(page, '200%');
-        await page.locator('.admin-menu > summary').click();
-        await layoutGate(page, `sidebar ${locale}`, '.admin-sidebar');
-        await page.screenshot({
-          path: test.info().outputPath(`sidebar-${locale}-320-200.png`),
-          fullPage: true,
-        });
-      });
-    });
-  }
-
-  test.describe('narrow dashboard', () => {
-    test.use({ viewport: NARROW });
-    test('stacks the widgets in one column behind a closed ☰ bar', async ({ page }) => {
-      await login(page, '/admin/probe', email);
-      await expect(page.locator('.admin-menu')).not.toHaveAttribute('open');
-      await expect(page.getByRole('navigation', { name: 'Site navigation' })).toBeHidden();
-      const lefts = await page
-        .locator('.ui-dashboard > .ui-widget')
-        .evaluateAll(
-          (nodes) => new Set(nodes.map((n) => Math.round(n.getBoundingClientRect().left))).size
-        );
-      expect(lefts).toBe(1);
-      await page.locator('.admin-menu > summary').click();
-      await checkShell(page, 'Probe', 'Dashboard');
-    });
-  });
-
-  test.describe('narrow navigation and action labels', () => {
-    test.use({ viewport: NARROW });
-    test('works with keyboard and at 200% text', async ({ page }) => {
-      const { id } = await onProbe((invoker, tenantId) =>
-        invoker.run(useCases.createKey, systemPrincipal(tenantId, 'e2e'), {
-          name: `${unbroken}_${test.info().project.name}`,
-          capabilities: ['content:read'],
-        })
-      );
-      try {
-        await narrowOverview(page);
-      } finally {
-        await onProbe((invoker, tenantId) =>
-          invoker.run(useCases.revokeKey, systemPrincipal(tenantId, 'e2e'), { id })
-        );
-      }
-    });
-  });
-
-  /** Team, API access and an editor at 320 CSS px and 200% text: reflow, targets, whole labels. */
-  async function narrowOverview(page: Page) {
-    await login(page, '/admin/probe/leden', email);
-    await setTextSize(page, '200%');
-    // Closed by default on a phone; the ☰ bar opens and closes it from the keyboard.
-    await expect(page.locator('.admin-menu')).not.toHaveAttribute('open');
-    await expect(page.getByRole('navigation', { name: 'Site navigation' })).toBeHidden();
-    const menu = page.getByText('Menu', { exact: true });
-    await menu.focus();
-    await page.keyboard.press('Enter');
-    await expect(page.locator('.admin-menu')).toHaveAttribute('open');
-    await page.keyboard.press('Enter');
-    await expect(page.locator('.admin-menu')).not.toHaveAttribute('open');
-    await page.keyboard.press('Enter');
-    await layoutGate(page, 'members with the menu open');
-    await page
-      .getByRole('navigation', { name: 'Site navigation' })
-      .getByRole('link', { name: 'Pages' })
-      .click();
-    await page.locator('#content-table tbody th a').first().click();
-    await expect(page.locator('#item-edit')).toBeVisible();
-    if (isA11y())
-      await expect(page.getByRole('tab', { name: 'Content', exact: true })).toBeVisible();
-    await setTextSize(page, '200%');
-    await layoutGate(page, 'editor');
-    // The long key's revoke button (TODO #63), on API access since #101.
-    await page.goto('/admin/probe/site?section=api');
-    await setTextSize(page, '200%');
-    await layoutGate(page, 'API access with a long key name');
-  }
-
-  test.describe('Dutch shell copy', () => {
-    test.use({ locale: 'nl-NL', viewport: NARROW });
-    test('keeps the active section and whole navigation labels at 200% text', async ({ page }) => {
-      await login(page, '/admin/probe', email);
-      await setTextSize(page, '200%');
-      await checkShell(page, 'Probe', 'Dashboard');
-      await layoutGate(page, 'dashboard with the menu open');
-      await page
-        .getByRole('navigation', { name: 'Sitenavigatie' })
-        .getByRole('link', { name: 'Pagina’s' })
-        .click();
-      await checkShell(page, 'Probe', 'Pagina’s');
-    });
-  });
-});
-
 // Operator preferences (#88): an operator whose browser speaks English chooses Dutch and a
 // time zone of their own; the menu changes language at once, and a planned time is typed and
 // shown in their zone, named only while it differs from the site's. Its own operator, reset at
@@ -1182,7 +749,8 @@ test.describe('preferences', () => {
     const nav = (name: string) => page.getByRole('navigation', { name });
     await expect(nav('Site navigation').getByRole('link', { name: 'Pages' })).toBeAttached();
 
-    await page.getByRole('link', { name: 'Profile' }).click();
+    await page.locator('.admin-account > summary').click();
+    await page.getByRole('link', { name: 'Profile', exact: true }).click();
     await expect(
       page.getByRole('heading', { level: 1, name: 'Profile and preferences' })
     ).toBeVisible();
@@ -1213,6 +781,10 @@ test.describe('preferences', () => {
     await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
     const edit = new URL(page.url()).pathname;
     const nl = page.locator('#publication-nl');
+    // Hydration restores the server's closed fold; interact only after the editor owns it.
+    if (isA11y())
+      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    await openPublication(page);
     await nl.locator('details', { hasText: 'Inplannen' }).locator('summary').click();
     await expect(nl.getByText('Tijd in Asia/Tokyo')).toBeAttached();
     await nl.getByLabel('Publiceren op').fill('2030-01-04T17:00');
@@ -1309,6 +881,10 @@ test.describe('status', () => {
     const ids = [await stuckJob(retried), await stuckJob(closed)];
     try {
       await login(page, '/admin/probe');
+      await page
+        .locator('.ui-navgroup-disclosure > summary')
+        .filter({ hasText: /^Beheer$/ })
+        .click();
       await page.getByRole('link', { name: 'Beheer', exact: true }).click();
       await page.getByRole('main').getByRole('link', { name: 'Status', exact: true }).click();
       await expect(page.getByRole('heading', { level: 1, name: 'Status' })).toBeVisible();
@@ -1592,4 +1168,957 @@ test.describe('connections', () => {
       });
     });
   }
+});
+
+// Hostnames (TODO #14, ADR 014): the site served from `Host` on its platform hostname
+// probe.localhost (Chromium resolves *.localhost to loopback), a verified non-primary hostname
+// redirecting to the primary, the admin never on a tenant hostname, Caddy's `allowed` question,
+// and the admin's domain section without JavaScript and under axe. scripts/e2e/e2e.mjs runs both
+// processes with SITE_URL_MODE=hostnames, so the confirmation mail links to probe.localhost; the
+// development path form stays covered by signup.spec.ts.
+test.describe('hostnames', () => {
+  const SITE = 'http://probe.localhost:4173';
+
+  test.use({
+    locale: 'nl-NL',
+    extraHTTPHeaders: {
+      'x-forwarded-proto': 'http',
+      'x-forwarded-for': `198.51.100.${Math.floor(Math.random() * 250) + 1}`,
+    },
+  });
+
+  const formWith = (page: Page, heading: string) =>
+    page.locator('form', {
+      has: page.getByRole('heading', { level: 3, name: heading, exact: true }),
+    });
+
+  /**
+   * Adds a domain through the dialog the "Domein toevoegen" invoker button opens (no script): a
+   * separate subdomain unless `main` says it is the organisation's own domain (#115).
+   */
+  async function addDomain(page: Page, hostname: string, kind: 'main' | 'sub' = 'sub') {
+    await page.getByRole('button', { name: 'Domein toevoegen' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Domein toevoegen' });
+    await dialog.getByLabel('Hostnaam').fill(hostname);
+    await dialog
+      .getByLabel(kind === 'main' ? /eigen domein van je organisatie/ : /los subdomein/)
+      .check();
+    await dialog.getByRole('button', { name: 'Domein toevoegen' }).click();
+  }
+
+  /** Removing asks first, in the domain's own row: the summary opens, the second button posts. */
+  async function removeDomain(page: Page, hostname: string) {
+    const row = formWith(page, hostname);
+    await expect(row.getByRole('button', { name: `Ja, verwijderen: ${hostname}` })).toBeHidden();
+    await row.locator('summary', { hasText: 'Verwijderen' }).click();
+    await row.getByRole('button', { name: `Ja, verwijderen: ${hostname}` }).click();
+  }
+
+  /** The console mailer spools each message as JSON (scripts/e2e/e2e.mjs sets MAIL_SPOOL_DIR). */
+  async function waitForMail(to: string): Promise<{ text: string }> {
+    const dir = process.env['MAIL_SPOOL_DIR']!;
+    const find = () =>
+      readdirSync(dir).find((f) => JSON.parse(readFileSync(join(dir, f), 'utf8')).to.email === to);
+    await expect
+      .poll(find, { timeout: 15_000, message: `confirmation mail to ${to}` })
+      .toBeTruthy();
+    return JSON.parse(readFileSync(join(dir, find()!), 'utf8'));
+  }
+
+  test('the site is served from Host on its platform hostname, and the mail links there', async ({
+    page,
+  }) => {
+    const response = await page.goto(`${SITE}/signup`);
+    expect(response?.status()).toBe(200);
+    await expect(page.getByRole('heading', { level: 1, name: 'Blijf op de hoogte' })).toBeVisible();
+    // Only the form's own proof-of-work module (brief form-intake § D2.3).
+    expect(await page.locator('script:not([src="/_form/proof.js"])').count()).toBe(0);
+    await expectNoAxeViolations(page);
+
+    const email = `e2e-host-${Date.now()}@example.org`;
+    await pastMinimumFillTime(page);
+    await page.getByLabel('E-mailadres').fill(email);
+    await page.getByLabel(/nieuwsbrief ontvangen/).check();
+    await page.getByRole('button', { name: 'Aanmelden' }).click();
+    // The thank-you page stays on the hostname, without the slug in the path.
+    await expect(page).toHaveURL(`${SITE}/signup/thanks`);
+    await expect(page.getByRole('link', { name: 'Terug naar de pagina' })).toHaveAttribute(
+      'href',
+      '/signup'
+    );
+
+    const mail = await waitForMail(email);
+    const link = /https?:\/\/\S+\/confirm\?token=\S+/.exec(mail.text)![0];
+    expect(link.startsWith(`${SITE}/confirm?token=`)).toBe(true);
+    // The button posts on the hostname and the outcome stays there, without the slug or the token.
+    await page.goto(link);
+    await page.getByRole('button', { name: 'Bevestig mijn inschrijving' }).click();
+    await expect(page).toHaveURL(`${SITE}/confirm/confirmed?locale=nl`);
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Inschrijving bevestigd' })
+    ).toBeVisible();
+  });
+
+  test('unknown hosts, the admin on a tenant hostname, and the allowed question', async ({
+    request,
+  }) => {
+    expect((await request.get(`${SITE}/admin`)).status()).toBe(404);
+    expect((await request.get('/signup', { headers: { host: 'nope.example' } })).status()).toBe(
+      404
+    );
+    // The path form only works on a development host.
+    expect(
+      (await request.get('/probe/signup', { headers: { host: 'probe.localhost' } })).status()
+    ).toBe(404);
+    // A verified, non-primary hostname (scripts/e2e/e2e.mjs seeds it) is a 301 to the primary, with
+    // the path and query kept.
+    const alias = await request.get('/signup?ref=x', {
+      headers: { host: 'e2e-alias.example' },
+      maxRedirects: 0,
+    });
+    expect(alias.status()).toBe(301);
+    expect(alias.headers()['location']).toBe(`${SITE}/signup?ref=x`);
+    const allowed = (domain: string) =>
+      request.get(`/internal/hostnames/allowed?domain=${domain}`, {
+        headers: { host: 'web.internal' },
+      });
+    expect((await allowed('probe.localhost')).status()).toBe(200);
+    expect((await allowed('127.0.0.1')).status()).toBe(200);
+    expect((await allowed('e2e-alias.example')).status()).toBe(200);
+    expect((await allowed('nope.example')).status()).toBe(404);
+    expect((await allowed('')).status()).toBe(404);
+  });
+
+  // TODO #20c decision 5: without MYCEL_TRUST_PROXY (the e2e server sets no HOST_HEADER) a
+  // forwarded host is just a header. It neither picks another site nor reaches the admin.
+  // The table in docs/reference/hostnames.md. An address that answers on the site and the platform
+  // origin makes the refusal below it mean something.
+  test('the discovery documents answer per kind of host', async ({ request }) => {
+    onlyA11y('reads raw HTTP responses, so one project is enough');
+    const get = (host: string, path: string) =>
+      request.get(path, { headers: { host }, maxRedirects: 0 });
+    const CONTACT = 'Contact: mailto:security@probe.test';
+    const SECURITY = '/.well-known/security.txt';
+    const CATALOG = '/.well-known/api-catalog';
+    const anchor = async (host: string) => {
+      const body = (await (await get(host, CATALOG)).json()) as { linkset: { anchor: string }[] };
+      return new URL(body.linkset[0]?.anchor ?? '').pathname;
+    };
+
+    // A registered site first: the reroute hook only rewrites for a host it resolves.
+    const site = 'probe.localhost:4173';
+    expect(await (await get(site, SECURITY)).text()).toContain(CONTACT);
+    expect(await anchor(site)).toBe('/v1/sites/probe');
+
+    const origin = new URL(test.info().project.use.baseURL ?? '').host;
+    expect(await (await get(origin, SECURITY)).text()).toContain(CONTACT);
+    expect(await anchor(origin)).toBe('/v1');
+
+    for (const path of [SECURITY, CATALOG]) {
+      expect((await get('nope.example.org', path)).status(), `unknown host: ${path}`).toBe(404);
+      expect((await get(site, `/probe${path}`)).status(), `under a slug: ${path}`).toBe(404);
+    }
+
+    // A verified, non-primary hostname takes the same decision as a page.
+    const alias = await get('e2e-alias.example', SECURITY);
+    expect(alias.status()).toBe(301);
+    expect(alias.headers()['location']).toBe(`${SITE}${SECURITY}`);
+
+    const page = await get(site, '/signup');
+    expect(page.status()).toBe(200);
+    expect(page.headers()['link']).toContain('</.well-known/api-catalog>; rel="api-catalog"');
+    // What an agent sees of a page it only asked the headers of.
+    const head = await request.head('/signup', { headers: { host: site }, maxRedirects: 0 });
+    expect(head.headers()['link']).toContain('rel="api-catalog"');
+    const admin = await request.get('/admin/login', { headers: { host: origin }, maxRedirects: 0 });
+    expect(admin.headers()['link'] ?? '').not.toContain('api-catalog');
+  });
+
+  test('X-Forwarded-Host does not choose the site or open the admin', async ({ request }) => {
+    const viaPlatform = await request.get('/signup', {
+      headers: { 'x-forwarded-host': 'probe.localhost:4173' },
+    });
+    expect(viaPlatform.status()).toBe(404);
+    expect(await viaPlatform.text()).not.toContain('Blijf op de hoogte');
+
+    const adminFromTenant = await request.get(`${SITE}/admin`, {
+      headers: { 'x-forwarded-host': '127.0.0.1:4173' },
+      maxRedirects: 0,
+    });
+    expect(adminFromTenant.status()).toBe(404);
+  });
+
+  // The main e2e server deliberately trusts X-Forwarded-Proto to model HTTP behind Caddy.
+  // A second adapter-node process proves the untrusted boundary instead of relying on that fixture.
+  test('without proxy configuration, forwarded protocol and host cannot change the admin origin', async () => {
+    const port = isA11y() ? 4174 : 4175;
+    const origin = `http://127.0.0.1:${port}`;
+    const env = { ...process.env };
+    for (const key of [
+      'DATABASE_URL',
+      'PROTOCOL_HEADER',
+      'HOST_HEADER',
+      'ADDRESS_HEADER',
+      'XFF_DEPTH',
+    ])
+      delete env[key];
+    const server = spawn(process.execPath, ['build/index.js'], {
+      env: {
+        ...env,
+        HOST: '127.0.0.1',
+        PORT: String(port),
+        MYCEL_TRUST_PROXY: '0',
+        // adapter-node defaults to https without PROTOCOL_HEADER, even on a plain HTTP socket.
+        PUBLIC_BASE_URL: origin.replace('http:', 'https:'),
+      },
+      stdio: 'ignore',
+    });
+    const closed = once(server, 'close');
+    try {
+      await expect
+        .poll(
+          async () => {
+            try {
+              return (await fetch(`${origin}/healthz`)).status;
+            } catch {
+              return 0;
+            }
+          },
+          { timeout: 15_000 }
+        )
+        .toBe(200);
+      for (const headers of [
+        {} as Record<string, string>,
+        { 'x-forwarded-proto': 'http', 'x-forwarded-host': 'evil.example' },
+      ]) {
+        const response = await fetch(`${origin}/admin`, { headers, redirect: 'manual' });
+        expect(response.status).toBe(303);
+        expect(response.headers.get('location')).toContain('/admin/login');
+        expect(response.headers.get('strict-transport-security')).toBe('max-age=31536000');
+      }
+    } finally {
+      server.kill('SIGTERM');
+      await closed;
+    }
+  });
+
+  test('an admin adds a domain, sees the records, checks (not found), and cannot remove the primary', async ({
+    page,
+    request,
+  }) => {
+    await login(page, '/admin/probe/domeinen');
+    const domain = `e2e-${test.info().project.name}-${Date.now()}.example`;
+    await addDomain(page, domain.toUpperCase());
+    await expect(page.getByRole('status')).toContainText(`Domein ${domain} toegevoegd`);
+    const card = formWith(page, domain);
+    await expect(card.getByText(`_mycel-verify.${domain}`)).toBeVisible();
+    await expect(card.locator('code[id$="-txt-value"]')).toHaveText(/^[\w-]{43}$/);
+    await expect(card.getByText('probe.localhost', { exact: true })).toBeVisible();
+    await expect(card.getByText('nog niet geverifieerd')).toBeVisible();
+    await expectNoAxeViolations(page);
+
+    // An unverified hostname serves nothing and gets no certificate.
+    expect((await request.get('/signup', { headers: { host: domain } })).status()).toBe(404);
+    expect(
+      (
+        await request.get(`/internal/hostnames/allowed?domain=${domain}`, {
+          headers: { host: 'web.internal' },
+        })
+      ).status()
+    ).toBe(404);
+
+    // The real resolver: a reserved TLD answers "not found" without an error page.
+    await card.getByRole('button', { name: 'DNS controleren' }).click();
+    await expect(page.getByRole('status')).toContainText('is nog niet gevonden');
+    await expect(page.getByRole('status')).toContainText(`_mycel-verify.${domain}`);
+    await expectNoAxeViolations(page);
+
+    // Not verified: no "make primary" button; the platform hostname is primary and has none.
+    await expect(formWith(page, domain).getByRole('button', { name: 'Primair maken' })).toHaveCount(
+      0
+    );
+    await expect(formWith(page, 'probe.localhost').getByRole('button')).toHaveCount(0);
+
+    // The same domain on another site is a conflict that names no owner.
+    await addDomain(page, domain);
+    await expect(page.getByRole('alert')).toContainText('al in gebruik');
+    await expect(page.getByRole('alert')).not.toContainText('probe');
+
+    await removeDomain(page, domain);
+    await expect(page.getByRole('status')).toContainText(`Domein ${domain} verwijderd`);
+    await expect(formWith(page, domain)).toHaveCount(0);
+    await expectNoAxeViolations(page);
+  });
+
+  // #115: an organisation's own domain is added as its bare and its www name and shown as one
+  // card with the records per name; a separate subdomain is one name without a word about www.
+  test('a main domain is added as both of its names, a subdomain as one', async ({
+    page,
+    request,
+  }) => {
+    await login(page, '/admin/probe/domeinen');
+    const domain = `pair-${test.info().project.name}-${Date.now()}.example`;
+    // Typed with www: the bare name is the card, both names are added.
+    await addDomain(page, `www.${domain}`, 'main');
+    await expect(page.getByRole('status')).toContainText(
+      `Domeinen ${domain} en www.${domain} toegevoegd`
+    );
+    const pair = formWith(page, domain);
+    for (const name of [domain, `www.${domain}`]) {
+      await expect(pair.getByRole('heading', { level: 4, name, exact: true })).toBeVisible();
+      await expect(pair.getByText(`_mycel-verify.${name}`, { exact: true })).toBeVisible();
+      // Neither is verified, so neither serves or gets a certificate yet.
+      const allowed = await request.get(`/internal/hostnames/allowed?domain=${name}`, {
+        headers: { host: 'web.internal' },
+      });
+      expect(allowed.status()).toBe(404);
+    }
+    // The bare name points with an ALIAS (it cannot take a CNAME), www with a CNAME.
+    await expect(pair).toContainText('ALIAS- of ANAME-record');
+    await expect(pair).toContainText('CNAME-record');
+    await expect(pair).toContainText('Zodra beide geverifieerd zijn');
+    await expect(pair.getByRole('button', { name: /als adres gebruiken/i })).toHaveCount(0);
+    await expectNoAxeViolations(page);
+
+    // A separate subdomain: one name, a CNAME, nothing about www or a bare domain.
+    const sub = `campagne.${domain}`;
+    await addDomain(page, sub);
+    await expect(page.getByRole('status')).toContainText(`Domein ${sub} toegevoegd`);
+    const single = formWith(page, sub);
+    await expect(single).toContainText('CNAME-record');
+    await expect(single).not.toContainText('www');
+    await expect(single).not.toContainText('ALIAS');
+
+    // Both names or neither: when www is taken, the bare name added a moment before goes again.
+    const taken = `taken-${domain}`;
+    await addDomain(page, `www.${taken}`);
+    await addDomain(page, taken, 'main');
+    await expect(page.getByRole('alert')).toContainText('al in gebruik');
+    await expect(formWith(page, taken)).toHaveCount(0);
+
+    // Removing the main domain removes both names.
+    await pair.locator('summary', { hasText: 'Verwijderen' }).click();
+    await pair.getByRole('button', { name: `Ja, verwijderen: ${domain}` }).click();
+    await expect(page.getByRole('status')).toContainText('verwijderd');
+    await expect(page.getByRole('heading', { name: `www.${domain}`, exact: true })).toHaveCount(0);
+    await expect(formWith(page, domain)).toHaveCount(0);
+    for (const name of [sub, `www.${taken}`]) await removeDomain(page, name);
+  });
+
+  // #115 scenarios 1a and 1b: once both names are verified, the one the operator makes primary is
+  // the address and the other answers with a 301 to it; both get a certificate. Fixtures on a site
+  // of their own, so the primary of probe stays as every other test expects.
+  for (const address of ['bare', 'www'] as const)
+    test(`a verified main domain with ${address} as the address redirects the other name`, async ({
+      request,
+    }) => {
+      const slug = `pair-${address}-${test.info().project.name}-${Date.now()}`;
+      const tenant = await asOwner((owner) =>
+        testTenant(owner, slug, { platformDomain: process.env['PLATFORM_DOMAIN']! })
+      );
+      const apex = `${slug}.example`;
+      const www = `www.${apex}`;
+      const [primary, other] = address === 'bare' ? [apex, www] : [www, apex];
+      await withInvoker((_invoker, uow) =>
+        uow.run(systemPrincipal(tenant.id, 'e2e'), async (ctx) => {
+          for (const hostname of [apex, www]) {
+            await ctx.hostnames.insert({
+              hostname,
+              kind: 'custom',
+              verificationToken: 'e2e-fixture',
+              verifiedAt: null,
+              createdAt: new Date(),
+            });
+            await ctx.hostnames.setVerified(hostname, new Date());
+          }
+          await ctx.hostnames.setPrimary(primary);
+        })
+      );
+      const redirect = await request.get('/nieuws?p=2', {
+        headers: { host: other },
+        maxRedirects: 0,
+      });
+      expect(redirect.status()).toBe(301);
+      expect(redirect.headers()['location']).toBe(`http://${primary}:4173/nieuws?p=2`);
+      for (const name of [apex, www]) {
+        const allowed = await request.get(`/internal/hostnames/allowed?domain=${name}`, {
+          headers: { host: 'web.internal' },
+        });
+        expect(allowed.status()).toBe(200);
+      }
+    });
+
+  test.describe('UI gate: the domain action group at 320 CSS px and 200% text', () => {
+    test.use({ viewport: NARROW });
+
+    for (const text of TEXT_SIZES) {
+      test(`every button whole and no horizontal scroll, text ${text}`, async ({ page }) => {
+        onlyA11y('measures the layout with a script');
+        await login(page, '/admin/probe/domeinen');
+        // A main domain whose two names are verified: the card with the most actions, "check
+        // both", "use as the address" under each long name, and remove (#115).
+        const domain = `gate-${text.replace('%', '')}-${Date.now()}-a-longer-name.example`;
+        await addDomain(page, domain, 'main');
+        await expect(formWith(page, domain)).toBeVisible();
+        const probe = await tenantId();
+        await withInvoker((_invoker, uow) =>
+          uow.run(systemPrincipal(probe, 'e2e'), async (ctx) => {
+            for (const name of [domain, `www.${domain}`])
+              await ctx.hostnames.setVerified(name, new Date());
+          })
+        );
+        await page.reload();
+        await expect(
+          formWith(page, domain).getByRole('button', { name: /als adres gebruiken/i })
+        ).toHaveCount(2);
+        await setTextSize(page, text);
+        await formWith(page, domain).locator('summary', { hasText: 'Verwijderen' }).click();
+        await layoutGate(page, 'domain actions');
+        await formWith(page, domain)
+          .getByRole('button', { name: `Ja, verwijderen: ${domain}` })
+          .click();
+        await expect(formWith(page, domain)).toHaveCount(0);
+      });
+    }
+  });
+});
+
+// Self-service export (TODO #28): a site administrator asks for an archive, the e2e worker builds
+// it, and the download is a tar in the format `mycel import` reads (its manifest first). Runs
+// without JavaScript and under axe like the other admin specs; the UI gate (skill
+// ui-action-layout) checks the ask button, the download and the history at 320 CSS px and 200%
+// text.
+// An ask while one is being built gets that one back, so the two projects may share an archive.
+test.describe('export', () => {
+  const run = promisify(execFile);
+
+  test.use({
+    locale: 'nl-NL',
+    extraHTTPHeaders: {
+      'x-forwarded-proto': 'http',
+      'x-forwarded-for': `198.51.100.${Math.floor(Math.random() * 250) + 1}`,
+    },
+  });
+
+  /** Create an export (or get the one being prepared) and reload until one can be downloaded. */
+  async function readyArchive(page: Page) {
+    await page.getByRole('button', { name: 'Export maken' }).click();
+    await expect(page.locator('.ui-notice[role="status"]')).toContainText('export');
+    // The newest ready archive has a section of its own, whatever another project asked since.
+    const latest = page.getByRole('region', { name: 'Nieuwste archief' });
+    await expect(async () => {
+      await page.goto('/admin/probe/export');
+      await expect(latest).toBeVisible({ timeout: 1000 });
+    }).toPass({ timeout: 90_000, intervals: [1000, 2000, 3000] });
+    return latest;
+  }
+
+  test('an administrator asks for an archive and downloads it without JavaScript', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    // Status links to Export (#116); the route through Manage is in the admin-shell test (#114).
+    await login(page, '/admin/probe/status');
+    await page.getByRole('link', { name: 'Een export van deze site maken' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Export' })).toBeVisible();
+    await expect(page.locator('main')).toContainText('7 dagen te downloaden');
+    await expectNoAxeViolations(page);
+
+    const latest = await readyArchive(page);
+    await expect(latest).toContainText('te downloaden tot');
+    const link = latest.getByRole('link', { name: 'Archief downloaden' });
+    // The history says the status in words and who asked by name, never an actor reference.
+    const history = page.locator('#export-table');
+    await expect(history).toContainText('Klaar');
+    await expect(history).not.toContainText('operator:');
+    await latest.getByText('Technische details').click();
+    await expect(latest).toContainText(/[0-9a-f]{64}/);
+    await expectNoAxeViolations(page);
+
+    // Through the page's own session, as media.spec.ts downloads an original: a browser download
+    // would leave out the test's forwarded-address headers, which the server here requires.
+    const href = (await link.getAttribute('href'))!;
+    expect(href).toMatch(/^\/admin\/probe\/export\/[0-9a-f-]{36}\?exp=\d+&sig=/);
+    expect(await link.getAttribute('download')).not.toBeNull();
+    const response = await page.request.get(href);
+    expect(response.status()).toBe(200);
+    expect(response.headers()['content-type']).toBe('application/x-tar');
+    expect(response.headers()['content-disposition']).toMatch(
+      /^attachment; filename="probe-\d{4}-\d{2}-\d{2}\.tar"$/
+    );
+    expect(response.headers()['cache-control']).toBe('private, no-store');
+    const file = test.info().outputPath('probe.tar');
+    await writeFile(file, await response.body());
+    const { stdout } = await run('tar', ['-tf', file]);
+    expect(stdout.split('\n')).toContain('./manifest.json');
+    expect(stdout).toContain('./tables/supporters.ndjson');
+
+    // The link is bound to the archive and expires; without its signature it is a 404.
+    const bare = await page.request.get(href.split('?')[0]!);
+    expect(bare.status()).toBe(404);
+  });
+
+  test.describe('UI gate: the export actions at 320 CSS px and 200% text', () => {
+    test.use({ viewport: NARROW });
+
+    for (const text of TEXT_SIZES) {
+      test(`every control whole and no horizontal scroll, text ${text}`, async ({ page }) => {
+        onlyA11y('measures the layout with a script');
+        test.setTimeout(120_000);
+        await login(page, '/admin/probe/export');
+        await readyArchive(page);
+        await setTextSize(page, text);
+        await layoutGate(page, 'export actions', 'main');
+      });
+    }
+  });
+});
+
+// The actions of one row of the content list, and the dashboard's content widgets.
+test.describe('content-list-rows', () => {
+  test.use({ locale: 'nl-NL' });
+
+  test('a row opens the site and the preview, copies and takes offline', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    const word = `rij${randomUUID().slice(0, 8)}`;
+    const { item } = await callApi<{ item: { id: string; latestRevisionId: string } }>(
+      request,
+      'content.item.create',
+      {
+        slug: `row-${word}`,
+        document: {
+          type: 'page',
+          defaultLocale: 'nl',
+          locales: ['nl'],
+          title: { nl: `Brood ${word}` },
+          blocks: [],
+        },
+      }
+    );
+    const list = `/admin/probe/content?type=page&q=${word}&sort=title`;
+    const row = page.locator(`[id="item-${item.id}"]`);
+    await login(page, list);
+
+    // A draft has a preview and no live page, and nothing to take offline.
+    await row.hover();
+    const actions = row.locator('.ui-row-actions.inline');
+    await expect(actions.getByRole('link', { name: `Voorbeeld: Brood ${word}` })).toHaveAttribute(
+      'href',
+      `/admin/probe/preview/item/${item.id}?revision=${item.latestRevisionId}&locale=nl`
+    );
+    await expect(actions.getByRole('link', { name: /^Op de site/ })).toHaveCount(0);
+    await expect(actions.getByText('Offline halen')).toHaveCount(0);
+
+    // Live and unchanged: the site, no second look at the same thing.
+    const probe = await tenantId();
+    await withInvoker((invoker) =>
+      invoker.run(useCases.publishItem, systemPrincipal(probe, 'e2e'), {
+        itemId: item.id,
+        revisionId: item.latestRevisionId,
+        locale: 'nl',
+      })
+    );
+    await page.reload();
+    await row.hover();
+    await expect(actions.getByRole('link', { name: /^Op de site/ })).toBeVisible();
+    await expect(actions.getByRole('link', { name: /^Voorbeeld/ })).toHaveCount(0);
+    await expectNoAxeViolations(page);
+
+    // Live with newer changes: both, named apart.
+    await callApi(request, 'content.item.update', {
+      itemId: item.id,
+      baseRevisionId: item.latestRevisionId,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: `Brood ${word}` },
+        lead: { nl: 'Gewijzigd.' },
+        blocks: [],
+      },
+    });
+    await page.reload();
+    await row.hover();
+    await expect(actions.getByRole('link', { name: /^Op de site/ })).toBeVisible();
+    await expect(actions.getByRole('link', { name: /^Voorbeeld/ })).toBeVisible();
+
+    // Taken offline after a question in the row; the same view, and it says so.
+    await page.reload();
+    await row.hover();
+    await actions.locator('summary').click();
+    await actions.getByRole('button', { name: `Ja, offline halen: Brood ${word}` }).click();
+    await expect(page).toHaveURL(new RegExp(`done=offline#item-${item.id}$`));
+    await expect(page.getByText('Offline gehaald in nl.')).toBeVisible();
+    await expect(row.locator('.ui-badge')).toHaveText('offline');
+
+    // Planned, it is on the dashboard; the widget links to an item and says when.
+    await withInvoker((invoker) =>
+      invoker.run(useCases.scheduleItem, systemPrincipal(probe, 'e2e'), {
+        itemId: item.id,
+        revisionId: item.latestRevisionId,
+        locale: 'nl',
+        at: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+      })
+    );
+    await page.goto('/admin/probe');
+    const planned = page.getByRole('region', { name: 'Ingepland' }).getByRole('listitem');
+    await expect(planned.first().getByRole('link')).toHaveAttribute('href', /\/content\//);
+    await expect(planned.first().locator('time')).toBeVisible();
+    await page.goto(list);
+
+    // Duplicating opens a draft of its own.
+    await row.hover();
+    await actions.getByRole('button', { name: `Dupliceren: Brood ${word}` }).click();
+    await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
+    expect(page.url()).not.toContain(item.id);
+    await expect(page.locator('[name="title.nl"]')).toHaveValue(`Kopie van Brood ${word}`);
+    await page.goto(list);
+    await expect(page.locator('#content-table tbody th > a')).toHaveText([
+      `Brood ${word}`,
+      `Kopie van Brood ${word}`,
+    ]);
+  });
+
+  test('a document that no longer validates fails on its own screen, not on the rest', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    const word = `kapot${randomUUID().slice(0, 8)}`;
+    const make = async (name: string) =>
+      (
+        await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+          slug: `${name}-${word}`,
+          document: {
+            type: 'page',
+            defaultLocale: 'nl',
+            locales: ['nl'],
+            title: { nl: `${name} ${word}` },
+            blocks: [],
+          },
+        })
+      ).item.id;
+    const sound = await make('heel');
+    const broken = await make('stuk');
+    const db = createDb(process.env['APP_DATABASE_URL']!);
+    const repair = await breakLatestDocument(db, await tenantId(), broken);
+    try {
+      const status = async (path: string) => (await page.goto(path))?.status();
+      await login(page, `/admin/probe/content?type=page&q=${word}`);
+      const row = page.locator(`[id="item-${broken}"]`);
+      await expect(row.getByRole('link', { name: `stuk ${word}`, exact: true })).toBeVisible();
+      await expect(row.locator('.ui-locale-dot')).toHaveCount(0);
+      expect(await status('/admin/probe')).toBe(200);
+      await expect(page.getByRole('link', { name: `stuk ${word}`, exact: true })).toBeVisible();
+      expect(await status(`/admin/probe/content/${sound}`)).toBe(200);
+      await expect(page.locator('[name="title.nl"]')).toHaveValue(`heel ${word}`);
+      expect(await status(`/admin/probe/content/${broken}`)).toBe(500);
+    } finally {
+      await repair();
+      await db.destroy();
+    }
+  });
+
+  test('a member who may only read gets no empty menu on an item without the locale', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    const word = `lees${randomUUID().slice(0, 8)}`;
+    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
+      slug: `row-${word}`,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: `Brood ${word}` },
+        blocks: [],
+      },
+    });
+    const reader = 'row-reader@probe.test';
+    const probe = await tenantId();
+    await withInvoker(async (invoker) => {
+      try {
+        await invoker.run(useCases.inviteMember, systemPrincipal(probe, 'e2e'), {
+          email: reader,
+          capabilities: ['content:read'],
+        });
+      } catch (e) {
+        if (!(e instanceof UseCaseError && e.code === 'conflict')) throw e;
+      }
+    });
+    await page.context().addCookies([
+      {
+        name: 'mycel-content-locale',
+        value: 'en',
+        domain: '127.0.0.1',
+        path: '/admin/probe',
+      },
+    ]);
+    await login(page, `/admin/probe/content?type=page&q=${word}`, reader);
+    const row = page.locator(`[id="item-${item.id}"]`);
+    await expect(row).toBeVisible();
+    await expect(row.locator('.ui-row-menu')).toHaveCount(0);
+    await expect(row.locator('.ui-row-actions')).toHaveCount(0);
+    // No row on this page has an action, so there is no column for them.
+    await expect(page.locator('#content-table .ui-row-actions-cell')).toHaveCount(0);
+    // Above a full list too: a reader is not offered a button the use case refuses.
+    await expect(page.getByRole('button', { name: 'Nieuwe pagina' })).toHaveCount(0);
+  });
+
+  test('more filters narrow an article list as chips, and a person keeps their columns', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    const word = `meer${randomUUID().slice(0, 8)}`;
+    const author = await callApi<{ id: string }>(request, 'content.author.create', {
+      slug: `auteur-${word}`,
+      name: `Sam ${word}`,
+    });
+    const section = await callApi<{ id: string }>(request, 'content.section.create', {
+      slug: `rubriek-${word}`,
+      title: { nl: `Buurt ${word}` },
+    });
+    const write = (title: string, over: Record<string, unknown>) =>
+      callApi(request, 'content.item.create', {
+        slug: `filter-${randomUUID()}`,
+        document: {
+          type: 'article',
+          defaultLocale: 'nl',
+          locales: ['nl', 'en'],
+          title: { nl: `${title} ${word}`, en: `${title} ${word}` },
+          blocks: [],
+          ...over,
+        },
+      });
+    await write('Volledig', { authorIds: [author.id], sectionId: section.id, tags: [word] });
+    await write('Achter', { title: { nl: `Achter ${word}` } });
+    await write('Alleen', { locales: ['nl'], title: { nl: `Alleen ${word}` } });
+
+    const list = `/admin/probe/content?type=article&q=${word}`;
+    await login(page, list);
+    const titles = page.locator('#content-table tbody th > a');
+    await expect(titles).toHaveCount(3);
+    const more = page.locator('.ui-filter-more');
+    await expect(more).not.toHaveAttribute('open');
+    const form = page.getByRole('search', { name: 'Zoeken en filteren' });
+    const filter = form.getByRole('button', { name: 'Filteren' });
+    const chips = page.getByRole('list', { name: 'Actieve filters' }).getByRole('link');
+    // The search is a chip, and taking it off leaves the rest of the view; asserted below.
+    await expect(chips).toHaveText([`Zoeken: ${word}`]);
+
+    // Each field narrows, shows as a chip and keeps the fold open while it is on.
+    await more.locator('summary').click();
+    await form.getByLabel('Auteur').selectOption({ label: `Sam ${word}` });
+    await filter.click();
+    await expect(titles).toHaveText([`Volledig ${word}`]);
+    await expect(more).toHaveAttribute('open');
+    await expect(chips).toHaveText([`Zoeken: ${word}`, `Auteur: Sam ${word}`]);
+    await expectNoAxeViolations(page);
+
+    // A chip takes off only its own filter, by name.
+    await page.getByRole('link', { name: `Filter Auteur: Sam ${word} verwijderen` }).click();
+    await expect(titles).toHaveCount(3);
+    await expect(chips).toHaveText([`Zoeken: ${word}`]);
+    await expect(more).not.toHaveAttribute('open');
+
+    await page.goto(`${list}&section=${section.id}`);
+    await expect(titles).toHaveText([`Volledig ${word}`]);
+    await expect(chips).toContainText([`Rubriek: Buurt ${word}`]);
+    await form.getByLabel('Rubriek').selectOption('');
+    await form.getByLabel('Tag', { exact: true }).fill(`  ${word.toUpperCase()} `);
+    await filter.click();
+    await expect(titles).toHaveText([`Volledig ${word}`]);
+    await expect(chips).toContainText([`Tag: ${word}`]);
+
+    // Where a translation stands comes from core, in the row and in the filter.
+    await page.goto(`${list}&translation=behind`);
+    await expect(titles).toHaveText([`Achter ${word}`]);
+    await expect(page.locator('#content-table tbody .ui-locale-codes')).toContainText(
+      'loopt achter'
+    );
+    await expect(chips).toContainText(['Vertaling: loopt achter']);
+    await form
+      .getByLabel('Vertaling', { exact: true })
+      .selectOption({ label: 'Vertaling ontbreekt' });
+    await filter.click();
+    await expect(titles).toHaveText([`Alleen ${word}`]);
+    await expect(page.locator('#content-count')).toHaveText('1 gevonden');
+
+    // The period is the last save, both days whole; what falls outside says so.
+    await page.goto(`${list}&from=2000-01-01`);
+    await expect(titles).toHaveCount(3);
+    await page.goto(`${list}&to=2000-01-02`);
+    await expect(titles).toHaveCount(0);
+    await expect(chips).toContainText([/^Opgeslagen tot en met: /]);
+    await page.getByRole('link', { name: 'Filters wissen' }).click();
+    await expect(page).toHaveURL('/admin/probe/content?type=article');
+
+    // One person's columns and page size: a POST that goes back to the list, and they stay.
+    await page.goto(`${list}&sort=title`);
+    const table = page.locator('#content-table');
+    await expect(table.getByRole('columnheader', { name: 'Status' })).toBeVisible();
+    await expect(table.getByRole('columnheader', { name: 'Adres' })).toHaveCount(0);
+    const display = page.locator('.ui-list-display');
+    await display.locator('summary').click();
+    await display.getByLabel('Status').uncheck();
+    for (const column of ['Auteur', 'Rubriek', 'Tags', 'Adres', 'Aangemaakt'])
+      await display.getByLabel(column).check();
+    await display.getByLabel('Per pagina').selectOption('50');
+    await display.getByRole('button', { name: 'Toepassen' }).click();
+    await expect(page).toHaveURL(`${list}&sort=title`);
+    await expect(table.getByRole('columnheader', { name: 'Status' })).toHaveCount(0);
+    const row = table.getByRole('row', { name: new RegExp(`^Volledig ${word}`) });
+    await expect(row).toContainText(`Sam ${word}`);
+    await expect(row).toContainText(`Buurt ${word}`);
+    await expect(row).toContainText(word);
+    await expect(row).toContainText('filter-');
+    // The choice is the person's, on every view of this list and not on the pages'.
+    await page.goto('/admin/probe/content?type=article');
+    await expect(table.getByRole('columnheader', { name: 'Adres' })).toBeVisible();
+    await page.goto('/admin/probe/content?type=page');
+    await expect(table.getByRole('columnheader', { name: 'Adres' })).toHaveCount(0);
+    await expect(page.locator('.ui-list-display').getByLabel('Auteur')).toHaveCount(0);
+    // A query may name it for one link, and the links of that view keep it.
+    await page.goto(`${list}&columns=slug&per=20`);
+    await expect(table.getByRole('columnheader', { name: 'Rubriek' })).toHaveCount(0);
+    await expect(table.getByRole('link', { name: 'Titel' })).toHaveAttribute(
+      'href',
+      /columns=slug&per=20/
+    );
+
+    // Every field and every column at 320 CSS px and 200% text: the table scrolls in its region.
+    await page.goto(
+      `${list}&tag=${word}&from=2000-01-01&to=2100-01-01&translation=behind&columns=status,author,section,tags,slug,created,updated`
+    );
+    await page.locator('.ui-list-display > summary').click();
+    await page.setViewportSize(NARROW);
+    await setTextSize(page, '200%');
+    await layoutGate(page, 'content list with every filter and the columns open', 'main');
+    await expectNoAxeViolations(page);
+  });
+
+  test('the width of the table picks the buttons or one menu, and the row keeps its name', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    const word = `rij${randomUUID().slice(0, 8)}`;
+    const { item } = await callApi<{ item: { id: string; latestRevisionId: string } }>(
+      request,
+      'content.item.create',
+      {
+        slug: `row-${word}`,
+        document: {
+          type: 'page',
+          defaultLocale: 'nl',
+          locales: ['nl'],
+          title: { nl: `Brood ${word}` },
+          blocks: [],
+        },
+      }
+    );
+    const probe = await tenantId();
+    await withInvoker((invoker) =>
+      invoker.run(useCases.publishItem, systemPrincipal(probe, 'e2e'), {
+        itemId: item.id,
+        revisionId: item.latestRevisionId,
+        locale: 'nl',
+      })
+    );
+    await callApi(request, 'content.item.update', {
+      itemId: item.id,
+      baseRevisionId: item.latestRevisionId,
+      document: {
+        type: 'page',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: `Brood ${word}` },
+        lead: { nl: 'Gewijzigd.' },
+        blocks: [],
+      },
+    });
+    const row = page.locator(`[id="item-${item.id}"]`);
+    const actions = row.locator('.ui-row-actions.inline');
+    await login(page, `/admin/probe/content?type=page&q=${word}&sort=title`);
+
+    // Live with newer changes, so all four actions: they fit just above the width where the menu
+    // takes over, with no scrolling inside the table.
+    const region = page.locator('.ui-table-scroll');
+    // The table's region picks the layout, and the sidebar's width follows the font: a fixed
+    // window lands on either side of the width depending on the machine. So measure it.
+    const takeover = await region.evaluate(
+      () => 58 * parseFloat(getComputedStyle(document.documentElement).fontSize)
+    );
+    for (let tries = 0; tries < 3; tries++) {
+      const lacking = await region.evaluate(
+        (e, width) => width - e.getBoundingClientRect().width,
+        takeover + 1
+      );
+      if (lacking >= 0 && lacking < 1) break;
+      await page.setViewportSize({
+        width: page.viewportSize()!.width + Math.ceil(lacking),
+        height: 800,
+      });
+    }
+    await row.hover();
+    await expect(actions.getByRole('link', { name: /^Op de site/ })).toBeVisible();
+    await expect(actions.getByRole('link', { name: /^Voorbeeld/ })).toBeVisible();
+    expect(await region.evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(0);
+
+    // The question in the column keeps its button whole too; closed again for what follows.
+    const inlineConfirm = actions.locator('.ui-confirm');
+    await inlineConfirm.locator('summary').click();
+    await expectWholeLabel(inlineConfirm.locator('.ui-confirm-body .ui-button'));
+    await inlineConfirm.locator('summary').click();
+
+    // Exactly one of the two at every width, the width where the menu takes over included.
+    for (const [width, inMenu] of [
+      [takeover - 1, true],
+      [takeover, false],
+      [takeover + 1, false],
+    ] as const) {
+      await region.evaluate((e, px) => (e.style.width = `${px}px`), width);
+      expect(await region.evaluate((e) => e.getBoundingClientRect().width)).toBe(width);
+      await expect(row.locator('.ui-row-menu')).toBeVisible({ visible: inMenu });
+      await expect(row.locator('.ui-row-actions-cell')).toBeVisible({ visible: !inMenu });
+    }
+    await region.evaluate((e) => e.style.removeProperty('width'));
+
+    // One menu at 320 CSS px and 200% text, with every label whole; the column is gone.
+    await page.setViewportSize(NARROW);
+    await setTextSize(page, '200%');
+    await expect(actions).toBeHidden();
+    const header = row.getByRole('rowheader', { name: `Brood ${word}`, exact: true });
+    await expect(header).toBeVisible();
+    // Fifty rows are not fifty "Acties": the menu says whose it is, to the ear only.
+    const summary = row.locator('.ui-row-menu > summary');
+    await expect(summary).toHaveAccessibleName(`Acties: Brood ${word}`);
+    await summary.click();
+    await expect(row.locator('.ui-row-menu').getByText('Dupliceren')).toBeVisible();
+    // The menu sits in the row's header cell; opening it does not rename the row.
+    await expect(header).toBeVisible();
+    await layoutGate(page, 'content list with an open row menu');
+
+    // The question in the menu: the button holds its label at 200% text and at 100%, on word
+    // boundaries. The page gate does not see this: nothing overflows the page.
+    const menu = row.locator('.ui-row-menu');
+    await menu.locator('.ui-confirm > summary').click();
+    const yes = menu.locator('.ui-confirm-body .ui-button');
+    await expect(yes).toBeVisible();
+    await expectWholeLabel(yes);
+    await page.evaluate(() => document.documentElement.style.removeProperty('font-size'));
+    await expectWholeLabel(yes);
+    await setTextSize(page, '200%');
+    // The table scrolls in its own region, which the page gate does not see: no action behind it.
+    for (const action of await menu.locator('a, summary, button:visible').all())
+      expect(await action.evaluate((e) => e.getBoundingClientRect().right)).toBeLessThanOrEqual(
+        NARROW.width
+      );
+    await expectNoAxeViolations(page);
+  });
 });

@@ -24,7 +24,10 @@ import type { Principal } from '../principal.js';
 import { BLOCK_DEFINITIONS } from '../content/block-types.js';
 import { useCases } from '../use-cases.js';
 import { bytesToBase64 } from '../util/bytes.js';
+import { DEMO_SOUND_BASE64 } from './demo-sound.js';
 import { publishProbePage } from './fixtures.js';
+
+export { DEMO_SOUND_BASE64 };
 
 type L = { nl: string; en: string };
 type CreateInput = z.input<typeof useCases.createItem.input>;
@@ -182,7 +185,7 @@ const SIGNATURES_USE = {
   },
 };
 
-export type DemoMediaIds = Record<DemoImageKey, string>;
+export type DemoMediaIds = Record<DemoImageKey, string> & { report: string; sound: string };
 
 // --- rich-text builders -----------------------------------------------------------------------
 
@@ -572,9 +575,73 @@ function pageCards(formId: string, media: DemoMediaIds): BlockIn[] {
   ];
 }
 
+/** Two photos from the work, side by side. */
+function pageGallery(media: DemoMediaIds): BlockIn {
+  const use = (image: DemoImage, mediaId: string) => ({
+    mediaId,
+    decorative: false,
+    alt: image.alt,
+    caption: image.caption,
+  });
+  return {
+    type: 'gallery',
+    version: BLOCK_DEFINITIONS.gallery.version,
+    props: {
+      images: [use(DEMO_IMAGES[1]!, media.bakery), use(DEMO_IMAGES[2]!, media.measuring)],
+    },
+  };
+}
+
+/** Three ways to join in, in a band: the row of cards a campaign page ends on. */
+function pageWays(): BlockIn {
+  return {
+    type: 'cards',
+    version: BLOCK_DEFINITIONS.cards.version,
+    props: {
+      accent: 'bar',
+      width: 'full',
+      cards: [
+        {
+          title: { nl: 'Lees het onderzoek', en: 'Read the study' },
+          body: {
+            nl: 'Alle 48 zakken, per merk, met de cijfers van het lab.',
+            en: 'All 48 bags, by brand, with the figures from the lab.',
+          },
+          actions: [
+            {
+              label: { nl: 'Naar het artikel', en: 'To the article' },
+              target: { kind: 'url', url: `/articles/${ARTICLE_SLUG}` },
+            },
+          ],
+        },
+        {
+          title: { nl: 'Meet mee', en: 'Measure with us' },
+          body: {
+            nl: 'Twee weken in november, een paar uur per week, in je eigen buurt.',
+            en: 'Two weeks in November, a few hours a week, in your own neighbourhood.',
+          },
+          actions: [
+            {
+              label: { nl: 'Meld je aan', en: 'Sign up' },
+              target: { kind: 'url', url: '/signup' },
+            },
+          ],
+        },
+        {
+          title: { nl: 'Vraag het je bakker', en: 'Ask your baker' },
+          body: {
+            nl: 'Veertien bakkers bewezen dat de helft van het zout genoeg is.',
+            en: 'Fourteen bakers proved that half the salt is enough.',
+          },
+        },
+      ],
+    },
+  };
+}
+
 /**
  * `content.item.create` input for the demo page: the document header (title, lead, main image
- * described) and 13 blocks, the form last. No hero block (ADR 025 rule 4).
+ * described) and its blocks, plain text around each custom one. No hero block (ADR 025 rule 4).
  */
 export function demoPage(refs: { formId: string; media: DemoMediaIds }): CreateInput {
   const [opening, image, quote, faq, callout, cta, video, form] = pageCards(
@@ -595,23 +662,107 @@ export function demoPage(refs: { formId: string; media: DemoMediaIds }): CreateI
       blocks: [
         pageIntro(),
         opening!,
+        bridge(
+          'Dat begon klein. Op de eerste actiedag haalden we steunbetuigingen op bij ouders en bakkers, en die namen we mee naar het gemeentehuis.',
+          'It started small. On our first day of action we collected statements of support from parents and bakers, and took them to the town hall.'
+        ),
         image!,
         heading({ nl: 'Wat we doen', en: 'What we do' }),
         pageWork(),
+        pageGallery(refs.media),
+        bridge(
+          'Bakkers die meedoen, houden hun recept. Ze halen er alleen zout uit, in stappen, tot iemand het proeft. Dat gebeurt zelden, en precies daarom blijven we het zeggen.',
+          'Bakers who take part keep their recipe. They only take salt out, step by step, until someone can taste it. That rarely happens, and that is exactly why we keep saying it.'
+        ),
         quote!,
         pageMethod(),
         faq!,
+        bridge(
+          'Staat je vraag er niet bij, dan helpt het vaak om te weten dat we nooit een merk aanwijzen zonder dat de fabrikant de uitslag eerst heeft gezien.',
+          'If your question is not listed, it often helps to know that we never name a brand before the manufacturer has seen the result.'
+        ),
         callout!,
         pageClosing(),
+        pageWays(),
+        bridge(
+          'Meedoen hoeft niet groot te zijn. De meeste vrijwilligers begonnen met één zak en één vraag aan hun eigen bakker.',
+          'Taking part need not be a big step. Most volunteers began with one bag and one question to their own baker.'
+        ),
         cta!,
+        bridge(
+          'We maken nog een filmpje over hoe zo’n meting gaat, van zak tot uitslag. Tot die tijd staat hier een open film op die plek.',
+          'We are still making a video of how a measurement goes, from bag to result. Until then an open film stands in that place.'
+        ),
         video!,
+        bridge(
+          'Wil je weten wat we met de uitslagen doen? We sturen je een korte mail als er een nieuwe meting klaar is.',
+          'Want to know what we do with the results? We send you a short e-mail when a new measurement is ready.'
+        ),
         form!,
+        bridge(
+          'Je kunt je altijd weer uitschrijven, en we delen je adres met niemand.',
+          'You can unsubscribe at any time, and we share your address with no one.'
+        ),
       ],
     },
   };
 }
 
+/** One paragraph of plain text, the least that stands between two custom blocks. */
+function bridge(nl: string, en: string): BlockIn {
+  return richText(doc(p(nl)), doc(p(en)));
+}
+
 // --- the article ------------------------------------------------------------------------------
+
+const DEMO_REPORT_FILENAME = 'meetresultaten-pepernoten.pdf';
+const DEMO_SOUND_FILENAME = 'zoutmeter-pepernoten.mp3';
+
+/**
+ * A real one-page PDF, written here so the demo's download opens without a binary in the repo.
+ * Invented figures, as everything in this article. Rejected: a committed file, which needs the
+ * source table the demo photos have, for a page that says one sentence.
+ */
+function demoReportPdf(): Uint8Array {
+  const text = 'Meetresultaten pepernoten: 48 zakken, demonstratiegegevens.';
+  const stream = `BT /F1 14 Tf 72 720 Td (${text}) Tj ET`;
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R ' +
+      '/Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets = objects.map((body, i) => {
+    const at = pdf.length;
+    pdf += `${i + 1} 0 obj\n${body}\nendobj\n`;
+    return at;
+  });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const at of offsets) pdf += `${String(at).padStart(10, '0')} 00000 n \n`;
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return new TextEncoder().encode(pdf);
+}
+
+/** The measurements behind the article, to download. */
+function articleReport(report: string): BlockIn {
+  return {
+    type: 'file-download',
+    version: BLOCK_DEFINITIONS['file-download'].version,
+    props: {
+      title: { nl: 'De meetresultaten', en: 'The measurements' },
+      files: [
+        {
+          fileId: report,
+          name: { nl: 'Alle 48 zakken per merk', en: 'All 48 bags by brand' },
+        },
+      ],
+    },
+  };
+}
 
 const ARTICLE_TITLE: L = {
   nl: 'Pepernoten zijn vaak zouter dan chips',
@@ -705,6 +856,52 @@ function articleWhy(): BlockIn {
       )
     )
   );
+}
+
+/** The transcript says what the sound in `demo-sound.ts` does: nobody speaks in it. */
+function articleSound(sound: string): BlockIn {
+  return {
+    type: 'audio',
+    version: BLOCK_DEFINITIONS.audio.version,
+    props: {
+      title: { nl: 'Zo klinkt de zoutmeter', en: 'What the salt meter sounds like' },
+      fileId: sound,
+      transcript: {
+        nl: 'Drie korte piepjes, één voor elke meting. Daarna één hogere toon: de meter is klaar en de uitslag staat op het scherm. Er wordt niet gesproken.',
+        en: 'Three short beeps, one for each measurement. Then one higher tone: the meter is done and the result is on the screen. Nobody speaks.',
+      },
+    },
+  };
+}
+
+/** How the research went, oldest first: the order a reader follows it in. */
+function articleTimeline(): BlockIn {
+  return {
+    type: 'timeline',
+    version: BLOCK_DEFINITIONS.timeline.version,
+    props: {
+      title: { nl: 'Zo verliep het onderzoek', en: 'How the research went' },
+      order: 'oldest',
+      events: [
+        {
+          date: '2026-09-07',
+          title: { nl: 'Zakken gekocht', en: 'Bags bought' },
+          body: {
+            nl: 'We kochten 48 zakken pepernoten bij supermarkten en bakkers.',
+            en: 'We bought 48 bags of pepernoten at supermarkets and bakeries.',
+          },
+        },
+        {
+          date: '2026-09-28',
+          title: { nl: 'Metingen afgerond', en: 'Measurements finished' },
+        },
+        {
+          date: '2026-10-12',
+          title: { nl: 'Merken om een reactie gevraagd', en: 'Brands asked to respond' },
+        },
+      ],
+    },
+  };
 }
 
 function articleNext(): BlockIn {
@@ -901,19 +1098,6 @@ function articleCards(formId: string, media: DemoMediaIds, pageId: string): Bloc
       },
     },
     {
-      type: 'video-embed',
-      version: BLOCK_DEFINITIONS['video-embed'].version,
-      props: {
-        provider: 'youtube',
-        videoId: VIDEO_ID,
-        title: {
-          nl: 'Voorbeeldvideo: Big Buck Bunny van de Blender Foundation',
-          en: 'Sample video: Big Buck Bunny by the Blender Foundation',
-        },
-        width: 'wide',
-      },
-    },
-    {
       type: 'signup-form',
       version: BLOCK_DEFINITIONS['signup-form'].version,
       props: { formId },
@@ -922,7 +1106,7 @@ function articleCards(formId: string, media: DemoMediaIds, pageId: string): Bloc
 }
 
 /**
- * `content.item.create` input for the demo article: 14 blocks. It links to the demo page by id,
+ * `content.item.create` input for the demo article. It links to the demo page by id,
  * so the page is created first. Public, with the `marker` teaser so the `paywall` block is valid:
  * a public item shows everything to everyone, so the boundary only shows in the admin.
  */
@@ -931,7 +1115,7 @@ export function demoArticle(refs: {
   media: DemoMediaIds;
   pageId: string;
 }): CreateInput {
-  const [image, paywall, quote, image2, callout, faq, cta, video, signup] = articleCards(
+  const [image, paywall, quote, image2, callout, faq, cta, signup] = articleCards(
     refs.formId,
     refs.media,
     refs.pageId
@@ -963,15 +1147,44 @@ export function demoArticle(refs: {
         articleFindings(),
         paywall!,
         quote!,
+        bridge(
+          'Ahmed is niet de enige. Van de veertien bakkers die meededen, ging er niet één terug naar het oude recept.',
+          'Ahmed is not the only one. Of the fourteen bakers who took part, not one went back to the old recipe.'
+        ),
         heading({ nl: 'Waarom zout ertoe doet', en: 'Why salt matters' }),
         articleWhy(),
         image2!,
+        bridge(
+          'Dat geldt niet voor iedereen in dezelfde mate. Hoe jonger het kind, hoe minder zout er op een dag bij past.',
+          'That does not apply to everyone to the same degree. The younger the child, the less salt fits into a day.'
+        ),
         callout!,
-        faq!,
+        bridge(
+          'Gemeten hebben we met een handzame zoutmeter, die aangeeft wanneer hij klaar is. Vrijwilligers noteerden elke uitslag op papier en controleerden die daarna samen.',
+          'We measured with a handheld salt meter, which signals when it is done. Volunteers wrote each result down on paper and then checked it together.'
+        ),
+        articleSound(refs.media.sound),
+        bridge(
+          'Alle uitslagen staan in één overzicht, zodat je zelf kunt nakijken hoe jouw merk scoorde.',
+          'All the results are in one overview, so you can check for yourself how your brand scored.'
+        ),
+        articleReport(refs.media.report),
+        bridge(
+          'Het hele onderzoek duurde ruim een maand, van de eerste aankoop tot de laatste vraag aan de merken.',
+          'The whole study took just over a month, from the first purchase to the last question to the brands.'
+        ),
+        articleTimeline(),
         articleNext(),
         cta!,
-        video!,
+        bridge(
+          'Je inschrijving is met één klik geregeld, en uitschrijven net zo snel.',
+          'Signing up takes one click, and unsubscribing is just as quick.'
+        ),
         signup!,
+        bridge(
+          'We sturen alleen die ene mail per maand, en we delen je adres met niemand.',
+          'We only send that one e-mail a month, and we share your address with no one.'
+        ),
       ],
     },
   };
@@ -991,9 +1204,14 @@ export interface DemoSeed {
 /** The bytes of the committed photo `image.filename`, a JPEG of `image.width` by `image.height`. */
 type Load = (image: DemoImage) => Promise<Uint8Array>;
 
-async function findMedia(invoker: Invoker, principal: Principal, filename: string) {
+async function findMedia(
+  invoker: Invoker,
+  principal: Principal,
+  filename: string,
+  kind: 'image' | 'document' | 'audio' = 'image'
+) {
   const { items } = await invoker.run(useCases.listMedia, principal, {
-    kind: 'image',
+    kind,
     q: filename,
   });
   return items.find((m) => m.filename === filename);
@@ -1006,6 +1224,24 @@ async function demoMedia(
   load: Load
 ): Promise<DemoMediaIds> {
   const media: Partial<DemoMediaIds> = {};
+  media.report =
+    (await findMedia(invoker, principal, DEMO_REPORT_FILENAME, 'document'))?.id ??
+    (
+      await invoker.run(useCases.uploadMedia, principal, {
+        filename: DEMO_REPORT_FILENAME,
+        contentType: 'application/pdf',
+        bytes: bytesToBase64(demoReportPdf()),
+      })
+    ).id;
+  media.sound =
+    (await findMedia(invoker, principal, DEMO_SOUND_FILENAME, 'audio'))?.id ??
+    (
+      await invoker.run(useCases.uploadMedia, principal, {
+        filename: DEMO_SOUND_FILENAME,
+        contentType: 'audio/mpeg',
+        bytes: DEMO_SOUND_BASE64,
+      })
+    ).id;
   for (const image of DEMO_IMAGES) {
     const found = await findMedia(invoker, principal, image.filename);
     media[image.key] =

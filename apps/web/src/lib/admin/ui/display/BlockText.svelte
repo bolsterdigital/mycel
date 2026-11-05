@@ -54,6 +54,36 @@
         bodyFrom?: string;
         actions: readonly { label: string; from?: string }[];
       }
+    | {
+        kind: 'cards';
+        cards: readonly {
+          title: string;
+          titleFrom?: string;
+          body: string;
+          bodyFrom?: string;
+          label: string;
+          labelFrom?: string;
+        }[];
+      }
+    | {
+        kind: 'file-download';
+        title: string;
+        titleFrom?: string;
+        body: string;
+        bodyFrom?: string;
+        files: readonly { label: string; from?: string }[];
+      }
+    | {
+        kind: 'gallery';
+        images: readonly { label: string; from?: string }[];
+      }
+    | { kind: 'audio'; titleFrom?: string; title: string }
+    | {
+        kind: 'timeline';
+        titleFrom?: string;
+        title: string;
+        events: readonly { label: string; from?: string }[];
+      }
     | { kind: 'paywall' }
     | {
         kind: 'video';
@@ -156,6 +186,41 @@
         {/each}
       </div>
     </div>
+  {:else if view.kind === 'cards'}
+    <div class="ui-block-text-cards">
+      {#each view.cards as card, i (i)}
+        <div class="ui-block-text-card">
+          <p class="ui-block-text-heading" data-rest-from={card.titleFrom}>{card.title}</p>
+          <p class="ui-block-text-body" data-rest-from={card.bodyFrom}>{card.body}</p>
+          <div class="ui-block-text-actions">
+            <span class="ui-block-text-action" data-rest-from={card.labelFrom}>{card.label}</span>
+          </div>
+        </div>
+      {/each}
+    </div>
+  {:else if view.kind === 'file-download'}
+    <p class="ui-block-text-heading" data-rest-from={view.titleFrom}>{view.title}</p>
+    <p class="ui-block-text-body" data-rest-from={view.bodyFrom}>{view.body}</p>
+    <ul class="ui-block-text-files">
+      {#each view.files as file, i (i)}
+        <li data-rest-from={file.from}>{file.label}</li>
+      {/each}
+    </ul>
+  {:else if view.kind === 'gallery'}
+    <ul class="ui-block-text-files">
+      {#each view.images as image, i (i)}
+        <li data-rest-from={image.from}>{image.label}</li>
+      {/each}
+    </ul>
+  {:else if view.kind === 'audio'}
+    <p class="ui-block-text-heading" data-rest-from={view.titleFrom}>{view.title}</p>
+  {:else if view.kind === 'timeline'}
+    <p class="ui-block-text-heading" data-rest-from={view.titleFrom}>{view.title}</p>
+    <ul class="ui-block-text-files">
+      {#each view.events as event, i (i)}
+        <li data-rest-from={event.from}>{event.label}</li>
+      {/each}
+    </ul>
   {:else if view.kind === 'paywall'}
     <div class="ui-block-text-boundary">
       <p class="ui-block-text-kind">{kindLabel}</p>

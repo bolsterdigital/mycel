@@ -1,0 +1,480 @@
+// The jobs queue (TODO #15, migration 0009; ADR 011, ADR 012 rule 4). Three halves:
+//
+// * `jobScheduler` is the core's `Scheduler` port inside a use case's tenant transaction as
+//   mycel_app: insert only, idempotent on the open key, so a job exists if and only if the
+//   change that planned it committed.
+// * `claimJobs`, `completeJob` and `failJob` are the worker's side as mycel_worker. A claim is a
+//   lease: one short transaction takes due jobs with SKIP LOCKED, stamps `claimed_at` and counts
+//   the attempt; the handler then runs without any lock on the queue, and a second short
+//   transaction marks it done or schedules the retry. A worker that dies mid-job leaves the
+//   lease, and after five minutes another worker takes the job again.
+// * `ensureRecurring` and `startJobWorker`: recurring platform jobs plan themselves, one row per
+//   period whose key names the period, so any number of workers insert at most one. A worker
+//   polls in pools: types named in a pool are claimed only by that pool's loop, everything else
+//   by the default pool, so a ten-second export never holds a publish or an assist proposal
+//   behind it. Pools share the role, the queue and SKIP LOCKED (ADR 011 rule 4).
+//
+// Rejected: running handlers inside the claim transaction as `drainOutbox` does (a five-second
+// DNS lookup or partition DDL would hold row locks on the queue, and a crash would roll back the
+// claim without a trace), a cron-expression parser (two cadences), planning recurring jobs at
+// `migrate` (a worker that runs for months without a deploy must keep itself going), and running
+// a batch with bounded concurrency instead of pools (N slow exports still fill N slots, and the
+// order within a batch would no longer be the claim order).
+
+import { sql, type Kysely } from 'kysely';
+import {
+  errorFields,
+  errorMessage,
+  noopLogger,
+  scrubText,
+  type JobOutcome,
+  type JobRecord,
+  type Logger,
+  type Scheduler,
+} from '@mycel/core';
+import { uuidv7 } from '../infra/ids.js';
+import { asRole } from '../infra/roles.js';
+import type { Database } from '../infra/schema.js';
+
+/** A claim older than this is free again: the worker that held it is presumed dead. */
+export const JOB_LEASE_SECONDS = 300;
+/** The outbox's backoff (outbox.ts): 2, 4, 8 ... seconds, at most an hour. */
+const backoffSeconds = (attempts: number) => Math.min(2 ** attempts, 3600);
+
+interface JobRow {
+  id: string;
+  tenant_id: string | null;
+  type: string;
+  key: string;
+  run_at: Date;
+  payload: unknown;
+  attempts: number;
+  max_attempts: number;
+  claimed_at: Date | null;
+  done_at: Date | null;
+  last_error: string | null;
+  created_at: Date;
+}
+
+export const toJobRecord = (r: JobRow): JobRecord => ({
+  id: r.id,
+  tenantId: r.tenant_id,
+  type: r.type,
+  key: r.key,
+  runAt: new Date(r.run_at),
+  payload: r.payload,
+  attempts: r.attempts,
+  maxAttempts: r.max_attempts,
+  claimedAt: r.claimed_at === null ? null : new Date(r.claimed_at),
+  doneAt: r.done_at === null ? null : new Date(r.done_at),
+  lastError: r.last_error,
+  createdAt: new Date(r.created_at),
+});
+
+/** `ctx.jobs` in a tenant transaction (mycel_app inserts under its own tenant; 0016 adds reads). */
+export function jobScheduler(trx: Kysely<Database>, tenantId: string): Scheduler {
+  return {
+    async enqueue(job) {
+      const r = await trx
+        .insertInto('jobs')
+        .values({
+          id: uuidv7(),
+          tenant_id: tenantId,
+          type: job.type,
+          key: job.key,
+          run_at: job.runAt,
+          payload: JSON.stringify(job.payload),
+        })
+        // No conflict target: naming the arbiter (`jobs_open_key`) needed select on its columns,
+        // which mycel_app lacked until 0016 (#17c). The only other unique key is the fresh id,
+        // so any conflict is the open key.
+        .onConflict((oc) => oc.doNothing())
+        .executeTakeFirst();
+      return (r.numInsertedOrUpdatedRows ?? 0n) > 0n;
+    },
+  };
+}
+
+/**
+ * Claim up to `batchSize` due jobs: open, due, not exhausted, and unclaimed or with an expired
+ * lease. `types` narrows the claim (tests use their own type so they never take real work);
+ * `excludeTypes` leaves the types another pool claims.
+ */
+export async function claimJobs(
+  operatorDb: Kysely<Database>,
+  {
+    batchSize = 10,
+    types,
+    excludeTypes,
+    tenantId,
+  }: {
+    batchSize?: number | undefined;
+    types?: readonly string[] | undefined;
+    excludeTypes?: readonly string[] | undefined;
+    tenantId?: string | undefined;
+  } = {}
+): Promise<JobRecord[]> {
+  const only = types ? [...types] : null;
+  const except = excludeTypes?.length ? [...excludeTypes] : null;
+  return asRole(operatorDb, 'mycel_worker', async (trx) => {
+    const { rows } = await sql<JobRow>`
+      update jobs set claimed_at = now(), attempts = attempts + 1
+      where id in (
+        select id from jobs
+        where done_at is null and run_at <= now() and attempts < max_attempts
+          and (claimed_at is null
+               or claimed_at < now() - make_interval(secs => ${JOB_LEASE_SECONDS}))
+          and (${only}::text[] is null or type = any(${only}::text[]))
+          and (${except}::text[] is null or type <> all(${except}::text[]))
+          and (${tenantId ?? null}::uuid is null or tenant_id = ${tenantId ?? null}::uuid)
+        order by run_at, id
+        limit ${batchSize}
+        for update skip locked)
+      returning *`.execute(trx);
+    return rows.map(toJobRecord).sort((a, b) => +a.runAt - +b.runAt || a.id.localeCompare(b.id));
+  });
+}
+
+/**
+ * Mark a claimed job done and, when the handler asks for it, plan the same job again in the
+ * same transaction. The guard on `attempts` makes this a no-op (false) if the lease expired and
+ * another worker claimed the job meanwhile: that run owns it now.
+ */
+export async function completeJob(
+  operatorDb: Kysely<Database>,
+  job: JobRecord,
+  outcome: JobOutcome = {}
+): Promise<boolean> {
+  return asRole(operatorDb, 'mycel_worker', async (trx) => {
+    const r = await trx
+      .updateTable('jobs')
+      .set({ done_at: sql`now()`, last_error: null })
+      .where('id', '=', job.id)
+      .where('attempts', '=', job.attempts)
+      .where('done_at', 'is', null)
+      .executeTakeFirst();
+    if (r.numUpdatedRows === 0n) return false;
+    if (outcome.next)
+      await trx
+        .insertInto('jobs')
+        .values({
+          id: uuidv7(),
+          tenant_id: job.tenantId,
+          type: job.type,
+          key: job.key,
+          run_at: outcome.next,
+          payload: JSON.stringify(job.payload),
+        })
+        .onConflict((oc) => oc.column('key').where('done_at', 'is', null).doNothing())
+        .execute();
+    return true;
+  });
+}
+
+/**
+ * Renew the lease of a claimed job that is still running (TODO #28: an export can take longer than
+ * JOB_LEASE_SECONDS). The same `attempts` guard as `completeJob`: false when another run owns the
+ * job, and then the caller should stop. Rejected: a longer lease for every job type, which keeps a
+ * job of a crashed worker waiting that long too.
+ */
+export async function touchJob(operatorDb: Kysely<Database>, job: JobRecord): Promise<boolean> {
+  return asRole(operatorDb, 'mycel_worker', async (trx) => {
+    const r = await trx
+      .updateTable('jobs')
+      .set({ claimed_at: sql`now()` })
+      .where('id', '=', job.id)
+      .where('attempts', '=', job.attempts)
+      .where('done_at', 'is', null)
+      .executeTakeFirst();
+    return r.numUpdatedRows > 0n;
+  });
+}
+
+/**
+ * Record a failed run: release the lease and retry after the backoff, until `max_attempts`. The
+ * error text is scrubbed: an exception may quote an address, and #17c shows this column.
+ */
+export async function failJob(
+  operatorDb: Kysely<Database>,
+  job: JobRecord,
+  error: string
+): Promise<boolean> {
+  return asRole(operatorDb, 'mycel_worker', async (trx) => {
+    const r = await trx
+      .updateTable('jobs')
+      .set({
+        last_error: scrubText(error),
+        claimed_at: null,
+        run_at: sql`now() + make_interval(secs => ${backoffSeconds(job.attempts)})`,
+      })
+      .where('id', '=', job.id)
+      .where('attempts', '=', job.attempts)
+      .where('done_at', 'is', null)
+      .executeTakeFirst();
+    return r.numUpdatedRows > 0n;
+  });
+}
+
+export type Cadence = 'hourly' | 'daily' | 'monthly';
+
+/** A platform job that runs once per period, planned by the worker itself. */
+export interface RecurringJob {
+  type: string;
+  cadence: Cadence;
+}
+
+/** The first period that starts strictly after `now` (UTC), and the label its key carries. */
+export function nextPeriod(cadence: Cadence, now: Date): { start: Date; label: string } {
+  const [y, m, d, h] = [
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+    now.getUTCHours(),
+  ];
+  const start =
+    cadence === 'hourly'
+      ? new Date(Date.UTC(y, m, d, h + 1))
+      : cadence === 'daily'
+        ? new Date(Date.UTC(y, m, d + 1))
+        : new Date(Date.UTC(y, m + 1, 1));
+  const iso = start.toISOString();
+  return { start, label: iso.slice(0, { hourly: 13, daily: 10, monthly: 7 }[cadence]) };
+}
+
+/**
+ * Plan the next period of every recurring job, `<type>:<period>` at the period's start. Cheap
+ * enough for every tick: a period already planned is one index conflict. Returns how many rows
+ * it inserted. Only future periods are planned, so a finished period is never planned again.
+ */
+export async function ensureRecurring(
+  operatorDb: Kysely<Database>,
+  jobs: readonly RecurringJob[],
+  now: Date = new Date()
+): Promise<number> {
+  if (jobs.length === 0) return 0;
+  return asRole(operatorDb, 'mycel_worker', async (trx) => {
+    let inserted = 0;
+    for (const job of jobs) {
+      const { start, label } = nextPeriod(job.cadence, now);
+      const r = await trx
+        .insertInto('jobs')
+        .values({
+          id: uuidv7(),
+          tenant_id: null,
+          type: job.type,
+          key: `${job.type}:${label}`,
+          run_at: start,
+          payload: '{}',
+        })
+        .onConflict((oc) => oc.column('key').where('done_at', 'is', null).doNothing())
+        .executeTakeFirst();
+      inserted += Number(r.numInsertedOrUpdatedRows ?? 0n);
+    }
+    return inserted;
+  });
+}
+
+/** What a job type runs; a tenant job's handler opens its own unit of work (packages/api). */
+export type JobHandler = (job: JobRecord) => Promise<JobOutcome | void>;
+export type JobHandlers = Readonly<Record<string, JobHandler>>;
+
+export interface JobRunResult {
+  claimed: number;
+  completed: number;
+  failed: number;
+  /** The handler finished after its lease expired and another worker had taken the job. */
+  superseded: number;
+}
+
+export type JobRunOutcome = 'completed' | 'failed' | 'superseded';
+
+/** One pass: claim a batch and run each job in turn. A type without a handler is a failure. */
+export async function runJobs(
+  operatorDb: Kysely<Database>,
+  handlers: JobHandlers,
+  {
+    batchSize,
+    types,
+    excludeTypes,
+    tenantId,
+    onError,
+    onRun,
+    log = noopLogger,
+  }: {
+    batchSize?: number;
+    types?: readonly string[];
+    excludeTypes?: readonly string[];
+    /** Narrow a test run to its own tenant; production workers leave this unset. */
+    tenantId?: string;
+    onError?: (e: unknown, job: JobRecord) => void;
+    /** Each job's result, for the `mycel_jobs_runs_total` counter. */
+    onRun?: ((job: JobRecord, outcome: JobRunOutcome) => void) | undefined;
+    log?: Logger;
+  } = {}
+): Promise<JobRunResult> {
+  const jobs = await claimJobs(operatorDb, { batchSize, types, excludeTypes, tenantId });
+  const result: JobRunResult = { claimed: jobs.length, completed: 0, failed: 0, superseded: 0 };
+  for (const job of jobs) {
+    const handler = Object.hasOwn(handlers, job.type) ? handlers[job.type] : undefined;
+    let outcome: JobRunOutcome;
+    try {
+      if (!handler) throw new Error(`no handler for ${job.type}`);
+      const done = await completeJob(operatorDb, job, (await handler(job)) ?? {});
+      outcome = done ? 'completed' : 'superseded';
+      if (!done)
+        log.warn('job finished after its lease expired; another run owns it', {
+          job: job.type,
+          jobId: job.id,
+          attempt: job.attempts,
+        });
+    } catch (e) {
+      onError?.(e, job);
+      await failJob(operatorDb, job, errorMessage(e));
+      outcome = 'failed';
+    }
+    result[outcome] += 1;
+    onRun?.(job, outcome);
+  }
+  return result;
+}
+
+export interface WorkerErrorContext {
+  job?: string;
+  tenantId?: string | undefined;
+  tags?: Record<string, string>;
+}
+
+/** What the worker loops tell their caller: errors to report and passes that completed. */
+export interface WorkerHooks {
+  log?: Logger | undefined;
+  /**
+   * An unexpected failure: a handler, a subscriber, or the loop itself. When set, the failure goes
+   * here instead of to `log` (the console error reporter writes the line), so it is written once.
+   */
+  onError?: ((e: unknown, context: WorkerErrorContext) => void) | undefined;
+  /** After every pass that reached the database, for readiness (`/readyz` on the worker). */
+  onTick?: (() => void) | undefined;
+  onRun?: ((job: JobRecord, outcome: JobRunOutcome) => void) | undefined;
+}
+
+/** Report through `onError` when the caller gave one, else write one log line. */
+export function reportOrLog(
+  { log = noopLogger, onError }: Pick<WorkerHooks, 'log' | 'onError'>,
+  what: string,
+  e: unknown,
+  context: WorkerErrorContext = {}
+): void {
+  if (onError) onError(e, context);
+  else
+    log.error(what, {
+      ...context.tags,
+      ...(context.job ? { job: context.job } : {}),
+      ...(context.tenantId ? { tenantId: context.tenantId } : {}),
+      ...errorFields(e),
+    });
+}
+
+/**
+ * A pool of its own for slow job types: its loop claims only `types`, `batchSize` at
+ * a time (default 1, so a waiting job's lease does not run out behind a long one), and the
+ * default pool never claims them.
+ */
+export interface JobPool {
+  name: string;
+  types: readonly string[];
+  batchSize?: number;
+}
+
+/**
+ * Poll for due jobs until stopped: the default pool (recurring planning, every type no pool
+ * names) plus one loop per pool. `onTick` follows the default pool only: a pool of slow jobs is
+ * meant to be busy for minutes, so its silence says nothing about the worker's health. Returns a
+ * function that stops every loop and awaits the last runs.
+ */
+export function startJobWorker(
+  operatorDb: Kysely<Database>,
+  handlers: JobHandlers,
+  {
+    intervalMs = 5000,
+    recurring = [],
+    pools = [],
+    tenantId,
+    log = noopLogger,
+    onError,
+    onTick,
+    onRun,
+  }: {
+    intervalMs?: number;
+    recurring?: readonly RecurringJob[];
+    pools?: readonly JobPool[];
+    /** Narrow every loop to one tenant's jobs, for a test; production workers leave this unset. */
+    tenantId?: string;
+  } & WorkerHooks = {}
+): () => Promise<void> {
+  let stopped = false;
+  const pooled = pools.flatMap((l) => l.types);
+  const loop = (
+    claim: { types?: readonly string[]; excludeTypes?: readonly string[]; batchSize?: number },
+    { plan, tick: onPass }: { plan: boolean; tick?: (() => void) | undefined }
+  ) => {
+    let timer: NodeJS.Timeout | undefined;
+    let running: Promise<void> = Promise.resolve();
+    const tick = () => {
+      running = (plan ? ensureRecurring(operatorDb, recurring) : Promise.resolve())
+        .catch((e) => reportOrLog({ log, onError }, 'planning recurring jobs failed', e))
+        .then(() =>
+          runJobs(operatorDb, handlers, {
+            ...claim,
+            ...(tenantId ? { tenantId } : {}),
+            log,
+            onRun,
+            onError: (e, job) =>
+              reportOrLog({ log, onError }, 'job failed', e, {
+                job: job.type,
+                tenantId: job.tenantId ?? undefined,
+                tags: { jobId: job.id, attempt: String(job.attempts) },
+              }),
+          })
+        )
+        .then((r) => {
+          onPass?.();
+          // Run again immediately while there is a backlog.
+          if (!stopped) timer = setTimeout(tick, r.claimed > 0 ? 0 : intervalMs);
+        })
+        .catch((e) => {
+          reportOrLog({ log, onError }, 'job run failed', e);
+          if (!stopped) timer = setTimeout(tick, intervalMs);
+        });
+    };
+    tick();
+    return async () => {
+      clearTimeout(timer);
+      await running;
+    };
+  };
+  const stops = [
+    loop({ excludeTypes: pooled }, { plan: true, tick: onTick }),
+    ...pools.map((l) => loop({ types: l.types, batchSize: l.batchSize ?? 1 }, { plan: false })),
+  ];
+  return async () => {
+    stopped = true;
+    await Promise.all(stops.map((s) => s()));
+  };
+}
+
+/**
+ * The `events.partitions` job: monthly partitions from the month of `now` up to three months
+ * ahead (ADR 003). Runs as the schema owner, the only role allowed to execute the function
+ * (0005); it refuses with a recovery hint when `events_default` holds rows of a month (0009).
+ */
+export async function createEventPartitions(
+  operatorDb: Kysely<Database>,
+  now: Date = new Date()
+): Promise<number> {
+  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const to = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 3, 1));
+  const day = (d: Date) => d.toISOString().slice(0, 10);
+  const { rows } = await sql<{ n: number }>`
+    select ensure_event_partitions(${day(from)}::date, ${day(to)}::date) as n`.execute(operatorDb);
+  return rows[0]?.n ?? 0;
+}

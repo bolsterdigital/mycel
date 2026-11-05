@@ -50,7 +50,7 @@ export const EXCEPTIONS = new Map([
   ['packages/db/src/erasure-backups.test.ts', /set local role mycel_backup/i],
   // Back to the owner inside one rolled-back transaction, after inserting as mycel_app; the owner
   // is not a role to switch to.
-  ['packages/db/src/jobs.test.ts', /reset role/i],
+  ['packages/db/src/operations/jobs.test.ts', /reset role/i],
 ]);
 
 /** Lines of code (comments stripped) in `files` (`[{ path, text }]`) that bypass the helper. */
@@ -156,16 +156,22 @@ test('the rule flags a hand-written switch or lock, in a test too, and leaves co
   const file = (path, text) => ({ path, text });
   assert.deepEqual(
     bypasses([
-      file('packages/db/src/jobs.ts', 'await sql`set local role mycel_worker`.execute(trx);'),
+      file(
+        'packages/db/src/operations/jobs.ts',
+        'await sql`set local role mycel_worker`.execute(trx);'
+      ),
       file('packages/db/src/media.ts', 'await sql`select pg_advisory_xact_lock(1)`.execute(trx);'),
-      file('packages/db/src/ops.ts', '// enters mycel_worker with `set local role`\nconst x = 1;'),
+      file(
+        'packages/db/src/operations/ops.ts',
+        '// enters mycel_worker with `set local role`\nconst x = 1;'
+      ),
       file('packages/db/src/hostnames.ts', '/**\n * `set local role` once\n */\nconst y = 2;'),
       file('packages/db/src/media.test.ts', 'await sql`set local role mycel_app`.execute(trx);'),
       file('apps/web/e2e/admin.spec.ts', "await c.query('set local role mycel_worker');"),
       file(HELPER, 'await sql`set local role ${sql.id(role)}`.execute(trx);'),
     ]),
     [
-      'packages/db/src/jobs.ts:1: await sql`set local role mycel_worker`.execute(trx);',
+      'packages/db/src/operations/jobs.ts:1: await sql`set local role mycel_worker`.execute(trx);',
       'packages/db/src/media.ts:1: await sql`select pg_advisory_xact_lock(1)`.execute(trx);',
       'packages/db/src/media.test.ts:1: await sql`set local role mycel_app`.execute(trx);',
       "apps/web/e2e/admin.spec.ts:1: await c.query('set local role mycel_worker');",
@@ -174,7 +180,7 @@ test('the rule flags a hand-written switch or lock, in a test too, and leaves co
 });
 
 test('a test exception covers what it names and nothing else', () => {
-  const jobs = 'packages/db/src/jobs.test.ts';
+  const jobs = 'packages/db/src/operations/jobs.test.ts';
   assert.deepEqual(
     bypasses([
       { path: jobs, text: "await client.query('reset role');" },

@@ -18,6 +18,7 @@ import {
   can,
   KEY_ROLES,
   KeyCapability,
+  offeredCapabilities,
   DROP_CAPS,
   Theme,
   SiteChrome,
@@ -31,7 +32,7 @@ import { runtime } from '#lib/server/runtime.js';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { saveAssistSettings } from '#lib/server/admin/assist-settings.js';
 import { timeZoneOptions } from '#lib/server/admin/time-zones.js';
-import { mediaChoices } from '#lib/server/content-blocks.js';
+import { mediaChoices } from '#lib/server/content/content-blocks.js';
 import type { Actions, PageServerLoad } from './$types';
 import { langOf, ui, type UiKey } from '../../../../../i18n/index.js';
 import { refuse, refusalOf } from '#lib/server/http/refuse.js';
@@ -115,7 +116,7 @@ export const load: PageServerLoad = async ({ parent, locals, url }) => {
     api: keys && {
       keys,
       roles: [...KEY_ROLES, 'custom' as const],
-      capabilities: KeyCapability.options,
+      capabilities: offeredCapabilities().filter((c) => c !== 'tenant:admin'),
     },
     images: images && {
       ...images,

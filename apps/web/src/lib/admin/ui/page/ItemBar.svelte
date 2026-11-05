@@ -10,28 +10,46 @@
      keep "Saved" apart from "Published": what the server knows after a save or a refused one,
      and the screen's script with "Unsaved changes" and "Saving…" in between. The words share
      one grid cell, so a change of state never moves the Save button under a pointer, and a
-     polite live line (not a second `status` role beside the screen's notice) reads them. -->
+     polite live line (not a second `status` role beside the screen's notice) reads them.
+     `dock` (#160) holds the actions that must stay in reach where the bar itself scrolls away:
+     with the save state they become one line at the bottom of the window there (ui.css), and sit
+     in the bar everywhere else. They are the same elements, fixed rather than repeated, so there
+     is one Save, one live line and one publication trigger. Rejected: a second copy at the end
+     of the form, which the save state, the shortcut and the drawer's focus return would each
+     have to know about. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import Badge from '../feedback/Badge.svelte';
   import Icon from '../Icon.svelte';
+  import { ui } from '../../../../i18n/index.js';
 
   let {
     back,
     title,
+    compact = false,
+    locale,
+    breadcrumbLabel,
     state,
+    stateDetail,
     stateHref,
     tone = 'neutral',
     level = 1,
     locales,
     save,
     actions,
+    dock,
   }: {
     /** The list this item belongs to. */
     back: { href: string; label: string };
     title: string;
+    compact?: boolean;
+    locale: string;
+    /** A contextual navigation name when another breadcrumb appears on the same page. */
+    breadcrumbLabel?: string;
     /** The item's state in words ("Concept", "Gepubliceerd, sindsdien gewijzigd"). */
     state?: string | undefined;
+    /** The complete publication wording, still available at the compact status link. */
+    stateDetail?: string | undefined;
     /** Where the state is explained and acted on (the status card), one tap from the bar. */
     stateHref?: string | undefined;
     tone?: 'neutral' | 'info' | 'success' | 'warning' | 'error';
@@ -45,36 +63,65 @@
     /** The content locale switch, after the state. */
     locales?: Snippet;
     actions?: Snippet;
+    /** The actions that stay in reach at the bottom of a window where the bar scrolls away. */
+    dock?: Snippet;
   } = $props();
+  const t = $derived(ui(locale));
 </script>
 
-<header class="ui-item-bar">
-  <div class="ui-item-bar-where">
-    <a class="ui-item-bar-back" href={back.href}><Icon name="arrow-left" />{back.label}</a>
-    <svelte:element this={`h${level}`} class="ui-item-bar-title">{title}</svelte:element>
-    {#if state && stateHref}<a class="ui-item-bar-state" href={stateHref}
-        ><Badge {tone}>{state}</Badge></a
-      >{:else if state}<Badge {tone}>{state}</Badge>{/if}
-    {#if locales}{@render locales()}{/if}
-    {#if save}
-      <span
-        class="ui-item-bar-save"
-        data-save-state
-        data-current={save.text ? 'done' : 'none'}
-        data-refused={save.refused ? '' : undefined}
-      >
-        <span class="ui-item-bar-save-words" aria-hidden="true">
-          <span data-state="unsaved">{save.unsaved}</span>
-          <span data-state="saving">{save.saving}</span>
-          <span data-state="done">{save.text}</span>
-        </span>
-        <span class="ui-visually-hidden" aria-live="polite" data-save-live>{save.text}</span>
+{#snippet saveState()}
+  {#if save}
+    <span
+      class="ui-item-bar-save"
+      data-save-state
+      data-current={save.text ? 'done' : 'none'}
+      data-refused={save.refused ? '' : undefined}
+    >
+      <span class="ui-item-bar-save-words" aria-hidden="true">
+        <span data-state="unsaved">{save.unsaved}</span>
+        <span data-state="saving">{save.saving}</span>
+        <span data-state="done">{save.text}</span>
       </span>
+      <span class="ui-visually-hidden" aria-live="polite" data-save-live>{save.text}</span>
+    </span>
+  {/if}
+{/snippet}
+<header class="ui-item-bar" class:compact>
+  <nav class="ui-item-bar-breadcrumb" aria-label={breadcrumbLabel ?? t('admin.ui.breadcrumb')}>
+    <a class="ui-item-bar-back" href={back.href}><Icon name="arrow-left" />{back.label}</a>
+  </nav>
+  <div class="ui-item-bar-main">
+    <div class="ui-item-bar-where">
+      <svelte:element
+        this={`h${level}`}
+        class={compact ? 'ui-visually-hidden' : 'ui-item-bar-title'}>{title}</svelte:element
+      >
+      <div class="ui-item-bar-context">
+        {#if compact && locales}{@render locales()}{/if}
+        {#if state && stateHref}<a class="ui-item-bar-state" href={stateHref} title={stateDetail}
+            ><Badge {tone}>{state}</Badge></a
+          >{:else if state}<Badge {tone}>{state}</Badge>{/if}
+        {#if !compact && locales}{@render locales()}{/if}
+        {#if compact && !dock}{@render saveState()}{/if}
+      </div>
+    </div>
+    {#if dock}
+      <div class="ui-item-bar-tools docked">
+        {#if actions}<div class="ui-actions end">{@render actions()}</div>{/if}
+        <div class="ui-item-bar-dock">
+          {@render saveState()}
+          <div class="ui-actions end">{@render dock()}</div>
+        </div>
+      </div>
+    {:else}
+      <div class="ui-item-bar-tools">
+        {#if !compact}{@render saveState()}{/if}
+        {#if actions}
+          <div class="ui-actions-host">
+            <div class="ui-actions end">{@render actions()}</div>
+          </div>
+        {/if}
+      </div>
     {/if}
   </div>
-  {#if actions}
-    <div class="ui-actions-host">
-      <div class="ui-actions end">{@render actions()}</div>
-    </div>
-  {/if}
 </header>

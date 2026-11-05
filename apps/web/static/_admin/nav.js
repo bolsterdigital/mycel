@@ -5,7 +5,7 @@
 // menu stays as it is; the button's two labels are both in the markup and CSS shows the one that
 // fits, so nothing here writes copy. Rejected: a cookie read by the server (a request header and a
 // server branch for a per-browser view preference), and a rail that switches on by itself per
-// screen (Jaap 2026-10-30: only the button).
+// screen. Editors start with the rail to leave room for writing; an explicit choice wins.
 (() => {
   const KEY = 'mycel.admin.nav';
   const root = document.documentElement;
@@ -17,15 +17,30 @@
   } catch {
     // Storage blocked (private mode, a policy): the button still works for this page.
   }
-  root.dataset.adminNav = stored === 'rail' ? 'rail' : 'full';
-  document.addEventListener('click', (event) => {
-    if (!(event.target instanceof Element) || !event.target.closest('[data-nav-toggle]')) return;
-    const next = root.dataset.adminNav === 'rail' ? 'full' : 'rail';
+  const editor =
+    /^\/admin\/[^/]+\/content\/[^/]+\/?$/.test(location.pathname) &&
+    !location.pathname.endsWith('/new');
+  root.dataset.adminNav = stored === 'rail' || (stored !== 'full' && editor) ? 'rail' : 'full';
+  const setView = (next) => {
     root.dataset.adminNav = next;
     try {
       localStorage.setItem(KEY, next);
     } catch {
       // As above: the choice holds until the next page.
+    }
+  };
+  document.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element)) return;
+    if (event.target.closest('[data-nav-toggle]')) {
+      setView(root.dataset.adminNav === 'rail' ? 'full' : 'rail');
+      return;
+    }
+    const summary = event.target.closest('.admin-sidebar summary[data-nav-expand]');
+    if (summary && root.dataset.adminNav === 'rail' && matchMedia('(min-width: 60rem)').matches) {
+      // A rail has no room for a child panel. Expand it, then let the native disclosure open;
+      // an already-open group must stay open rather than closing on this first rail click.
+      setView('full');
+      summary.parentElement.open = false;
     }
   });
 })();

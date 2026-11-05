@@ -18,6 +18,7 @@ const TYPES: Record<string, string> = {
   avif: 'image/avif',
   gif: 'image/gif',
   pdf: 'application/pdf',
+  mp3: 'audio/mpeg',
   tar: 'application/x-tar',
 };
 export const contentTypeOfKey = (key: string): string =>

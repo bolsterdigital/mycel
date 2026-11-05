@@ -23,9 +23,9 @@ on:
       # What the drill restores and erases with (TODO #29B): the register, the export's table
       # list, the schema and the CLI that applies and reports erasures.
       - 'packages/db/src/erasures.ts'
-      - 'packages/db/src/export.ts'
+      - 'packages/db/src/portability/export.ts'
       # The export job and its archives, which a backup leaves out (TODO #28).
-      - 'packages/db/src/tenant-exports.ts'
+      - 'packages/db/src/portability/tenant-exports.ts'
       - 'packages/db/migrations/**'
       - 'packages/api/src/runtime/cli.ts'
 
@@ -38,7 +38,7 @@ permissions:
 
 jobs:
   drill:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0

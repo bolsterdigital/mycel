@@ -7,7 +7,7 @@ import { ContentType, MAX_PAGE_SIZE, useCases, type ContentDocumentInput } from 
 import { failureOf } from '#lib/server/admin/admin-actions.js';
 import { refusalOf } from '#lib/server/http/refuse.js';
 import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
-import { valuesFromForm } from '#lib/server/content-admin.js';
+import { valuesFromForm } from '#lib/server/content/content-admin.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { UiKey } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';

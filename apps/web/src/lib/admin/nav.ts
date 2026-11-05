@@ -2,8 +2,8 @@
 // screen sits where, under which label and for which capability, and the shell only renders it.
 // Two entries hold the rarer screens: Manage (who and what runs the site: team, domains,
 // connections, status) and Settings (how the site looks and works). Each lists its screens under
-// it while you are inside; Manage always shows Team, the one screen there a site uses weekly
-// (Jaap 2026-10-31: Team its own line in the main menu). Addresses do not move: API access, AI
+// native disclosures, including while you are elsewhere. Team is a screen within Manage.
+// Addresses do not move: API access, AI
 // assistance and usage stay sections of `/site`, they only appear under Manage.
 // Rejected: sections named by each screen's page data (the menu could not show a screen's place
 // before you opened it, and two screens could each claim the same section), and one Settings
@@ -23,8 +23,6 @@ export interface NavScreen {
   needs: NavCapability;
   /** One sentence for an overview page: what you do there. */
   hint: UiKey;
-  /** Shown under its entry even while you are elsewhere. */
-  always?: boolean;
 }
 
 /** An entry that opens a list of screens. */
@@ -40,7 +38,7 @@ export interface NavSection {
 export const MANAGE: NavSection = {
   id: 'manage',
   label: 'admin.nav.manage',
-  icon: 'shield',
+  icon: 'wrench',
   path: 'beheer',
   screens: [
     {
@@ -48,7 +46,6 @@ export const MANAGE: NavSection = {
       label: 'admin.nav.members',
       needs: 'tenant:admin',
       hint: 'admin.manage.hint.members',
-      always: true,
     },
     {
       path: 'domeinen',
@@ -170,9 +167,8 @@ export interface NavEntry {
 }
 
 /**
- * The entries a member sees, with the screens to list under each: all of them while one is open
- * (or the entry's own page), otherwise only those marked `always`. An entry without a screen the
- * member may open is left out, so nobody sees an empty entry.
+ * Every permitted screen is present for the native disclosure, regardless of the current route.
+ * An entry without a permitted screen is left out. Visibility is never an authorization check.
  */
 export function navEntries(input: {
   base: string;
@@ -190,7 +186,6 @@ export function navEntries(input: {
       label: t(s.label),
       hint: t(s.hint),
       current: isScreen(s, base, pathname, search),
-      always: s.always === true,
     }));
     // An entry's own page counts only when it is not one of its screens: `/site?section=api` is
     // Manage's, though Settings leads to `/site`.
@@ -205,9 +200,7 @@ export function navEntries(input: {
         label: t(section.label),
         icon: section.icon,
         current: inside,
-        children: links
-          .filter((l) => inside || l.always)
-          .map(({ href, label, current, hint }) => ({ href, label, current, hint })),
+        children: links.map(({ href, label, current, hint }) => ({ href, label, current, hint })),
       },
     ];
   });

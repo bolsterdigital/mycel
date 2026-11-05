@@ -1,5 +1,5 @@
 // The edit screen of one item (TODO #66 PR 2, brief edit-screen § 6): one form for the whole
-// document. Its fields, every block's fields (`lib/server/edit-form.ts`) and a block chosen but
+// document. Its fields, every block's fields (`lib/server/content/edit-form.ts`) and a block chosen but
 // not stored yet are saved together as one `content.item.update` with the revision the form was
 // opened on as `baseRevisionId` (ADR 018 rule 2); every other action of the screen (publish,
 // schedule, move, remove, insert, duplicate) is a button of the same form that saves first and
@@ -45,6 +45,7 @@ import {
   MAX_PAGE_SIZE,
   isUuid,
   pickAny,
+  translationState,
 } from '@mycel/core';
 import { formValues, posted, type Posted } from '#lib/editor/block-form.js';
 import { failureOf, loaded, orNull, text } from '#lib/server/admin/admin-actions.js';
@@ -58,19 +59,16 @@ import {
   withLocale,
   valuesOf,
   when,
-} from '#lib/server/content-admin.js';
-import {
-  chooseContentLocale,
-  contentLocale,
-  translationState,
-} from '#lib/server/content-locale.js';
+} from '#lib/server/content/content-admin.js';
+import { chooseContentLocale, contentLocale } from '#lib/server/content/content-locale.js';
+import { recalledListPath, rememberListFromReferer } from '#lib/server/content/content-list.js';
 import {
   fieldOf,
   fromLocalInput,
   issuePath,
   localInput,
   localLabel,
-} from '#lib/server/content-admin-publication.js';
+} from '#lib/server/content/content-admin-publication.js';
 import {
   issueCopy as blockIssueCopy,
   pickerOptions,
@@ -78,19 +76,20 @@ import {
   previewOf,
   summaryOf,
   textRestOf,
-} from '#lib/server/content-blocks.js';
+} from '#lib/server/content/content-blocks.js';
 import {
   NEW_BLOCK,
   blockIssues,
   documentFieldIssues,
-  formFieldOf,
+  blockIssueField,
   blockPrefix,
   formDocument,
   pendingBlock,
   pendingProps,
+  pendingUntouched,
   pendingView,
   type PendingBlock,
-} from '#lib/server/edit-form.js';
+} from '#lib/server/content/edit-form.js';
 import { runtime } from '#lib/server/runtime.js';
 import { adminSiteUrls } from '#lib/server/site.js';
 import { langOf, ui, type UiKey } from '../../../../../../i18n/index.js';
@@ -176,7 +175,7 @@ const itemPath = (
   return `/admin/${tenant}/content/${itemId}${search ? `?${search}` : ''}${hash ? `#${hash}` : ''}`;
 };
 
-export const load: PageServerLoad = async ({ parent, locals, params, url, cookies }) => {
+export const load: PageServerLoad = async ({ parent, locals, params, url, cookies, request }) => {
   const { tenant } = await parent();
   const principal = locals.principal!;
   const { zone, site } = await adminTimeZone(locals);
@@ -259,8 +258,11 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     const found = await orNull(invoker.run(useCases.getForm, principal, { id: b.props.formId }));
     forms.set(b.props.formId, found?.form ?? null);
   }
+  rememberListFromReferer(cookies, request.headers.get('referer'), url, params.tenant, item.type);
   return {
     contentType: item.type,
+    // Back to the list as it was left: its search, status, order and page, at this item's row.
+    listPath: recalledListPath(cookies, params.tenant, item.type, item.id),
     patterns: doc.blocks.length
       ? []
       : (await invoker.run(useCases.listPatterns, principal, { limit: MAX_PAGE_SIZE })).patterns
@@ -293,6 +295,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     /** No `hero`: the document header is the only header new content gets (ADR 025). */
     blockTypes: INSERTABLE_BLOCK_TYPES,
     pending: canWrite && pending && shown.length ? pendingView(pending, shown) : null,
+    invalidInsert: !!url.searchParams.get('insert') && !pending,
     docLocales: doc.locales,
     /** The one locale the screen shows and saves (#66 PR 4). */
     workLocale: work,
@@ -417,6 +420,8 @@ const ISSUE_COPY: Record<string, UiKey> = {
   'content.reference.form-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.media-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.media-not-image': 'admin.content.issue.mediaNotImage',
+  'content.reference.media-not-document': 'admin.content.issue.mediaNotDocument',
+  'content.reference.media-not-audio': 'admin.content.issue.mediaNotAudio',
   'content.schedule.not-in-future': 'admin.content.issue.notInFuture',
   'admin.content.publication.time-invalid': 'admin.content.issue.timeInvalid',
 };
@@ -593,7 +598,8 @@ async function moveSlug(
  * adds a revision for an untouched form, as before; any other action saves only a change, and a
  * member without `content:write` changes nothing on the way to an action they may do. The block
  * being removed keeps its stored props, so an unfinished block can always be thrown away.
- * `publication` refuses a member without `content:publish` before anything is saved.
+ * `publication` refuses a member without `content:publish` before anything is saved. A pending
+ * block nothing was typed into is added by `always` only; any other action drops it.
  */
 async function commit(
   event: Event,
@@ -629,6 +635,8 @@ async function commit(
   let blocks: readonly { id: string }[] = [];
   let pending: PendingBlock | null = null;
   let revisionId = baseRevisionId;
+  // The document this post saved, once that transaction stood; a later refusal reopens on it.
+  let stood: ContentDocument | null = null;
   // The address this save moved the item to, once that transaction stood (`moveSlug`).
   let movedTo: string | null = null;
   try {
@@ -653,6 +661,7 @@ async function commit(
           text(data, `${NEW_BLOCK}anchor`),
           base.blocks.map((b) => b.id)
         );
+    if (!opts.always && pending && pendingUntouched(pending, post, base.locales)) pending = null;
     const today = rt.clock.now().toISOString().slice(0, 10);
     const read = formDocument(
       base,
@@ -672,7 +681,11 @@ async function commit(
           fieldIssues: unread.map((e) => ({ name: e.name, copy: blockIssueCopy(e.message) })),
         }),
       };
-    changed = read.blocks.filter((b, i) => !isDeepStrictEqual(b, base.blocks[i])).map((b) => b.id);
+    // By id, against what this post made: a prose block the writer dropped shortens the list, so
+    // an index would open every card behind it and put a refusal on the wrong one (#142).
+    blocks = read.blocks;
+    const before = new Map(base.blocks.map((b) => [b.id, b]));
+    changed = read.blocks.filter((b) => !isDeepStrictEqual(b, before.get(b.id))).map((b) => b.id);
     const document = read.document;
     if (opts.pattern) {
       if (base.blocks.length || read.blocks.length)
@@ -689,10 +702,15 @@ async function commit(
       };
     movedTo = slugChange(item, data);
     const untouched = formDocument(base, valuesOf(base), unposted, today, editing).document;
-    if (opts.always || !isDeepStrictEqual(document, untouched))
-      revisionId = (
-        await rt.invoker.run(useCases.updateItem, principal, { itemId, baseRevisionId, document })
-      ).revision.id;
+    if (opts.always || !isDeepStrictEqual(document, untouched)) {
+      const { revision: made } = await rt.invoker.run(useCases.updateItem, principal, {
+        itemId,
+        baseRevisionId,
+        document,
+      });
+      revisionId = made.id;
+      stood = made.document;
+    }
     if (!pending || !added) return done(revisionId);
     const result = await rt.invoker.run(useCases.insertBlock, principal, {
       itemId,
@@ -714,9 +732,14 @@ async function commit(
     // A refused insert comes after a save that stood: the form now edits that revision. A moved
     // address stood too (its own transaction), so the form is based on it, as `conflictValues`
     // does; on the old one, moving the address back would read as untouched (#208 review, F2).
+    // The writer reopens on it as well: its posted nodes still hold a block that save dropped,
+    // and that id no longer resolves on the next save (#142 review, F1).
     const saved = {
       ...values,
       baseRevisionId: revisionId,
+      ...(stood && editing && values.articleEditor
+        ? { articleEditor: JSON.stringify(toArticleEditor(stood, editing)) }
+        : {}),
       ...(movedTo && 'baseSlug' in values ? { baseSlug: movedTo } : {}),
     };
     if (e.code !== 'conflict')
@@ -731,7 +754,7 @@ async function commit(
           fieldIssues: [
             ...onFields.map((i) => ({ name: i.name, copy: ISSUES[i.message] ?? body.error })),
             ...onBlocks.map((i) => ({
-              name: formFieldOf(i.name, values),
+              ...blockIssueField(i.name, values),
               copy: blockIssueCopy(i.message),
             })),
           ],
@@ -999,9 +1022,15 @@ export const actions: Actions = {
   insert: async (event) => {
     const saved = await commit(event);
     if ('failure' in saved) return saved.failure;
-    const [place = '', anchor = ''] = text(saved.data, 'insert').split(':');
+    const choice = text(saved.data, 'insert');
+    const divider = choice.indexOf('|');
+    // A native chooser button carries its type and the same placement. Older select posts
+    // still read insertType; pendingBlock remains the closed type/anchor validator on load.
+    const placement = divider < 0 ? choice : choice.slice(divider + 1);
+    const [place = '', anchor = ''] = placement.split(':');
     const query = {
-      insert: text(saved.data, `insertType.${anchor || place}`),
+      insert:
+        divider < 0 ? text(saved.data, `insertType.${anchor || place}`) : choice.slice(0, divider),
       place,
       ...(anchor ? { anchor } : {}),
     };

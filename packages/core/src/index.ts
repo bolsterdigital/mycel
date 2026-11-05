@@ -1,5 +1,6 @@
 // Public surface of the domain core. Adapters and fronts import from here only (plus
-// `@mycel/core/testing` for in-memory ports in tests).
+// `@mycel/core/testing` for in-memory ports in tests, `@mycel/core/fake-text-model` for the
+// deterministic assist model).
 export * from './ports.js';
 export * from './connections/ports.js';
 export * from './connections/service.js';
@@ -33,6 +34,7 @@ export * from './content/blocks.js';
 export * from './content/model.js';
 export * from './content/header/effective.js';
 export * from './content/lifecycle.js';
+export * from './content/listing.js';
 export * from './content/ports.js';
 export * from './content/diff.js';
 export * from './content/service.js';
@@ -81,6 +83,7 @@ export * from './entitlements/guards.js';
 export * from './entitlements/ports.js';
 export * from './entitlements/service.js';
 export * from './media/model.js';
+export * from './media/listing.js';
 export * from './media/ports.js';
 export * from './media/signed-paths.js';
 export * from './media/service.js';

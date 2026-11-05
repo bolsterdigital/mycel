@@ -14,6 +14,7 @@ import {
   EXAMPLE_IDS,
   MAX_BLOCKS,
   blockLocalized,
+  blockReferences,
   blockReferenceRows,
   blockTreeIssues,
   projectBlock,
@@ -26,6 +27,7 @@ import { Invoker } from '../invoke.js';
 import { systemPrincipal } from '../principal.js';
 import { MemoryUnitOfWork, probeForm, TENANT } from '../testing/index.js';
 import { buildRegistry, useCases } from '../use-cases.js';
+import { imageUsesIn } from '../media/listing.js';
 import { ContentDocument, readinessIssues } from './model.js';
 
 const examples = BLOCK_TYPES.flatMap((type) =>
@@ -384,6 +386,43 @@ describe('refusals', () => {
     const faq = base('faq');
     refused({ ...faq, props: { ...faq.props, entries: [] } });
     refused({ ...faq, props: { ...faq.props, entries: Array(31).fill(faq.props.entries[0]) } });
+    const cards = base('cards');
+    const one = cards.props.cards[0];
+    refused({ ...cards, props: { ...cards.props, cards: [one] } });
+    refused({ ...cards, props: { ...cards.props, cards: Array(7).fill(one) } });
+    const gallery = base('gallery');
+    const shot = gallery.props.images[0];
+    refused({ ...gallery, props: { ...gallery.props, images: [shot] } });
+    refused({ ...gallery, props: { ...gallery.props, images: Array(25).fill(shot) } });
+    refused({ ...gallery, props: { ...gallery.props, images: [shot, { ...shot, mediaId: '' }] } });
+    refused({ ...gallery, props: { ...gallery.props, images: [shot, { ...shot, alt: null }] } });
+    refused({
+      ...gallery,
+      props: { ...gallery.props, images: [shot, { ...shot, decorative: true }] },
+    });
+    const audio = base('audio');
+    refused({ ...audio, props: { ...audio.props, fileId: '' } });
+    refused({ ...audio, props: { title: audio.props.title } });
+    refused({ ...audio, props: { ...audio.props, title: {} } });
+    const timeline = base('timeline');
+    const moment = timeline.props.events[0];
+    refused({ ...timeline, props: { ...timeline.props, events: [moment] } });
+    refused({ ...timeline, props: { ...timeline.props, events: Array(25).fill(moment) } });
+    for (const date of ['', '2026-02-30', '2 maart 2026', '2026-03'])
+      refused({ ...timeline, props: { ...timeline.props, events: [moment, { ...moment, date }] } });
+    const files = base('file-download');
+    const file = files.props.files[0];
+    refused({ ...files, props: { ...files.props, files: [] } });
+    refused({ ...files, props: { ...files.props, files: Array(13).fill(file) } });
+    refused({ ...files, props: { ...files.props, files: [{ ...file, fileId: '' }] } });
+    refused({ ...files, props: { ...files.props, files: [{ fileId: file.fileId }] } });
+    refused({
+      ...cards,
+      props: {
+        ...cards.props,
+        cards: [{ ...one, actions: [one.actions[0], one.actions[0]] }, one],
+      },
+    });
   });
 
   it('bounds video ids per provider and accepts no URL or HTML', () => {
@@ -440,6 +479,18 @@ describe('tree invariants with the new types', () => {
   });
 });
 
+describe('image uses', () => {
+  // `mediaMissingAlt` and its SQL twin recognise an image by this shape, on any block type.
+  it('names every image slot of every example in the one shape of an image use', () => {
+    for (const { type, input } of examples) {
+      const block = stored(input);
+      const inSlots = blockReferences([block]).media;
+      const found = imageUsesIn(block.props).map((use) => use.mediaId);
+      expect(new Set(found), `${type}`).toEqual(new Set(inSlots));
+    }
+  });
+});
+
 describe('references', () => {
   const rows = (name: string) => {
     const e = examples.find((x) => x.name === name)!;
@@ -459,6 +510,18 @@ describe('references', () => {
     expect(rows('callout-info')).toEqual([`callout-0 item ${EXAMPLE_IDS.item}`]);
     expect(rows('faq-list')).toEqual([`faq-0 item ${EXAMPLE_IDS.item}`]);
     expect(rows('cta-band')).toEqual([`cta-0 item ${EXAMPLE_IDS.item}`]);
+    expect(rows('cards-three-links')).toEqual([`cards-0 item ${EXAMPLE_IDS.item}`]);
+    // Twice the same file in one block is one row; the column says `media`, as for an image.
+    expect(rows('file-download-titled')).toEqual([`file-download-1 media ${EXAMPLE_IDS.document}`]);
+    // The same photo twice in one gallery is one row.
+    expect(rows('gallery-grid-full')).toEqual([
+      `gallery-2 media ${EXAMPLE_IDS.image}`,
+      `gallery-2 media ${EXAMPLE_IDS.portrait}`,
+    ]);
+    expect(rows('audio-plain')).toEqual([`audio-0 media ${EXAMPLE_IDS.audio}`]);
+    // An event's link counts as a reference, as a card's does.
+    expect(rows('timeline-newest')).toEqual([]);
+    expect(rows('timeline-oldest-titled')).toEqual([`timeline-1 item ${EXAMPLE_IDS.item}`]);
     expect(rows('quote-pullquote-wide')).toEqual([]);
     expect(rows('video-youtube')).toEqual([]);
   });

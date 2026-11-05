@@ -1,6 +1,7 @@
 // The media ports in memory: a shared blob bucket, a codec-free image processor and the
 // tenant's media rows with their usages.
 
+import { compareMedia, mediaMissingAlt, type MediaFilter } from '../../media/listing.js';
 import type { MediaRecord } from '../../media/model.js';
 import type { BlobStore, ImageProbe, ImageProcessor, MediaRepository } from '../../media/ports.js';
 import type { Clock } from '../../ports.js';
@@ -101,23 +102,45 @@ export function memoryMedia(s: TenantStore, lock: () => Promise<void>): MediaRep
     ...structuredClone(m),
     usageCount: usageCount(m.id),
   });
+  const matching = ({ kind, q, unused, missingAlt }: MediaFilter) => {
+    const needle = q?.toLowerCase();
+    const found = (m: StoredMedia) =>
+      !needle ||
+      [m.filename, ...Object.values(m.caption)].some((t) => t.toLowerCase().includes(needle));
+    const lacking = new Set(
+      missingAlt === undefined
+        ? []
+        : [...s.items.values()].flatMap((i) =>
+            mediaMissingAlt(s.revisions.get(i.latestRevisionId)!.document)
+          )
+    );
+    return [...s.media.values()].filter(
+      (m) =>
+        !m.deletedAt &&
+        (!kind || m.kind === kind) &&
+        found(m) &&
+        (unused === undefined || (usageCount(m.id) === 0) === unused) &&
+        (missingAlt === undefined || lacking.has(m.id) === missingAlt)
+    );
+  };
   return {
     lock,
     get: async (id) => {
       const m = s.media.get(id);
       return m ? mediaRecord(m) : null;
     },
-    async list({ kind, q, cursor, limit }) {
-      const needle = q?.toLowerCase();
-      const matches = (m: StoredMedia) =>
-        !needle ||
-        [m.filename, ...Object.values(m.caption)].some((t) => t.toLowerCase().includes(needle));
-      const all = [...s.media.values()]
-        .filter((m) => !m.deletedAt && (!kind || m.kind === kind) && matches(m))
-        .sort((a, b) => +b.createdAt - +a.createdAt || b.id.localeCompare(a.id));
-      const from = cursor ? all.findIndex((m) => m.id === cursor) + 1 : 0;
-      return all.slice(from, from + limit).map(mediaRecord);
+    async list({
+      order = { by: 'created', direction: 'desc' },
+      cursor,
+      offset = 0,
+      limit,
+      ...filter
+    }) {
+      const all = matching(filter).map(mediaRecord).sort(compareMedia(order));
+      const from = (cursor ? all.findIndex((m) => m.id === cursor) + 1 : 0) + offset;
+      return all.slice(from, from + limit);
     },
+    count: async (filter) => matching(filter).length,
     async insert(m) {
       s.media.set(m.id, { ...structuredClone(m), deletedAt: null });
     },

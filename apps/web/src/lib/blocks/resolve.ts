@@ -6,6 +6,8 @@
 // What a reference turns into is decided here, and it fails closed:
 //   - media: `media.get`; a restricted, deleted, failed or non-image asset is null, and the block
 //     renders nothing (no figure, no alt, no path). Signed paths for readers are #19.
+//     A document slot has the same rule for a document: the entry is left out, and a block with
+//     no file left renders nothing.
 //   - forms: `form.get` with a fresh `startedToken`, as the probe did; unknown is null.
 //   - items: a public path only if the item is published in this locale and its published
 //     revision is `access.level: public`, the rules of `content.published.get`; otherwise null,
@@ -16,6 +18,7 @@
 // renderer that cannot run without a database), and passing the whole `MediaView` through
 // (restricted paths would sit in the model even if no component printed them).
 
+import { formatBytes } from '../admin/format.js';
 import {
   type FormDefinition,
   type ArticleHeader,
@@ -35,6 +38,7 @@ import {
   type MediaCredit,
 } from '@mycel/core';
 import { ui } from '../../i18n/index.js';
+import { headingsAboveFloats } from './float-order.js';
 import type {
   BlockCopy,
   RenderAction,
@@ -117,6 +121,9 @@ export function blockCopy(locale: string): BlockCopy {
       note: t('block.callout.note'),
       warning: t('block.callout.warning'),
     },
+    galleryRow: t('block.gallery.row'),
+    audioDownload: t('block.audio.download'),
+    audioTranscript: t('block.audio.transcript'),
     photographer: t('block.credit.photographer'),
     videoOn: t('block.video.on'),
     footnotes: t('block.footnotes'),
@@ -171,6 +178,20 @@ function renderImage(
     credit: credit.work || credit.photographer ? credit : null,
     focal: { x: q(asset.focal.x), y: q(asset.focal.y) },
   };
+}
+
+/** Where a visitor fetches a document and what it is ("PDF, 845 kB"); fails closed like an image. */
+function renderFile(
+  asset: MediaView | null,
+  locale: string,
+  kind: 'document' | 'audio' = 'document'
+): { href: string; meta: string } | null {
+  if (!asset || asset.access !== 'public' || asset.kind !== kind || asset.state !== 'ready')
+    return null;
+  const file = asset.variants.find((v) => v.name === 'file' && v.path);
+  if (!file) return null;
+  const meta = `${file.format.toUpperCase()}, ${formatBytes(asset.sizeBytes, locale)}`;
+  return { href: file.path, meta };
 }
 
 /**
@@ -314,6 +335,70 @@ export async function resolveDocument(
           width: b.props.width,
           align: b.props.align,
         };
+      case 'cards':
+        return {
+          id,
+          type: 'cards',
+          accent: b.props.accent,
+          width: b.props.width,
+          cards: b.props.cards.map((c) => ({
+            title: text(c.title) ?? '',
+            body: text(c.body),
+            actions: actions(c.actions),
+          })),
+        };
+      case 'file-download':
+        return {
+          id,
+          type: 'file-download',
+          title: text(b.props.title),
+          body: text(b.props.body),
+          files: b.props.files.flatMap((f) => {
+            const file = renderFile(media.get(f.fileId) ?? null, locale);
+            return file ? [{ ...file, label: text(f.name) ?? '' }] : [];
+          }),
+        };
+      case 'audio':
+        return {
+          id,
+          type: 'audio',
+          title: text(b.props.title) ?? '',
+          file: renderFile(media.get(b.props.fileId) ?? null, locale, 'audio'),
+          transcript: text(b.props.transcript),
+        };
+      case 'gallery':
+        return {
+          id,
+          type: 'gallery',
+          variant: b.props.variant,
+          width: b.props.width,
+          images: b.props.images.flatMap((use) => {
+            const image = renderImage(media.get(use.mediaId) ?? null, use, locale);
+            return image ? [image] : [];
+          }),
+        };
+      case 'timeline': {
+        // A calendar date has no zone: written in UTC, read in UTC, so no server shifts it a day.
+        const dateLabel = new Intl.DateTimeFormat(locale, { timeZone: 'UTC', dateStyle: 'long' });
+        const newestFirst = b.props.order === 'newest';
+        return {
+          id,
+          type: 'timeline',
+          title: text(b.props.title),
+          // A stable sort: two events on one date stay in the order the editor gave them.
+          events: [...b.props.events]
+            .sort((x, y) =>
+              newestFirst ? y.date.localeCompare(x.date) : x.date.localeCompare(y.date)
+            )
+            .map((e) => ({
+              date: e.date,
+              dateLabel: dateLabel.format(new Date(`${e.date}T00:00:00Z`)),
+              title: text(e.title) ?? '',
+              body: text(e.body),
+              actions: actions(e.actions),
+            })),
+        };
+      }
       case 'callout':
         return {
           id,
@@ -382,7 +467,7 @@ export async function resolveDocument(
     locale,
     title: projection.title,
     base: options.base,
-    blocks: out,
+    blocks: headingsAboveFloats(out),
     links,
     copy: blockCopy(locale),
   };
@@ -410,6 +495,16 @@ function referencesOf(b: Block): { type: 'media' | 'form' | 'item'; refId: strin
       ];
     case 'cta':
       return targets(b.props.actions);
+    case 'cards':
+      return b.props.cards.flatMap((c) => targets(c.actions));
+    case 'file-download':
+      return b.props.files.map((f) => ({ type: 'media' as const, refId: f.fileId }));
+    case 'audio':
+      return [{ type: 'media' as const, refId: b.props.fileId }];
+    case 'gallery':
+      return b.props.images.map((i) => ({ type: 'media' as const, refId: i.mediaId }));
+    case 'timeline':
+      return b.props.events.flatMap((e) => targets(e.actions));
     case 'form':
     case 'signup-form':
       return [{ type: 'form', refId: b.props.formId }];

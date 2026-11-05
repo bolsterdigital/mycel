@@ -24,21 +24,16 @@ export interface BfcacheOutcome {
 }
 
 /**
- * Open `path`, go to `away`, go back, and report whether the first page came back from the
+ * From the page on screen, go to `away`, go back, and report whether it came back from the
  * cache. A marker set on the page's window survives only a restore, not a new load.
  */
-export async function bfcacheRestore(
-  page: Page,
-  path: string,
-  away: string
-): Promise<BfcacheOutcome> {
+export async function bfcacheBack(page: Page, away: string): Promise<BfcacheOutcome> {
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Page.enable');
   let reasons: string[] = [];
   cdp.on('Page.backForwardCacheNotUsed', (event) => {
     reasons = event.notRestoredExplanations.map((explanation) => explanation.reason);
   });
-  await page.goto(path);
   await page.evaluate(() => {
     (window as { bfcacheMarker?: true }).bfcacheMarker = true;
   });
@@ -52,4 +47,14 @@ export async function bfcacheRestore(
   );
   await cdp.detach();
   return { restored, reasons };
+}
+
+/** Open `path`, then `bfcacheBack` from it. */
+export async function bfcacheRestore(
+  page: Page,
+  path: string,
+  away: string
+): Promise<BfcacheOutcome> {
+  await page.goto(path);
+  return bfcacheBack(page, away);
 }

@@ -15,8 +15,14 @@
 //   copy's or neighbour's "Edit", the first field of a new block;
 // - a link or a refused control inside a closed fold opens that fold first (the tabs script
 //   shows a hidden tab the same way), so the browser can scroll to it and focus it;
+// - the hero's description line says what the fields say now (#158), and clears what described
+//   the previous picture when another image is chosen;
 // - an image block's alt text hides while the image is decorative and the field is empty, and a
 //   picture that fails to load turns its card into the "not available" state;
+// - collapsing a block card and every card, remembered per browser and item, without leaving the
+//   form: a collapsed block's fields still save, and one that a refusal or link needs opens itself,
+//   with focus on the refused field;
+// - "Insert a block below" opening the chooser it points at, and one open "More actions" at a time;
 // - a search field over each block type list that narrows it, Enter adding the first match;
 // - a shortcuts panel that `?` opens (outside text fields).
 // Rejected: autosave (brief § 5: every pause would be a revision), a custom leave dialog
@@ -26,7 +32,7 @@ const form = document.getElementById('item-edit');
 
 if (form instanceof HTMLFormElement) {
   const state = document.querySelector('[data-save-state]');
-  const saveButton = document.querySelector('button[form="item-edit"][formaction="?/save"]');
+  const saveButton = document.querySelector('button[form="item-edit"][formaction^="?/save&"]');
   /** Controls that choose an action rather than change the document. */
   const IGNORED = /^(insertType\.|at\.|patternId$)/;
   // A refused save comes back with what was typed, still unsaved: leaving asks from the start.
@@ -58,10 +64,10 @@ if (form instanceof HTMLFormElement) {
   /** The id of the block in view, unless the top of the first one still is: then the top is fine. */
   const blockInView = () => {
     const cards = [...form.querySelectorAll('[data-block-card]')];
+    // A prose card of the writer has no box, so its bottom never counts as in view.
     const card = cards.find((c) => c.getBoundingClientRect().bottom > innerHeight / 4);
     if (!card || (card === cards[0] && card.getBoundingClientRect().top > 0)) return '';
-    const target = card.querySelector(':scope > details.ui-block-card-fold') ?? card;
-    return target.id.replace(/^block-/, '');
+    return card.dataset.blockCard.replace(/^block-/, '');
   };
   form.addEventListener('submit', (event) => {
     submitting = true;
@@ -98,7 +104,7 @@ if (form instanceof HTMLFormElement) {
     if (!target || target.closest('dialog')) return;
     if (event.defaultPrevented && !target.closest('.ProseMirror')) return;
     const fold = target.closest(
-      'details.ui-confirm[open], details.ui-block-card-more[open], details.ui-block-card-fold[open], details.ui-block-insert[open], details[data-shortcuts][open]'
+      'details.ui-confirm[open], details.ui-block-card-more[open], details.ui-block-card-fold[open], details.ui-block-insert[open], details[data-shortcuts][open], details[data-hero-alt][open]'
     );
     if (!fold) return;
     event.preventDefault();
@@ -123,6 +129,10 @@ if (form instanceof HTMLFormElement) {
   let rememberFold = () => {};
   form.addEventListener('click', (event) => {
     const target = event.target instanceof Element ? event.target : null;
+    // The browser opens a fold after this click, and `toggle` comes a task later: what it holds now
+    // is what it held on opening, even when the words arrive before that task.
+    const opening = target?.closest('details.ui-block-card-fold:not([open]) > summary');
+    if (opening) rememberFold(opening.parentElement);
     const rest = target?.closest('[data-block-rest]');
     if (!rest || target.closest('a, button, summary')) return;
     const fold = rest.parentElement?.querySelector(':scope > details.ui-block-card-fold');
@@ -254,6 +264,19 @@ if (form instanceof HTMLFormElement) {
     }
     place.replaceChildren(...entries);
   };
+  /** A card's name follows its rest view once that is up to date, so the two never disagree. */
+  const renameCard = (rest) => {
+    const name = rest.closest('[data-block-card]')?.querySelector('[data-block-name]');
+    if (!name) return;
+    // As `blockName` on the server: the first words there are. An FAQ without a title goes by its
+    // first question. An image goes by its caption alone: its next text is the alt text.
+    const caption = rest.querySelector('[data-rest-caption]');
+    const sources = caption
+      ? [caption]
+      : rest.querySelectorAll('[data-rest-prose], [data-rest-from]');
+    const words = [...sources].map((source) => source.textContent?.trim()).find(Boolean);
+    name.textContent = words || name.dataset.blockName || '';
+  };
   /** What the plain fields of a fold held when it opened. */
   const restFolds = new WeakMap();
   // Also called from the click that opens a fold: `toggle` comes a task later, after a fast typist.
@@ -280,6 +303,7 @@ if (form instanceof HTMLFormElement) {
         restFolds.get(fold) !== fieldsOf(fold) ||
         [...editors].some((editor) => editor.innerHTML !== opened.get(editor));
       restFolds.delete(fold);
+      if (edited) queueMicrotask(() => renameCard(rest));
       if (entries && edited) rebuildEntries(entries.closest('[data-rest-list]'), entries);
       for (const line of rest.querySelectorAll('[data-rest-from]')) {
         const names = line.dataset.restFrom;
@@ -305,6 +329,19 @@ if (form instanceof HTMLFormElement) {
         const caption = line.closest('figcaption');
         if (caption) caption.hidden = [...caption.children].every((child) => child.hidden);
       }
+      for (const line of rest.querySelectorAll('[data-rest-alt]')) {
+        const text = controlOf(line.dataset.restAlt)?.value ?? '';
+        const decorative = !!controlOf(line.dataset.restDecorative)?.checked;
+        const words = line.querySelector('[data-rest-alt-text]');
+        const intentional = line.querySelector('[data-rest-alt-decorative]');
+        const missing = line.querySelector('[data-rest-alt-missing]');
+        if (words) {
+          words.textContent = text;
+          words.hidden = decorative || !text.trim();
+        }
+        if (intentional) intentional.hidden = !decorative;
+        if (missing) missing.hidden = decorative || !!text.trim();
+      }
       for (const note of rest.querySelectorAll('[data-rest-changed]')) {
         note.hidden = !typedInto(note.dataset.restChanged);
       }
@@ -326,8 +363,122 @@ if (form instanceof HTMLFormElement) {
     true
   );
 
+  // Collapsing a card (#159). The content goes `hidden`, not out of the form: what was typed in it
+  // is posted with the save. Standing in the page's markup would make it a promise without a
+  // script, so the buttons appear here and the page without JavaScript shows every block open.
+  // Remembered per browser and per item, not in the document: rest is one reader's view of it.
+  // Rejected: the server remembering it (a save for a glance) and `details` for the head, which
+  // would hide the head's own controls from a `summary` and name the button after all its text.
+  const allCards = () => [...form.querySelectorAll('[data-block-card]')];
+  const contentOf = (card) => card.querySelector(':scope > [data-block-content]');
+  const collapsedKey = `mycel:collapsed-blocks:${location.pathname}`;
+  const readCollapsed = () => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(collapsedKey) ?? '[]');
+      return new Set(Array.isArray(stored) ? stored : []);
+    } catch {
+      return new Set();
+    }
+  };
+  const remember = () => {
+    const ids = allCards()
+      .filter((card) => 'collapsed' in card.dataset)
+      .map((card) => card.dataset.blockCard);
+    try {
+      if (ids.length) localStorage.setItem(collapsedKey, JSON.stringify(ids));
+      else localStorage.removeItem(collapsedKey);
+    } catch {
+      // Private window or blocked storage: it just is not remembered.
+    }
+  };
+  const setCollapsed = (card, collapsed) => {
+    const content = contentOf(card);
+    if (!content) return;
+    content.hidden = collapsed;
+    card.toggleAttribute('data-collapsed', collapsed);
+    card.querySelector('[data-block-toggle]')?.setAttribute('aria-expanded', String(!collapsed));
+  };
+  /** Expands the card around an element and forgets it was collapsed. */
+  const expandAround = (element) => {
+    const card = element.closest('[data-block-card]');
+    if (!card || !('collapsed' in card.dataset)) return;
+    setCollapsed(card, false);
+    remember();
+  };
+  /** What a card must show on arrival, whatever was remembered (a block that needs attention). */
+  const landingId = decodeURIComponent(location.hash.slice(1));
+  // A block moved up or down stays as it was: it was probably collapsed to be moved around. Its
+  // "More actions" takes the focus (`land`), and that is in the head.
+  const landingMoved = new URLSearchParams(location.search).get('done') === 'blockMoved';
+  const needed = (card) => {
+    if (card.querySelector('[aria-invalid="true"], .ui-error')) return true;
+    if (card.querySelector(':scope > [data-block-content] > details.ui-block-card-fold[open]'))
+      return true;
+    const target = landingId && document.getElementById(landingId);
+    return !!target && card.contains(target) && !landingMoved;
+  };
+  const remembered = readCollapsed();
+  for (const card of allCards()) {
+    card.querySelector('[data-block-toggle]')?.removeAttribute('hidden');
+    if (remembered.has(card.dataset.blockCard) && !needed(card)) setCollapsed(card, true);
+  }
+  remember();
+  document.querySelector('[data-block-bar]')?.removeAttribute('hidden');
+  form.addEventListener('click', (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target) return;
+    // Every card, or just this one. The all-buttons leave a writer's disabled prose fields alone:
+    // those cards are not on the screen, and "expand all" would have no way to show them.
+    const all = target.closest('[data-block-all]');
+    if (all) {
+      for (const card of allCards())
+        if (!card.closest('fieldset')?.disabled)
+          setCollapsed(card, all.getAttribute('data-block-all') === 'collapse');
+      remember();
+      return;
+    }
+    const head = target.closest('.ui-block-card-head');
+    if (!head) return;
+    const toggle = head.querySelector('[data-block-toggle]');
+    const isToggle = !!target.closest('[data-block-toggle]');
+    // Empty space in the head does the same; its controls do what they say. Selecting the words to
+    // copy them is no click on empty space either.
+    if (!isToggle) {
+      if (target.closest('a, button, summary, details, input, select, textarea, label')) return;
+      if (getSelection()?.toString()) return;
+    }
+    const card = head.closest('[data-block-card]');
+    setCollapsed(card, !('collapsed' in card.dataset));
+    remember();
+    toggle?.focus({ preventScroll: true });
+  });
+  // The live preview and a same-page link arrive by hash; `reveal` handles a click.
+  window.addEventListener('hashchange', () => {
+    const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    if (target) expandAround(target);
+  });
+  // A fold opened from anywhere (a restored session, the live preview) belongs in view.
+  form.addEventListener(
+    'toggle',
+    (event) => {
+      const fold = event.target;
+      if (fold instanceof HTMLDetailsElement && fold.open && fold.matches('.ui-block-card-fold'))
+        expandAround(fold);
+    },
+    true
+  );
+
+  // One menu at a time, closed by a click elsewhere: it lies over the content.
+  document.addEventListener('click', (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const inside = target?.closest('details.ui-block-card-more');
+    for (const menu of form.querySelectorAll('details.ui-block-card-more[open]'))
+      if (menu !== inside) menu.open = false;
+  });
+
   /** Opens every closed fold around an element, so it can be shown and focused. */
   const reveal = (element) => {
+    expandAround(element);
     for (let d = element.closest('details'); d; d = d.parentElement?.closest('details') ?? null)
       d.open = true;
   };
@@ -347,13 +498,36 @@ if (form instanceof HTMLFormElement) {
     true
   );
 
+  // "Insert a block below" is a link into the chooser of the next place, which a fragment opens
+  // without JavaScript; `data-insert-below` names the chooser itself. The writer shows no chooser
+  // before prose (it is one text there), so that one comes to the card it is opened from;
+  // `before:<id>` still says where the block lands.
+  form.addEventListener('click', (event) => {
+    const link = event.target instanceof Element && event.target.closest('a[data-insert-below]');
+    const target = link && document.getElementById(link.dataset.insertBelow);
+    if (!target) return;
+    event.preventDefault();
+    const host = link.closest('.editor-card');
+    if (target.hidden && host) {
+      host.append(target);
+      target.hidden = false;
+    }
+    link.closest('details').open = false;
+    reveal(target);
+    target.scrollIntoView({ block: 'nearest' });
+    const control = target.matches('details')
+      ? target.querySelector(':scope > summary')
+      : [...target.querySelectorAll('input, button')].find(shown);
+    control?.focus({ preventScroll: true });
+  });
+
   /** After a round trip: focus the control the action belongs to (brief § A6). */
   const land = () => {
     const id = decodeURIComponent(location.hash.slice(1));
     const target = id && document.getElementById(id);
     if (!target) return;
-    // A block lands at rest: open what is around it, not its own fold.
-    if (target.parentElement) reveal(target.parentElement);
+    // A block lands at rest: open what is around it, not its own fold. Moved, it may stay collapsed.
+    if (target.parentElement && !landingMoved) reveal(target.parentElement);
     if (id === 'block-new') {
       target.querySelector('input:not([type="hidden"]), select, textarea')?.focus();
       return;
@@ -365,14 +539,26 @@ if (form instanceof HTMLFormElement) {
     }
     // A type without fields is its own card and target; it has only its actions to land on.
     if (!target.matches('details.ui-block-card-fold, [data-block-card]')) return;
-    const moved = new URLSearchParams(location.search).get('done') === 'blockMoved';
     const card = target.closest('[data-block-card]');
-    const summary = moved
+    const summary = landingMoved
       ? card?.querySelector('details.ui-block-card-more > summary')
       : target.querySelector(':scope > summary');
+    // The browser found no box to scroll to if the moved block stays collapsed.
+    if (landingMoved && card && 'collapsed' in card.dataset)
+      card.scrollIntoView({ block: 'start' });
     summary?.focus({ preventScroll: true });
   };
   land();
+
+  // A refused save comes back without a hash: the words are in the summary and at the field, and
+  // the block they concern is open (#159). The first refused field that can take focus gets it; a
+  // text kept in a hidden field for its editor falls back to that block's summary.
+  if (state?.hasAttribute('data-refused') && !location.hash) {
+    const refused = [...form.querySelectorAll('[data-block-card] [aria-invalid="true"]')];
+    const field = refused.find(shown);
+    const fold = refused[0]?.closest('details.ui-block-card-fold');
+    (field ?? fold?.querySelector(':scope > summary'))?.focus();
+  }
 
   // An image's alt text only applies while it is not decorative; a filled one stays in view, so
   // the refusal a save would give is never about a field nobody can see.
@@ -389,6 +575,93 @@ if (form instanceof HTMLFormElement) {
     sync();
   }
 
+  // The hero's description line, live (#158). The same order as `lib/admin/hero-alt/hero-alt.ts`,
+  // which the server renders with; every state's words are in the markup, so this only chooses.
+  const heroAlt = form.querySelector('details[data-hero-alt]');
+  const heroText = heroAlt?.querySelector('textarea');
+  if (heroAlt instanceof HTMLDetailsElement && heroText instanceof HTMLTextAreaElement) {
+    const { savedImage, savedText } = heroAlt.dataset;
+    const others = Number(heroAlt.dataset.others);
+    const storedOthers = Number(heroAlt.dataset.storedOthers);
+    const box = heroAlt.querySelector('input[name="heroDecorative"]');
+    const chosenImage = () =>
+      [...form.querySelectorAll('input[type="radio"][name="heroImageId"]')].find((i) => i.checked)
+        ?.value ?? '';
+    const part = (selector) => heroAlt.querySelector(selector);
+    const sync = () => {
+      const image = chosenImage();
+      const replaced = !!image && image !== savedImage;
+      const text = heroText.value.trim();
+      const flagged = 'flagged' in heroAlt.dataset;
+      const kept = replaced ? 0 : storedOthers;
+      const clearing = box instanceof HTMLInputElement && box.checked;
+      const [state, tone] = clearing
+        ? ['cleared', 'neutral']
+        : text
+          ? ['described', flagged ? 'err' : 'ok']
+          : flagged
+            ? ['missing', 'err']
+            : replaced
+              ? ['fresh', 'info']
+              : kept
+                ? ['missing', 'warn']
+                : ['decorative', 'neutral'];
+      heroAlt.hidden = !image;
+      heroAlt.dataset.tone = tone;
+      for (const words of heroAlt.querySelectorAll('[data-hero-alt-state]'))
+        words.hidden = words.dataset.heroAltState !== state;
+      part('[data-hero-alt-quote]').textContent = heroText.value;
+      part('[data-hero-alt-extra="kept"]').hidden =
+        state !== 'described' || replaced || others === storedOthers;
+      part('[data-hero-alt-extra="replaced"]').hidden =
+        state !== 'described' || !replaced || !others;
+      const edit = state === 'described' || state === 'cleared';
+      part('[data-hero-alt-action="edit"]').hidden = !edit;
+      part('[data-hero-alt-action="describe"]').hidden = edit;
+      part('[data-hero-alt-empty="decorative"]').hidden = kept > 0;
+      for (const standing of heroAlt.querySelectorAll(
+        '[data-hero-alt-empty="open"], [data-hero-alt-others]'
+      ))
+        standing.hidden = kept === 0;
+    };
+    /** What was typed answered a refusal: the error goes with it. */
+    const settle = () => {
+      if (!('flagged' in heroAlt.dataset)) return;
+      delete heroAlt.dataset.flagged;
+      heroText.removeAttribute('aria-invalid');
+      heroText.closest('.ui-field')?.classList.remove('invalid');
+      heroText.closest('.ui-field')?.querySelector('.ui-error')?.remove();
+      heroText.setAttribute(
+        'aria-describedby',
+        heroText.getAttribute('aria-describedby')?.replace('heroAlt-error', '').trim() ?? ''
+      );
+    };
+    heroText.addEventListener('input', () => {
+      settle();
+      sync();
+    });
+    box?.addEventListener('change', () => {
+      settle();
+      sync();
+    });
+    form.addEventListener('change', (event) => {
+      const radio = event.target;
+      if (!(radio instanceof HTMLInputElement) || radio.name !== 'heroImageId') return;
+      // A stored description described the old picture (the server keeps only text typed over it);
+      // back on the stored image it applies again. What someone typed stays in both directions.
+      const image = chosenImage();
+      if (image && image !== savedImage) {
+        if (heroText.value === savedText) heroText.value = '';
+        if (box instanceof HTMLInputElement) box.checked = false;
+      } else if (image && !heroText.value.trim()) heroText.value = savedText ?? '';
+      sync();
+    });
+    // Opening is a wish to write: the field, as a click on a block's words lands in its field.
+    heroAlt.querySelector(':scope > summary').addEventListener('click', () => {
+      if (!heroAlt.open) requestAnimationFrame(() => heroText.focus({ preventScroll: true }));
+    });
+  }
+
   const broken = (img) => img.closest('figure')?.setAttribute('data-broken', '');
   document.addEventListener(
     'error',
@@ -400,33 +673,6 @@ if (form instanceof HTMLFormElement) {
   );
   for (const img of form.querySelectorAll('img[data-block-image]'))
     if (img.complete && img.naturalWidth === 0) broken(img);
-  // Block type search: rebuilds the list from its original options, so the select keeps posting
-  // a valid type; nothing found leaves one disabled line and the insert button refuses nothing.
-  for (const search of form.querySelectorAll('[data-type-search]')) {
-    const input = search.querySelector('input');
-    const select = search.parentElement?.querySelector('select');
-    const button = search.parentElement?.querySelector('button[formaction="?/insert"]');
-    if (!(input instanceof HTMLInputElement) || !(select instanceof HTMLSelectElement)) continue;
-    search.hidden = false;
-    const all = [...select.options].map((o) => o.cloneNode(true));
-    const none = document.createElement('option');
-    none.disabled = true;
-    none.textContent = search.dataset.none ?? '';
-    input.addEventListener('input', () => {
-      const q = input.value.trim().toLocaleLowerCase();
-      const shown = all.filter((o) => !q || o.textContent.toLocaleLowerCase().includes(q));
-      select.replaceChildren(...(shown.length ? shown.map((o) => o.cloneNode(true)) : [none]));
-      if (shown.length) select.selectedIndex = 0;
-      if (button instanceof HTMLButtonElement) button.disabled = !shown.length;
-    });
-    input.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter') return;
-      // Enter in a text field would save the whole form; here it adds the type that matched.
-      event.preventDefault();
-      if (button instanceof HTMLButtonElement && !button.disabled) form.requestSubmit(button);
-    });
-  }
-
   // Shortcuts panel: a fold the script shows; `?` outside a text field opens it.
   const keys = document.querySelector('details[data-shortcuts]');
   if (keys instanceof HTMLDetailsElement) {

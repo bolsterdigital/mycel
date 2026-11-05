@@ -2,6 +2,10 @@
 
 A supporter is one person per tenant, identified by a normalised e-mail address that resolves to a stable `supporter_id`, with an append-only event log as the source of truth and a projection folded from it. Other modules publish domain events; the supporter module subscribes, maps them onto the envelope `wings.supporter-event.v1` inherited from Dreamkit, appends them and folds ([ADR 003](../adr/003-supporter-identity-and-event-log.md), [ADR 019](../adr/019-supporter-consistency-identity-and-retention.md) rules 1 to 3). Code: `packages/core/src/supporters/`, `supporterRepository` in `packages/db/src/supporters.ts`, migration 0005. Erasure is described in [export.md](export.md#erasure-register); the consent flow that feeds the log in [mail.md](mail.md); the tables in [database.md](database.md).
 
+## Identity and fold
+
+**Supporter identity and fold.** Ingest locks the event's e-mail address (a transaction-scoped advisory lock per tenant and address), resolves it to a stable `supporter_id` (a new UUIDv7 on first sight), appends the event to the monthly partitioned `events` log (dedup on the deterministic id) and folds it into the `supporters` projection. The projection records `appliedThrough`, the fold position (`occurred_at`, then id) of the last event it applied: a newer event is applied on top, a late one triggers a re-fold of that one supporter from its log, so every arrival order ends in the same projection. An address changes only through `supporter.email.update`, which locks both addresses and logs `supporter.email_changed` (ADR 019 rules 1 to 3). Monthly partitions are created by `migrate` up to three months ahead and kept going by the worker's monthly `events.partitions` job; a backfill calls `ensureEventPartitions` for its own range first.
+
 ## The envelope
 
 `SupporterEvent` (`packages/core/src/supporters/events.ts`) keeps the Dreamkit schema id so a backfill from the predecessor needs no translation. A new event type is an addition to `SupporterEventType`; a changed meaning is a new schema id, never an edit.
@@ -55,13 +59,13 @@ Fold order is `occurred_at` compared as an instant, then `id` by code unit, whic
 
 ## Constants
 
-| Constant                    | Value               | Where                                                         | Why                                                                            |
-| --------------------------- | ------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| partitions ahead            | 3 months            | `packages/db/src/infra/migrate.ts`, `packages/db/src/jobs.ts` | a missed monthly job still leaves months before rows hit the default partition |
-| `FIRST_EVENT_MONTH`         | `2026-10-01`        | `packages/db/src/infra/migrate.ts`                            | first month with partitions; older rows need their own range first             |
-| `events.partitions` cadence | monthly             | `packages/api/src/jobs.ts`                                    | keeps the three-month lead without a deploy                                    |
-| `ADMISSION_WINDOW_MS`       | 7 days              | `packages/core/src/supporters/ports.ts`                       | a signup whose event never arrived must not hold a seat forever                |
-| `supporters.max`            | 100,000 (default)   | `packages/core/src/entitlements/model.ts`                     | supporters per tenant, projection plus live reservations                       |
-| `reason`                    | 1 to 500 characters | `packages/core/src/supporters/service.ts`                     | evidence for an address change                                                 |
-| `ERASED_DOMAIN`             | `erased.invalid`    | `packages/core/src/supporters/erasure.ts`                     | RFC 2606 reserved: a tombstone is never deliverable                            |
-| `ERASURE_UNSECURED_WARN_MS` | 1 hour              | `packages/core/src/supporters/erasure.ts`                     | four missed 15-minute erasure backups                                          |
+| Constant                    | Value               | Where                                                                    | Why                                                                            |
+| --------------------------- | ------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| partitions ahead            | 3 months            | `packages/db/src/infra/migrate.ts`, `packages/db/src/operations/jobs.ts` | a missed monthly job still leaves months before rows hit the default partition |
+| `FIRST_EVENT_MONTH`         | `2026-10-01`        | `packages/db/src/infra/migrate.ts`                                       | first month with partitions; older rows need their own range first             |
+| `events.partitions` cadence | monthly             | `packages/api/src/jobs.ts`                                               | keeps the three-month lead without a deploy                                    |
+| `ADMISSION_WINDOW_MS`       | 7 days              | `packages/core/src/supporters/ports.ts`                                  | a signup whose event never arrived must not hold a seat forever                |
+| `supporters.max`            | 100,000 (default)   | `packages/core/src/entitlements/model.ts`                                | supporters per tenant, projection plus live reservations                       |
+| `reason`                    | 1 to 500 characters | `packages/core/src/supporters/service.ts`                                | evidence for an address change                                                 |
+| `ERASED_DOMAIN`             | `erased.invalid`    | `packages/core/src/supporters/erasure.ts`                                | RFC 2606 reserved: a tombstone is never deliverable                            |
+| `ERASURE_UNSECURED_WARN_MS` | 1 hour              | `packages/core/src/supporters/erasure.ts`                                | four missed 15-minute erasure backups                                          |
