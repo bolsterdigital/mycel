@@ -35,8 +35,35 @@ describe('headingsAboveFloats', () => {
     expect(headingsAboveFloats(gone)).toEqual(gone);
   });
 
-  it('keeps a text that is only a heading whole, with nothing to stand beside', () => {
-    const only = [float(), text(heading)];
-    expect(headingsAboveFloats(only)).toEqual(only);
+  it('moves a text that is only a heading above the float whole, and the next opening too', () => {
+    const only = text(heading);
+    expect(headingsAboveFloats([float(), only])).toEqual([only, float()]);
+    const next = { ...text(heading, paragraph), id: 'y' } as RenderBlock;
+    const ids = headingsAboveFloats([float(), only, next]).map((b) => b.id);
+    expect(ids).toEqual(['txt', 'y-opening', 'img', 'y']);
+    const after = { ...text(paragraph), id: 'y' } as RenderBlock;
+    expect(headingsAboveFloats([float(), only, after]).map((b) => b.id)).toEqual([
+      'txt',
+      'img',
+      'y',
+    ]);
+  });
+
+  it('puts the heading above a run of floats, which keep their order', () => {
+    const a = { ...float(), id: 'a' } as RenderBlock;
+    const b = { ...float('float-left'), id: 'b' } as RenderBlock;
+    const h = { id: 'h', type: 'heading', text: 'x' } as RenderBlock;
+    const ids = (blocks: RenderBlock[]) => headingsAboveFloats(blocks).map((x) => x.id);
+    expect(ids([a, b, text(heading, paragraph)])).toEqual(['txt-opening', 'a', 'b', 'txt']);
+    expect(ids([a, b, h, text(paragraph)])).toEqual(['h', 'a', 'b', 'txt']);
+  });
+
+  it('splits every heading a text opens with, and leaves an empty text where it is', () => {
+    const sub = { ...heading, attrs: { level: 2 } };
+    const [opening, , rest] = headingsAboveFloats([float(), text(heading, sub, paragraph)]);
+    expect(opening).toMatchObject({ doc: { content: [heading, sub] } });
+    expect(rest).toMatchObject({ doc: { content: [paragraph] } });
+    const empty = [float(), text()];
+    expect(headingsAboveFloats(empty)).toEqual(empty);
   });
 });
