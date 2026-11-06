@@ -25,8 +25,7 @@ import { editorReady } from './lib/editor';
 import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
 import { login } from './lib/login';
-import { isA11y, onlyA11y } from './lib/project';
-import { OTHER_SCRIPTS } from './lib/scripts';
+import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { callApi, requireApi } from './lib/api';
 import { themeCss } from '../src/lib/theme/tokens';
 
@@ -82,7 +81,7 @@ test.describe('blocks', () => {
           await expect(page.getByRole('heading', { level: 1 })).toHaveText(titles[locale]);
           expect(await page.locator('h1').count()).toBe(1);
           // ADR 009 rule 4: no client JavaScript on a content page.
-          // Only the enhancement modules of lib/scripts.ts.
+          // Only the enhancement modules of lib/project.ts.
           expect(await page.locator(OTHER_SCRIPTS).count()).toBe(0);
           expect(await page.locator('[style]').count()).toBe(0);
           // Every image is sized and comes from the site; the theme is a linked stylesheet.

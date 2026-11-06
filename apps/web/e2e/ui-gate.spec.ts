@@ -19,8 +19,7 @@ import { tenantId, withInvoker, asOwner } from './lib/invoker';
 import { NARROW, TEXT_SIZES, focusObscuredProblems, layoutGate, setTextSize } from './lib/layout';
 import { forwarded, login } from './lib/login';
 import { ADMIN_LOCALES, ADMIN_ROUTES, type GateRoute, PUBLIC_ROUTES } from './routes';
-import { isA11y, onlyA11y } from './lib/project';
-import { OTHER_SCRIPTS } from './lib/scripts';
+import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { testTenant } from '@mycel/db/testing';
 import { callApi, requireApi } from './lib/api';
 
@@ -460,7 +459,7 @@ test.describe('blocks-registry', () => {
         const response = await page.goto(path, { waitUntil: 'load' });
         expect(response?.status()).toBe(200);
         await expect(page.locator('html')).toHaveAttribute('lang', locale);
-        // Only the enhancement modules of lib/scripts.ts.
+        // Only the enhancement modules of lib/project.ts.
         expect(await page.locator(OTHER_SCRIPTS).count()).toBe(0);
         // The header is the title and, without a hero image, its closing line (#105).
         const rendered = await page.locator('main > :not(h1, hr.page-rule)').count();
