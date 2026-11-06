@@ -976,6 +976,10 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.block.drop.notImage':
     '{filename} staat nu in Media; hier kun je alleen een beeld plaatsen.',
   'admin.block.drop.tooMany': 'Een galerij bevat hooguit {max} beelden; de rest staat in Media.',
+  'admin.block.drop.replace': 'Laat los om dit beeld te vervangen',
+  'admin.block.drop.replaced': '{filename} vervangt het beeld.',
+  'admin.block.drop.replacedDescribe': '{filename} vervangt het beeld. Beschrijf het nieuwe beeld.',
+  'admin.block.drop.undone': 'Het vorige beeld staat er weer.',
   'admin.block.new.add': 'Toevoegen en opslaan',
   'admin.block.new.discard': 'Annuleren',
   'admin.editor.title': 'Artikel schrijven',
