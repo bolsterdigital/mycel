@@ -15,10 +15,7 @@
 
 {#snippet caption()}
   {#if intro.hero?.caption}{intro.hero.caption}{/if}
-  {#if intro.hero?.credit}<Credit
-      credit={intro.hero.credit}
-      photographer={model.copy.photographer}
-    />{/if}
+  {#if intro.hero?.credit}<Credit credit={intro.hero.credit} words={model.copy.credit} />{/if}
 {/snippet}
 
 {#snippet lead()}

@@ -6,6 +6,7 @@
 // count. Rejected: a usage list inside `media.get`, which would hand content titles to a
 // `media:read`-only key.
 import {
+  CreditKind,
   UseCaseError,
   can,
   useCases,
@@ -97,6 +98,7 @@ function editorial(data: FormData, locales: readonly string[]) {
   const credit: MediaCredit = {
     work: title || maker ? { title, maker } : null,
     photographer: orNull(text(data, 'photographer')),
+    kind: CreditKind.catch('photo').parse(text(data, 'kind')),
   };
   const focal = { x: Number(text(data, 'focal.x')), y: Number(text(data, 'focal.y')) };
   return {

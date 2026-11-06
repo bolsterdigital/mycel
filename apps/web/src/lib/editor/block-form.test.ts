@@ -28,6 +28,23 @@ describe('block forms', () => {
     expect(propsFromForm(e.fields, postedValues(values))).toEqual({ props: e.props, errors: [] });
   });
 
+  it('stores the kind of an image credit once chosen, and leaves a stored credit without one', () => {
+    const image = examples.find((e) => e.name === 'image-wide-caption-credit')!;
+    const values = formValues(image.fields, image.props, LOCALES);
+    expect(values['p.credit.kind']).toBe('photo');
+    expect(propsFromForm(image.fields, postedValues(values), image.props).props).toEqual(
+      image.props
+    );
+    values['p.credit.kind'] = 'illustration';
+    const { props, errors } = propsFromForm(image.fields, postedValues(values), image.props);
+    expect(errors).toEqual([]);
+    expect(props['credit']).toEqual({
+      work: null,
+      photographer: 'Sam de Vries',
+      kind: 'illustration',
+    });
+  });
+
   it('keeps a locale the form does not carry, and rich text it did not change', () => {
     const faq = examples.find((e) => e.name === 'faq-list')!;
     const withDe = structuredClone(faq.props) as {

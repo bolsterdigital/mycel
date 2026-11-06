@@ -58,7 +58,8 @@ Version 1.
 | `credit.work`         | Work                        | group                                                         | optional (null when empty) |
 | `credit.work.title`   | Title                       | text                                                          | required                   |
 | `credit.work.maker`   | Maker                       | text                                                          | required                   |
-| `credit.photographer` | Photographer                | text                                                          | optional (null when empty) |
+| `credit.photographer` | Image by                    | text                                                          | optional (null when empty) |
+| `credit.kind`         | Kind of image               | one of `photo`, `illustration`, `other`                       | optional                   |
 | `layout`              | Layout                      | one of `content`, `wide`, `full`, `float-left`, `float-right` | required                   |
 
 Examples: `image-content`, `image-wide-caption-credit` (Caption and credit override the asset for this use), `image-full-decorative` (Decorative: no alt text, the renderer writes alt=""), `image-float-left`, `image-float-right`.
@@ -81,7 +82,8 @@ Version 1.
 | `image.credit.work`         | Work                        | group                                                      | optional (null when empty) |
 | `image.credit.work.title`   | Title                       | text                                                       | required                   |
 | `image.credit.work.maker`   | Maker                       | text                                                       | required                   |
-| `image.credit.photographer` | Photographer                | text                                                       | optional (null when empty) |
+| `image.credit.photographer` | Image by                    | text                                                       | optional (null when empty) |
+| `image.credit.kind`         | Kind of image               | one of `photo`, `illustration`, `other`                    | optional                   |
 | `image.layout`              | Layout                      | one of `content`                                           | required                   |
 | `actions`                   | Buttons                     | 0–2 buttons: a localised label and an item or a URL        | required                   |
 | `width`                     | Width                       | one of `content`, `wide`, `full`                           | required                   |
@@ -148,7 +150,8 @@ Version 1.
 | `images[].credit.work`         | Work                        | group                                                      | optional (null when empty) |
 | `images[].credit.work.title`   | Title                       | text                                                       | required                   |
 | `images[].credit.work.maker`   | Maker                       | text                                                       | required                   |
-| `images[].credit.photographer` | Photographer                | text                                                       | optional (null when empty) |
+| `images[].credit.photographer` | Image by                    | text                                                       | optional (null when empty) |
+| `images[].credit.kind`         | Kind of image               | one of `photo`, `illustration`, `other`                    | optional                   |
 | `variant`                      | Variant                     | one of `grid`, `row`                                       | required                   |
 | `width`                        | Width                       | one of `content`, `wide`, `full`                           | required                   |
 
