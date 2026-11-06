@@ -1,5 +1,10 @@
 // The worker's health port (brief #17a decision 6): `/readyz` fails when a loop stands still or
 // a queue lags, `/healthz` never looks further, `/metrics` serves the queue gauges.
+// The port test dials the loopback of the family the server actually bound and counts the
+// requests its own handler saw. `startWorkerHealth` listens without a host, which is `::` where
+// IPv6 exists; on macOS another process can then hold `127.0.0.1` on the same port, and a fixed
+// `127.0.0.1` URL reached that server instead (the unexplained 401, item 147). Rejected: a host
+// option in `startWorkerHealth` (a production change for a test) and a retry (testing.md rule 6).
 
 import { afterEach, describe, expect, it } from 'vitest';
 import type { AddressInfo } from 'node:net';
@@ -42,6 +47,22 @@ describe('assessWorker', () => {
   });
 });
 
+/** The loopback URL of the address `server` bound: `::` and `::1` dial `[::1]`, IPv4 `127.0.0.1`. */
+function loopbackBase({ address, family, port }: AddressInfo): string {
+  if (family === 'IPv6') return `http://[${address === '::' ? '::1' : address}]:${port}`;
+  return `http://${address === '0.0.0.0' ? '127.0.0.1' : address}:${port}`;
+}
+
+describe('loopbackBase', () => {
+  it('dials the family the server bound, never IPv4 for an IPv6 listener', () => {
+    expect(loopbackBase({ address: '::', family: 'IPv6', port: 1 })).toBe('http://[::1]:1');
+    expect(loopbackBase({ address: '::1', family: 'IPv6', port: 2 })).toBe('http://[::1]:2');
+    expect(loopbackBase({ address: '0.0.0.0', family: 'IPv4', port: 3 })).toBe(
+      'http://127.0.0.1:3'
+    );
+  });
+});
+
 describe('worker health port', () => {
   let server: Server | undefined;
   afterEach(() => void server?.close());
@@ -61,8 +82,16 @@ describe('worker health port', () => {
       metrics,
     });
     await new Promise((done) => server!.once('listening', done));
-    const { port } = server.address() as AddressInfo;
-    return (path: string) => fetch(`http://127.0.0.1:${port}${path}`);
+    let seen = 0;
+    server.on('request', () => void seen++);
+    const url = loopbackBase(server.address() as AddressInfo);
+    return async (path: string) => {
+      const before = seen;
+      const res = await fetch(`${url}${path}`);
+      // A status from another listener on the same port would otherwise pass for ours.
+      expect(seen, `${url}${path} reached another server`).toBe(before + 1);
+      return res;
+    };
   }
 
   it('answers /readyz 503 when the job loop stands still, 200 otherwise', async () => {
