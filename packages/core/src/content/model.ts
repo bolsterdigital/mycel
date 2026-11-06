@@ -421,6 +421,8 @@ export const LocalePublication = z.object({
   scheduleId: z.string().guid().nullable(),
   /** Published, and the latest revision is not the published one (ADR 018 rule 3). */
   hasUnpublishedChanges: z.boolean(),
+  /** Offered for publication: since when, with the writer's note; null when not offered. */
+  review: z.object({ since: Timestamp, note: z.string().nullable() }).strict().nullable(),
 });
 export type LocalePublication = z.infer<typeof LocalePublication>;
 

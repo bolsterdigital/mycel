@@ -210,6 +210,9 @@ export interface Database {
     scheduled_revision_id: string | null;
     scheduled_for: Timestamp | null;
     schedule_id: string | null;
+    /** Offered for publication (0035): the first offer and the writer's note. */
+    review_since: Timestamp | null;
+    review_note: string | null;
     /** Generated from the pointers (0011); never written. */
     status: ColumnType<'draft' | 'scheduled' | 'published' | 'unpublished', never, never>;
   };

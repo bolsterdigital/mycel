@@ -3,7 +3,7 @@
      Fieldset per card, which would draw the card's outline twice and put its menu in a legend. -->
 <script lang="ts">
   import { setContext, type Snippet } from 'svelte';
-  import { GROUP } from './ui/form/Fieldset.svelte';
+  import { GROUP } from '../ui/form/Fieldset.svelte';
 
   let { children }: { children: Snippet } = $props();
   setContext(GROUP, true);

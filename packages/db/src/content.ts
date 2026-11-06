@@ -59,6 +59,7 @@ const toLocale = (r: LocaleRow): LocaleState => ({
   scheduledRevisionId: r.scheduled_revision_id,
   scheduledFor: date(r.scheduled_for),
   scheduleId: r.schedule_id,
+  review: r.review_since ? { since: new Date(r.review_since), note: r.review_note } : null,
 });
 
 /** Whether `e` is Postgres refusing a row on this unique key, and not any other failure. */
@@ -124,6 +125,8 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
         scheduled_revision_id: s.scheduledRevisionId,
         scheduled_for: s.scheduledFor,
         schedule_id: s.scheduleId,
+        review_since: s.review?.since ?? null,
+        review_note: s.review?.note ?? null,
       };
       await trx
         .insertInto('content_item_locales')
@@ -420,6 +423,29 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
         if (document) documents.set(r.id, document);
       }
       return documents;
+    },
+    async offeredForReview(limit) {
+      const rows = await trx
+        .selectFrom('content_item_locales as l')
+        .innerJoin('content_items as i', 'i.id', 'l.item_id')
+        .where('l.review_since', 'is not', null)
+        .select([
+          'l.item_id',
+          'l.locale',
+          'l.review_since',
+          sql<string | null>`coalesce(i.title->>l.locale, i.title->>i.default_locale)`.as('title'),
+        ])
+        .orderBy('l.review_since', 'desc')
+        .orderBy('l.item_id')
+        .orderBy('l.locale')
+        .limit(limit)
+        .execute();
+      return rows.map((r) => ({
+        itemId: r.item_id,
+        locale: r.locale,
+        title: r.title,
+        since: new Date(r.review_since!),
+      }));
     },
     async revision(itemId, revisionId) {
       const r = await trx

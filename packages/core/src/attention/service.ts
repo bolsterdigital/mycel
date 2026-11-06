@@ -4,11 +4,12 @@
 // read at all. The cost is a fixed number of reads per call (at most one per port), whatever the
 // number of jobs or connections; `ConnectionIntents.recent` is the one read added for it.
 // Rejected: reusing `ops.status.get` for the bell (it also reads fourteen days of mail, audit rows
-// and builds a diagnosis on every page load) and a source registry other modules plug into (four
-// sources, all known here; `review` will sit beside them).
+// and builds a diagnosis on every page load) and a source registry other modules plug into (five
+// sources, all known here).
 
 import { z } from 'zod';
 import '../connections/ports.js';
+import '../content/ports.js';
 import { attentionSince, STAND_INTENTS } from '../connections/stand.js';
 import type { ConnectionIntent } from '../connections/intents.js';
 import '../mailing/ports.js';
@@ -29,8 +30,9 @@ import {
 } from './model.js';
 import './ports.js';
 
-/** At most this many jobs on the list, as on the status page. */
+/** At most this many jobs on the list, as on the status page; as many offers. */
 const ATTENTION_JOBS = 100;
+const ATTENTION_OFFERS = 100;
 
 type Found = Omit<AttentionItem, 'since' | 'unread'> & { since: Date };
 
@@ -39,6 +41,7 @@ async function jobs(ctx: TransactionContext): Promise<Found[]> {
     key: `job:${j.id}`,
     source: 'job',
     subjectId: j.id,
+    locale: null,
     detail: j.type,
     count: 1,
     since: j.failedAt ?? j.createdAt,
@@ -52,7 +55,15 @@ async function mail(ctx: TransactionContext, now: Date): Promise<Found[]> {
   if (!abandoned.length) return [];
   const since = new Date(Math.max(...abandoned.map((at) => at.getTime())));
   return [
-    { key: 'mail', source: 'mail', subjectId: null, detail: null, count: abandoned.length, since },
+    {
+      key: 'mail',
+      source: 'mail',
+      subjectId: null,
+      locale: null,
+      detail: null,
+      count: abandoned.length,
+      since,
+    },
   ];
 }
 
@@ -66,6 +77,7 @@ async function erasures(ctx: TransactionContext, now: Date): Promise<Found[]> {
       key: 'erasure',
       source: 'erasure',
       subjectId: null,
+      locale: null,
       detail: null,
       count: registered - secured,
       since,
@@ -96,6 +108,7 @@ async function connections(ctx: TransactionContext): Promise<Found[]> {
             key: `connection:${c.id}`,
             source: 'connection' as const,
             subjectId: c.id,
+            locale: null,
             detail: c.provider,
             count: 1,
             since,
@@ -103,6 +116,19 @@ async function connections(ctx: TransactionContext): Promise<Found[]> {
         ]
       : [];
   });
+}
+
+/** One notification per offered locale, dated by the first offer (`requestReview`). */
+async function reviews(ctx: TransactionContext): Promise<Found[]> {
+  return (await ctx.content.offeredForReview(ATTENTION_OFFERS)).map((o) => ({
+    key: `review:${o.itemId}:${o.locale}`,
+    source: 'review',
+    subjectId: o.itemId,
+    locale: o.locale,
+    detail: o.title,
+    count: 1,
+    since: o.since,
+  }));
 }
 
 /** The sources this principal sees, in `AttentionSource` order. */
@@ -123,6 +149,7 @@ async function collect(
     mail: () => mail(ctx, now),
     erasure: () => erasures(ctx, now),
     connection: () => connections(ctx),
+    review: () => reviews(ctx),
   };
   const member = operatorId(ctx);
   const [seenAt, ...found] = await Promise.all([
@@ -138,8 +165,7 @@ async function collect(
 
 // Every member reads its own list: each preset role holds `content:read`, and what the list holds
 // is filtered per source above. A custom set without it sees no bell, which the admin treats as
-// zero. Rejected: `tenant:admin` until `review` arrives, which would make PR 2 widen an
-// authorization instead of adding a source.
+// zero. Rejected: `tenant:admin` for the list, which an editor with offers to publish would fail.
 
 export const getAttentionSummary = defineUseCase({
   name: 'attention.summary.get',
@@ -160,7 +186,7 @@ export const listAttention = defineUseCase({
   name: 'attention.list',
   kind: 'query',
   description:
-    'List what asks for attention on this site that you may act on, newest first: jobs out of attempts, mail given up, late erasures and connections that need work, each marked new or already read. A solved problem leaves the list by itself.',
+    'List what asks for attention on this site that you may act on, newest first: jobs out of attempts, mail given up, late erasures, connections that need work and drafts offered for publication, each marked new or already read. A solved problem leaves the list by itself.',
   requires: 'content:read',
   input: z.object({}).strict(),
   output: z.object({

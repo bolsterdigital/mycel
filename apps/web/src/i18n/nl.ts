@@ -549,6 +549,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.content.item.duplicate': 'Gekopieerd',
   'admin.audit.op.content.item.unpublish': 'Offline gehaald',
   'admin.audit.op.content.item.unschedule': 'Ingeplande publicatie geschrapt',
+  'admin.audit.op.content.review.request': 'Ter publicatie aangeboden',
+  'admin.audit.op.content.review.withdraw': 'Aanbieding ter publicatie ingetrokken',
   'admin.audit.op.content.slug.update': 'Adres gewijzigd',
   'admin.audit.op.content.item.update': 'Pagina of artikel opgeslagen',
   'admin.audit.op.content.pattern.create': 'Patroon aangemaakt',
@@ -1094,6 +1096,19 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.issue.mediaNotDocument': 'verwijst naar een bestand dat geen document is',
   'admin.content.issue.notInFuture': 'de tijd ligt niet in de toekomst',
   'admin.content.issue.timeInvalid': 'geef een datum en tijd',
+  'admin.content.issue.reviewNothingNew':
+    'er is niets nieuws om aan te bieden: deze versie staat al live of is ingepland',
+  'admin.content.review.hint':
+    'Zelf publiceren kan hier niet. Bied deze taal ter publicatie aan, dan ziet wie mag publiceren dat het klaarstaat.',
+  'admin.content.review.note': 'Notitie voor wie publiceert',
+  'admin.content.review.noteHint':
+    'Optioneel. Bijvoorbeeld wat er nog gecheckt moet worden, of wanneer het live moet.',
+  'admin.content.review.offer': 'Ter publicatie aanbieden',
+  'admin.content.review.withdraw': 'Aanbieding intrekken',
+  'admin.content.review.offered': 'Ter publicatie aangeboden op {at}.',
+  'admin.content.review.offeredNote': 'Notitie:',
+  'admin.content.review.done.offer': 'Ter publicatie aangeboden in {locale}.',
+  'admin.content.review.done.withdraw': 'Aanbieding ingetrokken in {locale}.',
   'admin.content.issue.other': 'klopt nog niet',
   'admin.block.title': 'Blokken',
   'admin.block.empty': 'Dit item heeft nog geen blokken.',

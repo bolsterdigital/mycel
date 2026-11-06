@@ -22,7 +22,7 @@
   "apps/web/src/i18n/en.ts": 4,
   "apps/web/src/i18n/nl.ts": 3,
   "apps/web/src/lib/admin/ApiAccess.svelte": 2,
-  "apps/web/src/lib/admin/BlockFields.svelte": 4,
+  "apps/web/src/lib/admin/block-fields/BlockFields.svelte": 4,
   "apps/web/src/lib/admin/Diff.svelte": 1,
   "apps/web/src/lib/admin/Inherited.svelte": 1,
   "apps/web/src/lib/admin/Profile.svelte": 1,

@@ -21,9 +21,9 @@
   import { fromMarkdown } from '#lib/editor/markdown.js';
   import type { BlockField } from '@mycel/core';
   import RowCard from './RowCard.svelte';
-  import { Button, Checkbox, Field, Fieldset, Icon, MediaPicker } from './ui/index.js';
-  import type { MediaChoice } from './media-choice.js';
-  import { fill, ui, type UiKey } from '../../i18n/index.js';
+  import { Button, Checkbox, Field, Fieldset, Icon, MediaPicker } from '../ui/index.js';
+  import type { MediaChoice } from '../media-choice.js';
+  import { fill, ui, type UiKey } from '../../../i18n/index.js';
 
   interface Option {
     id: string;

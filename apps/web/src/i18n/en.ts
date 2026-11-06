@@ -542,6 +542,8 @@ export const en = {
   'admin.audit.op.content.item.duplicate': 'Copied',
   'admin.audit.op.content.item.unpublish': 'Unpublished',
   'admin.audit.op.content.item.unschedule': 'Scheduled publication cancelled',
+  'admin.audit.op.content.review.request': 'Offered for publication',
+  'admin.audit.op.content.review.withdraw': 'Offer for publication withdrawn',
   'admin.audit.op.content.slug.update': 'Address changed',
   'admin.audit.op.content.item.update': 'Page or article saved',
   'admin.audit.op.content.pattern.create': 'Pattern created',
@@ -1083,6 +1085,19 @@ export const en = {
   'admin.content.issue.mediaNotDocument': 'refers to a file that is not a document',
   'admin.content.issue.notInFuture': 'the time is not in the future',
   'admin.content.issue.timeInvalid': 'give a date and time',
+  'admin.content.issue.reviewNothingNew':
+    'there is nothing new to offer: this version is already live or scheduled',
+  'admin.content.review.hint':
+    'You cannot publish here yourself. Offer this language for publication and whoever may publish sees that it is ready.',
+  'admin.content.review.note': 'Note for whoever publishes',
+  'admin.content.review.noteHint':
+    'Optional. For example what still needs checking, or when it should go live.',
+  'admin.content.review.offer': 'Offer for publication',
+  'admin.content.review.withdraw': 'Withdraw offer',
+  'admin.content.review.offered': 'Offered for publication on {at}.',
+  'admin.content.review.offeredNote': 'Note:',
+  'admin.content.review.done.offer': 'Offered for publication in {locale}.',
+  'admin.content.review.done.withdraw': 'Offer withdrawn in {locale}.',
   'admin.content.issue.other': 'is not right yet',
   'admin.block.title': 'Blocks',
   'admin.block.empty': 'This item has no blocks yet.',
