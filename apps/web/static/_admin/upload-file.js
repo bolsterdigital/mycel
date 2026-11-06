@@ -31,3 +31,19 @@ export function send(url, file, onProgress = () => {}) {
 
 /** An upload the edit screen can place as an image: not a document and not a sound file. */
 export const isImage = (choice) => !!choice && !choice.document && !choice.audio;
+
+/**
+ * One file's line in an upload list: its words and a progress bar the caller fills, so every
+ * drop shows its progress the same way. The bar is named by the words it starts with.
+ */
+export function progressRow(text) {
+  const row = document.createElement('li');
+  const label = document.createElement('span');
+  label.textContent = text;
+  const bar = document.createElement('progress');
+  bar.max = 100;
+  bar.value = 0;
+  bar.setAttribute('aria-label', text);
+  row.append(label, bar);
+  return { row, label, bar };
+}

@@ -2,7 +2,9 @@
      (`static/_admin/block-drop.js`) uploads each file through `media/upload` with its progress here,
      then asks the screen for a block at the place of the drop: the same `insert` action as the
      block chooser, with the uploaded ids, so the save of what was typed comes first. An article's
-     writer places images itself, between its paragraphs. Hidden and inert without JavaScript: the
+     writer places images itself, between its paragraphs. One file on an image that is there
+     replaces it, with its progress and Undo under that image's picker (`drop-replace.js`); this
+     component holds the words. Hidden and inert without JavaScript: the
      chooser and the media picker are the route then, and stay the keyboard's route too. Rejected:
      an overlay over the whole screen as on the media page, which would hide the place it inserts,
      and results pinned to the window, which covered the item bar's Save on a phone. -->
@@ -36,6 +38,11 @@
       failed: t('admin.media.picker.failed'),
       notImage: t('admin.block.drop.notImage'),
       tooMany: t('admin.block.drop.tooMany'),
+      replace: t('admin.block.drop.replace'),
+      replaced: t('admin.block.drop.replaced'),
+      replacedDescribe: t('admin.block.drop.replacedDescribe'),
+      undo: t('admin.block.undo'),
+      undone: t('admin.block.drop.undone'),
     })
   );
 </script>
@@ -45,6 +52,7 @@
   data-block-drop
   data-url="{base}/media/upload"
   data-max-images={GALLERY_ROWS}
+  data-work={work}
   data-copy={copy}
   hidden
 >
@@ -52,7 +60,9 @@
     <strong data-block-drop-where></strong>
     <p>
       {fill(t('admin.block.drop.hint'), { max: formatBytes(MAX_UPLOAD_BYTES, locale) })}
-      {article ? t('admin.block.drop.separate') : t('admin.block.drop.gallery')}
+      <span data-block-drop-many
+        >{article ? t('admin.block.drop.separate') : t('admin.block.drop.gallery')}</span
+      >
     </p>
   </div>
   <div data-block-drop-results hidden>
@@ -126,5 +136,14 @@
   }
   :global([data-drop-at='after']) {
     box-shadow: 0 var(--space-0) 0 0 var(--color-link);
+  }
+  /* The line Undo shares with its words under a picker: a button as wide as its label. */
+  :global([data-replace-status] .ui-button) {
+    justify-self: start;
+  }
+  /* The image a single file would replace: framed, never moved. */
+  :global([data-drop-at='replace']) {
+    outline: var(--space-0) solid var(--color-link);
+    outline-offset: var(--space-0);
   }
 </style>

@@ -49,6 +49,26 @@ function option(picker, choice, checked = false) {
   ]);
 }
 
+/**
+ * An uploaded image as this picker's choice, checked: after "No image", before the older images,
+ * and announced with `change` as a click on it would be. Also for a file dropped on the picker or
+ * on its image block (`drop-replace.js`). Returns the radio.
+ */
+export function addChoice(picker, choice, check = true) {
+  const initial = picker.querySelector('[data-picker-initial]');
+  const li = option(picker, choice);
+  initial.firstElementChild ? initial.firstElementChild.after(li) : initial.append(li);
+  const input = li.querySelector('input');
+  if (check) choose(input);
+  return input;
+}
+
+/** Checks a radio of a picker and says so, as a click would. */
+export function choose(input) {
+  input.checked = true;
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
 function showChoice(picker, input) {
   const copy = copyOf(picker);
   const img = picker.querySelector('[data-picker-img]');
@@ -177,7 +197,7 @@ function enhance(picker) {
 
   if (picker.dataset.upload)
     tools.prepend(
-      uploader(picker, copy, id, initial, () => {
+      uploader(picker, copy, id, () => {
         // An upload lands in the full grid; leave a search so it can be seen.
         if (search.value) {
           search.value = '';
@@ -193,7 +213,7 @@ function enhance(picker) {
     );
 }
 
-function uploader(picker, copy, id, initial, reveal) {
+function uploader(picker, copy, id, reveal) {
   const input = el('input', {
     type: 'file',
     id: `${id}-upload`,
@@ -222,19 +242,14 @@ function uploader(picker, copy, id, initial, reveal) {
       bar.remove();
       if (outcome.choice) {
         line.textContent = fill(copy.uploaded, { filename: outcome.choice.label });
-        const li = option(picker, outcome.choice);
-        // After "No image", before the older images.
-        initial.firstElementChild ? initial.firstElementChild.after(li) : initial.append(li);
-        last = li.querySelector('input');
+        last = addChoice(picker, outcome.choice, false);
       } else {
         item.classList.add('ui-error');
         line.textContent = `${file.name}: ${outcome.error || copy.failed}`;
       }
     }
-    if (last) {
-      last.checked = true;
-      last.dispatchEvent(new Event('change', { bubbles: true }));
-    }
+    // Each upload joins the grid; the last one is the choice.
+    if (last) choose(last);
   });
   return el('div', { class: 'ui-field' }, [
     el('label', { for: input.id, text: copy.drop }),

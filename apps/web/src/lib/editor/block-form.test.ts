@@ -45,6 +45,34 @@ describe('block forms', () => {
     });
   });
 
+  it('drops the alt text of a locale the form does not carry once the image is another (#80)', () => {
+    const image = examples.find((e) => e.name === 'image-wide-caption-credit')!;
+    const stored = { ...image.props, alt: { nl: 'Oud beeld', en: 'Old picture' } };
+    const values = formValues(image.fields, stored, ['nl']);
+    expect(propsFromForm(image.fields, postedValues(values), stored).props['alt']).toEqual({
+      nl: 'Oud beeld',
+      en: 'Old picture',
+    });
+    values['p.mediaId'] = 'another-image';
+    values['p.alt.nl'] = 'Nieuw beeld';
+    const { props } = propsFromForm(image.fields, postedValues(values), stored);
+    expect(props['alt']).toEqual({ nl: 'Nieuw beeld' });
+    // The same in a gallery row, whose image is replaced on its own.
+    const gallery = examples.find((e) => e.type === 'gallery')!;
+    const rows = gallery.props['images'] as Record<string, unknown>[];
+    const both = {
+      ...gallery.props,
+      images: rows.map((r) => ({ ...r, alt: { nl: 'Rij', en: 'Row' } })),
+    };
+    const shown = formValues(gallery.fields, both, ['nl']);
+    shown['p.images.0.mediaId'] = 'another-image';
+    const read = propsFromForm(gallery.fields, postedValues(shown), both).props['images'] as {
+      alt: unknown;
+    }[];
+    expect(read[0]!.alt).toEqual({ nl: 'Rij' });
+    expect(read[1]!.alt).toEqual({ nl: 'Rij', en: 'Row' });
+  });
+
   it('keeps a locale the form does not carry, and rich text it did not change', () => {
     const faq = examples.find((e) => e.name === 'faq-list')!;
     const withDe = structuredClone(faq.props) as {

@@ -10,10 +10,13 @@
 // end; outside the blocks it is the end, and the panel says which. A paste goes after the block
 // that has the focus. An article's writer places images itself, between its paragraphs
 // (WritingSurface.svelte): a drop or paste inside it is its own, one elsewhere on the screen goes
-// to its end. An open dialog (the media picker) keeps its own file field.
+// to its end. An open dialog (the media picker) keeps its own file field. One file on an image
+// that is already there (an image block, an image picker) replaces it instead (drop-replace.js);
+// several there are a block like anywhere else.
 // Rejected: inserting a block per file on the server without its alt text (core refuses an image
 // without one), and a full-window overlay as on the media page, which hides where it lands.
-import { isImage, send } from './upload-file.js';
+import { isImage, progressRow, send } from './upload-file.js';
+import { replace, replaceTarget } from './drop-replace.js';
 
 const form = document.getElementById('item-edit');
 const host = document.querySelector('[data-block-drop]');
@@ -24,6 +27,11 @@ if (form instanceof HTMLFormElement && host instanceof HTMLElement) {
   const fill = (text, values) => text.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? '');
   const part = (name) => host.querySelector(`[data-block-drop-${name}]`);
   const isFileDrag = (event) => [...(event.dataTransfer?.types ?? [])].includes('Files');
+  /** A drag of one file over an image that is there: what it would replace, else null. */
+  const replacing = (event) =>
+    (event.dataTransfer?.items?.length ?? event.dataTransfer?.files?.length) === 1
+      ? replaceTarget(event.target, form)
+      : null;
   /** The article writer, once it took over the blocks; null on a page or without its script. */
   const writer = () => {
     const surface = form.querySelector('[data-article-writer]');
@@ -64,7 +72,11 @@ if (form instanceof HTMLFormElement && host instanceof HTMLElement) {
     const shown = !!spot && !suppressed;
     const panel = part('prompt');
     if (shown) {
-      const words = inWriter(spot.target) || !spot.end ? copy.here : copy.end;
+      const words = spot.replace
+        ? copy.replace
+        : inWriter(spot.target) || !spot.end
+          ? copy.here
+          : copy.end;
       if (part('where').textContent !== words) {
         part('where').textContent = words;
         part('announcement').textContent = words;
@@ -72,7 +84,9 @@ if (form instanceof HTMLFormElement && host instanceof HTMLElement) {
     }
     panel.hidden = !shown;
     host.hidden = panel.hidden && part('results').hidden;
-    mark(shown && !inWriter(spot.target) && !writer() ? spot : null);
+    part('many').hidden = !!spot?.replace;
+    if (spot?.replace) mark({ card: spot.replace.marked, side: 'replace' });
+    else mark(shown && !inWriter(spot.target) && !writer() ? spot : null);
   };
   const reset = () => {
     depth = 0;
@@ -91,7 +105,8 @@ if (form instanceof HTMLFormElement && host instanceof HTMLElement) {
     if (!ours(event)) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = 'copy';
-    prompt({ ...placeAt(event.clientY, event.target), target: event.target });
+    const swap = replacing(event);
+    prompt({ ...placeAt(event.clientY, event.target), target: event.target, replace: swap });
   });
   document.addEventListener('dragleave', (event) => {
     if (!isFileDrag(event)) return;
@@ -109,24 +124,34 @@ if (form instanceof HTMLFormElement && host instanceof HTMLElement) {
     // The writer handled a drop on its own text; it never navigates to the file either.
     const target = event.target;
     const spot = placeAt(event.clientY, target);
+    const swap = event.dataTransfer.files.length === 1 ? replaceTarget(target, form) : null;
     const skipped = suppressed;
     reset();
-    if (inWriter(target)) return;
+    if (inWriter(target) && !swap) return;
     event.preventDefault(); // Never navigate to a dropped file, also when nothing is placed.
     const files = [...event.dataTransfer.files];
     if (skipped || !files.length) return;
-    place(files, spot.place);
+    if (swap) void replace(swap.picker, files[0], { form, work: host.dataset.work, copy });
+    else place(files, spot.place);
   });
 
   document.addEventListener('paste', (event) => {
     const files = [...(event.clipboardData?.files ?? [])];
-    if (!files.length || inWriter(event.target) || document.querySelector('dialog[open]')) return;
-    // Words with the file (a copied web image) belong in a text field when pasting into one.
+    if (!files.length || document.querySelector('dialog[open]')) return;
     const target = event.target instanceof Element ? event.target : null;
-    const typing = target?.closest('input, textarea, [contenteditable="true"]');
+    const focus = document.activeElement ?? target;
+    // `isContentEditable`, not a `[contenteditable]` ancestor: a card in the writer is not text.
+    const typing = !!target?.closest('input, textarea') || !!target?.isContentEditable;
+    // On a picker (its button has the focus) one image replaces its choice, as a drop does; not
+    // from a text field in it, such as the header image's alt text.
+    const own = typing ? null : focus?.closest?.('[data-media-picker]');
+    const swap = own && files.length === 1 ? replaceTarget(own, form) : null;
+    if (!swap && inWriter(event.target)) return;
+    // Words with the file (a copied web image) belong in a text field when pasting into one.
     if (typing && event.clipboardData.types.includes('text/plain')) return;
     event.preventDefault();
-    const card = (document.activeElement ?? target)?.closest?.('[data-block-card]');
+    if (swap) return void replace(swap.picker, files[0], { form, work: host.dataset.work, copy });
+    const card = focus?.closest?.('[data-block-card]');
     const inBlocks = card && cards().includes(card);
     place(files, inBlocks && !writer() ? `after:${idOf(card)}` : 'end');
   });
@@ -150,14 +175,7 @@ if (form instanceof HTMLFormElement && host instanceof HTMLElement) {
     const images = [];
     let complete = true;
     for (const file of files) {
-      const row = document.createElement('li');
-      const label = document.createElement('span');
-      label.textContent = fill(copy.uploading, { filename: file.name });
-      const bar = document.createElement('progress');
-      bar.max = 100;
-      bar.value = 0;
-      bar.setAttribute('aria-label', label.textContent);
-      row.append(label, bar);
+      const { row, label, bar } = progressRow(fill(copy.uploading, { filename: file.name }));
       list.append(row);
       const result = await send(host.dataset.url, file, (value) => (bar.value = value));
       bar.remove();

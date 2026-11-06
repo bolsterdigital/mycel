@@ -399,10 +399,23 @@ function choiceDefaults(
   return out;
 }
 
+/**
+ * The props of a group of fields read from the form. One rule crosses fields: an image use
+ * (`mediaId` beside a localised `alt`) whose image changed keeps no stored alt text of a locale
+ * the form does not carry, because it described the old picture; the header's image does the same
+ * (content-admin.ts). The locale on screen is what was posted. Rejected: keeping it, which shows
+ * an old description as present in a language nobody looked at since the image changed.
+ */
 function groupFrom(fields: readonly BlockField[], base: Props, name: string, read: Read): Props {
   const out: Props = {};
   for (const f of fields) {
-    const v = read(f, base[f.key], join(name, f.key));
+    const swapped =
+      f.key === 'alt' &&
+      typeof base.mediaId === 'string' &&
+      typeof out.mediaId === 'string' &&
+      out.mediaId !== base.mediaId &&
+      fields.some((m) => m.key === 'mediaId' && m.kind === 'media');
+    const v = read(f, swapped ? undefined : base[f.key], join(name, f.key));
     if (v !== undefined) out[f.key] = v;
   }
   return out;
