@@ -1,19 +1,21 @@
 <!-- The dashboard: six widgets in two columns, one on a phone (brief edit-screen § 4). Three are
-     empty contours for now, so the place of what will come is learnt before it is filled; #82
-     fills "Waiting for you", #12 visits and #39/#47 sign-ups. "Recently edited" and "Scheduled"
+     empty contours for now, so the place of what will come is learnt before it is filled; #12
+     visits and #39/#47 sign-ups. "Waiting work" shows the newest five of what asks
+     for attention, from the layout's one `attention.list`, with a link to all of them; the bell
+     reads the same list. "Recently edited" and "Scheduled"
      link to the items in the content locale. "Usage and limits" shows the usage the
      tenant home showed, with its suspended notice; the settings show the same list. -->
 <script lang="ts">
   import { DashboardWidget, Notice, PageHeader } from '#lib/admin/ui/index.js';
   import UsageList from '#lib/admin/UsageList.svelte';
+  import AttentionList from '#lib/admin/attention/AttentionList.svelte';
   import { formatWhen } from '#lib/admin/format.js';
-  import { ui, type UiKey } from '../../../../i18n/index.js';
+  import { fill, ui, type UiKey } from '../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
   let { data }: PageProps = $props();
   const t = $derived(ui(data.locale));
   const empty: readonly [string, UiKey][] = [
-    ['dash-waiting', 'admin.dashboard.waiting'],
     ['dash-visits', 'admin.dashboard.visits'],
     ['dash-signups', 'admin.dashboard.signups'],
   ];
@@ -21,6 +23,9 @@
   const now = new Date();
   const when = (iso: string, relative: boolean) =>
     formatWhen(iso, { locale: data.locale, zone: data.timeZone, now, relative });
+  const attention = $derived(typeof data.attention === 'object' ? data.attention : null);
+  /** The newest few on the dashboard; the page lists them all. */
+  const WAITING = 5;
   type Row = NonNullable<typeof data.content>['recent'][number];
 </script>
 
@@ -86,6 +91,36 @@
       <DashboardWidget
         id="dash-scheduled"
         title={t('admin.dashboard.scheduled')}
+        locale={data.locale}
+      />
+    {/if}
+    {#if attention}
+      <DashboardWidget id="dash-waiting" title={t('admin.dashboard.waiting')} locale={data.locale}>
+        {#if attention.items.length}
+          <AttentionList
+            items={attention.items.slice(0, WAITING)}
+            base="/admin/{data.tenant.slug}"
+            locale={data.locale}
+            timeZone={data.timeZone}
+            relative={data.dateFormat !== 'absolute'}
+          />
+        {:else}
+          <p class="ui-widget-later">{t('admin.attention.none')}</p>
+        {/if}
+        <p>
+          <a href="/admin/{data.tenant.slug}/meldingen"
+            >{fill(t('admin.dashboard.waiting.all'), { count: attention.items.length })}</a
+          >
+        </p>
+      </DashboardWidget>
+    {:else if data.attention === 'unknown'}
+      <DashboardWidget id="dash-waiting" title={t('admin.dashboard.waiting')} locale={data.locale}>
+        <p class="ui-widget-later">{t('admin.attention.unknown')}</p>
+      </DashboardWidget>
+    {:else}
+      <DashboardWidget
+        id="dash-waiting"
+        title={t('admin.dashboard.waiting')}
         locale={data.locale}
       />
     {/if}

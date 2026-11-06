@@ -4,7 +4,9 @@
      aria-current="page"; a group without items renders nothing, so a member who may see none of
      its screens sees no empty label. An item may bring its screen's sections as `children` (#87):
      a native disclosure with an explicit overview link. The active group starts open, but can
-     close again without navigating. Rejected: a parent link that pretends to toggle children. -->
+     close again without navigating. Rejected: a parent link that pretends to toggle children.
+     An item may say that something there asks for attention: a red dot, and the same words
+     after its label in the accessible name, so the dot only repeats what is said. -->
 <script lang="ts">
   import Icon from '../Icon.svelte';
   import type { IconName } from '../icons.js';
@@ -24,9 +26,13 @@
       icon: IconName;
       current?: boolean;
       children?: readonly Child[] | undefined;
+      /** Words for what asks for attention there ("needs attention"); no dot without them. */
+      attention?: string | undefined;
     }[];
   } = $props();
 
+  const named = (item: (typeof items)[number]) =>
+    item.attention ? `${item.label}, ${item.attention}` : undefined;
   const mark = (item: (typeof items)[number]) =>
     !item.current ? undefined : item.children?.some((c) => c.current) ? 'true' : 'page';
 </script>
@@ -39,10 +45,13 @@
         <li>
           {#if item.children?.length}
             <details class="ui-navgroup-disclosure" open={item.current}>
-              <summary data-nav-expand aria-current={item.current ? 'true' : undefined}
-                ><Icon name={item.icon} /><span>{item.label}</span><Icon
-                  name="chevron-down"
-                /></summary
+              <summary
+                data-nav-expand
+                aria-current={item.current ? 'true' : undefined}
+                aria-label={named(item)}
+                ><Icon name={item.icon} /><span>{item.label}</span>{#if item.attention}<small
+                    class="ui-attention-dot"
+                  ></small>{/if}<Icon name="chevron-down" /></summary
               >
               <ul class="ui-navgroup-sub">
                 <li><a href={item.href} aria-current={mark(item)}>{item.label}</a></li>
@@ -56,8 +65,10 @@
               </ul>
             </details>
           {:else}
-            <a href={item.href} aria-current={mark(item)}
-              ><Icon name={item.icon} /><span>{item.label}</span></a
+            <a href={item.href} aria-current={mark(item)} aria-label={named(item)}
+              ><Icon name={item.icon} /><span>{item.label}</span>{#if item.attention}<small
+                  class="ui-attention-dot"
+                ></small>{/if}</a
             >
           {/if}
         </li>

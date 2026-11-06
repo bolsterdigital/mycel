@@ -2,6 +2,8 @@
 // on the application login (`mycel_app`, under the tenant's RLS), with the fakes of
 // `@mycel/core/testing` for the clock-free parts the server under test would bring itself.
 // The schema owner only looks a tenant up or makes one; it never writes tenant rows here.
+// A stuck job is the one fixture written as the queue's own role (`mycel_worker`): no use case
+// makes a job give up, and the status page and the notifications both read it.
 // Rejected: a unit of work per spec (eleven copies in seven files, each with its own subset of
 // options, so the audit hash key differed between fixtures of one run).
 
@@ -11,9 +13,13 @@ import {
   createDb,
   createTenantDirectory,
   createUnitOfWork,
+  uuidv7,
   uuidv7Ids,
+  type Database,
   type UnitOfWorkDeps,
 } from '@mycel/db';
+import { asRole } from '@mycel/db/testing';
+import { type Kysely } from 'kysely';
 
 type Db = ReturnType<typeof createDb>;
 
@@ -61,4 +67,45 @@ export async function tenantId(slug = 'probe'): Promise<string> {
   const tenant = await asOwner((owner) => createTenantDirectory(owner).findBySlug(slug));
   if (!tenant) throw new Error(`tenant ${slug} missing`);
   return tenant.id;
+}
+
+/** As mycel_worker, the queue's own role: insert stuck jobs for tenant probe, or finish jobs. */
+async function asWorker(fn: (trx: Kysely<Database>, probeId: string) => Promise<void>) {
+  const probe = await tenantId();
+  await asOwner((db) => asRole(db, 'mycel_worker', (trx) => fn(trx, probe)));
+}
+
+/** A job of tenant probe out of attempts; its type names the test, so each finds only its own. */
+export async function stuckJob(type: string): Promise<string> {
+  const id = uuidv7();
+  await asWorker(async (trx, probeId) => {
+    await trx
+      .insertInto('jobs')
+      .values({
+        id,
+        tenant_id: probeId,
+        type,
+        key: `${type}:${id}`,
+        run_at: new Date(Date.now() + 86_400_000),
+        payload: JSON.stringify({ secret: 'e2e-payload' }),
+        attempts: 10,
+        max_attempts: 10,
+        last_error: 'delivery failed for e2e-person@example.org',
+      })
+      .execute();
+  });
+  return id;
+}
+
+/** Marks jobs done, so a test leaves no stuck job behind. */
+export async function finishJobs(ids: string[]) {
+  if (!ids.length) return;
+  await asWorker(async (trx) => {
+    await trx
+      .updateTable('jobs')
+      .set({ done_at: new Date() })
+      .where('id', 'in', ids)
+      .where('done_at', 'is', null)
+      .execute();
+  });
 }

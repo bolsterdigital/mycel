@@ -1,0 +1,124 @@
+/* What asks for attention: the bell in the shell, the marker on Manage and the rows
+   of the notifications page and the dashboard card. A file of its own because ui.css is at its
+   ceiling (scripts/gates/file-size); same layer and the same tokens. The count is a red dot with
+   its number, as Jaap asked (2026-10-31); the number is also in the link's accessible name, so
+   the colour only repeats it (WCAG 1.4.1).
+
+   Narrow-screen rules (skill ui-action-layout): at 320 CSS px and 200% a row's sentence wraps at
+   word boundaries and its "New" and moment go under it; the bell is one whole 44 px target. */
+/* The order of the layers, as admin.css and base.css state it: the bundle may load this file
+   first, and a first `@layer components` would put the components below base. */
+@layer tokens, base, components;
+
+@layer components {
+  /* The count goes under the label when both do not fit (320 CSS px at 200%, a long label). */
+  .admin-bell {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0.5rem;
+    color: var(--color-muted-fg);
+    text-decoration: none;
+    border-radius: var(--radius);
+  }
+  .admin-bell:hover {
+    background: var(--color-muted-bg);
+  }
+  .admin-bell[aria-current='page'] {
+    color: var(--color-body-fg);
+    font-weight: 600;
+  }
+  .admin-bell > .ui-icon {
+    flex: none;
+  }
+  .ui-attention-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.5em;
+    padding: 0 0.375em;
+    margin-inline-start: auto;
+    font-size: var(--step--1);
+    font-weight: 700;
+    line-height: 1.5;
+    color: var(--color-danger-fg);
+    background: var(--color-danger-bg);
+    border-radius: 999px;
+  }
+  /* On the Manage entry a dot without a number: something there asks, the bell says what. */
+  .ui-attention-dot {
+    flex: none;
+    width: 0.5rem;
+    height: 0.5rem;
+    margin-inline-start: auto;
+    background: var(--color-danger-bg);
+    border-radius: 50%;
+  }
+  .ui-navgroup summary > .ui-attention-dot {
+    margin-inline-start: 0;
+  }
+  .ui-navgroup summary > .ui-attention-dot + .ui-icon {
+    margin-inline-start: auto;
+  }
+  /* In the rail the label is hidden, so the count and the dot sit on the icon's corner. */
+  @media (min-width: 60rem) {
+    :root[data-admin-nav='rail'] :is(.admin-bell, .ui-navgroup summary) {
+      position: relative;
+    }
+    :root[data-admin-nav='rail'] :is(.ui-attention-count, .ui-attention-dot) {
+      position: absolute;
+      inset-block-start: 0.25rem;
+      inset-inline-start: calc(50% + 0.25rem);
+      margin: 0;
+    }
+    :root[data-admin-nav='rail'] .ui-attention-count {
+      min-width: 1.25em;
+      padding: 0 0.25em;
+      font-size: 0.6875rem;
+    }
+  }
+
+  .ui-attention-list:not(.ui-rows) {
+    display: grid;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ui-attention-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-0) var(--space-2);
+    min-width: 0;
+  }
+  /* A link reads as a label: whole words, no hyphen in the middle (skill ui-action-layout). */
+  .ui-attention-item > a {
+    min-width: 0;
+    overflow-wrap: break-word;
+    hyphens: manual;
+  }
+  .ui-attention-item.unread > a {
+    font-weight: 600;
+  }
+  .ui-attention-meta {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-0) var(--space-1);
+    color: var(--color-muted-fg);
+  }
+  .ui-attention-read {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-2);
+  }
+  .ui-attention-read > p {
+    margin: 0;
+  }
+}
