@@ -368,6 +368,7 @@
         .ui-navgroup > ul > li > a,
         .ui-navgroup summary,
         .admin-account > summary,
+        .admin-bell,
         .admin-collapse
       ) {
       justify-content: flex-start;
@@ -380,6 +381,7 @@
         .ui-navgroup > ul > li > a,
         .ui-navgroup summary,
         .admin-account > summary,
+        .admin-bell,
         .admin-collapse
       )
       span:not(:has(svg)) {
@@ -396,6 +398,7 @@
         .ui-navgroup > ul > li > a,
         .ui-navgroup summary,
         .admin-account > summary,
+        .admin-bell,
         .admin-collapse
       ):is(:hover, :focus-visible)
       span:not(:has(svg)) {

@@ -16,12 +16,11 @@ import {
 import { createServer } from 'node:http';
 import { type AddressInfo } from 'node:net';
 import { FakeDns } from '@mycel/core/testing';
-import { type Database, createDb, uuidv7Ids } from '@mycel/db';
-import { asRole, breakLatestDocument, testTenant } from '@mycel/db/testing';
+import { createDb, uuidv7Ids } from '@mycel/db';
+import { breakLatestDocument, testTenant } from '@mycel/db/testing';
 import { type Locator, type Page, expect, test } from '@playwright/test';
-import { type Kysely } from 'kysely';
 import { expectNoAxeViolations } from './lib/axe';
-import { asOwner, tenantId, withInvoker } from './lib/invoker';
+import { asOwner, finishJobs, stuckJob, tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { ADMIN, login } from './lib/login';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
@@ -823,51 +822,7 @@ test.describe('status', () => {
     },
   });
 
-  /** As mycel_worker, the queue's own role: insert stuck jobs for tenant probe, or finish jobs. */
-  async function asWorker(fn: (trx: Kysely<Database>, probeId: string) => Promise<void>) {
-    const { createDb, createTenantDirectory } = await import('@mycel/db');
-    const db = createDb(process.env['DATABASE_URL']!);
-    try {
-      const probe = await createTenantDirectory(db).findBySlug('probe');
-      await asRole(db, 'mycel_worker', (trx) => fn(trx, probe!.id));
-    } finally {
-      await db.destroy();
-    }
-  }
-
-  /** A stuck job of tenant probe; its type names the test, so each test finds only its own. */
-  async function stuckJob(type: string): Promise<string> {
-    const { uuidv7 } = await import('@mycel/db');
-    const id = uuidv7();
-    await asWorker(async (trx, probeId) => {
-      await trx
-        .insertInto('jobs')
-        .values({
-          id,
-          tenant_id: probeId,
-          type,
-          key: `${type}:${id}`,
-          run_at: new Date(Date.now() + 86_400_000),
-          payload: JSON.stringify({ secret: 'e2e-payload' }),
-          attempts: 10,
-          max_attempts: 10,
-          last_error: 'delivery failed for e2e-person@example.org',
-        })
-        .execute();
-    });
-    return id;
-  }
-
-  async function finish(ids: string[]) {
-    await asWorker(async (trx) => {
-      await trx
-        .updateTable('jobs')
-        .set({ done_at: new Date() })
-        .where('id', 'in', ids)
-        .where('done_at', 'is', null)
-        .execute();
-    });
-  }
+  const finish = finishJobs;
 
   /** A task's row; its technical type is in the folded details, so the row is found by it. */
   const row = (page: Page, type: string) => page.locator('#jobs li.ui-row', { hasText: type });

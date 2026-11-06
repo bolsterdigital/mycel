@@ -29,6 +29,7 @@
   } from '#lib/admin/ui/index.js';
   import { formatWhen } from '#lib/admin/format.js';
   import { actorLabel, operationKey, resultKey } from '#lib/admin/audit-words.js';
+  import { taskKind as named, taskName as nameOf } from '#lib/admin/attention/words.js';
   import { fill, ui, type UiKey, refusalCopy } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -49,18 +50,7 @@
       relative: data.dateFormat !== 'absolute',
     });
 
-  /** Job types with a name in the catalogue; any other type is "other". */
-  const NAMED = new Set([
-    'content.publish',
-    'mail.reconcile',
-    'tenant.export',
-    'media.purge',
-    'hostnames.reverify',
-    'connections.run',
-    'assist.run',
-  ]);
-  const named = (type: string) => (NAMED.has(type) ? type : 'other');
-  const taskName = (type: string) => t(`admin.status.task.${named(type)}` as UiKey);
+  const taskName = (type: string) => nameOf(t, type);
   const count = (key: string, n: number) =>
     fill(t(`${key}.${n === 1 ? 'one' : 'many'}` as UiKey), { count: String(n) });
 

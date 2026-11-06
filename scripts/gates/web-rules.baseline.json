@@ -15,7 +15,7 @@
     "apps/web/src/routes/(admin)/admin/[tenant]/content/+page.svelte": 1,
     "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.svelte": 9,
     "apps/web/src/routes/(admin)/admin/[tenant]/site/+page.svelte": 1,
-    "apps/web/src/routes/(admin)/admin/[tenant]/status/+page.svelte": 3
+    "apps/web/src/routes/(admin)/admin/[tenant]/status/+page.svelte": 2
   },
   "viewport-height": {},
   "public-box-shadow": {},
