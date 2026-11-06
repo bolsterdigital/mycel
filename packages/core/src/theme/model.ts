@@ -52,6 +52,9 @@ export const ThemeColor = z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'theme.color.inv
 
 const RolePair = z.object({ foreground: ThemeColor, background: ThemeColor }, unknownKey).strict();
 
+/** At most as many accents as an action row has cards; one is a row in one colour. */
+export const CARD_ACCENTS_MAX = 4;
+
 export const Palette = z
   .object(
     {
@@ -65,6 +68,19 @@ export const Palette = z
       link: ThemeColor,
       /** The focus indicator on every role background. */
       focus: ThemeColor,
+      /**
+       * The colours an action row walks through, card by card (Dreamkit
+       * `action_card_accents`): the background is the bar and the filled card, the foreground the
+       * text on that card. Absent, a bar takes `accent` and a filled card `primary`, as before.
+       * The site chooses them, never the editor of a page. Rejected: one colour per card in the
+       * block (a page decision no site-wide change can reach) and deriving a walk from the roles
+       * (colours nobody chose).
+       */
+      cardAccents: z
+        .array(RolePair)
+        .min(1, notAllowed)
+        .max(CARD_ACCENTS_MAX, notAllowed)
+        .optional(),
     },
     unknownKey
   )

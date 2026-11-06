@@ -11,6 +11,7 @@
    properties (admin.css) until #11 designs it. */
 @layer tokens, base, components;
 @import './media-blocks.css' layer(base);
+@import './action-row.css' layer(components);
 
 /* A content column measured in the page's own `ch`, inherited as a length, so a heading with a
    larger font has the same column as the text under it. */
@@ -626,62 +627,6 @@
   }
   .cta-band a:not(.button) {
     color: inherit;
-  }
-
-  /* Cards: the grid follows the width on offer. Full width is a band: the background runs to the
-     edges and the cards stay on the wide rail. */
-  .cards-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
-    gap: var(--space-2);
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .cards-item {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    margin: 0;
-    padding: var(--inset);
-    border-radius: var(--radius);
-    color: var(--color-surface-fg);
-    background: var(--color-surface-bg);
-  }
-  .cards-item > * {
-    margin-block: 0;
-  }
-  .cards-item h2 {
-    font-size: var(--step-1);
-  }
-  .cards-item .actions {
-    margin-block-start: auto;
-  }
-  .cards.width-full {
-    padding-block: var(--space-3);
-    padding-inline: var(--gutter);
-    background: var(--color-surface-bg);
-  }
-  .cards.width-full .cards-grid {
-    max-width: var(--wide-width);
-    margin-inline: auto;
-  }
-  .cards.width-full:not(.cards-filled) .cards-item {
-    color: var(--color-body-fg);
-    background: var(--color-body-bg);
-  }
-  .cards-bar .cards-item {
-    border-inline-start: 0.375rem solid var(--color-accent-bg);
-  }
-  .cards-filled .cards-item {
-    color: var(--color-primary-fg);
-    background: var(--color-primary-bg);
-  }
-  .page:not(.admin) .cards-filled .cards-item .button {
-    --action-base-fg: var(--color-accent-fg);
-    --action-base-bg: var(--color-accent-bg);
-    --action-fg: var(--color-accent-active-fg);
-    --action-bg: var(--color-accent-active-bg);
   }
 
   /* Galleries: every image in one shape, cut on its focal point, so a row of mixed photos lines up.

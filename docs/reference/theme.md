@@ -21,7 +21,7 @@ Migration 0027 keeps the two active byte sequences and their metadata in `site_s
 
 `fontPair` is currently a closed product catalogue: Inter for headings and body, or Source Serif 4 headings with Inter body. Adding one to this schema is a product change; the managed extension route accepted in ADR 022 has a separate compatibility and effective-style contract.
 
-`palettes` holds a complete `light` and a complete `dark` palette. Whoever changes colours sends both, so no unrelated dark default lands on a brand's own light design. Each palette has six role pairs, `body`, `surface`, `primary`, `accent`, `muted` and `warning`, each `{ foreground, background }`, plus `link` and `focus`. Every colour is an opaque `#RRGGBB`: no alpha, names, functions or CSS expressions. Every object is strict, so an unknown key is refused (`theme.key.unknown`).
+`palettes` holds a complete `light` and a complete `dark` palette. Whoever changes colours sends both, so no unrelated dark default lands on a brand's own light design. Each palette has six role pairs, `body`, `surface`, `primary`, `accent`, `muted` and `warning`, each `{ foreground, background }`, plus `link` and `focus`, and optionally `cardAccents`: one to four `{ foreground, background }` pairs the action row walks through card by card (#204, Dreamkit `action_card_accents`). The background is the bar and the filled card, the foreground the text on it; without them a bar is `accent` and a filled card `primary`. The site chooses them through `site.theme.update`; the admin site form carries stored accents along but does not edit them yet. Every colour is an opaque `#RRGGBB`: no alpha, names, functions or CSS expressions. Every object is strict, so an unknown key is refused (`theme.key.unknown`).
 
 ## Contrast
 
@@ -29,7 +29,8 @@ Migration 0027 keeps the two active byte sequences and their metadata in `site_s
 
 - every role pair: 4.5:1 required; `body` also reports whether it reaches 7:1 (`aaa`), which is not required;
 - `link-on-body` and `link-on-surface`: 4.5:1 (the renderer keeps links underlined);
-- `focus-on-<role>` for all six role backgrounds: 3:1.
+- `focus-on-<role>` for all six role backgrounds: 3:1;
+- per card accent, `cardAccents.<i>` (its text on the filled card, and its button, which is the pair inverted): 4.5:1, and `focus-on-cardAccents.<i>`: 3:1.
 
 Ratios are WCAG 2.2 relative luminance, compared unrounded; the report rounds to two decimals. Each failing colour gets one issue, its path (`palettes.dark.link`) and `theme.contrast.too-low`.
 
@@ -52,6 +53,7 @@ Ratios are WCAG 2.2 relative luminance, compared unrounded; the report rounds to
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | each role pair           | `--color-<role>-fg`, `--color-<role>-bg` (`body`, `surface`, `primary`, `accent`, `muted`, `warning`)                                                                                       |
 | `link`, `focus`          | `--color-link`, `--color-focus`                                                                                                                                                             |
+| `cardAccents`            | `--card-1-*` to `--card-4-*` (`fg`, `bg`, `bar`, `active-fg`, `active-bg`): one slot per card position, the accents taken round; `action-row.css` maps `:nth-child(k)` onto slot k          |
 | `fontPair`               | `--font-body` (Inter in both pairs), `--font-heading` (Inter or Source Serif 4), plus the `@font-face` rules of that pair only                                                              |
 | `headingWeight`          | `--heading-weight`                                                                                                                                                                          |
 | `baseSize`, `scaleRatio` | `--step--1` to `--step-4`: `baseSize * scaleRatio^n / 16` in `rem`                                                                                                                          |

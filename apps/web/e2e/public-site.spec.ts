@@ -1570,6 +1570,38 @@ test.describe('site-settings', () => {
   let tenantId = '';
   let singleTenantId = '';
   let homeItemId = '';
+  const WALK = {
+    light: [
+      { foreground: '#ffffff', background: '#d32f2f' },
+      { foreground: '#ffffff', background: '#2e7d32' },
+    ],
+    dark: [
+      { foreground: '#ffffff', background: '#2e7d32' },
+      { foreground: '#ffffff', background: '#c62828' },
+    ],
+  };
+  const { light, dark } = THEME_PRESETS.editorial.palettes;
+  const ACCENTED = {
+    ...THEME_PRESETS.editorial,
+    palettes: {
+      light: { ...light, cardAccents: WALK.light },
+      dark: { ...dark, cardAccents: WALK.dark },
+    },
+  };
+  const rgb = (hex: string) =>
+    `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`;
+  // A button's colour goes through `color-mix`, which Chromium reports as `color(srgb r g b)`.
+  const asRgb = (css: string) => {
+    const srgb = /^color\(srgb ([\d.]+) ([\d.]+) ([\d.]+)\)$/.exec(css);
+    return srgb
+      ? `rgb(${srgb
+          .slice(1)
+          .map((c) => Math.round(Number(c) * 255))
+          .join(', ')})`
+      : css;
+  };
+  const themeState = (id: string) =>
+    withInvoker((invoker) => invoker.run(useCases.getSiteTheme, systemPrincipal(id, 'e2e'), {}));
   const chromeState = (id: string) =>
     withInvoker((invoker) => invoker.run(useCases.getSiteChrome, systemPrincipal(id, 'e2e'), {}));
 
@@ -1623,7 +1655,42 @@ test.describe('site-settings', () => {
         });
       await invoker.run(useCases.updateSiteTheme, principal, {
         baseVersion: 0,
-        theme: THEME_PRESETS.editorial,
+        theme: ACCENTED,
+      });
+      // An action row of four filled cards walks the theme's two accents per mode.
+      const row = await invoker.run(useCases.createItem, principal, {
+        slug: 'acties',
+        document: {
+          type: 'page',
+          defaultLocale: 'nl',
+          locales: ['nl'],
+          title: { nl: 'Acties' },
+          blocks: [
+            {
+              id: 'row',
+              type: 'cards',
+              version: 1,
+              props: {
+                accent: 'filled',
+                width: 'wide',
+                cards: ['Een', 'Twee', 'Drie', 'Vier'].map((nl) => ({
+                  title: { nl },
+                  actions: [
+                    {
+                      label: { nl: `Naar ${nl}` },
+                      target: { kind: 'url' as const, url: 'https://example.org/' },
+                    },
+                  ],
+                })),
+              },
+            },
+          ],
+        },
+      });
+      await invoker.run(useCases.publishItem, principal, {
+        itemId: row.item.id,
+        revisionId: row.revision.id,
+        locale: 'nl',
       });
       await invoker.run(useCases.updateSiteChrome, principal, {
         baseVersion: 0,
@@ -1704,6 +1771,30 @@ test.describe('site-settings', () => {
       await expectNoAxeViolations(page);
     });
 
+  // The action row's colours come from the theme, card by card and per mode, and the button on a
+  // filled card is its pair inverted (theme.md § Contrast).
+  test('an action row walks the theme accents, with the button inverted', async ({ page }) => {
+    for (const mode of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme: mode });
+      await page.goto(`/${slug}/acties`);
+      const cards = page.locator('.cards-item');
+      await expect(cards).toHaveCount(4);
+      const seen = await cards.evaluateAll((items) =>
+        items.map((item) => {
+          const button = getComputedStyle(item.querySelector('.button')!);
+          return [getComputedStyle(item).backgroundColor, button.backgroundColor, button.color];
+        })
+      );
+      expect(seen.map((colours) => colours.map(asRgb))).toEqual(
+        [0, 1, 0, 1].map((i) => {
+          const pair = WALK[mode][i]!;
+          return [rgb(pair.background), rgb(pair.foreground), rgb(pair.background)];
+        })
+      );
+      if (isA11y()) await expectNoAxeViolations(page, { label: `action row ${mode}` });
+    }
+  });
+
   test('native site forms preserve locales and reject stale changes', async ({
     page,
     request,
@@ -1717,6 +1808,11 @@ test.describe('site-settings', () => {
     await page.locator('select[name="fontPair"]').selectOption('inter');
     await page.getByRole('button', { name: 'Save theme' }).click();
     await expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
+    // The form does not edit the action row's accents, and saving it keeps them.
+    const theme = (await themeState(tenantId)).value;
+    expect(theme.fontPair).toBe('inter');
+    expect(theme.palettes.light.cardAccents).toEqual(WALK.light);
+    expect(theme.palettes.dark.cardAccents).toEqual(WALK.dark);
     const stalePage = await context.newPage();
     await stalePage.goto(`/admin/${slug}/site?section=chrome`);
     await page.goto(`/admin/${slug}/site?section=chrome`);

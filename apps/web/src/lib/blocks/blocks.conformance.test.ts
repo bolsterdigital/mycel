@@ -697,6 +697,9 @@ describe('theme tokens', () => {
     '--measure',
     '--radius',
     '--density',
+    ...[1, 2, 3, 4].flatMap((k) =>
+      ['fg', 'bg', 'bar', 'active-fg', 'active-bg'].map((t) => `--card-${k}-${t}`)
+    ),
   ];
   it('keeps a caption readable on the page, lighter than muted text where there is room', () => {
     for (const theme of Object.values(THEME_PRESETS)) {
@@ -756,6 +759,39 @@ describe('theme tokens', () => {
           expect([fg, bg]).not.toEqual([pair.background, pair.foreground]);
         }
     }
+  });
+
+  // The action row: four card positions take the theme's accent walk round; without one a filled card is
+  // primary and a bar accent, as before. The button on a filled card is its pair inverted, and its
+  // active pair stays readable.
+  it('walks the card accents over four positions, with a readable inverted button', () => {
+    const slot = (css: string, k: number, t: string) =>
+      new RegExp(`--card-${k}-${t}: (#[a-f0-9]{6});`, 'i').exec(css)![1]!;
+    const plain = themeCss(DEFAULT_THEME);
+    const { primary, accent } = DEFAULT_THEME.palettes.light;
+    for (const k of [1, 2, 3, 4]) {
+      expect(slot(plain, k, 'bg')).toBe(primary.background);
+      expect(slot(plain, k, 'bar')).toBe(accent.background);
+    }
+    const walk = [
+      { foreground: '#ffffff', background: '#d32f2f' },
+      { foreground: '#ffffff', background: '#2e7d32' },
+      { foreground: '#1b1b1f', background: '#f2c14e' },
+    ];
+    const theme = structuredClone(DEFAULT_THEME);
+    theme.palettes.light.cardAccents = walk;
+    const css = themeCss(theme);
+    expect([1, 2, 3, 4].map((k) => slot(css, k, 'bg'))).toEqual(
+      [0, 1, 2, 0].map((i) => walk[i]!.background)
+    );
+    expect([1, 2, 3, 4].map((k) => slot(css, k, 'bar'))).toEqual(
+      [0, 1, 2, 0].map((i) => walk[i]!.background)
+    );
+    expect(problems(theme)).toEqual([]);
+    for (const k of [1, 2, 3, 4])
+      expect(
+        contrastRatio(slot(css, k, 'active-fg'), slot(css, k, 'active-bg'))
+      ).toBeGreaterThanOrEqual(4.5);
   });
 
   it('keeps active feedback for arbitrary readable colour pairs', () => {

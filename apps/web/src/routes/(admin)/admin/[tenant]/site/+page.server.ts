@@ -215,6 +215,15 @@ export const actions: Actions = {
         };
       palette['link'] = text(data, `${mode}.link`);
       palette['focus'] = text(data, `${mode}.focus`);
+      // The action row's accents are set through `site.theme.update`, not this form; it
+      // carries them along so a save here does not drop them.
+      const accents = [0, 1, 2, 3]
+        .filter((i) => data.has(`${mode}.cardAccents.${i}.background`))
+        .map((i) => ({
+          foreground: text(data, `${mode}.cardAccents.${i}.foreground`),
+          background: text(data, `${mode}.cardAccents.${i}.background`),
+        }));
+      if (accents.length) palette['cardAccents'] = accents;
       palettes[mode] = palette;
     }
     const theme = {
