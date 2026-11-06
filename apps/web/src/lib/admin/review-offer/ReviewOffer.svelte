@@ -5,8 +5,8 @@
      `reviewNote.<locale>`. Rejected: the note in a fold beside the button, which hides the one
      thing a publisher reads first. -->
 <script lang="ts">
-  import { fill, ui } from '../../i18n/index.js';
-  import { Field, Notice } from './ui/index.js';
+  import { fill, ui } from '../../../i18n/index.js';
+  import { Field, Notice } from '../ui/index.js';
   import { REVIEW_NOTE_MAX } from '@mycel/core';
 
   let {

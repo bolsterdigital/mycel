@@ -34,7 +34,7 @@
   import ItemTitleField from '#lib/editor/ItemTitleField.svelte';
   import BlockFields from '#lib/admin/BlockFields.svelte';
   import HeroAltRow from '#lib/admin/hero-alt/HeroAltRow.svelte';
-  import ReviewOffer from '#lib/admin/ReviewOffer.svelte';
+  import ReviewOffer from '#lib/admin/review-offer/ReviewOffer.svelte';
   import Diff from '#lib/admin/Diff.svelte';
   import Inherited from '#lib/admin/Inherited.svelte';
   import { issueLabel } from '#lib/admin/issue-label.js';
