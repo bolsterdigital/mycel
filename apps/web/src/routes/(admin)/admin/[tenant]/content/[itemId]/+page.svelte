@@ -34,6 +34,7 @@
   import ItemTitleField from '#lib/editor/ItemTitleField.svelte';
   import BlockFields from '#lib/admin/BlockFields.svelte';
   import HeroAltRow from '#lib/admin/hero-alt/HeroAltRow.svelte';
+  import ReviewOffer from '#lib/admin/review-offer/ReviewOffer.svelte';
   import Diff from '#lib/admin/Diff.svelte';
   import Inherited from '#lib/admin/Inherited.svelte';
   import { issueLabel } from '#lib/admin/issue-label.js';
@@ -195,6 +196,13 @@
       return { text: t('admin.content.state.offline'), tone: 'neutral' };
     return { text: t('admin.content.state.draft'), tone: 'neutral' };
   };
+  /** A writer who cannot publish may offer what is not yet live or planned. */
+  const offerable = (p: Publication): boolean =>
+    data.canWrite &&
+    !data.canPublish &&
+    !p.review &&
+    (!p.live || p.changes) &&
+    !p.pin?.revision.latest;
   const compactStateOf = (p: Publication): string =>
     p.live
       ? t(p.changes ? 'admin.content.state.short.changed' : 'admin.content.state.short.live')
@@ -1044,9 +1052,15 @@
         </div>
       {/if}
     {/if}
-    {#if !data.canPublish}
+    {#if !data.canPublish && !offerable(p)}
       <p class="ui-hint">{t('admin.content.publication.readOnly')}</p>
     {/if}
+    <ReviewOffer
+      locale={data.locale}
+      target={p.locale}
+      review={p.review}
+      offerable={offerable(p)}
+    />
     {#snippet actions()}
       {#if data.canPublish && (!p.live || p.changes || (p.pin && !p.pin.revision.latest))}
         <Button formaction={action('publish')} name="locale" value={p.locale}
@@ -1068,6 +1082,19 @@
       {#if data.canPublish && p.pin}
         <Button variant="secondary" formaction={action('unschedule')} name="locale" value={p.locale}
           >{t('admin.content.action.unschedule')}</Button
+        >
+      {/if}
+      {#if offerable(p)}
+        <Button formaction={action('offer')} name="locale" value={p.locale}
+          >{t('admin.content.review.offer')}</Button
+        >
+      {/if}
+      {#if data.canWrite && p.review}
+        <Button
+          variant="secondary"
+          formaction={action('withdrawOffer')}
+          name="locale"
+          value={p.locale}>{t('admin.content.review.withdraw')}</Button
         >
       {/if}
     {/snippet}

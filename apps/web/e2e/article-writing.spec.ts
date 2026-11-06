@@ -8,6 +8,7 @@ import { expectNoAxeViolations, headingOrderProblems } from './lib/axe';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, layoutGate, setTextSize } from './lib/layout';
 import { login } from './lib/login';
+import { closePublication, openPublication } from './lib/publication';
 import { isA11y, onlyA11y } from './lib/project';
 import { article, callApi, requireApi } from './lib/api';
 
@@ -990,5 +991,68 @@ test.describe('article-writing', () => {
     expect(afterEdit.document.blocks[0].props.content.en).toEqual(
       revision.document.blocks[0].props.content.en
     );
+  });
+  // A writer without content:publish offers a locale for publication (decided 2026-11-06): the
+  // offer saves the form, carries a note, reaches whoever may publish through the attention list,
+  // and can be taken back. The UI gate measures the writer's card at 320 CSS px and 200 % text.
+  test('a writer offers an article for publication with a note and takes the offer back', async ({
+    page,
+    request,
+  }) => {
+    const email = `offer-${test.info().project.name}-${Date.now()}@probe.test`;
+    const probe = await tenantId();
+    const { operatorId } = await withInvoker((invoker) =>
+      invoker.run(useCases.inviteMember, systemPrincipal(probe, 'e2e'), {
+        email,
+        capabilities: ['content:read', 'content:write', 'media:read', 'media:write'],
+      })
+    );
+    const edit = await article(request);
+    const itemId = edit.split('/').at(-1)!;
+    const card = page.locator('#publication-nl');
+    // Read as the site itself: the seed key may write but not publish, so it sees no offers.
+    const offers = async () =>
+      (
+        await withInvoker((invoker) =>
+          invoker.run(useCases.listAttention, systemPrincipal(probe, 'e2e'), {})
+        )
+      ).items.filter((i) => i.key === `review:${itemId}:nl`);
+    try {
+      await login(page, edit, email);
+      await openPublication(page);
+      const offer = card.getByRole('button', { name: 'Ter publicatie aanbieden' });
+      await expect(offer).toBeVisible();
+      await expectNoAxeViolations(page);
+      if (isA11y()) {
+        await page.setViewportSize(NARROW);
+        await setTextSize(page, '200%');
+        await layoutGate(page, 'writer publication', '#publication-panel');
+        await page.screenshot({ path: test.info().outputPath('offer-320-200.png') });
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await setTextSize(page, '100%');
+      }
+
+      await card.getByLabel('Notitie voor wie publiceert').fill('Graag vóór vrijdag');
+      await offer.click();
+      await expect(page).toHaveURL(`${edit}?done=offer&locale=nl`);
+      await expect(page.getByRole('status')).toContainText('Ter publicatie aangeboden in nl.');
+      await openPublication(page);
+      await expect(card).toContainText(/Ter publicatie aangeboden op \d{4}-\d{2}-\d{2}/);
+      await expect(card).toContainText('Notitie: Graag vóór vrijdag');
+      await expectNoAxeViolations(page);
+      expect(await offers()).toEqual([expect.objectContaining({ detail: 'Een artikel' })]);
+
+      await card.getByRole('button', { name: 'Aanbieding intrekken' }).click();
+      await expect(page).toHaveURL(`${edit}?done=withdrawOffer&locale=nl`);
+      await expect(page.getByRole('status')).toContainText('Aanbieding ingetrokken in nl.');
+      await openPublication(page);
+      await expect(offer).toBeVisible();
+      await closePublication(page);
+      expect(await offers()).toEqual([]);
+    } finally {
+      await withInvoker((invoker) =>
+        invoker.run(useCases.removeMember, systemPrincipal(probe, 'e2e'), { operatorId })
+      );
+    }
   });
 });

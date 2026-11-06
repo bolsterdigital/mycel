@@ -1622,7 +1622,7 @@ test.describe('content-admin', () => {
     });
   });
 
-  test('a writer without content:publish sees the state, no buttons, and gets a 403', async ({
+  test('a writer without content:publish sees the state, only the offer, and gets a 403', async ({
     page,
     context,
   }) => {
@@ -1643,10 +1643,11 @@ test.describe('content-admin', () => {
       await openPublication(page);
       await expect(card(page, 'nl')).toContainText('Concept');
       await openPublication(page);
-      await expect(
-        card(page, 'nl').getByText('vragen de bevoegdheid content:publish')
-      ).toBeVisible();
-      await expect(page.locator('.ui-status-card button')).toHaveCount(0);
+      // Offering it for publication is the writer's one action (article-writing.spec.ts).
+      await expect(card(page, 'nl').getByText('Zelf publiceren kan hier niet')).toBeVisible();
+      await expect(page.locator('.ui-status-card button[formaction]')).toHaveText([
+        'Ter publicatie aanbieden',
+      ]);
       await expectNoAxeViolations(page);
 
       // The registry refuses, whatever the page showed.

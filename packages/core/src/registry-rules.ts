@@ -59,6 +59,8 @@ const VERBS = [
   ...['retry', 'close'],
   // ADR 025 rule 5: a hero's move into the document header, and what it would do.
   ...['convert', 'propose'],
+  // Offering a locale for publication, and taking the offer back.
+  ...['request', 'withdraw'],
   // A key, a hostname, a visitor's entry points, a theme report.
   ...['revoke', 'verify', 'upload', 'submit', 'confirm', 'check'],
 ];

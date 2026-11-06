@@ -57,6 +57,25 @@ export function memoryContent(s: TenantStore): ContentRepository {
       }
       return found;
     },
+    async offeredForReview(limit) {
+      return [...s.items.values()]
+        .flatMap((i) =>
+          i.publication.flatMap((p) =>
+            p.review
+              ? [
+                  {
+                    itemId: i.id,
+                    locale: p.locale,
+                    title: i.title[p.locale] ?? i.title[i.defaultLocale] ?? null,
+                    since: new Date(p.review.since),
+                  },
+                ]
+              : []
+          )
+        )
+        .sort((a, b) => b.since.getTime() - a.since.getTime())
+        .slice(0, limit);
+    },
     async insert(item, first) {
       const taken = [...s.items.values()].some((i) => i.type === item.type && i.slug === item.slug);
       if (taken) return false;

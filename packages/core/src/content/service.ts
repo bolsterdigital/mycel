@@ -95,6 +95,7 @@ export function toContentItem(r: ItemRecord): ContentItem {
       scheduleId: s.scheduleId,
       hasUnpublishedChanges:
         s.publishedRevisionId !== null && s.publishedRevisionId !== r.latestRevisionId,
+      review: s.review && { since: s.review.since.toISOString(), note: s.review.note },
     })),
   };
 }
@@ -757,7 +758,7 @@ export const diffRevisions = defineUseCase({
 });
 
 /** Lock, find the locale, apply `change`, save: the shape of every publication command. */
-async function changePublication(
+export async function changePublication(
   ctx: TransactionContext,
   itemId: string,
   locale: string,

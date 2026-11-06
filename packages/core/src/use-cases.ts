@@ -68,6 +68,7 @@ import {
   updateItem,
   updateSlug,
 } from './content/service.js';
+import { requestContentReview, withdrawContentReview } from './content/review/review.js';
 import { getEntitlements, getUsage } from './entitlements/service.js';
 import { getForm, submitForm } from './forms/service.js';
 import { confirmSubscription, previewConfirmation } from './mailing/service.js';
@@ -141,6 +142,8 @@ export const useCases = {
   unpublishItem,
   scheduleItem,
   unscheduleItem,
+  requestContentReview,
+  withdrawContentReview,
   updateSlug,
   insertBlock,
   moveBlock,
