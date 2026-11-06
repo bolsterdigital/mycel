@@ -21,6 +21,7 @@
   import { fromMarkdown } from '#lib/editor/markdown.js';
   import type { BlockField } from '@mycel/core';
   import RowCard from './RowCard.svelte';
+  import TargetPicker from './TargetPicker.svelte';
   import { Button, Checkbox, Field, Fieldset, Icon, MediaPicker } from '../ui/index.js';
   import type { MediaChoice } from '../media-choice.js';
   import { fill, ui, type UiKey } from '../../../i18n/index.js';
@@ -257,13 +258,21 @@
         {#each locales as l (l)}
           {@render input(`${name}.${i}.label.${l}`, `${t('admin.block.field.label')}${per(l)}`)}
         {/each}
-        {@render select(
-          `${name}.${i}.target`,
-          t('admin.block.field.target'),
-          [{ id: 'url', label: t('admin.block.target.url') }, ...items],
-          t('admin.block.none')
-        )}
-        {@render input(`${name}.${i}.url`, t('admin.block.field.url'))}
+        {@const target = `${name}.${i}.target`}
+        <TargetPicker
+          id={id(target)}
+          choices="{base}/content/choices?locale={encodeURIComponent(locales[0] ?? locale)}"
+          {locale}
+          refused={bad(target) || bad(`${name}.${i}.url`)}
+        >
+          {@render select(
+            target,
+            t('admin.block.field.target'),
+            [{ id: 'url', label: t('admin.block.target.url') }, ...items],
+            t('admin.block.none')
+          )}
+          {@render input(`${name}.${i}.url`, t('admin.block.field.url'))}
+        </TargetPicker>
       </Fieldset>
     {/each}
   {:else if f.kind === 'group'}

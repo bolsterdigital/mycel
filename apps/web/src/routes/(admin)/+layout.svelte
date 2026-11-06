@@ -3,6 +3,7 @@
   import '#lib/theme/admin.css';
   import '#lib/admin/ui/ui.css';
   import '#lib/admin/ui/row-editor.css';
+  import '#lib/admin/ui/target-picker.css';
   import type { LayoutProps } from './$types';
 
   let { children }: LayoutProps = $props();

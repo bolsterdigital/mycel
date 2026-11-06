@@ -1,0 +1,40 @@
+/* The list of a button target's search (TargetPicker): under the field, in the flow,
+   not floating, so at 320 CSS px and 200% text it pushes the card down instead of standing over
+   the next field or outside the screen. A file of its own because ui.css is at its ceiling
+   (scripts/gates/file-size). Rejected: a popover over the form, which the row editor's "More"
+   menu already left for the same reason. */
+/* The order of the layers, as admin.css and base.css state it (see row-editor.css). */
+@layer tokens, base, components;
+
+@layer components {
+  .ui-target-options {
+    margin: 0;
+    padding: var(--space-0);
+    list-style: none;
+    max-block-size: 16rem;
+    overflow-y: auto;
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface-bg);
+  }
+  .ui-target-options [role='option'] {
+    display: flex;
+    align-items: center;
+    min-height: var(--tap);
+    padding: var(--space-0) var(--space-1);
+    overflow-wrap: anywhere;
+    cursor: pointer;
+  }
+  .ui-target-options [role='option']:hover,
+  .ui-target-options [aria-selected='true'] {
+    color: var(--color-selected-fg);
+    background: var(--color-selected-bg);
+  }
+  .ui-target-options [aria-selected='true'] {
+    outline: 3px solid var(--color-focus);
+    outline-offset: -3px;
+  }
+  .ui-target-search .ui-hint:empty {
+    display: none;
+  }
+}

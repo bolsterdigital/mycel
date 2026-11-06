@@ -66,3 +66,19 @@ export async function save(page: Page, n: number): Promise<void> {
   await expect(page).toHaveURL(/\?saved/);
   await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
 }
+
+/**
+ * Point button `n` (0-based) inside `scope` at an address: with JavaScript through the target's
+ * search, which takes an address on leaving the field; without, the select plus address field.
+ */
+export async function linkTo(scope: Locator, n: number, url: string): Promise<void> {
+  const target = scope.getByRole('combobox', { name: 'Linkt naar' }).nth(n);
+  if (isA11y()) {
+    await target.fill(url);
+    await target.press('Tab');
+    await expect(target).toHaveValue(url);
+    return;
+  }
+  await target.selectOption({ label: 'Het adres hieronder' });
+  await scope.getByLabel('Adres (URL)').nth(n).fill(url);
+}

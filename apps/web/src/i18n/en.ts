@@ -1191,6 +1191,12 @@ export const en = {
   'admin.block.noFields': 'This block has no fields.',
   'admin.block.action': 'Button {n}',
   'admin.block.target.url': 'The address below',
+  'admin.block.target.hint':
+    'Search a page or article by title, or type an address that starts with / or https://.',
+  'admin.block.target.useAddress': 'Use address: {address}',
+  'admin.block.target.found': '{n} found',
+  'admin.block.target.nothing': 'No page or article found. An address starts with / or https://.',
+  'admin.block.target.failed': 'Searching older pages and articles failed; the newest are listed.',
   'admin.block.use': 'Use {what}',
   'admin.block.listHint':
     'Empty all fields of an entry to remove it; fill the last one to add one.',
