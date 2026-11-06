@@ -12,29 +12,35 @@ import { iso } from '../util/date.js';
 
 const Timestamp = z.string().datetime({ offset: true });
 
-/** Where a notification comes from. `review` (a draft offered for publication) follows. */
-export const AttentionSource = z.enum(['job', 'mail', 'erasure', 'connection']);
+/** Where a notification comes from; `review` is a locale offered for publication. */
+export const AttentionSource = z.enum(['job', 'mail', 'erasure', 'connection', 'review']);
 export type AttentionSource = z.infer<typeof AttentionSource>;
 
 /**
  * Who sees a source: the capability it takes to act on it. Filtered in core, so the admin, the API
- * and MCP give one answer (ADR 009). The four of PR 1 are the status page's and the connections'
- * work, which only an administrator can do something about.
+ * and MCP give one answer (ADR 009). The first four are the status page's and the connections'
+ * work, which only an administrator can do something about; an offer is for whoever may publish.
  */
 export const SOURCE_CAPABILITY: Readonly<Record<AttentionSource, Capability>> = {
   job: 'tenant:admin',
   mail: 'tenant:admin',
   erasure: 'tenant:admin',
   connection: 'tenant:admin',
+  review: 'content:publish',
 };
 
 export const AttentionItem = z.object({
   /** `<source>:<id>` for one thing, `<source>` for a count over many; stable while it lasts. */
   key: z.string(),
   source: AttentionSource,
-  /** The job or connection it is about; null for a count (mail, erasures). */
+  /** The job, connection or content item it is about; null for a count (mail, erasures). */
   subjectId: z.string().guid().nullable(),
-  /** The job type or the connection's provider: enough to recognise it, never a payload. */
+  /** The locale an offer is for; null for every other source. */
+  locale: z.string().nullable(),
+  /**
+   * The job type, the connection's provider or the offered item's title: enough to recognise it,
+   * never a payload.
+   */
   detail: z.string().nullable(),
   /** How many things this one notification stands for; 1 for a single job or connection. */
   count: z.number().int().positive(),

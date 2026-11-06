@@ -1,8 +1,9 @@
 // The attention use cases against Postgres: what the memory store cannot prove. The
 // worker stamps `failed_at` (0034), the read state lives on the member's own row and only moves
 // forward, `ConnectionIntents.recent` reads every connection's newest intents in one statement,
-// the bell's count costs the same number of queries for one connection as for many, and a tenant
-// export does not carry a member's read state.
+// the bell's count costs the same number of queries for one connection as for many, a tenant
+// export does not carry a member's read state, and an offer for publication (0035) lives on its
+// locale row, travels with the export and is read under the site's own tenant only.
 //
 // Skips without DATABASE_URL and APP_DATABASE_URL; in CI that is a failure.
 
@@ -158,6 +159,59 @@ describe.skipIf(skip)('attention conformance', () => {
     } finally {
       await closeTenantWork(operatorDb, [other]);
     }
+  });
+
+  it('keeps an offer on its locale row, shows it on this site only and clears it on publish', async () => {
+    const { item, revision } = await invoker.run(useCases.createItem, admin, {
+      slug: `offer-${run}`,
+      document: {
+        type: 'article',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: 'Aangeboden stuk' },
+        blocks: [],
+      },
+    });
+    const offered = await invoker.run(useCases.requestContentReview, admin, {
+      itemId: item.id,
+      locale: 'nl',
+      note: 'Graag vandaag',
+    });
+    const since = offered.publication[0]!.review!.since;
+    const stored = await sql<{ since: Date; note: string }>`select review_since as since,
+      review_note as note from content_item_locales where item_id = ${item.id}`.execute(operatorDb);
+    expect(stored.rows).toEqual([{ since: new Date(since), note: 'Graag vandaag' }]);
+    const { items } = await invoker.run(useCases.listAttention, admin, {});
+    expect(items.find((i) => i.source === 'review')).toMatchObject({
+      key: `review:${item.id}:nl`,
+      detail: 'Aangeboden stuk',
+      since,
+    });
+
+    const lines: string[] = [];
+    await readTenant(operatorDb, tenant, (table, line) => {
+      if (table === 'content_item_locales') lines.push(line);
+    });
+    expect(lines.some((l) => l.includes('"review_note": "Graag vandaag"'))).toBe(true);
+
+    const other = (await testTenant(operatorDb, `attention-c-${run}`)).id;
+    try {
+      const elsewhere = principal({ tenantId: other, actor: admin.actor });
+      const there = await invoker.run(useCases.listAttention, elsewhere, {});
+      expect(there.items.filter((i) => i.source === 'review')).toEqual([]);
+    } finally {
+      await closeTenantWork(operatorDb, [other]);
+    }
+
+    await invoker.run(useCases.publishItem, admin, {
+      itemId: item.id,
+      revisionId: revision.id,
+      locale: 'nl',
+    });
+    const after = await sql<{ since: Date | null; note: string | null }>`select
+      review_since as since, review_note as note from content_item_locales
+      where item_id = ${item.id}`.execute(operatorDb);
+    expect(after.rows).toEqual([{ since: null, note: null }]);
   });
 
   it('counts the bell in the same number of queries for one connection as for three', async () => {

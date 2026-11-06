@@ -39,6 +39,7 @@ export * from './content/listing.js';
 export * from './content/ports.js';
 export * from './content/diff.js';
 export * from './content/service.js';
+export * from './content/review/review.js';
 export * from './content/operations.js';
 export * from './content/header/hero-conversion.js';
 export * from './content/entities.js';

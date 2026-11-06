@@ -65,6 +65,15 @@ export interface ItemMatch {
   blockIds: string[];
 }
 
+/** A locale offered for publication, as the attention list names it. */
+export interface OfferedLocale {
+  itemId: string;
+  locale: string;
+  /** The item's title in that locale, else in its default locale; null when it has neither. */
+  title: string | null;
+  since: Date;
+}
+
 export interface ContentRepository {
   /** The item with its publication rows, locked for the rest of the transaction. */
   lock(itemId: string): Promise<ItemRecord | null>;
@@ -105,6 +114,8 @@ export interface ContentRepository {
    * no single row. Rendering and editing read `revision`, which does fail.
    */
   latestDocuments(itemIds: readonly string[]): Promise<Map<string, ContentDocument>>;
+  /** The locales offered for publication, newest offer first, at most `limit`. */
+  offeredForReview(limit: number): Promise<OfferedLocale[]>;
   /** A revision of this item; another item's revision is null. */
   revision(itemId: string, revisionId: string): Promise<Revision | null>;
   revisions(itemId: string, after: string | null, limit: number): Promise<Paged<RevisionSummary>>;

@@ -334,6 +334,10 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
                   revision: await describe(p.scheduledRevisionId),
                 }
               : null,
+          review: p.review && {
+            at: localLabel(new Date(p.review.since), zone, zone !== site),
+            note: p.review.note,
+          },
           issues: readinessIssues(doc, p.locale).map((i) => ({
             path: issuePath(i.path, i.message, p.locale),
             field: i.path.startsWith('blocks.')
@@ -403,6 +407,8 @@ const DONE: Record<string, UiKey> = {
   schedule: 'admin.content.publication.done.schedule',
   repin: 'admin.content.publication.done.schedule',
   unschedule: 'admin.content.publication.done.unschedule',
+  offer: 'admin.content.review.done.offer',
+  withdrawOffer: 'admin.content.review.done.withdraw',
   translationApproved: 'admin.assist.approved',
 };
 
@@ -424,6 +430,7 @@ const ISSUE_COPY: Record<string, UiKey> = {
   'content.reference.media-not-audio': 'admin.content.issue.mediaNotAudio',
   'content.schedule.not-in-future': 'admin.content.issue.notInFuture',
   'admin.content.publication.time-invalid': 'admin.content.issue.timeInvalid',
+  'content.review.nothing-new': 'admin.content.issue.reviewNothingNew',
 };
 const issueCopy = (message: string): UiKey => ISSUE_COPY[message] ?? 'admin.content.issue.other';
 
@@ -827,17 +834,19 @@ async function refused(
  * One publication action on one locale (brief content-editor § A2) after the save of the form.
  * Core decides: `content:publish` through the registry (a member without it gets a 403 whatever
  * the page showed), readiness and references on publish and schedule. A refusal names the
- * locale and every issue with its path.
+ * locale and every issue with its path. An offer for publication is the one such action
+ * a writer may take: `offer` lets the save through without `content:publish`.
  */
 async function publication(
   event: Event,
   action: keyof typeof DONE,
   run: (
     principal: Principal,
-    input: { itemId: string; locale: string; revisionId: string; at: string }
-  ) => Promise<unknown>
+    input: { itemId: string; locale: string; revisionId: string; at: string; note: string }
+  ) => Promise<unknown>,
+  offer = false
 ) {
-  const saved = await commit(event, { publication: true });
+  const saved = await commit(event, { publication: !offer });
   if ('failure' in saved) return saved.failure;
   const { tenant, principal, data, revisionId } = saved;
   const locale = text(data, 'locale');
@@ -847,6 +856,7 @@ async function publication(
       locale,
       revisionId,
       at: text(data, `at.${locale}`),
+      note: text(data, `reviewNote.${locale}`),
     });
   } catch (e) {
     const refusal = refusalOf(e);
@@ -1207,6 +1217,22 @@ export const actions: Actions = {
   unschedule: (event) =>
     publication(event, 'unschedule', (principal, { itemId, locale }) =>
       runtime().invoker.run(useCases.unscheduleItem, principal, { itemId, locale })
+    ),
+  offer: (event) =>
+    publication(
+      event,
+      'offer',
+      (principal, { itemId, locale, note }) =>
+        runtime().invoker.run(useCases.requestContentReview, principal, { itemId, locale, note }),
+      true
+    ),
+  withdrawOffer: (event) =>
+    publication(
+      event,
+      'withdrawOffer',
+      (principal, { itemId, locale }) =>
+        runtime().invoker.run(useCases.withdrawContentReview, principal, { itemId, locale }),
+      true
     ),
   approveTranslation: async (event) => {
     const { locals, url, params } = event;

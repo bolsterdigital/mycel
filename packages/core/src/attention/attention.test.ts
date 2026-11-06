@@ -136,7 +136,7 @@ describe('attention', () => {
     invoker = new Invoker(buildRegistry(), uow);
   });
 
-  it('shows an administrator the four sources, newest first, each as new', async () => {
+  it('shows an administrator every source, newest first, each as new', async () => {
     const j = job();
     clock.advance(minutes(1));
     const s = uow.store.for(TENANT);
@@ -157,16 +157,26 @@ describe('attention', () => {
     ]);
     expect(items[1]).toMatchObject({ detail: 'mail.reconcile', since: j.failedAt!.toISOString() });
     expect(sum).toMatchObject({ total: 3, unread: 3, seenAt: null });
-    expect(sum.sources.map((x) => x.source)).toEqual(['job', 'mail', 'erasure', 'connection']);
+    expect(sum.sources.map((x) => x.source)).toEqual([
+      'job',
+      'mail',
+      'erasure',
+      'connection',
+      'review',
+    ]);
   });
 
   it('shows an editor or author nothing of the administrator sources', async () => {
     job();
     connection({ hasCredential: false });
-    for (const caps of [EDITOR, ['content:read'] as Capability[]]) {
-      await expect(list(member(caps))).resolves.toEqual({
+    // An editor sees the offers (`review`, content/review/review.test.ts), an author nothing.
+    for (const [caps, sources] of [
+      [EDITOR, [{ source: 'review', total: 0, unread: 0 }]],
+      [['content:read'], []],
+    ] as const) {
+      await expect(list(member([...caps]))).resolves.toEqual({
         items: [],
-        summary: { total: 0, unread: 0, sources: [], seenAt: null },
+        summary: { total: 0, unread: 0, sources, seenAt: null },
       });
     }
   });
