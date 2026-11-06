@@ -42,6 +42,8 @@ export interface FieldError extends MarkdownError {
 }
 
 const join = (prefix: string, key: string | number) => `${prefix}.${key}`;
+/** The hidden field of a list row that names the stored row it shows. */
+const FROM = 'from';
 const isEmpty = (v: string | null | undefined) => v === null || v === undefined || v.trim() === '';
 const asRecord = (v: unknown): Localized =>
   v && typeof v === 'object' && !Array.isArray(v) ? (v as Localized) : {};
@@ -50,8 +52,13 @@ const asRecord = (v: unknown): Localized =>
  * Extra empty rows a list offers: up to its minimum, else one for adding an entry. Without the
  * minimum a new block of cards offers one row where its schema asks two, and cannot be saved.
  */
-const spareRows = (field: Extract<BlockField, { kind: 'list' }>, rows: number) =>
-  Math.max(field.min - rows, rows < field.max ? 1 : 0);
+const spareRows = (field: Extract<BlockField, { kind: 'list' }>, rows: number, button = false) =>
+  Math.max(field.min - rows, rows < field.max && !button ? 1 : 0);
+
+/** How the form offers new rows: a top-level list named here has an add button, no spare row. */
+export interface FormOptions {
+  addButton?: readonly string[];
+}
 
 // --- props to form ------------------------------------------------------------------------------
 
@@ -60,7 +67,8 @@ function fieldValues(
   field: BlockField,
   value: unknown,
   name: string,
-  locales: readonly string[]
+  locales: readonly string[],
+  button = false
 ): void {
   switch (field.kind) {
     case 'text':
@@ -114,11 +122,15 @@ function fieldValues(
       return;
     case 'list': {
       const rows = Array.isArray(value) ? value : [];
-      const count = rows.length + spareRows(field, rows.length);
+      const count = rows.length + spareRows(field, rows.length, button);
       out[join(name, 'rows')] = String(count);
-      for (let i = 0; i < count; i++)
+      for (let i = 0; i < count; i++) {
+        // Which stored row this one is, so a row moved or removed in the form keeps the locales
+        // the form does not carry; empty is a new row.
+        out[join(join(name, i), FROM)] = i < rows.length ? String(i) : '';
         for (const f of field.fields)
           fieldValues(out, f, asRecord(rows[i])[f.key], join(join(name, i), f.key), locales);
+      }
       return;
     }
   }
@@ -128,10 +140,19 @@ function fieldValues(
 export function formValues(
   fields: readonly BlockField[],
   props: Props | undefined,
-  locales: readonly string[]
+  locales: readonly string[],
+  options: FormOptions = {}
 ): FormValues {
   const out: FormValues = {};
-  for (const f of fields) fieldValues(out, f, props?.[f.key], join('p', f.key), locales);
+  for (const f of fields)
+    fieldValues(
+      out,
+      f,
+      props?.[f.key],
+      join('p', f.key),
+      locales,
+      options.addButton?.includes(f.key) ?? false
+    );
   return out;
 }
 
@@ -330,10 +351,11 @@ function reader(form: Posted, errors: FieldError[]): Read {
         const out: Props[] = [];
         for (let i = 0; i < Math.min(rows, field.max + 1); i++) {
           const row = join(name, i);
+          const stored = storedRow(before, form.get(join(row, FROM)), i);
           const preset = choiceDefaults(field.fields, row);
           const typed = form
             .names()
-            .filter((n) => n.startsWith(`${row}.`))
+            .filter((n) => n.startsWith(`${row}.`) && n !== join(row, FROM))
             .some(
               (n) =>
                 !isEmpty(form.get(n)) &&
@@ -344,14 +366,25 @@ function reader(form: Posted, errors: FieldError[]): Read {
                 // words it loaded. An untouched editor posts nothing: the textarea is the value.
                 isEmpty(form.get(`${n}.editor`))
             );
-          if (!typed && !elsewhere(field.fields, before[i], row)) continue;
-          out.push(groupFrom(field.fields, asRecord(before[i]), row, read));
+          if (!typed && !elsewhere(field.fields, stored, row)) continue;
+          out.push(groupFrom(field.fields, asRecord(stored), row, read));
         }
         return out;
       }
     }
   };
   return read;
+}
+
+/**
+ * The stored row a posted row edits: the one its `from` names, none for a new row (empty), and
+ * the one at its own place for a form without the field (an older tab). Rejected: matching rows
+ * by position only, which hands a moved row's other locales to the row that took its place.
+ */
+function storedRow(before: readonly unknown[], from: string | null, at: number): unknown {
+  if (from === null) return before[at];
+  if (!/^\d+$/.test(from)) return undefined;
+  return before[Number(from)];
 }
 
 /** What each choice of a spare row shows before anyone touches it: no sign the row was typed in. */
@@ -393,3 +426,81 @@ export const postedValues = (values: FormValues): Posted => ({
   get: (name) => values[name] ?? null,
   names: () => Object.keys(values),
 });
+
+/**
+ * Stored form values with what a post typed on top, for the names under `prefix`. A list the post
+ * carries is taken whole: a stored row it removed or moved must not show through at its old place.
+ */
+export function typedOver(
+  stored: FormValues,
+  typed: Record<string, unknown>,
+  prefix: string
+): FormValues {
+  const mine = Object.entries(typed).filter(
+    (e): e is [string, string] => e[0].startsWith(prefix) && typeof e[1] === 'string'
+  );
+  if (!mine.length) return stored;
+  const lists = mine.filter(([k]) => k.endsWith('.rows')).map(([k]) => k.slice(0, -'rows'.length));
+  const kept = Object.entries(stored).filter(([k]) => !lists.some((l) => k.startsWith(l)));
+  return { ...Object.fromEntries(kept), ...Object.fromEntries(mine) };
+}
+
+// --- rearranging a list in the form -------------------------------------------------------------
+
+export const LIST_MOVES = ['add', 'remove', 'earlier', 'later'] as const;
+export type ListMove = (typeof LIST_MOVES)[number];
+
+/**
+ * A list's rows rearranged in the posted values, before anything is saved: a row added at
+ * the end, one removed, or one swapped with its neighbour, within the list's own bounds. Every
+ * name under a row moves with it, its `from` too, so the save reads each row onto the stored row
+ * it came from. Names of other fields stay as they are. Rejected: a save per step, which stores
+ * half-typed rows and refuses a row whose title is not typed yet.
+ */
+type Values = Record<string, string | string[]>;
+
+export function arrangeRows(
+  values: Readonly<Values>,
+  name: string,
+  move: ListMove,
+  index: number,
+  bounds: { min: number; max: number }
+): Values {
+  const rowsKey = join(name, 'rows');
+  const rows = Number(values[rowsKey]);
+  if (!Number.isInteger(rows) || rows < 0) return { ...values };
+  const out: Values = {};
+  const target = (i: number): number | null => {
+    if (move === 'remove') return i === index ? null : i > index ? i - 1 : i;
+    if (move === 'earlier' && index > 0)
+      return i === index ? index - 1 : i === index - 1 ? index : i;
+    if (move === 'later' && index < rows - 1)
+      return i === index ? index + 1 : i === index + 1 ? index : i;
+    return i;
+  };
+  const allowed =
+    (move === 'add' && rows < bounds.max) ||
+    (move === 'remove' && rows > bounds.min && index >= 0 && index < rows) ||
+    move === 'earlier' ||
+    move === 'later';
+  if (!allowed) return { ...values };
+  for (const [key, value] of Object.entries(values)) {
+    if (!key.startsWith(`${name}.`) || key === rowsKey) {
+      out[key] = value;
+      continue;
+    }
+    const rest = key.slice(name.length + 1);
+    const dot = rest.indexOf('.');
+    const at = Number(dot < 0 ? rest : rest.slice(0, dot));
+    if (!Number.isInteger(at) || dot < 0) {
+      out[key] = value;
+      continue;
+    }
+    const to = target(at);
+    if (to !== null) out[`${name}.${to}${rest.slice(dot)}`] = value;
+  }
+  const count = move === 'add' ? rows + 1 : move === 'remove' ? rows - 1 : rows;
+  out[rowsKey] = String(count);
+  if (move === 'add') out[join(join(name, rows), FROM)] = '';
+  return out;
+}

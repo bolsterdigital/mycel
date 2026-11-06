@@ -1,0 +1,182 @@
+/* The row editor of a block whose list the site shows side by side (the action row): its
+   cards next to each other in the block column, typed in place, with their style as the site
+   shows it. A file of its own because ui.css is at its ceiling (scripts/gates/file-size); same
+   layer and the same tokens. The columns follow the room the block column has, not the number
+   the site shows: four cards stand two by two, since four next to each other leave each field
+   about 165 px to type in. Rejected: the site's `auto-fit` grid, which puts three narrow cards
+   in a row of a 40rem column and makes every field too small to read back.
+
+   Narrow-screen rules (skill ui-action-layout): at 320 CSS px and 200% one column, labels wrap
+   inside their own control, the menu's buttons are whole and at least 44 px tall. */
+/* The order of the layers, as admin.css and base.css state it: the bundle may load this file
+   first, and a first `@layer components` would put the components below base. */
+@layer tokens, base, components;
+
+@layer components {
+  .ui-row-editor {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
+    container-type: inline-size;
+  }
+  .ui-row-style {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 var(--space-2);
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .ui-row-style legend {
+    float: left;
+    margin-inline-end: var(--space-1);
+    padding: 0;
+    font-weight: 600;
+  }
+  .ui-row-style label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-0);
+    min-height: var(--tap);
+  }
+  .ui-row-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  @container (min-width: 28rem) {
+    .ui-row-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @container (min-width: 40rem) {
+    .ui-row-grid[data-count='3'] {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  .ui-row-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+    padding: var(--space-2);
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+  }
+  /* A field is a flex item: without this a select as wide as its longest option (a page title)
+     widens the card past a 320 px screen. */
+  .ui-row-card > * {
+    min-width: 0;
+  }
+  .ui-row-card :is(input, select, textarea) {
+    max-width: 100%;
+  }
+  /* The style as the site sets it. The colours that walk per card come from the theme (a later step). */
+  [data-style='bar'] > .ui-row-card {
+    border-inline-start: 0.375rem solid var(--color-accent);
+  }
+  [data-style='filled'] > .ui-row-card {
+    color: var(--color-primary-fg);
+    background: var(--color-primary-bg);
+    border-color: var(--color-primary-bg);
+  }
+  [data-style='filled'] > .ui-row-card .ui-hint {
+    color: inherit;
+  }
+  .ui-row-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0 var(--space-1);
+  }
+  .ui-row-number {
+    font-weight: 600;
+  }
+  /* The menu opens in the card, under its head, not over it: a panel laid over the card ran past
+     the viewport at 320 px and 200% text, and inside the card it is always as wide as there is. */
+  .ui-row-more {
+    margin-inline-start: auto;
+  }
+  .ui-row-more[open] {
+    flex-basis: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+  .ui-row-more > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-0);
+    min-height: var(--tap);
+    min-width: var(--tap);
+    padding-inline: var(--space-0);
+    cursor: pointer;
+    list-style: none;
+  }
+  .ui-row-more > summary::-webkit-details-marker {
+    display: none;
+  }
+  .ui-row-menu {
+    display: flex;
+    flex-direction: column;
+    align-self: stretch;
+    padding: var(--space-0);
+    color: var(--color-surface-fg);
+    background: var(--color-surface-bg);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius);
+  }
+  .ui-row-menu button {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    width: 100%;
+    min-height: var(--tap);
+    padding: var(--space-0) var(--space-1);
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
+  .ui-row-menu button:hover {
+    background: var(--status-neutral-bg);
+  }
+  .ui-row-menu .danger {
+    color: var(--color-warning-fg);
+  }
+  .ui-row-menu .ui-hint {
+    margin: 0;
+    padding: var(--space-0) var(--space-1);
+  }
+  .ui-row-more > summary:focus-visible,
+  .ui-row-menu button:focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+  /* At 320 px and 200% text "Verwijderen" with its icon and the card's padding was wider than the
+     card: in a narrow row the icons go (they only support the label) and the card pads less. */
+  @container (max-width: 20rem) {
+    .ui-row-card {
+      padding: var(--space-1);
+    }
+    .ui-row-menu .ui-icon {
+      display: none;
+    }
+  }
+  .ui-row-add {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-2);
+  }
+}

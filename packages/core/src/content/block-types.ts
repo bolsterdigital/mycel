@@ -560,10 +560,10 @@ export const BLOCK_DEFINITIONS = {
     ],
   }),
 
-  // Dreamkit's action cards in one block: the entries are props, as in `faq`; the number of columns
-  // follows the width on offer, and `width: full` is the band. Rejected: a column count, which a
-  // narrow container cannot honour, and a parent with child blocks, which would give every card
-  // block operations nobody needs.
+  // Dreamkit's action cards in one block, two to four as there: the entries are props, as in `faq`;
+  // the columns follow the width on offer, `width: full` is the band. Rejected: a column count,
+  // which a narrow container cannot honour; a parent with child blocks, which gives every card
+  // block operations nobody needs; and six cards, never used and not shown two by two in the admin.
   cards: define({
     version: 1,
     props: z
@@ -581,7 +581,7 @@ export const BLOCK_DEFINITIONS = {
               .strict()
           )
           .min(2, 'content.cards.too-few')
-          .max(6),
+          .max(4, 'content.cards.too-many'),
       })
       .strict(),
     fields: [
@@ -589,7 +589,7 @@ export const BLOCK_DEFINITIONS = {
         key: 'cards',
         kind: 'list',
         min: 2,
-        max: 6,
+        max: 4,
         fields: [
           textField('title', { localized: true }),
           textField('body', { localized: true, multiline: true, optional: 'omit' }),

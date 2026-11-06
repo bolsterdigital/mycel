@@ -47,7 +47,8 @@ import {
   pickAny,
   translationState,
 } from '@mycel/core';
-import { formValues, posted, type Posted } from '#lib/editor/block-form.js';
+import { posted, type Posted } from '#lib/editor/block-form.js';
+import { arrange } from '#lib/server/content/arrange.js';
 import { failureOf, loaded, orNull, text } from '#lib/server/admin/admin-actions.js';
 import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import {
@@ -79,6 +80,7 @@ import {
 } from '#lib/server/content/content-blocks.js';
 import {
   NEW_BLOCK,
+  blockFormValues,
   blockIssues,
   documentFieldIssues,
   blockIssueField,
@@ -286,10 +288,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
               (l) => l !== work && (b.props as { content: Record<string, unknown> }).content[l]
             )
           : [],
-      values: prefixed(
-        formValues(BLOCK_DEFINITIONS[b.type].fields, b.props as Record<string, unknown>, shown),
-        blockPrefix(b.id)
-      ),
+      values: prefixed(blockFormValues(b.type, b.props, shown), blockPrefix(b.id)),
     })),
     openBlocks: (url.searchParams.get('block') ?? '').split(','),
     /** No `hero`: the document header is the only header new content gets (ADR 025). */
@@ -1022,6 +1021,7 @@ export const actions: Actions = {
       )
     ).data;
   },
+  arrange: (event) => arrange(event, { latest, show: refused }),
   /** "Do not add": saves the rest of the form without the pending block. */
   discard: async (event) => {
     const saved = await commit(event, { discard: true });

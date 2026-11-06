@@ -7,7 +7,7 @@
   "uuid-regex": {},
   "ui-key-cast": {
     "apps/web/src/i18n/index.ts": 2,
-    "apps/web/src/lib/admin/BlockFields.svelte": 4,
+    "apps/web/src/lib/admin/block-fields/BlockFields.svelte": 4,
     "apps/web/src/lib/admin/Inherited.svelte": 1,
     "apps/web/src/lib/admin/ui/form/RolePicker.svelte": 1,
     "apps/web/src/lib/editor/block-docs.ts": 1,
