@@ -130,6 +130,15 @@ export function blockCopy(locale: string): BlockCopy {
     footnotes: t('block.footnotes'),
     footnoteBack: t('block.footnote.back'),
     toContent: t('block.cover.toContent'),
+    lightbox: {
+      enlarge: t('block.lightbox.enlarge'),
+      dialog: t('block.lightbox.dialog'),
+      close: t('block.lightbox.close'),
+      previous: t('block.lightbox.previous'),
+      next: t('block.lightbox.next'),
+      zoom: t('block.lightbox.zoom'),
+      count: t('block.lightbox.count'),
+    },
     honeypotLabel: t('form.honeypot.label'),
     summaryTitle: t('error.summary.title'),
   };
@@ -168,6 +177,7 @@ function renderImage(
   const caption = own !== undefined ? own : (asset.caption[locale] ?? '');
   const credit = use.credit ?? asset.credit;
   const q = (n: number) => Math.min(10, Math.max(0, Math.round(n * 10)));
+  const widest = webp[webp.length - 1];
   return {
     alt: use.decorative ? '' : (use.alt?.[locale] ?? ''),
     width: asset.width,
@@ -178,6 +188,13 @@ function renderImage(
     caption: caption.trim() ? caption : null,
     credit: credit.work || credit.photographer ? credit : null,
     focal: { x: q(asset.focal.x), y: q(asset.focal.y) },
+    large: widest
+      ? {
+          src: widest.path,
+          width: widest.width!,
+          height: Math.round((widest.width! * asset.height) / asset.width),
+        }
+      : null,
   };
 }
 

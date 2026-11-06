@@ -33,6 +33,16 @@ export interface BlockCopy {
   footnoteBack: string;
   /** The cover header's arrow down to the content. */
   toContent: string;
+  /** The words of the lightbox; `count` holds `{n}` and `{total}`. */
+  lightbox: {
+    enlarge: string;
+    dialog: string;
+    close: string;
+    previous: string;
+    next: string;
+    zoom: string;
+    count: string;
+  };
   honeypotLabel: string;
   summaryTitle: string;
 }
@@ -51,6 +61,8 @@ export interface RenderImage {
   credit: MediaCredit | null;
   /** The focal point quantised to steps of 10 % (0..10), rendered as classes under the CSP. */
   focal: { x: number; y: number };
+  /** The widest public WebP variant, which the lightbox opens; null without a variant. */
+  large: { src: string; width: number; height: number } | null;
 }
 
 /** An article's line under its header; each part is absent when the article has none. */

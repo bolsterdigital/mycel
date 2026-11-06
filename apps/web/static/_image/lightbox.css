@@ -1,0 +1,173 @@
+/* The lightbox's own stylesheet, loaded by lightbox.js and only on a page with an image that
+   opens: without the script nothing here applies. Dark, whatever the site's palette, because a
+   photo reads best against near black; the colours are fixed and checked here, not theme values.
+   The dialog is the whole screen in three rows: count and close, the image, its caption. The
+   arrows sit over the image's sides. Rejected: themed colours, which would put a photo on a light
+   field in a light theme and need a contrast check per theme for white controls. */
+
+html:has(dialog.lightbox[open]) {
+  overflow: hidden;
+}
+
+.enlarge {
+  cursor: zoom-in;
+}
+
+dialog.lightbox {
+  --lightbox-gap: clamp(0.5rem, 3vw, 3.5rem);
+  box-sizing: border-box;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0 var(--lightbox-gap);
+  border: 0;
+  background: #0b0b0b;
+  color: #fff;
+  font: inherit;
+  overflow: hidden;
+}
+dialog.lightbox[open] {
+  display: grid;
+  grid-template: 'count close' auto 'stage stage' minmax(0, 1fr) 'caption caption' auto / 1fr auto;
+}
+dialog.lightbox::backdrop {
+  background: transparent;
+}
+
+.lightbox-count {
+  grid-area: count;
+  align-self: center;
+  margin: 0;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.lightbox-stage {
+  grid-area: stage;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+  outline-offset: -3px;
+}
+.lightbox-image {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  cursor: zoom-in;
+  user-select: none;
+}
+.lightbox.zoomed .lightbox-stage {
+  display: block;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.lightbox.zoomed .lightbox-image {
+  max-width: none;
+  max-height: none;
+  margin: auto;
+  cursor: grab;
+}
+.lightbox.zoomed .lightbox-stage:active .lightbox-image {
+  cursor: grabbing;
+}
+
+.lightbox-caption {
+  grid-area: caption;
+  max-height: 30vh;
+  overflow-y: auto;
+  padding-block: 0.75rem 1rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+.lightbox-caption[hidden] {
+  display: none;
+}
+.lightbox-caption .credit {
+  display: block;
+  margin-block-start: 2px;
+  color: #d4d4d4;
+}
+
+/* 44 by 44 CSS px at least (frontend-quality), white on a dark disc so they hold over any photo. */
+.lightbox-button {
+  display: inline-grid;
+  place-items: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.6);
+  color: #fff;
+  cursor: pointer;
+}
+.lightbox-button:hover {
+  background: rgb(60 60 60 / 0.9);
+}
+.lightbox-button:focus-visible,
+.lightbox-stage:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px #000;
+}
+.lightbox-button[hidden] {
+  display: none;
+}
+.lightbox-word {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.lightbox-close {
+  grid-area: close;
+  margin-block: 0.5rem;
+}
+.lightbox-previous,
+.lightbox-next,
+.lightbox-zoom {
+  position: absolute;
+}
+.lightbox-previous,
+.lightbox-next {
+  top: 50%;
+  translate: 0 -50%;
+}
+.lightbox-previous {
+  left: max(0.25rem, calc(var(--lightbox-gap) / 2 - 1.375rem));
+}
+.lightbox-next {
+  right: max(0.25rem, calc(var(--lightbox-gap) / 2 - 1.375rem));
+}
+.lightbox-zoom[aria-pressed='true'] path:nth-of-type(2) {
+  display: none;
+}
+.lightbox-zoom {
+  top: 0.5rem;
+  right: calc(var(--lightbox-gap) + 3.25rem);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  dialog.lightbox[open] {
+    animation: lightbox-in 180ms ease-out;
+  }
+  .lightbox-image {
+    transition: opacity 120ms ease-out;
+  }
+}
+@keyframes lightbox-in {
+  from {
+    opacity: 0;
+  }
+}
