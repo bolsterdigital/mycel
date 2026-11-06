@@ -2,10 +2,10 @@
 // An operator writes an article: the enhanced writer and pasting save one core document.
 
 import { randomUUID } from 'node:crypto';
-import { systemPrincipal, useCases } from '@mycel/core';
+import { capabilitiesFor, systemPrincipal, useCases } from '@mycel/core';
 import { type APIRequestContext, type Page, expect, test } from '@playwright/test';
 import { expectNoAxeViolations, headingOrderProblems } from './lib/axe';
-import { tenantId, withInvoker } from './lib/invoker';
+import { finishJobs, stuckJob, tenantId, withInvoker } from './lib/invoker';
 import { NARROW, layoutGate, setTextSize } from './lib/layout';
 import { login } from './lib/login';
 import { closePublication, openPublication } from './lib/publication';
@@ -1053,6 +1053,102 @@ test.describe('article-writing', () => {
       await withInvoker((invoker) =>
         invoker.run(useCases.removeMember, systemPrincipal(probe, 'e2e'), { operatorId })
       );
+    }
+  });
+});
+
+// What asks for attention (brief admin-attention-notifications): an offer for
+// publication and a task out of attempts reach an administrator through the bell, the dot on
+// Manage, the dashboard card and the notifications page; reading the page puts the bell out (a
+// button without JavaScript, by itself with it), and both leave the list once solved, without
+// anyone marking them. A fresh member, so its read moment is its own; rows are found by their
+// key, since other specs make stuck tasks of their own at the same time.
+test.describe('attention', () => {
+  test.use({ locale: 'nl-NL' });
+
+  test('an offer and a failed task reach the bell, are read, and leave once solved', async ({
+    page,
+    request,
+  }) => {
+    const run = `${test.info().project.name}-${Date.now()}`;
+    const probe = await tenantId();
+    const site = systemPrincipal(probe, 'e2e');
+    const { operatorId } = await withInvoker((invoker) =>
+      invoker.run(useCases.inviteMember, site, {
+        email: `attention-${run}@probe.test`,
+        capabilities: capabilitiesFor('admin'),
+      })
+    );
+    const itemId = (await article(request)).split('/').at(-1)!;
+    const offer = { itemId, locale: 'nl' };
+    await withInvoker((invoker) => invoker.run(useCases.requestContentReview, site, offer));
+    const jobs = [await stuckJob(`e2e.attention.${run}`)];
+    const row = (key: string) => page.locator(`li[data-attention="${key}"]`);
+    const job = row(`job:${jobs[0]}`);
+    const offered = row(`review:${itemId}:nl`);
+    try {
+      await login(page, '/admin/probe', `attention-${run}@probe.test`);
+      // A first visit: everything is new, and Manage says something there asks.
+      const bell = page.getByRole('link', { name: /^Meldingen \d+ nieuw$/ });
+      await expect(bell).toBeVisible();
+      await expect(page.locator('summary[aria-label="Beheer, vraagt aandacht"]')).toHaveCount(1);
+      const card = page.getByRole('region', { name: 'Wachtend werk' });
+      await expect(card.getByRole('link', { name: /^Alle meldingen \(\d+\)$/ })).toBeVisible();
+      await expectNoAxeViolations(page);
+      if (isA11y()) {
+        // In the rail the label hides; the count stays on the bell's corner, Manage's dot too.
+        await page.locator('[data-nav-toggle]').click();
+        await expect(bell.locator('.ui-attention-count')).toBeVisible();
+        await page.screenshot({ path: test.info().outputPath('attention-rail.png') });
+        await page.locator('[data-nav-toggle]').click();
+      }
+
+      await bell.click();
+      await expect(page).toHaveURL(/\/admin\/probe\/meldingen$/);
+      await expect(page.getByRole('heading', { level: 1, name: 'Meldingen' })).toBeVisible();
+      await expect(page.locator('a[aria-current="page"].admin-bell')).toHaveCount(1);
+      await expect(job).toContainText('Andere taak mislukte bij elke poging');
+      await expect(job).toContainText('Nieuw');
+      await expect(job.getByRole('link')).toHaveAttribute('href', '/admin/probe/status#jobs');
+      await expect(offered).toContainText('ter publicatie aangeboden');
+      await expect(offered).toContainText('Nieuw');
+      await expect(offered.getByRole('link')).toHaveAttribute(
+        'href',
+        `/admin/probe/content/${itemId}?locale=nl`
+      );
+      await expect(page.locator('#attention-review')).toContainText('Ter publicatie aangeboden');
+      await expectNoAxeViolations(page);
+      if (isA11y()) {
+        await page.setViewportSize(NARROW);
+        await setTextSize(page, '200%');
+        await layoutGate(page, 'notifications', 'main');
+        await page.screenshot({
+          path: test.info().outputPath('attention-320-200.png'),
+          fullPage: true,
+        });
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await setTextSize(page, '100%');
+        // With JavaScript the open page is the read page: the form posts itself and goes.
+        await expect(page.locator('form[data-attention-seen]')).toHaveCount(0);
+        await page.reload();
+      } else {
+        await page.getByRole('button', { name: 'Markeer als gelezen' }).click();
+        await expect(page.getByRole('status')).toContainText('Gemarkeerd als gelezen.');
+      }
+      // Read: still listed, no longer new.
+      await expect(job).toBeVisible();
+      await expect(job).not.toContainText('Nieuw');
+      await expect(offered).not.toContainText('Nieuw');
+
+      // Solved elsewhere, gone here: the task is finished and the offer taken back.
+      await finishJobs(jobs.splice(0));
+      await withInvoker((invoker) => invoker.run(useCases.withdrawContentReview, site, offer));
+      await page.reload();
+      await expect(job).toHaveCount(0);
+      await expect(offered).toHaveCount(0);
+    } finally {
+      await finishJobs(jobs);
+      await withInvoker((invoker) => invoker.run(useCases.removeMember, site, { operatorId }));
     }
   });
 });

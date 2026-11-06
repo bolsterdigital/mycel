@@ -120,7 +120,7 @@
   "apps/web/src/routes/(admin)/+layout.server.ts": 2,
   "apps/web/src/routes/(admin)/admin/+page.svelte": 1,
   "apps/web/src/routes/(admin)/admin/[tenant]/+layout.server.ts": 2,
-  "apps/web/src/routes/(admin)/admin/[tenant]/+layout.svelte": 6,
+  "apps/web/src/routes/(admin)/admin/[tenant]/+layout.svelte": 5,
   "apps/web/src/routes/(admin)/admin/[tenant]/+page.server.ts": 1,
   "apps/web/src/routes/(admin)/admin/[tenant]/+page.svelte": 2,
   "apps/web/src/routes/(admin)/admin/[tenant]/_ui/+layout.server.ts": 1,

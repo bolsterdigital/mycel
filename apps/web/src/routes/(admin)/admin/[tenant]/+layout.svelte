@@ -12,7 +12,14 @@
      screen knows nothing of the shell. Rejected: a rail that switches on by itself on edit
      screens (it surprises, and the script path would differ per screen; Jaap 2026-10-30).
      The top holds product/collapse, site and one native account group. Account actions stay
-     together above the navigation, also on phones. Notifications remain separate work.
+     together above the navigation, also on phones.
+     The bell sits before the account: a plain link to the notifications page with the
+     number of new ones in a red dot and in its accessible name ("Notifications 3 new": the visible
+     label and number first, in that order, WCAG 2.5.3); Manage gets a dot while something
+     only an administrator can solve asks for attention. Both come from the one `attention.list`
+     of the layout load; there is no live update, the next page shows the next count (brief § 5).
+     Rejected: a live badge (polling or a stream for a handful of changes a day) and the count in
+     the menu bar on a phone only (the bell is the same link at every width).
      Under the site's name, a site with more than one locale has the content locale switch (#66
      PR 4): a form that stores the choice and comes back here. An edit screen says `itemLocale`
      in its page data and switches in its own bar instead, where it saves what was typed first.
@@ -26,7 +33,9 @@
   import { page } from '$app/state';
   import { Icon, IconSprite, LocaleSwitch, NavGroup, type IconName } from '#lib/admin/ui/index.js';
   import { navEntries } from '#lib/admin/nav.js';
-  import { ui } from '../../../../i18n/index.js';
+  import { MANAGE_SOURCES } from '#lib/admin/attention/words.js';
+  import '#lib/admin/attention/attention.css';
+  import { fill, ui } from '../../../../i18n/index.js';
   import type { LayoutProps } from './$types';
 
   let { data, children }: LayoutProps = $props();
@@ -46,6 +55,19 @@
   );
   const has = (capability: (typeof data.capabilities)[number]) =>
     data.capabilities.includes(capability) || data.capabilities.includes('tenant:admin');
+
+  const attention = $derived(typeof data.attention === 'object' ? data.attention : null);
+  const unread = $derived(attention?.summary.unread ?? 0);
+  const bellLabel = $derived(
+    unread
+      ? fill(t(unread === 1 ? 'admin.attention.bell.one' : 'admin.attention.bell.many'), {
+          count: unread,
+        })
+      : undefined
+  );
+  const manageAsks = $derived(
+    attention?.items.some((i) => MANAGE_SOURCES.includes(i.source)) ?? false
+  );
 
   type Item = {
     href: string;
@@ -73,13 +95,16 @@
           },
         ]
       : [];
-    const site: Item[] = navEntries({
+    const site = navEntries({
       base,
       pathname: path,
       search: page.url.search,
       capabilities: data.capabilities,
       t,
-    });
+    }).map((entry) => ({
+      ...entry,
+      attention: entry.id === 'manage' && manageAsks ? t('admin.attention.manage') : undefined,
+    }));
     return [
       { id: 'nav-content', label: t('admin.nav.group.content'), items: content },
       { id: 'nav-library', label: t('admin.nav.group.library'), items: library },
@@ -108,7 +133,18 @@
         >
       </div>
       <a class="admin-site-name" href={base}>{data.tenant.name}</a>
-      <!-- #118 adds real notification sources separately. -->
+      {#if data.attention !== null}
+        <a
+          class="admin-bell"
+          href="{base}/meldingen"
+          aria-current={within('meldingen') ? 'page' : undefined}
+          aria-label={bellLabel}
+          data-attention-bell
+          ><Icon name="bell" /><span>{t('admin.attention.title')}</span>{#if unread}{' '}<small
+              class="ui-attention-count">{unread}</small
+            >{/if}</a
+        >
+      {/if}
       <details class="admin-account" open={within('profiel')}>
         <summary data-nav-expand
           ><Icon name="circle-user" /><span>{t('admin.shell.account')}</span><Icon
