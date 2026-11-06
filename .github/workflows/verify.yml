@@ -11,6 +11,9 @@ name: Verify
 # the required checks report there too; each queue ref is unique, so the concurrency group
 # never cancels another group's run. Rejected: `strict` branch protection without a queue,
 # which leaves every PR behind as soon as another one merges.
+# In the queue, `reuse` first asks whether the queue commit has exactly the tree of the PR head
+# and that head's newest pull_request run of this workflow passed (scripts/queue-reuse.mjs). If
+# so the layer jobs skip and `verify` accepts that one answer; otherwise everything runs.
 
 on:
   pull_request:
@@ -28,7 +31,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  reuse:
+    # Runs on every event so the jobs below can depend on it; outside the queue it answers false
+    # without a request. It holds the only token that reads runs and pull requests.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    outputs:
+      reused: ${{ steps.reuse.outputs.reused }}
+      run: ${{ steps.reuse.outputs.run }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          sparse-checkout: scripts/queue-reuse.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: Same tree as a PR head that passed
+        id: reuse
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/queue-reuse.mjs verify.yml
+
   checks:
+    needs: reuse
+    if: needs.reuse.outputs.reused != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
@@ -170,6 +199,8 @@ jobs:
 
   # Matrix cells run on separate runners: no shared database, seed, blobs or processes.
   browsers:
+    needs: reuse
+    if: needs.reuse.outputs.reused != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     strategy:
@@ -263,14 +294,23 @@ jobs:
           if-no-files-found: error
 
   # Preserve the protected context. Missing, skipped or cancelled work cannot turn it green.
+  # A reused queue run is green only with `reuse` itself green and its answer true; the skipped
+  # layer jobs then carry the PR head's result, which `reuse` read on the identical tree.
   verify:
     if: always()
-    needs: [checks, browsers, security, image, compose]
+    needs: [reuse, checks, browsers, security, image, compose]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Require every dependency to succeed
+        env:
+          REUSED_RUN: ${{ needs.reuse.outputs.run }}
         run: |
+          test '${{ needs.reuse.result }}' = success
+          if [ '${{ needs.reuse.outputs.reused }}' = true ]; then
+            echo "Reused the passed pull_request run on the same tree: $REUSED_RUN"
+            exit 0
+          fi
           test '${{ needs.checks.result }}' = success
           test '${{ needs.browsers.result }}' = success
           test '${{ needs.security.result }}' = success
@@ -282,6 +322,8 @@ jobs:
   # exception list. Gitleaks as a pinned container, not gitleaks-action, which needs a licence for
   # organisation repositories; .gitleaks.toml excepts only the CI placeholders.
   security:
+    needs: reuse
+    if: needs.reuse.outputs.reused != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -308,6 +350,8 @@ jobs:
   # and wait for its HEALTHCHECK. A separate job so an image problem shows up as its own red
   # check next to `verify`. Publishing to a registry is release.yml's job, on a tag.
   image:
+    needs: reuse
+    if: needs.reuse.outputs.reused != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

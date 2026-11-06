@@ -644,6 +644,58 @@ test('required quality context validates complete default and full evidence at t
     }
   }
 });
+test('a reused queue run passes only in the queue, with its run and green jobs, never on shards', () => {
+  const url = 'https://github.com/o/r/actions/runs/42';
+  const reused = (event, change = () => {}) => {
+    const input = { ...gateFixture(event), reused: url, downloadOutcome: 'failure' };
+    input.run.artifacts = [];
+    change(input);
+    return gate(input);
+  };
+  assert.deepEqual(
+    [reused('merge_group').blocks, reused('merge_group').measured],
+    [false, 'reused']
+  );
+  for (const event of ['pull_request', 'push', 'schedule', 'workflow_dispatch'])
+    assert.ok(reused(event).issues.includes('reuse-outside-merge-queue'), event);
+  const refused = [
+    (i) => (i.reused = 'missing'),
+    (i) => (i.needs.prepare.result = 'skipped'),
+    (i) => (i.needs.measure.result = 'failure'),
+    (i) => (i.needs.prepare.outputs.matrix = '{"include":[]}'),
+  ];
+  for (const change of refused) assert.equal(reused('merge_group', change).blocks, true);
+  // Without the answer a queue run with no shards is a missing matrix, as before.
+  const plain = { ...gateFixture('merge_group'), downloadOutcome: 'failure' };
+  plain.run.artifacts = [];
+  assert.equal(gate(plain).blocks, true);
+});
+test('on a reused queue run every measure step stands down and the gate still validates', () => {
+  const workflow = source('.github/workflows/frontend-quality.yml');
+  const jobs = `\n${workflow.split(/^jobs:\n/m)[1]}`;
+  const body = (name) => jobs.split(`\n  ${name}:\n`)[1].split(/\n {2}[\w-]+:\n/)[0];
+  assert.match(body('reuse'), /run: node scripts\/queue-reuse\.mjs frontend-quality\.yml/);
+  assert.match(body('prepare'), /^    needs: reuse$/m);
+  assert.match(body('prepare'), /^      reused: \$\{\{ needs\.reuse\.outputs\.reused \}\}$/m);
+  assert.doesNotMatch(body('prepare'), /^    if:/m);
+  const measure = body('measure');
+  assert.doesNotMatch(measure, /^    if:/m);
+  assert.match(measure, /^      REUSED: \$\{\{ needs\.prepare\.outputs\.reused \}\}$/m);
+  const steps = measure.split('    steps:\n')[1].split(/(?=^ {6}- )/m);
+  for (const step of steps)
+    assert.match(
+      step,
+      /if: .*(env\.REUSED != 'true'|steps\.measurement\.outcome == 'success')/,
+      step
+    );
+  const validation = body('frontend-quality').split('name: Validate expected matrix')[1];
+  assert.match(validation, /QUALITY_REUSED: \$\{\{ needs\.prepare\.outputs\.reused \}\}/);
+  for (const [name, job] of [
+    ['prepare', body('prepare')],
+    ['measure', measure],
+  ])
+    assert.doesNotMatch(job, /pull-requests: read/, name);
+});
 test('green observation jobs cannot hide missing, stale, corrupt or contradictory matrix evidence', () => {
   const mutations = [
     (i) => {

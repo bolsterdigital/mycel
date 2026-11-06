@@ -72,6 +72,13 @@ const NOT_IN_EXAMPLE: Record<string, string> = {
   QUALITY_NEEDS: 'GitHub Actions upstream results and matrix, set by the quality gate step',
   QUALITY_DOWNLOAD_OUTCOME:
     'GitHub Actions artifact download outcome, set by the quality gate step',
+  QUALITY_REUSED: 'merge queue reuse answer, set by the quality gate step from the reuse job',
+  QUALITY_REUSED_RUN: 'the reused pull_request run, set by the quality gate step',
+  GITHUB_API_URL: 'GitHub Actions API base, merge queue reuse lookup (scripts/queue-reuse.mjs)',
+  GITHUB_TOKEN: 'GitHub Actions job token, passed to the reuse job only',
+  GITHUB_EVENT_PATH: 'GitHub Actions event payload, merge queue reference for reuse',
+  GITHUB_STEP_SUMMARY: 'GitHub Actions step summary file, reuse decision',
+  GITHUB_OUTPUT: 'GitHub Actions step output file, reuse decision',
   QUALITY_RUNNER_IMAGE: 'digest-pinned quality measurement container, set by its workflow',
   QUALITY_HOST_IMAGE: 'actual GitHub host image forwarded to the measurement container',
   GITHUB_ACTIONS: 'GitHub Actions runner detection for quality provenance',

@@ -44,10 +44,18 @@ export function enforcement(policy, now, repository = process.env.GITHUB_REPOSIT
   return from !== null && Date.parse(now) >= Date.parse(from);
 }
 
-export function gate({ run, load, needs, downloadOutcome, policy, now, repository }) {
+// `reused` is the queue's answer that this commit has exactly the tree of a PR head whose newest
+// pull_request run of this workflow passed this gate (scripts/queue-reuse.mjs). The jobs then
+// measured nothing on purpose, so the gate checks that they and the prepared matrix are as
+// expected and that the answer came from a queue run, and validates no shards. Rejected:
+// re-reading the PR run's shards here, which that run's own gate already validated.
+export function gate({ run, load, needs, downloadOutcome, policy, now, repository, reused }) {
   const enforced = enforcement(policy, now, repository);
   const issues = [];
-  if (downloadOutcome !== 'success') issues.push('artifact-download-non-success');
+  if (reused) {
+    if (run.event !== 'merge_group') issues.push('reuse-outside-merge-queue');
+    if (!/^https:\/\/\S+\/actions\/runs\/\d+$/.test(reused)) issues.push('reuse-without-run');
+  } else if (downloadOutcome !== 'success') issues.push('artifact-download-non-success');
   if (!['push', 'pull_request', 'merge_group', 'schedule', 'workflow_dispatch'].includes(run.event))
     issues.push('unsupported-event');
   if (needs.prepare?.result !== 'success' || needs.measure?.result !== 'success')
@@ -60,6 +68,17 @@ export function gate({ run, load, needs, downloadOutcome, policy, now, repositor
   } catch {
     issues.push('missing-prepared-matrix');
   }
+  if (reused)
+    return {
+      schemaVersion: 1,
+      now,
+      enforced,
+      measured: 'reused',
+      blocks: issues.length > 0,
+      issues: [...new Set(issues)],
+      reused,
+      report: { expected: 0, present: 0, samples: 0 },
+    };
   const report = consumeRun({ ...run, status: 'completed', conclusion: 'success' }, (artifact) => {
     const summary = load(artifact);
     if (
@@ -119,11 +138,14 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     policy: JSON.parse(readFileSync(new URL('./enforcement.json', import.meta.url), 'utf8')),
     now: new Date().toISOString(),
     repository: process.env.GITHUB_REPOSITORY,
+    reused:
+      process.env.QUALITY_REUSED === 'true' ? process.env.QUALITY_REUSED_RUN || 'missing' : null,
   });
   mkdirSync(out, { recursive: true });
   writeFileSync(join(out, 'summary.json'), JSON.stringify(result, null, 2));
   const text =
     `Frontend quality: **${result.measured}**. Enforced: **${result.enforced}**.\n\n` +
+    (result.reused ? `Reused: ${result.reused}.\n\n` : '') +
     `Cells: ${result.report.present}/${result.report.expected}. Samples: ${result.report.samples}.\n\n` +
     `Evidence issues: ${result.issues.join(', ') || 'none'}.\n`;
   writeFileSync(join(out, 'summary.md'), text);

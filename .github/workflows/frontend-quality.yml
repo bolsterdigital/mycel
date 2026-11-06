@@ -3,7 +3,11 @@ name: Frontend quality
 # Separate observation job: Lighthouse is development-only and never extends verify's budget.
 # Every executable PR gets the default set; weekly/manual runs expand locale/cache/admin scope.
 # Pinning Node, Lighthouse, Playwright's Chromium and Caddy prevents silent tool upgrades.
-# `merge_group` measures the queue commit with the PR set, so the required checks report there.
+# `merge_group` measures the queue commit with the PR set, so the required checks report there,
+# unless `reuse` finds the queue commit has exactly the tree of the PR head whose newest
+# pull_request run of this workflow passed (scripts/queue-reuse.mjs). Then prepare, every measure
+# cell and the gate still report their contexts, but build and measure nothing; the gate accepts
+# that one answer. Job-level skips would hide the matrix names the protection requires.
 on:
   pull_request:
   merge_group:
@@ -24,25 +28,55 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  reuse:
+    # Outside the queue it answers false without a request; the only job that reads runs and PRs.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    outputs:
+      reused: ${{ steps.reuse.outputs.reused }}
+      run: ${{ steps.reuse.outputs.run }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          sparse-checkout: scripts/queue-reuse.mjs
+          sparse-checkout-cone-mode: false
+      - name: Same tree as a PR head that passed
+        id: reuse
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/queue-reuse.mjs frontend-quality.yml
+
   prepare:
+    needs: reuse
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
       matrix: ${{ steps.matrix.outputs.value }}
+      reused: ${{ needs.reuse.outputs.reused }}
+      run: ${{ needs.reuse.outputs.run }}
+    env:
+      REUSED: ${{ needs.reuse.outputs.reused }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22.22.0'
           cache: npm
-      - run: npm ci
-      - run: npm run build
+      - if: env.REUSED != 'true'
+        run: npm ci
+      - if: env.REUSED != 'true'
+        run: npm run build
       - name: Matrix
         id: matrix
         env:
           EVENT: ${{ github.event_name }}
         run: node scripts/quality/matrix.mjs >> "$GITHUB_OUTPUT"
       - name: Reuse one production build
+        if: env.REUSED != 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: quality-build
@@ -86,18 +120,24 @@ jobs:
       MAIL_FROM: CI <noreply@example.org>
       MAILER: console
       E2E_REQUIRED: '1'
+      REUSED: ${{ needs.prepare.outputs.reused }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - if: env.REUSED != 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - if: env.REUSED != 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22.22.0'
           cache: npm
-      - run: npm ci
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - if: env.REUSED != 'true'
+        run: npm ci
+      - if: env.REUSED != 'true'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: quality-build
           path: .
       - name: Install pinned browser and proxy
+        if: env.REUSED != 'true'
         timeout-minutes: 3
         run: |
           docker pull "$QUALITY_RUNNER_IMAGE"
@@ -106,11 +146,13 @@ jobs:
           tar -xzf /tmp/caddy.tar.gz -C /tmp caddy
           sudo install /tmp/caddy /usr/local/bin/caddy
       - name: Retrieve previous sanitized main summary
+        if: env.REUSED != 'true'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/quality/baseline.mjs quality-baseline-${{ matrix.scope }}-${{ matrix.locale }}-${{ matrix.profile }}-${{ matrix.cache }}
       - name: Five samples per cell (calibration, actual state stays in reports)
+        if: env.REUSED != 'true'
         id: measurement
         timeout-minutes: 6
         continue-on-error: true
@@ -134,10 +176,10 @@ jobs:
       # Preserve private originals encrypted to the operator's public certificate. Run again
       # after timeout/interruption too; the private key never enters GitHub or the repository.
       - name: Encrypt authenticated reports even after failure
-        if: always()
+        if: always() && env.REUSED != 'true'
         run: node scripts/quality/protect.mjs .scratch/quality-report
       - name: Preserve encrypted authenticated reports
-        if: always()
+        if: always() && env.REUSED != 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: quality-private-${{ matrix.scope }}-${{ matrix.locale }}-${{ matrix.profile }}-${{ matrix.cache }}
@@ -145,7 +187,7 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
       - name: Preserve public raw reports even on failure
-        if: always()
+        if: always() && env.REUSED != 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: quality-raw-${{ matrix.scope }}-${{ matrix.locale }}-${{ matrix.profile }}-${{ matrix.cache }}
@@ -153,7 +195,7 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
       - name: Preserve sanitized summaries
-        if: always()
+        if: always() && env.REUSED != 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: quality-summary-${{ matrix.scope }}-${{ matrix.locale }}-${{ matrix.profile }}-${{ matrix.cache }}
@@ -170,7 +212,7 @@ jobs:
           retention-days: 90
           if-no-files-found: error
       - name: Publish measured state and enforce calibration deadline
-        if: always()
+        if: always() && env.REUSED != 'true'
         env:
           MEASUREMENT_OUTCOME: ${{ steps.measurement.outcome }}
         run: node scripts/quality/status.mjs .scratch/quality-report/summary.json >> "$GITHUB_STEP_SUMMARY"
@@ -198,6 +240,8 @@ jobs:
         env:
           QUALITY_NEEDS: ${{ toJSON(needs) }}
           QUALITY_DOWNLOAD_OUTCOME: ${{ steps.download.outcome }}
+          QUALITY_REUSED: ${{ needs.prepare.outputs.reused }}
+          QUALITY_REUSED_RUN: ${{ needs.prepare.outputs.run }}
         run: node scripts/quality/gate.mjs .scratch/quality-shards .scratch/quality-gate >> "$GITHUB_STEP_SUMMARY"
       - name: Retain gate evidence
         if: always()
