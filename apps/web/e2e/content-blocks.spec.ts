@@ -13,7 +13,7 @@ import { callApi, pictureAtBothEnds, requireApi, seededPage } from './lib/api';
 import { expectPixels } from './lib/images';
 import { settingsEvidence } from './lib/settings-evidence';
 import { openPublication } from './lib/publication';
-import { block, blockPage, card, editorReady, more, save } from './lib/editor';
+import { block, blockPage, card, editorReady, linkTo, more, save } from './lib/editor';
 
 // Keep the unfinished locale-edit action on timeout without tracing every content flow.
 // Rejected: a guessed readiness wait, which would change the timing being investigated.
@@ -728,8 +728,7 @@ test.describe('content-blocks', () => {
     const cta = await insert(page, 'Oproep', 'end');
     await cta.getByLabel('Titel', { exact: true }).fill('Doe mee');
     await cta.getByLabel('Tekst op de knop', { exact: true }).first().fill('Teken nu');
-    await cta.getByLabel('Linkt naar').first().selectOption({ label: 'Het adres hieronder' });
-    await cta.getByLabel('Adres (URL)').first().fill('https://example.org/teken');
+    await linkTo(cta, 0, 'https://example.org/teken');
     await add(page);
 
     await page.goto(edit);
@@ -796,8 +795,7 @@ test.describe('content-blocks', () => {
     await expect(label.first()).toBeFocused();
     await label.nth(1).fill('Lees meer');
     const second = folds.nth(2);
-    await second.getByLabel('Linkt naar').nth(1).selectOption({ label: 'Het adres hieronder' });
-    await second.getByLabel('Adres (URL)').nth(1).fill('https://example.org/meer');
+    await linkTo(second, 1, 'https://example.org/meer');
     await label.nth(1).focus();
     await page.keyboard.press('Escape');
     await expect(rests.nth(2).locator('.ui-block-text-action').nth(1)).toHaveText('Lees meer');

@@ -1085,6 +1085,92 @@ test.describe('article-writing', () => {
     if (isA11y()) await expectNoAxeViolations(page, { label: 'action row' });
   });
 
+  // A button's target (TargetPicker): with JavaScript one search finds pages and articles together or
+  // takes an address; without it the select and the address field are the path. Both write the
+  // same two controls, so the stored targets are the same in both projects.
+  test('a card button links to a page found by search, or to an address', async ({ page }) => {
+    const probe = await tenantId();
+    const word = `Doelpagina ${randomUUID().slice(0, 8)}`;
+    const target = await withInvoker((invoker) =>
+      invoker.run(useCases.createItem, systemPrincipal(probe, 'e2e'), {
+        slug: `doel-${randomUUID()}`,
+        document: {
+          type: 'page',
+          defaultLocale: 'nl',
+          locales: ['nl'],
+          title: { nl: word },
+          blocks: [],
+        },
+      })
+    );
+    await login(page, '/admin/probe');
+    const edit = await blockPage(page, 'target');
+    await editorReady(page);
+    await page
+      .locator('[data-block-picker]')
+      .last()
+      .getByRole('button', { name: 'Actierij', exact: true })
+      .click();
+    const row = page.locator('#block-new');
+    await editorReady(page);
+    const titles = row.getByLabel('Titel', { exact: true });
+    await titles.nth(0).fill('Naar de pagina');
+    await titles.nth(1).fill('Naar buiten');
+    const labels = row.getByLabel('Tekst op de knop', { exact: true });
+    await labels.nth(0).fill('Lees');
+    await labels.nth(1).fill('Doe mee');
+    const address = 'https://example.org/doe-mee';
+    const label = `${word} (/${target.item.slug})`;
+    if (isA11y()) {
+      await expect(row.locator('[data-target-native]').first()).toBeHidden();
+      const search = row.getByRole('combobox', { name: 'Linkt naar' });
+      await search.nth(0).fill(word.toLowerCase().slice(0, 12));
+      await expect(row.getByRole('option', { name: label })).toBeVisible();
+      await page.keyboard.press('ArrowDown');
+      await page.keyboard.press('Enter');
+      await expect(search.nth(0)).toHaveValue(label);
+      await search.nth(1).fill(address);
+      await expect(row.getByRole('option', { name: `Adres gebruiken: ${address}` })).toBeVisible();
+      await expectNoAxeViolations(page, { label: 'target search open' });
+      await page.setViewportSize(NARROW);
+      for (const size of ['100%', '200%']) {
+        await setTextSize(page, size);
+        await layoutGate(page, `target search at ${size}`, '#block-new');
+      }
+      await setTextSize(page, '100%');
+      await search.nth(1).press('Tab');
+      await expect(search.nth(1)).toHaveValue(address);
+      // An older item outside the select's hundred is found by the route behind the search.
+      const found = await page.request.get(
+        `/admin/probe/content/choices?q=${encodeURIComponent(word)}&locale=nl`
+      );
+      expect((await found.json()).items).toEqual([{ id: target.item.id, label }]);
+    } else {
+      // A select is a combobox too; the search beside it is hidden without JavaScript.
+      const targets = row.getByRole('combobox', { name: 'Linkt naar' });
+      await targets.nth(0).selectOption({ label });
+      await targets.nth(1).selectOption({ label: 'Het adres hieronder' });
+      await row.getByLabel('Adres (URL)', { exact: true }).nth(1).fill(address);
+    }
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
+    const itemId = edit.split('/').at(-1)!;
+    const { revision } = await withInvoker((invoker) =>
+      invoker.run(useCases.getItem, systemPrincipal(probe, 'e2e'), { itemId })
+    );
+    const cards = (revision.document.blocks[0]!.props as { cards: { actions: unknown[] }[] }).cards;
+    expect(cards.map((c) => (c.actions[0] as { target: unknown }).target)).toEqual([
+      { kind: 'item', itemId: target.item.id },
+      { kind: 'url', url: address },
+    ]);
+    if (isA11y()) {
+      await (await block(page, 1)).getByRole('combobox', { name: 'Linkt naar' }).first().focus();
+      await expect(
+        (await block(page, 1)).getByRole('combobox', { name: 'Linkt naar' }).first()
+      ).toHaveValue(label);
+    }
+  });
+
   // A writer without content:publish offers a locale for publication (decided 2026-11-06): the
   // offer saves the form, carries a note, reaches whoever may publish through the attention list,
   // and can be taken back. The UI gate measures the writer's card at 320 CSS px and 200 % text.

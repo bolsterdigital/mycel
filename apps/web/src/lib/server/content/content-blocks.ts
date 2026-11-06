@@ -42,6 +42,16 @@ export interface Option {
   label: string;
 }
 
+interface Labelled {
+  slug: string;
+  title: Record<string, string | undefined>;
+}
+
+/** How a picker names an item: its title in `locale` (or any), and its address. */
+export function itemLabel(item: Labelled, locale: string): string {
+  return `${pickAny(item.title, locale) ?? item.slug} (/${item.slug})`;
+}
+
 /** The images and items the pickers offer: a page of each plus everything the blocks use. */
 export async function pickerOptions(
   principal: Principal,
@@ -58,8 +68,7 @@ export async function pickerOptions(
       ...new Set([...used.media, ...used.documents, ...used.audio, ...alsoChosen]),
     ]),
     invoker.run(useCases.listItems, principal, { limit: MAX_PAGE_SIZE }).then(({ items }) => {
-      const label = (i: { slug: string; title: Record<string, string | undefined> }) =>
-        `${pickAny(i.title, locale) ?? i.slug} (/${i.slug})`;
+      const label = (i: Labelled) => itemLabel(i, locale);
       return withAssigned(
         used.items,
         items.map((i) => ({ id: i.id, label: label(i) })),

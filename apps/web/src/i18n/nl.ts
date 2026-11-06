@@ -1172,6 +1172,14 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.block.noFields': 'Dit blok heeft geen velden.',
   'admin.block.action': 'Knop {n}',
   'admin.block.target.url': 'Het adres hieronder',
+  'admin.block.target.hint':
+    'Zoek een pagina of artikel op titel, of typ een adres dat begint met / of https://.',
+  'admin.block.target.useAddress': 'Adres gebruiken: {address}',
+  'admin.block.target.found': '{n} gevonden',
+  'admin.block.target.nothing':
+    'Geen pagina of artikel gevonden. Een adres begint met / of https://.',
+  'admin.block.target.failed':
+    "Zoeken in oudere pagina's en artikelen lukte niet; de nieuwste staan er wel.",
   'admin.block.use': '{what} gebruiken',
   'admin.block.listHint':
     'Maak alle velden van een onderdeel leeg om het te verwijderen; vul het laatste in om er een toe te voegen.',
