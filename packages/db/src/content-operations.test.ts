@@ -205,8 +205,9 @@ describe.skipIf(skip)('content operations conformance', () => {
       }),
     ]);
     // The approval keeps the strict base; the save merges (ADR 026). Approved first, the save
-    // finds the newer revision and merges an unchanged document onto it, so the approval stands;
-    // saved first, the approval is the conflict. Either way nothing undoes an approval.
+    // finds the newer revision, and an unchanged document merged onto it adds nothing, so it
+    // writes nothing and the approval stands; saved first, the approval is the conflict. Either
+    // way nothing undoes an approval, and either way one revision is added.
     const [approval, save] = outcomes;
     expect(save).toMatchObject({ status: 'fulfilled' });
     if (approval!.status === 'rejected')
@@ -214,7 +215,7 @@ describe.skipIf(skip)('content operations conformance', () => {
     const approved = approval!.status === 'fulfilled';
     expect(
       (await invoker.run(useCases.listRevisions, adminOf(tenantA), target)).revisions
-    ).toHaveLength(approved ? 6 : 5);
+    ).toHaveLength(5);
     const latest = await invoker.run(useCases.getItem, adminOf(tenantA), target);
     if (approved) expect(latest.revision.document.machineTranslation).toBeUndefined();
     else expect(latest.revision.document.machineTranslation).toEqual({ nl: ['locales'] });
