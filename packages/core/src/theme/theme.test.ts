@@ -104,6 +104,42 @@ describe('checkTheme', () => {
   });
 });
 
+describe('card accents of the action row', () => {
+  const red = { foreground: '#ffffff', background: '#d32f2f' };
+  const green = { foreground: '#ffffff', background: '#2e7d32' };
+
+  it('checks each accent as text on its card and the focus on it, at its own path', () => {
+    const report = checkTheme(withLight({ cardAccents: [red, green] }));
+    expect(report.valid).toBe(true);
+    expect(report.pairs.filter((p) => p.mode === 'light').map((p) => p.role)).toEqual(
+      expect.arrayContaining([
+        'cardAccents.0',
+        'focus-on-cardAccents.0',
+        'cardAccents.1',
+        'focus-on-cardAccents.1',
+      ])
+    );
+    const pale = { foreground: '#ffffff', background: '#f2c14e' };
+    const bad = Theme.safeParse(withLight({ cardAccents: [red, pale] }));
+    expect(bad.success ? [] : bad.error.issues).toEqual([
+      expect.objectContaining({
+        path: ['palettes', 'light', 'cardAccents', '1'],
+        message: 'theme.contrast.too-low',
+      }),
+    ]);
+  });
+
+  it('takes one to four accents, and a theme without them stays valid as it was', () => {
+    for (const n of [1, 4])
+      expect(Theme.safeParse(withLight({ cardAccents: Array(n).fill(red) })).success).toBe(true);
+    for (const accents of [[], Array(5).fill(red), [{ ...red, css: 'x' }], [{ foreground: 'red' }]])
+      expect(ThemeInput.safeParse(withLight({ cardAccents: accents as never })).success).toBe(
+        false
+      );
+    expect(Theme.parse(DEFAULT_THEME).palettes.light.cardAccents).toBeUndefined();
+  });
+});
+
 describe('Theme and ThemeInput', () => {
   it('makes defaults explicit and keeps what was given', () => {
     const resolved = resolveTheme(ThemeInput.parse({ baseSize: 20 }));

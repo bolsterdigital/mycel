@@ -320,6 +320,11 @@
             {/each}
           {/snippet}
         </Table>
+        {#each data.theme.value.palettes[mode].cardAccents ?? [] as accent, i (i)}
+          {#each ['foreground', 'background'] as const as side (side)}
+            <input type="hidden" name="{mode}.cardAccents.{i}.{side}" value={accent[side]} />
+          {/each}
+        {/each}
       {/each}
       <Fieldset legend={t('admin.site.group.type')}>
         <Select

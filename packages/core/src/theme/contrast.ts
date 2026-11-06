@@ -37,7 +37,7 @@ export function contrastRatio(a: string, b: string): number {
 
 export const ThemePairReport = z.object({
   mode: z.enum(THEME_MODES),
-  /** A role (`primary`), or `link-on-<role>` / `focus-on-<role>`. */
+  /** A role (`primary`), a card accent (`cardAccents.0`), or `link-on-<role>` / `focus-on-<role>`. */
   role: z.string(),
   /** Rounded to two decimals for display; `passes` used the exact value. */
   ratio: z.number(),
@@ -93,6 +93,11 @@ function paletteReport(mode: ThemeMode, p: Palette): ThemePairReport[] {
       pair(`link-on-${r}`, p.link, p[r].background, TEXT_CONTRAST)
     ),
     ...THEME_ROLES.map((r) => pair(`focus-on-${r}`, p.focus, p[r].background, FOCUS_CONTRAST)),
+    // A filled card is text on its accent, and its button the same pair inverted (action row).
+    ...(p.cardAccents ?? []).flatMap((a, i) => [
+      pair(`cardAccents.${i}`, a.foreground, a.background, TEXT_CONTRAST),
+      pair(`focus-on-cardAccents.${i}`, p.focus, a.background, FOCUS_CONTRAST),
+    ]),
   ];
 }
 

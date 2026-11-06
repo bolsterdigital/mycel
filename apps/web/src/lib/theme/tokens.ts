@@ -147,6 +147,31 @@ function captionForeground(p: Palette): string {
   return step ? mix(foreground, background, step) : foreground;
 }
 
+/**
+ * The colours of an action row, per card position: a row has at most four cards, so four
+ * slots, each the theme's accent walk taken round (`k mod n`), and `action-row.css` maps
+ * `:nth-child(k)` onto slot k. Without accents a bar is `accent` and a filled card `primary`, as
+ * before. The button on a filled card is the card's pair inverted, so its contrast is the card's;
+ * the `accent` button it replaced reached 1.1 to 1.5 : 1 on a light card in dark mode. Rejected: a
+ * `--cycle-n` class from the renderer (the block would have to know the theme) and computing the
+ * walk with `color-mix` (no contrast check can see it).
+ */
+function cardSlots(p: Palette): string[] {
+  const accents = p.cardAccents;
+  return [1, 2, 3, 4].flatMap((k) => {
+    const card = accents ? accents[(k - 1) % accents.length]! : p.primary;
+    const bar = accents ? card.background : p.accent.background;
+    const active = interactionPair({ foreground: card.background, background: card.foreground });
+    return [
+      `--card-${k}-fg: ${card.foreground};`,
+      `--card-${k}-bg: ${card.background};`,
+      `--card-${k}-bar: ${bar};`,
+      `--card-${k}-active-fg: ${active.foreground};`,
+      `--card-${k}-active-bg: ${active.background};`,
+    ];
+  });
+}
+
 function palette(p: Palette): string[] {
   const lines = THEME_ROLES.flatMap((role) => [
     `--color-${role}-fg: ${p[role].foreground};`,
@@ -162,7 +187,8 @@ function palette(p: Palette): string[] {
   lines.push(
     `--color-caption-fg: ${captionForeground(p)};`,
     `--color-link: ${p.link};`,
-    `--color-focus: ${p.focus};`
+    `--color-focus: ${p.focus};`,
+    ...cardSlots(p)
   );
   return lines;
 }
