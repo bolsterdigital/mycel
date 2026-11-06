@@ -35,6 +35,8 @@
   import ItemTitleField from '#lib/editor/ItemTitleField.svelte';
   import BlockFields from '#lib/admin/block-fields/BlockFields.svelte';
   import HeroAltRow from '#lib/admin/hero-alt/HeroAltRow.svelte';
+  import BlockDrop from '#lib/admin/block-drop/BlockDrop.svelte';
+  import PendingBlock from '#lib/admin/pending-block/PendingBlock.svelte';
   import ReviewOffer from '#lib/admin/review-offer/ReviewOffer.svelte';
   import Diff from '#lib/admin/Diff.svelte';
   import Inherited from '#lib/admin/Inherited.svelte';
@@ -79,6 +81,7 @@
     for (const src of [
       '/_admin/tabs.js',
       ...(data.canWrite ? ['/_admin/edit-screen.js', '/_admin/session-restore.js'] : []),
+      ...(data.canWrite && data.upload ? ['/_admin/block-drop.js'] : []),
       ...(!data.translating && data.item.type === 'page' && data.canWrite
         ? ['/_admin/live-preview-parent.js']
         : []),
@@ -453,39 +456,20 @@
 {/snippet}
 
 {#snippet pendingCard(p: NonNullable<typeof pending>)}
-  <section id="block-new" class="ui-panel pending" aria-labelledby="block-new-title">
-    <h3 id="block-new-title">
-      {fill(t('admin.block.new'), { type: t(`admin.block.type.${p.type}` as const) })}
-    </h3>
-    {#each Object.entries(p.hidden) as [name, value] (name)}
-      <input type="hidden" {name} {value} />
-    {/each}
-    <BlockFields
-      fields={BLOCK_DEFINITIONS[p.type as BlockType].fields}
-      values={{
-        ...p.values,
-        ...Object.fromEntries(
-          Object.entries(early).filter((e): e is [string, string] => typeof e[1] === 'string')
-        ),
-      }}
-      locales={shown}
-      idPrefix="b-new"
-      prefix="new."
-      media={data.media}
-      {base}
-      upload={data.upload}
-      items={data.items}
-      invalid={issues.map((x) => x.name)}
-      locale={data.locale}
-      row={BLOCK_PRESENTATION[p.type as BlockType].row}
-    />
-    <Actions>
-      <Button formaction={action('save')}>{t('admin.block.new.add')}</Button>
-      <Button variant="secondary" formaction={action('discard')} formnovalidate
-        >{t('admin.block.new.discard')}</Button
-      >
-    </Actions>
-  </section>
+  <PendingBlock
+    pending={p}
+    values={Object.fromEntries(
+      Object.entries(early).filter((e): e is [string, string] => typeof e[1] === 'string')
+    )}
+    locales={shown}
+    media={data.media}
+    {base}
+    upload={data.upload}
+    items={data.items}
+    invalid={issues.map((x) => x.name)}
+    locale={data.locale}
+    {action}
+  />
 {/snippet}
 
 {#snippet blockRest(b: (typeof data.blocks)[number])}
@@ -775,6 +759,7 @@
         media={data.media}
         {base}
         upload={data.upload}
+        splitProse={docLocales.length <= 1}
         article
         fallback={earlyProse}
         value={v('articleEditor')}
@@ -829,6 +814,9 @@
       {#if pending?.place === 'after' && pending.anchor === b.id}{@render pendingCard(pending)}{/if}
     {/each}
     {#if pending?.place === 'end'}{@render pendingCard(pending)}{/if}
+    {#if data.canWrite && data.upload}
+      <BlockDrop {base} locale={data.locale} {work} {article} />
+    {/if}
     {#if data.canWrite}
       <div id="insert-end">
         <Fieldset legend={t('admin.block.add')}>

@@ -3,8 +3,8 @@
     "apps/web/src/lib/admin/ui/ui.css": 3392,
     "apps/web/src/lib/admin/ui/ui.test.ts": 1646,
     "apps/web/src/lib/theme/base.css": 1060,
-    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.server.ts": 1318,
-    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.svelte": 1550,
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.server.ts": 1313,
+    "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.svelte": 1538,
     "packages/core/src/content/block-types.ts": 1213,
     "packages/core/src/testing/demo-content.ts": 1374
   },

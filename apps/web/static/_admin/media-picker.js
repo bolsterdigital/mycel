@@ -5,6 +5,8 @@
 // article writer's image cards) work too; the tools are built the first time a dialog opens.
 // Uploads use XMLHttpRequest because fetch has no upload progress. Rejected: a client bundle for
 // the admin, which ships none (ADR 009).
+import { send } from './upload-file.js';
+
 const DEBOUNCE_MS = 250;
 const enhanced = new WeakSet();
 
@@ -239,30 +241,4 @@ function uploader(picker, copy, id, initial, reveal) {
     input,
     progress,
   ]);
-}
-
-/** POST one file; resolves with `{ choice }` or `{ error }`, never rejects. */
-function send(url, file, onProgress) {
-  return new Promise((resolve) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', url);
-    xhr.setRequestHeader('accept', 'application/json');
-    xhr.upload.addEventListener('progress', (e) => {
-      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
-    });
-    xhr.addEventListener('load', () => {
-      let body = null;
-      try {
-        body = JSON.parse(xhr.responseText);
-      } catch {
-        // A login page after an expired session, or a proxy error: no JSON.
-      }
-      if (xhr.status === 201 && body?.id) resolve({ choice: body });
-      else resolve({ error: body?.error ?? '' });
-    });
-    xhr.addEventListener('error', () => resolve({ error: '' }));
-    const data = new FormData();
-    data.append('file', file);
-    xhr.send(data);
-  });
 }
