@@ -52,7 +52,7 @@ https:// {
 	# script against a new page for as long as it lasts.
 	@fonts path /fonts/*
 	header @fonts ?Cache-Control "public, max-age=31536000, immutable"
-	@scripts path /_admin/* /_form/*
+	@scripts path /_admin/* /_form/* /_image/*
 	header @scripts ?Cache-Control no-cache
 
 	# The web app handles every path, including /healthz. /internal/*, /readyz and /metrics are

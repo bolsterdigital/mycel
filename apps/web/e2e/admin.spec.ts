@@ -25,6 +25,7 @@ import { asOwner, tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { ADMIN, login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
+import { OTHER_SCRIPTS } from './lib/scripts';
 import { settingsEvidence } from './lib/settings-evidence';
 import { callApi, requireApi } from './lib/api';
 import { randomUUID } from 'node:crypto';
@@ -1231,8 +1232,8 @@ test.describe('hostnames', () => {
     const response = await page.goto(`${SITE}/signup`);
     expect(response?.status()).toBe(200);
     await expect(page.getByRole('heading', { level: 1, name: 'Blijf op de hoogte' })).toBeVisible();
-    // Only the form's own proof-of-work module (brief form-intake § D2.3).
-    expect(await page.locator('script:not([src="/_form/proof.js"])').count()).toBe(0);
+    // Only the enhancement modules of lib/scripts.ts.
+    expect(await page.locator(OTHER_SCRIPTS).count()).toBe(0);
     await expectNoAxeViolations(page);
 
     const email = `e2e-host-${Date.now()}@example.org`;

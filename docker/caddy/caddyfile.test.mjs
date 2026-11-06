@@ -58,7 +58,7 @@ test('files outside the application get their headers from the sites block alone
     '?Strict-Transport-Security max-age=31536000',
     '@fonts path /fonts/*',
     'header @fonts ?Cache-Control "public, max-age=31536000, immutable"',
-    '@scripts path /_admin/* /_form/*',
+    '@scripts path /_admin/* /_form/* /_image/*',
     'header @scripts ?Cache-Control no-cache',
   ])
     assert.equal(lines.filter((l) => l === line).length, 1, line);

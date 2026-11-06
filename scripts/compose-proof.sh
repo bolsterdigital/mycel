@@ -134,7 +134,7 @@ SCRIPT=/_form/proof.js
 expect 'font cached for a year' 'public, max-age=31536000, immutable' \
   "$(file_header "$FONT" cache-control)"
 expect 'script revalidates' no-cache "$(file_header "$SCRIPT" cache-control)"
-for file in "$FONT" "$SCRIPT" /_admin/nav.js; do
+for file in "$FONT" "$SCRIPT" /_admin/nav.js /_image/lightbox.js; do
   expect "nosniff on $file" nosniff "$(file_header "$file" x-content-type-options)"
   expect "resource policy on $file" same-origin \
     "$(file_header "$file" cross-origin-resource-policy)"

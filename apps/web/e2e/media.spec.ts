@@ -1105,3 +1105,161 @@ test.describe('a sound file on the site', () => {
     expect((await part.body()).length).toBe(10);
   });
 });
+
+// An image that opens larger (brief image-lightbox): without a script a plain link to its larger
+// file, with one a modal dialog that zooms, walks a gallery with its arrows and gives the focus
+// back to the link. The block examples are the fixtures: a floated image and a grid gallery open,
+// a full-width decorative one does not.
+test.describe('an image that opens larger on the site', () => {
+  const IMAGE = '/probe/blok-image-float-left';
+  const GALLERY = '/probe/blok-gallery-grid';
+  const SCRIPT = 'script[src="/_image/lightbox.js"]';
+
+  /** Fails the test on a script error, a console error or a CSP report from the page. */
+  function watchErrors(page: Page) {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    page.on('console', (m) => {
+      if (m.type() === 'error' || /Content.Security.Policy/i.test(m.text())) errors.push(m.text());
+    });
+    return errors;
+  }
+
+  test('without a script the image is a link to its larger file', async ({ page, request }) => {
+    await page.goto(IMAGE);
+    const link = page.locator('figure.image a.enlarge');
+    await expect(link).toHaveCount(1);
+    await expect(link).toHaveAccessibleName(/^.+ \(grotere versie\)$/);
+    const href = (await link.getAttribute('href'))!;
+    expect(href).toMatch(/^\/probe\/media\/[0-9a-f-]+\/w\d+\.webp$/);
+    const file = await request.get(href);
+    expect(file.status()).toBe(200);
+    expect(file.headers()['content-type']).toBe('image/webp');
+    // The module is on the page once; a page whose only image does not open carries none.
+    await expect(page.locator(SCRIPT)).toHaveCount(1);
+    await page.goto('/probe/blok-image-full-decorative');
+    await expect(page.locator('a.enlarge')).toHaveCount(0);
+    await expect(page.locator(SCRIPT)).toHaveCount(0);
+    if (isA11y()) return;
+    await page.goto(IMAGE);
+    await page.locator('figure.image a.enlarge').click();
+    await expect(page).toHaveURL(/\/w\d+\.webp$/);
+  });
+
+  test('the keyboard opens it, Escape closes it and the focus is back on the link', async ({
+    page,
+  }) => {
+    onlyA11y('the dialog is the script');
+    const errors = watchErrors(page);
+    await page.goto(IMAGE);
+    const link = page.locator('figure.image a.enlarge');
+    const alt = (await link.locator('img').getAttribute('alt'))!;
+    await link.focus();
+    await page.keyboard.press('Enter');
+    const dialog = page.getByRole('dialog', { name: 'Beeld groter bekijken' });
+    await expect(dialog).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`${IMAGE}$`));
+    await expect(dialog.getByRole('button', { name: 'Sluiten' })).toBeFocused();
+    await expect(dialog.getByRole('img', { name: alt })).toBeVisible();
+    // The caption and credit of the page, under the image.
+    const caption = (await page.locator('figure.image > figcaption').textContent())!.trim();
+    expect(caption).not.toBe('');
+    await expect(dialog.locator('.lightbox-caption')).toHaveText(caption);
+    // One image: no arrows and no count.
+    await expect(dialog.getByRole('button', { name: 'Volgende afbeelding' })).toBeHidden();
+    await expect(dialog.locator('.lightbox-count')).toHaveText('');
+    await expectNoAxeViolations(page);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(link).toBeFocused();
+    expect(errors).toEqual([]);
+  });
+
+  test('a gallery walks its images with the arrows and the buttons', async ({ page }) => {
+    onlyA11y('the dialog is the script');
+    const errors = watchErrors(page);
+    await page.goto(GALLERY);
+    const links = page.locator('section.gallery a.enlarge');
+    const total = await links.count();
+    expect(total).toBeGreaterThan(1);
+    await links.nth(1).click();
+    const dialog = page.getByRole('dialog', { name: 'Beeld groter bekijken' });
+    const count = dialog.locator('.lightbox-count');
+    await expect(count).toHaveText(`Afbeelding 2 van ${total}`);
+    await expect(count).toHaveAttribute('aria-live', 'polite');
+    const alt = async (n: number) => (await links.nth(n).locator('img').getAttribute('alt'))!;
+    await page.keyboard.press('ArrowRight');
+    await expect(count).toHaveText(`Afbeelding ${(2 % total) + 1} van ${total}`);
+    await page.keyboard.press('End');
+    await expect(count).toHaveText(`Afbeelding ${total} van ${total}`);
+    await expect(dialog.locator('img.lightbox-image')).toHaveAttribute('alt', await alt(total - 1));
+    await dialog.getByRole('button', { name: 'Volgende afbeelding' }).click();
+    await expect(count).toHaveText(`Afbeelding 1 van ${total}`);
+    await page.keyboard.press('Home');
+    await dialog.getByRole('button', { name: 'Vorige afbeelding' }).click();
+    await expect(count).toHaveText(`Afbeelding ${total} van ${total}`);
+    // The larger file replaces the page's image once it is in.
+    await expect(dialog.locator('img.lightbox-image')).toHaveAttribute('src', /\/w\d+\.webp$/);
+    await expect
+      .poll(() =>
+        dialog.locator('img.lightbox-image').evaluate((i: HTMLImageElement) => i.naturalWidth)
+      )
+      .toBeGreaterThan(0);
+    await expectNoAxeViolations(page);
+    await dialog.getByRole('button', { name: 'Sluiten' }).click();
+    await expect(dialog).toBeHidden();
+    await expect(links.nth(1)).toBeFocused();
+    expect(errors).toEqual([]);
+  });
+
+  test('zoom shows actual size, and a click beside the image closes', async ({ page }) => {
+    onlyA11y('the dialog is the script');
+    await page.setViewportSize({ width: 1280, height: 600 });
+    await page.goto(IMAGE);
+    await page.locator('figure.image a.enlarge').click();
+    const dialog = page.getByRole('dialog', { name: 'Beeld groter bekijken' });
+    const image = dialog.locator('img.lightbox-image');
+    const zoom = dialog.getByRole('button', { name: 'Ware grootte' });
+    await expect(zoom).toBeVisible();
+    await expect(zoom).toHaveAttribute('aria-pressed', 'false');
+    const fitted = (await image.boundingBox())!;
+    const large = Number(await page.locator('figure.image a.enlarge').getAttribute('data-width'));
+    expect(fitted.width).toBeLessThan(large);
+    await zoom.click();
+    await expect(zoom).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(async () => Math.round((await image.boundingBox())!.width)).toBe(large);
+    // At actual size the stage scrolls, so a keyboard can reach it.
+    await expect(dialog.locator('.lightbox-stage')).toHaveAttribute('tabindex', '0');
+    await image.click();
+    await expect(zoom).toHaveAttribute('aria-pressed', 'false');
+    await expect.poll(async () => (await image.boundingBox())!.width).toBeLessThan(large);
+    await page.mouse.click(5, 300);
+    await expect(dialog).toBeHidden();
+  });
+
+  test('at 320 px and 200% text the dialog keeps its controls, and reduced motion is still', async ({
+    page,
+  }) => {
+    onlyA11y('the dialog is the script');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.setViewportSize(NARROW);
+    await page.goto(GALLERY);
+    await setTextSize(page, '200%');
+    await page.locator('section.gallery a.enlarge').first().click();
+    const dialog = page.getByRole('dialog', { name: 'Beeld groter bekijken' });
+    await expect(dialog).toBeVisible();
+    expect(await dialog.evaluate((d) => getComputedStyle(d).animationName)).toBe('none');
+    for (const name of ['Sluiten', 'Vorige afbeelding', 'Volgende afbeelding']) {
+      const box = (await dialog.getByRole('button', { name }).boundingBox())!;
+      expect(box.width, name).toBeGreaterThanOrEqual(44);
+      expect(box.height, name).toBeGreaterThanOrEqual(44);
+      expect(box.x, name).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width, name).toBeLessThanOrEqual(NARROW.width);
+    }
+    const image = (await dialog.locator('img.lightbox-image').boundingBox())!;
+    expect(image.width).toBeLessThanOrEqual(NARROW.width);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      NARROW.width
+    );
+  });
+});
