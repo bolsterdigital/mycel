@@ -1316,7 +1316,9 @@ test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
         await layoutGate(page, 'drop prompt', '[data-block-drop]');
         await page.keyboard.press('Escape');
         await dragLeft(page, card);
-        const dropped = `gate-drop-${locale}-${Date.now()}.png`;
+        // A camera or screenshot name without a break point, longer than the screen at 200%: its
+        // result line must break inside the panel, on any font.
+        const dropped = `gate-drop-${locale}-${Date.now()}_schermafbeelding_van_de_redactie.png`;
         leftovers.names.push(dropped);
         const refused = {
           name: 'refused.svg',

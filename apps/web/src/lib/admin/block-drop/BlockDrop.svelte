@@ -62,7 +62,7 @@
         >{t('admin.block.drop.place')}</button
       >
       <button type="button" class="ui-button secondary" data-block-drop-dismiss
-        >{t('admin.media.upload.dismiss')}</button
+        >{t('admin.block.drop.dismiss')}</button
       >
     </div>
   </div>
@@ -80,9 +80,15 @@
 </div>
 
 <style>
+  /* A grid item between the block cards, and like them it must not widen the column: at 320 px
+     and 200% text the bold "Uploadresultaten" of the media page's dismiss label was wider than
+     the screen, and its min-content stretched every card (CI's DejaVu Sans; the Mac's narrower
+     font hid it). Hence also this panel's own shorter label, which no word break cuts. */
   .block-drop {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-1);
+    min-inline-size: 0;
   }
   .block-drop[hidden],
   .block-drop [hidden] {

@@ -572,6 +572,15 @@
   .writing-surface[hidden] {
     display: none;
   }
+  /* A dropped file's name has no break point (`IMG_20261106_123456.jpg`), and a progress bar is
+     10em wide by default, 320 px at 200% text: both stay inside the card on a narrow screen. */
+  .pending p {
+    overflow-wrap: anywhere;
+  }
+  .pending progress {
+    display: block;
+    inline-size: 100%;
+  }
   .writing-surface {
     max-inline-size: 70ch;
     min-width: 0;

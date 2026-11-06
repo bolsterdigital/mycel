@@ -969,6 +969,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.block.drop.gallery': 'Meerdere beelden samen worden één galerij.',
   'admin.block.drop.separate': 'Elk beeld wordt een eigen blok.',
   'admin.block.drop.place': 'Geüploade beelden plaatsen',
+  'admin.block.drop.dismiss': 'Resultaten sluiten',
   'admin.block.drop.notImage':
     '{filename} staat nu in Media; hier kun je alleen een beeld plaatsen.',
   'admin.block.drop.tooMany': 'Een galerij bevat hooguit {max} beelden; de rest staat in Media.',

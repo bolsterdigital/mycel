@@ -961,6 +961,7 @@ export const en = {
   'admin.block.drop.gallery': 'Several images together become one gallery.',
   'admin.block.drop.separate': 'Each image becomes a block of its own.',
   'admin.block.drop.place': 'Place the uploaded images',
+  'admin.block.drop.dismiss': 'Close the results',
   'admin.block.drop.notImage': '{filename} is in Media now; only an image can be placed here.',
   'admin.block.drop.tooMany': 'A gallery holds {max} images; the others are in Media.',
   'admin.block.new.add': 'Add and save',
