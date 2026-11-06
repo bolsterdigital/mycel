@@ -78,13 +78,18 @@ export async function more(page: Page, n: number): Promise<Locator> {
   return card(page, n);
 }
 
-/** Save the one edit form after editing block `n` (#66 PR 2: one form, one save). */
+/**
+ * Save the one edit form after editing block `n` (#66 PR 2: one form, one save). Through
+ * `reloadsEditor`: after an earlier save the old screen already has `?saved` and the status, so
+ * those two alone pass before the new screen is there.
+ */
 export async function save(page: Page, n: number): Promise<void> {
   await block(page, n);
-  await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+  await reloadsEditor(page, () =>
+    page.getByRole('button', { name: 'Opslaan', exact: true }).click()
+  );
   await expect(page).toHaveURL(/\?saved/);
   await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
-  await editorReady(page);
 }
 
 /**
