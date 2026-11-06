@@ -739,7 +739,7 @@ test.describe('admin-shell', () => {
     await checkShell(page, 'Probe', 'Dashboard');
     await expect(page.locator('.admin-menu > summary')).toBeHidden();
     await expect(page.locator('.ui-dashboard > .ui-widget')).toHaveCount(6);
-    await expect(page.locator('.ui-widget.empty')).toHaveCount(3);
+    await expect(page.locator('.ui-widget.empty')).toHaveCount(2);
     // Two columns on a wide screen, never three (brief edit-screen § 4).
     expect(
       await page
@@ -754,9 +754,12 @@ test.describe('admin-shell', () => {
     await expect(
       page.getByRole('region', { name: 'Recently edited' }).getByRole('listitem')
     ).toHaveCount(5);
-    await expect(page.getByRole('region', { name: 'Waiting for you' })).toContainText(
-      'Coming later.'
-    );
+    // Filled from the notifications: the newest few and a link to all of them.
+    await expect(
+      page
+        .getByRole('region', { name: 'Waiting for you' })
+        .getByRole('link', { name: /^All notifications \(\d+\)$/ })
+    ).toHaveAttribute('href', '/admin/probe/meldingen');
     const nav = page.getByRole('navigation', { name: 'Site navigation' });
     for (const [group, links] of [
       ['Content', ['Pages', 'Articles']],
