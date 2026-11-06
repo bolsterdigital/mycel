@@ -112,7 +112,7 @@ Version 1.
 
 | Prop              | Label     | Kind                                                | Presence |
 | ----------------- | --------- | --------------------------------------------------- | -------- |
-| `cards`           | Card      | list of 2–6                                         | required |
+| `cards`           | Card      | list of 2–4                                         | required |
 | `cards[].title`   | Title     | localised text                                      | required |
 | `cards[].body`    | Body text | localised multi-line text                           | optional |
 | `cards[].actions` | Buttons   | 0–1 buttons: a localised label and an item or a URL | required |

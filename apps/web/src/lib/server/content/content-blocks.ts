@@ -575,6 +575,7 @@ const ISSUE_COPY: Record<string, UiKey> = {
   'content.blocks.adjacent-rich-text': 'admin.block.issue.adjacentText',
   'content.blocks.too-many': 'admin.block.issue.tooMany',
   'content.cards.too-few': 'admin.block.issue.tooFewCards',
+  'content.cards.too-many': 'admin.block.issue.tooManyCards',
   'content.audio.no-file': 'admin.block.issue.noAudio',
   'content.timeline.too-few': 'admin.block.issue.tooFewEvents',
   'content.timeline.no-date': 'admin.block.issue.noDate',

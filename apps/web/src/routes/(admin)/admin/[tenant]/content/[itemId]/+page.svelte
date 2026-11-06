@@ -29,10 +29,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { earlyInput } from '#lib/editor/early-input.js';
+  import { typedOver } from '#lib/editor/block-form.js';
   import PublicationDrawer from '#lib/admin/ui/feedback/PublicationDrawer.svelte';
   import WritingSurface from '#lib/editor/WritingSurface.svelte';
   import ItemTitleField from '#lib/editor/ItemTitleField.svelte';
-  import BlockFields from '#lib/admin/BlockFields.svelte';
+  import BlockFields from '#lib/admin/block-fields/BlockFields.svelte';
   import HeroAltRow from '#lib/admin/hero-alt/HeroAltRow.svelte';
   import ReviewOffer from '#lib/admin/review-offer/ReviewOffer.svelte';
   import Diff from '#lib/admin/Diff.svelte';
@@ -91,7 +92,7 @@
     data.blocks.some((b) => b.type === 'rich-text' && name.startsWith(`b.${b.id}.`))
   );
   const posted = $derived(form && 'values' in form ? form.values : null);
-  /** Input kept through a login and put back by the `recover` action (session-restore.js). */
+  /** Input kept through a login (`recover`, session-restore.js), or a row rearranged (`arrange`). */
   const recovered = $derived(!!(form && 'recovered' in form && form.recovered));
   /** Discarding it is opening the item again, in the locale the screen shows. */
   const discardHref = $derived(
@@ -280,14 +281,8 @@
   const assist = (params: Record<string, string>) =>
     `${base}/content/${data.item.id}/assist?${new URLSearchParams(params)}`;
   /** The values of a block's fields: what a refused post typed, else what is stored. */
-  const blockValues = (b: (typeof data.blocks)[number]): Record<string, string> => {
-    if (!posted && !Object.keys(early).length) return b.values;
-    const prefix = `b.${b.id}.`;
-    const typed = Object.entries({ ...posted, ...early }).filter(
-      (e): e is [string, string] => e[0].startsWith(prefix) && typeof e[1] === 'string'
-    );
-    return { ...b.values, ...Object.fromEntries(typed) };
-  };
+  const blockValues = (b: (typeof data.blocks)[number]) =>
+    typedOver(b.values, { ...posted, ...early }, `b.${b.id}.`);
   /** The chain of one locale (#86); images are the same in every locale. */
   const chain = (l: string) => data.effective[l] ?? data.effective[defaultLocale]!;
   /** Whether a field is empty both as typed and as stored, so what it inherits applies. */
@@ -482,6 +477,7 @@
       items={data.items}
       invalid={issues.map((x) => x.name)}
       locale={data.locale}
+      row={BLOCK_PRESENTATION[p.type as BlockType].row}
     />
     <Actions>
       <Button formaction={action('save')}>{t('admin.block.new.add')}</Button>
@@ -580,6 +576,7 @@
     notice={blockNotice(b.id, refused)}
     editable={BLOCK_DEFINITIONS[b.type].fields.length > 0}
     open={refused ||
+      !!(form && 'arranged' in form && String(form.arranged).startsWith(prefix)) ||
       data.openBlocks.includes(b.id) ||
       (Array.isArray(early.$openBlocks) && early.$openBlocks.includes(b.id))}
     labels={cardLabels}
@@ -645,6 +642,7 @@
       invalid={issues.map((x) => x.name)}
       locale={data.locale}
       groups={{ display: shape.display, source: shape.source, labels: groupLabels }}
+      row={shape.row}
     />
     {#if data.assistEnabled && b.type === 'image' && b.values[`${prefix}p.decorative`] !== 'on'}
       <p class="ui-hint">
@@ -1277,7 +1275,7 @@
       <!-- Put back after logging in again (session-restore.js): nothing is saved until Save. -->
       <Notice tone="warning">
         <p class="item-undo">
-          <span>{t('admin.content.recovered.body')}</span>
+          <span>{refusalCopy(t, form!)}</span>
           <Button variant="secondary" href={discardHref} data-discard
             >{t('admin.content.recovered.discard')}</Button
           >

@@ -31,6 +31,7 @@ import {
   type FieldError,
   type Posted,
 } from '#lib/editor/block-form.js';
+import { addButtonLists } from '#lib/admin/block-presentation.js';
 import { fromArticleEditor } from '#lib/editor/article-document.js';
 import { documentFrom, type FormValues } from './content-admin.js';
 
@@ -39,6 +40,17 @@ export const blockPrefix = (id: string): string => `b.${id}.`;
 
 /** The name prefix of the fields of the block that is not stored yet. */
 export const NEW_BLOCK = 'new.';
+
+/** A block's form values; a list the editor shows as a row gets an add button, no spare row. */
+export const blockFormValues = (type: BlockType, props: unknown, locales: readonly string[]) =>
+  formValues(
+    BLOCK_DEFINITIONS[type].fields,
+    props as Record<string, unknown> | undefined,
+    locales,
+    {
+      addButton: addButtonLists(type),
+    }
+  );
 
 /** The names under `prefix`, without it. */
 export function within(posted: Posted, prefix: string): Posted {
@@ -118,9 +130,7 @@ export function pendingView(
       if (k.startsWith(`${NEW_BLOCK}p.`) || k.endsWith('.rows'))
         if (k.startsWith(NEW_BLOCK) && typeof v === 'string') values[k] = v;
   } else
-    for (const [k, v] of Object.entries(
-      formValues(BLOCK_DEFINITIONS[p.type].fields, undefined, locales)
-    ))
+    for (const [k, v] of Object.entries(blockFormValues(p.type, undefined, locales)))
       values[`${NEW_BLOCK}${k}`] = v;
   return {
     type: p.type,

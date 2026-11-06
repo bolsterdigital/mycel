@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { BLOCK_DEFINITIONS, BLOCK_TYPES, Block } from '@mycel/core';
-import { formValues, postedValues, propsFromForm } from './block-form.js';
+import { arrangeRows, formValues, postedValues, propsFromForm } from './block-form.js';
 
 const LOCALES = ['nl', 'en'];
 
@@ -208,5 +208,61 @@ describe('block forms', () => {
       { name: 'p.content.en', line: 1, message: 'editor.markdown.unclosed-link' },
     ]);
     expect(props).toEqual(text.props);
+  });
+
+  describe('a row rearranged in the form', () => {
+    const cards = examples.find((e) => e.name === 'cards-filled-full')!;
+    type Card = { title: Record<string, string> };
+    const titles = (props: Record<string, unknown>) =>
+      (props['cards'] as Card[]).map((c) => c.title);
+    const bounds = { min: 2, max: 4 };
+    // A form of one locale: the other one is only in the stored props.
+    const nlOnly = () =>
+      formValues(cards.fields, cards.props, ['nl'], { addButton: ['cards'] }) as Record<
+        string,
+        string
+      >;
+    const read = (values: Record<string, string | string[]>) =>
+      propsFromForm(cards.fields, postedValues(values as Record<string, string>), cards.props);
+
+    it('offers no spare row with an add button, and names the stored row of each', () => {
+      const values = nlOnly();
+      expect(values['p.cards.rows']).toBe('4');
+      expect(values['p.cards.3.from']).toBe('3');
+      expect(values).not.toHaveProperty('p.cards.4.from');
+    });
+
+    it('keeps the locale the form does not carry with a moved card', () => {
+      const before = titles(cards.props);
+      const { props, errors } = read(arrangeRows(nlOnly(), 'p.cards', 'later', 0, bounds));
+      expect(errors).toEqual([]);
+      expect(titles(props)).toEqual([before[1], before[0], before[2], before[3]]);
+    });
+
+    it('drops a removed card in every locale, and refuses to go below the minimum', () => {
+      const before = titles(cards.props);
+      const removed = arrangeRows(nlOnly(), 'p.cards', 'remove', 1, bounds);
+      expect(removed['p.cards.rows']).toBe('3');
+      expect(titles(read(removed).props)).toEqual([before[0], before[2], before[3]]);
+      const two = arrangeRows(removed, 'p.cards', 'remove', 0, bounds);
+      expect(arrangeRows(two, 'p.cards', 'remove', 0, bounds)['p.cards.rows']).toBe('2');
+    });
+
+    it('adds an empty card up to the maximum, which a save leaves out until it is typed in', () => {
+      const removed = arrangeRows(nlOnly(), 'p.cards', 'remove', 3, bounds);
+      const added = arrangeRows(removed, 'p.cards', 'add', 3, bounds);
+      expect(added['p.cards.rows']).toBe('4');
+      expect(added['p.cards.3.from']).toBe('');
+      expect(arrangeRows(added, 'p.cards', 'add', 4, bounds)['p.cards.rows']).toBe('4');
+      expect(titles(read(added).props)).toHaveLength(3);
+      added['p.cards.3.title.nl'] = 'Nieuw';
+      expect(titles(read(added).props)[3]).toEqual({ nl: 'Nieuw' });
+    });
+
+    it('reads a row of an older form, without `from`, as the stored row at its place', () => {
+      const values = nlOnly();
+      for (const k of Object.keys(values)) if (k.endsWith('.from')) delete values[k];
+      expect(read(values).props).toEqual(cards.props);
+    });
   });
 });
