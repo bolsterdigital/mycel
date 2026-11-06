@@ -27,7 +27,8 @@ import {
 } from './blocks.js';
 import { EXAMPLE_IDS } from './block-types.js';
 import { diffDocuments } from './diff.js';
-import { mergeConflict, mergeSave } from './merge/save.js';
+import { adoptAddedBlocks, mergeConflict, mergeSave } from './merge/save.js';
+import { canonicalJson } from '../util/canonical-json.js';
 import { EffectiveView, effectiveOf } from './header/effective.js';
 import {
   defaultDirection,
@@ -557,15 +558,23 @@ export const updateItem = defineUseCase({
     // An id that is no revision of this item cannot be merged from: the stale-base refusal.
     if (!base) assertBase(item, baseRevisionId);
     if (!base) throw notFound('revision');
-    let next = finalize(ctx, document, document.blocks);
+    const latest =
+      item.latestRevisionId === baseRevisionId
+        ? null
+        : await ctx.content.revision(itemId, item.latestRevisionId);
+    if (item.latestRevisionId !== baseRevisionId && !latest) throw notFound('revision');
+    // A block posted again without the id the first save gave it is that block (a retry).
+    const input = latest ? adoptAddedBlocks(base.document, document, latest.document) : document;
+    let next = finalize(ctx, input, input.blocks);
     let previous = base.document;
     let provenance: Revision['provenance'];
-    if (item.latestRevisionId !== baseRevisionId) {
-      const latest = await ctx.content.revision(itemId, item.latestRevisionId);
-      if (!latest) throw notFound('revision');
+    if (latest) {
       const merged = mergeSave(base.document, next, latest.document);
       if (merged.conflicts.length) throw mergeConflict(item.latestRevisionId, merged.conflicts);
       next = ContentDocument.parse(merged.document);
+      // A merge that adds nothing to the newest revision writes nothing: a repeated save.
+      if (canonicalJson(next) === canonicalJson(latest.document))
+        return { item: toContentItem(item), revision: latest };
       requireBlockTypes(ctx, next.blocks);
       previous = latest.document;
       provenance = { merged: { baseRevisionId, latestRevisionId: item.latestRevisionId } };

@@ -1049,6 +1049,10 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.conflict.field.blocks': 'De blokken en hun volgorde',
   'admin.content.conflict.field.block': 'Blok {n} ({type})',
   'admin.content.conflict.field.other': 'Veld {path}',
+  'admin.content.done.mergedHeld':
+    'Je wijzigingen zijn opgeslagen als nieuwe revisie, samen met wat {who} om {when} opsloeg. Daarin staan wijzigingen die je nog niet had gezien, dus er is niets gepubliceerd, ingepland of goedgekeurd. Bekijk de revisie hieronder en kies de actie daarna opnieuw.',
+  'admin.content.done.mergedWith':
+    'Je wijzigingen zijn eerst opgeslagen, samen met wat {who} om {when} opsloeg. Niets van wat jullie veranderden is overschreven.',
   'admin.content.done.merged':
     'Opgeslagen als nieuwe revisie, samen met wat {who} om {when} opsloeg. Niets van wat jullie veranderden is overschreven. Wat gepubliceerd is, is niet veranderd.',
   'admin.content.conflict.bodyTable':

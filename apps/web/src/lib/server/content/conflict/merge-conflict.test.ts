@@ -5,7 +5,10 @@
 
 import { describe, expect, it } from 'vitest';
 import { ContentDocument } from '@mycel/core';
-import { fromArticleEditor } from '#lib/editor/article-document.js';
+import { fromArticleEditor, toArticleEditor } from '#lib/editor/article-document.js';
+import { valuesOf } from '#lib/server/content/content-admin.js';
+import { formDocument } from '#lib/server/content/edit-form.js';
+import { posted } from '#lib/editor/block-form.js';
 import { applyChoices, proposalOf } from './merge-conflict.js';
 
 const heading = (id: string, nl: string) => ({
@@ -145,5 +148,35 @@ describe('the writer after a conflict', () => {
     expect(view.choices.map((c) => c.path)).toEqual(['blocks[id=p1].props.content.nl']);
     const next = fromArticleEditor(theirs, 'nl', JSON.parse(String(values.articleEditor)));
     expect(next.blocks.map((b) => b.id)).toEqual(['p1', 't', 'h1', 'm']);
+  });
+
+  it('is not stuck when both added text after the same card (#124 F2)', () => {
+    const N = '11111111-1111-4111-8111-111111111111';
+    const T = '22222222-2222-4222-8222-222222222222';
+    const base = article('Titel', [prose('p1', 'Begin'), heading('h1', 'Kop')]);
+    const mine = article('Titel', [prose('p1', 'Begin'), heading('h1', 'Kop'), prose(N, 'Mijn')]);
+    const theirs = article('Titel', [prose('p1', 'Begin'), heading('h1', 'Kop'), prose(T, 'Hun')]);
+    const writer = JSON.stringify(toArticleEditor(mine, 'nl'));
+    const { view, values } = proposalOf(
+      base,
+      mine,
+      revision(theirs),
+      ctx({ ...valuesOf(mine), articleEditor: writer })
+    );
+    expect(view.choices.map((c) => c.path)).toEqual(['blocks']);
+    // The writer shows both texts as the newest's block; nothing typed is lost.
+    const shown = fromArticleEditor(theirs, 'nl', JSON.parse(String(values.articleEditor)));
+    expect(shown.blocks.map((b) => b.id)).toEqual(['p1', 'h1', T]);
+    expect(JSON.stringify(shown.blocks[2])).toContain('Mijn');
+    expect(JSON.stringify(shown.blocks[2])).toContain('Hun');
+    for (const choice of ['mine', 'theirs']) {
+      const data = form({ articleEditor: String(values.articleEditor) });
+      const read = formDocument(theirs, values, posted(data), '2026-11-06', 'nl');
+      expect(read.errors).toEqual([]);
+      const doc = applyChoices(read.document, theirs, form({ 'resolve.blocks': choice }));
+      expect(ContentDocument.safeParse(doc).success).toBe(true);
+      expect(JSON.stringify(doc.blocks)).toContain('Hun');
+      if (choice === 'mine') expect(JSON.stringify(doc.blocks)).toContain('Mijn');
+    }
   });
 });

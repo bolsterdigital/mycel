@@ -454,7 +454,7 @@ test.describe('content-admin', () => {
     const moved = slugFor('conflict-moved');
     await side.getByLabel('Slug').fill(moved);
     await page.getByRole('button', { name: 'Opslaan' }).click();
-    await expect(page).toHaveURL(`${edit}?saved&merged`);
+    await expect(page).toHaveURL(/\?saved&merged=[0-9a-f-]{36}$/);
     await expect(page.getByRole('status')).toContainText('samen met wat');
     expect((await stored()).title).toEqual({ nl: 'Mijn versie', en: 'Agent title' });
     await expect(side).toContainText(`/${moved}`);
@@ -510,7 +510,7 @@ test.describe('content-admin', () => {
     // Tab A saves a title: it merges with B's save, and keeps B's address.
     await page.locator('#title\\.nl').fill('Nieuwe titel');
     await page.getByRole('button', { name: 'Opslaan' }).click();
-    await expect(page).toHaveURL(`${edit}?saved&merged`);
+    await expect(page).toHaveURL(/\?saved&merged=[0-9a-f-]{36}$/);
     await expect(page.locator('#title\\.nl')).toHaveValue('Nieuwe titel');
     await expect(side).toContainText(`/${moved}`);
   });

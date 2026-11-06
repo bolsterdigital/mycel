@@ -256,6 +256,42 @@ describe('content.item.update on an older base', () => {
     expect(revisions).toHaveLength(2);
   });
 
+  it('takes a repeated save once: a block posted again without its id is not added twice', async () => {
+    const { item, revision } = await invoker.run(useCases.createItem, admin, {
+      slug: 'over-ons',
+      document: page(),
+    });
+    // A retry after a lost response: the same document, a new heading without an id, twice.
+    const retried = edit((d) => {
+      d.title.nl = 'Over ons, nieuw';
+      d.blocks.splice(1, 0, {
+        type: 'heading',
+        version: 1,
+        props: { text: { nl: 'Nieuw' } },
+      } as never);
+    });
+    const first = await save(item.id, revision.id, retried);
+    const second = await save(item.id, revision.id, retried);
+    expect(second.revision.id).toBe(first.revision.id);
+    expect(second.item.latestRevisionId).toBe(first.revision.id);
+    expect(second.revision.document.blocks.filter((b) => b.type === 'heading')).toHaveLength(4);
+    const { revisions } = await invoker.run(useCases.listRevisions, admin, { itemId: item.id });
+    expect(revisions).toHaveLength(2);
+    // Another change in the retry still merges, still with the block once.
+    const third = await save(
+      item.id,
+      revision.id,
+      edit((d) => {
+        Object.assign(d, structuredClone(retried));
+        d.blocks[0] = prose('b1', 'Ook nieuw');
+      })
+    );
+    expect(third.revision.id).not.toBe(first.revision.id);
+    expect(third.revision.document.blocks.map((b) => b.id)).toEqual(
+      first.revision.document.blocks.map((b) => b.id)
+    );
+  });
+
   it('refuses a base that is no revision of the item as a conflict', async () => {
     const { item } = await invoker.run(useCases.createItem, admin, {
       slug: 'over-ons',

@@ -37,5 +37,7 @@ ADR 018 rule 2 makes every save carry `baseRevisionId` and refuses a stale one w
 
 - `content.item.update` merges in core (`content/merge/merge.ts`, `mergeSave`); its conformance runs in memory, against Postgres under the item lock (eight concurrent saves on different blocks lose nothing) and over HTTP and MCP with the same authorization.
 - `Revision.provenance` is either an assist suggestion (ADR 021) or a merge; the column stays one `jsonb`.
+- A merge that adds nothing to the newest revision writes nothing and returns that revision, and a block posted again without the id its first save gave it takes that id (`adoptAddedBlocks`): a repeated save (a retry, a double click) is taken once.
+- An edit-screen action that puts a revision live, on a schedule or approves it is not taken when the save before it merged: the screen comes back on the merged revision, says with whose save, and the action is chosen again. Every other action names the merge in its notice.
 - The edit screen's conflict notice (`ConflictNotice`) replaces the difference table for saves; the table remains for refusals that have no posted document to merge.
 - Rebasing block operations and the entity base check are delivered separately against rule 7, each with its own evidence.

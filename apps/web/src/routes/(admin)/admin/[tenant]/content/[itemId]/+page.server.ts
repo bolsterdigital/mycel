@@ -103,6 +103,9 @@ import {
   type PendingBlock,
 } from '#lib/server/content/edit-form.js';
 import { runtime } from '#lib/server/runtime.js';
+import { DONE, ISSUES, SLUG_ISSUES, issueCopy } from '#lib/server/content/edit-copy.js';
+import { PINS, held, itemPath, mergedQuery } from '#lib/server/content/edit-path.js';
+import { insertedBefore } from '#lib/server/content/conflict/merge-conflict.js';
 import { adminSiteUrls } from '#lib/server/site.js';
 import { langOf, ui, type UiKey } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
@@ -169,23 +172,6 @@ const unposted: Posted = { get: () => null, names: () => [] };
 /** Form values under a name prefix. */
 const prefixed = (values: Record<string, string>, prefix: string): Record<string, string> =>
   Object.fromEntries(Object.entries(values).map(([k, v]) => [`${prefix}${k}`, v]));
-
-/**
- * The edit screen's address: the item, whatever the redirect adds, and the locale when it is
- * not the one the screen shows anyway.
- */
-const itemPath = (
-  tenant: string,
-  itemId: string,
-  locale: string | null | undefined,
-  query: Record<string, string> = {},
-  hash = ''
-) => {
-  const q = new URLSearchParams({ ...query, ...(locale ? { locale } : {}) });
-  // `saved` is a flag without a value, as the screen reads it.
-  const search = q.toString().replace(/(^|&)(saved|merged)=(?=&|$)/g, '$1$2');
-  return `/admin/${tenant}/content/${itemId}${search ? `?${search}` : ''}${hash ? `#${hash}` : ''}`;
-};
 
 export const load: PageServerLoad = async ({ parent, locals, params, url, cookies, request }) => {
   const { tenant } = await parent();
@@ -392,14 +378,17 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     authors,
     sections,
     saved: url.searchParams.has('saved'),
-    // Who saved what this save merged with (ADR 026), for the notice that says so.
-    merged:
-      url.searchParams.has('merged') && revision.provenance && 'merged' in revision.provenance
-        ? await describe(revision.provenance.merged.latestRevisionId).then(({ who, when }) => ({
-            who,
-            when,
-          }))
-        : null,
+    // Who saved what the save before the last action merged with (ADR 026): `merged` names that
+    // revision, so the notice holds also when an action made a newer one after it. Read as a
+    // revision of this item, so an id from elsewhere names nobody.
+    merged: isUuid(url.searchParams.get('merged') ?? '')
+      ? await describe(url.searchParams.get('merged')!).then(
+          ({ who, when }) => ({ who, when }),
+          () => null
+        )
+      : null,
+    // The action that was not taken because the save before it merged (`held`).
+    held: url.searchParams.has('held') && isUuid(url.searchParams.get('merged') ?? ''),
     /**
      * Where static/_admin/session-restore.js keeps unsaved input through a login: this site,
      * this operator, this item, this locale. The operator is the signed-in one, never input.
@@ -415,45 +404,6 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
  */
 const SINGLE = new Set<string>(['rich-text', 'paywall']);
 
-/** The notice after a publication action, by the `done` parameter of its redirect. */
-const DONE: Record<string, UiKey> = {
-  blockMoved: 'admin.block.done.moved',
-  blockDuplicated: 'admin.block.done.duplicated',
-  blockRemoved: 'admin.block.done.removed',
-  blockRestored: 'admin.block.done.restored',
-  heroConverted: 'admin.content.heroConversion.done',
-  publish: 'admin.content.publication.done.publish',
-  unpublish: 'admin.content.publication.done.unpublish',
-  schedule: 'admin.content.publication.done.schedule',
-  repin: 'admin.content.publication.done.schedule',
-  unschedule: 'admin.content.publication.done.unschedule',
-  offer: 'admin.content.review.done.offer',
-  withdrawOffer: 'admin.content.review.done.withdraw',
-  translationApproved: 'admin.assist.approved',
-};
-
-/** Core's readiness and reference issues as admin copy; unknown keys get the generic line. */
-const ISSUE_COPY: Record<string, UiKey> = {
-  'content.publish.locale-not-in-document': 'admin.content.issue.localeNotInDocument',
-  'content.publish.locale-not-in-item': 'admin.content.issue.localeNotInDocument',
-  'content.publish.missing-translation': 'admin.content.issue.missingTranslation',
-  'content.publish.machine-translation-unreviewed': 'admin.assist.unreviewed',
-  'content.publish.teaser-lead-required': 'admin.content.issue.teaserLeadRequired',
-  'content.publish.tier-unverifiable': 'admin.content.issue.tierUnverifiable',
-  'content.reference.author-unknown': 'admin.content.issue.referenceUnknown',
-  'content.reference.section-unknown': 'admin.content.issue.referenceUnknown',
-  'content.reference.item-unknown': 'admin.content.issue.referenceUnknown',
-  'content.reference.form-unknown': 'admin.content.issue.referenceUnknown',
-  'content.reference.media-unknown': 'admin.content.issue.referenceUnknown',
-  'content.reference.media-not-image': 'admin.content.issue.mediaNotImage',
-  'content.reference.media-not-document': 'admin.content.issue.mediaNotDocument',
-  'content.reference.media-not-audio': 'admin.content.issue.mediaNotAudio',
-  'content.schedule.not-in-future': 'admin.content.issue.notInFuture',
-  'admin.content.publication.time-invalid': 'admin.content.issue.timeInvalid',
-  'content.review.nothing-new': 'admin.content.issue.reviewNothingNew',
-};
-const issueCopy = (message: string): UiKey => ISSUE_COPY[message] ?? 'admin.content.issue.other';
-
 /** The time of the schedule form, or a refusal core will word like its own. */
 function instant(at: string, zone: string): string {
   const parsed = fromLocalInput(at, zone);
@@ -466,18 +416,6 @@ function instant(at: string, zone: string): string {
 
 /** The operator's admin language; the admin hook always sets it, English only as a last resort. */
 const adminUi = (locals: App.Locals) => ui(langOf(locals));
-
-/** Core's issue keys on a save, as admin copy; anything else is the generic invalid message. */
-const ISSUES: Record<string, UiKey> = {
-  'i18n.default-not-in-locales': 'admin.content.error.defaultLocale',
-  'content.seo.canonical.invalid': 'admin.content.error.canonical',
-  'content.tag.invalid': 'admin.content.error.tag',
-  'content.access.marker-needs-one-paywall': 'admin.content.error.marker',
-  'content.access.teaser-too-long': 'admin.content.error.teaserTooLong',
-  'content.access.tier-ids-required': 'admin.content.error.tier',
-  'content.image.alt-required': 'admin.block.issue.altRequired',
-  'content.image.alt-empty': 'admin.block.issue.altRequired',
-};
 
 /** A refused save as admin copy, with the narrowed error; anything that is not a use-case
  *  refusal is rethrown. Shared by the form's save and the translation start. */
@@ -504,8 +442,11 @@ interface Committed {
   inserted: string | null;
   /** The blocks whose fields the save changed, so the screen comes back with them open. */
   changed: string[];
-  /** The save merged with a newer revision (ADR 026): the screen says so. */
-  merged: boolean;
+  /**
+   * The revision the save merged with (ADR 026), or null: every action's redirect names it
+   * (`mergedQuery`), so the screen says with whose save.
+   */
+  mergedWith: string | null;
   /** The admin's time zone for this request (`adminTimeZone`). */
   zone: string;
   /**
@@ -514,14 +455,6 @@ interface Committed {
    */
   editing: string | null;
 }
-
-/** Core's refusals of a new slug, as admin copy. */
-const SLUG_ISSUES: Record<string, UiKey> = {
-  'content.slug.invalid': 'admin.content.error.slugInvalid',
-  'content.slug.reserved': 'admin.content.error.slugReserved',
-  'content.slug.taken': 'admin.content.error.slugTaken',
-  'content.slug.published': 'admin.content.error.slugPublished',
-};
 
 /**
  * The slug the form was rendered with (`baseSlug`, next to the field), so a tab that never touched
@@ -602,7 +535,7 @@ async function commit(
   // The one locale the form shows; a form without the field (an older tab) carries them all.
   const editing = data.has('editLocale') ? text(data, 'editLocale') || null : undefined;
   let changed: string[] = [];
-  let merged = false;
+  let mergedWith: string | null = null;
   // "Use theirs" for the address: the field goes back to what the item has (`baseSlug`).
   if (data.get('resolve.slug') === 'theirs') data.set('slug', text(data, 'baseSlug'));
   const done = (revisionId: string, inserted: string | null = null): Committed => ({
@@ -612,7 +545,7 @@ async function commit(
     revisionId,
     inserted,
     changed,
-    merged,
+    mergedWith,
     zone,
     editing: editing && editing !== contentLocale(event.cookies, tenant) ? editing : null,
   });
@@ -708,9 +641,19 @@ async function commit(
       });
       revisionId = made.id;
       stood = made.document;
-      merged = !!made.provenance && 'merged' in made.provenance;
+      mergedWith =
+        made.provenance && 'merged' in made.provenance
+          ? made.provenance.merged.latestRevisionId
+          : null;
     }
     if (!pending || !added) return done(revisionId);
+    // The same post again (a double click on Save): the first one inserted the block, the save
+    // above wrote nothing new, and the revision has it at its place already. Not twice.
+    const again =
+      revisionId === baseRevisionId
+        ? null
+        : await insertedBefore(principal, itemId, revisionId, base, pending, added.props);
+    if (again) return done(revisionId, again);
     const result = await rt.invoker.run(useCases.insertBlock, principal, {
       itemId,
       baseRevisionId: revisionId,
@@ -843,6 +786,9 @@ async function publication(
   if ('failure' in saved) return saved.failure;
   const { tenant, principal, data, revisionId } = saved;
   const locale = text(data, 'locale');
+  // The save merged with someone else's: the revision holds what this screen never showed, so
+  // nothing is published, scheduled or pinned on it in this click (brief concurrent-editing, decision 8).
+  if (saved.mergedWith && PINS.has(action)) held(saved, event.params.itemId!);
   try {
     await run(principal, {
       itemId: event.params.itemId!,
@@ -871,7 +817,10 @@ async function publication(
           : [],
     });
   }
-  redirect(303, itemPath(tenant.slug, event.params.itemId!, locale, { done: action }));
+  redirect(
+    303,
+    itemPath(tenant.slug, event.params.itemId!, locale, { done: action, ...mergedQuery(saved) })
+  );
 }
 
 /**
@@ -938,19 +887,31 @@ async function blockStep(
     // The revision the block was removed from names it for "Undo" (`restore`).
     redirect(
       303,
-      itemPath(tenant.slug, itemId, editing, { done, undo: `${revisionId}:${blockId}` }, at)
+      itemPath(
+        tenant.slug,
+        itemId,
+        editing,
+        { done, undo: `${revisionId}:${blockId}`, ...mergedQuery(saved) },
+        at
+      )
     );
   }
   // The block lands at rest (MY-110 A): it is complete, and the screen's script puts focus back
   // on the control that moved or copied it.
-  redirect(303, itemPath(tenant.slug, itemId, editing, { done }, `block-${landing}`));
+  redirect(
+    303,
+    itemPath(tenant.slug, itemId, editing, { done, ...mergedQuery(saved) }, `block-${landing}`)
+  );
 }
 
 export const actions: Actions = {
   pattern: async (event) => {
     const saved = await commit(event, { pattern: true, always: true });
     if ('failure' in saved) return saved.failure;
-    redirect(303, itemPath(saved.tenant.slug, event.params.itemId, saved.editing, {}, 'blocks'));
+    redirect(
+      303,
+      itemPath(saved.tenant.slug, event.params.itemId, saved.editing, mergedQuery(saved), 'blocks')
+    );
   },
   save: async (event) => {
     const saved = await commit(event, { always: true });
@@ -969,7 +930,7 @@ export const actions: Actions = {
         saved.editing,
         {
           saved: '',
-          ...(saved.merged ? { merged: '' } : {}),
+          ...mergedQuery(saved),
           ...(open.length ? { block: open.join(',') } : {}),
         },
         open.length ? `block-${open[0]}` : /^[0-9a-f-]{36}$/.test(near) ? `block-${near}` : ''
@@ -1021,14 +982,17 @@ export const actions: Actions = {
   discard: async (event) => {
     const saved = await commit(event, { discard: true });
     if ('failure' in saved) return saved.failure;
-    redirect(303, itemPath(saved.tenant.slug, event.params.itemId, saved.editing, {}, 'blocks'));
+    redirect(
+      303,
+      itemPath(saved.tenant.slug, event.params.itemId, saved.editing, mergedQuery(saved), 'blocks')
+    );
   },
   /** Shows an empty block of the chosen type at its place, after saving what was typed. */
   insert: async (event) => {
     const saved = await commit(event);
     if ('failure' in saved) return saved.failure;
     // pendingBlock remains the closed type/anchor validator on load, droppedMedia the ids'.
-    const query = insertQuery(text(saved.data, 'insert'), saved.data);
+    const query = { ...insertQuery(text(saved.data, 'insert'), saved.data), ...mergedQuery(saved) };
     redirect(
       303,
       itemPath(saved.tenant.slug, event.params.itemId, saved.editing, query, 'block-new')
@@ -1082,7 +1046,13 @@ export const actions: Actions = {
     if (refused) return refused;
     redirect(
       303,
-      itemPath(saved.tenant.slug, itemId, saved.editing, { done: 'heroConverted' }, 'item-header')
+      itemPath(
+        saved.tenant.slug,
+        itemId,
+        saved.editing,
+        { done: 'heroConverted', ...mergedQuery(saved) },
+        'item-header'
+      )
     );
   },
   /**
@@ -1134,7 +1104,7 @@ export const actions: Actions = {
         tenant.slug,
         itemId,
         editing,
-        { done: 'blockRestored' },
+        { done: 'blockRestored', ...mergedQuery(saved) },
         landing ? `block-${landing}` : 'blocks'
       )
     );
@@ -1227,6 +1197,7 @@ export const actions: Actions = {
     const saved = await commit(event);
     if ('failure' in saved) return saved.failure;
     const locale = text(saved.data, 'locale');
+    if (saved.mergedWith) held(saved, params.itemId);
     try {
       await runtime().invoker.run(useCases.approveTranslation, principal, {
         itemId: params.itemId,
@@ -1242,7 +1213,10 @@ export const actions: Actions = {
     }
     redirect(
       303,
-      itemPath(saved.tenant.slug, params.itemId, locale, { done: 'translationApproved' })
+      itemPath(saved.tenant.slug, params.itemId, locale, {
+        done: 'translationApproved',
+        ...mergedQuery(saved),
+      })
     );
   },
   /**
@@ -1264,7 +1238,7 @@ export const actions: Actions = {
       if (!revision.document.locales.includes(to))
         error(400, adminUi(event.locals)('admin.locale.unknown'));
     }
-    redirect(303, itemPath(saved.tenant.slug, event.params.itemId, to));
+    redirect(303, itemPath(saved.tenant.slug, event.params.itemId, to, mergedQuery(saved)));
   },
   /**
    * "Start the translation" for a locale the document lacks: after saving the rest of the form,
@@ -1294,6 +1268,6 @@ export const actions: Actions = {
         e.code === 'conflict' ? await changesSince(principal, itemId, revisionId, zone) : null;
       return fail(status, { ...body, fieldIssues: [], conflict: conflict?.view ?? null });
     }
-    redirect(303, itemPath(tenant.slug, itemId, to, { saved: '' }));
+    redirect(303, itemPath(tenant.slug, itemId, to, { saved: '', ...mergedQuery(saved) }));
   },
 };

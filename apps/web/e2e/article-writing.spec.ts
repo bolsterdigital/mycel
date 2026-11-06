@@ -12,7 +12,7 @@ import { login } from './lib/login';
 import { closePublication, openPublication } from './lib/publication';
 import { isA11y, onlyA11y } from './lib/project';
 import { article, callApi, requireApi } from './lib/api';
-import { block, blockPage, card, editorReady } from './lib/editor';
+import { block, blockPage, card, editorReady, newPage } from './lib/editor';
 
 // The enhanced article view and native block forms save the same core document. The browser
 // proof covers explicit saving, axe and the action layout at 320 CSS px with 200% text; the no-JS
@@ -718,7 +718,7 @@ test.describe('article-writing', () => {
     await colleague((d) => ({ ...d, title: { ...d.title, nl: 'Kop van collega' } }));
     await prose.fill('Mijn nieuwe tekst');
     await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(page).toHaveURL(/\?saved&merged/);
+    await expect(page).toHaveURL(/\?saved&merged=[0-9a-f-]{36}/);
     const merged = (await get()).revision.document;
     expect(merged.title.nl).toBe('Kop van collega');
     expect(JSON.stringify(merged.blocks[0].props.content.nl)).toContain('Mijn nieuwe tekst');
@@ -1348,5 +1348,84 @@ test.describe('attention', () => {
       await finishJobs(jobs);
       await withInvoker((invoker) => invoker.run(useCases.removeMember, site, { operatorId }));
     }
+  });
+});
+
+// ADR 026 after a save that merged: an action that pins a revision is not taken on content the
+// screen never showed, and the same post twice adds a new block once. Here, not in content-admin
+// with the merge itself, because that spec is at its size limit.
+test.describe('after a save that merged', () => {
+  test.use({
+    locale: 'nl-NL',
+    extraHTTPHeaders: {
+      'x-forwarded-proto': 'http',
+      'x-forwarded-for': `198.51.100.${Math.floor(Math.random() * 250) + 1}`,
+    },
+  });
+  const slugFor = (what: string) =>
+    `aw-${what}-${test.info().project.name}-${randomUUID()}`.toLowerCase();
+
+  // A publication action after a save that merged would put live what the publisher
+  // never saw. It is not taken: the screen comes back on the merged revision, says with whose
+  // save, and the action is chosen again. With and without JavaScript.
+  test('publishing from an outdated form that merged publishes nothing unseen', async ({
+    page,
+    request,
+  }) => {
+    await login(page, '/admin/probe');
+    const edit = await newPage(page, slugFor('held'), 'Eerste versie');
+    const itemId = edit.split('/').at(-1)!;
+    const item = async () => callApi(request, 'content.item.get', { itemId });
+    const { revision } = await item();
+    await callApi(request, 'content.item.update', {
+      itemId,
+      baseRevisionId: revision.id,
+      document: { ...revision.document, lead: { nl: 'Concept van een ander' } },
+    });
+    await page.locator('#title\\.nl').fill('Titel van de publiceerder');
+    await openPublication(page);
+    const publish = () =>
+      page.locator('#publication-nl').getByRole('button', { name: 'Publiceren', exact: true });
+    await publish().click();
+    await expect(page).toHaveURL(new RegExp(`\\?held&merged=[0-9a-f-]{36}$`));
+    await expect(page.getByRole('status')).toContainText('niets gepubliceerd');
+    const after = await item();
+    expect(after.item.publication.find((p: { locale: string }) => p.locale === 'nl')).toMatchObject(
+      { publishedRevisionId: null }
+    );
+    // The merged revision is what the screen shows now; publishing it is the second, seen click.
+    expect(after.revision.document.lead.nl).toBe('Concept van een ander');
+    await expect(page.locator('#title\\.nl')).toHaveValue('Titel van de publiceerder');
+    await expectNoAxeViolations(page);
+    await openPublication(page);
+    await publish().click();
+    await expect(page).toHaveURL(/\?done=publish/);
+    const live = await item();
+    expect(live.item.publication.find((p: { locale: string }) => p.locale === 'nl')).toMatchObject({
+      publishedRevisionId: after.revision.id,
+    });
+  });
+
+  // The same post twice (a double click on Save with a new block in the form) adds the
+  // block once. The second post arrives after the first stood, on the base the form was opened on.
+  test('the same save posted twice adds a new block once', async ({ page, request }) => {
+    onlyA11y('two posts of one form are sent from the page');
+    await login(page, '/admin/probe');
+    const edit = await newPage(page, slugFor('twice'), 'Twee keer');
+    const itemId = edit.split('/').at(-1)!;
+    await page.goto(`${edit}?insert=heading&place=end#block-new`);
+    await page.locator('#block-new').getByLabel('Tekst', { exact: true }).fill('Eén kop');
+    const statuses = await page
+      .getByRole('button', { name: 'Opslaan', exact: true })
+      .evaluate(async (button: HTMLButtonElement) => {
+        const body = new FormData(button.form!, button);
+        const out: number[] = [];
+        for (const _ of [1, 2])
+          out.push((await fetch(button.formAction, { method: 'POST', body })).status);
+        return out;
+      });
+    expect(statuses).toEqual([200, 200]);
+    const { revision } = await callApi(request, 'content.item.get', { itemId });
+    expect(revision.document.blocks.map((b: { type: string }) => b.type)).toEqual(['heading']);
   });
 });

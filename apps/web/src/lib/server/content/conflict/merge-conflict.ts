@@ -35,7 +35,8 @@ import {
   when,
   type FormValues,
 } from '#lib/server/content/content-admin.js';
-import { blockFormValues, blockPrefix } from '#lib/server/content/edit-form.js';
+import { blockFormValues, blockPrefix, type PendingBlock } from '#lib/server/content/edit-form.js';
+import { isDeepStrictEqual } from 'node:util';
 import type { UiKey } from '../../../../i18n/index.js';
 
 /** One value both changed, as the screen offers it. */
@@ -158,6 +159,7 @@ function writerOf(proposal: ContentDocumentInput, newest: ContentDocument, editi
   let doc = proposal as ContentDocument;
   for (const b of newest.blocks)
     if (!ids.has(b.id)) doc = takeValue(doc, newest, `blocks[id=${b.id}]`);
+  doc = { ...doc, blocks: foldNewText(doc.blocks, known) };
   const editor = toArticleEditor(doc, editing);
   for (const node of editor.content) {
     const block = doc.blocks.find((b) => b.id === node.attrs.blockId) as Block | undefined;
@@ -170,6 +172,44 @@ function writerOf(proposal: ContentDocumentInput, newest: ContentDocument, editi
     });
   }
   return JSON.stringify(editor);
+}
+
+/**
+ * A new text block next to a text block the newest revision has, folded into that one in reading
+ * order. Both sides adding text after the same card gives two text blocks side by side,
+ * which no document may hold (ADR 020 rule 4), and the writer cannot leave out the newest's one:
+ * so the writer shows both texts as one block, keeping the newest's id, and the next save is
+ * valid with either choice. "Keep mine" keeps what the writer shows (both texts), "use theirs"
+ * takes the newest block list. Rejected: the proposal's list alone, which the writer refuses
+ * because a block of its base is missing.
+ */
+function foldNewText(blocks: readonly Block[], known: ReadonlyMap<string, Block>): Block[] {
+  const out: Block[] = [];
+  for (const b of blocks) {
+    const prev = out.at(-1);
+    if (
+      !prev ||
+      prev.type !== 'rich-text' ||
+      b.type !== 'rich-text' ||
+      (known.has(prev.id) && known.has(b.id))
+    ) {
+      out.push(b);
+      continue;
+    }
+    const keep = known.has(prev.id) ? prev : b;
+    const content: Record<string, { type: 'doc'; content: unknown[] }> = {};
+    for (const locale of new Set([
+      ...Object.keys(prev.props.content),
+      ...Object.keys(b.props.content),
+    ])) {
+      const parts = [prev.props.content[locale], b.props.content[locale]].flatMap(
+        (d) => d?.content ?? []
+      );
+      content[locale] = { type: 'doc', content: parts };
+    }
+    out[out.length - 1] = { ...keep, props: { ...keep.props, content } } as Block;
+  }
+  return out;
 }
 
 /**
@@ -322,4 +362,37 @@ export function conflictValues(values: FormValues, newest: string, slug: string)
     ...('baseSlug' in values ? { baseSlug: slug } : {}),
     ...('slug' in values && untouched ? { slug } : {}),
   };
+}
+
+/**
+ * The block a pending insert would add, when the revision already has it: not in the form's base,
+ * same type and props, at the pending place: the same post again (a double click on Save), whose
+ * save wrote nothing new. Null otherwise.
+ */
+export async function insertedBefore(
+  principal: Principal,
+  itemId: string,
+  revisionId: string,
+  base: ContentDocument,
+  pending: PendingBlock,
+  props: unknown
+): Promise<string | null> {
+  const { revision } = await runtime().invoker.run(useCases.getItem, principal, {
+    itemId,
+    revisionId,
+  });
+  const blocks = revision.document.blocks;
+  const known = new Set(base.blocks.map((b) => b.id));
+  const at = blocks.findIndex(
+    (b, i) =>
+      !known.has(b.id) &&
+      b.type === pending.type &&
+      isDeepStrictEqual(b.props, props) &&
+      ('after' in pending.place
+        ? blocks[i - 1]?.id === pending.place.after
+        : 'before' in pending.place
+          ? blocks[i + 1]?.id === pending.place.before
+          : i === blocks.length - 1)
+  );
+  return blocks[at]?.id ?? null;
 }

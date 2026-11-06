@@ -1039,6 +1039,10 @@ export const en = {
   'admin.content.conflict.field.blocks': 'The blocks and their order',
   'admin.content.conflict.field.block': 'Block {n} ({type})',
   'admin.content.conflict.field.other': 'Field {path}',
+  'admin.content.done.mergedHeld':
+    'Your changes were saved as a new revision, together with what {who} saved at {when}. That revision has changes you had not seen yet, so nothing was published, scheduled or approved. Check it below, then choose the action again.',
+  'admin.content.done.mergedWith':
+    'Your changes were saved first, together with what {who} saved at {when}. Nothing either of you changed was overwritten.',
   'admin.content.done.merged':
     'Saved as a new revision, together with what {who} saved at {when}. Nothing either of you changed was overwritten. What is published has not changed.',
   'admin.content.conflict.bodyTable':

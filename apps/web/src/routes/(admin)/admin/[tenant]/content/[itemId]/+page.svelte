@@ -39,6 +39,7 @@
   import PendingBlock from '#lib/admin/pending-block/PendingBlock.svelte';
   import ReviewOffer from '#lib/admin/review-offer/ReviewOffer.svelte';
   import ConflictNotice from '#lib/admin/conflict/ConflictNotice.svelte';
+  import MergeNotice from '#lib/admin/conflict/MergeNotice.svelte';
   import Inherited from '#lib/admin/Inherited.svelte';
   import { issueLabel } from '#lib/admin/issue-label.js';
   import { thumbPath } from '#lib/admin/ui/thumb.js';
@@ -95,10 +96,6 @@
     data.blocks.some((b) => b.type === 'rich-text' && name.startsWith(`b.${b.id}.`))
   );
   const posted = $derived(form && 'values' in form ? form.values : null);
-  // A save that merged with a newer revision says with whose (ADR 026).
-  const savedCopy = $derived(
-    data.merged ? fill(t('admin.content.done.merged'), data.merged) : t('admin.content.done.saved')
-  );
   /** Input kept through a login (`recover`, session-restore.js), or a row rearranged (`arrange`). */
   const recovered = $derived(!!(form && 'recovered' in form && form.recovered));
   /** Discarding it is opening the item again, in the locale the screen shows. */
@@ -1278,6 +1275,7 @@
     {#if form?.conflict}
       <ConflictNotice conflict={form.conflict} form="item-edit" locale={data.locale} />
     {/if}
+    {#if !form}<MergeNotice merge={data} />{/if}
     {#if data.done && data.undo}
       <Notice tone="success">
         <p class="item-undo">
@@ -1293,8 +1291,8 @@
       </Notice>
     {:else if data.done}
       <Notice tone="success"><p>{fill(t(data.done), { locale: data.doneLocale })}</p></Notice>
-    {:else if data.saved && !form}
-      <Notice tone="success"><p>{savedCopy}</p></Notice>
+    {:else if data.saved && !form && !data.merged}
+      <Notice tone="success"><p>{t('admin.content.done.saved')}</p></Notice>
     {/if}
   {/snippet}
 
