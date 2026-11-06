@@ -48,7 +48,19 @@ export interface BlockPresentation {
    * block-editor-interactions § C).
    */
   stage: 'A' | 'C1' | 'C2' | 'C3' | 'C4';
+  /**
+   * The open editor shows this list as the row the site shows: its entries side by side,
+   * typed in place, added with a button instead of a spare row, and `style` as the choice above
+   * them instead of under "Display".
+   */
+  row?: { list: string; style: string };
 }
+
+/** The keys of the lists a block's form offers with an add button. */
+export const addButtonLists = (type: BlockType): readonly string[] => {
+  const row = BLOCK_PRESENTATION[type].row;
+  return row ? [row.list] : [];
+};
 
 export const BLOCK_PRESENTATION: { readonly [T in BlockType]: BlockPresentation } = {
   image: { rest: 'image', display: ['layout'], source: ['credit'], stage: 'A' },
@@ -58,7 +70,13 @@ export const BLOCK_PRESENTATION: { readonly [T in BlockType]: BlockPresentation 
   callout: { rest: 'text', display: ['variant'], source: [], stage: 'C2' },
   faq: { rest: 'text', display: ['variant', 'width'], source: [], stage: 'C2' },
   cta: { rest: 'text', display: ['variant', 'width', 'align'], source: [], stage: 'C2' },
-  cards: { rest: 'text', display: ['accent', 'width'], source: [], stage: 'C2' },
+  cards: {
+    rest: 'text',
+    display: ['width'],
+    source: [],
+    stage: 'C2',
+    row: { list: 'cards', style: 'accent' },
+  },
   'file-download': { rest: 'text', display: [], source: [], stage: 'C2' },
   gallery: { rest: 'text', display: ['variant', 'width'], source: [], stage: 'C2' },
   timeline: { rest: 'text', display: ['order'], source: [], stage: 'C2' },

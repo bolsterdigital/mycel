@@ -10,13 +10,18 @@
      With `groups` (MY-110 A), the content fields come first and the rarer ones fold under
      "Display" and "Source and credits"; a fold with a refused field starts open. An image's
      caption says what it inherits from the file; its alt field is marked for the screen's
-     script, which hides it while the image is decorative and the field is empty. -->
+     script, which hides it while the image is decorative and the field is empty.
+     With `row`, one list is shown as the row the site shows: its entries side by side,
+     typed in place, its style a choice above them; adding, moving and removing an entry are
+     submits to `arrange`, which shows the form again with nothing saved, so the row changes the
+     same way with and without JavaScript. -->
 <script lang="ts">
   import WritingSurface from '#lib/editor/WritingSurface.svelte';
   import { toTiptap } from '#lib/editor/article-document.js';
   import { fromMarkdown } from '#lib/editor/markdown.js';
   import type { BlockField } from '@mycel/core';
-  import { Checkbox, Field, Fieldset, MediaPicker } from './ui/index.js';
+  import RowCard from './RowCard.svelte';
+  import { Button, Checkbox, Field, Fieldset, Icon, MediaPicker } from './ui/index.js';
   import type { MediaChoice } from './media-choice.js';
   import { fill, ui, type UiKey } from '../../i18n/index.js';
 
@@ -49,6 +54,8 @@
           labels: { display: string; source: string };
         }
       | undefined;
+    /** One list shown as a row, and its style key (BLOCK_PRESENTATION). */
+    row?: { list: string; style: string } | undefined;
   }
   let {
     fields,
@@ -63,9 +70,13 @@
     invalid,
     locale,
     groups,
+    row,
   }: Props = $props();
   const t = $derived(ui(locale));
+  /** The edit screen's `arrange` action, in the locale the form shows, as every action carries. */
+  const arrange = $derived(`?/arrange&locale=${encodeURIComponent(locales[0] ?? '')}`);
   const label = (key: string) => t(`admin.block.field.${key}` as UiKey);
+  const option = (o: string) => t(`admin.block.option.${o}` as UiKey);
   const v = (name: string) => values[name] ?? '';
   const id = (name: string) => `${idPrefix}-${name.slice(prefix.length).replaceAll('.', '-')}`;
   const bad = (name: string) => invalid.includes(name);
@@ -94,7 +105,23 @@
   const assetOf = (captionName: string) =>
     media.find((m) => m.id === v(captionName.replace(/caption$/, 'mediaId')));
   const inGroup = (key: string) =>
-    !!groups && (groups.display.includes(key) || groups.source.includes(key));
+    (!!groups && (groups.display.includes(key) || groups.source.includes(key))) ||
+    (!!row && (key === row.list || key === row.style));
+  const rowList = $derived(
+    row
+      ? fields.find(
+          (f): f is Extract<BlockField, { kind: 'list' }> => f.key === row.list && f.kind === 'list'
+        )
+      : undefined
+  );
+  const rowStyle = $derived(
+    row
+      ? fields.find(
+          (f): f is Extract<BlockField, { kind: 'choice' }> =>
+            f.key === row.style && f.kind === 'choice'
+        )
+      : undefined
+  );
   /** A group starts open when a refusal names one of its fields. */
   const refusedIn = (keys: readonly string[]) =>
     keys.some((k) => invalid.some((name) => name.startsWith(`${prefix}p.${k}`)));
@@ -218,7 +245,7 @@
     {@render select(
       name,
       label(f.key),
-      f.options.map((o) => ({ id: o, label: t(`admin.block.option.${o}` as UiKey) }))
+      f.options.map((o) => ({ id: o, label: option(o) }))
     )}
   {:else if f.kind === 'date'}
     {@render dateInput(name, label(f.key))}
@@ -267,6 +294,102 @@
   {/if}
 {/snippet}
 
+{#snippet rowEditor(
+  list: Extract<BlockField, { kind: 'list' }>,
+  style: Extract<BlockField, { kind: 'choice' }> | undefined,
+  arrange: string
+)}
+  {@const name = `${prefix}p.${list.key}`}
+  {@const rows = Number(v(`${name}.rows`)) || 0}
+  {@const styleName = `${prefix}p.${style?.key}`}
+  {@const step = (move: string, i: number) => `${name}|${move}|${i}`}
+  <div class="ui-row-editor">
+    {#if style}
+      <fieldset class="ui-row-style">
+        <legend>{t('admin.block.row.style')}</legend>
+        {#each style.options as o (o)}
+          <label
+            ><input
+              type="radio"
+              name={styleName}
+              value={o}
+              checked={(v(styleName) || style.options[0]) === o}
+            />
+            {option(o)}</label
+          >
+        {/each}
+      </fieldset>
+    {/if}
+    <input type="hidden" name="{name}.rows" value={rows} />
+    <ol class="ui-row-grid" data-count={rows} data-style={v(styleName) || style?.options[0]}>
+      {#each Array.from({ length: rows }, (_, i) => i) as i (i)}
+        <RowCard>
+          <div class="ui-row-head">
+            <span class="ui-row-number">{fill(t('admin.block.row.card'), { n: i + 1 })}</span>
+            <details class="ui-row-more">
+              <summary aria-label={fill(t('admin.block.row.moreFor'), { n: i + 1 })}
+                ><Icon name="ellipsis" /><span>{t('admin.block.row.more')}</span></summary
+              >
+              <div class="ui-row-menu">
+                {#if i > 0}
+                  <button
+                    type="submit"
+                    formaction={arrange}
+                    formnovalidate
+                    name="arrange"
+                    value={step('earlier', i)}
+                    ><Icon name="arrow-left" />{t('admin.block.row.earlier')}</button
+                  >
+                {/if}
+                {#if i < rows - 1}
+                  <button
+                    type="submit"
+                    formaction={arrange}
+                    formnovalidate
+                    name="arrange"
+                    value={step('later', i)}
+                    ><Icon name="arrow-right" />{t('admin.block.row.later')}</button
+                  >
+                {/if}
+                {#if rows > list.min}
+                  <button
+                    class="danger"
+                    type="submit"
+                    formaction={arrange}
+                    formnovalidate
+                    name="arrange"
+                    value={step('remove', i)}
+                    ><Icon name="trash-2" />{t('admin.block.row.remove')}</button
+                  >
+                {:else}
+                  <p class="ui-hint">{fill(t('admin.block.row.atLeast'), { n: list.min })}</p>
+                {/if}
+              </div>
+            </details>
+          </div>
+          <input type="hidden" name="{name}.{i}.from" value={v(`${name}.${i}.from`)} />
+          {#each list.fields as sub (sub.key)}
+            {@render field(sub, `${name}.${i}.${sub.key}`)}
+          {/each}
+        </RowCard>
+      {/each}
+    </ol>
+    <div class="ui-row-add">
+      {#if rows < list.max}
+        <Button
+          variant="secondary"
+          formaction={arrange}
+          formnovalidate
+          name="arrange"
+          value={step('add', rows)}><Icon name="plus" />{t('admin.block.row.add')}</Button
+        >
+      {/if}
+      <span class="ui-hint">{fill(t('admin.block.row.count'), { n: rows, max: list.max })}</span>
+    </div>
+  </div>
+{/snippet}
+
+{#if row && rowList}{@render rowEditor(rowList, rowStyle, arrange)}{/if}
 {#each fields as f (f.key)}
   {#if !inGroup(f.key)}{@render field(f, `${prefix}p.${f.key}`)}{/if}
 {/each}

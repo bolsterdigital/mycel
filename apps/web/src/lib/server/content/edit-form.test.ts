@@ -236,7 +236,8 @@ describe('the one edit form', () => {
       const shown = pendingView(p, ['nl']);
       const empty = formValues(BLOCK_DEFINITIONS[type].fields, undefined, ['nl']);
       const inputs = inputsOf(BLOCK_DEFINITIONS[type].fields, 'p', empty, ['nl']);
-      for (const key of Object.keys(empty))
+      // A row's `from` is hidden: it names a stored row, nobody types it.
+      for (const key of Object.keys(empty).filter((k) => !k.endsWith('.from')))
         expect(
           inputs.map(([n]) => n),
           `${type}: ${key}`

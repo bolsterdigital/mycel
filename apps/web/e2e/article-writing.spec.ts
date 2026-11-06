@@ -1,5 +1,6 @@
 // flow: publish
-// An operator writes an article: the enhanced writer and pasting save one core document.
+// An operator writes an article: the enhanced writer and pasting save one core document, and a
+// row of cards is written in place.
 
 import { randomUUID } from 'node:crypto';
 import { systemPrincipal, useCases } from '@mycel/core';
@@ -10,6 +11,7 @@ import { NARROW, layoutGate, setTextSize } from './lib/layout';
 import { login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { article, callApi, requireApi } from './lib/api';
+import { block, blockPage, card, editorReady } from './lib/editor';
 
 // The enhanced article view and native block forms save the same core document. The browser
 // proof covers explicit saving, axe and the action layout at 320 CSS px with 200% text; the no-JS
@@ -990,5 +992,87 @@ test.describe('article-writing', () => {
     expect(afterEdit.document.blocks[0].props.content.en).toEqual(
       revision.document.blocks[0].props.content.en
     );
+  });
+
+  // The action row is typed as the site shows it. Adding, moving and removing a card are
+  // submits that show the form again with nothing saved, so the no-JS project walks the same path.
+  // Started from the empty form, which the seeded examples never reach.
+  test('a row of cards is added to, rearranged and saved, from two to four and back', async ({
+    page,
+  }) => {
+    await login(page, '/admin/probe');
+    await blockPage(page, 'cards');
+    await editorReady(page);
+    await page
+      .locator('[data-block-picker]')
+      .last()
+      .getByRole('button', { name: 'Actierij', exact: true })
+      .click();
+    let row = page.locator('#block-new');
+    await expect(row.getByRole('heading')).toHaveText('Nieuw blok: Actierij');
+    await editorReady(page);
+    const titles = () => row.getByLabel('Titel', { exact: true });
+    const typed = () =>
+      expect.poll(() => titles().evaluateAll((f) => f.map((x) => (x as HTMLInputElement).value)));
+    await expect(titles()).toHaveCount(2);
+    await expect(row.getByText('2 van maximaal 4 kaarten')).toBeVisible();
+    await expect(row.getByRole('radio', { name: 'Geen' })).toBeChecked();
+
+    // One card typed, then a third added: nothing is saved, nothing refused, the words stay.
+    await titles().first().fill('Eerste kaart');
+    await row.getByRole('button', { name: 'Kaart toevoegen' }).click();
+    row = page.locator('#block-new');
+    await expect(titles()).toHaveCount(3);
+    await expect(titles().first()).toHaveValue('Eerste kaart');
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    await titles().nth(1).fill('Tweede kaart');
+    await titles().nth(2).fill('Derde kaart');
+    await row.getByRole('radio', { name: 'Balk' }).check();
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
+
+    // Stored: no spare row, the count, and the fourth card is the last one the row takes.
+    row = await block(page, 1);
+    await typed().toEqual(['Eerste kaart', 'Tweede kaart', 'Derde kaart']);
+    await expect(row.getByRole('radio', { name: 'Balk' })).toBeChecked();
+    await row.getByRole('button', { name: 'Kaart toevoegen' }).click();
+    row = card(page, 1);
+    await expect(titles()).toHaveCount(4);
+    await expect(row.getByRole('button', { name: 'Kaart toevoegen' })).toHaveCount(0);
+    await expect(row.getByText('4 van maximaal 4 kaarten')).toBeVisible();
+
+    // Moved and removed through each card's "More"; at two cards removing is not offered.
+    const menu = async (n: number) => {
+      const more = row
+        .locator('.ui-row-card')
+        .nth(n - 1)
+        .locator('details.ui-row-more');
+      if ((await more.getAttribute('open')) === null)
+        await more.getByLabel(`Meer acties voor kaart ${n}`).click();
+      return more;
+    };
+    await (await menu(1)).getByRole('button', { name: 'Later in de rij' }).click();
+    row = card(page, 1);
+    await typed().toEqual(['Tweede kaart', 'Eerste kaart', 'Derde kaart', '']);
+    await (await menu(3)).getByRole('button', { name: 'Verwijderen' }).click();
+    row = card(page, 1);
+    await (await menu(3)).getByRole('button', { name: 'Verwijderen' }).click();
+    row = card(page, 1);
+    await typed().toEqual(['Tweede kaart', 'Eerste kaart']);
+    await expect((await menu(1)).getByRole('button', { name: 'Verwijderen' })).toHaveCount(0);
+    await expect(row.getByText('Een rij heeft minstens 2 kaarten.').first()).toBeVisible();
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
+    row = await block(page, 1);
+    await typed().toEqual(['Tweede kaart', 'Eerste kaart']);
+
+    // The UI gate on the open row (skill ui-action-layout): one column, every label whole.
+    await page.setViewportSize(NARROW);
+    await expect((await menu(2)).getByRole('button', { name: 'Eerder in de rij' })).toBeVisible();
+    for (const size of ['100%', '200%']) {
+      await setTextSize(page, size);
+      await layoutGate(page, `action row at ${size}`, 'section.ui-block-card');
+    }
+    if (isA11y()) await expectNoAxeViolations(page, { label: 'action row' });
   });
 });

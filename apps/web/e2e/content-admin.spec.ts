@@ -1778,56 +1778,6 @@ test.describe('block card details', () => {
     return `/admin/probe/content/${item.id}`;
   };
 
-  // Review of #286: a new block starts from the empty form, which the seeded examples never reach.
-  test('a new row of cards offers the two it asks, refuses one by name and saves two', async ({
-    page,
-  }) => {
-    await login(page, '/admin/probe');
-    await blockPage(page, 'cards');
-    await editorReady(page);
-    await page
-      .locator('[data-block-picker]')
-      .last()
-      .getByRole('button', { name: 'Actierij', exact: true })
-      .click();
-    const fresh = page.locator('#block-new');
-    await expect(fresh.getByRole('heading')).toHaveText('Nieuw blok: Actierij');
-    await editorReady(page);
-    const titles = fresh.getByLabel('Titel', { exact: true });
-    await expect(titles).toHaveCount(2);
-    await expect(fresh.getByLabel('Breedte')).toHaveValue('wide');
-
-    await titles.first().fill('Eerste kaart');
-    const saving = page.getByRole('button', { name: 'Opslaan', exact: true });
-    await saving.click();
-    const refusal = page.getByRole('listitem').filter({ hasText: 'vul minstens twee kaarten in' });
-    await expect(refusal.getByRole('link', { name: 'Kaarten' })).toBeVisible();
-    await expect(refusal).toHaveText('Kaarten: vul minstens twee kaarten in');
-    await expect(titles).toHaveCount(2);
-    await expect(titles.first()).toHaveValue('Eerste kaart');
-
-    await titles.nth(1).fill('Tweede kaart');
-    await saving.click();
-    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
-    // Stored, it offers a spare row for a third.
-    const fold = card(page, 1).locator('details.block');
-    const stored = fold.getByLabel('Titel', { exact: true });
-    await expect(stored).toHaveCount(3);
-    await expect(stored.nth(1)).toHaveValue('Tweede kaart');
-    // With scripts the rest view shows the cards that are filled and follows what is typed.
-    if (isA11y()) {
-      const rest = card(page, 1).locator('[data-block-rest]');
-      const shown = rest.locator('.ui-block-text-card:visible');
-      await fold.locator('[data-block-done] button').click();
-      await expect(shown).toHaveCount(2);
-      await rest.locator('.ui-block-text-heading').first().click();
-      await stored.nth(2).fill('Derde kaart');
-      await fold.locator('[data-block-done] button').click();
-      await expect(shown).toHaveCount(3);
-      await expect(shown.nth(2)).toContainText('Derde kaart');
-    }
-  });
-
   // A document slot's picker offers documents only; the public link fetches the file itself.
   test('a new list of files offers the documents, wants a file per row and saves', async ({
     page,
