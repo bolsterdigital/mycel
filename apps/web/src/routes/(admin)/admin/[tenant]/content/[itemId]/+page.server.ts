@@ -31,7 +31,9 @@ import {
   BLOCK_DEFINITIONS,
   INSERTABLE_BLOCK_TYPES,
   UseCaseError,
+  ContentDocumentInput,
   can,
+  mergeSave,
   contentPath,
   documentMedia,
   readinessIssues,
@@ -52,8 +54,14 @@ import { arrange } from '#lib/server/content/arrange.js';
 import { failureOf, loaded, orNull, text } from '#lib/server/admin/admin-actions.js';
 import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import {
+  applyChoices,
+  changesSince,
+  conflictOf,
+  conflictValues,
+  type ConflictView,
+} from '#lib/server/content/conflict/merge-conflict.js';
+import {
   actorLabel,
-  diffRows,
   valuesFromForm,
   type FormValues,
   withAssigned,
@@ -175,7 +183,7 @@ const itemPath = (
 ) => {
   const q = new URLSearchParams({ ...query, ...(locale ? { locale } : {}) });
   // `saved` is a flag without a value, as the screen reads it.
-  const search = q.toString().replace(/(^|&)saved=(?=&|$)/, '$1saved');
+  const search = q.toString().replace(/(^|&)(saved|merged)=(?=&|$)/g, '$1$2');
   return `/admin/${tenant}/content/${itemId}${search ? `?${search}` : ''}${hash ? `#${hash}` : ''}`;
 };
 
@@ -384,6 +392,14 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     authors,
     sections,
     saved: url.searchParams.has('saved'),
+    // Who saved what this save merged with (ADR 026), for the notice that says so.
+    merged:
+      url.searchParams.has('merged') && revision.provenance && 'merged' in revision.provenance
+        ? await describe(revision.provenance.merged.latestRevisionId).then(({ who, when }) => ({
+            who,
+            when,
+          }))
+        : null,
     /**
      * Where static/_admin/session-restore.js keeps unsaved input through a login: this site,
      * this operator, this item, this locale. The operator is the signed-in one, never input.
@@ -475,36 +491,6 @@ function saveFailure(e: unknown) {
   return { error, status, body };
 }
 
-/**
- * Who saved the newest revision, when, and what changed since `from`. The slug lives on the item,
- * not in a revision, so a moved address is its own row when the form says what it was rendered
- * with (`baseSlug`); without it a conflict over a moved address read "No differences".
- */
-async function conflictOf(
-  principal: Principal,
-  itemId: string,
-  from: string,
-  zone: string,
-  baseSlug?: string
-) {
-  const { item, revision } = await latest(principal, itemId);
-  const { changes } = await runtime().invoker.run(useCases.diffRevisions, principal, {
-    itemId: item.id,
-    fromRevisionId: from,
-    toRevisionId: revision.id,
-  });
-  const moved = baseSlug !== undefined && baseSlug !== item.slug;
-  return {
-    newest: revision.id,
-    slug: item.slug,
-    who: actorLabel(revision.actor),
-    when: when(revision.createdAt, zone),
-    changes: diffRows(
-      moved ? [{ path: 'slug', before: baseSlug, after: item.slug }, ...changes] : changes
-    ),
-  };
-}
-
 type Event = Parameters<Actions[string]>[0];
 
 /** What a successful save of the one form hands to the action that follows it. */
@@ -518,6 +504,8 @@ interface Committed {
   inserted: string | null;
   /** The blocks whose fields the save changed, so the screen comes back with them open. */
   changed: string[];
+  /** The save merged with a newer revision (ADR 026): the screen says so. */
+  merged: boolean;
   /** The admin's time zone for this request (`adminTimeZone`). */
   zone: string;
   /**
@@ -549,21 +537,6 @@ function baseSlugOf(item: { slug: string }, data: FormData): string {
 function slugChange(item: { slug: string }, data: FormData): string | null {
   const slug = text(data, 'slug').trim();
   return slug && slug !== baseSlugOf(item, data) && slug !== item.slug ? slug : null;
-}
-
-/**
- * The form values a conflict comes back with: the newest revision as base and the item's slug as
- * `baseSlug`. An untouched slug field follows the item, so the next save keeps the address the
- * other tab gave it; a slug the operator typed stays, to be applied by that save.
- */
-function conflictValues(values: FormValues, newest: string, slug: string): FormValues {
-  const untouched = !('slug' in values) || values.slug === values.baseSlug;
-  return {
-    ...values,
-    baseRevisionId: newest,
-    ...('baseSlug' in values ? { baseSlug: slug } : {}),
-    ...('slug' in values && untouched ? { slug } : {}),
-  };
 }
 
 /**
@@ -629,6 +602,9 @@ async function commit(
   // The one locale the form shows; a form without the field (an older tab) carries them all.
   const editing = data.has('editLocale') ? text(data, 'editLocale') || null : undefined;
   let changed: string[] = [];
+  let merged = false;
+  // "Use theirs" for the address: the field goes back to what the item has (`baseSlug`).
+  if (data.get('resolve.slug') === 'theirs') data.set('slug', text(data, 'baseSlug'));
   const done = (revisionId: string, inserted: string | null = null): Committed => ({
     tenant,
     principal,
@@ -636,6 +612,7 @@ async function commit(
     revisionId,
     inserted,
     changed,
+    merged,
     zone,
     editing: editing && editing !== contentLocale(event.cookies, tenant) ? editing : null,
   });
@@ -650,19 +627,20 @@ async function commit(
   let stood: ContentDocument | null = null;
   // The address this save moved the item to, once that transaction stood (`moveSlug`).
   let movedTo: string | null = null;
+  // What a conflict merges (ADR 026): the form's base and what it posts, and the address moved
+  // by both when that is the conflict.
+  let merging: { base: ContentDocument; mine: ContentDocumentInput } | null = null;
+  let slugBoth: { theirs: string; mine: string } | null = null;
   try {
     const { item, revision } = await rt.invoker.run(useCases.getItem, principal, {
       itemId,
       revisionId: baseRevisionId,
     });
-    // A stale tab moves nothing: its slug change is part of the conflict like its fields are,
-    // also when only the address moved since the form was rendered (no newer revision then).
-    if (
-      slugChange(item, data) &&
-      (item.latestRevisionId !== baseRevisionId || item.slug !== baseSlugOf(item, data))
-    )
-      throw new UseCaseError('conflict', 'the item has a newer revision than baseRevisionId');
+    // An address both tabs moved is a choice like a field; one moved in a tab that left the field
+    // alone is kept (`baseSlug`). The revision itself merges (ADR 026).
     const base = revision.document;
+    if (slugChange(item, data) && item.slug !== baseSlugOf(item, data))
+      slugBoth = { theirs: item.slug, mine: text(data, 'slug').trim() };
     blocks = base.blocks;
     pending = opts.discard
       ? null
@@ -697,7 +675,7 @@ async function commit(
     blocks = read.blocks;
     const before = new Map(base.blocks.map((b) => [b.id, b]));
     changed = read.blocks.filter((b) => !isDeepStrictEqual(b, before.get(b.id))).map((b) => b.id);
-    const document = read.document;
+    const document = applyChoices(read.document, base, data);
     if (opts.pattern) {
       if (base.blocks.length || read.blocks.length)
         throw new UseCaseError('conflict', 'Pattern requires an empty document');
@@ -706,6 +684,15 @@ async function commit(
       });
       document.blocks = pattern.blocks.map(({ id: _id, ...block }) => block);
     }
+    if (!opts.pattern) merging = { base, mine: document };
+    // A conflict moves no address: checked before the slug's own transaction.
+    const newest =
+      item.latestRevisionId === baseRevisionId ? null : (await latest(principal, itemId)).revision;
+    if (
+      slugBoth ||
+      (newest && mergeSave(base, document, newest.document, ContentDocumentInput).conflicts.length)
+    )
+      throw new UseCaseError('conflict', 'both changed the same values');
     const moved = await moveSlug(principal, item, data);
     if (moved)
       return {
@@ -721,6 +708,7 @@ async function commit(
       });
       revisionId = made.id;
       stood = made.document;
+      merged = !!made.provenance && 'merged' in made.provenance;
     }
     if (!pending || !added) return done(revisionId);
     const result = await rt.invoker.run(useCases.insertBlock, principal, {
@@ -772,25 +760,26 @@ async function commit(
           status,
         }),
       };
-    const conflict = await conflictOf(
-      principal,
-      itemId,
-      baseRevisionId,
-      zone,
-      data.has('baseSlug') ? text(data, 'baseSlug') : undefined
-    );
+    const baseSlug = data.has('baseSlug') ? text(data, 'baseSlug') : undefined;
+    const merge =
+      merging &&
+      (await conflictOf(principal, itemId, merging.base, merging.mine, {
+        values,
+        editing,
+        zone,
+        slug: slugBoth,
+      }));
+    const conflict = merge?.view.choices.length
+      ? merge
+      : { ...(await changesSince(principal, itemId, baseRevisionId, zone, baseSlug)), values };
     return {
       failure: await refused(
         tenant,
         principal,
         itemId,
-        conflictValues(values, conflict.newest, conflict.slug),
+        conflictValues(conflict.values, conflict.newest, conflict.slug),
         pending,
-        {
-          ...body,
-          status,
-          conflict: { who: conflict.who, when: conflict.when, changes: conflict.changes },
-        }
+        { ...body, status, conflict: conflict.view }
       ),
     };
   }
@@ -810,7 +799,7 @@ async function refused(
     error: UiKey;
     status?: number;
     fieldIssues?: { name: string; copy: UiKey }[];
-    conflict?: { who: string; when: string; changes: ReturnType<typeof diffRows> };
+    conflict?: ConflictView;
     [key: string]: unknown;
   }
 ) {
@@ -905,11 +894,11 @@ async function blockTry(saved: Committed, itemId: string, run: () => Promise<voi
       invalid: onFields.length ? 'admin.block.error.invalid' : 'admin.content.error.invalid',
     });
     const conflict =
-      refusal.code === 'conflict' ? await conflictOf(principal, itemId, revisionId, zone) : null;
+      refusal.code === 'conflict' ? await changesSince(principal, itemId, revisionId, zone) : null;
     return fail(status, {
       ...body,
       fieldIssues: onFields.map((i) => ({ name: i.name, copy: ISSUES[i.message] ?? body.error })),
-      conflict: conflict && { who: conflict.who, when: conflict.when, changes: conflict.changes },
+      conflict: conflict?.view ?? null,
     });
   }
 }
@@ -978,7 +967,11 @@ export const actions: Actions = {
         tenant.slug,
         event.params.itemId,
         saved.editing,
-        { saved: '', ...(open.length ? { block: open.join(',') } : {}) },
+        {
+          saved: '',
+          ...(saved.merged ? { merged: '' } : {}),
+          ...(open.length ? { block: open.join(',') } : {}),
+        },
         open.length ? `block-${open[0]}` : /^[0-9a-f-]{36}$/.test(near) ? `block-${near}` : ''
       )
     );
@@ -1011,7 +1004,7 @@ export const actions: Actions = {
     const recovered = { error: 'admin.content.recovered.body' as const, recovered: true };
     if (!stale) return (await refused(tenant, principal, itemId, values, null, recovered)).data;
     const { zone } = await adminTimeZone(event.locals);
-    const conflict = await conflictOf(principal, itemId, baseRevisionId, zone, baseSlug);
+    const conflict = await changesSince(principal, itemId, baseRevisionId, zone, baseSlug);
     return (
       await refused(
         tenant,
@@ -1019,10 +1012,7 @@ export const actions: Actions = {
         itemId,
         conflictValues(values, conflict.newest, conflict.slug),
         null,
-        {
-          ...recovered,
-          conflict: { who: conflict.who, when: conflict.when, changes: conflict.changes },
-        }
+        { ...recovered, conflict: conflict.view }
       )
     ).data;
   },
@@ -1301,12 +1291,8 @@ export const actions: Actions = {
     } catch (thrown) {
       const { error: e, status, body } = saveFailure(thrown);
       const conflict =
-        e.code === 'conflict' ? await conflictOf(principal, itemId, revisionId, zone) : null;
-      return fail(status, {
-        ...body,
-        fieldIssues: [],
-        conflict: conflict && { who: conflict.who, when: conflict.when, changes: conflict.changes },
-      });
+        e.code === 'conflict' ? await changesSince(principal, itemId, revisionId, zone) : null;
+      return fail(status, { ...body, fieldIssues: [], conflict: conflict?.view ?? null });
     }
     redirect(303, itemPath(tenant.slug, itemId, to, { saved: '' }));
   },

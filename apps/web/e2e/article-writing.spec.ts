@@ -694,36 +694,55 @@ test.describe('article-writing', () => {
     );
   });
 
-  test('an integrated prose conflict retains input and never overwrites the newer revision', async ({
+  // ADR 026 in the writer: a colleague's title merges with my text; the same text both changed
+  // asks once, the writer keeps mine, and the next save stands instead of refusing a block.
+  test('the writer merges a colleague’s save and asks only about the text both changed', async ({
     page,
     request,
   }) => {
     onlyA11y();
     const edit = await article(request);
     const itemId = edit.split('/').at(-1)!;
+    const get = () => callApi(request, 'content.item.get', { itemId });
+    const colleague = async (change: (d: any) => any) => {
+      const { revision } = await get();
+      await callApi(request, 'content.item.update', {
+        itemId,
+        baseRevisionId: revision.id,
+        document: change(revision.document),
+      });
+    };
     await login(page, edit);
+    const prose = page.locator('.writing-surface .editor-prose p').first();
     await expect(page.locator('.writing-surface .ProseMirror').first()).toBeVisible();
-    const { revision } = await callApi(request, 'content.item.get', { itemId });
-    await callApi(request, 'content.item.update', {
-      itemId,
-      baseRevisionId: revision.id,
-      document: { ...revision.document, title: { nl: 'Kop van collega', en: 'An article' } },
-    });
-    await page.locator('.writing-surface .editor-prose p').first().fill('Mijn nieuwe tekst');
+    await colleague((d) => ({ ...d, title: { ...d.title, nl: 'Kop van collega' } }));
+    await prose.fill('Mijn nieuwe tekst');
     await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(
-      page
-        .getByRole('alert')
-        .filter({ hasText: 'Iemand anders heeft dit item intussen opgeslagen' })
-    ).toBeVisible();
+    await expect(page).toHaveURL(/\?saved&merged/);
+    const merged = (await get()).revision.document;
+    expect(merged.title.nl).toBe('Kop van collega');
+    expect(JSON.stringify(merged.blocks[0].props.content.nl)).toContain('Mijn nieuwe tekst');
+
+    await colleague((d) => {
+      const content = structuredClone(d.blocks[0].props.content);
+      content.nl.content[0].content[0].text = 'Tekst van collega';
+      return { ...d, blocks: [{ ...d.blocks[0], props: { content } }, ...d.blocks.slice(1)] };
+    });
+    await prose.fill('Weer mijn tekst');
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    const alert = page.getByRole('alert');
+    await expect(alert).toContainText('Iemand anders heeft dit item intussen opgeslagen');
+    await expect(alert.getByRole('radio')).toHaveCount(2);
+    await expect(alert.getByRole('group', { name: 'Blok 1 (Tekst) (nl)' })).toBeVisible();
     await expect(page.locator('.writing-surface .ProseMirror').first()).toContainText(
-      'Mijn nieuwe tekst'
+      'Weer mijn tekst'
     );
-    const saved = await callApi(request, 'content.item.get', { itemId });
-    expect(saved.revision.document.title.nl).toBe('Kop van collega');
-    expect(saved.revision.document.blocks[0].props.content.nl).toEqual(
-      revision.document.blocks[0].props.content.nl
+    expect(JSON.stringify((await get()).revision.document.blocks[0])).toContain(
+      'Tekst van collega'
     );
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/\?saved/);
+    expect(JSON.stringify((await get()).revision.document.blocks[0])).toContain('Weer mijn tekst');
   });
 
   test('pasted plain text is read as text written elsewhere', async ({ page, request }) => {

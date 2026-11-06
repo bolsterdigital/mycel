@@ -38,8 +38,11 @@ export function problem(
     status,
     ...(detail === undefined ? {} : { detail }),
     code,
-    // Which limit or switch refused is an i18n key in `issues`, never a price.
-    ...(code === 'invalid_input' || code === 'limit_exceeded' ? { issues } : {}),
+    // Which limit or switch refused is an i18n key in `issues`, never a price; a conflict names
+    // the newest revision and each value both sides changed (ADR 026), as the MCP front does.
+    ...(code === 'invalid_input' || code === 'limit_exceeded' || code === 'conflict'
+      ? { issues }
+      : {}),
   };
   return new Response(JSON.stringify(body), {
     status,

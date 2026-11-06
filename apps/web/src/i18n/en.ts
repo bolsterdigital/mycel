@@ -1030,6 +1030,18 @@ export const en = {
   'admin.content.recovered.discard': 'Discard',
   'admin.content.conflict.title': 'Someone else saved this item in the meantime',
   'admin.content.conflict.body':
+    '{who} saved a newer revision at {when}. Their changes are now in the form below, together with yours; nothing has been saved yet. You both changed the values listed here: choose which version to keep for each, then save.',
+  'admin.content.conflict.choices': 'Changed by both of you',
+  'admin.content.conflict.mine': 'Keep mine',
+  'admin.content.conflict.theirs': 'Use theirs',
+  'admin.content.conflict.removed': '(removed)',
+  'admin.content.conflict.field.document': 'The whole document',
+  'admin.content.conflict.field.blocks': 'The blocks and their order',
+  'admin.content.conflict.field.block': 'Block {n} ({type})',
+  'admin.content.conflict.field.other': 'Field {path}',
+  'admin.content.done.merged':
+    'Saved as a new revision, together with what {who} saved at {when}. Nothing either of you changed was overwritten. What is published has not changed.',
+  'admin.content.conflict.bodyTable':
     '{who} saved a newer revision at {when}. Your changes are still in the form below and have not been saved. The table shows what changed since you opened the page. Check it, then save again to put your changes on top.',
   'admin.content.diff.label': 'Changes',
   'admin.content.diff.path': 'Field',

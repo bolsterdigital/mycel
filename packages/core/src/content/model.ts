@@ -445,15 +445,30 @@ export const Revision = z.object({
   itemId: z.string().guid(),
   createdAt: Timestamp,
   actor: Actor,
+  /**
+   * Where a revision came from when that is more than its actor: an applied assist suggestion
+   * (ADR 021), or a save on an older base merged with the newest revision (ADR 026), which names
+   * both so the history says the merge happened.
+   */
   provenance: z
-    .object({
-      suggestionId: z.string().guid(),
-      task: z.enum(['alt', 'translate']),
-      provider: z.string(),
-      model: z.string(),
-      edited: z.boolean(),
-    })
-    .strict()
+    .union([
+      z
+        .object({
+          suggestionId: z.string().guid(),
+          task: z.enum(['alt', 'translate']),
+          provider: z.string(),
+          model: z.string(),
+          edited: z.boolean(),
+        })
+        .strict(),
+      z
+        .object({
+          merged: z
+            .object({ baseRevisionId: z.string().guid(), latestRevisionId: z.string().guid() })
+            .strict(),
+        })
+        .strict(),
+    ])
     .nullable()
     .optional(),
   document: ContentDocument,

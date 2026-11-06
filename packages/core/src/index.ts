@@ -38,6 +38,8 @@ export * from './content/lifecycle.js';
 export * from './content/listing.js';
 export * from './content/ports.js';
 export * from './content/diff.js';
+export * from './content/merge/merge.js';
+export * from './content/merge/save.js';
 export * from './content/service.js';
 export * from './content/review/review.js';
 export * from './content/operations.js';
