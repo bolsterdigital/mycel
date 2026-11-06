@@ -145,6 +145,21 @@ describe.skipIf(skip)('attention conformance', () => {
     expect(stored.rows[0]!.at).toEqual(later);
   });
 
+  it('cannot mark another site read: the member row is found under its own tenant only', async () => {
+    const other = (await testTenant(operatorDb, `attention-b-${run}`)).id;
+    try {
+      const elsewhere = principal({ tenantId: other, actor: admin.actor });
+      await expect(
+        invoker.run(useCases.updateAttentionSeenAt, elsewhere, { at: new Date().toISOString() })
+      ).rejects.toMatchObject({ code: 'not_found' });
+      const { rows } = await sql<{ n: string }>`select count(*) as n from tenant_memberships
+        where tenant_id = ${other}`.execute(operatorDb);
+      expect(rows[0]!.n).toBe('0');
+    } finally {
+      await closeTenantWork(operatorDb, [other]);
+    }
+  });
+
   it('counts the bell in the same number of queries for one connection as for three', async () => {
     const intentFor = (connectionId: string, state: ConnectionIntent['state']) =>
       uow.run(admin, (ctx) => {
