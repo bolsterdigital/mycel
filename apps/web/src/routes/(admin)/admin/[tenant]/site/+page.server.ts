@@ -215,14 +215,15 @@ export const actions: Actions = {
         };
       palette['link'] = text(data, `${mode}.link`);
       palette['focus'] = text(data, `${mode}.focus`);
-      // The action row's accents are set through `site.theme.update`, not this form; it
-      // carries them along so a save here does not drop them.
+      // The action row's card colours: four optional rows; one with both fields empty is
+      // left out, and the rest close up in order. A half-filled row posts as it is, so core
+      // refuses it instead of this form guessing the other half.
       const accents = [0, 1, 2, 3]
-        .filter((i) => data.has(`${mode}.cardAccents.${i}.background`))
         .map((i) => ({
           foreground: text(data, `${mode}.cardAccents.${i}.foreground`),
           background: text(data, `${mode}.cardAccents.${i}.background`),
-        }));
+        }))
+        .filter((pair) => pair.foreground || pair.background);
       if (accents.length) palette['cardAccents'] = accents;
       palettes[mode] = palette;
     }

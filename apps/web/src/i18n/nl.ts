@@ -53,6 +53,9 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.site.role.warning': 'Waarschuwing',
   'admin.site.role.link': 'Link',
   'admin.site.role.focus': 'Focus',
+  'admin.site.role.card': 'Kaart {n}',
+  'admin.site.cards.hint':
+    'Kaart 1 tot 4 zijn de kleuren van een actierij, kaart na kaart; een rij met meer kaarten dan kleuren begint weer bij de eerste. Laat beide velden leeg om een kaart niet te gebruiken; zonder kaartkleuren is een kaart primair en een balk accent.',
   'admin.site.field.baseSize': 'Basistekstgrootte',
   'admin.site.field.scaleRatio': 'Schaalverhouding',
   'admin.site.field.measure': 'Tekstbreedte',
