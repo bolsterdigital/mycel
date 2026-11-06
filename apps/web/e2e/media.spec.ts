@@ -1222,6 +1222,208 @@ test('an image dropped in an article lands between its paragraphs, alt text in f
   ]);
 });
 
+// One image file dropped on an image that is there replaces it, in the form until Save: the alt
+// text of the locale on screen is emptied and in focus, and Undo puts the old choice back.
+
+/** An image uploaded through the screen's own route, as a drop does; returns its id. */
+async function uploaded(page: Page, name: string) {
+  leftovers.names.push(name);
+  const bytes = [...png(400, 300)];
+  return page.evaluate(
+    async ({ name, bytes }) => {
+      const data = new FormData();
+      data.append('file', new File([new Uint8Array(bytes)], name, { type: 'image/png' }));
+      const response = await fetch('/admin/probe/media/upload', {
+        method: 'POST',
+        body: data,
+        headers: { accept: 'application/json' },
+      });
+      return ((await response.json()) as { id: string }).id;
+    },
+    { name, bytes }
+  );
+}
+
+/** A page or article in nl and en with a header image and an image block, both described. */
+async function withImages(type: 'page' | 'article', mediaId: string, title: string) {
+  const principal = systemPrincipal(await tenantId(), 'e2e');
+  const prose = (text: string) => ({
+    type: 'rich-text',
+    version: 1,
+    props: {
+      content: {
+        nl: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] },
+      },
+    },
+  });
+  return withInvoker(async (invoker) => {
+    const { item, revision } = await invoker.run(useCases.createItem, principal, {
+      slug: `replace-${type}-${randomUUID()}`,
+      document: ContentDocumentInput.parse({
+        type,
+        defaultLocale: 'nl',
+        locales: ['nl', 'en'],
+        title: { nl: title, en: title },
+        heroImageId: mediaId,
+        heroAlt: { nl: 'Oude kop', en: 'Old header' },
+        blocks: [
+          prose('Voor het beeld.'),
+          {
+            type: 'image',
+            version: 1,
+            props: { mediaId, decorative: false, alt: { nl: 'Oud beeld', en: 'Old picture' } },
+          },
+        ],
+        access: { level: 'public' },
+      }),
+    });
+    leftovers.items.push(item.id);
+    return { id: item.id, image: revision.document.blocks[1]!.id };
+  });
+}
+
+/** The stored image block's image and alt text. */
+async function storedImage(itemId: string) {
+  const principal = systemPrincipal(await tenantId(), 'e2e');
+  return withInvoker(async (invoker) => {
+    const { revision } = await invoker.run(useCases.getItem, principal, { itemId });
+    const props = revision.document.blocks[1]!.props as { mediaId: string; alt: unknown };
+    return { mediaId: props.mediaId, alt: props.alt };
+  });
+}
+
+test('an image dropped on an image block or the header image replaces it, with Undo', async ({
+  page,
+}) => {
+  onlyA11y('dropping files is a JavaScript enhancement; the picker stays the route without');
+  const stamp = Date.now();
+  await login(page, '/admin/probe/media');
+  const old = `oud-${stamp}.png`;
+  const { id, image } = await withImages('page', await uploaded(page, old), `Vervangen ${stamp}`);
+  await page.goto(`/admin/probe/content/${id}`);
+  await editorReady(page);
+  await expect(page.locator('[data-block-drop]')).toHaveAttribute('data-ready', '');
+  const card = `[data-block-card="block-${image}"]`;
+  const alt = page.locator(`[name="b.${image}.p.alt.nl"]`);
+  const chosen = page.locator(`${card} [data-picker-name]`);
+  await expect(chosen).toHaveText(old);
+
+  // Over the card, one file frames it; two would be a gallery, as anywhere else.
+  await dropOn(page, card, [pngFile('x.png')], false);
+  const panel = page.locator('[data-block-drop]');
+  await expect(panel).toContainText('Laat los om dit beeld te vervangen');
+  await expect(page.locator(card)).toHaveAttribute('data-drop-at', 'replace');
+  await page.keyboard.press('Escape');
+  await dragLeft(page, card);
+  await dropOn(page, card, [pngFile('x.png'), pngFile('y.png')], false);
+  await expect(page.locator(card)).toHaveAttribute('data-drop-at', 'before');
+  await page.keyboard.press('Escape');
+  await dragLeft(page, card);
+
+  const fresh = `nieuw-${stamp}.png`;
+  leftovers.names.push(fresh);
+  await dropOn(page, card, [pngFile(fresh)]);
+  const status = page.locator(`${card} [data-replace-status]`);
+  await expect(status).toContainText(`${fresh} vervangt het beeld. Beschrijf het nieuwe beeld.`);
+  await expect(chosen).toHaveText(fresh);
+  await expect(page.locator(`${card} [data-block-name]`)).toHaveText(fresh);
+  await expect(alt).toBeFocused();
+  await expect(alt).toHaveValue('');
+  await expect(page.locator(`${card} img[data-block-image]`)).not.toHaveAttribute(
+    'src',
+    new RegExp((await storedImage(id)).mediaId)
+  );
+  await expect(page.locator('[data-save-state]')).toHaveAttribute('data-current', 'unsaved');
+  await expectNoAxeViolations(page);
+  // The words and Undo under the picker at 320 CSS px and 200% text (UI gate), then a laptop.
+  await page.setViewportSize(NARROW);
+  await setTextSize(page, '200%');
+  await layoutGate(page, 'replaced image', `${card} [data-media-picker]`);
+  await page.locator(`${card} [data-media-picker]`).screenshot({
+    path: '.scratch/80r-replaced-320-200.png',
+  });
+  await setTextSize(page, '100%');
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.locator(card).screenshot({ path: '.scratch/80r-replaced-desktop.png' });
+  await status.getByRole('button', { name: 'Ongedaan maken' }).click();
+  await expect(status).toContainText('Het vorige beeld staat er weer.');
+  await expect(chosen).toHaveText(old);
+  await expect(page.locator(`${card} [data-block-name]`)).toHaveText(old);
+  await expect(alt).toHaveValue('Oud beeld');
+  await expect(page.locator(`${card} img[data-block-image]`)).toHaveAttribute(
+    'src',
+    new RegExp((await storedImage(id)).mediaId)
+  );
+
+  // The header's image: a drop on its picker, the description of the old one gone until Undo.
+  const second = `kop-${stamp}.png`;
+  leftovers.names.push(second);
+  await dropOn(page, '#heroImageId', [pngFile(second)]);
+  const heroAlt = page.locator('[name="heroAlt.nl"]');
+  await expect(page.locator('#heroImageId [data-picker-name]')).toHaveText(second);
+  await expect(heroAlt).toBeFocused();
+  await expect(heroAlt).toHaveValue('');
+  await page
+    .locator('#heroImageId [data-replace-status]')
+    .getByRole('button', { name: 'Ongedaan maken' })
+    .click();
+  await expect(page.locator('#heroImageId [data-picker-name]')).toHaveText(old);
+  await expect(heroAlt).toHaveValue('Oude kop');
+
+  // Again, described and saved: the English text described the old picture and goes with it.
+  await dropOn(page, card, [pngFile(fresh)]);
+  await expect(alt).toBeFocused();
+  await alt.fill('Een nieuw beeld');
+  await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+  await expect(page).toHaveURL(/saved/);
+  const stored = await storedImage(id);
+  expect(stored.alt).toEqual({ nl: 'Een nieuw beeld' });
+  await expect(page.locator(`${card} [data-picker-name]`)).toHaveText(fresh);
+});
+
+test('an image dropped on an image card in an article replaces it there', async ({ page }) => {
+  onlyA11y('the writer needs JavaScript');
+  const stamp = Date.now();
+  await login(page, '/admin/probe/media');
+  const old = `artikel-oud-${stamp}.png`;
+  const { id, image } = await withImages('article', await uploaded(page, old), `Art ${stamp}`);
+  await page.goto(`/admin/probe/content/${id}`);
+  await editorReady(page);
+  await expect(page.locator('[data-block-drop]')).toHaveAttribute('data-ready', '');
+  await expect(page.locator('.writing-surface .ProseMirror')).toBeVisible();
+  const card = `.writing-surface [data-block-card="block-${image}"]`;
+  await expect(page.locator(card)).toBeVisible();
+  const fresh = `artikel-nieuw-${stamp}.png`;
+  leftovers.names.push(fresh);
+  await dropOn(page, card, [pngFile(fresh)]);
+  const alt = page.locator(`[name="b.${image}.p.alt.nl"]`);
+  await expect(page.locator(`${card} [data-picker-name]`)).toHaveText(fresh);
+  await expect(alt).toBeFocused();
+  // No card of its own in the text: the writer kept its paragraph and the one image card.
+  await expect(page.locator('.writing-surface fieldset.pending')).toHaveCount(0);
+  await page
+    .locator(`${card} [data-replace-status]`)
+    .getByRole('button', { name: 'Ongedaan maken' })
+    .click();
+  await expect(page.locator(`${card} [data-picker-name]`)).toHaveText(old);
+  await expect(alt).toHaveValue('Oud beeld');
+
+  // A paste with the focus on the picker's button does the same.
+  await page.locator(`${card} [data-media-picker] button[command="show-modal"]`).focus();
+  await page.evaluate((file) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.items.add(new File([new Uint8Array(file.bytes)], file.name, { type: file.type }));
+    document.activeElement!.dispatchEvent(
+      new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData })
+    );
+  }, pngFile(fresh));
+  await expect(alt).toBeFocused();
+  await alt.fill('Nieuw in de tekst');
+  await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+  await expect(page).toHaveURL(/saved/);
+  expect((await storedImage(id)).alt).toEqual({ nl: 'Nieuw in de tekst' });
+});
+
 test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
   test.use({ viewport: NARROW });
 
