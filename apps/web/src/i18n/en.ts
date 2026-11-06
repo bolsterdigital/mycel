@@ -54,6 +54,9 @@ export const en = {
   'admin.site.role.warning': 'Warning',
   'admin.site.role.link': 'Link',
   'admin.site.role.focus': 'Focus',
+  'admin.site.role.card': 'Card {n}',
+  'admin.site.cards.hint':
+    'Cards 1 to 4 are the colours of an action row, card after card; a row with more cards than colours starts again at the first. Leave both fields empty to leave a card out; without card colours a card is primary and a bar accent.',
   'admin.site.field.baseSize': 'Base text size',
   'admin.site.field.scaleRatio': 'Type scale',
   'admin.site.field.measure': 'Text width',

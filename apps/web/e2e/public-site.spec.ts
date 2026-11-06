@@ -1806,13 +1806,30 @@ test.describe('site-settings', () => {
       .getAttribute('href');
     await login(page, `/admin/${slug}/site?section=theme`, `site-editor-${slug}@probe.test`);
     await page.locator('select[name="fontPair"]').selectOption('inter');
+    // The action row's card colours are rows of the colour table: a third light card
+    // is added and the second dark one emptied; untouched rows keep what was stored.
+    const card = (mode: string, i: number, side: string) =>
+      page.locator(`input[type="text"][name="${mode}.cardAccents.${i}.${side}"]`);
+    await expect(card('light', 0, 'background')).toHaveValue(WALK.light[0]!.background);
+    await card('light', 2, 'foreground').fill('#000000');
+    await card('light', 2, 'background').fill('#ffd54f');
+    await card('dark', 1, 'foreground').fill('');
+    await card('dark', 1, 'background').fill('');
     await page.getByRole('button', { name: 'Save theme' }).click();
     await expect(page.locator('[role="status"]')).toHaveText('Settings saved.');
-    // The form does not edit the action row's accents, and saving it keeps them.
     const theme = (await themeState(tenantId)).value;
     expect(theme.fontPair).toBe('inter');
-    expect(theme.palettes.light.cardAccents).toEqual(WALK.light);
-    expect(theme.palettes.dark.cardAccents).toEqual(WALK.dark);
+    expect(theme.palettes.light.cardAccents).toEqual([
+      ...WALK.light,
+      { foreground: '#000000', background: '#ffd54f' },
+    ]);
+    expect(theme.palettes.dark.cardAccents).toEqual([WALK.dark[0]]);
+    // A half-filled card is refused by core, not completed by the form; the light walk stays.
+    await card('light', 3, 'background').fill('#123456');
+    await page.getByRole('button', { name: 'Save theme' }).click();
+    await expect(page.getByRole('alert')).toContainText('Check the fields and colour contrast.');
+    await expect(card('light', 3, 'background')).toHaveValue('#123456');
+    expect((await themeState(tenantId)).value.palettes.light.cardAccents).toHaveLength(3);
     const stalePage = await context.newPage();
     await stalePage.goto(`/admin/${slug}/site?section=chrome`);
     await page.goto(`/admin/${slug}/site?section=chrome`);

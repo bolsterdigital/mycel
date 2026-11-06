@@ -70,11 +70,29 @@
     const linear = rgb.map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
     return (linear[0] ?? 0) * 0.2126 + (linear[1] ?? 0) * 0.7152 + (linear[2] ?? 0) * 0.0722;
   };
-  const ratio = (mode: 'light' | 'dark', role: (typeof THEME_ROLES)[number]) => {
-    const pair = data.theme.value.palettes[mode][role];
-    const a = luminance(colour(`${mode}.${role}.foreground`, pair.foreground));
-    const b = luminance(colour(`${mode}.${role}.background`, pair.background));
+  const HEX = /^#[0-9a-f]{6}$/i;
+  /** The contrast of the pair posted as `<prefix>.foreground` and `<prefix>.background`. */
+  const ratioOf = (prefix: string, pair: { foreground: string; background: string }) => {
+    const a = luminance(colour(`${prefix}.foreground`, pair.foreground));
+    const b = luminance(colour(`${prefix}.background`, pair.background));
     return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  };
+  const ratio = (mode: 'light' | 'dark', role: (typeof THEME_ROLES)[number]) =>
+    ratioOf(`${mode}.${role}`, data.theme.value.palettes[mode][role]);
+  /** An action row's card colours: four optional pairs, an empty one is not used. */
+  const CARD_SLOTS = [0, 1, 2, 3] as const;
+  const cardPair = (mode: 'light' | 'dark', i: number) => {
+    const stored = data.theme.value.palettes[mode].cardAccents?.[i];
+    return {
+      foreground: value(`${mode}.cardAccents.${i}.foreground`, stored?.foreground ?? ''),
+      background: value(`${mode}.cardAccents.${i}.background`, stored?.background ?? ''),
+    };
+  };
+  const cardComplete = (mode: 'light' | 'dark', i: number) => {
+    const pair = cardPair(mode, i);
+    return (['foreground', 'background'] as const).every((side) =>
+      HEX.test(colour(`${mode}.cardAccents.${i}.${side}`, pair[side]))
+    );
   };
   const saved = (what: string) =>
     form && 'saved' in form && form.saved === what ? t('admin.site.saved') : undefined;
@@ -318,14 +336,44 @@
                 <td></td>
               </tr>
             {/each}
+            {#each CARD_SLOTS as i (i)}
+              {@const roleLabel = fill(t('admin.site.role.card'), { n: String(i + 1) })}
+              {@const pair = cardPair(mode, i)}
+              <tr>
+                <th scope="row">{roleLabel}</th>
+                {#each ['foreground', 'background'] as const as side (side)}
+                  {@const name = `${mode}.cardAccents.${i}.${side}`}
+                  {@const sideLabel = t(`admin.site.${side}`)}
+                  <td data-label={sideLabel}>
+                    <ColorField
+                      id="site-{mode}-card-{i}-{side}"
+                      {name}
+                      label="{roleLabel}: {sideLabel}"
+                      hideLabel
+                      locale={data.locale}
+                      value={pair[side]}
+                      onchange={(next) => {
+                        changed[name] = next;
+                      }}
+                    />
+                  </td>
+                {/each}
+                <td data-label={t('admin.site.colours.contrast')}>
+                  <output aria-live="polite"
+                    >{#if cardComplete(mode, i)}{@const r = ratioOf(
+                        `${mode}.cardAccents.${i}`,
+                        pair
+                      )}{r.toFixed(1)}:1 ({r >= 4.5
+                        ? t('admin.site.pass')
+                        : t('admin.site.fail')}){/if}</output
+                  >
+                </td>
+              </tr>
+            {/each}
           {/snippet}
         </Table>
-        {#each data.theme.value.palettes[mode].cardAccents ?? [] as accent, i (i)}
-          {#each ['foreground', 'background'] as const as side (side)}
-            <input type="hidden" name="{mode}.cardAccents.{i}.{side}" value={accent[side]} />
-          {/each}
-        {/each}
       {/each}
+      <p class="ui-hint">{t('admin.site.cards.hint')}</p>
       <Fieldset legend={t('admin.site.group.type')}>
         <Select
           id="site-font"
