@@ -630,11 +630,14 @@ test.describe('admin-shell', () => {
         .evaluateAll((nodes) =>
           nodes.map((node) => ({ src: node.getAttribute('src'), type: node.getAttribute('type') }))
         );
-      // The content editor's live preview, the media pickers' search and upload and the media
-      // upload's thumbnails are optional modules, inert in this project; the native flows remain
-      // the no-JS contract. Other shell routes still emit no script.
+      // The content editor's live preview, the media pickers' search and upload, a button's
+      // target search and the media upload's thumbnails are optional modules, inert in this
+      // project; the native flows (the media list, the target select) remain the no-JS
+      // contract. Other shell routes still emit no script. The pickers load once per field, so
+      // an editor with two buttons carries the target search twice.
       const path = new URL(page.url()).pathname;
-      const picker = (s: { src: string | null }) => s.src === '/_admin/media-picker.js';
+      const EDITOR_MODULES = ['/_admin/media-picker.js', '/_admin/target-picker.js'];
+      const picker = (s: { src: string | null }) => EDITOR_MODULES.includes(s.src ?? '');
       // Every tenant route carries the menu's collapse script (#87), a classic one in <head>.
       expect(all).toContainEqual({ src: '/_admin/nav.js', type: null });
       // Only the integrated editor hydrates. Its tabs and live preview start after hydration;
