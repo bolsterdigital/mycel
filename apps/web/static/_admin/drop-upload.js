@@ -1,6 +1,8 @@
 // Library-wide file drops reuse the authenticated media upload endpoint and server-rendered
 // grid. Native upload forms remain the keyboard/no-script path. XHR provides real upload
 // progress; no originals or guessed client-side cards are used to rebuild the library.
+import { send } from './upload-file.js';
+
 const fill = (text, values) => text.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? '');
 const host = () => document.querySelector('[data-upload-dropzone]');
 const isFileDrag = (event) => [...(event.dataTransfer?.types ?? [])].includes('Files');
@@ -152,28 +154,5 @@ async function upload(zone, files) {
   }
 }
 
-function send(url, file, onProgress) {
-  return new Promise((resolve) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', url);
-    xhr.timeout = 120000;
-    xhr.setRequestHeader('accept', 'application/json');
-    xhr.upload.addEventListener('progress', (event) => {
-      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
-    });
-    xhr.addEventListener('load', () => {
-      let body;
-      try {
-        body = JSON.parse(xhr.responseText);
-      } catch {
-        /* Expired session or proxy error. */
-      }
-      resolve(xhr.status === 201 && body?.id ? { choice: body } : { error: body?.error });
-    });
-    for (const event of ['error', 'timeout', 'abort'])
-      xhr.addEventListener(event, () => resolve({ error: '' }));
-    const data = new FormData();
-    data.append('file', file);
-    xhr.send(data);
-  });
-}
+// Ready: tests wait for this instead of a timeout.
+host()?.setAttribute('data-upload-ready', '');

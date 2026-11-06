@@ -36,7 +36,9 @@ if (form instanceof HTMLFormElement) {
   /** Controls that choose an action rather than change the document. */
   const IGNORED = /^(insertType\.|at\.|patternId$)/;
   // A refused save comes back with what was typed, still unsaved: leaving asks from the start.
-  let dirty = !!state?.hasAttribute('data-refused');
+  // So does a block made of dropped images: it is only stored once its alt text is written.
+  const dropped = form.querySelector('#block-new[data-dropped]');
+  let dirty = !!state?.hasAttribute('data-refused') || !!dropped;
   let submitting = false;
   // The form says so too, for session-restore.js: it keeps what a submit sends only while
   // something is unsaved, from this one source rather than its own detection.
@@ -59,6 +61,7 @@ if (form instanceof HTMLFormElement) {
     form.setAttribute('data-has-unsaved', '');
     say('unsaved');
   };
+  if (dropped) say('unsaved');
   form.addEventListener('input', mark);
   form.addEventListener('change', mark);
   /** The id of the block in view, unless the top of the first one still is: then the top is fine. */
@@ -529,7 +532,10 @@ if (form instanceof HTMLFormElement) {
     // A block lands at rest: open what is around it, not its own fold. Moved, it may stay collapsed.
     if (target.parentElement && !landingMoved) reveal(target.parentElement);
     if (id === 'block-new') {
-      target.querySelector('input:not([type="hidden"]), select, textarea')?.focus();
+      // Dropped images have their picture: what they still need is their alt text.
+      const alt =
+        dropped && [...target.querySelectorAll('[data-alt-of] :is(input, textarea)')].find(shown);
+      (alt || target.querySelector('input:not([type="hidden"]), select, textarea'))?.focus();
       return;
     }
     if (id === 'blocks' && target instanceof HTMLElement) {

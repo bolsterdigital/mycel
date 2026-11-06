@@ -24,6 +24,8 @@ import {
   pendingProps,
   pendingUntouched,
   pendingView,
+  droppedMedia,
+  insertQuery,
 } from './edit-form.js';
 
 const LOCALES = ['nl', 'en'];
@@ -226,6 +228,49 @@ describe('the one edit form', () => {
     const image = pendingBlock('image', 'end', null, [])!;
     const picked = { ...pendingView(image, ['nl']).values, 'new.p.mediaId': 'm1' };
     expect(pendingUntouched(image, postedValues(picked), LOCALES)).toBe(false);
+  });
+
+  // Images dropped on the screen: their ids reach the pending block through the query, each
+  // once and valid, and the block starts with the pictures and without alt text.
+  it('starts a pending image or gallery with the dropped images', () => {
+    const [a, b] = ['0b9e2b4e-1a50-4c1d-9a65-6b1fb1d7a001', '0b9e2b4e-1a50-4c1d-9a65-6b1fb1d7a002'];
+    expect(droppedMedia(`${a},x,${a},${b}`)).toEqual([a, b]);
+    expect(droppedMedia(null)).toEqual([]);
+    expect(droppedMedia(Array.from({ length: 30 }, () => a).join(','))).toHaveLength(1);
+    const form = new FormData();
+    form.set('insertMedia', `${a},${b}`);
+    expect(insertQuery(`gallery|before:${a}`, form)).toEqual({
+      insert: 'gallery',
+      place: 'before',
+      anchor: a,
+      media: `${a},${b}`,
+    });
+    expect(insertQuery('image|end', new FormData())).toEqual({ insert: 'image', place: 'end' });
+    const image = pendingView(pendingBlock('image', 'end', null, [])!, ['nl'], undefined, [a]);
+    expect(image.dropped).toBe(true);
+    expect(image.values['new.p.mediaId']).toBe(a);
+    expect(image.values['new.p.alt.nl']).toBe('');
+    const gallery = pendingView(pendingBlock('gallery', 'end', null, [])!, ['nl'], undefined, [
+      a,
+      b,
+    ]);
+    expect(gallery.dropped).toBe(true);
+    expect([
+      gallery.values['new.p.images.0.mediaId'],
+      gallery.values['new.p.images.1.mediaId'],
+    ]).toEqual([a, b]);
+    // A count the type cannot hold, or another type, starts empty as chosen.
+    expect(
+      pendingView(pendingBlock('gallery', 'end', null, [])!, ['nl'], undefined, [a]).dropped
+    ).toBe(false);
+    expect(
+      pendingView(pendingBlock('quote', 'end', null, [])!, ['nl'], undefined, [a]).dropped
+    ).toBe(false);
+    // A picture without alt text is input: another action inserts it, or refuses it with its words.
+    const post = { ...image.hidden, ...image.values };
+    expect(
+      pendingUntouched(pendingBlock('image', 'end', null, [])!, postedValues(post), LOCALES)
+    ).toBe(false);
   });
 
   // Words a field only keeps beside something else (a caption without an image, a URL without
