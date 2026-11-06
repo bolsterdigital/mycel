@@ -13,7 +13,16 @@ import { callApi, pictureAtBothEnds, requireApi, seededPage } from './lib/api';
 import { expectPixels } from './lib/images';
 import { settingsEvidence } from './lib/settings-evidence';
 import { openPublication } from './lib/publication';
-import { block, blockPage, card, editorReady, linkTo, more, save } from './lib/editor';
+import {
+  block,
+  blockPage,
+  card,
+  editorReady,
+  linkTo,
+  more,
+  reloadsEditor,
+  save,
+} from './lib/editor';
 
 // Keep the unfinished locale-edit action on timeout without tracing every content flow.
 // Rejected: a guessed readiness wait, which would change the timing being investigated.
@@ -180,7 +189,9 @@ test.describe('content-blocks', () => {
 
   /** Store the chosen block with everything else in the form. */
   async function add(page: Page) {
-    await page.getByRole('button', { name: 'Toevoegen en opslaan' }).click();
+    await reloadsEditor(page, () =>
+      page.getByRole('button', { name: 'Toevoegen en opslaan' }).click()
+    );
   }
 
   test('a block is inserted, moved and removed in place, without losing what was typed', async ({
@@ -644,6 +655,7 @@ test.describe('content-blocks', () => {
     await add(page);
 
     await page.goto(edit);
+    await editorReady(page);
     return page.locator('[data-block-rest]');
   };
 

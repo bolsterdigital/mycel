@@ -21,6 +21,23 @@ export async function editorReady(page: Page): Promise<void> {
   await expect(page.locator('[data-block-picker]:not([data-picker-ready])')).toHaveCount(0);
 }
 
+/**
+ * Run `submit`, which posts the edit form natively, and wait until the next edit screen is ready.
+ * Without the mark, `editorReady` right after the click still sees the old document, which is
+ * ready, and the next fill or click lands in a page that is about to go or is not hydrated yet
+ * (a duplicate test once typed into a title that still held its old value).
+ * Rejected: waiting for a URL, because a refused save comes back on the same address.
+ */
+export async function reloadsEditor(page: Page, submit: () => Promise<void>): Promise<void> {
+  if (!isA11y()) return submit();
+  await page.evaluate(() => {
+    document.documentElement.dataset.e2eLeaving = '';
+  });
+  await submit();
+  await expect(page.locator('html[data-e2e-leaving]')).toHaveCount(0);
+  await editorReady(page);
+}
+
 /** Make a page in nl and en through the "new" form; returns its edit URL. */
 export async function newPage(page: Page, slug: string, title: string, en = `${title} (en)`) {
   await page.goto('/admin/probe/content/new?type=page');
@@ -29,6 +46,8 @@ export async function newPage(page: Page, slug: string, title: string, en = `${t
   await page.getByLabel('Titel (en)').fill(en);
   await page.getByRole('button', { name: 'Concept maken' }).click();
   await expect(page).toHaveURL(/\/admin\/probe\/content\/[0-9a-f-]{36}$/);
+  // The first click on the new edit screen must not come before its scripts.
+  await editorReady(page);
   return new URL(page.url()).pathname;
 }
 
@@ -65,6 +84,7 @@ export async function save(page: Page, n: number): Promise<void> {
   await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
   await expect(page).toHaveURL(/\?saved/);
   await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
+  await editorReady(page);
 }
 
 /**
