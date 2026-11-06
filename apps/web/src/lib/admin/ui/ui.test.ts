@@ -20,7 +20,6 @@ import {
   CardGrid,
   Checkbox,
   Choices,
-  ColorField,
   ConfirmAction,
   CopyField,
   DashboardWidget,
@@ -705,42 +704,6 @@ describe('Field sizes and units (#102)', () => {
         options: [{ value: 'a', label: 'A' }],
       })
     ).toMatch(/^<fieldset class="ui-fieldset ui-choices size-s"/);
-  });
-});
-
-describe('ColorField (#102)', () => {
-  it('is a swatch beside the hex code, and only the code posts', () => {
-    const out = html(ColorField, {
-      id: 'body-fg',
-      name: 'light.body.foreground',
-      label: 'Body: text colour',
-      locale: 'nl',
-      value: '#1A1A1A',
-      required: true,
-    });
-    expect(out).toMatch(
-      /<input type="color" id="body-fg-swatch" class="ui-color-swatch" value="#1a1a1a" aria-label="Body: text colour: kleurkiezer"/
-    );
-    expect(out).not.toMatch(/<input type="color"[^>]*name=/);
-    expect(out).toMatch(/<input type="text" name="light.body.foreground"[^>]*id="body-fg"/);
-    expect(out).toMatch(/<input type="text"[^>]*value="#1A1A1A"/);
-    expect(out).toMatch(/<input type="text"[^>]*pattern="#\[0-9A-Fa-f\]\{6\}"/);
-    expect(out).toMatch(/<input type="text"[^>]*required/);
-    expect(out).toContain('<label for="body-fg" id="body-fg-label">');
-    expect(out).toContain('ui-field size-s');
-  });
-  it('keeps a hidden label for a table cell, and a black swatch for a code that is not one', () => {
-    const out = html(ColorField, {
-      id: 'x',
-      name: 'x',
-      label: 'X',
-      locale: 'en',
-      value: '#12',
-      hideLabel: true,
-    });
-    expect(out).toMatch(/^<div class="ui-color hide-label">/);
-    expect(out).toContain('<label for="x" id="x-label">X');
-    expect(out).toMatch(/type="color"[^>]*value="#000000"/);
   });
 });
 

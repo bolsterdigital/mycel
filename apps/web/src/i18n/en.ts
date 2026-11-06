@@ -1514,6 +1514,7 @@ export const en = {
   'admin.ui.choices.count': '{shown} of {total} shown',
   'admin.ui.choices.search': 'Search',
   'admin.ui.color.picker': 'colour picker',
+  'admin.ui.color.none': 'no colour',
   'admin.ui.required': 'required',
   'admin.when.justNow': 'just now',
   'admin.ui.hint': 'Help',

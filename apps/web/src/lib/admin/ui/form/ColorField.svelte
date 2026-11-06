@@ -1,9 +1,11 @@
-<!-- A colour as a small swatch with its hex code beside it (#102). The swatch is the native
+<!-- A colour as a small swatch with its hex code beside it. The swatch is the native
      <input type="color">, so the system picker and its keyboard handling stay; the hex code is the
      field that posts, so the form works without JavaScript and a code can be pasted. With
      JavaScript the two follow each other, and `onchange` hears every valid colour. `hideLabel`
      keeps the label for screen readers only, for a cell whose row and column already name it
-     (the theme's colour table). Rejected: a palette of our own, which would rebuild the system
+     (the theme's colour table). An empty or unfinished code is no colour: the native swatch must
+     hold one, so it keeps black underneath but shows a crossed-out box and says "no colour" to a
+     screen reader, apart from a chosen black. Rejected: a palette of our own, which would rebuild the system
      picker less accessibly; and the native input alone at full width, a wide coloured bar. -->
 <script lang="ts">
   import { ui } from '../../../../i18n/index.js';
@@ -45,6 +47,12 @@
     current = next;
     onchange?.(next);
   };
+  /** The code as typed: an empty or partial one shows the empty swatch until it is a colour. */
+  const type = (next: string) => {
+    current = next;
+    pick(next);
+  };
+  const empty = $derived(!HEX.test(current));
 </script>
 
 <div class={['ui-color', hideLabel && 'hide-label']}>
@@ -54,9 +62,11 @@
         <input
           type="color"
           id="{id}-swatch"
-          class="ui-color-swatch"
-          value={HEX.test(current) ? current.toLowerCase() : '#000000'}
-          aria-label="{label}: {t('admin.ui.color.picker')}"
+          class={['ui-color-swatch', empty && 'is-empty']}
+          value={empty ? '#000000' : current.toLowerCase()}
+          aria-label="{label}: {t('admin.ui.color.picker')}{empty
+            ? `, ${t('admin.ui.color.none')}`
+            : ''}"
           oninput={(event) => pick(event.currentTarget.value)}
         />
         <input
@@ -69,7 +79,7 @@
           autocomplete="off"
           autocapitalize="off"
           spellcheck="false"
-          oninput={(event) => pick(event.currentTarget.value)}
+          oninput={(event) => type(event.currentTarget.value)}
         />
       </div>
     {/snippet}

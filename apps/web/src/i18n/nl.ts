@@ -1530,6 +1530,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.ui.choices.count': '{shown} van {total} zichtbaar',
   'admin.ui.choices.search': 'Zoeken',
   'admin.ui.color.picker': 'kleurkiezer',
+  'admin.ui.color.none': 'geen kleur',
   'admin.ui.required': 'verplicht',
   'admin.when.justNow': 'zojuist',
   'admin.ui.hint': 'Uitleg',

@@ -4,6 +4,7 @@
   import '#lib/admin/ui/ui.css';
   import '#lib/admin/ui/row-editor.css';
   import '#lib/admin/ui/target-picker.css';
+  import '#lib/admin/ui/color-field.css';
   import type { LayoutProps } from './$types';
 
   let { children }: LayoutProps = $props();

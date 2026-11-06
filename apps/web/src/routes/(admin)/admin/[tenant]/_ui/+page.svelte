@@ -242,6 +242,13 @@
           label={t('admin.site.role.primary')}
           locale={data.locale}
         />
+        <ColorField
+          id="ui-colour-none"
+          name="colour-none"
+          value=""
+          label={t('admin.site.role.accent')}
+          locale={data.locale}
+        />
         <UploadDropZone
           url="/admin/{data.tenant.slug}/media/upload"
           locale={data.locale}
