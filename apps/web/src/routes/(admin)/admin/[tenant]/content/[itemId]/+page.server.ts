@@ -90,6 +90,8 @@ import {
   pendingProps,
   pendingUntouched,
   pendingView,
+  droppedMedia,
+  insertQuery,
   type PendingBlock,
 } from '#lib/server/content/edit-form.js';
 import { runtime } from '#lib/server/runtime.js';
@@ -216,6 +218,13 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     doc.type === 'article' ? doc.authorIds : [],
     doc.type === 'article' ? (doc.sectionId ?? '') : ''
   );
+  const pending = pendingBlock(
+    url.searchParams.get('insert'),
+    url.searchParams.get('place'),
+    url.searchParams.get('anchor'),
+    doc.blocks.map((b) => b.id)
+  );
+  const dropped = pending ? droppedMedia(url.searchParams.get('media')) : [];
   const options = await pickerOptions(
     principal,
     doc.blocks,
@@ -224,18 +233,13 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     // its thumbnail even when it is not among the newest.
     [
       ...documentMedia(doc).map((m) => m.mediaId),
+      ...dropped,
       ...Object.values(effective).flatMap((e) =>
         [e.images.featured.mediaId, e.images.share.mediaId].filter((id) => id !== null)
       ),
     ]
   );
   const canWrite = can(principal, 'content:write');
-  const pending = pendingBlock(
-    url.searchParams.get('insert'),
-    url.searchParams.get('place'),
-    url.searchParams.get('anchor'),
-    doc.blocks.map((b) => b.id)
-  );
   const siteUrl = item.publication.some((p) => p.publishedRevisionId)
     ? await adminSiteUrls(principal, tenant.slug)
     : null;
@@ -293,7 +297,8 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     openBlocks: (url.searchParams.get('block') ?? '').split(','),
     /** No `hero`: the document header is the only header new content gets (ADR 025). */
     blockTypes: INSERTABLE_BLOCK_TYPES,
-    pending: canWrite && pending && shown.length ? pendingView(pending, shown) : null,
+    pending:
+      canWrite && pending && shown.length ? pendingView(pending, shown, undefined, dropped) : null,
     invalidInsert: !!url.searchParams.get('insert') && !pending,
     docLocales: doc.locales,
     /** The one locale the screen shows and saves (#66 PR 4). */
@@ -1032,18 +1037,8 @@ export const actions: Actions = {
   insert: async (event) => {
     const saved = await commit(event);
     if ('failure' in saved) return saved.failure;
-    const choice = text(saved.data, 'insert');
-    const divider = choice.indexOf('|');
-    // A native chooser button carries its type and the same placement. Older select posts
-    // still read insertType; pendingBlock remains the closed type/anchor validator on load.
-    const placement = divider < 0 ? choice : choice.slice(divider + 1);
-    const [place = '', anchor = ''] = placement.split(':');
-    const query = {
-      insert:
-        divider < 0 ? text(saved.data, `insertType.${anchor || place}`) : choice.slice(0, divider),
-      place,
-      ...(anchor ? { anchor } : {}),
-    };
+    // pendingBlock remains the closed type/anchor validator on load, droppedMedia the ids'.
+    const query = insertQuery(text(saved.data, 'insert'), saved.data);
     redirect(
       303,
       itemPath(saved.tenant.slug, event.params.itemId, saved.editing, query, 'block-new')

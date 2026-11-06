@@ -27,6 +27,7 @@ import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { forwarded, login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { openPublication } from './lib/publication';
+import { block, editorReady } from './lib/editor';
 
 const SITE = 'http://probe.localhost:4173';
 
@@ -885,6 +886,7 @@ test('the library opens as a grid and accepts window-wide drops with per-file re
   await login(page, '/admin/probe/media');
   await expect(page.getByRole('button', { name: 'Bestand uploaden', exact: true })).toBeVisible();
   await expect(page.getByLabel('Bestanden (verplicht)', { exact: true })).toBeHidden();
+  await expect(page.locator('[data-upload-dropzone]')).toHaveAttribute('data-upload-ready', '');
   const originalUrl = page.url();
   const overlay = page.locator('[data-upload-overlay]');
   // A dragged link is not a file, and crossing nested elements does not hide the overlay.
@@ -972,6 +974,254 @@ test('the library opens as a grid and accepts window-wide drops with per-file re
   expect(bounds!.y).toBeLessThan(700);
   await page.screenshot({ path: '.scratch/media-grid-desktop.png' });
 });
+// Image files dropped or pasted on the edit screen become a block at that place.
+// The page's panel uploads, then the screen's insert action brings the block back with its alt
+// text in focus; the writer of an article places a card between its paragraphs itself.
+
+/** A page or article of quotes (and, for an article, two paragraphs first), with block ids. */
+async function quotes(type: 'page' | 'article', title: string) {
+  const probe = await tenantId();
+  const principal = systemPrincipal(probe, 'e2e');
+  const quote = (text: string) => ({
+    type: 'quote',
+    version: 1,
+    props: { text: { nl: text }, attribution: { name: 'Bron' } },
+  });
+  const paragraph = (text: string) => ({ type: 'paragraph', content: [{ type: 'text', text }] });
+  const prose = {
+    type: 'rich-text',
+    version: 1,
+    props: {
+      content: {
+        nl: { type: 'doc', content: [paragraph('Eerste alinea.'), paragraph('Tweede alinea.')] },
+      },
+    },
+  };
+  return withInvoker(async (invoker) => {
+    const { item, revision } = await invoker.run(useCases.createItem, principal, {
+      slug: `drop-${type}-${randomUUID()}`,
+      document: ContentDocumentInput.parse({
+        type,
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: title },
+        blocks: type === 'article' ? [prose, quote('Slot')] : [quote('Een'), quote('Twee')],
+        access: { level: 'public' },
+      }),
+    });
+    leftovers.items.push(item.id);
+    return { id: item.id, blocks: revision.document.blocks.map((b) => b.id) };
+  });
+}
+
+/** The stored blocks of an item's latest revision: type and image ids. */
+async function storedBlocks(itemId: string) {
+  const principal = systemPrincipal(await tenantId(), 'e2e');
+  return withInvoker(async (invoker) => {
+    const { revision } = await invoker.run(useCases.getItem, principal, { itemId });
+    return revision.document.blocks.map((b) => {
+      const props = b.props as { mediaId?: string; images?: { mediaId: string }[] };
+      return { type: b.type, media: props.images?.map((i) => i.mediaId) ?? props.mediaId ?? null };
+    });
+  });
+}
+
+type Upload = { name: string; type: string; bytes: number[] };
+const pngFile = (name: string): Upload => ({ name, type: 'image/png', bytes: [...png(400, 300)] });
+
+/** Drags files over, then drops them on, the middle of the top half of `selector`'s element. */
+function dropOn(page: Page, selector: string, files: Upload[], drop = true) {
+  return page.evaluate(
+    ({ selector, files, drop }) => {
+      const target = document.querySelector(selector)!;
+      const box = target.getBoundingClientRect();
+      const at = {
+        clientX: box.left + box.width / 2,
+        clientY: box.top + Math.min(8, box.height / 4),
+      };
+      const dataTransfer = new DataTransfer();
+      for (const f of files)
+        dataTransfer.items.add(new File([new Uint8Array(f.bytes)], f.name, { type: f.type }));
+      const fire = (type: string) =>
+        target.dispatchEvent(
+          new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer, ...at })
+        );
+      fire('dragenter');
+      fire('dragover');
+      if (drop) fire('drop');
+    },
+    { selector, files, drop }
+  );
+}
+
+/** The browser ends a drag cancelled with Escape by leaving; the next drag counts again. */
+function dragLeft(page: Page, selector: string) {
+  return page.evaluate((selector) => {
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(new File(['x'], 'x.png', { type: 'image/png' }));
+    document
+      .querySelector(selector)!
+      .dispatchEvent(new DragEvent('dragleave', { bubbles: true, dataTransfer }));
+  }, selector);
+}
+
+test('an image dropped between two blocks of a page becomes an image block there', async ({
+  page,
+}) => {
+  onlyA11y('dropping files is a JavaScript enhancement; the chooser stays the route without');
+  const stamp = Date.now();
+  const { id, blocks } = await quotes('page', `Neerzetten ${stamp}`);
+  await login(page, `/admin/probe/content/${id}`);
+  await editorReady(page);
+  await expect(page.locator('[data-block-drop]')).toHaveAttribute('data-ready', '');
+  // Something typed and not saved: the drop saves it first, as every action of the screen does.
+  await (await block(page, 1)).locator(`[name="b.${blocks[0]}.p.text.nl"]`).fill('Een, herzien');
+  const second = `[data-block-card="block-${blocks[1]}"]`;
+  await dropOn(page, second, [pngFile('x.png')], false);
+  const panel = page.locator('[data-block-drop]');
+  await expect(panel).toContainText('Laat los om het beeld hier in te voegen');
+  await expect(panel).toContainText('Meerdere beelden samen worden één galerij.');
+  await expect(page.locator(second)).toHaveAttribute('data-drop-at', 'before');
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeHidden();
+  await expect(page.locator('[data-drop-at]')).toHaveCount(0);
+  await dragLeft(page, second);
+
+  const filename = `neergezet-${stamp}.png`;
+  leftovers.names.push(filename);
+  await dropOn(page, second, [pngFile(filename)]);
+  await expect(page).toHaveURL(/insert=image&place=before/);
+  const fresh = page.locator('#block-new');
+  await expect(fresh.getByRole('heading', { name: 'Nieuw blok: Afbeelding' })).toBeVisible();
+  await expect(fresh.getByLabel('Beschrijving (alt-tekst)')).toBeFocused();
+  await expect(fresh.locator('[data-picker-name]')).toHaveText(filename);
+  // Between the two quotes, and the typed words were saved on the way.
+  const order = await page.$$eval('.item-blocks [data-block-card], #block-new', (els) =>
+    els.map((e) => e.id || e.getAttribute('data-block-card'))
+  );
+  expect(order).toEqual([`block-${blocks[0]}`, 'block-new', `block-${blocks[1]}`]);
+  expect((await storedBlocks(id)).map((b) => b.type)).toEqual(['quote', 'quote']);
+  await expect(page.locator(`[name="b.${blocks[0]}.p.text.nl"]`)).toHaveValue('Een, herzien');
+  await expect(page.locator('[data-save-state]')).toHaveAttribute('data-current', 'unsaved');
+  await expectNoAxeViolations(page);
+  await fresh.getByLabel('Beschrijving (alt-tekst)').fill('Een neergezet beeld');
+  await fresh.getByRole('button', { name: 'Toevoegen en opslaan' }).click();
+  await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
+  const stored = await storedBlocks(id);
+  expect(stored.map((b) => b.type)).toEqual(['quote', 'image', 'quote']);
+
+  // A paste goes after the block with the focus; two images and a refused file wait for a click.
+  await page.locator(`[data-block-card="block-${blocks[1]}"] [data-block-toggle]`).focus();
+  const names = [`plak-a-${stamp}.png`, `plak-b-${stamp}.png`];
+  leftovers.names.push(...names);
+  await page.evaluate(
+    (files) => {
+      const clipboardData = new DataTransfer();
+      for (const f of files)
+        clipboardData.items.add(new File([new Uint8Array(f.bytes)], f.name, { type: f.type }));
+      document.activeElement!.dispatchEvent(
+        new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData })
+      );
+    },
+    [
+      ...names.map(pngFile),
+      { name: 'nee.svg', type: 'image/svg+xml', bytes: [...Buffer.from('<svg/>')] },
+    ]
+  );
+  for (const name of names) await expect(panel).toContainText(`${name} geüpload.`);
+  await expect(panel).toContainText('nee.svg: SVG-bestanden worden niet geaccepteerd');
+  await expectNoAxeViolations(page);
+  await panel.getByRole('button', { name: 'Geüploade beelden plaatsen' }).click();
+  await expect(page).toHaveURL(/insert=gallery&place=after/);
+  await expect(fresh.getByRole('heading', { name: 'Nieuw blok: Fotogalerij' })).toBeVisible();
+  await expect(fresh.locator('[name="new.p.images.0.alt.nl"]')).toBeFocused();
+
+  // A newer revision in between is a conflict like any other action's, with the input kept.
+  await page.locator('[name="new.p.images.0.alt.nl"]').fill('Eerste');
+  await page.locator('[name="new.p.images.1.alt.nl"]').fill('Tweede');
+  await (await block(page, 1)).locator(`[name="b.${blocks[0]}.p.text.nl"]`).fill('Een, opnieuw');
+  await withInvoker(async (invoker) => {
+    const principal = systemPrincipal(await tenantId(), 'e2e');
+    const { item, revision } = await invoker.run(useCases.getItem, principal, { itemId: id });
+    await invoker.run(useCases.updateItem, principal, {
+      itemId: id,
+      baseRevisionId: item.latestRevisionId,
+      document: { ...revision.document, title: { nl: `Elders ${stamp}` } },
+    });
+  });
+  const late = `laat-${stamp}.png`;
+  leftovers.names.push(late);
+  await dropOn(page, `[data-block-card="block-${blocks[0]}"]`, [pngFile(late)]);
+  await expect(page.getByText('Iemand anders heeft dit item intussen opgeslagen')).toBeVisible();
+  await expect(page.locator('[name="new.p.images.0.alt.nl"]')).toHaveValue('Eerste');
+  await expect(page.locator(`[name="b.${blocks[0]}.p.text.nl"]`)).toHaveValue('Een, opnieuw');
+  expect((await storedBlocks(id)).map((b) => b.type)).toEqual(['quote', 'image', 'quote']);
+});
+
+test('an image dropped in an article lands between its paragraphs, alt text in focus', async ({
+  page,
+}) => {
+  onlyA11y('the writer needs JavaScript');
+  const stamp = Date.now();
+  const { id } = await quotes('article', `Schrijven ${stamp}`);
+  await login(page, `/admin/probe/content/${id}`);
+  await editorReady(page);
+  await expect(page.locator('[data-block-drop]')).toHaveAttribute('data-ready', '');
+  const writing = page.locator('.writing-surface .ProseMirror');
+  await expect(writing).toBeVisible();
+  await writing.locator('p', { hasText: 'Eerste alinea.' }).click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' Getypt.');
+  const filename = `artikel-${stamp}.png`;
+  leftovers.names.push(filename);
+  // On the second paragraph's top half: between the two, which splits the text block.
+  await dropOn(page, '.writing-surface .ProseMirror p:nth-of-type(2)', [pngFile(filename)]);
+  const card = page.locator('.writing-surface .editor-card fieldset.pending');
+  await expect(card.getByRole('heading', { name: 'Nieuw beeld' })).toBeVisible();
+  await expect(card.getByLabel('Alternatieve tekst')).toBeFocused();
+  await expect(card.locator('[data-picker-name]')).toHaveText(filename);
+  const order = await writing.evaluate((el) =>
+    [...el.children].map((c) => (c.matches('.editor-card') ? 'card' : c.textContent?.trim()))
+  );
+  expect(order).toEqual(['Eerste alinea. Getypt.', 'card', 'Tweede alinea.', 'card']);
+  await expectNoAxeViolations(page);
+  // The card's two actions at 320 CSS px and 200% text (UI gate), then back to a laptop.
+  await page.setViewportSize(NARROW);
+  await setTextSize(page, '200%');
+  await layoutGate(page, 'dropped image card', '.writing-surface fieldset.pending');
+  await card.screenshot({ path: '.scratch/80b-writer-card-320-200.png' });
+  await setTextSize(page, '100%');
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await card.getByLabel('Alternatieve tekst').fill('Een beeld in de tekst');
+  await card.getByRole('button', { name: 'Kaart toevoegen' }).click();
+  await expect(writing.locator('.editor-placed figcaption')).toHaveText('Een beeld in de tekst');
+
+  // A pasted file goes after the text the cursor is in; Remove takes it out again.
+  await writing.locator('p', { hasText: 'Tweede alinea.' }).click();
+  const pasted = `geplakt-${stamp}.png`;
+  leftovers.names.push(pasted);
+  await writing.evaluate((element, file) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.items.add(new File([new Uint8Array(file.bytes)], file.name, { type: file.type }));
+    element.dispatchEvent(
+      new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData })
+    );
+  }, pngFile(pasted));
+  const second = page.locator('.writing-surface fieldset.pending');
+  await expect(second.getByLabel('Alternatieve tekst')).toBeFocused();
+  await second.getByRole('button', { name: 'Verwijderen' }).click();
+  await expect(page.locator('fieldset.pending')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+  await expect(page).toHaveURL(/saved/);
+  expect((await storedBlocks(id)).map((b) => b.type)).toEqual([
+    'rich-text',
+    'image',
+    'rich-text',
+    'quote',
+  ]);
+});
+
 test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
   test.use({ viewport: NARROW });
 
@@ -1059,6 +1309,36 @@ test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
         await page.locator('details.block [command="show-modal"]').first().click();
         await layoutGate(page, 'media picker dialog', 'dialog[open]');
         await page.keyboard.press('Escape');
+        // Dropped files: the drop prompt, the results with their two actions, and the block they bring.
+        const card = '.item-blocks [data-block-card]';
+        await expect(page.locator('[data-block-drop]')).toHaveAttribute('data-ready', '');
+        await dropOn(page, card, [pngFile('x.png')], false);
+        await layoutGate(page, 'drop prompt', '[data-block-drop]');
+        await page.keyboard.press('Escape');
+        await dragLeft(page, card);
+        // A camera or screenshot name without a break point, longer than the screen at 200%: its
+        // result line must break inside the panel, on any font.
+        const dropped = `gate-drop-${locale}-${Date.now()}_schermafbeelding_van_de_redactie.png`;
+        leftovers.names.push(dropped);
+        const refused = {
+          name: 'refused.svg',
+          type: 'image/svg+xml',
+          bytes: [...Buffer.from('<svg/>')],
+        };
+        await dropOn(page, card, [pngFile(dropped), refused]);
+        const panel = page.locator('[data-block-drop]');
+        await expect(panel.locator('[data-block-drop-place]')).toBeVisible();
+        await layoutGate(page, 'drop results', '[data-block-drop]');
+        await expectNoAxeViolations(page);
+        await panel.screenshot({
+          path: `.scratch/80b-drop-${locale}-${text.replace('%', '')}.png`,
+        });
+        await panel.locator('[data-block-drop-place]').click();
+        await expect(page.locator('#block-new[data-dropped]')).toBeVisible();
+        await layoutGate(page, 'dropped image block', '#block-new');
+        await page.locator('#block-new').screenshot({
+          path: `.scratch/80b-block-${locale}-${text.replace('%', '')}.png`,
+        });
         await setLocale('nl');
         await page.context().setExtraHTTPHeaders({ ...headers, 'accept-language': 'nl-NL' });
         await remove(page, id, filename);

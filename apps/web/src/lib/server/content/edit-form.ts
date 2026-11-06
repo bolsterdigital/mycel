@@ -16,7 +16,9 @@
 
 import {
   BLOCK_DEFINITIONS,
+  GALLERY_ROWS,
   INSERTABLE_BLOCK_TYPES,
+  isUuid,
   type Block,
   type BlockType,
   type ContentDocument,
@@ -115,22 +117,72 @@ export interface PendingView {
   anchor: string | null;
   hidden: Record<string, string>;
   values: Record<string, string>;
+  /** It holds images dropped or pasted on the screen: their alt text is what is left. */
+  dropped: boolean;
 }
 
-/** The pending block for the screen: empty fields, or what a refused post typed into them. */
+/**
+ * The images a drop or paste on the edit screen uploaded (`static/_admin/block-drop.js`), from
+ * the `media` query the insert action passes on: valid ids, each once, at most a gallery's worth.
+ * Whether the operator may read them is the picker's business, as for any chosen image.
+ */
+export function droppedMedia(query: string | null): string[] {
+  const ids = [...new Set((query ?? '').split(',').filter(isUuid))];
+  return ids.slice(0, GALLERY_ROWS);
+}
+
+/**
+ * The props a pending block starts with when images were dropped: one image for an image block,
+ * all of them for a gallery, alt text still to write. Another type, or a count it cannot hold
+ * (a gallery needs two), starts empty as chosen.
+ */
+function droppedProps(type: BlockType, media: readonly string[]) {
+  const use = (mediaId: string) => ({ mediaId, decorative: false, alt: null });
+  if (type === 'image' && media.length === 1) return use(media[0]!);
+  if (type === 'gallery' && media.length >= 2) return { images: media.map(use) };
+  return undefined;
+}
+
+/**
+ * The query of "insert a block here" (`insert` action): the chooser's `type|place:anchor`, or an
+ * older select's `insertType.<place>`, plus the images a drop uploaded (`insertMedia`).
+ */
+export function insertQuery(choice: string, data: FormData): Record<string, string> {
+  const divider = choice.indexOf('|');
+  const placement = divider < 0 ? choice : choice.slice(divider + 1);
+  const [place = '', anchor = ''] = placement.split(':');
+  const field = (name: string) => {
+    const value = data.get(name);
+    return typeof value === 'string' ? value : '';
+  };
+  const media = droppedMedia(field('insertMedia'));
+  return {
+    insert: divider < 0 ? field(`insertType.${anchor || place}`) : choice.slice(0, divider),
+    place,
+    ...(anchor ? { anchor } : {}),
+    ...(media.length ? { media: media.join(',') } : {}),
+  };
+}
+
+/**
+ * The pending block for the screen: empty fields, the images a drop uploaded (`media`), or what a
+ * refused post typed into them.
+ */
 export function pendingView(
   p: PendingBlock,
   locales: readonly string[],
-  typed?: Record<string, string | string[]>
+  typed?: Record<string, string | string[]>,
+  media: readonly string[] = []
 ): PendingView {
   const hidden = pendingFields(p);
   const values: Record<string, string> = {};
+  const props = typed ? undefined : droppedProps(p.type, media);
   if (typed) {
     for (const [k, v] of Object.entries(typed))
       if (k.startsWith(`${NEW_BLOCK}p.`) || k.endsWith('.rows'))
         if (k.startsWith(NEW_BLOCK) && typeof v === 'string') values[k] = v;
   } else
-    for (const [k, v] of Object.entries(blockFormValues(p.type, undefined, locales)))
+    for (const [k, v] of Object.entries(blockFormValues(p.type, props, locales)))
       values[`${NEW_BLOCK}${k}`] = v;
   return {
     type: p.type,
@@ -138,6 +190,7 @@ export function pendingView(
     anchor: hidden[`${NEW_BLOCK}anchor`] || null,
     hidden,
     values,
+    dropped: !!props,
   };
 }
 

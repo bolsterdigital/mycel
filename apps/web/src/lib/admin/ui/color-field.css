@@ -1,0 +1,67 @@
+/* ColorField: a 2rem swatch (the native picker) beside the hex code that posts, and a
+   crossed-out box when the code is empty, so an unused optional colour does not read as a chosen
+   black. A file of its own because ui.css is at its ceiling (scripts/gates/file-size); same layer
+   and the same tokens. Rejected: raising that ceiling for a component that stands on its own. */
+/* The order of the layers, as admin.css and base.css state it: the bundle may load this file
+   first, and a first `@layer components` would put the components below base. */
+@layer tokens, base, components;
+
+@layer components {
+  .ui-color-pair {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
+  }
+  .ui-color-pair > input[type='text'] {
+    flex: 0 1 var(--field-width);
+    font-variant-numeric: tabular-nums;
+  }
+  .ui-color-swatch {
+    flex: none;
+    inline-size: var(--tap);
+    block-size: var(--tap);
+    padding: 0.25rem;
+    background: var(--color-surface-bg);
+    border: var(--control-border-width) solid var(--color-control-border);
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+  .ui-color-swatch::-webkit-color-swatch-wrapper {
+    padding: 0;
+  }
+  /* One rule per engine: a selector list with an unknown pseudo-element is dropped whole. */
+  .ui-color-swatch::-webkit-color-swatch {
+    border: 0;
+    border-radius: calc(var(--radius) / 2);
+  }
+  .ui-color-swatch::-moz-color-swatch {
+    border: 0;
+    border-radius: calc(var(--radius) / 2);
+  }
+  /* No colour: the native swatch hides and the box shows one diagonal stroke instead. */
+  .ui-color-swatch.is-empty {
+    background: linear-gradient(
+        to top right,
+        transparent calc(50% - 1px),
+        var(--color-muted-fg) calc(50% - 1px),
+        var(--color-muted-fg) calc(50% + 1px),
+        transparent calc(50% + 1px)
+      )
+      var(--color-surface-bg);
+  }
+  .ui-color-swatch.is-empty::-webkit-color-swatch {
+    visibility: hidden;
+  }
+  .ui-color-swatch.is-empty::-moz-color-swatch {
+    visibility: hidden;
+  }
+  .ui-color.hide-label .ui-field-head {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}

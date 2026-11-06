@@ -1,7 +1,7 @@
 <!-- A progressive view of the one document form. The native fields remain the no-JavaScript
      path; this surface only adds a JSON field, never an autosave endpoint or a second revision. -->
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { articleExtensions, proseExtensions } from './article-extensions.js';
   import { Editor, type JSONContent } from '@tiptap/core';
   import MarkdownIt from 'markdown-it';
@@ -9,7 +9,8 @@
   import { parseInert, withoutLineBreakNodes } from './inert-html.js';
   import { Actions, Button, MediaPicker, WritingSheet } from '#lib/admin/ui/index.js';
   import type { MediaChoice } from '#lib/admin/media-choice.js';
-  import { ui } from '../../i18n/index.js';
+  import { dropIndex, type DropIndex } from './drop-index.js';
+  import { fill, ui } from '../../i18n/index.js';
 
   let {
     content,
@@ -23,6 +24,7 @@
     media = [],
     base = '',
     upload = false,
+    splitProse = false,
   }: {
     content: unknown;
     name: string;
@@ -31,6 +33,8 @@
     media?: readonly MediaChoice[];
     base?: string;
     upload?: boolean;
+    /** A dropped image may split a text block: only while the item has one locale. */
+    splitProse?: boolean;
     article?: boolean;
     fallback?: boolean;
     nativeId?: string;
@@ -59,12 +63,32 @@
     mediaId: string;
     alt: string;
     decorative: boolean;
+    /** Dropped or pasted as a file: its upload's progress, null once it is done. */
+    progress?: number | null;
+    error?: string;
   };
   let pending = $state<Pending[]>([]);
+  /** Images this surface uploaded, so their cards' pickers show them before a reload. */
+  let added = $state<MediaChoice[]>([]);
+  const choices = $derived([...added, ...media.filter((m) => !added.some((a) => a.id === m.id))]);
   // Reads pasted plain text, which was written elsewhere (ADR 020 rule 9). Rejected: core
   // `fromMarkdown`, whose lossless grammar has no quote or image and turns every `_` and `**` into
   // a toggle, so `snake_case_name` would lose its underscores.
   const markdown = new MarkdownIt({ html: false, linkify: false });
+  /** The shared upload of the admin's scripts (`static/_admin/upload-file.js`), loaded on use. */
+  const UPLOAD = '/_admin/upload-file.js';
+  /** A placed image until the save: its thumbnail and alt text, as the card at rest shows them. */
+  function placed(block: { props: { mediaId: string; alt: Record<string, string> | null } }) {
+    const figure = document.createElement('figure');
+    figure.className = 'editor-placed';
+    const img = document.createElement('img');
+    img.src = `${base}/media/${block.props.mediaId}/thumb`;
+    img.alt = '';
+    const words = document.createElement('figcaption');
+    words.textContent = block.props.alt?.[contentLocale] ?? t('admin.editor.decorative');
+    figure.append(img, words);
+    return figure;
+  }
 
   function setLink() {
     if (!editor) return;
@@ -77,6 +101,12 @@
   }
 
   function paste(event: ClipboardEvent): boolean {
+    const files = [...(event.clipboardData?.files ?? [])];
+    if (article && upload && editor && files.length) {
+      const index = editor.state.doc.resolve(editor.state.selection.from).index(0);
+      void placeFiles(files, { index: index + 1, split: null });
+      return true;
+    }
     const html = event.clipboardData?.getData('text/html') ?? '';
     const plain = event.clipboardData?.getData('text/plain') ?? '';
     if (!editor || (!html && !plain)) return false;
@@ -168,9 +198,10 @@
     return true;
   }
 
-  function completeCard(card: Pending) {
+  async function completeCard(card: Pending) {
     if (
       !editor ||
+      card.progress != null ||
       (card.type === 'quote' && (!card.text.trim() || !card.name.trim())) ||
       (card.type === 'image' && (!card.mediaId.trim() || (!card.decorative && !card.alt.trim())))
     )
@@ -193,14 +224,93 @@
               alt: card.decorative ? null : { [data.contentLocale]: card.alt },
             },
           };
+    pending = pending.filter((item) => item.id !== card.id);
+    // Its fields leave the document first, so the card's view is built without them.
+    await tick();
     const json = editor.getJSON();
     const content = (json.content ?? []).map((node) =>
       node.attrs?.blockId === card.id ? { ...node, attrs: { ...node.attrs, newBlock } } : node
     );
-    pending = pending.filter((item) => item.id !== card.id);
     editor.commands.setContent({ type: 'doc', content });
     reason = '';
     sync();
+  }
+
+  /** A pending card nobody wants: its place in the text goes with it. */
+  async function removeCard(card: Pending) {
+    if (!editor) return;
+    pending = pending.filter((item) => item.id !== card.id);
+    await tick();
+    const content = (editor.getJSON().content ?? []).filter((n) => n.attrs?.blockId !== card.id);
+    editor.commands.setContent({ type: 'doc', content });
+    if (!pending.length) reason = '';
+    sync();
+  }
+
+  /**
+   * Files dropped or pasted in the writer: a card per file at the place, at once, each with
+   * its upload's progress and then its picture, alt text in focus. The same route as the media
+   * picker's upload; a file that is no image stays in Media and its card goes. Rejected: waiting
+   * for the uploads before showing anything, which leaves a drop without an answer.
+   */
+  async function placeFiles(files: File[], at: DropIndex) {
+    if (!editor || !files.length) return;
+    const cards: Pending[] = files.map((file) => ({
+      id: crypto.randomUUID(),
+      type: 'image',
+      text: '',
+      source: file.name,
+      name: '',
+      mediaId: '',
+      alt: '',
+      decorative: false,
+      progress: 0,
+    }));
+    pending = [...pending, ...cards];
+    reason = t('admin.editor.completeCards');
+    // The cards' fields exist before the document asks for them at their place.
+    await tick();
+    const content = [...(editor.getJSON().content ?? [])] as JSONContent[];
+    const nodes = cards.map((c) => ({
+      type: 'mycelCard',
+      attrs: { blockId: c.id, blockType: 'image' },
+    }));
+    const prose = content[at.index - 1];
+    if (at.split !== null && prose?.type === 'mycelProse') {
+      const rest = (prose.content ?? []).slice(at.split);
+      content[at.index - 1] = { ...prose, content: (prose.content ?? []).slice(0, at.split) };
+      // The rest is a block of its own; the writer's identity plugin gives it its id.
+      content.splice(at.index, 0, ...nodes, { type: 'mycelProse', content: rest });
+    } else content.splice(at.index, 0, ...nodes);
+    editor.commands.setContent({ type: 'doc', content });
+    sync();
+    // The screen counts this as a change: leaving now asks, as after typing.
+    host.dispatchEvent(new Event('change', { bubbles: true }));
+    const { send, isImage } = await import(/* @vite-ignore */ UPLOAD);
+    let focused = false;
+    for (const [i, file] of files.entries()) {
+      const card = pending.find((c) => c.id === cards[i]!.id);
+      if (!card) continue;
+      const result = await send(`${base}/media/upload`, file, (value: number) => {
+        card.progress = value;
+      });
+      card.progress = null;
+      if (result.choice && !isImage(result.choice)) {
+        await removeCard(card);
+        reason = fill(t('admin.block.drop.notImage'), { filename: file.name });
+        continue;
+      }
+      if (!result.choice) {
+        card.error = `${file.name}: ${result.error || t('admin.media.picker.failed')}`;
+        continue;
+      }
+      added = [result.choice, ...added];
+      card.mediaId = result.choice.id;
+      if (focused) continue;
+      focused = true;
+      await tick();
+      document.getElementById(`alt-${card.id}`)?.focus();
+    }
   }
 
   function sync() {
@@ -243,6 +353,13 @@
       content: initial as JSONContent,
       editorProps: {
         handlePaste: (_view, event) => paste(event),
+        handleDrop: (view, event, _slice, moved) => {
+          const files = [...(event.dataTransfer?.files ?? [])];
+          if (moved || !article || !upload || !files.length) return false;
+          event.preventDefault();
+          void placeFiles(files, dropIndex(view, event, splitProse));
+          return true;
+        },
         attributes: { 'aria-label': t('admin.editor.surface'), lang: contentLocale },
       },
       onUpdate: ({ editor: current }) => {
@@ -262,13 +379,16 @@
               dom.contentEditable = 'false';
               const card =
                 document.getElementById(`block-${node.attrs.blockId}`) ??
+                document.getElementById(`pending-${node.attrs.blockId}`) ??
                 cards.get(node.attrs.blockId);
               if (card) {
                 const whole = card.closest('.ui-block-card') ?? card;
                 const insert = inserts.get(whole);
                 if (insert) dom.append(insert);
                 dom.append(whole);
-              } else dom.textContent = node.attrs.blockType ?? '';
+              } else if (node.attrs.newBlock?.type === 'image')
+                dom.append(placed(node.attrs.newBlock));
+              else dom.textContent = node.attrs.blockType ?? '';
               return { dom, stopEvent: () => true, ignoreMutation: () => true };
             },
           }
@@ -308,6 +428,12 @@
     payload = value;
     active = true;
     const form = host.closest('form');
+    // A drop elsewhere on the screen comes here, to the end (`static/_admin/block-drop.js`).
+    const dropped = (event: Event) => {
+      const files = (event as CustomEvent<{ files: File[] }>).detail?.files ?? [];
+      void placeFiles(files, { index: instance.state.doc.childCount, split: null });
+    };
+    host.addEventListener('mycel:files', dropped);
     const check = (event: SubmitEvent) => {
       if (pending.length) {
         event.preventDefault();
@@ -317,6 +443,7 @@
     form?.addEventListener('submit', check);
     return () => {
       form?.removeEventListener('submit', check);
+      host.removeEventListener('mycel:files', dropped);
       document.removeEventListener('click', toField);
       instance.destroy();
     };
@@ -359,13 +486,22 @@
         </Actions>
       </div>
     {/snippet}
-    <div bind:this={host} class="writing-surface" hidden={!active}></div>
+    <div
+      bind:this={host}
+      class="writing-surface"
+      hidden={!active}
+      data-article-writer={article ? '' : undefined}
+    ></div>
   </WritingSheet>
   {#if reason}<p role="alert">{reason}</p>{/if}
   {#each pending as card (card.id)}
-    <fieldset class="card pending">
+    <fieldset class="card pending" id="pending-{card.id}">
       <h3>
-        {card.type === 'quote' ? t('admin.editor.quoteStep') : t('admin.editor.imageStep')}
+        {card.type === 'quote'
+          ? t('admin.editor.quoteStep')
+          : card.progress !== undefined
+            ? t('admin.editor.imageAdded')
+            : t('admin.editor.imageStep')}
       </h3>
       {#if card.type === 'quote'}
         <div class="field">
@@ -383,14 +519,25 @@
           />
         </div>
       {:else}
-        <p>{t('admin.editor.imageSource')}: {card.source}</p>
+        {#if card.progress != null}
+          <p>
+            <label for="progress-{card.id}"
+              >{fill(t('admin.media.picker.uploading'), { filename: card.source })}</label
+            >
+            <progress id="progress-{card.id}" max="100" value={card.progress}></progress>
+          </p>
+        {:else if card.error}
+          <p class="ui-error" role="alert">{card.error}</p>
+        {:else if card.progress === undefined}
+          <p>{t('admin.editor.imageSource')}: {card.source}</p>
+        {/if}
         <MediaPicker
           id="media-{card.id}"
           name="media-{card.id}"
           label={t('admin.block.field.mediaId')}
           locale={data.locale}
           value={card.mediaId}
-          options={data.media}
+          options={choices}
           base="/admin/{data.tenant.slug}"
           upload={data.upload}
           onchange={(id: string) => (card.mediaId = id)}
@@ -408,9 +555,14 @@
             />
           </div>{/if}
       {/if}
-      <Button type="button" onclick={() => completeCard(card)}
-        >{t('admin.editor.completeCard')}</Button
-      >
+      <Actions>
+        <Button type="button" onclick={() => completeCard(card)}
+          >{t('admin.editor.completeCard')}</Button
+        >
+        <Button variant="secondary" type="button" onclick={() => removeCard(card)}
+          >{t('admin.editor.removeCard')}</Button
+        >
+      </Actions>
     </fieldset>
   {/each}
 </div>
@@ -419,6 +571,15 @@
   .writing-actions[hidden],
   .writing-surface[hidden] {
     display: none;
+  }
+  /* A dropped file's name has no break point (`IMG_20261106_123456.jpg`), and a progress bar is
+     10em wide by default, 320 px at 200% text: both stay inside the card on a narrow screen. */
+  .pending p {
+    overflow-wrap: anywhere;
+  }
+  .pending progress {
+    display: block;
+    inline-size: 100%;
   }
   .writing-surface {
     max-inline-size: 70ch;
@@ -444,5 +605,16 @@
   .writing-surface :global(.editor-card) {
     white-space: normal;
     margin-block: 1rem;
+  }
+  .writing-surface :global(.editor-placed) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+  }
+  .writing-surface :global(.editor-placed img) {
+    inline-size: 8rem;
+    block-size: auto;
   }
 </style>
