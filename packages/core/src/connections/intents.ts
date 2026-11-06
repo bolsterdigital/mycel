@@ -10,6 +10,7 @@ import { isTombstone } from '../supporters/erasure.js';
 import { sha256Hex } from '../util/digest.js';
 import { PROVIDER_RECONCILES, type ConnectionProvider } from './ports.js';
 import { isFrozen } from './rules.js';
+import { STAND_INTENTS } from './stand.js';
 import { isSyntheticIntent, SYNTHETIC_SCOPE, SYNTHETIC_SOURCE } from './synthetic.js';
 import { exampleId } from '../util/ids.js';
 
@@ -240,7 +241,7 @@ export const listConnectionIntents = defineUseCase({
     const c = await ctx.connections.get(connectionId);
     if (!c) throw notFound('connection');
     return {
-      intents: (await ctx.connectionIntents.list(connectionId, 30)).map((r) =>
+      intents: (await ctx.connectionIntents.list(connectionId, STAND_INTENTS)).map((r) =>
         asView(r, c.provider)
       ),
     };

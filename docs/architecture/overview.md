@@ -13,7 +13,8 @@ Short map; the reasoning is in [`../adr/`](../adr/).
    domain        │ packages/core                                              │
                  │ tenants · operators · entitlements · content · theme       │
                  │ media · forms · supporters · mailing · connections         │
-                 │ assist · audit · jobs · ops · i18n · use-case registry     │
+                 │ assist · attention · audit · jobs · ops · i18n             │
+                 │ use-case registry                                          │
                  │ ports: UnitOfWork, Clock, Ids, Signer, EventBus, Scheduler,│
                  │        Mailer, BlobStore, ImageProcessor, MediaDelivery,   │
                  │        TextModel, IdentityStore, SiteDirectory, Logger,    │

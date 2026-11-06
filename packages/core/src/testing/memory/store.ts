@@ -78,7 +78,7 @@ export interface TenantStore {
   /** Keyed by intent key. */
   mailSends: Map<string, MailSend>;
   /** Keyed by operator id. */
-  members: Map<string, { capabilities: Capability[]; createdAt: Date }>;
+  members: Map<string, { capabilities: Capability[]; createdAt: Date; attentionSeenAt?: Date }>;
   apiKeys: Map<string, StoredApiKey>;
   /** Keyed by hostname; global uniqueness is checked across tenants by `MemoryStore.hostnameOwner`. */
   hostnames: Map<string, HostnameRecord>;

@@ -59,6 +59,7 @@ describe('job recovery (TODO #17c)', () => {
       doneAt: null,
       lastError: 'no event for it',
       createdAt: clock.now(),
+      failedAt: clock.now(),
       ...over,
     };
     uow.store.jobs.push(row);

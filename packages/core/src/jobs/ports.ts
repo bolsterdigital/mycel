@@ -32,6 +32,8 @@ export interface JobRecord {
   doneAt: Date | null;
   lastError: string | null;
   createdAt: Date;
+  /** When a run last failed (0034); null until the first failure. */
+  failedAt: Date | null;
 }
 
 /**

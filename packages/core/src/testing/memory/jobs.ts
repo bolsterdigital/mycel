@@ -34,6 +34,7 @@ export class MemoryScheduler implements Scheduler {
       doneAt: null,
       lastError: null,
       createdAt: this.clock.now(),
+      failedAt: null,
     });
     return true;
   }

@@ -150,11 +150,15 @@ export async function columnsOf(db: Kysely<Database>, table: string): Promise<st
   return rows.map((r) => r.name);
 }
 
-/** The rows of one table as export lines; memberships name the operator by address. */
+/**
+ * The rows of one table as export lines; memberships name the operator by address and leave out
+ * `attention_seen_at`, a member's reading habit rather than site data (0034).
+ */
 function rowQuery(table: ExportTable) {
   if (table === 'tenant_memberships')
     return sql`
-      select ((to_jsonb(m) - 'operator_id') || jsonb_build_object('operator_email', o.email))::text
+      select ((to_jsonb(m) - 'operator_id' - 'attention_seen_at')
+              || jsonb_build_object('operator_email', o.email))::text
         as line
       from tenant_memberships m join operators o on o.id = m.operator_id order by 1`;
   return sql`select to_jsonb(t)::text as line from ${sql.table(table)} t order by 1`;
