@@ -32,6 +32,15 @@ A query, capability `tenant:admin`, behind `/admin/<tenant>/status` in the web a
 
 Platform jobs (`tenant_id` null) and dead outbox events never appear here: dead events are the hoster's to recover. The jobs are read through `ctx.jobRecovery` (`jobRecoveryRepository`, as `mycel_app` under `tenant_isolation`), whose column grant on `jobs` leaves out `payload`.
 
+## What asks for attention: `attention.*`
+
+The same stuck work, plus connections in `attention` (`standOf`, `connections/stand.ts`), as a list per member for the bell in the admin. Three use cases in `packages/core/src/attention/`:
+
+- `attention.list` and `attention.summary.get`, queries with capability `content:read`. Each source is read only when the principal holds its capability (`SOURCE_CAPABILITY`, all four `tenant:admin` for now), so an editor gets an empty list rather than a refusal. Items: one per exhausted job (`since` is `jobs.failed_at`, stamped by `failJob`, or `created_at` for older rows), one for all given-up mail (`since` the newest `abandonedAt`), one for late erasures (`since` the moment the warning applies), one per connection in `attention` (`since` its newest reason). Nothing is stored: a solved problem leaves the list by itself.
+- `attention.seen_at.update`, a command for operators only: moves `tenant_memberships.attention_seen_at` forward to the moment the list was shown (capped at now, never back). An item is unread when its `since` is later. Keys and agents have no read state, so everything is unread for them. The export leaves the column out.
+
+The summary reads each port once, so its cost does not grow with the number of jobs or connections (`packages/db/src/attention.test.ts` counts the queries); `ConnectionIntents.recent` reads every connection's newest intents in one statement over `connection_intents_recent`.
+
 ## The diagnosis and redaction
 
 `buildDiagnosis` (`model.ts`) builds fixed-shape English text an administrator reads before copying it to support; nothing is ever sent on their behalf, and there is no structured export. It holds the site slug, the time, one line per exhausted job (type, key cut to `DIAGNOSIS_KEY_CHARS`, attempts, since, error), one per unresolved mail, the unsecured erasure count, and the request ids of the `DIAGNOSIS_FAILED_REQUESTS` most recent refused or failed commands. It never holds a payload, a correlation hash or a provider id.

@@ -36,7 +36,7 @@ import { asRole, setRole } from './roles.js';
 
 type Trx = Kysely<Database>;
 
-/** The columns of `jobs` that mycel_app and mycel_ops may read (0016): never `payload`. */
+/** The columns of `jobs` that mycel_app and mycel_ops may read (0016, 0034): never `payload`. */
 const JOB_COLUMNS = [
   'id',
   'tenant_id',
@@ -47,6 +47,7 @@ const JOB_COLUMNS = [
   'max_attempts',
   'last_error',
   'created_at',
+  'failed_at',
 ] as const;
 
 const exhausted = sql<boolean>`done_at is null and attempts >= max_attempts`;
@@ -90,6 +91,7 @@ const toStuckJob = (r: {
   max_attempts: number;
   last_error: string | null;
   created_at: Date;
+  failed_at: Date | null;
 }): StuckJob => ({
   id: r.id,
   type: r.type,
@@ -99,6 +101,7 @@ const toStuckJob = (r: {
   maxAttempts: r.max_attempts,
   lastError: r.last_error === null ? null : scrubText(r.last_error),
   createdAt: new Date(r.created_at),
+  failedAt: r.failed_at === null ? null : new Date(r.failed_at),
 });
 
 /** `ctx.jobRecovery` inside a tenant transaction (mycel_app; `tenant_isolation` on `jobs`). */

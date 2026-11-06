@@ -25,6 +25,7 @@ const GROWTH_VERBS = ['create', 'duplicate', 'invite', 'add', 'submit', 'upload'
  */
 const MODULES = [
   'assist',
+  'attention',
   'audit',
   'connection',
   'content',

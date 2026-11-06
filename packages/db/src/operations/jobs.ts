@@ -54,6 +54,7 @@ interface JobRow {
   done_at: Date | null;
   last_error: string | null;
   created_at: Date;
+  failed_at: Date | null;
 }
 
 export const toJobRecord = (r: JobRow): JobRecord => ({
@@ -69,6 +70,7 @@ export const toJobRecord = (r: JobRow): JobRecord => ({
   doneAt: r.done_at === null ? null : new Date(r.done_at),
   lastError: r.last_error,
   createdAt: new Date(r.created_at),
+  failedAt: r.failed_at === null ? null : new Date(r.failed_at),
 });
 
 /** `ctx.jobs` in a tenant transaction (mycel_app inserts under its own tenant; 0016 adds reads). */
@@ -204,6 +206,7 @@ export async function failJob(
       .updateTable('jobs')
       .set({
         last_error: scrubText(error),
+        failed_at: sql`now()`,
         claimed_at: null,
         run_at: sql`now() + make_interval(secs => ${backoffSeconds(job.attempts)})`,
       })

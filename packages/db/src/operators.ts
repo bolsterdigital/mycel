@@ -10,6 +10,7 @@
 
 import { sql, type Kysely } from 'kysely';
 import {
+  type AttentionReads,
   Actor,
   DEFAULT_ACCESS,
   TenantStatus,
@@ -101,6 +102,32 @@ export function membershipRepository(trx: Trx, tenantId: string): MembershipRepo
         .where('operator_id', '=', operatorId)
         .executeTakeFirst();
       return r.numDeletedRows > 0n;
+    },
+  };
+}
+
+/**
+ * `ctx.attentionReads` (0034): the moment on the operator's own membership row, moved
+ * forward only (`greatest`), so a stale tab cannot make read notifications new again.
+ */
+export function attentionReadsRepository(trx: Trx): AttentionReads {
+  return {
+    async seenAt(operatorId) {
+      const r = await trx
+        .selectFrom('tenant_memberships')
+        .select('attention_seen_at')
+        .where('operator_id', '=', operatorId)
+        .executeTakeFirst();
+      return r?.attention_seen_at ? new Date(r.attention_seen_at) : null;
+    },
+    async markSeen(operatorId, at) {
+      const r = await trx
+        .updateTable('tenant_memberships')
+        .set({ attention_seen_at: sql`greatest(attention_seen_at, ${at}::timestamptz)` })
+        .where('operator_id', '=', operatorId)
+        .returning('attention_seen_at')
+        .executeTakeFirst();
+      return r?.attention_seen_at ? new Date(r.attention_seen_at) : null;
     },
   };
 }

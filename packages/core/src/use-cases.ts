@@ -82,6 +82,7 @@ import {
   updateMember,
 } from './operators/service.js';
 import { closeJob, getOpsStatus, retryJob } from './ops/service.js';
+import { getAttentionSummary, listAttention, updateAttentionSeenAt } from './attention/service.js';
 import { UseCaseRegistry, type UseCase } from './registry.js';
 import { changeSupporterEmail, getSupporter } from './supporters/service.js';
 import { checkThemeUseCase } from './theme/service.js';
@@ -204,6 +205,9 @@ export const useCases = {
   getBrandAsset,
   putBrandAsset,
   removeBrandAsset,
+  getAttentionSummary,
+  listAttention,
+  updateAttentionSeenAt,
 } as const;
 
 export function buildRegistry(): UseCaseRegistry {

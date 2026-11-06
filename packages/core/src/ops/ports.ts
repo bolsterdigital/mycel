@@ -15,6 +15,8 @@ export interface StuckJob {
   /** Scrubbed when written (`failJob`); scrubbed again wherever it is shown. */
   lastError: string | null;
   createdAt: Date;
+  /** When its last run failed (0034); null for a job that exhausted before that column existed. */
+  failedAt: Date | null;
 }
 
 /** Open work of one type that has attempts left: what the status page calls waiting work. */

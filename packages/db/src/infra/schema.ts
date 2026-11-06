@@ -283,6 +283,7 @@ export interface Database {
     done_at: Timestamp | null;
     last_error: string | null;
     created_at: Generated<Date>;
+    failed_at: Timestamp | null;
   };
   events: {
     tenant_id: string;
@@ -343,6 +344,7 @@ export interface Database {
     operator_id: string;
     capabilities: string[];
     created_at: Timestamp;
+    attention_seen_at: Timestamp | null;
   };
   api_keys: {
     id: string;

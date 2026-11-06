@@ -49,7 +49,12 @@ import { enterTenant } from './infra/roles.js';
 import { jobScheduler } from './operations/jobs.js';
 import { jobRecoveryRepository } from './infra/recovery.js';
 import { mediaRepository } from './media.js';
-import { apiKeyRepository, membershipRepository, operatorRepository } from './operators.js';
+import {
+  apiKeyRepository,
+  attentionReadsRepository,
+  membershipRepository,
+  operatorRepository,
+} from './operators.js';
 import { outboxEventBus } from './operations/outbox.js';
 import { formRepository, submissionRepository } from './forms.js';
 import { mailSendsRepository } from './mailing.js';
@@ -242,6 +247,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           mailSends: mailSendsRepository(trx, tenantId),
           operators: operatorRepository(trx),
           members: membershipRepository(trx, tenantId),
+          attentionReads: attentionReadsRepository(trx),
           apiKeys: apiKeyRepository(trx, tenantId),
           hostnames: hostnameRepository(trx, tenantId),
           jobs: jobScheduler(trx, tenantId),

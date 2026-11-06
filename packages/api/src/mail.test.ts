@@ -135,6 +135,7 @@ describe.skipIf(skip)('mail.reconcile against Postgres', () => {
     doneAt: null,
     lastError: null,
     createdAt: new Date(),
+    failedAt: null,
   });
   const asWorker = <T>(fn: (trx: typeof operatorDb) => Promise<T>) =>
     asRole(operatorDb, 'mycel_worker', async (trx) => {

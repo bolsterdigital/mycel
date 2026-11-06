@@ -1,6 +1,7 @@
 // Managed connections and their intents in memory. The write and credential rules are core's
 // (connections/rules.ts), called here exactly as packages/db calls them.
 
+import type { ConnectionIntent } from '../../connections/intents.js';
 import type {
   ConnectionIntents,
   ConnectionRecord,
@@ -92,6 +93,17 @@ export function memoryConnectionIntents(s: TenantStore): ConnectionIntents {
         .sort((a, b) => +b.createdAt - +a.createdAt)
         .slice(0, limit)
         .map((row) => structuredClone(row)),
+    recent: async (limit) => {
+      const byConnection = new Map<string, ConnectionIntent[]>();
+      for (const row of [...s.connectionIntents.values()].sort(
+        (a, b) => +b.createdAt - +a.createdAt
+      )) {
+        const rows = byConnection.get(row.connectionId) ?? [];
+        if (rows.length < limit) rows.push(structuredClone(row));
+        byConnection.set(row.connectionId, rows);
+      }
+      return [...byConnection.values()].flat();
+    },
     byBusiness: async (connectionId, businessId) =>
       structuredClone(
         [...s.connectionIntents.values()].find(

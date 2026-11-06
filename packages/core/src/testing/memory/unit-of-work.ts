@@ -34,7 +34,12 @@ import { memoryForms, memoryRateLimits, memorySubmissions } from './forms.js';
 import { MemoryJobRecovery, MemoryScheduler } from './jobs.js';
 import { memoryMailSends } from './mailing.js';
 import { MemoryBlobStore, memoryImageProcessor, memoryMedia } from './media.js';
-import { memoryApiKeys, memoryMembers, memoryOperators } from './operators.js';
+import {
+  memoryApiKeys,
+  memoryAttentionReads,
+  memoryMembers,
+  memoryOperators,
+} from './operators.js';
 import { MemoryStore, entityRepository, sluggedRepository, tenantLock } from './store.js';
 import { memoryAdmissions, memorySupporters } from './supporters.js';
 import { memoryExports, memoryHostnames, memoryUsage } from './tenants.js';
@@ -117,6 +122,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
         mailSends: memoryMailSends(s),
         operators: memoryOperators(store.operators),
         members: memoryMembers(s, store.operators, memberLock.lock),
+        attentionReads: memoryAttentionReads(s),
         apiKeys: memoryApiKeys(s),
         hostnames: memoryHostnames(store, s),
         jobs: new MemoryScheduler(store, tenantId, ids, clock),

@@ -52,6 +52,7 @@ const job = (over: Partial<JobRecord>): JobRecord => ({
   doneAt: null,
   lastError: null,
   createdAt: new Date(),
+  failedAt: null,
   ...over,
 });
 

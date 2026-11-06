@@ -69,6 +69,28 @@ export function connectionIntentsRepository(
           .execute()
       ).map(decode);
     },
+    async recent(limit) {
+      // One read for every connection, for the attention list: per connection the newest `limit`, each a short
+      // walk down `connection_intents_recent` (0034) instead of ranking the whole log.
+      const rows = await trx
+        .selectFrom('connections as c')
+        .innerJoinLateral(
+          (eb) =>
+            eb
+              .selectFrom('connection_intents as i')
+              .selectAll('i')
+              .whereRef('i.tenant_id', '=', 'c.tenant_id')
+              .whereRef('i.connection_id', '=', 'c.id')
+              .orderBy('i.created_at', 'desc')
+              .limit(limit)
+              .as('i'),
+          (join) => join.onTrue()
+        )
+        .selectAll('i')
+        .where('c.tenant_id', '=', tenantId)
+        .execute();
+      return rows.map(decode);
+    },
     async byBusiness(connectionId, businessId) {
       const r = await query()
         .where('connection_id', '=', connectionId)

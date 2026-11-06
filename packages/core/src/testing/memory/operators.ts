@@ -1,6 +1,7 @@
 // Operators, memberships and API keys in memory: the tenant-scoped repositories and the
 // authentication-time `IdentityStore` that reads across tenants.
 
+import type { AttentionReads } from '../../attention/ports.js';
 import type { TenantAccess } from '../../entitlements/model.js';
 import type { ApiKeySummary, Member, Operator } from '../../operators/model.js';
 import {
@@ -87,6 +88,22 @@ export function memoryMembers(
       return true;
     },
     remove: async (operatorId) => s.members.delete(operatorId),
+  };
+}
+
+/** `ctx.attentionReads`: the moment on the membership, forward only, as in packages/db. */
+export function memoryAttentionReads(s: TenantStore): AttentionReads {
+  return {
+    seenAt: async (operatorId) => {
+      const at = s.members.get(operatorId)?.attentionSeenAt;
+      return at ? new Date(at) : null;
+    },
+    async markSeen(operatorId, at) {
+      const m = s.members.get(operatorId);
+      if (!m) return null;
+      if (!m.attentionSeenAt || at > m.attentionSeenAt) m.attentionSeenAt = new Date(at);
+      return new Date(m.attentionSeenAt);
+    },
   };
 }
 

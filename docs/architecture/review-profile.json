@@ -22,6 +22,7 @@
         "packages/db/src/login-limit*",
         "packages/core/src/operators/**",
         "packages/core/src/connections/**",
+        "packages/core/src/attention/**",
         "packages/core/src/principal.ts",
         "packages/core/src/invoke.ts",
         "packages/core/src/forms/spam.ts",

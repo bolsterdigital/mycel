@@ -104,3 +104,7 @@ export * from './connections/intents.js';
 export * from './connections/dispatch.js';
 export * from './connections/destination.js';
 export * from './connections/synthetic.js';
+export * from './connections/stand.js';
+export * from './attention/model.js';
+export * from './attention/ports.js';
+export * from './attention/service.js';

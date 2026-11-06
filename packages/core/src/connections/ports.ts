@@ -99,6 +99,8 @@ export interface ConnectionRepository {
 export interface ConnectionIntents {
   get(id: string): Promise<ConnectionIntent | null>;
   list(connectionId: string, limit: number): Promise<ConnectionIntent[]>;
+  /** The newest `limit` intents of every connection of this tenant, in one read. */
+  recent(limit: number): Promise<ConnectionIntent[]>;
   byBusiness(connectionId: string, businessId: string): Promise<ConnectionIntent | null>;
   insert(row: ConnectionIntent): Promise<boolean>;
   /** Atomically replace only the revision read; every successful replacement increments it. */
