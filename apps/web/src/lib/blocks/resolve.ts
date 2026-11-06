@@ -38,6 +38,7 @@ import {
   type MediaCredit,
 } from '@mycel/core';
 import { ui } from '../../i18n/index.js';
+import { creditWords } from './credit.js';
 import { headingsAboveFloats } from './float-order.js';
 import type {
   BlockCopy,
@@ -124,7 +125,7 @@ export function blockCopy(locale: string): BlockCopy {
     galleryRow: t('block.gallery.row'),
     audioDownload: t('block.audio.download'),
     audioTranscript: t('block.audio.transcript'),
-    photographer: t('block.credit.photographer'),
+    credit: creditWords(t),
     videoOn: t('block.video.on'),
     footnotes: t('block.footnotes'),
     footnoteBack: t('block.footnote.back'),

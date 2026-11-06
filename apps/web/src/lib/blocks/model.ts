@@ -11,6 +11,7 @@
 
 import type {
   ArticleHeader,
+  CreditKind,
   FormField,
   MediaCredit,
   ProofChallenge,
@@ -24,8 +25,8 @@ export interface BlockCopy {
   galleryRow: string;
   audioDownload: string;
   audioTranscript: string;
-  /** `{name}` filled by the renderer. */
-  photographer: string;
+  /** Per kind of image, `{name}` filled by the renderer: 'Foto: {name}'. */
+  credit: Record<CreditKind, string>;
   /** `{provider}` filled by the renderer. */
   videoOn: string;
   footnotes: string;

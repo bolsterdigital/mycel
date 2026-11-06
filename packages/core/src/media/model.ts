@@ -97,14 +97,34 @@ export type MediaState = z.infer<typeof MediaState>;
 
 /** Localised and allowed to be empty (an image without a caption is normal). */
 export const MediaCaption = z.record(Locale, z.string().max(1000));
-/** CIIIC lesson: the work and its maker, and the photographer, are two separate credits. */
+/**
+ * What kind of image the maker made: the site words and marks a credit by it ("Foto",
+ * "Illustratie", "Beeld"). The kind belongs to the image, not to the person: one maker can
+ * photograph one image and draw the next. A closed list, so the site has an icon and a word for
+ * every value. Rejected: the kind on a person in the register (a photographer who also
+ * illustrates would need two entries) and free text (no icon, no translation).
+ */
+export const CREDIT_KINDS = ['photo', 'illustration', 'other'] as const;
+export const CreditKind = z.enum(CREDIT_KINDS);
+export type CreditKind = z.infer<typeof CreditKind>;
+
+/**
+ * CIIIC lesson: the work and its maker, and the maker of the image, are two separate credits.
+ * The image's maker keeps the stored key `photographer`, and `kind` says what they made; a credit
+ * without `kind` is a photo (`creditKind`), so stored assets and revisions stay valid as they are.
+ * Rejected: renaming the key to `maker`, which would rewrite every stored credit and revision.
+ */
 export const MediaCredit = z
   .object({
     work: z.object({ title: z.string().max(300), maker: z.string().max(300) }).nullable(),
     photographer: z.string().max(300).nullable(),
+    kind: CreditKind.optional(),
   })
   .strict();
 export type MediaCredit = z.infer<typeof MediaCredit>;
+
+/** The kind of a credit's image; a credit stored before kinds existed has none and is a photo. */
+export const creditKind = (credit: Pick<MediaCredit, 'kind'>): CreditKind => credit.kind ?? 'photo';
 export const MediaFocal = z
   .object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) })
   .strict();

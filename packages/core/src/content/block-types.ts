@@ -13,7 +13,7 @@
 
 import { z } from 'zod';
 import { localized } from '../i18n/locale.js';
-import { MediaCredit } from '../media/model.js';
+import { CREDIT_KINDS, MediaCredit } from '../media/model.js';
 import { RichTextDoc, isSafeHref, linkedItemIds } from './rich-text.js';
 import { exampleId } from '../util/ids.js';
 
@@ -48,8 +48,10 @@ export interface BlockExample<P> {
  * out, `null` stores null. An optional `group` gets an explicit "present" choice, because absent
  * and empty can mean different things (a credit override of nothing versus the asset's credit).
  * A `caption` is a localised text where an absent locale inherits the asset's caption and an
- * empty one hides it. `blocks.conformance.test.ts` requires one entry for every key of every
- * props schema, nested ones included.
+ * empty one hides it. A new form selects a `choice` on `initial` when the schema's default is not
+ * the first option; an `optional` choice may be absent from stored props and reads as that same
+ * value. `blocks.conformance.test.ts` requires one entry for every key of every props schema,
+ * nested ones included.
  */
 export type BlockField =
   | {
@@ -63,13 +65,7 @@ export type BlockField =
   | { key: string; kind: 'rich-text' }
   | { key: string; kind: 'media'; accept?: 'document' | 'audio' }
   | { key: string; kind: 'reference'; to: 'form' | 'item' }
-  | {
-      key: string;
-      kind: 'choice';
-      options: readonly string[];
-      /** What a new form selects, when the schema's default is not the first option. */
-      initial?: string;
-    }
+  | { key: string; kind: 'choice'; options: readonly string[]; initial?: string; optional?: 'omit' }
   | { key: string; kind: 'boolean' }
   | { key: string; kind: 'date' }
   | { key: string; kind: 'actions'; min: number; max: number }
@@ -198,6 +194,7 @@ const creditField: BlockField = {
       fields: [textField('title', { localized: false }), textField('maker', { localized: false })],
     },
     textField('photographer', { localized: false, optional: 'null' }),
+    { key: 'kind', kind: 'choice', options: CREDIT_KINDS, optional: 'omit' },
   ],
 };
 const imageUseFields: BlockField[] = [

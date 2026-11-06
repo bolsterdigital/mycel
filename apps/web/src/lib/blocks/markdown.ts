@@ -8,6 +8,7 @@
 // its submit label linking to the page itself; a paywall and a decorative image add nothing.
 
 import type { Mark, MediaCredit, RichTextDoc } from '@mycel/core';
+import { creditText } from './credit.js';
 import { BLOCK_DEPTH, headingTag } from './headings.js';
 import {
   VIDEO_PROVIDER_NAMES,
@@ -91,13 +92,7 @@ export function renderMarkdown(model: RenderModel, options: MarkdownOptions): st
       : body;
   };
 
-  const credit = (c: MediaCredit) =>
-    [
-      c.work ? `${c.work.title}, ${c.work.maker}` : null,
-      c.photographer ? model.copy.photographer.replace('{name}', () => c.photographer ?? '') : null,
-    ]
-      .filter(Boolean)
-      .join(' · ');
+  const credit = (c: MediaCredit) => creditText(c, model.copy.credit);
 
   /** One image with its caption and credit; a decorative image says nothing here. */
   const image = (i: RenderImage): string | null => {

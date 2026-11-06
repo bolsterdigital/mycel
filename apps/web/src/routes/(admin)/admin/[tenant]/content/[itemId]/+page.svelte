@@ -66,6 +66,7 @@
   } from '#lib/admin/ui/index.js';
   import { BLOCK_ICONS, BLOCK_PRESENTATION, blockName } from '#lib/admin/block-presentation.js';
   import { pickAny, BLOCK_DEFINITIONS, pick, type BlockType, type MediaCredit } from '@mycel/core';
+  import { creditText, creditWords } from '#lib/blocks/credit.js';
   import { fill, ui, type UiKey, refusalCopy } from '../../../../../../i18n/index.js';
   import type { PageProps } from './$types';
 
@@ -312,13 +313,7 @@
     source: t('admin.block.group.source'),
   });
   /** A credit as the page words it (`lib/blocks/Credit.svelte`), in the content locale. */
-  const creditLine = (c: MediaCredit): string =>
-    [
-      c.work ? `${c.work.title}, ${c.work.maker}` : '',
-      c.photographer ? fill(ui(work)('block.credit.photographer'), { name: c.photographer }) : '',
-    ]
-      .filter(Boolean)
-      .join(' · ');
+  const creditLine = (c: MediaCredit): string => creditText(c, creditWords(ui(work)));
   const blockTypeOptions = $derived(
     data.blockTypes.map((type) => ({
       value: type,

@@ -3,7 +3,7 @@
      the order a visitor meets them (caption, the work shown, its origin; the focal point folded
      away, skill cms-inrichting) and download and delete as one action group at the end. -->
 <script lang="ts">
-  import { pickAny } from '@mycel/core';
+  import { CREDIT_KINDS, creditKind, pickAny } from '@mycel/core';
   import {
     Actions,
     Button,
@@ -178,6 +178,15 @@
       />
     </Fieldset>
     <Fieldset legend={t('admin.media.group.origin')}>
+      <Choices
+        id="kind"
+        name="kind"
+        legend={t('admin.media.field.kind')}
+        locale={data.locale}
+        hint={t('admin.media.field.kind.hint')}
+        selected={[creditKind(m.credit)]}
+        options={CREDIT_KINDS.map((k) => ({ value: k, label: t(`admin.block.option.${k}`) }))}
+      />
       <Field
         id="photographer"
         name="photographer"

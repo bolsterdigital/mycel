@@ -241,7 +241,14 @@ describe('the two article headers (#105)', () => {
     const meta = renderMeta({ publishedAt: null, authors: [name], section: null }, 'nl', 'UTC');
     expect(meta?.byline).toBe(`door ${name}`);
     const { body } = render(Credit, {
-      props: { credit: { work: null, photographer: name }, photographer: 'Foto: {name}' },
+      props: {
+        credit: { work: null, photographer: name },
+        words: {
+          photo: 'Foto: {name}',
+          illustration: 'Illustratie: {name}',
+          other: 'Beeld: {name}',
+        },
+      },
     });
     expect(body).toContain('Sam $&amp; $` Vries');
     expect(body).toContain('<span class="credit-word">Foto: </span>');

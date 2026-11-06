@@ -283,7 +283,12 @@ function reader(form: Posted, errors: FieldError[]): Read {
       case 'date':
       case 'choice': {
         const v = form.get(name);
-        return v === null ? base : v;
+        if (v === null) return base;
+        // An absent optional choice shows as its default; left there, it stays absent as stored.
+        const fallback = field.kind === 'choice' && (field.initial ?? field.options[0]);
+        if (field.kind === 'choice' && field.optional && base === undefined && v === fallback)
+          return undefined;
+        return v;
       }
       case 'boolean':
         return form.get(name) === 'on';
@@ -325,12 +330,14 @@ function reader(form: Posted, errors: FieldError[]): Read {
         const out: Props[] = [];
         for (let i = 0; i < Math.min(rows, field.max + 1); i++) {
           const row = join(name, i);
+          const preset = choiceDefaults(field.fields, row);
           const typed = form
             .names()
             .filter((n) => n.startsWith(`${row}.`))
             .some(
               (n) =>
                 !isEmpty(form.get(n)) &&
+                form.get(n) !== preset.get(n) &&
                 !n.endsWith('.mode') &&
                 !blankEditor(n, form.get(n)) &&
                 // An editor that posts a document overrides its textarea, which still holds the
@@ -345,6 +352,18 @@ function reader(form: Posted, errors: FieldError[]): Read {
     }
   };
   return read;
+}
+
+/** What each choice of a spare row shows before anyone touches it: no sign the row was typed in. */
+function choiceDefaults(
+  fields: readonly BlockField[],
+  name: string,
+  out = new Map<string, string>()
+) {
+  for (const f of fields)
+    if (f.kind === 'choice') out.set(join(name, f.key), f.initial ?? f.options[0] ?? '');
+    else if (f.kind === 'group') choiceDefaults(f.fields, join(name, f.key), out);
+  return out;
 }
 
 function groupFrom(fields: readonly BlockField[], base: Props, name: string, read: Read): Props {

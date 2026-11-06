@@ -215,13 +215,17 @@ test('an operator uploads, sees, edits, downloads and deletes an image', async (
   await page.getByLabel('Bijschrift (nl)').fill('Demonstratie op het plein');
   await page.getByLabel('Titel van het werk').fill('Spandoek');
   await page.getByLabel('Maker van het werk').fill('Buurtcomité');
-  await page.getByLabel('Fotograaf').fill('A. Fotograaf');
+  // The kind of image: a closed choice beside its maker, photo until changed.
+  await expect(page.getByRole('radio', { name: 'Foto' })).toBeChecked();
+  await page.getByRole('radio', { name: 'Illustratie' }).check();
+  await page.getByLabel('Beeld door').fill('A. Fotograaf');
   await page.getByLabel('Licentie').fill('CC BY 4.0');
   await page.locator('summary', { hasText: 'Focuspunt' }).click();
   await page.getByLabel('Horizontaal').fill('0.25');
   await page.getByRole('button', { name: 'Gegevens opslaan' }).click();
   await expect(page.getByRole('status')).toContainText(`Gegevens van ${filename} opgeslagen`);
-  await expect(page.getByLabel('Fotograaf')).toHaveValue('A. Fotograaf');
+  await expect(page.getByLabel('Beeld door')).toHaveValue('A. Fotograaf');
+  await expect(page.getByRole('radio', { name: 'Illustratie' })).toBeChecked();
   await expect(page.getByLabel('Maker van het werk')).toHaveValue('Buurtcomité');
   await page.locator('summary', { hasText: 'Focuspunt' }).click();
   await expect(page.getByText('Nu 25% van links')).toBeVisible();

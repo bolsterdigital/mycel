@@ -28,7 +28,11 @@ import {
   THEME_ROLES,
   Theme,
   projectBlock,
+  CREDIT_KINDS,
+  MediaCredit,
+  creditKind,
   type BlockField,
+  type CreditKind,
   type MediaView,
   type ResolvedTheme,
 } from '@mycel/core';
@@ -324,6 +328,55 @@ describe('heading levels come from context', () => {
     expect(headingTag(6)).toBe('h6');
     expect(() => headingTag(7)).toThrow(RangeError);
     expect(() => headingTag(0)).toThrow(RangeError);
+  });
+});
+
+// The kind of image decides the icon and the word of its credit, in every representation.
+// A credit without a kind is a photo, so content from before the kind still reads "Foto".
+describe('the kind of an image credit', () => {
+  const ICON: Record<CreditKind, string> = {
+    photo: 'M14.5 4h-5L7 7H4',
+    illustration: 'm2.3 2.3 7.286 7.286',
+    other: 'm21 15-3.086-3.086',
+  };
+  const WORD: Record<string, Record<CreditKind, string>> = {
+    nl: { photo: 'Foto: ', illustration: 'Illustratie: ', other: 'Beeld: ' },
+    en: { photo: 'Photo: ', illustration: 'Illustration: ', other: 'Image: ' },
+  };
+  const image = examples.find((e) => e.name === 'image-wide-caption-credit')!.block;
+  const withCredit = (credit: MediaCredit) =>
+    Block.parse({ ...image, props: { ...image.props, credit } });
+
+  for (const locale of ['nl', 'en'] as const)
+    for (const kind of [...CREDIT_KINDS, undefined]) {
+      const shown = kind ?? 'photo';
+      it(`marks ${kind ?? 'a credit without a kind'} with its own icon and word in ${locale}`, async () => {
+        const credit: MediaCredit = {
+          work: null,
+          photographer: 'Lotte Kramer',
+          ...(kind && { kind }),
+        };
+        const { html, markdown } = await representations([withCredit(credit)], locale);
+        const by = /<span class="credit-by">[\s\S]*?Lotte Kramer<\/span>/.exec(html)?.[0] ?? '';
+        expect(by, html).toContain(ICON[shown]);
+        for (const other of CREDIT_KINDS.filter((k) => k !== shown))
+          expect(by).not.toContain(ICON[other]);
+        // The icon is decoration; the word is what a screen reader hears.
+        expect(by).toMatch(/<svg[^>]*aria-hidden="true"/);
+        expect(by).toContain(`<span class="credit-word">${WORD[locale]![shown]}</span>`);
+        expect(markdown).toContain(`${WORD[locale]![shown]}Lotte Kramer`);
+      });
+    }
+
+  it('stores a credit without a kind as it was and accepts only the closed list', () => {
+    expect(MediaCredit.parse({ work: null, photographer: 'A' })).toEqual({
+      work: null,
+      photographer: 'A',
+    });
+    expect(creditKind({})).toBe('photo');
+    expect(MediaCredit.safeParse({ work: null, photographer: 'A', kind: 'video' }).success).toBe(
+      false
+    );
   });
 });
 
