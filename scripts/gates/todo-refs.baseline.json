@@ -45,7 +45,6 @@
   "apps/web/src/lib/admin/ui/feedback/StatusSummary.svelte": 1,
   "apps/web/src/lib/admin/ui/feedback/SystemState.svelte": 1,
   "apps/web/src/lib/admin/ui/form/Choices.svelte": 3,
-  "apps/web/src/lib/admin/ui/form/ColorField.svelte": 1,
   "apps/web/src/lib/admin/ui/form/CopyField.svelte": 1,
   "apps/web/src/lib/admin/ui/form/Field.svelte": 2,
   "apps/web/src/lib/admin/ui/form/Fieldset.svelte": 1,
