@@ -5,7 +5,7 @@ import { createApp } from '@mycel/api';
 import { randomUUID } from 'node:crypto';
 import { UseCaseError, systemPrincipal, useCases } from '@mycel/core';
 import { type APIRequestContext, type Browser, type Page, expect } from '@playwright/test';
-import { test } from './lib/page-evidence';
+import { test } from './lib/evidence/page';
 import { expectNoAxeViolations } from './lib/axe';
 import { bfcacheBack, bfcacheBrowser } from './lib/bfcache';
 import { blockPage, card, editorReady, more, newPage } from './lib/editor';

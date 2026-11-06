@@ -5,7 +5,7 @@
 import { randomUUID } from 'node:crypto';
 import { capabilitiesFor, systemPrincipal, useCases } from '@mycel/core';
 import { type APIRequestContext, type Page, expect } from '@playwright/test';
-import { test } from './lib/page-evidence';
+import { test } from './lib/evidence/page';
 import { expectNoAxeViolations, headingOrderProblems } from './lib/axe';
 import { finishJobs, stuckJob, tenantId, withInvoker } from './lib/invoker';
 import { NARROW, layoutGate, setTextSize } from './lib/layout';

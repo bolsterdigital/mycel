@@ -4,7 +4,7 @@
 
 import { BLOCK_TYPES, UseCaseError, systemPrincipal, useCases } from '@mycel/core';
 import { type APIRequestContext, type Locator, type Page, expect } from '@playwright/test';
-import { test } from './lib/page-evidence';
+import { test } from './lib/evidence/page';
 import { expectNoAxeViolations } from './lib/axe';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
@@ -12,7 +12,7 @@ import { login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { callApi, pictureAtBothEnds, requireApi, seededPage } from './lib/api';
 import { expectPixels } from './lib/images';
-import { settingsEvidence } from './lib/settings-evidence';
+import { settingsEvidence } from './lib/evidence/settings';
 import { openPublication } from './lib/publication';
 import {
   block,
