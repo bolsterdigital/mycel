@@ -184,13 +184,13 @@ test('checks install their measured-DOM runtime before running infrastructure ga
 
 test('protected verify rejects failure, cancellation, skipping and missing dependency results', () => {
   const jobs = jobsOf(verifyWorkflow());
-  const required = ['checks', 'browsers', 'security', 'image', 'compose'];
+  const required = ['reuse', 'checks', 'browsers', 'security', 'image', 'compose'];
   assert.match(jobs.verify, /^    if: always\(\)$/m);
   const needs = /needs: \[([^\]]+)\]/.exec(jobs.verify)[1].split(', ');
   assert.deepEqual(needs.sort(), [...required].sort());
   assert.deepEqual(Object.keys(jobs).sort(), [...required, 'verify'].sort());
   const shell = runBlock(jobs.verify);
-  const execute = (results) =>
+  const execute = (results, reused = 'false') =>
     spawnSync('bash', [
       '--noprofile',
       '--norc',
@@ -198,7 +198,9 @@ test('protected verify rejects failure, cancellation, skipping and missing depen
       '-o',
       'pipefail',
       '-c',
-      shell.replace(/\$\{\{ needs\.([\w-]+)\.result \}\}/g, (_, name) => results[name] ?? ''),
+      shell
+        .replace(/\$\{\{ needs\.reuse\.outputs\.reused \}\}/g, reused)
+        .replace(/\$\{\{ needs\.([\w-]+)\.result \}\}/g, (_, name) => results[name] ?? ''),
     ]).status;
   const green = Object.fromEntries(required.map((name) => [name, 'success']));
   assert.equal(execute(green), 0);
@@ -207,6 +209,24 @@ test('protected verify rejects failure, cancellation, skipping and missing depen
       assert.notEqual(execute({ ...green, [name]: result }), 0, `${name}: ${result}`);
     }
   }
+  // A reused queue run: the layer jobs skip, and only a green `reuse` that answered true passes.
+  const skipped = Object.fromEntries(required.map((name) => [name, 'skipped']));
+  assert.equal(execute({ ...skipped, reuse: 'success' }, 'true'), 0);
+  for (const result of ['failure', 'cancelled', 'skipped', ''])
+    assert.notEqual(execute({ ...skipped, reuse: result }, 'true'), 0, `reuse: ${result}`);
+  for (const reused of ['false', '', 'True', 'yes'])
+    assert.notEqual(execute({ ...skipped, reuse: 'success' }, reused), 0, `reused: ${reused}`);
+});
+
+test('in verify.yml every layer runs unless reuse answered true, and only reuse reads runs', () => {
+  const jobs = jobsOf(verifyWorkflow());
+  const gated = /^    needs: reuse\n    if: needs\.reuse\.outputs\.reused != 'true'\n/m;
+  for (const name of ['checks', 'browsers', 'security', 'image']) assert.match(jobs[name], gated);
+  assert.match(jobs.compose, /^    needs: image$/m);
+  assert.doesNotMatch(jobs.reuse, /^    (needs|if):/m);
+  assert.match(jobs.reuse, /run: node scripts\/queue-reuse\.mjs verify\.yml$/m);
+  for (const [name, job] of Object.entries(jobs))
+    if (name !== 'reuse') assert.doesNotMatch(job, /actions: read|pull-requests: read/, name);
 });
 
 test('layer jobs own services and reserve time for unconditional, distinct retained evidence', () => {
@@ -236,7 +256,11 @@ test('layer jobs own services and reserve time for unconditional, distinct retai
     assert.match(job, /^    runs-on: ubuntu-24\.04$/m);
     assert.match(job, /^    timeout-minutes: 15$/m);
     assert.match(job, /^    services:\n      postgres:\n        image: postgres:16\.15-alpine/m);
-    assert.doesNotMatch(job, /container:|environment:|needs:|continue-on-error/);
+    // Only the reuse gate may precede a layer: no shared services, database or evidence.
+    assert.doesNotMatch(
+      job.replace(/^    needs: reuse\n    if: .+\n/m, ''),
+      /container:|environment:|needs:|continue-on-error/
+    );
     const steps = stepsOf(job);
     const execution = steps.find((s) => /timeout-minutes: 12/.test(s));
     assert.ok(execution, `${name}: bounded execution includes install, migration and test`);
