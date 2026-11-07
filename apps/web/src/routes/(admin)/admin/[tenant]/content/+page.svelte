@@ -72,6 +72,7 @@
     Boolean(item.live || item.preview || data.canWrite);
   // A page on which no row has any keeps no column for them: without the row's actions the table
   // is no container, so an empty column would never give way below 58rem.
+  const canBulk = $derived(data.canPublish || (data.type === 'article' && data.canWrite));
   const anyActions = $derived(data.items.some(hasActions));
   const columnLabel = (column: (typeof data.columnChoices)[number]) =>
     t(`admin.content.list.column.${column}` as const);
@@ -366,7 +367,7 @@
   <form id="content-row-actions" method="POST">
     <input type="hidden" name="locale" value={data.workLocale} />
   </form>
-  {#if data.items.length && (data.canWrite || data.canPublish)}
+  {#if data.items.length && canBulk}
     <form id="content-bulk" method="POST" action={data.links.bulk} class="ui-list-display-form">
       <h2>{t('admin.content.bulk.title')}</h2>
       <p>{t('admin.content.bulk.scope')}</p>
@@ -453,7 +454,7 @@
                 ? item.titleLocale
                 : undefined}>{item.title || t('admin.content.untitled')}</a
             >
-            {#if data.canWrite || data.canPublish}
+            {#if canBulk}
               <div class="ui-choice">
                 <input type="hidden" form="content-bulk" name="visible" value={item.id} />
                 <input
