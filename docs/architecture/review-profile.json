@@ -156,6 +156,8 @@
         "apps/web/src/lib/server/admin/list-memory*",
         "apps/web/src/lib/server/content/content-blocks*",
         "apps/web/src/lib/server/content/edit-form*",
+        "apps/web/src/lib/server/content/edit-copy*",
+        "apps/web/src/lib/server/content/edit-path*",
         "apps/web/src/lib/server/content/conflict/**",
         "apps/web/src/lib/server/content/arrange*",
         "apps/web/src/lib/editor/**",
