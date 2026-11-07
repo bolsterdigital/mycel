@@ -114,3 +114,4 @@ export * from './attention/service.js';
 
 export * from './content/bulk/model.js';
 export * from './content/bulk/service.js';
+export * from './content/bulk/execution.js';

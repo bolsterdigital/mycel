@@ -3,7 +3,7 @@
 // serialise per item, so "two saves on one base, exactly one wins" and "an old job cannot
 // publish after a reschedule" follow from the lock order, not from timing.
 
-import type { BulkPlan } from './bulk/model.js';
+import type { BulkPlan, BulkPhase, BulkResult } from './bulk/model.js';
 import type { BlockType, ReferenceType } from './blocks.js';
 import type { LocaleState } from './lifecycle.js';
 import type { ItemFilter, ItemOrder } from './listing.js';
@@ -145,6 +145,12 @@ export interface SluggedRepository<
 export interface BulkPlanRepository {
   insert(plan: BulkPlan): Promise<void>;
   get(id: string): Promise<BulkPlan | null>;
+  /** Run lock held until commit, before content/media locks. Also serialises the undo barrier. */
+  lock(id: string): Promise<boolean>;
+  undoRequested(id: string): Promise<boolean>;
+  requestUndo(id: string): Promise<void>;
+  result(id: string, ordinal: number, phase: BulkPhase): Promise<BulkResult | null>;
+  record(id: string, ordinal: number, phase: BulkPhase, result: BulkResult): Promise<void>;
 }
 
 declare module '../ports.js' {

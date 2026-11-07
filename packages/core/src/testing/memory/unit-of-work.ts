@@ -88,6 +88,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
     const { store, clock, ids } = this;
     const tenantId = principal.tenantId;
     const s = store.for(tenantId);
+    const bulkLock = tenantLock(store.bulkLocks, tenantId);
     const memberLock = tenantLock(store.memberLocks, tenantId);
     const mediaLock = tenantLock(store.mediaLocks, tenantId);
     try {
@@ -106,7 +107,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
           },
         },
         content: memoryContent(s),
-        bulkPlans: memoryBulkPlans(s),
+        bulkPlans: memoryBulkPlans(s, bulkLock.lock),
         ...memorySite(s),
         assist: memoryAssist(s),
         connections: memoryConnections(s, principal),
@@ -140,6 +141,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
         exports: memoryExports(s.exports),
       });
     } finally {
+      bulkLock.release();
       memberLock.release();
       mediaLock.release();
     }

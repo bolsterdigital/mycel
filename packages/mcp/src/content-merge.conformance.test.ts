@@ -246,3 +246,38 @@ describe('block operations and entity updates on an older base over MCP (ADR 027
     expect(refused).toMatchObject({ ok: false, body: { code: 'forbidden' } });
   });
 });
+
+describe('durable content bulk phases over MCP', () => {
+  it('applies and restores through the registry, refusing a reader and a foreign tenant', async () => {
+    const as = front(new Invoker(buildRegistry(), new MemoryUnitOfWork()));
+    const admin = principal();
+    const call = as(admin);
+    const { item, revision } = (await call('content.item.create', { document: doc('Bulk') })).body;
+    const plan = (
+      await call('content.bulk.create', {
+        locale: 'nl',
+        items: [
+          {
+            itemId: item.id,
+            baseRevisionId: revision.id,
+            operation: { kind: 'save', document: doc('Changed'), publish: true },
+          },
+        ],
+      })
+    ).body;
+    const input = { planId: plan.id, version: 1 };
+    const refused = await as(reader)('content.bulk.resume', input);
+    expect(refused.body.result.status).toBe('refused');
+    const applied = await call('content.bulk.resume', input);
+    expect(applied.body.result.status).toBe('changed');
+    expect((await call('content.bulk.resume', input)).body).toEqual(applied.body);
+    const foreign = await as(principal({ tenantId: '00000000-0000-7000-8000-000000000999' }))(
+      'content.bulk.withdraw',
+      input
+    );
+    expect(foreign.ok).toBe(false);
+    const undone = await call('content.bulk.withdraw', input);
+    expect(undone.body.result.status).toBe('undone');
+    expect((await call('content.bulk.check', { planId: plan.id })).body.fullyUndone).toBe(true);
+  });
+});

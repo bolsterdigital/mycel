@@ -296,3 +296,257 @@ describe('content bulk plans', () => {
     }
   });
 });
+
+describe('content bulk execution and undo', () => {
+  it('reports twenty frozen items, an actual conflict and a saved but unpublished colleague draft', async () => {
+    const { invoker, admin, create } = setup();
+    const originals = [];
+    for (let n = 0; n < 20; n++) originals.push(await create());
+    const last = originals[19]!;
+    await invoker.run(useCases.publishItem, admin, {
+      itemId: last.item.id,
+      locale: 'nl',
+      revisionId: last.revision.id,
+    });
+    const colleague = await invoker.run(useCases.updateItem, admin, {
+      itemId: last.item.id,
+      baseRevisionId: last.revision.id,
+      document: { ...last.revision.document, lead: { nl: 'Colleague draft' } },
+    });
+    const plan = await invoker.run(useCases.createBulk, admin, {
+      locale: 'nl',
+      items: originals.map((o, n) => ({
+        itemId: o.item.id,
+        baseRevisionId: n === 19 ? colleague.revision.id : o.revision.id,
+        operation: {
+          kind: 'save' as const,
+          publish: true,
+          document: {
+            ...(n === 19 ? colleague : o).revision.document,
+            title: { nl: 'Bulk title' },
+          },
+        },
+      })),
+    });
+    const conflict = originals[18]!;
+    await invoker.run(useCases.updateItem, admin, {
+      itemId: conflict.item.id,
+      baseRevisionId: conflict.revision.id,
+      document: { ...conflict.revision.document, title: { nl: 'Other title' } },
+    });
+    for (let ordinal = 0; ordinal < 20; ordinal++) {
+      const result = await invoker.run(useCases.resumeBulk, admin, {
+        planId: plan.id,
+        version: 1,
+        ordinal,
+      });
+      expect(result.next).toBe(ordinal === 19 ? null : ordinal + 1);
+    }
+    const report = await invoker.run(useCases.checkBulk, admin, { planId: plan.id });
+    expect(report.items.map((i) => i.apply?.status)).toEqual([
+      ...Array(18).fill('changed'),
+      'conflict',
+      'awaiting_editor',
+    ]);
+    expect(report.items[19]?.apply).toMatchObject({
+      savedRevisionId: expect.any(String),
+      publicationChanged: false,
+      publishedRevisionId: null,
+    });
+    expect(
+      (await invoker.run(useCases.getItem, admin, { itemId: last.item.id })).item.publication[0]
+        ?.publishedRevisionId
+    ).toBe(last.revision.id);
+    // Undo is scoped to the whole frozen run, traversed in bounded item transactions.
+    const edited = originals[0]!;
+    const current = await invoker.run(useCases.getItem, admin, { itemId: edited.item.id });
+    await invoker.run(useCases.updateItem, admin, {
+      itemId: edited.item.id,
+      baseRevisionId: current.revision.id,
+      document: { ...current.revision.document, lead: { nl: 'Later work' } },
+    });
+    for (let ordinal = 0; ordinal < 20; ordinal++)
+      await invoker.run(useCases.withdrawBulk, admin, { planId: plan.id, version: 1, ordinal });
+    const restored = await invoker.run(useCases.checkBulk, admin, { planId: plan.id });
+    expect(restored.fullyUndone).toBe(false);
+    expect(restored.items[0]?.undo?.status).toBe('conflict');
+    expect(restored.items.slice(1, 18).every((i) => i.undo?.status === 'undone')).toBe(true);
+    expect(
+      (await invoker.run(useCases.getItem, admin, { itemId: last.item.id })).revision.document
+    ).toEqual(colleague.revision.document);
+    expect(
+      (await invoker.run(useCases.getItem, admin, { itemId: edited.item.id })).revision.document
+        .lead
+    ).toEqual({ nl: 'Later work' });
+  });
+
+  it('never publishes a new or no-op merged draft, and undo preserves the actual pre-mutation revision', async () => {
+    const { invoker, admin, create } = setup();
+    for (const noop of [false, true]) {
+      const original = await create();
+      const document = { ...original.revision.document, lead: { nl: 'Bulk lead' } };
+      const plan = await invoker.run(useCases.createBulk, admin, {
+        locale: 'nl',
+        items: [
+          {
+            itemId: original.item.id,
+            baseRevisionId: original.revision.id,
+            operation: { kind: 'save', document, publish: true },
+          },
+        ],
+      });
+      const colleague = await invoker.run(useCases.updateItem, admin, {
+        itemId: original.item.id,
+        baseRevisionId: original.revision.id,
+        document: noop ? document : { ...original.revision.document, title: { nl: 'Colleague' } },
+      });
+      const applied = await invoker.run(useCases.resumeBulk, admin, {
+        planId: plan.id,
+        version: 1,
+      });
+      expect(applied.result).toMatchObject({
+        status: 'awaiting_editor',
+        publicationChanged: false,
+        merge: { latestRevisionId: colleague.revision.id },
+      });
+      const undone = await invoker.run(useCases.withdrawBulk, admin, {
+        planId: plan.id,
+        version: 1,
+      });
+      expect(undone.result.status).toBe(noop ? 'unchanged' : 'undone');
+      expect(
+        (await invoker.run(useCases.getItem, admin, { itemId: original.item.id })).revision.document
+      ).toEqual(colleague.revision.document);
+    }
+  });
+
+  it('serialises two executors and retries, restores once, and refuses apply after undo was requested', async () => {
+    const { invoker, admin, create } = setup();
+    const o = await create();
+    const plan = await invoker.run(useCases.createBulk, admin, {
+      locale: 'nl',
+      items: [
+        {
+          itemId: o.item.id,
+          baseRevisionId: o.revision.id,
+          operation: {
+            kind: 'save',
+            document: { ...o.revision.document, title: { nl: 'Changed' } },
+            publish: true,
+          },
+        },
+      ],
+    });
+    const input = { planId: plan.id, version: 1 as const };
+    const [a, b] = await Promise.all([
+      invoker.run(useCases.resumeBulk, admin, input),
+      invoker.run(useCases.resumeBulk, admin, input),
+    ]);
+    expect(a).toEqual(b);
+    expect(
+      (await invoker.run(useCases.listRevisions, admin, { itemId: o.item.id })).revisions
+    ).toHaveLength(2);
+    const [x, y] = await Promise.all([
+      invoker.run(useCases.withdrawBulk, admin, input),
+      invoker.run(useCases.withdrawBulk, admin, input),
+    ]);
+    expect(x).toEqual(y);
+    expect(
+      (await invoker.run(useCases.listRevisions, admin, { itemId: o.item.id })).revisions
+    ).toHaveLength(3);
+    expect((await invoker.run(useCases.checkBulk, admin, { planId: plan.id })).fullyUndone).toBe(
+      true
+    );
+    expect(
+      (await invoker.run(useCases.getItem, admin, { itemId: o.item.id })).item.publication[0]
+        ?.publishedRevisionId
+    ).toBeNull();
+    await expect(invoker.run(useCases.resumeBulk, admin, input)).rejects.toMatchObject({
+      code: 'conflict',
+    });
+  });
+
+  it('uses current capabilities for all effects before changing anything, not maker grants or forged input', async () => {
+    const { invoker, admin, create } = setup();
+    const o = await create();
+    const plan = await invoker.run(useCases.createBulk, admin, {
+      locale: 'nl',
+      items: [
+        {
+          itemId: o.item.id,
+          baseRevisionId: o.revision.id,
+          operation: {
+            kind: 'save',
+            document: { ...o.revision.document, title: { nl: 'Changed' } },
+            publish: true,
+          },
+        },
+      ],
+    });
+    const input = { planId: plan.id, version: 1 as const };
+    const writer = principal({ capabilities: ['content:read', 'content:write'] });
+    expect((await invoker.run(useCases.resumeBulk, writer, input)).result).toMatchObject({
+      status: 'refused',
+      retryable: true,
+    });
+    expect((await invoker.run(useCases.getItem, admin, { itemId: o.item.id })).revision.id).toBe(
+      o.revision.id
+    );
+    await invoker.run(useCases.resumeBulk, admin, input);
+    expect((await invoker.run(useCases.withdrawBulk, writer, input)).result.status).toBe('refused');
+    expect(
+      (await invoker.run(useCases.getItem, admin, { itemId: o.item.id })).revision.document.title.nl
+    ).toBe('Changed');
+    expect((await invoker.run(useCases.withdrawBulk, admin, input)).result.status).toBe('undone');
+    for (const uc of [useCases.resumeBulk, useCases.withdrawBulk]) {
+      await expect(
+        invoker.run(uc, principal({ tenantId: exampleId(500) }), input)
+      ).rejects.toMatchObject({ code: 'not_found' });
+      await expect(
+        invoker.call(admin, uc.name, { ...input, actor: admin.actor })
+      ).rejects.toMatchObject({
+        code: 'invalid_input',
+      });
+      await expect(
+        invoker.run(uc, principal({ tenantStatus: 'suspended' }), input)
+      ).rejects.toMatchObject({ code: 'suspended' });
+    }
+  });
+
+  it('holds changed publication and planning offline and refuses undo after later publication', async () => {
+    const { invoker, admin, create } = setup();
+    const o = await create();
+    const plan = await invoker.run(useCases.createBulk, admin, {
+      locale: 'nl',
+      items: [
+        {
+          itemId: o.item.id,
+          baseRevisionId: o.revision.id,
+          operation: {
+            kind: 'save',
+            document: { ...o.revision.document, lead: { nl: 'Lead' } },
+            publish: true,
+          },
+        },
+      ],
+    });
+    await invoker.run(useCases.scheduleItem, admin, {
+      itemId: o.item.id,
+      revisionId: o.revision.id,
+      locale: 'nl',
+      at: '2030-01-01T12:00:00Z',
+    });
+    const input = { planId: plan.id, version: 1 as const };
+    expect((await invoker.run(useCases.resumeBulk, admin, input)).result.status).toBe(
+      'awaiting_editor'
+    );
+    const current = await invoker.run(useCases.getItem, admin, { itemId: o.item.id });
+    expect(current.item.publication[0]?.scheduledRevisionId).toBe(o.revision.id);
+    await invoker.run(useCases.publishItem, admin, {
+      itemId: o.item.id,
+      locale: 'nl',
+      revisionId: current.revision.id,
+    });
+    expect((await invoker.run(useCases.withdrawBulk, admin, input)).result.status).toBe('conflict');
+  });
+});

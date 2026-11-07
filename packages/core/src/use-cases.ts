@@ -8,6 +8,7 @@ import {
   resolveConnectionIntent,
   testConnection,
 } from './connections/intents.js';
+import { resumeBulk, withdrawBulk, checkBulk } from './content/bulk/execution.js';
 import { createBulk, getBulk } from './content/bulk/service.js';
 import { listAudit } from './audit/service.js';
 import {
@@ -110,6 +111,9 @@ import { listExports, requestExport } from './tenants/exports.js';
 
 export const useCases = {
   createBulk,
+  resumeBulk,
+  withdrawBulk,
+  checkBulk,
   getBulk,
   getConnectionIntent,
   listConnectionIntents,

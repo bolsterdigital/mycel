@@ -202,9 +202,22 @@ export function memorySite(
   };
 }
 
-/** Immutable plan snapshots, separate from the transaction composition. */
-export function memoryBulkPlans(s: TenantStore): BulkPlanRepository {
+/** Immutable plans and transaction-locked receipts, separate from the composition. */
+export function memoryBulkPlans(s: TenantStore, lock: () => Promise<void>): BulkPlanRepository {
   return {
+    async lock(id) {
+      await lock();
+      return s.bulkPlans.has(id);
+    },
+    undoRequested: async (id) => s.bulkUndo.has(id),
+    requestUndo: async (id) => {
+      s.bulkUndo.add(id);
+    },
+    result: async (id, ordinal, phase) =>
+      structuredClone(s.bulkResults.get(`${id}:${ordinal}:${phase}`) ?? null),
+    record: async (id, ordinal, phase, result) => {
+      s.bulkResults.set(`${id}:${ordinal}:${phase}`, structuredClone(result));
+    },
     async insert(plan) {
       if (s.bulkPlans.has(plan.id)) throw new Error('duplicate bulk plan');
       s.bulkPlans.set(plan.id, structuredClone(plan));
