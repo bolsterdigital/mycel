@@ -8,7 +8,7 @@ import { type APIRequestContext, type Browser, type Page, expect } from '@playwr
 import { test } from './lib/evidence/page';
 import { expectNoAxeViolations } from './lib/axe';
 import { bfcacheBack, bfcacheBrowser } from './lib/bfcache';
-import { blockPage, card, editorReady, more, newPage } from './lib/editor';
+import { blockPage, card, editorReady, more, newPage, reloadsEditor } from './lib/editor';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
 import { ADMIN, login } from './lib/login';
@@ -427,43 +427,60 @@ test.describe('content-admin', () => {
     await context.close();
   }
 
-  test('a save on an outdated revision is a conflict that keeps what was typed', async ({
+  // ADR 026, with and without JavaScript: what someone else saved meanwhile merges into the save;
+  // only a value both changed asks, mine checked, and "use theirs" takes theirs.
+  test('a save on an outdated revision merges, and asks only about a value both changed', async ({
     page,
-    browser,
+    request,
   }) => {
     await login(page, '/admin/probe');
     const edit = await newPage(page, slugFor('conflict'), 'Eerste versie');
-
-    // A second editor opens the same revision and saves first.
-    const context = await freshContext(browser);
-    const other = await context.newPage();
-    await login(other, edit);
+    const itemId = edit.split('/').at(-1)!;
+    const stored = async () =>
+      (await callApi(request, 'content.item.get', { itemId })).revision.document;
+    const agent = async (title: Record<string, string>) => {
+      const { revision } = await callApi(request, 'content.item.get', { itemId });
+      const document = { ...revision.document, title: { ...revision.document.title, ...title } };
+      await callApi(request, 'content.item.update', {
+        itemId,
+        baseRevisionId: revision.id,
+        document,
+      });
+    };
+    await agent({ en: 'Agent title' });
     await page.locator('#title\\.nl').fill('Mijn versie');
-    // The stale tab asks for a new address too: it moves nothing until the conflict is resolved.
+    // The stale form asks for a new address too: no other moved it, so it moves.
     const side = page.locator('section[aria-labelledby="this-item"]');
     await side.locator('details', { hasText: 'Adres wijzigen' }).locator('summary').click();
     const moved = slugFor('conflict-moved');
     await side.getByLabel('Slug').fill(moved);
-    await other.locator('#title\\.nl').fill('Hun versie');
-    await other.getByRole('button', { name: 'Opslaan' }).click();
-    await expect(other).toHaveURL(`${edit}?saved`);
-    await context.close();
+    await reloadsEditor(page, () => page.getByRole('button', { name: 'Opslaan' }).click());
+    await expect(page).toHaveURL(/\?saved&merged=[0-9a-f-]{36}$/);
+    await expect(page.getByRole('status')).toContainText('samen met wat');
+    expect((await stored()).title).toEqual({ nl: 'Mijn versie', en: 'Agent title' });
+    await expect(side).toContainText(`/${moved}`);
 
-    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await agent({ nl: 'Hun versie' });
+    await page.locator('#title\\.nl').fill('Weer mijn versie');
+    await reloadsEditor(page, () => page.getByRole('button', { name: 'Opslaan' }).click());
     const alert = page.getByRole('alert');
     await expect(alert).toContainText('Iemand anders heeft dit item intussen opgeslagen');
-    await expect(alert).toContainText(ADMIN);
-    await expect(alert.getByRole('row', { name: /title\.nl/ })).toContainText('Hun versie');
-    await expect(page.locator('#title\\.nl')).toHaveValue('Mijn versie');
-    await expect(side.getByLabel('Slug')).toHaveValue(moved);
-    await expect(side).not.toContainText(`/${moved}`);
+    await expect(alert.getByRole('radio')).toHaveCount(2);
+    await expect(alert.getByRole('group', { name: 'Titel (nl)' })).toBeVisible();
+    const mine = alert.getByRole('radio', { name: 'Mijn versie houden: Weer mijn versie' });
+    await expect(mine).toBeChecked();
+    await expect(page.locator('#title\\.nl')).toHaveValue('Weer mijn versie');
     await expectNoAxeViolations(page);
-
-    // Saving again is a deliberate choice on top of the newest revision, the address with it.
-    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await page.setViewportSize(NARROW);
+    for (const size of TEXT_SIZES) {
+      await setTextSize(page, size);
+      await layoutGate(page, `conflict at ${size}`, '.conflict-choices');
+    }
+    await setTextSize(page, '100%');
+    await alert.getByRole('radio', { name: 'Hun versie gebruiken: Hun versie' }).check();
+    await reloadsEditor(page, () => page.getByRole('button', { name: 'Opslaan' }).click());
     await expect(page).toHaveURL(`${edit}?saved`);
-    await expect(page.locator('#title\\.nl')).toHaveValue('Mijn versie');
-    await expect(side).toContainText(`/${moved}`);
+    expect((await stored()).title).toEqual({ nl: 'Hun versie', en: 'Agent title' });
   });
 
   // The #207 review's gap: a tab that never touched the address posts the slug it was rendered
@@ -491,18 +508,10 @@ test.describe('content-admin', () => {
     await expect(theirs).toContainText(`/${moved}`);
     await context.close();
 
-    // Tab A saves a title: a conflict that names the address, and A's field now shows B's.
+    // Tab A saves a title: it merges with B's save, and keeps B's address.
     await page.locator('#title\\.nl').fill('Nieuwe titel');
     await page.getByRole('button', { name: 'Opslaan' }).click();
-    const alert = page.getByRole('alert');
-    await expect(alert).toContainText('Iemand anders heeft dit item intussen opgeslagen');
-    await expect(alert).not.toContainText('Geen verschillen');
-    await expect(alert.getByRole('row', { name: /^slug/ })).toContainText(moved);
-    await expect(side.getByLabel('Slug')).toHaveValue(moved);
-
-    // Saving again keeps B's address and A's title.
-    await page.getByRole('button', { name: 'Opslaan' }).click();
-    await expect(page).toHaveURL(`${edit}?saved`);
+    await expect(page).toHaveURL(/\?saved&merged=[0-9a-f-]{36}$/);
     await expect(page.locator('#title\\.nl')).toHaveValue('Nieuwe titel');
     await expect(side).toContainText(`/${moved}`);
   });
@@ -786,8 +795,8 @@ test.describe('content-admin', () => {
     await expect(page).toHaveURL(new RegExp(`${item.id}\\?saved$`));
     expect(await saved()).toMatchObject({ authorIds, sectionId: oldSection.id });
 
-    // Another editor removes every relation after this form was opened. Its latest document
-    // and the directory page no longer contain the off-page choices in this editor's post.
+    // Another editor changes the title after this form was opened: a conflict on the title only,
+    // and the off-page choices of this editor's post (beyond the directory page) come back.
     const { revision } = await callApi<{
       revision: { id: string; document: Record<string, unknown> };
     }>(request, 'content.item.get', { itemId: item.id });
@@ -795,7 +804,7 @@ test.describe('content-admin', () => {
     await callApi(request, 'content.item.update', {
       itemId: item.id,
       baseRevisionId: revision.id,
-      document: { ...revision.document, authorIds: [], sectionId: null },
+      document: { ...revision.document, title: { nl: 'Andere titel' } },
     });
     await page.getByRole('button', { name: 'Opslaan' }).click();
     await expect(page.getByRole('alert')).toContainText(

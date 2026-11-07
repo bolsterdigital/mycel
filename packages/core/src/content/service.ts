@@ -27,6 +27,8 @@ import {
 } from './blocks.js';
 import { EXAMPLE_IDS } from './block-types.js';
 import { diffDocuments } from './diff.js';
+import { adoptAddedBlocks, mergeConflict, mergeSave } from './merge/save.js';
+import { canonicalJson } from '../util/canonical-json.js';
 import { EffectiveView, effectiveOf } from './header/effective.js';
 import {
   defaultDirection,
@@ -529,7 +531,7 @@ export const updateItem = defineUseCase({
   name: 'content.item.update',
   kind: 'command',
   description:
-    'Save a new revision of an item; fails with conflict unless baseRevisionId is the latest revision, and never changes what is published. While an item has its placeholder slug and was never published, a save that gives it a title moves the slug to that title.',
+    'Save a new revision of an item, never changing what is published. When baseRevisionId is not the latest revision, the document is merged with what was saved since, per field, locale and block id; the revision then records the merge, and a value both changed differently fails with conflict naming each path (text inside one rich-text block is one value). While an item has its placeholder slug and was never published, a save that gives it a title moves the slug to that title.',
   requires: 'content:write',
   input: z.object({
     itemId: ItemId,
@@ -548,13 +550,37 @@ export const updateItem = defineUseCase({
   ],
   async handler(ctx, { itemId, baseRevisionId, document }) {
     const item = await lockItem(ctx, itemId);
-    assertBase(item, baseRevisionId);
     if (document.type !== item.type)
       throw new UseCaseError('invalid_input', 'the type of an item never changes', [
         { path: 'document.type', message: 'content.type.immutable' },
       ]);
+    const base = await ctx.content.revision(itemId, baseRevisionId);
+    // An id that is no revision of this item cannot be merged from: the stale-base refusal.
+    if (!base) assertBase(item, baseRevisionId);
+    if (!base) throw notFound('revision');
+    const latest =
+      item.latestRevisionId === baseRevisionId
+        ? null
+        : await ctx.content.revision(itemId, item.latestRevisionId);
+    if (item.latestRevisionId !== baseRevisionId && !latest) throw notFound('revision');
+    // A block posted again without the id the first save gave it is that block (a retry).
+    const input = latest ? adoptAddedBlocks(base.document, document, latest.document) : document;
+    let next = finalize(ctx, input, input.blocks);
+    let previous = base.document;
+    let provenance: Revision['provenance'];
+    if (latest) {
+      const merged = mergeSave(base.document, next, latest.document);
+      if (merged.conflicts.length) throw mergeConflict(item.latestRevisionId, merged.conflicts);
+      next = ContentDocument.parse(merged.document);
+      // A merge that adds nothing to the newest revision writes nothing: a repeated save.
+      if (canonicalJson(next) === canonicalJson(latest.document))
+        return { item: toContentItem(item), revision: latest };
+      requireBlockTypes(ctx, next.blocks);
+      previous = latest.document;
+      provenance = { merged: { baseRevisionId, latestRevisionId: item.latestRevisionId } };
+    }
     for (const s of item.publication)
-      if (!document.locales.includes(s.locale) && (s.publishedRevisionId || s.scheduleId))
+      if (!next.locales.includes(s.locale) && (s.publishedRevisionId || s.scheduleId))
         throw new UseCaseError('invalid_input', `locale "${s.locale}" is published or planned`, [
           {
             path: 'document.locales',
@@ -562,12 +588,9 @@ export const updateItem = defineUseCase({
             params: { locale: s.locale },
           },
         ]);
-    const previous = await ctx.content.revision(itemId, baseRevisionId);
-    if (!previous) throw notFound('revision');
-    const next = finalize(ctx, document, document.blocks);
     // Decided before the write, which may still refuse; set after it, so a taken slug undoes both.
-    const slug = await slugFollowingTitle(ctx, item, previous.document, next);
-    const saved = await writeRevision(ctx, item, next);
+    const slug = await slugFollowingTitle(ctx, item, previous, next);
+    const saved = await writeRevision(ctx, item, next, provenance);
     if (!slug) return saved;
     if (!(await ctx.content.setSlug(itemId, slug, new Date(saved.item.updatedAt))))
       throw slugTaken(item.type, slug);

@@ -31,7 +31,9 @@ import {
   BLOCK_DEFINITIONS,
   INSERTABLE_BLOCK_TYPES,
   UseCaseError,
+  ContentDocumentInput,
   can,
+  mergeSave,
   contentPath,
   documentMedia,
   readinessIssues,
@@ -52,8 +54,14 @@ import { arrange } from '#lib/server/content/arrange.js';
 import { failureOf, loaded, orNull, text } from '#lib/server/admin/admin-actions.js';
 import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import {
+  applyChoices,
+  changesSince,
+  conflictOf,
+  conflictValues,
+  type ConflictView,
+} from '#lib/server/content/conflict/merge-conflict.js';
+import {
   actorLabel,
-  diffRows,
   valuesFromForm,
   type FormValues,
   withAssigned,
@@ -95,6 +103,9 @@ import {
   type PendingBlock,
 } from '#lib/server/content/edit-form.js';
 import { runtime } from '#lib/server/runtime.js';
+import { DONE, ISSUES, SLUG_ISSUES, issueCopy } from '#lib/server/content/edit-copy.js';
+import { PINS, held, itemPath, mergedQuery, mergedWithOf } from '#lib/server/content/edit-path.js';
+import { insertedBefore } from '#lib/server/content/conflict/merge-conflict.js';
 import { adminSiteUrls } from '#lib/server/site.js';
 import { langOf, ui, type UiKey } from '../../../../../../i18n/index.js';
 import type { Actions, PageServerLoad } from './$types';
@@ -161,23 +172,6 @@ const unposted: Posted = { get: () => null, names: () => [] };
 /** Form values under a name prefix. */
 const prefixed = (values: Record<string, string>, prefix: string): Record<string, string> =>
   Object.fromEntries(Object.entries(values).map(([k, v]) => [`${prefix}${k}`, v]));
-
-/**
- * The edit screen's address: the item, whatever the redirect adds, and the locale when it is
- * not the one the screen shows anyway.
- */
-const itemPath = (
-  tenant: string,
-  itemId: string,
-  locale: string | null | undefined,
-  query: Record<string, string> = {},
-  hash = ''
-) => {
-  const q = new URLSearchParams({ ...query, ...(locale ? { locale } : {}) });
-  // `saved` is a flag without a value, as the screen reads it.
-  const search = q.toString().replace(/(^|&)saved=(?=&|$)/, '$1saved');
-  return `/admin/${tenant}/content/${itemId}${search ? `?${search}` : ''}${hash ? `#${hash}` : ''}`;
-};
 
 export const load: PageServerLoad = async ({ parent, locals, params, url, cookies, request }) => {
   const { tenant } = await parent();
@@ -384,6 +378,17 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
     authors,
     sections,
     saved: url.searchParams.has('saved'),
+    // Who saved what the save before the last action merged with (ADR 026): `merged` names that
+    // revision, so the notice holds also when an action made a newer one after it. Read as a
+    // revision of this item, so an id from elsewhere names nobody.
+    merged: isUuid(url.searchParams.get('merged') ?? '')
+      ? await describe(url.searchParams.get('merged')!).then(
+          ({ who, when }) => ({ who, when }),
+          () => null
+        )
+      : null,
+    // The action that was not taken because the save before it merged (`held`).
+    held: url.searchParams.has('held') && isUuid(url.searchParams.get('merged') ?? ''),
     /**
      * Where static/_admin/session-restore.js keeps unsaved input through a login: this site,
      * this operator, this item, this locale. The operator is the signed-in one, never input.
@@ -399,45 +404,6 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
  */
 const SINGLE = new Set<string>(['rich-text', 'paywall']);
 
-/** The notice after a publication action, by the `done` parameter of its redirect. */
-const DONE: Record<string, UiKey> = {
-  blockMoved: 'admin.block.done.moved',
-  blockDuplicated: 'admin.block.done.duplicated',
-  blockRemoved: 'admin.block.done.removed',
-  blockRestored: 'admin.block.done.restored',
-  heroConverted: 'admin.content.heroConversion.done',
-  publish: 'admin.content.publication.done.publish',
-  unpublish: 'admin.content.publication.done.unpublish',
-  schedule: 'admin.content.publication.done.schedule',
-  repin: 'admin.content.publication.done.schedule',
-  unschedule: 'admin.content.publication.done.unschedule',
-  offer: 'admin.content.review.done.offer',
-  withdrawOffer: 'admin.content.review.done.withdraw',
-  translationApproved: 'admin.assist.approved',
-};
-
-/** Core's readiness and reference issues as admin copy; unknown keys get the generic line. */
-const ISSUE_COPY: Record<string, UiKey> = {
-  'content.publish.locale-not-in-document': 'admin.content.issue.localeNotInDocument',
-  'content.publish.locale-not-in-item': 'admin.content.issue.localeNotInDocument',
-  'content.publish.missing-translation': 'admin.content.issue.missingTranslation',
-  'content.publish.machine-translation-unreviewed': 'admin.assist.unreviewed',
-  'content.publish.teaser-lead-required': 'admin.content.issue.teaserLeadRequired',
-  'content.publish.tier-unverifiable': 'admin.content.issue.tierUnverifiable',
-  'content.reference.author-unknown': 'admin.content.issue.referenceUnknown',
-  'content.reference.section-unknown': 'admin.content.issue.referenceUnknown',
-  'content.reference.item-unknown': 'admin.content.issue.referenceUnknown',
-  'content.reference.form-unknown': 'admin.content.issue.referenceUnknown',
-  'content.reference.media-unknown': 'admin.content.issue.referenceUnknown',
-  'content.reference.media-not-image': 'admin.content.issue.mediaNotImage',
-  'content.reference.media-not-document': 'admin.content.issue.mediaNotDocument',
-  'content.reference.media-not-audio': 'admin.content.issue.mediaNotAudio',
-  'content.schedule.not-in-future': 'admin.content.issue.notInFuture',
-  'admin.content.publication.time-invalid': 'admin.content.issue.timeInvalid',
-  'content.review.nothing-new': 'admin.content.issue.reviewNothingNew',
-};
-const issueCopy = (message: string): UiKey => ISSUE_COPY[message] ?? 'admin.content.issue.other';
-
 /** The time of the schedule form, or a refusal core will word like its own. */
 function instant(at: string, zone: string): string {
   const parsed = fromLocalInput(at, zone);
@@ -451,18 +417,6 @@ function instant(at: string, zone: string): string {
 /** The operator's admin language; the admin hook always sets it, English only as a last resort. */
 const adminUi = (locals: App.Locals) => ui(langOf(locals));
 
-/** Core's issue keys on a save, as admin copy; anything else is the generic invalid message. */
-const ISSUES: Record<string, UiKey> = {
-  'i18n.default-not-in-locales': 'admin.content.error.defaultLocale',
-  'content.seo.canonical.invalid': 'admin.content.error.canonical',
-  'content.tag.invalid': 'admin.content.error.tag',
-  'content.access.marker-needs-one-paywall': 'admin.content.error.marker',
-  'content.access.teaser-too-long': 'admin.content.error.teaserTooLong',
-  'content.access.tier-ids-required': 'admin.content.error.tier',
-  'content.image.alt-required': 'admin.block.issue.altRequired',
-  'content.image.alt-empty': 'admin.block.issue.altRequired',
-};
-
 /** A refused save as admin copy, with the narrowed error; anything that is not a use-case
  *  refusal is rethrown. Shared by the form's save and the translation start. */
 function saveFailure(e: unknown) {
@@ -473,36 +427,6 @@ function saveFailure(e: unknown) {
     issues: ISSUES,
   });
   return { error, status, body };
-}
-
-/**
- * Who saved the newest revision, when, and what changed since `from`. The slug lives on the item,
- * not in a revision, so a moved address is its own row when the form says what it was rendered
- * with (`baseSlug`); without it a conflict over a moved address read "No differences".
- */
-async function conflictOf(
-  principal: Principal,
-  itemId: string,
-  from: string,
-  zone: string,
-  baseSlug?: string
-) {
-  const { item, revision } = await latest(principal, itemId);
-  const { changes } = await runtime().invoker.run(useCases.diffRevisions, principal, {
-    itemId: item.id,
-    fromRevisionId: from,
-    toRevisionId: revision.id,
-  });
-  const moved = baseSlug !== undefined && baseSlug !== item.slug;
-  return {
-    newest: revision.id,
-    slug: item.slug,
-    who: actorLabel(revision.actor),
-    when: when(revision.createdAt, zone),
-    changes: diffRows(
-      moved ? [{ path: 'slug', before: baseSlug, after: item.slug }, ...changes] : changes
-    ),
-  };
 }
 
 type Event = Parameters<Actions[string]>[0];
@@ -518,6 +442,11 @@ interface Committed {
   inserted: string | null;
   /** The blocks whose fields the save changed, so the screen comes back with them open. */
   changed: string[];
+  /**
+   * The revision the save merged with (ADR 026), or null: every action's redirect names it
+   * (`mergedQuery`), so the screen says with whose save.
+   */
+  mergedWith: string | null;
   /** The admin's time zone for this request (`adminTimeZone`). */
   zone: string;
   /**
@@ -526,14 +455,6 @@ interface Committed {
    */
   editing: string | null;
 }
-
-/** Core's refusals of a new slug, as admin copy. */
-const SLUG_ISSUES: Record<string, UiKey> = {
-  'content.slug.invalid': 'admin.content.error.slugInvalid',
-  'content.slug.reserved': 'admin.content.error.slugReserved',
-  'content.slug.taken': 'admin.content.error.slugTaken',
-  'content.slug.published': 'admin.content.error.slugPublished',
-};
 
 /**
  * The slug the form was rendered with (`baseSlug`, next to the field), so a tab that never touched
@@ -549,21 +470,6 @@ function baseSlugOf(item: { slug: string }, data: FormData): string {
 function slugChange(item: { slug: string }, data: FormData): string | null {
   const slug = text(data, 'slug').trim();
   return slug && slug !== baseSlugOf(item, data) && slug !== item.slug ? slug : null;
-}
-
-/**
- * The form values a conflict comes back with: the newest revision as base and the item's slug as
- * `baseSlug`. An untouched slug field follows the item, so the next save keeps the address the
- * other tab gave it; a slug the operator typed stays, to be applied by that save.
- */
-function conflictValues(values: FormValues, newest: string, slug: string): FormValues {
-  const untouched = !('slug' in values) || values.slug === values.baseSlug;
-  return {
-    ...values,
-    baseRevisionId: newest,
-    ...('baseSlug' in values ? { baseSlug: slug } : {}),
-    ...('slug' in values && untouched ? { slug } : {}),
-  };
 }
 
 /**
@@ -629,6 +535,9 @@ async function commit(
   // The one locale the form shows; a form without the field (an older tab) carries them all.
   const editing = data.has('editLocale') ? text(data, 'editLocale') || null : undefined;
   let changed: string[] = [];
+  let mergedWith: string | null = null;
+  // "Use theirs" for the address: the field goes back to what the item has (`baseSlug`).
+  if (data.get('resolve.slug') === 'theirs') data.set('slug', text(data, 'baseSlug'));
   const done = (revisionId: string, inserted: string | null = null): Committed => ({
     tenant,
     principal,
@@ -636,6 +545,7 @@ async function commit(
     revisionId,
     inserted,
     changed,
+    mergedWith,
     zone,
     editing: editing && editing !== contentLocale(event.cookies, tenant) ? editing : null,
   });
@@ -650,19 +560,20 @@ async function commit(
   let stood: ContentDocument | null = null;
   // The address this save moved the item to, once that transaction stood (`moveSlug`).
   let movedTo: string | null = null;
+  // What a conflict merges (ADR 026): the form's base and what it posts, and the address moved
+  // by both when that is the conflict.
+  let merging: { base: ContentDocument; mine: ContentDocumentInput } | null = null;
+  let slugBoth: { theirs: string; mine: string } | null = null;
   try {
     const { item, revision } = await rt.invoker.run(useCases.getItem, principal, {
       itemId,
       revisionId: baseRevisionId,
     });
-    // A stale tab moves nothing: its slug change is part of the conflict like its fields are,
-    // also when only the address moved since the form was rendered (no newer revision then).
-    if (
-      slugChange(item, data) &&
-      (item.latestRevisionId !== baseRevisionId || item.slug !== baseSlugOf(item, data))
-    )
-      throw new UseCaseError('conflict', 'the item has a newer revision than baseRevisionId');
+    // An address both tabs moved is a choice like a field; one moved in a tab that left the field
+    // alone is kept (`baseSlug`). The revision itself merges (ADR 026).
     const base = revision.document;
+    if (slugChange(item, data) && item.slug !== baseSlugOf(item, data))
+      slugBoth = { theirs: item.slug, mine: text(data, 'slug').trim() };
     blocks = base.blocks;
     pending = opts.discard
       ? null
@@ -697,7 +608,7 @@ async function commit(
     blocks = read.blocks;
     const before = new Map(base.blocks.map((b) => [b.id, b]));
     changed = read.blocks.filter((b) => !isDeepStrictEqual(b, before.get(b.id))).map((b) => b.id);
-    const document = read.document;
+    const document = applyChoices(read.document, base, data);
     if (opts.pattern) {
       if (base.blocks.length || read.blocks.length)
         throw new UseCaseError('conflict', 'Pattern requires an empty document');
@@ -706,6 +617,15 @@ async function commit(
       });
       document.blocks = pattern.blocks.map(({ id: _id, ...block }) => block);
     }
+    if (!opts.pattern) merging = { base, mine: document };
+    // A conflict moves no address: checked before the slug's own transaction.
+    const newest =
+      item.latestRevisionId === baseRevisionId ? null : (await latest(principal, itemId)).revision;
+    if (
+      slugBoth ||
+      (newest && mergeSave(base, document, newest.document, ContentDocumentInput).conflicts.length)
+    )
+      throw new UseCaseError('conflict', 'both changed the same values');
     const moved = await moveSlug(principal, item, data);
     if (moved)
       return {
@@ -721,8 +641,16 @@ async function commit(
       });
       revisionId = made.id;
       stood = made.document;
+      mergedWith = mergedWithOf(made, newest);
     }
     if (!pending || !added) return done(revisionId);
+    // The same post again (a double click on Save): the first one inserted the block, the save
+    // above wrote nothing new, and the revision has it at its place already. Not twice.
+    const again =
+      revisionId === baseRevisionId
+        ? null
+        : await insertedBefore(principal, itemId, revisionId, base, pending, added.props);
+    if (again) return done(revisionId, again);
     const result = await rt.invoker.run(useCases.insertBlock, principal, {
       itemId,
       baseRevisionId: revisionId,
@@ -772,25 +700,26 @@ async function commit(
           status,
         }),
       };
-    const conflict = await conflictOf(
-      principal,
-      itemId,
-      baseRevisionId,
-      zone,
-      data.has('baseSlug') ? text(data, 'baseSlug') : undefined
-    );
+    const baseSlug = data.has('baseSlug') ? text(data, 'baseSlug') : undefined;
+    const merge =
+      merging &&
+      (await conflictOf(principal, itemId, merging.base, merging.mine, {
+        values,
+        editing,
+        zone,
+        slug: slugBoth,
+      }));
+    const conflict = merge?.view.choices.length
+      ? merge
+      : { ...(await changesSince(principal, itemId, baseRevisionId, zone, baseSlug)), values };
     return {
       failure: await refused(
         tenant,
         principal,
         itemId,
-        conflictValues(values, conflict.newest, conflict.slug),
+        conflictValues(conflict.values, conflict.newest, conflict.slug),
         pending,
-        {
-          ...body,
-          status,
-          conflict: { who: conflict.who, when: conflict.when, changes: conflict.changes },
-        }
+        { ...body, status, conflict: conflict.view }
       ),
     };
   }
@@ -810,7 +739,7 @@ async function refused(
     error: UiKey;
     status?: number;
     fieldIssues?: { name: string; copy: UiKey }[];
-    conflict?: { who: string; when: string; changes: ReturnType<typeof diffRows> };
+    conflict?: ConflictView;
     [key: string]: unknown;
   }
 ) {
@@ -854,6 +783,9 @@ async function publication(
   if ('failure' in saved) return saved.failure;
   const { tenant, principal, data, revisionId } = saved;
   const locale = text(data, 'locale');
+  // The save merged with someone else's: the revision holds what this screen never showed, so
+  // nothing is published, scheduled or pinned on it in this click (brief concurrent-editing, decision 8).
+  if (saved.mergedWith && PINS.has(action)) held(saved, event.params.itemId!);
   try {
     await run(principal, {
       itemId: event.params.itemId!,
@@ -882,7 +814,10 @@ async function publication(
           : [],
     });
   }
-  redirect(303, itemPath(tenant.slug, event.params.itemId!, locale, { done: action }));
+  redirect(
+    303,
+    itemPath(tenant.slug, event.params.itemId!, locale, { done: action, ...mergedQuery(saved) })
+  );
 }
 
 /**
@@ -905,11 +840,11 @@ async function blockTry(saved: Committed, itemId: string, run: () => Promise<voi
       invalid: onFields.length ? 'admin.block.error.invalid' : 'admin.content.error.invalid',
     });
     const conflict =
-      refusal.code === 'conflict' ? await conflictOf(principal, itemId, revisionId, zone) : null;
+      refusal.code === 'conflict' ? await changesSince(principal, itemId, revisionId, zone) : null;
     return fail(status, {
       ...body,
       fieldIssues: onFields.map((i) => ({ name: i.name, copy: ISSUES[i.message] ?? body.error })),
-      conflict: conflict && { who: conflict.who, when: conflict.when, changes: conflict.changes },
+      conflict: conflict?.view ?? null,
     });
   }
 }
@@ -949,19 +884,31 @@ async function blockStep(
     // The revision the block was removed from names it for "Undo" (`restore`).
     redirect(
       303,
-      itemPath(tenant.slug, itemId, editing, { done, undo: `${revisionId}:${blockId}` }, at)
+      itemPath(
+        tenant.slug,
+        itemId,
+        editing,
+        { done, undo: `${revisionId}:${blockId}`, ...mergedQuery(saved) },
+        at
+      )
     );
   }
   // The block lands at rest (MY-110 A): it is complete, and the screen's script puts focus back
   // on the control that moved or copied it.
-  redirect(303, itemPath(tenant.slug, itemId, editing, { done }, `block-${landing}`));
+  redirect(
+    303,
+    itemPath(tenant.slug, itemId, editing, { done, ...mergedQuery(saved) }, `block-${landing}`)
+  );
 }
 
 export const actions: Actions = {
   pattern: async (event) => {
     const saved = await commit(event, { pattern: true, always: true });
     if ('failure' in saved) return saved.failure;
-    redirect(303, itemPath(saved.tenant.slug, event.params.itemId, saved.editing, {}, 'blocks'));
+    redirect(
+      303,
+      itemPath(saved.tenant.slug, event.params.itemId, saved.editing, mergedQuery(saved), 'blocks')
+    );
   },
   save: async (event) => {
     const saved = await commit(event, { always: true });
@@ -978,7 +925,11 @@ export const actions: Actions = {
         tenant.slug,
         event.params.itemId,
         saved.editing,
-        { saved: '', ...(open.length ? { block: open.join(',') } : {}) },
+        {
+          saved: '',
+          ...mergedQuery(saved),
+          ...(open.length ? { block: open.join(',') } : {}),
+        },
         open.length ? `block-${open[0]}` : /^[0-9a-f-]{36}$/.test(near) ? `block-${near}` : ''
       )
     );
@@ -1011,7 +962,7 @@ export const actions: Actions = {
     const recovered = { error: 'admin.content.recovered.body' as const, recovered: true };
     if (!stale) return (await refused(tenant, principal, itemId, values, null, recovered)).data;
     const { zone } = await adminTimeZone(event.locals);
-    const conflict = await conflictOf(principal, itemId, baseRevisionId, zone, baseSlug);
+    const conflict = await changesSince(principal, itemId, baseRevisionId, zone, baseSlug);
     return (
       await refused(
         tenant,
@@ -1019,10 +970,7 @@ export const actions: Actions = {
         itemId,
         conflictValues(values, conflict.newest, conflict.slug),
         null,
-        {
-          ...recovered,
-          conflict: { who: conflict.who, when: conflict.when, changes: conflict.changes },
-        }
+        { ...recovered, conflict: conflict.view }
       )
     ).data;
   },
@@ -1031,14 +979,17 @@ export const actions: Actions = {
   discard: async (event) => {
     const saved = await commit(event, { discard: true });
     if ('failure' in saved) return saved.failure;
-    redirect(303, itemPath(saved.tenant.slug, event.params.itemId, saved.editing, {}, 'blocks'));
+    redirect(
+      303,
+      itemPath(saved.tenant.slug, event.params.itemId, saved.editing, mergedQuery(saved), 'blocks')
+    );
   },
   /** Shows an empty block of the chosen type at its place, after saving what was typed. */
   insert: async (event) => {
     const saved = await commit(event);
     if ('failure' in saved) return saved.failure;
     // pendingBlock remains the closed type/anchor validator on load, droppedMedia the ids'.
-    const query = insertQuery(text(saved.data, 'insert'), saved.data);
+    const query = { ...insertQuery(text(saved.data, 'insert'), saved.data), ...mergedQuery(saved) };
     redirect(
       303,
       itemPath(saved.tenant.slug, event.params.itemId, saved.editing, query, 'block-new')
@@ -1092,7 +1043,13 @@ export const actions: Actions = {
     if (refused) return refused;
     redirect(
       303,
-      itemPath(saved.tenant.slug, itemId, saved.editing, { done: 'heroConverted' }, 'item-header')
+      itemPath(
+        saved.tenant.slug,
+        itemId,
+        saved.editing,
+        { done: 'heroConverted', ...mergedQuery(saved) },
+        'item-header'
+      )
     );
   },
   /**
@@ -1144,7 +1101,7 @@ export const actions: Actions = {
         tenant.slug,
         itemId,
         editing,
-        { done: 'blockRestored' },
+        { done: 'blockRestored', ...mergedQuery(saved) },
         landing ? `block-${landing}` : 'blocks'
       )
     );
@@ -1237,6 +1194,7 @@ export const actions: Actions = {
     const saved = await commit(event);
     if ('failure' in saved) return saved.failure;
     const locale = text(saved.data, 'locale');
+    if (saved.mergedWith) held(saved, params.itemId);
     try {
       await runtime().invoker.run(useCases.approveTranslation, principal, {
         itemId: params.itemId,
@@ -1252,7 +1210,10 @@ export const actions: Actions = {
     }
     redirect(
       303,
-      itemPath(saved.tenant.slug, params.itemId, locale, { done: 'translationApproved' })
+      itemPath(saved.tenant.slug, params.itemId, locale, {
+        done: 'translationApproved',
+        ...mergedQuery(saved),
+      })
     );
   },
   /**
@@ -1274,7 +1235,7 @@ export const actions: Actions = {
       if (!revision.document.locales.includes(to))
         error(400, adminUi(event.locals)('admin.locale.unknown'));
     }
-    redirect(303, itemPath(saved.tenant.slug, event.params.itemId, to));
+    redirect(303, itemPath(saved.tenant.slug, event.params.itemId, to, mergedQuery(saved)));
   },
   /**
    * "Start the translation" for a locale the document lacks: after saving the rest of the form,
@@ -1301,13 +1262,9 @@ export const actions: Actions = {
     } catch (thrown) {
       const { error: e, status, body } = saveFailure(thrown);
       const conflict =
-        e.code === 'conflict' ? await conflictOf(principal, itemId, revisionId, zone) : null;
-      return fail(status, {
-        ...body,
-        fieldIssues: [],
-        conflict: conflict && { who: conflict.who, when: conflict.when, changes: conflict.changes },
-      });
+        e.code === 'conflict' ? await changesSince(principal, itemId, revisionId, zone) : null;
+      return fail(status, { ...body, fieldIssues: [], conflict: conflict?.view ?? null });
     }
-    redirect(303, itemPath(tenant.slug, itemId, to, { saved: '' }));
+    redirect(303, itemPath(tenant.slug, itemId, to, { saved: '', ...mergedQuery(saved) }));
   },
 };

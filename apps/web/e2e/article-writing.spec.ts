@@ -13,7 +13,7 @@ import { login } from './lib/login';
 import { closePublication, openPublication } from './lib/publication';
 import { isA11y, onlyA11y } from './lib/project';
 import { article, callApi, requireApi } from './lib/api';
-import { block, blockPage, card, editorReady } from './lib/editor';
+import { block, blockPage, card, editorReady, newPage, reloadsEditor } from './lib/editor';
 
 // The enhanced article view and native block forms save the same core document. The browser
 // proof covers explicit saving, axe and the action layout at 320 CSS px with 200% text; the no-JS
@@ -695,36 +695,55 @@ test.describe('article-writing', () => {
     );
   });
 
-  test('an integrated prose conflict retains input and never overwrites the newer revision', async ({
+  // ADR 026 in the writer: a colleague's title merges with my text; the same text both changed
+  // asks once, the writer keeps mine, and the next save stands instead of refusing a block.
+  test('the writer merges a colleague’s save and asks only about the text both changed', async ({
     page,
     request,
   }) => {
     onlyA11y();
     const edit = await article(request);
     const itemId = edit.split('/').at(-1)!;
+    const get = () => callApi(request, 'content.item.get', { itemId });
+    const colleague = async (change: (d: any) => any) => {
+      const { revision } = await get();
+      await callApi(request, 'content.item.update', {
+        itemId,
+        baseRevisionId: revision.id,
+        document: change(revision.document),
+      });
+    };
     await login(page, edit);
+    const prose = page.locator('.writing-surface .editor-prose p').first();
     await expect(page.locator('.writing-surface .ProseMirror').first()).toBeVisible();
-    const { revision } = await callApi(request, 'content.item.get', { itemId });
-    await callApi(request, 'content.item.update', {
-      itemId,
-      baseRevisionId: revision.id,
-      document: { ...revision.document, title: { nl: 'Kop van collega', en: 'An article' } },
-    });
-    await page.locator('.writing-surface .editor-prose p').first().fill('Mijn nieuwe tekst');
+    await colleague((d) => ({ ...d, title: { ...d.title, nl: 'Kop van collega' } }));
+    await prose.fill('Mijn nieuwe tekst');
     await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(
-      page
-        .getByRole('alert')
-        .filter({ hasText: 'Iemand anders heeft dit item intussen opgeslagen' })
-    ).toBeVisible();
+    await expect(page).toHaveURL(/\?saved&merged=[0-9a-f-]{36}/);
+    const merged = (await get()).revision.document;
+    expect(merged.title.nl).toBe('Kop van collega');
+    expect(JSON.stringify(merged.blocks[0].props.content.nl)).toContain('Mijn nieuwe tekst');
+
+    await colleague((d) => {
+      const content = structuredClone(d.blocks[0].props.content);
+      content.nl.content[0].content[0].text = 'Tekst van collega';
+      return { ...d, blocks: [{ ...d.blocks[0], props: { content } }, ...d.blocks.slice(1)] };
+    });
+    await prose.fill('Weer mijn tekst');
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    const alert = page.getByRole('alert');
+    await expect(alert).toContainText('Iemand anders heeft dit item intussen opgeslagen');
+    await expect(alert.getByRole('radio')).toHaveCount(2);
+    await expect(alert.getByRole('group', { name: 'Blok 1 (Tekst) (nl)' })).toBeVisible();
     await expect(page.locator('.writing-surface .ProseMirror').first()).toContainText(
-      'Mijn nieuwe tekst'
+      'Weer mijn tekst'
     );
-    const saved = await callApi(request, 'content.item.get', { itemId });
-    expect(saved.revision.document.title.nl).toBe('Kop van collega');
-    expect(saved.revision.document.blocks[0].props.content.nl).toEqual(
-      revision.document.blocks[0].props.content.nl
+    expect(JSON.stringify((await get()).revision.document.blocks[0])).toContain(
+      'Tekst van collega'
     );
+    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await expect(page).toHaveURL(/\?saved/);
+    expect(JSON.stringify((await get()).revision.document.blocks[0])).toContain('Weer mijn tekst');
   });
 
   test('pasted plain text is read as text written elsewhere', async ({ page, request }) => {
@@ -1330,5 +1349,125 @@ test.describe('attention', () => {
       await finishJobs(jobs);
       await withInvoker((invoker) => invoker.run(useCases.removeMember, site, { operatorId }));
     }
+  });
+});
+
+// ADR 026 after a save that merged: an action that pins a revision is not taken on content the
+// screen never showed, and the same post twice adds a new block once. Here, not in content-admin
+// with the merge itself, because that spec is at its size limit.
+test.describe('after a save that merged', () => {
+  test.use({
+    locale: 'nl-NL',
+    extraHTTPHeaders: {
+      'x-forwarded-proto': 'http',
+      'x-forwarded-for': `198.51.100.${Math.floor(Math.random() * 250) + 1}`,
+    },
+  });
+  const slugFor = (what: string) =>
+    `aw-${what}-${test.info().project.name}-${randomUUID()}`.toLowerCase();
+
+  // A publication action after a save that merged would put live what the publisher
+  // never saw. It is not taken: the screen comes back on the merged revision, says with whose
+  // save, and the action is chosen again. With and without JavaScript.
+  test('publishing from an outdated form that merged publishes nothing unseen', async ({
+    page,
+    request,
+  }) => {
+    await login(page, '/admin/probe');
+    const edit = await newPage(page, slugFor('held'), 'Eerste versie');
+    const itemId = edit.split('/').at(-1)!;
+    const item = async () => callApi(request, 'content.item.get', { itemId });
+    const { revision } = await item();
+    await callApi(request, 'content.item.update', {
+      itemId,
+      baseRevisionId: revision.id,
+      document: { ...revision.document, lead: { nl: 'Concept van een ander' } },
+    });
+    await page.locator('#title\\.nl').fill('Titel van de publiceerder');
+    await openPublication(page);
+    const publish = () =>
+      page.locator('#publication-nl').getByRole('button', { name: 'Publiceren', exact: true });
+    await publish().click();
+    await expect(page).toHaveURL(new RegExp(`\\?held&merged=[0-9a-f-]{36}$`));
+    await expect(page.getByRole('status')).toContainText('niets gepubliceerd');
+    const after = await item();
+    expect(after.item.publication.find((p: { locale: string }) => p.locale === 'nl')).toMatchObject(
+      { publishedRevisionId: null }
+    );
+    // The merged revision is what the screen shows now; publishing it is the second, seen click.
+    expect(after.revision.document.lead.nl).toBe('Concept van een ander');
+    await expect(page.locator('#title\\.nl')).toHaveValue('Titel van de publiceerder');
+    await expectNoAxeViolations(page);
+    await openPublication(page);
+    await publish().click();
+    await expect(page).toHaveURL(/\?done=publish/);
+    const live = await item();
+    expect(live.item.publication.find((p: { locale: string }) => p.locale === 'nl')).toMatchObject({
+      publishedRevisionId: after.revision.id,
+    });
+  });
+
+  // A form whose changes are all in the newest revision merges into exactly that revision, and
+  // core writes nothing. The newest holds more than the form showed, so nothing is published.
+  test('publishing changes another save already made publishes nothing unseen', async ({
+    page,
+    request,
+  }) => {
+    await login(page, '/admin/probe');
+    const edit = await newPage(page, slugFor('subset'), 'Eerste versie');
+    const itemId = edit.split('/').at(-1)!;
+    const item = async () => callApi(request, 'content.item.get', { itemId });
+    const { revision } = await item();
+    const theirs = await callApi(request, 'content.item.update', {
+      itemId,
+      baseRevisionId: revision.id,
+      document: {
+        ...revision.document,
+        title: { nl: 'Dezelfde correctie' },
+        lead: { nl: 'Concept van een ander' },
+      },
+    });
+    await page.locator('#title\\.nl').fill('Dezelfde correctie');
+    await openPublication(page);
+    const publish = () =>
+      page.locator('#publication-nl').getByRole('button', { name: 'Publiceren', exact: true });
+    await reloadsEditor(page, () => publish().click());
+    await expect(page).toHaveURL(new RegExp(`\\?held&merged=${theirs.revision.id}$`));
+    await expect(page.getByRole('status')).toContainText('niets gepubliceerd');
+    const after = await item();
+    expect(after.revision.id).toBe(theirs.revision.id);
+    expect(after.item.publication.find((p: { locale: string }) => p.locale === 'nl')).toMatchObject(
+      { publishedRevisionId: null }
+    );
+    await openPublication(page);
+    await reloadsEditor(page, () => publish().click());
+    await expect(page).toHaveURL(/\?done=publish/);
+    const live = await item();
+    expect(live.item.publication.find((p: { locale: string }) => p.locale === 'nl')).toMatchObject({
+      publishedRevisionId: theirs.revision.id,
+    });
+  });
+
+  // The same post twice (a double click on Save with a new block in the form) adds the
+  // block once. The second post arrives after the first stood, on the base the form was opened on.
+  test('the same save posted twice adds a new block once', async ({ page, request }) => {
+    onlyA11y('two posts of one form are sent from the page');
+    await login(page, '/admin/probe');
+    const edit = await newPage(page, slugFor('twice'), 'Twee keer');
+    const itemId = edit.split('/').at(-1)!;
+    await page.goto(`${edit}?insert=heading&place=end#block-new`);
+    await page.locator('#block-new').getByLabel('Tekst', { exact: true }).fill('Eén kop');
+    const statuses = await page
+      .getByRole('button', { name: 'Opslaan', exact: true })
+      .evaluate(async (button: HTMLButtonElement) => {
+        const body = new FormData(button.form!, button);
+        const out: number[] = [];
+        for (const _ of [1, 2])
+          out.push((await fetch(button.formAction, { method: 'POST', body })).status);
+        return out;
+      });
+    expect(statuses).toEqual([200, 200]);
+    const { revision } = await callApi(request, 'content.item.get', { itemId });
+    expect(revision.document.blocks.map((b: { type: string }) => b.type)).toEqual(['heading']);
   });
 });

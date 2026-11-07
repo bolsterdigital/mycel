@@ -1136,7 +1136,8 @@ test('an image dropped between two blocks of a page becomes an image block there
   await expect(fresh.getByRole('heading', { name: 'Nieuw blok: Fotogalerij' })).toBeVisible();
   await expect(fresh.locator('[name="new.p.images.0.alt.nl"]')).toBeFocused();
 
-  // A newer revision in between is a conflict like any other action's, with the input kept.
+  // A newer revision in between merges like any other action's save (ADR 026): its title, this
+  // form's text and the gallery all stand, and the drop goes on to a block of its own.
   await page.locator('[name="new.p.images.0.alt.nl"]').fill('Eerste');
   await page.locator('[name="new.p.images.1.alt.nl"]').fill('Tweede');
   await (await block(page, 1)).locator(`[name="b.${blocks[0]}.p.text.nl"]`).fill('Een, opnieuw');
@@ -1152,10 +1153,19 @@ test('an image dropped between two blocks of a page becomes an image block there
   const late = `laat-${stamp}.png`;
   leftovers.names.push(late);
   await dropOn(page, `[data-block-card="block-${blocks[0]}"]`, [pngFile(late)]);
-  await expect(page.getByText('Iemand anders heeft dit item intussen opgeslagen')).toBeVisible();
-  await expect(page.locator('[name="new.p.images.0.alt.nl"]')).toHaveValue('Eerste');
-  await expect(page.locator(`[name="b.${blocks[0]}.p.text.nl"]`)).toHaveValue('Een, opnieuw');
-  expect((await storedBlocks(id)).map((b) => b.type)).toEqual(['quote', 'image', 'quote']);
+  await expect(page).toHaveURL(/insert=image&place=before/);
+  await expect(page.getByText('Iemand anders heeft dit item intussen opgeslagen')).toHaveCount(0);
+  expect((await storedBlocks(id)).map((b) => b.type)).toEqual([
+    'quote',
+    'image',
+    'quote',
+    'gallery',
+  ]);
+  const { revision } = await withInvoker((invoker) =>
+    tenantId().then((t) => invoker.run(useCases.getItem, systemPrincipal(t, 'e2e'), { itemId: id }))
+  );
+  expect(revision.document.title.nl).toBe(`Elders ${stamp}`);
+  expect(JSON.stringify(revision.document.blocks[0])).toContain('Een, opnieuw');
 });
 
 test('an image dropped in an article lands between its paragraphs, alt text in focus', async ({

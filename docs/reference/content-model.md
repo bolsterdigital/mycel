@@ -80,7 +80,7 @@ References are checked on every save (create, update, every block operation, pat
 
 | Use case                                                           | Capability        | Notes                                                                                                                                                           |
 | ------------------------------------------------------------------ | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `content.item.create`, `content.item.update`                       | `content:write`   | Update needs `baseRevisionId`; a stale base is a typed `conflict` with nothing written                                                                          |
+| `content.item.create`, `content.item.update`                       | `content:write`   | Update needs `baseRevisionId`; an older base merges (ADR 026), a value both changed is a typed `conflict` naming each path, with nothing written                |
 | `content.item.duplicate`                                           | `content:write`   | Copies the latest revision into a new draft with its own slug; corrections and e-mail delivery stay behind                                                      |
 | `content.slug.update`                                              | `content:write`   | Only for an item never published in any locale; leaves revisions and publication untouched                                                                      |
 | `content.item.get`, `list`, `revisions`, `diff`                    | `content:read`    | Editorial; lists are keyset pages, newest first; `diff` lists changed paths, blocks matched by id; `content.item.list` also searches, filters and sorts (below) |
@@ -95,7 +95,7 @@ References are checked on every save (create, update, every block operation, pat
 
 An anonymous principal reaches only the use cases in `ANONYMOUS_USE_CASES` (`packages/core/src/registry.ts`), whatever capabilities it holds, so a public visitor's `content:read` opens no editorial use case. A new use case is closed until it is listed there.
 
-Every write takes the item lock (`select ... for update` on the item row) first. Two saves on one base therefore end in one new revision and one `conflict`, and a publication change racing a save or a scheduled job serialises in lock order.
+Every write takes the item lock (`select ... for update` on the item row) first, so a publication change racing a save or a scheduled job serialises in lock order. Two whole-document saves on one base are merged in that order (ADR 026): the second is combined with the first per document field, per locale and per block id, and its revision records `provenance.merged` with both revision ids. Only a value both changed differently is a `conflict`; its issues are `baseRevisionId` (with `params.latestRevisionId`) and one `document.<path>` per value, in the path grammar of `content.revision.diff` (`document.blocks[id=x].props.text.nl`, `document.blocks#order`). Text inside one rich-text locale is one value. A merge that would break a rule of the whole document (two text blocks side by side) makes `document.blocks`, and failing that `document`, the one conflict. Block operations still need the latest revision as their base.
 
 ## Block operations and references
 

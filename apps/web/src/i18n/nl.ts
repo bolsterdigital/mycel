@@ -1040,6 +1040,22 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.recovered.discard': 'Weggooien',
   'admin.content.conflict.title': 'Iemand anders heeft dit item intussen opgeslagen',
   'admin.content.conflict.body':
+    '{who} heeft om {when} een nieuwere revisie opgeslagen. Die wijzigingen staan nu samen met de jouwe in het formulier hieronder; er is nog niets opgeslagen. Jullie veranderden allebei wat hier staat: kies per onderdeel welke versie blijft en sla dan op.',
+  'admin.content.conflict.choices': 'Door jullie allebei gewijzigd',
+  'admin.content.conflict.mine': 'Mijn versie houden',
+  'admin.content.conflict.theirs': 'Hun versie gebruiken',
+  'admin.content.conflict.removed': '(verwijderd)',
+  'admin.content.conflict.field.document': 'Het hele document',
+  'admin.content.conflict.field.blocks': 'De blokken en hun volgorde',
+  'admin.content.conflict.field.block': 'Blok {n} ({type})',
+  'admin.content.conflict.field.other': 'Veld {path}',
+  'admin.content.done.mergedHeld':
+    'Je wijzigingen zijn opgeslagen als nieuwe revisie, samen met wat {who} om {when} opsloeg. Daarin staan wijzigingen die je nog niet had gezien, dus er is niets gepubliceerd, ingepland of goedgekeurd. Bekijk de revisie hieronder en kies de actie daarna opnieuw.',
+  'admin.content.done.mergedWith':
+    'Je wijzigingen zijn eerst opgeslagen, samen met wat {who} om {when} opsloeg. Niets van wat jullie veranderden is overschreven.',
+  'admin.content.done.merged':
+    'Opgeslagen als nieuwe revisie, samen met wat {who} om {when} opsloeg. Niets van wat jullie veranderden is overschreven. Wat gepubliceerd is, is niet veranderd.',
+  'admin.content.conflict.bodyTable':
     '{who} sloeg om {when} een nieuwere revisie op. Je wijzigingen staan nog in het formulier hieronder en zijn niet opgeslagen. De tabel toont wat er veranderde sinds je de pagina opende. Controleer dat en sla opnieuw op om je wijzigingen eroverheen te zetten.',
   'admin.content.diff.label': 'Wijzigingen',
   'admin.content.diff.path': 'Veld',

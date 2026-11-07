@@ -16,8 +16,8 @@
      hidden default button. The side column has the status card of each locale (the state in words,
      the main action by state, scheduling folded, view on the site) and "This item" (address,
      authors, section and tags as WordPress and Ghost have them, revisions). A failed save comes
-     back with what was typed and every fold open; a conflict also shows who saved in between and
-     what changed (ADR 018 rule 2). The restricted note comes before every publication button and
+     back with what was typed and every fold open; a conflict names who saved in between and asks
+     only about what both changed (ADR 026). The restricted note comes before every publication button and
      cannot be closed (ADR 018 rule 6).
      One locale at a time (#66 PR 4): every field shows the content locale only, without a locale
      in its label; the bar's LocaleSwitch saves and shows another locale with where each stands;
@@ -38,7 +38,8 @@
   import BlockDrop from '#lib/admin/block-drop/BlockDrop.svelte';
   import PendingBlock from '#lib/admin/pending-block/PendingBlock.svelte';
   import ReviewOffer from '#lib/admin/review-offer/ReviewOffer.svelte';
-  import Diff from '#lib/admin/Diff.svelte';
+  import ConflictNotice from '#lib/admin/conflict/ConflictNotice.svelte';
+  import MergeNotice from '#lib/admin/conflict/MergeNotice.svelte';
   import Inherited from '#lib/admin/Inherited.svelte';
   import { issueLabel } from '#lib/admin/issue-label.js';
   import { thumbPath } from '#lib/admin/ui/thumb.js';
@@ -1272,16 +1273,9 @@
     {/if}
     {#if !(form && 'locale' in form && !form.conflict)}{@render refusalNotice()}{/if}
     {#if form?.conflict}
-      <Notice tone="error" title={t('admin.content.conflict.title')}>
-        <p>
-          {fill(t('admin.content.conflict.body'), {
-            who: form.conflict.who,
-            when: form.conflict.when,
-          })}
-        </p>
-        <Diff rows={form.conflict.changes} locale={data.locale} />
-      </Notice>
+      <ConflictNotice conflict={form.conflict} form="item-edit" locale={data.locale} />
     {/if}
+    {#if !form}<MergeNotice merge={data} />{/if}
     {#if data.done && data.undo}
       <Notice tone="success">
         <p class="item-undo">
@@ -1297,7 +1291,7 @@
       </Notice>
     {:else if data.done}
       <Notice tone="success"><p>{fill(t(data.done), { locale: data.doneLocale })}</p></Notice>
-    {:else if data.saved && !form}
+    {:else if data.saved && !form && !data.merged}
       <Notice tone="success"><p>{t('admin.content.done.saved')}</p></Notice>
     {/if}
   {/snippet}

@@ -495,6 +495,45 @@ describe.skipIf(skip)('content conformance', () => {
     }
   });
 
+  it('merges concurrent saves on one base that change different blocks, losing none (ADR 026)', async () => {
+    const heading = (i: number, text: string) => ({
+      id: `h${i}`,
+      type: 'heading' as const,
+      version: 1 as const,
+      props: { text: { nl: text } },
+    });
+    const blocks = (changed?: number) =>
+      Array.from({ length: 8 }, (_, i) => heading(i, i === changed ? `mine ${i}` : `kop ${i}`));
+    const { item, revision } = await invoker.run(useCases.createItem, adminOf(tenantA), {
+      slug: `merge-race-${run}`,
+      document: { ...doc('merge'), blocks: blocks() },
+    });
+    const results = await Promise.all(
+      Array.from({ length: 8 }, (_, i) =>
+        invoker.run(useCases.updateItem, adminOf(tenantA), {
+          itemId: item.id,
+          baseRevisionId: revision.id,
+          document: { ...doc('merge'), blocks: blocks(i) },
+        })
+      )
+    );
+    // Under the item lock each save merged with the one before it: one chain, no lost change.
+    const merged = results.filter(
+      (r) => r.revision.provenance && 'merged' in r.revision.provenance
+    );
+    expect(merged).toHaveLength(7);
+    const { revision: latest } = await invoker.run(useCases.getItem, adminOf(tenantA), {
+      itemId: item.id,
+    });
+    expect(
+      latest.document.blocks.map((b) => (b.props as { text: { nl: string } }).text.nl)
+    ).toEqual(Array.from({ length: 8 }, (_, i) => `mine ${i}`));
+    const { revisions } = await invoker.run(useCases.listRevisions, adminOf(tenantA), {
+      itemId: item.id,
+    });
+    expect(revisions).toHaveLength(9);
+  });
+
   it('moves the slug of a never-published item, and one of two racing renames to a free slug wins', async () => {
     const { item } = await create('slug-from');
     const moved = await invoker.run(useCases.updateSlug, adminOf(tenantA), {
