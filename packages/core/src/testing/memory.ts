@@ -1,7 +1,7 @@
 // In-memory implementations of every port (ADR 001 consequence: the core is testable without a
 // database). Used by core tests and by front tests (api, mcp) that need a working runtime.
 // Not transactional: a thrown use case leaves partial writes, which the tests do not rely on.
-// Two locks are real: `members.lock()` and `media.lock()` queue per tenant until `run` ends, like
+// Three locks are real: bulk run phases, `members.lock()` and `media.lock()` queue per tenant until `run` ends, like
 // the advisory locks in Postgres, so the key/membership race (TODO #20a) and the media
 // save/delete race (TODO #8b2) can be proven here too.
 //

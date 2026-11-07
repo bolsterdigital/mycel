@@ -202,9 +202,31 @@ export function memorySite(
   };
 }
 
-/** Immutable plan snapshots, separate from the transaction composition. */
-export function memoryBulkPlans(s: TenantStore): BulkPlanRepository {
+/** Immutable plans and transaction-locked receipts, separate from the composition. */
+export function memoryBulkPlans(s: TenantStore, lock: () => Promise<void>): BulkPlanRepository {
   return {
+    async lock(id) {
+      await lock();
+      return s.bulkPlans.has(id);
+    },
+    undoRequested: async (id) => s.bulkUndo.has(id),
+    requestUndo: async (id) => {
+      s.bulkUndo.add(id);
+    },
+    result: async (id, ordinal, phase) =>
+      structuredClone(s.bulkResults.get(`${id}:${ordinal}:${phase}`) ?? null),
+    record: async (id, ordinal, phase, result) => {
+      s.bulkResults.set(`${id}:${ordinal}:${phase}`, structuredClone(result));
+    },
+    async report(id) {
+      const results = [];
+      for (let ordinal = 0; ordinal < (s.bulkPlans.get(id)?.items.length ?? 0); ordinal++)
+        for (const phase of ['apply', 'undo'] as const) {
+          const result = s.bulkResults.get(`${id}:${ordinal}:${phase}`);
+          if (result) results.push({ ordinal, phase, result: structuredClone(result) });
+        }
+      return { undoRequested: s.bulkUndo.has(id), results };
+    },
     async insert(plan) {
       if (s.bulkPlans.has(plan.id)) throw new Error('duplicate bulk plan');
       s.bulkPlans.set(plan.id, structuredClone(plan));

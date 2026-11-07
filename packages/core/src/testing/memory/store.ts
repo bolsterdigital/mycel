@@ -1,4 +1,4 @@
-import type { BulkPlan } from '../../content/bulk/model.js';
+import type { BulkPlan, BulkResult } from '../../content/bulk/model.js';
 // The rows of the in-memory runtime: one `TenantStore` per tenant, isolated by construction like
 // RLS, plus the platform-wide tables. Also the helpers every module factory shares (keyset pages,
 // the per-tenant lock). Rejected: one store per module, which would split a tenant's rows and
@@ -68,6 +68,8 @@ export interface TenantStore {
   authors: Map<string, Author>;
   sections: Map<string, Section>;
   bulkPlans: Map<string, BulkPlan>;
+  bulkUndo: Set<string>;
+  bulkResults: Map<string, BulkResult>;
   patterns: Map<string, Pattern>;
   forms: Map<string, FormDefinition>;
   submissions: Map<string, Submission>;
@@ -132,6 +134,8 @@ const emptyTenant = (): TenantStore => ({
   authors: new Map(),
   sections: new Map(),
   bulkPlans: new Map(),
+  bulkUndo: new Set(),
+  bulkResults: new Map(),
   patterns: new Map(),
   forms: new Map(),
   submissions: new Map(),
@@ -167,6 +171,7 @@ export interface OperatorRow {
 
 /** All tenants' data, keyed by tenant id: isolation is by construction, like RLS. */
 export class MemoryStore {
+  readonly bulkLocks = new Map<string, Promise<void>>();
   readonly tenants = new Map<string, TenantStore>();
   readonly outbox: DomainEvent[] = [];
   readonly operators = new Map<string, OperatorRow>();

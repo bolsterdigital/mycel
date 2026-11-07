@@ -3,7 +3,7 @@
 import { z } from 'zod';
 import { Actor } from '../../principal.js';
 import { Locale } from '../../i18n/locale.js';
-import { ContentDocument, ContentDocumentInput, LocalePublication } from '../model.js';
+import { ContentDocument, ContentDocumentInput, ContentItem, LocalePublication } from '../model.js';
 
 const Id = z.string().guid();
 export const BulkOperation = z.discriminatedUnion('kind', [
@@ -92,3 +92,57 @@ export const BulkPlan = z
 export type BulkPlan = z.infer<typeof BulkPlan>;
 export type BulkPlanItem = z.infer<typeof BulkPlanItem>;
 export type BulkPreview = z.infer<typeof BulkPreview>;
+
+// One slot per request is a deliberately measurable transaction bound. A caller follows `next`
+// through the frozen selection, keeping the same ordinal after an uncertain response.
+export const BulkStep = z
+  .object({
+    planId: Id,
+    version: z.literal(1),
+    ordinal: z.number().int().min(0).max(99).default(0),
+  })
+  .strict();
+export const BulkPhase = z.enum(['apply', 'undo']);
+export const BulkResult = z
+  .object({
+    status: z.enum(['unchanged', 'changed', 'awaiting_editor', 'refused', 'conflict', 'undone']),
+    retryable: z.boolean(),
+    actor: Actor,
+    at: z.string().datetime({ offset: true }),
+    before: ContentItem.nullable(),
+    after: ContentItem.nullable(),
+    savedRevisionId: Id.nullable(),
+    publishedRevisionId: Id.nullable(),
+    publicationChanged: z.boolean(),
+    merge: BulkPreview.shape.merge,
+    problems: z.array(BulkProblem),
+  })
+  .strict();
+export type BulkResult = z.infer<typeof BulkResult>;
+export type BulkPhase = z.infer<typeof BulkPhase>;
+export const BulkProgress = z
+  .object({
+    planId: Id,
+    version: z.literal(1),
+    phase: BulkPhase,
+    ordinal: z.number().int(),
+    result: BulkResult,
+    next: z.number().int().nullable(),
+  })
+  .strict();
+export const BulkReport = z
+  .object({
+    planId: Id,
+    undoRequested: z.boolean(),
+    items: z.array(
+      z
+        .object({
+          itemId: Id,
+          apply: BulkResult.nullable(),
+          undo: BulkResult.nullable(),
+        })
+        .strict()
+    ),
+    fullyUndone: z.boolean(),
+  })
+  .strict();

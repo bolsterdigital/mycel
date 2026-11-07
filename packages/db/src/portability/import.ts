@@ -73,6 +73,8 @@ const IMPORT_RULE = {
   content_revisions: 'as-exported',
   content_bulk_plans: 'as-exported',
   content_bulk_plan_items: 'as-exported',
+  content_bulk_runs: 'as-exported',
+  content_bulk_effects: 'as-exported',
   assist_settings: 'as-exported',
   content_item_locales: 'as-exported',
   content_block_refs: 'as-exported',

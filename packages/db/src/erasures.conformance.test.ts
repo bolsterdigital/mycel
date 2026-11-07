@@ -144,7 +144,7 @@ describe.skipIf(skip)('erasure conformance', () => {
         blocks: [],
       },
     });
-    await invoker.run(useCases.createBulk, editor, {
+    const bulk = await invoker.run(useCases.createBulk, editor, {
       locale: 'nl',
       items: [
         {
@@ -154,6 +154,7 @@ describe.skipIf(skip)('erasure conformance', () => {
         },
       ],
     });
+    await invoker.run(useCases.resumeBulk, editor, { planId: bulk.id, version: 1 });
     await signup(tenants.a, email, uow);
     await signup(tenants.a, other, uow);
     // Tenant B has a supporter with the very same address: an erasure is one tenant's business.
@@ -213,6 +214,8 @@ describe.skipIf(skip)('erasure conformance', () => {
     );
     expect(after['content_bulk_plans']).toHaveLength(1);
     expect(after['content_bulk_plan_items']).toHaveLength(1);
+    expect(after['content_bulk_runs']).toHaveLength(1);
+    expect(after['content_bulk_effects']).toHaveLength(1);
     expect(after['audit_log']!.length).toBeGreaterThanOrEqual(before['audit_log']!.length);
   });
 

@@ -59,6 +59,8 @@ import './ports.js';
 import '../theme/ports.js';
 import { finalize, assertBase, prepareItemSave } from './merge/prepare.js';
 export { finalize, assertBase, requireBlockTypes, prepareItemSave } from './merge/prepare.js';
+import { newRevision, storeRevision } from './revisions/write.js';
+export { restoreRevision } from './revisions/write.js';
 import { iso } from '../util/date.js';
 import { exampleId } from '../util/ids.js';
 
@@ -145,22 +147,6 @@ const recordRevisionUsages = (ctx: TransactionContext, revision: Revision) =>
     documentMedia(revision.document)
   );
 
-/** The one shape of a new revision, for a new item and for every write after it. */
-const newRevision = (
-  ctx: TransactionContext,
-  itemId: string,
-  document: ContentDocument,
-  now: Date,
-  provenance?: Revision['provenance']
-): Revision => ({
-  id: ctx.ids.next(),
-  itemId,
-  createdAt: now.toISOString(),
-  actor: ctx.principal.actor,
-  ...(provenance ? { provenance } : {}),
-  document,
-});
-
 /**
  * One new revision on a locked item whose base was checked: insert it, move the latest pointer,
  * keep the publication rows of the locales that stay. Writing never moves a publication pointer.
@@ -178,24 +164,7 @@ export async function writeRevision(
   doc = ContentDocument.parse(
     preserveTranslationReview(previous.document, doc, clearTranslationLocale)
   );
-  await assertReferences(ctx, doc);
-  const now = ctx.clock.now();
-  const revision = newRevision(ctx, item.id, doc, now, provenance);
-  const next: ItemRecord = {
-    ...item,
-    title: doc.title,
-    defaultLocale: doc.defaultLocale,
-    locales: doc.locales,
-    latestRevisionId: revision.id,
-    updatedAt: now,
-    publication: doc.locales.map(
-      (l) => item.publication.find((s) => s.locale === l) ?? draftLocale(l)
-    ),
-  };
-  await ctx.content.insertRevision(revision);
-  await recordRevisionUsages(ctx, revision);
-  await ctx.content.save(next);
-  return { item: toContentItem(next), revision };
+  return storeRevision(ctx, item, doc, provenance);
 }
 
 /**

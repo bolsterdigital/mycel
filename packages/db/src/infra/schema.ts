@@ -9,6 +9,21 @@ type Timestamp = ColumnType<Date, Date | string, Date | string>;
 type Json<T> = ColumnType<T, string, string>;
 
 export interface Database {
+  content_bulk_runs: {
+    tenant_id: string;
+    plan_id: string;
+    undo_requested: boolean;
+  };
+  content_bulk_effects: {
+    tenant_id: string;
+    plan_id: string;
+    ordinal: number;
+    phase: string;
+    item_id: string | null;
+    before_revision_id: string | null;
+    after_revision_id: string | null;
+    result: Json<unknown>;
+  };
   content_bulk_plans: {
     item_count: number;
     tenant_id: string;
