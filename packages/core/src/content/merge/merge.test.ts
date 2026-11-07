@@ -193,7 +193,7 @@ describe('content.item.update on an older base', () => {
     invoker = new Invoker(buildRegistry(), uow);
     admin = systemPrincipal(TENANT, 'test');
   });
-  const save = (itemId: string, baseRevisionId: string, document: Doc) =>
+  const save = (itemId: string, baseRevisionId: string, document: Doc | ContentDocument) =>
     invoker.run(useCases.updateItem, admin, { itemId, baseRevisionId, document });
 
   it('saves both changes in one revision that names the merge', async () => {
@@ -211,12 +211,62 @@ describe('content.item.update on an older base', () => {
       revision.id,
       edit((d) => (d.blocks[6] = prose('b7', 'Redacteur 7')))
     );
+    expect(agent.merge).toBeNull();
+    expect(editor.merge).toEqual({
+      baseRevisionId: revision.id,
+      latestRevisionId: agent.revision.id,
+    });
     expect(editor.revision.provenance).toEqual({
       merged: { baseRevisionId: revision.id, latestRevisionId: agent.revision.id },
     });
     expect(editor.revision.document.blocks[2]).toEqual(prose('b3', 'Agent 3'));
     expect(editor.revision.document.blocks[6]).toEqual(prose('b7', 'Redacteur 7'));
     expect(editor.item.latestRevisionId).toBe(editor.revision.id);
+    const current = await save(item.id, editor.revision.id, editor.revision.document);
+    expect(current.merge).toBeNull();
+    const { revisions } = await invoker.run(useCases.listRevisions, admin, { itemId: item.id });
+    expect(revisions).toHaveLength(4);
+  });
+
+  it('reports the revision found under the lock when another save lands after a read', async () => {
+    const { item, revision } = await invoker.run(useCases.createItem, admin, {
+      slug: 'race',
+      document: page(),
+    });
+    const read = await invoker.run(useCases.getItem, admin, { itemId: item.id });
+    let otherId = '';
+    const raced = new Invoker(buildRegistry(), {
+      run: (p, fn) =>
+        uow.run(p, async (tx) => {
+          const lock = tx.content.lock.bind(tx.content);
+          tx.content.lock = async (id) => {
+            const other = await save(
+              item.id,
+              revision.id,
+              edit((d) => {
+                d.title.nl = 'Onze titel';
+                d.title.en = 'Unseen title';
+              })
+            );
+            otherId = other.revision.id;
+            return lock(id);
+          };
+          return fn(tx);
+        }),
+    });
+    const result = await raced.run(useCases.updateItem, admin, {
+      itemId: item.id,
+      baseRevisionId: read.revision.id,
+      document: edit((d) => {
+        d.title.nl = 'Onze titel';
+      }),
+    });
+    expect(result.merge).toEqual({ baseRevisionId: revision.id, latestRevisionId: otherId });
+    expect(result.revision.id).toBe(otherId);
+    expect(result.revision.document.title.en).toBe('Unseen title');
+    expect(result.revision.provenance).toBeUndefined();
+    const { revisions } = await invoker.run(useCases.listRevisions, admin, { itemId: item.id });
+    expect(revisions).toHaveLength(2);
   });
 
   it('refuses a value both changed with every path, and writes nothing', async () => {
@@ -272,6 +322,12 @@ describe('content.item.update on an older base', () => {
     });
     const first = await save(item.id, revision.id, retried);
     const second = await save(item.id, revision.id, retried);
+    expect(first.merge).toBeNull();
+    expect(second.merge).toEqual({
+      baseRevisionId: revision.id,
+      latestRevisionId: first.revision.id,
+    });
+    expect(second.revision.provenance).toEqual(first.revision.provenance);
     expect(second.revision.id).toBe(first.revision.id);
     expect(second.item.latestRevisionId).toBe(first.revision.id);
     expect(second.revision.document.blocks.filter((b) => b.type === 'heading')).toHaveLength(4);

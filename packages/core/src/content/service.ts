@@ -531,14 +531,18 @@ export const updateItem = defineUseCase({
   name: 'content.item.update',
   kind: 'command',
   description:
-    'Save a new revision of an item, never changing what is published. When baseRevisionId is not the latest revision, the document is merged with what was saved since, per field, locale and block id; the revision then records the merge, and a value both changed differently fails with conflict naming each path (text inside one rich-text block is one value). While an item has its placeholder slug and was never published, a save that gives it a title moves the slug to that title.',
+    'Save a new revision of an item, never changing what is published. When baseRevisionId is not the latest revision, the document is merged with what was saved since, per field, locale and block id; the result signals the merge even when it writes no revision; a new revision records the merge, and a value both changed differently fails with conflict naming each path (text inside one rich-text block is one value). While an item has its placeholder slug and was never published, a save that gives it a title moves the slug to that title.',
   requires: 'content:write',
   input: z.object({
     itemId: ItemId,
     baseRevisionId: z.string().guid(),
     document: ContentDocumentInput,
   }),
-  output: ItemWithRevision,
+  output: ItemWithRevision.extend({
+    merge: z
+      .object({ baseRevisionId: z.string().guid(), latestRevisionId: z.string().guid() })
+      .nullable(),
+  }),
   examples: [
     {
       input: {
@@ -567,6 +571,7 @@ export const updateItem = defineUseCase({
     const input = latest ? adoptAddedBlocks(base.document, document, latest.document) : document;
     let next = finalize(ctx, input, input.blocks);
     let previous = base.document;
+    const merge = latest ? { baseRevisionId, latestRevisionId: latest.id } : null;
     let provenance: Revision['provenance'];
     if (latest) {
       const merged = mergeSave(base.document, next, latest.document);
@@ -574,7 +579,7 @@ export const updateItem = defineUseCase({
       next = ContentDocument.parse(merged.document);
       // A merge that adds nothing to the newest revision writes nothing: a repeated save.
       if (canonicalJson(next) === canonicalJson(latest.document))
-        return { item: toContentItem(item), revision: latest };
+        return { item: toContentItem(item), revision: latest, merge };
       requireBlockTypes(ctx, next.blocks);
       previous = latest.document;
       provenance = { merged: { baseRevisionId, latestRevisionId: item.latestRevisionId } };
@@ -591,10 +596,10 @@ export const updateItem = defineUseCase({
     // Decided before the write, which may still refuse; set after it, so a taken slug undoes both.
     const slug = await slugFollowingTitle(ctx, item, previous, next);
     const saved = await writeRevision(ctx, item, next, provenance);
-    if (!slug) return saved;
+    if (!slug) return { ...saved, merge };
     if (!(await ctx.content.setSlug(itemId, slug, new Date(saved.item.updatedAt))))
       throw slugTaken(item.type, slug);
-    return { ...saved, item: { ...saved.item, slug } };
+    return { ...saved, item: { ...saved.item, slug }, merge };
   },
 });
 

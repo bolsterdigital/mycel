@@ -14,23 +14,9 @@ export interface Merged {
   mergedWith: string | null;
 }
 
-/**
- * The revision a save merged with, or null. A merge that adds nothing to the newest writes
- * nothing and returns the newest with its own provenance (ADR 026 § Consequences): still a merge,
- * since the newest may hold more than the form showed, so a save on an older base that returns
- * the newest it read counts too. Rejected: provenance alone, which let a publisher whose changes
- * were all in the newest put the rest live unseen. A save landing between that read and core's
- * lock still escapes until `content.item.update` signals the no-op merge itself.
- */
-export const mergedWithOf = (
-  made: Pick<Revision, 'id' | 'provenance'>,
-  newest: Pick<Revision, 'id'> | null
-): string | null =>
-  made.provenance && 'merged' in made.provenance
-    ? made.provenance.merged.latestRevisionId
-    : newest && made.id === newest.id
-      ? newest.id
-      : null;
+/** A block operation's rebase is recorded in its newly written revision (ADR 027). */
+export const mergedWithOf = (made: Pick<Revision, 'provenance'>): string | null =>
+  made.provenance && 'merged' in made.provenance ? made.provenance.merged.latestRevisionId : null;
 
 /**
  * A block operation after the save (ADR 027): one on an older base that was rebased onto the
@@ -42,7 +28,7 @@ export function noteRebase<T extends { revision: Pick<Revision, 'id' | 'provenan
   saved: Merged,
   made: T
 ): T {
-  if (made && !saved.mergedWith) saved.mergedWith = mergedWithOf(made.revision, null);
+  if (made && !saved.mergedWith) saved.mergedWith = mergedWithOf(made.revision);
   return made;
 }
 

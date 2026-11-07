@@ -593,14 +593,14 @@ async function commit(
     movedTo = slugChange(item, data);
     const untouched = formDocument(base, valuesOf(base), unposted, today, editing).document;
     if (opts.always || !isDeepStrictEqual(document, untouched)) {
-      const { revision: made } = await rt.invoker.run(useCases.updateItem, principal, {
+      const { revision: made, merge } = await rt.invoker.run(useCases.updateItem, principal, {
         itemId,
         baseRevisionId,
         document,
       });
       revisionId = made.id;
       stood = made.document;
-      mergedWith = mergedWithOf(made, newest);
+      mergedWith = merge?.latestRevisionId ?? null;
     }
     if (!pending || !added) return done(revisionId);
     // The same post again (a double click on Save): the first one inserted the block, the save
@@ -621,7 +621,7 @@ async function commit(
       place: pending.place,
     });
     // Rebased onto a newer revision (ADR 027): a merge, so publishing after it is held too.
-    mergedWith ??= mergedWithOf(result.revision, null);
+    mergedWith ??= mergedWithOf(result.revision);
     return done(result.revision.id, result.created[0] ?? null);
   } catch (thrown) {
     const { error: e, status, body } = saveFailure(thrown);
