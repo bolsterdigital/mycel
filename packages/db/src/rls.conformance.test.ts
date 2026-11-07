@@ -252,6 +252,16 @@ describe.skipIf(skip)('row level security conformance', () => {
     // Content (0011): an item with its revision and locale rows, plus an author, a section and
     // a pattern through their use cases.
     const page = await publishProbePage(invoker, admin, formId);
+    await invoker.run(useCases.createBulk, admin, {
+      locale: 'nl',
+      items: [
+        {
+          itemId: page.id,
+          baseRevisionId: page.latestRevisionId,
+          operation: { kind: 'unpublish' },
+        },
+      ],
+    });
     await uow.run(admin, async (ctx) => {
       await ctx.assist.saveSettings({
         enabled: false,
