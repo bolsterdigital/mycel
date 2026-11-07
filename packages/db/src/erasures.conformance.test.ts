@@ -132,6 +132,28 @@ describe.skipIf(skip)('erasure conformance', () => {
       tenants[key] = (
         await testTenant(operatorDb, `erase-${key}-${run}`, { name: `Erase ${key}` })
       ).id;
+    // Bulk preparation is an editorial archive, not a copy of supporter state. Include it in
+    // the every-table scan so new plan fields cannot silently start caching signup data.
+    const editor = systemPrincipal(tenants.a, 'editorial-archive');
+    const article = await invoker.run(useCases.createItem, editor, {
+      document: {
+        type: 'page',
+        title: { nl: 'Editorial' },
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        blocks: [],
+      },
+    });
+    await invoker.run(useCases.createBulk, editor, {
+      locale: 'nl',
+      items: [
+        {
+          itemId: article.item.id,
+          baseRevisionId: article.revision.id,
+          operation: { kind: 'unpublish' },
+        },
+      ],
+    });
     await signup(tenants.a, email, uow);
     await signup(tenants.a, other, uow);
     // Tenant B has a supporter with the very same address: an erasure is one tenant's business.
@@ -189,6 +211,8 @@ describe.skipIf(skip)('erasure conformance', () => {
     expect(holding(after, other)).toEqual(
       expect.arrayContaining(['events', 'supporters', 'form_submissions', 'outbox'])
     );
+    expect(after['content_bulk_plans']).toHaveLength(1);
+    expect(after['content_bulk_plan_items']).toHaveLength(1);
     expect(after['audit_log']!.length).toBeGreaterThanOrEqual(before['audit_log']!.length);
   });
 

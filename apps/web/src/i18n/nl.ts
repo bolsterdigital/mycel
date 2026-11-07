@@ -573,6 +573,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.content.block.remove': 'Blok verwijderd',
   'admin.audit.op.content.block.split_insert': 'Blok in tekst ingevoegd',
   'admin.audit.op.content.block.update': 'Blok gewijzigd',
+  'admin.audit.op.content.bulk.create': 'Bulkplan voorbereid',
   'admin.audit.op.content.item.create': 'Pagina of artikel aangemaakt',
   'admin.audit.op.content.item.publish': 'Gepubliceerd',
   'admin.audit.op.content.item.schedule': 'Publicatie ingepland',

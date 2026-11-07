@@ -1,0 +1,31 @@
+# ADR 028 - Content bulk work uses immutable plans and per-item effects
+
+- **Status**: accepted
+- **Date**: 2026-11-07
+- **Builds on**: ADR 002 (tenant isolation), ADR 009 (one registry), ADR 018 (separate editorial effects), ADR 026 and ADR 027 (merge and rebase)
+
+## Context
+
+A loop of individual saves loses its report when the connection breaks. It cannot say which effects may be retried or undone, and a save followed by publication may put another editor's unseen draft live. Agents and the content lists need the same bounded, durable contract.
+
+## Decision
+
+1. A plan is an immutable selection of 1 to 100 unique explicit item ids, base revisions, one target locale and a closed operation per item: save a document, publish an explicit revision, unpublish, or save with an explicitly requested publication effect. No stored query, arbitrary command, deletion, mailing, scheduling, duplicate or entity operation. The authenticated tenant and actor come from the principal. `content.bulk.create` records version 1 of that selection, the validated candidate, observed revision and publication state, differences, merge signal and per-item problems. It writes no content, publication or job. Changing a selection or instruction creates a new plan; its id is the run id. Confirmation must name both id and version.
+2. `content.bulk.create` and `content.bulk.get` require editorial read permission. Preparing also reports the current write or publish capabilities required by each requested effect, including tenant-admin's existing grants and block entitlements. A preview is historical information, never a grant. Execution and undo must use the caller's current principal, specific capabilities, active tenant and entitlements, never the maker's grants or a privileged worker. Reading another tenant's plan is not found. Anonymous visitors cannot read or prepare editorial plans.
+3. Plans and their per-item preview results are tenant-owned immutable rows with forced RLS. Resolved item, base and latest pointers use composite tenant/item foreign keys. A refused unknown id remains opaque request data, never an alternative tenant lookup. Candidate documents and requested documents are editorial data, not log text. They travel with export/import and have the same lifetime as the content revision archive until a retention policy for that archive exists. There is no separate supporter cache or silent plan cleanup.
+4. Execution is a separate operation. It commits one item per transaction, locking run-item, content-item, then media. It shares core domain functions with ordinary editing; no nested invoker transaction. Mutation, phase result and revision origin commit together with a unique `(tenant, run, item, phase)` effect key. Successes and deliberate skips are read back on retry. Only failed or pending effects may resume, with fresh authority and version checks. An unexpected exception rolls the item transaction back. Requests process a bounded item batch; the execution implementation must measure its bound.
+5. Publication requires the exact reviewed candidate and publication state under the content lock. A changed base, merged save, pre-existing unpublished changes on a live item, invalid references, unreadable document or changed schedule never implicitly publishes unseen content. A first publication of an explicitly reviewed draft is allowed. A save may merge under ADR 026 and be reported separately while publication waits for an editor. Existing schedules stay unchanged; bulk publication or unpublication on a scheduled locale is refused. A content conflict or changed candidate needs a new plan.
+6. Phase results distinguish unchanged, changed, awaiting editor, refused/conflict and undone, with separate saved and published revision ids, issues, merge signal, actual actor and before/after state. Undo is per item and may be partial. It first checks all required capabilities and that current revision and relevant publication state still equal the recorded after-state. It writes a new revision from the actual pre-mutation state, preserving colleagues' changes merged before the effect. It never overwrites later editing, restores an expired schedule or deletes original history. Publication restoration checks current readiness and references. Undo has the same durable, idempotent phase registration as apply.
+7. Revision origin composes: the existing assist origin or `merged` origin can carry `bulk: { runId, phase: 'apply' | 'undo' }`; a plain bulk revision carries only `bulk`. Existing assist/merge revisions remain valid without that field. The run id never grants access or supplies an actor. No historical revision is rewritten.
+
+## Rejected alternatives
+
+- A browser report or an audit payload: neither is a recoverable tenant-owned editorial plan.
+- A search query executed later: filters can select unseen items; selection is explicit and frozen.
+- A transaction over the whole selection: one busy or conflicting item would block every other item and recovery.
+- Publishing whatever the preceding save returned: a merge or intervening save can include unseen work.
+- Undo by replaying the plan's older base: that would erase changes that were already present before the run's mutation.
+
+## Consequences
+
+The preparation and read operations, immutable storage and additive revision schema are implemented first. Apply, resume, phase results and undo follow separately before any list UI offers the operation. The initial preview is not an execution result. HTTP and MCP derive their operations from the same registry. Existing memory, Postgres, RLS, export/import and registry conformance grow with the contract. Erasure inventory treats requested documents and candidates as editorial archive copies, and the historical actor as revision attribution; neither is a new supporter projection. A future editorial archive erasure/retention policy must cover both plan tables alongside revisions.

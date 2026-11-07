@@ -440,6 +440,11 @@ export const ContentItem = z.object({
 });
 export type ContentItem = z.infer<typeof ContentItem>;
 
+/** A bulk effect composes with an existing assist or merge origin, never replaces it. */
+const BulkOrigin = z
+  .object({ runId: z.string().guid(), phase: z.enum(['apply', 'undo']) })
+  .strict();
+
 export const Revision = z.object({
   id: z.string().guid(),
   itemId: z.string().guid(),
@@ -454,6 +459,7 @@ export const Revision = z.object({
     .union([
       z
         .object({
+          bulk: BulkOrigin.optional(),
           suggestionId: z.string().guid(),
           task: z.enum(['alt', 'translate']),
           provider: z.string(),
@@ -463,11 +469,13 @@ export const Revision = z.object({
         .strict(),
       z
         .object({
+          bulk: BulkOrigin.optional(),
           merged: z
             .object({ baseRevisionId: z.string().guid(), latestRevisionId: z.string().guid() })
             .strict(),
         })
         .strict(),
+      z.object({ bulk: BulkOrigin }).strict(),
     ])
     .nullable()
     .optional(),

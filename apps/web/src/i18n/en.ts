@@ -566,6 +566,7 @@ export const en = {
   'admin.audit.op.content.block.remove': 'Block removed',
   'admin.audit.op.content.block.split_insert': 'Block inserted in text',
   'admin.audit.op.content.block.update': 'Block changed',
+  'admin.audit.op.content.bulk.create': 'Bulk plan prepared',
   'admin.audit.op.content.item.create': 'Page or article created',
   'admin.audit.op.content.item.publish': 'Published',
   'admin.audit.op.content.item.schedule': 'Publication scheduled',
