@@ -63,6 +63,7 @@ The `test-surface` flag is the cheap form of a holdout: tests and fixtures are t
 ## Evidence
 
 - Evidence is reusable only for the **same code, environment and scope**: repo, base and head SHA, lens, profile version, touched dependencies, kind of evidence, outcome. CI on the same SHA is evidence; a run on an earlier SHA is history.
+- The merge queue applies the same rule to CI itself: a queue run on exactly the tree of the reviewed PR head reuses that head's passed run (job `reuse` in both workflows, `scripts/queue-reuse.mjs`); any other tree, because `main` moved since the PR run, runs every job in full. A reviewer who brings a branch up to date with `main` before the enqueue gets the reuse; one who does not gets a full run, never a skipped one.
 - If `main` moves during a review, refresh the touched claim and its dependencies; do not re-prove the whole new `main`, and say what stayed out of view.
 - A model finding is a hypothesis until a path, a state and a reproducible counterproof carry it. An unknown dependency or an unclear provenance of the evidence gives `needs review`, not `pass`.
 - Every finding gets **one existing address** in the planning (a TODO item or a brief), deduplicated on cause and failure case; two findings with one cause are one item. A security finding is raised even when an item ceiling is reached.

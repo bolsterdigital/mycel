@@ -3,7 +3,8 @@
 // cards of the edit screen.
 
 import { BLOCK_TYPES, UseCaseError, systemPrincipal, useCases } from '@mycel/core';
-import { type APIRequestContext, type Locator, type Page, expect, test } from '@playwright/test';
+import { type APIRequestContext, type Locator, type Page, expect } from '@playwright/test';
+import { test } from './lib/evidence/page';
 import { expectNoAxeViolations } from './lib/axe';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
@@ -11,9 +12,18 @@ import { login } from './lib/login';
 import { isA11y, onlyA11y } from './lib/project';
 import { callApi, pictureAtBothEnds, requireApi, seededPage } from './lib/api';
 import { expectPixels } from './lib/images';
-import { settingsEvidence } from './lib/settings-evidence';
+import { settingsEvidence } from './lib/evidence/settings';
 import { openPublication } from './lib/publication';
-import { block, blockPage, card, editorReady, linkTo, more, save } from './lib/editor';
+import {
+  block,
+  blockPage,
+  card,
+  editorReady,
+  linkTo,
+  more,
+  reloadsEditor,
+  save,
+} from './lib/editor';
 
 // Keep the unfinished locale-edit action on timeout without tracing every content flow.
 // Rejected: a guessed readiness wait, which would change the timing being investigated.
@@ -54,8 +64,8 @@ test.describe('content-blocks', () => {
     ];
     for (const [i, title] of placed.entries()) await expect(titles.nth(i)).toHaveText(title);
 
-    /** Fill one field of block `n`, save, and see the value back in the reopened form. */
-    const edits: [number, string, string, string?][] = [
+    /** One field of each block, a list row and a choice, saved at once (one form, one save). */
+    const edits: [number, string, string][] = [
       [1, 'Tekst', `Kop ${stamp}`],
       [3, 'Tekst', `Nieuwe **tekst** met [een link](/over) ${stamp}`],
       [5, 'Beschrijving (alt-tekst)', `Een plein vol mensen ${stamp}`],
@@ -64,6 +74,7 @@ test.describe('content-blocks', () => {
       [8, 'Titel', `Let op ${stamp}`],
       [10, 'Naam', `Fatima ${stamp}`],
       [11, 'Titel', `Verslag ${stamp}`],
+      [9, 'Vraag', `Wat? ${stamp}`],
     ];
     // The first field of that name: a hero also has the title of its image's work, in the
     // credit fieldset further down.
@@ -80,40 +91,35 @@ test.describe('content-blocks', () => {
           );
         }, value);
       } else await current.getByLabel(label, { exact: true }).first().fill(value);
-      await save(page, n);
-      await expect((await block(page, n)).getByLabel(label, { exact: true }).first()).toHaveValue(
-        value
-      );
     }
-    // A list row, a choice, and the two blocks without editable text: saved through their forms.
-    await (await block(page, 9)).getByLabel('Vraag', { exact: true }).first().fill(`Wat? ${stamp}`);
-    await save(page, 9);
-    await expect((await block(page, 9)).getByLabel('Vraag', { exact: true }).first()).toHaveValue(
-      `Wat? ${stamp}`
-    );
-    await (await block(page, 9)).getByLabel('Breedte').selectOption('wide');
-    await save(page, 9);
-    await page.reload();
-    await expect((await block(page, 9)).getByLabel('Breedte')).toHaveValue('wide');
     const width = (await block(page, 12)).getByLabel('Breedte');
     const next = (await width.inputValue()) === 'wide' ? 'Volle breedte' : 'Breed';
     await width.selectOption({ label: next });
-    await save(page, 12);
+    await (await block(page, 9)).getByLabel('Breedte').selectOption('wide');
+    // Every type behind the placed twelve, without a line per type: its first text field.
+    const first = (at: Locator) => at.locator('input[type="text"]').first();
+    for (let n = 13; n <= BLOCK_TYPES.length; n++)
+      await first(await block(page, n)).fill(`Blok ${n} ${stamp}`);
+    await save(page, 1);
+    // Each value back in the reopened form; the old signup form and the paywall have no field
+    // to change, and the save keeps them through the document alone.
+    for (const [n, label, value] of edits)
+      await expect((await block(page, n)).getByLabel(label, { exact: true }).first()).toHaveValue(
+        value
+      );
+    for (let n = 13; n <= BLOCK_TYPES.length; n++)
+      await expect(first(await block(page, n))).toHaveValue(`Blok ${n} ${stamp}`);
+    await expect(card(page, 2).locator('.ui-block-card-title')).toHaveText(
+      'Blok 02 Inschrijfformulier (oud)'
+    );
+    await expect(card(page, 4).locator('.ui-block-card-title')).toHaveText('Blok 04 Betaalmuur');
     await expect((await block(page, 12)).getByLabel('Breedte')).toHaveValue(
       next === 'Breed' ? 'wide' : 'full'
     );
-    await save(page, 2);
-    // Every type behind the placed twelve, without a line per type: its first text field.
-    for (let n = 13; n <= BLOCK_TYPES.length; n++) {
-      const first = (at: Locator) => at.locator('input[type="text"]').first();
-      await first(await block(page, n)).fill(`Blok ${n} ${stamp}`);
-      await save(page, n);
-      await expect(first(await block(page, n))).toHaveValue(`Blok ${n} ${stamp}`);
-    }
-    // A paywall has no fold and no fields: the save keeps it through the document alone.
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
-    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
-    await expect(card(page, 4).locator('.ui-block-card-title')).toHaveText('Blok 04 Betaalmuur');
+    // Stored, not only posted back: a fresh load shows the choice.
+    await page.reload();
+    await editorReady(page);
+    await expect((await block(page, 9)).getByLabel('Breedte')).toHaveValue('wide');
     await expectNoAxeViolations(page);
 
     // The other locale, shown on its own (#66 PR 4), kept its values: the FAQ's questions, and
@@ -134,6 +140,7 @@ test.describe('content-blocks', () => {
     await expect(page.locator('main .faq.width-wide')).toContainText(`Wat? ${stamp}`);
     await page.goto(edit);
     if (isA11y()) {
+      await editorReady(page);
       await page.getByRole('button', { name: 'Voorbeeld', exact: true }).click();
       await expect(
         page.frameLocator('iframe[data-live-preview-frame]').locator('.faq.width-wide')
@@ -180,7 +187,9 @@ test.describe('content-blocks', () => {
 
   /** Store the chosen block with everything else in the form. */
   async function add(page: Page) {
-    await page.getByRole('button', { name: 'Toevoegen en opslaan' }).click();
+    await reloadsEditor(page, () =>
+      page.getByRole('button', { name: 'Toevoegen en opslaan' }).click()
+    );
   }
 
   test('a block is inserted, moved and removed in place, without losing what was typed', async ({
@@ -644,6 +653,7 @@ test.describe('content-blocks', () => {
     await add(page);
 
     await page.goto(edit);
+    await editorReady(page);
     return page.locator('[data-block-rest]');
   };
 
@@ -1243,16 +1253,20 @@ test.describe('content-blocks', () => {
             },
           })
         );
-        await evidence.step('log in to English content locale', () =>
-          login(page, `/admin/probe/content/${item.id}?locale=en`)
-        );
+        // Act only on a ready editor, and read only once the next screen is there.
+        await evidence.step('log in to English content locale', async () => {
+          await login(page, `/admin/probe/content/${item.id}?locale=en`);
+          await editorReady(page);
+        });
         const fold = card(page, 1).locator('details.block');
         await evidence.step('open rich-text block disclosure', () =>
           fold.locator('> summary').click()
         );
         await evidence.step('empty English rich-text field', () => emptyProse(fold));
         await evidence.step('save emptied English rich text', () =>
-          page.getByRole('button', { name: 'Opslaan', exact: true }).click()
+          reloadsEditor(page, () =>
+            page.getByRole('button', { name: 'Opslaan', exact: true }).click()
+          )
         );
         await evidence.step('save has no alert', () =>
           expect(page.getByRole('alert')).toHaveCount(0)
@@ -1317,10 +1331,13 @@ test.describe('content-blocks', () => {
       },
     });
     await login(page, `/admin/probe/content/${item.id}`);
+    await editorReady(page);
     const fold = card(page, 1).locator('details.block');
     await fold.locator('> summary').click();
     await emptyProse(fold);
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await reloadsEditor(page, () =>
+      page.getByRole('button', { name: 'Opslaan', exact: true }).click()
+    );
     const alert = page.getByRole('alert');
     await expect(alert).toContainText('Het blok kon niet worden opgeslagen');
     // The field holds what was typed: nothing, not the words it loaded.

@@ -18,13 +18,15 @@ import { type AddressInfo } from 'node:net';
 import { FakeDns } from '@mycel/core/testing';
 import { createDb, uuidv7Ids } from '@mycel/db';
 import { breakLatestDocument, testTenant } from '@mycel/db/testing';
-import { type Locator, type Page, expect, test } from '@playwright/test';
+import { type Locator, type Page, expect } from '@playwright/test';
+import { test } from './lib/evidence/page';
 import { expectNoAxeViolations } from './lib/axe';
 import { asOwner, finishJobs, stuckJob, tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { ADMIN, login } from './lib/login';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
-import { settingsEvidence } from './lib/settings-evidence';
+import { editorReady } from './lib/editor';
+import { settingsEvidence } from './lib/evidence/settings';
 import { callApi, requireApi } from './lib/api';
 import { randomUUID } from 'node:crypto';
 import { ADMIN_ROUTES } from './routes';
@@ -781,8 +783,7 @@ test.describe('preferences', () => {
     const edit = new URL(page.url()).pathname;
     const nl = page.locator('#publication-nl');
     // Hydration restores the server's closed fold; interact only after the editor owns it.
-    if (isA11y())
-      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    await editorReady(page);
     await openPublication(page);
     await nl.locator('details', { hasText: 'Inplannen' }).locator('summary').click();
     await expect(nl.getByText('Tijd in Asia/Tokyo')).toBeAttached();
