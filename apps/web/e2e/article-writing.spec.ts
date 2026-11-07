@@ -13,7 +13,7 @@ import { login } from './lib/login';
 import { closePublication, openPublication } from './lib/publication';
 import { isA11y, onlyA11y } from './lib/project';
 import { article, callApi, requireApi } from './lib/api';
-import { block, blockPage, card, editorReady, newPage, reloadsEditor } from './lib/editor';
+import { block, blockPage, card, editorReady, more, newPage, reloadsEditor } from './lib/editor';
 
 // The enhanced article view and native block forms save the same core document. The browser
 // proof covers explicit saving, axe and the action layout at 320 CSS px with 200% text; the no-JS
@@ -1469,5 +1469,91 @@ test.describe('after a save that merged', () => {
     expect(statuses).toEqual([200, 200]);
     const { revision } = await callApi(request, 'content.item.get', { itemId });
     expect(revision.document.blocks.map((b: { type: string }) => b.type)).toEqual(['heading']);
+  });
+
+  /**
+   * A page with three headings, its edit screen open on that revision, then another save on it that
+   * changes the second.
+   */
+  const threeHeadings = async (page: Page, request: APIRequestContext, what: string, at = '') => {
+    await login(page, '/admin/probe');
+    const edit = await newPage(page, slugFor(what), 'Herbasseren');
+    const itemId = edit.split('/').at(-1)!;
+    const heading = (nl: string) => ({ type: 'heading', version: 1, props: { text: { nl } } });
+    const first = await callApi(request, 'content.item.get', { itemId });
+    const { revision } = await callApi(request, 'content.item.update', {
+      itemId,
+      baseRevisionId: first.revision.id,
+      document: {
+        ...first.revision.document,
+        blocks: [heading('Eerste'), heading('Tweede'), heading('Derde')],
+      },
+    });
+    await page.goto(`${edit}${at}`);
+    await editorReady(page);
+    const blocks = revision.document.blocks;
+    const theirs = await callApi(request, 'content.item.update', {
+      itemId,
+      baseRevisionId: revision.id,
+      document: {
+        ...revision.document,
+        blocks: [
+          blocks[0],
+          { ...blocks[1], props: { text: { nl: 'Tweede, van een ander' } } },
+          blocks[2],
+        ],
+      },
+    });
+    return { edit, itemId, theirs: theirs.revision };
+  };
+
+  // ADR 027: a block action from a screen opened before another save is applied to the newest
+  // revision when its block did not change, and the screen says with whose save it merged.
+  test('a block action on an outdated screen is rebased and says so', async ({ page, request }) => {
+    const { itemId, theirs } = await threeHeadings(page, request, 'rebase');
+    await reloadsEditor(page, async () =>
+      (await more(page, 1)).getByRole('button', { name: 'Verwijderen', exact: true }).click()
+    );
+    await expect(page).toHaveURL(new RegExp(`done=blockRemoved&.*merged=${theirs.id}`));
+    await expect(page.getByRole('status').first()).toContainText(
+      'Niets van wat jullie veranderden'
+    );
+    const { revision } = await callApi(request, 'content.item.get', { itemId });
+    expect(revision.provenance).toEqual({
+      merged: { baseRevisionId: expect.any(String), latestRevisionId: theirs.id },
+    });
+    expect(
+      revision.document.blocks.map((b: { props: { text: { nl: string } } }) => b.props.text.nl)
+    ).toEqual(['Tweede, van een ander', 'Derde']);
+    await expectNoAxeViolations(page);
+  });
+
+  // A new block typed on an outdated screen is inserted on the newest revision, so publishing in
+  // the same click would put the other save live unseen: held, as after a save that merged.
+  test('publishing after a block insert that was rebased publishes nothing unseen', async ({
+    page,
+    request,
+  }) => {
+    const at = '?insert=heading&place=end#block-new';
+    const { itemId, theirs } = await threeHeadings(page, request, 'rebase-held', at);
+    await page.locator('#block-new').getByLabel('Tekst', { exact: true }).fill('Nieuwe kop');
+    await openPublication(page);
+    await reloadsEditor(page, () =>
+      page
+        .locator('#publication-nl')
+        .getByRole('button', { name: 'Publiceren', exact: true })
+        .click()
+    );
+    await expect(page).toHaveURL(new RegExp(`\\?held&merged=${theirs.id}$`));
+    await expect(page.getByRole('status')).toContainText('niets gepubliceerd');
+    const after = await callApi(request, 'content.item.get', { itemId });
+    expect(after.item.publication.find((p: { locale: string }) => p.locale === 'nl')).toMatchObject(
+      { publishedRevisionId: null }
+    );
+    expect(
+      after.revision.document.blocks.map(
+        (b: { props: { text: { nl: string } } }) => b.props.text.nl
+      )
+    ).toEqual(['Eerste', 'Tweede, van een ander', 'Derde', 'Nieuwe kop']);
   });
 });

@@ -37,7 +37,7 @@ const Limit = z.number().int().min(1).max(MAX_PAGE_SIZE).optional();
 const slugTaken = (what: string, slug: string) =>
   new UseCaseError('conflict', `${what} with slug "${slug}" already exists`);
 
-async function assertFreeSlug<T extends { id: string; slug: string }>(
+async function assertFreeSlug<T extends { id: string; slug: string; updatedAt: string }>(
   repo: SluggedRepository<T>,
   slug: string,
   what: string
@@ -46,6 +46,49 @@ async function assertFreeSlug<T extends { id: string; slug: string }>(
 }
 
 const stamp = (ctx: TransactionContext) => ctx.clock.now().toISOString();
+
+/**
+ * The base check of an author or section update (ADR 027): the caller sends the `updatedAt` it
+ * read, and the update fails with `conflict` when the record changed since, naming when. Checked
+ * before the write and again by the write itself (compare-and-set), so a concurrent update between
+ * the two is refused too. Rejected: a version column (a migration for what the stamp already
+ * says, once every write moves it forward) and no check at all (a bulk change of authors would
+ * overwrite an editor's correction unseen).
+ */
+const entityConflict = (what: string, updatedAt: string) =>
+  new UseCaseError('conflict', `the ${what} changed since baseUpdatedAt`, [
+    { path: 'baseUpdatedAt', message: 'content.entity.conflict', params: { updatedAt } },
+  ]);
+
+/**
+ * The stamp of a write on `base`: now, but always later than the base, so two writes on one base
+ * never carry the same stamp and the compare-and-set can tell them apart (a clock that did not
+ * move, two writes in one millisecond).
+ */
+const nextStamp = (ctx: TransactionContext, base: string) =>
+  new Date(Math.max(ctx.clock.now().getTime(), Date.parse(base) + 1)).toISOString();
+
+async function updateEntity<T extends { id: string; slug: string; updatedAt: string }>(
+  ctx: TransactionContext,
+  repo: SluggedRepository<T>,
+  what: string,
+  id: string,
+  baseUpdatedAt: string,
+  build: (current: T, updatedAt: string) => T
+): Promise<T> {
+  const current = await repo.get(id);
+  if (!current) throw notFound(what);
+  if (Date.parse(current.updatedAt) !== Date.parse(baseUpdatedAt))
+    throw entityConflict(what, current.updatedAt);
+  const next = build(current, nextStamp(ctx, current.updatedAt));
+  if (await repo.update(next, current.updatedAt)) return next;
+  const now = await repo.get(id);
+  if (!now) throw notFound(what);
+  throw entityConflict(what, now.updatedAt);
+}
+
+/** The `updatedAt` a caller read: what an update of an author or section is based on. */
+const BaseUpdatedAt = z.string().datetime({ offset: true });
 
 export const createAuthor = defineUseCase({
   name: 'content.author.create',
@@ -70,24 +113,28 @@ export const createAuthor = defineUseCase({
 export const updateAuthor = defineUseCase({
   name: 'content.author.update',
   kind: 'command',
-  description: 'Replace the fields of an author profile; the slug stays as it is.',
+  description:
+    'Replace the fields of an author profile; the slug stays as it is. baseUpdatedAt is the updatedAt you read: when the profile changed since, the update fails with conflict naming when.',
   requires: 'content:write',
-  input: AuthorInput.extend({ authorId: z.string().guid() }),
+  input: AuthorInput.extend({ authorId: z.string().guid(), baseUpdatedAt: BaseUpdatedAt }),
   output: Author,
-  examples: [{ input: { authorId: exampleId(1), name: 'Sam de Vries' } }],
-  async handler(ctx, { authorId, ...fields }) {
-    const current = await ctx.authors.get(authorId);
-    if (!current) throw notFound('author');
-    const author: Author = {
+  examples: [
+    {
+      input: {
+        authorId: exampleId(1),
+        baseUpdatedAt: '2026-11-01T09:00:00.000Z',
+        name: 'Sam de Vries',
+      },
+    },
+  ],
+  handler: (ctx, { authorId, baseUpdatedAt, ...fields }) =>
+    updateEntity(ctx, ctx.authors, 'author', authorId, baseUpdatedAt, (current, updatedAt) => ({
       ...fields,
       id: current.id,
       slug: current.slug,
       createdAt: current.createdAt,
-      updatedAt: stamp(ctx),
-    };
-    await ctx.authors.update(author);
-    return author;
-  },
+      updatedAt,
+    })),
 });
 
 export const getAuthor = defineUseCase({
@@ -144,24 +191,28 @@ export const createSection = defineUseCase({
 export const updateSection = defineUseCase({
   name: 'content.section.update',
   kind: 'command',
-  description: 'Replace the title, description and order of a section; the slug stays as it is.',
+  description:
+    'Replace the title, description and order of a section; the slug stays as it is. baseUpdatedAt is the updatedAt you read: when the section changed since, the update fails with conflict naming when.',
   requires: 'content:write',
-  input: SectionInput.extend({ sectionId: z.string().guid() }),
+  input: SectionInput.extend({ sectionId: z.string().guid(), baseUpdatedAt: BaseUpdatedAt }),
   output: Section,
-  examples: [{ input: { sectionId: exampleId(1), title: { nl: 'Politiek' } } }],
-  async handler(ctx, { sectionId, ...fields }) {
-    const current = await ctx.sections.get(sectionId);
-    if (!current) throw notFound('section');
-    const section: Section = {
+  examples: [
+    {
+      input: {
+        sectionId: exampleId(1),
+        baseUpdatedAt: '2026-11-01T09:00:00.000Z',
+        title: { nl: 'Politiek' },
+      },
+    },
+  ],
+  handler: (ctx, { sectionId, baseUpdatedAt, ...fields }) =>
+    updateEntity(ctx, ctx.sections, 'section', sectionId, baseUpdatedAt, (current, updatedAt) => ({
       ...fields,
       id: current.id,
       slug: current.slug,
       createdAt: current.createdAt,
-      updatedAt: stamp(ctx),
-    };
-    await ctx.sections.update(section);
-    return section;
-  },
+      updatedAt,
+    })),
 });
 
 export const getSection = defineUseCase({

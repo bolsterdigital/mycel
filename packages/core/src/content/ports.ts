@@ -128,12 +128,16 @@ export interface EntityRepository<T extends { id: string }> {
   update(entity: T): Promise<void>;
 }
 
-export interface SluggedRepository<T extends { id: string; slug: string }> extends Omit<
-  EntityRepository<T>,
-  'insert'
-> {
+export interface SluggedRepository<
+  T extends { id: string; slug: string; updatedAt: string },
+> extends Omit<EntityRepository<T>, 'insert' | 'update'> {
   /** False: the slug is taken; the caller refuses, as with `ContentRepository.insert`. */
   insert(entity: T): Promise<boolean>;
+  /**
+   * Writes `entity` only while the stored row still has `baseUpdatedAt` (compare-and-set, ADR
+   * 027); false when it changed in between or is gone. Atomic against a concurrent update.
+   */
+  update(entity: T, baseUpdatedAt: string): Promise<boolean>;
   findBySlug(slug: string): Promise<T | null>;
 }
 

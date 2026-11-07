@@ -256,11 +256,18 @@ export function entityRepository<T extends { id: string }>(
   };
 }
 
-export function sluggedRepository<T extends { id: string; slug: string }>(
+export function sluggedRepository<T extends { id: string; slug: string; updatedAt: string }>(
   rows: Map<string, T>
 ): SluggedRepository<T> {
   return {
     ...entityRepository(rows),
+    // Synchronous between the read and the write, so atomic like the database's `where`.
+    async update(e, baseUpdatedAt) {
+      const row = rows.get(e.id);
+      if (!row || Date.parse(row.updatedAt) !== Date.parse(baseUpdatedAt)) return false;
+      rows.set(e.id, structuredClone(e));
+      return true;
+    },
     async insert(e) {
       if ([...rows.values()].some((r) => r.slug === e.slug)) return false;
       rows.set(e.id, structuredClone(e));

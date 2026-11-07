@@ -546,8 +546,16 @@ export function authorRepository(trx: Trx, tenantId: string): SluggedRepository<
           .execute();
       });
     },
-    async update(a) {
-      await trx.updateTable('authors').set(fields(a)).where('id', '=', a.id).execute();
+    async update(a, baseUpdatedAt) {
+      // A concurrent update holds the row lock; this one then re-reads the row and finds a newer
+      // `updated_at`, so exactly one of them writes.
+      const r = await trx
+        .updateTable('authors')
+        .set(fields(a))
+        .where('id', '=', a.id)
+        .where('updated_at', '=', new Date(baseUpdatedAt))
+        .executeTakeFirst();
+      return r.numUpdatedRows > 0n;
     },
   };
 }
@@ -606,8 +614,16 @@ export function sectionRepository(trx: Trx, tenantId: string): SluggedRepository
           .execute();
       });
     },
-    async update(s) {
-      await trx.updateTable('sections').set(fields(s)).where('id', '=', s.id).execute();
+    async update(s, baseUpdatedAt) {
+      // A concurrent update holds the row lock; this one then re-reads the row and finds a newer
+      // `updated_at`, so exactly one of them writes.
+      const r = await trx
+        .updateTable('sections')
+        .set(fields(s))
+        .where('id', '=', s.id)
+        .where('updated_at', '=', new Date(baseUpdatedAt))
+        .executeTakeFirst();
+      return r.numUpdatedRows > 0n;
     },
   };
 }

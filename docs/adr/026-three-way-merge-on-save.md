@@ -3,6 +3,7 @@
 - **Status**: accepted
 - **Date**: 2026-11-06
 - **Refines**: ADR 018 rule 2 (optimistic concurrency), ADR 020 rule 6 (revisioned block operations)
+- **Rule 7 refined**: 2026-11-07 by [ADR 027](027-block-operations-rebase-and-entity-base.md). Block operations on an older base are rebased when their footing did not change; authors and sections are updated on `baseUpdatedAt`.
 - **Builds on**: ADR 007 (localisation), ADR 009 (one registry for every front, HTML first), ADR 020 rules 1 and 4 (stable block ids, canonical text blocks), ADR 021 (provenance of a revision)
 
 ## Context

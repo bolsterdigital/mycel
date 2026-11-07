@@ -40,6 +40,7 @@ import {
   useCases,
   type BlockInput,
   type ContentDocument,
+  type Revision,
   type FormDefinition,
   type Principal,
   type Section,
@@ -103,8 +104,16 @@ import {
   type PendingBlock,
 } from '#lib/server/content/edit-form.js';
 import { runtime } from '#lib/server/runtime.js';
-import { DONE, ISSUES, SLUG_ISSUES, issueCopy } from '#lib/server/content/edit-copy.js';
-import { PINS, held, itemPath, mergedQuery, mergedWithOf } from '#lib/server/content/edit-path.js';
+import { DONE, ISSUES, issueCopy } from '#lib/server/content/edit-copy.js';
+import { baseSlugOf, moveSlug, slugChange } from '#lib/server/content/edit-slug.js';
+import {
+  PINS,
+  held,
+  itemPath,
+  mergedQuery,
+  mergedWithOf,
+  noteRebase,
+} from '#lib/server/content/edit-path.js';
 import { insertedBefore } from '#lib/server/content/conflict/merge-conflict.js';
 import { adminSiteUrls } from '#lib/server/site.js';
 import { langOf, ui, type UiKey } from '../../../../../../i18n/index.js';
@@ -430,6 +439,8 @@ function saveFailure(e: unknown) {
 }
 
 type Event = Parameters<Actions[string]>[0];
+/** What a block operation answers that a block step reads (ADR 027: its revision may be rebased). */
+type Operated = { revision: Pick<Revision, 'id' | 'provenance'>; created: string[] };
 
 /** What a successful save of the one form hands to the action that follows it. */
 interface Committed {
@@ -454,58 +465,6 @@ interface Committed {
    * null when it is the operator's content locale anyway.
    */
   editing: string | null;
-}
-
-/**
- * The slug the form was rendered with (`baseSlug`, next to the field), so a tab that never touched
- * the field cannot move the address back after another tab moved it. A form without it (an older
- * tab) compares with the item's slug, as before. Rejected: comparing with `item.slug` only, which
- * read a stale tab's untouched field as a request to restore the old address.
- */
-function baseSlugOf(item: { slug: string }, data: FormData): string {
-  return data.has('baseSlug') ? text(data, 'baseSlug') : item.slug;
-}
-
-/** The new slug the form asks for, or null: empty, untouched, already the item's, or no field. */
-function slugChange(item: { slug: string }, data: FormData): string | null {
-  const slug = text(data, 'slug').trim();
-  return slug && slug !== baseSlugOf(item, data) && slug !== item.slug ? slug : null;
-}
-
-/**
- * The slug field of "This item" (#66 PR 6b), applied after the base check and the form's own
- * checks and just before the revision is saved: a refused slug then leaves everything as it was
- * and the form comes back with what was typed. The slug lives on the item, not in a revision, so
- * the save that follows keeps its base. The two are separate transactions: a revision core still
- * refuses after the slug moved (a concurrent save in between, a document rule only core knows)
- * leaves the slug moved, which the next save shows. Rejected: one combined use case, which would
- * make every revision save a slug write too. Empty, or a form without the field (an item that
- * was published, an older tab), changes nothing.
- */
-async function moveSlug(
-  principal: Principal,
-  item: { id: string; slug: string },
-  data: FormData
-): Promise<{ error: UiKey; status: number; fieldIssues: { name: string; copy: UiKey }[] } | null> {
-  const slug = slugChange(item, data);
-  if (!slug) return null;
-  try {
-    await runtime().invoker.run(useCases.updateSlug, principal, { itemId: item.id, slug });
-    return null;
-  } catch (thrown) {
-    const { error: e } = saveFailure(thrown);
-    if (e.code !== 'conflict' && e.code !== 'invalid_input') throw e;
-    const key = e.issues.map((i) => SLUG_ISSUES[i.message]).find(Boolean);
-    const copy =
-      key ??
-      (e.code === 'conflict' ? 'admin.content.error.slugTaken' : 'admin.content.error.slugInvalid');
-    // The summary's line names the field and says why; the heading is the save's.
-    return {
-      error: 'admin.content.error.invalid',
-      status: e.code === 'conflict' ? 409 : 400,
-      fieldIssues: [{ name: 'slug', copy }],
-    };
-  }
 }
 
 /**
@@ -661,6 +620,8 @@ async function commit(
       } as BlockInput,
       place: pending.place,
     });
+    // Rebased onto a newer revision (ADR 027): a merge, so publishing after it is held too.
+    mergedWith ??= mergedWithOf(result.revision, null);
     return done(result.revision.id, result.created[0] ?? null);
   } catch (thrown) {
     const { error: e, status, body } = saveFailure(thrown);
@@ -859,7 +820,7 @@ async function blockStep(
   itemId: string,
   blockId: string,
   done: 'blockMoved' | 'blockRemoved' | 'blockDuplicated',
-  run: (blocks: ContentDocument['blocks'], index: number) => Promise<unknown>
+  run: (blocks: ContentDocument['blocks'], index: number) => Promise<Operated | void>
 ) {
   const { tenant, principal, revisionId, editing } = saved;
   let landing = blockId;
@@ -874,9 +835,9 @@ async function blockStep(
     if (index < 0) refuse(404);
     const blocks = revision.document.blocks;
     neighbour = (blocks[index + 1] ?? blocks[index - 1])?.id ?? null;
-    const made = await run(revision.document.blocks, index);
+    const made = noteRebase(saved, await run(revision.document.blocks, index));
     // A duplicate names the block it made; the screen lands there instead.
-    if (typeof made === 'string') landing = made;
+    if (made && done === 'blockDuplicated') landing = made.created[0] ?? landing;
   });
   if (refused) return refused;
   if (done === 'blockRemoved') {
@@ -1003,7 +964,7 @@ export const actions: Actions = {
       const up = direction === 'up';
       const neighbour = blocks[up ? index - 1 : index + 1];
       if (!neighbour) return;
-      await runtime().invoker.run(useCases.moveBlock, saved.principal, {
+      return runtime().invoker.run(useCases.moveBlock, saved.principal, {
         itemId: event.params.itemId,
         baseRevisionId: saved.revisionId,
         blockId,
@@ -1086,12 +1047,19 @@ export const actions: Actions = {
         .reverse()
         .find((x) => standing.has(x.id));
       const after = old.document.blocks.slice(index + 1).find((x) => standing.has(x.id));
-      const { created } = await rt.run(useCases.insertBlock, principal, {
-        itemId,
-        baseRevisionId: revisionId,
-        block: { type: b.type, version: b.version, props: structuredClone(b.props) } as BlockInput,
-        place: before ? { after: before.id } : after ? { before: after.id } : { at: 'end' },
-      });
+      const { created } = noteRebase(
+        saved,
+        await rt.run(useCases.insertBlock, principal, {
+          itemId,
+          baseRevisionId: revisionId,
+          block: {
+            type: b.type,
+            version: b.version,
+            props: structuredClone(b.props),
+          } as BlockInput,
+          place: before ? { after: before.id } : after ? { before: after.id } : { at: 'end' },
+        })
+      );
       landing = created[0] ?? null;
     });
     if (refused) return refused;
@@ -1118,7 +1086,7 @@ export const actions: Actions = {
       'blockDuplicated',
       async (blocks, index) => {
         const b = blocks[index]!;
-        const { created } = await runtime().invoker.run(useCases.insertBlock, saved.principal, {
+        return runtime().invoker.run(useCases.insertBlock, saved.principal, {
           itemId: event.params.itemId,
           baseRevisionId: saved.revisionId,
           block: {
@@ -1128,7 +1096,6 @@ export const actions: Actions = {
           } as BlockInput,
           place: { after: b.id },
         });
-        return created[0];
       }
     );
   },

@@ -33,6 +33,20 @@ export const mergedWithOf = (
       : null;
 
 /**
+ * A block operation after the save (ADR 027): one on an older base that was rebased onto the
+ * newest revision says so in its revision's provenance, and is then a merge like a save that
+ * merged: the redirect names it and the screen says with whose save. Returns `made` for the
+ * caller. A merge the save already found stays the one named.
+ */
+export function noteRebase<T extends { revision: Pick<Revision, 'id' | 'provenance'> } | void>(
+  saved: Merged,
+  made: T
+): T {
+  if (made && !saved.mergedWith) saved.mergedWith = mergedWithOf(made.revision, null);
+  return made;
+}
+
+/**
  * The edit screen's address: the item, whatever the redirect adds, and the locale when it is
  * not the one the screen shows anyway.
  */

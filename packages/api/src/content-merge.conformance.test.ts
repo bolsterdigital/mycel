@@ -1,6 +1,7 @@
 // ADR 026 over HTTP: a save on an older base merges, a value both changed is a 409 whose Problem
 // Details carry each path in `issues`, and a key without `content:write` is refused before any
-// merge. The same scenario runs over MCP in packages/mcp (content-merge.conformance.test.ts); the
+// merge. ADR 027 likewise for a block operation (rebased, or a conflict naming the block) and
+// an author update on an older `updatedAt`. The same scenario runs over MCP in packages/mcp (content-merge.conformance.test.ts); the
 // merge itself is core's (`content/merge/merge.test.ts`).
 import { describe, expect, it } from 'vitest';
 import { Invoker, buildRegistry, type Principal } from '@mycel/core';
@@ -94,6 +95,99 @@ describe('content.item.update on an older base over HTTP', () => {
       itemId: item.id,
       baseRevisionId: revision.id,
       document: doc('Titel', 'Drie', 'Lezer'),
+    });
+    expect(refused).toMatchObject({ ok: false, body: { code: 'forbidden' } });
+  });
+});
+
+describe('block operations and entity updates on an older base over HTTP (ADR 027)', () => {
+  it('rebases a block operation whose block did not change and names the merge', async () => {
+    const as = front(new Invoker(buildRegistry(), new MemoryUnitOfWork()));
+    const call = as(writer);
+    const { item, revision } = (
+      await call('content.item.create', { slug: 'rebase', document: doc('Titel') })
+    ).body;
+    const editor = await call('content.item.update', {
+      itemId: item.id,
+      baseRevisionId: revision.id,
+      document: doc('Titel', 'Drie', 'Redacteur zeven'),
+    });
+    const agent = await call('content.block.update', {
+      itemId: item.id,
+      baseRevisionId: revision.id,
+      blockId: 'b3',
+      props: { text: { nl: 'Agent drie' } },
+    });
+    expect(agent.ok).toBe(true);
+    expect(agent.body.revision.provenance).toEqual({
+      merged: { baseRevisionId: revision.id, latestRevisionId: editor.body.revision.id },
+    });
+    expect(agent.body.revision.document.blocks.map((b: any) => b.props.text.nl)).toEqual([
+      'Agent drie',
+      'Redacteur zeven',
+    ]);
+  });
+
+  it('refuses a block operation on a changed block with its path, and a reader before any rebase', async () => {
+    const as = front(new Invoker(buildRegistry(), new MemoryUnitOfWork()));
+    const call = as(writer);
+    const { item, revision } = (
+      await call('content.item.create', { slug: 'rebase', document: doc('Titel') })
+    ).body;
+    await call('content.item.update', {
+      itemId: item.id,
+      baseRevisionId: revision.id,
+      document: doc('Titel', 'Hun drie'),
+    });
+    const op = {
+      itemId: item.id,
+      baseRevisionId: revision.id,
+      blockId: 'b3',
+      props: { text: { nl: 'Mijn drie' } },
+    };
+    const lost = await call('content.block.update', op);
+    expect(lost.ok).toBe(false);
+    expect(lost.body.code).toBe('conflict');
+    expect(lost.body.issues.map((i: { path: string }) => i.path)).toEqual([
+      'baseRevisionId',
+      'document.blocks[id=b3]',
+    ]);
+    const refused = await as(reader)('content.block.update', { ...op, blockId: 'b7' });
+    expect(refused).toMatchObject({ ok: false, body: { code: 'forbidden' } });
+  });
+
+  it('refuses an author update on an older updatedAt, and a reader before the check', async () => {
+    const as = front(new Invoker(buildRegistry(), new MemoryUnitOfWork()));
+    const call = as(writer);
+    const author = (await call('content.author.create', { slug: 'sam', name: 'Sam' })).body;
+    const theirs = await call('content.author.update', {
+      authorId: author.id,
+      baseUpdatedAt: author.updatedAt,
+      name: 'Sam de Vries',
+    });
+    expect(theirs.ok).toBe(true);
+    const lost = await call('content.author.update', {
+      authorId: author.id,
+      baseUpdatedAt: author.updatedAt,
+      name: 'Sam V.',
+    });
+    expect(lost).toMatchObject({
+      ok: false,
+      body: {
+        code: 'conflict',
+        issues: [
+          {
+            path: 'baseUpdatedAt',
+            message: 'content.entity.conflict',
+            params: { updatedAt: theirs.body.updatedAt },
+          },
+        ],
+      },
+    });
+    const refused = await as(reader)('content.author.update', {
+      authorId: author.id,
+      baseUpdatedAt: theirs.body.updatedAt,
+      name: 'Lezer',
     });
     expect(refused).toMatchObject({ ok: false, body: { code: 'forbidden' } });
   });
