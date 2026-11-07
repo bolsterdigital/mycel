@@ -138,7 +138,7 @@
   "apps/web/src/routes/(admin)/admin/[tenant]/content-locale/+server.ts": 1,
   "apps/web/src/routes/(admin)/admin/[tenant]/content/+page.server.ts": 2,
   "apps/web/src/routes/(admin)/admin/[tenant]/content/+page.svelte": 4,
-  "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.server.ts": 11,
+  "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.server.ts": 10,
   "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/+page.svelte": 16,
   "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/assist/+page.server.ts": 1,
   "apps/web/src/routes/(admin)/admin/[tenant]/content/[itemId]/assist/page.test.ts": 1,

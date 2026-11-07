@@ -59,6 +59,8 @@ const sample = () => [
   signup('form'),
 ];
 
+type Target = { itemId: string; baseRevisionId: string };
+
 describe('block operations', () => {
   let uow: MemoryUnitOfWork;
   let invoker: Invoker;
@@ -371,48 +373,188 @@ describe('block operations', () => {
     expect(await revisionCount(item.id)).toBe(1);
   });
 
-  it('refuses every operation on a stale base with conflict and writes nothing', async () => {
-    const { item, revision } = await create();
-    const fresh = await invoker.run(useCases.removeBlock, admin, {
-      itemId: item.id,
-      baseRevisionId: revision.id,
-      blockId: 'form',
+  describe('on an older base (ADR 027)', () => {
+    const card = headingBlock('pw', 'Nieuw', 'New');
+    /** An item whose newest revision dropped the form at the end, and the base it was read on. */
+    let n = 0;
+    const stale = async (change: (blocks: Block[]) => Block[] = (bs) => bs.slice(0, -1)) => {
+      const { item, revision } = await create(sample(), `page-${++n}`);
+      const newest = await invoker.run(useCases.updateItem, admin, {
+        itemId: item.id,
+        baseRevisionId: revision.id,
+        document: { ...revision.document, blocks: change(revision.document.blocks) },
+      });
+      return { target: { itemId: item.id, baseRevisionId: revision.id }, newest: newest.revision };
+    };
+
+    it('rebases an operation whose block and place did not change, and the revision says so', async () => {
+      const cases = [
+        {
+          run: (t: Target) =>
+            invoker.run(useCases.setBlockProps, admin, {
+              ...t,
+              blockId: 'card',
+              props: { text: { nl: 'Nieuw' } },
+            }),
+          blocks: ['a', 'card', 'b'],
+        },
+        {
+          run: (t: Target) => invoker.run(useCases.removeBlock, admin, { ...t, blockId: 'card' }),
+          blocks: ['a'],
+        },
+        {
+          run: (t: Target) =>
+            invoker.run(useCases.moveBlock, admin, {
+              ...t,
+              blockId: 'card',
+              place: { before: 'a' },
+            }),
+          blocks: ['card', 'a'],
+        },
+        {
+          run: (t: Target) =>
+            invoker.run(useCases.insertBlock, admin, {
+              ...t,
+              block: card,
+              place: { after: 'card' },
+            }),
+          blocks: ['a', 'card', 'pw', 'b'],
+        },
+        {
+          run: (t: Target) =>
+            invoker.run(useCases.splitInsertBlock, admin, {
+              ...t,
+              blockId: 'a',
+              at: { nl: 1, en: 1 },
+              block: card,
+            }),
+          blocks: ['a', 'pw', null, 'card', 'b'],
+        },
+      ];
+      for (const { run, blocks } of cases) {
+        const { target, newest } = await stale();
+        const out = await run(target);
+        expect(out.revision.provenance).toEqual({
+          merged: { baseRevisionId: target.baseRevisionId, latestRevisionId: newest.id },
+        });
+        // On the newest revision: the form it removed stays removed.
+        expect(
+          ids(out.revision.document.blocks).map((id, i) => (blocks[i] === null ? null : id))
+        ).toEqual(blocks);
+      }
     });
-    const stale = { itemId: item.id, baseRevisionId: revision.id };
-    for (const call of [
-      () => invoker.run(useCases.removeBlock, admin, { ...stale, blockId: 'card' }),
-      () =>
+
+    it('refuses with conflict naming what moved under it, and writes nothing', async () => {
+      const cases: [(t: Target) => Promise<unknown>, string[]][] = [
+        // The block it would put one after is gone: the end is another place now.
+        [
+          (t) =>
+            invoker.run(useCases.insertBlock, admin, {
+              ...t,
+              block: card,
+              place: { at: 'end' },
+            }),
+          ['document.blocks[id=form]', 'document.blocks#order'],
+        ],
+        [
+          (t) => invoker.run(useCases.removeBlock, admin, { ...t, blockId: 'form' }),
+          ['document.blocks[id=form]'],
+        ],
+        [
+          (t) =>
+            invoker.run(useCases.moveBlock, admin, { ...t, blockId: 'b', place: { at: 'start' } }),
+          ['document.blocks[id=form]', 'document.blocks#order'],
+        ],
+      ];
+      for (const [run, paths] of cases) {
+        const { target, newest } = await stale();
+        const err = await run(target).catch((e: unknown) => e);
+        expect(err).toMatchObject({
+          code: 'conflict',
+          issues: [
+            {
+              path: 'baseRevisionId',
+              message: 'content.revision.conflict',
+              params: { latestRevisionId: newest.id },
+            },
+            ...paths.map((path) => ({ path, message: 'content.revision.conflict-value' })),
+          ],
+        });
+        expect((err as { issues: unknown[] }).issues).toHaveLength(paths.length + 1);
+        expect(await revisionCount(target.itemId)).toBe(2);
+      }
+    });
+
+    it('refuses when the target or the block next to its place was changed since', async () => {
+      const edited = (bs: Block[]) =>
+        bs.map((b) =>
+          b.id === 'card' ? { ...b, props: { text: { nl: 'Hun kop' } } } : b
+        ) as Block[];
+      const calls: [(t: Target) => Promise<unknown>, string[]][] = [
+        [
+          (t) =>
+            invoker.run(useCases.setBlockProps, admin, {
+              ...t,
+              blockId: 'card',
+              props: { text: { nl: 'Mijn kop' } },
+            }),
+          ['document.blocks[id=card]'],
+        ],
+        [
+          (t) => invoker.run(useCases.removeBlock, admin, { ...t, blockId: 'card' }),
+          ['document.blocks[id=card]'],
+        ],
+        [
+          (t) =>
+            invoker.run(useCases.insertBlock, admin, {
+              ...t,
+              block: card,
+              place: { after: 'a' },
+            }),
+          ['document.blocks[id=card]'],
+        ],
+      ];
+      for (const [run, paths] of calls) {
+        const { target } = await stale(edited);
+        await expect(run(target)).rejects.toMatchObject({
+          code: 'conflict',
+          issues: [{ path: 'baseRevisionId' }, ...paths.map((path) => ({ path }))],
+        });
+        expect(await revisionCount(target.itemId)).toBe(2);
+      }
+    });
+
+    it('rebases a change to a block someone moved, but not another move of it', async () => {
+      // The newest moved the form to the start.
+      const moved = (bs: Block[]) => [bs.at(-1)!, ...bs.slice(0, -1)];
+      const { target } = await stale(moved);
+      const out = await invoker.run(useCases.setBlockProps, admin, {
+        ...target,
+        blockId: 'form',
+        props: { formId: FORM },
+      });
+      expect(ids(out.revision.document.blocks)).toEqual(['form', 'a', 'card', 'b']);
+      const again = await stale(moved);
+      await expect(
         invoker.run(useCases.moveBlock, admin, {
-          ...stale,
+          ...again.target,
           blockId: 'card',
           place: { at: 'start' },
-        }),
-      () =>
-        invoker.run(useCases.insertBlock, admin, {
-          ...stale,
-          block: { type: 'paywall', version: 1, props: {} },
-          place: { at: 'end' },
-        }),
-      () => invoker.run(useCases.setBlockProps, admin, { ...stale, blockId: 'card', props: {} }),
-      () =>
-        invoker.run(useCases.splitInsertBlock, admin, {
-          ...stale,
-          blockId: 'a',
-          at: { nl: 1, en: 1 },
-          block: { type: 'paywall', version: 1, props: {} },
-        }),
-    ])
-      await expect(call()).rejects.toMatchObject({
-        code: 'conflict',
-        issues: [
-          {
-            path: 'baseRevisionId',
-            message: 'content.revision.conflict',
-            params: { latestRevisionId: fresh.revision.id },
-          },
-        ],
-      });
-    expect(await revisionCount(item.id)).toBe(2);
+        })
+      ).rejects.toMatchObject({ code: 'conflict' });
+    });
+
+    it('refuses a base that is no revision of the item as a stale base', async () => {
+      const { item } = await create();
+      await expect(
+        invoker.run(useCases.removeBlock, admin, {
+          itemId: item.id,
+          baseRevisionId: '01900000-0000-7000-8000-0000000000ff',
+          blockId: 'card',
+        })
+      ).rejects.toMatchObject({ code: 'conflict', issues: [{ path: 'baseRevisionId' }] });
+      expect(await revisionCount(item.id)).toBe(1);
+    });
   });
 
   it('refuses a switched-off block type on item and pattern writes (ADR 015)', async () => {

@@ -753,9 +753,64 @@ describe('content items', () => {
       await invoker.run(useCases.createSection, admin, { slug: 'sam', title: { nl: 'Sam' } });
       const updated = await invoker.run(useCases.updateAuthor, admin, {
         authorId: a.id,
+        baseUpdatedAt: a.updatedAt,
         name: 'Sam V.',
       });
       expect(updated).toMatchObject({ slug: 'sam', name: 'Sam V.', createdAt: a.createdAt });
+    });
+
+    it('refuses an author or section update on an older updatedAt with conflict (ADR 027)', async () => {
+      // The clock does not move in this suite: the stamp still moves forward on every write.
+      const a = await invoker.run(useCases.createAuthor, admin, { slug: 'sam', name: 'Sam' });
+      const s = await invoker.run(useCases.createSection, admin, {
+        slug: 'politiek',
+        title: { nl: 'Politiek' },
+      });
+      const theirs = await invoker.run(useCases.updateAuthor, admin, {
+        authorId: a.id,
+        baseUpdatedAt: a.updatedAt,
+        name: 'Sam de Vries',
+      });
+      expect(Date.parse(theirs.updatedAt)).toBeGreaterThan(Date.parse(a.updatedAt));
+      await expect(
+        invoker.run(useCases.updateAuthor, admin, {
+          authorId: a.id,
+          baseUpdatedAt: a.updatedAt,
+          name: 'Sam V.',
+        })
+      ).rejects.toMatchObject({
+        code: 'conflict',
+        issues: [
+          {
+            path: 'baseUpdatedAt',
+            message: 'content.entity.conflict',
+            params: { updatedAt: theirs.updatedAt },
+          },
+        ],
+      });
+      expect(await invoker.run(useCases.getAuthor, admin, { authorId: a.id })).toEqual(theirs);
+      const section = await invoker.run(useCases.updateSection, admin, {
+        sectionId: s.id,
+        baseUpdatedAt: s.updatedAt,
+        title: { nl: 'Binnenland' },
+      });
+      await expect(
+        invoker.run(useCases.updateSection, admin, {
+          sectionId: s.id,
+          baseUpdatedAt: s.updatedAt,
+          title: { nl: 'Buitenland' },
+        })
+      ).rejects.toMatchObject({
+        code: 'conflict',
+        issues: [{ path: 'baseUpdatedAt', params: { updatedAt: section.updatedAt } }],
+      });
+      // The same instant written another way is the same base.
+      const again = await invoker.run(useCases.updateSection, admin, {
+        sectionId: s.id,
+        baseUpdatedAt: section.updatedAt.replace('.000Z', 'Z').replace(/(\.\d+)?Z$/, '$1+00:00'),
+        title: { nl: 'Buitenland' },
+      });
+      expect(again.title).toEqual({ nl: 'Buitenland' });
     });
 
     it('applies a pattern as a copy with its own block ids', async () => {

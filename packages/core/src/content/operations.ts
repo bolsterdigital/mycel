@@ -4,13 +4,18 @@
 // reference and entitlement checks, one new revision. They are what no-JS form actions, keyboard
 // commands and MCP call; there is no second agent API.
 //
-// Every operation runs through `mutate`, so the lock, the conflict check and the write are the
-// same code as `content.item.update` (`writeRevision`). An unknown id or anchor is
-// `invalid_input`: the item exists, the request does not fit its content. Only move and remove
-// normalise; insert and update cannot newly join two `rich-text` blocks, and an insert that
-// would is refused like an update (`content.blocks.adjacent-rich-text`). Rejected: JSON Patch
-// over the document (array indexes shift under concurrent edits) and normalising in `update`
-// (whoever sends the whole document sends it canonical).
+// Every operation runs through `mutate`, so the lock, the base check and the write are the same
+// code as `content.item.update` (`writeRevision`). On an older base an operation is rebased onto
+// the newest revision when what it relies on (its footing: the target block, and the place between
+// two blocks where it puts one) is as the base had it (ADR 027); the revision then records the
+// merge like a merged save does. Anything else on an older base is a `conflict` that names each
+// changed block or the order. An unknown id or anchor is `invalid_input`: the item exists, the
+// request does not fit its content. Only move and remove normalise; insert and update cannot
+// newly join two `rich-text` blocks, and an insert that would is refused like an update
+// (`content.blocks.adjacent-rich-text`). Rejected: JSON Patch over the document (array indexes
+// shift under concurrent edits), normalising in `update` (whoever sends the whole document sends
+// it canonical), and rebasing through the three-way merge of a save, which would put an insert
+// after a block someone else rewrote and merge a props patch into props it never read.
 
 import { z } from 'zod';
 import { notFound, UseCaseError } from '../errors.js';
@@ -27,8 +32,11 @@ import {
   type Block,
   type BlockType,
 } from './blocks.js';
-import { ContentItem, ContentType, type ContentDocument } from './model.js';
+import { ContentItem, ContentType, type ContentDocument, type Revision } from './model.js';
 import type { RichTextDoc } from './rich-text.js';
+import { mergeConflict } from './merge/save.js';
+import type { MergeConflict } from './merge/merge.js';
+import { canonicalJson } from '../util/canonical-json.js';
 import {
   DEFAULT_PAGE_SIZE,
   ItemWithRevision,
@@ -55,9 +63,12 @@ type Placement = z.infer<typeof Placement>;
 const Target = { itemId: ItemId, baseRevisionId: z.string().guid() };
 
 export const OperationResult = ItemWithRevision.extend({
-  /** Ids that did not exist in the base revision. */
+  /**
+   * Ids that did not exist in the revision the operation was applied to: the base, or the newest
+   * when it was rebased (`revision.provenance.merged`).
+   */
   created: z.array(z.string()),
-  /** Ids of the base revision that are gone, removed or merged away. */
+  /** Ids of that revision that are gone, removed or merged away. */
   retired: z.array(z.string()),
   /** Each retired id whose text now lives in the surviving block `into`. */
   merged: z.array(z.object({ from: z.string(), into: z.string() })),
@@ -97,30 +108,104 @@ function newBlock(ctx: TransactionContext, blocks: readonly Block[], input: Bloc
 }
 
 /**
- * The shared path of every operation: lock, base check, apply to the base revision's blocks,
- * validate the whole document (ids, invariants, block switches), check references, write one
- * revision. A `BlockOperationError` from `apply` becomes `invalid_input`; nothing is written.
+ * What an operation relies on (ADR 027): blocks that must be as the base had them, and the places
+ * between two blocks it reads (its own place for a move, the place it puts a block). A place is
+ * the pair of ids on either side, null at an end of the list.
  */
-async function mutate(
-  ctx: TransactionContext,
-  { itemId, baseRevisionId }: { itemId: string; baseRevisionId: string },
-  apply: (blocks: Block[]) => Applied
-) {
-  const item = await lockItem(ctx, itemId);
-  assertBase(item, baseRevisionId);
-  const base = await ctx.content.revision(itemId, baseRevisionId);
-  if (!base) throw notFound('revision');
-  let applied: Applied;
+interface Footing {
+  blocks: string[];
+  places: (string | null)[][];
+}
+
+/** The two ids around a placement: where an inserted or moved block lands. */
+function gap(blocks: readonly Block[], where: Placement): (string | null)[] {
+  if ('at' in where)
+    return where.at === 'start' ? [null, blocks[0]?.id ?? null] : [blocks.at(-1)?.id ?? null, null];
+  const anchor = 'before' in where ? where.before : where.after;
+  const i = blocks.findIndex((b) => b.id === anchor);
+  if (i < 0) return [anchor, anchor];
+  return 'before' in where
+    ? [blocks[i - 1]?.id ?? null, anchor]
+    : [anchor, blocks[i + 1]?.id ?? null];
+}
+
+/** The ids around a block where it stands. */
+function around(blocks: readonly Block[], id: string): (string | null)[] {
+  const i = blocks.findIndex((b) => b.id === id);
+  return i < 0 ? [id, id] : [blocks[i - 1]?.id ?? null, blocks[i + 1]?.id ?? null];
+}
+
+/**
+ * What moved under an operation between its base and the newest revision: each block of its
+ * footing that changed or is gone (`blocks[id=x]`), and the order when one of its places is no
+ * longer the same pair of blocks (`blocks#order`). Empty: the operation can be rebased.
+ */
+function shifted(
+  base: readonly Block[],
+  newest: readonly Block[],
+  footing: (blocks: readonly Block[]) => Footing
+): MergeConflict[] {
+  const was = footing(base);
+  const is = footing(newest);
+  const find = (blocks: readonly Block[], id: string) => blocks.find((b) => b.id === id);
+  const ids = new Set([...was.blocks, ...was.places.flat(), ...is.places.flat()]);
+  const out: MergeConflict[] = [];
+  for (const id of ids) {
+    if (id === null) continue;
+    const [b, n] = [find(base, id), find(newest, id)];
+    if (!b || !n || canonicalJson(b) !== canonicalJson(n))
+      out.push({ path: `blocks[id=${id}]`, base: b, theirs: n });
+  }
+  if (canonicalJson(was.places) !== canonicalJson(is.places))
+    out.push({ path: 'blocks#order', base: was.places, theirs: is.places });
+  return out;
+}
+
+/** `apply` on a block list, its `BlockOperationError` as `invalid_input`. */
+function attempt(blocks: Block[], apply: (blocks: Block[]) => Applied): Applied {
   try {
-    applied = apply(base.document.blocks);
+    return apply(blocks);
   } catch (e) {
     if (!(e instanceof BlockOperationError)) throw e;
     throw new UseCaseError('invalid_input', 'the operation does not fit the document', [
       { path: e.path, message: e.issue, ...(e.params && { params: e.params }) },
     ]);
   }
-  const doc: ContentDocument = finalize(ctx, base.document, applied.blocks);
-  const saved = await writeRevision(ctx, item, doc);
+}
+
+/**
+ * The shared path of every operation: lock, apply to the base revision's blocks (an operation
+ * that does not fit the document it was read from is `invalid_input`), then on the newest one.
+ * On an older base the operation is applied again to the newest revision when its footing did not
+ * move (ADR 027) and the revision records the merge; when it did, `conflict` names what moved.
+ * Then: validate the whole document (ids, invariants, block switches), check references, write
+ * one revision. Nothing is written on any refusal. An id that is no revision of the item is the
+ * stale-base `conflict` of ADR 018.
+ */
+async function mutate(
+  ctx: TransactionContext,
+  { itemId, baseRevisionId }: { itemId: string; baseRevisionId: string },
+  apply: (blocks: Block[]) => Applied,
+  footing: (blocks: readonly Block[]) => Footing
+) {
+  const item = await lockItem(ctx, itemId);
+  const base = await ctx.content.revision(itemId, baseRevisionId);
+  if (!base) assertBase(item, baseRevisionId);
+  if (!base) throw notFound('revision');
+  let applied = attempt(base.document.blocks, apply);
+  let on = base.document;
+  let provenance: Revision['provenance'];
+  if (item.latestRevisionId !== baseRevisionId) {
+    const newest = await ctx.content.revision(itemId, item.latestRevisionId);
+    if (!newest) throw notFound('revision');
+    const moved = shifted(base.document.blocks, newest.document.blocks, footing);
+    if (moved.length) throw mergeConflict(item.latestRevisionId, moved);
+    applied = attempt(newest.document.blocks, apply);
+    on = newest.document;
+    provenance = { merged: { baseRevisionId, latestRevisionId: item.latestRevisionId } };
+  }
+  const doc: ContentDocument = finalize(ctx, on, applied.blocks);
+  const saved = await writeRevision(ctx, item, doc, provenance);
   return { ...saved, created: applied.created, retired: applied.retired, merged: applied.merged };
 }
 
@@ -129,6 +214,10 @@ function normalized(blocks: Block[], created: string[], retired: string[]): Appl
   const { blocks: out, merged } = normalizeBlocks(blocks);
   return { blocks: out, created, retired: [...retired, ...merged.map((m) => m.from)], merged };
 }
+
+/** What every operation's description says about an older base (ADR 027). */
+const REBASE =
+  ' On an older baseRevisionId it is applied to the newest revision when its block and the place it uses are unchanged since, and the revision records the merge; otherwise conflict names what changed.';
 
 const exampleTarget = {
   itemId: exampleId(0x1),
@@ -144,7 +233,8 @@ export const insertBlock = defineUseCase({
   name: 'content.block.insert',
   kind: 'command',
   description:
-    'Insert one block before or after a block id, or at the start or end, as a new revision; the block keeps a free id it was sent with, otherwise it gets one.',
+    'Insert one block before or after a block id, or at the start or end, as a new revision; the block keeps a free id it was sent with, otherwise it gets one.' +
+    REBASE,
   requires: 'content:write',
   input: z.object({ ...Target, block: BlockInput, place: Placement }),
   output: OperationResult,
@@ -153,57 +243,89 @@ export const insertBlock = defineUseCase({
     { input: { ...exampleTarget, block: exampleHeading, place: { at: 'end' } } },
   ],
   handler: (ctx, { block, place: where, ...target }) =>
-    mutate(ctx, target, (blocks) => {
-      const added = newBlock(ctx, blocks, block);
-      return { blocks: place(blocks, added, where), created: [added.id], retired: [], merged: [] };
-    }),
+    mutate(
+      ctx,
+      target,
+      (blocks) => {
+        const added = newBlock(ctx, blocks, block);
+        return {
+          blocks: place(blocks, added, where),
+          created: [added.id],
+          retired: [],
+          merged: [],
+        };
+      },
+      (blocks) => ({ blocks: [], places: [gap(blocks, where)] })
+    ),
 });
 
 export const moveBlock = defineUseCase({
   name: 'content.block.move',
   kind: 'command',
   description:
-    'Move one block before or after another block id, or to the start or end, as a new revision; text blocks that end up next to each other merge into the first.',
+    'Move one block before or after another block id, or to the start or end, as a new revision; text blocks that end up next to each other merge into the first.' +
+    REBASE,
   requires: 'content:write',
   input: z.object({ ...Target, blockId: BlockId, place: Placement }),
   output: OperationResult,
   examples: [{ input: { ...exampleTarget, blockId: 'signup', place: { before: 'intro' } } }],
   handler: (ctx, { blockId, place: where, ...target }) =>
-    mutate(ctx, target, (blocks) => {
-      const block = blocks[indexOf(blocks, blockId, 'blockId')]!;
-      const anchor = 'before' in where ? where.before : 'after' in where ? where.after : null;
-      if (anchor === blockId)
-        fail('before' in where ? 'before' : 'after', 'content.block.anchor-is-target');
-      const rest = blocks.filter((b) => b.id !== blockId);
-      return normalized(place(rest, block, where), [], []);
-    }),
+    mutate(
+      ctx,
+      target,
+      (blocks) => {
+        const block = blocks[indexOf(blocks, blockId, 'blockId')]!;
+        const anchor = 'before' in where ? where.before : 'after' in where ? where.after : null;
+        if (anchor === blockId)
+          fail('before' in where ? 'before' : 'after', 'content.block.anchor-is-target');
+        const rest = blocks.filter((b) => b.id !== blockId);
+        return normalized(place(rest, block, where), [], []);
+      },
+      (blocks) => ({
+        blocks: [blockId],
+        places: [
+          around(blocks, blockId),
+          gap(
+            blocks.filter((b) => b.id !== blockId),
+            where
+          ),
+        ],
+      })
+    ),
 });
 
 export const removeBlock = defineUseCase({
   name: 'content.block.remove',
   kind: 'command',
   description:
-    'Remove one block by id as a new revision; text blocks that end up next to each other merge into the first.',
+    'Remove one block by id as a new revision; text blocks that end up next to each other merge into the first.' +
+    REBASE,
   requires: 'content:write',
   input: z.object({ ...Target, blockId: BlockId }),
   output: OperationResult,
   examples: [{ input: { ...exampleTarget, blockId: 'signup' } }],
   handler: (ctx, { blockId, ...target }) =>
-    mutate(ctx, target, (blocks) => {
-      indexOf(blocks, blockId, 'blockId');
-      return normalized(
-        blocks.filter((b) => b.id !== blockId),
-        [],
-        [blockId]
-      );
-    }),
+    mutate(
+      ctx,
+      target,
+      (blocks) => {
+        indexOf(blocks, blockId, 'blockId');
+        return normalized(
+          blocks.filter((b) => b.id !== blockId),
+          [],
+          [blockId]
+        );
+      },
+      () => ({ blocks: [blockId], places: [] })
+    ),
 });
 
 export const setBlockProps = defineUseCase({
   name: 'content.block.update',
   kind: 'command',
   description:
-    'Replace the props of one block as a new revision; its id and type stay. Send the complete props: a locale left out of a localised field is removed from it.',
+    'Replace the props of one block as a new revision; its id and type stay. Send the complete props: a locale left out of a localised field is removed from it.' +
+    REBASE,
   requires: 'content:write',
   // The block's own schema checks the props when the document is validated.
   input: z.object({ ...Target, blockId: BlockId, props: z.record(z.string(), z.unknown()) }),
@@ -218,19 +340,25 @@ export const setBlockProps = defineUseCase({
     },
   ],
   handler: (ctx, { blockId, props, ...target }) =>
-    mutate(ctx, target, (blocks) => {
-      const i = indexOf(blocks, blockId, 'blockId');
-      const out = [...blocks];
-      out[i] = { ...blocks[i]!, props } as Block;
-      return { blocks: out, created: [], retired: [], merged: [] };
-    }),
+    mutate(
+      ctx,
+      target,
+      (blocks) => {
+        const i = indexOf(blocks, blockId, 'blockId');
+        const out = [...blocks];
+        out[i] = { ...blocks[i]!, props } as Block;
+        return { blocks: out, created: [], retired: [], merged: [] };
+      },
+      () => ({ blocks: [blockId], places: [] })
+    ),
 });
 
 export const splitInsertBlock = defineUseCase({
   name: 'content.block.split_insert',
   kind: 'command',
   description:
-    'Split a text block at a paragraph boundary in every locale it has and put one block in between, as a new revision; the first part keeps the id, the second gets a new one.',
+    'Split a text block at a paragraph boundary in every locale it has and put one block in between, as a new revision; the first part keeps the id, the second gets a new one.' +
+    REBASE,
   requires: 'content:write',
   input: z.object({
     ...Target,
@@ -247,34 +375,40 @@ export const splitInsertBlock = defineUseCase({
     },
   ],
   handler: (ctx, { blockId, at, block, ...target }) =>
-    mutate(ctx, target, (blocks) => {
-      const i = indexOf(blocks, blockId, 'blockId');
-      const text = blocks[i]!;
-      if (text.type !== 'rich-text') return fail('blockId', 'content.split.not-rich-text');
-      const first: Record<string, RichTextDoc> = {};
-      const second: Record<string, RichTextDoc> = {};
-      for (const locale of Object.keys(at))
-        if (!(locale in text.props.content)) fail(`at.${locale}`, 'content.split.locale-unknown');
-      for (const [locale, doc] of Object.entries(text.props.content)) {
-        if (!doc) continue;
-        const cut = at[locale];
-        if (cut === undefined) return fail(`at.${locale}`, 'content.split.locale-missing');
-        // Both halves must keep at least one node: a rich-text doc is never empty.
-        if (cut <= 0 || cut >= doc.content.length) fail(`at.${locale}`, 'content.split.empty-part');
-        first[locale] = { type: 'doc', content: doc.content.slice(0, cut) };
-        second[locale] = { type: 'doc', content: doc.content.slice(cut) };
-      }
-      const added = newBlock(ctx, blocks, block);
-      const rest: Block = { ...text, id: ctx.ids.next(), props: { content: second } };
-      const out = [...blocks];
-      out.splice(i, 1, { ...text, props: { content: first } }, added, rest);
-      return {
-        blocks: out,
-        created: [added.id, rest.id],
-        retired: [],
-        merged: [],
-      };
-    }),
+    mutate(
+      ctx,
+      target,
+      (blocks) => {
+        const i = indexOf(blocks, blockId, 'blockId');
+        const text = blocks[i]!;
+        if (text.type !== 'rich-text') return fail('blockId', 'content.split.not-rich-text');
+        const first: Record<string, RichTextDoc> = {};
+        const second: Record<string, RichTextDoc> = {};
+        for (const locale of Object.keys(at))
+          if (!(locale in text.props.content)) fail(`at.${locale}`, 'content.split.locale-unknown');
+        for (const [locale, doc] of Object.entries(text.props.content)) {
+          if (!doc) continue;
+          const cut = at[locale];
+          if (cut === undefined) return fail(`at.${locale}`, 'content.split.locale-missing');
+          // Both halves must keep at least one node: a rich-text doc is never empty.
+          if (cut <= 0 || cut >= doc.content.length)
+            fail(`at.${locale}`, 'content.split.empty-part');
+          first[locale] = { type: 'doc', content: doc.content.slice(0, cut) };
+          second[locale] = { type: 'doc', content: doc.content.slice(cut) };
+        }
+        const added = newBlock(ctx, blocks, block);
+        const rest: Block = { ...text, id: ctx.ids.next(), props: { content: second } };
+        const out = [...blocks];
+        out.splice(i, 1, { ...text, props: { content: first } }, added, rest);
+        return {
+          blocks: out,
+          created: [added.id, rest.id],
+          retired: [],
+          merged: [],
+        };
+      },
+      () => ({ blocks: [blockId], places: [] })
+    ),
 });
 
 const ReferenceFilter = z.object({ type: z.enum(REFERENCE_TYPES), id: z.string().guid() });

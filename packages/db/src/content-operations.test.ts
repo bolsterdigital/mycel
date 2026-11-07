@@ -273,41 +273,72 @@ describe.skipIf(skip)('content operations conformance', () => {
     expect(revisions).toHaveLength(2);
   });
 
-  it('lets exactly one of eight concurrent operations on one base win, refs included', async () => {
+  it('rebases eight concurrent operations on different blocks under the lock, refs included (ADR 027)', async () => {
     for (let round = 0; round < 3; round++) {
+      const ids = Array.from({ length: 8 }, (_, i) => `h${i}`);
       const { item, revision } = await page(`race-op-${round}`, [
+        signup('f', formA),
+        ...ids.map((id) => heading(id)),
+      ]);
+      const base = { itemId: item.id, baseRevisionId: revision.id };
+      const results = await Promise.all(
+        ids.map((blockId) =>
+          invoker.run(useCases.setBlockProps, adminOf(tenantA), {
+            ...base,
+            blockId,
+            props: { text: { nl: `nieuw ${blockId}` } },
+          })
+        )
+      );
+      // Every one landed, in some order, each on the revision before it: nothing was lost.
+      const { revisions } = await invoker.run(useCases.listRevisions, adminOf(tenantA), {
+        itemId: item.id,
+      });
+      expect(revisions).toHaveLength(9);
+      const latest = await invoker.run(useCases.getItem, adminOf(tenantA), { itemId: item.id });
+      expect(
+        latest.revision.document.blocks.map((b) => (b.props as { text?: { nl: string } }).text?.nl)
+      ).toEqual([undefined, ...ids.map((id) => `nieuw ${id}`)]);
+      // The one that found its base newest wrote plainly; every other one names the merge.
+      const merged = results.filter((r) => r.revision.provenance);
+      expect(merged).toHaveLength(7);
+      for (const r of merged)
+        expect(r.revision.provenance).toMatchObject({
+          merged: { baseRevisionId: revision.id },
+        });
+      const rows = await withTenant(appDb, adminOf(tenantA), (trx) =>
+        trx
+          .selectFrom('content_block_refs')
+          .select('revision_id')
+          .distinct()
+          .where('item_id', '=', item.id)
+          .execute()
+      );
+      expect(rows.map((r) => r.revision_id).sort()).toEqual(revisions.map((r) => r.id).sort());
+    }
+  });
+
+  it('lets exactly one of eight concurrent operations on one block win, refs included', async () => {
+    for (let round = 0; round < 3; round++) {
+      const { item, revision } = await page(`race-one-${round}`, [
         richText('t', para('een'), para('twee')),
         signup('f', formA),
         heading('h'),
       ]);
       const base = { itemId: item.id, baseRevisionId: revision.id };
+      // Each one changes or removes `h`, so whichever lands first moves the footing of the rest.
+      // (A move would not: removing or changing a block someone moved is rebased.)
       const ops = [
         () => invoker.run(useCases.removeBlock, adminOf(tenantA), { ...base, blockId: 'h' }),
-        () =>
-          invoker.run(useCases.moveBlock, adminOf(tenantA), {
-            ...base,
-            blockId: 'h',
-            place: { at: 'start' },
-          }),
-        () =>
-          invoker.run(useCases.insertBlock, adminOf(tenantA), {
-            ...base,
-            block: heading('new'),
-            place: { after: 'f' },
-          }),
-        () =>
-          invoker.run(useCases.setBlockProps, adminOf(tenantA), {
-            ...base,
-            blockId: 'h',
-            props: { text: { nl: 'anders' } },
-          }),
-        () =>
-          invoker.run(useCases.splitInsertBlock, adminOf(tenantA), {
-            ...base,
-            blockId: 't',
-            at: { nl: 1 },
-            block: signup('split', formA),
-          }),
+        ...Array.from(
+          { length: 3 },
+          (_, i) => () =>
+            invoker.run(useCases.setBlockProps, adminOf(tenantA), {
+              ...base,
+              blockId: 'h',
+              props: { text: { nl: `anders ${i}` } },
+            })
+        ),
       ];
       const results = await Promise.allSettled(
         Array.from({ length: 8 }, (_, i) => ops[i % ops.length]!())
@@ -317,7 +348,13 @@ describe.skipIf(skip)('content operations conformance', () => {
       }>[];
       const lost = results.filter((r) => r.status === 'rejected') as PromiseRejectedResult[];
       expect(won).toHaveLength(1);
-      for (const l of lost) expect(l.reason).toMatchObject({ code: 'conflict' });
+      for (const l of lost)
+        expect(l.reason).toMatchObject({
+          code: 'conflict',
+          issues: expect.arrayContaining([
+            expect.objectContaining({ message: 'content.revision.conflict-value' }),
+          ]),
+        });
       const { revisions } = await invoker.run(useCases.listRevisions, adminOf(tenantA), {
         itemId: item.id,
       });

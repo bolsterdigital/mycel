@@ -468,6 +468,57 @@ describe.skipIf(skip)('content conformance', () => {
     expect(revisions).toHaveLength(1);
   });
 
+  it('lets exactly one of concurrent author or section updates on one updatedAt win (ADR 027)', async () => {
+    // Eight at once, three rounds, as the slug race above: every one passes the read check, so
+    // only the compare-and-set of the write can refuse the rest.
+    const p = adminOf(tenantA);
+    for (let round = 0; round < 3; round++) {
+      const author = await invoker.run(useCases.createAuthor, p, {
+        slug: `cas-author-${round}-${run}`,
+        name: 'Sam',
+      });
+      const section = await invoker.run(useCases.createSection, p, {
+        slug: `cas-section-${round}-${run}`,
+        title: { nl: 'Politiek' },
+      });
+      const races: [string, (i: number) => Promise<{ updatedAt: string }>][] = [
+        [
+          'author',
+          (i) =>
+            invoker.run(useCases.updateAuthor, p, {
+              authorId: author.id,
+              baseUpdatedAt: author.updatedAt,
+              name: `Sam ${i}`,
+            }),
+        ],
+        [
+          'section',
+          (i) =>
+            invoker.run(useCases.updateSection, p, {
+              sectionId: section.id,
+              baseUpdatedAt: section.updatedAt,
+              title: { nl: `Rubriek ${i}` },
+            }),
+        ],
+      ];
+      for (const [what, update] of races) {
+        const results = await Promise.allSettled(Array.from({ length: 8 }, (_, i) => update(i)));
+        const won = results.filter((r) => r.status === 'fulfilled') as PromiseFulfilledResult<{
+          updatedAt: string;
+        }>[];
+        expect(won, what).toHaveLength(1);
+        for (const r of results.filter((r) => r.status === 'rejected') as PromiseRejectedResult[])
+          expect(r.reason, what).toMatchObject({
+            code: 'conflict',
+            issues: [{ path: 'baseUpdatedAt', message: 'content.entity.conflict' }],
+          });
+      }
+      // What a read returns is what the one winner wrote.
+      const read = await invoker.run(useCases.getAuthor, p, { authorId: author.id });
+      expect(Date.parse(read.updatedAt)).toBeGreaterThan(Date.parse(author.updatedAt));
+    }
+  });
+
   it('lets exactly one of concurrent saves on one base win, with no orphan revision', async () => {
     // Eight at once: two alone tend to serialise on connection checkout and would pass without
     // the lock too.
