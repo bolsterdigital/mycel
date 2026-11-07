@@ -25,6 +25,7 @@ import { asOwner, finishJobs, stuckJob, tenantId, withInvoker } from './lib/invo
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize } from './lib/layout';
 import { ADMIN, login } from './lib/login';
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
+import { editorReady } from './lib/editor';
 import { settingsEvidence } from './lib/evidence/settings';
 import { callApi, requireApi } from './lib/api';
 import { randomUUID } from 'node:crypto';
@@ -782,8 +783,7 @@ test.describe('preferences', () => {
     const edit = new URL(page.url()).pathname;
     const nl = page.locator('#publication-nl');
     // Hydration restores the server's closed fold; interact only after the editor owns it.
-    if (isA11y())
-      await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    await editorReady(page);
     await openPublication(page);
     await nl.locator('details', { hasText: 'Inplannen' }).locator('summary').click();
     await expect(nl.getByText('Tijd in Asia/Tokyo')).toBeAttached();

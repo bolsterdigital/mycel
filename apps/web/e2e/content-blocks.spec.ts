@@ -1253,16 +1253,20 @@ test.describe('content-blocks', () => {
             },
           })
         );
-        await evidence.step('log in to English content locale', () =>
-          login(page, `/admin/probe/content/${item.id}?locale=en`)
-        );
+        // Act only on a ready editor, and read only once the next screen is there.
+        await evidence.step('log in to English content locale', async () => {
+          await login(page, `/admin/probe/content/${item.id}?locale=en`);
+          await editorReady(page);
+        });
         const fold = card(page, 1).locator('details.block');
         await evidence.step('open rich-text block disclosure', () =>
           fold.locator('> summary').click()
         );
         await evidence.step('empty English rich-text field', () => emptyProse(fold));
         await evidence.step('save emptied English rich text', () =>
-          page.getByRole('button', { name: 'Opslaan', exact: true }).click()
+          reloadsEditor(page, () =>
+            page.getByRole('button', { name: 'Opslaan', exact: true }).click()
+          )
         );
         await evidence.step('save has no alert', () =>
           expect(page.getByRole('alert')).toHaveCount(0)
@@ -1327,10 +1331,13 @@ test.describe('content-blocks', () => {
       },
     });
     await login(page, `/admin/probe/content/${item.id}`);
+    await editorReady(page);
     const fold = card(page, 1).locator('details.block');
     await fold.locator('> summary').click();
     await emptyProse(fold);
-    await page.getByRole('button', { name: 'Opslaan', exact: true }).click();
+    await reloadsEditor(page, () =>
+      page.getByRole('button', { name: 'Opslaan', exact: true }).click()
+    );
     const alert = page.getByRole('alert');
     await expect(alert).toContainText('Het blok kon niet worden opgeslagen');
     // The field holds what was typed: nothing, not the words it loaded.
