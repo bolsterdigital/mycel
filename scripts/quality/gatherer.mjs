@@ -2,6 +2,11 @@
 // pass while Lighthouse measures a login page. This artifact adds no scoring category.
 import { Gatherer as BaseGatherer, Audit } from 'lighthouse';
 
+// A populated content list is a row per item in the admin table. The old `.content-list li`
+// matched nothing once the list became a table, so every list cell failed as `empty-list`;
+// gatherer.test.mjs ties this selector to the page markup so it cannot drift silently again.
+export const POPULATED_ROW = '#content-table tbody tr[id^="item-"]';
+
 export class IdentityGatherer extends BaseGatherer {
   meta = { supportedModes: ['navigation'] };
   constructor(cookie) {
@@ -22,7 +27,7 @@ export class IdentityGatherer extends BaseGatherer {
   }
   async getArtifact({ driver }) {
     return driver.executionContext.evaluate(
-      async () => {
+      async (populatedRow) => {
         await document.fonts.ready;
         const main = document.querySelector('main');
         const has = (selector) => Boolean(main?.querySelector(selector));
@@ -67,7 +72,7 @@ export class IdentityGatherer extends BaseGatherer {
           link: has('a[href]'),
           siteName: document.querySelector('.admin-site-name')?.textContent?.trim(),
           authenticated: Boolean(document.querySelector('form[action*="logout"]')),
-          populated: has('.content-list li'),
+          populated: has(populatedRow),
           writer: Boolean(writer),
           writerBlocks: [...(writer?.children ?? [])].map((block) => ({
             id: block.getAttribute('data-block-id'),
@@ -79,7 +84,7 @@ export class IdentityGatherer extends BaseGatherer {
           itemText: main?.textContent.includes('De straat die ruimte maakt'),
         };
       },
-      { args: [], useIsolation: true }
+      { args: [POPULATED_ROW], useIsolation: true }
     );
   }
 }
