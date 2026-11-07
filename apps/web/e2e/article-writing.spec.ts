@@ -13,7 +13,7 @@ import { login } from './lib/login';
 import { closePublication, openPublication } from './lib/publication';
 import { isA11y, onlyA11y } from './lib/project';
 import { article, callApi, requireApi } from './lib/api';
-import { block, blockPage, card, editorReady, newPage } from './lib/editor';
+import { block, blockPage, card, editorReady, newPage, reloadsEditor } from './lib/editor';
 
 // The enhanced article view and native block forms save the same core document. The browser
 // proof covers explicit saving, axe and the action layout at 320 CSS px with 200% text; the no-JS
@@ -1404,6 +1404,47 @@ test.describe('after a save that merged', () => {
     const live = await item();
     expect(live.item.publication.find((p: { locale: string }) => p.locale === 'nl')).toMatchObject({
       publishedRevisionId: after.revision.id,
+    });
+  });
+
+  // A form whose changes are all in the newest revision merges into exactly that revision, and
+  // core writes nothing. The newest holds more than the form showed, so nothing is published.
+  test('publishing changes another save already made publishes nothing unseen', async ({
+    page,
+    request,
+  }) => {
+    await login(page, '/admin/probe');
+    const edit = await newPage(page, slugFor('subset'), 'Eerste versie');
+    const itemId = edit.split('/').at(-1)!;
+    const item = async () => callApi(request, 'content.item.get', { itemId });
+    const { revision } = await item();
+    const theirs = await callApi(request, 'content.item.update', {
+      itemId,
+      baseRevisionId: revision.id,
+      document: {
+        ...revision.document,
+        title: { nl: 'Dezelfde correctie' },
+        lead: { nl: 'Concept van een ander' },
+      },
+    });
+    await page.locator('#title\\.nl').fill('Dezelfde correctie');
+    await openPublication(page);
+    const publish = () =>
+      page.locator('#publication-nl').getByRole('button', { name: 'Publiceren', exact: true });
+    await reloadsEditor(page, () => publish().click());
+    await expect(page).toHaveURL(new RegExp(`\\?held&merged=${theirs.revision.id}$`));
+    await expect(page.getByRole('status')).toContainText('niets gepubliceerd');
+    const after = await item();
+    expect(after.revision.id).toBe(theirs.revision.id);
+    expect(after.item.publication.find((p: { locale: string }) => p.locale === 'nl')).toMatchObject(
+      { publishedRevisionId: null }
+    );
+    await openPublication(page);
+    await reloadsEditor(page, () => publish().click());
+    await expect(page).toHaveURL(/\?done=publish/);
+    const live = await item();
+    expect(live.item.publication.find((p: { locale: string }) => p.locale === 'nl')).toMatchObject({
+      publishedRevisionId: theirs.revision.id,
     });
   });
 

@@ -104,7 +104,7 @@ import {
 } from '#lib/server/content/edit-form.js';
 import { runtime } from '#lib/server/runtime.js';
 import { DONE, ISSUES, SLUG_ISSUES, issueCopy } from '#lib/server/content/edit-copy.js';
-import { PINS, held, itemPath, mergedQuery } from '#lib/server/content/edit-path.js';
+import { PINS, held, itemPath, mergedQuery, mergedWithOf } from '#lib/server/content/edit-path.js';
 import { insertedBefore } from '#lib/server/content/conflict/merge-conflict.js';
 import { adminSiteUrls } from '#lib/server/site.js';
 import { langOf, ui, type UiKey } from '../../../../../../i18n/index.js';
@@ -641,10 +641,7 @@ async function commit(
       });
       revisionId = made.id;
       stood = made.document;
-      mergedWith =
-        made.provenance && 'merged' in made.provenance
-          ? made.provenance.merged.latestRevisionId
-          : null;
+      mergedWith = mergedWithOf(made, newest);
     }
     if (!pending || !added) return done(revisionId);
     // The same post again (a double click on Save): the first one inserted the block, the save

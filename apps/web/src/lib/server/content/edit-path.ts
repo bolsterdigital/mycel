@@ -4,6 +4,7 @@
 // (`held`). Apart from the route, which is at its size ceiling. Rejected: a session flash, which
 // a screen without JavaScript and a second tab would not share.
 
+import type { Revision } from '@mycel/core';
 import { redirect } from '@sveltejs/kit';
 
 /** What a save that came before an action knows about its merge and where the screen was. */
@@ -12,6 +13,24 @@ export interface Merged {
   editing: string | null;
   mergedWith: string | null;
 }
+
+/**
+ * The revision a save merged with, or null. A merge that adds nothing to the newest writes
+ * nothing and returns the newest with its own provenance (ADR 026 § Consequences): still a merge,
+ * since the newest may hold more than the form showed, so a save on an older base that returns
+ * the newest it read counts too. Rejected: provenance alone, which let a publisher whose changes
+ * were all in the newest put the rest live unseen. A save landing between that read and core's
+ * lock still escapes until `content.item.update` signals the no-op merge itself.
+ */
+export const mergedWithOf = (
+  made: Pick<Revision, 'id' | 'provenance'>,
+  newest: Pick<Revision, 'id'> | null
+): string | null =>
+  made.provenance && 'merged' in made.provenance
+    ? made.provenance.merged.latestRevisionId
+    : newest && made.id === newest.id
+      ? newest.id
+      : null;
 
 /**
  * The edit screen's address: the item, whatever the redirect adds, and the locale when it is
