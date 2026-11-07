@@ -2125,9 +2125,13 @@ test.describe('content-list-bulk', () => {
       if (isA11y()) {
         await page.setViewportSize(NARROW);
         for (const locale of ['nl', 'en']) {
-          await page
-            .context()
-            .setExtraHTTPHeaders({ 'accept-language': locale, 'x-forwarded-proto': 'http' });
+          await asOwner((o) =>
+            o
+              .updateTable('operators')
+              .set({ ui_locale: locale })
+              .where('email', '=', email)
+              .execute()
+          );
           for (const size of TEXT_SIZES) {
             await page.goto(reportUrl);
             await expect(page.locator('html')).toHaveAttribute('lang', locale);
@@ -2140,9 +2144,9 @@ test.describe('content-list-bulk', () => {
           path: test.info().outputPath(`bulk-${state}-320-en-200.png`),
           fullPage: true,
         });
-        await page
-          .context()
-          .setExtraHTTPHeaders({ 'accept-language': 'nl', 'x-forwarded-proto': 'http' });
+        await asOwner((o) =>
+          o.updateTable('operators').set({ ui_locale: 'nl' }).where('email', '=', email).execute()
+        );
         await page.setViewportSize({ width: 1280, height: 900 });
       }
       await page.goto(reportUrl);
