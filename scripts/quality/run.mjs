@@ -399,8 +399,11 @@ try {
           };
           // Validate every declared image, including below-fold lazy images. Outside the timed
           // window, using URLs from this exact measured document and the same HTTPS origin.
-          for (const url of facts.imageUrls ?? []) {
-            const response = await pageRequest(url, headers);
+          // An admin image needs the same session the measured page had; without it every
+          // thumbnail answered 403 and the cell failed as `failed-request`. An image without a
+          // source (an empty media picker's hidden preview) makes no request, so nothing failed.
+          for (const url of (facts.imageUrls ?? []).filter(Boolean)) {
+            const response = await pageRequest(url, headers, entry.indexable ? undefined : cookie);
             if (!response) facts.failedRequests.push(url);
           }
           sample.identity = validateIdentity(entry, facts);
@@ -483,11 +486,12 @@ try {
 // observation step, but the report and summary keep the actual fail/inconclusive state.
 process.exitCode = result.state === 'pass' ? 0 : 1;
 
-async function pageRequest(url, headers) {
+async function pageRequest(url, headers, cookie) {
   // Playwright's request API shares the browser's local trust exception for this fixture only.
   const ctx = await browser.newContext({ ignoreHTTPSErrors: true, extraHTTPHeaders: headers });
   try {
     if (new URL(url).origin !== origin) return false;
+    if (cookie) await ctx.addCookies([cookie]);
     const response = await ctx.request.get(url);
     return response.ok() && /^image\//.test(response.headers()['content-type'] ?? '');
   } catch {
