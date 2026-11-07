@@ -167,7 +167,17 @@ describe.skipIf(skip)('tenant export and import', () => {
     });
     const formId = uuidv7();
     await uow.run(admin, (ctx) => ctx.forms.insert(probeForm(formId)));
-    await publishProbePage(invoker, admin, formId);
+    const published = await publishProbePage(invoker, admin, formId);
+    await invoker.run(useCases.createBulk, admin, {
+      locale: 'nl',
+      items: [
+        {
+          itemId: published.id,
+          baseRevisionId: published.latestRevisionId,
+          operation: { kind: 'unpublish' },
+        },
+      ],
+    });
     await invoker.run(useCases.createAuthor, admin, { slug: 'redactie', name: `Redactie ${n}` });
     await invoker.run(useCases.createSection, admin, { slug: 'nieuws', title: { nl: 'Nieuws' } });
     await invoker.run(useCases.createPattern, admin, {

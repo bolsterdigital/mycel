@@ -8,6 +8,7 @@ import {
   resolveConnectionIntent,
   testConnection,
 } from './connections/intents.js';
+import { createBulk, getBulk } from './content/bulk/service.js';
 import { listAudit } from './audit/service.js';
 import {
   createConnection,
@@ -108,6 +109,8 @@ import {
 import { listExports, requestExport } from './tenants/exports.js';
 
 export const useCases = {
+  createBulk,
+  getBulk,
   getConnectionIntent,
   listConnectionIntents,
   replayConnectionIntent,

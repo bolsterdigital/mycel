@@ -67,7 +67,7 @@ Short map; the reasoning is in [`../adr/`](../adr/).
 
 **Supporter identity and fold**: a stable id, an append-only log and a projection under a per-supporter lock: [supporters](../reference/supporters.md).
 
-**Content** is an item, immutable revisions and a row per locale: [content model](../reference/content-model.md).
+**Content** is an item, immutable revisions and a row per locale; immutable bulk plans and dry-run results follow [ADR 028](../adr/028-durable-content-bulk-plans.md): [content model](../reference/content-model.md).
 
 **Background work** runs in one worker process over two Postgres queues: [jobs](../reference/jobs.md).
 

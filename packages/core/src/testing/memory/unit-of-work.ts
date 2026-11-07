@@ -106,6 +106,15 @@ export class MemoryUnitOfWork implements UnitOfWork {
           },
         },
         content: memoryContent(s),
+        bulkPlans: {
+          async insert(plan) {
+            if (s.bulkPlans.has(plan.id)) throw new Error('duplicate bulk plan');
+            s.bulkPlans.set(plan.id, structuredClone(plan));
+          },
+          async get(id) {
+            return structuredClone(s.bulkPlans.get(id) ?? null);
+          },
+        },
         ...memorySite(s),
         assist: memoryAssist(s),
         connections: memoryConnections(s, principal),

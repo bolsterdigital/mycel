@@ -71,6 +71,8 @@ const IMPORT_RULE = {
   media_usages: 'as-exported',
   content_items: 'as-exported',
   content_revisions: 'as-exported',
+  content_bulk_plans: 'as-exported',
+  content_bulk_plan_items: 'as-exported',
   assist_settings: 'as-exported',
   content_item_locales: 'as-exported',
   content_block_refs: 'as-exported',
