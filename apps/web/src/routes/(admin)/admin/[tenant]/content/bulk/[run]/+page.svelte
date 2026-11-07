@@ -59,8 +59,17 @@
               >{slot.preview.candidate?.title[data.plan.locale] ||
                 slot.preview.candidate?.title[slot.preview.candidate?.defaultLocale ?? ''] ||
                 t('admin.content.untitled')}</a
-            ></th
-          >
+            >
+            {#if slot.selection.operation.kind === 'publish'}
+              <Button
+                variant="link"
+                href="/admin/{data.tenant.slug}/preview/item/{slot.selection.itemId}?revision={slot
+                  .selection.operation.revisionId}&locale={data.plan.locale}"
+                >{t('admin.content.row.preview')}</Button
+              >
+            {/if}
+          </th>
+
           <td data-label={t('admin.content.bulk.column.operation')}
             >{t(`admin.content.bulk.operation.${slot.selection.operation.kind}` as const)}
             {#if slot.selection.operation.kind === 'save' && slot.preview.candidate?.type === 'article'}
