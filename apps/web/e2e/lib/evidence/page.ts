@@ -9,6 +9,9 @@
 // the trace was missing in the artifact of the run that needed it), and listeners in
 // `editorReady` alone (many specs wait for the mark themselves, and a listener added there misses
 // what happened before the call).
+// A page can stop answering altogether (it then also ignores `evaluate`), so every question asked
+// after the test is bounded, and the file also says whether the browser and a fresh page in the
+// same context still answer: that tells a hung page from a hung browser or connection.
 
 import { writeFileSync } from 'node:fs';
 import { test as base, type Page, type Request } from '@playwright/test';
@@ -24,6 +27,28 @@ const SCRIPT = /\/_(admin|app)\/[^?]+\.js(\?|$)/;
 
 /** Navigations and scripts; the rest of the network says nothing here. */
 const watched = (request: Request) => request.isNavigationRequest() || SCRIPT.test(request.url());
+
+/** How long one question after the test may take; a hung page otherwise costs a second timeout. */
+const ASK_MS = 2000;
+
+/** The answer, or `{ noAnswerMs }` when none came in time; an error is an answer too. */
+const ask = async <T>(question: () => Promise<T>) => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const silence = new Promise<{ noAnswerMs: number }>((resolve) => {
+    timer = setTimeout(() => resolve({ noAnswerMs: ASK_MS }), ASK_MS);
+  });
+  try {
+    return await Promise.race([
+      question().then(
+        (answer) => ({ answer }),
+        (error: unknown) => ({ error: String(error) })
+      ),
+      silence,
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
 
 /** Path only: query strings in a login hop carry transient credentials. */
 const path = (url: string) => {
@@ -88,13 +113,13 @@ export const test = base.extend<{ pageEvidence: void }>({
       // Where each open page stands now, from the page itself: its scripts as the browser saw
       // them, and which ready marks are set.
       const now = await Promise.all(
-        pages.map(async (page, index) => {
+        [...pages].map(async (page, index) => {
           if (page.isClosed()) return { page: index, closed: true };
-          try {
-            return {
-              page: index,
-              url: path(page.url()),
-              ...(await page.evaluate(
+          return {
+            page: index,
+            url: path(page.url()),
+            ...(await ask(() =>
+              page.evaluate(
                 (pattern) => ({
                   readyState: document.readyState,
                   editScreen: document
@@ -117,16 +142,33 @@ export const test = base.extend<{ pageEvidence: void }>({
                   sinceNavigation: Math.round(performance.now()),
                 }),
                 SCRIPT.source
-              )),
-            };
-          } catch (error) {
-            return { page: index, unreadable: String(error) };
-          }
+              )
+            )),
+          };
         })
       );
+      // Does anything above the page still answer? The browser over its own CDP session, and a
+      // fresh page in this context (opened after `now`, so it is not one of the test's pages).
+      const browser = context.browser();
+      const above = {
+        browser: browser
+          ? await ask(async () => {
+              const session = await browser.newBrowserCDPSession();
+              const { product } = await session.send('Browser.getVersion');
+              await session.detach();
+              return product;
+            })
+          : { error: 'no browser' },
+        freshPage: await ask(async () => {
+          const fresh = await context.newPage();
+          const answer = await fresh.evaluate(() => document.readyState);
+          await fresh.close();
+          return answer;
+        }),
+      };
       // A file in the output folder, which CI uploads; a `body` only reaches the reporter.
       const file = info.outputPath('page-evidence.json');
-      writeFileSync(file, JSON.stringify({ entries, now }, null, 2));
+      writeFileSync(file, JSON.stringify({ entries, now, above }, null, 2));
       await info.attach('page-evidence.json', { path: file, contentType: 'application/json' });
     },
     { auto: true },
