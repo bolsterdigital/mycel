@@ -174,11 +174,12 @@ describe.skipIf(skip)('tenant export and import', () => {
         {
           itemId: published.id,
           baseRevisionId: published.latestRevisionId,
-          operation: { kind: 'publish', revisionId: published.latestRevisionId },
+          operation: { kind: 'unpublish' },
         },
       ],
     });
     await invoker.run(useCases.resumeBulk, admin, { planId: bulk.id, version: 1 });
+    await invoker.run(useCases.withdrawBulk, admin, { planId: bulk.id, version: 1 });
     await invoker.run(useCases.createAuthor, admin, { slug: 'redactie', name: `Redactie ${n}` });
     await invoker.run(useCases.createSection, admin, { slug: 'nieuws', title: { nl: 'Nieuws' } });
     await invoker.run(useCases.createPattern, admin, {

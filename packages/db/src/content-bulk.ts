@@ -1,7 +1,7 @@
 // Immutable plans over Postgres, behind the same tenant transaction as content. Composite
 // foreign keys bind every resolved base/latest pointer; opaque refused ids resolve to nothing.
 import type { Kysely } from 'kysely';
-import { BulkPlan, BulkResult, type BulkPlanRepository } from '@mycel/core';
+import { BulkPlan, BulkPhase, BulkResult, type BulkPlanRepository } from '@mycel/core';
 import type { Database } from './infra/schema.js';
 
 export function bulkPlanRepository(trx: Kysely<Database>, tenantId: string): BulkPlanRepository {
@@ -87,6 +87,33 @@ export function bulkPlanRepository(trx: Kysely<Database>, tenantId: string): Bul
         .where('phase', '=', phase)
         .executeTakeFirst();
       return row ? BulkResult.parse(row.result) : null;
+    },
+    async report(id) {
+      const rows = await trx
+        .selectFrom('content_bulk_runs as run')
+        .leftJoin('content_bulk_effects as effect', (join) =>
+          join
+            .onRef('effect.tenant_id', '=', 'run.tenant_id')
+            .onRef('effect.plan_id', '=', 'run.plan_id')
+        )
+        .select(['run.undo_requested', 'effect.ordinal', 'effect.phase', 'effect.result'])
+        .where('run.tenant_id', '=', tenantId)
+        .where('run.plan_id', '=', id)
+        .execute();
+      return {
+        undoRequested: rows[0]?.undo_requested ?? false,
+        results: rows.flatMap((r) =>
+          r.ordinal === null
+            ? []
+            : [
+                {
+                  ordinal: r.ordinal,
+                  phase: BulkPhase.parse(r.phase),
+                  result: BulkResult.parse(r.result),
+                },
+              ]
+        ),
+      };
     },
     async record(id, ordinal, phase, result) {
       const slot = await trx

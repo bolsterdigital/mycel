@@ -95,11 +95,7 @@ async function prepareApply(
   if (op.kind === 'save' && op.publish) requireCapability(ctx, 'content:publish');
   const previous = await ctx.content.revision(item.id, item.latestRevisionId);
   if (!previous) throw notFound('revision');
-  if (
-    !slot.preview.candidate ||
-    slot.preview.problems.some((p) => p.code !== 'forbidden' && p.code !== 'limit_exceeded')
-  )
-    refuse('conflict', 'planId', 'content.bulk.new-plan-required');
+  if (!slot.preview.candidate) refuse('conflict', 'planId', 'content.bulk.new-plan-required');
   let candidate = previous.document;
   let provenance;
   if (op.kind === 'save') {
@@ -141,7 +137,14 @@ async function prepareApply(
         {
           code: waits ? 'conflict' : 'invalid_input',
           issues: waits
-            ? [{ path: 'publication', message: 'content.bulk.editor-review-required' }]
+            ? [
+                {
+                  path: 'publication',
+                  message: state.scheduleId
+                    ? 'content.bulk.scheduled'
+                    : 'content.bulk.editor-review-required',
+                },
+              ]
             : issues,
         },
       ];
@@ -295,8 +298,12 @@ function step(phase: BulkPhase) {
       const slot = plan.items[ordinal];
       if (!slot || plan.version !== version)
         refuse('invalid_input', 'ordinal', 'content.bulk.invalid-slot');
-      if (phase === 'undo') await ctx.bulkPlans.requestUndo(planId);
-      else if (await ctx.bulkPlans.undoRequested(planId))
+      if (phase === 'undo') {
+        // A reader may inspect receipts but may not put the run behind an irreversible barrier.
+        if (!can(ctx.principal, 'content:write') && !can(ctx.principal, 'content:publish'))
+          refuse('forbidden', 'operation', 'content.bulk.undo-capability-required');
+        await ctx.bulkPlans.requestUndo(planId);
+      } else if (await ctx.bulkPlans.undoRequested(planId))
         refuse('conflict', 'planId', 'content.bulk.undo-requested');
       let result = await ctx.bulkPlans.result(planId, ordinal, phase);
       if (!result || result.retryable) {
@@ -331,14 +338,12 @@ export const checkBulk = defineUseCase({
   async handler(ctx, { planId }) {
     const plan = await ctx.bulkPlans.get(planId);
     if (!plan) throw notFound('bulk plan');
-    const items = [];
-    for (let ordinal = 0; ordinal < plan.items.length; ordinal++)
-      items.push({
-        itemId: plan.items[ordinal]!.selection.itemId,
-        apply: await ctx.bulkPlans.result(planId, ordinal, 'apply'),
-        undo: await ctx.bulkPlans.result(planId, ordinal, 'undo'),
-      });
-    const undoRequested = await ctx.bulkPlans.undoRequested(planId);
+    const { undoRequested, results } = await ctx.bulkPlans.report(planId);
+    const items = plan.items.map((slot, ordinal) => ({
+      itemId: slot.selection.itemId,
+      apply: results.find((r) => r.ordinal === ordinal && r.phase === 'apply')?.result ?? null,
+      undo: results.find((r) => r.ordinal === ordinal && r.phase === 'undo')?.result ?? null,
+    }));
     return {
       planId,
       undoRequested,

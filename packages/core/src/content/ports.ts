@@ -151,6 +151,11 @@ export interface BulkPlanRepository {
   requestUndo(id: string): Promise<void>;
   result(id: string, ordinal: number, phase: BulkPhase): Promise<BulkResult | null>;
   record(id: string, ordinal: number, phase: BulkPhase, result: BulkResult): Promise<void>;
+  /** One consistent read of the barrier and all receipts, never mixed transaction snapshots. */
+  report(id: string): Promise<{
+    undoRequested: boolean;
+    results: { ordinal: number; phase: BulkPhase; result: BulkResult }[];
+  }>;
 }
 
 declare module '../ports.js' {

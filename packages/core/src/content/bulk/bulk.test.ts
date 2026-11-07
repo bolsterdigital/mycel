@@ -484,6 +484,12 @@ describe('content bulk execution and undo', () => {
       ],
     });
     const input = { planId: plan.id, version: 1 as const };
+    await expect(
+      invoker.run(useCases.withdrawBulk, principal({ capabilities: ['content:read'] }), input)
+    ).rejects.toMatchObject({ code: 'forbidden' });
+    expect((await invoker.run(useCases.checkBulk, admin, { planId: plan.id })).undoRequested).toBe(
+      false
+    );
     const writer = principal({ capabilities: ['content:read', 'content:write'] });
     expect((await invoker.run(useCases.resumeBulk, writer, input)).result).toMatchObject({
       status: 'refused',
@@ -511,6 +517,49 @@ describe('content bulk execution and undo', () => {
         invoker.run(uc, principal({ tenantStatus: 'suspended' }), input)
       ).rejects.toMatchObject({ code: 'suspended' });
     }
+  });
+
+  it('saves a reviewed draft but preserves an existing schedule and never retries its held publication', async () => {
+    const { invoker, admin, create } = setup();
+    const o = await create();
+    await invoker.run(useCases.scheduleItem, admin, {
+      itemId: o.item.id,
+      revisionId: o.revision.id,
+      locale: 'nl',
+      at: '2030-01-01T12:00:00Z',
+    });
+    const plan = await invoker.run(useCases.createBulk, admin, {
+      locale: 'nl',
+      items: [
+        {
+          itemId: o.item.id,
+          baseRevisionId: o.revision.id,
+          operation: {
+            kind: 'save',
+            publish: true,
+            document: { ...o.revision.document, lead: { nl: 'Updated lead' } },
+          },
+        },
+      ],
+    });
+    const input = { planId: plan.id, version: 1 as const };
+    const a = await invoker.run(useCases.resumeBulk, admin, input);
+    expect(a.result).toMatchObject({
+      status: 'awaiting_editor',
+      savedRevisionId: expect.any(String),
+      publicationChanged: false,
+      problems: [{ issues: [{ message: 'content.bulk.scheduled' }] }],
+    });
+    expect(
+      (await invoker.run(useCases.getItem, admin, { itemId: o.item.id })).item.publication[0]
+        ?.scheduledRevisionId
+    ).toBe(o.revision.id);
+    expect(await invoker.run(useCases.resumeBulk, admin, input)).toEqual(a);
+    expect((await invoker.run(useCases.withdrawBulk, admin, input)).result.status).toBe('undone');
+    expect(
+      (await invoker.run(useCases.getItem, admin, { itemId: o.item.id })).item.publication[0]
+        ?.scheduledRevisionId
+    ).toBe(o.revision.id);
   });
 
   it('holds changed publication and planning offline and refuses undo after later publication', async () => {
