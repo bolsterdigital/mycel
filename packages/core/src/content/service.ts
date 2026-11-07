@@ -9,26 +9,17 @@
 // because drafts must never reach a public visitor (the public projection is `public.ts`).
 
 import { z } from 'zod';
-import { requireActive, requireEntitled } from '../entitlements/guards.js';
+import { requireActive } from '../entitlements/guards.js';
 import { type Issue, notFound, UseCaseError } from '../errors.js';
-import { zodIssues } from '../invoke.js';
 import { Locale, localized } from '../i18n/locale.js';
 import type { JobOutcome } from '../jobs/ports.js';
 import { jobKey, type JobPayload } from '../jobs/types.js';
 import type { TransactionContext } from '../ports.js';
 import { defineUseCase } from '../registry.js';
 import { MAX_PAGE_SIZE } from '../util/page-size.js';
-import {
-  allBlocks,
-  assignBlockIds,
-  blockReferences,
-  type Block,
-  type BlockInput,
-} from './blocks.js';
+import { allBlocks, blockReferences, type Block, type BlockInput } from './blocks.js';
 import { EXAMPLE_IDS } from './block-types.js';
 import { diffDocuments } from './diff.js';
-import { adoptAddedBlocks, mergeConflict, mergeSave } from './merge/save.js';
-import { canonicalJson } from '../util/canonical-json.js';
 import { EffectiveView, effectiveOf } from './header/effective.js';
 import {
   defaultDirection,
@@ -66,6 +57,8 @@ import { freeSlug, slugFollowingTitle, slugTaken } from './address/slugs.js';
 import { preserveTranslationReview } from './translation-review.js';
 import './ports.js';
 import '../theme/ports.js';
+import { finalize, assertBase, prepareItemSave } from './merge/prepare.js';
+export { finalize, assertBase, requireBlockTypes, prepareItemSave } from './merge/prepare.js';
 import { iso } from '../util/date.js';
 import { exampleId } from '../util/ids.js';
 
@@ -106,48 +99,6 @@ export async function lockItem(ctx: TransactionContext, itemId: string): Promise
   const item = await ctx.content.lock(itemId);
   if (!item) throw notFound('content item');
   return item;
-}
-
-/**
- * Every block type in the tree must be switched on for the site (ADR 015, `blocks.<type>`): one
- * check for documents and patterns alike, so #8b2 only adds types. A block the site already has
- * cannot be saved again once its type is switched off; reading and publishing what exists stay.
- */
-export function requireBlockTypes(
-  ctx: TransactionContext,
-  blocks: readonly { type: string }[]
-): void {
-  for (const type of new Set(allBlocks(blocks).map((b) => b.type)))
-    requireEntitled(ctx.principal, `blocks.${type}`, undefined, { blockType: type });
-}
-
-/** The document as stored: ids for new blocks, the full schema (defaults, invariants) re-checked. */
-export function finalize(
-  ctx: TransactionContext,
-  input: ContentDocumentInput,
-  blocks: readonly BlockInput[]
-): ContentDocument {
-  const parsed = ContentDocument.safeParse({
-    ...input,
-    machineTranslation: input.machineTranslation,
-    blocks: assignBlockIds(blocks, () => ctx.ids.next()),
-  });
-  if (!parsed.success)
-    throw new UseCaseError('invalid_input', 'document is not valid', zodIssues(parsed.error));
-  requireBlockTypes(ctx, parsed.data.blocks);
-  return parsed.data;
-}
-
-/** A stale base is a typed conflict before anything is read or written (ADR 018 rule 2). */
-export function assertBase(item: ItemRecord, baseRevisionId: string): void {
-  if (item.latestRevisionId !== baseRevisionId)
-    throw new UseCaseError('conflict', 'the item has a newer revision than baseRevisionId', [
-      {
-        path: 'baseRevisionId',
-        message: 'content.revision.conflict',
-        params: { latestRevisionId: item.latestRevisionId },
-      },
-    ]);
 }
 
 /**
@@ -554,45 +505,13 @@ export const updateItem = defineUseCase({
   ],
   async handler(ctx, { itemId, baseRevisionId, document }) {
     const item = await lockItem(ctx, itemId);
-    if (document.type !== item.type)
-      throw new UseCaseError('invalid_input', 'the type of an item never changes', [
-        { path: 'document.type', message: 'content.type.immutable' },
-      ]);
-    const base = await ctx.content.revision(itemId, baseRevisionId);
-    // An id that is no revision of this item cannot be merged from: the stale-base refusal.
-    if (!base) assertBase(item, baseRevisionId);
-    if (!base) throw notFound('revision');
-    const latest =
-      item.latestRevisionId === baseRevisionId
-        ? null
-        : await ctx.content.revision(itemId, item.latestRevisionId);
-    if (item.latestRevisionId !== baseRevisionId && !latest) throw notFound('revision');
-    // A block posted again without the id the first save gave it is that block (a retry).
-    const input = latest ? adoptAddedBlocks(base.document, document, latest.document) : document;
-    let next = finalize(ctx, input, input.blocks);
-    let previous = base.document;
-    const merge = latest ? { baseRevisionId, latestRevisionId: latest.id } : null;
-    let provenance: Revision['provenance'];
-    if (latest) {
-      const merged = mergeSave(base.document, next, latest.document);
-      if (merged.conflicts.length) throw mergeConflict(item.latestRevisionId, merged.conflicts);
-      next = ContentDocument.parse(merged.document);
-      // A merge that adds nothing to the newest revision writes nothing: a repeated save.
-      if (canonicalJson(next) === canonicalJson(latest.document))
-        return { item: toContentItem(item), revision: latest, merge };
-      requireBlockTypes(ctx, next.blocks);
-      previous = latest.document;
-      provenance = { merged: { baseRevisionId, latestRevisionId: item.latestRevisionId } };
-    }
-    for (const s of item.publication)
-      if (!next.locales.includes(s.locale) && (s.publishedRevisionId || s.scheduleId))
-        throw new UseCaseError('invalid_input', `locale "${s.locale}" is published or planned`, [
-          {
-            path: 'document.locales',
-            message: 'content.locale.still-live',
-            params: { locale: s.locale },
-          },
-        ]);
+    const { next, previous, merge, provenance, unchanged } = await prepareItemSave(
+      ctx,
+      item,
+      baseRevisionId,
+      document
+    );
+    if (unchanged) return { item: toContentItem(item), revision: unchanged, merge };
     // Decided before the write, which may still refuse; set after it, so a taken slug undoes both.
     const slug = await slugFollowingTitle(ctx, item, previous, next);
     const saved = await writeRevision(ctx, item, next, provenance);

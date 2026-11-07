@@ -4,7 +4,12 @@
 import { allBlocks } from '../../content/blocks.js';
 import { documentReferences, type Revision } from '../../content/model.js';
 import { compareItems, matchesItemDocument, matchesItemFilter } from '../../content/listing.js';
-import type { ContentRepository, ItemMatch, ItemRecord } from '../../content/ports.js';
+import type {
+  BulkPlanRepository,
+  ContentRepository,
+  ItemMatch,
+  ItemRecord,
+} from '../../content/ports.js';
 import type { TransactionContext } from '../../ports.js';
 import { paged, type TenantStore } from './store.js';
 
@@ -193,6 +198,19 @@ export function memorySite(
         licence: null,
       }),
       font: async () => {},
+    },
+  };
+}
+
+/** Immutable plan snapshots, separate from the transaction composition. */
+export function memoryBulkPlans(s: TenantStore): BulkPlanRepository {
+  return {
+    async insert(plan) {
+      if (s.bulkPlans.has(plan.id)) throw new Error('duplicate bulk plan');
+      s.bulkPlans.set(plan.id, structuredClone(plan));
+    },
+    async get(id) {
+      return structuredClone(s.bulkPlans.get(id) ?? null);
     },
   };
 }

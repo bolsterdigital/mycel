@@ -3,6 +3,7 @@
 // serialise per item, so "two saves on one base, exactly one wins" and "an old job cannot
 // publish after a reschedule" follow from the lock order, not from timing.
 
+import type { BulkPlan } from './bulk/model.js';
 import type { BlockType, ReferenceType } from './blocks.js';
 import type { LocaleState } from './lifecycle.js';
 import type { ItemFilter, ItemOrder } from './listing.js';
@@ -141,9 +142,15 @@ export interface SluggedRepository<
   findBySlug(slug: string): Promise<T | null>;
 }
 
+export interface BulkPlanRepository {
+  insert(plan: BulkPlan): Promise<void>;
+  get(id: string): Promise<BulkPlan | null>;
+}
+
 declare module '../ports.js' {
   interface TransactionContext {
     content: ContentRepository;
+    bulkPlans: BulkPlanRepository;
     authors: SluggedRepository<Author>;
     sections: SluggedRepository<Section>;
     patterns: EntityRepository<Pattern>;

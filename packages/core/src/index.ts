@@ -111,3 +111,6 @@ export * from './connections/stand.js';
 export * from './attention/model.js';
 export * from './attention/ports.js';
 export * from './attention/service.js';
+
+export * from './content/bulk/model.js';
+export * from './content/bulk/service.js';

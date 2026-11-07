@@ -32,3 +32,4 @@ The contract the code is built against. How a decision gets here, and when one i
 | 025 | [One document header above the blocks; legacy hero blocks stay valid](025-one-document-header.md)                                      | accepted |
 | 026 | [A save on an older revision merges; only a value both changed is a conflict](026-three-way-merge-on-save.md)                          | accepted |
 | 027 | [A block operation on an older revision is rebased; authors and sections carry a base](027-block-operations-rebase-and-entity-base.md) | accepted |
+| 028 | [Content bulk work uses immutable plans and per-item effects](028-durable-content-bulk-plans.md)                                       | accepted |

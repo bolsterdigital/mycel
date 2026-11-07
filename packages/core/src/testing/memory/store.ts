@@ -1,3 +1,4 @@
+import type { BulkPlan } from '../../content/bulk/model.js';
 // The rows of the in-memory runtime: one `TenantStore` per tenant, isolated by construction like
 // RLS, plus the platform-wide tables. Also the helpers every module factory shares (keyset pages,
 // the per-tenant lock). Rejected: one store per module, which would split a tenant's rows and
@@ -66,6 +67,7 @@ export interface TenantStore {
   blockRefs: Map<string, DocumentReference[]>;
   authors: Map<string, Author>;
   sections: Map<string, Section>;
+  bulkPlans: Map<string, BulkPlan>;
   patterns: Map<string, Pattern>;
   forms: Map<string, FormDefinition>;
   submissions: Map<string, Submission>;
@@ -129,6 +131,7 @@ const emptyTenant = (): TenantStore => ({
   blockRefs: new Map(),
   authors: new Map(),
   sections: new Map(),
+  bulkPlans: new Map(),
   patterns: new Map(),
   forms: new Map(),
   submissions: new Map(),
