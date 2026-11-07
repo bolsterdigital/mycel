@@ -8,7 +8,7 @@ import { type APIRequestContext, type Browser, type Page, expect } from '@playwr
 import { test } from './lib/evidence/page';
 import { expectNoAxeViolations } from './lib/axe';
 import { bfcacheBack, bfcacheBrowser } from './lib/bfcache';
-import { blockPage, card, editorReady, more, newPage } from './lib/editor';
+import { blockPage, card, editorReady, more, newPage, reloadsEditor } from './lib/editor';
 import { tenantId, withInvoker } from './lib/invoker';
 import { NARROW, TEXT_SIZES, layoutGate, setTextSize, setTextSpacing } from './lib/layout';
 import { ADMIN, login } from './lib/login';
@@ -454,7 +454,7 @@ test.describe('content-admin', () => {
     await side.locator('details', { hasText: 'Adres wijzigen' }).locator('summary').click();
     const moved = slugFor('conflict-moved');
     await side.getByLabel('Slug').fill(moved);
-    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await reloadsEditor(page, () => page.getByRole('button', { name: 'Opslaan' }).click());
     await expect(page).toHaveURL(/\?saved&merged=[0-9a-f-]{36}$/);
     await expect(page.getByRole('status')).toContainText('samen met wat');
     expect((await stored()).title).toEqual({ nl: 'Mijn versie', en: 'Agent title' });
@@ -462,7 +462,7 @@ test.describe('content-admin', () => {
 
     await agent({ nl: 'Hun versie' });
     await page.locator('#title\\.nl').fill('Weer mijn versie');
-    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await reloadsEditor(page, () => page.getByRole('button', { name: 'Opslaan' }).click());
     const alert = page.getByRole('alert');
     await expect(alert).toContainText('Iemand anders heeft dit item intussen opgeslagen');
     await expect(alert.getByRole('radio')).toHaveCount(2);
@@ -478,7 +478,7 @@ test.describe('content-admin', () => {
     }
     await setTextSize(page, '100%');
     await alert.getByRole('radio', { name: 'Hun versie gebruiken: Hun versie' }).check();
-    await page.getByRole('button', { name: 'Opslaan' }).click();
+    await reloadsEditor(page, () => page.getByRole('button', { name: 'Opslaan' }).click());
     await expect(page).toHaveURL(`${edit}?saved`);
     expect((await stored()).title).toEqual({ nl: 'Hun versie', en: 'Agent title' });
   });
