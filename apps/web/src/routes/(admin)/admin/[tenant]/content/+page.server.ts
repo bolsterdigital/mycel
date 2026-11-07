@@ -14,10 +14,12 @@
 // from core. The names of the authors and sections are read once per page, for the
 // filter's choices and the columns; rejected: a name in the list's output, which would make a
 // list of items depend on who may read which entity.
+import { contentLocale } from '#lib/server/content/content-locale.js';
+import { prepareListBulk } from '#lib/server/content/content-bulk.js';
 import { fill, ui } from '../../../../../i18n/index.js';
 import { randomUUID } from 'node:crypto';
 import { redirect } from '@sveltejs/kit';
-import { requireTenantPrincipal } from '#lib/server/admin/admin.js';
+import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { act } from '#lib/server/admin/admin-actions.js';
 import {
   can,
@@ -201,6 +203,7 @@ export const load: PageServerLoad = async ({ parent, locals, url, params, cookie
       unpublish: `${here}&/unpublish`,
       duplicate: `${here}&/duplicate`,
       display: `${here}&/display`,
+      bulk: `${here}&/bulk`,
       clear: to({ ...NO_FILTERS, page: 1 }),
       sort: Object.fromEntries(
         LIST_SORTS.map((sort) => [
@@ -216,6 +219,7 @@ export const load: PageServerLoad = async ({ parent, locals, url, params, cookie
       const own = i.title[work];
       return {
         id: i.id,
+        latestRevisionId: i.latestRevisionId,
         title: pickAny(i.title, work, i.defaultLocale) ?? '',
         // The title shown is another locale's: it carries that language.
         titleLocale: own ? work : i.title[i.defaultLocale] ? i.defaultLocale : null,
@@ -253,6 +257,41 @@ export const load: PageServerLoad = async ({ parent, locals, url, params, cookie
 
 // Creation is a POST, so following or prefetching a link can never create content.
 export const actions: Actions = {
+  bulk: async (event) => {
+    const result = await act(
+      event,
+      'bulk',
+      {
+        conflict: 'admin.content.error.invalid',
+        invalid: 'admin.content.bulk.invalid',
+      },
+      async (principal, form) => {
+        const { tenant } = await requireTenantPrincipal(
+          event.locals,
+          event.url,
+          event.params.tenant
+        );
+        const type = ContentType.safeParse(event.url.searchParams.get('type')).data ?? 'page';
+        const view = listViewFrom(event.url.searchParams, type);
+        const display = listDisplay(event.cookies, view, type);
+        const { items } = await runtime().invoker.run(
+          useCases.listItems,
+          principal,
+          listInput(view, type, contentLocale(event.cookies, tenant), {
+            per: display.per,
+            zone: (await adminTimeZone(event.locals)).zone,
+            others: tenant.locales.filter((l) => l !== contentLocale(event.cookies, tenant)),
+          })
+        );
+        return prepareListBulk(principal, form, items);
+      }
+    );
+    if ('status' in result) return result;
+    redirect(
+      303,
+      `/admin/${event.params.tenant}/content/bulk/${result.id}?${new URLSearchParams([...event.url.searchParams].filter(([key]) => !key.startsWith('/')))}`
+    );
+  },
   create: async (event) => {
     const result = await act(
       event,

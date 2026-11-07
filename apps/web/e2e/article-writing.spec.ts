@@ -1557,3 +1557,61 @@ test.describe('after a save that merged', () => {
     ).toEqual(['Eerste', 'Tweede, van een ander', 'Derde', 'Nieuwe kop']);
   });
 });
+
+test.describe('bulk section', () => {
+  test.use({ locale: 'nl-NL' });
+  test('bulk section saves a draft and restores the previous section', async ({
+    page,
+    request,
+  }) => {
+    const slug = `bulk-section-${randomUUID()}`;
+    const section = await callApi(request, 'content.section.create', {
+      slug,
+      title: { nl: 'Bulk section' },
+    });
+    const { item } = await callApi(request, 'content.item.create', {
+      slug,
+      document: {
+        type: 'article',
+        defaultLocale: 'nl',
+        locales: ['nl'],
+        title: { nl: slug },
+        blocks: [],
+      },
+    });
+    await login(page, `/admin/probe/content?type=article&q=${slug}`);
+    await page.getByLabel('Alles op deze pagina', { exact: true }).check();
+    await page.getByLabel('Handeling', { exact: true }).selectOption('section');
+    await page.getByLabel('Rubriek wijzigen', { exact: true }).selectOption(section.id);
+    await page.getByRole('button', { name: 'Droogloop voorbereiden' }).click();
+    await expect(page.getByText('Rubriek wijzigen: Bulk section', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Bevestigen en eerste item verwerken' }).click();
+    const saved = await callApi(request, 'content.item.get', { itemId: item.id });
+    expect(saved.revision.document.sectionId).toBe(section.id);
+    expect(
+      saved.item.publication.every(
+        (p: { publishedRevisionId: string | null }) => !p.publishedRevisionId
+      )
+    ).toBe(true);
+    await page.getByRole('button', { name: 'Run stoppen en eerste item herstellen' }).click();
+    const restored = await callApi(request, 'content.item.get', { itemId: item.id });
+    expect(restored.revision.document.sectionId).toBeNull();
+    await withInvoker(async (invoker) =>
+      invoker.run(useCases.publishItem, systemPrincipal(await tenantId(), 'e2e'), {
+        itemId: item.id,
+        revisionId: restored.revision.id,
+        locale: 'nl',
+      })
+    );
+    await page.goto(`/admin/probe/content?type=article&q=${slug}`);
+    await page.getByLabel('Alles op deze pagina', { exact: true }).check();
+    await page.getByLabel('Handeling', { exact: true }).selectOption('unpublish');
+    await page.getByRole('button', { name: 'Droogloop voorbereiden' }).click();
+    await page.getByRole('button', { name: 'Bevestigen en eerste item verwerken' }).click();
+    const offline = await callApi(request, 'content.item.get', { itemId: item.id });
+    expect(offline.item.publication[0].publishedRevisionId).toBeNull();
+    await page.getByRole('button', { name: 'Run stoppen en eerste item herstellen' }).click();
+    const live = await callApi(request, 'content.item.get', { itemId: item.id });
+    expect(live.item.publication[0].publishedRevisionId).toBe(restored.revision.id);
+  });
+});

@@ -1810,4 +1810,57 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.ui.catalogue.writingSheet': 'Schrijfvlak',
   'admin.ui.catalogue.writingSheet.intro':
     'Bediening en labels staan buiten de woorden; het vlak volgt het kleurenschema.',
+  'admin.content.bulk.title': 'Bulkacties',
+  'admin.content.bulk.scope':
+    'Selecteer alleen rijen op deze pagina. Een droogloop wijzigt geen inhoud.',
+  'admin.content.bulk.all': 'Alles op deze pagina',
+  'admin.content.bulk.count': '{n} geselecteerd op deze pagina',
+  'admin.content.bulk.operation': 'Handeling',
+  'admin.content.bulk.section': 'Rubriek wijzigen',
+  'admin.content.bulk.noSection': 'Geen rubriek',
+  'admin.content.bulk.locale': 'Doeltaal',
+  'admin.content.bulk.preview': 'Droogloop voorbereiden',
+  'admin.content.bulk.select': 'Selecteren: {title}',
+  'admin.content.bulk.invalid':
+    'Selecteer items op deze pagina en een geldige handeling. Maak een nieuwe droogloop als de lijst is veranderd.',
+  'admin.content.bulk.changed':
+    'Dit plan kan niet verder. Lees het rapport en maak een nieuwe droogloop.',
+  'admin.content.bulk.results': 'Droogloop en resultaten',
+  'admin.content.bulk.summary': '{n} geselecteerde items. Doeltaal: {locale}.',
+  'admin.content.bulk.bookmark':
+    'Bewaar deze link om het rapport terug te vinden en na een onderbreking te hervatten.',
+  'admin.content.bulk.confirmWarning':
+    'Bevestig de gecontroleerde handeling. Elk verzoek verwerkt één item. Andere items kunnen worden geweigerd; hun resultaten blijven zichtbaar. Rubriek wijzigen slaat alleen een concept op.',
+  'admin.content.bulk.undoWarning':
+    'Herstel stopt verdere uitvoering van deze run. Latere bewerkingen blijven behouden. Ga door totdat alle herstelresultaten zichtbaar zijn.',
+  'admin.content.bulk.retryable': 'Kan opnieuw worden geprobeerd nadat het probleem is opgelost.',
+  'admin.content.bulk.confirm': 'Bevestigen en eerste item verwerken',
+  'admin.content.bulk.next': 'Volgend item verwerken of opnieuw proberen',
+  'admin.content.bulk.undoNext': 'Herstel voortzetten',
+  'admin.content.bulk.undo': 'Run stoppen en eerste item herstellen',
+  'admin.content.bulk.back': 'Terug naar inhoud',
+  'admin.content.bulk.column.item': 'Item',
+  'admin.content.bulk.column.operation': 'Handeling',
+  'admin.content.bulk.column.preview': 'Droogloop',
+  'admin.content.bulk.column.apply': 'Resultaat',
+  'admin.content.bulk.column.undo': 'Herstel',
+  'admin.content.bulk.operation.save': 'Concept opslaan',
+  'admin.content.bulk.operation.publish': 'Publiceren',
+  'admin.content.bulk.operation.unpublish': 'Offline halen',
+  'admin.content.bulk.state.ready': 'Gereed',
+  'admin.content.bulk.state.unchanged': 'Ongewijzigd',
+  'admin.content.bulk.state.awaiting_editor': 'Controle door redacteur nodig',
+  'admin.content.bulk.state.refused': 'Geweigerd',
+  'admin.content.bulk.state.changed': 'Gewijzigd',
+  'admin.content.bulk.state.conflict': 'Conflict: maak een nieuw plan',
+  'admin.content.bulk.state.undone': 'Hersteld',
+  'admin.content.bulk.state.pending': 'Niet verwerkt',
+  'admin.content.bulk.problem.not_found': 'Item of revisie niet meer beschikbaar.',
+  'admin.content.bulk.problem.forbidden': 'De vereiste bevoegdheid ontbreekt.',
+  'admin.content.bulk.problem.invalid_input':
+    'Controleer taal, verwijzingen en publicatiestatus in de editor.',
+  'admin.content.bulk.problem.conflict':
+    'Het item of de publicatie is gewijzigd. Maak een nieuw plan; herstel overschrijft nooit latere bewerkingen.',
+  'admin.content.bulk.problem.limit_exceeded': 'Een sitelimiet verhindert deze handeling.',
+  'admin.content.bulk.problem.suspended': 'Deze site is geschorst.',
 };
