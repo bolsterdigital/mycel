@@ -54,12 +54,17 @@ describe('content.item.update on an older base over HTTP', () => {
       document: doc('Titel', 'Agent drie'),
     });
     expect(agent.ok).toBe(true);
+    expect(agent.body.merge).toBeNull();
     const editor = await call('content.item.update', {
       itemId: item.id,
       baseRevisionId: revision.id,
       document: doc('Titel', 'Drie', 'Redacteur zeven'),
     });
     expect(editor.ok).toBe(true);
+    expect(editor.body.merge).toEqual({
+      baseRevisionId: revision.id,
+      latestRevisionId: agent.body.revision.id,
+    });
     expect(editor.body.revision.provenance).toEqual({
       merged: { baseRevisionId: revision.id, latestRevisionId: agent.body.revision.id },
     });
@@ -67,6 +72,43 @@ describe('content.item.update on an older base over HTTP', () => {
       'Agent drie',
       'Redacteur zeven',
     ]);
+  });
+
+  it('signals a no-op merge without rewriting history, and not a current-base save', async () => {
+    const call = front(new Invoker(buildRegistry(), new MemoryUnitOfWork()))(writer);
+    const { item, revision } = (
+      await call('content.item.create', { slug: 'retry', document: doc('Titel') })
+    ).body;
+    const first = await call('content.item.update', {
+      itemId: item.id,
+      baseRevisionId: revision.id,
+      document: doc('Titel', 'Agent drie'),
+    });
+    const merged = await call('content.item.update', {
+      itemId: item.id,
+      baseRevisionId: revision.id,
+      document: doc('Titel', 'Drie', 'Editor zeven'),
+    });
+    const retry = await call('content.item.update', {
+      itemId: item.id,
+      baseRevisionId: revision.id,
+      document: doc('Titel', 'Agent drie'),
+    });
+    expect(retry.ok).toBe(true);
+    expect(retry.body.merge).toEqual({
+      baseRevisionId: revision.id,
+      latestRevisionId: merged.body.revision.id,
+    });
+    expect(retry.body.revision).toEqual(merged.body.revision);
+    // Its historical provenance names first, but this invocation merged with merged.
+    expect(retry.body.revision.provenance.merged.latestRevisionId).toBe(first.body.revision.id);
+    const current = await call('content.item.update', {
+      itemId: item.id,
+      baseRevisionId: merged.body.revision.id,
+      document: merged.body.revision.document,
+    });
+    expect(current.ok).toBe(true);
+    expect(current.body.merge).toBeNull();
   });
 
   it('refuses a value both changed with its path, and a reader before any merge', async () => {
