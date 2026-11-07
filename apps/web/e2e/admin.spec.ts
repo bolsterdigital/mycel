@@ -1442,8 +1442,11 @@ test.describe('hostnames', () => {
     await expect(page.getByRole('status')).toContainText(`Domein ${sub} toegevoegd`);
     const single = formWith(page, sub);
     await expect(single).toContainText('CNAME-record');
-    await expect(single).not.toContainText('www');
-    await expect(single).not.toContainText('ALIAS');
+    // The verification token is random base64url and may hold `www` or `ALIAS` by chance, so the
+    // asserts name what only a pair shows: a www hostname (a dot never occurs in the token) and
+    // the ALIAS record label (nor does a space).
+    await expect(single).not.toContainText('www.');
+    await expect(single).not.toContainText('ALIAS- of ANAME-record');
 
     // Both names or neither: when www is taken, the bare name added a moment before goes again.
     const taken = `taken-${domain}`;
