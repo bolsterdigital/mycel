@@ -18,7 +18,7 @@ import { contentLocale } from '#lib/server/content/content-locale.js';
 import { prepareListBulk } from '#lib/server/content/content-bulk.js';
 import { fill, ui } from '../../../../../i18n/index.js';
 import { randomUUID } from 'node:crypto';
-import { redirect } from '@sveltejs/kit';
+import { redirect, type Cookies } from '@sveltejs/kit';
 import { adminTimeZone, requireTenantPrincipal } from '#lib/server/admin/admin.js';
 import { act } from '#lib/server/admin/admin-actions.js';
 import {
@@ -98,29 +98,55 @@ async function articleEntities(
   };
 }
 
-export const load: PageServerLoad = async ({ parent, locals, url, params, cookies }) => {
-  const { tenant, contentLocale: work, timeZone } = await parent();
+/**
+ * The rows the list URL asks for, as the page shows them: what a bulk selection is checked
+ * against must be the page the operator was looking at, so `load` and the `bulk` action read it
+ * here. A translation filter too broad to run is an empty page that says so, not an error.
+ */
+async function listRows(
+  principal: Principal,
+  tenant: { locales: readonly string[] },
+  work: string,
+  zone: string,
+  url: URL,
+  cookies: Cookies
+) {
   const type = ContentType.safeParse(url.searchParams.get('type')).data ?? 'page';
-  const multi = tenant.locales.length > 1;
   const others = tenant.locales.filter((l) => l !== work);
   const asked = listViewFrom(url.searchParams, type);
   // One locale has no other to stand behind.
-  const view: ListView = multi ? asked : { ...asked, translation: null };
+  const view: ListView = tenant.locales.length > 1 ? asked : { ...asked, translation: null };
   const display = listDisplay(cookies, view, type);
-  const { invoker } = runtime();
+  const page = await runtime()
+    .invoker.run(
+      useCases.listItems,
+      principal,
+      listInput(view, type, work, { per: display.per, zone, others })
+    )
+    .then(
+      (listed) => ({ ...listed, tooBroad: false }),
+      (error: unknown) => {
+        if (!translationTooBroad(error)) throw error;
+        return { items: [], total: 0, tooBroad: true };
+      }
+    );
+  return { type, view, display, ...page };
+}
+
+export const load: PageServerLoad = async ({ parent, locals, url, params, cookies }) => {
+  const { tenant, contentLocale: work, timeZone } = await parent();
   const principal = locals.principal!;
-  const listed = invoker.run(
-    useCases.listItems,
+  const multi = tenant.locales.length > 1;
+  const others = tenant.locales.filter((l) => l !== work);
+  const { type, view, display, items, total, tooBroad } = await listRows(
     principal,
-    listInput(view, type, work, { per: display.per, zone: timeZone, others })
+    tenant,
+    work,
+    timeZone,
+    url,
+    cookies
   );
-  const { items, total, tooBroad } = await listed.then(
-    (page) => ({ ...page, tooBroad: false }),
-    (error: unknown) => {
-      if (!translationTooBroad(error)) throw error;
-      return { items: [], total: 0, tooBroad: true };
-    }
-  );
+  const { invoker } = runtime();
   const to = (change: Partial<ListView>) => listPath(params.tenant, type, { ...view, ...change });
   // A page past the end, after a narrower filter or a deletion: the last page there is.
   const pages = Math.max(1, Math.ceil(total / display.per));
@@ -271,18 +297,9 @@ export const actions: Actions = {
           event.url,
           event.params.tenant
         );
-        const type = ContentType.safeParse(event.url.searchParams.get('type')).data ?? 'page';
-        const view = listViewFrom(event.url.searchParams, type);
-        const display = listDisplay(event.cookies, view, type);
-        const { items } = await runtime().invoker.run(
-          useCases.listItems,
-          principal,
-          listInput(view, type, contentLocale(event.cookies, tenant), {
-            per: display.per,
-            zone: (await adminTimeZone(event.locals)).zone,
-            others: tenant.locales.filter((l) => l !== contentLocale(event.cookies, tenant)),
-          })
-        );
+        const work = contentLocale(event.cookies, tenant);
+        const { zone } = await adminTimeZone(event.locals);
+        const { items } = await listRows(principal, tenant, work, zone, event.url, event.cookies);
         return prepareListBulk(principal, form, items);
       }
     );

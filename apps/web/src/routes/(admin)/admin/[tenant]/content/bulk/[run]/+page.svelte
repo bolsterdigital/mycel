@@ -60,7 +60,7 @@
                 slot.preview.candidate?.title[slot.preview.candidate?.defaultLocale ?? ''] ||
                 t('admin.content.untitled')}</a
             >
-            {#if slot.selection.operation.kind === 'publish'}
+            {#if slot.selection.operation.kind === 'publish' && slot.preview.candidate?.locales.includes(data.plan.locale)}
               <Button
                 variant="link"
                 href="/admin/{data.tenant.slug}/preview/item/{slot.selection.itemId}?revision={slot

@@ -2152,6 +2152,9 @@ test.describe('content-list-bulk', () => {
       await page.goto(reportUrl);
     };
     await measure('preview');
+    const row = (name: string) => page.locator('#bulk-results tbody tr', { hasText: name });
+    await expect(row(`A ${word}`).getByRole('link', { name: 'Voorbeeld' })).toBeVisible();
+    await expect(row(`C ${word}`).getByRole('link', { name: 'Voorbeeld' })).toHaveCount(0);
     const report = () =>
       withInvoker((invoker) => invoker.run(useCases.checkBulk, principal, { planId }));
     expect((await report()).items.every((i) => i.apply === null)).toBe(true);
