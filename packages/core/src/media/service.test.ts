@@ -5,7 +5,6 @@ import {
   appDelivery,
   buildRegistry,
   bytesToBase64,
-  jobKey,
   purgeMedia,
   sweepMediaOrphans,
   systemPrincipal,
@@ -26,6 +25,7 @@ import {
 import {
   FORMAT_OF,
   MEDIA_PURGE_DELAY_MS,
+  MEDIA_TRASH_RETENTION_MS,
   VARIANT_MAX_STEP,
   VARIANT_WIDTHS,
   variantWidths,
@@ -392,27 +392,90 @@ describe('media', () => {
       await uow.run(system, (ctx) => ctx.media.replaceUsages('item:1:rev:1', []));
       expect(await invoker.run(useCases.deleteMedia, system, { id: m.id })).toEqual({
         id: m.id,
-        purgeScheduled: true,
+        restorableUntil: new Date(clock.now().getTime() + MEDIA_TRASH_RETENTION_MS).toISOString(),
       });
       await expectCode(invoker.run(useCases.getMedia, system, { id: m.id }), 'not_found');
     });
 
-    it('plans the purge in the same transaction, and the purge removes files and row', async () => {
+    it('a purge job from before the trash removes files and row, and is idempotent', async () => {
       const m = await upload();
       await invoker.run(useCases.deleteMedia, system, { id: m.id });
-      const job = uow.store.jobs.find((j) => j.key === jobKey('media.purge', m.id))!;
-      expect(job).toMatchObject({ tenantId: TENANT, type: 'media.purge' });
-      // TODO #29A: not before a backup or export that holds the row has copied the files.
-      expect(job.runAt).toEqual(new Date(clock.now().getTime() + MEDIA_PURGE_DELAY_MS));
-      const payload = job.payload as { mediaId: string; keys: string[] };
-      expect(payload.keys.sort()).toEqual(keys());
+      const payload = { mediaId: m.id, keys: keys() };
       // A deleted asset no longer counts against the cap, even before the purge.
       expect((await invoker.run(useCases.getUsage, system, {})).storage.usedBytes).toBe(0);
       await uow.run(system, (ctx) => purgeMedia(ctx, payload));
       expect(keys()).toEqual([]);
       expect(uow.store.for(TENANT).media.size).toBe(0);
-      // Idempotent: a second run finds nothing to do.
       await uow.run(system, (ctx) => purgeMedia(ctx, payload));
+    });
+
+    it('never takes the files of an asset restored after the job was planned', async () => {
+      const m = await upload();
+      await invoker.run(useCases.deleteMedia, system, { id: m.id });
+      const payload = { mediaId: m.id, keys: keys() };
+      await invoker.run(useCases.restoreMedia, system, { ids: [m.id] });
+      await uow.run(system, (ctx) => purgeMedia(ctx, payload));
+      expect(keys()).toEqual(payload.keys);
+      await invoker.run(useCases.getMedia, system, { id: m.id });
+    });
+
+    it('keeps the trash at least as long as a backup needs', () => {
+      expect(MEDIA_TRASH_RETENTION_MS).toBeGreaterThanOrEqual(MEDIA_PURGE_DELAY_MS);
+    });
+
+    it('moves many to the trash with a result per item, and a retry is safe', async () => {
+      const [free, used] = [await upload(), await upload()];
+      await uow.run(system, (ctx) =>
+        ctx.media.replaceUsages('item:1:rev:1', [{ mediaId: used.id, blockId: 'b1' }])
+      );
+      const gone = '00000000-0000-4000-8000-00000000dead';
+      const ids = [free.id, used.id, gone];
+      const first = await invoker.run(useCases.bulkDeleteMedia, system, { ids });
+      expect(first.results.map((r) => r.status)).toEqual(['deleted', 'in-use', 'not-found']);
+      expect(first.results[1]).toMatchObject({ usageCount: 1 });
+      const again = await invoker.run(useCases.bulkDeleteMedia, system, { ids });
+      expect(again.results.map((r) => r.status)).toEqual(['deleted', 'in-use', 'not-found']);
+      expect(again.results[0]!.restorableUntil).toBe(first.results[0]!.restorableUntil);
+      await expectCode(invoker.run(useCases.getMedia, system, { id: free.id }), 'not_found');
+      const trash = await invoker.run(useCases.listMediaTrash, system, {});
+      expect(trash).toMatchObject({ total: 1, items: [{ id: free.id, filename: free.filename }] });
+    });
+
+    it('restores within the window and refuses after it, and the sweep then removes the files', async () => {
+      const m = await upload();
+      await invoker.run(useCases.deleteMedia, system, { id: m.id });
+      clock.advance(MEDIA_TRASH_RETENTION_MS - 1);
+      await uow.run(system, (ctx) => sweepMediaOrphans(ctx));
+      expect(keys().length).toBeGreaterThan(0);
+      const back = await invoker.run(useCases.restoreMedia, system, { ids: [m.id] });
+      expect(back.results).toEqual([{ id: m.id, status: 'restored' }]);
+      expect(await invoker.run(useCases.getMedia, system, { id: m.id })).toMatchObject({
+        id: m.id,
+      });
+      await invoker.run(useCases.deleteMedia, system, { id: m.id });
+      clock.advance(MEDIA_TRASH_RETENTION_MS);
+      expect((await invoker.run(useCases.listMediaTrash, system, {})).total).toBe(0);
+      const late = await invoker.run(useCases.restoreMedia, system, { ids: [m.id] });
+      expect(late.results).toEqual([{ id: m.id, status: 'expired' }]);
+      await uow.run(system, (ctx) => sweepMediaOrphans(ctx));
+      expect(keys()).toEqual([]);
+      expect(uow.store.for(TENANT).media.size).toBe(0);
+    });
+
+    it('does not restore past the storage limit', async () => {
+      const m = await upload();
+      await invoker.run(useCases.deleteMedia, system, { id: m.id });
+      const low = principal({ entitlements: { 'media.storage_max_bytes': 1 } });
+      const refused = await invoker.run(useCases.restoreMedia, low, { ids: [m.id] });
+      expect(refused.results).toEqual([{ id: m.id, status: 'over-limit' }]);
+    });
+
+    it('asks media:write for the trash and its actions', async () => {
+      const reader = principal({ capabilities: ['media:read'] });
+      const id = '00000000-0000-4000-8000-00000000dead';
+      await expectCode(invoker.run(useCases.listMediaTrash, reader, {}), 'forbidden');
+      await expectCode(invoker.run(useCases.restoreMedia, reader, { ids: [id] }), 'forbidden');
+      await expectCode(invoker.run(useCases.bulkDeleteMedia, reader, { ids: [id] }), 'forbidden');
     });
 
     it('purges only keys of its own asset', async () => {

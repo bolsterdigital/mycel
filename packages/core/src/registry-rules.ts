@@ -61,6 +61,8 @@ const VERBS = [
   ...['convert', 'propose'],
   // Offering a locale for publication, and taking the offer back.
   ...['request', 'withdraw'],
+  // Back out of the trash.
+  'restore',
   // A key, a hostname, a visitor's entry points, a theme report.
   ...['revoke', 'verify', 'upload', 'submit', 'confirm', 'check'],
 ];

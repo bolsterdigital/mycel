@@ -208,6 +208,42 @@ export function mediaRepository(trx: Trx, tenantId: string): MediaRepository {
         .executeTakeFirst();
       return r.numUpdatedRows > 0n;
     },
+    async restore(id, at) {
+      const r = await trx
+        .updateTable('media')
+        .set({ deleted_at: null, updated_at: at })
+        .where('id', '=', id)
+        .where('deleted_at', 'is not', null)
+        .executeTakeFirst();
+      return r.numUpdatedRows > 0n;
+    },
+    async listTrash({ since, offset = 0, limit }) {
+      const rows = await select()
+        .where('media.deleted_at', '>', since)
+        .orderBy('media.deleted_at', 'desc')
+        .orderBy('media.id', 'desc')
+        .offset(offset)
+        .limit(limit)
+        .execute();
+      return rows.map(toRecord);
+    },
+    async countTrash(since) {
+      const row = await trx
+        .selectFrom('media')
+        .select(sql<string>`count(*)`.as('n'))
+        .where('tenant_id', '=', tenantId)
+        .where('deleted_at', '>', since)
+        .executeTakeFirstOrThrow();
+      return Number(row.n);
+    },
+    async expiredTrash(before, limit) {
+      const rows = await select()
+        .where('media.deleted_at', '<=', before)
+        .orderBy('media.deleted_at')
+        .limit(limit)
+        .execute();
+      return rows.map(toRecord);
+    },
     async hardDelete(id) {
       const gone = await trx
         .selectFrom('media')

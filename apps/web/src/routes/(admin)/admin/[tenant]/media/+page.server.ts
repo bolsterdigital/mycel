@@ -84,6 +84,9 @@ export const load: PageServerLoad = async ({ parent, locals, url, params }) => {
       next: view.page < pages ? to({ page: view.page + 1 }) : undefined,
     },
     deleted: url.searchParams.get('done') === 'deleted',
+    canWrite: can(principal, 'media:write'),
+    // The list this page was, for the way back from a bulk action.
+    query: url.searchParams.toString(),
     storage: usage?.storage ?? null,
     maxUploadBytes: MAX_UPLOAD_BYTES,
   };

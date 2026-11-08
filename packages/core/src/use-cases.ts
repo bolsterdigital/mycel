@@ -74,7 +74,16 @@ import { requestContentReview, withdrawContentReview } from './content/review/re
 import { getEntitlements, getUsage } from './entitlements/service.js';
 import { getForm, submitForm } from './forms/service.js';
 import { confirmSubscription, previewConfirmation } from './mailing/service.js';
-import { deleteMedia, getMedia, listMedia, updateMedia, uploadMedia } from './media/service.js';
+import {
+  bulkDeleteMedia,
+  deleteMedia,
+  getMedia,
+  listMedia,
+  listMediaTrash,
+  restoreMedia,
+  updateMedia,
+  uploadMedia,
+} from './media/service.js';
 import {
   createKey,
   inviteMember,
@@ -199,6 +208,9 @@ export const useCases = {
   listMedia,
   updateMedia,
   deleteMedia,
+  bulkDeleteMedia,
+  restoreMedia,
+  listMediaTrash,
   listAudit,
   getOpsStatus,
   retryJob,

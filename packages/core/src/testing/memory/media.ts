@@ -156,6 +156,26 @@ export function memoryMedia(s: TenantStore, lock: () => Promise<void>): MediaRep
       m.deletedAt = new Date(at);
       return true;
     },
+    async restore(id, at) {
+      const m = s.media.get(id);
+      if (!m?.deletedAt) return false;
+      m.deletedAt = null;
+      m.updatedAt = new Date(at);
+      return true;
+    },
+    listTrash: async ({ since, offset = 0, limit }) =>
+      [...s.media.values()]
+        .filter((m) => m.deletedAt && m.deletedAt > since)
+        .sort((a, b) => b.deletedAt!.getTime() - a.deletedAt!.getTime() || (a.id < b.id ? 1 : -1))
+        .slice(offset, offset + limit)
+        .map(mediaRecord),
+    countTrash: async (since) =>
+      [...s.media.values()].filter((m) => m.deletedAt && m.deletedAt > since).length,
+    expiredTrash: async (before, limit) =>
+      [...s.media.values()]
+        .filter((m) => m.deletedAt && m.deletedAt <= before)
+        .slice(0, limit)
+        .map(mediaRecord),
     async hardDelete(id) {
       const m = s.media.get(id);
       if (!m?.deletedAt) return false;

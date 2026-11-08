@@ -1,7 +1,7 @@
 // Media against Postgres (TODO #10): what the in-memory ports cannot prove. `media` and
 // `media_usages` are isolated per tenant, `usage.storageBytes` counts one tenant's live assets,
-// the per-tenant lock makes the storage cap hold under concurrency, a delete plans its purge in
-// the same transaction and the purge job removes files and row, and the orphan sweep works per
+// the per-tenant lock makes the storage cap hold under concurrency, a delete goes to the trash
+// and is restorable until the sweep removes files and row, and the orphan sweep works per
 // tenant without any cross-tenant policy. The files live in an in-memory BlobStore: the store's
 // own contract is packages/blob's suite. The backup's list of required files
 // (docker/backup/media-expected.sql, TODO #29A) is held to `mediaKeys` here.
@@ -14,14 +14,11 @@ import { sql } from 'kysely';
 import {
   EXAMPLE_PNG,
   Invoker,
-  MEDIA_PURGE_DELAY_MS,
+  MEDIA_TRASH_RETENTION_MS,
   ORPHAN_AGE_MS,
   UseCaseError,
   buildRegistry,
-  jobKey,
   mediaKeys,
-  parseJobPayload,
-  purgeMedia,
   sweepMediaOrphans,
   systemPrincipal,
   useCases,
@@ -40,7 +37,7 @@ import {
   principal,
   runSuffix,
 } from '@mycel/core/testing';
-import { createDb, createUnitOfWork, runJobs, uuidv7, uuidv7Ids } from './index.js';
+import { createDb, createUnitOfWork, uuidv7, uuidv7Ids } from './index.js';
 import { enterTenant } from './infra/roles.js';
 import { requireDatabase, testTenant, migrateSchema } from './testing.js';
 
@@ -150,7 +147,7 @@ describe.skipIf(skip)('media conformance', () => {
     expect(await uow.run(capped, (ctx) => ctx.media.idsOf())).toHaveLength(1);
   });
 
-  it('refuses to delete a used asset, plans the purge with the delete, and the purge job removes files and row', async () => {
+  it('refuses to delete a used asset, keeps a deleted one restorable, and the sweep removes it after the window', async () => {
     const A = systemPrincipal(a, 'test');
     const m = await upload(A);
     await uow.run(A, (ctx) =>
@@ -162,31 +159,31 @@ describe.skipIf(skip)('media conformance', () => {
     await uow.run(A, (ctx) => ctx.media.replaceUsages('og:home', []));
     await invoker.run(useCases.deleteMedia, A, { id: m.id });
     expect(await keys(`tenants/${a}/media/${m.id}/`)).toHaveLength(4);
-
-    const purge = () =>
-      runJobs(
-        operatorDb,
-        {
-          'media.purge': async (job) =>
-            uow.run(systemPrincipal(job.tenantId!, 'jobs:media.purge'), (ctx) =>
-              purgeMedia(ctx, parseJobPayload('media.purge', job.payload))
-            ),
-        },
-        { types: ['media.purge'], tenantId: a }
-      );
-    // TODO #29A: the purge waits MEDIA_PURGE_DELAY_MS, so a backup that began before the delete
-    // still finds the files; the runner does not claim it before then.
-    const key = jobKey('media.purge', m.id);
-    const { rows: planned } = await sql<{ runAt: Date }>`
-      select run_at as "runAt" from jobs where key = ${key}`.execute(operatorDb);
-    expect(planned[0]?.runAt).toEqual(new Date(clock.now().getTime() + MEDIA_PURGE_DELAY_MS));
-    await purge();
+    expect(await invoker.run(useCases.listMediaTrash, A, {})).toMatchObject({
+      total: 1,
+      items: [{ id: m.id }],
+    });
+    // Another tenant's trash is another tenant's: RLS, not a filter.
+    const B = systemPrincipal(b, 'test');
+    expect(
+      (await invoker.run(useCases.listMediaTrash, B, {})).items.map((i) => i.id)
+    ).not.toContain(m.id);
+    expect((await invoker.run(useCases.restoreMedia, B, { ids: [m.id] })).results).toEqual([
+      { id: m.id, status: 'not-found' },
+    ]);
+    const sweep = () => uow.run(A, (ctx) => sweepMediaOrphans(ctx));
+    await sweep();
     expect(await keys(`tenants/${a}/media/${m.id}/`)).toHaveLength(4);
+    expect((await invoker.run(useCases.restoreMedia, A, { ids: [m.id] })).results).toEqual([
+      { id: m.id, status: 'restored' },
+    ]);
+    await invoker.run(useCases.getMedia, A, { id: m.id });
 
-    await sql`update jobs set run_at = now() where key = ${key}`.execute(operatorDb);
-    const result = await purge();
-    expect(result.failed).toBe(0);
-    expect(result.completed).toBeGreaterThanOrEqual(1);
+    await invoker.run(useCases.deleteMedia, A, { id: m.id });
+    const expired = new Date(clock.now().getTime() - MEDIA_TRASH_RETENTION_MS);
+    await sql`update media set deleted_at = ${expired} where id = ${m.id}`.execute(operatorDb);
+    expect((await invoker.run(useCases.listMediaTrash, A, {})).total).toBe(0);
+    await sweep();
     expect(await keys(`tenants/${a}/media/${m.id}/`)).toEqual([]);
     const { rows } = await sql<{
       n: string;
