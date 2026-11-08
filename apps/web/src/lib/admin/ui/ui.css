@@ -607,6 +607,7 @@
   }
   @container (max-width: 36rem) {
     .ui-table.stack,
+    .ui-table.stack caption,
     .ui-table.stack tbody,
     .ui-table.stack tr,
     .ui-table.stack th,

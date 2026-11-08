@@ -70,6 +70,7 @@
     id="content-trash-table"
     stack
     caption={t('admin.content.trash.title')}
+    hideCaption
     columns={[
       { key: 'title', label: t('admin.content.trash.name') },
       { key: 'type', label: t('admin.content.type.legend') },
