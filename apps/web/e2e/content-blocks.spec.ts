@@ -657,25 +657,35 @@ test.describe('content-blocks', () => {
     return page.locator('[data-block-rest]');
   };
 
-  test('a heading, a text and a quote rest as their words', async ({ page }) => {
-    const rests = await textBlocksAtRest(page);
-    await expect(rests.nth(0).locator('.ui-block-text-heading')).toHaveText('Wie wij zijn');
-    await expect(rests.nth(1).locator('strong')).toHaveText('vette');
-    await expect(rests.nth(1).locator('[data-heading]')).toHaveText('Tussenkop');
-    await expect(rests.nth(1).locator('[data-link]')).toHaveText('een link');
-    await expect(rests.nth(2).locator('blockquote > p')).toHaveText('Zo is het.');
-    await expect(rests.nth(2).locator('blockquote > footer')).toHaveText('Sam de Vries');
-    // The card's own title is the outline, and nothing at rest leaves the unsaved form.
-    await expect(rests.locator('h1, h2, h3, h4, h5, h6, a[href], [id]')).toHaveCount(0);
+  // What each kind says at rest is checked without a browser, over `textRestOf`, `restWords` and
+  // `BlockText`. What only a browser shows stays here, once, over the page with every block type.
+  test('every block at rest is whole and inert, and asks nothing of a video host', async ({
+    page,
+    request,
+  }) => {
+    const { hosts, form } = await videoAndFormAtRest(page, request);
+    const rests = page.locator('[data-block-rest]');
+    // A link may only stay on this screen: anything else would leave the unsaved form.
+    await expect(
+      rests.locator(
+        'h1, h2, h3, h4, h5, h6, [id], a[href]:not([href^="#"]), form, input, select, textarea, iframe'
+      )
+    ).toHaveCount(0);
+    // A form's shape has no text of its own to give the input a size.
+    for (const shape of [form, card(page, 2).locator('[data-block-rest]')])
+      await expect(shape.locator('.ui-block-text-input')).toBeVisible();
+    // The seeded page is public: the boundary is there, and holds nobody back yet.
+    await expect(card(page, 4).locator('.ui-block-text-boundary')).toContainText('openbaar');
 
     await page.setViewportSize(NARROW);
     for (const size of TEXT_SIZES) {
       await setTextSize(page, size);
-      await layoutGate(page, `text blocks at rest at ${size}`, '.item-blocks');
+      await layoutGate(page, `every block at rest at ${size}`, '.item-blocks');
     }
     await setTextSize(page, '100%');
     await page.setViewportSize({ width: 1280, height: 900 });
     await expectNoAxeViolations(page);
+    expect(hosts).toEqual([]);
   });
 
   test('a heading, a text and a quote say what was typed when they close', async ({ page }) => {
@@ -747,39 +757,14 @@ test.describe('content-blocks', () => {
     return { edit, rests, box };
   };
 
-  test('a callout, an FAQ and a CTA rest as the page shows them, and nothing there acts', async ({
-    page,
-  }) => {
-    const { rests, box } = await calloutFaqCtaAtRest(page);
-    await expect(box.locator('.ui-block-text-kind')).toHaveText('Informatie');
-    await expect(box.locator('.ui-block-text-title')).toHaveText('Let op');
-    await expect(box.locator('strong')).toHaveText('vette');
-    await expect(rests.nth(1).locator('.ui-block-text-question')).toHaveText('Waarom dit?');
-    await expect(rests.nth(1).locator('strong')).toHaveText('het');
-    await expect(rests.nth(2).locator('.ui-block-text-heading')).toHaveText('Doe mee');
-    await expect(rests.nth(2).locator('.ui-block-text-action').first()).toHaveText('Teken nu');
-    // The second place is there for a label typed later, and takes no room until then.
-    await expect(rests.nth(2).locator('.ui-block-text-action').nth(1)).toBeHidden();
-    await expect(
-      rests.locator('h1, h2, h3, h4, h5, h6, a[href], button, input, form, [id]')
-    ).toHaveCount(0);
-
-    await page.setViewportSize(NARROW);
-    for (const size of TEXT_SIZES) {
-      await setTextSize(page, size);
-      await layoutGate(page, `callout, FAQ and CTA at rest at ${size}`, '.item-blocks');
-    }
-    await setTextSize(page, '100%');
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await expectNoAxeViolations(page);
-  });
-
   test('a callout, an FAQ and a CTA open at the words clicked, and show what changed', async ({
     page,
   }) => {
     onlyA11y();
     const { edit, rests, box } = await calloutFaqCtaAtRest(page);
     await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
+    // The second place is there for a label typed later, and takes no room until then.
+    await expect(rests.nth(2).locator('.ui-block-text-action').nth(1)).toBeHidden();
     const folds = page.locator('details.block');
     const done = (i: number) => folds.nth(i).locator('[data-block-done] button').click();
 
@@ -858,32 +843,6 @@ test.describe('content-blocks', () => {
     return { hosts, video, form };
   };
 
-  test('a video and a form rest as what they are, and nothing there plays or posts', async ({
-    page,
-    request,
-  }) => {
-    const { hosts, video, form } = await videoAndFormAtRest(page, request);
-    const legacy = card(page, 2).locator('[data-block-rest]');
-    await expect(video.locator('.ui-block-text-title')).not.toBeEmpty();
-    await expect(video.locator('.ui-block-text-kind')).toHaveText(/YouTube|Vimeo/);
-    await expect(video.locator('iframe, img, video, a[href]')).toHaveCount(0);
-    for (const rest of [form, legacy]) {
-      await expect(rest.locator('.ui-block-text-kind')).toContainText('Inschrijfformulier');
-      await expect(rest.locator('.ui-block-text-input')).toBeVisible();
-      await expect(rest.locator('.ui-block-text-action')).not.toBeEmpty();
-      await expect(rest.locator('form, input, button, select, textarea, a[href]')).toHaveCount(0);
-    }
-    await page.setViewportSize(NARROW);
-    for (const size of TEXT_SIZES) {
-      await setTextSize(page, size);
-      await layoutGate(page, `video and form at rest at ${size}`, '.item-blocks');
-    }
-    await setTextSize(page, '100%');
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await expectNoAxeViolations(page);
-    expect(hosts).toEqual([]);
-  });
-
   test('a video and a form open at their first field, and say what changed', async ({
     page,
     request,
@@ -918,29 +877,6 @@ test.describe('content-blocks', () => {
     expect(hosts).toEqual([]);
   });
 
-  test('a paywall says what it does, and has nothing to edit', async ({ page, request }) => {
-    const edit = await seededPage(request);
-    await login(page, edit);
-    const paywall = card(page, 4);
-    await expect(paywall.locator('.ui-block-card-title')).toHaveText('Blok 04 Betaalmuur');
-    const boundary = paywall.locator('[data-block-rest] .ui-block-text-boundary');
-    await expect(boundary).toContainText('Toegangsgrens');
-    // The seeded page is public: the boundary is there, and holds nobody back yet.
-    await expect(boundary).toContainText('openbaar');
-    await expect(paywall.locator('details.ui-block-card-fold')).toHaveCount(0);
-    await expect(paywall.locator('details.ui-block-card-more')).toHaveCount(1);
-    // The target of a save and an outline link is the card itself.
-    await expect(paywall).toHaveAttribute('id', /^block-/);
-    await page.setViewportSize(NARROW);
-    for (const size of TEXT_SIZES) {
-      await setTextSize(page, size);
-      await layoutGate(page, `paywall at rest at ${size}`, '.item-blocks');
-    }
-    await setTextSize(page, '100%');
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await expectNoAxeViolations(page);
-  });
-
   test('a click on the words of a paywall opens nothing', async ({ page, request }) => {
     onlyA11y();
     await login(page, await seededPage(request));
@@ -951,32 +887,6 @@ test.describe('content-blocks', () => {
     await boundary.click();
     expect(page.url()).toBe(url);
     await expect(page.locator('details.block[open]')).toHaveCount(0);
-  });
-
-  test('a paywall on a restricted page does not say the page is public', async ({
-    page,
-    request,
-  }) => {
-    requireApi();
-    const { item } = await callApi<{ item: { id: string } }>(request, 'content.item.create', {
-      slug: `c4-restricted-${isA11y() ? 'a11y' : 'no-js'}-${Date.now()}`,
-      document: {
-        type: 'article',
-        defaultLocale: 'nl',
-        locales: ['nl'],
-        title: { nl: 'Voor leden' },
-        access: { level: 'members', teaser: 'marker' },
-        blocks: [
-          { type: 'heading', version: 1, props: { text: { nl: 'Voor iedereen' } } },
-          { type: 'paywall', version: 1, props: {} },
-          { type: 'heading', version: 1, props: { text: { nl: 'Voor leden' } } },
-        ],
-      },
-    });
-    await login(page, `/admin/probe/content/${item.id}`);
-    const boundary = page.locator('.ui-block-text-boundary');
-    await expect(boundary).toContainText('Toegangsgrens');
-    await expect(boundary).not.toContainText('openbaar');
   });
 
   /** A page with a legacy hero that has an image, open; the seeded page must be on screen. */
@@ -1023,25 +933,11 @@ test.describe('content-blocks', () => {
     return page.locator('[data-block-rest]').first();
   };
 
-  test('a legacy hero shows its picture and words, and stays what it is', async ({
-    page,
-    request,
-  }) => {
-    const seeded = await seededPage(request);
-    await login(page, seeded);
-    // The first example has no image: only its words, no picture and nothing that leaves the form.
-    const minimal = card(page, 6).locator('[data-block-rest]');
-    await expect(minimal.locator('.ui-block-text-heading')).not.toBeEmpty();
-    await expect(minimal.locator('img, a[href^="http"], button, form')).toHaveCount(0);
-    await expect(minimal).toContainText('ouder openingsblok');
+  test('a legacy hero shows its picture and the way into the header', async ({ page, request }) => {
+    await login(page, await seededPage(request));
+    await expect(card(page, 6).locator('[data-block-rest]')).toContainText('ouder openingsblok');
     const rest = await legacyHeroPage(page, request);
     await expectPixels(rest.locator('img[data-block-image]'), 'the legacy hero at rest');
-    await expect(rest.locator('.ui-block-text-heading')).toHaveText('Schone lucht');
-    await expect(rest.locator('.ui-block-text-body')).toHaveText('Doe mee met de buurt.');
-    await expect(rest.locator('.ui-block-text-action').first()).toHaveText('Lees meer');
-    await expect(rest).not.toContainText('Geen bijschrift');
-    await expect(rest.locator('a[href^="https:"], button, input')).toHaveCount(0);
-    // Its way into the header is one link away; the notice it points at is on this page.
     const move = rest.getByRole('link', { name: 'Verplaats het naar de kop' });
     await expect(move).toHaveAttribute('href', '#hero-conversion');
     await expect(page.locator('#hero-conversion')).toContainText(/kop/i);

@@ -45,6 +45,10 @@ describe('block presentation', () => {
     expect(groupOf('signup-form', 'formId')).toBe('content');
   });
 
+  it('leaves a paywall nothing to edit, so its card has no fold', () => {
+    expect(BLOCK_DEFINITIONS.paywall.fields).toEqual([]);
+  });
+
   it("shows the paywall and the legacy hero at rest, with the hero's looks under display", () => {
     for (const type of ['paywall', 'hero'] as const)
       expect(BLOCK_PRESENTATION[type]).toMatchObject({ rest: 'text', stage: 'C4' });

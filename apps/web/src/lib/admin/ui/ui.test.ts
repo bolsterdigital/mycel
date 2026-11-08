@@ -230,7 +230,7 @@ describe('BlockCard', () => {
       rest: text('REST'),
       children: text('FIELDS'),
     });
-    expect(out).toMatch(/^<section class="ui-block-card" id="block-1"/);
+    expect(out).toMatch(/^<section class="ui-block-card" id="block-1"[^]*Block <\/span>04<\/span/);
     expect(out).toContain('ACTIONS');
     expect(out).toContain('REST');
     expect(out).not.toContain('ui-block-card-fold');

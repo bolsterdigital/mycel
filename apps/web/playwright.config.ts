@@ -27,6 +27,8 @@ const { DATABASE_URL: _owner, ...frontEnv } = process.env;
 
 export default defineConfig({
   testDir: 'e2e',
+  // A `.test.ts` beside the helpers is a Vitest suite over a pure helper; only specs drive a browser.
+  testMatch: '**/*.spec.ts',
   fullyParallel: false,
   reporter: process.env['CI'] ? 'github' : 'list',
   use: { baseURL: origin, screenshot: 'only-on-failure' },
