@@ -69,6 +69,7 @@
     Tabs,
   } from '#lib/admin/ui/index.js';
   import { BLOCK_ICONS, BLOCK_PRESENTATION, blockName } from '#lib/admin/block-presentation.js';
+  import { blockNotice, restWords } from '#lib/admin/block-rest-words.js';
   import { pickAny, BLOCK_DEFINITIONS, pick, type BlockType, type MediaCredit } from '@mycel/core';
   import { creditText, creditWords } from '#lib/blocks/credit.js';
   import { fill, ui, type UiKey, refusalCopy } from '../../../../../../i18n/index.js';
@@ -300,20 +301,6 @@
     collapse: t('admin.block.card.collapse'),
     expand: t('admin.block.card.expand'),
   });
-  /** A locale where this block keeps the item from being ready: the shown one first (#159). */
-  const notReadyIn = (id: string): string | undefined => {
-    const has = (p: Publication) => p.issues.some((x) => x.field === `block-${id}`);
-    const locales = data.item.publication.filter(has).map((p) => p.locale);
-    return locales.includes(work) ? work : locales[0];
-  };
-  /** The one notice a card's head carries: what the last save refused, else what readiness says. */
-  const blockNotice = (id: string, refused: boolean): string => {
-    if (refused) return t('admin.block.card.refused');
-    const locale = notReadyIn(id);
-    if (!locale) return '';
-    const language = new Intl.DisplayNames([data.locale], { type: 'language' }).of(locale);
-    return fill(t('admin.block.card.notReady'), { locale: language ?? locale });
-  };
   const groupLabels = $derived({
     display: t('admin.block.group.display'),
     source: t('admin.block.group.source'),
@@ -502,27 +489,8 @@
     {@render picture(b.image, 'mediaId')}
   {:else if BLOCK_PRESENTATION[b.type].rest === 'text' && b.text}
     {#if b.type === 'hero' && b.image}{@render picture(b.image, 'image-mediaId')}{/if}
-    <BlockText
-      view={b.text}
-      kindLabel={b.text.kind === 'callout'
-        ? t(`admin.block.option.${b.text.variant}` as UiKey)
-        : b.text.kind === 'video'
-          ? t(`admin.block.option.${b.text.provider}` as UiKey)
-          : b.text.kind === 'form'
-            ? b.text.form
-              ? fill(t('admin.block.form.signup'), { list: b.text.form.list })
-              : b.text.unread
-                ? t('admin.block.form.unread')
-                : t('admin.block.form.missing')
-            : b.text.kind === 'paywall'
-              ? t('admin.block.paywall.boundary')
-              : undefined}
-      noteLabel={b.text.kind === 'paywall'
-        ? data.restricted
-          ? undefined
-          : t('admin.block.paywall.public')
-        : t('admin.block.form.changed')}
-    />
+    {@const words = restWords(b.text, data.restricted, t)}
+    <BlockText view={b.text} kindLabel={words.kindLabel} noteLabel={words.noteLabel} />
     {#if b.type === 'hero'}
       <p class="ui-hint">
         {t('admin.block.hero.legacy')}
@@ -557,7 +525,12 @@
     name={blockName(b)}
     nameIfEmpty={b.type === 'image' ? b.image?.label : ''}
     nameLang={work}
-    notice={blockNotice(b.id, refused)}
+    notice={blockNotice(
+      { id: b.id, refused },
+      data.item.publication,
+      { work, locale: data.locale },
+      t
+    )}
     editable={BLOCK_DEFINITIONS[b.type].fields.length > 0}
     open={refused ||
       !!(form && 'arranged' in form && String(form.arranged).startsWith(prefix)) ||

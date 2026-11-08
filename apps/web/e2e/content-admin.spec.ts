@@ -1424,10 +1424,17 @@ test.describe('content-admin', () => {
     await callApi(request, 'content.item.update', {
       itemId,
       baseRevisionId: revision.id,
-      document: { ...revision.document, access: { level: 'members', teaser: 'lead' } },
+      document: {
+        ...revision.document,
+        access: { level: 'members', teaser: 'marker' },
+        blocks: [{ type: 'paywall', version: 1, props: {} }],
+      },
     });
     await page.goto(edit);
     await expect(page.getByLabel('Wie het mag lezen')).toHaveValue('members');
+    const boundary = page.locator('.ui-block-text-boundary');
+    await expect(boundary).toContainText('Toegangsgrens');
+    await expect(boundary).not.toContainText('openbaar');
     await openPublication(page);
     const notice = card(page, 'nl').getByText('Bezoekers zonder account zien dit item niet');
     await expect(notice).toBeVisible();
@@ -1973,9 +1980,10 @@ test.describe('block card details', () => {
     await expect(name).toHaveText('Waarom nu?');
   });
 
+  // The words themselves are unit tests over `blockNotice`; this is the screen handing it its own
+  // language, with an item in another: English on a Dutch working locale.
   test('a card says in the language of the screen where it is not ready', async ({
     browser,
-    page,
     request,
   }) => {
     const edit = await make(
@@ -1983,10 +1991,6 @@ test.describe('block card details', () => {
       'notice-language',
       ['nl', 'en'],
       [heading('Alleen Nederlands')]
-    );
-    await login(page, `${edit}?locale=nl`);
-    await expect(card(page, 1).locator('.ui-block-card-notice')).toHaveText(
-      'Nog niet klaar in Engels'
     );
     // Chromium's context locale owns Accept-Language, so the other language is its own context.
     const context = await browser.newContext({ locale: 'en-GB' });

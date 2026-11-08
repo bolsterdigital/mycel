@@ -7,5 +7,5 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   plugins: [svelte({ configFile: false, compilerOptions: { runes: true } })],
-  test: { name: 'web', include: ['src/**/*.test.ts'] },
+  test: { name: 'web', include: ['src/**/*.test.ts', 'e2e/lib/**/*.test.ts'] },
 });
