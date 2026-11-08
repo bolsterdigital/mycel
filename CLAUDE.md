@@ -16,7 +16,7 @@ npm run test:e2e    # Playwright + axe on a build; reads .env, fails without a d
 npm run dev         # builds the packages, then API with worker, web and, without OIDC_ISSUER, a mock IdP
 ```
 
-CI does not run `verify` as one command (`.github/workflows/verify.yml`). Job `checks` runs `verify:checks` plus the DCO and unchanged-migrations checks, `browsers` runs `test:e2e` once per project (`a11y`, `no-js`), and `security`, `image` and `compose` run beside them; job `verify` requires all five. Commits are signed off: `git commit -s`.
+CI does not run `verify` as one command (`.github/workflows/verify.yml`). Job `checks` runs `verify:checks` plus the DCO and unchanged-migrations checks, `browsers` runs `test:e2e` per project (`a11y`, `no-js`) in three shards each, and `security`, `image` and `compose` run beside them; job `verify` requires all five. Commits are signed off: `git commit -s`.
 
 ## Frozen design decisions (summary; the ADRs are authoritative)
 
