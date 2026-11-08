@@ -107,7 +107,9 @@
 <div class="edit-presence" aria-live="polite" data-presence>
   {#if lines.present.length}
     <ul class="edit-presence-list">
-      {#each lines.present as person (person.who + person.self)}
+      <!-- Unkeyed on purpose: a label need not be unique (two operators can share an address) and
+           a duplicate key throws, which takes the form down with it. These lines hold no state. -->
+      {#each lines.present as person}
         <li>{line(person)}</li>
       {/each}
     </ul>

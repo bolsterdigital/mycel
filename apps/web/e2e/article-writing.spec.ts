@@ -254,6 +254,42 @@ test.describe('article-writing', () => {
       await expect(presence).toContainText('samengevoegd');
       await expect(presence.getByRole('link')).toHaveCount(0);
     });
+
+    // PR #351 review, F1: a label is not an identity. Two operators with one address is the case
+    // that stays possible whatever a key's label looks like, so the collision cannot rot away.
+    test('two people with the same label leave the form and its input alone', async ({
+      page,
+      request,
+    }) => {
+      onlyA11y();
+      await login(page, '/admin/probe');
+      const edit = await article(request);
+      const itemId = edit.split('/').at(-1)!;
+      await page.goto(edit);
+      await editorReady(page);
+      await page.locator('#title\\.nl').fill('Nog niet opgeslagen');
+
+      const probe = await tenantId();
+      await withInvoker(async (invoker) => {
+        for (const operatorId of [randomUUID(), randomUUID()]) {
+          const principal = {
+            ...systemPrincipal(probe, 'e2e'),
+            actor: { kind: 'operator' as const, operatorId, email: 'gedeeld@probe.test' },
+          };
+          await invoker.run(useCases.updatePresence, principal, {
+            itemId,
+            sessionId: randomUUID(),
+            state: 'editing',
+          });
+        }
+      });
+      await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+
+      const lines = page.locator('[data-presence] li', { hasText: 'gedeeld@probe.test' });
+      await expect(lines).toHaveCount(2);
+      await expect(page.locator('form#item-edit')).toHaveCount(1);
+      await expect(page.locator('#title\\.nl')).toHaveValue('Nog niet opgeslagen');
+    });
   });
 
   test.describe('after a prose block went', () => {

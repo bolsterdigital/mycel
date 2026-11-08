@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ContentDocument, ContentDocumentInput } from '@mycel/core';
 import {
+  actorLabel,
   valuesFromForm,
   documentFrom,
   keepOrder,
@@ -312,5 +313,23 @@ describe("a new item's stand-in title (P185-79)", () => {
   it('gives way to a typed title, and does nothing on a form without the marker', () => {
     expect(valuesFromForm(form({ untitled: 'nl', 'title.nl': 'Echt' }))['title.nl']).toBe('Echt');
     expect(valuesFromForm(form({ 'title.nl': '' }))['title.nl']).toBe('');
+  });
+});
+
+describe('actorLabel (PR #351 review)', () => {
+  // Two UUIDv7 ids of the same millisecond: the same time prefix, different random ends.
+  const first = '01a1bb4f-8a4d-7000-8000-00000000aaaa';
+  const second = '01a1bb4f-8a4d-7000-8000-00000000bbbb';
+
+  it('tells two keys of the same minute apart', () => {
+    const label = (keyId: string) => actorLabel({ kind: 'api-key', keyId });
+    expect(label(first)).toBe('API key 0000aaaa');
+    expect(label(first)).not.toBe(label(second));
+  });
+
+  it('tells two agents of the same minute apart', () => {
+    const label = (keyId: string) => actorLabel({ kind: 'agent', sessionId: 's', keyId });
+    expect(label(first)).toBe('MCP 0000aaaa');
+    expect(label(first)).not.toBe(label(second));
   });
 });
