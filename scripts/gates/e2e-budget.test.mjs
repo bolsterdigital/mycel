@@ -50,7 +50,13 @@ export const RULES = [
   { name: 'an API address or key', pattern: /process\.env\[['"](E2E_API_URL|MYCEL_API_KEY)['"]\]/ },
   { name: 'a fixed wait', pattern: /waitForTimeout\(/ },
   { name: 'a new-page helper', pattern: /function newPage\b/ },
-  { name: 'a silent project return', pattern: /if \(!isA11y\(\)\) return/ },
+  // `return` as the guard's first statement, bare or in a block, comments before it included; a
+  // block that asserts first proves the other project's behaviour and is not silent. A comment
+  // only matches up to its line end, so the word `return` inside one cannot satisfy the pattern.
+  {
+    name: 'a silent project return',
+    pattern: /if \(!isA11y\(\)\)(?:\s|\{|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*return\b/,
+  },
 ];
 
 /**
@@ -189,10 +195,27 @@ test('a copied new-page helper is caught', () => {
   ]);
 });
 
-test('a test that stops silently in one project is caught', () => {
-  assert.deepEqual(violations({ 'x.spec.ts': 'if (!isA11y()) return;' }), [
-    'x.spec.ts defines a silent project return; use apps/web/e2e/lib/',
-  ]);
+test('a test that stops silently in one project is caught, in either spelling', () => {
+  for (const source of [
+    'if (!isA11y()) return;',
+    'if (!isA11y()) { return; }',
+    'if (!isA11y()) {\n  return;\n}',
+    'if (!isA11y()) {\n  // nothing to prove without a script\n  return;\n}',
+    'if (!isA11y()) {\n  /* nothing to prove */\n  return;\n}',
+  ])
+    assert.deepEqual(
+      violations({ 'x.spec.ts': source }),
+      ['x.spec.ts defines a silent project return; use apps/web/e2e/lib/'],
+      source
+    );
+});
+
+test('a project branch that asserts before it returns is not silent', () => {
+  for (const source of [
+    'if (!isA11y()) {\n  await expect(page.locator(x)).toHaveCount(0);\n  return;\n}',
+    'if (!isA11y()) {\n  // No script: return to the list by a link.\n  await a();\n  return;\n}',
+  ])
+    assert.deepEqual(violations({ 'x.spec.ts': source }), [], source);
 });
 
 test('a copied helper is caught', () => {
