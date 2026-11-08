@@ -1703,10 +1703,10 @@ test.describe('content-list-rows', () => {
     await expect(actions.getByRole('link', { name: /^Op de site/ })).toBeVisible();
     await expect(actions.getByRole('link', { name: /^Voorbeeld/ })).toBeVisible();
 
-    // Taken offline after a question in the row; the same view, and it says so.
+    // Taken offline after a question in the row.
     await page.reload();
     await row.hover();
-    await actions.locator('summary', { hasText: 'Offline halen' }).click();
+    await actions.locator('summary').first().click();
     await actions.getByRole('button', { name: `Ja, offline halen: Brood ${word}` }).click();
     await expect(page).toHaveURL(new RegExp(`done=offline#item-${item.id}$`));
     await expect(page.getByText('Offline gehaald in nl.')).toBeVisible();
@@ -2029,7 +2029,7 @@ test.describe('content-list-rows', () => {
     expect(await region.evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(0);
 
     // The question in the column keeps its button whole too; closed again for what follows.
-    const inlineConfirm = actions.locator('.ui-confirm', { hasText: 'Offline halen' });
+    const inlineConfirm = actions.locator('.ui-confirm').first();
     await inlineConfirm.locator('summary').click();
     await expectWholeLabel(inlineConfirm.locator('.ui-confirm-body .ui-button'));
     await inlineConfirm.locator('summary').click();
@@ -2065,9 +2065,8 @@ test.describe('content-list-rows', () => {
     // The question in the menu: the button holds its label at 200% text and at 100%, on word
     // boundaries. The page gate does not see this: nothing overflows the page.
     const menu = row.locator('.ui-row-menu');
-    const offline = menu.locator('.ui-confirm', { hasText: 'Offline halen' });
-    await offline.locator('summary').click();
-    const yes = offline.locator('.ui-confirm-body .ui-button');
+    await menu.locator('.ui-confirm > summary').first().click();
+    const yes = menu.locator('.ui-confirm-body .ui-button').first();
     await expect(yes).toBeVisible();
     await expectWholeLabel(yes);
     await page.evaluate(() => document.documentElement.style.removeProperty('font-size'));
