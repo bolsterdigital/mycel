@@ -2080,3 +2080,137 @@ test.describe('content-list-rows', () => {
     await expectNoAxeViolations(page);
   });
 });
+
+// The durable list task crosses selection, confirmation, an interrupted run and safe restoration.
+test.describe('content-list-bulk', () => {
+  test.use({ locale: 'nl-NL' });
+  test('bulk dry run, partial result, retry and restoration survive navigation', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    const word = `bulk${randomUUID().slice(0, 8)}`;
+    const ids: string[] = [];
+    for (const [index, locales] of [
+      ['A', ['nl', 'en']],
+      ['B', ['nl', 'en']],
+      ['C', ['nl']],
+    ] as const) {
+      const { item } = await callApi(request, 'content.item.create', {
+        slug: `${word}-${index.toLowerCase()}`,
+        document: {
+          type: 'page',
+          defaultLocale: 'nl',
+          locales,
+          title: Object.fromEntries(locales.map((l) => [l, `${index} ${word}`])),
+          blocks: [],
+        },
+      });
+      ids.push(item.id);
+    }
+    const list = `/admin/probe/content?type=page&q=${word}&sort=title`;
+    const email = `${word}@probe.test`;
+    const principal = systemPrincipal(await tenantId(), 'e2e');
+    await withInvoker((i) =>
+      i.run(useCases.inviteMember, principal, { email, capabilities: ['tenant:admin'] })
+    );
+    await login(page, list, email);
+    await page.getByLabel('Alles op deze pagina', { exact: true }).check();
+    await page.getByLabel('Doeltaal', { exact: true }).selectOption('en');
+    await page.getByRole('button', { name: 'Droogloop voorbereiden' }).click();
+    await expect(page).toHaveURL(/\/content\/bulk\//);
+    const reportUrl = page.url();
+    const planId = new URL(reportUrl).pathname.split('/').at(-1)!;
+    const measure = async (state: string) => {
+      if (isA11y()) {
+        await page.setViewportSize(NARROW);
+        for (const locale of ['nl', 'en']) {
+          await asOwner((o) =>
+            o
+              .updateTable('operators')
+              .set({ ui_locale: locale })
+              .where('email', '=', email)
+              .execute()
+          );
+          for (const size of TEXT_SIZES) {
+            await page.goto(reportUrl);
+            await expect(page.locator('html')).toHaveAttribute('lang', locale);
+            await setTextSize(page, size);
+            await layoutGate(page, `bulk ${state} ${locale} ${size}`);
+            await expectNoAxeViolations(page);
+          }
+        }
+        await page.screenshot({
+          path: test.info().outputPath(`bulk-${state}-320-en-200.png`),
+          fullPage: true,
+        });
+        await asOwner((o) =>
+          o.updateTable('operators').set({ ui_locale: 'nl' }).where('email', '=', email).execute()
+        );
+        await page.setViewportSize({ width: 1280, height: 900 });
+      }
+      await page.goto(reportUrl);
+    };
+    await measure('preview');
+    const report = () =>
+      withInvoker((invoker) => invoker.run(useCases.checkBulk, principal, { planId }));
+    expect((await report()).items.every((i) => i.apply === null)).toBe(true);
+    // A lost-capability response is durable and retryable; pending work may still proceed.
+    await withInvoker((invoker) =>
+      invoker.run(
+        useCases.resumeBulk,
+        { ...principal, capabilities: ['content:read'] },
+        { planId, version: 1, ordinal: 0 }
+      )
+    );
+    await page.reload();
+    await expect(
+      page.getByText('De vereiste bevoegdheid ontbreekt.', { exact: true })
+    ).toBeVisible();
+    const next = page.getByRole('button', { name: 'Volgend item verwerken of opnieuw proberen' });
+    await next.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#bulk-results tbody tr').nth(1).locator('td').nth(2)).toHaveText(
+      'Gewijzigd'
+    );
+    expect((await report()).items[1]?.apply?.status).toBe('changed');
+    // Leave and return via the durable URL, with the pending and failed slots intact.
+    await page.goto(list);
+    await page.goto(reportUrl);
+    await next.click();
+    expect((await report()).items[2]?.apply?.status).toBe('refused');
+    await next.click();
+    expect((await report()).items[0]?.apply?.status).toBe('changed');
+    await expect(next).toHaveCount(0);
+    await measure('partial');
+    // Successful retry writes no second effect when the same ordinal is posted again.
+    const applied = await report();
+    await withInvoker((invoker) =>
+      invoker.run(useCases.resumeBulk, principal, { planId, version: 1, ordinal: 0 })
+    );
+    expect((await report()).items[0]?.apply).toEqual(applied.items[0]?.apply);
+    // A later edit blocks restoration of A, while B can still be restored.
+    const first = await callApi(request, 'content.item.get', { itemId: ids[0] });
+    await callApi(request, 'content.item.update', {
+      itemId: ids[0],
+      baseRevisionId: first.revision.id,
+      document: { ...first.revision.document, title: { nl: `Later ${word}`, en: `Later ${word}` } },
+    });
+    await page.getByRole('button', { name: 'Run stoppen en eerste item herstellen' }).click();
+    await expect(page.locator('#bulk-results tbody tr').first().locator('td').nth(3)).toContainText(
+      'Conflict: maak een nieuw plan'
+    );
+    const undo = page.getByRole('button', { name: 'Herstel voortzetten' });
+    await undo.click();
+    expect((await report()).items[1]?.undo?.status).toBe('undone');
+    await undo.click();
+    await expect(undo).toHaveCount(0);
+    expect((await report()).items[0]?.undo?.status).toBe('conflict');
+    const after = await callApi(request, 'content.item.get', { itemId: ids[0] });
+    expect(after.revision.document.title.en).toBe(`Later ${word}`);
+    await measure('restored');
+    await expect(
+      page.getByRole('link', { name: /Terug naar inhoud|Back to content/ })
+    ).toHaveAttribute('href', list);
+  });
+});

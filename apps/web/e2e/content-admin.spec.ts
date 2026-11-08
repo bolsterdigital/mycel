@@ -143,7 +143,12 @@ test.describe('content-admin', () => {
         .evaluateAll((nodes) => nodes.filter((n) => n.getBoundingClientRect().width > 1).length)
     ).toBe(1);
     await expect(page.getByRole('table', { name: 'Pagina’s' })).toBeVisible();
-    expect(await page.locator('script:not([src="/_admin/nav.js"])').count()).toBe(0);
+    // The page-local counter enhances native selection, without a client framework.
+    expect(
+      await page
+        .locator('script:not([src="/_admin/nav.js"], [src="/_admin/content-bulk.js"])')
+        .count()
+    ).toBe(0);
     await expectNoAxeViolations(page);
 
     await page.getByRole('button', { name: 'Nieuwe pagina' }).click();

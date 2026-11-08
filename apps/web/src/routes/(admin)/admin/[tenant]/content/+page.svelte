@@ -31,6 +31,7 @@
   import type { PageProps } from './$types';
 
   let { data, form }: PageProps = $props();
+  import AdminScript from '#lib/admin/trusted/AdminScript.svelte';
   const t = $derived(ui(data.locale));
   const base = $derived(`/admin/${data.tenant.slug}/content`);
   const status = (s: string) => t(`admin.content.status.${s}` as UiKey);
@@ -66,10 +67,12 @@
       : plural(`admin.content.list.count.${data.type}`, data.total)
   );
   // Without any, a reader would open a menu with nothing in it. Taking offline needs a live page.
+  const nameOf = (item: (typeof data.items)[number]) => item.title || t('admin.content.untitled');
   const hasActions = (item: (typeof data.items)[number]) =>
     Boolean(item.live || item.preview || data.canWrite);
   // A page on which no row has any keeps no column for them: without the row's actions the table
   // is no container, so an empty column would never give way below 58rem.
+  const canBulk = $derived(data.canPublish || (data.type === 'article' && data.canWrite));
   const anyActions = $derived(data.items.some(hasActions));
   const columnLabel = (column: (typeof data.columnChoices)[number]) =>
     t(`admin.content.list.column.${column}` as const);
@@ -364,6 +367,56 @@
   <form id="content-row-actions" method="POST">
     <input type="hidden" name="locale" value={data.workLocale} />
   </form>
+  {#if data.items.length && canBulk}
+    <form id="content-bulk" method="POST" action={data.links.bulk} class="ui-list-display-form">
+      <h2>{t('admin.content.bulk.title')}</h2>
+      <p>{t('admin.content.bulk.scope')}</p>
+      <div class="ui-choice">
+        <input id="bulk-all" type="checkbox" name="all" value="yes" />
+        <label for="bulk-all">{t('admin.content.bulk.all')}</label>
+      </div>
+      <p data-bulk-count data-template={t('admin.content.bulk.count')} aria-live="polite"></p>
+      <Select
+        id="bulk-operation"
+        name="operation"
+        label={t('admin.content.bulk.operation')}
+        locale={data.locale}
+        options={[
+          ...(data.canPublish
+            ? [
+                { value: 'publish', label: t('admin.content.action.publish') },
+                { value: 'unpublish', label: t('admin.content.action.unpublish') },
+              ]
+            : []),
+          ...(data.type === 'article' && data.canWrite
+            ? [{ value: 'section', label: t('admin.content.bulk.section') }]
+            : []),
+        ]}
+      />
+      <Select
+        id="bulk-locale"
+        name="locale"
+        label={t('admin.content.bulk.locale')}
+        locale={data.locale}
+        value={data.workLocale}
+        options={data.tenant.locales.map((l) => ({ value: l, label: l }))}
+      />
+      {#if data.type === 'article' && data.canWrite}
+        <Select
+          id="bulk-section"
+          name="section"
+          label={t('admin.content.bulk.section')}
+          locale={data.locale}
+          options={[
+            { value: '', label: t('admin.content.bulk.noSection') },
+            ...data.sections.map((s) => ({ value: s.id, label: s.name })),
+          ]}
+        />
+      {/if}
+      <Actions><Button variant="secondary">{t('admin.content.bulk.preview')}</Button></Actions>
+    </form>
+    <AdminScript src="/_admin/content-bulk.js" />
+  {/if}
   <Table
     id="content-table"
     caption={kind}
@@ -401,6 +454,27 @@
                 ? item.titleLocale
                 : undefined}>{item.title || t('admin.content.untitled')}</a
             >
+            {#if canBulk}
+              <div class="ui-choice">
+                <input type="hidden" form="content-bulk" name="visible" value={item.id} />
+                <input
+                  type="hidden"
+                  form="content-bulk"
+                  name="base-{item.id}"
+                  value={item.latestRevisionId}
+                />
+                <input
+                  id="select-{item.id}"
+                  type="checkbox"
+                  form="content-bulk"
+                  name="selected"
+                  value={item.id}
+                />
+                <label for="select-{item.id}"
+                  >{fill(t('admin.content.bulk.select'), { title: nameOf(item) })}</label
+                >
+              </div>
+            {/if}
             {#if hasActions(item)}
               <RowActions
                 menu={t('admin.content.row.menu')}

@@ -2,6 +2,7 @@
 // back as the shortest query that means the same, the view asks `content.item.list` for exactly
 // what it shows, and the way back from an item is the view it was entered from, or the plain list.
 
+import { selectedRows, nextBulkSlot } from './content-bulk.js';
 import { describe, expect, it } from 'vitest';
 import type { Cookies } from '@sveltejs/kit';
 import { TRANSLATION_TOO_BROAD, UseCaseError } from '@mycel/core';
@@ -310,5 +311,43 @@ describe('translationTooBroad', () => {
     ).toBe(true);
     expect(translationTooBroad(new UseCaseError('invalid_input', 'x', issue('other')))).toBe(false);
     expect(translationTooBroad(new Error(TRANSLATION_TOO_BROAD))).toBe(false);
+  });
+});
+
+describe('bulk list selection and durable progress', () => {
+  const rows = [
+    { id: ITEM, latestRevisionId: ITEM },
+    { id: 'second', latestRevisionId: ITEM },
+  ];
+  it('all means the explicit page shown, never new rows matching the query', () => {
+    const form = new FormData();
+    form.set('all', 'yes');
+    form.append('visible', ITEM);
+    expect(selectedRows(form, rows)).toEqual([rows[0]]);
+    form.append('visible', 'off-page');
+    expect(() => selectedRows(form, rows)).toThrow(UseCaseError);
+  });
+  it('refuses an empty, duplicate or off-page selection', () => {
+    const form = new FormData();
+    expect(() => selectedRows(form, rows)).toThrow(UseCaseError);
+    form.append('selected', ITEM);
+    expect(selectedRows(form, rows)).toEqual([rows[0]]);
+    form.append('selected', ITEM);
+    expect(() => selectedRows(form, rows)).toThrow(UseCaseError);
+  });
+  it('advances pending slots before retryable failures, preserving successes and skips', () => {
+    const success = { retryable: false };
+    const failed = { retryable: true };
+    const items = [
+      { apply: failed, undo: null },
+      { apply: success, undo: null },
+      { apply: null, undo: null },
+    ];
+    expect(nextBulkSlot(items, 'apply')).toBe(2);
+    items[2]!.apply = success;
+    expect(nextBulkSlot(items, 'apply')).toBe(0);
+    items[0]!.apply = success;
+    expect(nextBulkSlot(items, 'apply')).toBeNull();
+    expect(nextBulkSlot(items, 'undo')).toBe(0);
   });
 });

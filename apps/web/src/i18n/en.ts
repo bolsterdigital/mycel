@@ -1793,6 +1793,58 @@ export const en = {
   'admin.ui.catalogue.writingSheet': 'Writing sheet',
   'admin.ui.catalogue.writingSheet.intro':
     'Tools and labels stay outside the words; the surface follows the colour scheme.',
+  'admin.content.bulk.title': 'Bulk actions',
+  'admin.content.bulk.scope': 'Select rows on this page only. A dry run changes no content.',
+  'admin.content.bulk.all': 'All items on this page',
+  'admin.content.bulk.count': '{n} selected on this page',
+  'admin.content.bulk.operation': 'Action',
+  'admin.content.bulk.section': 'Change section',
+  'admin.content.bulk.noSection': 'No section',
+  'admin.content.bulk.locale': 'Target language',
+  'admin.content.bulk.preview': 'Prepare dry run',
+  'admin.content.bulk.select': 'Select: {title}',
+  'admin.content.bulk.invalid':
+    'Select items on this page and a valid action. Prepare a new dry run if the list changed.',
+  'admin.content.bulk.changed':
+    'This plan cannot continue. Read the report and prepare a new dry run.',
+  'admin.content.bulk.results': 'Dry run and results',
+  'admin.content.bulk.summary': '{n} selected items. Target language: {locale}.',
+  'admin.content.bulk.bookmark':
+    'Keep this link to return to the report and resume after an interruption.',
+  'admin.content.bulk.confirmWarning':
+    'Confirm the reviewed action. Each request processes one item. Other items may be refused; their results remain visible. Section changes save a draft only.',
+  'admin.content.bulk.undoWarning':
+    'Restoration stops further execution of this run. Later edits are preserved. Continue until all restoration results are visible.',
+  'admin.content.bulk.retryable': 'May be retried after resolving the problem.',
+  'admin.content.bulk.confirm': 'Confirm and process first item',
+  'admin.content.bulk.next': 'Continue or retry next item',
+  'admin.content.bulk.undoNext': 'Continue restoration',
+  'admin.content.bulk.undo': 'Stop run and restore first item',
+  'admin.content.bulk.back': 'Back to content',
+  'admin.content.bulk.column.item': 'Item',
+  'admin.content.bulk.column.operation': 'Action',
+  'admin.content.bulk.column.preview': 'Dry run',
+  'admin.content.bulk.column.apply': 'Result',
+  'admin.content.bulk.column.undo': 'Restoration',
+  'admin.content.bulk.operation.save': 'Save draft',
+  'admin.content.bulk.operation.publish': 'Publish',
+  'admin.content.bulk.operation.unpublish': 'Take offline',
+  'admin.content.bulk.state.ready': 'Ready',
+  'admin.content.bulk.state.unchanged': 'Unchanged',
+  'admin.content.bulk.state.awaiting_editor': 'Editor review required',
+  'admin.content.bulk.state.refused': 'Refused',
+  'admin.content.bulk.state.changed': 'Changed',
+  'admin.content.bulk.state.conflict': 'Conflict: prepare a new plan',
+  'admin.content.bulk.state.undone': 'Restored',
+  'admin.content.bulk.state.pending': 'Not processed',
+  'admin.content.bulk.problem.not_found': 'Item or revision no longer available.',
+  'admin.content.bulk.problem.forbidden': 'The required permission is missing.',
+  'admin.content.bulk.problem.invalid_input':
+    'Check language readiness, references and publication state in the editor.',
+  'admin.content.bulk.problem.conflict':
+    'The item or publication changed. Prepare a new plan; restoration never overwrites later edits.',
+  'admin.content.bulk.problem.limit_exceeded': 'A site limit prevents this action.',
+  'admin.content.bulk.problem.suspended': 'This site is suspended.',
 } as const;
 
 export type UiKey = keyof typeof en;
