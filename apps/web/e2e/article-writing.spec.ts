@@ -4,6 +4,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { capabilitiesFor, systemPrincipal, useCases } from '@mycel/core';
+import { principal } from '@mycel/core/testing';
 import { type APIRequestContext, type Page, expect } from '@playwright/test';
 import { test } from './lib/evidence/page';
 import { expectNoAxeViolations, headingOrderProblems } from './lib/axe';
@@ -272,11 +273,11 @@ test.describe('article-writing', () => {
       const probe = await tenantId();
       await withInvoker(async (invoker) => {
         for (const operatorId of [randomUUID(), randomUUID()]) {
-          const principal = {
-            ...systemPrincipal(probe, 'e2e'),
-            actor: { kind: 'operator' as const, operatorId, email: 'gedeeld@probe.test' },
-          };
-          await invoker.run(useCases.updatePresence, principal, {
+          const sharing = principal({
+            tenantId: probe,
+            actor: { kind: 'operator', operatorId, email: 'gedeeld@probe.test' },
+          });
+          await invoker.run(useCases.updatePresence, sharing, {
             itemId,
             sessionId: randomUUID(),
             state: 'editing',
