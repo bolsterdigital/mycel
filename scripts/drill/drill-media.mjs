@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Media changes during a backup, for the restore drill (TODO #29A, scripts/drill/drill-run.sh): upload
-// an unused image, delete it the way an editor does (the purge waits MEDIA_PURGE_DELAY_MS), or
-// purge it now, as a worker whose clock is past that delay would. `mask` is the partial loss a
+// an unused image, delete it the way an editor does (the trash keeps it for
+// MEDIA_TRASH_RETENTION_MS), or purge it now, as a worker whose clock is past that window would:
+// only `purge` runs on such a clock, through the real purgeMedia. `mask` is the partial loss a
 // count of files cannot see: the original of a live image goes and an
 // unexpected file takes its place in the same folder. Through the invoker and the unit of work
 // as mycel_app, like scripts/drill/drill-fixture.mjs.
@@ -18,6 +19,7 @@
 import { createDb, createTenantDirectory, createUnitOfWork, uuidv7Ids } from '@mycel/db';
 import {
   Invoker,
+  MEDIA_TRASH_RETENTION_MS,
   appDelivery,
   buildRegistry,
   mediaKey,
@@ -47,8 +49,11 @@ if (
 const operatorDb = createDb(process.env.DATABASE_URL);
 const appDb = createDb(process.env.APP_DATABASE_URL);
 const blobs = blobStoreFor(loadConfig());
+// purgeMedia leaves an asset alone while the trash still offers it back, and here the purge follows
+// the delete at once. A minute past the window, so the drill goes through the production code.
+const clockShiftMs = command === 'purge' ? MEDIA_TRASH_RETENTION_MS + 60_000 : 0;
 const uow = createUnitOfWork(appDb, {
-  clock: { now: () => new Date() },
+  clock: { now: () => new Date(Date.now() + clockShiftMs) },
   ids: uuidv7Ids,
   signer: new FakeSigner(),
   inputHasher: new FakeInputHasher(),
