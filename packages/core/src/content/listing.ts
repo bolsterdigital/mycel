@@ -46,14 +46,7 @@ export const MAX_LIST_OFFSET = 100_000;
 
 /** The fields `content.item.list` takes to narrow and order its answer. */
 export const itemListFields = {
-  // A NUL is no search anyone typed, and Postgres refuses it in a parameter: a 400, not a 500.
-  q: z
-    .string()
-    .trim()
-    .min(1)
-    .max(100)
-    .refine((q) => !q.includes('\0'))
-    .optional(),
+  q: z.string().trim().min(1).max(100).optional(),
   locale: Locale.optional(),
   status: LocaleStatus.optional(),
   hasUnpublishedChanges: z.boolean().optional(),

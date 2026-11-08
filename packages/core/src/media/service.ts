@@ -398,14 +398,7 @@ export const listMedia = defineUseCase({
   input: z
     .object({
       kind: MediaKind.optional(),
-      // A NUL is no search anyone typed, and Postgres refuses it in a parameter: a 400, not a 500.
-      q: z
-        .string()
-        .trim()
-        .min(1)
-        .max(100)
-        .refine((q) => !q.includes('\0'))
-        .optional(),
+      q: z.string().trim().min(1).max(100).optional(),
       unused: z.boolean().optional(),
       missingAlt: z.boolean().optional(),
       sort: MediaSort.optional(),

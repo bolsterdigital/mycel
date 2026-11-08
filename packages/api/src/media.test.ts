@@ -63,6 +63,14 @@ describe('media over HTTP', () => {
     expect(await listed.json()).toMatchObject({ items: [{ id: media.id }], nextCursor: null });
   });
 
+  it('answers 400 to a NUL in a search, where Postgres would have made it a 500', async () => {
+    const { app } = setup();
+    const response = await app.request('/v1/media.list?q=%00', {
+      headers: { authorization: 'Bearer reader' },
+    });
+    expect(response.status).toBe(400);
+  });
+
   it('refuses SVG and a lie about the type as invalid input', async () => {
     const { post } = setup();
     const svg = await post('media.upload', {
