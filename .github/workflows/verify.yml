@@ -205,13 +205,14 @@ jobs:
     timeout-minutes: 15
     strategy:
       fail-fast: false
-      # Each project runs in two shards (Playwright splits by file). The a11y project reached the
+      # Each project runs in three shards (Playwright splits by file). The a11y project reached the
       # 12-minute step limit with every test green: 476 tests, 1,144 s of test time over two
       # workers on a 4-core runner. Rejected: a higher step limit (the next spec crosses it
-      # again) and more workers per runner (more load on the class of e2e hangs under load).
+      # again) and more workers per runner (more load on the class of e2e hangs under load). Two
+      # shards still left one at 570 s, too close to 720 s on a slow runner.
       matrix:
         project: [no-js, a11y]
-        shard: [1, 2]
+        shard: [1, 2, 3]
     services:
       postgres:
         image: postgres:16.15-alpine
@@ -279,7 +280,7 @@ jobs:
           npm run migrate -w @mycel/db
           npm run build
           # List emits each completed test and duration immediately, even if a later test hangs.
-          npm run test:e2e -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/2 --reporter=list
+          npm run test:e2e -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/3 --reporter=list
 
       - name: Keep downloaded packages for the cache
         if: steps.browser-debs.outputs.cache-hit != 'true'

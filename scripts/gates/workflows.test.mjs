@@ -106,7 +106,7 @@ test('local verify and CI cover every original command and both existing browser
   assert.deepEqual(projects, ['a11y', 'no-js']);
   // Every shard of a project runs; a shard dimension without its flag would run all tests twice.
   const shards = /shard: \[([^\]]+)\]/.exec(jobs.browsers)[1].split(', ');
-  assert.deepEqual(shards, ['1', '2']);
+  assert.deepEqual(shards, ['1', '2', '3']);
   assert.match(jobs.browsers, /fail-fast: false/);
   const browser = runBlock(stepsOf(jobs.browsers).find((s) => /Build and run browser/.test(s)));
   assert.deepEqual(
@@ -116,7 +116,7 @@ test('local verify and CI cover every original command and both existing browser
       'npx playwright install --with-deps chromium',
       'npm run migrate -w @mycel/db',
       'npm run build',
-      'npm run test:e2e -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/2 --reporter=list',
+      'npm run test:e2e -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/3 --reporter=list',
     ]
   );
 });
