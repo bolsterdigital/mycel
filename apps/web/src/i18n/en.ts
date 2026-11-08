@@ -573,6 +573,8 @@ export const en = {
   'admin.audit.op.content.item.publish': 'Published',
   'admin.audit.op.content.item.schedule': 'Publication scheduled',
   'admin.audit.op.content.item.duplicate': 'Copied',
+  'admin.audit.op.content.item.delete': 'Moved to the trash',
+  'admin.audit.op.content.item.restore': 'Restored',
   'admin.audit.op.content.item.unpublish': 'Unpublished',
   'admin.audit.op.content.item.unschedule': 'Scheduled publication cancelled',
   'admin.audit.op.content.review.request': 'Offered for publication',

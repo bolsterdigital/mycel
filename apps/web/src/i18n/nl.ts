@@ -580,6 +580,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.content.item.publish': 'Gepubliceerd',
   'admin.audit.op.content.item.schedule': 'Publicatie ingepland',
   'admin.audit.op.content.item.duplicate': 'Gekopieerd',
+  'admin.audit.op.content.item.delete': 'Naar de prullenbak',
+  'admin.audit.op.content.item.restore': 'Hersteld',
   'admin.audit.op.content.item.unpublish': 'Offline gehaald',
   'admin.audit.op.content.item.unschedule': 'Ingeplande publicatie geschrapt',
   'admin.audit.op.content.review.request': 'Ter publicatie aangeboden',
