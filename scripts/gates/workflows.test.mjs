@@ -104,6 +104,9 @@ test('local verify and CI cover every original command and both existing browser
     [...config.matchAll(/name: '([^']+)'/g)].map((m) => m[1]).sort()
   );
   assert.deepEqual(projects, ['a11y', 'no-js']);
+  // Every shard of a project runs; a shard dimension without its flag would run all tests twice.
+  const shards = /shard: \[([^\]]+)\]/.exec(jobs.browsers)[1].split(', ');
+  assert.deepEqual(shards, ['1', '2', '3']);
   assert.match(jobs.browsers, /fail-fast: false/);
   const browser = runBlock(stepsOf(jobs.browsers).find((s) => /Build and run browser/.test(s)));
   assert.deepEqual(
@@ -113,7 +116,7 @@ test('local verify and CI cover every original command and both existing browser
       'npx playwright install --with-deps chromium',
       'npm run migrate -w @mycel/db',
       'npm run build',
-      'npm run test:e2e -- --project=${{ matrix.project }} --reporter=list',
+      'npm run test:e2e -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/3 --reporter=list',
     ]
   );
 });
@@ -276,7 +279,9 @@ test('layer jobs own services and reserve time for unconditional, distinct retai
     // Run the actual blocks under the selected Bash, including dynamic PS4, xtrace and
     // errexit. Only external dependency commands are inert: a local warm cache must not be
     // needed to exercise success, explicit exit and implicit command failure on each platform.
-    const shell = runBlock(execution).replaceAll('${{ matrix.project }}', 'a11y');
+    const shell = runBlock(execution)
+      .replaceAll('${{ matrix.project }}', 'a11y')
+      .replaceAll('${{ matrix.shard }}', '1');
     assert.match(shell, /^PS4='\+ \$\(date -u \+%FT%TZ\) '$/m);
     assert.match(shell, /^set -x$/m);
     const commands = [...shell.matchAll(/^(?:npm|npx) .+$/gm)].map(([command]) => command);
@@ -302,7 +307,7 @@ test('layer jobs own services and reserve time for unconditional, distinct retai
         );
         assert.equal(result.status, status, `${name}: ${failure || 'success'}`);
         const log = readFileSync(
-          join(dir, '.scratch/ci', name === 'checks' ? 'checks.log' : 'browser-a11y.log'),
+          join(dir, '.scratch/ci', name === 'checks' ? 'checks.log' : 'browser-a11y-1.log'),
           'utf8'
         );
         assert.equal(log, result.stdout, 'uploader retains the exact complete execution output');
@@ -322,7 +327,7 @@ test('layer jobs own services and reserve time for unconditional, distinct retai
     }
   }
   assert.equal(new Set(names).size, 2);
-  assert.ok(names.some((name) => name.includes('${{ matrix.project }}')));
+  assert.ok(names.some((name) => name.includes('${{ matrix.project }}-${{ matrix.shard }}')));
 });
 
 /** The jobs of a workflow's text, each with its indented body; the first line names it. */

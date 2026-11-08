@@ -27,23 +27,44 @@ async function connect(capabilities: Capability[]) {
   return client;
 }
 
+/** A tool schema with its `$defs` substituted back in, comparable with the OpenAPI schema. */
+function inlined(schema: unknown): unknown {
+  const defs = ((schema as { $defs?: Record<string, unknown> }).$defs ?? {}) as Record<
+    string,
+    unknown
+  >;
+  const walk = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(walk);
+    if (!node || typeof node !== 'object') return node;
+    const { $ref, $defs: _defs, ...rest } = node as Record<string, unknown>;
+    const own = Object.fromEntries(Object.entries(rest).map(([k, v]) => [k, walk(v)]));
+    if (typeof $ref !== 'string') return own;
+    const target = defs[$ref.replace('#/$defs/', '')];
+    if (target === undefined) throw new Error(`unresolved ${$ref}`);
+    return { ...(walk(target) as object), ...own };
+  };
+  return walk(schema);
+}
+
 const payload = (r: unknown) =>
   JSON.parse((r as { content: { text: string }[] }).content[0]!.text) as Record<string, unknown>;
 
 describe('MCP conformance: listing', () => {
-  // The first listing converts every use case's schemas over a fresh MCP connection; since vitest
-  // 5 that warm-up lands in this test and took 8s on a CI runner (PR #24), over the 5s default.
+  // The client compiles every output schema on a listing; with the schemas inlined that took 6s
+  // locally and over 30s on a loaded CI runner, with `$defs` well under a second.
   it(
-    'lists exactly the registry as tools, with its input and output schemas',
+    'lists exactly the registry as tools, with the OpenAPI input and output schemas',
     { timeout: 30_000 },
     async () => {
       const { tools } = await (await connect([])).listTools();
+      // A guard against inlining again: the inlined listing was 6.5 MB, with `$defs` under 1 MB.
+      expect(JSON.stringify(tools).length).toBeLessThan(2_000_000);
       expect(tools.map((t) => t.name).sort()).toEqual(useCases.map((u) => u.name).sort());
       for (const u of useCases) {
         const tool = tools.find((t) => t.name === u.name)!;
         expect(tool.description).toBe(u.description);
-        expect(tool.inputSchema).toEqual(toJsonSchema(u.input, 'input'));
-        expect(tool.outputSchema).toMatchObject(toJsonSchema(u.output, 'output'));
+        expect(inlined(tool.inputSchema)).toEqual(toJsonSchema(u.input, 'input'));
+        expect(inlined(tool.outputSchema)).toMatchObject(toJsonSchema(u.output, 'output'));
         expect(tool.annotations?.readOnlyHint).toBe(u.kind === 'query');
       }
     }

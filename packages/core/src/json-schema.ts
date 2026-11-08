@@ -12,13 +12,21 @@ export type JsonSchema = { [key: string]: unknown };
 /**
  * `io` picks the side of a transform or pipe: requests are described as the caller sends them,
  * responses as the use case returns them. Refinements describe their inner schema (they still
- * run in the Invoker). References are inlined so each schema stands alone inside OpenAPI and MCP.
+ * run in the Invoker). By default references are inlined, because a `#/$defs` reference inside an
+ * OpenAPI component resolves against the OpenAPI document, not the schema. `reused: 'ref'` moves
+ * every schema used more than once into the schema's own `$defs`: still self-contained, for fronts
+ * that take each schema as its own document (MCP tools), where inlining the rich-text schema at
+ * every block field made one content tool 384 KB and the listing 6.5 MB.
  */
-export function toJsonSchema(schema: z.ZodTypeAny, io: 'input' | 'output'): JsonSchema {
+export function toJsonSchema(
+  schema: z.ZodTypeAny,
+  io: 'input' | 'output',
+  { reused = 'inline' }: { reused?: 'inline' | 'ref' } = {}
+): JsonSchema {
   const converted = z.toJSONSchema(schema, {
     target: 'draft-2020-12',
     io,
-    reused: 'inline',
+    reused,
     cycles: 'throw',
     // Zod 3's uuid() accepted any GUID; keep that validation and its public format label.
     override: ({ zodSchema, jsonSchema }) => {
