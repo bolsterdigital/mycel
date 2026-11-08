@@ -132,7 +132,46 @@ function admit(
       'input does not match the schema',
       zodIssues(parsed.error)
     );
+  const nul = nulPath(parsed.data);
+  if (nul !== null)
+    throw new UseCaseError('invalid_input', 'input does not match the schema', [
+      { path: nul, message: 'a NUL character is not allowed' },
+    ]);
   return parsed.data;
+}
+
+/**
+ * Where the parsed input holds a NUL, or null. Postgres refuses one in `text` and `jsonb`, so
+ * without this a stray `%00` reaches the adapter and comes back as a 500. It walks what the schema
+ * let through, so a key the schema strips cannot refuse a request, and it walks with a stack, so a
+ * deep JSON value cannot overflow it. Anything but a plain object or array holds no text (bytes of
+ * an upload, a Date). Rejected: a shared text field in every schema, which a new bare `z.string()`
+ * silently escapes, and a check in each front, which is three places instead of one.
+ */
+function nulPath(input: unknown): string | null {
+  const stack: Array<readonly [unknown, string]> = [[input, '']];
+  for (let next = stack.pop(); next; next = stack.pop()) {
+    const [value, path] = next;
+    if (typeof value === 'string') {
+      if (value.includes('\0')) return path;
+    } else if (Array.isArray(value)) {
+      value.forEach((item, i) => stack.push([item, join(path, String(i))]));
+    } else if (isPlainObject(value)) {
+      for (const [key, item] of Object.entries(value)) {
+        if (key.includes('\0')) return path;
+        stack.push([item, join(path, key)]);
+      }
+    }
+  }
+  return null;
+}
+
+const join = (path: string, key: string): string => (path ? `${path}.${key}` : key);
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null) return false;
+  const prototype: unknown = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
 
 async function auditEntry(

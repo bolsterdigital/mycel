@@ -14,7 +14,7 @@ Hand-written. Per use case: the happy path and one test per invariant or typed e
 
 **Where:** `packages/core/src/registry.conformance.test.ts`, `packages/api`, `packages/mcp`. **Needs:** Nothing.
 
-Automatic. For every use case: name pattern and vocabulary (module, verb, singular entity; [use cases](../reference/use-cases.md)), description present, input and output convert to JSON Schema, HTTP route exists and rejects a principal without the capability (403) and a malformed body (400 Problem Details), MCP tool list equals the registry, OpenAPI document validates, a use case that consumes a limit (ADR 015) checks it; no use case, failing with an address in its error, puts that address in a log line or an error report (`redaction.conformance.test.ts`); every command leaves exactly one `audit_log` row, refused or not, with a keyed input hash and no address in any column (PR #19).
+Automatic. For every use case: name pattern and vocabulary (module, verb, singular entity; [use cases](../reference/use-cases.md)), description present, input and output convert to JSON Schema, HTTP route exists and rejects a principal without the capability (403) and a malformed body (400 Problem Details), MCP tool list equals the registry, OpenAPI document validates, a use case that consumes a limit (ADR 015) checks it; a NUL in any string of its example is invalid input and reaches no handler; no use case, failing with an address in its error, puts that address in a log line or an error report (`redaction.conformance.test.ts`); every command leaves exactly one `audit_log` row, refused or not, with a keyed input hash and no address in any column (PR #19).
 
 ### Block conformance
 

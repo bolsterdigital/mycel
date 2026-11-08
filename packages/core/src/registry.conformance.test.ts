@@ -350,6 +350,101 @@ describe('registry rules catch violations', () => {
 // TODO #17b: every command leaves exactly one audit row, whatever the outcome, with a keyed hash
 // and no address in any column. Runs every command of the registry, so a new command is covered
 // without a new test.
+// Postgres refuses a NUL in `text` and `jsonb`. The Invoker refuses it first, for every use case,
+// so a `%00` is a 400 and never a 500 from the adapter.
+describe('a NUL in any text input is invalid input and reaches no handler', () => {
+  const invoker = new Invoker(buildRegistry(), new MemoryUnitOfWork());
+  // Open to any actor, because this is about the text and not about who sends it.
+  const unreachable = ({ actors: _anyone, ...useCase }: UseCase): UseCase => ({
+    ...useCase,
+    handler: () => Promise.reject(new Error(`${useCase.name} reached its handler`)),
+  });
+
+  /** Every copy of `value` with one of its strings ending in a NUL. */
+  function withNul(value: unknown): unknown[] {
+    if (typeof value === 'string') return [`${value}\0`];
+    if (Array.isArray(value))
+      return value.flatMap((item, i) =>
+        withNul(item).map((changed) => value.map((old, j) => (j === i ? changed : old)))
+      );
+    if (typeof value === 'object' && value !== null)
+      return Object.entries(value).flatMap(([key, item]) =>
+        withNul(item).map((changed) => ({ ...value, [key]: changed }))
+      );
+    return [];
+  }
+
+  const cases = buildRegistry()
+    .list()
+    .flatMap((u) =>
+      u.examples.flatMap((example) =>
+        withNul(example.input).map((input) => [u.name, u, input] as const)
+      )
+    );
+
+  it('has text inputs to check, across the register', () => {
+    expect(cases.length).toBeGreaterThan(100);
+    expect(new Set(cases.map(([name]) => name)).size).toBeGreaterThan(50);
+  });
+
+  it.each(cases)('%s', async (_name, useCase, input) => {
+    await expect(
+      invoker.run(unreachable(useCase), principal({ capabilities: Capability.options }), input)
+    ).rejects.toMatchObject({ code: 'invalid_input' });
+  });
+
+  describe('wherever the schema lets it through', () => {
+    const probe = (input: z.ZodTypeAny) =>
+      ({
+        ...useCases.getItem,
+        input,
+        handler: () => Promise.reject(new Error('reached')),
+      }) as UseCase;
+    const run = (schema: z.ZodTypeAny, input: unknown) =>
+      invoker.run(probe(schema), principal({ capabilities: Capability.options }), input);
+    const refused = { code: 'invalid_input' };
+
+    it('an optional field, a nested one, an array element and free JSON', async () => {
+      await expect(run(z.object({ a: z.string().optional() }), { a: 'x\0' })).rejects.toMatchObject(
+        {
+          ...refused,
+          issues: [{ path: 'a' }],
+        }
+      );
+      await expect(
+        run(z.object({ a: z.object({ b: z.array(z.string()) }) }), { a: { b: ['ok', 'x\0'] } })
+      ).rejects.toMatchObject({ ...refused, issues: [{ path: 'a.b.1' }] });
+      await expect(
+        run(z.record(z.string(), z.unknown()), { a: [{ b: '\0' }] })
+      ).rejects.toMatchObject({
+        ...refused,
+        issues: [{ path: 'a.0.b' }],
+      });
+    });
+
+    it('a key', async () => {
+      await expect(run(z.record(z.string(), z.number()), { 'a\0': 1 })).rejects.toMatchObject(
+        refused
+      );
+    });
+
+    it('not a key the schema strips, and not the bytes of an upload', async () => {
+      await expect(run(z.object({ a: z.number() }), { a: 1, 'b\0': 'x\0' })).rejects.toThrow(
+        'reached'
+      );
+      await expect(run(z.instanceof(Uint8Array), new Uint8Array([0]))).rejects.toThrow('reached');
+    });
+
+    it('asks for the capability before it reads the text', async () => {
+      await expect(
+        invoker.run(useCases.getItem as unknown as UseCase, principal({ capabilities: [] }), {
+          itemId: 'x\0',
+        })
+      ).rejects.toMatchObject({ code: 'forbidden' });
+    });
+  });
+});
+
 describe('every command leaves exactly one audit row (TODO #17b)', () => {
   const registry = buildRegistry();
   const commands = registry
