@@ -141,8 +141,7 @@ export function sweepAllMediaOrphans(
   return forEachTenant(
     'media.orphans',
     tenantIds,
-    async (id) =>
-      (await uow.run(systemPrincipal(id, 'jobs:media.orphans'), sweepMediaOrphans)).length,
+    async (id) => (await sweepMediaOrphans(uow, systemPrincipal(id, 'jobs:media.orphans'))).length,
     errors
   );
 }

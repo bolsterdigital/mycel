@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   Invoker,
   isReservedPageSlug,
@@ -397,12 +397,24 @@ describe('media', () => {
       await expectCode(invoker.run(useCases.getMedia, system, { id: m.id }), 'not_found');
     });
 
-    it('a purge job from before the trash removes files and row, and is idempotent', async () => {
+    it('a purge job from before the trash leaves a restorable asset alone, then removes it', async () => {
       const m = await upload();
       await invoker.run(useCases.deleteMedia, system, { id: m.id });
       const payload = { mediaId: m.id, keys: keys() };
       // A deleted asset no longer counts against the cap, even before the purge.
       expect((await invoker.run(useCases.getUsage, system, {})).storage.usedBytes).toBe(0);
+      // The job comes due after its own 24 hours, with the trash still promising 30 days.
+      clock.advance(MEDIA_PURGE_DELAY_MS + 1);
+      await uow.run(system, (ctx) => purgeMedia(ctx, payload));
+      expect(keys()).toEqual(payload.keys);
+      expect(uow.store.for(TENANT).media.size).toBe(1);
+      clock.advance(MEDIA_TRASH_RETENTION_MS - MEDIA_PURGE_DELAY_MS - 2);
+      await uow.run(system, (ctx) => purgeMedia(ctx, payload));
+      expect(keys()).toEqual(payload.keys);
+      const back = await invoker.run(useCases.restoreMedia, system, { ids: [m.id] });
+      expect(back.results).toEqual([{ id: m.id, status: 'restored' }]);
+      await invoker.run(useCases.deleteMedia, system, { id: m.id });
+      clock.advance(MEDIA_TRASH_RETENTION_MS);
       await uow.run(system, (ctx) => purgeMedia(ctx, payload));
       expect(keys()).toEqual([]);
       expect(uow.store.for(TENANT).media.size).toBe(0);
@@ -445,7 +457,7 @@ describe('media', () => {
       const m = await upload();
       await invoker.run(useCases.deleteMedia, system, { id: m.id });
       clock.advance(MEDIA_TRASH_RETENTION_MS - 1);
-      await uow.run(system, (ctx) => sweepMediaOrphans(ctx));
+      await sweepMediaOrphans(uow, system);
       expect(keys().length).toBeGreaterThan(0);
       const back = await invoker.run(useCases.restoreMedia, system, { ids: [m.id] });
       expect(back.results).toEqual([{ id: m.id, status: 'restored' }]);
@@ -457,9 +469,25 @@ describe('media', () => {
       expect((await invoker.run(useCases.listMediaTrash, system, {})).total).toBe(0);
       const late = await invoker.run(useCases.restoreMedia, system, { ids: [m.id] });
       expect(late.results).toEqual([{ id: m.id, status: 'expired' }]);
-      await uow.run(system, (ctx) => sweepMediaOrphans(ctx));
+      await sweepMediaOrphans(uow, system);
       expect(keys()).toEqual([]);
       expect(uow.store.for(TENANT).media.size).toBe(0);
+    });
+
+    it('a failed file delete leaves the row gone and a later sweep removes the files', async () => {
+      const m = await upload();
+      const files = keys();
+      await invoker.run(useCases.deleteMedia, system, { id: m.id });
+      clock.advance(MEDIA_TRASH_RETENTION_MS);
+      const failing = vi.spyOn(blobs, 'delete').mockRejectedValueOnce(new Error('store down'));
+      await expect(sweepMediaOrphans(uow, system)).rejects.toThrow('store down');
+      expect(failing).toHaveBeenCalledOnce();
+      expect(uow.store.for(TENANT).media.size).toBe(0);
+      expect(keys()).toEqual(files);
+      const gone = await invoker.run(useCases.restoreMedia, system, { ids: [m.id] });
+      expect(gone.results).toEqual([{ id: m.id, status: 'not-found' }]);
+      expect(await sweepMediaOrphans(uow, system)).toEqual(files);
+      expect(keys()).toEqual([]);
     });
 
     it('does not restore past the storage limit', async () => {
@@ -506,7 +534,7 @@ describe('media', () => {
         { contentType: 'image/png' }
       );
       clock.advance(1);
-      const swept = await uow.run(system, (ctx) => sweepMediaOrphans(ctx));
+      const swept = await sweepMediaOrphans(uow, system);
       expect(swept).toEqual([`${prefix}01900000-0000-7000-8000-0000000000ff/original.png`]);
       expect(keys().filter((k) => k.includes(m.id))).toHaveLength(1 + m.variants.length);
       expect(keys()).toContain(`tenants/${OTHER}/media/01900000-0000-7000-8000-0000000000fd/x.png`);

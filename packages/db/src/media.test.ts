@@ -9,7 +9,7 @@
 // Skips without DATABASE_URL and APP_DATABASE_URL; in CI that is a failure.
 
 import { readFile } from 'node:fs/promises';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { sql } from 'kysely';
 import {
   EXAMPLE_PNG,
@@ -171,7 +171,7 @@ describe.skipIf(skip)('media conformance', () => {
     expect((await invoker.run(useCases.restoreMedia, B, { ids: [m.id] })).results).toEqual([
       { id: m.id, status: 'not-found' },
     ]);
-    const sweep = () => uow.run(A, (ctx) => sweepMediaOrphans(ctx));
+    const sweep = () => sweepMediaOrphans(uow, A);
     await sweep();
     expect(await keys(`tenants/${a}/media/${m.id}/`)).toHaveLength(4);
     expect((await invoker.run(useCases.restoreMedia, A, { ids: [m.id] })).results).toEqual([
@@ -191,6 +191,32 @@ describe.skipIf(skip)('media conformance', () => {
     expect(Number(rows[0]?.n)).toBe(0);
   });
 
+  it('deletes the files of expired trash after the row committed and with the lock free', async () => {
+    const A = systemPrincipal(a, 'test');
+    const m = await upload(A);
+    await invoker.run(useCases.deleteMedia, A, { id: m.id });
+    const expired = new Date(clock.now().getTime() - MEDIA_TRASH_RETENTION_MS);
+    await sql`update media set deleted_at = ${expired} where id = ${m.id}`.execute(operatorDb);
+
+    const seen: { rowGone?: boolean; lock?: string } = {};
+    const remove = blobs.delete.bind(blobs);
+    const spy = vi.spyOn(blobs, 'delete').mockImplementationOnce(async (doomed) => {
+      seen.rowGone = (await uow.run(A, (ctx) => ctx.media.get(m.id))) === null;
+      seen.lock = await Promise.race([
+        uow.run(A, (ctx) => ctx.media.lock()).then(() => 'free'),
+        new Promise<string>((r) => setTimeout(() => r('held'), 2000)),
+      ]);
+      await remove(doomed);
+    });
+    try {
+      await sweepMediaOrphans(uow, A);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(seen).toEqual({ rowGone: true, lock: 'free' });
+    expect(await keys(`tenants/${a}/media/${m.id}/`)).toEqual([]);
+  });
+
   it('sweeps a tenant’s old orphans only, keeping young ones, files with a row and other tenants', async () => {
     const A = systemPrincipal(a, 'test');
     const kept = await upload(A);
@@ -203,7 +229,7 @@ describe.skipIf(skip)('media conformance', () => {
     await blobs.put(young, new Uint8Array(1), { contentType: 'image/png' });
 
     // The row of `kept` is older than a day too: a file with a row is never an orphan.
-    expect(await uow.run(A, sweepMediaOrphans)).toEqual([old]);
+    expect(await sweepMediaOrphans(uow, A)).toEqual([old]);
     const left = await keys('tenants/');
     expect(left).toEqual(expect.arrayContaining([young, elsewhere]));
     expect(left.filter((k) => k.includes(kept.id))).toHaveLength(4);
