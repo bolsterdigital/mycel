@@ -3,15 +3,13 @@
 // not stored yet are saved together as one `content.item.update` with the revision the form was
 // opened on as `baseRevisionId` (ADR 018 rule 2); every other action of the screen (publish,
 // schedule, move, remove, insert, duplicate) is a button of the same form that saves first and
-// then runs its own use case on the revision that save made, so no action loses what was typed. Authors and
-// section always list what the document or a failed post has, also beyond the first page of the
-// directory (`withAssigned`).
+// then runs its own use case on the revision that save made, so no action loses what was typed.
+// Authors and section always list what the document or a failed post has (`withAssigned`).
 //
 // A conflict shows both versions, as the ADR asks: the form keeps what was typed, a notice names
 // who saved the newer revision and when, and a table lists what changed between the revision the
 // form was opened on and the newest. The form then carries the newest id, so saving again is a
-// deliberate choice to put these values on top. Rejected: last-write-wins with a warning, and a
-// silent merge (which field wins is the editor's call, not ours).
+// deliberate choice to put these values on top.
 //
 // The status card (brief § 4) acts per locale: publish, take offline, schedule (a time in the site
 // zone, `content-admin-publication.ts`) and cancel a schedule; pinning the newest revision is a
@@ -103,6 +101,7 @@ import {
   insertQuery,
   type PendingBlock,
 } from '#lib/server/content/edit-form.js';
+import { presenceOnLoad } from '#lib/server/content/presence.js';
 import { runtime } from '#lib/server/runtime.js';
 import { DONE, ISSUES, issueCopy } from '#lib/server/content/edit-copy.js';
 import { baseSlugOf, moveSlug, slugChange } from '#lib/server/content/edit-slug.js';
@@ -270,6 +269,7 @@ export const load: PageServerLoad = async ({ parent, locals, params, url, cookie
   rememberListFromReferer(cookies, request.headers.get('referer'), url, params.tenant, item.type);
   return {
     contentType: item.type,
+    presence: await presenceOnLoad(principal, params.tenant, item.id, revision.id),
     // Back to the list as it was left: its search, status, order and page, at this item's row.
     listPath: recalledListPath(cookies, params.tenant, item.type, item.id),
     patterns: doc.blocks.length

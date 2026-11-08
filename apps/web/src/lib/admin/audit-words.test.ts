@@ -2,7 +2,7 @@
 // § 5): a new use case without them fails here, by name, instead of showing its technical name
 // to an administrator. Queries are never audited, so they need none.
 
-import { useCases } from '@mycel/core';
+import { useCases, UNAUDITED_COMMANDS } from '@mycel/core';
 import { describe, expect, it } from 'vitest';
 import { ui } from '../../i18n/index.js';
 import { actorLabel, operationKey, resultKey } from './audit-words.js';
@@ -10,7 +10,7 @@ import { actorLabel, operationKey, resultKey } from './audit-words.js';
 describe('audit words', () => {
   it('name every command of the registry', () => {
     const commands = Object.values(useCases)
-      .filter((u) => u.kind === 'command')
+      .filter((u) => u.kind === 'command' && !UNAUDITED_COMMANDS.has(u.name))
       .map((u) => u.name);
     expect(commands.length).toBeGreaterThan(0);
     expect(commands.filter((name) => operationKey(name) === null)).toEqual([]);

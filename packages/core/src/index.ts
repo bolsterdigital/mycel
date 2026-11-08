@@ -112,6 +112,8 @@ export * from './attention/model.js';
 export * from './attention/ports.js';
 export * from './attention/service.js';
 
+export * from './content/presence/model.js';
+export { type PresenceView } from './content/presence/service.js';
 export * from './content/bulk/model.js';
 export * from './content/bulk/service.js';
 export * from './content/bulk/execution.js';

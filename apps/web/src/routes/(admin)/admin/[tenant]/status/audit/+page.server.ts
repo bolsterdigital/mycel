@@ -8,7 +8,7 @@
 // at the top, so page 2 shifts while it is read; a cursor does not). `audit.list` asks
 // `tenant:admin` itself, and a cursor edited by hand is refused there as invalid input; `loaded`
 // turns either refusal into the admin's 403 or 400 page.
-import { AuditActorKind, useCases } from '@mycel/core';
+import { AuditActorKind, UNAUDITED_COMMANDS, useCases } from '@mycel/core';
 import { loaded } from '#lib/server/admin/admin-actions.js';
 import { adminTimeZone } from '#lib/server/admin/admin.js';
 import { fromLocalInput } from '#lib/server/content/content-admin-publication.js';
@@ -20,7 +20,7 @@ const OPERATION = /^[a-z][a-z0-9_.-]{0,99}$/;
 const PAGE = 50;
 /** What the action filter offers: every command, the only operations the Invoker records. */
 const COMMANDS = Object.values(useCases)
-  .filter((u) => u.kind === 'command')
+  .filter((u) => u.kind === 'command' && !UNAUDITED_COMMANDS.has(u.name))
   .map((u) => u.name);
 
 /** The start of `day` in `zone`, or of the day after it; null when it is not a date. */

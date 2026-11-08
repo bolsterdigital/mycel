@@ -4,6 +4,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { capabilitiesFor, systemPrincipal, useCases } from '@mycel/core';
+import { principal } from '@mycel/core/testing';
 import { type APIRequestContext, type Page, expect } from '@playwright/test';
 import { test } from './lib/evidence/page';
 import { expectNoAxeViolations, headingOrderProblems } from './lib/axe';
@@ -177,6 +178,121 @@ test.describe('article-writing', () => {
 
   // #142 review: a block that goes shortens the list, so what follows reads the document that was
   // saved, by id, and not the one the form was opened on.
+  // ADR 029. A second actor is the seed API key, so no second login is needed; the screen's own
+  // report is read back over the API. `visibilitychange` makes a beat happen now, so a test does
+  // not wait twenty seconds for the next one.
+  test.describe('presence', () => {
+    const report = (request: APIRequestContext, itemId: string, sessionId: string, state: string) =>
+      callApi(request, 'content.presence.update', { itemId, sessionId, state });
+
+    test('the first render says who else has the item open, also without JavaScript', async ({
+      page,
+      request,
+    }) => {
+      await login(page, '/admin/probe');
+      const edit = await article(request);
+      const itemId = edit.split('/').at(-1)!;
+      await report(request, itemId, randomUUID(), 'editing');
+      await page.goto(edit);
+      await expect(page.locator('[data-presence]')).toContainText('is aan het bewerken');
+    });
+
+    test('who is here follows each beat, and a newer revision is a notice', async ({
+      page,
+      request,
+    }) => {
+      onlyA11y();
+      await login(page, '/admin/probe');
+      const edit = await article(request);
+      const itemId = edit.split('/').at(-1)!;
+      await page.goto(edit);
+      await editorReady(page);
+      const presence = page.locator('[data-presence]');
+      const agent = randomUUID();
+      const beatNow = () =>
+        page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+      const ownState = async () => {
+        const { present } = await callApi(request, 'content.presence.list', { itemId });
+        return present.find((p: { actor: { kind: string } }) => p.actor.kind === 'operator')?.state;
+      };
+      const saveElsewhere = async (nl: string) => {
+        const { revision } = await callApi(request, 'content.item.get', { itemId });
+        await callApi(request, 'content.item.update', {
+          itemId,
+          baseRevisionId: revision.id,
+          document: { ...revision.document, title: { ...revision.document.title, nl } },
+        });
+      };
+
+      await report(request, itemId, agent, 'viewing');
+      await beatNow();
+      await expect(presence).toContainText('kijkt mee');
+      await report(request, itemId, agent, 'editing');
+      await beatNow();
+      await expect(presence).toContainText('is aan het bewerken');
+      await expect.poll(ownState).toBe('viewing');
+
+      // A tab without input is offered the newer revision, never a conflict.
+      await saveElsewhere('Titel van elders');
+      await beatNow();
+      const load = presence.getByRole('link', { name: 'Nieuwste versie laden' });
+      await expect(load).toBeVisible();
+      await expect(presence).toContainText('heeft een nieuwere versie opgeslagen');
+      await expectNoAxeViolations(page);
+      await page.setViewportSize(NARROW);
+      await setTextSize(page, '200%');
+      await layoutGate(page, 'newer revision notice');
+      await load.click();
+      await expect(page.locator('#title\\.nl')).toHaveValue('Titel van elders');
+      await editorReady(page);
+      await expect(presence.getByRole('link')).toHaveCount(0);
+
+      // A tab with input is told a save merges; loading would cost the input, so it is not offered.
+      await page.locator('#title\\.nl').fill('Getypt in dit venster');
+      await expect.poll(ownState).toBe('editing');
+      await saveElsewhere('Weer van elders');
+      await beatNow();
+      await expect(presence).toContainText('samengevoegd');
+      await expect(presence.getByRole('link')).toHaveCount(0);
+    });
+
+    // PR #351 review, F1: a label is not an identity. Two operators with one address is the case
+    // that stays possible whatever a key's label looks like, so the collision cannot rot away.
+    test('two people with the same label leave the form and its input alone', async ({
+      page,
+      request,
+    }) => {
+      onlyA11y();
+      await login(page, '/admin/probe');
+      const edit = await article(request);
+      const itemId = edit.split('/').at(-1)!;
+      await page.goto(edit);
+      await editorReady(page);
+      await page.locator('#title\\.nl').fill('Nog niet opgeslagen');
+
+      const probe = await tenantId();
+      await withInvoker(async (invoker) => {
+        for (const operatorId of [randomUUID(), randomUUID()]) {
+          const sharing = principal({
+            tenantId: probe,
+            actor: { kind: 'operator', operatorId, email: 'gedeeld@probe.test' },
+          });
+          await invoker.run(useCases.updatePresence, sharing, {
+            itemId,
+            sessionId: randomUUID(),
+            state: 'editing',
+          });
+        }
+      });
+      await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+
+      const lines = page.locator('[data-presence] li', { hasText: 'gedeeld@probe.test' });
+      await expect(lines).toHaveCount(2);
+      await expect(page.locator('form#item-edit')).toHaveCount(1);
+      await expect(page.locator('#title\\.nl')).toHaveValue('Nog niet opgeslagen');
+    });
+  });
+
   test.describe('after a prose block went', () => {
     test.skip(() => !isA11y(), 'the writer needs JavaScript');
 

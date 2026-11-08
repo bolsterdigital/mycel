@@ -9,7 +9,9 @@ import type {
   ContentRepository,
   ItemMatch,
   ItemRecord,
+  PresenceRepository,
 } from '../../content/ports.js';
+import { PRESENCE_READ_LIMIT } from '../../content/presence/model.js';
 import type { TransactionContext } from '../../ports.js';
 import { paged, type TenantStore } from './store.js';
 
@@ -233,6 +235,20 @@ export function memoryBulkPlans(s: TenantStore, lock: () => Promise<void>): Bulk
     },
     async get(id) {
       return structuredClone(s.bulkPlans.get(id) ?? null);
+    },
+  };
+}
+
+export function memoryPresence(s: TenantStore): PresenceRepository {
+  return {
+    async beat(entry) {
+      s.presence.set(`${entry.itemId}/${JSON.stringify(entry.actor)}/${entry.sessionId}`, entry);
+    },
+    async active(itemId, since) {
+      return [...s.presence.values()]
+        .filter((e) => e.itemId === itemId && e.lastSeenAt > since)
+        .sort((a, b) => b.lastSeenAt.getTime() - a.lastSeenAt.getTime())
+        .slice(0, PRESENCE_READ_LIMIT);
     },
   };
 }

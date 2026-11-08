@@ -6,7 +6,12 @@
 
 import { LimitName } from './entitlements/model.js';
 import { describesObject, toJsonSchema } from './json-schema.js';
-import { EFFECT_CAPABILITY, type UseCase, type UseCaseRegistry } from './registry.js';
+import {
+  EFFECT_CAPABILITY,
+  UNAUDITED_COMMANDS,
+  type UseCase,
+  type UseCaseRegistry,
+} from './registry.js';
 
 const NAME = /^[a-z]+(\.[a-z][a-z_]*)+$/;
 
@@ -110,6 +115,10 @@ function checkUseCase(useCase: UseCase, fail: (rule: string) => void): void {
   const verb = name.split('.').at(-1) ?? '';
   if (kind === 'command' && EFFECT_VERBS.includes(verb) && !effect)
     fail(`a command named "${verb}" must declare an effect`);
+
+  // ADR 029 rule 3: only a command that leaves nothing behind may go without an audit row.
+  if (UNAUDITED_COMMANDS.has(name) && (kind !== 'command' || effect || consumes != null))
+    fail('an unaudited use case must be a command without an effect or a limit');
 
   // ADR 015: a limit is checked where it is consumed, and a growing command says which (or null).
   if (consumes !== undefined && consumes !== null && !LimitName.safeParse(consumes).success)

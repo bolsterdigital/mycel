@@ -23,9 +23,7 @@
      in its label; the bar's LocaleSwitch saves and shows another locale with where each stands;
      the side column has that locale's status card and the other locales as one line each. A
      locale the item lacks shows "start the translation" in place of the content.
-     After an expired session, the input a save carried comes back through the `recover` action
-     (static/_admin/session-restore.js, brief admin-entry): the same rendering as a refused save,
-     with a notice and Discard. -->
+     After an expired session, the `recover` action brings back what a save carried. -->
 <script lang="ts">
   import { onMount } from 'svelte';
   import { earlyInput } from '#lib/editor/early-input.js';
@@ -40,6 +38,7 @@
   import ReviewOffer from '#lib/admin/review-offer/ReviewOffer.svelte';
   import ConflictNotice from '#lib/admin/conflict/ConflictNotice.svelte';
   import MergeNotice from '#lib/admin/conflict/MergeNotice.svelte';
+  import EditPresence from '#lib/admin/presence/EditPresence.svelte';
   import Inherited from '#lib/admin/Inherited.svelte';
   import { issueLabel } from '#lib/admin/issue-label.js';
   import { thumbPath } from '#lib/admin/ui/thumb.js';
@@ -1257,6 +1256,7 @@
   {/snippet}
 
   {#snippet notices()}
+    <EditPresence presence={data.presence} reload={discardHref} locale={data.locale} />
     {#if data.invalidInsert}
       <Notice tone="warning"><p>{t('admin.block.insert.invalid')}</p></Notice>
     {/if}

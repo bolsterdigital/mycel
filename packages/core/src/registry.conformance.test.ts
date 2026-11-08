@@ -14,6 +14,7 @@ import {
   type Principal,
 } from './principal.js';
 import { checkRegistry } from './registry-rules.js';
+import { UNAUDITED_COMMANDS } from './registry.js';
 import { ANONYMOUS_USE_CASES, type UseCase } from './registry.js';
 import { MemoryUnitOfWork, TENANT, principal, probeForm, probeTenant } from './testing/index.js';
 import { buildRegistry, useCases } from './use-cases.js';
@@ -256,6 +257,20 @@ describe('registry rules catch violations', () => {
     ['a name outside the pattern', { name: 'Content.Item' }, /name does not match/],
     ['a single-segment name', { name: 'content' }, /name does not match/],
     ['an empty description', { description: ' ' }, /description is empty/],
+    [
+      'an unaudited use case that is a query',
+      { name: 'content.presence.update', kind: 'query' as const },
+      /unaudited/,
+    ],
+    [
+      'an unaudited command with an effect',
+      {
+        name: 'content.presence.update',
+        effect: 'publish' as const,
+        requires: 'content:publish' as const,
+      },
+      /unaudited/,
+    ],
     ['a description without a full stop', { description: 'Update' }, /full stop/],
     ['no examples', { examples: [] as unknown as UseCase['examples'] }, /has no examples/],
     ['an example that fails the schema', { examples: [{ input: { id: 1 } }] }, /examples\[0\]/],
@@ -337,7 +352,9 @@ describe('registry rules catch violations', () => {
 // without a new test.
 describe('every command leaves exactly one audit row (TODO #17b)', () => {
   const registry = buildRegistry();
-  const commands = registry.list().filter((u) => u.kind === 'command');
+  const commands = registry
+    .list()
+    .filter((u) => u.kind === 'command' && !UNAUDITED_COMMANDS.has(u.name));
   const HEX64 = /^[0-9a-f]{64}$/;
 
   async function setup() {

@@ -10,7 +10,7 @@
 // A command that succeeds writes it in its own transaction, after the output is validated, so a
 // rollback leaves no `ok` row; one that is refused or fails writes it in a short transaction of
 // its own after the rollback, and the original error is rethrown unchanged. Queries are not
-// audited. Rejected: a Postgres trigger (sees no principal and touches every table), auditing in
+// audited, nor is the short list in `UNAUDITED_COMMANDS` (ADR 029). Rejected: a Postgres trigger (sees no principal and touches every table), auditing in
 // the fronts (three places, one of them forgotten sooner or later), and always a separate
 // transaction (a crash between the two commits leaves a change without its row).
 
@@ -27,7 +27,7 @@ import { requireActive } from './entitlements/guards.js';
 import { type Issue, notFound, UseCaseError } from './errors.js';
 import type { ErrorReporter, Logger, TransactionContext, UnitOfWork } from './ports.js';
 import type { Principal } from './principal.js';
-import type { UseCase, UseCaseRegistry } from './registry.js';
+import { UNAUDITED_COMMANDS, type UseCase, type UseCaseRegistry } from './registry.js';
 
 export function zodIssues(error: z.ZodError): Issue[] {
   return error.issues.map((i) => ({ path: i.path.join('.'), message: i.message }));
@@ -62,7 +62,7 @@ export class Invoker {
     principal: Principal,
     input: z.input<I>
   ): Promise<z.infer<O>> {
-    if (useCase.kind !== 'command') {
+    if (useCase.kind !== 'command' || UNAUDITED_COMMANDS.has(useCase.name)) {
       const parsed = admit(useCase as unknown as UseCase, this.registry, principal, input);
       return this.uow.run(principal, async (ctx) =>
         useCase.output.parse(await useCase.handler(ctx, parsed as z.infer<I>))

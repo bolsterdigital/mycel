@@ -313,15 +313,19 @@ export function withLocale(doc: ContentDocument, to: string, from: string | null
   return copy;
 }
 
-/** Who saved a revision, in a few words. */
+/**
+ * Who saved a revision, in a few words. A key shows the end of its id: a UUIDv7 starts with the
+ * time, so the first characters are the same for keys made within the same minute.
+ * Rejected: the key's name, which only `tenant:admin` may list and this label reaches every reader.
+ */
 export function actorLabel(actor: Actor): string {
   switch (actor.kind) {
     case 'operator':
       return actor.email;
     case 'api-key':
-      return `API key ${actor.keyId.slice(0, 8)}`;
+      return `API key ${actor.keyId.slice(-8)}`;
     case 'agent':
-      return `MCP ${actor.keyId.slice(0, 8)}`;
+      return `MCP ${actor.keyId.slice(-8)}`;
     case 'system':
       return actor.job;
     default:
