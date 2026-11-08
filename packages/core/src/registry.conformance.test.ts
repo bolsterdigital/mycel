@@ -347,9 +347,6 @@ describe('registry rules catch violations', () => {
   });
 });
 
-// TODO #17b: every command leaves exactly one audit row, whatever the outcome, with a keyed hash
-// and no address in any column. Runs every command of the registry, so a new command is covered
-// without a new test.
 // Postgres refuses a NUL in `text` and `jsonb`. The Invoker refuses it first, for every use case,
 // so a `%00` is a 400 and never a 500 from the adapter.
 describe('a NUL in any text input is invalid input and reaches no handler', () => {
@@ -435,6 +432,16 @@ describe('a NUL in any text input is invalid input and reaches no handler', () =
       await expect(run(z.instanceof(Uint8Array), new Uint8Array([0]))).rejects.toThrow('reached');
     });
 
+    it('a list filter that a transform hands on', async () => {
+      await expect(
+        invoker.run(
+          useCases.listItems as unknown as UseCase,
+          principal({ capabilities: Capability.options }),
+          { tag: 'x\0' }
+        )
+      ).rejects.toMatchObject({ ...refused, issues: [{ path: 'tag' }] });
+    });
+
     it('asks for the capability before it reads the text', async () => {
       await expect(
         invoker.run(useCases.getItem as unknown as UseCase, principal({ capabilities: [] }), {
@@ -445,6 +452,9 @@ describe('a NUL in any text input is invalid input and reaches no handler', () =
   });
 });
 
+// TODO #17b: every command leaves exactly one audit row, whatever the outcome, with a keyed hash
+// and no address in any column. Runs every command of the registry, so a new command is covered
+// without a new test.
 describe('every command leaves exactly one audit row (TODO #17b)', () => {
   const registry = buildRegistry();
   const commands = registry
