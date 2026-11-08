@@ -104,7 +104,7 @@
   });
 </script>
 
-<div class="edit-presence" role="status" data-presence>
+<div class="edit-presence" aria-live="polite" data-presence>
   {#if lines.present.length}
     <ul class="edit-presence-list">
       {#each lines.present as person (person.who + person.self)}

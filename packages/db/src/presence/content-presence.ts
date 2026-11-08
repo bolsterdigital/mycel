@@ -3,7 +3,7 @@
 // session id.
 import { sql, type Kysely } from 'kysely';
 import { Actor, PRESENCE_READ_LIMIT, auditActor, type PresenceRepository } from '@mycel/core';
-import type { Database } from './infra/schema.js';
+import type { Database } from '../infra/schema.js';
 
 export function presenceRepository(trx: Kysely<Database>, tenantId: string): PresenceRepository {
   return {

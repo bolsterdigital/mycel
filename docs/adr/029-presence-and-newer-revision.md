@@ -2,12 +2,12 @@
 
 - **Status**: accepted
 - **Date**: 2026-11-08
-- **Refines**: ADR 018 rule 2 (optimistic concurrency), the rule of TODO #17b that every command leaves one audit row
+- **Refines**: ADR 018 rule 2 (optimistic concurrency), the rule that every command leaves one audit row (docs/reference/audit.md)
 - **Builds on**: ADR 002 (forced RLS), ADR 009 (one registry for every front, HTML first), ADR 011 (cross-tenant work through a dedicated role), ADR 026 (a save on an older base merges)
 
 ## Context
 
-Since ADR 026 two people saving at once no longer lose each other's work, but they only find out at saving. Editors rarely write together; they often look together, in a training or while helping someone on a call. A notice of who is there, and of a newer revision, is most of what they need. Locks are out: a WordPress-style lock stays behind when a browser closes and has to be taken over. Realtime editing stays out as well (afslag A6).
+Since ADR 026 two people saving at once no longer lose each other's work, but they only find out at saving. Editors rarely write together; they often look together, in a training or while helping someone on a call. A notice of who is there, and of a newer revision, is most of what they need. Locks are out: a WordPress-style lock stays behind when a browser closes and has to be taken over. Realtime editing stays out as well (ADR 018).
 
 ## Decision
 
