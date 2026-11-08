@@ -4,6 +4,7 @@
 // publish after a reschedule" follow from the lock order, not from timing.
 
 import type { BulkPlan, BulkPhase, BulkResult } from './bulk/model.js';
+import type { PresenceEntry } from './presence/model.js';
 import type { BlockType, ReferenceType } from './blocks.js';
 import type { LocaleState } from './lifecycle.js';
 import type { ItemFilter, ItemOrder } from './listing.js';
@@ -158,10 +159,22 @@ export interface BulkPlanRepository {
   }>;
 }
 
+/**
+ * Who has an item open (ADR 029). Written on every beat of every open tab, without any of the
+ * content locks, and its rows are not content: no revision, no export, no audit.
+ */
+export interface PresenceRepository {
+  /** Reports one tab; the same actor and session on the same item replaces its earlier report. */
+  beat(entry: PresenceEntry): Promise<void>;
+  /** The tabs on this item last seen after `since`, newest first, at most PRESENCE_READ_LIMIT. */
+  active(itemId: string, since: Date): Promise<PresenceEntry[]>;
+}
+
 declare module '../ports.js' {
   interface TransactionContext {
     content: ContentRepository;
     bulkPlans: BulkPlanRepository;
+    presence: PresenceRepository;
     authors: SluggedRepository<Author>;
     sections: SluggedRepository<Section>;
     patterns: EntityRepository<Pattern>;

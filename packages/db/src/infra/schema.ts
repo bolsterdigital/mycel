@@ -24,6 +24,16 @@ export interface Database {
     after_revision_id: string | null;
     result: Json<unknown>;
   };
+  content_presence: {
+    tenant_id: string;
+    item_id: string;
+    actor_kind: string;
+    actor_id: string;
+    session_id: string;
+    actor: Json<unknown>;
+    state: string;
+    last_seen_at: Timestamp;
+  };
   content_bulk_plans: {
     item_count: number;
     tenant_id: string;

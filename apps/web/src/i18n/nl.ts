@@ -1058,6 +1058,14 @@ export const nl: Partial<Record<UiKey, string>> = {
     'Je wijzigingen zijn opgeslagen als nieuwe revisie, samen met wat {who} om {when} opsloeg. Daarin staan wijzigingen die je nog niet had gezien, dus er is niets gepubliceerd, ingepland of goedgekeurd. Bekijk de revisie hieronder en kies de actie daarna opnieuw.',
   'admin.content.done.mergedWith':
     'Je wijzigingen zijn eerst opgeslagen, samen met wat {who} om {when} opsloeg. Niets van wat jullie veranderden is overschreven.',
+  'admin.presence.viewing': '{who} kijkt mee',
+  'admin.presence.editing': '{who} is aan het bewerken',
+  'admin.presence.selfViewing': 'Je hebt dit ook open in een ander venster',
+  'admin.presence.selfEditing': 'Je hebt niet-opgeslagen wijzigingen in een ander venster',
+  'admin.presence.newer': '{who} heeft een nieuwere versie opgeslagen.',
+  'admin.presence.newerWithInput':
+    '{who} heeft een nieuwere versie opgeslagen. Bij opslaan worden jouw wijzigingen ermee samengevoegd; alleen een waarde die jullie allebei wijzigden vraagt om een keuze.',
+  'admin.presence.load': 'Nieuwste versie laden',
   'admin.content.done.merged':
     'Opgeslagen als nieuwe revisie, samen met wat {who} om {when} opsloeg. Niets van wat jullie veranderden is overschreven. Wat gepubliceerd is, is niet veranderd.',
   'admin.content.conflict.bodyTable':

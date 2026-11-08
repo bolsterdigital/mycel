@@ -20,7 +20,7 @@ import { noopLogger } from '../../util/log.js';
 import { memoryAssist } from './assist.js';
 import { memoryAudit } from './audit.js';
 import { memoryConnectionIntents, memoryConnections } from './connections.js';
-import { memoryBulkPlans, memoryContent, memorySite } from './content.js';
+import { memoryBulkPlans, memoryContent, memoryPresence, memorySite } from './content.js';
 import { memoryErasures } from './erasures.js';
 import {
   FakeClock,
@@ -108,6 +108,7 @@ export class MemoryUnitOfWork implements UnitOfWork {
         },
         content: memoryContent(s),
         bulkPlans: memoryBulkPlans(s, bulkLock.lock),
+        presence: memoryPresence(s),
         ...memorySite(s),
         assist: memoryAssist(s),
         connections: memoryConnections(s, principal),

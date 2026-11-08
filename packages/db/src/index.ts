@@ -1,4 +1,5 @@
 import { bulkPlanRepository } from './content-bulk.js';
+import { presenceRepository } from './content-presence.js';
 // Postgres adapter (ADR 002). The only way to touch tenant data is `withTenant`, which opens a
 // transaction, sets `app.tenant_id` for its duration, and hands the use case a Kysely instance.
 // Kysely over an ORM: typed SQL without a second schema language, and RLS needs real SQL anyway.
@@ -224,6 +225,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           events: outboxEventBus(trx),
           content: contentRepository(trx, tenantId),
           bulkPlans: bulkPlanRepository(trx, tenantId),
+          presence: presenceRepository(trx, tenantId),
           siteSettings: siteSettingsRepository(trx, tenantId),
           brandAssets: brandAssetsRepository(trx, tenantId),
           brandProcessor:

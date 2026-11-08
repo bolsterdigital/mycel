@@ -88,6 +88,13 @@ export const ANONYMOUS_USE_CASES: ReadonlySet<string> = new Set([
   'site.theme.get',
 ]);
 
+/**
+ * The commands that write no audit row (ADR 029 rule 3), closed like `ANONYMOUS_USE_CASES`: a new
+ * command is audited until someone adds it here, and the registry rules refuse an entry with an
+ * effect or a limit. Rejected: a flag on each use case, where a copied flag goes unnoticed.
+ */
+export const UNAUDITED_COMMANDS: ReadonlySet<string> = new Set(['content.presence.update']);
+
 export function defineUseCase<TInput extends z.ZodTypeAny, TOutput extends z.ZodTypeAny>(
   useCase: UseCase<TInput, TOutput>
 ): UseCase<TInput, TOutput> {

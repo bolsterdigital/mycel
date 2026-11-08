@@ -72,6 +72,8 @@ export const TABLES = {
   media_usages: 'export',
   content_items: 'export',
   content_revisions: 'export',
+  // Who has an item open this minute (0038): no site data, and gone within the minute.
+  content_presence: 'operational',
   content_bulk_plans: 'export',
   content_bulk_plan_items: 'export',
   content_bulk_runs: 'export',

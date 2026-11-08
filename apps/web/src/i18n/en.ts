@@ -1048,6 +1048,14 @@ export const en = {
     'Your changes were saved as a new revision, together with what {who} saved at {when}. That revision has changes you had not seen yet, so nothing was published, scheduled or approved. Check it below, then choose the action again.',
   'admin.content.done.mergedWith':
     'Your changes were saved first, together with what {who} saved at {when}. Nothing either of you changed was overwritten.',
+  'admin.presence.viewing': '{who} is viewing',
+  'admin.presence.editing': '{who} is editing',
+  'admin.presence.selfViewing': 'You also have this open in another window',
+  'admin.presence.selfEditing': 'You have unsaved changes in another window',
+  'admin.presence.newer': '{who} saved a newer version.',
+  'admin.presence.newerWithInput':
+    '{who} saved a newer version. When you save, your changes are merged with it; only a value you both changed asks for a choice.',
+  'admin.presence.load': 'Load the newest version',
   'admin.content.done.merged':
     'Saved as a new revision, together with what {who} saved at {when}. Nothing either of you changed was overwritten. What is published has not changed.',
   'admin.content.conflict.bodyTable':

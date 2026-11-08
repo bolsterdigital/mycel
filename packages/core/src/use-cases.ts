@@ -70,6 +70,7 @@ import {
   updateItem,
   updateSlug,
 } from './content/service.js';
+import { listPresence, updatePresence } from './content/presence/service.js';
 import { requestContentReview, withdrawContentReview } from './content/review/review.js';
 import { getEntitlements, getUsage } from './entitlements/service.js';
 import { getForm, submitForm } from './forms/service.js';
@@ -152,6 +153,8 @@ export const useCases = {
   updateItem,
   getItem,
   listItems,
+  listPresence,
+  updatePresence,
   listRevisions,
   diffRevisions,
   publishItem,

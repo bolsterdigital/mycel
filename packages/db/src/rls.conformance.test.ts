@@ -49,7 +49,7 @@ const APP_ROLE = 'mycel_app';
 // plus the one exception, the identity tables read at authentication time (mycel_auth, 0007)
 // and the hostnames read to resolve the site being visited (mycel_auth, 0008); and the jobs
 // queue the worker claims from (mycel_worker, 0009); and the login-limit windows counted before
-// any tenant exists (mycel_auth, 0018).
+// any tenant exists (mycel_auth, 0018); and who has an item open, swept by the janitor (0038).
 const CROSS_TENANT_TABLES = [
   'outbox',
   'rate_limits',
@@ -59,6 +59,7 @@ const CROSS_TENANT_TABLES = [
   'tenant_hostnames',
   'jobs',
   'login_attempts',
+  'content_presence',
 ];
 const ISOLATION = '(tenant_id = current_tenant_id())';
 
@@ -252,6 +253,11 @@ describe.skipIf(skip)('row level security conformance', () => {
     // Content (0011): an item with its revision and locale rows, plus an author, a section and
     // a pattern through their use cases.
     const page = await publishProbePage(invoker, admin, formId);
+    await invoker.run(useCases.updatePresence, admin, {
+      itemId: page.id,
+      sessionId: uuidv7(),
+      state: 'viewing',
+    });
     const bulk = await invoker.run(useCases.createBulk, admin, {
       locale: 'nl',
       items: [

@@ -24,7 +24,7 @@ Who did what on a site, and how it ended (PR #19). Every command, over HTTP, MCP
 
 Never in a row: an e-mail address (an operator is its operator id), an IP address or its hash, the input itself, a token. The registry conformance runs every command and fails when any column of any row contains `@`.
 
-Queries are not audited: reading is not an action in this log, and its volume would bury the actions. Exports are commands (`effect: 'export'`) and are audited.
+Queries are not audited: reading is not an action in this log, and its volume would bury the actions. Neither is the one command in `UNAUDITED_COMMANDS`, `content.presence.update` (ADR 029): an open tab reports every twenty seconds, and a row per report would be the record of who read what that presence must not create. Exports are commands (`effect: 'export'`) and are audited.
 
 ## When the row is written
 
