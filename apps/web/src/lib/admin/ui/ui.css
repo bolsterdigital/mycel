@@ -346,8 +346,8 @@
     grid-column: 2;
     margin: 0;
   }
-  /* A long list (#133): a box of a fixed height, so what stands below it stays within reach. The
-     padding keeps a focus ring inside the box, which clips what passes its edge. */
+  /* A long list (#133): a fixed height, so what follows stays in reach. The padding is the focus
+     ring's width plus offset: the box clips its edge. An empty count takes no room, yet is live. */
   .ui-choice-picker,
   .ui-choice-tools {
     display: grid;
@@ -365,12 +365,12 @@
     overflow-wrap: anywhere;
   }
   .ui-choice-tools .ui-hint:empty {
-    display: none;
+    position: absolute;
   }
   .ui-choice-list {
     max-block-size: 16rem;
     overflow-y: auto;
-    padding: var(--space-0);
+    padding: calc(3px + 2px);
     border: var(--border-width) solid var(--color-border);
     border-radius: var(--radius);
   }

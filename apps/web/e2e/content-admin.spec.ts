@@ -901,16 +901,23 @@ test.describe('content-admin', () => {
     const name = `Müller ${run}`;
     if (isA11y()) {
       await expect(authors.getByText('Gekozen: Ver Weg')).toBeVisible();
+      // Already in the tree, or its first count is never read out.
+      await expect(authors.getByRole('status')).toBeAttached();
+      const saves: string[] = [];
+      page.on('request', (r) => {
+        if (r.method() === 'POST' && new URL(r.url()).pathname.endsWith(item.id))
+          saves.push(r.url());
+      });
       await search.fill(`muller ${run}`);
       await expect(authors.locator('.ui-choice:visible')).toHaveCount(1);
       await expect(authors.getByRole('status')).toContainText('1 van ');
       await search.press('Enter');
-      await expect(page).not.toHaveURL(/saved/);
       await authors.getByLabel(name).check();
       await expect(authors.getByText(`Gekozen: Ver Weg, ${name}`)).toBeVisible();
       await search.press('Escape');
       await expect(search).toHaveValue('');
       expect(await authors.locator('.ui-choice:visible').count()).toBeGreaterThan(100);
+      expect(saves).toEqual([]);
     } else {
       await expect(search).toBeHidden();
       await authors.getByLabel(name).check();
