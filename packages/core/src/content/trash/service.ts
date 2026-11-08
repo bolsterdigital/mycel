@@ -7,17 +7,17 @@
 // (one forgotten read would serve deleted content).
 
 import { z } from 'zod';
-import { UseCaseError, notFound } from '../errors.js';
-import { localized } from '../i18n/locale.js';
-import type { TransactionContext } from '../ports.js';
-import { defineUseCase } from '../registry.js';
-import { exampleId } from '../util/ids.js';
-import { MAX_PAGE_SIZE } from '../util/page-size.js';
-import { firstFreeSlug, slugTaken } from './address/slugs.js';
-import { unpublish, withdrawReview } from './lifecycle.js';
-import { ContentItem, ContentType, Slug } from './model.js';
-import type { ItemRecord } from './ports.js';
-import { lockItem, toContentItem } from './service.js';
+import { UseCaseError, notFound } from '../../errors.js';
+import { localized } from '../../i18n/locale.js';
+import type { TransactionContext } from '../../ports.js';
+import { defineUseCase } from '../../registry.js';
+import { exampleId } from '../../util/ids.js';
+import { MAX_PAGE_SIZE } from '../../util/page-size.js';
+import { firstFreeSlug, slugTaken } from '../address/slugs.js';
+import { unpublish, withdrawReview } from '../lifecycle.js';
+import { ContentItem, ContentType, Slug } from '../model.js';
+import type { ItemRecord } from '../ports.js';
+import { lockItem, toContentItem } from '../service.js';
 
 const ItemId = z.string().guid();
 const IsoDate = z.string().datetime({ offset: true });

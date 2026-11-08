@@ -10,7 +10,7 @@ import {
 } from './connections/intents.js';
 import { resumeBulk, withdrawBulk, checkBulk } from './content/bulk/execution.js';
 import { createBulk, getBulk } from './content/bulk/service.js';
-import { deleteItem, listContentTrash, restoreItem } from './content/trash.js';
+import { deleteItem, listContentTrash, restoreItem } from './content/trash/service.js';
 import { listAudit } from './audit/service.js';
 import {
   createConnection,

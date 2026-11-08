@@ -15,20 +15,12 @@ import { PRESENCE_READ_LIMIT } from '../../content/presence/model.js';
 import type { TransactionContext } from '../../ports.js';
 import { paged, type TenantStore } from './store.js';
 
-export function memoryContent(s: TenantStore): ContentRepository {
-  const insertRevision = (r: Revision) => {
-    s.revisions.set(r.id, structuredClone(r));
-    s.blockRefs.set(r.id, documentReferences(r.document));
-  };
-  // Items outside the trash, as the Postgres adapter's `items()` (ADR 030 rule 2).
-  const kept = () => [...s.items.values()].filter((i) => !s.trashedItems.has(i.id));
-  const liveItem = (id: string) => (s.trashedItems.has(id) ? undefined : s.items.get(id));
+/** The trash half of the content port, split off so `memoryContent` stays readable. */
+function memoryTrash(
+  s: TenantStore,
+  kept: () => ItemRecord[]
+): Pick<ContentRepository, 'lockTrashed' | 'trash' | 'restore' | 'trashed'> {
   return {
-    // No-op, like `supporters.lock`: one process, not transactional (see memory.ts).
-    lock: async (id) => structuredClone(liveItem(id) ?? null),
-    get: async (id) => structuredClone(liveItem(id) ?? null),
-    findBySlug: async (type, slug) =>
-      structuredClone(kept().find((i) => i.type === type && i.slug === slug) ?? null),
     lockTrashed: async (id) =>
       structuredClone(s.trashedItems.has(id) ? (s.items.get(id) ?? null) : null),
     async trash(itemId, at) {
@@ -54,6 +46,24 @@ export function memoryContent(s: TenantStore): ContentRepository {
         total: all.length,
       };
     },
+  };
+}
+
+export function memoryContent(s: TenantStore): ContentRepository {
+  const insertRevision = (r: Revision) => {
+    s.revisions.set(r.id, structuredClone(r));
+    s.blockRefs.set(r.id, documentReferences(r.document));
+  };
+  // Items outside the trash, as the Postgres adapter's `items()` (ADR 030 rule 2).
+  const kept = () => [...s.items.values()].filter((i) => !s.trashedItems.has(i.id));
+  const liveItem = (id: string) => (s.trashedItems.has(id) ? undefined : s.items.get(id));
+  return {
+    // No-op, like `supporters.lock`: one process, not transactional (see memory.ts).
+    lock: async (id) => structuredClone(liveItem(id) ?? null),
+    get: async (id) => structuredClone(liveItem(id) ?? null),
+    findBySlug: async (type, slug) =>
+      structuredClone(kept().find((i) => i.type === type && i.slug === slug) ?? null),
+    ...memoryTrash(s, kept),
     async list(filter, { order, after, offset, limit }) {
       const compare = compareItems(order, filter.locale);
       const matching = kept().filter((i) => {

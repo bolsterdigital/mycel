@@ -2,10 +2,10 @@
 // the Postgres adapter to the same reads, the partial slug key and the tenant boundary.
 
 import { describe, expect, it } from 'vitest';
-import { Invoker } from '../invoke.js';
-import { anonymousPrincipal, type Principal } from '../principal.js';
-import { FakeClock, MemoryUnitOfWork, TENANT, principal } from '../testing/index.js';
-import { buildRegistry, useCases } from '../use-cases.js';
+import { Invoker } from '../../invoke.js';
+import { anonymousPrincipal, type Principal } from '../../principal.js';
+import { FakeClock, MemoryUnitOfWork, TENANT, principal } from '../../testing/index.js';
+import { buildRegistry, useCases } from '../../use-cases.js';
 
 const doc = (title: string, blocks: unknown[] = []) => ({
   type: 'page' as const,
