@@ -1,0 +1,103 @@
+/* RowActions: the actions of one table row, a row of whole buttons in a column of their own
+   where the table has room, one menu under the title where it has not. The table's width picks
+   one, in rem, so the text size counts (`.ui-table-scroll` is the container). A file of its own
+   because ui.css is at its ceiling (scripts/gates/file-size); same layer and the same tokens.
+
+   The width where the buttons give way follows how many actions a row holds: four fit from 58rem,
+   a fifth (the content list for someone who publishes) from 62rem, measured on the fonts of CI
+   (Linux, the widest of the three systems: five actions overflowed 58rem by 8 px there) with
+   3.5rem to spare. `:has()` counts the actions, so a route adds one without touching this file.
+   The custom property repeats each breakpoint for the e2e test to read, because a container
+   query cannot read one. Rejected: one wide breakpoint for every table (a three-action table
+   would show the menu where its buttons fit) and the route naming its count (it would drift from
+   what the row holds).
+
+   Narrow-screen rules (skill ui-action-layout): at 320 CSS px and 200% text the menu takes over,
+   its buttons are whole, and the table scrolls inside its own region only. */
+/* The order of the layers, as admin.css and base.css state it (see row-editor.css). */
+@layer tokens, base, components;
+
+@layer components {
+  .ui-table-scroll:has(.ui-row-actions) {
+    container-type: inline-size;
+    --ui-row-actions-takeover: 58rem;
+  }
+  .ui-table-scroll:has(.ui-row-actions.inline > :nth-child(5)) {
+    --ui-row-actions-takeover: 62rem;
+  }
+  /* The row's buttons appear on hover and focus; they keep their place, so a row does not jump,
+     and the keyboard reaches them while they are out of sight. */
+  .ui-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 var(--space-1);
+  }
+  /* The row's own actions keep their one line. The question's button is not one of them: it lives
+     in the question's narrower column and runs on at its word boundaries. */
+  .ui-row-actions > .ui-button,
+  .ui-row-actions > .ui-confirm > summary {
+    white-space: nowrap;
+  }
+  .ui-row-actions.inline {
+    justify-content: end;
+    min-width: max-content;
+  }
+  .ui-row-actions.inline:has(.ui-confirm[open]) {
+    min-width: 18rem;
+  }
+  .ui-row-actions.inline .ui-confirm-body {
+    max-width: 24rem;
+  }
+  /* The column is as wide as its buttons; the title takes what is left. */
+  .ui-table .ui-row-actions-cell {
+    width: 1%;
+  }
+  .ui-row-menu > .ui-row-actions {
+    flex-direction: column;
+    align-items: start;
+  }
+  .ui-table tbody th .ui-row-menu {
+    font-weight: 400;
+  }
+  .ui-row-menu > summary {
+    display: inline-flex;
+    list-style: none;
+  }
+  .ui-row-menu > summary::-webkit-details-marker {
+    display: none;
+  }
+  /* Each pair is exclusive: with `min-width` and `<` at the same value exactly one of the two
+     shows at every width, the breakpoint included. Up to four actions: */
+  @container (min-width: 58rem) {
+    .ui-table-scroll:not(:has(.ui-row-actions.inline > :nth-child(5))) .ui-row-menu {
+      display: none;
+    }
+  }
+  @container (width < 58rem) {
+    .ui-table-scroll:not(:has(.ui-row-actions.inline > :nth-child(5))) .ui-row-actions-cell {
+      display: none;
+    }
+  }
+  /* Five: */
+  @container (min-width: 62rem) {
+    .ui-table-scroll:has(.ui-row-actions.inline > :nth-child(5)) .ui-row-menu {
+      display: none;
+    }
+  }
+  @container (width < 62rem) {
+    .ui-table-scroll:has(.ui-row-actions.inline > :nth-child(5)) .ui-row-actions-cell {
+      display: none;
+    }
+  }
+  @media (hover: hover) {
+    .ui-row-actions.inline {
+      opacity: 0;
+    }
+    tr:hover .ui-row-actions.inline,
+    .ui-row-actions.inline:focus-within,
+    .ui-row-actions.inline:has([open]) {
+      opacity: 1;
+    }
+  }
+}

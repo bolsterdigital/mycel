@@ -2004,13 +2004,14 @@ test.describe('content-list-rows', () => {
     const actions = row.locator('.ui-row-actions.inline');
     await login(page, `/admin/probe/content?type=page&q=${word}&sort=title`);
 
-    // Live with newer changes, so all four actions: they fit just above the width where the menu
-    // takes over, with no scrolling inside the table.
+    // Live with newer changes, so all five actions: they fit just above the width where the menu
+    // takes over, no scrolling inside the table. The width follows font and action count, so
+    // read it from the property row-actions.css sets beside each breakpoint.
     const region = page.locator('.ui-table-scroll');
-    // The table's region picks the layout, and the sidebar's width follows the font: a fixed
-    // window lands on either side of the width depending on the machine. So measure it.
     const takeover = await region.evaluate(
-      () => 58 * parseFloat(getComputedStyle(document.documentElement).fontSize)
+      (e) =>
+        parseFloat(getComputedStyle(e).getPropertyValue('--ui-row-actions-takeover')) *
+        parseFloat(getComputedStyle(document.documentElement).fontSize)
     );
     for (let tries = 0; tries < 3; tries++) {
       const lacking = await region.evaluate(
