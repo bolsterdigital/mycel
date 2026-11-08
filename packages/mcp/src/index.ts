@@ -5,7 +5,10 @@
 // Tools are served from the low-level `Server` rather than `McpServer.registerTool`: the latter
 // validates arguments itself before the handler runs, which would answer a caller without the
 // capability with a schema error and give invalid input a different error shape than HTTP. Here
-// the tool schemas are core's `toJsonSchema`, identical to the OpenAPI document's.
+// the tool schemas are core's `toJsonSchema`, the OpenAPI document's with every reused part moved
+// into `$defs` once: inlined, the content tools repeated the rich-text schema at every block field
+// and the listing grew to 6.5 MB, which a client compiles in full. Rejected: inlining as
+// OpenAPI does, and a listing without output schemas, which would drop structured output.
 
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
@@ -31,11 +34,11 @@ const asText = (value: unknown) => JSON.stringify(value, null, 2);
 /** The tool listing for one use case; exported for the conformance suite. */
 export function toolOf(useCase: UseCase): Tool {
   // MCP requires an object at the top of both schemas; a union of objects says so explicitly.
-  const output = toJsonSchema(useCase.output, 'output');
+  const output = toJsonSchema(useCase.output, 'output', { reused: 'ref' });
   return {
     name: useCase.name,
     description: useCase.description,
-    inputSchema: toJsonSchema(useCase.input, 'input') as Tool['inputSchema'],
+    inputSchema: toJsonSchema(useCase.input, 'input', { reused: 'ref' }) as Tool['inputSchema'],
     outputSchema: { type: 'object', ...output } as Tool['outputSchema'],
     annotations: {
       readOnlyHint: useCase.kind === 'query',
