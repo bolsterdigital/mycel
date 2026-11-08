@@ -69,7 +69,7 @@
   // Without any, a reader would open a menu with nothing in it. Taking offline needs a live page.
   const nameOf = (item: (typeof data.items)[number]) => item.title || t('admin.content.untitled');
   const hasActions = (item: (typeof data.items)[number]) =>
-    Boolean(item.live || item.preview || data.canWrite);
+    Boolean(item.live || item.preview || data.canWrite || data.canPublish);
   // A page on which no row has any keeps no column for them: without the row's actions the table
   // is no container, so an empty column would never give way below 58rem.
   const canBulk = $derived(data.canPublish || (data.type === 'article' && data.canWrite));
@@ -150,6 +150,18 @@
       field={{ name: 'item', value: item.id }}
     />
   {/if}
+  {#if data.canPublish}
+    <ConfirmAction
+      variant="link"
+      label={t('admin.content.row.delete')}
+      question={t('admin.content.row.delete.question')}
+      confirm={t('admin.content.row.delete.confirm')}
+      {name}
+      form="content-row-actions"
+      formaction={data.links.delete}
+      field={{ name: 'item', value: item.id }}
+    />
+  {/if}
 {/snippet}
 
 <svelte:head>
@@ -188,7 +200,15 @@
     : undefined}
 >
   {#snippet notices()}
-    {#if form}<Notice tone="error"><p>{t(form.error)}</p></Notice>{/if}
+    {#if form}<Notice tone="error"
+        ><p>{fill(t(form.error), form as unknown as Record<string, string>)}</p></Notice
+      >{/if}
+    {#if data.trashed}<Notice tone="success"
+        ><p>
+          {t('admin.content.delete.done')}
+          <a href={data.links.trash}>{t('admin.content.trash.title')}</a>
+        </p></Notice
+      >{/if}
     {#if data.offline}<Notice tone="success"
         ><p>
           {fill(t('admin.content.publication.done.unpublish'), { locale: data.workLocale })}
@@ -198,6 +218,9 @@
   {#snippet actions()}
     <!-- An empty list offers this once, where the reader is looking. -->
     {#if data.canWrite && (data.total > 0 || data.filtered)}{@render create()}{/if}
+    {#if data.canPublish}<Button variant="link" href={data.links.trash}
+        >{t('admin.content.trash.title')}</Button
+      >{/if}
   {/snippet}
   {#snippet filters()}
     <form

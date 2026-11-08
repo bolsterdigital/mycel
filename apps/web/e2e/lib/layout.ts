@@ -68,6 +68,17 @@ export function layoutProblems(page: Page, within = 'body'): Promise<string[]> {
           `past the edge: ${path(node)} right=${Math.round(right)} text=${JSON.stringify((node.textContent ?? '').trim().slice(0, 60))}`
         );
     }
+    // A caption is as wide as its table. A stacked table is `display: block`, and a caption left
+    // as a table caption shrinks to its longest syllable and breaks in the middle of a word.
+    for (const caption of document.querySelectorAll(`${scope} caption`)) {
+      if (caption.classList.contains('ui-visually-hidden')) continue;
+      const table = caption.closest('table')!.getBoundingClientRect().width;
+      const own = caption.getBoundingClientRect().width;
+      if (own + 2 < table)
+        out.push(
+          `caption narrower than its table: ${caption.textContent?.trim()} ${own} < ${table}`
+        );
+    }
     const actions = [
       'button',
       'a.button',

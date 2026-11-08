@@ -580,6 +580,8 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.content.item.publish': 'Gepubliceerd',
   'admin.audit.op.content.item.schedule': 'Publicatie ingepland',
   'admin.audit.op.content.item.duplicate': 'Gekopieerd',
+  'admin.audit.op.content.item.delete': 'Naar de prullenbak',
+  'admin.audit.op.content.item.restore': 'Hersteld',
   'admin.audit.op.content.item.unpublish': 'Offline gehaald',
   'admin.audit.op.content.item.unschedule': 'Ingeplande publicatie geschrapt',
   'admin.audit.op.content.review.request': 'Ter publicatie aangeboden',
@@ -747,6 +749,24 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.content.row.site': 'Op de site',
   'admin.content.row.preview': 'Voorbeeld',
   'admin.content.row.duplicate': 'Dupliceren',
+  'admin.content.row.delete': 'Verwijderen',
+  'admin.content.row.delete.question': 'Naar de prullenbak? Dit haalt het in alle talen offline.',
+  'admin.content.row.delete.confirm': 'Ja, naar de prullenbak',
+  'admin.content.delete.done': 'Naar de prullenbak verplaatst. Herstellen zet het offline terug.',
+  'admin.content.delete.refused':
+    'Dit kon niet worden verwijderd. Laad de pagina opnieuw en probeer het nog eens.',
+  'admin.content.delete.referenced':
+    'Dit kan niet weg zolang andere items ernaar linken ({count}: {titles}). Haal die links eerst weg.',
+  'admin.content.trash.title': 'Prullenbak',
+  'admin.content.trash.intro':
+    'Verwijderde pagina’s en artikelen blijven hier staan tot je ze herstelt. Ze zijn offline en hun adres is vrij.',
+  'admin.content.trash.name': 'Titel en adres',
+  'admin.content.trash.none': 'De prullenbak is leeg.',
+  'admin.content.trash.restore': 'Herstellen',
+  'admin.content.trash.deleted': 'Verwijderd',
+  'admin.content.trash.done': 'Offline hersteld: {title}.',
+  'admin.content.trash.moved': 'Het oude adres is bezet, dus het staat nu op {slug}.',
+  'admin.content.trash.notFound': 'Dit staat niet meer in de prullenbak.',
   'admin.content.row.offline.question':
     'Offline halen in {locale}? Dit item is dan niet meer op de site te zien; de tekst blijft bewaard.',
   'admin.content.row.offline.confirm': 'Ja, offline halen',

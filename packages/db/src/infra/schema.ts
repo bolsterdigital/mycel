@@ -199,6 +199,7 @@ export interface Database {
     latest_revision_id: string;
     created_at: Timestamp;
     updated_at: Timestamp;
+    deleted_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
   };
   content_revisions: {
     id: string;

@@ -114,7 +114,8 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
     }));
   }
   const one = async (rows: ItemRow[]) => (await withLocales(rows))[0] ?? null;
-  const items = () => trx.selectFrom('content_items').selectAll();
+  /** Every item outside the trash: the one way the module reads items (ADR 030 rule 2). */
+  const items = () => trx.selectFrom('content_items').selectAll().where('deleted_at', 'is', null);
 
   async function writeLocales(item: ItemRecord): Promise<void> {
     for (const s of item.publication) {
@@ -252,7 +253,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
         );
       }
       const matching = () => {
-        let query = trx.selectFrom('content_items as i');
+        let query = trx.selectFrom('content_items as i').where('i.deleted_at', 'is', null);
         for (const condition of matches) query = query.where(condition);
         return query;
       };
@@ -348,6 +349,54 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
       }
     },
     insertRevision,
+    lockTrashed: async (itemId) =>
+      one(
+        await trx
+          .selectFrom('content_items')
+          .selectAll()
+          .where('id', '=', itemId)
+          .where('deleted_at', 'is not', null)
+          .forUpdate()
+          .execute()
+      ),
+    async trash(itemId, at) {
+      await trx
+        .updateTable('content_items')
+        .set({ deleted_at: at, updated_at: at })
+        .where('id', '=', itemId)
+        .execute();
+    },
+    async restore(itemId, slug, at) {
+      try {
+        await trx
+          .updateTable('content_items')
+          .set({ deleted_at: null, slug, updated_at: at })
+          .where('id', '=', itemId)
+          .execute();
+        return true;
+      } catch (e) {
+        if (hitKey(e, 'content_items_tenant_id_type_slug_key')) return false;
+        throw e;
+      }
+    },
+    async trashed(offset, limit) {
+      const inTrash = () => trx.selectFrom('content_items').where('deleted_at', 'is not', null);
+      const rows = await inTrash()
+        .selectAll()
+        .orderBy('deleted_at', 'desc')
+        .orderBy('id', 'desc')
+        .offset(offset)
+        .limit(limit)
+        .execute();
+      const { n } = await inTrash()
+        .select((eb) => eb.fn.countAll<string>().as('n'))
+        .executeTakeFirstOrThrow();
+      const records = await withLocales(rows);
+      return {
+        rows: records.map((item, i) => ({ item, deletedAt: new Date(rows[i]!.deleted_at!) })),
+        total: Number(n),
+      };
+    },
     async find({ blockType, ref, live, type }, after, limit) {
       // Containment on the whole document, so the GIN jsonb_path_ops index of 0017 applies.
       const typed = blockType
@@ -360,6 +409,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
       let q = trx
         .selectFrom('content_items as i')
         .selectAll('i')
+        .where('i.deleted_at', 'is', null)
         .where(
           sql<boolean>`exists (select 1 from content_revisions r where r.item_id = i.id
                                and ${searched(live)} and ${typed} and ${referenced})`
@@ -415,6 +465,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
         .selectFrom('content_items as i')
         .innerJoin('content_revisions as r', 'r.id', 'i.latest_revision_id')
         .select(['i.id', 'r.document'])
+        .where('i.deleted_at', 'is', null)
         .where('i.id', 'in', [...itemIds])
         .execute();
       const documents = new Map<string, ContentDocument>();
@@ -429,6 +480,7 @@ export function contentRepository(trx: Trx, tenantId: string): ContentRepository
         .selectFrom('content_item_locales as l')
         .innerJoin('content_items as i', 'i.id', 'l.item_id')
         .where('l.review_since', 'is not', null)
+        .where('i.deleted_at', 'is', null)
         .select([
           'l.item_id',
           'l.locale',

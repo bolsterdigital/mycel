@@ -1,8 +1,9 @@
 <!-- The actions of one table row: a row of whole buttons in a column of their
      own where the table has room, one menu under the title where it has not, the one cell a phone
      shows without scrolling the table. The route renders both and the table's width picks one in CSS
-     (`.ui-table-scroll` is the container), so it works without JavaScript and follows the text
-     size: at 200% the menu takes over. The row of buttons shows on hover and focus and always
+     (row-actions.css; `.ui-table-scroll` is the container, and the width follows how many actions
+     a row holds), so it works without JavaScript and follows the text size: at 200% the menu takes
+     over. The row of buttons shows on hover and focus and always
      on a screen without hover. The menu opens in place: a popup would be cut off by the table's
      own scrolling. Rejected: the menu at every width (one more click for what the row is for), and
      one element restyled per width (a closed <details> hides its content in older browsers,

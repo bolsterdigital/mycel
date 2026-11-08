@@ -181,6 +181,7 @@ export const load: PageServerLoad = async ({ parent, locals, url, params, cookie
     canPublish: can(principal, 'content:publish'),
     // The list came back from taking an item offline: it says so, in words.
     offline: url.searchParams.get('done') === 'offline',
+    trashed: url.searchParams.get('done') === 'deleted',
     type,
     contentType: type,
     workLocale: work,
@@ -228,6 +229,8 @@ export const load: PageServerLoad = async ({ parent, locals, url, params, cookie
     links: {
       unpublish: `${here}&/unpublish`,
       duplicate: `${here}&/duplicate`,
+      delete: `${here}&/delete`,
+      trash: `/admin/${params.tenant}/content/trash`,
       display: `${here}&/display`,
       bulk: `${here}&/bulk`,
       clear: to({ ...NO_FILTERS, page: 1 }),
@@ -373,6 +376,29 @@ export const actions: Actions = {
       303,
       listPath(event.params.tenant, type, { ...view, page: 1, columns: null, per: null })
     );
+  },
+  // Back to the same view; the notice points at the trash, so the deletion can be undone.
+  delete: async (event) => {
+    const type = ContentType.safeParse(event.url.searchParams.get('type')).data ?? 'page';
+    const view = listViewFrom(event.url.searchParams, type);
+    const result = await act(
+      event,
+      'delete',
+      {
+        // The one conflict `content.item.delete` has; the params name the linking items.
+        conflict: 'admin.content.delete.referenced',
+        notFound: 'admin.content.delete.refused',
+      },
+      async (principal, form) => {
+        await runtime().invoker.run(useCases.deleteItem, principal, {
+          itemId: String(form.get('item')),
+        });
+        return {};
+      },
+      async (e) => e.issues[0]?.params ?? {}
+    );
+    if ('status' in result) return result;
+    redirect(303, `${listPath(event.params.tenant, type, view)}&done=deleted`);
   },
   // Back to the same view at the item's row; a filter the item no longer matches may hide it.
   unpublish: async (event) => {

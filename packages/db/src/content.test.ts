@@ -715,6 +715,51 @@ describe.skipIf(skip)('content conformance', () => {
     ).toBe('23514');
   });
 
+  it('keeps a trashed item out of every read, its slug free and its tenant to itself', async () => {
+    const admin = adminOf(tenantA);
+    const slug = `trash-${run}`;
+    const { item, revision } = await invoker.run(useCases.createItem, admin, {
+      slug,
+      document: doc('Weg'),
+    });
+    await invoker.run(useCases.publishItem, admin, {
+      itemId: item.id,
+      revisionId: revision.id,
+      locale: 'nl',
+    });
+    await invoker.run(useCases.deleteItem, admin, { itemId: item.id });
+
+    await expect(
+      invoker.run(useCases.getPublished, anonymousPrincipal(tenantA, ['content:read']), {
+        type: 'page',
+        slug,
+      })
+    ).rejects.toMatchObject({ code: 'not_found' });
+    await expect(invoker.run(useCases.getItem, admin, { itemId: item.id })).rejects.toMatchObject({
+      code: 'not_found',
+    });
+    expect((await invoker.run(useCases.listItems, admin, { type: 'page', slug })).total).toBe(0);
+    expect((await invoker.run(useCases.listContentTrash, admin, {})).items).toContainEqual(
+      expect.objectContaining({ id: item.id, slug })
+    );
+    expect(
+      (await invoker.run(useCases.listContentTrash, adminOf(tenantB), {})).items.map((i) => i.id)
+    ).not.toContain(item.id);
+    await expect(
+      invoker.run(useCases.restoreItem, adminOf(tenantB), { itemId: item.id })
+    ).rejects.toMatchObject({ code: 'not_found' });
+
+    // The partial key: the slug is free in the trash and taken again outside it.
+    const { item: replacement } = await invoker.run(useCases.createItem, admin, {
+      slug,
+      document: doc('Nieuw'),
+    });
+    expect(replacement.slug).toBe(slug);
+    const restored = await invoker.run(useCases.restoreItem, admin, { itemId: item.id });
+    expect(restored).toMatchObject({ slugChanged: true, item: { slug: `${slug}-2` } });
+    expect(restored.item.publication[0]).toMatchObject({ status: 'unpublished' });
+  });
+
   it('publishes nl and keeps the en draft out of the public projection', async () => {
     const { item, revision } = await invoker.run(useCases.createItem, adminOf(tenantA), {
       slug: `bilingual-${run}`,

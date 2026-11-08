@@ -482,7 +482,7 @@ test.describe('admin', () => {
     await login(page, '/admin/probe');
     await page.goto('/admin/probe/content?type=page');
     const item = await page
-      .locator('main a[href*="/admin/probe/content/"]')
+      .locator('main tbody a[href*="/admin/probe/content/"]')
       .first()
       .getAttribute('href');
     expect(item).toMatch(/\/content\/[0-9a-f-]{36}/);
@@ -1703,10 +1703,10 @@ test.describe('content-list-rows', () => {
     await expect(actions.getByRole('link', { name: /^Op de site/ })).toBeVisible();
     await expect(actions.getByRole('link', { name: /^Voorbeeld/ })).toBeVisible();
 
-    // Taken offline after a question in the row; the same view, and it says so.
+    // Taken offline after a question in the row.
     await page.reload();
     await row.hover();
-    await actions.locator('summary').click();
+    await actions.locator('summary').first().click();
     await actions.getByRole('button', { name: `Ja, offline halen: Brood ${word}` }).click();
     await expect(page).toHaveURL(new RegExp(`done=offline#item-${item.id}$`));
     await expect(page.getByText('Offline gehaald in nl.')).toBeVisible();
@@ -2004,13 +2004,14 @@ test.describe('content-list-rows', () => {
     const actions = row.locator('.ui-row-actions.inline');
     await login(page, `/admin/probe/content?type=page&q=${word}&sort=title`);
 
-    // Live with newer changes, so all four actions: they fit just above the width where the menu
-    // takes over, with no scrolling inside the table.
+    // Live with newer changes, so all five actions: they fit just above the width where the menu
+    // takes over, no scrolling inside the table. The width follows font and action count, so
+    // read it from the property row-actions.css sets beside each breakpoint.
     const region = page.locator('.ui-table-scroll');
-    // The table's region picks the layout, and the sidebar's width follows the font: a fixed
-    // window lands on either side of the width depending on the machine. So measure it.
     const takeover = await region.evaluate(
-      () => 58 * parseFloat(getComputedStyle(document.documentElement).fontSize)
+      (e) =>
+        parseFloat(getComputedStyle(e).getPropertyValue('--ui-row-actions-takeover')) *
+        parseFloat(getComputedStyle(document.documentElement).fontSize)
     );
     for (let tries = 0; tries < 3; tries++) {
       const lacking = await region.evaluate(
@@ -2029,7 +2030,7 @@ test.describe('content-list-rows', () => {
     expect(await region.evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(0);
 
     // The question in the column keeps its button whole too; closed again for what follows.
-    const inlineConfirm = actions.locator('.ui-confirm');
+    const inlineConfirm = actions.locator('.ui-confirm').first();
     await inlineConfirm.locator('summary').click();
     await expectWholeLabel(inlineConfirm.locator('.ui-confirm-body .ui-button'));
     await inlineConfirm.locator('summary').click();
@@ -2065,8 +2066,8 @@ test.describe('content-list-rows', () => {
     // The question in the menu: the button holds its label at 200% text and at 100%, on word
     // boundaries. The page gate does not see this: nothing overflows the page.
     const menu = row.locator('.ui-row-menu');
-    await menu.locator('.ui-confirm > summary').click();
-    const yes = menu.locator('.ui-confirm-body .ui-button');
+    await menu.locator('.ui-confirm > summary').first().click();
+    const yes = menu.locator('.ui-confirm-body .ui-button').first();
     await expect(yes).toBeVisible();
     await expectWholeLabel(yes);
     await page.evaluate(() => document.documentElement.style.removeProperty('font-size'));
