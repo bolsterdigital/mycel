@@ -355,6 +355,13 @@ async function observeMediaListing(invoker: Invoker, uow: UnitOfWork, admin: Pri
       blocks: [image('ooit-half', both)],
     }),
   });
+  // In the trash with a hero that lacks its English alt: no flag on the image (ADR 030 rule 2),
+  // which stays used, as every trashed item keeps its usages.
+  const { item: trashed } = await save('media-hero-weg', {
+    heroImageId: ids.get('Beschreven')!,
+    heroAlt: { nl: 'Foto' },
+  });
+  await invoker.run(useCases.deleteItem, admin, { itemId: trashed.id });
 
   const list = (input: MediaListInput) => invoker.run(useCases.listMedia, admin, input);
   const keys = async (input: MediaListInput) =>

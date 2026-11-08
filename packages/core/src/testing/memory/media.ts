@@ -107,12 +107,13 @@ export function memoryMedia(s: TenantStore, lock: () => Promise<void>): MediaRep
     const found = (m: StoredMedia) =>
       !needle ||
       [m.filename, ...Object.values(m.caption)].some((t) => t.toLowerCase().includes(needle));
+    // An item in the trash flags nothing (ADR 030 rule 2), as `LACKING_ALT` in @mycel/db.
     const lacking = new Set(
       missingAlt === undefined
         ? []
-        : [...s.items.values()].flatMap((i) =>
-            mediaMissingAlt(s.revisions.get(i.latestRevisionId)!.document)
-          )
+        : [...s.items.values()]
+            .filter((i) => !s.trashedItems.has(i.id))
+            .flatMap((i) => mediaMissingAlt(s.revisions.get(i.latestRevisionId)!.document))
     );
     return [...s.media.values()].filter(
       (m) =>

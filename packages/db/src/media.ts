@@ -55,7 +55,8 @@ const LACKING_ALT = sql<string>`(
   select (r.document->>'heroImageId')::uuid
   from content_items i
   join content_revisions r on r.id = i.latest_revision_id
-  where jsonb_exists(r.document, 'heroImageId')
+  where i.deleted_at is null
+    and jsonb_exists(r.document, 'heroImageId')
     and jsonb_exists(r.document, 'heroAlt')
     and exists (
       select 1 from jsonb_array_elements_text(r.document->'locales') locale
