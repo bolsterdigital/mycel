@@ -53,14 +53,7 @@ export const itemListFields = {
   authorId: z.string().guid().optional(),
   sectionId: z.string().guid().optional(),
   // A filter, not a stored tag: a tag no article can have just finds nothing.
-  tag: z
-    .string()
-    .trim()
-    .min(1)
-    .max(50)
-    .refine((tag) => !tag.includes('\0'))
-    .transform(canonicalTag)
-    .optional(),
+  tag: z.string().trim().min(1).max(50).transform(canonicalTag).optional(),
   updatedFrom: z.string().datetime({ offset: true }).optional(),
   updatedBefore: z.string().datetime({ offset: true }).optional(),
   translation: z
