@@ -10,7 +10,6 @@
 import { z } from 'zod';
 import { withinLimit } from '../entitlements/guards.js';
 import { notFound, UseCaseError } from '../errors.js';
-import { jobKey } from '../jobs/types.js';
 import '../jobs/ports.js';
 import '../entitlements/ports.js';
 import type { TransactionContext } from '../ports.js';
@@ -26,7 +25,7 @@ import {
   CONTENT_TYPE_OF,
   MAX_PIXELS,
   MAX_UPLOAD_BYTES,
-  MEDIA_PURGE_DELAY_MS,
+  MEDIA_TRASH_RETENTION_MS,
   MediaAccess,
   MediaCaption,
   MediaContentType,
@@ -41,6 +40,7 @@ import {
   mediaKeys,
   mediaPrefix,
   originalFile,
+  restorableUntil,
   variantFile,
   variantWidths,
   type MediaPatch,
@@ -51,6 +51,7 @@ import './ports.js';
 import { exampleId } from '../util/ids.js';
 
 const MediaId = z.string().guid();
+const IsoDate = z.string().datetime({ offset: true });
 
 /** Base64 of `MAX_UPLOAD_BYTES`, rounded up to whole quads. */
 const MAX_BASE64 = Math.ceil(MAX_UPLOAD_BYTES / 3) * 4;
@@ -469,11 +470,11 @@ export const deleteMedia = defineUseCase({
   name: 'media.delete',
   kind: 'command',
   description:
-    'Delete a media item that nothing uses any more; a job removes its files 24 hours later, so a running backup still finds them.',
+    'Move a media item that nothing uses any more to the trash; it answers 404 at once and can be restored for 30 days.',
   requires: 'media:write',
   consumes: null,
   input: z.object({ id: MediaId }).strict(),
-  output: z.object({ id: MediaId, purgeScheduled: z.boolean() }),
+  output: z.object({ id: MediaId, restorableUntil: IsoDate }),
   examples: [{ input: { id: exampleId(0xd001) } }],
   async handler(ctx, { id }) {
     // The lock every reference-checking save takes (content/service.ts `blockReferenceIssues`):
@@ -487,20 +488,162 @@ export const deleteMedia = defineUseCase({
       ]);
     const now = ctx.clock.now();
     await ctx.media.softDelete(id, now);
-    // In this transaction: the files go if and only if the delete commits, and not before a
-    // backup or export that already holds the row has copied them (MEDIA_PURGE_DELAY_MS).
-    const purgeScheduled = await ctx.jobs.enqueue({
-      type: 'media.purge',
-      key: jobKey('media.purge', id),
-      runAt: new Date(now.getTime() + MEDIA_PURGE_DELAY_MS),
-      payload: { mediaId: id, keys: mediaKeys(ctx.principal.tenantId, m) },
-    });
-    return { id, purgeScheduled };
+    return { id, restorableUntil: restorableUntil(now).toISOString() };
+  },
+});
+
+const MediaIds = z
+  .array(MediaId)
+  .min(1)
+  .max(100)
+  .refine((ids) => new Set(ids).size === ids.length, 'media.duplicate');
+
+export const bulkDeleteMedia = defineUseCase({
+  name: 'media.bulk.delete',
+  kind: 'command',
+  description:
+    'Move up to 100 media items to the trash, reporting per item: deleted, in use (with the number of places, never where) or not found. Asking again for an item already in the trash is deleted again, so a retry is safe.',
+  requires: 'media:write',
+  consumes: null,
+  input: z.object({ ids: MediaIds }).strict(),
+  output: z.object({
+    results: z.array(
+      z.object({
+        id: MediaId,
+        status: z.enum(['deleted', 'in-use', 'not-found']),
+        usageCount: z.number().int().nonnegative().optional(),
+        restorableUntil: IsoDate.optional(),
+      })
+    ),
+  }),
+  examples: [{ input: { ids: [exampleId(0xd001)] } }],
+  async handler(ctx, { ids }) {
+    await ctx.media.lock();
+    const now = ctx.clock.now();
+    const results = [];
+    for (const id of ids) {
+      const m = await ctx.media.get(id);
+      if (!m) results.push({ id, status: 'not-found' as const });
+      else if (m.deletedAt)
+        results.push({
+          id,
+          status: 'deleted' as const,
+          restorableUntil: restorableUntil(m.deletedAt).toISOString(),
+        });
+      else if (m.usageCount > 0)
+        results.push({ id, status: 'in-use' as const, usageCount: m.usageCount });
+      else {
+        await ctx.media.softDelete(id, now);
+        results.push({
+          id,
+          status: 'deleted' as const,
+          restorableUntil: restorableUntil(now).toISOString(),
+        });
+      }
+    }
+    return { results };
+  },
+});
+
+export const restoreMedia = defineUseCase({
+  name: 'media.restore',
+  kind: 'command',
+  description:
+    'Restore up to 100 media items from the trash, reporting per item: restored, expired, over the storage limit or not found. A restored item is live again; nothing that referred to it existed, because only unused items can be deleted.',
+  requires: 'media:write',
+  // Not `media.storage_max_bytes`: over the limit is a result per item, not a refusal of the call.
+  consumes: null,
+  input: z.object({ ids: MediaIds }).strict(),
+  output: z.object({
+    results: z.array(
+      z.object({
+        id: MediaId,
+        status: z.enum(['restored', 'expired', 'over-limit', 'not-found']),
+      })
+    ),
+  }),
+  examples: [{ input: { ids: [exampleId(0xd001)] } }],
+  async handler(ctx, { ids }) {
+    // The cap is exact under the lock uploads take, and the purge job too.
+    await ctx.media.lock();
+    const now = ctx.clock.now();
+    let used = await ctx.usage.storageBytes();
+    const fits = (bytes: number) => {
+      try {
+        withinLimit(ctx, 'media.storage_max_bytes', used, bytes);
+        return true;
+      } catch (e) {
+        if (e instanceof UseCaseError && e.code === 'limit_exceeded') return false;
+        throw e;
+      }
+    };
+    const results = [];
+    for (const id of ids) {
+      const m = await ctx.media.get(id);
+      if (!m) results.push({ id, status: 'not-found' as const });
+      else if (!m.deletedAt) results.push({ id, status: 'restored' as const });
+      else if (restorableUntil(m.deletedAt) <= now)
+        results.push({ id, status: 'expired' as const });
+      else if (!fits(m.totalBytes)) results.push({ id, status: 'over-limit' as const });
+      else {
+        await ctx.media.restore(id, now);
+        used += m.totalBytes;
+        results.push({ id, status: 'restored' as const });
+      }
+    }
+    return { results };
+  },
+});
+
+export const listMediaTrash = defineUseCase({
+  name: 'media.trash.list',
+  kind: 'query',
+  description:
+    'List the media items in the trash of this site, most recently deleted first, with the moment each is removed for good.',
+  // Deleted files are for those who can act on them, not for every reader of the library.
+  requires: 'media:write',
+  input: z
+    .object({
+      offset: z.number().int().min(0).max(MAX_LIST_OFFSET).optional(),
+      limit: z.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
+    })
+    .strict(),
+  output: z.object({
+    items: z.array(
+      z.object({
+        id: MediaId,
+        filename: z.string(),
+        kind: MediaKind,
+        sizeBytes: z.number().int().nonnegative(),
+        deletedAt: IsoDate,
+        restorableUntil: IsoDate,
+      })
+    ),
+    total: z.number().int().nonnegative(),
+  }),
+  examples: [{ input: {} }],
+  async handler(ctx, { offset, limit = 50 }) {
+    const since = new Date(ctx.clock.now().getTime() - MEDIA_TRASH_RETENTION_MS);
+    const [rows, total] = [
+      await ctx.media.listTrash({ since, offset, limit }),
+      await ctx.media.countTrash(since),
+    ];
+    return {
+      items: rows.map((m) => ({
+        id: m.id,
+        filename: m.filename,
+        kind: m.kind,
+        sizeBytes: m.sizeBytes,
+        deletedAt: m.deletedAt!.toISOString(),
+        restorableUntil: restorableUntil(m.deletedAt!).toISOString(),
+      })),
+      total,
+    };
   },
 });
 
 /**
- * The `media.purge` job (tenant job): delete the files, then the row. Idempotent: a missing key
+ * The `media.purge` job (tenant job), for jobs planned before the trash: delete the files, then the row. Idempotent: a missing key
  * is not an error and a row already gone is fine. Only keys of this tenant's asset are touched,
  * whatever the payload says.
  */
@@ -511,8 +654,33 @@ export async function purgeMedia(
   const own = mediaKey(ctx.principal.tenantId, mediaId, '');
   const foreign = keys.filter((k) => !k.startsWith(own) || k.includes('..'));
   if (foreign.length) throw new Error(`media.purge: keys outside ${own}: ${foreign.join(', ')}`);
+  // Serialises with `media.restore`, and a restored asset keeps its files: a job planned before
+  // the trash existed must not take them.
+  await ctx.media.lock();
+  const m = await ctx.media.get(mediaId);
+  if (m && !m.deletedAt) return;
   await ctx.blobs.delete(keys);
   await ctx.media.hardDelete(mediaId);
+}
+
+const TRASH_BATCH = 500;
+
+/**
+ * What ended the retention of the trash: files first, then the row, under the media lock so a
+ * restore serialises with it. The daily sweep calls it, which also covers a row an import brought
+ * in without any job. A batch at a time; the next day takes the rest.
+ */
+async function purgeExpiredTrash(ctx: TransactionContext): Promise<string[]> {
+  await ctx.media.lock();
+  const before = new Date(ctx.clock.now().getTime() - MEDIA_TRASH_RETENTION_MS);
+  const purged: string[] = [];
+  for (const m of await ctx.media.expiredTrash(before, TRASH_BATCH)) {
+    const keys = mediaKeys(ctx.principal.tenantId, m);
+    await ctx.blobs.delete(keys);
+    await ctx.media.hardDelete(m.id);
+    purged.push(...keys);
+  }
+  return purged;
 }
 
 /**
@@ -522,6 +690,7 @@ export async function purgeMedia(
  * committed yet. Returns the deleted keys.
  */
 export async function sweepMediaOrphans(ctx: TransactionContext): Promise<string[]> {
+  const expired = await purgeExpiredTrash(ctx);
   const known = new Set(await ctx.media.idsOf());
   const prefix = mediaPrefix(ctx.principal.tenantId);
   const cutoff = ctx.clock.now().getTime() - ORPHAN_AGE_MS;
@@ -531,5 +700,5 @@ export async function sweepMediaOrphans(ctx: TransactionContext): Promise<string
     if (!known.has(id) && modifiedAt.getTime() < cutoff) stale.push(key);
   }
   if (stale.length) await ctx.blobs.delete(stale);
-  return stale;
+  return [...expired, ...stale];
 }

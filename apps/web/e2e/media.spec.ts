@@ -84,7 +84,7 @@ async function remove(page: Page, id: string, filename: string) {
   await page.goto(`/admin/probe/media/${id}`);
   await page.getByRole('button', { name: 'Verwijderen' }).click();
   await expect(page).toHaveURL(/\/admin\/probe\/media\?done=deleted$/);
-  await expect(page.getByRole('status')).toContainText('Het bestand is verwijderd');
+  await expect(page.getByRole('status')).toContainText('in de prullenbak');
   await expect(item(page, filename)).toHaveCount(0);
 }
 
@@ -163,11 +163,11 @@ test('an operator uploads, sees, edits, downloads and deletes an image', async (
   await login(page, '/admin/probe');
   await page.getByRole('link', { name: 'Media', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Media' })).toBeVisible();
-  // Only the thumbnail enhancement of the file field; the upload works without it.
+  // Only optional enhancements (thumbnails, selection count); everything works without them.
   expect(
     await page
       .locator(
-        'script:not([src="/_admin/file-preview.js"], [src="/_admin/drop-upload.js"], [src="/_admin/nav.js"])'
+        'script:not([src="/_admin/file-preview.js"], [src="/_admin/drop-upload.js"], [src="/_admin/nav.js"], [src="/_admin/content-bulk.js"])'
       )
       .count()
   ).toBe(0);
@@ -624,7 +624,7 @@ test('the library narrows to what needs attention, in any order, and an asset go
   await page.goto(`/admin/probe/media/${ids[names.unused]}`);
   await page.getByRole('button', { name: 'Verwijderen' }).click();
   await expect(page).toHaveURL(new RegExp(`q=${stamp}.*done=deleted$`));
-  await expect(page.getByRole('status')).toContainText('Het bestand is verwijderd');
+  await expect(page.getByRole('status')).toContainText('in de prullenbak');
   await expect(page.getByRole('link', { name: names.unused })).toHaveCount(0);
 });
 
@@ -680,10 +680,95 @@ test('deleting the only file on the last page says so, on the page before it', a
     await expect(page).toHaveURL(new RegExp(`q=${stamp}.*done=deleted$`));
     await expect(page).not.toHaveURL(/page=/);
     await expect(page.locator('#media-count')).toHaveText('50 gevonden');
-    await expect(page.getByRole('status')).toContainText('Het bestand is verwijderd');
+    await expect(page.getByRole('status')).toContainText('in de prullenbak');
   } finally {
     // Soft-deleted, or the preflight of the next run refuses live rows without files.
     await eachRow((ctx, { id }) => ctx.media.softDelete(id, new Date()));
+  }
+});
+
+test('a selection goes to the trash with a result per file, and comes back', async ({ page }) => {
+  await login(page, '/admin/probe/media');
+  const stamp = `${test.info().project.name}-bulk-${Date.now()}`;
+  const principal = systemPrincipal(await tenantId(), 'e2e');
+  const rows = ['vrij', 'gebruikt'].map((name) => ({
+    id: randomUUID(),
+    filename: `${stamp}-${name}.png`,
+  }));
+  const [free, used] = [rows[0]!, rows[1]!];
+  await withInvoker((_, uow) =>
+    uow.run(principal, async (ctx) => {
+      const now = new Date();
+      for (const { id, filename } of rows)
+        await ctx.media.insert({
+          id,
+          kind: 'image',
+          contentType: 'image/png',
+          filename,
+          checksum: id.replaceAll('-', '').padEnd(64, '0'),
+          sizeBytes: 1,
+          totalBytes: 1,
+          width: 1,
+          height: 1,
+          variants: [],
+          access: 'public',
+          caption: {},
+          credit: { work: null, photographer: null },
+          source: null,
+          licence: null,
+          focal: { x: 0.5, y: 0.5 },
+          state: 'ready',
+          createdBy: principal.actor,
+          createdAt: now,
+          updatedAt: now,
+        });
+    })
+  );
+  await setUsage(used.id, true);
+  const gate = async (state: string) => {
+    await expectNoAxeViolations(page);
+    await page.setViewportSize(NARROW);
+    await setTextSize(page, '200%');
+    await layoutGate(page, state);
+    await page.screenshot({ path: test.info().outputPath(`${state}-320-200.png`), fullPage: true });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await setTextSize(page, '100%');
+  };
+  try {
+    await page.goto(`/admin/probe/media?q=${stamp}`);
+    await gate('list');
+    await page.goto(`/admin/probe/media?q=${stamp}`);
+    await page.getByLabel(`Selecteer ${free.filename}`).check();
+    await page.getByLabel(`Selecteer ${used.filename}`).check();
+    await page.getByRole('button', { name: 'Selectie verwijderen' }).click();
+    await expect(page.locator('#media-bulk-summary')).toContainText('2 bestanden geselecteerd');
+    await expect(page.getByText('Een bestand dat in gebruik is blijft')).toBeVisible();
+    await gate('confirm');
+    await page.goto(page.url());
+    await page.getByRole('button', { name: 'Naar de prullenbak' }).click();
+    const results = page.locator('#media-bulk-results tbody tr');
+    await expect(results.filter({ hasText: free.filename })).toContainText('In de prullenbak');
+    await expect(results.filter({ hasText: used.filename })).toContainText('in gebruik');
+    await expect(page.locator('#media-bulk-summary')).toContainText('1 van 2');
+    await gate('result');
+    await page.goto(`/admin/probe/media/trash`);
+    await expect(page.getByRole('row', { name: new RegExp(free.filename) })).toBeVisible();
+    await expect(page.getByText(used.filename)).toHaveCount(0);
+    await gate('trash');
+    await page.goto(`/admin/probe/media/trash`);
+    await page.getByLabel(`Selecteer ${free.filename}`).check();
+    await page.getByRole('button', { name: 'Selectie herstellen' }).click();
+    await expect(page.locator('#media-trash-results')).toContainText('Hersteld');
+    await page.goto(`/admin/probe/media?q=${stamp}`);
+    await expect(page.getByLabel(`Selecteer ${free.filename}`)).toBeVisible();
+    await expect(page.getByLabel(`Selecteer ${used.filename}`)).toBeVisible();
+  } finally {
+    await setUsage(used.id, false);
+    await withInvoker((_, uow) =>
+      uow.run(principal, async (ctx) => {
+        for (const { id } of rows) await ctx.media.softDelete(id, new Date());
+      })
+    );
   }
 });
 
@@ -1493,6 +1578,17 @@ test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
         await page.locator('[command="show-modal"]').click();
         await layoutGate(page, 'lightbox');
         await page.keyboard.press('Escape');
+        // The bulk confirmation and result in this language, and the file back again.
+        await page.goto(`/admin/probe/media/bulk?selected=${id}`);
+        await setTextSize(page, text);
+        await layoutGate(page, 'bulk confirm');
+        await expectNoAxeViolations(page);
+        await page.locator('form[action="?/delete"] button').click();
+        await setTextSize(page, text);
+        await layoutGate(page, 'bulk result');
+        await expectNoAxeViolations(page);
+        await page.locator('form[action="?/restore"] button').click();
+        await expect(page.locator('#media-bulk-results')).toBeVisible();
         // The picker on an edit page; its image stays, a page uses it.
         await setLocale('nl');
         await page.context().setExtraHTTPHeaders({ ...headers, 'accept-language': 'nl-NL' });

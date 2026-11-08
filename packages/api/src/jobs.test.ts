@@ -21,6 +21,7 @@ import {
   type JobRecord,
   type Mailer,
   type Principal,
+  MEDIA_TRASH_RETENTION_MS,
 } from '@mycel/core';
 import {
   FakeClock,
@@ -118,7 +119,7 @@ describe('job handlers', () => {
       useCases.uploadMedia.examples[0].input
     );
     await invoker.run(useCases.deleteMedia, system, { id: m.id });
-    const purge = media.store.jobs.find((j) => j.type === 'media.purge')!;
+    clock.advance(MEDIA_TRASH_RETENTION_MS + 1);
     const swept: string[] = [];
     const h = jobHandlers({
       uow: media,
@@ -127,7 +128,7 @@ describe('job handlers', () => {
       identity: new MemoryIdentityStore(media.store, new MemoryTenants()),
       tenantIds: async () => [TENANT, OTHER],
     });
-    await h['media.purge']!(purge);
+    await h['media.orphans']!(job({ tenantId: null, type: 'media.orphans', payload: {} }));
     expect(media.store.for(TENANT).media.size).toBe(0);
 
     const stray = (tenant: string) => `tenants/${tenant}/media/${uuid}/original.png`;

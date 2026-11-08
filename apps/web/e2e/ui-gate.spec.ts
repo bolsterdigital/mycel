@@ -655,6 +655,7 @@ test.describe('admin-shell', () => {
           ? [
               { src: '/_admin/file-preview.js', type: 'module' },
               { src: '/_admin/drop-upload.js', type: 'module' },
+              { src: '/_admin/content-bulk.js', type: 'module' },
             ]
           : /\/content$/.test(path) && (await page.locator('#content-bulk').count())
             ? [{ src: '/_admin/content-bulk.js', type: 'module' }]

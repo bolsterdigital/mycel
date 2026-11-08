@@ -107,6 +107,17 @@ export interface MediaRepository {
   insert(media: NewMedia): Promise<void>;
   update(id: string, patch: MediaPatch, at: Date): Promise<boolean>;
   softDelete(id: string, at: Date): Promise<boolean>;
+  /** Back to live, only if it was soft-deleted. */
+  restore(id: string, at: Date): Promise<boolean>;
+  /** The trash: rows deleted after `since`, most recently deleted first. */
+  listTrash(query: {
+    since: Date;
+    offset?: number | undefined;
+    limit: number;
+  }): Promise<MediaRecord[]>;
+  countTrash(since: Date): Promise<number>;
+  /** Rows deleted at or before `before`: what the sweep may remove. */
+  expiredTrash(before: Date, limit: number): Promise<MediaRecord[]>;
   /** Removes the row and its usages, only once it was soft-deleted. */
   hardDelete(id: string): Promise<boolean>;
   /**

@@ -368,7 +368,13 @@
     <input type="hidden" name="locale" value={data.workLocale} />
   </form>
   {#if data.items.length && canBulk}
-    <form id="content-bulk" method="POST" action={data.links.bulk} class="ui-list-display-form">
+    <form
+      id="content-bulk"
+      data-bulk-form
+      method="POST"
+      action={data.links.bulk}
+      class="ui-list-display-form"
+    >
       <h2>{t('admin.content.bulk.title')}</h2>
       <p>{t('admin.content.bulk.scope')}</p>
       <div class="ui-choice">

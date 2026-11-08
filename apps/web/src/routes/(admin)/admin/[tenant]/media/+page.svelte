@@ -26,6 +26,7 @@
     ViewSwitch,
   } from '#lib/admin/ui/index.js';
   import { formatBytes, formatWhen } from '#lib/admin/format.js';
+  import AdminScript from '#lib/admin/trusted/AdminScript.svelte';
   import { THUMB, thumbPath } from '#lib/admin/ui/thumb.js';
   import { fill, ui, refusalCopy } from '../../../../../i18n/index.js';
   import type { PageProps } from './$types';
@@ -94,6 +95,16 @@
   <title>{failed ? `${t('error.prefix')} ` : ''}{t('admin.media.title')} · {data.tenant.name}</title
   >
 </svelte:head>
+
+{#snippet select(m: (typeof data.items)[number])}
+  <div class="ui-choice">
+    <input type="hidden" form="media-bulk" name="visible" value={m.id} />
+    <input id="select-{m.id}" type="checkbox" form="media-bulk" name="selected" value={m.id} />
+    <label for="select-{m.id}"
+      >{fill(t('admin.media.bulk.selectOne'), { filename: m.filename })}</label
+    >
+  </div>
+{/snippet}
 
 <OverviewPage
   title={t('admin.media.title')}
@@ -296,6 +307,27 @@
         }))}
       />
     {/if}
+    {#if data.canWrite}
+      <form
+        id="media-bulk"
+        data-bulk-form
+        method="get"
+        action="{base}/media/bulk"
+        class="ui-list-display-form"
+      >
+        <input type="hidden" name="back" value={data.query} />
+        <div class="ui-choice">
+          <input id="bulk-all" type="checkbox" name="all" value="yes" />
+          <label for="bulk-all">{t('admin.content.bulk.all')}</label>
+        </div>
+        <p data-bulk-count data-template={t('admin.content.bulk.count')} aria-live="polite"></p>
+        <Actions>
+          <Button variant="secondary">{t('admin.media.bulk.delete')}</Button>
+          <Button variant="link" href="{base}/media/trash">{t('admin.media.trash.title')}</Button>
+        </Actions>
+      </form>
+      <AdminScript src="/_admin/content-bulk.js" />
+    {/if}
     <div class="ui-list-tools">
       <p class="ui-list-count" id="media-count">{count}</p>
       {#if data.storage}
@@ -341,7 +373,10 @@
                 />
               {/if}
             </td>
-            <th scope="row"><a href="{base}/media/{m.id}">{m.filename}</a></th>
+            <th scope="row">
+              <a href="{base}/media/{m.id}">{m.filename}</a>
+              {#if data.canWrite}{@render select(m)}{/if}
+            </th>
             <td>{dimensions(m)}</td>
             <td class="numeric">{size(m.sizeBytes)}</td>
             <td>{usage(m.usageCount)}</td>
@@ -377,6 +412,7 @@
             <Badge tone={m.access === 'restricted' ? 'warning' : 'neutral'}
               >{access(m.access)}</Badge
             >
+            {#if data.canWrite}{@render select(m)}{/if}
           {/snippet}
         </Card>
       {/snippet}

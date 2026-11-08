@@ -46,8 +46,8 @@ export const VARIANT_FORMATS = ['avif', 'webp'] as const;
 export const THUMB_WIDTH = 160;
 
 /**
- * How long `media.delete` waits before `media.purge` removes the files (ADR 019 rule 8, TODO
- * #29A). The delay is the window in which a backup or export that began before the delete still
+ * The shortest wait before a delete may remove the files (ADR 019 rule 8); the trash
+ * below keeps them longer. The delay is the window in which a backup or export that began before the delete still
  * finds the files of a row its database snapshot holds: the backup (`BACKUP_MAX_SECONDS`, half of
  * this) and `exportTenant` fail rather than finish later than that. A soft-deleted asset is
  * already invisible and no longer counts against the storage limit, so nothing else waits.
@@ -56,6 +56,18 @@ export const THUMB_WIDTH = 160;
  * and the worker would have to coordinate).
  */
 export const MEDIA_PURGE_DELAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * How long a deleted asset stays in the trash and can be restored. The daily sweep
+ * removes the files after this, so it is also the floor `MEDIA_PURGE_DELAY_MS` promises to a
+ * backup, and it must stay at least that long. Only an asset nothing uses can be deleted, so
+ * nothing else is held for it; a deleted file is invisible and answers 404 at once, and the
+ * bytes do not count against the storage limit. Rejected: 24 hours (a mistake found after a
+ * weekend is gone) and keeping it until someone empties the trash (retention nobody decided).
+ */
+export const MEDIA_TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+export const restorableUntil = (deletedAt: Date): Date =>
+  new Date(deletedAt.getTime() + MEDIA_TRASH_RETENTION_MS);
 
 export type ImageFormat = 'jpeg' | 'png' | 'webp' | 'avif' | 'gif';
 export type FileFormat = ImageFormat | 'pdf' | 'mp3';
