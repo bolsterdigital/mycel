@@ -66,7 +66,7 @@ A tenant handler throws when the job has no tenant, a platform handler when it h
 | ---------------------- | ------- | --------------- | ---------------------------------------------------------------------------- |
 | `events.partitions`    | monthly | `YYYY-MM`       | schema owner: monthly `events` partitions up to three months ahead (ADR 003) |
 | `rate_limits.sweep`    | hourly  | `YYYY-MM-DDTHH` | `mycel_janitor`: expired rate-limit and login-attempt windows                |
-| `media.orphans`        | daily   | `YYYY-MM-DD`    | `mycel_app` per tenant: media files without a row, older than a day          |
+| `media.orphans`        | daily   | `YYYY-MM-DD`    | `mycel_app` per tenant: expired trash; rowless files older than a day        |
 | `jobs.retention`       | daily   | `YYYY-MM-DD`    | `mycel_worker`: finished jobs older than `JOBS_RETENTION_DAYS`               |
 | `audit.retention`      | daily   | `YYYY-MM-DD`    | `mycel_audit_janitor` ([audit.md](audit.md))                                 |
 | `assist.retention`     | daily   | `YYYY-MM-DD`    | `mycel_app` per tenant: expired assistance proposals                         |

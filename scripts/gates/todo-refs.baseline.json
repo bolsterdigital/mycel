@@ -257,7 +257,7 @@
   "packages/core/src/jobs/handlers.test.ts": 1,
   "packages/core/src/jobs/handlers.ts": 2,
   "packages/core/src/jobs/ports.ts": 1,
-  "packages/core/src/jobs/types.ts": 6,
+  "packages/core/src/jobs/types.ts": 5,
   "packages/core/src/mailing/ports.ts": 1,
   "packages/core/src/mailing/service.test.ts": 1,
   "packages/core/src/media/model.ts": 2,

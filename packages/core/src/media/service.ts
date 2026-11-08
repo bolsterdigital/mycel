@@ -12,7 +12,8 @@ import { withinLimit } from '../entitlements/guards.js';
 import { notFound, UseCaseError } from '../errors.js';
 import '../jobs/ports.js';
 import '../entitlements/ports.js';
-import type { TransactionContext } from '../ports.js';
+import type { TransactionContext, UnitOfWork } from '../ports.js';
+import type { Principal } from '../principal.js';
 import { defineUseCase } from '../registry.js';
 import { base64ToBytes } from '../util/bytes.js';
 import { sha256HexOfBytes } from '../util/digest.js';
@@ -643,9 +644,10 @@ export const listMediaTrash = defineUseCase({
 });
 
 /**
- * The `media.purge` job (tenant job), for jobs planned before the trash: delete the files, then the row. Idempotent: a missing key
- * is not an error and a row already gone is fine. Only keys of this tenant's asset are touched,
- * whatever the payload says.
+ * The `media.purge` job (tenant job), for jobs planned before the trash: delete the files, then
+ * the row, once the trash no longer promises the asset back. Idempotent: a missing key is not an
+ * error and a row already gone is fine. Only keys of this tenant's asset are touched, whatever
+ * the payload says.
  */
 export async function purgeMedia(
   ctx: TransactionContext,
@@ -654,11 +656,12 @@ export async function purgeMedia(
   const own = mediaKey(ctx.principal.tenantId, mediaId, '');
   const foreign = keys.filter((k) => !k.startsWith(own) || k.includes('..'));
   if (foreign.length) throw new Error(`media.purge: keys outside ${own}: ${foreign.join(', ')}`);
-  // Serialises with `media.restore`, and a restored asset keeps its files: a job planned before
-  // the trash existed must not take them.
+  // Serialises with `media.restore`. A job planned before the trash existed still carries its own
+  // 24 hours, so it must take neither a restored asset's files nor those of an asset the trash
+  // still offers back: within the window the job is done and the sweep removes the asset later.
   await ctx.media.lock();
   const m = await ctx.media.get(mediaId);
-  if (m && !m.deletedAt) return;
+  if (m && (!m.deletedAt || restorableUntil(m.deletedAt) > ctx.clock.now())) return;
   await ctx.blobs.delete(keys);
   await ctx.media.hardDelete(mediaId);
 }
@@ -666,39 +669,45 @@ export async function purgeMedia(
 const TRASH_BATCH = 500;
 
 /**
- * What ended the retention of the trash: files first, then the row, under the media lock so a
- * restore serialises with it. The daily sweep calls it, which also covers a row an import brought
- * in without any job. A batch at a time; the next day takes the rest.
+ * What ended the retention of the trash, rows only, under the media lock so a restore serialises
+ * with it. Covers a row an import brought in without any job too. A batch at a time; the next day
+ * takes the rest. Returns the keys the files live under.
  */
-async function purgeExpiredTrash(ctx: TransactionContext): Promise<string[]> {
+async function removeExpiredTrashRows(ctx: TransactionContext): Promise<string[]> {
   await ctx.media.lock();
   const before = new Date(ctx.clock.now().getTime() - MEDIA_TRASH_RETENTION_MS);
-  const purged: string[] = [];
+  const keys: string[] = [];
   for (const m of await ctx.media.expiredTrash(before, TRASH_BATCH)) {
-    const keys = mediaKeys(ctx.principal.tenantId, m);
-    await ctx.blobs.delete(keys);
     await ctx.media.hardDelete(m.id);
-    purged.push(...keys);
+    keys.push(...mediaKeys(ctx.principal.tenantId, m));
   }
-  return purged;
+  return keys;
 }
 
 /**
- * The orphan sweep for one tenant (`media.orphans`, run per tenant in its own transaction, ADR
- * 011 rule 1): every key under the tenant's media prefix whose media id has no row and which is
- * older than `ORPHAN_AGE_MS` is deleted. Younger files may belong to an upload that has not
- * committed yet. Returns the deleted keys.
+ * The daily media sweep for one tenant (`media.orphans`, ADR 011 rule 1), in two transactions:
+ * first the rows of expired trash, then, with the media lock released, their files and every
+ * other key under the tenant's media prefix whose media id has no row and which is older than
+ * `ORPHAN_AGE_MS`. Younger files may belong to an upload that has not committed yet. Returns the
+ * deleted keys.
+ *
+ * A file whose delete fails or never runs has no row any more, so it is an orphan and a later
+ * sweep removes it. Rejected: deleting the files under the media lock, which made every upload
+ * and every content save with media wait for the blob store, and a failed delete keep the row.
  */
-export async function sweepMediaOrphans(ctx: TransactionContext): Promise<string[]> {
-  const expired = await purgeExpiredTrash(ctx);
-  const known = new Set(await ctx.media.idsOf());
-  const prefix = mediaPrefix(ctx.principal.tenantId);
-  const cutoff = ctx.clock.now().getTime() - ORPHAN_AGE_MS;
-  const stale: string[] = [];
-  for await (const { key, modifiedAt } of ctx.blobs.list(prefix)) {
-    const id = key.slice(prefix.length).split('/')[0] ?? '';
-    if (!known.has(id) && modifiedAt.getTime() < cutoff) stale.push(key);
-  }
-  if (stale.length) await ctx.blobs.delete(stale);
-  return [...expired, ...stale];
+export async function sweepMediaOrphans(uow: UnitOfWork, principal: Principal): Promise<string[]> {
+  const expired = await uow.run(principal, removeExpiredTrashRows);
+  return uow.run(principal, async (ctx) => {
+    if (expired.length) await ctx.blobs.delete(expired);
+    const known = new Set(await ctx.media.idsOf());
+    const prefix = mediaPrefix(ctx.principal.tenantId);
+    const cutoff = ctx.clock.now().getTime() - ORPHAN_AGE_MS;
+    const stale: string[] = [];
+    for await (const { key, modifiedAt } of ctx.blobs.list(prefix)) {
+      const id = key.slice(prefix.length).split('/')[0] ?? '';
+      if (!known.has(id) && modifiedAt.getTime() < cutoff) stale.push(key);
+    }
+    if (stale.length) await ctx.blobs.delete(stale);
+    return [...expired, ...stale];
+  });
 }

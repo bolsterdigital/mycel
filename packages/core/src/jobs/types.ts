@@ -19,7 +19,7 @@ export const JobPayloads = {
   'events.partitions': z.object({}).strict(),
   /** Platform job: delete expired rate-limit windows as mycel_janitor (ADR 011 rule 2). */
   'rate_limits.sweep': z.object({}).strict(),
-  /** Tenant job: delete a soft-deleted asset's files, then its row (`media.delete`, TODO #10). */
+  /** Tenant job from before the trash: remove an asset the trash no longer offers back. */
   'media.purge': z
     .object({ mediaId: z.string().guid(), keys: z.array(z.string().min(1)).max(64) })
     .strict(),

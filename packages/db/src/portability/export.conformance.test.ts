@@ -23,6 +23,7 @@ import {
   Invoker,
   buildRegistry,
   hashApiKey,
+  MEDIA_TRASH_RETENTION_MS,
   purgeMedia,
   supporterIngestSubscriber,
   systemPrincipal,
@@ -814,7 +815,7 @@ describe.skipIf(skip)('tenant export and import', () => {
   });
 
   // TODO #29A, ADR 019 rule 8: media that changes between the table snapshot and the file copy.
-  // An asset deleted during the run keeps its files (the purge waits MEDIA_PURGE_DELAY_MS); one
+  // An asset deleted during the run keeps its files (the trash holds them for 30 days); one
   // purged anyway fails the export by id and nothing is left; an upload during the run travels
   // as files without a row, which media.orphans removes after import.
   describe('media that changes while the export runs', () => {
@@ -859,15 +860,20 @@ describe.skipIf(skip)('tenant export and import', () => {
       expect(await readdir(dir)).toEqual(['keep.txt']);
     });
 
+    /** The purge forced past the trash window, as a worker with a wrong clock would. */
+    const forcePurge = async (mediaId: string, keys: string[]) => {
+      const expired = new Date(Date.now() - MEDIA_TRASH_RETENTION_MS);
+      await sql`update media set deleted_at = ${expired} where id = ${mediaId}`.execute(operatorDb);
+      await uow.run(admin(), (ctx) => purgeMedia(ctx, { mediaId, keys }));
+    };
+
     it('fails naming an asset purged after the snapshot, and leaves no directory or tar', async () => {
       const doomed = await png();
       const purgeDuring = async () => {
         const keys = await keysOf(doomed.id);
         expect(keys.length).toBeGreaterThan(1);
         await invoker.run(useCases.deleteMedia, admin(), { id: doomed.id });
-        // The purge forced past its delay, as a worker with a wrong clock or a run over the limit
-        // would.
-        await uow.run(admin(), (ctx) => purgeMedia(ctx, { mediaId: doomed.id, keys }));
+        await forcePurge(doomed.id, keys);
       };
       const dir = join(scratch.dir, 'c-purged');
       await expect(
@@ -895,7 +901,7 @@ describe.skipIf(skip)('tenant export and import', () => {
           afterSnapshot: async () => {
             const keys = await keysOf(again.id);
             await invoker.run(useCases.deleteMedia, admin(), { id: again.id });
-            await uow.run(admin(), (ctx) => purgeMedia(ctx, { mediaId: again.id, keys }));
+            await forcePurge(again.id, keys);
           },
         })
       ).rejects.toThrow(again.id);
