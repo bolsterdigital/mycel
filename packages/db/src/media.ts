@@ -47,7 +47,7 @@ const LACKING_ALT = sql<string>`(
     r.document->'blocks',
     'strict $.** ? (exists(@.mediaId) && @.decorative == false)'
   ) image_use
-  where exists (
+  where i.deleted_at is null and exists (
     select 1 from jsonb_array_elements_text(r.document->'locales') locale
     where not jsonb_exists(coalesce(nullif(image_use->'alt', 'null'), '{}'), locale.value)
   )

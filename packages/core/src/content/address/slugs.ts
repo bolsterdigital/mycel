@@ -53,12 +53,20 @@ export async function freeSlug(
   ctx: TransactionContext,
   document: ContentDocumentInput
 ): Promise<string> {
-  const stem = slugFromTitle(titleOf(document)) || document.type;
+  return firstFreeSlug(ctx, document.type, slugFromTitle(titleOf(document)) || document.type);
+}
+
+/** `stem` itself when it is free and allowed, else its first free `-2`, `-3` and so on. */
+export async function firstFreeSlug(
+  ctx: TransactionContext,
+  type: ContentType,
+  stem: string
+): Promise<string> {
   for (let n = 1; n <= 100; n++) {
     const suffix = n === 1 ? '' : `-${n}`;
     const slug = `${stem.slice(0, 63 - suffix.length).replace(/-+$/, '')}${suffix}`;
-    if (document.type === 'page' && isReservedPageSlug(slug)) continue;
-    if (!(await ctx.content.findBySlug(document.type, slug))) return slug;
+    if (type === 'page' && isReservedPageSlug(slug)) continue;
+    if (!(await ctx.content.findBySlug(type, slug))) return slug;
   }
   throw new UseCaseError('conflict', `no free slug for "${stem}"`);
 }

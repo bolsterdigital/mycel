@@ -76,6 +76,16 @@ export interface OfferedLocale {
   since: Date;
 }
 
+/** An item in the trash, with the moment it went there (ADR 030). */
+export interface TrashedItem {
+  item: ItemRecord;
+  deletedAt: Date;
+}
+
+/**
+ * Every read and lock below leaves an item in the trash out, so no use case can act on one by
+ * accident (ADR 030 rule 2); only `lockTrashed` and `trashed` see them.
+ */
 export interface ContentRepository {
   /** The item with its publication rows, locked for the rest of the transaction. */
   lock(itemId: string): Promise<ItemRecord | null>;
@@ -108,6 +118,17 @@ export interface ContentRepository {
   insertRevision(revision: Revision): Promise<void>;
   /** Items whose latest (or, with `live`, published) revision matches; newest first. */
   find(filter: FindFilter, after: string | null, limit: number): Promise<Paged<ItemMatch>>;
+  /** The item if it is in the trash, locked for the rest of the transaction; else null. */
+  lockTrashed(itemId: string): Promise<ItemRecord | null>;
+  /** Moves a locked item to the trash and stamps `updatedAt`; its address becomes free. */
+  trash(itemId: string, at: Date): Promise<void>;
+  /**
+   * Brings a locked item back at `slug` and stamps `updatedAt`; false when another item holds the
+   * slug, with the same caveat as `setSlug`: the caller refuses, it does not go on.
+   */
+  restore(itemId: string, slug: string, at: Date): Promise<boolean>;
+  /** The trash, most recently deleted first, with its size. */
+  trashed(offset: number, limit: number): Promise<{ rows: TrashedItem[]; total: number }>;
   /** How many items publish a revision, in any locale, that uses `ref` (ADR 004 rule 6). */
   liveReferences(ref: { type: ReferenceType; id: string }): Promise<number>;
   /**

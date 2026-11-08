@@ -63,6 +63,8 @@ export interface TenantStore {
   suggestions: Map<string, AssistSuggestion>;
   assistUsage: Map<string, number>;
   items: Map<string, ItemRecord>;
+  /** The items in the trash, by id, with when they went there (ADR 030). */
+  trashedItems: Map<string, Date>;
   revisions: Map<string, Revision>;
   /** `content_block_refs`, keyed by revision id. */
   blockRefs: Map<string, DocumentReference[]>;
@@ -131,6 +133,7 @@ const emptyTenant = (): TenantStore => ({
   suggestions: new Map(),
   assistUsage: new Map(),
   items: new Map(),
+  trashedItems: new Map(),
   revisions: new Map(),
   blockRefs: new Map(),
   authors: new Map(),

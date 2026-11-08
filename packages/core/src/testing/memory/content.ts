@@ -20,17 +20,43 @@ export function memoryContent(s: TenantStore): ContentRepository {
     s.revisions.set(r.id, structuredClone(r));
     s.blockRefs.set(r.id, documentReferences(r.document));
   };
+  // Items outside the trash, as the Postgres adapter's `items()` (ADR 030 rule 2).
+  const kept = () => [...s.items.values()].filter((i) => !s.trashedItems.has(i.id));
+  const liveItem = (id: string) => (s.trashedItems.has(id) ? undefined : s.items.get(id));
   return {
     // No-op, like `supporters.lock`: one process, not transactional (see memory.ts).
-    lock: async (id) => structuredClone(s.items.get(id) ?? null),
-    get: async (id) => structuredClone(s.items.get(id) ?? null),
+    lock: async (id) => structuredClone(liveItem(id) ?? null),
+    get: async (id) => structuredClone(liveItem(id) ?? null),
     findBySlug: async (type, slug) =>
-      structuredClone(
-        [...s.items.values()].find((i) => i.type === type && i.slug === slug) ?? null
-      ),
+      structuredClone(kept().find((i) => i.type === type && i.slug === slug) ?? null),
+    lockTrashed: async (id) =>
+      structuredClone(s.trashedItems.has(id) ? (s.items.get(id) ?? null) : null),
+    async trash(itemId, at) {
+      s.items.set(itemId, { ...s.items.get(itemId)!, updatedAt: at });
+      s.trashedItems.set(itemId, at);
+    },
+    async restore(itemId, slug, at) {
+      const item = s.items.get(itemId)!;
+      if (kept().some((i) => i.type === item.type && i.slug === slug)) return false;
+      s.items.set(itemId, { ...item, slug, updatedAt: at });
+      s.trashedItems.delete(itemId);
+      return true;
+    },
+    async trashed(offset, limit) {
+      const all = [...s.trashedItems.entries()].sort(
+        ([a, x], [b, y]) => y.getTime() - x.getTime() || (a < b ? 1 : -1)
+      );
+      return {
+        rows: all.slice(offset, offset + limit).map(([id, deletedAt]) => ({
+          item: structuredClone(s.items.get(id)!),
+          deletedAt,
+        })),
+        total: all.length,
+      };
+    },
     async list(filter, { order, after, offset, limit }) {
       const compare = compareItems(order, filter.locale);
-      const matching = [...s.items.values()].filter((i) => {
+      const matching = kept().filter((i) => {
         const latest = s.revisions.get(i.latestRevisionId);
         return (
           matchesItemFilter(i, filter) && latest && matchesItemDocument(latest.document, filter)
@@ -58,14 +84,14 @@ export function memoryContent(s: TenantStore): ContentRepository {
     async latestDocuments(itemIds) {
       const found = new Map();
       for (const id of itemIds) {
-        const item = s.items.get(id);
+        const item = liveItem(id);
         const latest = item && s.revisions.get(item.latestRevisionId);
         if (latest) found.set(id, structuredClone(latest.document));
       }
       return found;
     },
     async offeredForReview(limit) {
-      return [...s.items.values()]
+      return kept()
         .flatMap((i) =>
           i.publication.flatMap((p) =>
             p.review
@@ -84,7 +110,7 @@ export function memoryContent(s: TenantStore): ContentRepository {
         .slice(0, limit);
     },
     async insert(item, first) {
-      const taken = [...s.items.values()].some((i) => i.type === item.type && i.slug === item.slug);
+      const taken = kept().some((i) => i.type === item.type && i.slug === item.slug);
       if (taken) return false;
       s.items.set(item.id, structuredClone(item));
       insertRevision(first);
@@ -93,7 +119,7 @@ export function memoryContent(s: TenantStore): ContentRepository {
     save: async (item) => void s.items.set(item.id, structuredClone(item)),
     async setSlug(itemId, slug, at) {
       const item = s.items.get(itemId)!;
-      const holder = [...s.items.values()].find((i) => i.type === item.type && i.slug === slug);
+      const holder = kept().find((i) => i.type === item.type && i.slug === slug);
       if (holder && holder.id !== itemId) return false;
       s.items.set(itemId, { ...item, slug, updatedAt: at });
       return true;
@@ -101,7 +127,7 @@ export function memoryContent(s: TenantStore): ContentRepository {
     insertRevision: async (r) => insertRevision(r),
     async find({ blockType, ref, live, type }, after, limit) {
       const matches: (ItemMatch & { id: string })[] = [];
-      for (const item of s.items.values()) {
+      for (const item of kept()) {
         if (type && item.type !== type) continue;
         const revisionIds = live
           ? new Set(item.publication.flatMap((p) => p.publishedRevisionId ?? []))

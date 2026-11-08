@@ -740,6 +740,24 @@ export const en = {
   'admin.content.row.site': 'On the site',
   'admin.content.row.preview': 'Preview',
   'admin.content.row.duplicate': 'Duplicate',
+  'admin.content.row.delete': 'Delete',
+  'admin.content.row.delete.question':
+    'Move to the trash? This takes it offline in every language.',
+  'admin.content.row.delete.confirm': 'Yes, move to trash',
+  'admin.content.delete.done': 'Moved to the trash. A restore brings it back offline.',
+  'admin.content.delete.refused': 'This could not be deleted. Reload the page and try again.',
+  'admin.content.delete.referenced':
+    'This cannot be deleted while other items link to it ({count}: {titles}). Remove those links first.',
+  'admin.content.trash.title': 'Trash',
+  'admin.content.trash.intro':
+    'Deleted pages and articles stay here until you restore them. They are offline and their address is free.',
+  'admin.content.trash.name': 'Title and address',
+  'admin.content.trash.none': 'The trash is empty.',
+  'admin.content.trash.restore': 'Restore',
+  'admin.content.trash.deleted': 'Deleted',
+  'admin.content.trash.done': 'Restored as offline: {title}.',
+  'admin.content.trash.moved': 'Its old address is taken, so it is now at {slug}.',
+  'admin.content.trash.notFound': 'That is no longer in the trash.',
   'admin.content.row.offline.question':
     'Take offline in {locale}? This item will no longer show on the site; the text is kept.',
   'admin.content.row.offline.confirm': 'Yes, take offline',

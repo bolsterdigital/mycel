@@ -1636,6 +1636,101 @@ test.describe('export', () => {
 test.describe('content-list-rows', () => {
   test.use({ locale: 'nl-NL' });
 
+  test('a row goes to the trash after a question, is refused while linked, and comes back', async ({
+    page,
+    request,
+  }) => {
+    requireApi();
+    const word = `prul${randomUUID().slice(0, 8)}`;
+    const create = async (slug: string, title: string, blocks: unknown[] = []) =>
+      (
+        await callApi<{ item: { id: string; latestRevisionId: string } }>(
+          request,
+          'content.item.create',
+          {
+            slug,
+            document: {
+              type: 'page',
+              defaultLocale: 'nl',
+              locales: ['nl'],
+              title: { nl: title },
+              blocks,
+            },
+          }
+        )
+      ).item;
+    const target = await create(`doel-${word}`, `Doel ${word}`);
+    const linkBlock = {
+      id: 'link',
+      type: 'rich-text',
+      version: 1,
+      props: {
+        content: {
+          nl: {
+            type: 'doc',
+            content: [
+              {
+                type: 'paragraph',
+                content: [
+                  {
+                    type: 'text',
+                    text: 'zie',
+                    marks: [{ type: 'link', attrs: { itemId: target.id } }],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    };
+    const source = await create(`bron-${word}`, `Bron ${word}`, [linkBlock]);
+    const list = `/admin/probe/content?type=page&q=${word}&sort=title`;
+    await login(page, list);
+    const remove = async (id: string, title: string) => {
+      const actions = page.locator(`[id="item-${id}"] .ui-row-actions.inline`);
+      await page.locator(`[id="item-${id}"]`).hover();
+      await actions.locator('summary', { hasText: 'Verwijderen' }).click();
+      await actions.getByRole('button', { name: `Ja, naar de prullenbak: ${title}` }).click();
+    };
+
+    // Linked from another page: refused, and the refusal names that page.
+    await remove(target.id, `Doel ${word}`);
+    await expect(page.getByText(`(1: Bron ${word})`)).toBeVisible();
+    await expect(page.locator(`[id="item-${target.id}"]`)).toBeVisible();
+
+    await page.goto(list);
+    await remove(source.id, `Bron ${word}`);
+    await expect(page).toHaveURL(/done=deleted/);
+    await expect(page.getByText('Naar de prullenbak verplaatst')).toBeVisible();
+    await expect(page.locator(`[id="item-${source.id}"]`)).toHaveCount(0);
+    // Gone for the rest of the admin as well.
+    const edit = await page.goto(`/admin/probe/content/${source.id}`);
+    expect(edit?.status()).toBe(404);
+
+    await page.goto('/admin/probe/content/trash');
+    const row = page.getByRole('row', { name: new RegExp(`Bron ${word}`) });
+    await expect(row).toBeVisible();
+    await expectNoAxeViolations(page);
+    await page.setViewportSize(NARROW);
+    await setTextSize(page, '200%');
+    await layoutGate(page, 'content trash', 'main');
+    await page.screenshot({ path: test.info().outputPath('trash-320-200.png'), fullPage: true });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await setTextSize(page, '100%');
+
+    await row.getByRole('button', { name: `Herstellen: Bron ${word}` }).click();
+    await expect(page.getByText(`Offline hersteld: Bron ${word}.`)).toBeVisible();
+    await page.goto(list);
+    await expect(page.locator(`[id="item-${source.id}"]`)).toBeVisible();
+
+    // The row with all its actions at the narrowest width and largest text.
+    await page.setViewportSize(NARROW);
+    await setTextSize(page, '200%');
+    await layoutGate(page, 'content row with delete', 'main');
+    await page.screenshot({ path: test.info().outputPath('row-320-200.png'), fullPage: true });
+  });
+
   test('a row opens the site and the preview, copies and takes offline', async ({
     page,
     request,
