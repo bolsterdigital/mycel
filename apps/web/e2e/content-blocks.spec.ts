@@ -550,11 +550,13 @@ test.describe('content-blocks', () => {
     await expect(state).toHaveAttribute('data-current', 'unsaved');
     await expect(state.locator('[data-save-live]')).toHaveText('Niet opgeslagen wijzigingen');
     // Leaving asks first; staying keeps what was typed.
+    let asked = false;
     page.once('dialog', (dialog) => {
-      expect(dialog.type()).toBe('beforeunload');
+      asked = dialog.type() === 'beforeunload';
       void dialog.dismiss();
     });
     await page.locator('.ui-item-bar-back').click();
+    await expect.poll(() => asked).toBe(true);
     await expect(page).toHaveURL(edit);
     await expect(page.locator('#title\\.nl')).toHaveValue('Nog niet bewaard');
     await page.locator('#title\\.nl').press('ControlOrMeta+s');
