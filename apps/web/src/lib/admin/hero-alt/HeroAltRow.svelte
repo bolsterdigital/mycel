@@ -222,6 +222,11 @@
     cursor: pointer;
     list-style: none;
   }
+  /* Block forms already pad their content. A second horizontal inset left only 170px for
+     a 197px action word at 320px/200% in the writer's card. Keep that full available width. */
+  [data-block-alt] > summary {
+    padding-inline: 0;
+  }
   summary::-webkit-details-marker {
     display: none;
   }
