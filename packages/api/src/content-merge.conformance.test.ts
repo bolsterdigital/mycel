@@ -201,15 +201,15 @@ describe('block operations and entity updates on an older base over HTTP (ADR 02
   it('refuses an author update on an older updatedAt, and a reader before the check', async () => {
     const as = front(new Invoker(buildRegistry(), new MemoryUnitOfWork()));
     const call = as(writer);
-    const author = (await call('content.author.create', { slug: 'sam', name: 'Sam' })).body;
-    const theirs = await call('content.author.update', {
-      authorId: author.id,
+    const author = (await call('content.person.create', { slug: 'sam', name: 'Sam' })).body;
+    const theirs = await call('content.person.update', {
+      personId: author.id,
       baseUpdatedAt: author.updatedAt,
       name: 'Sam de Vries',
     });
     expect(theirs.ok).toBe(true);
-    const lost = await call('content.author.update', {
-      authorId: author.id,
+    const lost = await call('content.person.update', {
+      personId: author.id,
       baseUpdatedAt: author.updatedAt,
       name: 'Sam V.',
     });
@@ -226,7 +226,7 @@ describe('block operations and entity updates on an older base over HTTP (ADR 02
         ],
       },
     });
-    const refused = await as(reader)('content.author.update', {
+    const refused = await as(reader)('content.person.update', {
       authorId: author.id,
       baseUpdatedAt: theirs.body.updatedAt,
       name: 'Lezer',

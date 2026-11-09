@@ -89,7 +89,7 @@ describe('runtimeSource', () => {
     const members = await page('members', ['nl'], {
       access: { level: 'members', teaser: { blocks: 1 } },
     });
-    const author = await invoker.run(useCases.createAuthor, systemPrincipal(TENANT, 'test'), {
+    const author = await invoker.run(useCases.createPerson, systemPrincipal(TENANT, 'test'), {
       slug: 'sam',
       name: 'Sam',
     });

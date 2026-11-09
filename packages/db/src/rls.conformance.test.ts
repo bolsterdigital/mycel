@@ -293,7 +293,11 @@ describe.skipIf(skip)('row level security conformance', () => {
         updatedAt: clock.now(),
       });
     });
-    await invoker.run(useCases.createAuthor, admin, { slug: 'rls', name: 'RLS' });
+    const person = await invoker.run(useCases.createPerson, admin, { slug: 'rls', name: 'RLS' });
+    await invoker.run(useCases.createPersonGroup, admin, {
+      name: { en: 'Team' },
+      personIds: [person.id],
+    });
     await invoker.run(useCases.createSection, admin, { slug: 'rls', title: { nl: 'RLS' } });
     await invoker.run(useCases.createPattern, admin, {
       name: { nl: 'RLS' },

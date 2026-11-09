@@ -35,3 +35,4 @@ The contract the code is built against. How a decision gets here, and when one i
 | 028 | [Content bulk work uses immutable plans and per-item effects](028-durable-content-bulk-plans.md)                                       | accepted |
 | 029 | [Presence is a short-lived report per tab; a newer revision is a notice](029-presence-and-newer-revision.md)                           | accepted |
 | 030 | [Deleting content moves it to a trash](030-content-deletion-is-a-trash.md)                                                             | accepted |
+| 031 | [An author is a role of a person](031-people-register.md)                                                                              | accepted |

@@ -330,8 +330,57 @@ describe.skipIf(skip)('content conformance', () => {
     expect(latest.revision.document.blocks).toEqual(created.revision.document.blocks);
   });
 
+  it('round-trips person fields and serialises competing group membership replacements', async () => {
+    const admin = adminOf(tenantA);
+    const person = await invoker.run(useCases.createPerson, admin, {
+      slug: `person-${run}`,
+      name: 'Sam',
+      role: { nl: 'Voorzitter', en: 'Chair' },
+      organisation: 'Example',
+      publicEmail: 'public@example.org',
+      email: 'private@example.org',
+      phone: '+31 20 1234567',
+      pagePolicy: 'never',
+      links: [{ label: 'Website', url: 'https://example.org', kind: 'website' }],
+    });
+    expect(await invoker.run(useCases.getPerson, admin, { personId: person.id })).toEqual(person);
+    const other = await invoker.run(useCases.createPerson, admin, {
+      slug: `second-${run}`,
+      name: 'Other',
+    });
+    const group = await invoker.run(useCases.createPersonGroup, admin, {
+      name: { nl: 'Team' },
+      personIds: [person.id, other.id],
+    });
+    const outcomes = await Promise.allSettled(
+      [[other.id], [person.id]].map((personIds) =>
+        invoker.run(useCases.updatePersonGroup, admin, {
+          groupId: group.id,
+          baseUpdatedAt: group.updatedAt,
+          name: group.name,
+          personIds,
+        })
+      )
+    );
+    expect(outcomes.filter((o) => o.status === 'fulfilled')).toHaveLength(1);
+    expect(outcomes.filter((o) => o.status === 'rejected')).toHaveLength(1);
+    const winner = outcomes.find((o) => o.status === 'fulfilled');
+    expect(await invoker.run(useCases.getPersonGroup, admin, { groupId: group.id })).toEqual(
+      winner?.status === 'fulfilled' ? winner.value : null
+    );
+    await expect(
+      invoker.run(useCases.getPersonGroup, adminOf(tenantB), { groupId: group.id })
+    ).rejects.toMatchObject({ code: 'not_found' });
+    await expect(
+      invoker.run(useCases.createPersonGroup, adminOf(tenantB), {
+        name: { en: 'Other' },
+        personIds: [person.id],
+      })
+    ).rejects.toMatchObject({ code: 'not_found' });
+  });
+
   it('round-trips items, revisions, authors, sections and patterns, per tenant', async () => {
-    const author = await invoker.run(useCases.createAuthor, adminOf(tenantA), {
+    const author = await invoker.run(useCases.createPerson, adminOf(tenantA), {
       slug: `sam-${run}`,
       name: 'Sam',
       bio: { nl: 'Verslaggever' },
@@ -370,7 +419,7 @@ describe.skipIf(skip)('content conformance', () => {
     );
     expect(read).toEqual(created);
     expect(
-      await invoker.run(useCases.getAuthor, adminOf(tenantA), { authorId: author.id })
+      await invoker.run(useCases.getPerson, adminOf(tenantA), { personId: author.id })
     ).toEqual(author);
     expect(
       await invoker.run(useCases.getSection, adminOf(tenantA), { sectionId: section.id })
@@ -401,8 +450,13 @@ describe.skipIf(skip)('content conformance', () => {
     const { item, revision } = await create('lock-hold');
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
+    let acquired!: () => void;
+    const locked = new Promise<void>((resolve) => {
+      acquired = resolve;
+    });
     const holder = uow.run(adminOf(tenantA), async (ctx) => {
       await ctx.content.lock(item.id);
+      acquired();
       await gate;
       await useCases.updateItem.handler(
         ctx,
@@ -413,6 +467,7 @@ describe.skipIf(skip)('content conformance', () => {
         })
       );
     });
+    await locked;
     let settled = false;
     const second = invoker
       .run(useCases.updateItem, adminOf(tenantA), {
@@ -423,8 +478,11 @@ describe.skipIf(skip)('content conformance', () => {
       .finally(() => (settled = true));
     second.catch(() => {});
     await new Promise((r) => setTimeout(r, 300));
-    expect(settled).toBe(false);
-    release();
+    try {
+      expect(settled).toBe(false);
+    } finally {
+      release();
+    }
     await holder;
     await expect(second).rejects.toMatchObject({ code: 'conflict' });
     const { revisions } = await invoker.run(useCases.listRevisions, adminOf(tenantA), {
@@ -439,7 +497,7 @@ describe.skipIf(skip)('content conformance', () => {
     const p = adminOf(tenantA);
     const races: [string, (slug: string) => Promise<unknown>][] = [
       ['item', (slug) => invoker.run(useCases.createItem, p, { slug, document: doc('race') })],
-      ['author', (slug) => invoker.run(useCases.createAuthor, p, { slug, name: 'Race' })],
+      ['author', (slug) => invoker.run(useCases.createPerson, p, { slug, name: 'Race' })],
       [
         'section',
         (slug) => invoker.run(useCases.createSection, p, { slug, title: { nl: 'Race' } }),
@@ -473,7 +531,7 @@ describe.skipIf(skip)('content conformance', () => {
     // only the compare-and-set of the write can refuse the rest.
     const p = adminOf(tenantA);
     for (let round = 0; round < 3; round++) {
-      const author = await invoker.run(useCases.createAuthor, p, {
+      const author = await invoker.run(useCases.createPerson, p, {
         slug: `cas-author-${round}-${run}`,
         name: 'Sam',
       });
@@ -485,8 +543,8 @@ describe.skipIf(skip)('content conformance', () => {
         [
           'author',
           (i) =>
-            invoker.run(useCases.updateAuthor, p, {
-              authorId: author.id,
+            invoker.run(useCases.updatePerson, p, {
+              personId: author.id,
               baseUpdatedAt: author.updatedAt,
               name: `Sam ${i}`,
             }),
@@ -514,7 +572,7 @@ describe.skipIf(skip)('content conformance', () => {
           });
       }
       // What a read returns is what the one winner wrote.
-      const read = await invoker.run(useCases.getAuthor, p, { authorId: author.id });
+      const read = await invoker.run(useCases.getPerson, p, { personId: author.id });
       expect(Date.parse(read.updatedAt)).toBeGreaterThan(Date.parse(author.updatedAt));
     }
   });

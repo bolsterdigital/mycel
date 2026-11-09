@@ -753,14 +753,14 @@ test.describe('content-admin', () => {
     requireApi();
     const run = slugFor('rel');
     const author = (name: string) =>
-      callApi<{ id: string }>(request, 'content.author.create', {
+      callApi<{ id: string }>(request, 'content.person.create', {
         slug: name.toLowerCase().replace(/\W+/g, '-'),
         name,
       });
     // Seeded by scripts/e2e/e2e.mjs with 101 newer authors and sections after them.
     const old = await bySlug<{ id: string }>(
       request,
-      'content.author.list',
+      'content.person.list',
       'authors',
       'e2e-ver-auteur'
     );
@@ -867,13 +867,13 @@ test.describe('content-admin', () => {
     requireApi();
     const run = slugFor('authors');
     const author = (name: string) =>
-      callApi<{ id: string }>(request, 'content.author.create', {
+      callApi<{ id: string }>(request, 'content.person.create', {
         slug: `${run}-${name.toLowerCase().replace(/\W+/g, '-')}`,
         name: `${name} ${run}`,
       });
     const old = await bySlug<{ id: string }>(
       request,
-      'content.author.list',
+      'content.person.list',
       'authors',
       'e2e-ver-auteur'
     );

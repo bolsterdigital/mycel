@@ -49,7 +49,9 @@ export const DEFAULT_CHROME: SiteChrome = {
  * labels times unless an operator chose their own. A document like theme and chrome, so the next
  * general setting needs no new use case.
  */
-export const SiteGeneral = z.object({ timeZone: IanaTimeZone }).strict();
+export const SiteGeneral = z
+  .object({ timeZone: IanaTimeZone, personPages: z.enum(['auto', 'off']).optional() })
+  .strict();
 export type SiteGeneral = z.infer<typeof SiteGeneral>;
 export const DEFAULT_GENERAL: SiteGeneral = { timeZone: DEFAULT_TIME_ZONE };
 /**

@@ -115,6 +115,20 @@ export class MemoryUnitOfWork implements UnitOfWork {
         connectionIntents: memoryConnectionIntents(s),
         assistProviderLabel: this.assistProviderLabel,
         authors: sluggedRepository(s.authors),
+        personGroups: {
+          ...entityRepository(s.personGroups),
+          list: async (offset, limit) =>
+            structuredClone(
+              [...s.personGroups.values()]
+                .sort((a, b) => a.order - b.order || a.id.localeCompare(b.id))
+                .slice(offset, offset + limit)
+            ),
+          async update(group, base) {
+            if (s.personGroups.get(group.id)?.updatedAt !== base) return false;
+            s.personGroups.set(group.id, structuredClone(group));
+            return true;
+          },
+        },
         sections: sluggedRepository(s.sections),
         patterns: entityRepository(s.patterns),
         forms: memoryForms(s),

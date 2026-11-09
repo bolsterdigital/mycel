@@ -167,7 +167,7 @@ describe.skipIf(skip)('self-service export', () => {
     await uow.run(p, (ctx) => ctx.forms.insert(probeForm(formId)));
     await publishProbePage(invoker, p, formId);
     await invoker.run(useCases.uploadMedia, p, useCases.uploadMedia.examples[0].input);
-    await invoker.run(useCases.createAuthor, p, { slug: 'redactie', name: `Redactie ${t.slug}` });
+    await invoker.run(useCases.createPerson, p, { slug: 'redactie', name: `Redactie ${t.slug}` });
   }
 
   async function archiveOf(t: { id: string }, id: string): Promise<string> {
@@ -375,7 +375,7 @@ describe.skipIf(skip)('self-service export', () => {
       );
       expect(download?.key).toBe(exportArchiveKey(tenant.b.id, id));
       await expect(
-        invoker.run(useCases.createAuthor, p, { slug: `x-${run}`, name: 'X' })
+        invoker.run(useCases.createPerson, p, { slug: `x-${run}`, name: 'X' })
       ).rejects.toBeInstanceOf(UseCaseError);
     } finally {
       await setStatus(operatorDb, tenant.b.id, 'active', by);

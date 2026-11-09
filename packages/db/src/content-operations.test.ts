@@ -376,7 +376,7 @@ describe.skipIf(skip)('content operations conformance', () => {
 
   it('holds exactly the references of each revision after every save, per tenant', async () => {
     const target = await page('ref-target', []);
-    const author = await invoker.run(useCases.createAuthor, adminOf(tenantA), {
+    const author = await invoker.run(useCases.createPerson, adminOf(tenantA), {
       slug: `ann-${run}`,
       name: 'Ann',
     });

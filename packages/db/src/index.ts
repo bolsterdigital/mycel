@@ -1,3 +1,4 @@
+import { personGroupRepository } from './people/groups.js';
 import { bulkPlanRepository } from './content-bulk.js';
 import { presenceRepository } from './presence/content-presence.js';
 // Postgres adapter (ADR 002). The only way to touch tenant data is `withTenant`, which opens a
@@ -241,6 +242,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           connectionIntents: connectionIntentsRepository(trx, tenantId),
           assistProviderLabel: deps.assistProviderLabel ?? null,
           authors: authorRepository(trx, tenantId),
+          personGroups: personGroupRepository(trx, tenantId),
           sections: sectionRepository(trx, tenantId),
           patterns: patternRepository(trx, tenantId),
           forms: formRepository(trx, tenantId),

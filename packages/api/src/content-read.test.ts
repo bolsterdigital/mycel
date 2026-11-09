@@ -131,7 +131,7 @@ describe('GET /v1/sites/{tenant}/content/{type}/{slug}', () => {
 
   it('serves an article with its public metadata', async () => {
     const { invoker, publish, read } = await setup();
-    const author = await invoker.run(useCases.createAuthor, systemPrincipal(A, 'test'), {
+    const author = await invoker.run(useCases.createPerson, systemPrincipal(A, 'test'), {
       slug: 'sam',
       name: 'Sam',
       email: 'sam@example.org',

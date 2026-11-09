@@ -155,8 +155,8 @@ async function observeListing(invoker: Invoker, admin: Principal, clock: FakeClo
 
   // Articles from here on, so the record above stays the five pages. The authors and the tags of
   // an earlier revision do not count: `oud` lost both in its second save.
-  const sam = await invoker.run(useCases.createAuthor, admin, { slug: 'sam', name: 'Sam' });
-  const noor = await invoker.run(useCases.createAuthor, admin, { slug: 'noor', name: 'Noor' });
+  const sam = await invoker.run(useCases.createPerson, admin, { slug: 'sam', name: 'Sam' });
+  const noor = await invoker.run(useCases.createPerson, admin, { slug: 'noor', name: 'Noor' });
   const buurt = await invoker.run(useCases.createSection, admin, {
     slug: 'buurt',
     title: { nl: 'Buurt' },
