@@ -55,8 +55,12 @@ export function adoptAddedBlocks<D extends ContentDocumentInput>(
   theirs: ContentDocument
 ): D {
   const known = new Set(base.blocks.map((b) => b.id));
-  const shape = (b: { type: string; version: number; props: unknown }) =>
-    canonicalJson({ type: b.type, version: b.version, props: b.props });
+  const shape = (b: {
+    type: string;
+    version: number;
+    props: unknown;
+    name?: Record<string, string> | undefined;
+  }) => canonicalJson({ type: b.type, version: b.version, props: b.props, name: b.name });
   const added = theirs.blocks.filter((b) => !known.has(b.id)).map((b) => [b.id, shape(b)]);
   if (!added.length || mine.blocks.every((b) => b.id)) return mine;
   const blocks = mine.blocks.map((b) => {

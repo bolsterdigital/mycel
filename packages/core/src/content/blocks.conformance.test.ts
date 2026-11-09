@@ -640,3 +640,17 @@ describe('entitlements', () => {
     ).rejects.toMatchObject(refused);
   });
 });
+
+// Names belong to editorial revisions, never to a visitor's block projection.
+describe('editorial block names', () => {
+  it.each(examples)('$type $name retains normalized names and omits them publicly', ({ input }) => {
+    const named = { ...(input as object), name: { nl: '  INTERNAL-SENTINEL  ', en: ' ' } };
+    const block = Block.parse(named);
+    expect(block.name).toEqual({ nl: 'INTERNAL-SENTINEL' });
+    expect(projectBlock(block, 'nl')).not.toHaveProperty('name');
+    expect(Block.parse({ ...named, name: { nl: ' ' } }).name).toBeUndefined();
+    expect(Block.safeParse({ ...named, name: { nl: 'x'.repeat(121) } }).success).toBe(false);
+    expect(Block.safeParse({ ...named, name: { invalid_locale: 'Name' } }).success).toBe(false);
+    expect(Block.safeParse({ ...named, unknownEnvelopeKey: true }).success).toBe(false);
+  });
+});

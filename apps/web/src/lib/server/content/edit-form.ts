@@ -219,6 +219,18 @@ export function blocksFrom(
     errors.push(...read.errors.map((e) => ({ ...e, name: `${prefix}${e.name}` })));
     return {
       ...block,
+      ...(names.some((n) => n.startsWith(`${prefix}name.`))
+        ? {
+            name: {
+              ...block.name,
+              ...Object.fromEntries(
+                names
+                  .filter((n) => n.startsWith(`${prefix}name.`))
+                  .map((n) => [n.slice(`${prefix}name.`.length), String(posted.get(n) ?? '')])
+              ),
+            },
+          }
+        : {}),
       props:
         block.type === 'image' ? imageAltFromForm(read.props, within(posted, prefix)) : read.props,
     } as Block;

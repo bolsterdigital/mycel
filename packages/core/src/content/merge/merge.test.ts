@@ -8,8 +8,8 @@ import { systemPrincipal, type Principal } from '../../principal.js';
 import { FakeClock, MemoryUnitOfWork, TENANT } from '../../testing/index.js';
 import { buildRegistry, useCases } from '../../use-cases.js';
 import { mergeDocuments, takeValue, valueAt } from './merge.js';
-import type { ContentDocument } from '../model.js';
-import { mergeSave } from './save.js';
+import { ContentDocument, type ContentDocumentInput } from '../model.js';
+import { adoptAddedBlocks, mergeSave } from './save.js';
 
 const text = (t: string) => ({
   type: 'doc' as const,
@@ -356,5 +356,34 @@ describe('content.item.update on an older base', () => {
     await expect(
       save(item.id, '01900000-0000-7000-8000-0000000000ee', page())
     ).rejects.toMatchObject({ code: 'conflict' });
+  });
+});
+
+describe('block name merging', () => {
+  it('merges different locales on an unnamed base and conflicts on the same locale', () => {
+    const base: { blocks: { id: string; name?: Record<string, string> }[] } = {
+      blocks: [{ id: 'a' }],
+    };
+    const mine = { blocks: [{ id: 'a', name: { nl: 'Intro' } }] };
+    const theirs = { blocks: [{ id: 'a', name: { en: 'Opening' } }] };
+    expect(mergeDocuments(base, mine, theirs)).toEqual({
+      document: { blocks: [{ id: 'a', name: { nl: 'Intro', en: 'Opening' } }] },
+      conflicts: [],
+    });
+    expect(
+      mergeDocuments(base, mine, { blocks: [{ id: 'a', name: { nl: 'Other' } }] }).conflicts[0]
+        ?.path
+    ).toBe('blocks[id=a].name.nl');
+  });
+  it('does not adopt an insertion with a different editorial name as a retry', () => {
+    const base = ContentDocument.parse(page());
+    const added = heading('added', 'Same content');
+    const theirs = { ...base, blocks: [...base.blocks, { ...added, name: { nl: 'First' } }] };
+    const { id: _id, ...input } = added;
+    const mine: ContentDocumentInput = {
+      ...base,
+      blocks: [...base.blocks, { ...input, name: { nl: 'Second' } }],
+    };
+    expect(adoptAddedBlocks(base, mine, theirs).blocks.at(-1)?.id).toBeUndefined();
   });
 });

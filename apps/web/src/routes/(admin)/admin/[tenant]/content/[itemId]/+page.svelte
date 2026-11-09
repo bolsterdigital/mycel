@@ -70,7 +70,7 @@
   } from '#lib/admin/ui/index.js';
   import BlockMoveStatus from '#lib/admin/block-move/BlockMoveStatus.svelte';
   import { blockCardLabels, blockGroupLabels } from '#lib/admin/block-move/labels.js';
-  import { BLOCK_ICONS, BLOCK_PRESENTATION, blockName } from '#lib/admin/block-presentation.js';
+  import { BLOCK_ICONS, BLOCK_PRESENTATION } from '#lib/admin/block-presentation.js';
   import { blockNotice, restWords } from '#lib/admin/block-rest-words.js';
   import { pickAny, BLOCK_DEFINITIONS, pick, type BlockType, type MediaCredit } from '@mycel/core';
   import { creditText, creditWords } from '#lib/blocks/credit.js';
@@ -516,7 +516,7 @@
     number={i + 1}
     type={t(`admin.block.type.${b.type}` as const)}
     icon={BLOCK_ICONS[b.type]}
-    name={blockName(b)}
+    name={b.naming.name}
     nameIfEmpty={b.type === 'image' ? b.image?.label : ''}
     nameLang={work}
     notice={blockNotice(
@@ -535,6 +535,25 @@
       ? t('admin.block.move.grip')
       : undefined}
   >
+    {#snippet nameField()}
+      {#if data.canWrite}
+        <div class="ui-block-name-field" data-block-naming={JSON.stringify(b.naming)}>
+          <label for="name-{b.id}">{t('admin.block.name')}</label>
+          <input
+            id="name-{b.id}"
+            name="{prefix}name.{work}"
+            type="text"
+            maxlength="120"
+            lang={work}
+            aria-describedby="name-{b.id}-help"
+            value={blockValues(b)[`${prefix}name.${work}`] ?? b.naming.names[work] ?? ''}
+            placeholder={b.naming.automatic}
+            data-editorial-name
+          />
+          <small class="ui-hint" id="name-{b.id}-help">{t('admin.block.nameHelp')}</small>
+        </div>
+      {/if}
+    {/snippet}
     {#snippet rest()}{@render blockRest(b)}{/snippet}
     {#snippet actions()}
       {#if data.canWrite}
