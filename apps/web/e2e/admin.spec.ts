@@ -2,21 +2,14 @@
 // Who may administer a site, and what the admin shows them: sign-in, membership, API keys, the
 // status page, managed connections, the site's hostnames and the export of its data. Each part
 // below was a spec of its own until TODO #50 and #171 folded the suite to its budget (testing.md §
-// End-to-end flows); each keeps its own fixtures in its own describe.
+// End-to-end flows); each keeps its own fixtures alongside its flow.
 
 import { openPublication } from './lib/publication';
-import {
-  SYNTHETIC_SCOPE,
-  capabilitiesFor,
-  SYNTHETIC_SOURCE,
-  UseCaseError,
-  systemPrincipal,
-  useCases,
-} from '@mycel/core';
+import { connectionFixture } from './lib/connections/fixture';
+import { capabilitiesFor, UseCaseError, systemPrincipal, useCases } from '@mycel/core';
 import { createServer } from 'node:http';
 import { type AddressInfo } from 'node:net';
-import { FakeDns } from '@mycel/core/testing';
-import { createDb, uuidv7Ids } from '@mycel/db';
+import { createDb } from '@mycel/db';
 import { breakLatestDocument, testTenant } from '@mycel/db/testing';
 import { type Locator, type Page, expect } from '@playwright/test';
 import { test } from './lib/evidence/page';
@@ -990,61 +983,6 @@ test.describe('status', () => {
 // destination passes the configuration check through a fake DNS answer; the worker checks DNS
 // again itself before any send. A seeded `unknown` intent proves the manual resolution path.
 test.describe('connections', () => {
-  async function fixture() {
-    const principal = systemPrincipal(await tenantId(), 'e2e');
-    const purpose = `Synthetic webhook ${test.info().project.name} ${Date.now()}`;
-    return withInvoker(
-      async (invoker, uow) => {
-        const connection = await invoker.run(useCases.createConnection, principal, {
-          provider: 'webhook',
-          accountRef: null,
-          externalOwner: 'Synthetic owner',
-          maintainer: 'Synthetic operator',
-          purpose,
-          direction: 'outbound',
-          dataAuthority: 'mycel',
-          consentAuthority: 'mycel',
-          consentScopes: ['newsletter:main'],
-          formIds: [],
-          destination: 'https://hooks.example.org/mycel',
-          contractVersion: 'v1',
-          adapterVersion: 'v1',
-        });
-        // An earlier attempt whose outcome the receiver never proved; a webhook cannot reconcile it.
-        const at = new Date();
-        await uow.run(principal, (ctx) =>
-          ctx.connectionIntents.insert({
-            id: uuidv7Ids.next(),
-            connectionId: connection.id,
-            businessId: uuidv7Ids.next(),
-            connectionVersion: connection.version,
-            credentialVersion: 1,
-            source: SYNTHETIC_SOURCE,
-            mappingVersion: 'v1',
-            supporterId: null,
-            scope: SYNTHETIC_SCOPE,
-            actor: { kind: 'system', id: 'e2e' },
-            key: `e2e-${uuidv7Ids.next()}`,
-            state: 'unknown',
-            failure: 'ambiguous',
-            attempts: 1,
-            revision: 0,
-            leaseToken: null,
-            leaseUntil: null,
-            nextAt: at,
-            createdAt: at,
-            updatedAt: at,
-          })
-        );
-        return { purpose, id: connection.id };
-      },
-      {
-        dns: new FakeDns({ 'hooks.example.org': ['8.8.8.8'] }),
-        connectionCredentialKey: process.env['CONNECTION_CREDENTIAL_KEY'],
-      }
-    );
-  }
-
   for (const locale of ['nl-NL', 'en-US']) {
     test.describe(`managed connections ${locale}`, () => {
       test.use({
@@ -1053,7 +991,7 @@ test.describe('connections', () => {
       });
 
       test('list, own page, controls and UI gate at 320 CSS px and 200% text', async ({ page }) => {
-        const f = await fixture();
+        const f = await connectionFixture(test.info().project.name);
         const nl = locale.startsWith('nl');
         await login(page, '/admin/probe/connections');
         // The list names the stand in words: the unknown attempt asks attention.
@@ -1089,11 +1027,11 @@ test.describe('connections', () => {
           await layoutGate(page, 'connection', 'main');
           await expectNoAxeViolations(page);
         }
-        // The unknown attempt offers only a manual close, never a retry. The synthetic test sent
-        // above is a separate, pending attempt and may keep its own retry.
-        const unknown = attempts.locator('tbody tr', {
-          hasText: nl ? 'Uitkomst onbekend' : 'Outcome unknown',
-        });
+        // Status is not identity: several attempts can be unknown, including the live test.
+        // Resolve the seeded attempt only; the other ambiguous attempt must remain actionable.
+        const unknown = attempts.locator(`tbody tr[data-intent="${f.intentId}"]`);
+        const other = attempts.locator(`tbody tr[data-intent="${f.otherIntentId}"]`);
+        await expect(unknown).toContainText(nl ? 'Uitkomst onbekend' : 'Outcome unknown');
         await expect(unknown).toContainText(
           nl ? 'Mycel weet niet of de ontvanger' : 'Mycel cannot tell whether'
         );
@@ -1101,7 +1039,12 @@ test.describe('connections', () => {
         await unknown
           .getByRole('button', { name: nl ? 'Markeer als afgehandeld' : 'Mark as handled' })
           .click();
-        await expect(attempts).toContainText(nl ? 'Handmatig afgehandeld' : 'Handled by hand');
+        await expect(unknown).toContainText(nl ? 'Handmatig afgehandeld' : 'Handled by hand');
+        await expect(unknown.getByRole('button')).toHaveCount(0);
+        await expect(other).toContainText(nl ? 'Uitkomst onbekend' : 'Outcome unknown');
+        await expect(
+          other.getByRole('button', { name: nl ? 'Markeer als afgehandeld' : 'Mark as handled' })
+        ).toHaveCount(1);
         await main
           .getByRole('button', { name: nl ? 'Aflevering pauzeren' : 'Pause delivery' })
           .click();
