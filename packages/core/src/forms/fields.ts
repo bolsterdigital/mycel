@@ -77,6 +77,7 @@ export function predicateMatches(
     return predicate.op === 'and'
       ? predicate.conditions.every((p) => predicateMatches(p, values))
       : predicate.conditions.some((p) => predicateMatches(p, values));
+  if (!Object.hasOwn(values, predicate.fieldId)) return false;
   const value = values[predicate.fieldId];
   // Missing/inactive/invalid never satisfies not-equals either.
   if (value === undefined) return false;

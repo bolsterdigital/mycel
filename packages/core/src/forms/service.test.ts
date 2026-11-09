@@ -435,6 +435,67 @@ describe('versioned field evaluation', () => {
     ).toBeNull();
   });
 
+  it.each(['inactive', 'invalid', 'active'] as const)(
+    'uses only an own validated constructor field value when the source is %s',
+    async (source) => {
+      const { FormDefinition } = await import('./model.js');
+      const { evaluateFields } = await import('./fields.js');
+      const field = { label: { en: 'Value' }, required: false };
+      const form = FormDefinition.parse({
+        ...probeForm(FORM),
+        fields: [
+          probeForm(FORM).fields[0],
+          { ...field, name: 'gate', type: 'checkbox' },
+          {
+            ...field,
+            id: 'constructor',
+            name: 'selection',
+            type: 'checkbox',
+            activeWhen: { op: 'equals', fieldId: 'gate', value: true },
+          },
+          {
+            ...field,
+            name: 'consent',
+            type: 'consent',
+            activeWhen: { op: 'not-equals', fieldId: 'constructor', value: false },
+          },
+        ],
+      });
+      const values = {
+        email: 'ada@example.org',
+        gate: source !== 'inactive',
+        ...(source === 'invalid'
+          ? { selection: 'invalid' }
+          : source === 'active'
+            ? { selection: true }
+            : {}),
+        consent: true,
+      };
+      const evaluation = evaluateFields(form.fields, values);
+      expect(evaluation.consent).toBe(source === 'active');
+      expect(evaluation.activeFieldIds.includes('consent')).toBe(source === 'active');
+      expect(evaluation.errors).toEqual(
+        source === 'invalid' ? [{ field: 'selection', message: 'forms.error.value' }] : []
+      );
+      const uow = new MemoryUnitOfWork();
+      const invoker = new Invoker(buildRegistry(), uow);
+      const admin = systemPrincipal(TENANT, 'test');
+      await uow.run(admin, (ctx) => ctx.forms.insert(form));
+      const result = await invoker.run(useCases.submitForm, admin, {
+        formId: FORM,
+        locale: 'en',
+        values,
+      });
+      expect(result.status).toBe(source === 'invalid' ? 'invalid' : 'accepted');
+      expect(uow.store.outbox).toHaveLength(source === 'active' ? 1 : 0);
+      if (result.status === 'accepted' && source === 'inactive') {
+        const stored = await uow.run(admin, (ctx) => ctx.submissions.findById(result.submissionId));
+        expect(stored?.values).toEqual({ email: 'ada@example.org', gate: false });
+        expect(stored?.evaluation?.activeFieldIds).toEqual(['email', 'gate']);
+      }
+    }
+  );
+
   it('requires active input, refuses stale versions and has an explicit inactive reject policy', async () => {
     const uow = new MemoryUnitOfWork();
     const invoker = new Invoker(buildRegistry(), uow);
