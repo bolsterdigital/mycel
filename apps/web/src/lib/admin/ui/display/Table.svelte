@@ -10,6 +10,7 @@
      row on one baseline, for rows that hold a link or a badge beside plain words: a link is as
      tall as a target, and from the top its words would sit lower than the cell next to it. -->
 <script lang="ts">
+  import '../table.css';
   import type { Snippet } from 'svelte';
 
   type Dir = 'asc' | 'desc';

@@ -31,10 +31,10 @@
     ]}
   >
     {#snippet rows()}{#each data.groups as group}<tr>
-          <td data-label={t('admin.people.name')}
-            >{#if data.write}<a class="ui-button link" href="{base}/groups/{group.id}"
+          <th scope="row" data-label={t('admin.people.name')}
+            >{#if data.write}<a href="{base}/groups/{group.id}"
                 >{pickAny(group.name, data.contentLocale)}</a
-              >{:else}{pickAny(group.name, data.contentLocale)}{/if}</td
+              >{:else}{pickAny(group.name, data.contentLocale)}{/if}</th
           >
           <td data-label={t('admin.people.order')}>{group.order}</td>
         </tr>{/each}{/snippet}

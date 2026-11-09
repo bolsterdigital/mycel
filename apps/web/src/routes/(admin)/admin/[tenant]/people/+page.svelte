@@ -64,9 +64,9 @@
   >
     {#snippet rows()}{#each data.people as person}
         <tr
-          ><td data-label={t('admin.people.name')}
-            >{#if data.write}<a class="ui-button link" href="{base}/{person.id}">{person.name}</a
-              >{:else}{person.name}{/if}</td
+          ><th scope="row" data-label={t('admin.people.name')}
+            >{#if data.write}<a href="{base}/{person.id}">{person.name}</a
+              >{:else}{person.name}{/if}</th
           >
           <td data-label={t('admin.people.pagePolicy')}
             >{t(`admin.people.status.${data.statuses[person.id] ?? 'no-articles'}`)}</td
