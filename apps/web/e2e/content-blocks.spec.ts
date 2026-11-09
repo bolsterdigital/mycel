@@ -1310,7 +1310,9 @@ test.describe('content-blocks', () => {
     await expect(page.locator('form#item-edit')).toHaveAttribute('data-edit-screen', '');
     await card(page, 2).locator('details.ui-block-card-more > summary').click();
     await card(page, 2).getByRole('button', { name: 'Omlaag', exact: true }).click();
-    await expect(page.getByRole('status')).toContainText('Blok verplaatst.');
+    await expect(page.getByRole('status').filter({ hasText: 'Blok verplaatst.' })).toContainText(
+      'Blok verplaatst.'
+    );
     const paywall = card(page, 3);
     await expect(paywall.locator('.ui-block-card-title')).toHaveText('Blok 03 Betaalmuur');
     await expect(paywall.locator('details.ui-block-card-more > summary')).toBeFocused();
