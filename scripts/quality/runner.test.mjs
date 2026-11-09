@@ -125,7 +125,9 @@ test('interrupted measurement stops its writer before encrypting reports', () =>
   const script = step.split('        run: |\n')[1].replace(/^          /gm, '');
   const dir = mkdtempSync(join(tmpdir(), 'mycel-report-writer-'));
   try {
-    mkdirSync(join(dir, '.scratch'));
+    const prepare = measurement.split('        run: |\n')[1].split('docker run')[0];
+    execFileSync('bash', ['-e', '-c', prepare], { cwd: dir });
+    assert.ok(existsSync(join(dir, '.scratch')));
     mkdirSync(join(dir, 'bin'));
     writeFileSync(join(dir, '.scratch/quality-container.id'), 'synthetic-writer');
     // The final report may arrive while removal waits for the writer to exit.

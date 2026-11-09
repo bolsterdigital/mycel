@@ -157,6 +157,7 @@ jobs:
         timeout-minutes: 6
         continue-on-error: true
         run: |
+          mkdir -p .scratch
           docker run --init --cidfile .scratch/quality-container.id --network host --shm-size=1g \
             --user "$(id -u):$(id -g)" --workdir "$PWD" \
             --volume "$PWD:$PWD" \
