@@ -157,7 +157,8 @@ jobs:
         timeout-minutes: 6
         continue-on-error: true
         run: |
-          docker run --rm --init --network host --shm-size=1g \
+          mkdir -p .scratch
+          docker run --init --cidfile .scratch/quality-container.id --network host --shm-size=1g \
             --user "$(id -u):$(id -g)" --workdir "$PWD" \
             --volume "$PWD:$PWD" \
             --volume "$(dirname "$(dirname "$(command -v node)")"):/opt/quality-node:ro" \
@@ -173,11 +174,18 @@ jobs:
             --env QUALITY_RUNNER_IMAGE --env "QUALITY_HOST_IMAGE=$ImageVersion" \
             "$QUALITY_RUNNER_IMAGE" \
             npm run quality -- --scope=${{ matrix.scope }} --locale=${{ matrix.locale }} --profile=${{ matrix.profile }} --cache=${{ matrix.cache }} --out=.scratch/quality-report --baseline=.scratch/quality-baseline/summary.json
+      # A timed-out docker client leaves its container writing into the mounted reports.
+      # Keep the container until this synchronous removal, then archive only quiescent files.
       # Preserve private originals encrypted to the operator's public certificate. Run again
       # after timeout/interruption too; the private key never enters GitHub or the repository.
       - name: Encrypt authenticated reports even after failure
         if: always() && env.REUSED != 'true'
-        run: node scripts/quality/protect.mjs .scratch/quality-report
+        run: |
+          if [ -f .scratch/quality-container.id ]; then
+            docker rm --force "$(cat .scratch/quality-container.id)"
+            rm .scratch/quality-container.id
+          fi
+          node scripts/quality/protect.mjs .scratch/quality-report
       - name: Preserve encrypted authenticated reports
         if: always() && env.REUSED != 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
