@@ -468,6 +468,38 @@ test.describe('blocks-registry', () => {
         await expectNoAxeViolations(page);
       });
 
+  test('people grids respect column choices, small text layouts and image budgets', async ({
+    page,
+  }) => {
+    onlyA11y();
+    for (const [name, columns] of [
+      ['selection', 2],
+      ['group', 3],
+      ['compact', 4],
+    ] as const) {
+      for (const width of [320, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(`/probe/blok-people-grid-${name}`);
+        await setTextSize(page, width === 320 ? '200%' : '100%');
+        await layoutGate(page, `people-grid-${name}-${width}`, 'main');
+        const tracks = await page
+          .locator('.people-grid')
+          .evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(' ').length);
+        expect(tracks).toBe(width === 320 ? 1 : columns);
+        for (const img of await page.locator('.person-card img').all()) {
+          await img.scrollIntoViewIfNeeded();
+          await expect
+            .poll(() => img.evaluate((node: HTMLImageElement) => node.naturalWidth))
+            .toBeGreaterThan(0);
+          const src = await img.evaluate((node: HTMLImageElement) => node.currentSrc);
+          const response = await page.request.get(src);
+          expect(response.headers()['content-type']).toMatch(/image\/(avif|webp)/);
+          expect((await response.body()).byteLength).toBeLessThanOrEqual(60_000);
+        }
+      }
+    }
+  });
+
   for (const variant of ['list', 'accordion'] as const)
     for (const width of ['content', 'wide', 'full'] as const)
       for (const locale of ['nl', 'en'] as const)

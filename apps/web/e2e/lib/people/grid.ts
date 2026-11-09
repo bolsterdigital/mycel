@@ -5,6 +5,8 @@ import { randomUUID } from 'node:crypto';
 import { systemPrincipal, useCases } from '@mycel/core';
 import { withInvoker, tenantId } from '../invoker';
 import { isA11y } from '../project';
+import { login } from '../login';
+import { editorReady, reloadsEditor } from '../editor';
 import { expectNoAxeViolations } from '../axe';
 import { NARROW, layoutGate, setTextSize } from '../layout';
 
@@ -84,5 +86,39 @@ export async function exercisePeopleGrid(page: Page) {
       'href',
       `/probe/en/people/${person.slug}`
     );
+    const blockId = created.revision.document.blocks[0]!.id;
+    await login(page, `/admin/probe/content/${created.item.id}?block=${blockId}`);
+    await editorReady(page);
+    const prefix = `b.${blockId}.p.`;
+    await page.locator(`[name="${prefix}source"]`).selectOption('selection');
+    await page.locator(`[name="${prefix}groupId"]`).selectOption('');
+    await page.locator(`[name="${prefix}people.0.personId"]`).selectOption(person.id);
+    await page
+      .locator(`#block-${blockId} summary`)
+      .filter({ hasText: /^Display$/ })
+      .click();
+    await page.locator(`[name="${prefix}columns"]`).selectOption('4');
+    await reloadsEditor(page, () =>
+      page.getByRole('button', { name: 'Save', exact: true }).click()
+    );
+    const saved = await invoker.run(useCases.getItem, principal, { itemId: created.item.id });
+    expect(saved.revision.document.blocks[0]?.props).toMatchObject({
+      source: 'selection',
+      groupId: null,
+      people: [{ personId: person.id }],
+      columns: '4',
+    });
+    if (isA11y()) {
+      await page.goto(`/admin/probe/content/${created.item.id}?block=${blockId}`);
+      await editorReady(page);
+      await page.setViewportSize(NARROW);
+      await setTextSize(page, '200%');
+      await layoutGate(page, 'people-grid-editor-320-200', 'main');
+      await expectNoAxeViolations(page);
+      await page.screenshot({
+        path: test.info().outputPath('people-grid-editor-320-200.png'),
+        fullPage: true,
+      });
+    }
   });
 }

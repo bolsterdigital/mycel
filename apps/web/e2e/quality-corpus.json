@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "fixtureVersion": "43a-v7",
+  "fixtureVersion": "43a-v8",
   "tenant": "probe",
   "themeProfiles": {
     "default": {

@@ -17,6 +17,8 @@
 // that may change under us).
 
 import type { z } from 'zod';
+import { pageWays } from './content/action-row.js';
+import { demoPerson, peopleBlock } from './content/people.js';
 import type { ContentItem } from '../content/model.js';
 import type { RichTextDoc } from '../content/rich-text.js';
 import type { Invoker } from '../invoke.js';
@@ -592,58 +594,15 @@ function pageGallery(media: DemoMediaIds): BlockIn {
   };
 }
 
-/** Three ways to join in, in a band: the row of cards a campaign page ends on. */
-function pageWays(): BlockIn {
-  return {
-    type: 'cards',
-    version: BLOCK_DEFINITIONS.cards.version,
-    props: {
-      accent: 'bar',
-      width: 'full',
-      cards: [
-        {
-          title: { nl: 'Lees het onderzoek', en: 'Read the study' },
-          body: {
-            nl: 'Alle 48 zakken, per merk, met de cijfers van het lab.',
-            en: 'All 48 bags, by brand, with the figures from the lab.',
-          },
-          actions: [
-            {
-              label: { nl: 'Naar het artikel', en: 'To the article' },
-              target: { kind: 'url', url: `/articles/${ARTICLE_SLUG}` },
-            },
-          ],
-        },
-        {
-          title: { nl: 'Meet mee', en: 'Measure with us' },
-          body: {
-            nl: 'Twee weken in november, een paar uur per week, in je eigen buurt.',
-            en: 'Two weeks in November, a few hours a week, in your own neighbourhood.',
-          },
-          actions: [
-            {
-              label: { nl: 'Meld je aan', en: 'Sign up' },
-              target: { kind: 'url', url: '/signup' },
-            },
-          ],
-        },
-        {
-          title: { nl: 'Vraag het je bakker', en: 'Ask your baker' },
-          body: {
-            nl: 'Veertien bakkers bewezen dat de helft van het zout genoeg is.',
-            en: 'Fourteen bakers proved that half the salt is enough.',
-          },
-        },
-      ],
-    },
-  };
-}
-
 /**
  * `content.item.create` input for the demo page: the document header (title, lead, main image
  * described) and its blocks, plain text around each custom one. No hero block (ADR 025 rule 4).
  */
-export function demoPage(refs: { formId: string; media: DemoMediaIds }): CreateInput {
+export function demoPage(refs: {
+  formId: string;
+  media: DemoMediaIds;
+  personId?: string;
+}): CreateInput {
   const [opening, image, quote, faq, callout, cta, video, form] = pageCards(
     refs.formId,
     refs.media
@@ -669,6 +628,11 @@ export function demoPage(refs: { formId: string; media: DemoMediaIds }): CreateI
         image!,
         heading({ nl: 'Wat we doen', en: 'What we do' }),
         pageWork(),
+        peopleBlock(refs.personId),
+        bridge(
+          'Samen met de vrijwilligers gaan we langs bij bakkers en scholen.',
+          'Together with our volunteers, we visit bakers and schools.'
+        ),
         pageGallery(refs.media),
         bridge(
           'Bakkers die meedoen, houden hun recept. Ze halen er alleen zout uit, in stappen, tot iemand het proeft. Dat gebeurt zelden, en precies daarom blijven we het zeggen.',
@@ -683,7 +647,7 @@ export function demoPage(refs: { formId: string; media: DemoMediaIds }): CreateI
         ),
         callout!,
         pageClosing(),
-        pageWays(),
+        pageWays(ARTICLE_SLUG),
         bridge(
           'Meedoen hoeft niet groot te zijn. De meeste vrijwilligers begonnen met één zak en één vraag aan hun eigen bakker.',
           'Taking part need not be a big step. Most volunteers began with one bag and one question to their own baker.'
@@ -1344,6 +1308,7 @@ export async function seedDemoContent(
 
   const refs = {
     formId: options.formId,
+    personId: await demoPerson(invoker, principal),
     media: await demoMedia(invoker, principal, options.load),
   };
   const ids = new Map<string, string>();

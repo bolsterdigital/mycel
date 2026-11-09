@@ -330,7 +330,6 @@ const NO_LINK_CARD = {
 };
 
 export const BLOCK_DEFINITIONS = {
-  'people-grid': peopleGridDefinition,
   // No `level` prop: the renderer derives the heading level from tree depth (ADR 004 rule 3).
   heading: define({
     version: 1,
@@ -562,6 +561,7 @@ export const BLOCK_DEFINITIONS = {
   // the columns follow the width on offer, `width: full` is the band. Rejected: a column count,
   // which a narrow container cannot honour; a parent with child blocks, which gives every card
   // block operations nobody needs; and six cards, never used and not shown two by two in the admin.
+  'people-grid': peopleGridDefinition,
   cards: define({
     version: 1,
     props: z
