@@ -1,10 +1,11 @@
-import type { PersonGroup } from '../../content/people/model.js';
-import type { BulkPlan, BulkResult } from '../../content/bulk/model.js';
-import type { PresenceEntry } from '../../content/presence/model.js';
 // The rows of the in-memory runtime: one `TenantStore` per tenant, isolated by construction like
 // RLS, plus the platform-wide tables. Also the helpers every module factory shares (keyset pages,
 // the per-tenant lock). Rejected: one store per module, which would split a tenant's rows and
 // make erasure, export and usage reach into a dozen objects for one question.
+
+import type { PersonGroup } from '../../content/people/model.js';
+import type { BulkPlan, BulkResult } from '../../content/bulk/model.js';
+import type { PresenceEntry } from '../../content/presence/model.js';
 
 import type { AuditEntry } from '../../audit/model.js';
 import type { AssistSettings, AssistSuggestion } from '../../assist/ports.js';

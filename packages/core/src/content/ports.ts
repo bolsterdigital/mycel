@@ -1,8 +1,9 @@
-import type { PersonGroup } from './people/model.js';
 // Repositories of the content module. `lock` is the item lock every write and the scheduled
 // publish take first (SELECT ... FOR UPDATE in Postgres): saves, publication changes and the job
 // serialise per item, so "two saves on one base, exactly one wins" and "an old job cannot
 // publish after a reschedule" follow from the lock order, not from timing.
+
+import type { PersonGroup } from './people/model.js';
 
 import type { BulkPlan, BulkPhase, BulkResult } from './bulk/model.js';
 import type { PresenceEntry } from './presence/model.js';

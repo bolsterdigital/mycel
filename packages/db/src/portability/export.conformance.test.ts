@@ -1,4 +1,3 @@
-import { checkLegacyPeopleImport, seedGroupedPerson } from './legacy-people.fixture.js';
 // Tenant export and import against Postgres (TODO #18d, brief production-and-restore § 12, 13 and
 // 15; ADR 002 rule 5, ADR 015 rule 7). Two tenants with content, an image, a supporter, a member,
 // a key, a custom hostname and an erasure registration; A is exported (suspended, which must not
@@ -11,6 +10,8 @@ import { checkLegacyPeopleImport, seedGroupedPerson } from './legacy-people.fixt
 // The second database needs CREATEDB (CI and a typical dev server connect as a superuser); without it the
 // round trip is skipped and the rest runs. Skips without DATABASE_URL and APP_DATABASE_URL; in
 // CI that is a failure.
+
+import { checkLegacyPeopleImport, seedGroupedPerson } from './legacy-people.fixture.js';
 
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';

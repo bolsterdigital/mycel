@@ -62,7 +62,7 @@ describe('person register', () => {
     ).toEqual([b.id, a.id]);
     const next = await invoker.run(useCases.updatePersonGroup, admin, {
       groupId: group.id,
-      baseUpdatedAt: group.updatedAt,
+      baseUpdatedAt: group.updatedAt.replace('Z', '+00:00'),
       name: group.name,
       personIds: [a.id],
     });

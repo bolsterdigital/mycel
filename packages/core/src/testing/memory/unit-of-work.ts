@@ -124,7 +124,8 @@ export class MemoryUnitOfWork implements UnitOfWork {
                 .slice(offset, offset + limit)
             ),
           async update(group, base) {
-            if (s.personGroups.get(group.id)?.updatedAt !== base) return false;
+            const current = s.personGroups.get(group.id);
+            if (!current || Date.parse(current.updatedAt) !== Date.parse(base)) return false;
             s.personGroups.set(group.id, structuredClone(group));
             return true;
           },

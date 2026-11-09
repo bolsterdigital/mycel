@@ -761,7 +761,7 @@ test.describe('content-admin', () => {
     const old = await bySlug<{ id: string }>(
       request,
       'content.person.list',
-      'authors',
+      'people',
       'e2e-ver-auteur'
     );
     const oldSection = await bySlug<{ id: string }>(
@@ -874,7 +874,7 @@ test.describe('content-admin', () => {
     const old = await bySlug<{ id: string }>(
       request,
       'content.person.list',
-      'authors',
+      'people',
       'e2e-ver-auteur'
     );
     const fresh = await author('Müller');
