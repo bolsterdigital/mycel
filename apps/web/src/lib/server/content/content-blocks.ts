@@ -31,6 +31,7 @@ import {
   pickAny,
 } from '@mycel/core';
 import { runtime } from '../runtime.js';
+import { peopleDirectory, groupDirectory } from '../people/directory.js';
 import { withAssigned } from './content-admin.js';
 import { mediaChoice } from '../admin/media-choices.js';
 import { richTextHtml } from '../../blocks/rich-text.js';
@@ -59,7 +60,13 @@ export async function pickerOptions(
   locale: string,
   /** Images chosen outside the blocks (the document's featured and share image). */
   alsoChosen: readonly string[] = []
-): Promise<{ media: MediaChoice[]; items: Option[]; upload: boolean }> {
+): Promise<{
+  media: MediaChoice[];
+  items: Option[];
+  people: Option[];
+  personGroups: Option[];
+  upload: boolean;
+}> {
   const { invoker } = runtime();
   const used = blockReferences(blocks);
   const orNull = <T>(p: Promise<T>) => p.catch(() => null);
@@ -80,7 +87,15 @@ export async function pickerOptions(
       );
     }),
   ]);
-  return { media, items, upload: can(principal, 'media:write') };
+  const people = (await peopleDirectory(principal, invoker)).map((p) => ({
+    id: p.id,
+    label: p.name,
+  }));
+  const personGroups = (await groupDirectory(principal, invoker)).map((g) => ({
+    id: g.id,
+    label: pickAny(g.name, locale) ?? g.id,
+  }));
+  return { media, items, people, personGroups, upload: can(principal, 'media:write') };
 }
 
 /**
@@ -171,7 +186,22 @@ export interface BlockPreview {
   entries: string[];
 }
 
-export function previewOf(block: Block, locale: string): BlockPreview {
+export function previewOf(
+  block: Block,
+  locale: string,
+  references?: { people: Option[]; personGroups: Option[] }
+): BlockPreview {
+  if (block.type === 'people-grid') {
+    const entries =
+      block.props.source === 'group'
+        ? (references?.personGroups
+            .filter((g) => g.id === block.props.groupId)
+            .map((g) => g.label) ?? [])
+        : block.props.people.flatMap(
+            (p) => references?.people.filter((v) => v.id === p.personId).map((v) => v.label) ?? []
+          );
+    return { text: entries.join(', '), entries, mediaId: null };
+  }
   const fields = BLOCK_DEFINITIONS[block.type as BlockType].fields;
   const props = block.props as Record<string, unknown>;
   const local = (v: unknown): string => anyLocale<string>(v, locale) ?? '';
@@ -585,6 +615,9 @@ const ISSUE_COPY: Record<string, UiKey> = {
   'content.link.unsafe': 'admin.block.issue.unsafeLink',
   'content.link.one-target': 'admin.block.issue.unsafeLink',
   'content.video.id-invalid': 'admin.block.issue.videoId',
+  'content.reference.person-group-unknown': 'admin.content.issue.referenceUnknown',
+  'content.reference.author-unknown': 'admin.content.issue.referenceUnknown',
+  'content.people-grid.group-required': 'admin.content.issue.referenceUnknown',
   'content.reference.item-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.form-unknown': 'admin.content.issue.referenceUnknown',
   'content.reference.media-unknown': 'admin.content.issue.referenceUnknown',

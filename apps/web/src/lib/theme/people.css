@@ -55,3 +55,44 @@
   display: inline-block;
   min-height: 44px;
 }
+
+/* Columns are a maximum. Text-sized breakpoints collapse the grid before cards become narrow. */
+.people-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2rem;
+}
+.person-card {
+  min-width: 0;
+}
+.person-card img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+}
+.person-card p {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.person-card :is(h2, h3) {
+  overflow-wrap: anywhere;
+}
+.person-card :is(h2, h3) a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+}
+@media (min-width: 40rem) {
+  .people-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 64rem) {
+  .people-grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .people-grid-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

@@ -300,8 +300,12 @@ function reader(form: Posted, errors: FieldError[]): Read {
           // sees a missing translation.
           return isBlankDoc(doc) ? undefined : doc;
         });
+      case 'reference': {
+        const value = form.get(name);
+        if (value === null) return base;
+        return isEmpty(value) && field.optional === 'null' ? null : value;
+      }
       case 'media':
-      case 'reference':
       case 'date':
       case 'choice': {
         const v = form.get(name);

@@ -106,6 +106,23 @@ Version 1.
 
 Examples: `cta-band`, `cta-card-two-actions`, `cta-full-end`.
 
+## `people-grid` (People grid)
+
+Version 1.
+
+| Prop                | Label                | Kind                        | Presence                   |
+| ------------------- | -------------------- | --------------------------- | -------------------------- |
+| `source`            | Source               | one of `selection`, `group` | required                   |
+| `groupId`           | Group                | person_group reference (id) | optional (null when empty) |
+| `people`            | Selected people      | list of 0–100               | required                   |
+| `people[].personId` | Person               | person reference (id)       | required                   |
+| `columns`           | Columns              | one of `2`, `3`, `4`        | required                   |
+| `showRole`          | Show role            | yes or no                   | required                   |
+| `showBio`           | Show biography       | yes or no                   | required                   |
+| `showContact`       | Show contact details | yes or no                   | required                   |
+
+Examples: `people-grid-selection`, `people-grid-group`, `people-grid-compact`.
+
 ## `cards` (Action row)
 
 Version 1.

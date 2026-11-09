@@ -212,7 +212,15 @@ function setIn(target: unknown, path: readonly (string | number)[], value: unkno
 }
 
 /** What a reference points at (ADR 020 rule 7); the `type` column of `content_block_refs`. */
-export const REFERENCE_TYPES = ['form', 'item', 'author', 'section', 'media'] as const;
+export const REFERENCE_TYPES = [
+  'form',
+  'item',
+  'author',
+  'section',
+  'media',
+  'person',
+  'person_group',
+] as const;
 export type ReferenceType = (typeof REFERENCE_TYPES)[number];
 
 /** One reference a block makes: the row `content_block_refs` holds for it. */
@@ -238,6 +246,8 @@ export function blockReferenceRows(blocks: readonly Block[]): BlockReference[] {
 /** Tenant references the blocks make, as sets per kind: what a save checks exists. */
 export function blockReferences(blocks: readonly BlockInput[]): {
   forms: string[];
+  people: string[];
+  personGroups: string[];
   items: string[];
   /** Media in an image slot. */
   media: string[];
@@ -255,6 +265,8 @@ export function blockReferences(blocks: readonly BlockInput[]): {
   ];
   return {
     forms: of((r) => r.type === 'form'),
+    people: of((r) => r.type === 'person'),
+    personGroups: of((r) => r.type === 'person_group'),
     items: of((r) => r.type === 'item'),
     media: of((r) => r.type === 'media' && !r.document && !r.audio),
     documents: of((r) => r.type === 'media' && !!r.document),

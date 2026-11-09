@@ -1,6 +1,19 @@
 import type { UiKey } from './en.js';
 
 export const nl: Partial<Record<UiKey, string>> = {
+  'admin.block.type.people-grid': 'Personenraster',
+  'admin.block.field.groupId': 'Groep',
+  'admin.block.field.people': 'Geselecteerde personen',
+  'admin.block.field.personId': 'Persoon',
+  'admin.block.field.columns': 'Kolommen',
+  'admin.block.field.showRole': 'Functie tonen',
+  'admin.block.field.showBio': 'Biografie tonen',
+  'admin.block.field.showContact': 'Contactgegevens tonen',
+  'admin.block.option.selection': 'Handmatige selectie',
+  'admin.block.option.group': 'Groep',
+  'admin.block.option.2': '2',
+  'admin.block.option.3': '3',
+  'admin.block.option.4': '4',
   'public.people.articles': 'Artikelen',
   'public.people.previous': 'Vorige artikelen',
   'public.people.next': 'Meer artikelen',

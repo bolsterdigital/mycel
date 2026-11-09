@@ -2,6 +2,19 @@
 // mail) live in @mycel/core's catalogs; content (labels, consent text) lives on the documents.
 
 export const en = {
+  'admin.block.type.people-grid': 'People grid',
+  'admin.block.field.groupId': 'Group',
+  'admin.block.field.people': 'Selected people',
+  'admin.block.field.personId': 'Person',
+  'admin.block.field.columns': 'Columns',
+  'admin.block.field.showRole': 'Show role',
+  'admin.block.field.showBio': 'Show biography',
+  'admin.block.field.showContact': 'Show contact details',
+  'admin.block.option.selection': 'Manual selection',
+  'admin.block.option.group': 'Group',
+  'admin.block.option.2': '2',
+  'admin.block.option.3': '3',
+  'admin.block.option.4': '4',
   'public.people.articles': 'Articles',
   'public.people.previous': 'Previous articles',
   'public.people.next': 'More articles',

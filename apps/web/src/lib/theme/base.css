@@ -385,7 +385,7 @@
     float: right;
     margin: 0 var(--float-outer) var(--space-2) var(--float-inner);
   }
-  .page :is(.cta, .cards, .faq, .gallery, .timeline, .audio) {
+  .page :is(.cta, .cards, .faq, .gallery, .timeline, .audio, .people-grid) {
     clear: both;
   }
   @container (max-width: 40rem) {

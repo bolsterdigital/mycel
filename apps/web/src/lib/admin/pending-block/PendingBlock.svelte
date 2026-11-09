@@ -18,7 +18,10 @@
     media,
     base,
     upload,
-    items,
+    references,
+    items = [],
+    people = [],
+    personGroups = [],
     invalid,
     locale,
     action,
@@ -35,7 +38,14 @@
     media: readonly MediaChoice[];
     base: string;
     upload: boolean;
-    items: readonly { id: string; label: string }[];
+    items?: readonly { id: string; label: string }[];
+    references?: {
+      items: readonly { id: string; label: string }[];
+      people: readonly { id: string; label: string }[];
+      personGroups: readonly { id: string; label: string }[];
+    };
+    people?: readonly { id: string; label: string }[];
+    personGroups?: readonly { id: string; label: string }[];
     invalid: readonly string[];
     locale: string;
     /** The form action of a named button, in the locale the screen shows. */
@@ -67,7 +77,10 @@
     {media}
     {base}
     {upload}
+    {references}
     {items}
+    {people}
+    {personGroups}
     {invalid}
     {locale}
     row={BLOCK_PRESENTATION[type].row}

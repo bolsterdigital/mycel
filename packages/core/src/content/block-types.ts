@@ -12,10 +12,12 @@
 // schema (unions and effects make that guesswork) and one hand-kept list of types per consumer.
 
 import { z } from 'zod';
+import { peopleGridDefinition } from './people/grid-block.js';
 import { localized } from '../i18n/locale.js';
 import { CREDIT_KINDS, MediaCredit } from '../media/model.js';
 import { RichTextDoc, isSafeHref, linkedItemIds } from './rich-text.js';
-import { exampleId } from '../util/ids.js';
+import { EXAMPLE_IDS } from './blocks/example-ids.js';
+export { EXAMPLE_IDS } from './blocks/example-ids.js';
 
 /** A localised map inside a block's props, with its path from `props`. */
 export interface LocalField {
@@ -27,7 +29,7 @@ export interface LocalField {
 
 /** A tenant reference inside a block's props (the `type` column of `content_block_refs`). */
 export interface PropReference {
-  type: 'form' | 'item' | 'media';
+  type: 'form' | 'item' | 'media' | 'person' | 'person_group';
   refId: string;
   /** This media slot takes a document, not an image; the `content_block_refs` row stays `media`. */
   document?: true;
@@ -64,7 +66,12 @@ export type BlockField =
   | { key: string; kind: 'caption' }
   | { key: string; kind: 'rich-text' }
   | { key: string; kind: 'media'; accept?: 'document' | 'audio' }
-  | { key: string; kind: 'reference'; to: 'form' | 'item' }
+  | {
+      key: string;
+      kind: 'reference';
+      to: 'form' | 'item' | 'person' | 'person_group';
+      optional?: 'null';
+    }
   | { key: string; kind: 'choice'; options: readonly string[]; initial?: string; optional?: 'omit' }
   | { key: string; kind: 'boolean' }
   | { key: string; kind: 'date' }
@@ -241,16 +248,6 @@ function docRefs(map: Partial<Record<string, RichTextDoc>> | undefined): PropRef
 }
 
 // --- example data -----------------------------------------------------------------------------
-
-/** Example ids: the renderer's resolver fixtures (#8c) map these to a form, an item and images. */
-export const EXAMPLE_IDS = {
-  form: exampleId(0xf001),
-  item: exampleId(0xc001),
-  image: exampleId(0xd001),
-  portrait: exampleId(0xd002),
-  document: exampleId(0xd003),
-  audio: exampleId(0xd004),
-} as const;
 
 const doc = (...paragraphs: string[]): RichTextDoc => ({
   type: 'doc',
@@ -564,6 +561,7 @@ export const BLOCK_DEFINITIONS = {
   // the columns follow the width on offer, `width: full` is the band. Rejected: a column count,
   // which a narrow container cannot honour; a parent with child blocks, which gives every card
   // block operations nobody needs; and six cards, never used and not shown two by two in the admin.
+  'people-grid': peopleGridDefinition,
   cards: define({
     version: 1,
     props: z

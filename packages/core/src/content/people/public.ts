@@ -39,7 +39,7 @@ export const PublishedArticleCard = z.object({
 });
 export type PublishedArticleCard = z.infer<typeof PublishedArticleCard>;
 
-function projectPerson(person: Person, locale: string): PublicPerson {
+export function projectPerson(person: Person, locale: string): PublicPerson {
   return {
     id: person.id,
     slug: person.slug,

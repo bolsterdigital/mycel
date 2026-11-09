@@ -1,13 +1,16 @@
 // The public person boundary is one registry contract: publication pins and explicit fields,
 // not an editorial record filtered independently by HTTP, MCP and HTML renderers.
 import { describe, it, expect } from 'vitest';
+import { resolvePeopleGrid } from './grid.js';
+import { PeopleGridProps } from './grid-block.js';
 import { Invoker } from '../../invoke.js';
 import { anonymousPrincipal, systemPrincipal } from '../../principal.js';
 import { FakeClock, MemoryUnitOfWork, TENANT } from '../../testing/index.js';
 import { buildRegistry, useCases } from '../../use-cases.js';
 
 function setup() {
-  const invoker = new Invoker(buildRegistry(), new MemoryUnitOfWork({ clock: new FakeClock() }));
+  const uow = new MemoryUnitOfWork({ clock: new FakeClock() });
+  const invoker = new Invoker(buildRegistry(), uow);
   const admin = systemPrincipal(TENANT, 'test');
   const visitor = anonymousPrincipal(TENANT, ['content:read']);
   const createPerson = (slug: string, pagePolicy: 'auto' | 'always' | 'never' = 'auto') =>
@@ -45,7 +48,11 @@ function setup() {
       revisionId: created.revision.id,
       locale,
     });
-  return { invoker, admin, visitor, createPerson, article, publish };
+  const grid = (principal: typeof visitor, input: { locale: string; props: unknown }) =>
+    uow.run(principal, async (ctx) => ({
+      people: await resolvePeopleGrid(ctx, PeopleGridProps.parse(input.props), input.locale),
+    }));
+  return { invoker, admin, visitor, createPerson, article, publish, grid };
 }
 
 describe('public people', () => {
@@ -199,5 +206,90 @@ describe('public people', () => {
         }
       )
     ).rejects.toMatchObject({ code: 'not_found' });
+  });
+});
+
+describe('authored person grids', () => {
+  it('keeps chosen order and public fields without enabling an unavailable profile', async () => {
+    const { invoker, admin, visitor, createPerson, article, publish, grid } = setup();
+    const sam = await createPerson('sam');
+    const hidden = await createPerson('hidden', 'never');
+    const always = await createPerson('always', 'always');
+    const group = await invoker.run(useCases.createPersonGroup, admin, {
+      name: { en: 'Team' },
+      personIds: [hidden.id, sam.id, always.id],
+    });
+    const read = () =>
+      grid(visitor, {
+        locale: 'en',
+        props: { source: 'group', groupId: group.id },
+      });
+    const first = await read();
+    expect(first.people.map((p) => [p.id, p.pageEnabled])).toEqual([
+      [hidden.id, false],
+      [sam.id, false],
+      [always.id, true],
+    ]);
+    expect(first.people.every((p) => p.bio === 'Biography')).toBe(true);
+    expect(JSON.stringify(first)).not.toContain('INTERNAL');
+    expect(first.people.every((p) => p.publicEmail === 'public@example.org')).toBe(true);
+    await publish(await article('sam-article', [sam.id]), 'nl');
+    expect((await read()).people[1]?.pageEnabled).toBe(true);
+    await invoker.run(useCases.updateSiteGeneral, admin, {
+      baseVersion: 0,
+      general: { timeZone: 'UTC', personPages: 'off' },
+    });
+    expect((await read()).people.every((p) => !p.pageEnabled)).toBe(true);
+    const selected = await grid(visitor, {
+      locale: 'nl',
+      props: { people: [{ personId: sam.id }, { personId: hidden.id }] },
+    });
+    expect(selected.people.map((p) => p.id)).toEqual([sam.id, hidden.id]);
+    expect(selected.people.every((p) => p.bio === 'Biografie')).toBe(true);
+    const stranger = anonymousPrincipal('01900000-0000-7000-8000-00000000bbbb', ['content:read']);
+    expect(
+      await grid(stranger, {
+        locale: 'nl',
+        props: { people: [{ personId: sam.id }] },
+      })
+    ).toEqual({ people: [] });
+    expect(
+      await grid(stranger, {
+        locale: 'nl',
+        props: { source: 'group', groupId: group.id },
+      })
+    ).toEqual({ people: [] });
+  });
+
+  it('checks grid references on save, keeping the existing author reference distinct', async () => {
+    const { invoker, admin, createPerson } = setup();
+    const person = await createPerson('team-member');
+    const group = await invoker.run(useCases.createPersonGroup, admin, {
+      name: { en: 'Team' },
+      personIds: [person.id],
+    });
+    const create = (props: Record<string, unknown>) =>
+      invoker.run(useCases.createItem, admin, {
+        slug: 'team',
+        document: {
+          type: 'page',
+          defaultLocale: 'en',
+          locales: ['en'],
+          title: { en: 'Team' },
+          blocks: [{ type: 'people-grid', version: 1, props }],
+        },
+      });
+    await expect(
+      create({ people: [{ personId: '01900000-0000-7000-8000-00000000ffff' }] })
+    ).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(
+      create({ source: 'group', groupId: '01900000-0000-7000-8000-00000000ffff' })
+    ).rejects.toMatchObject({ code: 'invalid_input' });
+    const result = await create({
+      source: 'group',
+      groupId: group.id,
+      people: [{ personId: person.id }],
+    });
+    expect(result.revision.document.blocks[0]?.type).toBe('people-grid');
   });
 });

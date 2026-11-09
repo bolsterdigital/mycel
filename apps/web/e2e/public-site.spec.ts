@@ -4,6 +4,7 @@
 // below was a spec of its own until TODO #50 folded the suite to its budget (testing.md
 // § End-to-end flows); each keeps its own fixtures.
 
+import { exercisePeopleGrid } from './lib/people/grid';
 import { exercisePublicPeople } from './lib/people/public';
 import { openPublication, closePublication } from './lib/publication';
 import { randomBytes } from 'node:crypto';
@@ -2127,4 +2128,10 @@ test.describe('site-settings', () => {
 
 test('public profiles share policy across HTML, bylines and discovery', async ({ page }) => {
   await exercisePublicPeople(page);
+});
+
+test('authored people grids show teams without exposing internal email or unavailable links', async ({
+  page,
+}) => {
+  await exercisePeopleGrid(page);
 });
