@@ -401,7 +401,9 @@ describe('content items', () => {
         slug: 'story',
       });
       expect(story.type).toBe('article');
-      expect(story.authors).toEqual([{ id: author.id, slug: 'sam', name: 'Sam' }]);
+      expect(story.authors).toEqual([
+        { id: author.id, slug: 'sam', name: 'Sam', pageEnabled: true },
+      ]);
       // The author's e-mail address is internal (model.ts) and never part of the projection.
       expect(JSON.stringify(story)).not.toContain('sam@example.org');
     });
@@ -472,7 +474,7 @@ describe('content items', () => {
       expect(story).toMatchObject({
         lead: 'Kort gezegd.',
         corrections: [{ date: '2026-10-01', text: 'Datum hersteld.' }],
-        authors: [{ id: author.id, slug: 'sam', name: 'Sam' }],
+        authors: [{ id: author.id, slug: 'sam', name: 'Sam', pageEnabled: true }],
         section: { slug: 'stad', name: 'Stad' },
       });
       expect(JSON.stringify(story)).not.toMatch(/EN-LEAD|EN-FIX|In English|sam@example/);

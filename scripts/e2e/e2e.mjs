@@ -292,6 +292,10 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
         slug: 'e2e-auteur',
         name: 'Sam de Vries',
         email: 'sam@probe.test',
+        publicEmail: 'public-sam@probe.test',
+        bio: { nl: 'Sam schrijft over de stad.', en: 'Sam writes about the city.' },
+        role: { nl: 'Redacteur', en: 'Editor' },
+        links: [{ label: 'Website', url: 'https://example.org/sam' }],
       }))
     ).id;
     const sectionId = (
@@ -631,6 +635,17 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
       );
     const qualityImages = [landscape.id, portrait.id, square.id, panorama.id];
     const qualityAuthor = await uow.run(admin, (ctx) => ctx.authors.findBySlug('e2e-auteur'));
+    await invoker.run(useCases.updatePerson, admin, {
+      personId: qualityAuthor.id,
+      baseUpdatedAt: qualityAuthor.updatedAt,
+      name: qualityAuthor.name,
+      email: qualityAuthor.email,
+      bio: qualityAuthor.bio,
+      links: qualityAuthor.links,
+      imageId: portrait.id,
+      publicEmail: qualityAuthor.publicEmail,
+      role: qualityAuthor.role,
+    });
     const qualitySection = await uow.run(admin, (ctx) => ctx.sections.findBySlug('e2e-stad'));
     for (const slug of needed) {
       const blocks = pages[slug].blocks.map((name) => swap(examples[name]));
@@ -650,6 +665,7 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
           ...(pages[slug].lead && { lead: pages[slug].lead }),
           ...(pages[slug].seo && { seo: pages[slug].seo }),
           ...(pages[slug].heroAlt && { heroImageId: landscape.id, heroAlt: pages[slug].heroAlt }),
+          ...(slug === qualityCorpus.public.article.slug && { featuredImageId: landscape.id }),
           ...(pages[slug].type === 'article' && {
             authorIds: [qualityAuthor.id],
             sectionId: qualitySection.id,

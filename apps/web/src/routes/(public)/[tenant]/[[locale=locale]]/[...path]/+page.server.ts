@@ -67,6 +67,7 @@ export const load: PageServerLoad = async ({ params, locals, request, setHeaders
     intro: view.intro,
     dropCap: view.dropCap,
     head: view.head,
+    structured: view.structured,
     errorPrefix: t('error.prefix'),
   };
 };

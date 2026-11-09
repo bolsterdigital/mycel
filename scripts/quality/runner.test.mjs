@@ -3,7 +3,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createHash } from 'node:crypto';
-import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import {
+  readFileSync,
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+  chmodSync,
+  existsSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -13,7 +21,6 @@ import { compareBaseline } from './baseline.mjs';
 import { IdentityGatherer, IdentityAudit } from './gatherer.mjs';
 import { matrix } from './matrix.mjs';
 import { status as qualityStatus } from './status.mjs';
-
 test('full observations survive same-ref pushes and dispatches; ordinary runs supersede by ref', () => {
   const workflow = readFileSync(
     new URL('../../.github/workflows/frontend-quality.yml', import.meta.url),
@@ -42,7 +49,6 @@ test('full observations survive same-ref pushes and dispatches; ordinary runs su
       assert.notEqual(observation, group(event, '200'), `${event}: preserve full observation`);
   }
 });
-
 test('PR set covers both public profiles; scheduled/manual expand locale, cache and admin', () => {
   const pr = matrix('pull_request').include;
   assert.equal(pr.length, 2);
@@ -102,12 +108,70 @@ test('quality proxy preserves production compression and closed operational path
   assert.match(workflow, /if: always\(\)/);
   assert.doesNotMatch(workflow, /path: .*\/private\s*$/m);
 });
-
+test('interrupted measurement stops its writer before encrypting reports', () => {
+  const workflow = readFileSync(
+    new URL('../../.github/workflows/frontend-quality.yml', import.meta.url),
+    'utf8'
+  );
+  const measurement = workflow
+    .split('      - name: Five samples per cell')[1]
+    .split('      - name: Encrypt')[0];
+  assert.match(measurement, /docker run --init --cidfile \.scratch\/quality-container\.id/);
+  assert.doesNotMatch(measurement, /docker run --rm/);
+  const step = workflow
+    .split('      - name: Encrypt authenticated reports even after failure')[1]
+    .split('      - name: Preserve encrypted')[0];
+  assert.match(step, /if: always\(\)/);
+  const script = step.split('        run: |\n')[1].replace(/^          /gm, '');
+  const dir = mkdtempSync(join(tmpdir(), 'mycel-report-writer-'));
+  try {
+    const prepare = measurement.split('        run: |\n')[1].split('docker run')[0];
+    execFileSync('bash', ['-e', '-c', prepare], { cwd: dir });
+    assert.ok(existsSync(join(dir, '.scratch')));
+    mkdirSync(join(dir, 'bin'));
+    writeFileSync(join(dir, '.scratch/quality-container.id'), 'synthetic-writer');
+    // The final report may arrive while removal waits for the writer to exit.
+    writeFileSync(
+      join(dir, 'bin/docker'),
+      `#!/bin/sh
+set -eu
+[ "$*" = "rm --force synthetic-writer" ]
+[ ! -e encrypted ]
+echo final-report > stopped
+`
+    );
+    writeFileSync(
+      join(dir, 'bin/node'),
+      `#!/bin/sh
+set -eu
+[ "$*" = "scripts/quality/protect.mjs .scratch/quality-report" ]
+[ -e stopped ]
+[ ! -e .scratch/quality-container.id ]
+cp stopped encrypted
+`
+    );
+    for (const tool of ['docker', 'node']) chmodSync(join(dir, 'bin', tool), 0o700);
+    const options = {
+      cwd: dir,
+      env: { ...process.env, PATH: `${join(dir, 'bin')}:${process.env.PATH}` },
+    };
+    execFileSync('bash', ['-e', '-c', script], options);
+    assert.equal(readFileSync(join(dir, 'encrypted'), 'utf8'), 'final-report\n');
+    // A failed removal must prevent encryption.
+    rmSync(join(dir, 'encrypted'));
+    writeFileSync(join(dir, '.scratch/quality-container.id'), 'synthetic-writer');
+    writeFileSync(join(dir, 'bin/docker'), '#!/bin/sh\nexit 1\n');
+    assert.throws(() => execFileSync('bash', ['-e', '-c', script], options));
+    assert.equal(existsSync(join(dir, 'encrypted')), false);
+    assert.equal(existsSync(join(dir, '.scratch/quality-container.id')), true);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 test('pinned Lighthouse loads the identity extension', () => {
   assert.ok(new IdentityGatherer().meta.supportedModes.includes('navigation'));
   assert.deepEqual(IdentityAudit.meta.requiredArtifacts, ['MycelIdentity']);
 });
-
 test('authenticated originals survive public-key encryption and round-trip locally', () => {
   const dir = mkdtempSync(join(tmpdir(), 'mycel-private-report-'));
   try {
@@ -169,7 +233,6 @@ test('failed or mismatched baselines cannot redefine absolute acceptance', () =>
     'compared'
   );
 });
-
 test('measured writer DOM passes the same identity path; wrong article and empty prose fail', async (t) => {
   const { chromium } = await import('@playwright/test');
   const { existsSync } = await import('node:fs');
@@ -348,8 +411,8 @@ test('consumer counts the versioned full matrix and retains all red observation 
   bad.batches[1].state = 'pass';
   bad.batches[1].reasons = [];
   const result = consumeRun(run, load);
-  assert.equal(result.expected, 72);
-  assert.equal(result.samples, 365);
+  assert.equal(result.expected, 84);
+  assert.equal(result.samples, 425);
   assert.equal(result.state, 'fail');
   assert.equal(result.conclusion, 'success');
   assert.equal(result.cells[0].batches.length, 2);
@@ -426,7 +489,6 @@ test('cancelled attempts cannot pass, and local evidence keeps its own kind', ()
   assert.equal(output.state, 'pass');
   assert.equal(output.evidenceKind, 'local');
 });
-
 test('a non-pass shard summary cannot be upgraded by its passing available cells', () => {
   for (const state of ['fail', 'inconclusive', 'not-measured']) {
     const run = retained();
@@ -568,8 +630,8 @@ test('container shards bind immutable userspace and tools while retaining indepe
   }
   const result = gate(input);
   assert.equal(result.blocks, false);
-  assert.equal(result.report.present, 6);
-  assert.equal(result.report.samples, 30);
+  assert.equal(result.report.present, 8);
+  assert.equal(result.report.samples, 40);
   assert.deepEqual(
     result.report.profiles.map((p) => p.environment.hostImage),
     ['20261026.354.1', '20261023.334.3']
@@ -804,7 +866,6 @@ test('early enforcement requires an explicit reviewed pair of independent run re
     )
   );
 });
-
 test('required job always validates after both dependencies and cannot ignore its own failure', () => {
   const workflow = source('.github/workflows/frontend-quality.yml');
   const job = workflow.split('\n  frontend-quality:\n')[1];
@@ -891,7 +952,7 @@ test('gate CLI retains full reports and fails for absent downloads instead of pa
     command(root, join(dir, 'good'));
     const result = JSON.parse(readFileSync(join(dir, 'good', 'summary.json')));
     assert.equal(result.measured, 'pass');
-    assert.equal(result.report.samples, 30);
+    assert.equal(result.report.samples, 40);
     assert.equal(result.report.cells[0].batches[0].sampleIds.length, 5);
     assert.throws(() => command(join(dir, 'absent'), join(dir, 'bad')));
     assert.equal(JSON.parse(readFileSync(join(dir, 'bad', 'summary.json'))).blocks, true);
@@ -899,9 +960,8 @@ test('gate CLI retains full reports and fails for absent downloads instead of pa
     rmSync(dir, { recursive: true, force: true });
   }
 });
-
 test('information expands both profiles/locales while historical v3 keeps its own coverage', () => {
-  assert.equal(contract.fixtureVersion, '43a-v6');
+  assert.equal(contract.fixtureVersion, '43a-v7');
   for (const locale of ['nl', 'en'])
     for (const profile of ['mobile', 'desktop']) {
       const shard = expectedShards(contract, 'local', {
@@ -918,6 +978,7 @@ test('information expands both profiles/locales while historical v3 keeps its ow
     ['populated-list', 'native-editor', 'enhanced-writer'].includes(entry.name)
   );
   delete old.public.information;
+  delete old.public.person;
   delete old.public['demo-page'];
   delete old.public['demo-article'];
   const historical = sourceContract({
@@ -928,7 +989,7 @@ test('information expands both profiles/locales while historical v3 keeps its ow
     lock: source('package-lock.json'),
   });
   assert.equal(expectedShards(historical, 'workflow_dispatch').flatMap((s) => s.ids).length, 36);
-  assert.equal(expectedShards(contract, 'workflow_dispatch').flatMap((s) => s.ids).length, 72);
+  assert.equal(expectedShards(contract, 'workflow_dispatch').flatMap((s) => s.ids).length, 84);
   assert.notEqual(historical.fixtureHash, contract.fixtureHash);
   const run = retained('pull_request');
   for (const a of run.artifacts)

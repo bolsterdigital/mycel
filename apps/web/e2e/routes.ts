@@ -66,6 +66,11 @@ export const ADMIN_ROUTES: GateRoute[] = [
 ];
 
 /** Public routes of the probe site, measured anonymously in Dutch. */
-export const PUBLIC_ROUTES: GateRoute[] = [{ path: '/probe/campagne' }, { path: '/probe/artikel' }];
+export const PUBLIC_ROUTES: GateRoute[] = [
+  { path: '/probe/campagne' },
+  { path: '/probe/artikel' },
+  { path: '/probe/people/e2e-auteur' },
+  { path: '/probe/en/people/e2e-auteur' },
+];
 
 export const ADMIN_LOCALES = ['nl-NL', 'en-GB'] as const;

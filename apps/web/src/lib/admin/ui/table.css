@@ -1,0 +1,14 @@
+/* Table record links share the component layer and tokens. A separate stylesheet keeps
+   ui.css within its size ceiling; a route-local override would miss other record lists. */
+@layer tokens, base, components;
+@layer components {
+  /* A stacked record name must fit its cell without inventing hyphens. Keep scrolling tables'
+     intrinsic column widths: shrinking their title links also squeezes the row actions. */
+  @container (max-width: 36rem) {
+    .ui-table.stack tbody th > a {
+      max-inline-size: 100%;
+      overflow-wrap: anywhere;
+      hyphens: manual;
+    }
+  }
+}

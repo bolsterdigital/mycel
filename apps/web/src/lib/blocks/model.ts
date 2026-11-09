@@ -69,6 +69,8 @@ export interface RenderImage {
 export interface RenderMeta {
   date: { iso: string; label: string } | null;
   byline: string | null;
+  /** Structured public links; previews can keep the plain-text byline. */
+  bylineParts?: { text: string; href?: string }[];
   section: string | null;
 }
 

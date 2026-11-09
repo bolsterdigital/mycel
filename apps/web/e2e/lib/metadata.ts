@@ -11,6 +11,9 @@ export interface LocaleMetadata {
   locale: string;
   /** The title the corpus expects in this locale: its title for search results, else its own. */
   title: string;
+  sharedTitle?: boolean;
+  /** Collections can contain a different set of cards in each published locale. */
+  independentImages?: boolean;
   /** Whether the corpus gives this page a share image that says something. */
   describedShare?: boolean;
   documentTitle: string;
@@ -33,7 +36,9 @@ export async function localeMetadata(
   page: Page,
   locale: string,
   title: string,
-  describedShare = false
+  describedShare = false,
+  sharedTitle = false,
+  independentImages = false
 ): Promise<LocaleMetadata> {
   const read = await page.evaluate(() => {
     const content = (selector: string) =>
@@ -57,7 +62,7 @@ export async function localeMetadata(
       alts: [...document.querySelectorAll('main img')].map((img) => img.getAttribute('alt')),
     };
   });
-  return { locale, title, describedShare, ...read };
+  return { locale, title, describedShare, sharedTitle, independentImages, ...read };
 }
 
 /** One line per rule a locale breaks, alone or compared with another locale of the same page. */
@@ -94,9 +99,11 @@ export function localeMetadataProblems(pages: LocaleMetadata[]): string[] {
       const pair = `${a.locale}/${b.locale}:`;
       if (a.description && a.description === b.description)
         problems.push(`${pair} same description`);
-      if (a.ogTitle && a.ogTitle === b.ogTitle) problems.push(`${pair} same og:title`);
+      if (!a.sharedTitle && !b.sharedTitle && a.ogTitle && a.ogTitle === b.ogTitle)
+        problems.push(`${pair} same og:title`);
       if (a.ogImageAlt && a.ogImageAlt === b.ogImageAlt) problems.push(`${pair} same og:image:alt`);
       if (!a.ogImageAlt !== !b.ogImageAlt) problems.push(`${pair} og:image:alt in one locale only`);
+      if (a.independentImages || b.independentImages) continue;
       if (a.alts.length !== b.alts.length) {
         problems.push(`${pair} ${a.alts.length} and ${b.alts.length} images`);
         continue;
