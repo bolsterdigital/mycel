@@ -156,7 +156,11 @@ describe.skipIf(skip)('postgres adapter', () => {
           }),
         })
         .where('id', '=', id)
-        .execute()
+        .returning('id')
+        .executeTakeFirstOrThrow()
+    );
+    expect((await uow.run(admin, (ctx) => ctx.forms.findById(id)))?.fields[0]?.name).toBe(
+      'renamed'
     );
     expect(await uow.run(admin, (ctx) => ctx.submissions.findById(result.submissionId))).toEqual(
       before

@@ -869,6 +869,7 @@ describe('ordinary form field corpus', () => {
             {
               type: 'form',
               version: 1,
+              id: 'ordinary-form',
               props: { formId: EXAMPLE_IDS.form, variant: 'default', width: 'content' },
             },
           ],
