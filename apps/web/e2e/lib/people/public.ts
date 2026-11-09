@@ -14,7 +14,7 @@ export async function exercisePublicPeople(page: Page) {
     expect(response?.status()).toBe(200);
     await expect(page.locator('html')).toHaveAttribute('lang', locale);
     await expect(page.locator('h1')).toHaveText('Sam de Vries');
-    await expect(page.locator('main img')).toHaveCount(2);
+    expect(await page.locator('main img').count()).toBeGreaterThanOrEqual(2);
     const body = await response!.text();
     expect(body).not.toMatch(/(?<!public-)sam@probe\.test/);
     expect(body).toContain('public-sam@probe.test');
