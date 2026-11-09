@@ -12,6 +12,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'kysely';
 import {
   formMailSource,
+  formFeedSubscriber,
+  formFeedSource,
+  FORM_FEED_SOURCE,
   formMailSubscriber,
   DEFAULT_ACCESS,
   Invoker,
@@ -81,6 +84,7 @@ describe.skipIf(skip)('mailing conformance', () => {
       clock,
       ids: uuidv7Ids,
       signer,
+      connectionCredentialKey: 'ab'.repeat(32),
       inputHasher: new FakeInputHasher(),
       dns: new FakeDns(),
       platform: memoryPlatform,
@@ -466,6 +470,112 @@ describe.skipIf(skip)('mailing conformance', () => {
     expect(
       await uow.run(adminOf(tenantId), (ctx) => ctx.formMail.reserveBudget('2026-12', 0, 0))
     ).toBe(true);
+    await closeTenantWork(operatorDb, [id]);
+  });
+  it('persists pinned feeds, deduplicates confirmation delivery across pools and isolates source lookup', async () => {
+    const id = (await testTenant(operatorDb, `form-feed-${run}`)).id;
+    const admin = adminOf(id);
+    const form = uuidv7();
+    await uow.run(admin, (ctx) => ctx.forms.insert(probeForm(form)));
+    const c = await uow.run(admin, async (ctx) => {
+      const created = await ctx.connections.insert(
+        {
+          id: uuidv7(),
+          provider: 'webhook',
+          accountRef: null,
+          externalOwner: 'Example',
+          maintainer: 'Operator',
+          purpose: 'Newsletter',
+          direction: 'outbound',
+          dataAuthority: 'mycel',
+          consentAuthority: 'mycel',
+          consentScopes: ['newsletter'],
+          formIds: [form],
+          destination: 'https://hooks.example.org/feed',
+          contractVersion: 'v1',
+          adapterVersion: 'v1',
+        },
+        clock.now()
+      );
+      const credential = (await ctx.connections.replaceCredential(
+        created.id,
+        created.version,
+        'synthetic-secret',
+        clock.now()
+      ))!;
+      return (await ctx.connections.state(created.id, credential.version, 'active', clock.now()))!;
+    });
+    const value = {
+      feeds: [
+        {
+          id: 'news',
+          formId: form,
+          enabled: true,
+          connectionId: c.id,
+          connectionVersion: c.version,
+          scope: 'newsletter',
+          confirmationOwner: 'mycel' as const,
+          mapping: [{ fieldId: 'email', target: 'email' }],
+        },
+      ],
+    };
+    const actor = { kind: 'system' as const, id: 'feed-test' };
+    const writes = await Promise.all(
+      [uow, uow2].map((u) => u.run(admin, (ctx) => ctx.formFeeds.save(0, value, actor)))
+    );
+    expect(writes.filter(Boolean)).toHaveLength(1);
+    const accepted = await invoker.run(useCases.submitForm, admin, {
+      formId: form,
+      locale: 'en',
+      values: { email: 'feed@example.org', consent: true },
+    });
+    if (accepted.status !== 'accepted') throw new Error(accepted.status);
+    const token = await signConfirmToken(
+      signer,
+      { tenantId: id, submissionId: accepted.submissionId, list: 'newsletter' },
+      clock.now()
+    );
+    await invoker.run(useCases.confirmSubscription, admin, { token });
+    const sub = (await uow2.run(admin, (ctx) => ctx.submissions.findById(accepted.submissionId)))!;
+    const pin = sub.evaluation!.feedActions![0]!;
+    const event = {
+      id: uuidv7(),
+      tenantId: id,
+      type: 'consent.given',
+      occurredAt: sub.confirmedAt!,
+      actor: admin.actor,
+      props: {
+        email: 'feed@example.org',
+        submissionId: sub.id,
+        formId: form,
+        list: 'newsletter',
+        locale: 'en',
+        consentTextVersion: sub.consentTextVersion,
+        confirmedAt: sub.confirmedAt!.toISOString(),
+      },
+    };
+    await Promise.all([uow, uow2].map((u) => formFeedSubscriber(u).handle(event)));
+    const rows = await uow.run(admin, (ctx) => ctx.connectionIntents.list(c.id, 10));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      businessId: pin.businessId,
+      mappingVersion: pin.version,
+      source: FORM_FEED_SOURCE,
+    });
+    expect(await uow2.run(admin, (ctx) => formFeedSource.prepare(ctx, rows[0]!))).toMatchObject({
+      ready: true,
+      payload: { data: { fields: { email: 'feed@example.org' } } },
+    });
+    expect(
+      await uow.run(adminOf(tenantId), (ctx) =>
+        ctx.submissions.findByFeedBusinessId(pin.businessId)
+      )
+    ).toBeNull();
+    await uow.run(admin, (ctx) => ctx.erasures.register(rows[0]!.supporterId!, 'feed@example.org'));
+    // Registration blocks the common dispatch guard immediately, before asynchronous scrubbing.
+    expect(await uow.run(admin, (ctx) => ctx.connectionIntents.erased(rows[0]!.supporterId!))).toBe(
+      true
+    );
     await closeTenantWork(operatorDb, [id]);
   });
 });

@@ -119,10 +119,17 @@ declare module '../ports.js' {
 }
 
 /** Installed sources resolve a pinned mapping and current external suppression, in tenant context.
- * No source is installed by default. A source must not infer permission from a prior payload.
+ * Sources are installed explicitly. A source must not infer permission from a prior payload.
  * `ready` means this exact mapping, operation and consent scope are currently authorized.
  */
 export interface ConnectionSource {
+  /** Additional source authority, rechecked after preparation with refreshed tenant access.
+   * Absent means the generic connection authority suffices for this source.
+   */
+  authorize?(
+    ctx: TransactionContext,
+    intent: Readonly<ConnectionIntent>
+  ): Promise<ConnectionFailure | null>;
   prepare(
     ctx: TransactionContext,
     intent: Readonly<ConnectionIntent>

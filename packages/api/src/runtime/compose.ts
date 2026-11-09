@@ -21,6 +21,9 @@ import {
   type Clock,
   SYNTHETIC_SOURCE,
   syntheticSource,
+  formFeedSubscriber,
+  formFeedSource,
+  FORM_FEED_SOURCE,
   type ErrorReporter,
   type IdentityStore,
   type Logger,
@@ -309,6 +312,7 @@ export function createRuntime(
     supporterIngestSubscriber(uow),
     confirmationMailSubscriber(confirmation),
     formMailSubscriber(formMail),
+    formFeedSubscriber(uow),
   ];
   // What `mail.reconcile` rebuilds a message with, per mail subscriber above.
   const mailSources = {
@@ -429,7 +433,7 @@ export function createRuntime(
         },
         connections: {
           transport: webhookTransport({ dns }),
-          sources: { [SYNTHETIC_SOURCE]: syntheticSource },
+          sources: { [SYNTHETIC_SOURCE]: syntheticSource, [FORM_FEED_SOURCE]: formFeedSource },
         },
       });
       const stopJobs = startJobWorker(operatorDb, inJobContext(handlers), {

@@ -22,6 +22,7 @@ import { ADMIN_LOCALES, ADMIN_ROUTES, type GateRoute, PUBLIC_ROUTES } from './ro
 import { OTHER_SCRIPTS, isA11y, onlyA11y } from './lib/project';
 import { testTenant } from '@mycel/db/testing';
 import { callApi, requireApi } from './lib/api';
+import { ask, armRenderer, rendererStack } from './lib/evidence/renderer';
 
 // The generic gate over routes.ts: every route at 320 CSS px in default and 200% text passes
 // lib/layout.ts, and axe in the a11y project. One login per locale and text size walks every
@@ -1188,4 +1189,40 @@ test.describe('admin-shell', () => {
       await checkShell(page, 'Probe', 'Pagina’s');
     });
   });
+});
+
+// Failure evidence is part of the browser gate: a stalled renderer must yield a stack while
+// a healthy page needs no interruption. A separate context contains the deliberate spin.
+test('failure evidence interrupts a spinning renderer and records only locations', async ({
+  browser,
+}) => {
+  onlyA11y();
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    const armed = await armRenderer(page, () => '(anonymous)');
+    expect(armed.armed).toEqual({ answer: true });
+    await page.evaluate(() => {
+      setTimeout(function evidenceSpin() {
+        while (true) Math.sqrt(Math.random());
+      }, 0);
+    });
+    const silent = await ask(() => page.evaluate(() => document.readyState));
+    expect(silent).toEqual({ noAnswerMs: 2000 });
+    const stack = await rendererStack(armed);
+    expect(stack).toMatchObject({
+      armed: { answer: true },
+      answer: {
+        frames: expect.arrayContaining([
+          expect.objectContaining({ name: 'evidenceSpin', url: '(anonymous)' }),
+        ]),
+      },
+    });
+    expect(JSON.stringify(stack)).not.toMatch(/scopeChain|localStorage|scriptSource/);
+    // A separate target still answers, as in the actual failure's `above` evidence.
+    const fresh = await context.newPage();
+    expect(await fresh.evaluate(() => document.readyState)).toBe('complete');
+  } finally {
+    await context.close();
+  }
 });

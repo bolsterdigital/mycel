@@ -670,6 +670,7 @@ export const en = {
   'admin.audit.op.content.section.create': 'Section created',
   'admin.audit.op.content.section.update': 'Section changed',
   'admin.audit.op.content.translation.approve': 'Translation approved',
+  'admin.audit.op.form.feed.update': 'Form feeds updated',
   'admin.audit.op.form.mail.update': 'Form mail settings updated',
   'admin.audit.op.form.mail.replay': 'Form mail reconciliation requested',
   'admin.audit.op.form.submit': 'Form sent',

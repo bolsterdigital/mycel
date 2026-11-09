@@ -130,10 +130,13 @@ export async function runConnectionIntent(
       latest.leaseUntil <= deps.clock.now()
     )
       return null;
-    const lateFailure = await connectionIntentGuard(
-      { ...ctx, principal: systemPrincipal(tenantId, 'connections.run', access) },
-      latest
-    );
+    const latestContext = {
+      ...ctx,
+      principal: systemPrincipal(tenantId, 'connections.run', access),
+    };
+    const lateFailure =
+      (await connectionIntentGuard(latestContext, latest)) ??
+      (await source.authorize?.(latestContext, latest));
     if (lateFailure) return { ready: false as const, failure: lateFailure };
     const connection = await ctx.connections.get(latest.connectionId);
     const credential = await ctx.connections.credential(

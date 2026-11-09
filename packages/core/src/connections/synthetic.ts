@@ -1,4 +1,4 @@
-// The synthetic test is the only connection traffic Mycel sends today (TODO #49): one definition
+// The synthetic connection test has one definition
 // that the guard, the worker's source, the webhook transport and the status view all read.
 // Rejected: each layer re-deriving "is this synthetic?" from string literals, which drifted.
 import type { ConnectionSource } from './ports.js';

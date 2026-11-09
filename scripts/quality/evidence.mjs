@@ -15,7 +15,8 @@ const token = (v) => typeof v === 'string' && /^[a-zA-Z0-9_.:#, /+-]{1,240}$/.te
 const sha = (v) => typeof v === 'string' && /^[a-f0-9]{40}$/.test(v);
 const hash = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
 const issue = (reason) => ({ reason });
-const key = (s) => `${s.scope}-${s.locale}-${s.profile}-${s.cache}`;
+const key = (s) =>
+  `${s.scope}-${s.locale}-${s.profile}-${s.cache}${s.part ? `-part-${s.part}` : ''}`;
 const worst = (values) =>
   ['fail', 'not-measured', 'inconclusive'].find((state) => values.includes(state)) ??
   (values.length ? 'pass' : 'not-measured');
@@ -31,7 +32,12 @@ export function sourceContract({ corpus, seed, matrixSource, workflow, lock }) {
     manifest.schemaVersion !== 1
   )
     throw new Error('unsupported-corpus');
-  if (matrixSource !== readFileSync(new URL('./matrix.mjs', import.meta.url), 'utf8'))
+  const partition = matrixSource === readFileSync(new URL('./matrix.mjs', import.meta.url), 'utf8');
+  if (
+    !partition &&
+    matrixSource !==
+      readFileSync(new URL('./fixtures/pre-partition/matrix.source', import.meta.url), 'utf8')
+  )
     throw new Error('unsupported-matrix');
   const packages = JSON.parse(lock).packages;
   const runnerImage = /QUALITY_RUNNER_IMAGE: \S+@((?:sha256:)[a-f0-9]{64})\s/.exec(workflow)?.[1];
@@ -42,6 +48,7 @@ export function sourceContract({ corpus, seed, matrixSource, workflow, lock }) {
     fixtureVersion: manifest.fixtureVersion,
     fixtureHash: createHash('sha256').update(corpus).update(seed).digest('hex'),
     manifest,
+    partition,
     ...(runnerImage ? { runnerImage } : {}),
     tools: {
       node: `v${/node-version: '([^']+)'/.exec(workflow)?.[1]}`,
@@ -60,12 +67,16 @@ export function expectedShards(contract, event, selection) {
     !hash(contract.fixtureHash)
   )
     throw new Error('invalid-contract');
-  const shards = event === 'local' ? [selection] : matrix(event).include;
+  const shards =
+    event === 'local'
+      ? [selection]
+      : matrix(event, contract.manifest, contract.partition === true).include;
   return shards.map((s) => {
     if (
-      !matrix('schedule').include.some(
+      !matrix('schedule', contract.manifest, false).include.some(
         (candidate) =>
-          key(candidate) === key({ ...s, scope: s.scope === 'full' ? 'default' : s.scope })
+          key(candidate) ===
+          key({ ...s, part: undefined, scope: s.scope === 'full' ? 'default' : s.scope })
       )
     )
       throw new Error('invalid-profile');
@@ -78,10 +89,17 @@ export function expectedShards(contract, event, selection) {
               ? contract.manifest.admin.routes.map((entry) => entry.name)
               : []),
           ];
+    const selected = s.routes ? s.routes.split(',') : names;
+    if (
+      !selected.length ||
+      new Set(selected).size !== selected.length ||
+      selected.some((name) => !names.includes(name))
+    )
+      throw new Error('invalid-routes');
     return {
       ...s,
       name: `quality-summary-${key(s)}`,
-      ids: names.map((name) => `${name}-${s.locale}-${s.profile}-${s.cache}`),
+      ids: selected.map((name) => `${name}-${s.locale}-${s.profile}-${s.cache}`),
     };
   });
 }

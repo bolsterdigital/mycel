@@ -169,6 +169,12 @@ export interface Database {
     check_failures: Generated<number>;
     last_checked_at: Timestamp | null;
   };
+  form_feed_settings: {
+    tenant_id: string;
+    version: number;
+    value: Json<unknown>;
+    actor: Json<unknown>;
+  };
   form_mail_settings: { tenant_id: string; version: number; value: Json<unknown> };
   form_mail_budget: { tenant_id: string; month: string; used: number };
   forms: {
