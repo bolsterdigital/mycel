@@ -119,7 +119,7 @@ declare module '../ports.js' {
 }
 
 /** Installed sources resolve a pinned mapping and current external suppression, in tenant context.
- * No source is installed by default. A source must not infer permission from a prior payload.
+ * Sources are installed explicitly. A source must not infer permission from a prior payload.
  * `ready` means this exact mapping, operation and consent scope are currently authorized.
  */
 export interface ConnectionSource {

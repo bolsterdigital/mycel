@@ -662,6 +662,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.audit.op.content.section.create': 'Rubriek aangemaakt',
   'admin.audit.op.content.section.update': 'Rubriek gewijzigd',
   'admin.audit.op.content.translation.approve': 'Vertaling goedgekeurd',
+  'admin.audit.op.form.feed.update': 'Formulierfeeds ingesteld',
   'admin.audit.op.form.mail.update': 'Formuliermail ingesteld',
   'admin.audit.op.form.mail.replay': 'Aflevercontrole formuliermail aangevraagd',
   'admin.audit.op.form.submit': 'Formulier verstuurd',

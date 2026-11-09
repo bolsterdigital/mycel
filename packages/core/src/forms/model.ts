@@ -109,6 +109,7 @@ export interface Submission {
   /** Null only on historical submissions made before versioned evaluation was introduced. */
   evaluation: {
     confirmationMail?: { version: string; copy: import('./mail-model.js').ResolvedFormMail };
+    feedActions?: import('./feed/model.js').PinnedFormFeed[];
     mailActions?: import('./mail-model.js').PinnedMailAction[];
     version: string;
     definition: FormDefinition;

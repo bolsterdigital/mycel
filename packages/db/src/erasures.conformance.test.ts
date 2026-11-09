@@ -57,6 +57,7 @@ describe.skipIf(skip)('erasure conformance', () => {
     clock,
     ids: uuidv7Ids,
     signer,
+    connectionCredentialKey: 'ab'.repeat(32),
     inputHasher: new FakeInputHasher(),
     dns: new FakeDns(),
     platform: memoryPlatform,
@@ -102,6 +103,59 @@ describe.skipIf(skip)('erasure conformance', () => {
     const admin = systemPrincipal(tenantId, 'erasure-test');
     const formId = uuidv7();
     await uow.run(admin, (ctx) => ctx.forms.insert(probeForm(formId)));
+    await uow.run(admin, async (ctx) => {
+      const c = await ctx.connections.insert(
+        {
+          id: ctx.ids.next(),
+          provider: 'webhook',
+          accountRef: null,
+          externalOwner: 'Example',
+          maintainer: 'Operator',
+          purpose: 'Newsletter',
+          direction: 'outbound',
+          dataAuthority: 'mycel',
+          consentAuthority: 'mycel',
+          consentScopes: ['newsletter'],
+          formIds: [formId],
+          destination: 'https://hooks.example.org/feed',
+          contractVersion: 'v1',
+          adapterVersion: 'v1',
+        },
+        clock.now()
+      );
+      const credential = (await ctx.connections.replaceCredential(
+        c.id,
+        c.version,
+        'synthetic-secret',
+        clock.now()
+      ))!;
+      const connected = (await ctx.connections.state(
+        c.id,
+        credential.version,
+        'active',
+        clock.now()
+      ))!;
+      const feeds = await ctx.formFeeds.get();
+      await ctx.formFeeds.save(
+        feeds.version,
+        {
+          feeds: [
+            ...feeds.value.feeds,
+            {
+              id: `feed-${feeds.version}`,
+              formId,
+              enabled: true,
+              connectionId: c.id,
+              connectionVersion: connected.version,
+              scope: 'newsletter',
+              confirmationOwner: 'mycel',
+              mapping: [{ fieldId: 'email', target: 'email' }],
+            },
+          ],
+        },
+        { kind: 'system', id: 'erasure-test' }
+      );
+    });
     const state = await uow.run(admin, (ctx) => ctx.formMail.get());
     await invoker.run(useCases.updateFormMailSettings, admin, {
       baseVersion: state.version,
@@ -141,7 +195,10 @@ describe.skipIf(skip)('erasure conformance', () => {
     if (submitted.status !== 'accepted') throw new Error(`signup ${submitted.status}`);
     expect(
       (await uow.run(admin, (ctx) => ctx.submissions.findById(submitted.submissionId)))?.evaluation
-    ).toMatchObject({ activeFieldIds: ['email', 'consent'] });
+    ).toMatchObject({
+      activeFieldIds: ['email', 'consent'],
+      feedActions: [expect.objectContaining({ feed: expect.objectContaining({ formId }) })],
+    });
     const ids = await asRole(operatorDb, 'mycel_worker', async (trx) => {
       return (
         await sql<{ id: string }>`select id from outbox where tenant_id = ${tenantId}`.execute(trx)

@@ -78,6 +78,7 @@ export interface TenantStore {
   bulkUndo: Set<string>;
   bulkResults: Map<string, BulkResult>;
   patterns: Map<string, Pattern>;
+  formFeeds: import('../../forms/feed/model.js').FormFeedState;
   formMail: import('../../forms/mail-model.js').FormMailState;
   formMailBudget: { month: string; used: number };
   forms: Map<string, FormDefinition>;
@@ -149,6 +150,7 @@ const emptyTenant = (): TenantStore => ({
   bulkUndo: new Set(),
   bulkResults: new Map(),
   patterns: new Map(),
+  formFeeds: { version: 0, value: { feeds: [] }, actor: null },
   formMail: { version: 0, value: { templates: [], forms: [] } },
   formMailBudget: { month: '', used: 0 },
   forms: new Map(),

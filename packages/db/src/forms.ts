@@ -5,6 +5,7 @@
 import { sql, type Kysely } from 'kysely';
 import {
   FormMailSettings,
+  FormFeedState,
   EMPTY_FORM_MAIL,
   parseFormDefinition,
   type FormRepository,
@@ -79,6 +80,16 @@ export function submissionRepository(trx: Trx, tenantId: string): SubmissionRepo
         evaluation: row.evaluation,
       };
     },
+    async findByFeedBusinessId(id) {
+      const row = await trx
+        .selectFrom('form_submissions')
+        .select('id')
+        .where(
+          sql<boolean>`evaluation->'feedActions' @> ${JSON.stringify([{ businessId: id }])}::jsonb`
+        )
+        .executeTakeFirst();
+      return row ? submissionRepository(trx, tenantId).findById(row.id) : null;
+    },
     async confirm(id, at) {
       // One conditional update: the first click sets it, every later click matches no row.
       const row = await trx
@@ -146,6 +157,47 @@ export function formMailRepository(
         .returning('used')
         .executeTakeFirst();
       return !!row;
+    },
+  };
+}
+
+export function formFeedRepository(
+  trx: Trx,
+  tenantId: string
+): import('@mycel/core').FormFeedRepository {
+  return {
+    async get() {
+      const row = await trx
+        .selectFrom('form_feed_settings')
+        .selectAll()
+        .where('tenant_id', '=', tenantId)
+        .executeTakeFirst();
+      return row
+        ? FormFeedState.parse({ version: row.version, value: row.value, actor: row.actor })
+        : { version: 0, value: { feeds: [] }, actor: null };
+    },
+    async save(baseVersion, value, actor) {
+      const change = {
+        version: baseVersion + 1,
+        value: JSON.stringify(value),
+        actor: JSON.stringify(actor),
+      };
+      const row =
+        baseVersion === 0
+          ? await trx
+              .insertInto('form_feed_settings')
+              .values({ tenant_id: tenantId, ...change })
+              .onConflict((oc) => oc.column('tenant_id').doNothing())
+              .returning('version')
+              .executeTakeFirst()
+          : await trx
+              .updateTable('form_feed_settings')
+              .set(change)
+              .where('tenant_id', '=', tenantId)
+              .where('version', '=', baseVersion)
+              .returning('version')
+              .executeTakeFirst();
+      return row ? { version: row.version, value, actor } : null;
     },
   };
 }

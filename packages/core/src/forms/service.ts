@@ -16,6 +16,7 @@ import {
   issueStartedToken,
 } from './spam.js';
 import './ports.js';
+import { pinFormFeeds } from './feed/delivery.js';
 import { planFormMail } from './mail-planning.js';
 import { evaluateFields } from './fields.js';
 import { hashInput } from '../audit/model.js';
@@ -211,6 +212,7 @@ export const submitForm = defineUseCase({
     )
       return reject('recipient-limited');
 
+    submission.evaluation!.feedActions = await pinFormFeeds(ctx, submission);
     const mailPlan = await planFormMail(ctx, submission, email);
     submission.evaluation!.mailActions = mailPlan.pins;
     if (mailPlan.confirmation && mailPlan.confirmationVersion)

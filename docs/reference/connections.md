@@ -1,6 +1,6 @@
 # Managed connections
 
-A managed connection is a tenant's registered link to an external service: an inventory entry, an encrypted credential and a durable intent engine that delivers work to it. The only transport today is the generic signed webhook ([managed-webhooks.md](managed-webhooks.md)), and the only source it delivers is an explicitly requested synthetic test; no form, supporter or other real data leaves the installation through a connection yet. A newly registered connection starts paused and without a credential. Tenant administrators manage connections at `/admin/<tenant>/connections`.
+A managed connection is a tenant's registered link to an external service: an inventory entry, an encrypted credential and a durable intent engine that delivers work to it. The only transport today is the generic signed webhook ([managed-webhooks.md](managed-webhooks.md)), with two installed sources: an explicitly requested synthetic test and the confirmed, versioned form feed. A newly registered connection starts paused and without a credential. Tenant administrators manage connections at `/admin/<tenant>/connections`.
 
 Stored values are limited to what has an implementation: provider `webhook`, direction `outbound`, and the closed sets of intent states and failure classes in `packages/core/src/connections/`. Migration 0028 holds the database to the same sets. A new provider or direction arrives with its transport and its tests, not ahead of them.
 
@@ -12,9 +12,9 @@ The installation encrypts credentials with AES-256-GCM under `CONNECTION_CREDENT
 
 Both tables have forced tenant RLS. A suspended tenant may read its inventory but cannot change it, following the shared invoker rule. A webhook destination is checked when it is saved (in the use case) and again on every delivery (in the transport): public HTTPS on port 443, a hostname rather than an IP literal, and a DNS answer that contains only public addresses. Both use `checkDestination` in `packages/core/src/connections/destination.ts` over the core DNS port (`DnsResolver.addresses`), so in-memory tests exercise the same rule. The request is pinned to the checked address and follows no redirect. A connection does not authorize a transfer by itself.
 
-## Future form actions and connectors
+## Form feeds and future providers
 
-**Future form actions and connectors** (ADRs 023 and 024) use this intent and reconciliation principle. Form definitions will pin stable field/action ids and versions, evaluate bounded predicates on the server, and plan transactional notifications separately from confirmed marketing actions. A connection will name its domain and consent owner, tenant-authorized destination, credentials, mapping and maintainer; delivery/replay checks current suppression and erasure state. Mycel's own storage and default processors remain in the EU; a tenant-selected external destination is an explicit export. These are accepted contracts, not claims about current form or provider code.
+[Form feeds](forms.md#versioned-connector-feeds) pin approved destination and mapping versions at submission, then plan this engine's intents after confirmed Mycel consent. The source rechecks current authorization, consent, erasure and the pinned submission before every external write. Only the webhook provider is currently installed. Provider-specific account setup, external confirmation ownership, suppression reconciliation and Mailchimp transport remain separate work.
 
 ## Durable intents
 
@@ -39,7 +39,7 @@ Both require `connections:replay`. Completed, blocked, failed and resolved inten
 
 ## Storage
 
-Migration 0025 adds `connection_intents` and append-only `connection_attempts`, both under forced tenant RLS; 0028 narrows their value sets. Both are operational and excluded from portable tenant exports: importing unfinished work into another installation could duplicate effects. Installation backups retain them for recovery. Erasure detaches the supporter id, invalidates the worker lease and preserves anonymous success, uncertainty or manual resolution; pending work becomes blocked. The remaining business id is an opaque UUID, not an address or a submitted payload. This does not assert that an external copy was erased. Real-data sources, provider-specific suppression and reconciliation, and administration of external copies are not built yet.
+Migration 0025 adds `connection_intents` and append-only `connection_attempts`, both under forced tenant RLS; 0028 narrows their value sets. Both are operational and excluded from portable tenant exports: importing unfinished work into another installation could duplicate effects. Installation backups retain them for recovery. Erasure detaches the supporter id, invalidates the worker lease and preserves anonymous success, uncertainty or manual resolution; pending work becomes blocked. The remaining business id is an opaque UUID, not an address or a submitted payload. This does not assert that an external copy was erased. The form-feed source is installed; provider-specific suppression and reconciliation and administration of external copies remain separate work.
 
 ## Constants
 

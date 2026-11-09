@@ -2,6 +2,7 @@
 // address rule and the lookup are the core's (`checkDestination` over the DNS port), the same
 // check the use cases run at configuration. Rejected: fetch(url), whose resolver and redirect
 // handling can bypass an earlier IP check.
+import { FORM_FEED_SOURCE, FormFeedPayload } from '@mycel/core';
 import { createHmac } from 'node:crypto';
 import { request as httpsRequest } from 'node:https';
 import type { RequestOptions } from 'node:https';
@@ -84,9 +85,9 @@ export function webhookTransport({
   return {
     async dispatch({ intent, connection, credential, payload }) {
       if (connection.provider !== 'webhook' || !connection.destination) return 'pre_send';
-      // Only the synthetic source may be sent. A real payload needs its own reviewed,
-      // category-specific contract before this transport accepts it.
-      if (!isSyntheticIntent(intent) || payload['category'] !== SYNTHETIC_SOURCE) return 'pre_send';
+      const synthetic = isSyntheticIntent(intent) && payload['category'] === SYNTHETIC_SOURCE;
+      const feed = intent.source === FORM_FEED_SOURCE ? FormFeedPayload.safeParse(payload) : null;
+      if (!synthetic && !feed?.success) return 'pre_send';
       let target: Awaited<ReturnType<typeof checkDestination>>;
       try {
         target = await checkDestination(dns, connection.destination);
@@ -99,8 +100,8 @@ export function webhookTransport({
         eventId: intent.id,
         timestamp,
         idempotencyKey: intent.key,
-        category: SYNTHETIC_SOURCE,
-        data: { synthetic: true },
+        category: synthetic ? SYNTHETIC_SOURCE : FORM_FEED_SOURCE,
+        data: synthetic ? { synthetic: true } : feed!.data!.data,
       });
       const signature = createHmac('sha256', credential)
         .update(`${timestamp}.${body}`)

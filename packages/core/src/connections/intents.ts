@@ -122,10 +122,11 @@ export async function connectionIntentGuard(
   return null;
 }
 
-/** Internal transaction boundary for the future action subscriber, not a provisional feed route. */
+/** Internal transaction boundary for installed sources, never a public arbitrary-payload route. */
 export async function planConnectionIntent(
   ctx: TransactionContext,
-  raw: ConnectionIntentRequest
+  raw: ConnectionIntentRequest,
+  authority?: { actor: ConnectionIntent['actor']; retainBlocked: true }
 ): Promise<ConnectionIntent> {
   const input = requestSchema.parse(raw);
   if (!can(ctx.principal, 'connections:configure') || ctx.principal.actor.kind === 'anonymous')
@@ -163,9 +164,16 @@ export async function planConnectionIntent(
     createdAt: now,
     updatedAt: now,
   };
+  if (authority) row.actor = authority.actor;
   const failure = await connectionIntentGuard(ctx, row);
-  if (failure) throw new UseCaseError('conflict', `connection intent blocked: ${failure}`);
-  if (!(await ctx.connectionIntents.insert(row))) return planConnectionIntent(ctx, input);
+  if (failure && !authority)
+    throw new UseCaseError('conflict', `connection intent blocked: ${failure}`);
+  if (failure) {
+    row.failure = failure;
+    row.state = failure === 'paused' || failure === 'suspended' ? 'pending' : 'blocked';
+  }
+  if (!(await ctx.connectionIntents.insert(row)))
+    return planConnectionIntent(ctx, input, authority);
   await enqueueConnectionIntent(ctx, row.id, now);
   return row;
 }

@@ -235,7 +235,6 @@
   "packages/core/src/connections/destination.test.ts": 1,
   "packages/core/src/connections/ports.ts": 2,
   "packages/core/src/connections/rules.ts": 1,
-  "packages/core/src/connections/synthetic.ts": 1,
   "packages/core/src/content/block-types.ts": 2,
   "packages/core/src/content/blocks.conformance.test.ts": 1,
   "packages/core/src/content/entities.ts": 1,
