@@ -9,7 +9,7 @@ import { connectionFixture } from './lib/connections/fixture';
 import { capabilitiesFor, UseCaseError, systemPrincipal, useCases } from '@mycel/core';
 import { createServer } from 'node:http';
 import { type AddressInfo } from 'node:net';
-import { createDb, uuidv7Ids } from '@mycel/db';
+import { createDb } from '@mycel/db';
 import { breakLatestDocument, testTenant } from '@mycel/db/testing';
 import { type Locator, type Page, expect } from '@playwright/test';
 import { test } from './lib/evidence/page';
