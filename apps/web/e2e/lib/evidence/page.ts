@@ -16,6 +16,8 @@
 import { writeFileSync } from 'node:fs';
 import { test as base, type Page, type Request } from '@playwright/test';
 
+import { ask, armRenderer, rendererStack, type RendererDebugger } from './renderer';
+
 /** What one page recorded; `ms` counts from the start of the test. */
 type Entry = { ms: number; page: number; event: string } & Record<string, unknown>;
 
@@ -27,28 +29,6 @@ const SCRIPT = /\/_(admin|app)\/[^?]+\.js(\?|$)/;
 
 /** Navigations and scripts; the rest of the network says nothing here. */
 const watched = (request: Request) => request.isNavigationRequest() || SCRIPT.test(request.url());
-
-/** How long one question after the test may take; a hung page otherwise costs a second timeout. */
-const ASK_MS = 2000;
-
-/** The answer, or `{ noAnswerMs }` when none came in time; an error is an answer too. */
-const ask = async <T>(question: () => Promise<T>) => {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const silence = new Promise<{ noAnswerMs: number }>((resolve) => {
-    timer = setTimeout(() => resolve({ noAnswerMs: ASK_MS }), ASK_MS);
-  });
-  try {
-    return await Promise.race([
-      question().then(
-        (answer) => ({ answer }),
-        (error: unknown) => ({ error: String(error) })
-      ),
-      silence,
-    ]);
-  } finally {
-    clearTimeout(timer);
-  }
-};
 
 /** Path only: query strings in a login hop carry transient credentials. */
 const path = (url: string) => {
@@ -62,15 +42,16 @@ const path = (url: string) => {
 
 export const test = base.extend<{ pageEvidence: void }>({
   pageEvidence: [
-    async ({ context }, use, info) => {
+    async ({ context, page: _page }, use, info) => {
       const started = Date.now();
       const entries: Entry[] = [];
       const pages: Page[] = [];
+      const debuggers = new Map<Page, RendererDebugger>();
       const record = (page: Page, event: string, detail: Record<string, unknown> = {}) => {
         entries.push({ ms: Date.now() - started, page: pages.indexOf(page), event, ...detail });
         if (entries.length > KEEP) entries.shift();
       };
-      const watch = (page: Page) => {
+      const watch = async (page: Page) => {
         pages.push(page);
         page.on('pageerror', (error) =>
           record(page, 'pageerror', { message: error.message, stack: error.stack })
@@ -105,11 +86,24 @@ export const test = base.extend<{ pageEvidence: void }>({
           record(page, 'domcontentloaded', { url: path(page.url()) })
         );
         page.on('load', () => record(page, 'load', { url: path(page.url()) }));
+        const debuggerState = await armRenderer(page, path);
+        debuggers.set(page, debuggerState);
+        record(page, 'debugger.armed', { result: debuggerState.armed });
       };
-      context.pages().forEach(watch);
-      context.on('page', watch);
+      await Promise.all(context.pages().map(watch));
+      const onPage = (page: Page) => {
+        void watch(page);
+      };
+      context.on('page', onPage);
       await use();
-      if (info.status === info.expectedStatus) return;
+      const detach = () => {
+        context.off('page', onPage);
+        for (const { session } of debuggers.values()) void session?.detach().catch(() => {});
+      };
+      if (info.status === info.expectedStatus) {
+        detach();
+        return;
+      }
       // Where each open page stands now, from the page itself: its scripts as the browser saw
       // them, and which ready marks are set.
       const now = await Promise.all(
@@ -147,6 +141,12 @@ export const test = base.extend<{ pageEvidence: void }>({
           };
         })
       );
+      const stacks = await Promise.all(
+        now.map(async (state) => {
+          if (!('noAnswerMs' in state)) return { page: state.page, skipped: true };
+          return { page: state.page, ...(await rendererStack(debuggers.get(pages[state.page]!))) };
+        })
+      );
       // Does anything above the page still answer? The browser over its own CDP session, and a
       // fresh page in this context (opened after `now`, so it is not one of the test's pages).
       const browser = context.browser();
@@ -168,8 +168,9 @@ export const test = base.extend<{ pageEvidence: void }>({
       };
       // A file in the output folder, which CI uploads; a `body` only reaches the reporter.
       const file = info.outputPath('page-evidence.json');
-      writeFileSync(file, JSON.stringify({ entries, now, above }, null, 2));
+      writeFileSync(file, JSON.stringify({ entries, now, above, stacks }, null, 2));
       await info.attach('page-evidence.json', { path: file, contentType: 'application/json' });
+      detach();
     },
     { auto: true },
   ],
