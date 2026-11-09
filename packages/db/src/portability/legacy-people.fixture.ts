@@ -1,5 +1,6 @@
 // An archive made before the table rename must round-trip, including its original row digest.
 // Kept beside the portability suite instead of lengthening its already broad fixture setup.
+import { expect } from 'vitest';
 import { createHash } from 'node:crypto';
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -73,7 +74,14 @@ export async function checkLegacyPeopleImport(options: {
     mycelVersion: 'test',
   });
   const row = JSON.parse((await readFile(join(restored, 'tables/people.ndjson'), 'utf8')).trim());
-  return { report, row, personId: person.id };
+  expect(report.differences).toEqual([]);
+  expect(report.lines).toContainEqual(expect.stringMatching(/^people: 1 imported/));
+  expect(row).toMatchObject({
+    id: person.id,
+    email: 'internal@example.org',
+    public_email: null,
+    page_policy: 'auto',
+  });
 }
 
 /** Seed both new export tables with a real ordered relationship, not empty catalog entries. */
