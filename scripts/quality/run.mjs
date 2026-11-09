@@ -17,7 +17,7 @@ import { validateIdentity, writerExpectation } from './identity.mjs';
 import { compareBaseline } from './baseline.mjs';
 import { protectReports } from './protect.mjs';
 import { evaluateCell, repairProposals } from './evaluate.mjs';
-import { publicNames } from './matrix.mjs';
+import { publicNames, selectRoutes } from './matrix.mjs';
 
 const require = createRequire(import.meta.url);
 const args = process.argv.slice(2);
@@ -226,7 +226,7 @@ try {
   }
   const names = publicNames(corpus, scope);
   const entries = Object.entries(corpus.public)
-    .filter(([name]) => names.includes(name) && (!route || name === route))
+    .filter(([name]) => names.includes(name))
     .map(([name, entry]) => ({
       id: `${name}-${locale}-${profile}-${cache}`,
       name,
@@ -293,7 +293,7 @@ try {
       reason: `${scope} set is public; use --scope=full locally`,
     });
   await context.close();
-  for (const entry of entries.filter((e) => scope !== 'admin' || !e.indexable)) {
+  for (const entry of selectRoutes(entries, scope, route)) {
     const provenance = { commit, fixtureHash, ...result.environment };
     const contract = { ...entry, provenance };
     const batches = [];
