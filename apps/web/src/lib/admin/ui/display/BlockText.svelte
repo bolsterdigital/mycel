@@ -247,7 +247,7 @@
       </p>
       {#if view.form}
         {#each view.form.fields as field, i (i)}
-          {#if field.type === 'email'}
+          {#if field.type === 'hidden'}{:else if field.type !== 'consent' && field.type !== 'checkbox'}
             <p class="ui-block-text-field">{field.label}</p>
             <span class="ui-block-text-input"></span>
           {:else}
