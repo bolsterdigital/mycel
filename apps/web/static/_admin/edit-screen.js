@@ -303,6 +303,7 @@ if (form instanceof HTMLFormElement) {
             : mode === 'hide'
               ? ''
               : native.value;
+        if (candidate.localized === false) values[data.fallback] = native.value;
       }
       return values;
     });

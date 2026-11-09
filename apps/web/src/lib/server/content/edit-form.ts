@@ -16,6 +16,7 @@
 
 import {
   BLOCK_DEFINITIONS,
+  cleanBlockName,
   GALLERY_ROWS,
   INSERTABLE_BLOCK_TYPES,
   isUuid,
@@ -217,23 +218,24 @@ export function blocksFrom(
       block.props as Record<string, unknown>
     );
     errors.push(...read.errors.map((e) => ({ ...e, name: `${prefix}${e.name}` })));
-    return {
+    const name = cleanBlockName({
+      ...block.name,
+      ...Object.fromEntries(
+        names
+          .filter((n) => n.startsWith(`${prefix}name.`))
+          .map((n) => [n.slice(`${prefix}name.`.length), String(posted.get(n) ?? '').trim()])
+      ),
+    });
+    const result = {
       ...block,
-      ...(names.some((n) => n.startsWith(`${prefix}name.`))
-        ? {
-            name: {
-              ...block.name,
-              ...Object.fromEntries(
-                names
-                  .filter((n) => n.startsWith(`${prefix}name.`))
-                  .map((n) => [n.slice(`${prefix}name.`.length), String(posted.get(n) ?? '')])
-              ),
-            },
-          }
-        : {}),
+
       props:
         block.type === 'image' ? imageAltFromForm(read.props, within(posted, prefix)) : read.props,
     } as Block;
+    // Empty metadata must not make an untouched form look changed before core parses it.
+    if (name) result.name = name;
+    else delete result.name;
+    return result;
   });
   return { blocks: out, errors };
 }
