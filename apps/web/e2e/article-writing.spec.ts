@@ -1350,7 +1350,9 @@ test.describe('article-writing', () => {
       await card.getByLabel('Notitie voor wie publiceert').fill('Graag vóór vrijdag');
       await offer.click();
       await expect(page).toHaveURL(`${edit}?done=offer&locale=nl`);
-      await expect(page.getByRole('status')).toContainText('Ter publicatie aangeboden in nl.');
+      await expect(
+        page.getByRole('status').filter({ hasText: 'Ter publicatie aangeboden in nl.' })
+      ).toContainText('Ter publicatie aangeboden in nl.');
       await openPublication(page);
       await expect(card).toContainText(/Ter publicatie aangeboden op \d{4}-\d{2}-\d{2}/);
       await expect(card).toContainText('Notitie: Graag vóór vrijdag');
@@ -1359,7 +1361,9 @@ test.describe('article-writing', () => {
 
       await card.getByRole('button', { name: 'Aanbieding intrekken' }).click();
       await expect(page).toHaveURL(`${edit}?done=withdrawOffer&locale=nl`);
-      await expect(page.getByRole('status')).toContainText('Aanbieding ingetrokken in nl.');
+      await expect(
+        page.getByRole('status').filter({ hasText: 'Aanbieding ingetrokken in nl.' })
+      ).toContainText('Aanbieding ingetrokken in nl.');
       await openPublication(page);
       await expect(offer).toBeVisible();
       await closePublication(page);
