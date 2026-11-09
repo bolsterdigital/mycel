@@ -1010,33 +1010,38 @@ test.describe('connections', () => {
           contractVersion: 'v1',
           adapterVersion: 'v1',
         });
-        // An earlier attempt whose outcome the receiver never proved; a webhook cannot reconcile it.
+        // Two ambiguous attempts make status-based selection fail deterministically, even when
+        // the worker has not yet processed the synthetic test queued by the UI below.
+        const intentId = uuidv7Ids.next();
+        const otherIntentId = uuidv7Ids.next();
         const at = new Date();
-        await uow.run(principal, (ctx) =>
-          ctx.connectionIntents.insert({
-            id: uuidv7Ids.next(),
-            connectionId: connection.id,
-            businessId: uuidv7Ids.next(),
-            connectionVersion: connection.version,
-            credentialVersion: 1,
-            source: SYNTHETIC_SOURCE,
-            mappingVersion: 'v1',
-            supporterId: null,
-            scope: SYNTHETIC_SCOPE,
-            actor: { kind: 'system', id: 'e2e' },
-            key: `e2e-${uuidv7Ids.next()}`,
-            state: 'unknown',
-            failure: 'ambiguous',
-            attempts: 1,
-            revision: 0,
-            leaseToken: null,
-            leaseUntil: null,
-            nextAt: at,
-            createdAt: at,
-            updatedAt: at,
-          })
-        );
-        return { purpose, id: connection.id };
+        for (const id of [intentId, otherIntentId]) {
+          await uow.run(principal, (ctx) =>
+            ctx.connectionIntents.insert({
+              id,
+              connectionId: connection.id,
+              businessId: uuidv7Ids.next(),
+              connectionVersion: connection.version,
+              credentialVersion: 1,
+              source: SYNTHETIC_SOURCE,
+              mappingVersion: 'v1',
+              supporterId: null,
+              scope: SYNTHETIC_SCOPE,
+              actor: { kind: 'system', id: 'e2e' },
+              key: `e2e-${uuidv7Ids.next()}`,
+              state: 'unknown',
+              failure: 'ambiguous',
+              attempts: 1,
+              revision: 0,
+              leaseToken: null,
+              leaseUntil: null,
+              nextAt: at,
+              createdAt: at,
+              updatedAt: at,
+            })
+          );
+        }
+        return { purpose, id: connection.id, intentId, otherIntentId };
       },
       {
         dns: new FakeDns({ 'hooks.example.org': ['8.8.8.8'] }),
@@ -1089,11 +1094,11 @@ test.describe('connections', () => {
           await layoutGate(page, 'connection', 'main');
           await expectNoAxeViolations(page);
         }
-        // The unknown attempt offers only a manual close, never a retry. The synthetic test sent
-        // above is a separate, pending attempt and may keep its own retry.
-        const unknown = attempts.locator('tbody tr', {
-          hasText: nl ? 'Uitkomst onbekend' : 'Outcome unknown',
-        });
+        // Status is not identity: several attempts can be unknown, including the live test.
+        // Resolve the seeded attempt only; the other ambiguous attempt must remain actionable.
+        const unknown = attempts.locator(`tbody tr[data-intent="${f.intentId}"]`);
+        const other = attempts.locator(`tbody tr[data-intent="${f.otherIntentId}"]`);
+        await expect(unknown).toContainText(nl ? 'Uitkomst onbekend' : 'Outcome unknown');
         await expect(unknown).toContainText(
           nl ? 'Mycel weet niet of de ontvanger' : 'Mycel cannot tell whether'
         );
@@ -1101,7 +1106,12 @@ test.describe('connections', () => {
         await unknown
           .getByRole('button', { name: nl ? 'Markeer als afgehandeld' : 'Mark as handled' })
           .click();
-        await expect(attempts).toContainText(nl ? 'Handmatig afgehandeld' : 'Handled by hand');
+        await expect(unknown).toContainText(nl ? 'Handmatig afgehandeld' : 'Handled by hand');
+        await expect(unknown.getByRole('button')).toHaveCount(0);
+        await expect(other).toContainText(nl ? 'Uitkomst onbekend' : 'Outcome unknown');
+        await expect(
+          other.getByRole('button', { name: nl ? 'Markeer als afgehandeld' : 'Mark as handled' })
+        ).toHaveCount(1);
         await main
           .getByRole('button', { name: nl ? 'Aflevering pauzeren' : 'Pause delivery' })
           .click();
