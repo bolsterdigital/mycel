@@ -336,6 +336,26 @@ describe('form mail actions', () => {
       })
     ).toEqual({ scheduled: false });
   });
+  it('erases whole personalised mail bodies, not only recognised email addresses', async () => {
+    await submit('erase-body@example.org', {
+      contact_only: false,
+      consent: true,
+      message: 'Private biography and phone',
+    });
+    const original = structuredClone(events()[0]!);
+    const signup = uow.store.outbox.find((e) => e.type === 'newsletter.subscribed')!;
+    await supporterIngestSubscriber(uow).handle(signup);
+    await uow.run(admin, async (ctx) => {
+      const supporter = (await ctx.supporters.getProjection('erase-body@example.org'))!;
+      await ctx.erasures.register(supporter.id, supporter.email);
+      await ctx.erasures.apply();
+    });
+    const erased = events()[0]!;
+    expect(erased.props).toEqual({});
+    expect(signup.props).not.toHaveProperty('confirmationCopy');
+    expect(await formMailSource(deps())(erased)).toBeNull();
+    expect(await formMailSource(deps())(original)).toBeNull();
+  });
   it('enforces persistent tenant reservations and rolls them into the next UTC month', async () => {
     const limited = { ...admin, entitlements: { ...admin.entitlements, 'mail.monthly_max': 1 } };
     const input = (email: string) => ({

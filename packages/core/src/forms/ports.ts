@@ -1,3 +1,5 @@
+// Storage contracts for validated form definitions, immutable submissions and private mail
+// settings. Rejected: exposing private recipient configuration through the public form port.
 import type { FormMailState, FormMailSettings } from './mail-model.js';
 import type { FormDefinition, Submission } from './model.js';
 

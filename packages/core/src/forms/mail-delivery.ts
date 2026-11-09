@@ -18,6 +18,7 @@ export function formMailSource(deps: FormMailDeliveryDeps): MailSource {
   return async (event) => {
     if (event.type !== 'form.mail.planned') return null;
     const p = event.props as unknown as FormMailEventProps;
+    if (typeof p.submissionId !== 'string' || typeof p.email !== 'string' || !p.copy) return null;
     const access = await deps.access(event.tenantId);
     const principal = systemPrincipal(event.tenantId, FORM_MAIL_SUBSCRIBER, access);
     if (access.status === 'suspended' || !entitled(principal, 'mailing.enabled')) return null;

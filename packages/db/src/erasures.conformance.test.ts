@@ -96,6 +96,7 @@ describe.skipIf(skip)('erasure conformance', () => {
       .map(([table]) => table);
   const eventCount = async (tenantId: string) => (await rowsOf(tenantId))['events']!.length;
 
+  const mailCopyIds = new Map<string, string[]>();
   /** A signup, its ingest and its confirmation mail, through the outbox's own events. */
   async function signup(tenantId: string, address: string, mailUow: UnitOfWork) {
     const admin = systemPrincipal(tenantId, 'erasure-test');
@@ -110,6 +111,14 @@ describe.skipIf(skip)('erasure conformance', () => {
           ...state.value.forms,
           {
             formId,
+            confirmation: {
+              override: {
+                text: {
+                  nl: 'Private biography {{field:email}}',
+                  en: 'Private biography {{field:email}}',
+                },
+              },
+            },
             enabled: true,
             actions: [
               {
@@ -140,6 +149,10 @@ describe.skipIf(skip)('erasure conformance', () => {
     });
     for (const { id } of ids) {
       const event = (await readOutboxEvent(operatorDb, id))!;
+      if (event.props['email'] === address) {
+        const k = `${tenantId}:${address}`;
+        mailCopyIds.set(k, [...(mailCopyIds.get(k) ?? []), id]);
+      }
       if (event.type === 'form.mail.planned') {
         await formMailSubscriber({
           mailer: new MemoryMailer(),
@@ -238,6 +251,11 @@ describe.skipIf(skip)('erasure conformance', () => {
     expect(changed).toBeGreaterThan(0);
     const after = await rowsOf(tenants.a);
     expect(holding(after, email)).toEqual([]);
+    for (const id of mailCopyIds.get(`${tenants.a}:${email}`) ?? []) {
+      const event = (await readOutboxEvent(operatorDb, id))!;
+      if (event.type === 'form.mail.planned') expect(event.props).toEqual({});
+      else expect(event.props).not.toHaveProperty('confirmationCopy');
+    }
     // Nor its admission key. A rate-limit bucket keys on the same value and stays: a
     // hash that lives a day at most is no copy (ADR 019 rule 8).
     const seat = await emailKey(tenants.a, email, 'admission');

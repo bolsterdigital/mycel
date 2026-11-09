@@ -1,12 +1,12 @@
-import {
+// Every use case in the system, in one list (ADR 009). Fronts call `buildRegistry()`; nothing
+// registers itself as an import {
   getFormMailSettings,
   updateFormMailSettings,
   previewFormMail,
   getFormMailStatus,
   replayFormMail,
 } from './forms/mail-service.js';
-// Every use case in the system, in one list (ADR 009). Fronts call `buildRegistry()`; nothing
-// registers itself as an import side effect, so what is exposed is exactly what is listed here.
+import side effect, so what is exposed is exactly what is listed here.
 
 import {
   getConnectionIntent,

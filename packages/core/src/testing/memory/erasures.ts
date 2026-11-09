@@ -2,6 +2,7 @@
 // same rows (ADR 019 rule 8). The decisions (intent state, tombstone, archive expiry) are core's,
 // in supporters/erasure.ts; this file only finds the rows they apply to.
 
+import { eraseOutboxProps } from '../../supporters/erasure.js';
 import type { Principal } from '../../principal.js';
 import type { Clock, Erasures } from '../../ports.js';
 import { emailKey } from '../../supporters/email-key.js';
@@ -13,7 +14,6 @@ import {
   tombstoneEmail,
 } from '../../supporters/erasure.js';
 import { normalizeEmail } from '../../util/email.js';
-import { scrubText } from '../../util/scrub.js';
 import type { MemoryStore } from './store.js';
 
 /**
@@ -123,7 +123,7 @@ async function applyErasures(store: MemoryStore, tenantId: string, clock: Clock)
     if (s.admissions.delete(await emailKey(tenantId, a, 'admission'))) changed++;
   for (const e of tenantOutbox)
     if (carries(e.props)) {
-      e.props = JSON.parse(scrubText(JSON.stringify(e.props))) as Record<string, unknown>;
+      e.props = eraseOutboxProps(e.type, e.props);
       changed++;
     }
   for (let i = store.jobs.length - 1; i >= 0; i--) {
