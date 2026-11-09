@@ -97,10 +97,14 @@ test.describe('content-blocks', () => {
     const next = (await width.inputValue()) === 'wide' ? 'Volle breedte' : 'Breed';
     await width.selectOption({ label: next });
     await (await block(page, 9)).getByLabel('Breedte').selectOption('wide');
-    // Every type behind the placed twelve, without a line per type: its first text field.
+    // A reference-only grid edits a choice; other added types edit their first text field.
     const first = (at: Locator) => at.locator('input[type="text"]').first();
-    for (let n = 13; n <= BLOCK_TYPES.length; n++)
-      await first(await block(page, n)).fill(`Blok ${n} ${stamp}`);
+    const gridColumns = (at: Locator) => at.locator('select[name$=".columns"]');
+    for (let n = 13; n <= BLOCK_TYPES.length; n++) {
+      const at = await block(page, n);
+      if (await gridColumns(at).count()) await gridColumns(at).selectOption('4');
+      else await first(at).fill(`Blok ${n} ${stamp}`);
+    }
     await save(page, 1);
     // Each value back in the reopened form; the old signup form and the paywall have no field
     // to change, and the save keeps them through the document alone.
@@ -108,8 +112,11 @@ test.describe('content-blocks', () => {
       await expect((await block(page, n)).getByLabel(label, { exact: true }).first()).toHaveValue(
         value
       );
-    for (let n = 13; n <= BLOCK_TYPES.length; n++)
-      await expect(first(await block(page, n))).toHaveValue(`Blok ${n} ${stamp}`);
+    for (let n = 13; n <= BLOCK_TYPES.length; n++) {
+      const at = await block(page, n);
+      if (await gridColumns(at).count()) await expect(gridColumns(at)).toHaveValue('4');
+      else await expect(first(at)).toHaveValue(`Blok ${n} ${stamp}`);
+    }
     await expect(card(page, 2).locator('.ui-block-card-title')).toHaveText(
       'Blok 02 Inschrijfformulier (oud)'
     );
