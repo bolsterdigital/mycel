@@ -123,6 +123,13 @@ declare module '../ports.js' {
  * `ready` means this exact mapping, operation and consent scope are currently authorized.
  */
 export interface ConnectionSource {
+  /** Additional source authority, rechecked after preparation with refreshed tenant access.
+   * Absent means the generic connection authority suffices for this source.
+   */
+  authorize?(
+    ctx: TransactionContext,
+    intent: Readonly<ConnectionIntent>
+  ): Promise<ConnectionFailure | null>;
   prepare(
     ctx: TransactionContext,
     intent: Readonly<ConnectionIntent>

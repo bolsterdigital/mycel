@@ -257,4 +257,79 @@ describe('form feeds', () => {
       )
     ).rejects.toMatchObject({ code: 'forbidden' });
   });
+  it.each(['operator', 'api-key'] as const)(
+    'refuses %s publication authority revoked after payload preparation',
+    async (kind) => {
+      const operatorId = '01900000-0000-7000-8000-00000000abcd';
+      await uow.run(admin, (ctx) => ctx.operators.forInvite('review@example.org', operatorId));
+      uow.store.for(TENANT).members.set(operatorId, {
+        capabilities: ['connections:configure', 'content:publish'],
+        createdAt: clock.now(),
+      });
+      if (kind === 'api-key') {
+        await uow.run(admin, (ctx) =>
+          ctx.apiKeys.insert({
+            id: operatorId,
+            name: 'Feed key',
+            keyHash: 'hash',
+            prefix: 'test',
+            capabilities: ['connections:configure', 'content:publish'],
+            createdAt: clock.now(),
+            createdBy: admin.actor,
+          })
+        );
+      }
+      await uow.run(admin, async (ctx) => {
+        const state = await ctx.formFeeds.get();
+        await ctx.formFeeds.save(state.version, state.value, { kind, id: operatorId });
+      });
+      const submissionId = await submit();
+      await confirm(submissionId);
+      const row = (await intents())[0]!;
+      expect(row.actor).toEqual({ kind, id: operatorId });
+      let prepared = false;
+      const sent: unknown[] = [];
+      await runConnectionIntent(
+        {
+          uow,
+          clock,
+          identity: {
+            tenantAccess: async () => {
+              if (prepared) {
+                const store = uow.store.for(TENANT);
+                const actor =
+                  kind === 'operator'
+                    ? store.members.get(operatorId)!
+                    : store.apiKeys.get(operatorId)!;
+                actor.capabilities = ['connections:configure'];
+              }
+              return DEFAULT_ACCESS;
+            },
+          },
+          sources: {
+            [FORM_FEED_SOURCE]: {
+              ...formFeedSource,
+              prepare: async (ctx, intent) => {
+                const result = await formFeedSource.prepare(ctx, intent);
+                expect(result.ready).toBe(true);
+                prepared = true;
+                return result;
+              },
+            },
+          },
+          transport: {
+            dispatch: async (input) => {
+              sent.push(input.payload);
+              return 'succeeded';
+            },
+          },
+        },
+        TENANT,
+        row.id
+      );
+      expect(prepared).toBe(true);
+      expect(sent).toEqual([]);
+      expect((await intents())[0]).toMatchObject({ state: 'blocked', failure: 'authorization' });
+    }
+  );
 });

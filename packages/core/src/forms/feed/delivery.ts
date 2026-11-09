@@ -92,6 +92,9 @@ export function formFeedSubscriber(uow: UnitOfWork): Subscriber {
   };
 }
 export const formFeedSource: ConnectionSource = {
+  async authorize(ctx, intent) {
+    return (await feedAuthority(ctx, intent.actor)) ? null : 'authorization';
+  },
   async prepare(ctx, intent) {
     if (intent.source !== FORM_FEED_SOURCE) return { ready: false, failure: 'source' };
     const failure = await connectionIntentGuard(ctx, intent);
