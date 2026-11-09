@@ -68,6 +68,8 @@
     StatusCard,
     Tabs,
   } from '#lib/admin/ui/index.js';
+  import BlockMoveStatus from '#lib/admin/block-move/BlockMoveStatus.svelte';
+  import { blockCardLabels, blockGroupLabels } from '#lib/admin/block-move/labels.js';
   import { BLOCK_ICONS, BLOCK_PRESENTATION, blockName } from '#lib/admin/block-presentation.js';
   import { blockNotice, restWords } from '#lib/admin/block-rest-words.js';
   import { pickAny, BLOCK_DEFINITIONS, pick, type BlockType, type MediaCredit } from '@mycel/core';
@@ -295,18 +297,8 @@
   const empty = (name: string) => !v(name).trim() && !data.values[name];
   const thumbOf = (id: string | null) =>
     id && data.media.some((m) => m.id === id && m.thumb) ? thumbPath(base, id) : null;
-  const cardLabels = $derived({
-    edit: t('admin.block.card.edit'),
-    done: t('admin.block.card.done'),
-    more: t('admin.block.card.more'),
-    block: t('admin.block.card.block'),
-    collapse: t('admin.block.card.collapse'),
-    expand: t('admin.block.card.expand'),
-  });
-  const groupLabels = $derived({
-    display: t('admin.block.group.display'),
-    source: t('admin.block.group.source'),
-  });
+  const cardLabels = $derived(blockCardLabels(t));
+  const groupLabels = $derived(blockGroupLabels(t));
   /** A credit as the page words it (`lib/blocks/Credit.svelte`), in the content locale. */
   const creditLine = (c: MediaCredit): string => creditText(c, creditWords(ui(work)));
   const blockTypeOptions = $derived(
@@ -668,15 +660,7 @@
 
 {#snippet contentTab()}
   <input type="hidden" name="baseRevisionId" value={baseRevision} />
-  <span
-    class="ui-visually-hidden"
-    aria-live="polite"
-    data-block-move-status
-    data-before={t('admin.block.move.before')}
-    data-after={t('admin.block.move.after')}
-    data-picked={t('admin.block.move.picked')}
-    data-cancelled={t('admin.block.move.cancelled')}
-  ></span>
+  <BlockMoveStatus {t} />
   <!-- Filled by the screen's script on submit: the card in view, so a save stays there. -->
   <input type="hidden" name="nearBlock" value="" />
   <input type="hidden" name="editLocale" value={data.translating ? '' : work} />

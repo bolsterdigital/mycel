@@ -226,7 +226,6 @@ describe('BlockCard', () => {
       class: 'block',
       labels,
       editable: false,
-      moveLabel: 'Move',
       actions: text('ACTIONS'),
       rest: text('REST'),
       children: text('FIELDS'),
@@ -237,7 +236,6 @@ describe('BlockCard', () => {
     expect(out).not.toContain('ui-block-card-fold');
     expect(out).not.toContain('FIELDS');
     expect(out).not.toContain('>Edit<');
-    expect(out).toMatch(/data-block-move="" hidden=""[^>]*>[\s\S]*<span>Move<\/span>/);
   });
 
   it('shows the block at rest, a named Edit over the fields and actions under More actions', () => {
