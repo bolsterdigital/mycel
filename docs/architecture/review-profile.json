@@ -74,7 +74,10 @@
         "apps/web/src/routes/_reports/**",
         "apps/web/src/lib/server/http/reports*",
         "apps/web/src/lib/server/admin/hostname*",
-        "apps/web/src/lib/server/admin/profile*"
+        "apps/web/src/lib/server/admin/profile*",
+        "packages/core/src/content/people/public.ts",
+        "apps/web/src/lib/public/structured-data.ts",
+        "apps/web/src/lib/server/public/person-page.ts"
       ],
       "adrs": ["002", "009", "011", "014", "016", "019", "024"],
       "gates": [
@@ -104,7 +107,8 @@
         "packages/db/src/people/**",
         "apps/web/src/routes/(public)/**",
         "apps/web/src/lib/server/public/content-route*",
-        "docs/reference/content-model.md"
+        "docs/reference/content-model.md",
+        "apps/web/src/lib/public/person-path.ts"
       ],
       "adrs": ["004", "012", "017", "020"],
       "gates": [
