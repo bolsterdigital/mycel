@@ -132,7 +132,16 @@ describe('mailing.opt_in.confirm', () => {
     });
     // The form is edited after the signup (#11 will make this possible): new text, new list.
     await uow.run(systemPrincipal(TENANT, 'test'), (ctx) =>
-      ctx.forms.insert({ ...probeForm(FORM), list: 'campaign', consentTextVersion: 'v2' })
+      ctx.forms.insert({
+        ...probeForm(FORM),
+        list: 'campaign',
+        consentTextVersion: 'v2',
+        fields: probeForm(FORM).fields.map((f) => ({
+          ...f,
+          id: f.name,
+          name: f.type === 'email' ? 'renamed_email' : f.name,
+        })),
+      })
     );
     // A token for the form's new list confirms nothing; the original link still works.
     expect(await confirm(await token({ list: 'campaign' }))).toEqual({ status: 'invalid' });

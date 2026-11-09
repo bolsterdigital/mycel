@@ -3,7 +3,7 @@
 // explicitly on insert; the policy's WITH CHECK rejects any mismatch.
 
 import { type Kysely } from 'kysely';
-import { FormDefinition, type FormRepository, type SubmissionRepository } from '@mycel/core';
+import { parseFormDefinition, type FormRepository, type SubmissionRepository } from '@mycel/core';
 import type { Database } from './infra/schema.js';
 
 type Trx = Kysely<Database>;
@@ -16,12 +16,16 @@ export function formRepository(trx: Trx, tenantId: string): FormRepository {
         .select('definition')
         .where('id', '=', id)
         .executeTakeFirst();
-      return row ? FormDefinition.parse(row.definition) : null;
+      return row ? parseFormDefinition(row.definition) : null;
     },
     async insert(form) {
       await trx
         .insertInto('forms')
-        .values({ id: form.id, tenant_id: tenantId, definition: JSON.stringify(form) })
+        .values({
+          id: form.id,
+          tenant_id: tenantId,
+          definition: JSON.stringify(parseFormDefinition(form)),
+        })
         .execute();
     },
   };
@@ -44,6 +48,7 @@ export function submissionRepository(trx: Trx, tenantId: string): SubmissionRepo
           confirmed_at: s.confirmedAt,
           list: s.list,
           consent_text_version: s.consentTextVersion,
+          evaluation: s.evaluation ? JSON.stringify(s.evaluation) : null,
         })
         .execute();
     },
@@ -65,6 +70,7 @@ export function submissionRepository(trx: Trx, tenantId: string): SubmissionRepo
         confirmedAt: row.confirmed_at ? new Date(row.confirmed_at) : null,
         list: row.list,
         consentTextVersion: row.consent_text_version,
+        evaluation: row.evaluation,
       };
     },
     async confirm(id, at) {

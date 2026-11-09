@@ -95,7 +95,21 @@ export interface RenderForm {
   submitLabel: string;
   /** Shown on the page's thank-you page after a successful post. */
   thankYou: string;
-  fields: { name: string; type: FormField['type']; label: string; required: boolean }[];
+  version?: string;
+  conditionalHelp?: string;
+  fields: {
+    name: string;
+    type: FormField['type'];
+    label: string;
+    required: boolean;
+    help?: string;
+    conditional?: boolean;
+    options?: { value: string; label: string }[];
+    value?: string;
+    min?: number;
+    max?: number;
+    maxLength?: number;
+  }[];
 }
 
 type Width = 'content' | 'wide' | 'full';
@@ -212,7 +226,7 @@ export interface FormState {
   formId: string;
   errors: { field: string; message: string }[];
   message: string | null;
-  values?: Record<string, string> | undefined;
+  values?: Record<string, string | string[]> | undefined;
 }
 
 export interface RenderModel {

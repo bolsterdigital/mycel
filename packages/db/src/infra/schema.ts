@@ -179,7 +179,7 @@ export interface Database {
     id: string;
     tenant_id: string;
     form_id: string;
-    values: Json<Record<string, string | boolean>>;
+    values: Json<Record<string, string | boolean | number | string[]>>;
     locale: string;
     page_url: string | null;
     ip_hash: string | null;
@@ -187,6 +187,7 @@ export interface Database {
     confirmed_at: Timestamp | null;
     list: string;
     consent_text_version: string;
+    evaluation: ColumnType<import('@mycel/core').Submission['evaluation'], string | null, never>;
   };
   content_items: {
     id: string;

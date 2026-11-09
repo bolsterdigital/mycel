@@ -32,6 +32,7 @@ import {
   contentPath,
   linkedItemIds,
   pick,
+  translate,
   statusOf,
   useCases,
   type Block,
@@ -53,9 +54,12 @@ import { videoUrl, type RenderMeta } from './model.js';
 
 /** Where the resolver reads tenant data; `runtimeSource` is the real one, tests may stub it. */
 export interface ResolveSource {
-  form(
-    id: string
-  ): Promise<{ form: FormDefinition; startedToken: string; proof: ProofChallenge } | null>;
+  form(id: string): Promise<{
+    form: FormDefinition;
+    startedToken: string;
+    proof: ProofChallenge;
+    version?: string;
+  } | null>;
   media(id: string): Promise<MediaView | null>;
   itemPath(itemId: string, locale: string): Promise<string | null>;
 }
@@ -538,7 +542,12 @@ function referencesOf(b: Block): { type: 'media' | 'form' | 'item'; refId: strin
 }
 
 function toRenderForm(
-  found: { form: FormDefinition; startedToken: string; proof: ProofChallenge } | null,
+  found: {
+    form: FormDefinition;
+    startedToken: string;
+    proof: ProofChallenge;
+    version?: string;
+  } | null,
   locale: string,
   fallback: string
 ): RenderForm | null {
@@ -549,6 +558,10 @@ function toRenderForm(
   const text = (value: Partial<Record<string, string>>) => pick(value, locale, fallback) ?? '';
   return {
     formId: form.id,
+    version: found.version,
+    conditionalHelp: form.fields.some((f) => f.activeWhen || f.requiredWhen)
+      ? translate(locale, 'forms.conditional.help')
+      : undefined,
     startedToken,
     proof,
     submitLabel: text(form.submitLabel),
@@ -557,7 +570,15 @@ function toRenderForm(
       name: f.name,
       type: f.type,
       label: text(f.label),
-      required: f.required,
+      required: f.required && !f.activeWhen,
+      conditional: !!(f.activeWhen || f.requiredWhen),
+      help: f.help ? text(f.help) : undefined,
+      ...('options' in f
+        ? { options: f.options.map((o) => ({ value: o.value, label: text(o.label) })) }
+        : {}),
+      ...('value' in f ? { value: f.value } : {}),
+      ...('min' in f ? { min: f.min, max: f.max } : {}),
+      ...('maxLength' in f ? { maxLength: f.maxLength } : {}),
     })),
   };
 }

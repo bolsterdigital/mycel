@@ -48,7 +48,17 @@ async function resolveToken(ctx: TransactionContext, token: string, now: Date) {
   const submission = await ctx.submissions.findById(payload.submissionId);
   if (!submission || submission.list !== payload.list) return null;
   // The form only names the e-mail field; what is confirmed comes from the submission.
-  const form = await ctx.forms.findById(submission.formId);
+  const form = submission.evaluation?.definition ?? (await ctx.forms.findById(submission.formId));
+  if (
+    submission.evaluation &&
+    !form?.fields.some(
+      (f) =>
+        f.type === 'consent' &&
+        submission.evaluation!.activeFieldIds.includes(f.id ?? f.name) &&
+        submission.values[f.name] === true
+    )
+  )
+    return null;
   const emailField = form?.fields.find((f) => f.type === 'email');
   const email = emailField ? submission.values[emailField.name] : undefined;
   if (typeof email !== 'string' || !email) return null;

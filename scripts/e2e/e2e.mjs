@@ -187,8 +187,14 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
 // starts empty. The admin still shows used against the limit; the seed itself keeps 250. The
 // document is replaced as a whole, so the credit stays on explicitly (review round 1, F).
 {
-  const { createDb, createTenantDirectory, createUnitOfWork, setEntitlements, uuidv7Ids } =
-    await import('@mycel/db');
+  const {
+    createDb,
+    createTenantDirectory,
+    createUnitOfWork,
+    setEntitlements,
+    uuidv7Ids,
+    withTenant,
+  } = await import('@mycel/db');
   const {
     BLOCK_DEFINITIONS,
     EXAMPLE_IDS,
@@ -201,8 +207,14 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
   const { blobStoreFor, loadConfig, missingMediaAdvice, missingMediaFiles } =
     await import('@mycel/api/compose');
   const { createSharpProcessor } = await import('@mycel/media-sharp');
-  const { DEMO_SOUND_BASE64, FakeDns, FakeInputHasher, FakeSigner, memoryPlatform } =
-    await import('@mycel/core/testing');
+  const {
+    DEMO_SOUND_BASE64,
+    FakeDns,
+    FakeInputHasher,
+    FakeSigner,
+    memoryPlatform,
+    conditionalProbeForm,
+  } = await import('@mycel/core/testing');
   const operatorDb = createDb(process.env.DATABASE_URL);
   const probe = await createTenantDirectory(operatorDb).findBySlug('probe');
   await setEntitlements(
@@ -475,6 +487,14 @@ run('npm', ['run', '-s', 'seed', '-w', '@mycel/db'], root, {
     const signup = await invoker.run(useCases.getItem, admin, { itemId: signupItem.id });
     const formId = signup.revision.document.blocks.find((b) => b.type === 'signup-form').props
       .formId;
+    // Same existing route in both locales and the quality corpus, now with conditional fields.
+    await withTenant(appDb, admin, (trx) =>
+      trx
+        .updateTable('forms')
+        .set({ definition: JSON.stringify(conditionalProbeForm(formId)) })
+        .where('id', '=', formId)
+        .execute()
+    );
     const examples = blockExamples(BLOCK_DEFINITIONS);
     // Rich text with section headings, a footnote and an item link: the article's body.
     examples['article-text'] = {

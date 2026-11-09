@@ -314,7 +314,7 @@ export type TextRest =
       unread?: true;
       form: {
         list: string;
-        fields: readonly { type: 'email' | 'consent'; label: string }[];
+        fields: readonly { type: FormDefinition['fields'][number]['type']; label: string }[];
         submit: string;
       } | null;
     };

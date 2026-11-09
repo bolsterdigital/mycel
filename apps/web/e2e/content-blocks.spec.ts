@@ -3,6 +3,7 @@
 // cards of the edit screen.
 
 import { BLOCK_TYPES, UseCaseError, systemPrincipal, useCases } from '@mycel/core';
+import { conditionalProbeForm } from '@mycel/core/testing';
 import { type APIRequestContext, type Locator, type Page, expect } from '@playwright/test';
 import { test } from './lib/evidence/page';
 import { expectNoAxeViolations } from './lib/axe';
@@ -673,9 +674,15 @@ test.describe('content-blocks', () => {
         'h1, h2, h3, h4, h5, h6, [id], a[href]:not([href^="#"]), form, input, select, textarea, iframe'
       )
     ).toHaveCount(0);
-    // A form's shape has no text of its own to give the input a size.
-    for (const shape of [form, card(page, 2).locator('[data-block-rest]')])
-      await expect(shape.locator('.ui-block-text-input')).toBeVisible();
+    // Every text-like field in the shared corpus has a visible shape, without native controls.
+    const expectedInputs = conditionalProbeForm('fixture').fields.filter(
+      (field) => !['checkbox', 'consent', 'hidden'].includes(field.type)
+    ).length;
+    for (const shape of [form, card(page, 2).locator('[data-block-rest]')]) {
+      const inputs = shape.locator('.ui-block-text-input');
+      await expect(inputs).toHaveCount(expectedInputs);
+      for (const input of await inputs.all()) await expect(input).toBeVisible();
+    }
     // The seeded page is public: the boundary is there, and holds nobody back yet.
     await expect(card(page, 4).locator('.ui-block-text-boundary')).toContainText('openbaar');
 

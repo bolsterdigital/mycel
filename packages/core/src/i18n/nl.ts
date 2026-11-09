@@ -14,6 +14,11 @@ export const nl: Partial<Messages> = {
   'assist.error.unavailable': 'Er is geen AI-verwerker beschikbaar.',
   'assist.error.locale': 'Deze taal hoort niet bij het item.',
   'assist.error.image': 'Kies een afbeelding die niet decoratief is.',
+  'forms.error.inactive': 'Dit veld is niet actief voor je antwoorden.',
+  'forms.error.value': 'Vul een geldige waarde in voor dit veld.',
+  'forms.error.version': 'Dit formulier is gewijzigd. Herlaad de pagina en probeer opnieuw.',
+  'forms.conditional.help':
+    'Sommige velden hangen af van je antwoorden. Laat velden die niet van toepassing zijn leeg; we controleren ze bij het verzenden.',
   'forms.error.required': 'Dit veld is verplicht.',
   'forms.error.email.invalid': 'Vul een e-mailadres in zoals naam@voorbeeld.nl.',
   'forms.error.consent.required': 'Vink het vakje aan om te bevestigen dat je je wilt aanmelden.',

@@ -105,6 +105,9 @@ describe.skipIf(skip)('erasure conformance', () => {
       locale: 'nl',
     });
     if (submitted.status !== 'accepted') throw new Error(`signup ${submitted.status}`);
+    expect(
+      (await uow.run(admin, (ctx) => ctx.submissions.findById(submitted.submissionId)))?.evaluation
+    ).toMatchObject({ activeFieldIds: ['email', 'consent'] });
     const ids = await asRole(operatorDb, 'mycel_worker', async (trx) => {
       return (
         await sql<{ id: string }>`select id from outbox where tenant_id = ${tenantId}`.execute(trx)

@@ -38,6 +38,7 @@ import {
   MemoryBlobStore,
   memoryImageProcessor,
   memoryPlatform,
+  conditionalProbeForm,
   probeForm,
   publishProbePage,
   requireInCi,
@@ -169,7 +170,7 @@ describe.skipIf(skip)('tenant export and import', () => {
       licence: `Fixture licence ${t.slug}`,
     });
     const formId = uuidv7();
-    await uow.run(admin, (ctx) => ctx.forms.insert(probeForm(formId)));
+    await uow.run(admin, (ctx) => ctx.forms.insert(conditionalProbeForm(formId)));
     const published = await publishProbePage(invoker, admin, formId);
     const named = await invoker.run(useCases.getItem, admin, { itemId: published.id });
     await invoker.run(useCases.updateItem, admin, {
