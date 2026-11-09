@@ -365,6 +365,14 @@ describe('form mail actions', () => {
     expect(await formMailSource(deps())(erased)).toBeNull();
     expect(await formMailSource(deps())(original)).toBeNull();
   });
+  it('does not resolve an inapplicable confirmation template for a contact-only submission', async () => {
+    const settings = probeFormMail(FORM);
+    settings.forms[0]!.confirmation!.override!.text!.en = '{{field:message}}';
+    await configure(settings);
+    await submit('contact-only@example.org', { topic: 'other' });
+    expect(events()).toHaveLength(1);
+    expect(uow.store.outbox.some((e) => e.type === 'newsletter.subscribed')).toBe(false);
+  });
   it('enforces persistent tenant reservations and rolls them into the next UTC month', async () => {
     const limited = { ...admin, entitlements: { ...admin.entitlements, 'mail.monthly_max': 1 } };
     const input = (email: string) => ({

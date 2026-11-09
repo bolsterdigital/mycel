@@ -19,6 +19,7 @@ export interface FormMailEventProps {
   actionId: string;
   actionVersion: string;
   kind: 'notification' | 'receipt';
+  locale: string;
   recipient: string;
   copy: ResolvedFormMail;
 }
@@ -30,22 +31,35 @@ export async function planFormMail(ctx: TransactionContext, submission: Submissi
   const pins: PinnedMailAction[] = [];
   const events: DomainEvent[] = [];
   if (!config) return { pins, events, confirmation: undefined, confirmationVersion: undefined };
-  const confirmation = config.confirmation
-    ? resolveFormMail(
-        settings,
-        config.confirmation,
-        form,
-        submission.locale,
-        submission.values,
-        'confirmation'
-      )
-    : undefined;
+  const needsConfirmation =
+    ['signup', 'petition'].includes(form.kind) &&
+    form.fields.some((f) => f.type === 'consent' && submission.values[f.name] === true);
+  const confirmation =
+    needsConfirmation && config.confirmation
+      ? resolveFormMail(
+          settings,
+          config.confirmation,
+          form,
+          submission.locale,
+          submission.values,
+          'confirmation'
+        )
+      : undefined;
   const confirmationVersion = confirmation
     ? await hashInput(ctx.inputHasher, {
         domain: 'form-confirmation-v1',
         tenantId: ctx.principal.tenantId,
         formVersion: submission.evaluation!.version,
         ref: config.confirmation,
+        effective: resolveFormMail(
+          settings,
+          config.confirmation!,
+          form,
+          submission.locale,
+          {},
+          'confirmation',
+          true
+        ),
         template: settings.templates.find((t) => t.id === config.confirmation?.templateId) ?? null,
       })
     : undefined;
@@ -54,12 +68,7 @@ export async function planFormMail(ctx: TransactionContext, submission: Submissi
     if (!action.enabled || (action.when && !predicateMatches(action.when, byId))) continue;
     // The confirmation itself is the visitor response for a marketing signup. Never add a
     // second visitor-address mail beside it under the same 24-hour admission.
-    if (
-      action.kind === 'receipt' &&
-      ['signup', 'petition'].includes(form.kind) &&
-      form.fields.some((f) => f.type === 'consent' && submission.values[f.name] === true)
-    )
-      continue;
+    if (action.kind === 'receipt' && needsConfirmation) continue;
     const copy = resolveFormMail(
       settings,
       action.template,
@@ -72,6 +81,15 @@ export async function planFormMail(ctx: TransactionContext, submission: Submissi
       domain: 'form-mail-action-v1',
       tenantId: ctx.principal.tenantId,
       action,
+      effective: resolveFormMail(
+        settings,
+        action.template,
+        form,
+        submission.locale,
+        {},
+        action.kind,
+        true
+      ),
       template: settings.templates.find((t) => t.id === action.template.templateId) ?? null,
       formVersion: submission.evaluation!.version,
     });
@@ -84,6 +102,7 @@ export async function planFormMail(ctx: TransactionContext, submission: Submissi
         actionId: action.id,
         actionVersion: version,
         kind: action.kind,
+        locale: submission.locale,
         recipient,
         copy,
       };

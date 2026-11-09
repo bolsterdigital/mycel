@@ -23,3 +23,7 @@ alter table form_mail_budget force row level security;
 create policy tenant_isolation on form_mail_budget to mycel_app
   using (tenant_id = current_tenant_id()) with check (tenant_id = current_tenant_id());
 grant select, insert, update on form_mail_budget to mycel_app;
+
+-- The eraser distinguishes personalised mail bodies from other event payloads. It already
+-- reads id/props and updates props (0019); this adds only the event-kind column it now needs.
+grant select (type) on outbox to mycel_erasure;

@@ -28,7 +28,7 @@ export function formMailSource(deps: FormMailDeliveryDeps): MailSource {
       to: { email: p.recipient },
       subject: p.copy.subject,
       text: p.copy.text,
-      html: `<!doctype html><html><head><meta charset="utf-8"><title>${escape(p.copy.subject)}</title></head><body><pre>${escape(p.copy.text)}</pre></body></html>`,
+      html: `<!doctype html><html lang="${escape(p.locale)}"><head><meta charset="utf-8"><title>${escape(p.copy.subject)}</title></head><body><p>${escape(p.copy.text).replace(/\n/g, '<br>')}</p></body></html>`,
       stream: 'transactional',
     };
   };
