@@ -2,11 +2,13 @@
    ui.css within its size ceiling; a route-local override would miss other record lists. */
 @layer tokens, base, components;
 @layer components {
-  /* Record names are content, not action labels: constrain the link to its cell and allow an
-     unbroken name to wrap. Button padding and an anonymous flex item's min-content width can
-     otherwise clip a long name in a stacked card at 200% text. */
-  .ui-table tbody th > a {
-    max-inline-size: 100%;
-    overflow-wrap: anywhere;
+  /* A stacked record name must fit its cell without inventing hyphens. Keep scrolling tables'
+     intrinsic column widths: shrinking their title links also squeezes the row actions. */
+  @container (max-width: 36rem) {
+    .ui-table.stack tbody th > a {
+      max-inline-size: 100%;
+      overflow-wrap: anywhere;
+      hyphens: manual;
+    }
   }
 }
