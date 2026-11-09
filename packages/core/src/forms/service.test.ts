@@ -535,5 +535,8 @@ describe('versioned field evaluation', () => {
     });
     expect(invalid.errors.map((e) => e.field)).toEqual(['age', 'amount', 'date', 'interests']);
     expect(invalid.requiredFieldIds).not.toContain('details');
+    const malformed = evaluateFields(form.fields, { ...raw, extra: 'forged', interests: false });
+    expect(malformed.errors.map((e) => e.field)).toEqual(['extra', 'interests']);
+    expect(malformed.requiredFieldIds).not.toContain('details');
   });
 });

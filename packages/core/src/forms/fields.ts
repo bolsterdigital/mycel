@@ -159,12 +159,19 @@ export function evaluateFields(fields: readonly FormField[], raw: Record<string,
     let error: string | undefined;
     if (field.type === 'checkbox' || field.type === 'consent') {
       value = input === true || input === 'on' || input === 'true' || input === '1';
-      if (required && !value)
+      if (
+        input !== undefined &&
+        ![true, false, 'on', 'true', 'false', '1', '0', ''].includes(input as string | boolean)
+      )
+        error = 'forms.error.value';
+      else if (required && !value)
         error = field.type === 'consent' ? 'forms.error.consent.required' : 'forms.error.required';
     } else if (field.type === 'multiple-choice') {
       const choices = Array.isArray(input) ? input : text ? [text] : [];
       value = [...new Set(choices)];
-      if (required && !value.length) error = 'forms.error.required';
+      if (input !== undefined && typeof input !== 'string' && !Array.isArray(input))
+        error = 'forms.error.value';
+      else if (required && !value.length) error = 'forms.error.required';
       else if (choices.some((v) => !field.options.some((o) => o.value === v)))
         error = 'forms.error.value';
     } else if (input !== undefined && typeof input !== 'string' && typeof input !== 'number') {
