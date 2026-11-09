@@ -54,9 +54,7 @@ import { videoUrl, type RenderMeta } from './model.js';
 
 /** Where the resolver reads tenant data; `runtimeSource` is the real one, tests may stub it. */
 export interface ResolveSource {
-  form(
-    id: string
-  ): Promise<{
+  form(id: string): Promise<{
     form: FormDefinition;
     startedToken: string;
     proof: ProofChallenge;
