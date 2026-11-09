@@ -47,6 +47,14 @@ A derived text has its whitespace folded and is cut at a word to at most 300 cha
 - **Rich text** (ADR 020 rule 2): ProseMirror JSON with `doc`, `paragraph`, `text`, `heading` (relative level 1 to 3; consecutive headings never skip a level), `bullet_list`, `ordered_list` (optional `start`), `list_item` (starts with a paragraph) and `hard_break`. Marks: `bold`, `italic`, `code`, `link` and `footnote_reference` (the note's text in its attributes). Lists nest at most three levels deep, at most 5000 nodes and 100 000 characters per locale. Every node and mark is a strict object: unknown nodes, marks or attributes are refused.
 - **Links** carry exactly one target: `href` (http or https without credentials, `mailto:`, or a site path starting with a single `/`) or `itemId`, a content item of the same tenant. Internal links to content use `itemId`, so a later slug change (#9) cannot break them.
 
+## Managing people
+
+The editorial register lives at `/admin/<tenant>/people`: search by name, filter by group, create a profile or edit its name, portrait, role, biography and contact links. The form edits the selected content language and preserves the others. Internal `email` and `publicEmail` are separate controls. Website and LinkedIn have fixed fields; other links retain their label and kind. Profile and group updates carry the original `baseUpdatedAt`, including after a conflict.
+
+Groups live under `/people/groups` within the admin. Their localised name, display order and ordered memberships are saved together; checkboxes and numeric positions work without JavaScript. Site settings expose `personPages`, and each profile has its own `pagePolicy`. The list reports the shared `personPageStatus` decision using authors from published revisions, never the latest draft. Public profile routes remain a separate implementation step under [ADR 031](../adr/031-people-register.md).
+
+The article's author picker can create and select a person in place. This writes the person only: the posted article fields and pending block remain in the form, and the selection becomes a revision when the editor saves the article. All reads and writes use the existing editorial registry capabilities.
+
 ## Readiness and references
 
 Drafts may miss translations. Publishing or scheduling a locale requires (`readinessIssues`):

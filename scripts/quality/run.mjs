@@ -284,7 +284,7 @@ try {
         populated: entry.name === 'populated-list',
         writer: entry.name === 'enhanced-writer',
         ...(entry.name === 'enhanced-writer' ? { writerBlocks } : {}),
-        item: entry.name !== 'populated-list',
+        item: entry.path.includes('{quality-article-id}'),
       });
   } else
     result.coverage.push({
