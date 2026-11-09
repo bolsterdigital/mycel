@@ -1,4 +1,4 @@
-import { checkLegacyPeopleImport } from './legacy-people.fixture.js';
+import { checkLegacyPeopleImport, seedGroupedPerson } from './legacy-people.fixture.js';
 // Tenant export and import against Postgres (TODO #18d, brief production-and-restore § 12, 13 and
 // 15; ADR 002 rule 5, ADR 015 rule 7). Two tenants with content, an image, a supporter, a member,
 // a key, a custom hostname and an erasure registration; A is exported (suspended, which must not
@@ -195,18 +195,7 @@ describe.skipIf(skip)('tenant export and import', () => {
     });
     await invoker.run(useCases.resumeBulk, admin, { planId: bulk.id, version: 1 });
     await invoker.run(useCases.withdrawBulk, admin, { planId: bulk.id, version: 1 });
-    const person = await invoker.run(useCases.createPerson, admin, {
-      slug: 'redactie',
-      name: `Redactie ${n}`,
-      email: 'internal@example.org',
-      publicEmail: 'public@example.org',
-      role: { nl: 'Redacteur' },
-      pagePolicy: 'never',
-    });
-    await invoker.run(useCases.createPersonGroup, admin, {
-      name: { nl: 'Redactie' },
-      personIds: [person.id],
-    });
+    await seedGroupedPerson(invoker, admin, `Redactie ${n}`);
     await invoker.run(useCases.createSection, admin, { slug: 'nieuws', title: { nl: 'Nieuws' } });
     await invoker.run(useCases.createPattern, admin, {
       name: { nl: 'Patroon' },

@@ -143,21 +143,19 @@ async function relationshipChoices(
   });
   const [authors, sections] = article
     ? await Promise.all([
-        invoker
-          .run(useCases.listPeople, principal, { limit: MAX_PAGE_SIZE })
-          .then(({ people: authors }) =>
-            withAssigned(
-              authorIds,
-              authors.map(author),
-              async (authorId) => {
-                const a = isUuid(authorId)
-                  ? await orNull(invoker.run(useCases.getPerson, principal, { personId: authorId }))
-                  : null;
-                return a && author(a);
-              },
-              (id) => ({ id, name: id })
-            )
-          ),
+        invoker.run(useCases.listPeople, principal, { limit: MAX_PAGE_SIZE }).then(({ people }) =>
+          withAssigned(
+            authorIds,
+            people.map(author),
+            async (authorId) => {
+              const a = isUuid(authorId)
+                ? await orNull(invoker.run(useCases.getPerson, principal, { personId: authorId }))
+                : null;
+              return a && author(a);
+            },
+            (id) => ({ id, name: id })
+          )
+        ),
         invoker
           .run(useCases.listSections, principal, { limit: MAX_PAGE_SIZE })
           .then(({ sections }) =>

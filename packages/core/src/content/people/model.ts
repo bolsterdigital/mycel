@@ -32,15 +32,3 @@ export const PersonGroup = PersonGroupInput.extend({
   updatedAt: z.string().datetime(),
 });
 export type PersonGroup = z.infer<typeof PersonGroup>;
-
-export interface PersonGroupRepository {
-  get(id: string): Promise<PersonGroup | null>;
-  list(offset: number, limit: number): Promise<PersonGroup[]>;
-  insert(group: PersonGroup): Promise<void>;
-  update(group: PersonGroup, baseUpdatedAt: string): Promise<boolean>;
-}
-declare module '../../ports.js' {
-  interface TransactionContext {
-    personGroups: PersonGroupRepository;
-  }
-}

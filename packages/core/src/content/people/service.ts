@@ -7,6 +7,7 @@ import { defineUseCase } from '../../registry.js';
 import type { TransactionContext } from '../../ports.js';
 import { exampleId } from '../../util/ids.js';
 import { PersonGroup, PersonGroupInput } from './model.js';
+import './ports.js';
 
 async function checkMembers(ctx: TransactionContext, ids: string[]) {
   for (const id of ids) if (!(await ctx.authors.get(id))) throw notFound('person');

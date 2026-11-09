@@ -35,6 +35,19 @@ describe('person register', () => {
     expect(personPageStatus({}, { pagePolicy: 'always' }, 0)).toBe('enabled');
     expect(personPageStatus({}, { pagePolicy: 'never' }, 10)).toBe('never');
   });
+  it('preserves the site page choice when an older client edits only the time zone', async () => {
+    const invoker = new Invoker(buildRegistry(), new MemoryUnitOfWork());
+    const admin = systemPrincipal(TENANT, 'test');
+    const first = await invoker.run(useCases.updateSiteGeneral, admin, {
+      baseVersion: 0,
+      general: { timeZone: 'UTC', personPages: 'off' },
+    });
+    const next = await invoker.run(useCases.updateSiteGeneral, admin, {
+      baseVersion: first.version,
+      general: { timeZone: 'Europe/Amsterdam' },
+    });
+    expect(next.value.personPages).toBe('off');
+  });
   it('keeps membership order, rejects foreign people and refuses a stale group replacement', async () => {
     const invoker = new Invoker(buildRegistry(), new MemoryUnitOfWork());
     const admin = systemPrincipal(TENANT, 'test');

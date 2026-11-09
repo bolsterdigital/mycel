@@ -540,7 +540,6 @@ export const Person = PersonInput.extend({
 });
 export type Person = z.infer<typeof Person>;
 /** Author is a role of a person; stored document references keep their historical name. */
-export const AuthorInput = PersonInput;
 export const Author = Person;
 export type Author = Person;
 

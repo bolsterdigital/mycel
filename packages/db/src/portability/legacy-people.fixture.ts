@@ -75,3 +75,23 @@ export async function checkLegacyPeopleImport(options: {
   const row = JSON.parse((await readFile(join(restored, 'tables/people.ndjson'), 'utf8')).trim());
   return { report, row, personId: person.id };
 }
+
+/** Seed both new export tables with a real ordered relationship, not empty catalog entries. */
+export async function seedGroupedPerson(
+  invoker: Invoker,
+  admin: Parameters<Invoker['run']>[1],
+  name: string
+) {
+  const person = await invoker.run(useCases.createPerson, admin, {
+    slug: 'redactie',
+    name,
+    email: 'internal@example.org',
+    publicEmail: 'public@example.org',
+    role: { nl: 'Redacteur' },
+    pagePolicy: 'never',
+  });
+  await invoker.run(useCases.createPersonGroup, admin, {
+    name: { nl: 'Redactie' },
+    personIds: [person.id],
+  });
+}
