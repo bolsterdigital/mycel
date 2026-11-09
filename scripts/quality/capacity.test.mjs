@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { runInNewContext } from 'node:vm';
 import { matrix, selectRoutes } from './matrix.mjs';
 import { sourceContract, expectedShards } from './evidence.mjs';
 
@@ -58,4 +59,29 @@ test('route selection rejects missing, duplicate and cross-scope routes', () => 
     'campaign',
   ])
     assert.throws(() => selectRoutes(entries, 'admin', routes));
+});
+
+test('workflow selects its routes and gives every retained shard a unique expected name', () => {
+  const workflow = source('.github/workflows/frontend-quality.yml');
+  const template = /name: (quality-summary-.+)$/m.exec(workflow)?.[1];
+  assert.ok(template);
+  assert.match(workflow, /npm run quality -- --route=\$\{\{ matrix.routes \}\}/);
+  assert.match(workflow, /id: measurement\n        timeout-minutes: 6/);
+  const render = (template, shard) =>
+    template.replace(/\$\{\{(.*?)\}\}/g, (_, expression) =>
+      String(
+        runInNewContext(expression, {
+          matrix: shard,
+          format: (pattern, part) => pattern.replace('{0}', part),
+        })
+      )
+    );
+  for (const event of ['pull_request', 'schedule', 'workflow_dispatch']) {
+    const actual = matrix(event).include.map((shard) => render(template, shard));
+    assert.equal(new Set(actual).size, actual.length);
+    assert.deepEqual(
+      actual,
+      expectedShards(contract(), event).map((shard) => shard.name)
+    );
+  }
 });
