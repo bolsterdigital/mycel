@@ -353,6 +353,81 @@ describe.skipIf(skip)('erasure conformance', () => {
     expect(holding(await rowsOf(tenants.a), other)).toEqual([]);
   });
 
+  it('keeps prefix and suffix neighbours and their mail intents and jobs unchanged', async () => {
+    const tenant = (await testTenant(operatorDb, `erase-neighbours-${run}`)).id;
+    try {
+      const target = `ann-${run}@example.org`;
+      const neighbours = [`jo${target}`, `${target}.evil`];
+      for (const address of [target, ...neighbours]) await signup(tenant, address, uow);
+      await asRole(operatorDb, 'mycel_app', async (trx) => {
+        await sql`select set_config('app.tenant_id', ${tenant}, true)`.execute(trx);
+        for (const address of [target, ...neighbours]) {
+          const id = uuidv7();
+          const payload = JSON.stringify({ nested: [`Contact (${address}), please`] });
+          await sql`insert into jobs (id, tenant_id, type, key, run_at, payload)
+            values (${id}, ${tenant}, 'erasure-fixture', ${id}, now(), ${payload}::jsonb)`.execute(
+            trx
+          );
+          await sql`insert into outbox (id, tenant_id, type, occurred_at, actor, props)
+            values (${uuidv7()}, ${tenant}, 'form.mail.planned', now(),
+              '{"kind":"system","id":"test"}'::jsonb, ${payload}::jsonb)`.execute(trx);
+        }
+      });
+      await closeTenantWork(operatorDb, [tenant]);
+      const before = await rowsOf(tenant);
+      const admin = systemPrincipal(tenant, 'erasure-test');
+      const supporter = (await uow.run(admin, (ctx) => ctx.supporters.getProjection(target)))!;
+      await uow.run(admin, (ctx) => ctx.erasures.register(supporter.id, target.toUpperCase()));
+      await applyErasures(operatorDb, tenant);
+      const after = await rowsOf(tenant);
+      for (const address of neighbours)
+        for (const table of ['events', 'supporters', 'form_submissions', 'outbox', 'jobs'])
+          expect(
+            after[table]!.filter((row) => row.includes(address)),
+            table
+          ).toEqual(before[table]!.filter((row) => row.includes(address)));
+      expect(after['mail_sends']).toHaveLength(before['mail_sends']!.length - 2);
+      expect(after['jobs']).toHaveLength(before['jobs']!.length - 3);
+      expect(await applyErasures(operatorDb, tenant)).toBe(0);
+    } finally {
+      await closeTenantWork(operatorDb, [tenant]);
+    }
+  });
+
+  it.each(['\u00a0ANN@Example.org\u00a0', '\ufeffİN@Example.org\ufeff'])(
+    'finds a restored submission by the core-normalised hash: %s',
+    async (address) => {
+      const tenant = (await testTenant(operatorDb, `erase-unicode-${uuidv7()}`)).id;
+      const admin = systemPrincipal(tenant, 'erasure-test');
+      try {
+        await uow.run(admin, async (ctx) => {
+          const formId = ctx.ids.next();
+          await ctx.forms.insert(probeForm(formId));
+          await ctx.submissions.insert({
+            id: ctx.ids.next(),
+            formId,
+            values: { email: address },
+            locale: 'nl',
+            pageUrl: null,
+            ipHash: null,
+            createdAt: clock.now(),
+            list: 'newsletter',
+            consentTextVersion: 'v1',
+            confirmedAt: null,
+            evaluation: null,
+          });
+          await ctx.erasures.register(ctx.ids.next(), address.trim().toLowerCase());
+        });
+        expect((await rowsOf(tenant))['form_submissions']).toHaveLength(1);
+        expect(await applyErasures(operatorDb, tenant)).toBe(1);
+        expect((await rowsOf(tenant))['form_submissions']).toEqual([]);
+        expect(await applyErasures(operatorDb, tenant)).toBe(0);
+      } finally {
+        await closeTenantWork(operatorDb, [tenant]);
+      }
+    }
+  );
+
   it('keeps registrations permanent: mycel_app cannot change or remove them', async () => {
     const attempt = (statement: ReturnType<typeof sql>) =>
       appDb.transaction().execute(async (trx) => {

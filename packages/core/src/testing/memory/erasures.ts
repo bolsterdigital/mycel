@@ -6,6 +6,7 @@ import type { Principal } from '../../principal.js';
 import type { Clock, Erasures } from '../../ports.js';
 import { emailKey } from '../../supporters/email-key.js';
 import {
+  carriesErasedAddress,
   eraseOutboxProps,
   ERASURE_EXPORT_ERROR,
   erasedIntentState,
@@ -89,10 +90,7 @@ async function applyErasures(store: MemoryStore, tenantId: string, clock: Clock)
     }
   const ids = new Set(s.erasures.keys());
   const addresses = await registeredAddresses(store, tenantId);
-  const carries = (value: unknown) => {
-    const text = JSON.stringify(value).toLowerCase();
-    return [...addresses].some((a) => text.includes(a));
-  };
+  const carries = (value: unknown) => carriesErasedAddress(value, addresses);
 
   for (const e of s.events.values()) {
     const owner = e.supporter_id ?? '';
