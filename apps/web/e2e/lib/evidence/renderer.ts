@@ -61,7 +61,8 @@ export async function rendererStack(state: RendererDebugger | undefined) {
           name: frame.functionName,
           url: state.scripts.get(frame.location.scriptId) ?? '',
           line: frame.location.lineNumber + 1,
-          column: frame.location.columnNumber + 1,
+          column:
+            frame.location.columnNumber === undefined ? null : frame.location.columnNumber + 1,
         })),
       })
     );
