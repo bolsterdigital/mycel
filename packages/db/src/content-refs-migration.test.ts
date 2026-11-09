@@ -172,7 +172,7 @@ describe.skipIf(skip)('migration 0017 backfill', () => {
         x.tenant,
       ]);
       await client.query(
-        `insert into authors (id, tenant_id, slug, name, created_at, updated_at) values ($1, $2, 'ann', 'Ann', now(), now())`,
+        `insert into people (id, tenant_id, slug, name, created_at, updated_at) values ($1, $2, 'ann', 'Ann', now(), now())`,
         [x.author, x.tenant]
       );
       await client.query(

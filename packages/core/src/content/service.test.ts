@@ -377,7 +377,7 @@ describe('content items', () => {
         code: 'not_found',
       });
 
-      const author = await invoker.run(useCases.createAuthor, admin, {
+      const author = await invoker.run(useCases.createPerson, admin, {
         slug: 'sam',
         name: 'Sam',
         email: 'sam@example.org',
@@ -439,7 +439,7 @@ describe('content items', () => {
     });
 
     it('projects an article: lead, corrections, authors and section in the asked locale only', async () => {
-      const author = await invoker.run(useCases.createAuthor, admin, {
+      const author = await invoker.run(useCases.createPerson, admin, {
         slug: 'sam',
         name: 'Sam',
         email: 'sam@example.org',
@@ -526,7 +526,7 @@ describe('content items', () => {
   describe('references (ADR 004 rule 6)', () => {
     it('refuses forms, items, authors and sections the tenant does not have', async () => {
       await uow.run(systemPrincipal(OTHER, 't'), (ctx) => ctx.forms.insert(probeForm(FORM)));
-      const foreignAuthor = await invoker.run(useCases.createAuthor, systemPrincipal(OTHER, 't'), {
+      const foreignAuthor = await invoker.run(useCases.createPerson, systemPrincipal(OTHER, 't'), {
         slug: 'x',
         name: 'X',
       });
@@ -746,13 +746,13 @@ describe('content items', () => {
 
   describe('authors, sections and patterns', () => {
     it('keeps slugs unique per entity and fixed on update', async () => {
-      const a = await invoker.run(useCases.createAuthor, admin, { slug: 'sam', name: 'Sam' });
+      const a = await invoker.run(useCases.createPerson, admin, { slug: 'sam', name: 'Sam' });
       await expect(
-        invoker.run(useCases.createAuthor, admin, { slug: 'sam', name: 'Other Sam' })
+        invoker.run(useCases.createPerson, admin, { slug: 'sam', name: 'Other Sam' })
       ).rejects.toMatchObject({ code: 'conflict' });
       await invoker.run(useCases.createSection, admin, { slug: 'sam', title: { nl: 'Sam' } });
-      const updated = await invoker.run(useCases.updateAuthor, admin, {
-        authorId: a.id,
+      const updated = await invoker.run(useCases.updatePerson, admin, {
+        personId: a.id,
         baseUpdatedAt: a.updatedAt,
         name: 'Sam V.',
       });
@@ -761,20 +761,20 @@ describe('content items', () => {
 
     it('refuses an author or section update on an older updatedAt with conflict (ADR 027)', async () => {
       // The clock does not move in this suite: the stamp still moves forward on every write.
-      const a = await invoker.run(useCases.createAuthor, admin, { slug: 'sam', name: 'Sam' });
+      const a = await invoker.run(useCases.createPerson, admin, { slug: 'sam', name: 'Sam' });
       const s = await invoker.run(useCases.createSection, admin, {
         slug: 'politiek',
         title: { nl: 'Politiek' },
       });
-      const theirs = await invoker.run(useCases.updateAuthor, admin, {
-        authorId: a.id,
+      const theirs = await invoker.run(useCases.updatePerson, admin, {
+        personId: a.id,
         baseUpdatedAt: a.updatedAt,
         name: 'Sam de Vries',
       });
       expect(Date.parse(theirs.updatedAt)).toBeGreaterThan(Date.parse(a.updatedAt));
       await expect(
-        invoker.run(useCases.updateAuthor, admin, {
-          authorId: a.id,
+        invoker.run(useCases.updatePerson, admin, {
+          personId: a.id,
           baseUpdatedAt: a.updatedAt,
           name: 'Sam V.',
         })
@@ -788,7 +788,7 @@ describe('content items', () => {
           },
         ],
       });
-      expect(await invoker.run(useCases.getAuthor, admin, { authorId: a.id })).toEqual(theirs);
+      expect(await invoker.run(useCases.getPerson, admin, { personId: a.id })).toEqual(theirs);
       const section = await invoker.run(useCases.updateSection, admin, {
         sectionId: s.id,
         baseUpdatedAt: s.updatedAt,

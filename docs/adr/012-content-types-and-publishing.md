@@ -9,6 +9,8 @@
 - **Rule 6 superseded**: 2026-10-22 by [ADR 020](020-editing-surface-and-block-operations.md) (relative headings in prose, quotations as cards and the editing contract). Only rule 6 is superseded; its original wording is retained below.
 - **Rule 1 extension allowance partly superseded**: 2026-10-24 by [ADR 022](022-managed-extensions-and-site-integrations.md). An additional editorial shape that fits the model is a type profile over `page` or `article`, not an ADR-free third stored type; a new domain entity or lifecycle requires an ADR. The two stored content types and publication invariants remain in force.
 
+- **Rule 2 superseded**: 2026-11-09 by [ADR 031](031-people-register.md). Authors are roles of people; the original decision is retained below.
+
 ## Context
 
 Mycel serves campaigns and independent journalism from day one. Both publish a block tree, but a news article carries metadata a landing page does not (publication date, authors, section, corrections), has a lifecycle (draft, scheduled, published, updated) and is often also an e-mail: a newsletter issue is an article that was sent. Ghost and Substack model this as "posts" with an e-mail switch; Dreamkit had pages only and bolted news on with WordPress posts. These shapes leak into the schema, the URL space, the API and the e-mail renderer, so they are decided now, before the block set is built.

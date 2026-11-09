@@ -101,6 +101,7 @@
       "paths": [
         "packages/core/src/content/**",
         "packages/db/src/content*",
+        "packages/db/src/people/**",
         "apps/web/src/routes/(public)/**",
         "apps/web/src/lib/server/public/content-route*",
         "docs/reference/content-model.md"
@@ -152,6 +153,7 @@
         "apps/web/src/lib/components/**",
         "apps/web/src/routes/(admin)/**",
         "apps/web/src/lib/server/content/content-admin*",
+        "apps/web/src/lib/server/people/**",
         "apps/web/src/lib/server/content/content-list*",
         "apps/web/src/lib/server/content/content-bulk*",
         "apps/web/src/lib/server/admin/media-list*",

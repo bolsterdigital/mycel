@@ -163,7 +163,10 @@ export const actions: Actions = {
     try {
       const result = await runtime().invoker.run(useCases.updateSiteGeneral, principal, {
         baseVersion: baseVersion(data),
-        general: { timeZone: text(data, 'timeZone') },
+        general: {
+          timeZone: text(data, 'timeZone'),
+          personPages: text(data, 'personPages') as 'auto' | 'off',
+        },
       });
       return { saved: 'general', version: result.version };
     } catch (e) {

@@ -49,7 +49,9 @@ export const DEFAULT_CHROME: SiteChrome = {
  * labels times unless an operator chose their own. A document like theme and chrome, so the next
  * general setting needs no new use case.
  */
-export const SiteGeneral = z.object({ timeZone: IanaTimeZone }).strict();
+export const SiteGeneral = z
+  .object({ timeZone: IanaTimeZone, personPages: z.enum(['auto', 'off']).optional() })
+  .strict();
 export type SiteGeneral = z.infer<typeof SiteGeneral>;
 export const DEFAULT_GENERAL: SiteGeneral = { timeZone: DEFAULT_TIME_ZONE };
 /**
@@ -156,12 +158,15 @@ export const getSiteGeneral = defineUseCase({
 export const updateSiteGeneral = defineUseCase({
   name: 'site.general.update',
   kind: 'command',
-  description: 'Replace the general settings of this site at a known version.',
+  description:
+    'Update general settings at a known version; omitted personPages preserves its current choice.',
   requires: 'content:write',
   input: z.object({ baseVersion: version, general: SiteGeneral }).strict(),
   output: GeneralState,
   examples: [{ input: { baseVersion: 0, general: { timeZone: 'Europe/Berlin' } } }],
   handler: async (ctx, { baseVersion, general }) => {
+    // Older clients edit only the time zone; omission must not re-enable person pages.
+    general = { ...(await ctx.siteSettings.general()).value, ...general };
     const next = await ctx.siteSettings.updateGeneral(baseVersion, general);
     if (next === null) return conflict();
     return { version: next, value: general };

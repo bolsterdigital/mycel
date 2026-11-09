@@ -73,7 +73,9 @@ export async function introOf(
   };
   const authors: string[] = [];
   for (const authorId of doc.authorIds) {
-    const author = await found(() => invoker.run(useCases.getAuthor, reader, { authorId }));
+    const author = await found(() =>
+      invoker.run(useCases.getPerson, reader, { personId: authorId })
+    );
     if (author) authors.push(author.name);
   }
   const section = doc.sectionId

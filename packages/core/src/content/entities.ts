@@ -14,8 +14,8 @@ import { defineUseCase } from '../registry.js';
 import { MAX_PAGE_SIZE } from '../util/page-size.js';
 import { assignBlockIds, type BlockInput } from './blocks.js';
 import {
-  Author,
-  AuthorInput,
+  Person,
+  PersonInput,
   Pattern,
   PatternInput,
   Section,
@@ -90,45 +90,45 @@ async function updateEntity<T extends { id: string; slug: string; updatedAt: str
 /** The `updatedAt` a caller read: what an update of an author or section is based on. */
 const BaseUpdatedAt = z.string().datetime({ offset: true });
 
-export const createAuthor = defineUseCase({
-  name: 'content.author.create',
+export const createPerson = defineUseCase({
+  name: 'content.person.create',
   kind: 'command',
-  description: 'Create an author profile; a person need not have an operator account to be one.',
+  description: 'Create a person profile; a person need not have an operator account to be one.',
   requires: 'content:write',
   consumes: null,
-  input: AuthorInput.extend({ slug: Slug }),
-  output: Author,
+  input: PersonInput.extend({ slug: Slug }),
+  output: Person,
   examples: [
     { input: { slug: 'sam-de-vries', name: 'Sam de Vries', bio: { nl: 'Verslaggever.' } } },
   ],
   async handler(ctx, { slug, ...fields }) {
-    await assertFreeSlug(ctx.authors, slug, 'an author');
+    await assertFreeSlug(ctx.authors, slug, 'a person');
     const now = stamp(ctx);
-    const author: Author = { ...fields, id: ctx.ids.next(), slug, createdAt: now, updatedAt: now };
-    if (!(await ctx.authors.insert(author))) throw slugTaken('an author', slug);
+    const author: Person = { ...fields, id: ctx.ids.next(), slug, createdAt: now, updatedAt: now };
+    if (!(await ctx.authors.insert(author))) throw slugTaken('a person', slug);
     return author;
   },
 });
 
-export const updateAuthor = defineUseCase({
-  name: 'content.author.update',
+export const updatePerson = defineUseCase({
+  name: 'content.person.update',
   kind: 'command',
   description:
-    'Replace the fields of an author profile; the slug stays as it is. baseUpdatedAt is the updatedAt you read: when the profile changed since, the update fails with conflict naming when.',
+    'Replace the fields of a person profile; the slug stays as it is. baseUpdatedAt is the updatedAt you read: when the profile changed since, the update fails with conflict naming when.',
   requires: 'content:write',
-  input: AuthorInput.extend({ authorId: z.string().guid(), baseUpdatedAt: BaseUpdatedAt }),
-  output: Author,
+  input: PersonInput.extend({ personId: z.string().guid(), baseUpdatedAt: BaseUpdatedAt }),
+  output: Person,
   examples: [
     {
       input: {
-        authorId: exampleId(1),
+        personId: exampleId(1),
         baseUpdatedAt: '2026-11-01T09:00:00.000Z',
         name: 'Sam de Vries',
       },
     },
   ],
-  handler: (ctx, { authorId, baseUpdatedAt, ...fields }) =>
-    updateEntity(ctx, ctx.authors, 'author', authorId, baseUpdatedAt, (current, updatedAt) => ({
+  handler: (ctx, { personId, baseUpdatedAt, ...fields }) =>
+    updateEntity(ctx, ctx.authors, 'person', personId, baseUpdatedAt, (current, updatedAt) => ({
       ...fields,
       id: current.id,
       slug: current.slug,
@@ -137,30 +137,30 @@ export const updateAuthor = defineUseCase({
     })),
 });
 
-export const getAuthor = defineUseCase({
-  name: 'content.author.get',
+export const getPerson = defineUseCase({
+  name: 'content.person.get',
   kind: 'query',
-  description: 'Get an author profile, including its internal e-mail address.',
+  description: 'Get a person profile, including its internal e-mail address.',
   requires: 'content:read',
-  input: z.object({ authorId: z.string().guid() }),
-  output: Author,
-  examples: [{ input: { authorId: exampleId(1) } }],
-  async handler(ctx, { authorId }) {
-    return (await ctx.authors.get(authorId)) ?? Promise.reject(notFound('author'));
+  input: z.object({ personId: z.string().guid() }),
+  output: Person,
+  examples: [{ input: { personId: exampleId(1) } }],
+  async handler(ctx, { personId }) {
+    return (await ctx.authors.get(personId)) ?? Promise.reject(notFound('person'));
   },
 });
 
-export const listAuthors = defineUseCase({
-  name: 'content.author.list',
+export const listPeople = defineUseCase({
+  name: 'content.person.list',
   kind: 'query',
-  description: 'List author profiles newest first, a page at a time.',
+  description: 'List person profiles newest first, a page at a time.',
   requires: 'content:read',
   input: z.object({ after: z.string().guid().optional(), limit: Limit }),
-  output: z.object({ authors: z.array(Author), next: z.string().guid().nullable() }),
+  output: z.object({ people: z.array(Person), next: z.string().guid().nullable() }),
   examples: [{ input: {} }],
   async handler(ctx, { after, limit }) {
     const page = await ctx.authors.list(after ?? null, limit ?? DEFAULT_PAGE_SIZE);
-    return { authors: page.rows, next: page.next };
+    return { people: page.rows, next: page.next };
   },
 });
 

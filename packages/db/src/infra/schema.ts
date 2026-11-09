@@ -267,17 +267,36 @@ export interface Database {
     /** Generated from the pointers (0011); never written. */
     status: ColumnType<'draft' | 'scheduled' | 'published' | 'unpublished', never, never>;
   };
-  authors: {
+  people: {
     id: string;
     tenant_id: string;
     slug: string;
     name: string;
+    role: Json<Record<string, string>> | null;
+    organisation: string | null;
+    public_email: string | null;
+    phone: string | null;
+    page_policy: 'auto' | 'always' | 'never';
     bio: Json<Record<string, string>> | null;
     image_id: string | null;
     links: Json<unknown[]>;
     email: string | null;
     created_at: Timestamp;
     updated_at: Timestamp;
+  };
+  person_groups: {
+    id: string;
+    tenant_id: string;
+    name: Json<Record<string, string>>;
+    sort_order: number;
+    created_at: Timestamp;
+    updated_at: Timestamp;
+  };
+  person_group_members: {
+    tenant_id: string;
+    group_id: string;
+    person_id: string;
+    sort_order: number;
   };
   sections: {
     id: string;

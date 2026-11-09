@@ -1,5 +1,3 @@
-import { bulkPlanRepository } from './content-bulk.js';
-import { presenceRepository } from './presence/content-presence.js';
 // Postgres adapter (ADR 002). The only way to touch tenant data is `withTenant`, which opens a
 // transaction, sets `app.tenant_id` for its duration, and hands the use case a Kysely instance.
 // Kysely over an ORM: typed SQL without a second schema language, and RLS needs real SQL anyway.
@@ -9,6 +7,10 @@ import { presenceRepository } from './presence/content-presence.js';
 // `createIdentityStore`); the operator pool (migrations, seed, tenant directory writes, outbox
 // drain, job claims, platform jobs) as the schema owner. Fronts get the unit of work and the
 // identity store, never the operator pool.
+
+import { personGroupRepository } from './people/groups.js';
+import { bulkPlanRepository } from './content-bulk.js';
+import { presenceRepository } from './presence/content-presence.js';
 
 import { Kysely, PostgresDialect, sql } from 'kysely';
 import pg from 'pg';
@@ -241,6 +243,7 @@ export function createUnitOfWork(db: Kysely<Database>, deps: UnitOfWorkDeps): Un
           connectionIntents: connectionIntentsRepository(trx, tenantId),
           assistProviderLabel: deps.assistProviderLabel ?? null,
           authors: authorRepository(trx, tenantId),
+          personGroups: personGroupRepository(trx, tenantId),
           sections: sectionRepository(trx, tenantId),
           patterns: patternRepository(trx, tenantId),
           formMail: formMailRepository(trx, tenantId),

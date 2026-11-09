@@ -1,9 +1,12 @@
 {
   "schemaVersion": 1,
-  "fixtureVersion": "43a-v5",
+  "fixtureVersion": "43a-v6",
   "tenant": "probe",
   "themeProfiles": {
-    "default": { "status": "active", "source": "DEFAULT_THEME" },
+    "default": {
+      "status": "active",
+      "source": "DEFAULT_THEME"
+    },
     "demanding": {
       "status": "simulated",
       "source": "validated editorial preset via CSS response in browser; tenant selection waits on #11 E / #38"
@@ -16,10 +19,22 @@
       "indexable": true,
       "state": "published",
       "locales": {
-        "nl": { "path": "/probe/campagne", "title": "Schone lucht, nu" },
-        "en": { "path": "/probe/en/campagne", "title": "Clean air, now" }
+        "nl": {
+          "path": "/probe/campagne",
+          "title": "Schone lucht, nu"
+        },
+        "en": {
+          "path": "/probe/en/campagne",
+          "title": "Clean air, now"
+        }
       },
-      "expected": { "status": 200, "form": true, "minImages": 1, "font": "Inter", "headings": [1] }
+      "expected": {
+        "status": 200,
+        "form": true,
+        "minImages": 1,
+        "font": "Inter",
+        "headings": [1]
+      }
     },
     "article": {
       "slug": "quality-article-v3",
@@ -31,7 +46,10 @@
           "path": "/probe/articles/quality-article-v3",
           "title": "De straat die ruimte maakt"
         },
-        "en": { "path": "/probe/en/articles/quality-article-v3", "title": "A street making room" }
+        "en": {
+          "path": "/probe/en/articles/quality-article-v3",
+          "title": "A street making room"
+        }
       },
       "expected": {
         "status": 200,
@@ -76,8 +94,14 @@
       "state": "published",
       "set": "demo",
       "locales": {
-        "nl": { "path": "/probe/over-ons", "title": "Over Stichting Gezonde Trommel" },
-        "en": { "path": "/probe/en/over-ons", "title": "About the Healthy Tin Foundation" }
+        "nl": {
+          "path": "/probe/over-ons",
+          "title": "Over Stichting Gezonde Trommel"
+        },
+        "en": {
+          "path": "/probe/en/over-ons",
+          "title": "About the Healthy Tin Foundation"
+        }
       },
       "expected": {
         "status": 200,
@@ -151,14 +175,53 @@
         "path": "/admin/probe/content/{quality-article-id}/write",
         "state": "editing",
         "indexable": false
+      },
+      {
+        "name": "people-list",
+        "path": "/admin/probe/people",
+        "state": "populated",
+        "indexable": false
+      },
+      {
+        "name": "person-form",
+        "path": "/admin/probe/people/new",
+        "state": "creating",
+        "indexable": false
+      },
+      {
+        "name": "person-groups",
+        "path": "/admin/probe/people/groups",
+        "state": "empty",
+        "indexable": false
+      },
+      {
+        "name": "person-group-form",
+        "path": "/admin/probe/people/groups/new",
+        "state": "creating",
+        "indexable": false
       }
     ]
   },
   "planned": [
-    { "route": "site-chrome", "dependency": "#11 E" },
-    { "route": "collections-and-search", "dependency": "#21 / #42" },
-    { "route": "restricted-reader", "dependency": "#19" },
-    { "route": "conditional-form", "dependency": "#39" },
-    { "route": "managed-embeds-consent", "dependency": "#41" }
+    {
+      "route": "site-chrome",
+      "dependency": "#11 E"
+    },
+    {
+      "route": "collections-and-search",
+      "dependency": "#21 / #42"
+    },
+    {
+      "route": "restricted-reader",
+      "dependency": "#19"
+    },
+    {
+      "route": "conditional-form",
+      "dependency": "#39"
+    },
+    {
+      "route": "managed-embeds-consent",
+      "dependency": "#41"
+    }
   ]
 }

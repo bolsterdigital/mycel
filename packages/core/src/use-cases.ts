@@ -8,6 +8,14 @@ import {
   getFormMailStatus,
   replayFormMail,
 } from './forms/mail-service.js';
+
+import {
+  createPersonGroup,
+  updatePersonGroup,
+  getPersonGroup,
+  listPersonGroups,
+} from './content/people/service.js';
+
 import {
   getConnectionIntent,
   listConnectionIntents,
@@ -40,16 +48,16 @@ import {
   updateAssistSettings,
 } from './assist/service.js';
 import {
-  createAuthor,
+  createPerson,
   createPattern,
   createSection,
-  getAuthor,
+  getPerson,
   getPattern,
   getSection,
-  listAuthors,
+  listPeople,
   listPatterns,
   listSections,
-  updateAuthor,
+  updatePerson,
   updatePattern,
   updateSection,
 } from './content/entities.js';
@@ -185,10 +193,14 @@ export const useCases = {
   convertHero,
   getHeroConversion,
   findItems,
-  createAuthor,
-  updateAuthor,
-  getAuthor,
-  listAuthors,
+  createPersonGroup,
+  updatePersonGroup,
+  getPersonGroup,
+  listPersonGroups,
+  createPerson,
+  updatePerson,
+  getPerson,
+  listPeople,
   createSection,
   updateSection,
   getSection,

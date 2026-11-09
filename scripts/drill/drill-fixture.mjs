@@ -66,7 +66,7 @@ for (const [n, slug] of slugs.entries()) {
   const formId = uuidv7();
   await uow.run(admin, (ctx) => ctx.forms.insert(probeForm(formId)));
   await publishProbePage(invoker, admin, formId);
-  await invoker.run(useCases.createAuthor, admin, { slug: 'redactie', name: `Redactie ${slug}` });
+  await invoker.run(useCases.createPerson, admin, { slug: 'redactie', name: `Redactie ${slug}` });
   await invoker.run(useCases.createKey, admin, { name: 'drill', capabilities: ['content:read'] });
 
   // A supporter the way a signup makes one: the submission, then ingest of its event. The
