@@ -153,6 +153,7 @@ const metadataPages: {
   slug: string;
   describedShare?: boolean;
   sharedTitle?: boolean;
+  independentImages?: boolean;
   locales: Record<string, { path: string; title: string; seoTitle?: string }>;
 }[] = [...entries, corpus.share];
 for (const entry of metadataPages)
@@ -166,7 +167,8 @@ for (const entry of metadataPages)
           locale,
           identity.seoTitle ?? identity.title,
           entry.describedShare,
-          entry.sharedTitle
+          entry.sharedTitle,
+          entry.independentImages
         )
       );
     }

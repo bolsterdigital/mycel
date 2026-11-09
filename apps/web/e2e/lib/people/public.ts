@@ -69,6 +69,43 @@ export async function exercisePublicPeople(page: Page) {
       JSON.parse(await page.locator('script[type="application/ld+json"]').innerHTML()).name
     ).toBe(person.name);
     expect(await page.locator('img[src="x"]').count()).toBe(0);
+    for (let index = 0; index < 19; index++) {
+      const created = await invoker.run(useCases.createItem, principal, {
+        slug: `profile-${id}-${index}`,
+        document: {
+          type: 'article',
+          defaultLocale: 'nl',
+          locales: ['nl'],
+          title: { nl: `Profile article ${index}` },
+          authorIds: [person.id],
+          blocks: [],
+        },
+      });
+      await invoker.run(useCases.publishItem, principal, {
+        itemId: created.item.id,
+        revisionId: created.revision.id,
+        locale: 'nl',
+      });
+    }
+    await page.goto(`${path}?offset=9`);
+    await expect(page.locator('main article')).toHaveCount(9);
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', /\?offset=9$/);
+    await expect(page.locator('link[hreflang]')).toHaveCount(0);
+    await expect(page.locator('.person-pagination a')).toHaveCount(2);
+    if (isA11y()) {
+      await page.setViewportSize(NARROW);
+      await setTextSize(page, '200%');
+      await layoutGate(page, 'profile-pagination-320-200', 'main');
+      await expectNoAxeViolations(page);
+      await page.screenshot({
+        path: test.info().outputPath('profile-pagination-320-200.png'),
+        fullPage: true,
+      });
+      await setTextSize(page, '100%');
+      await page.setViewportSize({ width: 1280, height: 900 });
+    }
+    for (const offset of ['1', '-1', '27', '1000000'])
+      expect((await page.request.get(`${path}?offset=${offset}`)).status()).toBe(404);
     await invoker.run(useCases.updatePerson, principal, {
       personId: person.id,
       baseUpdatedAt: person.updatedAt,

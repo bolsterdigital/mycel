@@ -26,6 +26,7 @@ export async function loadPersonPage(site: Site, slug: string, locale: string, o
     if (error instanceof UseCaseError && error.code === 'not_found') refuse(404);
     throw error;
   }
+  if (offset > 0 && offset >= result.total) refuse(404);
   const source = runtimeSource({ invoker, uow, reader, defaultLocale: site.tenant.defaultLocale });
   // A portrait's adjacent heading names the person; the image itself is decorative.
   const image = async (id: string | null) =>
@@ -62,18 +63,20 @@ export async function loadPersonPage(site: Site, slug: string, locale: string, o
       title: result.person.name,
       share,
       description: result.person.bio ?? result.person.role ?? result.person.name,
-      alternates: [
-        ...site.tenant.locales.map((l) => ({
-          hreflang: l,
-          href: absolute(personPath(slug, l, site.tenant.defaultLocale)) + suffix,
-        })),
-        {
-          hreflang: 'x-default',
-          href:
-            absolute(personPath(slug, site.tenant.defaultLocale, site.tenant.defaultLocale)) +
-            suffix,
-        },
-      ],
+      alternates: offset
+        ? []
+        : [
+            ...site.tenant.locales.map((l) => ({
+              hreflang: l,
+              href: absolute(personPath(slug, l, site.tenant.defaultLocale)) + suffix,
+            })),
+            {
+              hreflang: 'x-default',
+              href:
+                absolute(personPath(slug, site.tenant.defaultLocale, site.tenant.defaultLocale)) +
+                suffix,
+            },
+          ],
       structured: personData(result.person, canonical, portrait ? absolute(portrait.src) : null),
     },
     previous: offset ? pageHref(Math.max(0, offset - 9)) : null,

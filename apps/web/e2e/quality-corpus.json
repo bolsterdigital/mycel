@@ -142,6 +142,7 @@
       "slug": "e2e-auteur",
       "routeClass": "person",
       "sharedTitle": true,
+      "independentImages": true,
       "indexable": true,
       "state": "enabled",
       "locales": {

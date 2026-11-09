@@ -14,7 +14,7 @@ export const load: PageServerLoad = async ({ locals, params, url, setHeaders }) 
   const offsetText = url.searchParams.get('offset') ?? '0';
   if (!locale || !Slug.safeParse(params.slug).success || !/^\d{1,7}$/.test(offsetText)) refuse(404);
   const offset = Number(offsetText);
-  if (offset > 100_000) refuse(404);
+  if (offset > 100_000 || offset % 9 !== 0) refuse(404);
   const { view, etag } = await loadPersonPage(site, params.slug, locale, offset);
   locals.lang = locale;
   setHeaders({ etag, 'cache-control': PUBLIC_CACHE });
