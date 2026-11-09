@@ -193,7 +193,7 @@ test.describe('admin', () => {
       await change.getByRole('radio', { name: /^Aangepast/ }).check();
       await change.locator('summary', { hasText: 'Geavanceerd' }).click();
       // A capability no use case requires limits nothing, so it is not on offer.
-      await expect(change.getByLabel('mailing:send', { exact: true })).toHaveCount(0);
+      await expect(change.getByLabel('money:refund', { exact: true })).toHaveCount(0);
       await change.getByLabel('forms:read', { exact: true }).uncheck();
       await change.getByRole('button', { name: 'Opslaan' }).click();
       await expect(page.getByRole('status')).toContainText('Rol opgeslagen.');

@@ -228,6 +228,15 @@ describe('form mail actions', () => {
     const settings = probeFormMail(FORM);
     settings.forms[0]!.confirmation!.override!.subject!.en = 'Edited';
     await configure(settings);
+    const current = (await uow.run(admin, (ctx) => ctx.forms.findById(FORM)))!;
+    await uow.run(admin, (ctx) =>
+      ctx.forms.insert({
+        ...current,
+        fields: current.fields.map((f) =>
+          f.name === 'message' ? { ...f, name: 'renamed_message' } : f
+        ),
+      })
+    );
     const source = confirmationMailSource({
       ...deps(),
       signer: uow.signer,
