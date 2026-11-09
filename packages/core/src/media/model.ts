@@ -131,6 +131,7 @@ export const MediaCredit = z
     work: z.object({ title: z.string().max(300), maker: z.string().max(300) }).nullable(),
     photographer: z.string().max(300).nullable(),
     kind: CreditKind.optional(),
+    photographerPersonId: z.string().guid().nullable().optional(),
   })
   .strict();
 export type MediaCredit = z.infer<typeof MediaCredit>;

@@ -309,6 +309,11 @@ export const uploadMedia = defineUseCase({
     },
   ],
   async handler(ctx, input) {
+    if (
+      input.credit?.photographerPersonId &&
+      !(await ctx.authors.get(input.credit.photographerPersonId))
+    )
+      throw notFound('person');
     const type = input.contentType.trim().toLowerCase();
     if (type === 'image/svg+xml')
       throw invalid(
@@ -452,6 +457,11 @@ export const updateMedia = defineUseCase({
   ],
   async handler(ctx, { id, ...patch }) {
     await requireMedia(ctx, id);
+    if (
+      patch.credit?.photographerPersonId &&
+      !(await ctx.authors.get(patch.credit.photographerPersonId))
+    )
+      throw notFound('person');
     const changes = Object.fromEntries(
       Object.entries(patch).filter(([, value]) => value !== undefined)
     );

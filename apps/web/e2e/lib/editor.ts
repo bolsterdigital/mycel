@@ -91,7 +91,9 @@ export async function save(page: Page, n: number): Promise<void> {
     page.getByRole('button', { name: 'Opslaan', exact: true }).click()
   );
   await expect(page).toHaveURL(/\?saved/);
-  await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Opgeslagen als nieuwe revisie' })
+  ).toContainText('Opgeslagen als nieuwe revisie');
 }
 
 /**

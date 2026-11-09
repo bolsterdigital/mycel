@@ -1446,6 +1446,7 @@ export const nl: Partial<Record<UiKey, string>> = {
   'admin.block.field.work': 'Werk',
   'admin.block.field.title': 'Titel',
   'admin.block.field.maker': 'Maker',
+  'admin.block.field.photographerPersonId': 'Beeldmaker uit personen',
   'admin.block.field.photographer': 'Beeld door',
   'admin.block.field.kind': 'Soort beeld',
   'admin.block.option.photo': 'Foto',

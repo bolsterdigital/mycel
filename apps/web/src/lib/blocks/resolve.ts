@@ -24,6 +24,7 @@ import {
   type FormDefinition,
   type PublicPersonCard,
   resolvePeopleGrid,
+  resolveCreditPerson,
   type BlockProps,
   type ArticleHeader,
   type ProofChallenge,
@@ -58,6 +59,8 @@ import { videoUrl, type RenderMeta } from './model.js';
 
 /** Where the resolver reads tenant data; `runtimeSource` is the real one, tests may stub it. */
 export interface ResolveSource {
+  defaultLocale?: string;
+  creditPerson?(id: string): Promise<{ name: string; slug: string | null } | null>;
   peopleGrid?(props: BlockProps<'people-grid'>, locale: string): Promise<PublicPersonCard[]>;
   form(id: string): Promise<{
     form: FormDefinition;
@@ -92,6 +95,8 @@ export function runtimeSource(deps: {
 }): ResolveSource {
   const { invoker, uow, reader, defaultLocale } = deps;
   return {
+    defaultLocale,
+    creditPerson: (id) => uow.run(reader, (ctx) => resolveCreditPerson(ctx, id)),
     async peopleGrid(props, locale) {
       return uow.run(reader, (ctx) => resolvePeopleGrid(ctx, props, locale));
     },
@@ -159,13 +164,13 @@ export function blockCopy(locale: string): BlockCopy {
 /** The width `src` aims for: enough for a content column, small enough for an old browser. */
 const FALLBACK_WIDTH = 960;
 
-function renderImage(
+function renderAssetImage(
   asset: MediaView | null,
   use: {
     decorative: boolean;
     alt: Partial<Record<string, string>> | null;
     caption?: Partial<Record<string, string>> | undefined;
-    credit?: MediaCredit | undefined;
+    credit?: NonNullable<RenderImage['credit']> | undefined;
   },
   locale: string
 ): RenderImage | null {
@@ -245,7 +250,13 @@ export async function resolveIntro(
   const use = intro.heroAlt
     ? { decorative: false, alt: { [locale]: intro.heroAlt } }
     : { decorative: true, alt: null };
-  const hero = renderImage(asset, use, locale);
+  const credit = await resolvedCredit(
+    source,
+    asset?.credit,
+    locale,
+    source.defaultLocale ?? locale
+  );
+  const hero = renderAssetImage(asset, { ...use, ...(credit ? { credit } : {}) }, locale);
   return {
     lead: intro.lead,
     hero,
@@ -298,7 +309,7 @@ export async function resolveDocument(
   const formIds = new Set<string>();
   const itemIds = new Set<string>();
   for (const b of blocks)
-    for (const ref of referencesOf(b))
+    for (const ref of referencesOf(b).filter((ref) => ['media', 'form', 'item'].includes(ref.type)))
       (ref.type === 'media' ? mediaIds : ref.type === 'form' ? formIds : itemIds).add(ref.refId);
   const grids = new Map<string, PublicPersonCard[]>();
   for (const b of blocks) {
@@ -309,6 +320,46 @@ export async function resolveDocument(
   }
   const media = new Map<string, MediaView | null>();
   for (const id of mediaIds) media.set(id, await source.media(id));
+  const credits = new Map<string, { name: string; slug: string | null } | null>();
+  const collect = async (value: unknown): Promise<void> => {
+    if (!value || typeof value !== 'object') return;
+    if ('photographerPersonId' in value && typeof value.photographerPersonId === 'string') {
+      const credit = value as MediaCredit;
+      if (!credits.has(credit.photographerPersonId!)) {
+        credits.set(
+          credit.photographerPersonId!,
+          (await source.creditPerson?.(credit.photographerPersonId!)) ?? null
+        );
+      }
+    }
+    for (const child of Object.values(value)) await collect(child);
+  };
+  for (const asset of media.values()) await collect(asset?.credit);
+  for (const block of blocks) await collect(block.props);
+  const renderImage: typeof renderAssetImage = (asset, use, language) => {
+    const credit = use.credit ?? asset?.credit;
+    const resolved = credit?.photographerPersonId ? credits.get(credit.photographerPersonId) : null;
+    return renderAssetImage(
+      asset,
+      {
+        ...use,
+        ...(credit
+          ? {
+              credit: resolved
+                ? {
+                    ...credit,
+                    photographer: resolved.name,
+                    photographerHref: resolved.slug
+                      ? personPath(resolved.slug, locale, options.fallbackLocale)
+                      : null,
+                  }
+                : credit,
+            }
+          : {}),
+      },
+      language
+    );
+  };
   const forms = new Map<string, RenderForm | null>();
   for (const id of formIds)
     forms.set(id, toRenderForm(await source.form(id), locale, options.fallbackLocale));
@@ -616,4 +667,22 @@ function toRenderForm(
       ...('maxLength' in f ? { maxLength: f.maxLength } : {}),
     })),
   };
+}
+
+/** Resolve on read without copying a person's name into an immutable document or media row. */
+async function resolvedCredit(
+  source: ResolveSource,
+  credit: MediaCredit | undefined,
+  locale: string,
+  defaultLocale: string
+): Promise<NonNullable<RenderImage['credit']> | undefined> {
+  if (!credit?.photographerPersonId) return credit;
+  const person = await source.creditPerson?.(credit.photographerPersonId);
+  return person
+    ? {
+        ...credit,
+        photographer: person.name,
+        photographerHref: person.slug ? personPath(person.slug, locale, defaultLocale) : null,
+      }
+    : credit;
 }

@@ -6,7 +6,15 @@
 <script lang="ts">
   import { creditKind, type CreditKind, type MediaCredit } from '@mycel/core';
 
-  let { credit, words }: { credit: MediaCredit; words: Record<CreditKind, string> } = $props();
+  let {
+    credit,
+    words,
+    base = '',
+  }: {
+    credit: MediaCredit & { photographerHref?: string | null };
+    words: Record<CreditKind, string>;
+    base?: string;
+  } = $props();
 
   const kind = $derived(creditKind(credit));
   // The copy holds {name} at the place its language wants it: 'Foto: {name}'.
@@ -49,8 +57,9 @@
           />{:else}<path
             d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"
           /><circle cx="12" cy="13" r="3" />{/if}</svg
-      >{#if parts[0]}<span class="credit-word">{parts[0]}</span
-        >{/if}{credit.photographer}{#if parts[1]}<span class="credit-word">{parts[1]}</span
+      >{#if parts[0]}<span class="credit-word">{parts[0]}</span>{/if}{#if credit.photographerHref}<a
+          href="{base}{credit.photographerHref}">{credit.photographer}</a
+        >{:else}{credit.photographer}{/if}{#if parts[1]}<span class="credit-word">{parts[1]}</span
         >{/if}</span
     >{/if}</span
 >

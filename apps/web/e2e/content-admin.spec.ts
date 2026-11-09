@@ -1908,7 +1908,9 @@ test.describe('block card details', () => {
     await fill(1, 'bomen.jpg');
     await fill(2, 'plein.jpg');
     await saving.click();
-    await expect(page.getByRole('status')).toContainText('Opgeslagen als nieuwe revisie');
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Opgeslagen als nieuwe revisie' })
+    ).toContainText('Opgeslagen als nieuwe revisie');
   });
 
   // The row scrolls inside itself: a phone's page stays still, and a keyboard reaches every photo.

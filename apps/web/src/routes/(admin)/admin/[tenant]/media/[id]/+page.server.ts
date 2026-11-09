@@ -19,6 +19,7 @@ import { redirect } from '@sveltejs/kit';
 import { act, loaded, text } from '#lib/server/admin/admin-actions.js';
 import { recalledMediaPath, rememberMediaListFromReferer } from '#lib/server/admin/media-list.js';
 import { ORIGINAL_TTL_MS, signedOriginalPath } from '#lib/server/media.js';
+import { peopleDirectory } from '#lib/server/people/directory.js';
 import { runtime } from '#lib/server/runtime.js';
 import type { Actions, PageServerLoad } from './$types';
 import { refuse } from '#lib/server/http/refuse.js';
@@ -64,6 +65,9 @@ export const load: PageServerLoad = async ({ parent, locals, params, cookies, re
   const variant = (file: string) => `/admin/${tenant.slug}/media/${m.id}/variant/${file}`;
   return {
     media: m,
+    people: can(principal, 'content:read')
+      ? (await peopleDirectory(principal)).map(({ id, name }) => ({ id, name }))
+      : null,
     preview: files && {
       src: variant(files.preview),
       full: variant(files.full),
@@ -98,6 +102,7 @@ function editorial(data: FormData, locales: readonly string[]) {
   const credit: MediaCredit = {
     work: title || maker ? { title, maker } : null,
     photographer: orNull(text(data, 'photographer')),
+    photographerPersonId: orNull(text(data, 'photographerPersonId')),
     kind: CreditKind.catch('photo').parse(text(data, 'kind')),
   };
   const focal = { x: Number(text(data, 'focal.x')), y: Number(text(data, 'focal.y')) };
