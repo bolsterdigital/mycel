@@ -2,8 +2,14 @@
 // `withTenant` opened, so every query runs under the tenant's RLS context. Rows carry tenant_id
 // explicitly on insert; the policy's WITH CHECK rejects any mismatch.
 
-import { type Kysely } from 'kysely';
-import { parseFormDefinition, type FormRepository, type SubmissionRepository } from '@mycel/core';
+import { sql, type Kysely } from 'kysely';
+import {
+  FormMailSettings,
+  EMPTY_FORM_MAIL,
+  parseFormDefinition,
+  type FormRepository,
+  type SubmissionRepository,
+} from '@mycel/core';
 import type { Database } from './infra/schema.js';
 
 type Trx = Kysely<Database>;
@@ -83,6 +89,63 @@ export function submissionRepository(trx: Trx, tenantId: string): SubmissionRepo
         .returning('id')
         .executeTakeFirst();
       return row !== undefined;
+    },
+  };
+}
+
+export function formMailRepository(
+  trx: Trx,
+  tenantId: string
+): import('@mycel/core').FormMailRepository {
+  return {
+    async get() {
+      const row = await trx
+        .selectFrom('form_mail_settings')
+        .selectAll()
+        .where('tenant_id', '=', tenantId)
+        .executeTakeFirst();
+      return row
+        ? { version: row.version, value: FormMailSettings.parse(row.value) }
+        : structuredClone(EMPTY_FORM_MAIL);
+    },
+    async save(baseVersion, value) {
+      const change = { version: baseVersion + 1, value: JSON.stringify(value) };
+      const row =
+        baseVersion === 0
+          ? await trx
+              .insertInto('form_mail_settings')
+              .values({ tenant_id: tenantId, ...change })
+              .onConflict((oc) => oc.column('tenant_id').doNothing())
+              .returning('version')
+              .executeTakeFirst()
+          : await trx
+              .updateTable('form_mail_settings')
+              .set(change)
+              .where('tenant_id', '=', tenantId)
+              .where('version', '=', baseVersion)
+              .returning('version')
+              .executeTakeFirst();
+      return row ? { version: row.version, value } : null;
+    },
+    async reserveBudget(month, count, max) {
+      if (count > max) return false;
+      const row = await trx
+        .insertInto('form_mail_budget')
+        .values({ tenant_id: tenantId, month, used: count })
+        .onConflict((oc) =>
+          oc
+            .column('tenant_id')
+            .doUpdateSet({
+              month,
+              used: sql`case when form_mail_budget.month = ${month} then form_mail_budget.used + ${count} else ${count} end`,
+            })
+            .where(
+              sql<boolean>`form_mail_budget.month <> ${month} or form_mail_budget.used + ${count} <= ${max}`
+            )
+        )
+        .returning('used')
+        .executeTakeFirst();
+      return !!row;
     },
   };
 }

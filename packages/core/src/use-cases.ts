@@ -2,6 +2,14 @@
 // registers itself as an import side effect, so what is exposed is exactly what is listed here.
 
 import {
+  getFormMailSettings,
+  updateFormMailSettings,
+  previewFormMail,
+  getFormMailStatus,
+  replayFormMail,
+} from './forms/mail-service.js';
+
+import {
   createPersonGroup,
   updatePersonGroup,
   getPersonGroup,
@@ -128,6 +136,11 @@ import {
 import { listExports, requestExport } from './tenants/exports.js';
 
 export const useCases = {
+  getFormMailSettings,
+  updateFormMailSettings,
+  previewFormMail,
+  getFormMailStatus,
+  replayFormMail,
   createBulk,
   resumeBulk,
   withdrawBulk,

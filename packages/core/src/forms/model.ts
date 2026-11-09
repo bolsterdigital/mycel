@@ -108,6 +108,8 @@ export interface Submission {
   confirmedAt: Date | null;
   /** Null only on historical submissions made before versioned evaluation was introduced. */
   evaluation: {
+    confirmationMail?: { version: string; copy: import('./mail-model.js').ResolvedFormMail };
+    mailActions?: import('./mail-model.js').PinnedMailAction[];
     version: string;
     definition: FormDefinition;
     activeFieldIds: string[];

@@ -2,6 +2,7 @@
 // recipient's locale (ADR 007 rule 5); markup is minimal table-free HTML plus a text part. The
 // e-mail block renderer replaces `renderConfirmationMail` once templates are block documents.
 
+import type { ResolvedFormMail } from '../forms/mail-model.js';
 import type { NewsletterSubscribedProps } from '../forms/events.js';
 import { t } from '../i18n/index.js';
 import type { Clock, Signer, Subscriber, UnitOfWork } from '../ports.js';
@@ -62,17 +63,20 @@ export function renderConfirmationMail(input: {
   confirmUrl: string;
   from: MailAddress;
   to: string;
+  copy?: ResolvedFormMail;
 }): MailMessage {
   const { locale, tenantName, confirmUrl } = input;
   const m = (key: Parameters<typeof t>[1]) => t(locale, key, { tenant: tenantName });
-  const text = [m('mail.confirm.intro'), '', confirmUrl, '', m('mail.confirm.ignore')].join('\n');
+  const intro = input.copy?.text ?? m('mail.confirm.intro');
+  const subject = input.copy?.subject ?? m('mail.confirm.subject');
+  const text = [intro, '', confirmUrl, '', m('mail.confirm.ignore')].join('\n');
   const url = escapeHtml(confirmUrl);
   const html = `<!doctype html>
 <html lang="${escapeHtml(locale)}">
   <head><meta charset="utf-8"><title>${escapeHtml(m('mail.confirm.heading'))}</title></head>
   <body style="font-family:system-ui,sans-serif;line-height:1.5;color:#18181b;max-width:36rem;padding:1.5rem">
     <h1 style="font-size:1.25rem">${escapeHtml(m('mail.confirm.heading'))}</h1>
-    <p>${escapeHtml(m('mail.confirm.intro'))}</p>
+    <p>${escapeHtml(intro)}</p>
     <p><a href="${url}" style="display:inline-block;background:#18181b;color:#fff;padding:.75rem 1.25rem;border-radius:.5rem;text-decoration:none">${escapeHtml(m('mail.confirm.button'))}</a></p>
     <p style="font-size:.875rem;color:#52525b">${escapeHtml(m('mail.confirm.fallback'))}<br><a href="${url}" style="color:#52525b">${url}</a></p>
     <p style="font-size:.875rem;color:#52525b">${escapeHtml(m('mail.confirm.ignore'))}</p>
@@ -81,7 +85,7 @@ export function renderConfirmationMail(input: {
   return {
     from: input.from,
     to: { email: input.to },
-    subject: m('mail.confirm.subject'),
+    subject,
     text,
     html,
     stream: 'transactional',
@@ -98,6 +102,7 @@ export interface ConfirmationMailDeps {
   from: MailAddress;
   /** The link is `siteUrl(tenant, '/confirm?token=...')` on the tenant's primary hostname (ADR 014 rule 6). */
   platform: Pick<PlatformConfig, 'platformOrigin' | 'siteUrlMode'>;
+  access?: (tenantId: string) => Promise<import('../entitlements/model.js').TenantAccess>;
   reconcileLagMs?: DeliveryDeps['reconcileLagMs'];
 }
 
@@ -112,6 +117,31 @@ export function confirmationMailSource(deps: ConfirmationMailDeps): MailSource {
   return async (event) => {
     const p = event.props as unknown as NewsletterSubscribedProps;
     if (p.confirmed) return null;
+    if (deps.access && (await deps.access(event.tenantId)).status === 'suspended') return null;
+    if (p.formVersion) {
+      const allowed = await deps.uow.run(
+        systemPrincipal(event.tenantId, CONFIRMATION_SUBSCRIBER),
+        async (ctx) => {
+          const sub = await ctx.submissions.findById(p.submissionId);
+          if (!sub || sub.confirmedAt || sub.evaluation?.version !== p.formVersion) return false;
+          if (
+            p.confirmationVersion &&
+            sub.evaluation?.confirmationMail?.version !== p.confirmationVersion
+          )
+            return false;
+          const projection = await ctx.supporters.getProjection(p.email);
+          if (!projection) return true;
+          const history = await ctx.supporters.eventsFor(projection.id);
+          return !history.some(
+            (e) =>
+              ['consent.withdrawn', 'newsletter.unsubscribed'].includes(e.type) &&
+              e.props['list'] === p.list &&
+              new Date(e.occurred_at) >= sub.createdAt
+          );
+        }
+      );
+      if (!allowed) return null;
+    }
     const tenant = await deps.tenants.findById(event.tenantId);
     if (!tenant) throw new Error(`tenant ${event.tenantId} not found`);
     const token = await signConfirmToken(
@@ -134,6 +164,7 @@ export function confirmationMailSource(deps: ConfirmationMailDeps): MailSource {
       confirmUrl,
       from: deps.from,
       to: p.email,
+      ...(p.confirmationCopy ? { copy: p.confirmationCopy } : {}),
     });
   };
 }

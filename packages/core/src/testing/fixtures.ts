@@ -321,3 +321,49 @@ export function conditionalProbeForm(id: string): FormDefinition {
     ],
   };
 }
+
+/** Private routing fixture shared by core, database and portability suites. */
+export function probeFormMail(formId: string): import('../forms/mail-model.js').FormMailSettings {
+  return {
+    templates: [
+      {
+        id: 'team',
+        subject: { en: 'Team {{field:topic}}', nl: 'Team {{field:topic}}' },
+        text: { en: 'Message: {{field:message}}', nl: 'Bericht: {{field:message}}' },
+      },
+    ],
+    forms: [
+      {
+        formId,
+        enabled: true,
+        confirmation: {
+          override: {
+            subject: { en: 'Pinned confirmation', nl: 'Vaste bevestiging' },
+            text: { en: 'Please confirm.', nl: 'Bevestig je inschrijving.' },
+          },
+        },
+        actions: [
+          {
+            id: 'question',
+            kind: 'notification',
+            enabled: true,
+            recipients: ['questions@example.org'],
+            when: { op: 'equals', fieldId: 'topic', value: 'question' },
+            template: { templateId: 'team' },
+          },
+          {
+            id: 'other',
+            kind: 'notification',
+            enabled: true,
+            recipients: ['other@example.org'],
+            when: { op: 'equals', fieldId: 'topic', value: 'other' },
+            template: {
+              templateId: 'team',
+              override: { text: { en: 'Local other message', nl: 'Lokaal ander bericht' } },
+            },
+          },
+        ],
+      },
+    ],
+  };
+}

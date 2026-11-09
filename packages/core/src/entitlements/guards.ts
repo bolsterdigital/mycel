@@ -62,3 +62,16 @@ export function requireActive(principal: Principal): void {
 export function active(principal: Principal): boolean {
   return principal.tenantStatus !== 'suspended';
 }
+
+/** Reserve accepted form actions atomically; sent messages alone miss pending/unknown effects. */
+export async function reserveFormMailBudget(
+  ctx: TransactionContext,
+  month: string,
+  count: number
+): Promise<void> {
+  const max = ctx.principal.entitlements['mail.monthly_max'];
+  if (!(await ctx.formMail.reserveBudget(month, count, max)))
+    throw new UseCaseError('limit_exceeded', 'entitlements.limit.mail.monthly_max', [
+      { path: '', message: 'entitlements.limit.mail.monthly_max' },
+    ]);
+}

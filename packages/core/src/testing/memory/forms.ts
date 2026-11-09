@@ -51,3 +51,20 @@ export function memoryRateLimits(s: TenantStore, clock: Clock): RateLimiter {
     },
   };
 }
+
+export function memoryFormMail(s: TenantStore): import('../../forms/ports.js').FormMailRepository {
+  return {
+    get: async () => structuredClone(s.formMail),
+    async save(baseVersion, value) {
+      if (s.formMail.version !== baseVersion) return null;
+      s.formMail = { version: baseVersion + 1, value: structuredClone(value) };
+      return structuredClone(s.formMail);
+    },
+    async reserveBudget(month, count, max) {
+      const used = s.formMailBudget.month === month ? s.formMailBudget.used : 0;
+      if (used + count > max) return false;
+      s.formMailBudget = { month, used: used + count };
+      return true;
+    },
+  };
+}

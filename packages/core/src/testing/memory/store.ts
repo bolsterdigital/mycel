@@ -78,6 +78,8 @@ export interface TenantStore {
   bulkUndo: Set<string>;
   bulkResults: Map<string, BulkResult>;
   patterns: Map<string, Pattern>;
+  formMail: import('../../forms/mail-model.js').FormMailState;
+  formMailBudget: { month: string; used: number };
   forms: Map<string, FormDefinition>;
   submissions: Map<string, Submission>;
   counters: Map<string, number>;
@@ -147,6 +149,8 @@ const emptyTenant = (): TenantStore => ({
   bulkUndo: new Set(),
   bulkResults: new Map(),
   patterns: new Map(),
+  formMail: { version: 0, value: { templates: [], forms: [] } },
+  formMailBudget: { month: '', used: 0 },
   forms: new Map(),
   submissions: new Map(),
   counters: new Map(),

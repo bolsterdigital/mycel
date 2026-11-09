@@ -14,6 +14,8 @@ import {
   Invoker,
   buildRegistry,
   confirmationMailSubscriber,
+  formMailSubscriber,
+  DEFAULT_ACCESS,
   emailKey,
   supporterIngestSubscriber,
   systemPrincipal,
@@ -94,11 +96,43 @@ describe.skipIf(skip)('erasure conformance', () => {
       .map(([table]) => table);
   const eventCount = async (tenantId: string) => (await rowsOf(tenantId))['events']!.length;
 
+  const mailCopyIds = new Map<string, string[]>();
   /** A signup, its ingest and its confirmation mail, through the outbox's own events. */
   async function signup(tenantId: string, address: string, mailUow: UnitOfWork) {
     const admin = systemPrincipal(tenantId, 'erasure-test');
     const formId = uuidv7();
     await uow.run(admin, (ctx) => ctx.forms.insert(probeForm(formId)));
+    const state = await uow.run(admin, (ctx) => ctx.formMail.get());
+    await invoker.run(useCases.updateFormMailSettings, admin, {
+      baseVersion: state.version,
+      value: {
+        templates: [],
+        forms: [
+          ...state.value.forms,
+          {
+            formId,
+            confirmation: {
+              override: {
+                text: {
+                  nl: 'Private biography {{field:email}}',
+                  en: 'Private biography {{field:email}}',
+                },
+              },
+            },
+            enabled: true,
+            actions: [
+              {
+                id: 'team',
+                kind: 'notification',
+                enabled: true,
+                recipients: ['team@example.org'],
+                template: { override: { text: { en: '{{field:email}}', nl: '{{field:email}}' } } },
+              },
+            ],
+          },
+        ],
+      },
+    });
     const submitted = await invoker.run(useCases.submitForm, admin, {
       formId,
       values: { email: address, consent: true },
@@ -115,6 +149,19 @@ describe.skipIf(skip)('erasure conformance', () => {
     });
     for (const { id } of ids) {
       const event = (await readOutboxEvent(operatorDb, id))!;
+      if (event.props['email'] === address) {
+        const k = `${tenantId}:${address}`;
+        mailCopyIds.set(k, [...(mailCopyIds.get(k) ?? []), id]);
+      }
+      if (event.type === 'form.mail.planned') {
+        await formMailSubscriber({
+          mailer: new MemoryMailer(),
+          clock,
+          uow: mailUow,
+          from: { email: 'noreply@example.org' },
+          access: async () => DEFAULT_ACCESS,
+        }).handle(event);
+      }
       if (event.type !== 'newsletter.subscribed') continue;
       await supporterIngestSubscriber(uow).handle(event);
       await confirmationMailSubscriber({
@@ -204,6 +251,11 @@ describe.skipIf(skip)('erasure conformance', () => {
     expect(changed).toBeGreaterThan(0);
     const after = await rowsOf(tenants.a);
     expect(holding(after, email)).toEqual([]);
+    for (const id of mailCopyIds.get(`${tenants.a}:${email}`) ?? []) {
+      const event = (await readOutboxEvent(operatorDb, id))!;
+      if (event.type === 'form.mail.planned') expect(event.props).toEqual({});
+      else expect(event.props).not.toHaveProperty('confirmationCopy');
+    }
     // Nor its admission key. A rate-limit bucket keys on the same value and stays: a
     // hash that lives a day at most is no copy (ADR 019 rule 8).
     const seat = await emailKey(tenants.a, email, 'admission');
@@ -211,7 +263,8 @@ describe.skipIf(skip)('erasure conformance', () => {
     expect(after['events']!.length).toBe(before['events']!.length);
     expect(after['events']!.some((r) => r.includes(`${supporterId}@erased.invalid`))).toBe(true);
     // The intents and reconcile jobs of the erased signup went; the other supporter's stayed.
-    expect(after['mail_sends']!.length).toBe(before['mail_sends']!.length - 1);
+    // Both the opt-in and the team notification carried this submission's address.
+    expect(after['mail_sends']!.length).toBe(before['mail_sends']!.length - 2);
     expect(holding(after, other)).toEqual(
       expect.arrayContaining(['events', 'supporters', 'form_submissions', 'outbox'])
     );

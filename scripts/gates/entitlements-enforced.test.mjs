@@ -21,9 +21,7 @@ const NOT_A_READER = new Set([MODEL, 'packages/core/src/entitlements/service.ts'
 
 /** `key: why it has no reader yet`. Remove a line in the PR that starts enforcing the key. */
 export const PLANNED = {
-  'mailing.enabled': 'campaign mailing (ADR 010) is not built; confirmation mail is not mailing',
   'donations.enabled': 'donations (ADR 005) are phase 4',
-  'mail.monthly_max': 'no campaign sending to count against; shown by tenant.usage.get',
 };
 
 /** The switch and limit names declared in `FEATURE_SWITCHES` and `LIMITS`. */

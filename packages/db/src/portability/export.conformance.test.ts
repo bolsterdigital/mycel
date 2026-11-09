@@ -38,6 +38,7 @@ import {
   MemoryBlobStore,
   memoryImageProcessor,
   memoryPlatform,
+  probeFormMail,
   conditionalProbeForm,
   probeForm,
   publishProbePage,
@@ -171,6 +172,10 @@ describe.skipIf(skip)('tenant export and import', () => {
     });
     const formId = uuidv7();
     await uow.run(admin, (ctx) => ctx.forms.insert(conditionalProbeForm(formId)));
+    await invoker.run(useCases.updateFormMailSettings, admin, {
+      baseVersion: 0,
+      value: probeFormMail(formId),
+    });
     const published = await publishProbePage(invoker, admin, formId);
     const named = await invoker.run(useCases.getItem, admin, { itemId: published.id });
     await invoker.run(useCases.updateItem, admin, {

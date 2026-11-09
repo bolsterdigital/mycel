@@ -198,7 +198,8 @@ describe('every capability is required by a use case or planned with a reason', 
     expect(planned.filter((c) => required.has(c))).toEqual([]);
   });
   it('offers a planned capability only to a set that already holds it', () => {
-    expect(offeredCapabilities()).not.toContain('mailing:send');
+    expect(offeredCapabilities()).not.toContain('money:refund');
+    expect(offeredCapabilities()).toContain('mailing:send');
     expect(offeredCapabilities()).toContain('content:read');
     expect(offeredCapabilities(['mailing:send'])).toContain('mailing:send');
     expect(offeredCapabilities(['mailing:send'])).not.toContain('money:refund');

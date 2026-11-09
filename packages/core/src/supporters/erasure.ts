@@ -4,6 +4,7 @@
 // Rejected: storing the address in the register (it would be the one copy erasure never removes)
 // and an HMAC under a key (a restore onto a box with another key could no longer match).
 
+import { scrubText } from '../util/scrub.js';
 import type { ConnectionIntentState } from '../connections/intents.js';
 import type { ExportStatus } from '../tenants/exports.js';
 
@@ -55,3 +56,16 @@ export const expiresOnErasure = (
 ): boolean =>
   (ERASURE_EXPIRES_EXPORTS as readonly string[]).includes(record.status) &&
   (changedRows || record.requestedAt < newestErasure);
+
+/** Mail bodies can contain names, phone numbers or free text that an address scrub cannot find.
+ * Delete those copies as a whole while preserving other events' existing redaction contract.
+ */
+export function eraseOutboxProps(
+  type: string,
+  props: Record<string, unknown>
+): Record<string, unknown> {
+  if (type === 'form.mail.planned') return {};
+  const retained = { ...props };
+  delete retained['confirmationCopy'];
+  return JSON.parse(scrubText(JSON.stringify(retained))) as Record<string, unknown>;
+}

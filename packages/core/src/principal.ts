@@ -48,8 +48,6 @@ export const PLANNED_CAPABILITIES: Readonly<Partial<Record<Capability, string>>>
     'no supporter export exists; tenant.export.create requires tenant:admin (ADR 018 rule 5)',
   'donations:read': 'donations (ADR 005) are not built',
   'donations:write': 'donations (ADR 005) are not built',
-  'mailing:read': 'campaign mailing (ADR 010) is not built; confirmation mail is not mailing',
-  'mailing:send': 'campaign mailing (ADR 010) is not built; confirmation mail is not mailing',
   'money:refund': 'donations (ADR 005) are not built',
 };
 

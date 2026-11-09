@@ -16,6 +16,7 @@ import {
   issueStartedToken,
 } from './spam.js';
 import './ports.js';
+import { planFormMail } from './mail-planning.js';
 import { evaluateFields } from './fields.js';
 import { hashInput } from '../audit/model.js';
 import { exampleId } from '../util/ids.js';
@@ -171,7 +172,7 @@ export const submitForm = defineUseCase({
     if (errors.length) return { status: 'invalid', errors };
 
     const submissionId = ctx.ids.next();
-    const submission = {
+    const submission: import('./model.js').Submission = {
       id: submissionId,
       formId: form.id,
       values,
@@ -210,6 +211,15 @@ export const submitForm = defineUseCase({
     )
       return reject('recipient-limited');
 
+    const mailPlan = await planFormMail(ctx, submission, email);
+    submission.evaluation!.mailActions = mailPlan.pins;
+    if (mailPlan.confirmation && mailPlan.confirmationVersion)
+      submission.evaluation!.confirmationMail = {
+        version: mailPlan.confirmationVersion,
+        copy: mailPlan.confirmation,
+      };
+    for (const event of mailPlan.events) await ctx.events.publish(event);
+
     // A receipt is not marketing permission. Inactive or unchecked consent creates no signup,
     // no admission seat and no confirmation mail, even if a browser forged its checkbox value.
     if (!consent || !['signup', 'petition'].includes(form.kind)) {
@@ -240,7 +250,16 @@ export const submitForm = defineUseCase({
       tenantId: principal.tenantId,
       occurredAt: now,
       actor: principal.actor,
-      props: { ...props },
+      props: {
+        ...props,
+        formVersion: version,
+        ...(mailPlan.confirmation
+          ? {
+              confirmationCopy: mailPlan.confirmation,
+              confirmationVersion: mailPlan.confirmationVersion,
+            }
+          : {}),
+      },
     });
     return { status: 'accepted', submissionId };
   },

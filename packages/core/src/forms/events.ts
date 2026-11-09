@@ -11,6 +11,9 @@ export interface NewsletterSubscribedProps {
   consentTextVersion: string;
   /** False until the double opt-in link is followed. */
   confirmed: boolean;
+  formVersion?: string;
+  confirmationVersion?: string;
+  confirmationCopy?: import('./mail-model.js').ResolvedFormMail;
 }
 
 /** Published by `mailing.opt_in.confirm` for the first click on a confirmation link, never for a second. */

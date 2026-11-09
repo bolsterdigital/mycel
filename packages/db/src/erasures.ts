@@ -15,12 +15,12 @@
 
 import { sql, type Kysely } from 'kysely';
 import {
+  eraseOutboxProps,
   ERASED_DOMAIN,
   ERASURE_EXPIRES_EXPORTS,
   ERASURE_EXPORT_ERROR,
   ERASURE_KEEPS_INTENT_STATES,
   emailKey,
-  scrubText,
   systemPrincipal,
   type Clock,
   type Erasures,
@@ -172,8 +172,8 @@ async function eraseRows(trx: Trx, tenantId: string): Promise<number> {
   // Mail intents and their reconcile jobs hang off the outbox event that carried the address;
   // find them before the scrub below takes the address out of that event.
   const outbox = (
-    await sql<{ id: string; props: Record<string, unknown> }>`
-      select id, props from outbox where ${carries('props')}`.execute(trx)
+    await sql<{ id: string; type: string; props: Record<string, unknown> }>`
+      select id, type, props from outbox where ${carries('props')}`.execute(trx)
   ).rows;
   const eventIds = outbox.map((e) => e.id);
   count(
@@ -190,7 +190,7 @@ async function eraseRows(trx: Trx, tenantId: string): Promise<number> {
   );
   for (const e of outbox)
     count(
-      await sql`update outbox set props = ${scrubText(JSON.stringify(e.props))}::jsonb
+      await sql`update outbox set props = ${JSON.stringify(eraseOutboxProps(e.type, e.props))}::jsonb
                 where id = ${e.id}`.execute(trx)
     );
   count(

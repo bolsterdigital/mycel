@@ -27,6 +27,23 @@ export const nl: Partial<Messages> = {
     'Dat ging erg snel. Controleer je gegevens en verstuur het formulier opnieuw.',
   'forms.rejected.closed': 'Deze site neemt op dit moment geen nieuwe inschrijvingen aan.',
   'forms.rejected.rate-limited': 'Te veel pogingen in korte tijd. Probeer het later opnieuw.',
+  'forms.mail.template.missing': 'Het gekozen mailsjabloon bestaat niet meer.',
+  'forms.mail.field.missing': 'Het sjabloon verwijst naar een veld dat niet meer bestaat.',
+  'forms.mail.copy.invalid': 'Het uiteindelijke bericht is leeg of te lang.',
+  'forms.mail.publish.forbidden': 'Publicatierechten zijn nodig om formuliermail te activeren.',
+  'forms.mail.condition.invalid':
+    'De mailvoorwaarde verwijst naar een ongeldig veld of ongeldige waarde.',
+  'forms.mail.version.conflict':
+    'De mailinstellingen zijn gewijzigd. Laad ze opnieuw voordat je opslaat.',
+  'forms.mail.preview.invalid': 'Verbeter de voorbeeldwaarden voordat je het voorbeeld bekijkt.',
+  'forms.mail.recipient-limited':
+    'De maillimiet voor deze ontvanger is bereikt. Probeer het later opnieuw.',
+  'mail.form.confirmation.subject': 'Bevestig je inschrijving',
+  'mail.form.confirmation.text': 'Bevestig je inschrijving via de link hieronder.',
+  'mail.form.notification.subject': 'Nieuwe formulierinzending',
+  'mail.form.notification.text': 'Er is een nieuwe formulierinzending ontvangen.',
+  'mail.form.receipt.subject': 'We hebben je bericht ontvangen',
+  'mail.form.receipt.text': 'Dank je wel. Je bericht is ontvangen.',
   'mail.confirm.subject': 'Bevestig je inschrijving bij {tenant}',
   'mail.confirm.heading': 'Bevestig je inschrijving',
   'mail.confirm.intro':
