@@ -892,6 +892,7 @@ describe('ordinary form field corpus', () => {
         'b.b.',
         new Map([[form.id, form]])
       );
+      if (!rest) throw new Error('form rest fixture must resolve');
       const resting = render(BlockText, {
         props: { view: rest, kindLabel: 'Form', noteLabel: '' },
       }).body;
