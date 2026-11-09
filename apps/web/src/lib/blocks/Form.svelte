@@ -28,6 +28,10 @@
 
   const mine = $derived(state?.formId === def.formId ? state : null);
   const hasProblem = $derived(!!mine && (mine.errors.length > 0 || !!mine.message));
+  const textValue = (name: string) => {
+    const value = mine?.values?.[name];
+    return typeof value === 'string' ? value : '';
+  };
   const errorFor = (field: string) => mine?.errors.find((e) => e.field === field)?.message;
 </script>
 
@@ -63,6 +67,8 @@
     </div>
   {/if}
 
+  {#if def.conditionalHelp}<p>{def.conditionalHelp}</p>{/if}
+  {#if def.version}<input type="hidden" name="_formVersion" value={def.version} />{/if}
   <input type="hidden" name="formId" value={def.formId} />
   <input type="hidden" name="locale" value={model.locale} />
   <input type="hidden" name="_started" value={def.startedToken} />
@@ -85,22 +91,12 @@
   {#each def.fields as field (field.name)}
     {@const id = `f-${def.formId}-${field.name}`}
     {@const error = errorFor(field.name)}
-    {#if field.type === 'email'}
-      <div class="field">
-        <label for={id}>{field.label}</label>
-        {#if error}<p class="error" id="{id}-error">{error}</p>{/if}
-        <input
-          {id}
-          name={field.name}
-          type="email"
-          autocomplete="email"
-          required={field.required}
-          aria-invalid={error ? 'true' : undefined}
-          aria-describedby={error ? `${id}-error` : undefined}
-          value={mine?.values?.['email'] ?? ''}
-        />
-      </div>
-    {:else}
+    {@const describedBy =
+      [error ? `${id}-error` : '', field.help ? `${id}-help` : ''].filter(Boolean).join(' ') ||
+      undefined}
+    {#if field.type === 'hidden'}
+      <input type="hidden" name={field.name} value={field.value ?? ''} />
+    {:else if field.type === 'consent' || field.type === 'checkbox'}
       <div class="field check">
         {#if error}<p class="error" id="{id}-error">{error}</p>{/if}
         <input
@@ -109,9 +105,77 @@
           type="checkbox"
           required={field.required}
           aria-invalid={error ? 'true' : undefined}
-          aria-describedby={error ? `${id}-error` : undefined}
+          aria-describedby={describedBy}
+          checked={['on', 'true', '1'].includes(textValue(field.name))}
         />
         <label for={id}>{field.label}</label>
+        {#if field.help}<p id="{id}-help">{field.help}</p>{/if}
+      </div>
+    {:else}
+      <div class="field">
+        <label for={id}>{field.label}</label>
+        {#if field.help}<p id="{id}-help">{field.help}</p>{/if}
+        {#if error}<p class="error" id="{id}-error">{error}</p>{/if}
+        {#if field.type === 'textarea'}
+          <textarea
+            autocomplete="off"
+            {id}
+            name={field.name}
+            required={field.required}
+            maxlength={field.maxLength ?? 10000}
+            aria-invalid={error ? 'true' : undefined}
+            aria-describedby={describedBy}>{textValue(field.name)}</textarea
+          >
+        {:else if field.type === 'choice' || field.type === 'multiple-choice'}
+          <select
+            autocomplete="off"
+            {id}
+            name={field.name}
+            multiple={field.type === 'multiple-choice'}
+            required={field.required}
+            aria-invalid={error ? 'true' : undefined}
+            aria-describedby={describedBy}
+          >
+            {#if field.type === 'choice'}<option value=""></option>{/if}
+            {#each field.options ?? [] as option (option.value)}
+              <option
+                value={option.value}
+                selected={Array.isArray(mine?.values?.[field.name])
+                  ? mine?.values?.[field.name]?.includes(option.value)
+                  : textValue(field.name) === option.value}>{option.label}</option
+              >
+            {/each}
+          </select>
+        {:else}
+          <input
+            {id}
+            name={field.name}
+            type={field.type === 'email'
+              ? 'email'
+              : field.type === 'phone'
+                ? 'tel'
+                : field.type === 'date'
+                  ? 'date'
+                  : field.type === 'number' || field.type === 'amount'
+                    ? 'number'
+                    : 'text'}
+            autocomplete={field.type === 'email'
+              ? 'email'
+              : field.type === 'phone'
+                ? 'tel'
+                : field.name === 'name'
+                  ? 'name'
+                  : 'off'}
+            required={field.required}
+            min={field.min}
+            max={field.max}
+            step={field.type === 'amount' ? '0.01' : field.type === 'number' ? 'any' : undefined}
+            maxlength={field.maxLength}
+            aria-invalid={error ? 'true' : undefined}
+            aria-describedby={describedBy}
+            value={textValue(field.name)}
+          />
+        {/if}
       </div>
     {/if}
   {/each}

@@ -30,6 +30,7 @@ import {
 } from '@mycel/core/testing';
 import {
   createDb,
+  withTenant,
   createTenantDirectory,
   createUnitOfWork,
   readOutboxEvent,
@@ -115,6 +116,67 @@ describe.skipIf(skip)('postgres adapter', () => {
     await closeTenantWork(operatorDb, [tenantA, tenantB]);
     await operatorDb.destroy();
     await appDb.destroy();
+  });
+
+  it('pins field decisions across a rename and keeps historical and foreign submissions separate', async () => {
+    const id = uuidv7();
+    const admin = systemPrincipal(tenantA, 'test');
+    const original = probeForm(id);
+    await uow.run(admin, (ctx) => ctx.forms.insert(original));
+    const result = await invoker.run(useCases.submitForm, admin, {
+      formId: id,
+      locale: 'en',
+      values: { email: `version-${run}@example.org`, consent: true },
+    });
+    if (result.status !== 'accepted') throw new Error(result.status);
+    const before = await uow.run(admin, (ctx) => ctx.submissions.findById(result.submissionId));
+    expect(before?.evaluation).toMatchObject({
+      definition: {
+        id,
+        fields: [
+          expect.objectContaining({ id: 'email', name: 'email' }),
+          expect.objectContaining({ id: 'consent' }),
+        ],
+      },
+      activeFieldIds: ['email', 'consent'],
+      requiredFieldIds: ['email', 'consent'],
+      discardedFieldIds: [],
+    });
+    await withTenant(appDb, admin, (trx) =>
+      trx
+        .updateTable('forms')
+        .set({
+          definition: JSON.stringify({
+            ...original,
+            fields: original.fields.map((f) => ({
+              ...f,
+              id: f.name,
+              name: f.type === 'email' ? 'renamed' : f.name,
+            })),
+          }),
+        })
+        .where('id', '=', id)
+        .execute()
+    );
+    expect(await uow.run(admin, (ctx) => ctx.submissions.findById(result.submissionId))).toEqual(
+      before
+    );
+    expect(
+      await uow.run(systemPrincipal(tenantB, 'test'), (ctx) =>
+        ctx.submissions.findById(result.submissionId)
+      )
+    ).toBeNull();
+    expect(
+      await uow.run(systemPrincipal(tenantB, 'test'), (ctx) => ctx.forms.findById(id))
+    ).toBeNull();
+    // A pre-migration row has no invented history; adapters keep its established read contract.
+    const historical = uuidv7();
+    await uow.run(admin, (ctx) =>
+      ctx.submissions.insert({ ...before!, id: historical, evaluation: null })
+    );
+    expect(
+      (await uow.run(admin, (ctx) => ctx.submissions.findById(historical)))?.evaluation
+    ).toBeNull();
   });
 
   it('runs a signup through outbox, supporter projection and confirmation mail', async () => {

@@ -87,7 +87,7 @@ export const actions: Actions = {
 
     // Field values are read by name from the definition; the core validates them. Unchecked
     // checkboxes are absent from the post, which the core reads as "not given".
-    const values: Record<string, string> = {};
+    const values: Record<string, string | string[]> = {};
     for (const [name, value] of data)
       if (
         typeof value === 'string' &&
@@ -96,8 +96,10 @@ export const actions: Actions = {
         name !== 'locale' &&
         name !== 'website'
       )
-        values[name] = value;
-    const email = values['email'] ?? '';
+        values[name] =
+          data.getAll(name).length > 1
+            ? data.getAll(name).filter((v): v is string => typeof v === 'string')
+            : value;
 
     // Tenant from the site being visited, identity from the connection: nothing in the posted
     // body can choose a tenant or raise capabilities (ADR 002 rule 3). The locale is the path's.
@@ -110,6 +112,7 @@ export const actions: Actions = {
     try {
       result = await rt.invoker.run(useCases.submitForm, visitor, {
         formId,
+        formVersion: text(data, '_formVersion') || undefined,
         values,
         locale,
         // Provenance in the site's canonical address (ADR 014 rule 6), not the request's.
@@ -132,7 +135,7 @@ export const actions: Actions = {
         formId,
         errors: [],
         message: failure.message,
-        values: { email },
+        values,
       });
     }
 
@@ -153,14 +156,14 @@ export const actions: Actions = {
           message: translate(locale, e.message),
         })),
         message: null,
-        values: { email },
+        values,
       });
 
     return fail(result.reason === 'rate-limited' ? 429 : 400, {
       formId,
       errors: [],
       message: translate(locale, result.message),
-      values: { email },
+      values,
     });
   },
 };

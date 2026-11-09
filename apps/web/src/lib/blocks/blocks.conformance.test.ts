@@ -36,7 +36,7 @@ import {
   type MediaView,
   type ResolvedTheme,
 } from '@mycel/core';
-import { demoArticle, demoPage, probeForm } from '@mycel/core/testing';
+import { demoArticle, demoPage, probeForm, conditionalProbeForm } from '@mycel/core/testing';
 import { formValues } from '../editor/block-form.js';
 import Blocks from './Blocks.svelte';
 import { headingTag } from './headings.js';
@@ -845,4 +845,44 @@ describe('theme tokens', () => {
       expect(problems(theme)).toEqual([]);
     }
   });
+});
+
+describe('ordinary form field corpus', () => {
+  for (const locale of ['nl', 'en']) {
+    it(`renders every typed field natively in ${locale}, with conditional server validation`, async () => {
+      const form = conditionalProbeForm(EXAMPLE_IDS.form);
+      const source: ResolveSource = {
+        ...fixtures,
+        form: async () => ({
+          form,
+          version: 'fixed-version',
+          startedToken: 'started-token',
+          proof: PROOF,
+        }),
+      };
+      const model = await resolveDocument(
+        source,
+        {
+          locale,
+          title: 'Form',
+          blocks: [
+            {
+              type: 'form',
+              version: 1,
+              props: { formId: EXAMPLE_IDS.form, variant: 'default', width: 'content' },
+            },
+          ],
+        },
+        { base: '', fallbackLocale: 'nl' }
+      );
+      const html = render(Blocks, { props: { model } }).body;
+      for (const field of form.fields) expect(html, field.type).toContain(`name="${field.name}"`);
+      expect(html).toContain('name="_formVersion" value="fixed-version"');
+      expect(html).toMatch(/<textarea[^>]*name="message"/);
+      expect(html.match(/<textarea[^>]+>/)?.[0]).not.toContain('required');
+      expect(html).toMatch(/<select[^>]*name="interests"[^>]*multiple/);
+      expect(html).toContain('value="public-corpus"');
+      expect(html).toContain(locale === 'nl' ? 'Sommige velden hangen' : 'Some fields depend');
+    });
+  }
 });

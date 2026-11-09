@@ -12,6 +12,7 @@
      closes with typed changes. Rejected: the public block components, which print `h2` and real
      links. -->
 <script lang="ts">
+  import type { FormField } from '@mycel/core';
   import { renderedHtml } from '../../trusted/rendered-html.js';
   type View =
     | { kind: 'heading'; text: string; from?: string }
@@ -102,7 +103,7 @@
         unread?: true;
         form: {
           list: string;
-          fields: readonly { type: 'email' | 'consent'; label: string }[];
+          fields: readonly { type: FormField['type']; label: string }[];
           submit: string;
         } | null;
       };
