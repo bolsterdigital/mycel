@@ -1592,6 +1592,8 @@ test.describe('UI gate: the media pages at 320 CSS px and 200% text', () => {
         await layoutGate(page, 'bulk confirm');
         await expectNoAxeViolations(page);
         await page.locator('form[action="?/delete"] button').click();
+        // A native POST can commit its head before the result body arrives.
+        await expect(page.locator('#media-bulk-results')).toBeVisible();
         await setTextSize(page, text);
         await layoutGate(page, 'bulk result');
         await expectNoAxeViolations(page);
