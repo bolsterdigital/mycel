@@ -13,9 +13,9 @@
 // Rejected: a security-definer function (the owner sees no tenant row under forced RLS), and
 // matching every table by hash (one sha256 per row per call, where the id finds the same rows).
 
-import { eraseOutboxProps } from '@mycel/core';
 import { sql, type Kysely } from 'kysely';
 import {
+  eraseOutboxProps,
   ERASED_DOMAIN,
   ERASURE_EXPIRES_EXPORTS,
   ERASURE_EXPORT_ERROR,

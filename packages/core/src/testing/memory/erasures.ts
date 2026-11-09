@@ -2,11 +2,11 @@
 // same rows (ADR 019 rule 8). The decisions (intent state, tombstone, archive expiry) are core's,
 // in supporters/erasure.ts; this file only finds the rows they apply to.
 
-import { eraseOutboxProps } from '../../supporters/erasure.js';
 import type { Principal } from '../../principal.js';
 import type { Clock, Erasures } from '../../ports.js';
 import { emailKey } from '../../supporters/email-key.js';
 import {
+  eraseOutboxProps,
   ERASURE_EXPORT_ERROR,
   erasedIntentState,
   expiresOnErasure,
